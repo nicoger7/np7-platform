@@ -84,7 +84,12 @@ export default function HomePage() {
           <div className="bg-white/[0.07] backdrop-blur-xl border border-white/[0.12] rounded-2xl p-8 hover:bg-white/[0.1] transition-all duration-300">
             {/* Experience header */}
             <div className="mb-6 text-center">
-              <h2 className="text-2xl font-black text-white tracking-[-0.02em] mb-1">NP7 Experience</h2>
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src={`${STORAGE}/logos/np7-experience-logo.png`}
+                alt="NP7 Experience"
+                className="h-20 w-auto mx-auto mb-2"
+              />
               <p className="text-sm text-white/40">Windsurfing travel experiences</p>
             </div>
 
@@ -126,14 +131,13 @@ export default function HomePage() {
           <div className="bg-white/[0.07] backdrop-blur-xl border border-white/[0.12] rounded-2xl p-8 hover:bg-white/[0.1] transition-all duration-300">
             {/* Hardware header */}
             <div className="mb-6 text-center">
-              <h2 className="text-2xl font-black text-white tracking-[-0.02em] mb-1">NP7 Hardware</h2>
-              <p className="text-sm text-white/40">Custom boards &amp; fins</p>
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img
-                src={`${STORAGE}/logos/np7-rockstar-logo-white.png`}
-                alt="NP7 Rockstar"
-                className="h-12 w-auto mx-auto mt-4 opacity-70"
+                src={`${STORAGE}/logos/np7-hardware-logo.png`}
+                alt="NP7 Hardware"
+                className="h-10 w-auto mx-auto mb-2 invert"
               />
+              <p className="text-sm text-white/40">Custom boards &amp; fins</p>
             </div>
 
             {/* Product list */}
