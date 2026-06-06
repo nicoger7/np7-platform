@@ -1,4 +1,4 @@
-import Image from "next/image";
+const STORAGE = "https://qfdqigumjadvrocxjolx.supabase.co/storage/v1/object/public/assets";
 
 const experiences = [
   {
@@ -60,7 +60,7 @@ export default function HomePage() {
         className="absolute inset-0 bg-cover bg-center"
         style={{
           backgroundImage:
-            "url('https://surfcenter-experience.com/wp-content/uploads/2025/01/53724070151_54cd73586b_k-1536x1024.jpg')",
+            `url('${STORAGE}/photos/hero-bg.jpg')`,
         }}
       />
       {/* Dark fade overlay */}
@@ -70,12 +70,11 @@ export default function HomePage() {
       <div className="relative z-10 w-full max-w-[1100px] mx-auto px-6 py-16">
         {/* Top: NP7 logo */}
         <div className="flex justify-center mb-12">
-          <Image
-            src="/images/np7-logo-white.png"
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            src={`${STORAGE}/logos/np7-logo-white.png`}
             alt="NP7"
-            width={120}
-            height={60}
-            className="opacity-90"
+            className="h-16 w-auto opacity-90"
           />
         </div>
 
@@ -129,6 +128,12 @@ export default function HomePage() {
             <div className="mb-6 text-center">
               <h2 className="text-2xl font-black text-white tracking-[-0.02em] mb-1">NP7 Hardware</h2>
               <p className="text-sm text-white/40">Custom boards &amp; fins</p>
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src={`${STORAGE}/logos/np7-rockstar-logo-white.png`}
+                alt="NP7 Rockstar"
+                className="h-12 w-auto mx-auto mt-4 opacity-70"
+              />
             </div>
 
             {/* Product list */}
