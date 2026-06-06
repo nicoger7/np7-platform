@@ -1,107 +1,183 @@
-import Link from "next/link";
+import Image from "next/image";
 
-export default function LandingPage() {
+const experiences = [
+  {
+    title: "NP7 Turkey Experience",
+    location: "Alaçatı, Turkey",
+    dates: "Aug 17–23, 2026",
+    status: "last-spots" as const,
+    statusLabel: "Last spots",
+    url: "https://surfcenter-experience.com/event/np7-turkey-experience-2026/",
+  },
+  {
+    title: "NP7 Bonaire — Week 1",
+    location: "Bonaire, Caribbean",
+    dates: "Nov 30 – Dec 6, 2026",
+    status: "available" as const,
+    statusLabel: "Available",
+    url: "https://surfcenter-experience.com/event/np7-bonaire-experience-2026-30nov-to-6dec/",
+  },
+  {
+    title: "NP7 Bonaire — Week 2",
+    location: "Bonaire, Caribbean",
+    dates: "Dec 7–13, 2026",
+    status: "fully-booked" as const,
+    statusLabel: "Fully booked",
+    url: "https://surfcenter-experience.com/event/np7-bonaire-experience-2026-7-to-14-december/",
+  },
+  {
+    title: "NP7 Bonaire — Week 3",
+    location: "Bonaire, Caribbean",
+    dates: "Dec 14–20, 2026",
+    status: "available" as const,
+    statusLabel: "Available",
+    url: "https://surfcenter-experience.com/event/np7-bonaire-experience-2026-14-to-20-december/",
+  },
+];
+
+const products = [
+  {
+    title: "NP7 Rockstar Fin",
+    category: "Windsurf Fin",
+    status: "out-of-stock" as const,
+    statusLabel: "Out of stock",
+    url: "https://surf-center.com/np7-rockstar",
+  },
+];
+
+const statusColors = {
+  available: { dot: "bg-green-500", text: "text-green-400", bg: "bg-green-500/10" },
+  "last-spots": { dot: "bg-amber-500", text: "text-amber-400", bg: "bg-amber-500/10" },
+  "fully-booked": { dot: "bg-red-500", text: "text-red-400", bg: "bg-red-500/10" },
+  "out-of-stock": { dot: "bg-red-500", text: "text-red-400", bg: "bg-red-500/10" },
+};
+
+export default function HomePage() {
   return (
-    <>
-      {/* Header */}
-      <header className="fixed top-0 left-0 right-0 z-50 bg-[#111]/95 backdrop-blur-lg">
-        <div className="max-w-[1200px] mx-auto px-8 h-16 flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <div className="bg-white text-[#111] w-9 h-9 rounded-[9px] flex items-center justify-center text-[13px] font-black">
-              NP7
+    <main className="relative min-h-screen flex items-center justify-center overflow-hidden">
+      {/* Background photo */}
+      <div
+        className="absolute inset-0 bg-cover bg-center"
+        style={{
+          backgroundImage:
+            "url('https://surfcenter-experience.com/wp-content/uploads/2025/01/53724070151_54cd73586b_k-1536x1024.jpg')",
+        }}
+      />
+      {/* Dark fade overlay */}
+      <div className="absolute inset-0 bg-gradient-to-b from-black/60 via-black/70 to-black/80" />
+
+      {/* Content */}
+      <div className="relative z-10 w-full max-w-[1100px] mx-auto px-6 py-16">
+        {/* Top: NP7 logo */}
+        <div className="flex justify-center mb-12">
+          <Image
+            src="/images/np7-logo-white.png"
+            alt="NP7"
+            width={120}
+            height={60}
+            className="opacity-90"
+          />
+        </div>
+
+        {/* Two boxes */}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          {/* ── Experience box ── */}
+          <div className="bg-white/[0.07] backdrop-blur-xl border border-white/[0.12] rounded-2xl p-8 hover:bg-white/[0.1] transition-all duration-300">
+            {/* Experience header */}
+            <div className="mb-6 text-center">
+              <h2 className="text-2xl font-black text-white tracking-[-0.02em] mb-1">NP7 Experience</h2>
+              <p className="text-sm text-white/40">Windsurfing travel experiences</p>
             </div>
-            <span className="text-xs font-bold tracking-[0.3em] text-white">NP-SEVEN</span>
+
+            {/* Experience list */}
+            <div className="space-y-3">
+              {experiences.map((exp) => {
+                const colors = statusColors[exp.status];
+                return (
+                  <a
+                    key={exp.title}
+                    href={exp.url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="block bg-white/[0.06] hover:bg-white/[0.12] border border-white/[0.08] rounded-xl p-4 transition-all duration-200 group"
+                  >
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="min-w-0">
+                        <h3 className="text-[15px] font-bold text-white group-hover:text-white/90 truncate">
+                          {exp.title}
+                        </h3>
+                        <p className="text-xs text-white/40 mt-0.5">
+                          {exp.location} &middot; {exp.dates}
+                        </p>
+                      </div>
+                      <div className={`flex items-center gap-1.5 shrink-0 px-2.5 py-1 rounded-full ${colors.bg}`}>
+                        <span className={`w-1.5 h-1.5 rounded-full ${colors.dot}`} />
+                        <span className={`text-[10px] font-bold ${colors.text} whitespace-nowrap`}>
+                          {exp.statusLabel}
+                        </span>
+                      </div>
+                    </div>
+                  </a>
+                );
+              })}
+            </div>
           </div>
-          <nav className="hidden md:flex gap-8">
-            <Link href="/experience" className="text-xs font-medium text-white/50 hover:text-white transition-colors tracking-wide">Experience</Link>
-            <Link href="/hardware" className="text-xs font-medium text-white/50 hover:text-white transition-colors tracking-wide">Hardware</Link>
-            <Link href="#" className="text-xs font-medium text-white/50 hover:text-white transition-colors tracking-wide">About</Link>
-          </nav>
+
+          {/* ── Hardware box ── */}
+          <div className="bg-white/[0.07] backdrop-blur-xl border border-white/[0.12] rounded-2xl p-8 hover:bg-white/[0.1] transition-all duration-300">
+            {/* Hardware header */}
+            <div className="mb-6 text-center">
+              <h2 className="text-2xl font-black text-white tracking-[-0.02em] mb-1">NP7 Hardware</h2>
+              <p className="text-sm text-white/40">Custom boards &amp; fins</p>
+            </div>
+
+            {/* Product list */}
+            <div className="space-y-3">
+              {products.map((product) => {
+                const colors = statusColors[product.status];
+                return (
+                  <a
+                    key={product.title}
+                    href={product.url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="block bg-white/[0.06] hover:bg-white/[0.12] border border-white/[0.08] rounded-xl p-4 transition-all duration-200 group"
+                  >
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="min-w-0">
+                        <h3 className="text-[15px] font-bold text-white group-hover:text-white/90 truncate">
+                          {product.title}
+                        </h3>
+                        <p className="text-xs text-white/40 mt-0.5">
+                          {product.category}
+                        </p>
+                      </div>
+                      <div className={`flex items-center gap-1.5 shrink-0 px-2.5 py-1 rounded-full ${colors.bg}`}>
+                        <span className={`w-1.5 h-1.5 rounded-full ${colors.dot}`} />
+                        <span className={`text-[10px] font-bold ${colors.text} whitespace-nowrap`}>
+                          {product.statusLabel}
+                        </span>
+                      </div>
+                    </div>
+                  </a>
+                );
+              })}
+            </div>
+
+            {/* Coming soon filler */}
+            <div className="mt-6 text-center py-8 border border-dashed border-white/[0.1] rounded-xl">
+              <p className="text-sm text-white/25 font-medium">More products coming soon</p>
+            </div>
+          </div>
         </div>
-      </header>
 
-      {/* Hero */}
-      <section className="min-h-screen flex items-center justify-center bg-[#111] relative overflow-hidden">
-        {/* Grid background */}
-        <div
-          className="absolute inset-0"
-          style={{
-            backgroundImage:
-              "linear-gradient(rgba(255,255,255,0.025) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.025) 1px, transparent 1px)",
-            backgroundSize: "80px 80px",
-          }}
-        />
-        {/* Glow */}
-        <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_30%_50%,rgba(10,163,199,0.1)_0%,transparent_60%)]" />
-
-        <div className="relative z-10 text-center px-8 pt-24 pb-16 max-w-[960px]">
-          <p className="text-[11px] font-bold tracking-[0.25em] text-[#0aa3c7] mb-7">
-            NICO PRIEN &middot; GER-7
+        {/* Bottom: social / tagline */}
+        <div className="mt-10 text-center">
+          <p className="text-xs text-white/25 tracking-wide">
+            &copy; 2026 NP7 GmbH &middot; Nico Prien &middot; GER-7
           </p>
-          <h1 className="text-5xl sm:text-7xl lg:text-[88px] font-black text-white leading-[1.0] tracking-[-0.04em] mb-6">
-            Two worlds.<br />
-            One <span className="text-[#0aa3c7]">passion.</span>
-          </h1>
-          <p className="text-[17px] text-white/40 max-w-[440px] mx-auto mb-16 font-normal">
-            Premium watersports travel and custom board engineering — under one roof.
-          </p>
-
-          {/* World cards */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-5 max-w-[780px] mx-auto">
-            <Link href="/experience" className="group relative rounded-2xl overflow-hidden aspect-[3/2] block">
-              <div
-                className="absolute inset-0 bg-cover bg-center transition-transform duration-500 group-hover:scale-[1.08]"
-                style={{ backgroundImage: "url('https://surfcenter-experience.com/wp-content/uploads/2025/01/53724070151_54cd73586b_k-1536x1024.jpg')" }}
-              />
-              <div className="absolute inset-0 bg-gradient-to-t from-black/70 to-black/5" />
-              <div className="absolute bottom-0 left-0 right-0 p-7 z-10">
-                <span className="inline-block text-[9px] font-extrabold tracking-[0.25em] px-2.5 py-1 rounded bg-white/15 text-white mb-2.5">EXPERIENCE</span>
-                <h2 className="text-2xl font-extrabold text-white mb-1.5 tracking-[-0.02em]">NP7 Experience</h2>
-                <p className="text-[13px] text-white/65 mb-3.5">Travel, coaching, and riding around the world.</p>
-                <span className="inline-flex items-center gap-1.5 text-xs font-bold text-white tracking-[0.06em] uppercase group-hover:gap-3 transition-all">
-                  Explore
-                  <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><path d="M5 12h14M13 6l6 6-6 6" /></svg>
-                </span>
-              </div>
-            </Link>
-
-            <Link href="/hardware" className="group relative rounded-2xl overflow-hidden aspect-[3/2] block">
-              <div
-                className="absolute inset-0 bg-cover bg-center transition-transform duration-500 group-hover:scale-[1.08]"
-                style={{ backgroundImage: "url('https://surfcenter-experience.com/wp-content/uploads/2025/11/Balz_Muller-5.jpg')" }}
-              />
-              <div className="absolute inset-0 bg-gradient-to-t from-black/70 to-black/5" />
-              <div className="absolute bottom-0 left-0 right-0 p-7 z-10">
-                <span className="inline-block text-[9px] font-extrabold tracking-[0.25em] px-2.5 py-1 rounded bg-white/15 text-white mb-2.5">HARDWARE</span>
-                <h2 className="text-2xl font-extrabold text-white mb-1.5 tracking-[-0.02em]">NP7 Hardware</h2>
-                <p className="text-[13px] text-white/65 mb-3.5">Custom boards and foils, built for performance.</p>
-                <span className="inline-flex items-center gap-1.5 text-xs font-bold text-white tracking-[0.06em] uppercase group-hover:gap-3 transition-all">
-                  Discover
-                  <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><path d="M5 12h14M13 6l6 6-6 6" /></svg>
-                </span>
-              </div>
-            </Link>
-          </div>
         </div>
-      </section>
-
-      {/* Stats */}
-      <section className="bg-[#111] px-8 pb-24">
-        <div className="max-w-[600px] mx-auto grid grid-cols-3 text-center gap-8 border-t border-white/[0.08] pt-12">
-          <div>
-            <div className="text-[32px] font-black text-white tracking-[-0.02em]">8+</div>
-            <div className="text-[10px] font-semibold text-white/30 tracking-[0.15em] uppercase mt-1">Destinations</div>
-          </div>
-          <div>
-            <div className="text-[32px] font-black text-white tracking-[-0.02em]">200+</div>
-            <div className="text-[10px] font-semibold text-white/30 tracking-[0.15em] uppercase mt-1">Happy Sailors</div>
-          </div>
-          <div>
-            <div className="text-[32px] font-black text-white tracking-[-0.02em]">GER-7</div>
-            <div className="text-[10px] font-semibold text-white/30 tracking-[0.15em] uppercase mt-1">Since Day One</div>
-          </div>
-        </div>
-      </section>
-    </>
+      </div>
+    </main>
   );
 }
