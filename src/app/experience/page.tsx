@@ -1,39 +1,28 @@
 import Link from "next/link";
 import type { Metadata } from "next";
+import { supabase } from "@/lib/supabase";
 
 export const metadata: Metadata = {
   title: "NP7 Experience — Premium Watersports Travel",
   description: "Guided trips, coaching camps, and private sailing with Nico Prien (GER-7).",
 };
 
-const experiences = [
-  {
-    title: "NP7 Lake Garda",
-    location: "Lake Garda, Italy",
-    date: "May 2026",
-    spots: 4,
-    description: "Six days riding the Ora wind on one of Europe's most scenic lakes.",
-    image: "https://surfcenter-experience.com/wp-content/uploads/2025/03/final-final-fina-768x432.jpg",
-  },
-  {
-    title: "NP7 Alacati",
-    location: "Alacati, Turkey",
-    date: "Aug 2026",
-    spots: 6,
-    description: "Meltemi wind, flat water, and a week of pure freestyle and freeride.",
-    image: "https://surfcenter-experience.com/wp-content/uploads/2025/11/Tenerife-3-1024x576.jpg",
-  },
-  {
-    title: "NP7 Bonaire Week I",
-    location: "Bonaire",
-    date: "Dec 2026",
-    spots: 3,
-    description: "Trade winds, warm water, and the most consistent spot in the Caribbean.",
-    image: "https://surfcenter-experience.com/wp-content/uploads/2025/11/54546389898_3793d23e96_h.jpg",
-  },
-];
+// Revalidate every 60 seconds (so new experiences show up quickly)
+export const revalidate = 60;
 
-export default function ExperiencePage() {
+function formatDate(dateStr: string) {
+  const date = new Date(dateStr);
+  return date.toLocaleDateString("en-US", { month: "short", year: "numeric" });
+}
+
+export default async function ExperiencePage() {
+  // Fetch published experiences from Supabase, sorted by start date
+  const { data: experiences } = await supabase
+    .from("exp_experiences")
+    .select("*")
+    .eq("status", "published")
+    .order("date_start", { ascending: true });
+
   return (
     <>
       {/* Header */}
@@ -81,7 +70,7 @@ export default function ExperiencePage() {
         </div>
       </section>
 
-      {/* Upcoming Experiences */}
+      {/* Upcoming Experiences — from database */}
       <section className="py-24" id="experiences">
         <div className="max-w-[1200px] mx-auto px-8">
           <div className="text-center mb-16">
@@ -90,25 +79,41 @@ export default function ExperiencePage() {
             <p className="text-base text-[#777] max-w-[440px] mx-auto">Pick a date and join Nico.</p>
           </div>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-            {experiences.map((exp) => (
-              <article key={exp.title} className="bg-white rounded-[14px] overflow-hidden border border-[#ebebeb] hover:-translate-y-1.5 hover:shadow-[0_20px_48px_rgba(0,0,0,0.08)] transition-all duration-300">
-                <div className="h-[220px] bg-cover bg-center bg-[#f7f7f7]" style={{ backgroundImage: `url('${exp.image}')` }} />
-                <div className="p-7">
-                  <p className="text-[10px] font-bold tracking-[0.15em] uppercase text-[#777] mb-2.5">
-                    {exp.location} &middot; {exp.date}
-                  </p>
-                  <div className="inline-flex items-center gap-1.5 text-[11px] font-semibold text-green-600 mb-3">
-                    <span className="w-1.5 h-1.5 bg-green-600 rounded-full" />
-                    {exp.spots} spots left
+            {experiences?.map((exp) => {
+              const spotsLeft = exp.max_spots - exp.spots_taken;
+              return (
+                <article key={exp.id} className="bg-white rounded-[14px] overflow-hidden border border-[#ebebeb] hover:-translate-y-1.5 hover:shadow-[0_20px_48px_rgba(0,0,0,0.08)] transition-all duration-300">
+                  <div className="h-[220px] bg-cover bg-center bg-[#f7f7f7]" style={{ backgroundImage: `url('${exp.hero_image}')` }} />
+                  <div className="p-7">
+                    <p className="text-[10px] font-bold tracking-[0.15em] uppercase text-[#777] mb-2.5">
+                      {exp.location} &middot; {formatDate(exp.date_start)}
+                    </p>
+                    {spotsLeft > 0 && (
+                      <div className="inline-flex items-center gap-1.5 text-[11px] font-semibold text-green-600 mb-3">
+                        <span className="w-1.5 h-1.5 bg-green-600 rounded-full" />
+                        {spotsLeft} spots left
+                      </div>
+                    )}
+                    {spotsLeft <= 0 && (
+                      <div className="inline-flex items-center gap-1.5 text-[11px] font-semibold text-red-500 mb-3">
+                        <span className="w-1.5 h-1.5 bg-red-500 rounded-full" />
+                        Fully booked
+                      </div>
+                    )}
+                    <h3 className="text-xl font-extrabold mb-2.5 tracking-[-0.02em]">{exp.title}</h3>
+                    <p className="text-sm text-[#777] mb-5 leading-relaxed">{exp.description}</p>
+                    <div className="flex items-center justify-between">
+                      <Link href={`/experience/${exp.slug}`} className="inline-block px-5 py-2.5 rounded-full text-xs font-bold bg-[#111] text-white hover:bg-[#333] transition-colors">
+                        Learn more
+                      </Link>
+                      {exp.price && (
+                        <span className="text-sm font-bold text-[#111]">from &euro;{Number(exp.price).toLocaleString()}</span>
+                      )}
+                    </div>
                   </div>
-                  <h3 className="text-xl font-extrabold mb-2.5 tracking-[-0.02em]">{exp.title}</h3>
-                  <p className="text-sm text-[#777] mb-5 leading-relaxed">{exp.description}</p>
-                  <Link href="#" className="inline-block px-5 py-2.5 rounded-full text-xs font-bold bg-[#111] text-white hover:bg-[#333] transition-colors">
-                    Learn more
-                  </Link>
-                </div>
-              </article>
-            ))}
+                </article>
+              );
+            })}
           </div>
         </div>
       </section>
