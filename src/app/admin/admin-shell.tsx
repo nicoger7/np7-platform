@@ -1,0 +1,428 @@
+"use client";
+
+import Link from "next/link";
+import { usePathname, useRouter } from "next/navigation";
+import { useState, useEffect, useRef } from "react";
+import { createClient } from "@/lib/supabase/client";
+import type { User } from "@supabase/supabase-js";
+
+// ─── Environments ────────────────────────────────────────────────────────────
+
+type Environment = "experience" | "hardware" | "product-dev";
+
+const environments: { id: Environment; label: string; shortLabel: string; color: string }[] = [
+  { id: "experience", label: "NP7 Experience", shortLabel: "Experience", color: "#0aa3c7" },
+  { id: "hardware", label: "NP7 Hardware", shortLabel: "Hardware", color: "#f59e0b" },
+  { id: "product-dev", label: "Product Development", shortLabel: "Product Dev", color: "#8b5cf6" },
+];
+
+// ─── Navigation per environment ──────────────────────────────────────────────
+
+const navByEnv: Record<Environment, { label: string; items: { label: string; href: string; icon: string }[] }[]> = {
+  experience: [
+    {
+      label: "EXPERIENCE",
+      items: [
+        { label: "Experiences", href: "/admin/experiences", icon: "compass" },
+        { label: "Bookings", href: "/admin/bookings", icon: "inbox" },
+        { label: "Hotel Rooms", href: "/admin/hotel-rooms", icon: "bed" },
+      ],
+    },
+  ],
+  hardware: [
+    {
+      label: "HARDWARE",
+      items: [
+        { label: "Products", href: "/admin/products", icon: "box" },
+        { label: "Orders", href: "/admin/orders", icon: "truck" },
+      ],
+    },
+  ],
+  "product-dev": [
+    {
+      label: "PRODUCT DEV",
+      items: [
+        { label: "Boards", href: "/admin/boards", icon: "layers" },
+        { label: "Reviews", href: "/admin/reviews", icon: "star" },
+        { label: "Analytics", href: "/admin/analytics", icon: "chart" },
+      ],
+    },
+  ],
+};
+
+const sharedNavTop = {
+  label: "HOME",
+  items: [
+    { label: "Dashboard", href: "/admin", icon: "grid" },
+  ],
+};
+
+const sharedNavBottom = {
+  label: "GENERAL",
+  items: [
+    { label: "Images", href: "/admin/images", icon: "image" },
+  ],
+};
+
+// ─── Icons ───────────────────────────────────────────────────────────────────
+
+const icons: Record<string, React.ReactNode> = {
+  grid: (
+    <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+      <rect x="3" y="3" width="7" height="7" rx="1" />
+      <rect x="14" y="3" width="7" height="7" rx="1" />
+      <rect x="3" y="14" width="7" height="7" rx="1" />
+      <rect x="14" y="14" width="7" height="7" rx="1" />
+    </svg>
+  ),
+  image: (
+    <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+      <rect x="3" y="3" width="18" height="18" rx="2" />
+      <circle cx="8.5" cy="8.5" r="1.5" />
+      <path d="m21 15-5-5L5 21" />
+    </svg>
+  ),
+  compass: (
+    <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+      <circle cx="12" cy="12" r="10" />
+      <polygon points="16.24 7.76 14.12 14.12 7.76 16.24 9.88 9.88 16.24 7.76" fill="currentColor" stroke="none" />
+    </svg>
+  ),
+  inbox: (
+    <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+      <polyline points="22 12 16 12 14 15 10 15 8 12 2 12" />
+      <path d="M5.45 5.11L2 12v6a2 2 0 002 2h16a2 2 0 002-2v-6l-3.45-6.89A2 2 0 0016.76 4H7.24a2 2 0 00-1.79 1.11z" />
+    </svg>
+  ),
+  box: (
+    <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M21 16V8a2 2 0 00-1-1.73l-7-4a2 2 0 00-2 0l-7 4A2 2 0 003 8v8a2 2 0 001 1.73l7 4a2 2 0 002 0l7-4A2 2 0 0021 16z" />
+      <polyline points="3.27 6.96 12 12.01 20.73 6.96" />
+      <line x1="12" y1="22.08" x2="12" y2="12" />
+    </svg>
+  ),
+  truck: (
+    <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <rect x="1" y="3" width="15" height="13" />
+      <polygon points="16 8 20 8 23 11 23 16 16 16 16 8" />
+      <circle cx="5.5" cy="18.5" r="2.5" />
+      <circle cx="18.5" cy="18.5" r="2.5" />
+    </svg>
+  ),
+  layers: (
+    <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <polygon points="12 2 2 7 12 12 22 7 12 2" />
+      <polyline points="2 17 12 22 22 17" />
+      <polyline points="2 12 12 17 22 12" />
+    </svg>
+  ),
+  star: (
+    <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" />
+    </svg>
+  ),
+  chart: (
+    <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <line x1="18" y1="20" x2="18" y2="10" />
+      <line x1="12" y1="20" x2="12" y2="4" />
+      <line x1="6" y1="20" x2="6" y2="14" />
+    </svg>
+  ),
+  bed: (
+    <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M2 4v16" />
+      <path d="M2 8h18a2 2 0 012 2v10" />
+      <path d="M2 17h20" />
+      <path d="M6 8v9" />
+    </svg>
+  ),
+};
+
+// ─── Themes ──────────────────────────────────────────────────────────────────
+
+const themes = {
+  dark: {
+    "--admin-bg": "#0a0a0a",
+    "--admin-sidebar": "#111111",
+    "--admin-border": "rgba(255,255,255,0.06)",
+    "--admin-text": "#ffffff",
+    "--admin-text-muted": "rgba(255,255,255,0.4)",
+    "--admin-text-faint": "rgba(255,255,255,0.2)",
+    "--admin-surface": "rgba(255,255,255,0.04)",
+    "--admin-surface-hover": "rgba(255,255,255,0.06)",
+    "--admin-active": "rgba(255,255,255,0.08)",
+    "--admin-input-bg": "rgba(255,255,255,0.04)",
+    "--admin-input-border": "rgba(255,255,255,0.08)",
+    "--admin-logo-filter": "invert(1)",
+  },
+  light: {
+    "--admin-bg": "#f5f5f5",
+    "--admin-sidebar": "#ffffff",
+    "--admin-border": "rgba(0,0,0,0.08)",
+    "--admin-text": "#111111",
+    "--admin-text-muted": "rgba(0,0,0,0.45)",
+    "--admin-text-faint": "rgba(0,0,0,0.2)",
+    "--admin-surface": "rgba(0,0,0,0.03)",
+    "--admin-surface-hover": "rgba(0,0,0,0.05)",
+    "--admin-active": "rgba(0,0,0,0.06)",
+    "--admin-input-bg": "rgba(0,0,0,0.03)",
+    "--admin-input-border": "rgba(0,0,0,0.1)",
+    "--admin-logo-filter": "invert(0)",
+  },
+} as const;
+
+type Theme = keyof typeof themes;
+
+// ─── Component ───────────────────────────────────────────────────────────────
+
+export default function AdminShell({
+  user,
+  children,
+}: {
+  user: User;
+  children: React.ReactNode;
+}) {
+  const pathname = usePathname();
+  const router = useRouter();
+  const supabase = createClient();
+  const [theme, setTheme] = useState<Theme>("dark");
+  const [env, setEnv] = useState<Environment>("experience");
+  const [envMenuOpen, setEnvMenuOpen] = useState(false);
+  const envMenuRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const savedTheme = localStorage.getItem("np7-admin-theme") as Theme | null;
+    if (savedTheme && themes[savedTheme]) setTheme(savedTheme);
+    const savedEnv = localStorage.getItem("np7-admin-env") as Environment | null;
+    if (savedEnv && navByEnv[savedEnv]) setEnv(savedEnv);
+  }, []);
+
+  useEffect(() => {
+    function handleClickOutside(e: MouseEvent) {
+      if (envMenuRef.current && !envMenuRef.current.contains(e.target as Node)) {
+        setEnvMenuOpen(false);
+      }
+    }
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
+
+  function toggleTheme() {
+    const next = theme === "dark" ? "light" : "dark";
+    setTheme(next);
+    localStorage.setItem("np7-admin-theme", next);
+  }
+
+  function switchEnv(newEnv: Environment) {
+    setEnv(newEnv);
+    localStorage.setItem("np7-admin-env", newEnv);
+    setEnvMenuOpen(false);
+    router.push("/admin");
+  }
+
+  async function handleLogout() {
+    await supabase.auth.signOut();
+    router.push("/admin/login");
+    router.refresh();
+  }
+
+  const vars = themes[theme];
+  const activeEnvConfig = environments.find((e) => e.id === env)!;
+  const sections = [sharedNavTop, ...navByEnv[env], sharedNavBottom];
+
+  return (
+    <div
+      className="min-h-screen flex"
+      style={{
+        ...Object.fromEntries(Object.entries(vars)),
+        backgroundColor: "var(--admin-bg)",
+        color: "var(--admin-text)",
+      }}
+    >
+      {/* Sidebar */}
+      <aside
+        className="w-56 flex flex-col"
+        style={{
+          backgroundColor: "var(--admin-sidebar)",
+          borderRight: "1px solid var(--admin-border)",
+        }}
+      >
+        {/* Logo + Environment switcher */}
+        <div className="p-4" style={{ borderBottom: "1px solid var(--admin-border)" }}>
+          <div className="flex items-center gap-2.5 mb-3">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src="https://qfdqigumjadvrocxjolx.supabase.co/storage/v1/object/public/assets/logos/np7-logo.png"
+              alt="NP7"
+              className="h-5 w-auto"
+              style={{ filter: "var(--admin-logo-filter)" }}
+            />
+            <span className="text-[10px] font-bold tracking-[0.2em]" style={{ color: "var(--admin-text-faint)" }}>
+              ADMIN
+            </span>
+          </div>
+
+          {/* Environment dropdown */}
+          <div className="relative" ref={envMenuRef}>
+            <button
+              onClick={() => setEnvMenuOpen(!envMenuOpen)}
+              className="w-full flex items-center gap-2 px-2.5 py-2 rounded-lg text-left transition-colors"
+              style={{
+                backgroundColor: "var(--admin-surface)",
+                border: "1px solid var(--admin-border)",
+              }}
+            >
+              <span
+                className="w-2 h-2 rounded-full flex-shrink-0"
+                style={{ backgroundColor: activeEnvConfig.color }}
+              />
+              <span className="text-xs font-medium flex-1 truncate" style={{ color: "var(--admin-text)" }}>
+                {activeEnvConfig.label}
+              </span>
+              <svg
+                className="w-3 h-3 flex-shrink-0 transition-transform"
+                style={{
+                  color: "var(--admin-text-faint)",
+                  transform: envMenuOpen ? "rotate(180deg)" : "rotate(0deg)",
+                }}
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2.5"
+                strokeLinecap="round"
+              >
+                <polyline points="6 9 12 15 18 9" />
+              </svg>
+            </button>
+
+            {envMenuOpen && (
+              <div
+                className="absolute top-full left-0 right-0 mt-1 rounded-lg overflow-hidden z-50 shadow-xl"
+                style={{
+                  backgroundColor: "var(--admin-sidebar)",
+                  border: "1px solid var(--admin-border)",
+                }}
+              >
+                {environments.map((e) => (
+                  <button
+                    key={e.id}
+                    onClick={() => switchEnv(e.id)}
+                    className="w-full flex items-center gap-2.5 px-3 py-2.5 text-left transition-colors"
+                    style={{
+                      backgroundColor: e.id === env ? "var(--admin-active)" : "transparent",
+                    }}
+                    onMouseEnter={(ev) => {
+                      if (e.id !== env) ev.currentTarget.style.backgroundColor = "var(--admin-surface-hover)";
+                    }}
+                    onMouseLeave={(ev) => {
+                      ev.currentTarget.style.backgroundColor = e.id === env ? "var(--admin-active)" : "transparent";
+                    }}
+                  >
+                    <span
+                      className="w-2 h-2 rounded-full flex-shrink-0"
+                      style={{ backgroundColor: e.color }}
+                    />
+                    <span className="text-xs font-medium" style={{ color: "var(--admin-text)" }}>
+                      {e.label}
+                    </span>
+                    {e.id === env && (
+                      <svg
+                        className="w-3 h-3 ml-auto"
+                        style={{ color: e.color }}
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth="3"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                      >
+                        <polyline points="20 6 9 17 4 12" />
+                      </svg>
+                    )}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+
+        <nav className="flex-1 p-3 space-y-4">
+          {sections.map((section) => (
+            <div key={section.label}>
+              <div
+                className="px-3 mb-1.5 text-[10px] font-bold tracking-[0.15em]"
+                style={{ color: "var(--admin-text-faint)" }}
+              >
+                {section.label}
+              </div>
+              <div className="space-y-0.5">
+                {section.items.map((item) => {
+                  const active = item.href === "/admin"
+                    ? pathname === "/admin"
+                    : pathname.startsWith(item.href);
+                  return (
+                    <Link
+                      key={item.href}
+                      href={item.href}
+                      className="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm transition-colors"
+                      style={{
+                        backgroundColor: active ? "var(--admin-active)" : "transparent",
+                        color: active ? "var(--admin-text)" : "var(--admin-text-muted)",
+                        fontWeight: active ? 500 : 400,
+                      }}
+                    >
+                      {icons[item.icon]}
+                      {item.label}
+                    </Link>
+                  );
+                })}
+              </div>
+            </div>
+          ))}
+        </nav>
+
+        <div className="p-4" style={{ borderTop: "1px solid var(--admin-border)" }}>
+          <div className="flex items-center justify-between mb-2">
+            <span className="text-xs truncate" style={{ color: "var(--admin-text-faint)" }}>
+              {user.email}
+            </span>
+            <button
+              onClick={toggleTheme}
+              className="w-7 h-7 flex items-center justify-center rounded-lg transition-colors"
+              style={{ backgroundColor: "var(--admin-surface)" }}
+              title={`Switch to ${theme === "dark" ? "light" : "dark"} mode`}
+            >
+              {theme === "dark" ? (
+                <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" style={{ color: "var(--admin-text-muted)" }}>
+                  <circle cx="12" cy="12" r="5" />
+                  <line x1="12" y1="1" x2="12" y2="3" />
+                  <line x1="12" y1="21" x2="12" y2="23" />
+                  <line x1="4.22" y1="4.22" x2="5.64" y2="5.64" />
+                  <line x1="18.36" y1="18.36" x2="19.78" y2="19.78" />
+                  <line x1="1" y1="12" x2="3" y2="12" />
+                  <line x1="21" y1="12" x2="23" y2="12" />
+                  <line x1="4.22" y1="19.78" x2="5.64" y2="18.36" />
+                  <line x1="18.36" y1="5.64" x2="19.78" y2="4.22" />
+                </svg>
+              ) : (
+                <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" style={{ color: "var(--admin-text-muted)" }}>
+                  <path d="M21 12.79A9 9 0 1111.21 3 7 7 0 0021 12.79z" />
+                </svg>
+              )}
+            </button>
+          </div>
+          <button
+            onClick={handleLogout}
+            className="text-xs transition-colors"
+            style={{ color: "var(--admin-text-muted)" }}
+          >
+            Sign out
+          </button>
+        </div>
+      </aside>
+
+      {/* Main content */}
+      <main className="flex-1 p-8 overflow-auto">{children}</main>
+    </div>
+  );
+}
