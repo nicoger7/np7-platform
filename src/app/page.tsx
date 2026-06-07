@@ -62,10 +62,8 @@ export default function HomePage() {
           backgroundImage: `url('${STORAGE}/photos/hero-bg.jpg')`,
         }}
       />
-      {/* Fade: transparent at top, black fading in from bottom */}
-      <div className="absolute inset-0 bg-gradient-to-b from-transparent via-transparent via-30% to-black/90" />
-      {/* Slight overall darkening for text readability */}
-      <div className="absolute inset-0 bg-black/20" />
+      {/* Fade: fully transparent at top, fully black at bottom */}
+      <div className="absolute inset-0" style={{ background: "linear-gradient(to bottom, rgba(0,0,0,0) 0%, rgba(0,0,0,0) 10%, rgba(0,0,0,0.4) 40%, rgba(0,0,0,0.8) 70%, rgba(0,0,0,1) 100%)" }} />
 
       {/* Content */}
       <div className="relative z-10 w-full max-w-[1200px] mx-auto px-6 py-16">
@@ -90,7 +88,7 @@ export default function HomePage() {
               boxShadow: "0 8px 32px rgba(0,0,0,0.3), inset 0 1px 0 rgba(255,255,255,0.05)",
             }}
           >
-            <div className="mb-5 text-center">
+            <div className="mb-5 text-center h-[120px] flex flex-col items-center justify-center">
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img
                 src={`${STORAGE}/logos/np7-logo.png`}
@@ -144,12 +142,12 @@ export default function HomePage() {
               boxShadow: "0 8px 32px rgba(10,163,199,0.15), inset 0 1px 0 rgba(10,163,199,0.1)",
             }}
           >
-            <div className="mb-5 text-center">
+            <div className="mb-5 text-center h-[120px] flex flex-col items-center justify-center">
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img
                 src={`${STORAGE}/logos/np7-experience-logo.png`}
                 alt="NP7 Experience"
-                className="h-28 w-auto mx-auto mb-1"
+                className="h-24 w-auto mx-auto mb-1"
               />
               <p className="text-xs text-white/50">Windsurfing travel experiences</p>
             </div>
