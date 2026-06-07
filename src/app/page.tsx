@@ -95,8 +95,8 @@ export default function HomePage() {
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img src={`${STORAGE}/logos/np7-logo.png`} alt="NP7 Hardware" className="h-10 w-auto invert" />
             </div>
-            {/* Subtitle — fixed position */}
-            <p className="text-xs text-white/50 text-center mb-5">Windsurf hardware</p>
+            {/* Subtitle — consistent spacing */}
+            <p className="text-xs text-white/50 text-center mt-3 mb-5">Windsurf hardware</p>
 
             {/* Items */}
             <div className="space-y-2.5 flex-1">
@@ -129,8 +129,8 @@ export default function HomePage() {
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img src={`${STORAGE}/logos/np7-experience-logo.png`} alt="NP7 Experience" className="h-[72px] w-auto" />
             </div>
-            {/* Subtitle — same position */}
-            <p className="text-xs text-white/50 text-center mb-5">Windsurfing travel experiences</p>
+            {/* Subtitle — consistent spacing */}
+            <p className="text-xs text-white/50 text-center mt-3 mb-5">Windsurfing travel experiences</p>
 
             {/* Items */}
             <div className="space-y-2.5 flex-1">
@@ -165,8 +165,8 @@ export default function HomePage() {
               <div className="w-[72px] h-[72px] rounded-full bg-cover bg-center bg-white/10 border-2 border-white/20 group-hover:border-[#0aa3c7]/60 transition-all shadow-[0_4px_20px_rgba(0,0,0,0.2)]"
                 style={{ backgroundImage: `url('${STORAGE}/photos/nico-profile.png')` }} />
             </div>
-            {/* Subtitle — matches other boxes */}
-            <p className="text-xs text-white/50 text-center mb-5">GER-7 · Professional Windsurfer</p>
+            {/* Subtitle — consistent spacing */}
+            <p className="text-xs text-white/50 text-center mt-3 mb-5">GER-7 · Professional Windsurfer</p>
 
             {/* Content */}
             <div className="flex-1 flex flex-col items-center justify-center text-center">
