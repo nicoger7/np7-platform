@@ -96,7 +96,7 @@ export default function HomePage() {
               <img src={`${STORAGE}/logos/np7-logo.png`} alt="NP7 Hardware" className="h-10 w-auto invert" />
             </div>
             {/* Subtitle — fixed position */}
-            <p className="text-xs text-white/50 text-center mb-5">Windsurf fins</p>
+            <p className="text-xs text-white/50 text-center mb-5">Windsurf hardware</p>
 
             {/* Items */}
             <div className="space-y-2.5 flex-1">
@@ -158,15 +158,15 @@ export default function HomePage() {
 
           {/* ── Nico Prien box (RIGHT) ── */}
           <a href="https://nicoprien.com" target="_blank" rel="noopener noreferrer"
-            className="rounded-2xl p-7 transition-all duration-300 group block border border-white/10 hover:border-white/20 flex flex-col"
+            className="rounded-2xl p-7 transition-all duration-300 group border border-white/10 hover:border-white/20 flex flex-col"
             style={boxStyle}>
-            {/* Photo area — same fixed height */}
+            {/* Photo area — same fixed height as other boxes */}
             <div className="h-[80px] flex items-center justify-center">
               <div className="w-[72px] h-[72px] rounded-full bg-cover bg-center bg-white/10 border-2 border-white/20 group-hover:border-[#0aa3c7]/60 transition-all shadow-[0_4px_20px_rgba(0,0,0,0.2)]"
                 style={{ backgroundImage: `url('${STORAGE}/photos/nico-profile.png')` }} />
             </div>
-            {/* Subtitle — same position */}
-            <p className="text-xs text-white/50 text-center mb-5">GER-7 &middot; Professional Windsurfer</p>
+            {/* Subtitle — matches other boxes */}
+            <p className="text-xs text-white/50 text-center mb-5">GER-7 · Professional Windsurfer</p>
 
             {/* Content */}
             <div className="flex-1 flex flex-col items-center justify-center text-center">
