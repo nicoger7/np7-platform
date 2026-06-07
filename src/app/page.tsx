@@ -16,6 +16,7 @@ export default function LandingPage() {
             <Link href="/experience" className="text-xs font-medium text-white/50 hover:text-white transition-colors tracking-wide">Experience</Link>
             <Link href="/hardware" className="text-xs font-medium text-white/50 hover:text-white transition-colors tracking-wide">Hardware</Link>
             <Link href="#" className="text-xs font-medium text-white/50 hover:text-white transition-colors tracking-wide">About</Link>
+            <Link href="/admin" className="text-xs font-medium text-white/50 hover:text-white transition-colors tracking-wide">Admin</Link>
           </nav>
         </div>
       </header>
