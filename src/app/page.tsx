@@ -89,7 +89,7 @@ export default function HomePage() {
                 alt="NP7 Hardware"
                 className="h-9 w-auto mx-auto mb-1 invert"
               />
-              <p className="text-xs text-white/40">Custom boards &amp; fins</p>
+              <p className="text-xs text-white/40">Windsurf fins</p>
             </div>
 
             <div className="space-y-2.5">
