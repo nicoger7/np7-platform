@@ -80,13 +80,13 @@ export default async function ExperiencePage() {
           </div>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
             {experiences?.map((exp) => {
-              const spotsLeft = exp.max_spots - exp.spots_taken;
+              const spotsLeft = (exp.max_spots ?? 0) - (exp.spots_taken ?? 0);
               return (
                 <article key={exp.id} className="bg-white rounded-[14px] overflow-hidden border border-[#ebebeb] hover:-translate-y-1.5 hover:shadow-[0_20px_48px_rgba(0,0,0,0.08)] transition-all duration-300">
                   <div className="h-[220px] bg-cover bg-center bg-[#f7f7f7]" style={{ backgroundImage: `url('${exp.hero_image}')` }} />
                   <div className="p-7">
                     <p className="text-[10px] font-bold tracking-[0.15em] uppercase text-[#777] mb-2.5">
-                      {exp.location} &middot; {formatDate(exp.date_start)}
+                      {exp.location} &middot; {exp.date_start ? formatDate(exp.date_start) : 'TBD'}
                     </p>
                     {spotsLeft > 0 && (
                       <div className="inline-flex items-center gap-1.5 text-[11px] font-semibold text-green-600 mb-3">
