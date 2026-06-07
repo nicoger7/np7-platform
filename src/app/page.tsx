@@ -41,7 +41,7 @@ const products = [
     category: "Windsurf Fin",
     status: "out-of-stock" as const,
     statusLabel: "Out of stock",
-    url: "https://surf-center.com/np7-rockstar",
+    url: "https://surf-center.com/de/np7-rockstar-fin",
   },
 ];
 
@@ -59,28 +59,80 @@ export default function HomePage() {
       <div
         className="absolute inset-0 bg-cover bg-center"
         style={{
-          backgroundImage:
-            `url('${STORAGE}/photos/hero-bg.jpg')`,
+          backgroundImage: `url('${STORAGE}/photos/hero-bg.jpg')`,
         }}
       />
-      {/* Dark fade overlay */}
-      <div className="absolute inset-0 bg-gradient-to-b from-black/60 via-black/70 to-black/80" />
+      {/* Gradient fade — soft vignette that lets the photo breathe */}
+      <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_center,rgba(0,0,0,0.3)_0%,rgba(0,0,0,0.65)_60%,rgba(0,0,0,0.85)_100%)]" />
 
       {/* Content */}
       <div className="relative z-10 w-full max-w-[1100px] mx-auto px-6 py-16">
-        {/* Top: NP7 logo */}
+        {/* Top: NP7 logo (new bold logo, inverted to white) */}
         <div className="flex justify-center mb-12">
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img
-            src={`${STORAGE}/logos/np7-logo-white.png`}
+            src={`${STORAGE}/logos/np7-logo.png`}
             alt="NP7"
-            className="h-16 w-auto opacity-90"
+            className="h-14 w-auto invert opacity-90"
           />
         </div>
 
-        {/* Two boxes */}
+        {/* Two boxes — Hardware LEFT, Experience RIGHT */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          {/* ── Experience box ── */}
+
+          {/* ── Hardware box (LEFT) ── */}
+          <div className="bg-white/[0.07] backdrop-blur-xl border border-white/[0.12] rounded-2xl p-8 hover:bg-white/[0.1] transition-all duration-300">
+            {/* Hardware header */}
+            <div className="mb-6 text-center">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src={`${STORAGE}/logos/np7-logo.png`}
+                alt="NP7 Hardware"
+                className="h-10 w-auto mx-auto mb-1 invert"
+              />
+              <p className="text-sm text-white/40">Custom boards &amp; fins</p>
+            </div>
+
+            {/* Product list */}
+            <div className="space-y-3">
+              {products.map((product) => {
+                const colors = statusColors[product.status];
+                return (
+                  <a
+                    key={product.title}
+                    href={product.url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="block bg-white/[0.06] hover:bg-white/[0.12] border border-white/[0.08] rounded-xl p-4 transition-all duration-200 group"
+                  >
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="min-w-0">
+                        <h3 className="text-[15px] font-bold text-white group-hover:text-white/90 truncate">
+                          {product.title}
+                        </h3>
+                        <p className="text-xs text-white/40 mt-0.5">
+                          {product.category}
+                        </p>
+                      </div>
+                      <div className={`flex items-center gap-1.5 shrink-0 px-2.5 py-1 rounded-full ${colors.bg}`}>
+                        <span className={`w-1.5 h-1.5 rounded-full ${colors.dot}`} />
+                        <span className={`text-[10px] font-bold ${colors.text} whitespace-nowrap`}>
+                          {product.statusLabel}
+                        </span>
+                      </div>
+                    </div>
+                  </a>
+                );
+              })}
+            </div>
+
+            {/* Coming soon filler */}
+            <div className="mt-6 text-center py-8 border border-dashed border-white/[0.1] rounded-xl">
+              <p className="text-sm text-white/25 font-medium">More products coming soon</p>
+            </div>
+          </div>
+
+          {/* ── Experience box (RIGHT) ── */}
           <div className="bg-white/[0.07] backdrop-blur-xl border border-white/[0.12] rounded-2xl p-8 hover:bg-white/[0.1] transition-all duration-300">
             {/* Experience header */}
             <div className="mb-6 text-center">
@@ -127,60 +179,9 @@ export default function HomePage() {
             </div>
           </div>
 
-          {/* ── Hardware box ── */}
-          <div className="bg-white/[0.07] backdrop-blur-xl border border-white/[0.12] rounded-2xl p-8 hover:bg-white/[0.1] transition-all duration-300">
-            {/* Hardware header */}
-            <div className="mb-6 text-center">
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img
-                src={`${STORAGE}/logos/np7-hardware-logo.png`}
-                alt="NP7 Hardware"
-                className="h-10 w-auto mx-auto mb-2 invert"
-              />
-              <p className="text-sm text-white/40">Custom boards &amp; fins</p>
-            </div>
-
-            {/* Product list */}
-            <div className="space-y-3">
-              {products.map((product) => {
-                const colors = statusColors[product.status];
-                return (
-                  <a
-                    key={product.title}
-                    href={product.url}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="block bg-white/[0.06] hover:bg-white/[0.12] border border-white/[0.08] rounded-xl p-4 transition-all duration-200 group"
-                  >
-                    <div className="flex items-start justify-between gap-3">
-                      <div className="min-w-0">
-                        <h3 className="text-[15px] font-bold text-white group-hover:text-white/90 truncate">
-                          {product.title}
-                        </h3>
-                        <p className="text-xs text-white/40 mt-0.5">
-                          {product.category}
-                        </p>
-                      </div>
-                      <div className={`flex items-center gap-1.5 shrink-0 px-2.5 py-1 rounded-full ${colors.bg}`}>
-                        <span className={`w-1.5 h-1.5 rounded-full ${colors.dot}`} />
-                        <span className={`text-[10px] font-bold ${colors.text} whitespace-nowrap`}>
-                          {product.statusLabel}
-                        </span>
-                      </div>
-                    </div>
-                  </a>
-                );
-              })}
-            </div>
-
-            {/* Coming soon filler */}
-            <div className="mt-6 text-center py-8 border border-dashed border-white/[0.1] rounded-xl">
-              <p className="text-sm text-white/25 font-medium">More products coming soon</p>
-            </div>
-          </div>
         </div>
 
-        {/* Bottom: social / tagline */}
+        {/* Bottom */}
         <div className="mt-10 text-center">
           <p className="text-xs text-white/25 tracking-wide">
             &copy; 2026 NP7 GmbH &middot; Nico Prien &middot; GER-7
