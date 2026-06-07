@@ -62,13 +62,13 @@ export default function HomePage() {
           backgroundImage: `url('${STORAGE}/photos/hero-bg.jpg')`,
         }}
       />
-      {/* Gradient fade — soft vignette that lets the photo breathe */}
-      <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_center,rgba(0,0,0,0.3)_0%,rgba(0,0,0,0.65)_60%,rgba(0,0,0,0.85)_100%)]" />
+      {/* Gradient fade — soft vignette */}
+      <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_center,rgba(0,0,0,0.2)_0%,rgba(0,0,0,0.55)_50%,rgba(0,0,0,0.8)_100%)]" />
 
       {/* Content */}
-      <div className="relative z-10 w-full max-w-[1100px] mx-auto px-6 py-16">
-        {/* Top: NP7 logo (new bold logo, inverted to white) */}
-        <div className="flex justify-center mb-12">
+      <div className="relative z-10 w-full max-w-[1200px] mx-auto px-6 py-16">
+        {/* Top: NP7 logo */}
+        <div className="flex justify-center mb-10">
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img
             src={`${STORAGE}/logos/np7-logo.png`}
@@ -77,24 +77,22 @@ export default function HomePage() {
           />
         </div>
 
-        {/* Two boxes — Hardware LEFT, Experience RIGHT */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        {/* Three boxes */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
 
           {/* ── Hardware box (LEFT) ── */}
-          <div className="bg-white/[0.07] backdrop-blur-xl border border-white/[0.12] rounded-2xl p-8 hover:bg-white/[0.1] transition-all duration-300">
-            {/* Hardware header */}
-            <div className="mb-6 text-center">
+          <div className="bg-gradient-to-br from-[#111]/80 to-[#1a1a2e]/80 backdrop-blur-xl border border-white/[0.1] rounded-2xl p-7 hover:border-white/[0.2] transition-all duration-300">
+            <div className="mb-5 text-center">
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img
                 src={`${STORAGE}/logos/np7-logo.png`}
                 alt="NP7 Hardware"
-                className="h-10 w-auto mx-auto mb-1 invert"
+                className="h-9 w-auto mx-auto mb-1 invert"
               />
-              <p className="text-sm text-white/40">Custom boards &amp; fins</p>
+              <p className="text-xs text-white/40">Custom boards &amp; fins</p>
             </div>
 
-            {/* Product list */}
-            <div className="space-y-3">
+            <div className="space-y-2.5">
               {products.map((product) => {
                 const colors = statusColors[product.status];
                 return (
@@ -103,18 +101,18 @@ export default function HomePage() {
                     href={product.url}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="block bg-white/[0.06] hover:bg-white/[0.12] border border-white/[0.08] rounded-xl p-4 transition-all duration-200 group"
+                    className="block bg-white/[0.05] hover:bg-white/[0.1] border border-white/[0.06] rounded-xl p-3.5 transition-all duration-200 group"
                   >
                     <div className="flex items-start justify-between gap-3">
                       <div className="min-w-0">
-                        <h3 className="text-[15px] font-bold text-white group-hover:text-white/90 truncate">
+                        <h3 className="text-sm font-bold text-white group-hover:text-white/90 truncate">
                           {product.title}
                         </h3>
-                        <p className="text-xs text-white/40 mt-0.5">
+                        <p className="text-[11px] text-white/35 mt-0.5">
                           {product.category}
                         </p>
                       </div>
-                      <div className={`flex items-center gap-1.5 shrink-0 px-2.5 py-1 rounded-full ${colors.bg}`}>
+                      <div className={`flex items-center gap-1.5 shrink-0 px-2 py-0.5 rounded-full ${colors.bg}`}>
                         <span className={`w-1.5 h-1.5 rounded-full ${colors.dot}`} />
                         <span className={`text-[10px] font-bold ${colors.text} whitespace-nowrap`}>
                           {product.statusLabel}
@@ -125,28 +123,21 @@ export default function HomePage() {
                 );
               })}
             </div>
-
-            {/* Coming soon filler */}
-            <div className="mt-6 text-center py-8 border border-dashed border-white/[0.1] rounded-xl">
-              <p className="text-sm text-white/25 font-medium">More products coming soon</p>
-            </div>
           </div>
 
-          {/* ── Experience box (RIGHT) ── */}
-          <div className="bg-white/[0.07] backdrop-blur-xl border border-white/[0.12] rounded-2xl p-8 hover:bg-white/[0.1] transition-all duration-300">
-            {/* Experience header */}
-            <div className="mb-6 text-center">
+          {/* ── Experience box (CENTER) ── */}
+          <div className="bg-gradient-to-br from-[#0a3d5c]/80 to-[#0aa3c7]/30 backdrop-blur-xl border border-[#0aa3c7]/20 rounded-2xl p-7 hover:border-[#0aa3c7]/40 transition-all duration-300">
+            <div className="mb-5 text-center">
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img
                 src={`${STORAGE}/logos/np7-experience-logo.png`}
                 alt="NP7 Experience"
-                className="h-20 w-auto mx-auto mb-2"
+                className="h-28 w-auto mx-auto mb-1"
               />
-              <p className="text-sm text-white/40">Windsurfing travel experiences</p>
+              <p className="text-xs text-white/40">Windsurfing travel experiences</p>
             </div>
 
-            {/* Experience list */}
-            <div className="space-y-3">
+            <div className="space-y-2.5">
               {experiences.map((exp) => {
                 const colors = statusColors[exp.status];
                 return (
@@ -155,18 +146,18 @@ export default function HomePage() {
                     href={exp.url}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="block bg-white/[0.06] hover:bg-white/[0.12] border border-white/[0.08] rounded-xl p-4 transition-all duration-200 group"
+                    className="block bg-white/[0.05] hover:bg-white/[0.1] border border-white/[0.06] rounded-xl p-3.5 transition-all duration-200 group"
                   >
                     <div className="flex items-start justify-between gap-3">
                       <div className="min-w-0">
-                        <h3 className="text-[15px] font-bold text-white group-hover:text-white/90 truncate">
+                        <h3 className="text-sm font-bold text-white group-hover:text-white/90 truncate">
                           {exp.title}
                         </h3>
-                        <p className="text-xs text-white/40 mt-0.5">
+                        <p className="text-[11px] text-white/35 mt-0.5">
                           {exp.location} &middot; {exp.dates}
                         </p>
                       </div>
-                      <div className={`flex items-center gap-1.5 shrink-0 px-2.5 py-1 rounded-full ${colors.bg}`}>
+                      <div className={`flex items-center gap-1.5 shrink-0 px-2 py-0.5 rounded-full ${colors.bg}`}>
                         <span className={`w-1.5 h-1.5 rounded-full ${colors.dot}`} />
                         <span className={`text-[10px] font-bold ${colors.text} whitespace-nowrap`}>
                           {exp.statusLabel}
@@ -179,11 +170,35 @@ export default function HomePage() {
             </div>
           </div>
 
+          {/* ── Nico Prien box (RIGHT) ── */}
+          <a
+            href="https://nicoprien.de"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="bg-gradient-to-br from-[#1a1a2e]/80 to-[#2d1b4e]/60 backdrop-blur-xl border border-white/[0.1] rounded-2xl p-7 hover:border-white/[0.2] transition-all duration-300 group block"
+          >
+            <div className="text-center">
+              {/* Profile photo */}
+              <div
+                className="w-28 h-28 mx-auto rounded-full bg-cover bg-center bg-white/10 mb-4 border-2 border-white/20 group-hover:border-white/40 transition-all"
+                style={{
+                  backgroundImage: `url('${STORAGE}/photos/nico-profile.png')`,
+                }}
+              />
+              <h3 className="text-xl font-black text-white mb-1 tracking-[-0.02em]">Nico Prien</h3>
+              <p className="text-xs text-white/40 mb-4">GER-7 &middot; Professional Windsurfer</p>
+              <div className="inline-flex items-center gap-1.5 text-xs font-semibold text-white/50 group-hover:text-white/80 transition-colors">
+                nicoprien.de
+                <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><path d="M7 17L17 7M17 7H7M17 7v10" /></svg>
+              </div>
+            </div>
+          </a>
+
         </div>
 
         {/* Bottom */}
-        <div className="mt-10 text-center">
-          <p className="text-xs text-white/25 tracking-wide">
+        <div className="mt-8 text-center">
+          <p className="text-[11px] text-white/20 tracking-wide">
             &copy; 2026 NP7 GmbH &middot; Nico Prien &middot; GER-7
           </p>
         </div>
