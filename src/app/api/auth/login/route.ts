@@ -48,16 +48,17 @@ export async function POST(request: NextRequest) {
     { auth: { persistSession: false } }
   );
 
-  const { data: member } = await adminClient
+  const { data: member, error: memberError } = await adminClient
     .from("team_members")
     .select("*")
     .eq("auth_user_id", data.user.id)
     .eq("active", true)
     .single();
 
-  if (!member) {
+  if (memberError || !member) {
+    console.error("Team member lookup failed:", memberError, "user_id:", data.user.id);
     return NextResponse.json(
-      { error: "Not authorized. Team members only." },
+      { error: memberError?.message || "Not authorized. Team members only." },
       { status: 403 }
     );
   }
