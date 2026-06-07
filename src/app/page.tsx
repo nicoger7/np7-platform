@@ -192,7 +192,7 @@ export default function HomePage() {
 
           {/* ── Nico Prien box (RIGHT) ── */}
           <a
-            href="https://nicoprien.de"
+            href="https://nicoprien.com"
             target="_blank"
             rel="noopener noreferrer"
             className="rounded-2xl p-7 transition-all duration-300 group block border border-white/10 hover:border-white/20"
@@ -212,7 +212,7 @@ export default function HomePage() {
               <h3 className="text-xl font-black text-white mb-1 tracking-[-0.02em]">Nico Prien</h3>
               <p className="text-xs text-white/45 mb-5">GER-7 &middot; Professional Windsurfer</p>
               <div className="inline-flex items-center gap-1.5 text-xs font-semibold text-[#0aa3c7]/70 group-hover:text-[#0aa3c7] transition-colors">
-                nicoprien.de
+                nicoprien.com
                 <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><path d="M7 17L17 7M17 7H7M17 7v10" /></svg>
               </div>
             </div>
