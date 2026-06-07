@@ -3,6 +3,7 @@ import { createClient } from "@supabase/supabase-js";
 import type { Database } from "@/lib/database.types";
 
 export async function POST(request: NextRequest) {
+  try {
   const { email, password } = await request.json();
 
   if (!email || !password) {
@@ -12,9 +13,23 @@ export async function POST(request: NextRequest) {
     );
   }
 
+  if (!process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY) {
+    return NextResponse.json(
+      { error: "Server config error: Supabase URL or anon key not set" },
+      { status: 500 }
+    );
+  }
+
+  if (!process.env.SUPABASE_SERVICE_ROLE_KEY) {
+    return NextResponse.json(
+      { error: "Server config error: SUPABASE_SERVICE_ROLE_KEY not set in .env.local" },
+      { status: 500 }
+    );
+  }
+
   const supabase = createClient<Database>(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+    process.env.NEXT_PUBLIC_SUPABASE_URL,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
   );
 
   const { data, error } = await supabase.auth.signInWithPassword({
@@ -70,4 +85,11 @@ export async function POST(request: NextRequest) {
   });
 
   return response;
+  } catch (err) {
+    console.error("Login error:", err);
+    return NextResponse.json(
+      { error: err instanceof Error ? err.message : "Internal server error" },
+      { status: 500 }
+    );
+  }
 }

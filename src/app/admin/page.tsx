@@ -21,15 +21,16 @@ export default function AdminLoginPage() {
         body: JSON.stringify({ email, password }),
       });
 
+      const data = await res.json().catch(() => null);
+
       if (!res.ok) {
-        const data = await res.json();
-        setError(data.error || "Login failed");
+        setError(data?.error || `Login failed (${res.status})`);
         return;
       }
 
       window.location.href = "/admin/dashboard";
-    } catch {
-      setError("Something went wrong");
+    } catch (err) {
+      setError(`Connection error: ${err instanceof Error ? err.message : "check console"}`);
     } finally {
       setLoading(false);
     }
