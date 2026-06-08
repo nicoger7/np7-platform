@@ -3,6 +3,7 @@
 import { useState, useEffect, use } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import BusinessCaseCard from "@/components/business-case-card";
 
 interface Edition {
   id: string;
@@ -534,6 +535,13 @@ export default function EditionDetailPage({
           {/* Financials */}
           <div className="pt-4" style={{ borderTop: "1px solid var(--admin-border)" }}>
             <h3 className="text-xs font-bold tracking-[0.1em] admin-faint uppercase mb-4">Financials</h3>
+
+            {/* Computed business case — sell − cost from packages × confirmed heads */}
+            <div className="mb-5">
+              <BusinessCaseCard editionId={id} />
+            </div>
+
+            <div className="text-[10px] font-bold tracking-[0.1em] admin-faint uppercase mb-3">Manual overrides (optional)</div>
             <div className="grid grid-cols-3 gap-4">
               <div>
                 <label className={labelClass}>Total Fixed Costs ({currency})</label>
