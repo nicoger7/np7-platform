@@ -8,10 +8,10 @@ export const NP7_LOGO =
   "https://qfdqigumjadvrocxjolx.supabase.co/storage/v1/object/public/assets/logos/np7-logo.png";
 
 const NAV = [
-  { label: "Experiences", href: "#experiences" },
-  { label: "Destinations", href: "#destinations" },
-  { label: "Disciplines", href: "#disciplines" },
-  { label: "About", href: "#vibe" },
+  { label: "Experiences", href: "/experience#experiences" },
+  { label: "Destinations", href: "/experience#destinations" },
+  { label: "Disciplines", href: "/experience#disciplines" },
+  { label: "About", href: "/experience#vibe" },
 ];
 
 /**
@@ -21,7 +21,7 @@ const NAV = [
  * Left: the parent-brand NP7 mark (links to np-seven.com home) + the
  * Experience ⇄ Hardware switch. Right: in-page nav + booking CTA.
  */
-export function OceanHeader() {
+export function OceanHeader({ bookHref = "#experiences" }: { bookHref?: string }) {
   const [scrolled, setScrolled] = useState(false);
 
   useEffect(() => {
@@ -62,7 +62,7 @@ export function OceanHeader() {
         </nav>
 
         <Link
-          href="#experiences"
+          href={bookHref}
           className="shrink-0 px-5 py-2.5 rounded-full text-[12.5px] font-bold text-white bg-[#00afdb] shadow-[0_4px_18px_rgba(0,175,219,0.4)] hover:bg-[#15c0ec] hover:-translate-y-0.5 transition-all"
         >
           Book a trip

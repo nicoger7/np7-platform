@@ -83,7 +83,9 @@ interface Room {
   name: string;
   hotel: string;
   room_type: string;
+  room_number: string | null;
   status: string;
+  booking_id: string | null;
   booking: { id: string; name: string } | null;
 }
 
@@ -100,6 +102,12 @@ const BOOKING_STATUSES: Record<string, { label: string; color: string }> = {
   attended: { label: "Attended", color: "bg-gray-400" },
   lost: { label: "Lost", color: "bg-red-500" },
 };
+
+const HOTELS = ["Sorobon", "Wanapa", "Playa Surf", "Hotel Paradiso", "Alacati", "REF", "REF II"];
+const COST_STATUSES = ["estimate", "confirmed", "cancelled", "unlisted"];
+const ROOM_STATUSES = ["available", "assigned", "held"];
+const PKG_CATEGORIES = ["", "pro", "beginner", "mixed"];
+const ADD_BOOKING_STATUSES = ["lead", "interested", "enquiring", "ready_to_book", "payment_pending", "downpayment_paid", "create_invoice", "paid", "confirmed", "attended", "lost"];
 
 function BookingStatusBadge({ status }: { status: string }) {
   const s = BOOKING_STATUSES[status];
@@ -133,6 +141,35 @@ export default function EditionDetailPage({
   const [costs, setCosts] = useState<Cost[]>([]);
   const [rooms, setRooms] = useState<Room[]>([]);
 
+  // ── Inline CRUD form state ──
+  const emptyPkg = { name: "", price: "", deposit: "", max_spots: "", category: "", status: "active" };
+  const [pkgForm, setPkgForm] = useState(emptyPkg);
+  const [pkgEditId, setPkgEditId] = useState<string | null>(null);
+  const [pkgShow, setPkgShow] = useState(false);
+
+  const emptyCost = { item: "", estimated_amount: "", actual_amount: "", date: "", status: "estimate" };
+  const [costForm, setCostForm] = useState(emptyCost);
+  const [costEditId, setCostEditId] = useState<string | null>(null);
+  const [costShow, setCostShow] = useState(false);
+
+  const emptyRoom = { name: "", hotel: "", room_type: "", room_number: "", status: "available", booking_id: "" };
+  const [roomForm, setRoomForm] = useState(emptyRoom);
+  const [roomEditId, setRoomEditId] = useState<string | null>(null);
+  const [roomShow, setRoomShow] = useState(false);
+
+  const emptyBooking = { name: "", status: "lead", agreed_price: "", package_id: "" };
+  const [bookingForm, setBookingForm] = useState(emptyBooking);
+  const [bookingShow, setBookingShow] = useState(false);
+
+  const loadBookings = () =>
+    fetch(`/api/admin/bookings?edition_id=${id}`).then((r) => r.json()).then((d) => setBookings(d.bookings || []));
+  const loadPackages = () =>
+    fetch(`/api/admin/packages?edition_id=${id}`).then((r) => r.json()).then((d) => setPackages(d || []));
+  const loadCosts = () =>
+    fetch(`/api/admin/exp-costs?edition_id=${id}`).then((r) => r.json()).then((d) => setCosts(d || []));
+  const loadRooms = () =>
+    fetch(`/api/admin/hotel-rooms?edition_id=${id}`).then((r) => r.json()).then((d) => setRooms(d.rooms || []));
+
   useEffect(() => {
     fetch(`/api/admin/editions/${id}`)
       .then((r) => r.json())
@@ -143,36 +180,107 @@ export default function EditionDetailPage({
   }, [id]);
 
   useEffect(() => {
-    if (tab === "bookings") {
-      fetch(`/api/admin/bookings?edition_id=${id}`)
-        .then((r) => r.json())
-        .then((d) => setBookings(d.bookings || []));
-    }
+    if (tab === "bookings") { loadBookings(); loadPackages(); }
+    if (tab === "packages") { loadPackages(); loadBookings(); }
+    if (tab === "costs") loadCosts();
+    if (tab === "rooms") { loadRooms(); loadBookings(); }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [tab, id]);
 
-  useEffect(() => {
-    if (tab === "packages") {
-      fetch(`/api/admin/packages?edition_id=${id}`)
-        .then((r) => r.json())
-        .then((d) => setPackages(d || []));
-    }
-  }, [tab, id]);
+  const expId = edition?.experience_id;
 
-  useEffect(() => {
-    if (tab === "costs") {
-      fetch(`/api/admin/exp-costs?edition_id=${id}`)
-        .then((r) => r.json())
-        .then((d) => setCosts(d || []));
+  // Packages
+  async function savePackage() {
+    const body = {
+      name: pkgForm.name,
+      price: pkgForm.price ? Number(pkgForm.price) : null,
+      deposit: pkgForm.deposit ? Number(pkgForm.deposit) : null,
+      max_spots: pkgForm.max_spots ? Number(pkgForm.max_spots) : null,
+      category: pkgForm.category || null,
+      status: pkgForm.status,
+      edition_id: id,
+      experience_id: expId,
+    };
+    if (pkgEditId) {
+      await fetch(`/api/admin/packages/${pkgEditId}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+    } else {
+      await fetch(`/api/admin/packages`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
     }
-  }, [tab, id]);
+    setPkgShow(false); setPkgEditId(null); setPkgForm(emptyPkg); loadPackages();
+  }
+  async function deletePackage(pkgId: string) {
+    if (!confirm("Delete this package?")) return;
+    await fetch(`/api/admin/packages/${pkgId}`, { method: "DELETE" });
+    loadPackages();
+  }
 
-  useEffect(() => {
-    if (tab === "rooms") {
-      fetch(`/api/admin/hotel-rooms?edition_id=${id}`)
-        .then((r) => r.json())
-        .then((d) => setRooms(d.rooms || []));
+  // Costs
+  async function saveCost() {
+    const body = {
+      item: costForm.item,
+      estimated_amount: costForm.estimated_amount ? Number(costForm.estimated_amount) : null,
+      actual_amount: costForm.actual_amount ? Number(costForm.actual_amount) : null,
+      date: costForm.date || null,
+      status: costForm.status,
+      edition_id: id,
+      experience_id: expId,
+    };
+    if (costEditId) {
+      await fetch(`/api/admin/exp-costs/${costEditId}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+    } else {
+      await fetch(`/api/admin/exp-costs`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
     }
-  }, [tab, id]);
+    setCostShow(false); setCostEditId(null); setCostForm(emptyCost); loadCosts();
+  }
+  async function deleteCost(costId: string) {
+    if (!confirm("Delete this cost item?")) return;
+    await fetch(`/api/admin/exp-costs/${costId}`, { method: "DELETE" });
+    loadCosts();
+  }
+
+  // Rooms
+  async function saveRoom() {
+    const body = {
+      name: roomForm.name,
+      hotel: roomForm.hotel || null,
+      room_type: roomForm.room_type || null,
+      room_number: roomForm.room_number || null,
+      status: roomForm.status,
+      booking_id: roomForm.booking_id || null,
+      edition_id: id,
+      experience_id: expId,
+    };
+    if (roomEditId) {
+      await fetch(`/api/admin/hotel-rooms/${roomEditId}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+    } else {
+      await fetch(`/api/admin/hotel-rooms`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+    }
+    setRoomShow(false); setRoomEditId(null); setRoomForm(emptyRoom); loadRooms();
+  }
+  async function deleteRoom(roomId: string) {
+    if (!confirm("Delete this room?")) return;
+    await fetch(`/api/admin/hotel-rooms/${roomId}`, { method: "DELETE" });
+    loadRooms();
+  }
+
+  // Bookings (add inline; edit on detail page)
+  async function addBooking() {
+    const body = {
+      name: bookingForm.name,
+      status: bookingForm.status,
+      agreed_price: bookingForm.agreed_price ? Number(bookingForm.agreed_price) : null,
+      package_id: bookingForm.package_id || null,
+      edition_id: id,
+      experience_id: expId,
+    };
+    await fetch(`/api/admin/bookings`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+    setBookingShow(false); setBookingForm(emptyBooking); loadBookings();
+  }
+  async function deleteBooking(bookingId: string) {
+    if (!confirm("Delete this booking?")) return;
+    await fetch(`/api/admin/bookings/${bookingId}`, { method: "DELETE" });
+    loadBookings();
+  }
 
   async function handleSave() {
     if (!edition) return;
@@ -583,37 +691,51 @@ export default function EditionDetailPage({
         <div>
           <div className="flex justify-between items-center mb-4">
             <p className="text-xs admin-faint">{bookings.length} booking{bookings.length !== 1 ? "s" : ""} for this edition</p>
-            <Link
-              href={`/admin/bookings?edition_id=${id}`}
-              className="text-xs text-[#0aa3c7] hover:text-[#0aa3c7]/80 transition-colors"
-            >
-              View all →
-            </Link>
+            <div className="flex items-center gap-3">
+              <Link href={`/admin/bookings?edition_id=${id}`} className="text-xs text-[#0aa3c7] hover:text-[#0aa3c7]/80 transition-colors">View all →</Link>
+              <button onClick={() => setBookingShow((v) => !v)} className="px-3 py-1.5 bg-[#0aa3c7] hover:bg-[#0aa3c7]/90 text-white text-xs font-bold rounded-lg transition-colors">New Booking</button>
+            </div>
           </div>
+
+          {bookingShow && (
+            <div className="mb-4 p-4 rounded-xl" style={{ border: "1px solid var(--admin-border)", backgroundColor: "var(--admin-surface)" }}>
+              <div className="grid grid-cols-[1fr_140px_110px_1fr] gap-3 mb-3">
+                <div><label className={labelClass}>Name *</label><input className={inputClass} value={bookingForm.name} onChange={(e) => setBookingForm({ ...bookingForm, name: e.target.value })} /></div>
+                <div><label className={labelClass}>Status</label><select className={inputClass} value={bookingForm.status} onChange={(e) => setBookingForm({ ...bookingForm, status: e.target.value })}>{ADD_BOOKING_STATUSES.map((s) => <option key={s} value={s}>{BOOKING_STATUSES[s]?.label || s}</option>)}</select></div>
+                <div><label className={labelClass}>Price ({currency})</label><input type="number" className={inputClass} value={bookingForm.agreed_price} onChange={(e) => setBookingForm({ ...bookingForm, agreed_price: e.target.value })} /></div>
+                <div><label className={labelClass}>Package</label><select className={inputClass} value={bookingForm.package_id} onChange={(e) => setBookingForm({ ...bookingForm, package_id: e.target.value })}><option value="">None</option>{packages.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}</select></div>
+              </div>
+              <div className="flex gap-2">
+                <button onClick={addBooking} disabled={!bookingForm.name} className="px-4 py-2 bg-[#0aa3c7] hover:bg-[#0aa3c7]/90 disabled:opacity-40 text-white text-sm font-bold rounded-lg transition-colors">Create</button>
+                <button onClick={() => { setBookingShow(false); setBookingForm(emptyBooking); }} className="px-4 py-2 admin-muted text-sm rounded-lg transition-colors">Cancel</button>
+              </div>
+            </div>
+          )}
+
           {bookings.length === 0 ? (
             <div className="text-center py-16">
               <p className="text-sm admin-faint">No bookings for this edition</p>
             </div>
           ) : (
             <div className="rounded-xl overflow-hidden" style={{ border: "1px solid var(--admin-border)" }}>
-              <div className="grid grid-cols-[1fr_130px_90px_90px_70px] gap-4 px-5 py-3 admin-surface" style={{ borderBottom: "1px solid var(--admin-border)" }}>
+              <div className="grid grid-cols-[1fr_130px_90px_90px_60px_40px] gap-4 px-5 py-3 admin-surface" style={{ borderBottom: "1px solid var(--admin-border)" }}>
                 <span className="text-[10px] font-bold tracking-[0.1em] admin-faint uppercase">Name</span>
                 <span className="text-[10px] font-bold tracking-[0.1em] admin-faint uppercase">Status</span>
                 <span className="text-[10px] font-bold tracking-[0.1em] admin-faint uppercase">Fly In</span>
                 <span className="text-[10px] font-bold tracking-[0.1em] admin-faint uppercase">Price</span>
                 <span className="text-[10px] font-bold tracking-[0.1em] admin-faint uppercase">Paid</span>
+                <span></span>
               </div>
               {bookings.map((b) => (
                 <div
                   key={b.id}
-                  className="grid grid-cols-[1fr_130px_90px_90px_70px] gap-4 px-5 py-3.5 cursor-pointer transition-colors"
+                  className="grid grid-cols-[1fr_130px_90px_90px_60px_40px] gap-4 px-5 py-3.5 transition-colors group"
                   style={{ borderBottom: "1px solid var(--admin-border)" }}
-                  onClick={() => router.push(`/admin/bookings/${b.id}`)}
                   onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = "var(--admin-surface-hover)")}
                   onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = "transparent")}
                 >
-                  <span className="text-sm font-medium admin-heading truncate self-center">{b.name}</span>
-                  <span className="self-center"><BookingStatusBadge status={b.status} /></span>
+                  <span className="text-sm font-medium admin-heading truncate self-center cursor-pointer" onClick={() => router.push(`/admin/bookings/${b.id}`)}>{b.name}</span>
+                  <span className="self-center cursor-pointer" onClick={() => router.push(`/admin/bookings/${b.id}`)}><BookingStatusBadge status={b.status} /></span>
                   <span className="text-xs admin-muted self-center">{formatDate(b.fly_in)}</span>
                   <span className="text-xs admin-muted self-center">
                     {b.agreed_price ? `€${Number(b.agreed_price).toLocaleString()}` : "—"}
@@ -627,6 +749,9 @@ export default function EditionDetailPage({
                       <span className="admin-faint text-xs">—</span>
                     )}
                   </span>
+                  <button onClick={() => deleteBooking(b.id)} className="self-center opacity-0 group-hover:opacity-100 admin-faint hover:text-red-400 transition-all" title="Delete">
+                    <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M3 6h18M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a2 2 0 012-2h4a2 2 0 012 2v2" /></svg>
+                  </button>
                 </div>
               ))}
             </div>
@@ -639,50 +764,65 @@ export default function EditionDetailPage({
         <div>
           <div className="flex justify-between items-center mb-4">
             <p className="text-xs admin-faint">{packages.length} package{packages.length !== 1 ? "s" : ""} for this edition</p>
-            <Link
-              href={`/admin/packages?edition_id=${id}`}
-              className="text-xs text-[#0aa3c7] hover:text-[#0aa3c7]/80 transition-colors"
-            >
-              View all →
-            </Link>
+            <div className="flex items-center gap-3">
+              <Link href={`/admin/packages?edition_id=${id}`} className="text-xs text-[#0aa3c7] hover:text-[#0aa3c7]/80 transition-colors">View all →</Link>
+              <button onClick={() => { setPkgEditId(null); setPkgForm(emptyPkg); setPkgShow(true); }} className="px-3 py-1.5 bg-[#0aa3c7] hover:bg-[#0aa3c7]/90 text-white text-xs font-bold rounded-lg transition-colors">New Package</button>
+            </div>
           </div>
+
+          {(pkgShow || pkgEditId) && (
+            <div className="mb-4 p-4 rounded-xl" style={{ border: "1px solid var(--admin-border)", backgroundColor: "var(--admin-surface)" }}>
+              <h3 className="text-sm font-bold admin-heading mb-3">{pkgEditId ? "Edit Package" : "New Package"}</h3>
+              <div className="grid grid-cols-[1fr_110px_110px_90px_130px] gap-3 mb-3">
+                <div><label className={labelClass}>Name *</label><input className={inputClass} value={pkgForm.name} onChange={(e) => setPkgForm({ ...pkgForm, name: e.target.value })} /></div>
+                <div><label className={labelClass}>Price ({currency})</label><input type="number" className={inputClass} value={pkgForm.price} onChange={(e) => setPkgForm({ ...pkgForm, price: e.target.value })} /></div>
+                <div><label className={labelClass}>Deposit</label><input type="number" className={inputClass} value={pkgForm.deposit} onChange={(e) => setPkgForm({ ...pkgForm, deposit: e.target.value })} /></div>
+                <div><label className={labelClass}>Spots</label><input type="number" className={inputClass} value={pkgForm.max_spots} onChange={(e) => setPkgForm({ ...pkgForm, max_spots: e.target.value })} /></div>
+                <div><label className={labelClass}>Category</label><select className={inputClass} value={pkgForm.category} onChange={(e) => setPkgForm({ ...pkgForm, category: e.target.value })}>{PKG_CATEGORIES.map((c) => <option key={c} value={c}>{c ? c[0].toUpperCase() + c.slice(1) : "None"}</option>)}</select></div>
+              </div>
+              <div className="flex items-center gap-2">
+                <button onClick={savePackage} disabled={!pkgForm.name} className="px-4 py-2 bg-[#0aa3c7] hover:bg-[#0aa3c7]/90 disabled:opacity-40 text-white text-sm font-bold rounded-lg transition-colors">{pkgEditId ? "Update" : "Create"}</button>
+                <button onClick={() => { setPkgShow(false); setPkgEditId(null); setPkgForm(emptyPkg); }} className="px-4 py-2 admin-muted text-sm rounded-lg transition-colors">Cancel</button>
+                <span className="text-xs admin-faint ml-2">Edit components from the <Link href={`/admin/packages?edition_id=${id}`} className="text-[#0aa3c7]">packages page</Link>.</span>
+              </div>
+            </div>
+          )}
+
           {packages.length === 0 ? (
             <div className="text-center py-16">
               <p className="text-sm admin-faint">No packages for this edition</p>
             </div>
           ) : (
             <div className="rounded-xl overflow-hidden" style={{ border: "1px solid var(--admin-border)" }}>
-              <div className="grid grid-cols-[1fr_100px_100px_80px_80px] gap-4 px-5 py-3 admin-surface" style={{ borderBottom: "1px solid var(--admin-border)" }}>
+              <div className="grid grid-cols-[1fr_100px_100px_70px_80px_40px] gap-4 px-5 py-3 admin-surface" style={{ borderBottom: "1px solid var(--admin-border)" }}>
                 <span className="text-[10px] font-bold tracking-[0.1em] admin-faint uppercase">Name</span>
                 <span className="text-[10px] font-bold tracking-[0.1em] admin-faint uppercase">Price</span>
                 <span className="text-[10px] font-bold tracking-[0.1em] admin-faint uppercase">Deposit</span>
                 <span className="text-[10px] font-bold tracking-[0.1em] admin-faint uppercase">Spots</span>
                 <span className="text-[10px] font-bold tracking-[0.1em] admin-faint uppercase">Status</span>
+                <span></span>
               </div>
               {packages.map((pkg) => (
                 <div
                   key={pkg.id}
-                  className="grid grid-cols-[1fr_100px_100px_80px_80px] gap-4 px-5 py-3.5"
+                  className="grid grid-cols-[1fr_100px_100px_70px_80px_40px] gap-4 px-5 py-3.5 transition-colors group"
                   style={{ borderBottom: "1px solid var(--admin-border)" }}
+                  onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = "var(--admin-surface-hover)")}
+                  onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = "transparent")}
                 >
-                  <div className="min-w-0 self-center">
+                  <div className="min-w-0 self-center cursor-pointer" onClick={() => { setPkgEditId(pkg.id); setPkgShow(false); setPkgForm({ name: pkg.name, price: pkg.price?.toString() || "", deposit: pkg.deposit?.toString() || "", max_spots: pkg.max_spots?.toString() || "", category: pkg.category || "", status: pkg.status }); }}>
                     <div className="text-sm font-medium admin-heading truncate">{pkg.name}</div>
                     {pkg.category && <div className="text-xs admin-faint capitalize">{pkg.category}</div>}
                   </div>
-                  <span className="text-xs admin-muted self-center">
-                    {pkg.price ? `€${Number(pkg.price).toLocaleString()}` : "—"}
-                  </span>
-                  <span className="text-xs admin-muted self-center">
-                    {pkg.deposit ? `€${Number(pkg.deposit).toLocaleString()}` : "—"}
-                  </span>
+                  <span className="text-xs admin-muted self-center">{pkg.price ? `€${Number(pkg.price).toLocaleString()}` : "—"}</span>
+                  <span className="text-xs admin-muted self-center">{pkg.deposit ? `€${Number(pkg.deposit).toLocaleString()}` : "—"}</span>
                   <span className="text-xs admin-muted self-center">{pkg.max_spots ?? "—"}</span>
                   <span className="self-center">
-                    <span className={`inline-block px-2 py-0.5 rounded text-[10px] font-bold uppercase ${
-                      pkg.status === "active" ? "bg-green-500/15 text-green-400" : "bg-gray-500/15 text-gray-400"
-                    }`}>
-                      {pkg.status}
-                    </span>
+                    <span className={`inline-block px-2 py-0.5 rounded text-[10px] font-bold uppercase ${pkg.status === "active" ? "bg-green-500/15 text-green-400" : "bg-gray-500/15 text-gray-400"}`}>{pkg.status}</span>
                   </span>
+                  <button onClick={() => deletePackage(pkg.id)} className="self-center opacity-0 group-hover:opacity-100 admin-faint hover:text-red-400 transition-all" title="Delete">
+                    <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M3 6h18M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a2 2 0 012-2h4a2 2 0 012 2v2" /></svg>
+                  </button>
                 </div>
               ))}
             </div>
@@ -695,49 +835,66 @@ export default function EditionDetailPage({
         <div>
           <div className="flex justify-between items-center mb-4">
             <p className="text-xs admin-faint">{costs.length} cost item{costs.length !== 1 ? "s" : ""} for this edition</p>
-            <Link
-              href={`/admin/exp-costs?edition_id=${id}`}
-              className="text-xs text-[#0aa3c7] hover:text-[#0aa3c7]/80 transition-colors"
-            >
-              View all →
-            </Link>
+            <div className="flex items-center gap-3">
+              <Link href={`/admin/exp-costs?edition_id=${id}`} className="text-xs text-[#0aa3c7] hover:text-[#0aa3c7]/80 transition-colors">View all →</Link>
+              <button onClick={() => { setCostEditId(null); setCostForm(emptyCost); setCostShow(true); }} className="px-3 py-1.5 bg-[#0aa3c7] hover:bg-[#0aa3c7]/90 text-white text-xs font-bold rounded-lg transition-colors">New Cost</button>
+            </div>
           </div>
+
+          {(costShow || costEditId) && (
+            <div className="mb-4 p-4 rounded-xl" style={{ border: "1px solid var(--admin-border)", backgroundColor: "var(--admin-surface)" }}>
+              <h3 className="text-sm font-bold admin-heading mb-3">{costEditId ? "Edit Cost" : "New Cost"}</h3>
+              <div className="grid grid-cols-[1fr_120px_120px_140px_130px] gap-3 mb-3">
+                <div><label className={labelClass}>Item *</label><input className={inputClass} value={costForm.item} onChange={(e) => setCostForm({ ...costForm, item: e.target.value })} /></div>
+                <div><label className={labelClass}>Estimated ({currency})</label><input type="number" className={inputClass} value={costForm.estimated_amount} onChange={(e) => setCostForm({ ...costForm, estimated_amount: e.target.value })} /></div>
+                <div><label className={labelClass}>Actual ({currency})</label><input type="number" className={inputClass} value={costForm.actual_amount} onChange={(e) => setCostForm({ ...costForm, actual_amount: e.target.value })} /></div>
+                <div><label className={labelClass}>Date</label><input type="date" className={inputClass} value={costForm.date} onChange={(e) => setCostForm({ ...costForm, date: e.target.value })} /></div>
+                <div><label className={labelClass}>Status</label><select className={inputClass} value={costForm.status} onChange={(e) => setCostForm({ ...costForm, status: e.target.value })}>{COST_STATUSES.map((s) => <option key={s} value={s}>{s[0].toUpperCase() + s.slice(1)}</option>)}</select></div>
+              </div>
+              <div className="flex gap-2">
+                <button onClick={saveCost} disabled={!costForm.item} className="px-4 py-2 bg-[#0aa3c7] hover:bg-[#0aa3c7]/90 disabled:opacity-40 text-white text-sm font-bold rounded-lg transition-colors">{costEditId ? "Update" : "Create"}</button>
+                <button onClick={() => { setCostShow(false); setCostEditId(null); setCostForm(emptyCost); }} className="px-4 py-2 admin-muted text-sm rounded-lg transition-colors">Cancel</button>
+              </div>
+            </div>
+          )}
+
           {costs.length === 0 ? (
             <div className="text-center py-16">
               <p className="text-sm admin-faint">No costs for this edition</p>
             </div>
           ) : (
             <div className="rounded-xl overflow-hidden" style={{ border: "1px solid var(--admin-border)" }}>
-              <div className="grid grid-cols-[1fr_110px_110px_90px_90px] gap-4 px-5 py-3 admin-surface" style={{ borderBottom: "1px solid var(--admin-border)" }}>
+              <div className="grid grid-cols-[1fr_110px_110px_90px_90px_40px] gap-4 px-5 py-3 admin-surface" style={{ borderBottom: "1px solid var(--admin-border)" }}>
                 <span className="text-[10px] font-bold tracking-[0.1em] admin-faint uppercase">Item</span>
                 <span className="text-[10px] font-bold tracking-[0.1em] admin-faint uppercase">Estimated</span>
                 <span className="text-[10px] font-bold tracking-[0.1em] admin-faint uppercase">Actual</span>
                 <span className="text-[10px] font-bold tracking-[0.1em] admin-faint uppercase">Date</span>
                 <span className="text-[10px] font-bold tracking-[0.1em] admin-faint uppercase">Status</span>
+                <span></span>
               </div>
               {costs.map((c) => (
                 <div
                   key={c.id}
-                  className="grid grid-cols-[1fr_110px_110px_90px_90px] gap-4 px-5 py-3.5"
+                  className="grid grid-cols-[1fr_110px_110px_90px_90px_40px] gap-4 px-5 py-3.5 transition-colors group"
                   style={{ borderBottom: "1px solid var(--admin-border)" }}
+                  onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = "var(--admin-surface-hover)")}
+                  onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = "transparent")}
                 >
-                  <span className="text-sm admin-heading truncate self-center">{c.item}</span>
-                  <span className="text-xs admin-muted self-center">
-                    {c.estimated_amount ? `€${Number(c.estimated_amount).toLocaleString()}` : "—"}
-                  </span>
-                  <span className="text-xs admin-muted self-center">
-                    {c.actual_amount ? `€${Number(c.actual_amount).toLocaleString()}` : "—"}
-                  </span>
+                  <span className="text-sm admin-heading truncate self-center cursor-pointer" onClick={() => { setCostEditId(c.id); setCostShow(false); setCostForm({ item: c.item, estimated_amount: c.estimated_amount?.toString() || "", actual_amount: c.actual_amount?.toString() || "", date: c.date || "", status: c.status }); }}>{c.item}</span>
+                  <span className="text-xs admin-muted self-center">{c.estimated_amount ? `€${Number(c.estimated_amount).toLocaleString()}` : "—"}</span>
+                  <span className="text-xs admin-muted self-center">{c.actual_amount ? `€${Number(c.actual_amount).toLocaleString()}` : "—"}</span>
                   <span className="text-xs admin-faint self-center">{formatDate(c.date)}</span>
                   <span className="self-center">
                     <span className={`inline-block px-2 py-0.5 rounded text-[10px] font-bold uppercase ${
-                      c.status === "paid" ? "bg-green-500/15 text-green-400" :
-                      c.status === "pending" ? "bg-amber-500/15 text-amber-400" :
+                      c.status === "confirmed" ? "bg-green-500/15 text-green-400" :
+                      c.status === "estimate" ? "bg-amber-500/15 text-amber-400" :
+                      c.status === "cancelled" ? "bg-red-500/15 text-red-400" :
                       "admin-surface admin-muted"
-                    }`}>
-                      {c.status}
-                    </span>
+                    }`}>{c.status}</span>
                   </span>
+                  <button onClick={() => deleteCost(c.id)} className="self-center opacity-0 group-hover:opacity-100 admin-faint hover:text-red-400 transition-all" title="Delete">
+                    <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M3 6h18M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a2 2 0 012-2h4a2 2 0 012 2v2" /></svg>
+                  </button>
                 </div>
               ))}
             </div>
@@ -750,33 +907,55 @@ export default function EditionDetailPage({
         <div>
           <div className="flex justify-between items-center mb-4">
             <p className="text-xs admin-faint">{rooms.length} room{rooms.length !== 1 ? "s" : ""} for this edition</p>
-            <Link
-              href={`/admin/hotel-rooms?edition_id=${id}`}
-              className="text-xs text-[#0aa3c7] hover:text-[#0aa3c7]/80 transition-colors"
-            >
-              View all →
-            </Link>
+            <div className="flex items-center gap-3">
+              <Link href={`/admin/hotel-rooms?edition_id=${id}`} className="text-xs text-[#0aa3c7] hover:text-[#0aa3c7]/80 transition-colors">View all →</Link>
+              <button onClick={() => { setRoomEditId(null); setRoomForm(emptyRoom); setRoomShow(true); }} className="px-3 py-1.5 bg-[#0aa3c7] hover:bg-[#0aa3c7]/90 text-white text-xs font-bold rounded-lg transition-colors">New Room</button>
+            </div>
           </div>
+
+          {(roomShow || roomEditId) && (
+            <div className="mb-4 p-4 rounded-xl" style={{ border: "1px solid var(--admin-border)", backgroundColor: "var(--admin-surface)" }}>
+              <h3 className="text-sm font-bold admin-heading mb-3">{roomEditId ? "Edit Room" : "New Room"}</h3>
+              <div className="grid grid-cols-[1fr_140px_90px_120px] gap-3 mb-3">
+                <div><label className={labelClass}>Name *</label><input className={inputClass} value={roomForm.name} onChange={(e) => setRoomForm({ ...roomForm, name: e.target.value })} /></div>
+                <div><label className={labelClass}>Hotel</label><select className={inputClass} value={roomForm.hotel} onChange={(e) => setRoomForm({ ...roomForm, hotel: e.target.value })}><option value="">—</option>{HOTELS.map((h) => <option key={h} value={h}>{h}</option>)}</select></div>
+                <div><label className={labelClass}>Room #</label><input className={inputClass} value={roomForm.room_number} onChange={(e) => setRoomForm({ ...roomForm, room_number: e.target.value })} /></div>
+                <div><label className={labelClass}>Status</label><select className={inputClass} value={roomForm.status} onChange={(e) => setRoomForm({ ...roomForm, status: e.target.value })}>{ROOM_STATUSES.map((s) => <option key={s} value={s}>{s[0].toUpperCase() + s.slice(1)}</option>)}</select></div>
+              </div>
+              <div className="grid grid-cols-[1fr_1fr] gap-3 mb-3">
+                <div><label className={labelClass}>Room type</label><input className={inputClass} value={roomForm.room_type} onChange={(e) => setRoomForm({ ...roomForm, room_type: e.target.value })} placeholder="e.g. BON-WAN-Double Deluxe Balcony" /></div>
+                <div><label className={labelClass}>Guest (booking)</label><select className={inputClass} value={roomForm.booking_id} onChange={(e) => setRoomForm({ ...roomForm, booking_id: e.target.value })}><option value="">Unassigned</option>{bookings.map((b) => <option key={b.id} value={b.id}>{b.name}</option>)}</select></div>
+              </div>
+              <div className="flex gap-2">
+                <button onClick={saveRoom} disabled={!roomForm.name} className="px-4 py-2 bg-[#0aa3c7] hover:bg-[#0aa3c7]/90 disabled:opacity-40 text-white text-sm font-bold rounded-lg transition-colors">{roomEditId ? "Update" : "Create"}</button>
+                <button onClick={() => { setRoomShow(false); setRoomEditId(null); setRoomForm(emptyRoom); }} className="px-4 py-2 admin-muted text-sm rounded-lg transition-colors">Cancel</button>
+              </div>
+            </div>
+          )}
+
           {rooms.length === 0 ? (
             <div className="text-center py-16">
               <p className="text-sm admin-faint">No hotel rooms for this edition</p>
             </div>
           ) : (
             <div className="rounded-xl overflow-hidden" style={{ border: "1px solid var(--admin-border)" }}>
-              <div className="grid grid-cols-[1fr_120px_120px_80px_120px] gap-4 px-5 py-3 admin-surface" style={{ borderBottom: "1px solid var(--admin-border)" }}>
+              <div className="grid grid-cols-[1fr_120px_110px_80px_110px_40px] gap-4 px-5 py-3 admin-surface" style={{ borderBottom: "1px solid var(--admin-border)" }}>
                 <span className="text-[10px] font-bold tracking-[0.1em] admin-faint uppercase">Room</span>
                 <span className="text-[10px] font-bold tracking-[0.1em] admin-faint uppercase">Type</span>
                 <span className="text-[10px] font-bold tracking-[0.1em] admin-faint uppercase">Hotel</span>
                 <span className="text-[10px] font-bold tracking-[0.1em] admin-faint uppercase">Status</span>
                 <span className="text-[10px] font-bold tracking-[0.1em] admin-faint uppercase">Guest</span>
+                <span></span>
               </div>
               {rooms.map((room) => (
                 <div
                   key={room.id}
-                  className="grid grid-cols-[1fr_120px_120px_80px_120px] gap-4 px-5 py-3.5"
+                  className="grid grid-cols-[1fr_120px_110px_80px_110px_40px] gap-4 px-5 py-3.5 transition-colors group"
                   style={{ borderBottom: "1px solid var(--admin-border)" }}
+                  onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = "var(--admin-surface-hover)")}
+                  onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = "transparent")}
                 >
-                  <span className="text-sm font-medium admin-heading truncate self-center">{room.name}</span>
+                  <span className="text-sm font-medium admin-heading truncate self-center cursor-pointer" onClick={() => { setRoomEditId(room.id); setRoomShow(false); setRoomForm({ name: room.name, hotel: room.hotel || "", room_type: room.room_type || "", room_number: room.room_number || "", status: room.status, booking_id: room.booking_id || "" }); }}>{room.name}</span>
                   <span className="text-xs admin-muted self-center truncate">{room.room_type}</span>
                   <span className="text-xs admin-muted self-center">{room.hotel}</span>
                   <span className="self-center">
@@ -784,13 +963,12 @@ export default function EditionDetailPage({
                       room.status === "assigned" ? "bg-blue-500/15 text-blue-400" :
                       room.status === "held" ? "bg-amber-500/15 text-amber-400" :
                       "bg-green-500/15 text-green-400"
-                    }`}>
-                      {room.status}
-                    </span>
+                    }`}>{room.status}</span>
                   </span>
-                  <span className="text-xs admin-muted self-center truncate">
-                    {room.booking?.name || "—"}
-                  </span>
+                  <span className="text-xs admin-muted self-center truncate">{room.booking?.name || "—"}</span>
+                  <button onClick={() => deleteRoom(room.id)} className="self-center opacity-0 group-hover:opacity-100 admin-faint hover:text-red-400 transition-all" title="Delete">
+                    <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M3 6h18M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a2 2 0 012-2h4a2 2 0 012 2v2" /></svg>
+                  </button>
                 </div>
               ))}
             </div>
