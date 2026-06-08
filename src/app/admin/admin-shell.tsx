@@ -48,7 +48,6 @@ const navByEnv: Record<Environment, { label: string; items: { label: string; hre
       items: [
         { label: "Packages", href: "/admin/experiences", icon: "compass" },
         { label: "Components", href: "/admin/components", icon: "puzzle" },
-        { label: "Scenario Planner", href: "/admin/scenario-planner", icon: "chartline" },
         { label: "To-Dos", href: "/admin/todos", icon: "checklist" },
       ],
     },
