@@ -1,0 +1,687 @@
+"use client";
+
+import { useState, useEffect, use } from "react";
+import { useRouter } from "next/navigation";
+import Link from "next/link";
+
+interface BookingDetail {
+  id: string;
+  name: string;
+  experience_id: string | null;
+  package_id: string | null;
+  contact_id: string | null;
+  status: string;
+  fly_in: string | null;
+  fly_out: string | null;
+  traveling_with: string | null;
+  wa_group: boolean;
+  agreed_price: number | null;
+  downpayment_invoice_sent: boolean;
+  downpayment_received: boolean;
+  final_invoice_sent: boolean;
+  final_invoice_due: string | null;
+  final_payment_received: boolean;
+  notes: string | null;
+  created_at: string;
+  contacts: { name: string; email: string; phone: string; country: string; level: string; tshirt_size: string; diet_allergies: string } | null;
+  exp_experiences: { title: string; slug: string; date_start: string; date_end: string } | null;
+  exp_packages: { name: string; price: number } | null;
+  payments: Payment[];
+  addons: Addon[];
+  hotel_rooms: HotelRoom[];
+}
+
+interface Payment {
+  id: string;
+  amount: number;
+  type: string;
+  method: string | null;
+  reference: string | null;
+  received_at: string | null;
+  notes: string | null;
+}
+
+interface Addon {
+  id: string;
+  label: string;
+  price: number | null;
+  notes: string | null;
+  component_id: string | null;
+  exp_components: { id: string; name: string; category: string; unit_cost: number } | null;
+}
+
+interface HotelRoom {
+  id: string;
+  name: string;
+  hotel: string;
+  room_type: string;
+  status: string;
+  check_in: string | null;
+  check_out: string | null;
+}
+
+interface AvailableComponent {
+  id: string;
+  name: string;
+  category: string;
+  unit_cost: number | null;
+}
+
+interface AvailableExperience {
+  id: string;
+  title: string;
+}
+
+interface AvailablePackage {
+  id: string;
+  name: string;
+  price: number | null;
+}
+
+interface AvailableContact {
+  id: string;
+  name: string;
+  email: string | null;
+}
+
+const STATUSES = [
+  { value: "lead", label: "Lead", color: "bg-gray-500" },
+  { value: "interested", label: "Interested", color: "bg-yellow-500" },
+  { value: "enquiring", label: "Enquiring", color: "bg-blue-400" },
+  { value: "ready_to_book", label: "Ready to Book", color: "bg-orange-500" },
+  { value: "payment_pending", label: "Payment Pending", color: "bg-amber-600" },
+  { value: "downpayment_paid", label: "Downpayment Paid", color: "bg-green-500" },
+  { value: "create_invoice", label: "Create Invoice", color: "bg-orange-400" },
+  { value: "paid", label: "Paid", color: "bg-green-600" },
+  { value: "contact_by_phone", label: "Contact by Phone", color: "bg-pink-500" },
+  { value: "confirmed", label: "Confirmed", color: "bg-blue-600" },
+  { value: "attended", label: "Attended", color: "bg-gray-400" },
+  { value: "lost", label: "Lost", color: "bg-red-500" },
+];
+
+function formatDate(d: string | null) {
+  if (!d) return "—";
+  return new Date(d).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
+}
+
+export default function BookingDetailPage({
+  params,
+}: {
+  params: Promise<{ id: string }>;
+}) {
+  const { id } = use(params);
+  const router = useRouter();
+  const [booking, setBooking] = useState<BookingDetail | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [saved, setSaved] = useState(false);
+  const [tab, setTab] = useState<"details" | "payments" | "addons" | "rooms">("details");
+
+  // Reference data
+  const [experiences, setExperiences] = useState<AvailableExperience[]>([]);
+  const [packages, setPackages] = useState<AvailablePackage[]>([]);
+  const [contacts, setContacts] = useState<AvailableContact[]>([]);
+  const [components, setComponents] = useState<AvailableComponent[]>([]);
+
+  // New add-on form
+  const [showAddonForm, setShowAddonForm] = useState(false);
+  const [addonForm, setAddonForm] = useState({ component_id: "", label: "", price: "", notes: "" });
+
+  // New payment form
+  const [showPaymentForm, setShowPaymentForm] = useState(false);
+  const [paymentForm, setPaymentForm] = useState({ amount: "", type: "downpayment", method: "", reference: "", notes: "" });
+
+  useEffect(() => {
+    Promise.all([
+      fetch(`/api/admin/bookings/${id}`).then((r) => r.json()),
+      fetch("/api/admin/experiences").then((r) => r.json()),
+      fetch("/api/admin/contacts?limit=200").then((r) => r.json()),
+      fetch("/api/admin/components").then((r) => r.json()),
+    ]).then(([b, exps, cts, comps]) => {
+      setBooking(b);
+      const expList = exps.experiences || exps || [];
+      setExperiences(expList.map((e: Record<string, string>) => ({ id: e.id, title: e.title })));
+      setContacts((cts.data || []).map((c: Record<string, string>) => ({ id: c.id, name: c.name, email: c.email })));
+      setComponents(comps || []);
+      // Load packages for the booking's experience
+      if (b.experience_id) {
+        fetch(`/api/admin/packages?experience_id=${b.experience_id}`)
+          .then((r) => r.json())
+          .then((pkgs) => setPackages(pkgs || []));
+      }
+      setLoading(false);
+    });
+  }, [id]);
+
+  function update(field: string, value: unknown) {
+    setBooking((prev) => (prev ? { ...prev, [field]: value } : prev));
+  }
+
+  async function handleSave() {
+    if (!booking) return;
+    setSaving(true);
+    await fetch(`/api/admin/bookings/${id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        name: booking.name,
+        experience_id: booking.experience_id,
+        package_id: booking.package_id,
+        contact_id: booking.contact_id,
+        status: booking.status,
+        fly_in: booking.fly_in,
+        fly_out: booking.fly_out,
+        traveling_with: booking.traveling_with,
+        wa_group: booking.wa_group,
+        agreed_price: booking.agreed_price,
+        downpayment_invoice_sent: booking.downpayment_invoice_sent,
+        downpayment_received: booking.downpayment_received,
+        final_invoice_sent: booking.final_invoice_sent,
+        final_invoice_due: booking.final_invoice_due,
+        final_payment_received: booking.final_payment_received,
+        notes: booking.notes,
+      }),
+    });
+    setSaving(false);
+    setSaved(true);
+    setTimeout(() => setSaved(false), 2000);
+  }
+
+  async function handleDelete() {
+    if (!confirm("Delete this booking? This cannot be undone.")) return;
+    await fetch(`/api/admin/bookings/${id}`, { method: "DELETE" });
+    router.push("/admin/bookings");
+  }
+
+  async function handleExperienceChange(expId: string) {
+    update("experience_id", expId || null);
+    update("package_id", null);
+    if (expId) {
+      const pkgs = await fetch(`/api/admin/packages?experience_id=${expId}`).then((r) => r.json());
+      setPackages(pkgs || []);
+    } else {
+      setPackages([]);
+    }
+  }
+
+  async function addAddon() {
+    const body = {
+      component_id: addonForm.component_id || null,
+      label: addonForm.label || (components.find((c) => c.id === addonForm.component_id)?.name || "Add-on"),
+      price: addonForm.price ? Number(addonForm.price) : null,
+      notes: addonForm.notes || null,
+    };
+    const res = await fetch(`/api/admin/bookings/${id}/addons`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    });
+    if (res.ok) {
+      const addon = await res.json();
+      setBooking((prev) => prev ? { ...prev, addons: [...prev.addons, addon] } : prev);
+      setShowAddonForm(false);
+      setAddonForm({ component_id: "", label: "", price: "", notes: "" });
+    }
+  }
+
+  async function removeAddon(addonId: string) {
+    await fetch(`/api/admin/bookings/${id}/addons?addon_id=${addonId}`, { method: "DELETE" });
+    setBooking((prev) => prev ? { ...prev, addons: prev.addons.filter((a) => a.id !== addonId) } : prev);
+  }
+
+  async function addPayment() {
+    const body = {
+      amount: Number(paymentForm.amount),
+      type: paymentForm.type,
+      method: paymentForm.method || null,
+      reference: paymentForm.reference || null,
+      received_at: new Date().toISOString(),
+      notes: paymentForm.notes || null,
+    };
+    const res = await fetch(`/api/admin/bookings/${id}/payments`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    });
+    if (res.ok) {
+      const payment = await res.json();
+      setBooking((prev) => prev ? { ...prev, payments: [...prev.payments, payment] } : prev);
+      setShowPaymentForm(false);
+      setPaymentForm({ amount: "", type: "downpayment", method: "", reference: "", notes: "" });
+    }
+  }
+
+  if (loading) return <div className="text-sm admin-faint">Loading...</div>;
+  if (!booking) return <div className="text-sm text-red-400">Booking not found</div>;
+
+  const totalPaid = booking.payments.reduce((sum, p) => sum + Number(p.amount), 0);
+  const outstanding = booking.agreed_price ? Math.max(0, Number(booking.agreed_price) - totalPaid) : 0;
+  const statusInfo = STATUSES.find((s) => s.value === booking.status);
+
+  const inputClass =
+    "w-full px-4 py-2.5 admin-input border rounded-lg text-sm focus:outline-none focus:border-[#0aa3c7] focus:ring-1 focus:ring-[#0aa3c7] transition-colors";
+  const labelClass = "block text-xs font-medium admin-muted mb-1.5";
+  const checkboxClass = "flex items-center gap-2 text-sm admin-muted cursor-pointer select-none";
+
+  return (
+    <div>
+      {/* Header */}
+      <div className="flex items-center justify-between mb-6">
+        <div className="flex items-center gap-3">
+          <button onClick={() => router.push("/admin/bookings")} className="admin-faint transition-colors">
+            <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+              <path d="M19 12H5M12 19l-7-7 7-7" />
+            </svg>
+          </button>
+          <div>
+            <h1 className="text-2xl font-bold admin-heading">{booking.name}</h1>
+            <div className="flex items-center gap-3 mt-0.5">
+              <span className="inline-flex items-center gap-1.5 text-xs">
+                <span className={`w-2 h-2 rounded-full ${statusInfo?.color || "bg-gray-500"}`} />
+                <span className="admin-muted">{statusInfo?.label || booking.status}</span>
+              </span>
+              {booking.exp_experiences && (
+                <span className="text-xs admin-faint">• {booking.exp_experiences.title}</span>
+              )}
+            </div>
+          </div>
+        </div>
+        <div className="flex items-center gap-3">
+          {/* Financial summary */}
+          <div className="text-right mr-4">
+            <div className="text-xs admin-faint">Agreed: <span className="admin-muted font-medium">{booking.agreed_price ? `€${Number(booking.agreed_price).toLocaleString()}` : "—"}</span></div>
+            <div className="text-xs admin-faint">
+              Paid: <span className="text-green-400 font-medium">€{totalPaid.toLocaleString()}</span>
+              {outstanding > 0 && (
+                <span className="text-amber-400 ml-2">Owed: €{outstanding.toLocaleString()}</span>
+              )}
+            </div>
+          </div>
+          <button onClick={handleDelete} className="px-3 py-2 text-xs text-red-400/60 hover:text-red-400 transition-colors">
+            Delete
+          </button>
+          <button
+            onClick={handleSave}
+            disabled={saving}
+            className="px-4 py-2 bg-[#0aa3c7] hover:bg-[#0aa3c7]/90 disabled:opacity-50 text-white text-sm font-bold rounded-lg transition-colors"
+          >
+            {saving ? "Saving..." : saved ? "Saved!" : "Save"}
+          </button>
+        </div>
+      </div>
+
+      {/* Tabs */}
+      <div className="flex gap-1 mb-6" style={{ borderBottom: "1px solid var(--admin-border)" }}>
+        {(["details", "payments", "addons", "rooms"] as const).map((t) => (
+          <button
+            key={t}
+            onClick={() => setTab(t)}
+            className={`px-4 py-2.5 text-sm font-medium transition-colors border-b-2 -mb-[1px] capitalize ${
+              tab === t ? "admin-heading border-[#0aa3c7]" : "admin-muted border-transparent"
+            }`}
+          >
+            {t === "addons" ? `Add-ons (${booking.addons.length})` : t === "payments" ? `Payments (${booking.payments.length})` : t === "rooms" ? `Rooms (${booking.hotel_rooms.length})` : t}
+          </button>
+        ))}
+      </div>
+
+      {/* ─── Details Tab ─── */}
+      {tab === "details" && (
+        <div className="max-w-[720px] space-y-5">
+          {/* Name */}
+          <div>
+            <label className={labelClass}>Booking name</label>
+            <input className={inputClass} value={booking.name} onChange={(e) => update("name", e.target.value)} />
+          </div>
+
+          {/* Status */}
+          <div>
+            <label className={labelClass}>Status</label>
+            <div className="flex flex-wrap gap-1.5">
+              {STATUSES.map((s) => (
+                <button
+                  key={s.value}
+                  onClick={() => update("status", s.value)}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${
+                    booking.status === s.value
+                      ? "bg-[#0aa3c7]/20 text-[#0aa3c7] border border-[#0aa3c7]/30"
+                      : "admin-surface admin-faint border"
+                  }`}
+                  style={{ borderColor: booking.status !== s.value ? "var(--admin-border)" : undefined }}
+                >
+                  <span className="flex items-center gap-1.5">
+                    <span className={`w-1.5 h-1.5 rounded-full ${s.color}`} />
+                    {s.label}
+                  </span>
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Experience & Package */}
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className={labelClass}>Experience</label>
+              <select className={inputClass} value={booking.experience_id || ""} onChange={(e) => handleExperienceChange(e.target.value)}>
+                <option value="">None</option>
+                {experiences.map((exp) => (
+                  <option key={exp.id} value={exp.id}>{exp.title}</option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label className={labelClass}>Package</label>
+              <select className={inputClass} value={booking.package_id || ""} onChange={(e) => update("package_id", e.target.value || null)}>
+                <option value="">None</option>
+                {packages.map((pkg) => (
+                  <option key={pkg.id} value={pkg.id}>{pkg.name}{pkg.price ? ` (€${pkg.price})` : ""}</option>
+                ))}
+              </select>
+            </div>
+          </div>
+
+          {/* Contact */}
+          <div>
+            <label className={labelClass}>Contact</label>
+            <div className="flex gap-2">
+              <select className={`${inputClass} flex-1`} value={booking.contact_id || ""} onChange={(e) => update("contact_id", e.target.value || null)}>
+                <option value="">None</option>
+                {contacts.map((c) => (
+                  <option key={c.id} value={c.id}>{c.name}{c.email ? ` (${c.email})` : ""}</option>
+                ))}
+              </select>
+              {booking.contact_id && (
+                <Link
+                  href={`/admin/contacts/${booking.contact_id}`}
+                  className="px-3 py-2.5 admin-surface admin-muted text-xs rounded-lg transition-colors flex items-center"
+                  style={{ border: "1px solid var(--admin-border)" }}
+                >
+                  Edit →
+                </Link>
+              )}
+            </div>
+          </div>
+
+          {/* Contact info card */}
+          {booking.contacts && (
+            <div className="p-4 rounded-lg admin-surface" style={{ border: "1px solid var(--admin-border)" }}>
+              <div className="text-xs font-bold admin-faint uppercase tracking-wider mb-2">Contact info</div>
+              <div className="grid grid-cols-3 gap-3 text-xs">
+                <div><span className="admin-faint">Email:</span> <span className="admin-muted">{booking.contacts.email || "—"}</span></div>
+                <div><span className="admin-faint">Phone:</span> <span className="admin-muted">{booking.contacts.phone || "—"}</span></div>
+                <div><span className="admin-faint">Country:</span> <span className="admin-muted">{booking.contacts.country || "—"}</span></div>
+                <div><span className="admin-faint">Level:</span> <span className="admin-muted">{booking.contacts.level || "—"}</span></div>
+                <div><span className="admin-faint">T-shirt:</span> <span className="admin-muted">{booking.contacts.tshirt_size || "—"}</span></div>
+                <div><span className="admin-faint">Diet:</span> <span className="admin-muted">{booking.contacts.diet_allergies || "—"}</span></div>
+              </div>
+            </div>
+          )}
+
+          {/* Pricing */}
+          <div>
+            <label className={labelClass}>Agreed price (€)</label>
+            <input
+              type="number"
+              className={`${inputClass} max-w-xs`}
+              value={booking.agreed_price || ""}
+              onChange={(e) => update("agreed_price", e.target.value ? Number(e.target.value) : null)}
+            />
+          </div>
+
+          {/* Travel */}
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className={labelClass}>Fly in</label>
+              <input type="date" className={inputClass} value={booking.fly_in || ""} onChange={(e) => update("fly_in", e.target.value || null)} />
+            </div>
+            <div>
+              <label className={labelClass}>Fly out</label>
+              <input type="date" className={inputClass} value={booking.fly_out || ""} onChange={(e) => update("fly_out", e.target.value || null)} />
+            </div>
+          </div>
+
+          <div>
+            <label className={labelClass}>Traveling with</label>
+            <input className={inputClass} value={booking.traveling_with || ""} onChange={(e) => update("traveling_with", e.target.value || null)} placeholder="Partner, friend, etc." />
+          </div>
+
+          {/* Payment tracking */}
+          <div>
+            <label className={labelClass}>Payment tracking</label>
+            <div className="space-y-2 mt-1">
+              <label className={checkboxClass}>
+                <input type="checkbox" checked={booking.wa_group} onChange={(e) => update("wa_group", e.target.checked)} className="accent-[#0aa3c7]" />
+                Added to WhatsApp group
+              </label>
+              <label className={checkboxClass}>
+                <input type="checkbox" checked={booking.downpayment_invoice_sent} onChange={(e) => update("downpayment_invoice_sent", e.target.checked)} className="accent-[#0aa3c7]" />
+                Downpayment invoice sent
+              </label>
+              <label className={checkboxClass}>
+                <input type="checkbox" checked={booking.downpayment_received} onChange={(e) => update("downpayment_received", e.target.checked)} className="accent-[#0aa3c7]" />
+                Downpayment received
+              </label>
+              <label className={checkboxClass}>
+                <input type="checkbox" checked={booking.final_invoice_sent} onChange={(e) => update("final_invoice_sent", e.target.checked)} className="accent-[#0aa3c7]" />
+                Final invoice sent
+              </label>
+              <label className={checkboxClass}>
+                <input type="checkbox" checked={booking.final_payment_received} onChange={(e) => update("final_payment_received", e.target.checked)} className="accent-[#0aa3c7]" />
+                Final payment received
+              </label>
+            </div>
+          </div>
+
+          <div>
+            <label className={labelClass}>Final invoice due</label>
+            <input className={`${inputClass} max-w-xs`} value={booking.final_invoice_due || ""} onChange={(e) => update("final_invoice_due", e.target.value || null)} placeholder="e.g. 2 weeks before trip" />
+          </div>
+
+          {/* Notes */}
+          <div>
+            <label className={labelClass}>Notes</label>
+            <textarea
+              className={`${inputClass} min-h-[100px] resize-y`}
+              value={booking.notes || ""}
+              onChange={(e) => update("notes", e.target.value || null)}
+              placeholder="Internal notes..."
+            />
+          </div>
+        </div>
+      )}
+
+      {/* ─── Payments Tab ─── */}
+      {tab === "payments" && (
+        <div className="max-w-[800px]">
+          <div className="flex justify-between items-center mb-4">
+            <div className="text-xs admin-faint">
+              Total paid: <span className="text-green-400 font-medium">€{totalPaid.toLocaleString()}</span>
+              {outstanding > 0 && <span className="text-amber-400 ml-3">Outstanding: €{outstanding.toLocaleString()}</span>}
+            </div>
+            <button
+              onClick={() => setShowPaymentForm(!showPaymentForm)}
+              className="px-3 py-1.5 bg-[#0aa3c7] hover:bg-[#0aa3c7]/90 text-white text-xs font-bold rounded-lg transition-colors"
+            >
+              Record Payment
+            </button>
+          </div>
+
+          {showPaymentForm && (
+            <div className="mb-4 p-4 rounded-xl admin-surface" style={{ border: "1px solid var(--admin-border)" }}>
+              <div className="grid grid-cols-4 gap-3 mb-3">
+                <div>
+                  <label className={labelClass}>Amount (€) *</label>
+                  <input className={inputClass} type="number" step="0.01" value={paymentForm.amount} onChange={(e) => setPaymentForm({ ...paymentForm, amount: e.target.value })} />
+                </div>
+                <div>
+                  <label className={labelClass}>Type</label>
+                  <select className={inputClass} value={paymentForm.type} onChange={(e) => setPaymentForm({ ...paymentForm, type: e.target.value })}>
+                    <option value="downpayment">Downpayment</option>
+                    <option value="final">Final</option>
+                    <option value="partial">Partial</option>
+                    <option value="refund">Refund</option>
+                  </select>
+                </div>
+                <div>
+                  <label className={labelClass}>Method</label>
+                  <input className={inputClass} value={paymentForm.method} onChange={(e) => setPaymentForm({ ...paymentForm, method: e.target.value })} placeholder="Bank, PayPal..." />
+                </div>
+                <div>
+                  <label className={labelClass}>Reference</label>
+                  <input className={inputClass} value={paymentForm.reference} onChange={(e) => setPaymentForm({ ...paymentForm, reference: e.target.value })} placeholder="Invoice #" />
+                </div>
+              </div>
+              <div className="flex gap-2">
+                <button onClick={addPayment} disabled={!paymentForm.amount} className="px-3 py-1.5 bg-[#0aa3c7] hover:bg-[#0aa3c7]/90 disabled:opacity-40 text-white text-xs font-bold rounded-lg">
+                  Add
+                </button>
+                <button onClick={() => setShowPaymentForm(false)} className="px-3 py-1.5 admin-muted text-xs rounded-lg">Cancel</button>
+              </div>
+            </div>
+          )}
+
+          {booking.payments.length === 0 ? (
+            <div className="py-12 text-center text-sm admin-faint">No payments recorded</div>
+          ) : (
+            <div className="rounded-xl overflow-hidden" style={{ border: "1px solid var(--admin-border)" }}>
+              <div className="grid grid-cols-[100px_100px_100px_1fr_1fr] gap-3 px-5 py-3 admin-surface" style={{ borderBottom: "1px solid var(--admin-border)" }}>
+                <span className="text-[10px] font-bold tracking-[0.1em] admin-faint uppercase">Amount</span>
+                <span className="text-[10px] font-bold tracking-[0.1em] admin-faint uppercase">Type</span>
+                <span className="text-[10px] font-bold tracking-[0.1em] admin-faint uppercase">Method</span>
+                <span className="text-[10px] font-bold tracking-[0.1em] admin-faint uppercase">Reference</span>
+                <span className="text-[10px] font-bold tracking-[0.1em] admin-faint uppercase">Date</span>
+              </div>
+              {booking.payments.map((p) => (
+                <div key={p.id} className="grid grid-cols-[100px_100px_100px_1fr_1fr] gap-3 px-5 py-3" style={{ borderBottom: "1px solid var(--admin-border)" }}>
+                  <span className={`text-sm font-medium self-center ${p.type === "refund" ? "text-red-400" : "text-green-400"}`}>
+                    {p.type === "refund" ? "-" : "+"}€{Number(p.amount).toLocaleString()}
+                  </span>
+                  <span className="text-xs admin-muted self-center capitalize">{p.type}</span>
+                  <span className="text-xs admin-muted self-center">{p.method || "—"}</span>
+                  <span className="text-xs admin-muted self-center">{p.reference || "—"}</span>
+                  <span className="text-xs admin-muted self-center">{formatDate(p.received_at)}</span>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* ─── Add-ons Tab ─── */}
+      {tab === "addons" && (
+        <div className="max-w-[800px]">
+          <div className="flex justify-between items-center mb-4">
+            <p className="text-xs admin-faint">Extra components beyond the package</p>
+            <button
+              onClick={() => setShowAddonForm(!showAddonForm)}
+              className="px-3 py-1.5 bg-[#0aa3c7] hover:bg-[#0aa3c7]/90 text-white text-xs font-bold rounded-lg transition-colors"
+            >
+              Add Component
+            </button>
+          </div>
+
+          {showAddonForm && (
+            <div className="mb-4 p-4 rounded-xl admin-surface" style={{ border: "1px solid var(--admin-border)" }}>
+              <div className="grid grid-cols-3 gap-3 mb-3">
+                <div>
+                  <label className={labelClass}>Component</label>
+                  <select
+                    className={inputClass}
+                    value={addonForm.component_id}
+                    onChange={(e) => {
+                      const comp = components.find((c) => c.id === e.target.value);
+                      setAddonForm({
+                        ...addonForm,
+                        component_id: e.target.value,
+                        label: comp?.name || addonForm.label,
+                        price: comp?.unit_cost?.toString() || addonForm.price,
+                      });
+                    }}
+                  >
+                    <option value="">Custom (no component)</option>
+                    {components.map((c) => (
+                      <option key={c.id} value={c.id}>{c.name} ({c.category}){c.unit_cost ? ` — €${c.unit_cost}` : ""}</option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label className={labelClass}>Label *</label>
+                  <input className={inputClass} value={addonForm.label} onChange={(e) => setAddonForm({ ...addonForm, label: e.target.value })} placeholder="Display name" />
+                </div>
+                <div>
+                  <label className={labelClass}>Price (€)</label>
+                  <input className={inputClass} type="number" step="0.01" value={addonForm.price} onChange={(e) => setAddonForm({ ...addonForm, price: e.target.value })} />
+                </div>
+              </div>
+              <div className="flex gap-2">
+                <button onClick={addAddon} disabled={!addonForm.label && !addonForm.component_id} className="px-3 py-1.5 bg-[#0aa3c7] hover:bg-[#0aa3c7]/90 disabled:opacity-40 text-white text-xs font-bold rounded-lg">
+                  Add
+                </button>
+                <button onClick={() => setShowAddonForm(false)} className="px-3 py-1.5 admin-muted text-xs rounded-lg">Cancel</button>
+              </div>
+            </div>
+          )}
+
+          {booking.addons.length === 0 ? (
+            <div className="py-12 text-center text-sm admin-faint">No add-ons</div>
+          ) : (
+            <div className="rounded-xl overflow-hidden" style={{ border: "1px solid var(--admin-border)" }}>
+              <div className="grid grid-cols-[1fr_120px_100px_60px] gap-3 px-5 py-3 admin-surface" style={{ borderBottom: "1px solid var(--admin-border)" }}>
+                <span className="text-[10px] font-bold tracking-[0.1em] admin-faint uppercase">Item</span>
+                <span className="text-[10px] font-bold tracking-[0.1em] admin-faint uppercase">Category</span>
+                <span className="text-[10px] font-bold tracking-[0.1em] admin-faint uppercase">Price</span>
+                <span className="text-[10px] font-bold tracking-[0.1em] admin-faint uppercase"></span>
+              </div>
+              {booking.addons.map((a) => (
+                <div key={a.id} className="grid grid-cols-[1fr_120px_100px_60px] gap-3 px-5 py-3" style={{ borderBottom: "1px solid var(--admin-border)" }}>
+                  <div className="min-w-0">
+                    <div className="text-sm font-medium admin-heading truncate">{a.label}</div>
+                    {a.notes && <div className="text-xs admin-faint truncate">{a.notes}</div>}
+                  </div>
+                  <span className="text-xs admin-muted self-center capitalize">{a.exp_components?.category || "custom"}</span>
+                  <span className="text-xs admin-muted self-center">{a.price ? `€${Number(a.price).toLocaleString()}` : "—"}</span>
+                  <button onClick={() => removeAddon(a.id)} className="text-xs admin-faint hover:text-red-400 transition-colors self-center">
+                    <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M18 6L6 18M6 6l12 12" /></svg>
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* ─── Rooms Tab ─── */}
+      {tab === "rooms" && (
+        <div className="max-w-[800px]">
+          {booking.hotel_rooms.length === 0 ? (
+            <div className="py-12 text-center">
+              <p className="text-sm admin-faint">No hotel rooms assigned</p>
+              <p className="text-xs admin-faint mt-1">Assign rooms from the Hotel Rooms page</p>
+            </div>
+          ) : (
+            <div className="rounded-xl overflow-hidden" style={{ border: "1px solid var(--admin-border)" }}>
+              {booking.hotel_rooms.map((room) => (
+                <div key={room.id} className="px-5 py-3 flex items-center gap-4" style={{ borderBottom: "1px solid var(--admin-border)" }}>
+                  <div className="flex-1 min-w-0">
+                    <div className="text-sm font-medium admin-heading">{room.name}</div>
+                    <div className="text-xs admin-faint">{room.hotel} • {room.room_type}</div>
+                  </div>
+                  <span className={`inline-block px-2 py-0.5 rounded text-[10px] font-bold uppercase ${
+                    room.status === "assigned" ? "bg-blue-500/15 text-blue-400" :
+                    room.status === "held" ? "bg-amber-500/15 text-amber-400" :
+                    "bg-green-500/15 text-green-400"
+                  }`}>
+                    {room.status}
+                  </span>
+                  {room.check_in && (
+                    <span className="text-xs admin-faint">{formatDate(room.check_in)} → {formatDate(room.check_out)}</span>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}

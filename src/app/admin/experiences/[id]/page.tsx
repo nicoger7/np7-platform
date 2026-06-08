@@ -46,6 +46,35 @@ interface Booking {
   created_at: string;
 }
 
+interface Package {
+  id: string;
+  name: string;
+  slug: string;
+  description: string | null;
+  price: number | null;
+  deposit: number | null;
+  includes: string[] | null;
+  max_spots: number | null;
+  sort_order: number;
+  status: string;
+}
+
+interface Component {
+  id: string;
+  name: string;
+  category: string;
+  unit_cost: number | null;
+}
+
+interface PackageComponent {
+  id: string;
+  package_id: string;
+  component_id: string;
+  quantity: number;
+  notes: string | null;
+  exp_components: Component | null;
+}
+
 interface HotelRoom {
   id: string;
   name: string;
@@ -106,21 +135,31 @@ export default function ExperienceDetailPage({
 }) {
   const { id } = use(params);
   const router = useRouter();
-  const [tab, setTab] = useState<"details" | "bookings" | "rooms">("details");
+  const [tab, setTab] = useState<"details" | "bookings" | "packages" | "rooms">("details");
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
   const [exp, setExp] = useState<Experience | null>(null);
   const [bookings, setBookings] = useState<Booking[]>([]);
   const [rooms, setRooms] = useState<HotelRoom[]>([]);
+  const [packages, setPackages] = useState<Package[]>([]);
+  const [components, setComponents] = useState<Component[]>([]);
+  const [pkgComponents, setPkgComponents] = useState<Record<string, PackageComponent[]>>({});
   const [includedItem, setIncludedItem] = useState("");
   const [showImagePicker, setShowImagePicker] = useState(false);
+  const [showNewPkg, setShowNewPkg] = useState(false);
+  const [editPkgId, setEditPkgId] = useState<string | null>(null);
+  const [pkgForm, setPkgForm] = useState({ name: "", slug: "", description: "", price: "", deposit: "", max_spots: "", status: "active" });
+  const [showAddComp, setShowAddComp] = useState<string | null>(null);
+  const [addCompId, setAddCompId] = useState("");
+  const [addCompQty, setAddCompQty] = useState("1");
 
   useEffect(() => {
     fetch(`/api/admin/experiences/${id}`)
       .then((r) => r.json())
       .then((d) => {
-        setExp(d.experience);
+        // API spreads experience data at top level
+        setExp(d);
         setLoading(false);
       });
   }, [id]);
@@ -141,11 +180,29 @@ export default function ExperienceDetailPage({
     }
   }, [tab, id]);
 
+  useEffect(() => {
+    if (tab === "packages") {
+      Promise.all([
+        fetch(`/api/admin/packages?experience_id=${id}`).then((r) => r.json()),
+        fetch(`/api/admin/components?experience_id=${id}`).then((r) => r.json()),
+      ]).then(([pkgs, comps]) => {
+        setPackages(pkgs || []);
+        setComponents(comps || []);
+        // Load components for each package
+        (pkgs || []).forEach((pkg: Package) => {
+          fetch(`/api/admin/packages/${pkg.id}/components`)
+            .then((r) => r.json())
+            .then((pcs) => setPkgComponents((prev) => ({ ...prev, [pkg.id]: pcs || [] })));
+        });
+      });
+    }
+  }, [tab, id]);
+
   async function handleSave() {
     if (!exp) return;
     setSaving(true);
     await fetch(`/api/admin/experiences/${id}`, {
-      method: "PUT",
+      method: "PATCH",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         title: exp.title,
@@ -235,7 +292,7 @@ export default function ExperienceDetailPage({
 
       {/* Tabs */}
       <div className="flex gap-1 mb-6" style={{ borderBottom: "1px solid var(--admin-border)" }}>
-        {(["details", "bookings", "rooms"] as const).map((t) => (
+        {(["details", "bookings", "packages", "rooms"] as const).map((t) => (
           <button
             key={t}
             onClick={() => setTab(t)}
@@ -600,6 +657,7 @@ export default function ExperienceDetailPage({
                   key={b.id}
                   className="grid grid-cols-[1fr_120px_100px_100px_100px_80px] gap-4 px-5 py-3.5 cursor-pointer transition-colors"
                   style={{ borderBottom: "1px solid var(--admin-border)" }}
+                  onClick={() => router.push(`/admin/bookings/${b.id}`)}
                   onMouseEnter={(e) => e.currentTarget.style.backgroundColor = "var(--admin-surface-hover)"}
                   onMouseLeave={(e) => e.currentTarget.style.backgroundColor = "transparent"}
                 >
@@ -624,6 +682,239 @@ export default function ExperienceDetailPage({
                       <span className="admin-faint text-xs">—</span>
                     )}
                   </span>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
+      {tab === "packages" && (
+        <div>
+          <div className="flex justify-between items-center mb-4">
+            <p className="text-xs admin-faint">Define packages and assign components to each</p>
+            <button
+              onClick={() => {
+                setShowNewPkg(true);
+                setEditPkgId(null);
+                setPkgForm({ name: "", slug: "", description: "", price: "", deposit: "", max_spots: "", status: "active" });
+              }}
+              className="px-3 py-1.5 bg-[#0aa3c7] hover:bg-[#0aa3c7]/90 text-white text-xs font-bold rounded-lg transition-colors"
+            >
+              New Package
+            </button>
+          </div>
+
+          {/* Package form (new or edit) */}
+          {(showNewPkg || editPkgId) && (
+            <div className="mb-6 p-5 rounded-xl" style={{ border: "1px solid var(--admin-border)", backgroundColor: "var(--admin-surface)" }}>
+              <h3 className="text-sm font-bold admin-heading mb-4">{editPkgId ? "Edit Package" : "New Package"}</h3>
+              <div className="grid grid-cols-3 gap-4 mb-4">
+                <div>
+                  <label className={`${labelClass}`}>Name *</label>
+                  <input className={inputClass} value={pkgForm.name} onChange={(e) => setPkgForm({ ...pkgForm, name: e.target.value, slug: slugify(e.target.value) })} />
+                </div>
+                <div>
+                  <label className={`${labelClass}`}>Slug</label>
+                  <input className={inputClass} value={pkgForm.slug} onChange={(e) => setPkgForm({ ...pkgForm, slug: e.target.value })} />
+                </div>
+                <div>
+                  <label className={`${labelClass}`}>Status</label>
+                  <select className={inputClass} value={pkgForm.status} onChange={(e) => setPkgForm({ ...pkgForm, status: e.target.value })}>
+                    <option value="active">Active</option>
+                    <option value="archived">Archived</option>
+                  </select>
+                </div>
+              </div>
+              <div className="grid grid-cols-3 gap-4 mb-4">
+                <div>
+                  <label className={`${labelClass}`}>Price (€)</label>
+                  <input className={inputClass} type="number" step="0.01" value={pkgForm.price} onChange={(e) => setPkgForm({ ...pkgForm, price: e.target.value })} />
+                </div>
+                <div>
+                  <label className={`${labelClass}`}>Deposit (€)</label>
+                  <input className={inputClass} type="number" step="0.01" value={pkgForm.deposit} onChange={(e) => setPkgForm({ ...pkgForm, deposit: e.target.value })} />
+                </div>
+                <div>
+                  <label className={`${labelClass}`}>Max spots</label>
+                  <input className={inputClass} type="number" value={pkgForm.max_spots} onChange={(e) => setPkgForm({ ...pkgForm, max_spots: e.target.value })} />
+                </div>
+              </div>
+              <div className="mb-4">
+                <label className={`${labelClass}`}>Description</label>
+                <textarea className={`${inputClass} min-h-[60px] resize-y`} value={pkgForm.description} onChange={(e) => setPkgForm({ ...pkgForm, description: e.target.value })} />
+              </div>
+              <div className="flex gap-2">
+                <button
+                  onClick={async () => {
+                    const body = {
+                      name: pkgForm.name,
+                      slug: pkgForm.slug || slugify(pkgForm.name),
+                      description: pkgForm.description || null,
+                      price: pkgForm.price ? Number(pkgForm.price) : null,
+                      deposit: pkgForm.deposit ? Number(pkgForm.deposit) : null,
+                      max_spots: pkgForm.max_spots ? Number(pkgForm.max_spots) : null,
+                      status: pkgForm.status,
+                      experience_id: id,
+                    };
+                    if (editPkgId) {
+                      await fetch(`/api/admin/packages/${editPkgId}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+                    } else {
+                      await fetch("/api/admin/packages", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+                    }
+                    setShowNewPkg(false);
+                    setEditPkgId(null);
+                    // Refresh packages
+                    const pkgs = await fetch(`/api/admin/packages?experience_id=${id}`).then((r) => r.json());
+                    setPackages(pkgs || []);
+                  }}
+                  disabled={!pkgForm.name}
+                  className="px-4 py-2 bg-[#0aa3c7] hover:bg-[#0aa3c7]/90 disabled:opacity-40 text-white text-sm font-bold rounded-lg transition-colors"
+                >
+                  {editPkgId ? "Update" : "Create"}
+                </button>
+                <button onClick={() => { setShowNewPkg(false); setEditPkgId(null); }} className="px-4 py-2 admin-muted text-sm rounded-lg">Cancel</button>
+              </div>
+            </div>
+          )}
+
+          {packages.length === 0 && !showNewPkg ? (
+            <div className="text-center py-16">
+              <p className="text-sm admin-faint">No packages yet</p>
+              <p className="text-xs admin-faint mt-1">Create packages to define pricing and inclusions</p>
+            </div>
+          ) : (
+            <div className="space-y-4">
+              {packages.map((pkg) => (
+                <div key={pkg.id} className="rounded-xl overflow-hidden" style={{ border: "1px solid var(--admin-border)" }}>
+                  {/* Package header */}
+                  <div className="px-5 py-4 flex items-center justify-between admin-surface" style={{ borderBottom: "1px solid var(--admin-border)" }}>
+                    <div className="flex items-center gap-3">
+                      <div>
+                        <div className="text-sm font-bold admin-heading">{pkg.name}</div>
+                        <div className="text-xs admin-faint mt-0.5">
+                          {pkg.price ? `€${Number(pkg.price).toLocaleString()}` : "No price"}
+                          {pkg.deposit ? ` • Deposit: €${Number(pkg.deposit).toLocaleString()}` : ""}
+                          {pkg.max_spots ? ` • ${pkg.max_spots} spots` : ""}
+                        </div>
+                      </div>
+                      <span className={`inline-block px-2 py-0.5 rounded text-[10px] font-bold uppercase ${
+                        pkg.status === "active" ? "bg-green-500/15 text-green-400" : "bg-gray-500/15 text-gray-400"
+                      }`}>
+                        {pkg.status}
+                      </span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <button
+                        onClick={() => {
+                          setEditPkgId(pkg.id);
+                          setShowNewPkg(false);
+                          setPkgForm({
+                            name: pkg.name,
+                            slug: pkg.slug,
+                            description: pkg.description || "",
+                            price: pkg.price?.toString() || "",
+                            deposit: pkg.deposit?.toString() || "",
+                            max_spots: pkg.max_spots?.toString() || "",
+                            status: pkg.status,
+                          });
+                        }}
+                        className="px-2 py-1 text-xs admin-muted hover:admin-heading transition-colors"
+                      >
+                        Edit
+                      </button>
+                      <button
+                        onClick={async () => {
+                          if (!confirm("Delete this package?")) return;
+                          await fetch(`/api/admin/packages/${pkg.id}`, { method: "DELETE" });
+                          setPackages((prev) => prev.filter((p) => p.id !== pkg.id));
+                        }}
+                        className="px-2 py-1 text-xs admin-faint hover:text-red-400 transition-colors"
+                      >
+                        Delete
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Package components */}
+                  <div className="px-5 py-3">
+                    <div className="flex items-center justify-between mb-2">
+                      <span className="text-[10px] font-bold tracking-[0.1em] admin-faint uppercase">Components</span>
+                      <button
+                        onClick={() => { setShowAddComp(showAddComp === pkg.id ? null : pkg.id); setAddCompId(""); setAddCompQty("1"); }}
+                        className="text-xs text-[#0aa3c7] hover:text-[#0aa3c7]/80 transition-colors"
+                      >
+                        + Add
+                      </button>
+                    </div>
+
+                    {showAddComp === pkg.id && (
+                      <div className="flex items-end gap-2 mb-3">
+                        <div className="flex-1">
+                          <select
+                            className={inputClass}
+                            value={addCompId}
+                            onChange={(e) => setAddCompId(e.target.value)}
+                          >
+                            <option value="">Select component...</option>
+                            {components.map((c) => (
+                              <option key={c.id} value={c.id}>{c.name} ({c.category}){c.unit_cost ? ` — €${c.unit_cost}` : ""}</option>
+                            ))}
+                          </select>
+                        </div>
+                        <div className="w-20">
+                          <input className={inputClass} type="number" min="1" value={addCompQty} onChange={(e) => setAddCompQty(e.target.value)} placeholder="Qty" />
+                        </div>
+                        <button
+                          onClick={async () => {
+                            if (!addCompId) return;
+                            await fetch(`/api/admin/packages/${pkg.id}/components`, {
+                              method: "POST",
+                              headers: { "Content-Type": "application/json" },
+                              body: JSON.stringify({ component_id: addCompId, quantity: Number(addCompQty) || 1 }),
+                            });
+                            const pcs = await fetch(`/api/admin/packages/${pkg.id}/components`).then((r) => r.json());
+                            setPkgComponents((prev) => ({ ...prev, [pkg.id]: pcs || [] }));
+                            setShowAddComp(null);
+                          }}
+                          disabled={!addCompId}
+                          className="px-3 py-2.5 bg-[#0aa3c7] hover:bg-[#0aa3c7]/90 disabled:opacity-40 text-white text-xs font-bold rounded-lg"
+                        >
+                          Add
+                        </button>
+                      </div>
+                    )}
+
+                    {(pkgComponents[pkg.id] || []).length === 0 ? (
+                      <div className="text-xs admin-faint py-2">No components assigned</div>
+                    ) : (
+                      <div className="space-y-1">
+                        {(pkgComponents[pkg.id] || []).map((pc) => (
+                          <div key={pc.id} className="flex items-center justify-between py-1.5 px-2 rounded-lg hover:admin-surface transition-colors">
+                            <div className="flex items-center gap-2">
+                              <span className="text-xs admin-muted">{pc.exp_components?.name || "Unknown"}</span>
+                              <span className="text-[10px] admin-faint capitalize">({pc.exp_components?.category})</span>
+                              {pc.quantity > 1 && <span className="text-[10px] admin-faint">× {pc.quantity}</span>}
+                            </div>
+                            <div className="flex items-center gap-2">
+                              {pc.exp_components?.unit_cost && (
+                                <span className="text-xs admin-faint">€{(Number(pc.exp_components.unit_cost) * pc.quantity).toLocaleString()}</span>
+                              )}
+                              <button
+                                onClick={async () => {
+                                  await fetch(`/api/admin/packages/${pkg.id}/components?component_id=${pc.component_id}`, { method: "DELETE" });
+                                  setPkgComponents((prev) => ({ ...prev, [pkg.id]: (prev[pkg.id] || []).filter((x) => x.id !== pc.id) }));
+                                }}
+                                className="admin-faint hover:text-red-400 transition-colors"
+                              >
+                                <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M18 6L6 18M6 6l12 12" /></svg>
+                              </button>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
                 </div>
               ))}
             </div>

@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { useRouter } from "next/navigation";
 
 interface Booking {
   id: string;
@@ -56,6 +57,7 @@ function formatDate(d: string | null) {
 type ViewMode = "table" | "pipeline";
 
 export default function BookingsPage() {
+  const router = useRouter();
   const [bookings, setBookings] = useState<Booking[]>([]);
   const [loading, setLoading] = useState(true);
   const [view, setView] = useState<ViewMode>("table");
@@ -243,6 +245,7 @@ export default function BookingsPage() {
               key={b.id}
               className="grid grid-cols-[1fr_140px_120px_100px_100px_100px_100px] gap-3 px-5 py-3 transition-colors cursor-pointer"
               style={{ borderBottom: "1px solid var(--admin-border)" }}
+              onClick={() => router.push(`/admin/bookings/${b.id}`)}
               onMouseEnter={(e) =>
                 (e.currentTarget.style.backgroundColor =
                   "var(--admin-surface-hover)")
@@ -325,6 +328,7 @@ export default function BookingsPage() {
                       key={b.id}
                       className="p-3 rounded-lg admin-surface cursor-pointer transition-colors"
                       style={{ border: "1px solid var(--admin-border)" }}
+                      onClick={() => router.push(`/admin/bookings/${b.id}`)}
                       onMouseEnter={(e) =>
                         (e.currentTarget.style.borderColor =
                           "var(--admin-text-faint)")
