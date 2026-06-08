@@ -16,7 +16,7 @@ export async function GET(request: NextRequest) {
     .select(
       `*,
        contact:contact_id(id, name, email, phone),
-       exp_experiences:experience_id(id, title, slug, location, date_start),
+       experience:experience_id(id, title, slug, location),
        package:package_id(id, name, price)`
     )
     .order("created_at", { ascending: false });

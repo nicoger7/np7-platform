@@ -6,6 +6,7 @@ import { WaveDivider } from "@/components/experience/wave-divider";
 import { OceanHeader, NP7_LOGO } from "@/components/experience/ocean-header";
 import { Reveal } from "@/components/experience/reveal";
 import { Carousel } from "@/components/experience/carousel";
+import { FindYourFit } from "@/components/experience/find-your-fit";
 
 export const metadata: Metadata = {
   title: "NP7 Experience — Premium Watersports Travel",
@@ -154,6 +155,11 @@ export default async function ExperienceOverviewPage() {
           </div>
         </div>
       </WaterHero>
+
+      {/* ---------------------------------------------------------------- */}
+      {/* FIND YOUR FIT — self-segmentation                                 */}
+      {/* ---------------------------------------------------------------- */}
+      <FindYourFit />
 
       {/* ---------------------------------------------------------------- */}
       {/* UPCOMING EXPERIENCES                                              */}
