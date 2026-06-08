@@ -25,6 +25,9 @@ export default function ContactsPage() {
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
   const [showNew, setShowNew] = useState(false);
+  const [page, setPage] = useState(1);
+  const [totalCount, setTotalCount] = useState(0);
+  const pageSize = 100;
   const [newContact, setNewContact] = useState({
     name: "",
     email: "",
@@ -42,11 +45,15 @@ export default function ContactsPage() {
   }, []);
 
   function fetchContacts() {
-    const params = search ? `?search=${encodeURIComponent(search)}` : "";
-    fetch(`/api/admin/contacts${params}`)
+    const params = new URLSearchParams();
+    params.set("page", String(page));
+    params.set("limit", String(pageSize));
+    if (search) params.set("search", search);
+    fetch(`/api/admin/contacts?${params}`)
       .then((r) => r.json())
       .then((d) => {
         setContacts(d.data || []);
+        setTotalCount(d.count || 0);
         setLoading(false);
       });
   }
@@ -55,7 +62,7 @@ export default function ContactsPage() {
     const timer = setTimeout(fetchContacts, 300);
     return () => clearTimeout(timer);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [search]);
+  }, [search, page]);
 
   async function handleCreate() {
     const res = await fetch("/api/admin/contacts", {
@@ -89,7 +96,7 @@ export default function ContactsPage() {
         <div>
           <h1 className="text-2xl font-bold admin-heading mb-1">Contacts</h1>
           <p className="text-sm admin-muted">
-            {contacts.length} contact{contacts.length !== 1 ? "s" : ""}
+            {totalCount} contact{totalCount !== 1 ? "s" : ""}
           </p>
         </div>
         <button
@@ -249,6 +256,36 @@ export default function ContactsPage() {
             </div>
           ))}
         </div>
+
+        {/* Pagination */}
+        {totalCount > pageSize && (
+          <div className="flex items-center justify-between mt-4 px-1">
+            <span className="text-xs admin-muted">
+              Showing {(page - 1) * pageSize + 1}–{Math.min(page * pageSize, totalCount)} of {totalCount}
+            </span>
+            <div className="flex gap-2">
+              <button
+                onClick={() => setPage((p) => Math.max(1, p - 1))}
+                disabled={page <= 1}
+                className="px-3 py-1.5 text-xs admin-muted rounded-lg transition-colors disabled:opacity-30"
+                style={{ border: "1px solid var(--admin-border)" }}
+              >
+                ← Prev
+              </button>
+              <span className="px-3 py-1.5 text-xs admin-muted">
+                Page {page} of {Math.ceil(totalCount / pageSize)}
+              </span>
+              <button
+                onClick={() => setPage((p) => p + 1)}
+                disabled={page * pageSize >= totalCount}
+                className="px-3 py-1.5 text-xs admin-muted rounded-lg transition-colors disabled:opacity-30"
+                style={{ border: "1px solid var(--admin-border)" }}
+              >
+                Next →
+              </button>
+            </div>
+          </div>
+        )}
       )}
     </div>
   );
