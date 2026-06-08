@@ -1,7 +1,9 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import Link from "next/link";
+import { SortableHeader } from "@/components/sortable-header";
+import { ColumnToggle, ColumnDef, buildGridTemplate, loadVisibleColumns } from "@/components/column-toggle";
 
 interface Contact {
   id: string;
@@ -20,6 +22,20 @@ interface Contact {
   created_at: string;
 }
 
+type SortDir = "asc" | "desc" | null;
+
+const COLUMNS: ColumnDef[] = [
+  { key: "name", label: "Name", width: "1fr", required: true },
+  { key: "email", label: "Email", width: "160px" },
+  { key: "country", label: "Country", width: "100px" },
+  { key: "source", label: "Source", width: "80px" },
+  { key: "level", label: "Level", width: "80px" },
+  { key: "accepts_marketing", label: "Mktg", width: "80px" },
+  { key: "_actions", label: "", width: "50px", required: true },
+];
+
+const STORAGE_KEY = "np7-contacts-columns";
+
 export default function ContactsPage() {
   const [contacts, setContacts] = useState<Contact[]>([]);
   const [loading, setLoading] = useState(true);
@@ -27,7 +43,13 @@ export default function ContactsPage() {
   const [showNew, setShowNew] = useState(false);
   const [page, setPage] = useState(1);
   const [totalCount, setTotalCount] = useState(0);
+  const [sortKey, setSortKey] = useState<string | null>(null);
+  const [sortDir, setSortDir] = useState<SortDir>(null);
+  const [visibleColumns, setVisibleColumns] = useState<Set<string>>(
+    () => loadVisibleColumns(STORAGE_KEY, COLUMNS)
+  );
   const pageSize = 100;
+
   const [newContact, setNewContact] = useState({
     name: "",
     email: "",
@@ -40,15 +62,15 @@ export default function ContactsPage() {
     accepts_marketing: false,
   });
 
-  useEffect(() => {
-    fetchContacts();
-  }, []);
-
-  function fetchContacts() {
+  const fetchContacts = useCallback(() => {
     const params = new URLSearchParams();
     params.set("page", String(page));
     params.set("limit", String(pageSize));
     if (search) params.set("search", search);
+    if (sortKey) {
+      params.set("sort", sortKey);
+      params.set("order", sortDir === "desc" ? "desc" : "asc");
+    }
     fetch(`/api/admin/contacts?${params}`)
       .then((r) => r.json())
       .then((d) => {
@@ -56,13 +78,28 @@ export default function ContactsPage() {
         setTotalCount(d.count || 0);
         setLoading(false);
       });
-  }
+  }, [page, search, sortKey, sortDir]);
+
+  useEffect(() => {
+    fetchContacts();
+  }, [fetchContacts]);
 
   useEffect(() => {
     const timer = setTimeout(fetchContacts, 300);
     return () => clearTimeout(timer);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [search, page]);
+
+  function handleSort(key: string) {
+    if (sortKey === key) {
+      if (sortDir === "asc") setSortDir("desc");
+      else if (sortDir === "desc") { setSortKey(null); setSortDir(null); }
+      else setSortDir("asc");
+    } else {
+      setSortKey(key);
+      setSortDir("asc");
+    }
+  }
 
   async function handleCreate() {
     const res = await fetch("/api/admin/contacts", {
@@ -90,6 +127,8 @@ export default function ContactsPage() {
     "w-full px-3 py-2 admin-input border rounded-lg text-sm focus:outline-none focus:border-[#0aa3c7] focus:ring-1 focus:ring-[#0aa3c7] transition-colors";
   const labelClass = "block text-xs font-medium admin-muted mb-1";
 
+  const gridTemplate = buildGridTemplate(COLUMNS, visibleColumns);
+
   return (
     <div>
       <div className="flex items-center justify-between mb-6">
@@ -107,13 +146,19 @@ export default function ContactsPage() {
         </button>
       </div>
 
-      {/* Search */}
-      <div className="mb-5">
+      {/* Search + column toggle */}
+      <div className="flex items-center gap-3 mb-5">
         <input
           className={`${inputClass} max-w-sm`}
           placeholder="Search by name, email, or phone..."
           value={search}
           onChange={(e) => setSearch(e.target.value)}
+        />
+        <ColumnToggle
+          columns={COLUMNS}
+          visible={visibleColumns}
+          onChange={setVisibleColumns}
+          storageKey={STORAGE_KEY}
         />
       </div>
 
@@ -210,82 +255,106 @@ export default function ContactsPage() {
           <p className="text-sm admin-faint">No contacts found</p>
         </div>
       ) : (
-        <div className="rounded-xl overflow-hidden" style={{ border: "1px solid var(--admin-border)" }}>
-          <div
-            className="grid grid-cols-[1fr_160px_100px_80px_80px_80px_50px] gap-3 px-5 py-3 admin-surface"
-            style={{ borderBottom: "1px solid var(--admin-border)" }}
-          >
-            <span className="text-[10px] font-bold tracking-[0.1em] admin-faint uppercase">Name</span>
-            <span className="text-[10px] font-bold tracking-[0.1em] admin-faint uppercase">Email</span>
-            <span className="text-[10px] font-bold tracking-[0.1em] admin-faint uppercase">Country</span>
-            <span className="text-[10px] font-bold tracking-[0.1em] admin-faint uppercase">Source</span>
-            <span className="text-[10px] font-bold tracking-[0.1em] admin-faint uppercase">Level</span>
-            <span className="text-[10px] font-bold tracking-[0.1em] admin-faint uppercase">Mktg</span>
-            <span className="text-[10px] font-bold tracking-[0.1em] admin-faint uppercase"></span>
-          </div>
-          {contacts.map((c) => (
+        <>
+          <div className="rounded-xl overflow-hidden" style={{ border: "1px solid var(--admin-border)" }}>
+            {/* Header */}
             <div
-              key={c.id}
-              className="grid grid-cols-[1fr_160px_100px_80px_80px_80px_50px] gap-3 px-5 py-3 transition-colors"
-              style={{ borderBottom: "1px solid var(--admin-border)" }}
-              onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = "var(--admin-surface-hover)")}
-              onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = "transparent")}
+              className="grid gap-3 px-5 py-3 admin-surface"
+              style={{ gridTemplateColumns: gridTemplate, borderBottom: "1px solid var(--admin-border)" }}
             >
-              <Link href={`/admin/contacts/${c.id}`} className="text-sm font-medium admin-heading truncate hover:text-[#0aa3c7] transition-colors">
-                {c.name}
-              </Link>
-              <span className="text-xs admin-muted self-center truncate">{c.email || "—"}</span>
-              <span className="text-xs admin-muted self-center">{c.country || "—"}</span>
-              <span className="text-xs admin-muted self-center capitalize">{c.source || "—"}</span>
-              <span className="text-xs admin-muted self-center">{c.level || "—"}</span>
-              <span className="self-center">
-                {c.accepts_marketing ? (
-                  <span className="text-green-400 text-xs">&#10003;</span>
+              {COLUMNS.filter((c) => c.required || visibleColumns.has(c.key)).map((col) =>
+                col.key === "_actions" ? (
+                  <span key={col.key} />
                 ) : (
-                  <span className="admin-faint text-xs">—</span>
-                )}
-              </span>
-              <button
-                onClick={() => handleDelete(c.id)}
-                className="text-xs admin-faint hover:text-red-400 transition-colors self-center"
-              >
-                <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                  <path d="M3 6h18M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a2 2 0 012-2h4a2 2 0 012 2v2" />
-                </svg>
-              </button>
+                  <SortableHeader
+                    key={col.key}
+                    label={col.label}
+                    sortKey={col.key}
+                    currentSort={sortKey}
+                    currentDir={sortDir}
+                    onSort={handleSort}
+                  />
+                )
+              )}
             </div>
-          ))}
-        </div>
 
-        {/* Pagination */}
-        {totalCount > pageSize && (
-          <div className="flex items-center justify-between mt-4 px-1">
-            <span className="text-xs admin-muted">
-              Showing {(page - 1) * pageSize + 1}–{Math.min(page * pageSize, totalCount)} of {totalCount}
-            </span>
-            <div className="flex gap-2">
-              <button
-                onClick={() => setPage((p) => Math.max(1, p - 1))}
-                disabled={page <= 1}
-                className="px-3 py-1.5 text-xs admin-muted rounded-lg transition-colors disabled:opacity-30"
-                style={{ border: "1px solid var(--admin-border)" }}
+            {/* Rows */}
+            {contacts.map((c) => (
+              <div
+                key={c.id}
+                className="grid gap-3 px-5 py-3 transition-colors"
+                style={{ gridTemplateColumns: gridTemplate, borderBottom: "1px solid var(--admin-border)" }}
+                onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = "var(--admin-surface-hover)")}
+                onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = "transparent")}
               >
-                ← Prev
-              </button>
-              <span className="px-3 py-1.5 text-xs admin-muted">
-                Page {page} of {Math.ceil(totalCount / pageSize)}
-              </span>
-              <button
-                onClick={() => setPage((p) => p + 1)}
-                disabled={page * pageSize >= totalCount}
-                className="px-3 py-1.5 text-xs admin-muted rounded-lg transition-colors disabled:opacity-30"
-                style={{ border: "1px solid var(--admin-border)" }}
-              >
-                Next →
-              </button>
-            </div>
+                {/* name — required */}
+                <Link href={`/admin/contacts/${c.id}`} className="text-sm font-medium admin-heading truncate hover:text-[#0aa3c7] transition-colors">
+                  {c.name}
+                </Link>
+                {visibleColumns.has("email") && (
+                  <span className="text-xs admin-muted self-center truncate">{c.email || "—"}</span>
+                )}
+                {visibleColumns.has("country") && (
+                  <span className="text-xs admin-muted self-center">{c.country || "—"}</span>
+                )}
+                {visibleColumns.has("source") && (
+                  <span className="text-xs admin-muted self-center capitalize">{c.source || "—"}</span>
+                )}
+                {visibleColumns.has("level") && (
+                  <span className="text-xs admin-muted self-center">{c.level || "—"}</span>
+                )}
+                {visibleColumns.has("accepts_marketing") && (
+                  <span className="self-center">
+                    {c.accepts_marketing ? (
+                      <span className="text-green-400 text-xs">&#10003;</span>
+                    ) : (
+                      <span className="admin-faint text-xs">—</span>
+                    )}
+                  </span>
+                )}
+                {/* _actions — required */}
+                <button
+                  onClick={() => handleDelete(c.id)}
+                  className="text-xs admin-faint hover:text-red-400 transition-colors self-center"
+                >
+                  <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                    <path d="M3 6h18M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a2 2 0 012-2h4a2 2 0 012 2v2" />
+                  </svg>
+                </button>
+              </div>
+            ))}
           </div>
-        )}
+
+          {/* Pagination */}
+          {totalCount > pageSize && (
+            <div className="flex items-center justify-between mt-4 px-1">
+              <span className="text-xs admin-muted">
+                Showing {(page - 1) * pageSize + 1}–{Math.min(page * pageSize, totalCount)} of {totalCount}
+              </span>
+              <div className="flex gap-2">
+                <button
+                  onClick={() => setPage((p) => Math.max(1, p - 1))}
+                  disabled={page <= 1}
+                  className="px-3 py-1.5 text-xs admin-muted rounded-lg transition-colors disabled:opacity-30"
+                  style={{ border: "1px solid var(--admin-border)" }}
+                >
+                  ← Prev
+                </button>
+                <span className="px-3 py-1.5 text-xs admin-muted">
+                  Page {page} of {Math.ceil(totalCount / pageSize)}
+                </span>
+                <button
+                  onClick={() => setPage((p) => p + 1)}
+                  disabled={page * pageSize >= totalCount}
+                  className="px-3 py-1.5 text-xs admin-muted rounded-lg transition-colors disabled:opacity-30"
+                  style={{ border: "1px solid var(--admin-border)" }}
+                >
+                  Next →
+                </button>
+              </div>
+            </div>
+          )}
+        </>
       )}
     </div>
   );
