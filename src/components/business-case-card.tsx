@@ -117,7 +117,9 @@ export default function BusinessCaseCard({ editionId }: { editionId: string }) {
   if (loading) {
     return <div className="rounded-xl p-4 text-xs admin-faint" style={{ border: "1px solid var(--admin-border)" }}>Calculating business case…</div>;
   }
-  if (!fin) return null;
+  if (!fin) {
+    return <div className="rounded-xl p-4 text-xs admin-faint" style={{ border: "1px solid var(--admin-border)" }}>Couldn&apos;t load the business case. Refresh to retry.</div>;
+  }
 
   const { currency, confirmed, capacity } = fin;
 

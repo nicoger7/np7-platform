@@ -24,10 +24,12 @@ export async function GET(
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const db = client as any;
 
-  // 1. Edition basics
+  // 1. Edition basics. Select * so this keeps working whether or not the
+  // template-cleanup migration (which adds edition currency/total_fixed_costs)
+  // has been applied — missing columns simply come back undefined.
   const { data: edition, error: edErr } = await db
     .from("exp_editions")
-    .select("id, currency, max_spots, total_fixed_costs, exp_experiences(currency)")
+    .select("*, exp_experiences(currency)")
     .eq("id", id)
     .single();
   if (edErr) {
