@@ -11,10 +11,17 @@ export async function GET(request: NextRequest) {
   const search = searchParams.get("search");
   const offset = (page - 1) * limit;
 
+  // Sort params
+  const sortParam = searchParams.get("sort") || "created_at";
+  const orderParam = searchParams.get("order") || "desc";
+  const allowedSortCols = ["name", "email", "country", "source", "level", "accepts_marketing", "created_at"];
+  const sortCol = allowedSortCols.includes(sortParam) ? sortParam : "created_at";
+  const ascending = orderParam === "asc";
+
   let query = client
     .from("contacts")
     .select("*", { count: "exact" })
-    .order("created_at", { ascending: false })
+    .order(sortCol, { ascending })
     .range(offset, offset + limit - 1);
 
   if (search) {
