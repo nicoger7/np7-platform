@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, use } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import ImagePickerModal from "@/components/image-picker-modal";
 
@@ -9,18 +10,11 @@ interface Experience {
   title: string;
   slug: string;
   location: string;
-  date_start: string;
-  date_end: string;
-  price: number | null;
-  deposit: number | null;
-  max_spots: number;
-  spots_taken: number;
   description: string;
   whats_included: string[];
   hero_image: string;
   gallery: string[];
   status: string;
-  // Core fields
   currency: string;
   timezone: string;
   hotel: string | null;
@@ -28,99 +22,27 @@ interface Experience {
   whatsapp_group_link: string | null;
   notes: string | null;
   cancellation_policy: string | null;
-  // Operations
+  active_status: string | null;
+  total_fixed_costs: number | null;
+  notion_id: string | null;
+}
+
+interface Edition {
+  id: string;
+  experience_id: string;
+  year: number;
+  date_start: string | null;
+  date_end: string | null;
+  price_from: number | null;
+  price_to: number | null;
+  deposit: number | null;
+  max_spots: number | null;
+  spots_taken: number;
+  status: string;
   coaches: string | null;
   experience_code: string | null;
   po_code: string | null;
-  active_status: string | null;
-  // Pricing
-  price_from: number | null;
-  price_to: number | null;
-  pricing_details: string | null;
-  payment_page_id: string | null;
-  spots_remaining: number | null;
-  // Financials
-  estimated_costs: number | null;
-  expected_revenue: number | null;
-  expected_profit: number | null;
-  paid_revenue: number | null;
-  paid_profit: number | null;
-  total_fixed_costs: number | null;
 }
-
-interface Booking {
-  id: string;
-  name: string;
-  status: string;
-  agreed_price: number | null;
-  fly_in: string | null;
-  fly_out: string | null;
-  traveling_with: string | null;
-  wa_group: boolean;
-  downpayment_received: boolean;
-  final_payment_received: boolean;
-  notes: string | null;
-  contact: { id: string; name: string; email: string } | null;
-  created_at: string;
-}
-
-interface Package {
-  id: string;
-  name: string;
-  slug: string;
-  description: string | null;
-  price: number | null;
-  deposit: number | null;
-  includes: string[] | null;
-  max_spots: number | null;
-  sort_order: number;
-  status: string;
-}
-
-interface Component {
-  id: string;
-  name: string;
-  category: string;
-  unit_cost: number | null;
-}
-
-interface PackageComponent {
-  id: string;
-  package_id: string;
-  component_id: string;
-  quantity: number;
-  notes: string | null;
-  exp_components: Component | null;
-}
-
-interface HotelRoom {
-  id: string;
-  name: string;
-  hotel: string;
-  room_type: string;
-  room_number: string | null;
-  status: string;
-  partner_tag_along: string | null;
-  comments: string | null;
-  check_in: string | null;
-  check_out: string | null;
-  booking: { id: string; name: string; contact: { name: string } | null } | null;
-}
-
-const BOOKING_STATUSES: Record<string, { label: string; color: string }> = {
-  lead: { label: "Lead", color: "bg-gray-500" },
-  interested: { label: "Interested", color: "bg-yellow-500" },
-  enquiring: { label: "Enquiring", color: "bg-blue-400" },
-  ready_to_book: { label: "Ready to Book", color: "bg-orange-500" },
-  payment_pending: { label: "Payment Pending", color: "bg-amber-600" },
-  downpayment_paid: { label: "Downpayment Paid", color: "bg-green-500" },
-  create_invoice: { label: "Create Invoice", color: "bg-orange-400" },
-  paid: { label: "Paid", color: "bg-green-600" },
-  contact_by_phone: { label: "Contact by Phone", color: "bg-pink-500" },
-  confirmed: { label: "Confirmed", color: "bg-blue-600" },
-  attended: { label: "Attended", color: "bg-gray-400" },
-  lost: { label: "Lost", color: "bg-red-500" },
-};
 
 const HOTELS = ["Sorobon", "Wanapa", "Playa Surf", "Hotel Paradiso", "Alacati", "REF", "REF II"];
 
@@ -131,19 +53,35 @@ function slugify(text: string) {
     .replace(/^-|-$/g, "");
 }
 
-function StatusBadge({ status }: { status: string }) {
-  const s = BOOKING_STATUSES[status];
-  return (
-    <span className="inline-flex items-center gap-1.5 text-xs">
-      <span className={`w-2 h-2 rounded-full ${s?.color || "bg-gray-500"}`} />
-      <span className="admin-muted">{s?.label || status}</span>
-    </span>
-  );
+function formatDateRange(start: string | null, end: string | null) {
+  if (!start) return "—";
+  const s = new Date(start);
+  const e = end ? new Date(end) : null;
+  const sMonth = s.toLocaleDateString("en-US", { month: "short" });
+  if (!e) return `${sMonth} ${s.getDate()}, ${s.getFullYear()}`;
+  const eMonth = e.toLocaleDateString("en-US", { month: "short" });
+  if (sMonth === eMonth) {
+    return `${sMonth} ${s.getDate()}–${e.getDate()}, ${s.getFullYear()}`;
+  }
+  return `${sMonth} ${s.getDate()} – ${eMonth} ${e.getDate()}, ${s.getFullYear()}`;
 }
 
-function formatDate(d: string | null) {
-  if (!d) return "—";
-  return new Date(d).toLocaleDateString("en-US", { month: "short", day: "numeric" });
+function EditionStatusBadge({ status }: { status: string }) {
+  return (
+    <span
+      className={`inline-block px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-[0.05em] ${
+        status === "published"
+          ? "bg-green-500/15 text-green-400"
+          : status === "archived"
+          ? "bg-red-500/15 text-red-400"
+          : status === "private"
+          ? "bg-purple-500/15 text-purple-400"
+          : "admin-surface admin-muted"
+      }`}
+    >
+      {status}
+    </span>
+  );
 }
 
 export default function ExperienceDetailPage({
@@ -153,68 +91,24 @@ export default function ExperienceDetailPage({
 }) {
   const { id } = use(params);
   const router = useRouter();
-  const [tab, setTab] = useState<"details" | "bookings" | "packages" | "rooms">("details");
+  const [tab, setTab] = useState<"details" | "editions">("details");
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
   const [exp, setExp] = useState<Experience | null>(null);
-  const [bookings, setBookings] = useState<Booking[]>([]);
-  const [rooms, setRooms] = useState<HotelRoom[]>([]);
-  const [packages, setPackages] = useState<Package[]>([]);
-  const [components, setComponents] = useState<Component[]>([]);
-  const [pkgComponents, setPkgComponents] = useState<Record<string, PackageComponent[]>>({});
+  const [editions, setEditions] = useState<Edition[]>([]);
   const [includedItem, setIncludedItem] = useState("");
   const [showImagePicker, setShowImagePicker] = useState(false);
-  const [showNewPkg, setShowNewPkg] = useState(false);
-  const [editPkgId, setEditPkgId] = useState<string | null>(null);
-  const [pkgForm, setPkgForm] = useState({ name: "", slug: "", description: "", price: "", deposit: "", max_spots: "", status: "active", category: "" });
-  const [showAddComp, setShowAddComp] = useState<string | null>(null);
-  const [addCompId, setAddCompId] = useState("");
-  const [addCompQty, setAddCompQty] = useState("1");
 
   useEffect(() => {
     fetch(`/api/admin/experiences/${id}`)
       .then((r) => r.json())
       .then((d) => {
-        // API spreads experience data at top level
         setExp(d);
+        setEditions(d.editions || []);
         setLoading(false);
       });
   }, [id]);
-
-  useEffect(() => {
-    if (tab === "bookings") {
-      fetch(`/api/admin/bookings?experience_id=${id}`)
-        .then((r) => r.json())
-        .then((d) => setBookings(d.bookings || []));
-    }
-  }, [tab, id]);
-
-  useEffect(() => {
-    if (tab === "rooms") {
-      fetch(`/api/admin/hotel-rooms?experience_id=${id}`)
-        .then((r) => r.json())
-        .then((d) => setRooms(d.rooms || []));
-    }
-  }, [tab, id]);
-
-  useEffect(() => {
-    if (tab === "packages") {
-      Promise.all([
-        fetch(`/api/admin/packages?experience_id=${id}`).then((r) => r.json()),
-        fetch(`/api/admin/components?experience_id=${id}`).then((r) => r.json()),
-      ]).then(([pkgs, comps]) => {
-        setPackages(pkgs || []);
-        setComponents(comps || []);
-        // Load components for each package
-        (pkgs || []).forEach((pkg: Package) => {
-          fetch(`/api/admin/packages/${pkg.id}/components`)
-            .then((r) => r.json())
-            .then((pcs) => setPkgComponents((prev) => ({ ...prev, [pkg.id]: pcs || [] })));
-        });
-      });
-    }
-  }, [tab, id]);
 
   async function handleSave() {
     if (!exp) return;
@@ -226,12 +120,6 @@ export default function ExperienceDetailPage({
         title: exp.title,
         slug: exp.slug,
         location: exp.location,
-        date_start: exp.date_start,
-        date_end: exp.date_end,
-        price: exp.price,
-        deposit: exp.deposit,
-        max_spots: exp.max_spots,
-        spots_taken: exp.spots_taken,
         description: exp.description,
         whats_included: exp.whats_included,
         hero_image: exp.hero_image,
@@ -244,21 +132,9 @@ export default function ExperienceDetailPage({
         whatsapp_group_link: exp.whatsapp_group_link,
         notes: exp.notes,
         cancellation_policy: exp.cancellation_policy,
-        coaches: exp.coaches,
-        experience_code: exp.experience_code,
-        po_code: exp.po_code,
         active_status: exp.active_status,
-        price_from: exp.price_from,
-        price_to: exp.price_to,
-        pricing_details: exp.pricing_details,
-        payment_page_id: exp.payment_page_id,
-        spots_remaining: exp.spots_remaining,
-        estimated_costs: exp.estimated_costs,
-        expected_revenue: exp.expected_revenue,
-        expected_profit: exp.expected_profit,
-        paid_revenue: exp.paid_revenue,
-        paid_profit: exp.paid_profit,
         total_fixed_costs: exp.total_fixed_costs,
+        notion_id: exp.notion_id,
       }),
     });
     setSaving(false);
@@ -267,9 +143,24 @@ export default function ExperienceDetailPage({
   }
 
   async function handleDelete() {
-    if (!confirm("Delete this experience? This cannot be undone.")) return;
+    if (!confirm("Delete this experience? All editions will also be deleted. This cannot be undone.")) return;
     await fetch(`/api/admin/experiences/${id}`, { method: "DELETE" });
     router.push("/admin/experiences");
+  }
+
+  async function handleAddEdition() {
+    const nextYear = editions.length > 0
+      ? Math.max(...editions.map((e) => e.year)) + 1
+      : new Date().getFullYear();
+    const res = await fetch("/api/admin/editions", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ experience_id: id, year: nextYear }),
+    });
+    if (res.ok) {
+      const newEdition = await res.json();
+      router.push(`/admin/editions/${newEdition.id}`);
+    }
   }
 
   function update(field: string, value: unknown) {
@@ -313,19 +204,21 @@ export default function ExperienceDetailPage({
           >
             Delete
           </button>
-          <button
-            onClick={handleSave}
-            disabled={saving}
-            className="px-4 py-2 bg-[#0aa3c7] hover:bg-[#0aa3c7]/90 disabled:opacity-50 text-white text-sm font-bold rounded-lg transition-colors"
-          >
-            {saving ? "Saving..." : saved ? "Saved!" : "Save"}
-          </button>
+          {tab === "details" && (
+            <button
+              onClick={handleSave}
+              disabled={saving}
+              className="px-4 py-2 bg-[#0aa3c7] hover:bg-[#0aa3c7]/90 disabled:opacity-50 text-white text-sm font-bold rounded-lg transition-colors"
+            >
+              {saving ? "Saving..." : saved ? "Saved!" : "Save"}
+            </button>
+          )}
         </div>
       </div>
 
       {/* Tabs */}
       <div className="flex gap-1 mb-6" style={{ borderBottom: "1px solid var(--admin-border)" }}>
-        {(["details", "bookings", "packages", "rooms"] as const).map((t) => (
+        {(["details", "editions"] as const).map((t) => (
           <button
             key={t}
             onClick={() => setTab(t)}
@@ -335,7 +228,7 @@ export default function ExperienceDetailPage({
                 : "admin-muted border-transparent"
             }`}
           >
-            {t === "rooms" ? "Hotel Rooms" : t}
+            {t === "editions" ? `Editions (${editions.length})` : t}
           </button>
         ))}
       </div>
@@ -390,87 +283,6 @@ export default function ExperienceDetailPage({
             </div>
           </div>
 
-          {/* Dates */}
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <label className={labelClass}>Start date</label>
-              <input
-                type="date"
-                className={inputClass}
-                value={exp.date_start || ""}
-                onChange={(e) => update("date_start", e.target.value)}
-              />
-            </div>
-            <div>
-              <label className={labelClass}>End date</label>
-              <input
-                type="date"
-                className={inputClass}
-                value={exp.date_end || ""}
-                onChange={(e) => update("date_end", e.target.value)}
-              />
-            </div>
-          </div>
-
-          {/* Price, Deposit, Currency */}
-          <div className="grid grid-cols-3 gap-4">
-            <div>
-              <label className={labelClass}>Price ({exp.currency || "EUR"})</label>
-              <input
-                type="number"
-                className={inputClass}
-                value={exp.price || ""}
-                onChange={(e) => update("price", e.target.value ? Number(e.target.value) : null)}
-              />
-            </div>
-            <div>
-              <label className={labelClass}>Deposit ({exp.currency || "EUR"})</label>
-              <input
-                type="number"
-                className={inputClass}
-                value={exp.deposit || ""}
-                onChange={(e) => update("deposit", e.target.value ? Number(e.target.value) : null)}
-              />
-            </div>
-            <div>
-              <label className={labelClass}>Currency</label>
-              <select
-                className={inputClass}
-                value={exp.currency || "EUR"}
-                onChange={(e) => update("currency", e.target.value)}
-              >
-                <option value="EUR">EUR</option>
-                <option value="USD">USD</option>
-                <option value="GBP">GBP</option>
-              </select>
-            </div>
-          </div>
-
-          {/* Spots */}
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <label className={labelClass}>Max spots</label>
-              <input
-                type="number"
-                className={inputClass}
-                value={exp.max_spots}
-                onChange={(e) => update("max_spots", Number(e.target.value))}
-              />
-            </div>
-            <div className="rounded-lg p-2 bg-[#0aa3c7]/5" style={{ border: "1px solid rgba(10,163,199,0.15)" }}>
-              <label className={`${labelClass} flex items-center gap-2`}>
-                Spots taken
-                <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium bg-[#0aa3c7]/15 text-[#0aa3c7]">Auto</span>
-              </label>
-              <input
-                type="number"
-                className={`${inputClass} opacity-70 cursor-default`}
-                value={exp.spots_taken}
-                readOnly
-              />
-            </div>
-          </div>
-
           {/* Airport & Timezone */}
           <div className="grid grid-cols-2 gap-4">
             <div>
@@ -489,6 +301,32 @@ export default function ExperienceDetailPage({
                 value={exp.timezone || ""}
                 onChange={(e) => update("timezone", e.target.value)}
                 placeholder="Europe/Berlin"
+              />
+            </div>
+          </div>
+
+          {/* Currency */}
+          <div className="grid grid-cols-3 gap-4">
+            <div>
+              <label className={labelClass}>Currency</label>
+              <select
+                className={inputClass}
+                value={exp.currency || "EUR"}
+                onChange={(e) => update("currency", e.target.value)}
+              >
+                <option value="EUR">EUR</option>
+                <option value="USD">USD</option>
+                <option value="GBP">GBP</option>
+              </select>
+            </div>
+            <div>
+              <label className={labelClass}>Total Fixed Costs ({exp.currency || "EUR"})</label>
+              <input
+                type="number"
+                className={inputClass}
+                value={exp.total_fixed_costs || ""}
+                onChange={(e) => update("total_fixed_costs", e.target.value ? Number(e.target.value) : null)}
+                placeholder="Template-level fixed costs"
               />
             </div>
           </div>
@@ -641,145 +479,10 @@ export default function ExperienceDetailPage({
             />
           )}
 
-          {/* ── Operations ── */}
-          <div className="pt-4" style={{ borderTop: "1px solid var(--admin-border)" }}>
-            <h3 className="text-xs font-bold tracking-[0.1em] admin-faint uppercase mb-4">Operations</h3>
-            <div className="space-y-4">
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className={labelClass}>Coaches</label>
-                  <input
-                    className={inputClass}
-                    value={exp.coaches || ""}
-                    onChange={(e) => update("coaches", e.target.value || null)}
-                    placeholder="e.g. Nico, Sarah"
-                  />
-                </div>
-                <div>
-                  <label className={labelClass}>Active Status</label>
-                  <select
-                    className={inputClass}
-                    value={exp.active_status || ""}
-                    onChange={(e) => update("active_status", e.target.value || null)}
-                  >
-                    <option value="">—</option>
-                    <option value="published">Published</option>
-                    <option value="private">Private</option>
-                    <option value="in_planning">In Planning</option>
-                  </select>
-                </div>
-              </div>
-              <div className="grid grid-cols-3 gap-4">
-                <div>
-                  <label className={labelClass}>Experience Code</label>
-                  <input
-                    className={inputClass}
-                    value={exp.experience_code || ""}
-                    onChange={(e) => update("experience_code", e.target.value || null)}
-                    placeholder="e.g. BKK-2025"
-                  />
-                </div>
-                <div>
-                  <label className={labelClass}>PO Code</label>
-                  <input
-                    className={inputClass}
-                    value={exp.po_code || ""}
-                    onChange={(e) => update("po_code", e.target.value || null)}
-                  />
-                </div>
-                <div>
-                  <label className={labelClass}>Payment Page ID</label>
-                  <input
-                    className={inputClass}
-                    value={exp.payment_page_id || ""}
-                    onChange={(e) => update("payment_page_id", e.target.value || null)}
-                  />
-                </div>
-              </div>
-              <div className="grid grid-cols-3 gap-4">
-                <div>
-                  <label className={labelClass}>Price From ({exp.currency || "EUR"})</label>
-                  <input
-                    type="number"
-                    className={inputClass}
-                    value={exp.price_from || ""}
-                    onChange={(e) => update("price_from", e.target.value ? Number(e.target.value) : null)}
-                  />
-                </div>
-                <div>
-                  <label className={labelClass}>Price To ({exp.currency || "EUR"})</label>
-                  <input
-                    type="number"
-                    className={inputClass}
-                    value={exp.price_to || ""}
-                    onChange={(e) => update("price_to", e.target.value ? Number(e.target.value) : null)}
-                  />
-                </div>
-                <div className="rounded-lg p-2 bg-[#0aa3c7]/5" style={{ border: "1px solid rgba(10,163,199,0.15)" }}>
-                  <label className={`${labelClass} flex items-center gap-2`}>
-                    Spots Remaining
-                    <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium bg-[#0aa3c7]/15 text-[#0aa3c7]">Auto</span>
-                  </label>
-                  <input
-                    type="number"
-                    className={`${inputClass} opacity-70 cursor-default`}
-                    value={exp.spots_remaining ?? ""}
-                    readOnly
-                  />
-                </div>
-              </div>
-              <div>
-                <label className={labelClass}>Pricing Details</label>
-                <textarea
-                  className={`${inputClass} min-h-[80px] resize-y`}
-                  value={exp.pricing_details || ""}
-                  onChange={(e) => update("pricing_details", e.target.value || null)}
-                  placeholder="Pricing breakdown, inclusions..."
-                />
-              </div>
-            </div>
-          </div>
-
-          {/* ── Financials ── */}
-          <div className="pt-4" style={{ borderTop: "1px solid var(--admin-border)" }}>
-            <h3 className="text-xs font-bold tracking-[0.1em] admin-faint uppercase mb-4">Financials</h3>
-            <div className="grid grid-cols-3 gap-4">
-              <div>
-                <label className={labelClass}>Estimated Costs</label>
-                <input type="number" className={inputClass} value={exp.estimated_costs || ""} onChange={(e) => update("estimated_costs", e.target.value ? Number(e.target.value) : null)} />
-              </div>
-              <div>
-                <label className={labelClass}>Total Fixed Costs</label>
-                <input type="number" className={inputClass} value={exp.total_fixed_costs || ""} onChange={(e) => update("total_fixed_costs", e.target.value ? Number(e.target.value) : null)} />
-              </div>
-              <div>
-                <label className={labelClass}>Expected Revenue</label>
-                <input type="number" className={inputClass} value={exp.expected_revenue || ""} onChange={(e) => update("expected_revenue", e.target.value ? Number(e.target.value) : null)} />
-              </div>
-              <div>
-                <label className={labelClass}>Expected Profit</label>
-                <input type="number" className={inputClass} value={exp.expected_profit || ""} onChange={(e) => update("expected_profit", e.target.value ? Number(e.target.value) : null)} />
-              </div>
-              <div className="rounded-lg p-2 bg-[#0aa3c7]/5" style={{ border: "1px solid rgba(10,163,199,0.15)" }}>
-                <label className={`${labelClass} flex items-center gap-2`}>
-                  Paid Revenue
-                  <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium bg-[#0aa3c7]/15 text-[#0aa3c7]">Auto</span>
-                </label>
-                <input type="number" className={`${inputClass} opacity-70 cursor-default`} value={exp.paid_revenue || ""} readOnly />
-              </div>
-              <div className="rounded-lg p-2 bg-[#0aa3c7]/5" style={{ border: "1px solid rgba(10,163,199,0.15)" }}>
-                <label className={`${labelClass} flex items-center gap-2`}>
-                  Paid Profit
-                  <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium bg-[#0aa3c7]/15 text-[#0aa3c7]">Auto</span>
-                </label>
-                <input type="number" className={`${inputClass} opacity-70 cursor-default`} value={exp.paid_profit || ""} readOnly />
-              </div>
-            </div>
-          </div>
-
           {/* Status */}
           <div>
-            <label className={labelClass}>Status</label>
+            <label className={labelClass}>Template Status</label>
+            <p className="text-xs admin-faint mb-2">Controls whether this template is active. Per-year status is set on each edition.</p>
             <div className="flex gap-2">
               {["draft", "published", "archived"].map((s) => (
                 <button
@@ -807,350 +510,74 @@ export default function ExperienceDetailPage({
         </div>
       )}
 
-      {tab === "bookings" && (
+      {tab === "editions" && (
         <div>
-          {bookings.length === 0 ? (
-            <div className="text-center py-16">
-              <p className="text-sm admin-faint">No bookings for this experience</p>
-              <p className="text-xs admin-faint mt-1">Bookings from the pipeline will appear here</p>
-            </div>
-          ) : (
-            <div className="rounded-xl overflow-hidden" style={{ border: "1px solid var(--admin-border)" }}>
-              <div className="grid grid-cols-[1fr_120px_100px_100px_100px_80px] gap-4 px-5 py-3 admin-surface" style={{ borderBottom: "1px solid var(--admin-border)" }}>
-                <span className="text-[10px] font-bold tracking-[0.1em] admin-faint uppercase">Name</span>
-                <span className="text-[10px] font-bold tracking-[0.1em] admin-faint uppercase">Status</span>
-                <span className="text-[10px] font-bold tracking-[0.1em] admin-faint uppercase">Fly In</span>
-                <span className="text-[10px] font-bold tracking-[0.1em] admin-faint uppercase">Fly Out</span>
-                <span className="text-[10px] font-bold tracking-[0.1em] admin-faint uppercase">Price</span>
-                <span className="text-[10px] font-bold tracking-[0.1em] admin-faint uppercase">Paid</span>
-              </div>
-              {bookings.map((b) => (
-                <div
-                  key={b.id}
-                  className="grid grid-cols-[1fr_120px_100px_100px_100px_80px] gap-4 px-5 py-3.5 cursor-pointer transition-colors"
-                  style={{ borderBottom: "1px solid var(--admin-border)" }}
-                  onClick={() => router.push(`/admin/bookings/${b.id}`)}
-                  onMouseEnter={(e) => e.currentTarget.style.backgroundColor = "var(--admin-surface-hover)"}
-                  onMouseLeave={(e) => e.currentTarget.style.backgroundColor = "transparent"}
-                >
-                  <div className="min-w-0">
-                    <div className="text-sm font-medium admin-heading truncate">{b.name}</div>
-                    {b.traveling_with && (
-                      <div className="text-xs admin-faint truncate">w/ {b.traveling_with}</div>
-                    )}
-                  </div>
-                  <span className="self-center"><StatusBadge status={b.status} /></span>
-                  <span className="text-xs admin-muted self-center">{formatDate(b.fly_in)}</span>
-                  <span className="text-xs admin-muted self-center">{formatDate(b.fly_out)}</span>
-                  <span className="text-xs admin-muted self-center">
-                    {b.agreed_price ? `€${Number(b.agreed_price).toLocaleString()}` : "—"}
-                  </span>
-                  <span className="self-center">
-                    {b.final_payment_received ? (
-                      <span className="text-green-400 text-xs font-medium">✓</span>
-                    ) : b.downpayment_received ? (
-                      <span className="text-amber-400 text-xs font-medium">½</span>
-                    ) : (
-                      <span className="admin-faint text-xs">—</span>
-                    )}
-                  </span>
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
-      )}
-
-      {tab === "packages" && (
-        <div>
-          <div className="flex justify-between items-center mb-4">
-            <p className="text-xs admin-faint">Define packages and assign components to each</p>
+          <div className="flex items-center justify-between mb-4">
+            <p className="text-xs admin-faint">Year-specific instances of this experience</p>
             <button
-              onClick={() => {
-                setShowNewPkg(true);
-                setEditPkgId(null);
-                setPkgForm({ name: "", slug: "", description: "", price: "", deposit: "", max_spots: "", status: "active", category: "" });
-              }}
+              onClick={handleAddEdition}
               className="px-3 py-1.5 bg-[#0aa3c7] hover:bg-[#0aa3c7]/90 text-white text-xs font-bold rounded-lg transition-colors"
             >
-              New Package
+              Add Edition
             </button>
           </div>
 
-          {/* Package form (new or edit) */}
-          {(showNewPkg || editPkgId) && (
-            <div className="mb-6 p-5 rounded-xl" style={{ border: "1px solid var(--admin-border)", backgroundColor: "var(--admin-surface)" }}>
-              <h3 className="text-sm font-bold admin-heading mb-4">{editPkgId ? "Edit Package" : "New Package"}</h3>
-              <div className="grid grid-cols-4 gap-4 mb-4">
-                <div>
-                  <label className={`${labelClass}`}>Name *</label>
-                  <input className={inputClass} value={pkgForm.name} onChange={(e) => setPkgForm({ ...pkgForm, name: e.target.value, slug: slugify(e.target.value) })} />
-                </div>
-                <div>
-                  <label className={`${labelClass}`}>Slug</label>
-                  <input className={inputClass} value={pkgForm.slug} onChange={(e) => setPkgForm({ ...pkgForm, slug: e.target.value })} />
-                </div>
-                <div>
-                  <label className={`${labelClass}`}>Category</label>
-                  <select className={inputClass} value={pkgForm.category} onChange={(e) => setPkgForm({ ...pkgForm, category: e.target.value })}>
-                    <option value="">—</option>
-                    <option value="pro">Pro</option>
-                    <option value="beginner">Beginner</option>
-                    <option value="mixed">Mixed</option>
-                  </select>
-                </div>
-                <div>
-                  <label className={`${labelClass}`}>Status</label>
-                  <select className={inputClass} value={pkgForm.status} onChange={(e) => setPkgForm({ ...pkgForm, status: e.target.value })}>
-                    <option value="active">Active</option>
-                    <option value="archived">Archived</option>
-                  </select>
-                </div>
-              </div>
-              <div className="grid grid-cols-3 gap-4 mb-4">
-                <div>
-                  <label className={`${labelClass}`}>Price (€)</label>
-                  <input className={inputClass} type="number" step="0.01" value={pkgForm.price} onChange={(e) => setPkgForm({ ...pkgForm, price: e.target.value })} />
-                </div>
-                <div>
-                  <label className={`${labelClass}`}>Deposit (€)</label>
-                  <input className={inputClass} type="number" step="0.01" value={pkgForm.deposit} onChange={(e) => setPkgForm({ ...pkgForm, deposit: e.target.value })} />
-                </div>
-                <div>
-                  <label className={`${labelClass}`}>Max spots</label>
-                  <input className={inputClass} type="number" value={pkgForm.max_spots} onChange={(e) => setPkgForm({ ...pkgForm, max_spots: e.target.value })} />
-                </div>
-              </div>
-              <div className="mb-4">
-                <label className={`${labelClass}`}>Description</label>
-                <textarea className={`${inputClass} min-h-[60px] resize-y`} value={pkgForm.description} onChange={(e) => setPkgForm({ ...pkgForm, description: e.target.value })} />
-              </div>
-              <div className="flex gap-2">
-                <button
-                  onClick={async () => {
-                    const body = {
-                      name: pkgForm.name,
-                      slug: pkgForm.slug || slugify(pkgForm.name),
-                      description: pkgForm.description || null,
-                      price: pkgForm.price ? Number(pkgForm.price) : null,
-                      deposit: pkgForm.deposit ? Number(pkgForm.deposit) : null,
-                      max_spots: pkgForm.max_spots ? Number(pkgForm.max_spots) : null,
-                      status: pkgForm.status,
-                      category: pkgForm.category || null,
-                      experience_id: id,
-                    };
-                    if (editPkgId) {
-                      await fetch(`/api/admin/packages/${editPkgId}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
-                    } else {
-                      await fetch("/api/admin/packages", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
-                    }
-                    setShowNewPkg(false);
-                    setEditPkgId(null);
-                    // Refresh packages
-                    const pkgs = await fetch(`/api/admin/packages?experience_id=${id}`).then((r) => r.json());
-                    setPackages(pkgs || []);
-                  }}
-                  disabled={!pkgForm.name}
-                  className="px-4 py-2 bg-[#0aa3c7] hover:bg-[#0aa3c7]/90 disabled:opacity-40 text-white text-sm font-bold rounded-lg transition-colors"
-                >
-                  {editPkgId ? "Update" : "Create"}
-                </button>
-                <button onClick={() => { setShowNewPkg(false); setEditPkgId(null); }} className="px-4 py-2 admin-muted text-sm rounded-lg">Cancel</button>
-              </div>
-            </div>
-          )}
-
-          {packages.length === 0 && !showNewPkg ? (
+          {editions.length === 0 ? (
             <div className="text-center py-16">
-              <p className="text-sm admin-faint">No packages yet</p>
-              <p className="text-xs admin-faint mt-1">Create packages to define pricing and inclusions</p>
-            </div>
-          ) : (
-            <div className="space-y-4">
-              {packages.map((pkg) => (
-                <div key={pkg.id} className="rounded-xl overflow-hidden" style={{ border: "1px solid var(--admin-border)" }}>
-                  {/* Package header */}
-                  <div className="px-5 py-4 flex items-center justify-between admin-surface" style={{ borderBottom: "1px solid var(--admin-border)" }}>
-                    <div className="flex items-center gap-3">
-                      <div>
-                        <div className="text-sm font-bold admin-heading">{pkg.name}</div>
-                        <div className="text-xs admin-faint mt-0.5">
-                          {pkg.price ? `€${Number(pkg.price).toLocaleString()}` : "No price"}
-                          {pkg.deposit ? ` • Deposit: €${Number(pkg.deposit).toLocaleString()}` : ""}
-                          {pkg.max_spots ? ` • ${pkg.max_spots} spots` : ""}
-                          {(pkg as Package & { category?: string }).category ? ` • ${(pkg as Package & { category?: string }).category}` : ""}
-                        </div>
-                      </div>
-                      <span className={`inline-block px-2 py-0.5 rounded text-[10px] font-bold uppercase ${
-                        pkg.status === "active" ? "bg-green-500/15 text-green-400" : "bg-gray-500/15 text-gray-400"
-                      }`}>
-                        {pkg.status}
-                      </span>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <button
-                        onClick={() => {
-                          setEditPkgId(pkg.id);
-                          setShowNewPkg(false);
-                          setPkgForm({
-                            name: pkg.name,
-                            slug: pkg.slug,
-                            description: pkg.description || "",
-                            price: pkg.price?.toString() || "",
-                            deposit: pkg.deposit?.toString() || "",
-                            max_spots: pkg.max_spots?.toString() || "",
-                            status: pkg.status,
-                            category: (pkg as Package & { category?: string }).category || "",
-                          });
-                        }}
-                        className="px-2 py-1 text-xs admin-muted hover:admin-heading transition-colors"
-                      >
-                        Edit
-                      </button>
-                      <button
-                        onClick={async () => {
-                          if (!confirm("Delete this package?")) return;
-                          await fetch(`/api/admin/packages/${pkg.id}`, { method: "DELETE" });
-                          setPackages((prev) => prev.filter((p) => p.id !== pkg.id));
-                        }}
-                        className="px-2 py-1 text-xs admin-faint hover:text-red-400 transition-colors"
-                      >
-                        Delete
-                      </button>
-                    </div>
-                  </div>
-
-                  {/* Package components */}
-                  <div className="px-5 py-3">
-                    <div className="flex items-center justify-between mb-2">
-                      <span className="text-[10px] font-bold tracking-[0.1em] admin-faint uppercase">Components</span>
-                      <button
-                        onClick={() => { setShowAddComp(showAddComp === pkg.id ? null : pkg.id); setAddCompId(""); setAddCompQty("1"); }}
-                        className="text-xs text-[#0aa3c7] hover:text-[#0aa3c7]/80 transition-colors"
-                      >
-                        + Add
-                      </button>
-                    </div>
-
-                    {showAddComp === pkg.id && (
-                      <div className="flex items-end gap-2 mb-3">
-                        <div className="flex-1">
-                          <select
-                            className={inputClass}
-                            value={addCompId}
-                            onChange={(e) => setAddCompId(e.target.value)}
-                          >
-                            <option value="">Select component...</option>
-                            {components.map((c) => (
-                              <option key={c.id} value={c.id}>{c.name} ({c.category}){c.unit_cost ? ` — €${c.unit_cost}` : ""}</option>
-                            ))}
-                          </select>
-                        </div>
-                        <div className="w-20">
-                          <input className={inputClass} type="number" min="1" value={addCompQty} onChange={(e) => setAddCompQty(e.target.value)} placeholder="Qty" />
-                        </div>
-                        <button
-                          onClick={async () => {
-                            if (!addCompId) return;
-                            await fetch(`/api/admin/packages/${pkg.id}/components`, {
-                              method: "POST",
-                              headers: { "Content-Type": "application/json" },
-                              body: JSON.stringify({ component_id: addCompId, quantity: Number(addCompQty) || 1 }),
-                            });
-                            const pcs = await fetch(`/api/admin/packages/${pkg.id}/components`).then((r) => r.json());
-                            setPkgComponents((prev) => ({ ...prev, [pkg.id]: pcs || [] }));
-                            setShowAddComp(null);
-                          }}
-                          disabled={!addCompId}
-                          className="px-3 py-2.5 bg-[#0aa3c7] hover:bg-[#0aa3c7]/90 disabled:opacity-40 text-white text-xs font-bold rounded-lg"
-                        >
-                          Add
-                        </button>
-                      </div>
-                    )}
-
-                    {(pkgComponents[pkg.id] || []).length === 0 ? (
-                      <div className="text-xs admin-faint py-2">No components assigned</div>
-                    ) : (
-                      <div className="space-y-1">
-                        {(pkgComponents[pkg.id] || []).map((pc) => (
-                          <div key={pc.id} className="flex items-center justify-between py-1.5 px-2 rounded-lg hover:admin-surface transition-colors">
-                            <div className="flex items-center gap-2">
-                              <span className="text-xs admin-muted">{pc.exp_components?.name || "Unknown"}</span>
-                              <span className="text-[10px] admin-faint capitalize">({pc.exp_components?.category})</span>
-                              {pc.quantity > 1 && <span className="text-[10px] admin-faint">× {pc.quantity}</span>}
-                            </div>
-                            <div className="flex items-center gap-2">
-                              {pc.exp_components?.unit_cost && (
-                                <span className="text-xs admin-faint">€{(Number(pc.exp_components.unit_cost) * pc.quantity).toLocaleString()}</span>
-                              )}
-                              <button
-                                onClick={async () => {
-                                  await fetch(`/api/admin/packages/${pkg.id}/components?component_id=${pc.component_id}`, { method: "DELETE" });
-                                  setPkgComponents((prev) => ({ ...prev, [pkg.id]: (prev[pkg.id] || []).filter((x) => x.id !== pc.id) }));
-                                }}
-                                className="admin-faint hover:text-red-400 transition-colors"
-                              >
-                                <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M18 6L6 18M6 6l12 12" /></svg>
-                              </button>
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
-      )}
-
-      {tab === "rooms" && (
-        <div>
-          {rooms.length === 0 ? (
-            <div className="text-center py-16">
-              <p className="text-sm admin-faint">No hotel rooms assigned</p>
-              <p className="text-xs admin-faint mt-1">Room assignments for this experience will appear here</p>
+              <p className="text-sm admin-faint">No editions yet</p>
+              <p className="text-xs admin-faint mt-1">Create editions to define year-specific dates, pricing, and spots</p>
+              <button
+                onClick={handleAddEdition}
+                className="mt-4 px-4 py-2 bg-[#0aa3c7] hover:bg-[#0aa3c7]/90 text-white text-sm font-bold rounded-lg transition-colors"
+              >
+                Add First Edition
+              </button>
             </div>
           ) : (
             <div className="rounded-xl overflow-hidden" style={{ border: "1px solid var(--admin-border)" }}>
-              <div className="grid grid-cols-[1fr_140px_140px_80px_120px_1fr] gap-4 px-5 py-3 admin-surface" style={{ borderBottom: "1px solid var(--admin-border)" }}>
-                <span className="text-[10px] font-bold tracking-[0.1em] admin-faint uppercase">Room</span>
-                <span className="text-[10px] font-bold tracking-[0.1em] admin-faint uppercase">Type</span>
-                <span className="text-[10px] font-bold tracking-[0.1em] admin-faint uppercase">Hotel</span>
+              {/* Header */}
+              <div
+                className="grid grid-cols-[80px_180px_160px_80px_100px_1fr] gap-4 px-5 py-3 admin-surface"
+                style={{ borderBottom: "1px solid var(--admin-border)" }}
+              >
+                <span className="text-[10px] font-bold tracking-[0.1em] admin-faint uppercase">Year</span>
+                <span className="text-[10px] font-bold tracking-[0.1em] admin-faint uppercase">Dates</span>
+                <span className="text-[10px] font-bold tracking-[0.1em] admin-faint uppercase">Price</span>
+                <span className="text-[10px] font-bold tracking-[0.1em] admin-faint uppercase">Spots</span>
                 <span className="text-[10px] font-bold tracking-[0.1em] admin-faint uppercase">Status</span>
-                <span className="text-[10px] font-bold tracking-[0.1em] admin-faint uppercase">Guest</span>
-                <span className="text-[10px] font-bold tracking-[0.1em] admin-faint uppercase">Notes</span>
+                <span className="text-[10px] font-bold tracking-[0.1em] admin-faint uppercase">Code</span>
               </div>
-              {rooms.map((room) => (
-                <div
-                  key={room.id}
-                  className="grid grid-cols-[1fr_140px_140px_80px_120px_1fr] gap-4 px-5 py-3.5"
+
+              {editions.map((ed) => (
+                <Link
+                  key={ed.id}
+                  href={`/admin/editions/${ed.id}`}
+                  className="grid grid-cols-[80px_180px_160px_80px_100px_1fr] gap-4 px-5 py-3.5 transition-colors"
                   style={{ borderBottom: "1px solid var(--admin-border)" }}
+                  onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = "var(--admin-surface-hover)")}
+                  onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = "transparent")}
                 >
-                  <div className="min-w-0">
-                    <div className="text-sm font-medium admin-heading truncate">{room.name}</div>
-                    {room.room_number && <div className="text-xs admin-faint">#{room.room_number}</div>}
-                  </div>
-                  <span className="text-xs admin-muted self-center truncate">{room.room_type}</span>
-                  <span className="text-xs admin-muted self-center">{room.hotel}</span>
-                  <span className="self-center">
-                    <span className={`inline-block px-2 py-0.5 rounded text-[10px] font-bold uppercase ${
-                      room.status === "assigned" ? "bg-blue-500/15 text-blue-400" :
-                      room.status === "held" ? "bg-amber-500/15 text-amber-400" :
-                      "bg-green-500/15 text-green-400"
-                    }`}>
-                      {room.status}
-                    </span>
+                  <span className="text-sm font-bold admin-heading self-center">{ed.year}</span>
+                  <span className="text-xs admin-muted self-center">
+                    {formatDateRange(ed.date_start, ed.date_end)}
                   </span>
-                  <span className="text-xs admin-muted self-center truncate">
-                    {room.booking?.name?.split(" — ")[0] || room.booking?.name?.split(" - ")[0] || room.partner_tag_along || "—"}
+                  <span className="text-xs admin-muted self-center">
+                    {ed.price_from && ed.price_to
+                      ? `€${Number(ed.price_from).toLocaleString()} – €${Number(ed.price_to).toLocaleString()}`
+                      : ed.price_from
+                      ? `from €${Number(ed.price_from).toLocaleString()}`
+                      : "—"}
+                  </span>
+                  <span className="text-xs admin-muted self-center">
+                    {ed.max_spots != null ? `${ed.spots_taken}/${ed.max_spots}` : "—"}
+                  </span>
+                  <span className="self-center">
+                    <EditionStatusBadge status={ed.status} />
                   </span>
                   <span className="text-xs admin-faint self-center truncate">
-                    {room.comments || room.partner_tag_along || "—"}
+                    {ed.experience_code || ed.po_code || "—"}
                   </span>
-                </div>
+                </Link>
               ))}
             </div>
           )}

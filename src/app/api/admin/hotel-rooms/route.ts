@@ -27,6 +27,7 @@ export async function GET(request: NextRequest) {
 
   const admin = getServiceClient();
   const experienceId = request.nextUrl.searchParams.get("experience_id");
+  const editionId = request.nextUrl.searchParams.get("edition_id");
   const hotel = request.nextUrl.searchParams.get("hotel");
   const status = request.nextUrl.searchParams.get("status");
 
@@ -42,6 +43,8 @@ export async function GET(request: NextRequest) {
     .order("room_type", { ascending: true });
 
   if (experienceId) query = query.eq("experience_id", experienceId);
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  if (editionId) query = (query as any).eq("edition_id", editionId);
   if (hotel) query = query.eq("hotel", hotel);
   if (status) query = query.eq("status", status);
 

@@ -8,7 +8,7 @@ export async function GET() {
   const { data, error } = await client
     .from("exp_experiences")
     .select("*")
-    .order("date_start", { ascending: true });
+    .order("title", { ascending: true });
 
   if (error) {
     return NextResponse.json({ error: error.message }, { status: 500 });

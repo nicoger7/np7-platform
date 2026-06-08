@@ -6,6 +6,7 @@ export async function GET(request: NextRequest) {
   const client = createAdminClient();
   const { searchParams } = new URL(request.url);
   const experienceId = searchParams.get("experience_id");
+  const editionId = searchParams.get("edition_id");
 
   let query = client
     .from("exp_packages")
@@ -14,6 +15,10 @@ export async function GET(request: NextRequest) {
 
   if (experienceId) {
     query = query.eq("experience_id", experienceId);
+  }
+  if (editionId) {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    query = (query as any).eq("edition_id", editionId);
   }
 
   const { data, error } = await query;

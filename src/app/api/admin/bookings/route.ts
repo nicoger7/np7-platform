@@ -7,6 +7,7 @@ export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url);
 
   const experienceId = searchParams.get("experience_id");
+  const editionId = searchParams.get("edition_id");
   const contactId = searchParams.get("contact_id");
   const status = searchParams.get("status");
 
@@ -22,6 +23,10 @@ export async function GET(request: NextRequest) {
 
   if (experienceId) {
     query = query.eq("experience_id", experienceId);
+  }
+  if (editionId) {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    query = (query as any).eq("edition_id", editionId);
   }
   if (contactId) {
     query = query.eq("contact_id", contactId);

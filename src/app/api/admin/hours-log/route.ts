@@ -6,6 +6,7 @@ export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url);
   const employeeId = searchParams.get("employee_id");
   const experienceId = searchParams.get("experience_id");
+  const editionId = searchParams.get("edition_id");
 
   let query = client
     .from("hours_log")
@@ -14,6 +15,8 @@ export async function GET(request: NextRequest) {
 
   if (employeeId) query = query.eq("employee_id", employeeId);
   if (experienceId) query = query.eq("experience_id", experienceId);
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  if (editionId) query = (query as any).eq("edition_id", editionId);
 
   const { data, error } = await query;
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });

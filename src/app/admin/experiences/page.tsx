@@ -11,15 +11,15 @@ interface Experience {
   title: string;
   slug: string;
   location: string;
-  date_start: string;
-  date_end: string;
-  price: number;
-  max_spots: number;
-  spots_taken: number;
   status: string;
   hero_image: string;
   hotel: string | null;
-  airport_code: string | null;
+}
+
+interface Edition {
+  experience_id: string;
+  year: number;
+  status: string;
 }
 
 type ViewMode = "list" | "tile";
@@ -27,26 +27,13 @@ type SortDir = "asc" | "desc" | null;
 
 const COLUMNS: ColumnDef[] = [
   { key: "title", label: "Title", width: "1fr", required: true },
-  { key: "location", label: "Location", width: "120px" },
+  { key: "location", label: "Location", width: "140px" },
   { key: "hotel", label: "Hotel", width: "100px" },
-  { key: "date_start", label: "Dates", width: "160px" },
-  { key: "max_spots", label: "Spots", width: "80px" },
-  { key: "price", label: "Price", width: "80px" },
+  { key: "editions", label: "Editions", width: "160px" },
   { key: "status", label: "Status", width: "90px" },
 ];
 
 const STORAGE_KEY = "np7-exp-columns";
-
-function formatDateRange(start: string, end: string) {
-  const s = new Date(start);
-  const e = new Date(end);
-  const sMonth = s.toLocaleDateString("en-US", { month: "short" });
-  const eMonth = e.toLocaleDateString("en-US", { month: "short" });
-  if (sMonth === eMonth) {
-    return `${sMonth} ${s.getDate()}–${e.getDate()}, ${s.getFullYear()}`;
-  }
-  return `${sMonth} ${s.getDate()} – ${eMonth} ${e.getDate()}, ${s.getFullYear()}`;
-}
 
 function StatusBadge({ status }: { status: string }) {
   return (
@@ -64,26 +51,27 @@ function StatusBadge({ status }: { status: string }) {
   );
 }
 
-function SpotsIndicator({ taken, max }: { taken: number; max: number }) {
-  const pct = max > 0 ? taken / max : 0;
-  const left = max - taken;
+function EditionPills({ editions }: { editions: Edition[] }) {
+  if (!editions || editions.length === 0) {
+    return <span className="text-xs admin-faint">—</span>;
+  }
   return (
-    <span className="text-sm">
-      <span
-        className={
-          pct >= 1
-            ? "text-red-400"
-            : pct >= 0.75
-            ? "text-amber-400"
-            : "admin-muted"
-        }
-      >
-        {taken}/{max}
-      </span>
-      {left > 0 && (
-        <span className="admin-faint ml-1 text-xs">({left} left)</span>
-      )}
-    </span>
+    <div className="flex flex-wrap gap-1">
+      {editions.map((ed) => (
+        <span
+          key={ed.year}
+          className={`inline-block px-1.5 py-0.5 rounded text-[10px] font-medium ${
+            ed.status === "published"
+              ? "bg-[#0aa3c7]/15 text-[#0aa3c7]"
+              : ed.status === "archived"
+              ? "bg-gray-500/15 text-gray-400"
+              : "bg-amber-500/15 text-amber-400"
+          }`}
+        >
+          {ed.year}
+        </span>
+      ))}
+    </div>
   );
 }
 
@@ -100,6 +88,7 @@ function compareValues(a: unknown, b: unknown, dir: "asc" | "desc"): number {
 
 export default function ExperiencesPage() {
   const [experiences, setExperiences] = useState<Experience[]>([]);
+  const [editions, setEditions] = useState<Edition[]>([]);
   const [loading, setLoading] = useState(true);
   const [view, setView] = useState<ViewMode>(() => {
     if (typeof window !== "undefined") {
@@ -115,13 +104,21 @@ export default function ExperiencesPage() {
   const router = useRouter();
 
   useEffect(() => {
-    fetch("/api/admin/experiences")
-      .then((r) => r.json())
-      .then((d) => {
-        setExperiences(Array.isArray(d) ? d : d.experiences || []);
-        setLoading(false);
-      });
+    Promise.all([
+      fetch("/api/admin/experiences").then((r) => r.json()),
+      fetch("/api/admin/editions").then((r) => r.json()),
+    ]).then(([exps, eds]) => {
+      setExperiences(Array.isArray(exps) ? exps : exps.experiences || []);
+      setEditions(Array.isArray(eds) ? eds : []);
+      setLoading(false);
+    });
   }, []);
+
+  function editionsFor(expId: string): Edition[] {
+    return editions
+      .filter((e) => e.experience_id === expId)
+      .sort((a, b) => b.year - a.year);
+  }
 
   function setViewMode(mode: ViewMode) {
     setView(mode);
@@ -150,10 +147,9 @@ export default function ExperiencesPage() {
       <div className="flex items-center justify-between mb-6">
         <div>
           <h1 className="text-2xl font-bold admin-heading mb-1">Experiences</h1>
-          <p className="text-sm admin-muted">Manage your trips and events</p>
+          <p className="text-sm admin-muted">Manage your trip templates and editions</p>
         </div>
         <div className="flex items-center gap-3">
-          {/* Column toggle */}
           <ColumnToggle
             columns={COLUMNS}
             visible={visibleColumns}
@@ -254,17 +250,9 @@ export default function ExperiencesPage() {
               {visibleColumns.has("hotel") && (
                 <span className="text-xs admin-faint truncate self-center">{exp.hotel || "—"}</span>
               )}
-              {visibleColumns.has("date_start") && (
-                <span className="text-xs admin-muted self-center">
-                  {exp.date_start && exp.date_end ? formatDateRange(exp.date_start, exp.date_end) : "—"}
-                </span>
-              )}
-              {visibleColumns.has("max_spots") && (
-                <SpotsIndicator taken={exp.spots_taken} max={exp.max_spots} />
-              )}
-              {visibleColumns.has("price") && (
-                <span className="text-xs admin-muted self-center">
-                  {exp.price ? `€${Number(exp.price).toLocaleString()}` : "—"}
+              {visibleColumns.has("editions") && (
+                <span className="self-center">
+                  <EditionPills editions={editionsFor(exp.id)} />
                 </span>
               )}
               {visibleColumns.has("status") && (
@@ -279,7 +267,7 @@ export default function ExperiencesPage() {
         /* ── Tile view ── */
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
           {experiences.map((exp) => {
-            const spotsLeft = exp.max_spots - exp.spots_taken;
+            const expEditions = editionsFor(exp.id);
             return (
               <button
                 key={exp.id}
@@ -324,18 +312,11 @@ export default function ExperiencesPage() {
                     <span className="text-xs admin-muted truncate">{exp.location}</span>
                   </div>
 
-                  <div className="flex items-center justify-between pt-3 text-xs" style={{ borderTop: "1px solid var(--admin-border)" }}>
-                    <span className="admin-muted">
-                      {exp.date_start && exp.date_end ? formatDateRange(exp.date_start, exp.date_end) : "No dates"}
+                  <div className="flex items-center justify-between pt-3" style={{ borderTop: "1px solid var(--admin-border)" }}>
+                    <span className="text-xs admin-faint">
+                      {expEditions.length === 0 ? "No editions" : `${expEditions.length} edition${expEditions.length !== 1 ? "s" : ""}`}
                     </span>
-                    <div className="flex items-center gap-3">
-                      {exp.price > 0 && (
-                        <span className="admin-muted font-medium">€{Number(exp.price).toLocaleString()}</span>
-                      )}
-                      <span className={`font-medium ${spotsLeft <= 0 ? "text-red-400" : spotsLeft <= 3 ? "text-amber-400" : "admin-muted"}`}>
-                        {spotsLeft <= 0 ? "Full" : `${spotsLeft} spot${spotsLeft !== 1 ? "s" : ""} left`}
-                      </span>
-                    </div>
+                    <EditionPills editions={expEditions} />
                   </div>
                 </div>
               </button>

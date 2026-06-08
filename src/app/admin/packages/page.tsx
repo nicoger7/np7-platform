@@ -15,7 +15,15 @@ interface Package {
   status: string;
   category: string | null;
   experience_id: string | null;
-  exp_experiences: { title: string } | null;
+  edition_id: string | null;
+  exp_experiences: { id: string; title: string } | null;
+}
+
+interface Edition {
+  id: string;
+  experience_id: string;
+  year: number;
+  exp_experiences: { id: string; title: string } | null;
 }
 
 function StatusBadge({ status }: { status: string }) {
@@ -36,37 +44,59 @@ function StatusBadge({ status }: { status: string }) {
 
 export default function PackagesPage() {
   const [packages, setPackages] = useState<Package[]>([]);
+  const [editions, setEditions] = useState<Edition[]>([]);
   const [loading, setLoading] = useState(true);
-  const [filterExp, setFilterExp] = useState("");
+  const [filterEditionId, setFilterEditionId] = useState("");
 
   useEffect(() => {
-    fetch("/api/admin/packages")
-      .then((r) => r.json())
-      .then((d) => {
-        setPackages(Array.isArray(d) ? d : []);
-        setLoading(false);
-      });
+    Promise.all([
+      fetch("/api/admin/packages").then((r) => r.json()),
+      fetch("/api/admin/editions").then((r) => r.json()),
+    ]).then(([pkgs, eds]) => {
+      setPackages(Array.isArray(pkgs) ? pkgs : []);
+      setEditions(Array.isArray(eds) ? eds : []);
+      setLoading(false);
+    });
   }, []);
 
-  const experiences = Array.from(
-    new Map(
-      packages
-        .filter((p) => p.exp_experiences)
-        .map((p) => [p.experience_id, p.exp_experiences!.title])
-    ).values()
-  ).sort();
+  // Build edition label map
+  const editionMap = new Map<string, string>(
+    editions.map((e) => [
+      e.id,
+      `${e.exp_experiences?.title || "Unknown"} — ${e.year}`,
+    ])
+  );
 
-  const filtered = filterExp
-    ? packages.filter((p) => p.exp_experiences?.title === filterExp)
+  function getEditionLabel(pkg: Package): string {
+    if (pkg.edition_id && editionMap.has(pkg.edition_id)) {
+      return editionMap.get(pkg.edition_id)!;
+    }
+    return pkg.exp_experiences?.title || "No Experience";
+  }
+
+  const filtered = filterEditionId
+    ? packages.filter((p) => p.edition_id === filterEditionId)
     : packages;
 
-  // Group by experience
-  const grouped = new Map<string, Package[]>();
+  // Group by edition label
+  const grouped = new Map<string, { pkgs: Package[]; editionId: string | null; experienceId: string | null }>();
   for (const pkg of filtered) {
-    const key = pkg.exp_experiences?.title || "No Experience";
-    if (!grouped.has(key)) grouped.set(key, []);
-    grouped.get(key)!.push(pkg);
+    const key = getEditionLabel(pkg);
+    if (!grouped.has(key)) {
+      grouped.set(key, {
+        pkgs: [],
+        editionId: pkg.edition_id,
+        experienceId: pkg.experience_id,
+      });
+    }
+    grouped.get(key)!.pkgs.push(pkg);
   }
+
+  const sortedEditions = editions.slice().sort((a, b) => {
+    const aTitle = a.exp_experiences?.title || "";
+    const bTitle = b.exp_experiences?.title || "";
+    return aTitle.localeCompare(bTitle) || a.year - b.year;
+  });
 
   const inputClass =
     "px-3 py-2 admin-input border rounded-lg text-sm focus:outline-none focus:border-[#0aa3c7] focus:ring-1 focus:ring-[#0aa3c7] transition-colors";
@@ -78,22 +108,22 @@ export default function PackagesPage() {
           <h1 className="text-2xl font-bold admin-heading mb-1">Packages</h1>
           <p className="text-sm admin-muted">
             {filtered.length} package{filtered.length !== 1 ? "s" : ""} across{" "}
-            {grouped.size} experience{grouped.size !== 1 ? "s" : ""}
+            {grouped.size} edition{grouped.size !== 1 ? "s" : ""}
           </p>
         </div>
       </div>
 
-      {/* Filter */}
+      {/* Filter by edition */}
       <div className="mb-5">
         <select
           className={`${inputClass} max-w-xs`}
-          value={filterExp}
-          onChange={(e) => setFilterExp(e.target.value)}
+          value={filterEditionId}
+          onChange={(e) => setFilterEditionId(e.target.value)}
         >
-          <option value="">All Experiences</option>
-          {experiences.map((t) => (
-            <option key={t} value={t}>
-              {t}
+          <option value="">All Editions</option>
+          {sortedEditions.map((ed) => (
+            <option key={ed.id} value={ed.id}>
+              {ed.exp_experiences?.title || "Unknown"} — {ed.year}
             </option>
           ))}
         </select>
@@ -107,9 +137,19 @@ export default function PackagesPage() {
         </div>
       ) : (
         <div className="space-y-6">
-          {Array.from(grouped.entries()).map(([expTitle, pkgs]) => (
-            <div key={expTitle}>
-              <h2 className="text-sm font-bold admin-heading mb-3">{expTitle}</h2>
+          {Array.from(grouped.entries()).map(([label, group]) => (
+            <div key={label}>
+              <div className="flex items-center justify-between mb-3">
+                <h2 className="text-sm font-bold admin-heading">{label}</h2>
+                {group.editionId && (
+                  <Link
+                    href={`/admin/editions/${group.editionId}`}
+                    className="text-xs text-[#0aa3c7] hover:text-[#0aa3c7]/80 transition-colors"
+                  >
+                    View edition →
+                  </Link>
+                )}
+              </div>
               <div
                 className="rounded-xl overflow-hidden"
                 style={{ border: "1px solid var(--admin-border)" }}
@@ -118,56 +158,37 @@ export default function PackagesPage() {
                   className="grid grid-cols-[1fr_100px_90px_90px_80px_80px] gap-3 px-5 py-3 admin-surface"
                   style={{ borderBottom: "1px solid var(--admin-border)" }}
                 >
-                  <span className="text-[10px] font-bold tracking-[0.1em] admin-faint uppercase">
-                    Name
-                  </span>
-                  <span className="text-[10px] font-bold tracking-[0.1em] admin-faint uppercase">
-                    Category
-                  </span>
-                  <span className="text-[10px] font-bold tracking-[0.1em] admin-faint uppercase">
-                    Price
-                  </span>
-                  <span className="text-[10px] font-bold tracking-[0.1em] admin-faint uppercase">
-                    Deposit
-                  </span>
-                  <span className="text-[10px] font-bold tracking-[0.1em] admin-faint uppercase">
-                    Spots
-                  </span>
-                  <span className="text-[10px] font-bold tracking-[0.1em] admin-faint uppercase">
-                    Status
-                  </span>
+                  <span className="text-[10px] font-bold tracking-[0.1em] admin-faint uppercase">Name</span>
+                  <span className="text-[10px] font-bold tracking-[0.1em] admin-faint uppercase">Category</span>
+                  <span className="text-[10px] font-bold tracking-[0.1em] admin-faint uppercase">Price</span>
+                  <span className="text-[10px] font-bold tracking-[0.1em] admin-faint uppercase">Deposit</span>
+                  <span className="text-[10px] font-bold tracking-[0.1em] admin-faint uppercase">Spots</span>
+                  <span className="text-[10px] font-bold tracking-[0.1em] admin-faint uppercase">Status</span>
                 </div>
-                {pkgs.map((pkg) => (
+                {group.pkgs.map((pkg) => (
                   <Link
                     key={pkg.id}
-                    href={`/admin/experiences/${pkg.experience_id}`}
+                    href={
+                      pkg.edition_id
+                        ? `/admin/editions/${pkg.edition_id}`
+                        : pkg.experience_id
+                        ? `/admin/experiences/${pkg.experience_id}`
+                        : "#"
+                    }
                     className="grid grid-cols-[1fr_100px_90px_90px_80px_80px] gap-3 px-5 py-3 transition-colors block"
                     style={{ borderBottom: "1px solid var(--admin-border)" }}
-                    onMouseEnter={(e) =>
-                      (e.currentTarget.style.backgroundColor =
-                        "var(--admin-surface-hover)")
-                    }
-                    onMouseLeave={(e) =>
-                      (e.currentTarget.style.backgroundColor = "transparent")
-                    }
+                    onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = "var(--admin-surface-hover)")}
+                    onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = "transparent")}
                   >
-                    <span className="text-sm font-medium admin-heading truncate">
-                      {pkg.name}
-                    </span>
-                    <span className="text-xs admin-muted self-center capitalize">
-                      {pkg.category || "—"}
-                    </span>
+                    <span className="text-sm font-medium admin-heading truncate">{pkg.name}</span>
+                    <span className="text-xs admin-muted self-center capitalize">{pkg.category || "—"}</span>
                     <span className="text-xs admin-muted self-center">
                       {pkg.price != null ? `€${pkg.price.toLocaleString()}` : "—"}
                     </span>
                     <span className="text-xs admin-muted self-center">
-                      {pkg.deposit != null
-                        ? `€${pkg.deposit.toLocaleString()}`
-                        : "—"}
+                      {pkg.deposit != null ? `€${pkg.deposit.toLocaleString()}` : "—"}
                     </span>
-                    <span className="text-xs admin-muted self-center">
-                      {pkg.max_spots ?? "—"}
-                    </span>
+                    <span className="text-xs admin-muted self-center">{pkg.max_spots ?? "—"}</span>
                     <span className="self-center">
                       <StatusBadge status={pkg.status} />
                     </span>
