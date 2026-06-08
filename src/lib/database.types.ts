@@ -31,9 +31,11 @@ export type Database = {
           id: string
           interested_products: string[] | null
           level: string | null
+          level_notes: string | null
           location: string | null
           name: string
           notes: string | null
+          notion_id: string | null
           phone: string | null
           source: string | null
           tags: string[] | null
@@ -56,9 +58,11 @@ export type Database = {
           id?: string
           interested_products?: string[] | null
           level?: string | null
+          level_notes?: string | null
           location?: string | null
           name: string
           notes?: string | null
+          notion_id?: string | null
           phone?: string | null
           source?: string | null
           tags?: string[] | null
@@ -81,9 +85,11 @@ export type Database = {
           id?: string
           interested_products?: string[] | null
           level?: string | null
+          level_notes?: string | null
           location?: string | null
           name?: string
           notes?: string | null
+          notion_id?: string | null
           phone?: string | null
           source?: string | null
           tags?: string[] | null
@@ -91,6 +97,65 @@ export type Database = {
           updated_at?: string | null
         }
         Relationships: []
+      }
+      email_templates: {
+        Row: {
+          active: boolean | null
+          body: string | null
+          created_at: string | null
+          experience_id: string | null
+          id: string
+          language: string[] | null
+          name: string
+          notes: string | null
+          notion_id: string | null
+          status: string | null
+          subject_line: string | null
+          trigger_stage: string | null
+          type: string | null
+          updated_at: string | null
+        }
+        Insert: {
+          active?: boolean | null
+          body?: string | null
+          created_at?: string | null
+          experience_id?: string | null
+          id?: string
+          language?: string[] | null
+          name: string
+          notes?: string | null
+          notion_id?: string | null
+          status?: string | null
+          subject_line?: string | null
+          trigger_stage?: string | null
+          type?: string | null
+          updated_at?: string | null
+        }
+        Update: {
+          active?: boolean | null
+          body?: string | null
+          created_at?: string | null
+          experience_id?: string | null
+          id?: string
+          language?: string[] | null
+          name?: string
+          notes?: string | null
+          notion_id?: string | null
+          status?: string | null
+          subject_line?: string | null
+          trigger_stage?: string | null
+          type?: string | null
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "email_templates_experience_id_fkey"
+            columns: ["experience_id"]
+            isOneToOne: false
+            referencedRelation: "exp_experiences"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       exp_blog_posts: {
         Row: {
@@ -186,6 +251,7 @@ export type Database = {
           id: string
           name: string
           notes: string | null
+          notion_id: string | null
           package_id: string | null
           status: string | null
           traveling_with: string | null
@@ -207,6 +273,7 @@ export type Database = {
           id?: string
           name: string
           notes?: string | null
+          notion_id?: string | null
           package_id?: string | null
           status?: string | null
           traveling_with?: string | null
@@ -228,6 +295,7 @@ export type Database = {
           id?: string
           name?: string
           notes?: string | null
+          notion_id?: string | null
           package_id?: string | null
           status?: string | null
           traveling_with?: string | null
@@ -260,6 +328,7 @@ export type Database = {
       }
       exp_components: {
         Row: {
+          addon_available: boolean | null
           category: string
           created_at: string | null
           description: string | null
@@ -267,10 +336,15 @@ export type Database = {
           id: string
           is_global: boolean | null
           name: string
+          notes: string | null
+          notion_id: string | null
+          sell_price: number | null
           unit_cost: number | null
           updated_at: string | null
+          year: string[] | null
         }
         Insert: {
+          addon_available?: boolean | null
           category: string
           created_at?: string | null
           description?: string | null
@@ -278,10 +352,15 @@ export type Database = {
           id?: string
           is_global?: boolean | null
           name: string
+          notes?: string | null
+          notion_id?: string | null
+          sell_price?: number | null
           unit_cost?: number | null
           updated_at?: string | null
+          year?: string[] | null
         }
         Update: {
+          addon_available?: boolean | null
           category?: string
           created_at?: string | null
           description?: string | null
@@ -289,8 +368,12 @@ export type Database = {
           id?: string
           is_global?: boolean | null
           name?: string
+          notes?: string | null
+          notion_id?: string | null
+          sell_price?: number | null
           unit_cost?: number | null
           updated_at?: string | null
+          year?: string[] | null
         }
         Relationships: [
           {
@@ -304,6 +387,7 @@ export type Database = {
       }
       exp_costs: {
         Row: {
+          actual_amount: number | null
           created_at: string | null
           date: string | null
           estimated_amount: number | null
@@ -311,10 +395,12 @@ export type Database = {
           id: string
           item: string
           notes: string | null
+          notion_id: string | null
           status: string | null
           updated_at: string | null
         }
         Insert: {
+          actual_amount?: number | null
           created_at?: string | null
           date?: string | null
           estimated_amount?: number | null
@@ -322,10 +408,12 @@ export type Database = {
           id?: string
           item: string
           notes?: string | null
+          notion_id?: string | null
           status?: string | null
           updated_at?: string | null
         }
         Update: {
+          actual_amount?: number | null
           created_at?: string | null
           date?: string | null
           estimated_amount?: number | null
@@ -333,6 +421,7 @@ export type Database = {
           id?: string
           item?: string
           notes?: string | null
+          notion_id?: string | null
           status?: string | null
           updated_at?: string | null
         }
@@ -371,18 +460,22 @@ export type Database = {
           location_lng: number | null
           max_spots: number | null
           notes: string | null
+          notion_id: string | null
           paid_profit: number | null
           paid_revenue: number | null
+          payment_page_id: string | null
           po_code: string | null
           price: number | null
           price_from: number | null
           price_to: number | null
           pricing_details: string | null
           slug: string
+          spots_remaining: number | null
           spots_taken: number | null
           status: string | null
           timezone: string | null
           title: string
+          total_fixed_costs: number | null
           updated_at: string | null
           whats_included: string[] | null
           whatsapp_group_link: string | null
@@ -411,18 +504,22 @@ export type Database = {
           location_lng?: number | null
           max_spots?: number | null
           notes?: string | null
+          notion_id?: string | null
           paid_profit?: number | null
           paid_revenue?: number | null
+          payment_page_id?: string | null
           po_code?: string | null
           price?: number | null
           price_from?: number | null
           price_to?: number | null
           pricing_details?: string | null
           slug: string
+          spots_remaining?: number | null
           spots_taken?: number | null
           status?: string | null
           timezone?: string | null
           title: string
+          total_fixed_costs?: number | null
           updated_at?: string | null
           whats_included?: string[] | null
           whatsapp_group_link?: string | null
@@ -451,18 +548,22 @@ export type Database = {
           location_lng?: number | null
           max_spots?: number | null
           notes?: string | null
+          notion_id?: string | null
           paid_profit?: number | null
           paid_revenue?: number | null
+          payment_page_id?: string | null
           po_code?: string | null
           price?: number | null
           price_from?: number | null
           price_to?: number | null
           pricing_details?: string | null
           slug?: string
+          spots_remaining?: number | null
           spots_taken?: number | null
           status?: string | null
           timezone?: string | null
           title?: string
+          total_fixed_costs?: number | null
           updated_at?: string | null
           whats_included?: string[] | null
           whatsapp_group_link?: string | null
@@ -480,6 +581,7 @@ export type Database = {
           hotel: string
           id: string
           name: string
+          notion_id: string | null
           partner_tag_along: string | null
           room_number: string | null
           room_type: string
@@ -497,6 +599,7 @@ export type Database = {
           hotel: string
           id?: string
           name: string
+          notion_id?: string | null
           partner_tag_along?: string | null
           room_number?: string | null
           room_type: string
@@ -514,6 +617,7 @@ export type Database = {
           hotel?: string
           id?: string
           name?: string
+          notion_id?: string | null
           partner_tag_along?: string | null
           room_number?: string | null
           room_type?: string
@@ -620,6 +724,7 @@ export type Database = {
       }
       exp_packages: {
         Row: {
+          category: string | null
           created_at: string | null
           deposit: number | null
           description: string | null
@@ -628,6 +733,7 @@ export type Database = {
           includes: string[] | null
           max_spots: number | null
           name: string
+          notion_id: string | null
           price: number | null
           slug: string
           sort_order: number | null
@@ -635,6 +741,7 @@ export type Database = {
           updated_at: string | null
         }
         Insert: {
+          category?: string | null
           created_at?: string | null
           deposit?: number | null
           description?: string | null
@@ -643,6 +750,7 @@ export type Database = {
           includes?: string[] | null
           max_spots?: number | null
           name: string
+          notion_id?: string | null
           price?: number | null
           slug: string
           sort_order?: number | null
@@ -650,6 +758,7 @@ export type Database = {
           updated_at?: string | null
         }
         Update: {
+          category?: string | null
           created_at?: string | null
           deposit?: number | null
           description?: string | null
@@ -658,6 +767,7 @@ export type Database = {
           includes?: string[] | null
           max_spots?: number | null
           name?: string
+          notion_id?: string | null
           price?: number | null
           slug?: string
           sort_order?: number | null
@@ -711,6 +821,7 @@ export type Database = {
           invoice_type: string | null
           method: string | null
           notes: string | null
+          notion_id: string | null
           received_at: string | null
           reference: string | null
           status: string | null
@@ -731,6 +842,7 @@ export type Database = {
           invoice_type?: string | null
           method?: string | null
           notes?: string | null
+          notion_id?: string | null
           received_at?: string | null
           reference?: string | null
           status?: string | null
@@ -751,6 +863,7 @@ export type Database = {
           invoice_type?: string | null
           method?: string | null
           notes?: string | null
+          notion_id?: string | null
           received_at?: string | null
           reference?: string | null
           status?: string | null
@@ -893,6 +1006,7 @@ export type Database = {
           id: string
           is_general: boolean | null
           notes: string | null
+          notion_id: string | null
           processed_at: string | null
           updated_at: string | null
         }
@@ -907,6 +1021,7 @@ export type Database = {
           id?: string
           is_general?: boolean | null
           notes?: string | null
+          notion_id?: string | null
           processed_at?: string | null
           updated_at?: string | null
         }
@@ -921,6 +1036,7 @@ export type Database = {
           id?: string
           is_general?: boolean | null
           notes?: string | null
+          notion_id?: string | null
           processed_at?: string | null
           updated_at?: string | null
         }
@@ -1093,6 +1209,238 @@ export type Database = {
         }
         Relationships: []
       }
+      pipeline_rules: {
+        Row: {
+          action: string | null
+          active: boolean | null
+          created_at: string | null
+          days_after_trigger: number | null
+          experience_id: string | null
+          id: string
+          language: string[] | null
+          name: string
+          notes: string | null
+          notion_id: string | null
+          status: string | null
+          stop_if: string[] | null
+          subject_line: string | null
+          tags: string[] | null
+          trigger: string | null
+          type: string | null
+          updated_at: string | null
+        }
+        Insert: {
+          action?: string | null
+          active?: boolean | null
+          created_at?: string | null
+          days_after_trigger?: number | null
+          experience_id?: string | null
+          id?: string
+          language?: string[] | null
+          name: string
+          notes?: string | null
+          notion_id?: string | null
+          status?: string | null
+          stop_if?: string[] | null
+          subject_line?: string | null
+          tags?: string[] | null
+          trigger?: string | null
+          type?: string | null
+          updated_at?: string | null
+        }
+        Update: {
+          action?: string | null
+          active?: boolean | null
+          created_at?: string | null
+          days_after_trigger?: number | null
+          experience_id?: string | null
+          id?: string
+          language?: string[] | null
+          name?: string
+          notes?: string | null
+          notion_id?: string | null
+          status?: string | null
+          stop_if?: string[] | null
+          subject_line?: string | null
+          tags?: string[] | null
+          trigger?: string | null
+          type?: string | null
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "pipeline_rules_experience_id_fkey"
+            columns: ["experience_id"]
+            isOneToOne: false
+            referencedRelation: "exp_experiences"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      scenario_planner: {
+        Row: {
+          assumptions: string | null
+          created_at: string | null
+          experience_id: string | null
+          id: string
+          name: string
+          notes: string | null
+          notion_id: string | null
+          num_beginner: number | null
+          num_mixed: number | null
+          num_pro: number | null
+          projected_costs: number | null
+          projected_profit: number | null
+          projected_revenue: number | null
+          updated_at: string | null
+        }
+        Insert: {
+          assumptions?: string | null
+          created_at?: string | null
+          experience_id?: string | null
+          id?: string
+          name: string
+          notes?: string | null
+          notion_id?: string | null
+          num_beginner?: number | null
+          num_mixed?: number | null
+          num_pro?: number | null
+          projected_costs?: number | null
+          projected_profit?: number | null
+          projected_revenue?: number | null
+          updated_at?: string | null
+        }
+        Update: {
+          assumptions?: string | null
+          created_at?: string | null
+          experience_id?: string | null
+          id?: string
+          name?: string
+          notes?: string | null
+          notion_id?: string | null
+          num_beginner?: number | null
+          num_mixed?: number | null
+          num_pro?: number | null
+          projected_costs?: number | null
+          projected_profit?: number | null
+          projected_revenue?: number | null
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "scenario_planner_experience_id_fkey"
+            columns: ["experience_id"]
+            isOneToOne: false
+            referencedRelation: "exp_experiences"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      sync_log: {
+        Row: {
+          booking_id: string | null
+          contact_id: string | null
+          created_at: string | null
+          entry: string
+          field: string | null
+          id: string
+          new_value: string | null
+          notion_id: string | null
+          old_value: string | null
+          reason: string | null
+          source: string | null
+          timestamp: string | null
+        }
+        Insert: {
+          booking_id?: string | null
+          contact_id?: string | null
+          created_at?: string | null
+          entry: string
+          field?: string | null
+          id?: string
+          new_value?: string | null
+          notion_id?: string | null
+          old_value?: string | null
+          reason?: string | null
+          source?: string | null
+          timestamp?: string | null
+        }
+        Update: {
+          booking_id?: string | null
+          contact_id?: string | null
+          created_at?: string | null
+          entry?: string
+          field?: string | null
+          id?: string
+          new_value?: string | null
+          notion_id?: string | null
+          old_value?: string | null
+          reason?: string | null
+          source?: string | null
+          timestamp?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "sync_log_booking_id_fkey"
+            columns: ["booking_id"]
+            isOneToOne: false
+            referencedRelation: "exp_bookings"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "sync_log_contact_id_fkey"
+            columns: ["contact_id"]
+            isOneToOne: false
+            referencedRelation: "contacts"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      task_rules: {
+        Row: {
+          active: boolean | null
+          assignee: string | null
+          created_at: string | null
+          days_before_start: number | null
+          experience_id: string | null
+          id: string
+          name: string
+          notes: string | null
+          notion_id: string | null
+          template: string | null
+          trigger: string | null
+          updated_at: string | null
+        }
+        Insert: {
+          active?: boolean | null
+          assignee?: string | null
+          created_at?: string | null
+          days_before_start?: number | null
+          experience_id?: string | null
+          id?: string
+          name: string
+          notes?: string | null
+          notion_id?: string | null
+          template?: string | null
+          trigger?: string | null
+          updated_at?: string | null
+        }
+        Update: {
+          active?: boolean | null
+          assignee?: string | null
+          created_at?: string | null
+          days_before_start?: number | null
+          experience_id?: string | null
+          id?: string
+          name?: string
+          notes?: string | null
+          notion_id?: string | null
+          template?: string | null
+          trigger?: string | null
+          updated_at?: string | null
+        }
+        Relationships: []
+      }
       team_members: {
         Row: {
           active: boolean | null
@@ -1101,6 +1449,9 @@ export type Database = {
           email: string
           id: string
           name: string
+          notes: string | null
+          notion_id: string | null
+          phone: string | null
           rate_per_hour: number | null
           role: string | null
         }
@@ -1111,6 +1462,9 @@ export type Database = {
           email: string
           id?: string
           name: string
+          notes?: string | null
+          notion_id?: string | null
+          phone?: string | null
           rate_per_hour?: number | null
           role?: string | null
         }
@@ -1121,10 +1475,73 @@ export type Database = {
           email?: string
           id?: string
           name?: string
+          notes?: string | null
+          notion_id?: string | null
+          phone?: string | null
           rate_per_hour?: number | null
           role?: string | null
         }
         Relationships: []
+      }
+      todos: {
+        Row: {
+          assignee: string | null
+          created_at: string | null
+          due_date: string | null
+          experience_id: string | null
+          id: string
+          name: string
+          notes: string | null
+          notion_id: string | null
+          priority: string | null
+          status: string | null
+          task_rule_id: string | null
+          updated_at: string | null
+        }
+        Insert: {
+          assignee?: string | null
+          created_at?: string | null
+          due_date?: string | null
+          experience_id?: string | null
+          id?: string
+          name: string
+          notes?: string | null
+          notion_id?: string | null
+          priority?: string | null
+          status?: string | null
+          task_rule_id?: string | null
+          updated_at?: string | null
+        }
+        Update: {
+          assignee?: string | null
+          created_at?: string | null
+          due_date?: string | null
+          experience_id?: string | null
+          id?: string
+          name?: string
+          notes?: string | null
+          notion_id?: string | null
+          priority?: string | null
+          status?: string | null
+          task_rule_id?: string | null
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "todos_experience_id_fkey"
+            columns: ["experience_id"]
+            isOneToOne: false
+            referencedRelation: "exp_experiences"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "todos_task_rule_id_fkey"
+            columns: ["task_rule_id"]
+            isOneToOne: false
+            referencedRelation: "task_rules"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       vendors: {
         Row: {
@@ -1136,6 +1553,7 @@ export type Database = {
           id: string
           name: string
           notes: string | null
+          notion_id: string | null
           phone: string | null
           updated_at: string | null
         }
@@ -1148,6 +1566,7 @@ export type Database = {
           id?: string
           name: string
           notes?: string | null
+          notion_id?: string | null
           phone?: string | null
           updated_at?: string | null
         }
@@ -1160,6 +1579,7 @@ export type Database = {
           id?: string
           name?: string
           notes?: string | null
+          notion_id?: string | null
           phone?: string | null
           updated_at?: string | null
         }

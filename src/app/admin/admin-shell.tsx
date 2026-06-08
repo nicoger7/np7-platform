@@ -21,13 +21,43 @@ const environments: { id: Environment; label: string; shortLabel: string; color:
 const navByEnv: Record<Environment, { label: string; items: { label: string; href: string; icon: string }[] }[]> = {
   experience: [
     {
-      label: "EXPERIENCE",
+      label: "OPERATIONS",
       items: [
         { label: "Experiences", href: "/admin/experiences", icon: "compass" },
         { label: "Bookings", href: "/admin/bookings", icon: "inbox" },
         { label: "Contacts", href: "/admin/contacts", icon: "users" },
         { label: "Hotel Rooms", href: "/admin/hotel-rooms", icon: "bed" },
+      ],
+    },
+    {
+      label: "FINANCE",
+      items: [
+        { label: "Experience Costs", href: "/admin/exp-costs", icon: "receipt" },
+        { label: "Vendors", href: "/admin/vendors", icon: "building" },
+      ],
+    },
+    {
+      label: "TEAM",
+      items: [
+        { label: "Employees", href: "/admin/team", icon: "person" },
+        { label: "Hours Log", href: "/admin/hours-log", icon: "clock" },
+      ],
+    },
+    {
+      label: "PLANNING",
+      items: [
+        { label: "Packages", href: "/admin/experiences", icon: "compass" },
         { label: "Components", href: "/admin/components", icon: "puzzle" },
+        { label: "Scenario Planner", href: "/admin/scenario-planner", icon: "chartline" },
+        { label: "To-Dos", href: "/admin/todos", icon: "checklist" },
+      ],
+    },
+    {
+      label: "AUTOMATION",
+      items: [
+        { label: "Pipeline Rules", href: "/admin/pipeline-rules", icon: "flow" },
+        { label: "Task Rules", href: "/admin/task-rules", icon: "rules" },
+        { label: "Email Templates", href: "/admin/email-templates", icon: "mail" },
       ],
     },
   ],
@@ -149,6 +179,69 @@ const icons: Record<string, React.ReactNode> = {
       <path d="M2 8h18a2 2 0 012 2v10" />
       <path d="M2 17h20" />
       <path d="M6 8v9" />
+    </svg>
+  ),
+  receipt: (
+    <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M4 2v20l2-1 2 1 2-1 2 1 2-1 2 1 2-1 2 1V2l-2 1-2-1-2 1-2-1-2 1-2-1-2 1z" />
+      <line x1="8" y1="8" x2="16" y2="8" />
+      <line x1="8" y1="12" x2="16" y2="12" />
+      <line x1="8" y1="16" x2="12" y2="16" />
+    </svg>
+  ),
+  building: (
+    <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <rect x="2" y="7" width="20" height="14" rx="2" />
+      <path d="M16 21V5a2 2 0 00-2-2h-4a2 2 0 00-2 2v16" />
+    </svg>
+  ),
+  person: (
+    <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2" />
+      <circle cx="12" cy="7" r="4" />
+    </svg>
+  ),
+  clock: (
+    <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <circle cx="12" cy="12" r="10" />
+      <polyline points="12 6 12 12 16 14" />
+    </svg>
+  ),
+  chartline: (
+    <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <polyline points="22 12 18 12 15 21 9 3 6 12 2 12" />
+    </svg>
+  ),
+  checklist: (
+    <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <line x1="8" y1="6" x2="21" y2="6" />
+      <line x1="8" y1="12" x2="21" y2="12" />
+      <line x1="8" y1="18" x2="21" y2="18" />
+      <polyline points="3 6 4 7 6 5" />
+      <polyline points="3 12 4 13 6 11" />
+      <polyline points="3 18 4 19 6 17" />
+    </svg>
+  ),
+  flow: (
+    <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <rect x="3" y="3" width="6" height="6" rx="1" />
+      <rect x="15" y="3" width="6" height="6" rx="1" />
+      <rect x="9" y="15" width="6" height="6" rx="1" />
+      <path d="M6 9v3a3 3 0 003 3h6a3 3 0 003-3V9" />
+      <line x1="12" y1="9" x2="12" y2="15" />
+    </svg>
+  ),
+  rules: (
+    <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <line x1="4" y1="6" x2="20" y2="6" />
+      <line x1="4" y1="12" x2="14" y2="12" />
+      <line x1="4" y1="18" x2="18" y2="18" />
+    </svg>
+  ),
+  mail: (
+    <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z" />
+      <polyline points="22,6 12,13 2,6" />
     </svg>
   ),
 };

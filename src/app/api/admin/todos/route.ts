@@ -4,16 +4,14 @@ import { createAdminClient } from "@/lib/supabase";
 export async function GET(request: NextRequest) {
   const client = createAdminClient();
   const { searchParams } = new URL(request.url);
-  const search = searchParams.get("search");
+  const experienceId = searchParams.get("experience_id");
 
   let query = client
-    .from("vendors")
-    .select("*")
-    .order("name");
+    .from("todos")
+    .select("*, team_members:assignee(id, name), exp_experiences:experience_id(id, title)")
+    .order("due_date", { ascending: true, nullsFirst: false });
 
-  if (search) {
-    query = query.or(`name.ilike.%${search}%,company.ilike.%${search}%,email.ilike.%${search}%`);
-  }
+  if (experienceId) query = query.eq("experience_id", experienceId);
 
   const { data, error } = await query;
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
@@ -23,7 +21,7 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   const client = createAdminClient();
   const body = await request.json();
-  const { data, error } = await client.from("vendors").insert(body).select().single();
+  const { data, error } = await client.from("todos").insert(body).select("*, team_members:assignee(id, name), exp_experiences:experience_id(id, title)").single();
   if (error) return NextResponse.json({ error: error.message }, { status: 400 });
   return NextResponse.json(data, { status: 201 });
 }

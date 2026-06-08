@@ -12,12 +12,28 @@ interface Contact {
   country: string | null;
   discipline: string | null;
   level: string | null;
+  level_notes: string | null;
   source: string | null;
   tshirt_size: string | null;
   diet_allergies: string | null;
   notes: string | null;
+  date_of_birth: string | null;
+  accepts_marketing: boolean;
+  experience_locations: string[] | null;
+  interested_products: string[] | null;
+  ai_summary: string | null;
+  chatwoot_contact_id: string | null;
   created_at: string;
   updated_at: string;
+}
+
+interface ContactBooking {
+  id: string;
+  name: string;
+  status: string;
+  agreed_price: number | null;
+  created_at: string;
+  exp_experiences: { title: string } | null;
 }
 
 export default function ContactDetailPage({
@@ -28,17 +44,22 @@ export default function ContactDetailPage({
   const { id } = use(params);
   const router = useRouter();
   const [contact, setContact] = useState<Contact | null>(null);
+  const [bookings, setBookings] = useState<ContactBooking[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
+  const [locationInput, setLocationInput] = useState("");
+  const [productInput, setProductInput] = useState("");
 
   useEffect(() => {
-    fetch(`/api/admin/contacts/${id}`)
-      .then((r) => r.json())
-      .then((d) => {
-        setContact(d);
-        setLoading(false);
-      });
+    Promise.all([
+      fetch(`/api/admin/contacts/${id}`).then((r) => r.json()),
+      fetch(`/api/admin/bookings?contact_id=${id}`).then((r) => r.json()),
+    ]).then(([d, b]) => {
+      setContact(d);
+      setBookings(b.bookings || []);
+      setLoading(false);
+    });
   }, [id]);
 
   async function handleSave() {
@@ -53,6 +74,19 @@ export default function ContactDetailPage({
     setSaving(false);
     setSaved(true);
     setTimeout(() => setSaved(false), 2000);
+  }
+
+  function addTag(field: "experience_locations" | "interested_products", value: string) {
+    if (!contact || !value.trim()) return;
+    const arr = contact[field] || [];
+    if (!arr.includes(value.trim())) {
+      update(field, [...arr, value.trim()]);
+    }
+  }
+
+  function removeTag(field: "experience_locations" | "interested_products", value: string) {
+    if (!contact) return;
+    update(field, (contact[field] || []).filter((x) => x !== value));
   }
 
   async function handleDelete() {
@@ -191,6 +225,87 @@ export default function ContactDetailPage({
           <input className={inputClass} value={contact.diet_allergies || ""} onChange={(e) => update("diet_allergies", e.target.value || null)} placeholder="Any dietary requirements or allergies" />
         </div>
 
+        {/* Level notes */}
+        <div>
+          <label className={labelClass}>Level Notes</label>
+          <textarea
+            className={`${inputClass} min-h-[80px] resize-y`}
+            value={contact.level_notes || ""}
+            onChange={(e) => update("level_notes", e.target.value || null)}
+            placeholder="Additional notes about the rider's level..."
+          />
+        </div>
+
+        {/* Date of birth & accepts marketing */}
+        <div className="grid grid-cols-2 gap-4">
+          <div>
+            <label className={labelClass}>Date of Birth</label>
+            <input
+              type="date"
+              className={inputClass}
+              value={contact.date_of_birth || ""}
+              onChange={(e) => update("date_of_birth", e.target.value || null)}
+            />
+          </div>
+          <div className="flex items-end pb-1">
+            <label className="flex items-center gap-3 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={contact.accepts_marketing || false}
+                onChange={(e) => update("accepts_marketing", e.target.checked)}
+                className="w-4 h-4 accent-[#0aa3c7]"
+              />
+              <span className="text-sm admin-muted">Accepts marketing</span>
+            </label>
+          </div>
+        </div>
+
+        {/* Experience Locations */}
+        <div>
+          <label className={labelClass}>Experience Locations</label>
+          <div className="flex flex-wrap gap-1.5 mb-2">
+            {(contact.experience_locations || []).map((loc) => (
+              <span key={loc} className="flex items-center gap-1 px-2.5 py-1 rounded-full text-xs admin-muted" style={{ backgroundColor: "var(--admin-surface)", border: "1px solid var(--admin-border)" }}>
+                {loc}
+                <button onClick={() => removeTag("experience_locations", loc)} className="admin-faint hover:text-red-400 ml-1">×</button>
+              </span>
+            ))}
+          </div>
+          <div className="flex gap-2">
+            <input
+              className={inputClass}
+              placeholder="Add location..."
+              value={locationInput}
+              onChange={(e) => setLocationInput(e.target.value)}
+              onKeyDown={(e) => { if (e.key === "Enter" && locationInput.trim()) { addTag("experience_locations", locationInput); setLocationInput(""); } }}
+            />
+            <button onClick={() => { addTag("experience_locations", locationInput); setLocationInput(""); }} className="px-3 py-2 admin-surface admin-muted text-sm rounded-lg" style={{ border: "1px solid var(--admin-border)" }}>Add</button>
+          </div>
+        </div>
+
+        {/* Interested Products */}
+        <div>
+          <label className={labelClass}>Interested Products</label>
+          <div className="flex flex-wrap gap-1.5 mb-2">
+            {(contact.interested_products || []).map((p) => (
+              <span key={p} className="flex items-center gap-1 px-2.5 py-1 rounded-full text-xs admin-muted" style={{ backgroundColor: "var(--admin-surface)", border: "1px solid var(--admin-border)" }}>
+                {p}
+                <button onClick={() => removeTag("interested_products", p)} className="admin-faint hover:text-red-400 ml-1">×</button>
+              </span>
+            ))}
+          </div>
+          <div className="flex gap-2">
+            <input
+              className={inputClass}
+              placeholder="Add product..."
+              value={productInput}
+              onChange={(e) => setProductInput(e.target.value)}
+              onKeyDown={(e) => { if (e.key === "Enter" && productInput.trim()) { addTag("interested_products", productInput); setProductInput(""); } }}
+            />
+            <button onClick={() => { addTag("interested_products", productInput); setProductInput(""); }} className="px-3 py-2 admin-surface admin-muted text-sm rounded-lg" style={{ border: "1px solid var(--admin-border)" }}>Add</button>
+          </div>
+        </div>
+
         {/* Notes */}
         <div>
           <label className={labelClass}>Notes</label>
@@ -201,6 +316,56 @@ export default function ContactDetailPage({
             placeholder="Internal notes..."
           />
         </div>
+
+        {/* AI Summary (read-only) */}
+        {contact.ai_summary && (
+          <div>
+            <label className={labelClass}>AI Summary <span className="text-[10px] admin-faint">(read-only)</span></label>
+            <textarea
+              className={`${inputClass} min-h-[80px] resize-y opacity-60`}
+              value={contact.ai_summary}
+              readOnly
+            />
+          </div>
+        )}
+
+        {/* Chatwoot ID (read-only) */}
+        {contact.chatwoot_contact_id && (
+          <div>
+            <label className={labelClass}>Chatwoot Contact ID <span className="text-[10px] admin-faint">(read-only)</span></label>
+            <input className={`${inputClass} opacity-60`} value={contact.chatwoot_contact_id} readOnly />
+          </div>
+        )}
+
+        {/* Related Bookings */}
+        {bookings.length > 0 && (
+          <div className="pt-4" style={{ borderTop: "1px solid var(--admin-border)" }}>
+            <h3 className="text-xs font-bold tracking-[0.1em] admin-faint uppercase mb-3">Bookings ({bookings.length})</h3>
+            <div className="rounded-xl overflow-hidden" style={{ border: "1px solid var(--admin-border)" }}>
+              <div className="grid grid-cols-[1fr_120px_100px_100px] gap-3 px-4 py-2.5 admin-surface" style={{ borderBottom: "1px solid var(--admin-border)" }}>
+                <span className="text-[10px] font-bold tracking-[0.1em] admin-faint uppercase">Booking</span>
+                <span className="text-[10px] font-bold tracking-[0.1em] admin-faint uppercase">Experience</span>
+                <span className="text-[10px] font-bold tracking-[0.1em] admin-faint uppercase">Status</span>
+                <span className="text-[10px] font-bold tracking-[0.1em] admin-faint uppercase">Price</span>
+              </div>
+              {bookings.map((b) => (
+                <div
+                  key={b.id}
+                  className="grid grid-cols-[1fr_120px_100px_100px] gap-3 px-4 py-3 cursor-pointer transition-colors"
+                  style={{ borderBottom: "1px solid var(--admin-border)" }}
+                  onClick={() => router.push(`/admin/bookings/${b.id}`)}
+                  onMouseEnter={(e) => e.currentTarget.style.backgroundColor = "var(--admin-surface-hover)"}
+                  onMouseLeave={(e) => e.currentTarget.style.backgroundColor = "transparent"}
+                >
+                  <span className="text-sm font-medium admin-heading truncate">{b.name}</span>
+                  <span className="text-xs admin-muted self-center truncate">{b.exp_experiences?.title || "—"}</span>
+                  <span className="text-xs admin-muted self-center capitalize">{b.status}</span>
+                  <span className="text-xs admin-muted self-center">{b.agreed_price ? `€${Number(b.agreed_price).toLocaleString()}` : "—"}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );

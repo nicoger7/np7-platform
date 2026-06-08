@@ -141,9 +141,10 @@ export default function HotelRoomsPage() {
               </div>
 
               <div className="rounded-xl overflow-hidden" style={{ border: "1px solid var(--admin-border)" }}>
-                <div className="grid grid-cols-[1fr_160px_80px_140px_140px_1fr] gap-3 px-5 py-3 admin-surface" style={{ borderBottom: "1px solid var(--admin-border)" }}>
+                <div className="grid grid-cols-[1fr_140px_70px_80px_130px_130px_60px] gap-3 px-5 py-3 admin-surface" style={{ borderBottom: "1px solid var(--admin-border)" }}>
                   <span className="text-[10px] font-bold tracking-[0.1em] admin-faint uppercase">Room</span>
                   <span className="text-[10px] font-bold tracking-[0.1em] admin-faint uppercase">Type</span>
+                  <span className="text-[10px] font-bold tracking-[0.1em] admin-faint uppercase">Transfer</span>
                   <span className="text-[10px] font-bold tracking-[0.1em] admin-faint uppercase">Status</span>
                   <span className="text-[10px] font-bold tracking-[0.1em] admin-faint uppercase">Guest</span>
                   <span className="text-[10px] font-bold tracking-[0.1em] admin-faint uppercase">Dates</span>
@@ -153,7 +154,7 @@ export default function HotelRoomsPage() {
                 {hotelRooms.map((room) => (
                   <div
                     key={room.id}
-                    className="grid grid-cols-[1fr_160px_80px_140px_140px_1fr] gap-3 px-5 py-3"
+                    className="grid grid-cols-[1fr_140px_70px_80px_130px_130px_60px] gap-3 px-5 py-3"
                     style={{ borderBottom: "1px solid var(--admin-border)" }}
                   >
                     <div className="min-w-0">
@@ -161,6 +162,13 @@ export default function HotelRoomsPage() {
                       {room.room_number && <div className="text-xs admin-faint">#{room.room_number}</div>}
                     </div>
                     <span className="text-xs admin-muted self-center truncate">{room.room_type}</span>
+                    <span className="self-center">
+                      {room.transfer_need ? (
+                        <span className="inline-block px-2 py-0.5 rounded text-[10px] font-bold uppercase bg-amber-500/15 text-amber-400">Yes</span>
+                      ) : (
+                        <span className="text-xs admin-faint">—</span>
+                      )}
+                    </span>
                     <span className="self-center">
                       <span className={`inline-block px-2 py-0.5 rounded text-[10px] font-bold uppercase ${
                         room.status === "assigned" ? "bg-blue-500/15 text-blue-400" :

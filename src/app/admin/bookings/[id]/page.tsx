@@ -35,6 +35,8 @@ interface Payment {
   id: string;
   amount: number;
   type: string;
+  direction: string | null;
+  status: string | null;
   method: string | null;
   reference: string | null;
   received_at: string | null;
@@ -129,7 +131,7 @@ export default function BookingDetailPage({
 
   // New payment form
   const [showPaymentForm, setShowPaymentForm] = useState(false);
-  const [paymentForm, setPaymentForm] = useState({ amount: "", type: "downpayment", method: "", reference: "", notes: "" });
+  const [paymentForm, setPaymentForm] = useState({ amount: "", type: "downpayment", direction: "revenue", status: "pending", method: "", reference: "", notes: "" });
 
   useEffect(() => {
     Promise.all([
@@ -233,6 +235,8 @@ export default function BookingDetailPage({
     const body = {
       amount: Number(paymentForm.amount),
       type: paymentForm.type,
+      direction: paymentForm.direction || "revenue",
+      status: paymentForm.status || "pending",
       method: paymentForm.method || null,
       reference: paymentForm.reference || null,
       received_at: new Date().toISOString(),
@@ -247,7 +251,7 @@ export default function BookingDetailPage({
       const payment = await res.json();
       setBooking((prev) => prev ? { ...prev, payments: [...prev.payments, payment] } : prev);
       setShowPaymentForm(false);
-      setPaymentForm({ amount: "", type: "downpayment", method: "", reference: "", notes: "" });
+      setPaymentForm({ amount: "", type: "downpayment", direction: "revenue", status: "pending", method: "", reference: "", notes: "" });
     }
   }
 
@@ -508,7 +512,7 @@ export default function BookingDetailPage({
 
           {showPaymentForm && (
             <div className="mb-4 p-4 rounded-xl admin-surface" style={{ border: "1px solid var(--admin-border)" }}>
-              <div className="grid grid-cols-4 gap-3 mb-3">
+              <div className="grid grid-cols-3 gap-3 mb-3">
                 <div>
                   <label className={labelClass}>Amount (€) *</label>
                   <input className={inputClass} type="number" step="0.01" value={paymentForm.amount} onChange={(e) => setPaymentForm({ ...paymentForm, amount: e.target.value })} />
@@ -520,6 +524,22 @@ export default function BookingDetailPage({
                     <option value="final">Final</option>
                     <option value="partial">Partial</option>
                     <option value="refund">Refund</option>
+                  </select>
+                </div>
+                <div>
+                  <label className={labelClass}>Direction</label>
+                  <select className={inputClass} value={paymentForm.direction} onChange={(e) => setPaymentForm({ ...paymentForm, direction: e.target.value })}>
+                    <option value="revenue">Revenue</option>
+                    <option value="cost">Cost</option>
+                  </select>
+                </div>
+                <div>
+                  <label className={labelClass}>Status</label>
+                  <select className={inputClass} value={paymentForm.status} onChange={(e) => setPaymentForm({ ...paymentForm, status: e.target.value })}>
+                    <option value="pending">Pending</option>
+                    <option value="paid">Paid</option>
+                    <option value="overdue">Overdue</option>
+                    <option value="cancelled">Cancelled</option>
                   </select>
                 </div>
                 <div>
@@ -544,19 +564,30 @@ export default function BookingDetailPage({
             <div className="py-12 text-center text-sm admin-faint">No payments recorded</div>
           ) : (
             <div className="rounded-xl overflow-hidden" style={{ border: "1px solid var(--admin-border)" }}>
-              <div className="grid grid-cols-[100px_100px_100px_1fr_1fr] gap-3 px-5 py-3 admin-surface" style={{ borderBottom: "1px solid var(--admin-border)" }}>
+              <div className="grid grid-cols-[100px_90px_80px_80px_90px_1fr_80px] gap-3 px-5 py-3 admin-surface" style={{ borderBottom: "1px solid var(--admin-border)" }}>
                 <span className="text-[10px] font-bold tracking-[0.1em] admin-faint uppercase">Amount</span>
                 <span className="text-[10px] font-bold tracking-[0.1em] admin-faint uppercase">Type</span>
+                <span className="text-[10px] font-bold tracking-[0.1em] admin-faint uppercase">Direction</span>
+                <span className="text-[10px] font-bold tracking-[0.1em] admin-faint uppercase">Status</span>
                 <span className="text-[10px] font-bold tracking-[0.1em] admin-faint uppercase">Method</span>
                 <span className="text-[10px] font-bold tracking-[0.1em] admin-faint uppercase">Reference</span>
                 <span className="text-[10px] font-bold tracking-[0.1em] admin-faint uppercase">Date</span>
               </div>
               {booking.payments.map((p) => (
-                <div key={p.id} className="grid grid-cols-[100px_100px_100px_1fr_1fr] gap-3 px-5 py-3" style={{ borderBottom: "1px solid var(--admin-border)" }}>
-                  <span className={`text-sm font-medium self-center ${p.type === "refund" ? "text-red-400" : "text-green-400"}`}>
-                    {p.type === "refund" ? "-" : "+"}€{Number(p.amount).toLocaleString()}
+                <div key={p.id} className="grid grid-cols-[100px_90px_80px_80px_90px_1fr_80px] gap-3 px-5 py-3" style={{ borderBottom: "1px solid var(--admin-border)" }}>
+                  <span className={`text-sm font-medium self-center ${p.type === "refund" || p.direction === "cost" ? "text-red-400" : "text-green-400"}`}>
+                    {p.type === "refund" || p.direction === "cost" ? "-" : "+"}€{Number(p.amount).toLocaleString()}
                   </span>
                   <span className="text-xs admin-muted self-center capitalize">{p.type}</span>
+                  <span className="text-xs admin-muted self-center capitalize">{p.direction || "—"}</span>
+                  <span className="self-center">
+                    <span className={`inline-block px-1.5 py-0.5 rounded text-[10px] font-bold uppercase ${
+                      p.status === "paid" ? "bg-green-500/15 text-green-400" :
+                      p.status === "overdue" ? "bg-red-500/15 text-red-400" :
+                      p.status === "cancelled" ? "bg-gray-500/15 text-gray-400" :
+                      "bg-amber-500/15 text-amber-400"
+                    }`}>{p.status || "pending"}</span>
+                  </span>
                   <span className="text-xs admin-muted self-center">{p.method || "—"}</span>
                   <span className="text-xs admin-muted self-center">{p.reference || "—"}</span>
                   <span className="text-xs admin-muted self-center">{formatDate(p.received_at)}</span>

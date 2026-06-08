@@ -13,6 +13,10 @@ interface Contact {
   discipline: string | null;
   level: string | null;
   source: string | null;
+  accepts_marketing: boolean;
+  date_of_birth: string | null;
+  experience_locations: string[] | null;
+  interested_products: string[] | null;
   created_at: string;
 }
 
@@ -29,6 +33,8 @@ export default function ContactsPage() {
     discipline: "",
     level: "",
     source: "",
+    date_of_birth: "",
+    accepts_marketing: false,
   });
 
   useEffect(() => {
@@ -55,11 +61,14 @@ export default function ContactsPage() {
     const res = await fetch("/api/admin/contacts", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(newContact),
+      body: JSON.stringify({
+        ...newContact,
+        date_of_birth: newContact.date_of_birth || null,
+      }),
     });
     if (res.ok) {
       setShowNew(false);
-      setNewContact({ name: "", email: "", phone: "", country: "", discipline: "", level: "", source: "" });
+      setNewContact({ name: "", email: "", phone: "", country: "", discipline: "", level: "", source: "", date_of_birth: "", accepts_marketing: false });
       fetchContacts();
     }
   }
@@ -126,6 +135,22 @@ export default function ContactsPage() {
               <input className={inputClass} value={newContact.country} onChange={(e) => setNewContact({ ...newContact, country: e.target.value })} />
             </div>
             <div>
+              <label className={labelClass}>Source</label>
+              <select className={inputClass} value={newContact.source} onChange={(e) => setNewContact({ ...newContact, source: e.target.value })}>
+                <option value="">—</option>
+                <option value="website">Website</option>
+                <option value="instagram">Instagram</option>
+                <option value="referral">Referral</option>
+                <option value="facebook">Facebook</option>
+                <option value="google">Google</option>
+                <option value="other">Other</option>
+              </select>
+            </div>
+            <div>
+              <label className={labelClass}>Date of Birth</label>
+              <input className={inputClass} type="date" value={newContact.date_of_birth} onChange={(e) => setNewContact({ ...newContact, date_of_birth: e.target.value })} />
+            </div>
+            <div>
               <label className={labelClass}>Discipline</label>
               <select className={inputClass} value={newContact.discipline} onChange={(e) => setNewContact({ ...newContact, discipline: e.target.value })}>
                 <option value="">—</option>
@@ -145,6 +170,12 @@ export default function ContactsPage() {
                 <option>Advanced</option>
                 <option>Pro</option>
               </select>
+            </div>
+            <div className="flex items-end pb-1">
+              <label className="flex items-center gap-2 cursor-pointer">
+                <input type="checkbox" checked={newContact.accepts_marketing} onChange={(e) => setNewContact({ ...newContact, accepts_marketing: e.target.checked })} className="w-4 h-4 accent-[#0aa3c7]" />
+                <span className="text-sm admin-muted">Accepts marketing</span>
+              </label>
             </div>
           </div>
           <div className="flex gap-2">
@@ -174,21 +205,21 @@ export default function ContactsPage() {
       ) : (
         <div className="rounded-xl overflow-hidden" style={{ border: "1px solid var(--admin-border)" }}>
           <div
-            className="grid grid-cols-[1fr_180px_130px_100px_100px_80px_60px] gap-3 px-5 py-3 admin-surface"
+            className="grid grid-cols-[1fr_160px_100px_80px_80px_80px_50px] gap-3 px-5 py-3 admin-surface"
             style={{ borderBottom: "1px solid var(--admin-border)" }}
           >
             <span className="text-[10px] font-bold tracking-[0.1em] admin-faint uppercase">Name</span>
             <span className="text-[10px] font-bold tracking-[0.1em] admin-faint uppercase">Email</span>
-            <span className="text-[10px] font-bold tracking-[0.1em] admin-faint uppercase">Phone</span>
             <span className="text-[10px] font-bold tracking-[0.1em] admin-faint uppercase">Country</span>
-            <span className="text-[10px] font-bold tracking-[0.1em] admin-faint uppercase">Discipline</span>
+            <span className="text-[10px] font-bold tracking-[0.1em] admin-faint uppercase">Source</span>
             <span className="text-[10px] font-bold tracking-[0.1em] admin-faint uppercase">Level</span>
+            <span className="text-[10px] font-bold tracking-[0.1em] admin-faint uppercase">Mktg</span>
             <span className="text-[10px] font-bold tracking-[0.1em] admin-faint uppercase"></span>
           </div>
           {contacts.map((c) => (
             <div
               key={c.id}
-              className="grid grid-cols-[1fr_180px_130px_100px_100px_80px_60px] gap-3 px-5 py-3 transition-colors"
+              className="grid grid-cols-[1fr_160px_100px_80px_80px_80px_50px] gap-3 px-5 py-3 transition-colors"
               style={{ borderBottom: "1px solid var(--admin-border)" }}
               onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = "var(--admin-surface-hover)")}
               onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = "transparent")}
@@ -197,10 +228,16 @@ export default function ContactsPage() {
                 {c.name}
               </Link>
               <span className="text-xs admin-muted self-center truncate">{c.email || "—"}</span>
-              <span className="text-xs admin-muted self-center truncate">{c.phone || "—"}</span>
               <span className="text-xs admin-muted self-center">{c.country || "—"}</span>
-              <span className="text-xs admin-muted self-center">{c.discipline || "—"}</span>
+              <span className="text-xs admin-muted self-center capitalize">{c.source || "—"}</span>
               <span className="text-xs admin-muted self-center">{c.level || "—"}</span>
+              <span className="self-center">
+                {c.accepts_marketing ? (
+                  <span className="text-green-400 text-xs">&#10003;</span>
+                ) : (
+                  <span className="admin-faint text-xs">—</span>
+                )}
+              </span>
               <button
                 onClick={() => handleDelete(c.id)}
                 className="text-xs admin-faint hover:text-red-400 transition-colors self-center"

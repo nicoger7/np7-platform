@@ -7,6 +7,7 @@ export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url);
 
   const experienceId = searchParams.get("experience_id");
+  const contactId = searchParams.get("contact_id");
   const status = searchParams.get("status");
 
   let query = client
@@ -14,13 +15,16 @@ export async function GET(request: NextRequest) {
     .select(
       `*,
        contact:contact_id(id, name, email, phone),
-       experience:experience_id(id, title, slug, location, date_start),
+       exp_experiences:experience_id(id, title, slug, location, date_start),
        package:package_id(id, name, price)`
     )
     .order("created_at", { ascending: false });
 
   if (experienceId) {
     query = query.eq("experience_id", experienceId);
+  }
+  if (contactId) {
+    query = query.eq("contact_id", contactId);
   }
   if (status) {
     query = query.eq("status", status);

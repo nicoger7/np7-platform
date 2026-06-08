@@ -20,7 +20,7 @@ interface Experience {
   hero_image: string;
   gallery: string[];
   status: string;
-  // New fields from Notion migration
+  // Core fields
   currency: string;
   timezone: string;
   hotel: string | null;
@@ -28,6 +28,24 @@ interface Experience {
   whatsapp_group_link: string | null;
   notes: string | null;
   cancellation_policy: string | null;
+  // Operations
+  coaches: string | null;
+  experience_code: string | null;
+  po_code: string | null;
+  active_status: string | null;
+  // Pricing
+  price_from: number | null;
+  price_to: number | null;
+  pricing_details: string | null;
+  payment_page_id: string | null;
+  spots_remaining: number | null;
+  // Financials
+  estimated_costs: number | null;
+  expected_revenue: number | null;
+  expected_profit: number | null;
+  paid_revenue: number | null;
+  paid_profit: number | null;
+  total_fixed_costs: number | null;
 }
 
 interface Booking {
@@ -149,7 +167,7 @@ export default function ExperienceDetailPage({
   const [showImagePicker, setShowImagePicker] = useState(false);
   const [showNewPkg, setShowNewPkg] = useState(false);
   const [editPkgId, setEditPkgId] = useState<string | null>(null);
-  const [pkgForm, setPkgForm] = useState({ name: "", slug: "", description: "", price: "", deposit: "", max_spots: "", status: "active" });
+  const [pkgForm, setPkgForm] = useState({ name: "", slug: "", description: "", price: "", deposit: "", max_spots: "", status: "active", category: "" });
   const [showAddComp, setShowAddComp] = useState<string | null>(null);
   const [addCompId, setAddCompId] = useState("");
   const [addCompQty, setAddCompQty] = useState("1");
@@ -226,6 +244,21 @@ export default function ExperienceDetailPage({
         whatsapp_group_link: exp.whatsapp_group_link,
         notes: exp.notes,
         cancellation_policy: exp.cancellation_policy,
+        coaches: exp.coaches,
+        experience_code: exp.experience_code,
+        po_code: exp.po_code,
+        active_status: exp.active_status,
+        price_from: exp.price_from,
+        price_to: exp.price_to,
+        pricing_details: exp.pricing_details,
+        payment_page_id: exp.payment_page_id,
+        spots_remaining: exp.spots_remaining,
+        estimated_costs: exp.estimated_costs,
+        expected_revenue: exp.expected_revenue,
+        expected_profit: exp.expected_profit,
+        paid_revenue: exp.paid_revenue,
+        paid_profit: exp.paid_profit,
+        total_fixed_costs: exp.total_fixed_costs,
       }),
     });
     setSaving(false);
@@ -605,6 +638,133 @@ export default function ExperienceDetailPage({
             />
           )}
 
+          {/* ── Operations ── */}
+          <div className="pt-4" style={{ borderTop: "1px solid var(--admin-border)" }}>
+            <h3 className="text-xs font-bold tracking-[0.1em] admin-faint uppercase mb-4">Operations</h3>
+            <div className="space-y-4">
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className={labelClass}>Coaches</label>
+                  <input
+                    className={inputClass}
+                    value={exp.coaches || ""}
+                    onChange={(e) => update("coaches", e.target.value || null)}
+                    placeholder="e.g. Nico, Sarah"
+                  />
+                </div>
+                <div>
+                  <label className={labelClass}>Active Status</label>
+                  <select
+                    className={inputClass}
+                    value={exp.active_status || ""}
+                    onChange={(e) => update("active_status", e.target.value || null)}
+                  >
+                    <option value="">—</option>
+                    <option value="published">Published</option>
+                    <option value="private">Private</option>
+                    <option value="in_planning">In Planning</option>
+                  </select>
+                </div>
+              </div>
+              <div className="grid grid-cols-3 gap-4">
+                <div>
+                  <label className={labelClass}>Experience Code</label>
+                  <input
+                    className={inputClass}
+                    value={exp.experience_code || ""}
+                    onChange={(e) => update("experience_code", e.target.value || null)}
+                    placeholder="e.g. BKK-2025"
+                  />
+                </div>
+                <div>
+                  <label className={labelClass}>PO Code</label>
+                  <input
+                    className={inputClass}
+                    value={exp.po_code || ""}
+                    onChange={(e) => update("po_code", e.target.value || null)}
+                  />
+                </div>
+                <div>
+                  <label className={labelClass}>Payment Page ID</label>
+                  <input
+                    className={inputClass}
+                    value={exp.payment_page_id || ""}
+                    onChange={(e) => update("payment_page_id", e.target.value || null)}
+                  />
+                </div>
+              </div>
+              <div className="grid grid-cols-3 gap-4">
+                <div>
+                  <label className={labelClass}>Price From ({exp.currency || "EUR"})</label>
+                  <input
+                    type="number"
+                    className={inputClass}
+                    value={exp.price_from || ""}
+                    onChange={(e) => update("price_from", e.target.value ? Number(e.target.value) : null)}
+                  />
+                </div>
+                <div>
+                  <label className={labelClass}>Price To ({exp.currency || "EUR"})</label>
+                  <input
+                    type="number"
+                    className={inputClass}
+                    value={exp.price_to || ""}
+                    onChange={(e) => update("price_to", e.target.value ? Number(e.target.value) : null)}
+                  />
+                </div>
+                <div>
+                  <label className={labelClass}>Spots Remaining</label>
+                  <input
+                    type="number"
+                    className={inputClass}
+                    value={exp.spots_remaining ?? ""}
+                    onChange={(e) => update("spots_remaining", e.target.value ? Number(e.target.value) : null)}
+                  />
+                </div>
+              </div>
+              <div>
+                <label className={labelClass}>Pricing Details</label>
+                <textarea
+                  className={`${inputClass} min-h-[80px] resize-y`}
+                  value={exp.pricing_details || ""}
+                  onChange={(e) => update("pricing_details", e.target.value || null)}
+                  placeholder="Pricing breakdown, inclusions..."
+                />
+              </div>
+            </div>
+          </div>
+
+          {/* ── Financials ── */}
+          <div className="pt-4" style={{ borderTop: "1px solid var(--admin-border)" }}>
+            <h3 className="text-xs font-bold tracking-[0.1em] admin-faint uppercase mb-4">Financials</h3>
+            <div className="grid grid-cols-3 gap-4">
+              <div>
+                <label className={labelClass}>Estimated Costs</label>
+                <input type="number" className={inputClass} value={exp.estimated_costs || ""} onChange={(e) => update("estimated_costs", e.target.value ? Number(e.target.value) : null)} />
+              </div>
+              <div>
+                <label className={labelClass}>Total Fixed Costs</label>
+                <input type="number" className={inputClass} value={exp.total_fixed_costs || ""} onChange={(e) => update("total_fixed_costs", e.target.value ? Number(e.target.value) : null)} />
+              </div>
+              <div>
+                <label className={labelClass}>Expected Revenue</label>
+                <input type="number" className={inputClass} value={exp.expected_revenue || ""} onChange={(e) => update("expected_revenue", e.target.value ? Number(e.target.value) : null)} />
+              </div>
+              <div>
+                <label className={labelClass}>Expected Profit</label>
+                <input type="number" className={inputClass} value={exp.expected_profit || ""} onChange={(e) => update("expected_profit", e.target.value ? Number(e.target.value) : null)} />
+              </div>
+              <div>
+                <label className={labelClass}>Paid Revenue</label>
+                <input type="number" className={inputClass} value={exp.paid_revenue || ""} onChange={(e) => update("paid_revenue", e.target.value ? Number(e.target.value) : null)} />
+              </div>
+              <div>
+                <label className={labelClass}>Paid Profit</label>
+                <input type="number" className={inputClass} value={exp.paid_profit || ""} onChange={(e) => update("paid_profit", e.target.value ? Number(e.target.value) : null)} />
+              </div>
+            </div>
+          </div>
+
           {/* Status */}
           <div>
             <label className={labelClass}>Status</label>
@@ -697,7 +857,7 @@ export default function ExperienceDetailPage({
               onClick={() => {
                 setShowNewPkg(true);
                 setEditPkgId(null);
-                setPkgForm({ name: "", slug: "", description: "", price: "", deposit: "", max_spots: "", status: "active" });
+                setPkgForm({ name: "", slug: "", description: "", price: "", deposit: "", max_spots: "", status: "active", category: "" });
               }}
               className="px-3 py-1.5 bg-[#0aa3c7] hover:bg-[#0aa3c7]/90 text-white text-xs font-bold rounded-lg transition-colors"
             >
@@ -709,7 +869,7 @@ export default function ExperienceDetailPage({
           {(showNewPkg || editPkgId) && (
             <div className="mb-6 p-5 rounded-xl" style={{ border: "1px solid var(--admin-border)", backgroundColor: "var(--admin-surface)" }}>
               <h3 className="text-sm font-bold admin-heading mb-4">{editPkgId ? "Edit Package" : "New Package"}</h3>
-              <div className="grid grid-cols-3 gap-4 mb-4">
+              <div className="grid grid-cols-4 gap-4 mb-4">
                 <div>
                   <label className={`${labelClass}`}>Name *</label>
                   <input className={inputClass} value={pkgForm.name} onChange={(e) => setPkgForm({ ...pkgForm, name: e.target.value, slug: slugify(e.target.value) })} />
@@ -717,6 +877,15 @@ export default function ExperienceDetailPage({
                 <div>
                   <label className={`${labelClass}`}>Slug</label>
                   <input className={inputClass} value={pkgForm.slug} onChange={(e) => setPkgForm({ ...pkgForm, slug: e.target.value })} />
+                </div>
+                <div>
+                  <label className={`${labelClass}`}>Category</label>
+                  <select className={inputClass} value={pkgForm.category} onChange={(e) => setPkgForm({ ...pkgForm, category: e.target.value })}>
+                    <option value="">—</option>
+                    <option value="pro">Pro</option>
+                    <option value="beginner">Beginner</option>
+                    <option value="mixed">Mixed</option>
+                  </select>
                 </div>
                 <div>
                   <label className={`${labelClass}`}>Status</label>
@@ -755,6 +924,7 @@ export default function ExperienceDetailPage({
                       deposit: pkgForm.deposit ? Number(pkgForm.deposit) : null,
                       max_spots: pkgForm.max_spots ? Number(pkgForm.max_spots) : null,
                       status: pkgForm.status,
+                      category: pkgForm.category || null,
                       experience_id: id,
                     };
                     if (editPkgId) {
@@ -796,6 +966,7 @@ export default function ExperienceDetailPage({
                           {pkg.price ? `€${Number(pkg.price).toLocaleString()}` : "No price"}
                           {pkg.deposit ? ` • Deposit: €${Number(pkg.deposit).toLocaleString()}` : ""}
                           {pkg.max_spots ? ` • ${pkg.max_spots} spots` : ""}
+                          {(pkg as Package & { category?: string }).category ? ` • ${(pkg as Package & { category?: string }).category}` : ""}
                         </div>
                       </div>
                       <span className={`inline-block px-2 py-0.5 rounded text-[10px] font-bold uppercase ${
@@ -817,6 +988,7 @@ export default function ExperienceDetailPage({
                             deposit: pkg.deposit?.toString() || "",
                             max_spots: pkg.max_spots?.toString() || "",
                             status: pkg.status,
+                            category: (pkg as Package & { category?: string }).category || "",
                           });
                         }}
                         className="px-2 py-1 text-xs admin-muted hover:admin-heading transition-colors"

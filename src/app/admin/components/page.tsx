@@ -13,6 +13,10 @@ interface Component {
   category: string;
   description: string | null;
   unit_cost: number | null;
+  sell_price: number | null;
+  addon_available: boolean;
+  year: string[] | null;
+  notes: string | null;
   is_global: boolean;
   experience_id: string | null;
   exp_experiences: { id: string; title: string } | null;
@@ -41,6 +45,9 @@ export default function ComponentsPage() {
     category: "coaching",
     description: "",
     unit_cost: "",
+    sell_price: "",
+    addon_available: false,
+    notes: "",
     is_global: true,
     experience_id: "",
   });
@@ -76,6 +83,9 @@ export default function ComponentsPage() {
       category: c.category,
       description: c.description || "",
       unit_cost: c.unit_cost?.toString() || "",
+      sell_price: c.sell_price?.toString() || "",
+      addon_available: c.addon_available || false,
+      notes: c.notes || "",
       is_global: c.is_global,
       experience_id: c.experience_id || "",
     });
@@ -84,7 +94,7 @@ export default function ComponentsPage() {
 
   function startNew() {
     setEditId(null);
-    setForm({ name: "", category: "coaching", description: "", unit_cost: "", is_global: true, experience_id: "" });
+    setForm({ name: "", category: "coaching", description: "", unit_cost: "", sell_price: "", addon_available: false, notes: "", is_global: true, experience_id: "" });
     setShowNew(true);
   }
 
@@ -94,6 +104,9 @@ export default function ComponentsPage() {
       category: form.category,
       description: form.description || null,
       unit_cost: form.unit_cost ? Number(form.unit_cost) : null,
+      sell_price: form.sell_price ? Number(form.sell_price) : null,
+      addon_available: form.addon_available,
+      notes: form.notes || null,
       is_global: form.is_global,
       experience_id: form.is_global ? null : form.experience_id || null,
     };
@@ -135,7 +148,7 @@ export default function ComponentsPage() {
       <h3 className="text-sm font-bold admin-heading mb-4">
         {editId ? "Edit Component" : "New Component"}
       </h3>
-      <div className="grid grid-cols-3 gap-4 mb-4">
+      <div className="grid grid-cols-4 gap-4 mb-4">
         <div>
           <label className={labelClass}>Name *</label>
           <input className={inputClass} value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} />
@@ -149,34 +162,40 @@ export default function ComponentsPage() {
           </select>
         </div>
         <div>
-          <label className={labelClass}>Unit cost (€)</label>
+          <label className={labelClass}>Buy Price (€)</label>
           <input className={inputClass} type="number" step="0.01" value={form.unit_cost} onChange={(e) => setForm({ ...form, unit_cost: e.target.value })} placeholder="0.00" />
         </div>
+        <div>
+          <label className={labelClass}>Sell Price (€)</label>
+          <input className={inputClass} type="number" step="0.01" value={form.sell_price} onChange={(e) => setForm({ ...form, sell_price: e.target.value })} placeholder="0.00" />
+        </div>
       </div>
-      <div className="grid grid-cols-2 gap-4 mb-4">
+      <div className="grid grid-cols-3 gap-4 mb-4">
         <div>
           <label className={labelClass}>Description</label>
           <input className={inputClass} value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} />
         </div>
         <div>
+          <label className={labelClass}>Notes</label>
+          <input className={inputClass} value={form.notes} onChange={(e) => setForm({ ...form, notes: e.target.value })} />
+        </div>
+        <div className="flex items-end pb-1">
+          <label className="flex items-center gap-2 cursor-pointer">
+            <input type="checkbox" checked={form.addon_available} onChange={(e) => setForm({ ...form, addon_available: e.target.checked })} className="w-4 h-4 accent-[#0aa3c7]" />
+            <span className="text-sm admin-muted">Add-on available</span>
+          </label>
+        </div>
+      </div>
+      <div className="grid grid-cols-2 gap-4 mb-4">
+        <div>
           <label className={labelClass}>Scope</label>
           <div className="flex items-center gap-4 mt-1">
             <label className="flex items-center gap-2 text-sm admin-muted cursor-pointer">
-              <input
-                type="radio"
-                checked={form.is_global}
-                onChange={() => setForm({ ...form, is_global: true, experience_id: "" })}
-                className="accent-[#0aa3c7]"
-              />
+              <input type="radio" checked={form.is_global} onChange={() => setForm({ ...form, is_global: true, experience_id: "" })} className="accent-[#0aa3c7]" />
               Global
             </label>
             <label className="flex items-center gap-2 text-sm admin-muted cursor-pointer">
-              <input
-                type="radio"
-                checked={!form.is_global}
-                onChange={() => setForm({ ...form, is_global: false })}
-                className="accent-[#0aa3c7]"
-              />
+              <input type="radio" checked={!form.is_global} onChange={() => setForm({ ...form, is_global: false })} className="accent-[#0aa3c7]" />
               Experience-specific
             </label>
           </div>
@@ -265,13 +284,14 @@ export default function ComponentsPage() {
       ) : (
         <div className="rounded-xl overflow-hidden" style={{ border: "1px solid var(--admin-border)" }}>
           <div
-            className="grid grid-cols-[1fr_120px_100px_1fr_100px_60px] gap-3 px-5 py-3 admin-surface"
+            className="grid grid-cols-[1fr_120px_90px_90px_80px_70px_60px] gap-3 px-5 py-3 admin-surface"
             style={{ borderBottom: "1px solid var(--admin-border)" }}
           >
             <span className="text-[10px] font-bold tracking-[0.1em] admin-faint uppercase">Name</span>
             <span className="text-[10px] font-bold tracking-[0.1em] admin-faint uppercase">Category</span>
-            <span className="text-[10px] font-bold tracking-[0.1em] admin-faint uppercase">Unit Cost</span>
-            <span className="text-[10px] font-bold tracking-[0.1em] admin-faint uppercase">Experience</span>
+            <span className="text-[10px] font-bold tracking-[0.1em] admin-faint uppercase">Buy</span>
+            <span className="text-[10px] font-bold tracking-[0.1em] admin-faint uppercase">Sell</span>
+            <span className="text-[10px] font-bold tracking-[0.1em] admin-faint uppercase">Add-on</span>
             <span className="text-[10px] font-bold tracking-[0.1em] admin-faint uppercase">Scope</span>
             <span className="text-[10px] font-bold tracking-[0.1em] admin-faint uppercase"></span>
           </div>
@@ -280,7 +300,7 @@ export default function ComponentsPage() {
             return (
               <div
                 key={c.id}
-                className="grid grid-cols-[1fr_120px_100px_1fr_100px_60px] gap-3 px-5 py-3 transition-colors cursor-pointer"
+                className="grid grid-cols-[1fr_120px_90px_90px_80px_70px_60px] gap-3 px-5 py-3 transition-colors cursor-pointer"
                 style={{ borderBottom: "1px solid var(--admin-border)" }}
                 onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = "var(--admin-surface-hover)")}
                 onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = "transparent")}
@@ -299,8 +319,15 @@ export default function ComponentsPage() {
                 <span className="text-xs admin-muted self-center">
                   {c.unit_cost ? `€${Number(c.unit_cost).toLocaleString("de-DE", { minimumFractionDigits: 2 })}` : "—"}
                 </span>
-                <span className="text-xs admin-muted self-center truncate">
-                  {c.exp_experiences?.title || "—"}
+                <span className="text-xs admin-muted self-center">
+                  {c.sell_price ? `€${Number(c.sell_price).toLocaleString("de-DE", { minimumFractionDigits: 2 })}` : "—"}
+                </span>
+                <span className="self-center">
+                  {c.addon_available ? (
+                    <span className="text-green-400 text-xs font-medium">✓</span>
+                  ) : (
+                    <span className="admin-faint text-xs">—</span>
+                  )}
                 </span>
                 <span className="self-center">
                   <span className={`inline-block px-2 py-0.5 rounded text-[10px] font-bold uppercase ${
