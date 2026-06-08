@@ -87,7 +87,7 @@ export default function ExperiencesPage() {
     fetch("/api/admin/experiences")
       .then((r) => r.json())
       .then((d) => {
-        setExperiences(d.experiences || []);
+        setExperiences(Array.isArray(d) ? d : d.experiences || []);
         setLoading(false);
       });
   }, []);
