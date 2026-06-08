@@ -1,6 +1,8 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { SortableHeader } from "@/components/sortable-header";
+import { ColumnToggle, ColumnDef, buildGridTemplate, loadVisibleColumns } from "@/components/column-toggle";
 
 interface Experience {
   id: string;
@@ -33,6 +35,31 @@ const CATEGORIES = [
   { value: "other", label: "Other", color: "bg-gray-500" },
 ];
 
+type SortDir = "asc" | "desc" | null;
+
+const COLUMNS: ColumnDef[] = [
+  { key: "name", label: "Name", width: "1fr", required: true },
+  { key: "category", label: "Category", width: "120px" },
+  { key: "unit_cost", label: "Buy", width: "90px" },
+  { key: "sell_price", label: "Sell", width: "90px" },
+  { key: "addon_available", label: "Add-on", width: "80px" },
+  { key: "scope", label: "Scope", width: "70px" },
+  { key: "_actions", label: "", width: "60px", required: true },
+];
+
+const STORAGE_KEY = "np7-components-columns";
+
+function compareValues(a: unknown, b: unknown, dir: "asc" | "desc"): number {
+  if (a == null && b == null) return 0;
+  if (a == null) return dir === "asc" ? 1 : -1;
+  if (b == null) return dir === "asc" ? -1 : 1;
+  const aNum = Number(a);
+  const bNum = Number(b);
+  if (!isNaN(aNum) && !isNaN(bNum)) return dir === "asc" ? aNum - bNum : bNum - aNum;
+  const cmp = String(a).localeCompare(String(b));
+  return dir === "asc" ? cmp : -cmp;
+}
+
 export default function ComponentsPage() {
   const [components, setComponents] = useState<Component[]>([]);
   const [experiences, setExperiences] = useState<Experience[]>([]);
@@ -40,6 +67,11 @@ export default function ComponentsPage() {
   const [filterCategory, setFilterCategory] = useState("");
   const [showNew, setShowNew] = useState(false);
   const [editId, setEditId] = useState<string | null>(null);
+  const [sortKey, setSortKey] = useState<string | null>(null);
+  const [sortDir, setSortDir] = useState<SortDir>(null);
+  const [visibleColumns, setVisibleColumns] = useState<Set<string>>(
+    () => loadVisibleColumns(STORAGE_KEY, COLUMNS)
+  );
   const [form, setForm] = useState({
     name: "",
     category: "coaching",
@@ -72,9 +104,35 @@ export default function ComponentsPage() {
     });
   }
 
+  function handleSort(key: string) {
+    if (sortKey === key) {
+      if (sortDir === "asc") setSortDir("desc");
+      else if (sortDir === "desc") { setSortKey(null); setSortDir(null); }
+      else setSortDir("asc");
+    } else {
+      setSortKey(key);
+      setSortDir("asc");
+    }
+  }
+
   const filtered = filterCategory
     ? components.filter((c) => c.category === filterCategory)
     : components;
+
+  const sorted = sortKey && sortDir
+    ? [...filtered].sort((a, b) => {
+        let aVal: unknown;
+        let bVal: unknown;
+        if (sortKey === "scope") {
+          aVal = a.is_global ? "global" : "local";
+          bVal = b.is_global ? "global" : "local";
+        } else {
+          aVal = a[sortKey as keyof Component];
+          bVal = b[sortKey as keyof Component];
+        }
+        return compareValues(aVal, bVal, sortDir);
+      })
+    : filtered;
 
   function startEdit(c: Component) {
     setEditId(c.id);
@@ -112,17 +170,9 @@ export default function ComponentsPage() {
     };
 
     if (editId) {
-      await fetch(`/api/admin/components/${editId}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(body),
-      });
+      await fetch(`/api/admin/components/${editId}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
     } else {
-      await fetch("/api/admin/components", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(body),
-      });
+      await fetch("/api/admin/components", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
     }
 
     setShowNew(false);
@@ -140,45 +190,24 @@ export default function ComponentsPage() {
     "w-full px-3 py-2 admin-input border rounded-lg text-sm focus:outline-none focus:border-[#0aa3c7] focus:ring-1 focus:ring-[#0aa3c7] transition-colors";
   const labelClass = "block text-xs font-medium admin-muted mb-1";
 
+  const gridTemplate = buildGridTemplate(COLUMNS, visibleColumns);
+
   const formPanel = (showNew || editId) && (
-    <div
-      className="mb-6 p-5 rounded-xl"
-      style={{ border: "1px solid var(--admin-border)", backgroundColor: "var(--admin-surface)" }}
-    >
-      <h3 className="text-sm font-bold admin-heading mb-4">
-        {editId ? "Edit Component" : "New Component"}
-      </h3>
+    <div className="mb-6 p-5 rounded-xl" style={{ border: "1px solid var(--admin-border)", backgroundColor: "var(--admin-surface)" }}>
+      <h3 className="text-sm font-bold admin-heading mb-4">{editId ? "Edit Component" : "New Component"}</h3>
       <div className="grid grid-cols-4 gap-4 mb-4">
-        <div>
-          <label className={labelClass}>Name *</label>
-          <input className={inputClass} value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} />
-        </div>
-        <div>
-          <label className={labelClass}>Category</label>
+        <div><label className={labelClass}>Name *</label><input className={inputClass} value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} /></div>
+        <div><label className={labelClass}>Category</label>
           <select className={inputClass} value={form.category} onChange={(e) => setForm({ ...form, category: e.target.value })}>
-            {CATEGORIES.map((c) => (
-              <option key={c.value} value={c.value}>{c.label}</option>
-            ))}
+            {CATEGORIES.map((c) => (<option key={c.value} value={c.value}>{c.label}</option>))}
           </select>
         </div>
-        <div>
-          <label className={labelClass}>Buy Price (€)</label>
-          <input className={inputClass} type="number" step="0.01" value={form.unit_cost} onChange={(e) => setForm({ ...form, unit_cost: e.target.value })} placeholder="0.00" />
-        </div>
-        <div>
-          <label className={labelClass}>Sell Price (€)</label>
-          <input className={inputClass} type="number" step="0.01" value={form.sell_price} onChange={(e) => setForm({ ...form, sell_price: e.target.value })} placeholder="0.00" />
-        </div>
+        <div><label className={labelClass}>Buy Price (€)</label><input className={inputClass} type="number" step="0.01" value={form.unit_cost} onChange={(e) => setForm({ ...form, unit_cost: e.target.value })} placeholder="0.00" /></div>
+        <div><label className={labelClass}>Sell Price (€)</label><input className={inputClass} type="number" step="0.01" value={form.sell_price} onChange={(e) => setForm({ ...form, sell_price: e.target.value })} placeholder="0.00" /></div>
       </div>
       <div className="grid grid-cols-3 gap-4 mb-4">
-        <div>
-          <label className={labelClass}>Description</label>
-          <input className={inputClass} value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} />
-        </div>
-        <div>
-          <label className={labelClass}>Notes</label>
-          <input className={inputClass} value={form.notes} onChange={(e) => setForm({ ...form, notes: e.target.value })} />
-        </div>
+        <div><label className={labelClass}>Description</label><input className={inputClass} value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} /></div>
+        <div><label className={labelClass}>Notes</label><input className={inputClass} value={form.notes} onChange={(e) => setForm({ ...form, notes: e.target.value })} /></div>
         <div className="flex items-end pb-1">
           <label className="flex items-center gap-2 cursor-pointer">
             <input type="checkbox" checked={form.addon_available} onChange={(e) => setForm({ ...form, addon_available: e.target.checked })} className="w-4 h-4 accent-[#0aa3c7]" />
@@ -206,24 +235,15 @@ export default function ComponentsPage() {
           <label className={labelClass}>Experience</label>
           <select className={inputClass} value={form.experience_id} onChange={(e) => setForm({ ...form, experience_id: e.target.value })}>
             <option value="">Select experience...</option>
-            {experiences.map((exp) => (
-              <option key={exp.id} value={exp.id}>{exp.title}</option>
-            ))}
+            {experiences.map((exp) => (<option key={exp.id} value={exp.id}>{exp.title}</option>))}
           </select>
         </div>
       )}
       <div className="flex gap-2">
-        <button
-          onClick={handleSave}
-          disabled={!form.name}
-          className="px-4 py-2 bg-[#0aa3c7] hover:bg-[#0aa3c7]/90 disabled:opacity-40 text-white text-sm font-bold rounded-lg transition-colors"
-        >
+        <button onClick={handleSave} disabled={!form.name} className="px-4 py-2 bg-[#0aa3c7] hover:bg-[#0aa3c7]/90 disabled:opacity-40 text-white text-sm font-bold rounded-lg transition-colors">
           {editId ? "Update" : "Create"}
         </button>
-        <button
-          onClick={() => { setShowNew(false); setEditId(null); }}
-          className="px-4 py-2 admin-muted text-sm rounded-lg transition-colors"
-        >
+        <button onClick={() => { setShowNew(false); setEditId(null); }} className="px-4 py-2 admin-muted text-sm rounded-lg transition-colors">
           Cancel
         </button>
       </div>
@@ -235,38 +255,21 @@ export default function ComponentsPage() {
       <div className="flex items-center justify-between mb-6">
         <div>
           <h1 className="text-2xl font-bold admin-heading mb-1">Components</h1>
-          <p className="text-sm admin-muted">
-            Building blocks for packages — coaching, meals, transport, etc.
-          </p>
+          <p className="text-sm admin-muted">Building blocks for packages — coaching, meals, transport, etc.</p>
         </div>
-        <button
-          onClick={startNew}
-          className="px-4 py-2 bg-[#0aa3c7] hover:bg-[#0aa3c7]/90 text-white text-sm font-bold rounded-lg transition-colors"
-        >
-          New Component
-        </button>
+        <div className="flex items-center gap-3">
+          <ColumnToggle columns={COLUMNS} visible={visibleColumns} onChange={setVisibleColumns} storageKey={STORAGE_KEY} />
+          <button onClick={startNew} className="px-4 py-2 bg-[#0aa3c7] hover:bg-[#0aa3c7]/90 text-white text-sm font-bold rounded-lg transition-colors">
+            New Component
+          </button>
+        </div>
       </div>
 
       {/* Filters */}
       <div className="flex items-center gap-2 mb-5">
-        <button
-          onClick={() => setFilterCategory("")}
-          className={`px-3 py-1.5 text-xs font-medium rounded-lg transition-colors ${
-            !filterCategory ? "bg-[#0aa3c7]/15 text-[#0aa3c7]" : "admin-surface admin-muted"
-          }`}
-          style={{ border: "1px solid var(--admin-border)" }}
-        >
-          All
-        </button>
+        <button onClick={() => setFilterCategory("")} className={`px-3 py-1.5 text-xs font-medium rounded-lg transition-colors ${!filterCategory ? "bg-[#0aa3c7]/15 text-[#0aa3c7]" : "admin-surface admin-muted"}`} style={{ border: "1px solid var(--admin-border)" }}>All</button>
         {CATEGORIES.map((cat) => (
-          <button
-            key={cat.value}
-            onClick={() => setFilterCategory(filterCategory === cat.value ? "" : cat.value)}
-            className={`px-3 py-1.5 text-xs font-medium rounded-lg transition-colors ${
-              filterCategory === cat.value ? "bg-[#0aa3c7]/15 text-[#0aa3c7]" : "admin-surface admin-muted"
-            }`}
-            style={{ border: "1px solid var(--admin-border)" }}
-          >
+          <button key={cat.value} onClick={() => setFilterCategory(filterCategory === cat.value ? "" : cat.value)} className={`px-3 py-1.5 text-xs font-medium rounded-lg transition-colors ${filterCategory === cat.value ? "bg-[#0aa3c7]/15 text-[#0aa3c7]" : "admin-surface admin-muted"}`} style={{ border: "1px solid var(--admin-border)" }}>
             {cat.label}
           </button>
         ))}
@@ -283,59 +286,69 @@ export default function ComponentsPage() {
         </div>
       ) : (
         <div className="rounded-xl overflow-hidden" style={{ border: "1px solid var(--admin-border)" }}>
-          <div
-            className="grid grid-cols-[1fr_120px_90px_90px_80px_70px_60px] gap-3 px-5 py-3 admin-surface"
-            style={{ borderBottom: "1px solid var(--admin-border)" }}
-          >
-            <span className="text-[10px] font-bold tracking-[0.1em] admin-faint uppercase">Name</span>
-            <span className="text-[10px] font-bold tracking-[0.1em] admin-faint uppercase">Category</span>
-            <span className="text-[10px] font-bold tracking-[0.1em] admin-faint uppercase">Buy</span>
-            <span className="text-[10px] font-bold tracking-[0.1em] admin-faint uppercase">Sell</span>
-            <span className="text-[10px] font-bold tracking-[0.1em] admin-faint uppercase">Add-on</span>
-            <span className="text-[10px] font-bold tracking-[0.1em] admin-faint uppercase">Scope</span>
-            <span className="text-[10px] font-bold tracking-[0.1em] admin-faint uppercase"></span>
+          {/* Header */}
+          <div className="grid gap-3 px-5 py-3 admin-surface" style={{ gridTemplateColumns: gridTemplate, borderBottom: "1px solid var(--admin-border)" }}>
+            {COLUMNS.filter((c) => c.required || visibleColumns.has(c.key)).map((col) =>
+              col.key === "_actions" ? (
+                <span key={col.key} />
+              ) : (
+                <SortableHeader key={col.key} label={col.label} sortKey={col.key} currentSort={sortKey} currentDir={sortDir} onSort={handleSort} />
+              )
+            )}
           </div>
-          {filtered.map((c) => {
+
+          {/* Rows */}
+          {sorted.map((c) => {
             const cat = CATEGORIES.find((x) => x.value === c.category);
             return (
               <div
                 key={c.id}
-                className="grid grid-cols-[1fr_120px_90px_90px_80px_70px_60px] gap-3 px-5 py-3 transition-colors cursor-pointer"
-                style={{ borderBottom: "1px solid var(--admin-border)" }}
+                className="grid gap-3 px-5 py-3 transition-colors cursor-pointer"
+                style={{ gridTemplateColumns: gridTemplate, borderBottom: "1px solid var(--admin-border)" }}
                 onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = "var(--admin-surface-hover)")}
                 onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = "transparent")}
                 onClick={() => startEdit(c)}
               >
+                {/* name — required */}
                 <div className="min-w-0">
                   <div className="text-sm font-medium admin-heading truncate">{c.name}</div>
                   {c.description && <div className="text-xs admin-faint truncate">{c.description}</div>}
                 </div>
-                <span className="self-center">
-                  <span className={`inline-flex items-center gap-1.5 text-xs`}>
-                    <span className={`w-2 h-2 rounded-full ${cat?.color || "bg-gray-500"}`} />
-                    <span className="admin-muted">{cat?.label || c.category}</span>
+                {visibleColumns.has("category") && (
+                  <span className="self-center">
+                    <span className="inline-flex items-center gap-1.5 text-xs">
+                      <span className={`w-2 h-2 rounded-full ${cat?.color || "bg-gray-500"}`} />
+                      <span className="admin-muted">{cat?.label || c.category}</span>
+                    </span>
                   </span>
-                </span>
-                <span className="text-xs admin-muted self-center">
-                  {c.unit_cost ? `€${Number(c.unit_cost).toLocaleString("de-DE", { minimumFractionDigits: 2 })}` : "—"}
-                </span>
-                <span className="text-xs admin-muted self-center">
-                  {c.sell_price ? `€${Number(c.sell_price).toLocaleString("de-DE", { minimumFractionDigits: 2 })}` : "—"}
-                </span>
-                <span className="self-center">
-                  {c.addon_available ? (
-                    <span className="text-green-400 text-xs font-medium">✓</span>
-                  ) : (
-                    <span className="admin-faint text-xs">—</span>
-                  )}
-                </span>
-                <span className="self-center">
-                  <span className={`inline-block px-2 py-0.5 rounded text-[10px] font-bold uppercase ${
-                    c.is_global ? "bg-green-500/15 text-green-400" : "bg-blue-500/15 text-blue-400"
-                  }`}>
-                    {c.is_global ? "Global" : "Local"}
+                )}
+                {visibleColumns.has("unit_cost") && (
+                  <span className="text-xs admin-muted self-center">
+                    {c.unit_cost ? `€${Number(c.unit_cost).toLocaleString("de-DE", { minimumFractionDigits: 2 })}` : "—"}
                   </span>
-                </span>
+                )}
+                {visibleColumns.has("sell_price") && (
+                  <span className="text-xs admin-muted self-center">
+                    {c.sell_price ? `€${Number(c.sell_price).toLocaleString("de-DE", { minimumFractionDigits: 2 })}` : "—"}
+                  </span>
+                )}
+                {visibleColumns.has("addon_available") && (
+                  <span className="self-center">
+                    {c.addon_available ? (
+                      <span className="text-green-400 text-xs font-medium">✓</span>
+                    ) : (
+                      <span className="admin-faint text-xs">—</span>
+                    )}
+                  </span>
+                )}
+                {visibleColumns.has("scope") && (
+                  <span className="self-center">
+                    <span className={`inline-block px-2 py-0.5 rounded text-[10px] font-bold uppercase ${c.is_global ? "bg-green-500/15 text-green-400" : "bg-blue-500/15 text-blue-400"}`}>
+                      {c.is_global ? "Global" : "Local"}
+                    </span>
+                  </span>
+                )}
+                {/* _actions — required */}
                 <button
                   onClick={(e) => { e.stopPropagation(); handleDelete(c.id); }}
                   className="text-xs admin-faint hover:text-red-400 transition-colors self-center"

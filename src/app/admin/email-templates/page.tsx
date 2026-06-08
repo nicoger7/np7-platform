@@ -1,6 +1,8 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { SortableHeader } from "@/components/sortable-header";
+import { ColumnToggle, ColumnDef, buildGridTemplate, loadVisibleColumns } from "@/components/column-toggle";
 
 interface EmailTemplate {
   id: string;
@@ -19,12 +21,38 @@ interface EmailTemplate {
 
 interface Experience { id: string; title: string; }
 
+type SortDir = "asc" | "desc" | null;
+
+const COLUMNS: ColumnDef[] = [
+  { key: "name", label: "Name", width: "1fr", required: true },
+  { key: "subject", label: "Subject", width: "180px" },
+  { key: "type", label: "Type", width: "120px" },
+  { key: "language", label: "Lang", width: "60px" },
+  { key: "active", label: "Active", width: "60px" },
+  { key: "_actions", label: "", width: "50px", required: true },
+];
+
+const STORAGE_KEY = "np7-email-templates-columns";
+
+function compareValues(a: unknown, b: unknown, dir: "asc" | "desc"): number {
+  if (a == null && b == null) return 0;
+  if (a == null) return dir === "asc" ? 1 : -1;
+  if (b == null) return dir === "asc" ? -1 : 1;
+  const cmp = String(a).localeCompare(String(b));
+  return dir === "asc" ? cmp : -cmp;
+}
+
 export default function EmailTemplatesPage() {
   const [templates, setTemplates] = useState<EmailTemplate[]>([]);
   const [experiences, setExperiences] = useState<Experience[]>([]);
   const [loading, setLoading] = useState(true);
   const [showNew, setShowNew] = useState(false);
   const [editId, setEditId] = useState<string | null>(null);
+  const [sortKey, setSortKey] = useState<string | null>(null);
+  const [sortDir, setSortDir] = useState<SortDir>(null);
+  const [visibleColumns, setVisibleColumns] = useState<Set<string>>(
+    () => loadVisibleColumns(STORAGE_KEY, COLUMNS)
+  );
   const [form, setForm] = useState({ name: "", subject_line: "", body: "", type: "", trigger_stage: "", language: "en", active: true, experience_id: "", notes: "" });
 
   function fetchData() {
@@ -39,6 +67,28 @@ export default function EmailTemplatesPage() {
   }
 
   useEffect(() => { fetchData(); }, []);
+
+  function handleSort(key: string) {
+    if (sortKey === key) {
+      if (sortDir === "asc") setSortDir("desc");
+      else if (sortDir === "desc") { setSortKey(null); setSortDir(null); }
+      else setSortDir("asc");
+    } else {
+      setSortKey(key);
+      setSortDir("asc");
+    }
+  }
+
+  const sorted = sortKey && sortDir
+    ? [...templates].sort((a, b) => {
+        let aVal: unknown;
+        let bVal: unknown;
+        if (sortKey === "subject") { aVal = a.subject_line; bVal = b.subject_line; }
+        else if (sortKey === "active") { aVal = a.active; bVal = b.active; }
+        else { aVal = a[sortKey as keyof EmailTemplate]; bVal = b[sortKey as keyof EmailTemplate]; }
+        return compareValues(aVal, bVal, sortDir);
+      })
+    : templates;
 
   function startEdit(t: EmailTemplate) {
     setEditId(t.id);
@@ -64,6 +114,7 @@ export default function EmailTemplatesPage() {
 
   const inputClass = "w-full px-3 py-2 admin-input border rounded-lg text-sm focus:outline-none focus:border-[#0aa3c7] focus:ring-1 focus:ring-[#0aa3c7] transition-colors";
   const labelClass = "block text-xs font-medium admin-muted mb-1";
+  const gridTemplate = buildGridTemplate(COLUMNS, visibleColumns);
 
   return (
     <div>
@@ -72,9 +123,12 @@ export default function EmailTemplatesPage() {
           <h1 className="text-2xl font-bold admin-heading mb-1">Email Templates</h1>
           <p className="text-sm admin-muted">{templates.length} template{templates.length !== 1 ? "s" : ""}</p>
         </div>
-        <button onClick={() => { setShowNew(!showNew); setEditId(null); setForm({ name: "", subject_line: "", body: "", type: "", trigger_stage: "", language: "en", active: true, experience_id: "", notes: "" }); }} className="px-4 py-2 bg-[#0aa3c7] hover:bg-[#0aa3c7]/90 text-white text-sm font-bold rounded-lg transition-colors">
-          New Template
-        </button>
+        <div className="flex items-center gap-3">
+          <ColumnToggle columns={COLUMNS} visible={visibleColumns} onChange={setVisibleColumns} storageKey={STORAGE_KEY} />
+          <button onClick={() => { setShowNew(!showNew); setEditId(null); setForm({ name: "", subject_line: "", body: "", type: "", trigger_stage: "", language: "en", active: true, experience_id: "", notes: "" }); }} className="px-4 py-2 bg-[#0aa3c7] hover:bg-[#0aa3c7]/90 text-white text-sm font-bold rounded-lg transition-colors">
+            New Template
+          </button>
+        </div>
       </div>
 
       {(showNew || editId) && (
@@ -121,28 +175,32 @@ export default function EmailTemplatesPage() {
         <div className="py-16 text-center"><p className="text-sm admin-faint">No templates yet</p></div>
       ) : (
         <div className="rounded-xl overflow-hidden" style={{ border: "1px solid var(--admin-border)" }}>
-          <div className="grid grid-cols-[1fr_180px_120px_60px_60px_50px] gap-3 px-5 py-3 admin-surface" style={{ borderBottom: "1px solid var(--admin-border)" }}>
-            <span className="text-[10px] font-bold tracking-[0.1em] admin-faint uppercase">Name</span>
-            <span className="text-[10px] font-bold tracking-[0.1em] admin-faint uppercase">Subject</span>
-            <span className="text-[10px] font-bold tracking-[0.1em] admin-faint uppercase">Type</span>
-            <span className="text-[10px] font-bold tracking-[0.1em] admin-faint uppercase">Lang</span>
-            <span className="text-[10px] font-bold tracking-[0.1em] admin-faint uppercase">Active</span>
-            <span></span>
+          {/* Header */}
+          <div className="grid gap-3 px-5 py-3 admin-surface" style={{ gridTemplateColumns: gridTemplate, borderBottom: "1px solid var(--admin-border)" }}>
+            {COLUMNS.filter((c) => c.required || visibleColumns.has(c.key)).map((col) =>
+              col.key === "_actions" ? <span key={col.key} /> : (
+                <SortableHeader key={col.key} label={col.label} sortKey={col.key} currentSort={sortKey} currentDir={sortDir} onSort={handleSort} />
+              )
+            )}
           </div>
-          {templates.map((t) => (
-            <div key={t.id} className="grid grid-cols-[1fr_180px_120px_60px_60px_50px] gap-3 px-5 py-3 cursor-pointer transition-colors" style={{ borderBottom: "1px solid var(--admin-border)" }}
+
+          {/* Rows */}
+          {sorted.map((t) => (
+            <div key={t.id} className="grid gap-3 px-5 py-3 cursor-pointer transition-colors" style={{ gridTemplateColumns: gridTemplate, borderBottom: "1px solid var(--admin-border)" }}
               onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = "var(--admin-surface-hover)")}
               onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = "transparent")}
               onClick={() => startEdit(t)}
             >
+              {/* name — required */}
               <div className="min-w-0 self-center">
                 <div className="text-sm font-medium admin-heading truncate">{t.name}</div>
                 {t.trigger_stage && <div className="text-xs admin-faint">{t.trigger_stage}</div>}
               </div>
-              <span className="text-xs admin-muted self-center truncate">{t.subject_line || "—"}</span>
-              <span className="text-xs admin-muted self-center truncate">{t.type || "—"}</span>
-              <span className="text-xs admin-muted self-center uppercase">{t.language || "—"}</span>
-              <span className="self-center">{t.active ? <span className="text-green-400 text-xs">✓</span> : <span className="admin-faint text-xs">—</span>}</span>
+              {visibleColumns.has("subject") && <span className="text-xs admin-muted self-center truncate">{t.subject_line || "—"}</span>}
+              {visibleColumns.has("type") && <span className="text-xs admin-muted self-center truncate">{t.type || "—"}</span>}
+              {visibleColumns.has("language") && <span className="text-xs admin-muted self-center uppercase">{t.language || "—"}</span>}
+              {visibleColumns.has("active") && <span className="self-center">{t.active ? <span className="text-green-400 text-xs">✓</span> : <span className="admin-faint text-xs">—</span>}</span>}
+              {/* _actions — required */}
               <button onClick={(e) => { e.stopPropagation(); handleDelete(t.id); }} className="text-xs admin-faint hover:text-red-400 transition-colors self-center">
                 <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M3 6h18M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a2 2 0 012-2h4a2 2 0 012 2v2" /></svg>
               </button>

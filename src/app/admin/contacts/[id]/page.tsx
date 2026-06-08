@@ -317,12 +317,15 @@ export default function ContactDetailPage({
           />
         </div>
 
-        {/* AI Summary (read-only) */}
+        {/* AI Summary (read-only / auto-generated) */}
         {contact.ai_summary && (
-          <div>
-            <label className={labelClass}>AI Summary <span className="text-[10px] admin-faint">(read-only)</span></label>
+          <div className="rounded-lg p-3 bg-[#0aa3c7]/5" style={{ border: "1px solid rgba(10,163,199,0.15)" }}>
+            <label className={`${labelClass} flex items-center gap-2`}>
+              AI Summary
+              <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium bg-[#0aa3c7]/15 text-[#0aa3c7]">Auto</span>
+            </label>
             <textarea
-              className={`${inputClass} min-h-[80px] resize-y opacity-60`}
+              className={`${inputClass} min-h-[80px] resize-y opacity-70 cursor-default`}
               value={contact.ai_summary}
               readOnly
             />

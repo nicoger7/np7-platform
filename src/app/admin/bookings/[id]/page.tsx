@@ -432,6 +432,32 @@ export default function BookingDetailPage({
             />
           </div>
 
+          {/* Computed: total paid + outstanding */}
+          <div className="grid grid-cols-2 gap-4">
+            <div className="rounded-lg p-3 bg-[#0aa3c7]/5" style={{ border: "1px solid rgba(10,163,199,0.15)" }}>
+              <label className={`${labelClass} flex items-center gap-2`}>
+                Total Paid
+                <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium bg-[#0aa3c7]/15 text-[#0aa3c7]">Auto</span>
+              </label>
+              <input
+                className={`${inputClass} opacity-70 cursor-default`}
+                value={totalPaid > 0 ? `€${totalPaid.toLocaleString()}` : "€0"}
+                readOnly
+              />
+            </div>
+            <div className="rounded-lg p-3 bg-[#0aa3c7]/5" style={{ border: "1px solid rgba(10,163,199,0.15)" }}>
+              <label className={`${labelClass} flex items-center gap-2`}>
+                Outstanding
+                <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium bg-[#0aa3c7]/15 text-[#0aa3c7]">Auto</span>
+              </label>
+              <input
+                className={`${inputClass} opacity-70 cursor-default ${outstanding > 0 ? "text-amber-400" : "text-green-400"}`}
+                value={outstanding > 0 ? `€${outstanding.toLocaleString()} owed` : booking.agreed_price ? "✓ Fully paid" : "—"}
+                readOnly
+              />
+            </div>
+          </div>
+
           {/* Travel */}
           <div className="grid grid-cols-2 gap-4">
             <div>

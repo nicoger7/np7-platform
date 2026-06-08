@@ -2,6 +2,8 @@
 
 import { useState, useEffect } from "react";
 import Link from "next/link";
+import { SortableHeader } from "@/components/sortable-header";
+import { ColumnToggle, ColumnDef, buildGridTemplate, loadVisibleColumns } from "@/components/column-toggle";
 
 interface Vendor {
   id: string;
@@ -16,11 +18,36 @@ interface Vendor {
 
 const CATEGORIES = ["Hotel", "Transport", "Catering", "Gear", "Photography", "Media", "Other"];
 
+type SortDir = "asc" | "desc" | null;
+
+const COLUMNS: ColumnDef[] = [
+  { key: "name", label: "Name", width: "1fr", required: true },
+  { key: "company", label: "Company", width: "140px" },
+  { key: "email", label: "Email", width: "140px" },
+  { key: "category", label: "Category", width: "100px" },
+  { key: "_actions", label: "", width: "80px", required: true },
+];
+
+const STORAGE_KEY = "np7-vendors-columns";
+
+function compareValues(a: unknown, b: unknown, dir: "asc" | "desc"): number {
+  if (a == null && b == null) return 0;
+  if (a == null) return dir === "asc" ? 1 : -1;
+  if (b == null) return dir === "asc" ? -1 : 1;
+  const cmp = String(a).localeCompare(String(b));
+  return dir === "asc" ? cmp : -cmp;
+}
+
 export default function VendorsPage() {
   const [vendors, setVendors] = useState<Vendor[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
   const [showNew, setShowNew] = useState(false);
+  const [sortKey, setSortKey] = useState<string | null>(null);
+  const [sortDir, setSortDir] = useState<SortDir>(null);
+  const [visibleColumns, setVisibleColumns] = useState<Set<string>>(
+    () => loadVisibleColumns(STORAGE_KEY, COLUMNS)
+  );
   const [form, setForm] = useState({ name: "", email: "", phone: "", company: "", category: "", notes: "" });
 
   function fetchData() {
@@ -36,6 +63,21 @@ export default function VendorsPage() {
     return () => clearTimeout(t);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [search]);
+
+  function handleSort(key: string) {
+    if (sortKey === key) {
+      if (sortDir === "asc") setSortDir("desc");
+      else if (sortDir === "desc") { setSortKey(null); setSortDir(null); }
+      else setSortDir("asc");
+    } else {
+      setSortKey(key);
+      setSortDir("asc");
+    }
+  }
+
+  const sorted = sortKey && sortDir
+    ? [...vendors].sort((a, b) => compareValues(a[sortKey as keyof Vendor], b[sortKey as keyof Vendor], sortDir))
+    : vendors;
 
   async function handleCreate() {
     const res = await fetch("/api/admin/vendors", {
@@ -58,6 +100,7 @@ export default function VendorsPage() {
 
   const inputClass = "w-full px-3 py-2 admin-input border rounded-lg text-sm focus:outline-none focus:border-[#0aa3c7] focus:ring-1 focus:ring-[#0aa3c7] transition-colors";
   const labelClass = "block text-xs font-medium admin-muted mb-1";
+  const gridTemplate = buildGridTemplate(COLUMNS, visibleColumns);
 
   return (
     <div>
@@ -66,9 +109,12 @@ export default function VendorsPage() {
           <h1 className="text-2xl font-bold admin-heading mb-1">Vendors</h1>
           <p className="text-sm admin-muted">{vendors.length} vendor{vendors.length !== 1 ? "s" : ""}</p>
         </div>
-        <button onClick={() => setShowNew(!showNew)} className="px-4 py-2 bg-[#0aa3c7] hover:bg-[#0aa3c7]/90 text-white text-sm font-bold rounded-lg transition-colors">
-          New Vendor
-        </button>
+        <div className="flex items-center gap-3">
+          <ColumnToggle columns={COLUMNS} visible={visibleColumns} onChange={setVisibleColumns} storageKey={STORAGE_KEY} />
+          <button onClick={() => setShowNew(!showNew)} className="px-4 py-2 bg-[#0aa3c7] hover:bg-[#0aa3c7]/90 text-white text-sm font-bold rounded-lg transition-colors">
+            New Vendor
+          </button>
+        </div>
       </div>
 
       <div className="mb-5">
@@ -104,22 +150,25 @@ export default function VendorsPage() {
         <div className="py-16 text-center"><p className="text-sm admin-faint">No vendors yet</p></div>
       ) : (
         <div className="rounded-xl overflow-hidden" style={{ border: "1px solid var(--admin-border)" }}>
-          <div className="grid grid-cols-[1fr_140px_140px_100px_80px] gap-3 px-5 py-3 admin-surface" style={{ borderBottom: "1px solid var(--admin-border)" }}>
-            <span className="text-[10px] font-bold tracking-[0.1em] admin-faint uppercase">Name</span>
-            <span className="text-[10px] font-bold tracking-[0.1em] admin-faint uppercase">Company</span>
-            <span className="text-[10px] font-bold tracking-[0.1em] admin-faint uppercase">Email</span>
-            <span className="text-[10px] font-bold tracking-[0.1em] admin-faint uppercase">Category</span>
-            <span className="text-[10px] font-bold tracking-[0.1em] admin-faint uppercase"></span>
+          {/* Header */}
+          <div className="grid gap-3 px-5 py-3 admin-surface" style={{ gridTemplateColumns: gridTemplate, borderBottom: "1px solid var(--admin-border)" }}>
+            {COLUMNS.filter((c) => c.required || visibleColumns.has(c.key)).map((col) =>
+              col.key === "_actions" ? <span key={col.key} /> : (
+                <SortableHeader key={col.key} label={col.label} sortKey={col.key} currentSort={sortKey} currentDir={sortDir} onSort={handleSort} />
+              )
+            )}
           </div>
-          {vendors.map((v) => (
-            <div key={v.id} className="grid grid-cols-[1fr_140px_140px_100px_80px] gap-3 px-5 py-3 transition-colors" style={{ borderBottom: "1px solid var(--admin-border)" }}
+
+          {/* Rows */}
+          {sorted.map((v) => (
+            <div key={v.id} className="grid gap-3 px-5 py-3 transition-colors" style={{ gridTemplateColumns: gridTemplate, borderBottom: "1px solid var(--admin-border)" }}
               onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = "var(--admin-surface-hover)")}
               onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = "transparent")}
             >
               <Link href={`/admin/vendors/${v.id}`} className="text-sm font-medium admin-heading truncate hover:text-[#0aa3c7] transition-colors">{v.name}</Link>
-              <span className="text-xs admin-muted self-center truncate">{v.company || "—"}</span>
-              <span className="text-xs admin-muted self-center truncate">{v.email || "—"}</span>
-              <span className="text-xs admin-muted self-center">{v.category || "—"}</span>
+              {visibleColumns.has("company") && <span className="text-xs admin-muted self-center truncate">{v.company || "—"}</span>}
+              {visibleColumns.has("email") && <span className="text-xs admin-muted self-center truncate">{v.email || "—"}</span>}
+              {visibleColumns.has("category") && <span className="text-xs admin-muted self-center">{v.category || "—"}</span>}
               <button onClick={() => handleDelete(v.id)} className="text-xs admin-faint hover:text-red-400 transition-colors self-center">
                 <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M3 6h18M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a2 2 0 012-2h4a2 2 0 012 2v2" /></svg>
               </button>

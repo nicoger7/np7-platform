@@ -1,6 +1,8 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { SortableHeader } from "@/components/sortable-header";
+import { ColumnToggle, ColumnDef, buildGridTemplate, loadVisibleColumns } from "@/components/column-toggle";
 
 interface HoursEntry {
   id: string;
@@ -20,9 +22,33 @@ interface Experience { id: string; title: string; }
 
 const CATEGORIES = ["coaching", "planning", "admin", "travel", "content", "other"];
 
+type SortDir = "asc" | "desc" | null;
+
+const COLUMNS: ColumnDef[] = [
+  { key: "date", label: "Date", width: "80px", required: true },
+  { key: "hours", label: "Hrs", width: "50px" },
+  { key: "team_member", label: "Member", width: "120px" },
+  { key: "category", label: "Category", width: "100px" },
+  { key: "description", label: "Description", width: "1fr" },
+  { key: "_actions", label: "", width: "60px", required: true },
+];
+
+const STORAGE_KEY = "np7-hours-log-columns";
+
 function formatDate(d: string | null) {
   if (!d) return "—";
   return new Date(d).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
+}
+
+function compareValues(a: unknown, b: unknown, dir: "asc" | "desc"): number {
+  if (a == null && b == null) return 0;
+  if (a == null) return dir === "asc" ? 1 : -1;
+  if (b == null) return dir === "asc" ? -1 : 1;
+  const aNum = Number(a);
+  const bNum = Number(b);
+  if (!isNaN(aNum) && !isNaN(bNum)) return dir === "asc" ? aNum - bNum : bNum - aNum;
+  const cmp = String(a).localeCompare(String(b));
+  return dir === "asc" ? cmp : -cmp;
 }
 
 export default function HoursLogPage() {
@@ -34,6 +60,11 @@ export default function HoursLogPage() {
   const [filterExp, setFilterExp] = useState("");
   const [showNew, setShowNew] = useState(false);
   const [editId, setEditId] = useState<string | null>(null);
+  const [sortKey, setSortKey] = useState<string | null>(null);
+  const [sortDir, setSortDir] = useState<SortDir>(null);
+  const [visibleColumns, setVisibleColumns] = useState<Set<string>>(
+    () => loadVisibleColumns(STORAGE_KEY, COLUMNS)
+  );
   const [form, setForm] = useState({ date: "", hours: "", category: "", entry: "", employee_id: "", experience_id: "", notes: "" });
 
   function fetchData() {
@@ -54,6 +85,32 @@ export default function HoursLogPage() {
   }
 
   useEffect(() => { fetchData(); }, [filterEmployee, filterExp]);
+
+  function handleSort(key: string) {
+    if (sortKey === key) {
+      if (sortDir === "asc") setSortDir("desc");
+      else if (sortDir === "desc") { setSortKey(null); setSortDir(null); }
+      else setSortDir("asc");
+    } else {
+      setSortKey(key);
+      setSortDir("asc");
+    }
+  }
+
+  const sorted = sortKey && sortDir
+    ? [...entries].sort((a, b) => {
+        let aVal: unknown;
+        let bVal: unknown;
+        if (sortKey === "team_member") {
+          aVal = a.team_members?.name;
+          bVal = b.team_members?.name;
+        } else {
+          aVal = a[sortKey as keyof HoursEntry];
+          bVal = b[sortKey as keyof HoursEntry];
+        }
+        return compareValues(aVal, bVal, sortDir);
+      })
+    : entries;
 
   function startEdit(e: HoursEntry) {
     setEditId(e.id);
@@ -80,6 +137,7 @@ export default function HoursLogPage() {
   const totalHours = entries.reduce((s, e) => s + Number(e.hours || 0), 0);
   const inputClass = "w-full px-3 py-2 admin-input border rounded-lg text-sm focus:outline-none focus:border-[#0aa3c7] focus:ring-1 focus:ring-[#0aa3c7] transition-colors";
   const labelClass = "block text-xs font-medium admin-muted mb-1";
+  const gridTemplate = buildGridTemplate(COLUMNS, visibleColumns);
 
   return (
     <div>
@@ -88,9 +146,12 @@ export default function HoursLogPage() {
           <h1 className="text-2xl font-bold admin-heading mb-1">Hours Log</h1>
           <p className="text-sm admin-muted">{entries.length} entries · {totalHours.toFixed(1)} total hours</p>
         </div>
-        <button onClick={() => { setShowNew(!showNew); setEditId(null); setForm({ date: "", hours: "", category: "", entry: "", employee_id: "", experience_id: "", notes: "" }); }} className="px-4 py-2 bg-[#0aa3c7] hover:bg-[#0aa3c7]/90 text-white text-sm font-bold rounded-lg transition-colors">
-          Log Hours
-        </button>
+        <div className="flex items-center gap-3">
+          <ColumnToggle columns={COLUMNS} visible={visibleColumns} onChange={setVisibleColumns} storageKey={STORAGE_KEY} />
+          <button onClick={() => { setShowNew(!showNew); setEditId(null); setForm({ date: "", hours: "", category: "", entry: "", employee_id: "", experience_id: "", notes: "" }); }} className="px-4 py-2 bg-[#0aa3c7] hover:bg-[#0aa3c7]/90 text-white text-sm font-bold rounded-lg transition-colors">
+            Log Hours
+          </button>
+        </div>
       </div>
 
       <div className="flex gap-3 mb-5">
@@ -145,25 +206,37 @@ export default function HoursLogPage() {
         <div className="py-16 text-center"><p className="text-sm admin-faint">No hours logged</p></div>
       ) : (
         <div className="rounded-xl overflow-hidden" style={{ border: "1px solid var(--admin-border)" }}>
-          <div className="grid grid-cols-[80px_50px_120px_100px_1fr_60px] gap-3 px-5 py-3 admin-surface" style={{ borderBottom: "1px solid var(--admin-border)" }}>
-            <span className="text-[10px] font-bold tracking-[0.1em] admin-faint uppercase">Date</span>
-            <span className="text-[10px] font-bold tracking-[0.1em] admin-faint uppercase">Hrs</span>
-            <span className="text-[10px] font-bold tracking-[0.1em] admin-faint uppercase">Member</span>
-            <span className="text-[10px] font-bold tracking-[0.1em] admin-faint uppercase">Category</span>
-            <span className="text-[10px] font-bold tracking-[0.1em] admin-faint uppercase">Description</span>
-            <span></span>
+          {/* Header */}
+          <div className="grid gap-3 px-5 py-3 admin-surface" style={{ gridTemplateColumns: gridTemplate, borderBottom: "1px solid var(--admin-border)" }}>
+            {COLUMNS.filter((c) => c.required || visibleColumns.has(c.key)).map((col) =>
+              col.key === "_actions" ? <span key={col.key} /> : (
+                <SortableHeader key={col.key} label={col.label} sortKey={col.key} currentSort={sortKey} currentDir={sortDir} onSort={handleSort} />
+              )
+            )}
           </div>
-          {entries.map((e) => (
-            <div key={e.id} className="grid grid-cols-[80px_50px_120px_100px_1fr_60px] gap-3 px-5 py-3 cursor-pointer transition-colors" style={{ borderBottom: "1px solid var(--admin-border)" }}
+
+          {/* Rows */}
+          {sorted.map((e) => (
+            <div key={e.id} className="grid gap-3 px-5 py-3 cursor-pointer transition-colors" style={{ gridTemplateColumns: gridTemplate, borderBottom: "1px solid var(--admin-border)" }}
               onMouseEnter={(ev) => (ev.currentTarget.style.backgroundColor = "var(--admin-surface-hover)")}
               onMouseLeave={(ev) => (ev.currentTarget.style.backgroundColor = "transparent")}
               onClick={() => startEdit(e)}
             >
+              {/* date — required */}
               <span className="text-xs admin-muted self-center">{formatDate(e.date)}</span>
-              <span className="text-xs font-medium admin-heading self-center">{e.hours}h</span>
-              <span className="text-xs admin-muted self-center truncate">{e.team_members?.name || "—"}</span>
-              <span className="text-xs admin-muted self-center capitalize">{e.category || "—"}</span>
-              <span className="text-xs admin-faint self-center truncate">{e.entry || e.exp_experiences?.title || "—"}</span>
+              {visibleColumns.has("hours") && (
+                <span className="text-xs font-medium admin-heading self-center">{e.hours}h</span>
+              )}
+              {visibleColumns.has("team_member") && (
+                <span className="text-xs admin-muted self-center truncate">{e.team_members?.name || "—"}</span>
+              )}
+              {visibleColumns.has("category") && (
+                <span className="text-xs admin-muted self-center capitalize">{e.category || "—"}</span>
+              )}
+              {visibleColumns.has("description") && (
+                <span className="text-xs admin-faint self-center truncate">{e.entry || e.exp_experiences?.title || "—"}</span>
+              )}
+              {/* _actions — required */}
               <button onClick={(ev) => { ev.stopPropagation(); handleDelete(e.id); }} className="text-xs admin-faint hover:text-red-400 transition-colors self-center">
                 <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M3 6h18M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a2 2 0 012-2h4a2 2 0 012 2v2" /></svg>
               </button>

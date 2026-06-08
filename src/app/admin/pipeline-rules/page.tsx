@@ -1,6 +1,8 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { SortableHeader } from "@/components/sortable-header";
+import { ColumnToggle, ColumnDef, buildGridTemplate, loadVisibleColumns } from "@/components/column-toggle";
 
 interface PipelineRule {
   id: string;
@@ -17,12 +19,41 @@ interface PipelineRule {
 
 interface Experience { id: string; title: string; }
 
+type SortDir = "asc" | "desc" | null;
+
+const COLUMNS: ColumnDef[] = [
+  { key: "name", label: "Name", width: "1fr", required: true },
+  { key: "trigger_stage", label: "Trigger", width: "140px" },
+  { key: "action", label: "Action", width: "120px" },
+  { key: "days_after_trigger", label: "Delay", width: "60px" },
+  { key: "active", label: "Active", width: "60px" },
+  { key: "_actions", label: "", width: "50px", required: true },
+];
+
+const STORAGE_KEY = "np7-pipeline-rules-columns";
+
+function compareValues(a: unknown, b: unknown, dir: "asc" | "desc"): number {
+  if (a == null && b == null) return 0;
+  if (a == null) return dir === "asc" ? 1 : -1;
+  if (b == null) return dir === "asc" ? -1 : 1;
+  const aNum = Number(a);
+  const bNum = Number(b);
+  if (!isNaN(aNum) && !isNaN(bNum)) return dir === "asc" ? aNum - bNum : bNum - aNum;
+  const cmp = String(a).localeCompare(String(b));
+  return dir === "asc" ? cmp : -cmp;
+}
+
 export default function PipelineRulesPage() {
   const [rules, setRules] = useState<PipelineRule[]>([]);
   const [experiences, setExperiences] = useState<Experience[]>([]);
   const [loading, setLoading] = useState(true);
   const [showNew, setShowNew] = useState(false);
   const [editId, setEditId] = useState<string | null>(null);
+  const [sortKey, setSortKey] = useState<string | null>(null);
+  const [sortDir, setSortDir] = useState<SortDir>(null);
+  const [visibleColumns, setVisibleColumns] = useState<Set<string>>(
+    () => loadVisibleColumns(STORAGE_KEY, COLUMNS)
+  );
   const [form, setForm] = useState({ name: "", trigger: "", type: "", action: "", experience_id: "", days_after_trigger: "", active: true, notes: "" });
 
   function fetchData() {
@@ -37,6 +68,27 @@ export default function PipelineRulesPage() {
   }
 
   useEffect(() => { fetchData(); }, []);
+
+  function handleSort(key: string) {
+    if (sortKey === key) {
+      if (sortDir === "asc") setSortDir("desc");
+      else if (sortDir === "desc") { setSortKey(null); setSortDir(null); }
+      else setSortDir("asc");
+    } else {
+      setSortKey(key);
+      setSortDir("asc");
+    }
+  }
+
+  const sorted = sortKey && sortDir
+    ? [...rules].sort((a, b) => {
+        let aVal: unknown;
+        let bVal: unknown;
+        if (sortKey === "trigger_stage") { aVal = a.trigger; bVal = b.trigger; }
+        else { aVal = a[sortKey as keyof PipelineRule]; bVal = b[sortKey as keyof PipelineRule]; }
+        return compareValues(aVal, bVal, sortDir);
+      })
+    : rules;
 
   function startEdit(r: PipelineRule) {
     setEditId(r.id);
@@ -62,6 +114,7 @@ export default function PipelineRulesPage() {
 
   const inputClass = "w-full px-3 py-2 admin-input border rounded-lg text-sm focus:outline-none focus:border-[#0aa3c7] focus:ring-1 focus:ring-[#0aa3c7] transition-colors";
   const labelClass = "block text-xs font-medium admin-muted mb-1";
+  const gridTemplate = buildGridTemplate(COLUMNS, visibleColumns);
 
   return (
     <div>
@@ -70,9 +123,12 @@ export default function PipelineRulesPage() {
           <h1 className="text-2xl font-bold admin-heading mb-1">Pipeline Rules</h1>
           <p className="text-sm admin-muted">{rules.length} rule{rules.length !== 1 ? "s" : ""}</p>
         </div>
-        <button onClick={() => { setShowNew(!showNew); setEditId(null); setForm({ name: "", trigger: "", type: "", action: "", experience_id: "", days_after_trigger: "", active: true, notes: "" }); }} className="px-4 py-2 bg-[#0aa3c7] hover:bg-[#0aa3c7]/90 text-white text-sm font-bold rounded-lg transition-colors">
-          New Rule
-        </button>
+        <div className="flex items-center gap-3">
+          <ColumnToggle columns={COLUMNS} visible={visibleColumns} onChange={setVisibleColumns} storageKey={STORAGE_KEY} />
+          <button onClick={() => { setShowNew(!showNew); setEditId(null); setForm({ name: "", trigger: "", type: "", action: "", experience_id: "", days_after_trigger: "", active: true, notes: "" }); }} className="px-4 py-2 bg-[#0aa3c7] hover:bg-[#0aa3c7]/90 text-white text-sm font-bold rounded-lg transition-colors">
+            New Rule
+          </button>
+        </div>
       </div>
 
       {(showNew || editId) && (
@@ -111,28 +167,32 @@ export default function PipelineRulesPage() {
         <div className="py-16 text-center"><p className="text-sm admin-faint">No pipeline rules yet</p></div>
       ) : (
         <div className="rounded-xl overflow-hidden" style={{ border: "1px solid var(--admin-border)" }}>
-          <div className="grid grid-cols-[1fr_140px_120px_60px_60px_50px] gap-3 px-5 py-3 admin-surface" style={{ borderBottom: "1px solid var(--admin-border)" }}>
-            <span className="text-[10px] font-bold tracking-[0.1em] admin-faint uppercase">Name</span>
-            <span className="text-[10px] font-bold tracking-[0.1em] admin-faint uppercase">Trigger</span>
-            <span className="text-[10px] font-bold tracking-[0.1em] admin-faint uppercase">Action</span>
-            <span className="text-[10px] font-bold tracking-[0.1em] admin-faint uppercase">Delay</span>
-            <span className="text-[10px] font-bold tracking-[0.1em] admin-faint uppercase">Active</span>
-            <span></span>
+          {/* Header */}
+          <div className="grid gap-3 px-5 py-3 admin-surface" style={{ gridTemplateColumns: gridTemplate, borderBottom: "1px solid var(--admin-border)" }}>
+            {COLUMNS.filter((c) => c.required || visibleColumns.has(c.key)).map((col) =>
+              col.key === "_actions" ? <span key={col.key} /> : (
+                <SortableHeader key={col.key} label={col.label} sortKey={col.key} currentSort={sortKey} currentDir={sortDir} onSort={handleSort} />
+              )
+            )}
           </div>
-          {rules.map((r) => (
-            <div key={r.id} className="grid grid-cols-[1fr_140px_120px_60px_60px_50px] gap-3 px-5 py-3 cursor-pointer transition-colors" style={{ borderBottom: "1px solid var(--admin-border)" }}
+
+          {/* Rows */}
+          {sorted.map((r) => (
+            <div key={r.id} className="grid gap-3 px-5 py-3 cursor-pointer transition-colors" style={{ gridTemplateColumns: gridTemplate, borderBottom: "1px solid var(--admin-border)" }}
               onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = "var(--admin-surface-hover)")}
               onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = "transparent")}
               onClick={() => startEdit(r)}
             >
+              {/* name — required */}
               <div className="min-w-0 self-center">
                 <div className="text-sm font-medium admin-heading truncate">{r.name}</div>
                 {r.exp_experiences && <div className="text-xs admin-faint truncate">{r.exp_experiences.title}</div>}
               </div>
-              <span className="text-xs admin-muted self-center truncate">{r.trigger || "—"}</span>
-              <span className="text-xs admin-muted self-center truncate">{r.action || r.type || "—"}</span>
-              <span className="text-xs admin-muted self-center">{r.days_after_trigger != null ? `${r.days_after_trigger}d` : "—"}</span>
-              <span className="self-center">{r.active ? <span className="text-green-400 text-xs">✓</span> : <span className="admin-faint text-xs">—</span>}</span>
+              {visibleColumns.has("trigger_stage") && <span className="text-xs admin-muted self-center truncate">{r.trigger || "—"}</span>}
+              {visibleColumns.has("action") && <span className="text-xs admin-muted self-center truncate">{r.action || r.type || "—"}</span>}
+              {visibleColumns.has("days_after_trigger") && <span className="text-xs admin-muted self-center">{r.days_after_trigger != null ? `${r.days_after_trigger}d` : "—"}</span>}
+              {visibleColumns.has("active") && <span className="self-center">{r.active ? <span className="text-green-400 text-xs">✓</span> : <span className="admin-faint text-xs">—</span>}</span>}
+              {/* _actions — required */}
               <button onClick={(e) => { e.stopPropagation(); handleDelete(r.id); }} className="text-xs admin-faint hover:text-red-400 transition-colors self-center">
                 <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M3 6h18M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a2 2 0 012-2h4a2 2 0 012 2v2" /></svg>
               </button>

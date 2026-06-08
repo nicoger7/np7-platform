@@ -1,6 +1,8 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { SortableHeader } from "@/components/sortable-header";
+import { ColumnToggle, ColumnDef, buildGridTemplate, loadVisibleColumns } from "@/components/column-toggle";
 
 interface Scenario {
   id: string;
@@ -16,12 +18,41 @@ interface Scenario {
 
 interface Experience { id: string; title: string; }
 
+type SortDir = "asc" | "desc" | null;
+
+const COLUMNS: ColumnDef[] = [
+  { key: "name", label: "Name", width: "1fr", required: true },
+  { key: "experience", label: "Experience", width: "160px" },
+  { key: "projected_revenue", label: "Revenue", width: "100px" },
+  { key: "projected_costs", label: "Costs", width: "100px" },
+  { key: "projected_profit", label: "Profit", width: "100px" },
+  { key: "_actions", label: "", width: "60px", required: true },
+];
+
+const STORAGE_KEY = "np7-scenario-planner-columns";
+
+function compareValues(a: unknown, b: unknown, dir: "asc" | "desc"): number {
+  if (a == null && b == null) return 0;
+  if (a == null) return dir === "asc" ? 1 : -1;
+  if (b == null) return dir === "asc" ? -1 : 1;
+  const aNum = Number(a);
+  const bNum = Number(b);
+  if (!isNaN(aNum) && !isNaN(bNum)) return dir === "asc" ? aNum - bNum : bNum - aNum;
+  const cmp = String(a).localeCompare(String(b));
+  return dir === "asc" ? cmp : -cmp;
+}
+
 export default function ScenarioPlannerPage() {
   const [scenarios, setScenarios] = useState<Scenario[]>([]);
   const [experiences, setExperiences] = useState<Experience[]>([]);
   const [loading, setLoading] = useState(true);
   const [showNew, setShowNew] = useState(false);
   const [editId, setEditId] = useState<string | null>(null);
+  const [sortKey, setSortKey] = useState<string | null>(null);
+  const [sortDir, setSortDir] = useState<SortDir>(null);
+  const [visibleColumns, setVisibleColumns] = useState<Set<string>>(
+    () => loadVisibleColumns(STORAGE_KEY, COLUMNS)
+  );
   const [form, setForm] = useState({ name: "", experience_id: "", assumptions: "", projected_revenue: "", projected_costs: "", projected_profit: "", notes: "" });
 
   function fetchData() {
@@ -36,6 +67,27 @@ export default function ScenarioPlannerPage() {
   }
 
   useEffect(() => { fetchData(); }, []);
+
+  function handleSort(key: string) {
+    if (sortKey === key) {
+      if (sortDir === "asc") setSortDir("desc");
+      else if (sortDir === "desc") { setSortKey(null); setSortDir(null); }
+      else setSortDir("asc");
+    } else {
+      setSortKey(key);
+      setSortDir("asc");
+    }
+  }
+
+  const sorted = sortKey && sortDir
+    ? [...scenarios].sort((a, b) => {
+        let aVal: unknown;
+        let bVal: unknown;
+        if (sortKey === "experience") { aVal = a.exp_experiences?.title; bVal = b.exp_experiences?.title; }
+        else { aVal = a[sortKey as keyof Scenario]; bVal = b[sortKey as keyof Scenario]; }
+        return compareValues(aVal, bVal, sortDir);
+      })
+    : scenarios;
 
   function startEdit(s: Scenario) {
     setEditId(s.id);
@@ -67,6 +119,7 @@ export default function ScenarioPlannerPage() {
 
   const inputClass = "w-full px-3 py-2 admin-input border rounded-lg text-sm focus:outline-none focus:border-[#0aa3c7] focus:ring-1 focus:ring-[#0aa3c7] transition-colors";
   const labelClass = "block text-xs font-medium admin-muted mb-1";
+  const gridTemplate = buildGridTemplate(COLUMNS, visibleColumns);
 
   const profit = (s: Scenario) => {
     if (s.projected_revenue && s.projected_costs) return Number(s.projected_revenue) - Number(s.projected_costs);
@@ -80,9 +133,12 @@ export default function ScenarioPlannerPage() {
           <h1 className="text-2xl font-bold admin-heading mb-1">Scenario Planner</h1>
           <p className="text-sm admin-muted">{scenarios.length} scenario{scenarios.length !== 1 ? "s" : ""}</p>
         </div>
-        <button onClick={() => { setShowNew(!showNew); setEditId(null); setForm({ name: "", experience_id: "", assumptions: "", projected_revenue: "", projected_costs: "", projected_profit: "", notes: "" }); }} className="px-4 py-2 bg-[#0aa3c7] hover:bg-[#0aa3c7]/90 text-white text-sm font-bold rounded-lg transition-colors">
-          New Scenario
-        </button>
+        <div className="flex items-center gap-3">
+          <ColumnToggle columns={COLUMNS} visible={visibleColumns} onChange={setVisibleColumns} storageKey={STORAGE_KEY} />
+          <button onClick={() => { setShowNew(!showNew); setEditId(null); setForm({ name: "", experience_id: "", assumptions: "", projected_revenue: "", projected_costs: "", projected_profit: "", notes: "" }); }} className="px-4 py-2 bg-[#0aa3c7] hover:bg-[#0aa3c7]/90 text-white text-sm font-bold rounded-lg transition-colors">
+            New Scenario
+          </button>
+        </div>
       </div>
 
       {(showNew || editId) && (
@@ -117,30 +173,36 @@ export default function ScenarioPlannerPage() {
         <div className="py-16 text-center"><p className="text-sm admin-faint">No scenarios yet</p></div>
       ) : (
         <div className="rounded-xl overflow-hidden" style={{ border: "1px solid var(--admin-border)" }}>
-          <div className="grid grid-cols-[1fr_160px_100px_100px_100px_60px] gap-3 px-5 py-3 admin-surface" style={{ borderBottom: "1px solid var(--admin-border)" }}>
-            <span className="text-[10px] font-bold tracking-[0.1em] admin-faint uppercase">Name</span>
-            <span className="text-[10px] font-bold tracking-[0.1em] admin-faint uppercase">Experience</span>
-            <span className="text-[10px] font-bold tracking-[0.1em] admin-faint uppercase">Revenue</span>
-            <span className="text-[10px] font-bold tracking-[0.1em] admin-faint uppercase">Costs</span>
-            <span className="text-[10px] font-bold tracking-[0.1em] admin-faint uppercase">Profit</span>
-            <span></span>
+          {/* Header */}
+          <div className="grid gap-3 px-5 py-3 admin-surface" style={{ gridTemplateColumns: gridTemplate, borderBottom: "1px solid var(--admin-border)" }}>
+            {COLUMNS.filter((c) => c.required || visibleColumns.has(c.key)).map((col) =>
+              col.key === "_actions" ? <span key={col.key} /> : (
+                <SortableHeader key={col.key} label={col.label} sortKey={col.key} currentSort={sortKey} currentDir={sortDir} onSort={handleSort} />
+              )
+            )}
           </div>
-          {scenarios.map((s) => {
+
+          {/* Rows */}
+          {sorted.map((s) => {
             const p = profit(s);
             return (
-              <div key={s.id} className="grid grid-cols-[1fr_160px_100px_100px_100px_60px] gap-3 px-5 py-3 cursor-pointer transition-colors" style={{ borderBottom: "1px solid var(--admin-border)" }}
+              <div key={s.id} className="grid gap-3 px-5 py-3 cursor-pointer transition-colors" style={{ gridTemplateColumns: gridTemplate, borderBottom: "1px solid var(--admin-border)" }}
                 onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = "var(--admin-surface-hover)")}
                 onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = "transparent")}
                 onClick={() => startEdit(s)}
               >
+                {/* name — required */}
                 <div className="min-w-0 self-center">
                   <div className="text-sm font-medium admin-heading truncate">{s.name}</div>
                   {s.assumptions && <div className="text-xs admin-faint truncate">{s.assumptions}</div>}
                 </div>
-                <span className="text-xs admin-muted self-center truncate">{s.exp_experiences?.title || "—"}</span>
-                <span className="text-xs admin-muted self-center">{s.projected_revenue ? `€${Number(s.projected_revenue).toLocaleString()}` : "—"}</span>
-                <span className="text-xs admin-muted self-center">{s.projected_costs ? `€${Number(s.projected_costs).toLocaleString()}` : "—"}</span>
-                <span className={`text-xs self-center font-medium ${p && p > 0 ? "text-green-400" : p && p < 0 ? "text-red-400" : "admin-muted"}`}>{p !== null && p !== undefined ? `€${Number(p).toLocaleString()}` : "—"}</span>
+                {visibleColumns.has("experience") && <span className="text-xs admin-muted self-center truncate">{s.exp_experiences?.title || "—"}</span>}
+                {visibleColumns.has("projected_revenue") && <span className="text-xs admin-muted self-center">{s.projected_revenue ? `€${Number(s.projected_revenue).toLocaleString()}` : "—"}</span>}
+                {visibleColumns.has("projected_costs") && <span className="text-xs admin-muted self-center">{s.projected_costs ? `€${Number(s.projected_costs).toLocaleString()}` : "—"}</span>}
+                {visibleColumns.has("projected_profit") && (
+                  <span className={`text-xs self-center font-medium ${p && p > 0 ? "text-green-400" : p && p < 0 ? "text-red-400" : "admin-muted"}`}>{p !== null && p !== undefined ? `€${Number(p).toLocaleString()}` : "—"}</span>
+                )}
+                {/* _actions — required */}
                 <button onClick={(e) => { e.stopPropagation(); handleDelete(s.id); }} className="text-xs admin-faint hover:text-red-400 transition-colors self-center">
                   <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M3 6h18M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a2 2 0 012-2h4a2 2 0 012 2v2" /></svg>
                 </button>

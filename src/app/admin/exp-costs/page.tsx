@@ -1,6 +1,8 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { SortableHeader } from "@/components/sortable-header";
+import { ColumnToggle, ColumnDef, buildGridTemplate, loadVisibleColumns } from "@/components/column-toggle";
 
 interface ExpCost {
   id: string;
@@ -22,10 +24,43 @@ interface Experience {
 
 const STATUSES = ["confirmed", "estimate", "cancelled", "unlisted"];
 
+type SortDir = "asc" | "desc" | null;
+
+const COLUMNS: ColumnDef[] = [
+  { key: "item", label: "Item", width: "1fr", required: true },
+  { key: "experience", label: "Experience", width: "160px" },
+  { key: "estimated_amount", label: "Estimated", width: "100px" },
+  { key: "actual_amount", label: "Actual", width: "100px" },
+  { key: "status", label: "Status", width: "80px" },
+  { key: "_actions", label: "", width: "80px", required: true },
+];
+
+const STORAGE_KEY = "np7-exp-costs-columns";
+
 function formatDate(d: string | null) {
   if (!d) return "—";
   return new Date(d).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
 }
+
+function compareValues(a: unknown, b: unknown, dir: "asc" | "desc"): number {
+  if (a == null && b == null) return 0;
+  if (a == null) return dir === "asc" ? 1 : -1;
+  if (b == null) return dir === "asc" ? -1 : 1;
+  const aNum = Number(a);
+  const bNum = Number(b);
+  if (!isNaN(aNum) && !isNaN(bNum)) return dir === "asc" ? aNum - bNum : bNum - aNum;
+  const cmp = String(a).localeCompare(String(b));
+  return dir === "asc" ? cmp : -cmp;
+}
+
+const statusColor = (s: string | null) => {
+  switch (s) {
+    case "confirmed": return "bg-green-500/15 text-green-400";
+    case "cancelled": return "bg-red-500/15 text-red-400";
+    case "unlisted": return "bg-gray-500/15 text-gray-400";
+    default: return "bg-amber-500/15 text-amber-400";
+  }
+};
 
 export default function ExpCostsPage() {
   const [costs, setCosts] = useState<ExpCost[]>([]);
@@ -34,6 +69,11 @@ export default function ExpCostsPage() {
   const [filterExp, setFilterExp] = useState("");
   const [showNew, setShowNew] = useState(false);
   const [editId, setEditId] = useState<string | null>(null);
+  const [sortKey, setSortKey] = useState<string | null>(null);
+  const [sortDir, setSortDir] = useState<SortDir>(null);
+  const [visibleColumns, setVisibleColumns] = useState<Set<string>>(
+    () => loadVisibleColumns(STORAGE_KEY, COLUMNS)
+  );
   const [form, setForm] = useState({ item: "", experience_id: "", estimated_amount: "", actual_amount: "", status: "estimate", date: "", notes: "" });
 
   function fetchData() {
@@ -49,6 +89,32 @@ export default function ExpCostsPage() {
   }
 
   useEffect(() => { fetchData(); }, [filterExp]);
+
+  function handleSort(key: string) {
+    if (sortKey === key) {
+      if (sortDir === "asc") setSortDir("desc");
+      else if (sortDir === "desc") { setSortKey(null); setSortDir(null); }
+      else setSortDir("asc");
+    } else {
+      setSortKey(key);
+      setSortDir("asc");
+    }
+  }
+
+  const sorted = sortKey && sortDir
+    ? [...costs].sort((a, b) => {
+        let aVal: unknown;
+        let bVal: unknown;
+        if (sortKey === "experience") {
+          aVal = a.exp_experiences?.title;
+          bVal = b.exp_experiences?.title;
+        } else {
+          aVal = a[sortKey as keyof ExpCost];
+          bVal = b[sortKey as keyof ExpCost];
+        }
+        return compareValues(aVal, bVal, sortDir);
+      })
+    : costs;
 
   function startEdit(c: ExpCost) {
     setEditId(c.id);
@@ -75,15 +141,7 @@ export default function ExpCostsPage() {
 
   const inputClass = "w-full px-3 py-2 admin-input border rounded-lg text-sm focus:outline-none focus:border-[#0aa3c7] focus:ring-1 focus:ring-[#0aa3c7] transition-colors";
   const labelClass = "block text-xs font-medium admin-muted mb-1";
-
-  const statusColor = (s: string | null) => {
-    switch (s) {
-      case "confirmed": return "bg-green-500/15 text-green-400";
-      case "cancelled": return "bg-red-500/15 text-red-400";
-      case "unlisted": return "bg-gray-500/15 text-gray-400";
-      default: return "bg-amber-500/15 text-amber-400";
-    }
-  };
+  const gridTemplate = buildGridTemplate(COLUMNS, visibleColumns);
 
   return (
     <div>
@@ -92,9 +150,12 @@ export default function ExpCostsPage() {
           <h1 className="text-2xl font-bold admin-heading mb-1">Experience Costs</h1>
           <p className="text-sm admin-muted">{costs.length} cost item{costs.length !== 1 ? "s" : ""}</p>
         </div>
-        <button onClick={() => { setShowNew(!showNew); setEditId(null); setForm({ item: "", experience_id: "", estimated_amount: "", actual_amount: "", status: "estimate", date: "", notes: "" }); }} className="px-4 py-2 bg-[#0aa3c7] hover:bg-[#0aa3c7]/90 text-white text-sm font-bold rounded-lg transition-colors">
-          New Cost
-        </button>
+        <div className="flex items-center gap-3">
+          <ColumnToggle columns={COLUMNS} visible={visibleColumns} onChange={setVisibleColumns} storageKey={STORAGE_KEY} />
+          <button onClick={() => { setShowNew(!showNew); setEditId(null); setForm({ item: "", experience_id: "", estimated_amount: "", actual_amount: "", status: "estimate", date: "", notes: "" }); }} className="px-4 py-2 bg-[#0aa3c7] hover:bg-[#0aa3c7]/90 text-white text-sm font-bold rounded-lg transition-colors">
+            New Cost
+          </button>
+        </div>
       </div>
 
       <div className="flex gap-3 mb-5">
@@ -139,30 +200,42 @@ export default function ExpCostsPage() {
         <div className="py-16 text-center"><p className="text-sm admin-faint">No costs yet</p></div>
       ) : (
         <div className="rounded-xl overflow-hidden" style={{ border: "1px solid var(--admin-border)" }}>
-          <div className="grid grid-cols-[1fr_160px_100px_100px_80px_80px] gap-3 px-5 py-3 admin-surface" style={{ borderBottom: "1px solid var(--admin-border)" }}>
-            <span className="text-[10px] font-bold tracking-[0.1em] admin-faint uppercase">Item</span>
-            <span className="text-[10px] font-bold tracking-[0.1em] admin-faint uppercase">Experience</span>
-            <span className="text-[10px] font-bold tracking-[0.1em] admin-faint uppercase">Estimated</span>
-            <span className="text-[10px] font-bold tracking-[0.1em] admin-faint uppercase">Actual</span>
-            <span className="text-[10px] font-bold tracking-[0.1em] admin-faint uppercase">Status</span>
-            <span className="text-[10px] font-bold tracking-[0.1em] admin-faint uppercase"></span>
+          {/* Header */}
+          <div className="grid gap-3 px-5 py-3 admin-surface" style={{ gridTemplateColumns: gridTemplate, borderBottom: "1px solid var(--admin-border)" }}>
+            {COLUMNS.filter((c) => c.required || visibleColumns.has(c.key)).map((col) =>
+              col.key === "_actions" ? <span key={col.key} /> : (
+                <SortableHeader key={col.key} label={col.label} sortKey={col.key} currentSort={sortKey} currentDir={sortDir} onSort={handleSort} />
+              )
+            )}
           </div>
-          {costs.map((c) => (
-            <div key={c.id} className="grid grid-cols-[1fr_160px_100px_100px_80px_80px] gap-3 px-5 py-3 cursor-pointer transition-colors" style={{ borderBottom: "1px solid var(--admin-border)" }}
+
+          {/* Rows */}
+          {sorted.map((c) => (
+            <div key={c.id} className="grid gap-3 px-5 py-3 cursor-pointer transition-colors" style={{ gridTemplateColumns: gridTemplate, borderBottom: "1px solid var(--admin-border)" }}
               onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = "var(--admin-surface-hover)")}
               onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = "transparent")}
               onClick={() => startEdit(c)}
             >
+              {/* item — required */}
               <div className="min-w-0">
                 <div className="text-sm font-medium admin-heading truncate">{c.item}</div>
                 {c.date && <div className="text-xs admin-faint">{formatDate(c.date)}</div>}
               </div>
-              <span className="text-xs admin-muted self-center truncate">{c.exp_experiences?.title || "—"}</span>
-              <span className="text-xs admin-muted self-center">{c.estimated_amount ? `€${Number(c.estimated_amount).toLocaleString()}` : "—"}</span>
-              <span className={`text-xs self-center font-medium ${c.actual_amount ? "text-green-400" : "admin-faint"}`}>{c.actual_amount ? `€${Number(c.actual_amount).toLocaleString()}` : "—"}</span>
-              <span className="self-center">
-                <span className={`inline-block px-2 py-0.5 rounded text-[10px] font-bold uppercase ${statusColor(c.status)}`}>{c.status || "—"}</span>
-              </span>
+              {visibleColumns.has("experience") && (
+                <span className="text-xs admin-muted self-center truncate">{c.exp_experiences?.title || "—"}</span>
+              )}
+              {visibleColumns.has("estimated_amount") && (
+                <span className="text-xs admin-muted self-center">{c.estimated_amount ? `€${Number(c.estimated_amount).toLocaleString()}` : "—"}</span>
+              )}
+              {visibleColumns.has("actual_amount") && (
+                <span className={`text-xs self-center font-medium ${c.actual_amount ? "text-green-400" : "admin-faint"}`}>{c.actual_amount ? `€${Number(c.actual_amount).toLocaleString()}` : "—"}</span>
+              )}
+              {visibleColumns.has("status") && (
+                <span className="self-center">
+                  <span className={`inline-block px-2 py-0.5 rounded text-[10px] font-bold uppercase ${statusColor(c.status)}`}>{c.status || "—"}</span>
+                </span>
+              )}
+              {/* _actions — required */}
               <button onClick={(e) => { e.stopPropagation(); handleDelete(c.id); }} className="text-xs admin-faint hover:text-red-400 transition-colors self-center">
                 <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M3 6h18M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a2 2 0 012-2h4a2 2 0 012 2v2" /></svg>
               </button>

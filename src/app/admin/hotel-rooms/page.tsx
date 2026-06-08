@@ -1,6 +1,8 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { SortableHeader } from "@/components/sortable-header";
+import { ColumnToggle, ColumnDef, buildGridTemplate, loadVisibleColumns } from "@/components/column-toggle";
 
 interface HotelRoom {
   id: string;
@@ -30,9 +32,32 @@ interface Experience {
 
 const HOTELS = ["Sorobon", "Wanapa", "Playa Surf", "Hotel Paradiso", "Alacati", "REF", "REF II"];
 
+type SortDir = "asc" | "desc" | null;
+
+// Columns for table header/rows — actions at end is required but empty
+const COLUMNS: ColumnDef[] = [
+  { key: "name", label: "Room", width: "1fr", required: true },
+  { key: "room_type", label: "Type", width: "140px" },
+  { key: "transfer_need", label: "Transfer", width: "70px" },
+  { key: "status", label: "Status", width: "80px" },
+  { key: "guest", label: "Guest", width: "130px" },
+  { key: "check_in", label: "Dates", width: "130px" },
+  { key: "comments", label: "Notes", width: "60px" },
+];
+
+const STORAGE_KEY = "np7-hotel-rooms-columns";
+
 function formatDate(d: string | null) {
   if (!d) return "—";
   return new Date(d).toLocaleDateString("en-US", { month: "short", day: "numeric" });
+}
+
+function compareValues(a: unknown, b: unknown, dir: "asc" | "desc"): number {
+  if (a == null && b == null) return 0;
+  if (a == null) return dir === "asc" ? 1 : -1;
+  if (b == null) return dir === "asc" ? -1 : 1;
+  const cmp = String(a).localeCompare(String(b));
+  return dir === "asc" ? cmp : -cmp;
 }
 
 export default function HotelRoomsPage() {
@@ -42,6 +67,11 @@ export default function HotelRoomsPage() {
   const [filterHotel, setFilterHotel] = useState("");
   const [filterExperience, setFilterExperience] = useState("");
   const [filterStatus, setFilterStatus] = useState("");
+  const [sortKey, setSortKey] = useState<string | null>(null);
+  const [sortDir, setSortDir] = useState<SortDir>(null);
+  const [visibleColumns, setVisibleColumns] = useState<Set<string>>(
+    () => loadVisibleColumns(STORAGE_KEY, COLUMNS)
+  );
 
   useEffect(() => {
     Promise.all([
@@ -54,6 +84,17 @@ export default function HotelRoomsPage() {
     });
   }, []);
 
+  function handleSort(key: string) {
+    if (sortKey === key) {
+      if (sortDir === "asc") setSortDir("desc");
+      else if (sortDir === "desc") { setSortKey(null); setSortDir(null); }
+      else setSortDir("asc");
+    } else {
+      setSortKey(key);
+      setSortDir("asc");
+    }
+  }
+
   const filtered = rooms.filter((r) => {
     if (filterHotel && r.hotel !== filterHotel) return false;
     if (filterExperience && r.experience_id !== filterExperience) return false;
@@ -61,12 +102,24 @@ export default function HotelRoomsPage() {
     return true;
   });
 
+  const sorted = sortKey && sortDir
+    ? [...filtered].sort((a, b) => {
+        let aVal: unknown;
+        let bVal: unknown;
+        if (sortKey === "guest") { aVal = a.booking?.name; bVal = b.booking?.name; }
+        else { aVal = a[sortKey as keyof HotelRoom]; bVal = b[sortKey as keyof HotelRoom]; }
+        return compareValues(aVal, bVal, sortDir);
+      })
+    : filtered;
+
   // Group by hotel
-  const groupedByHotel = filtered.reduce<Record<string, HotelRoom[]>>((acc, room) => {
+  const groupedByHotel = sorted.reduce<Record<string, HotelRoom[]>>((acc, room) => {
     if (!acc[room.hotel]) acc[room.hotel] = [];
     acc[room.hotel].push(room);
     return acc;
   }, {});
+
+  const gridTemplate = buildGridTemplate(COLUMNS, visibleColumns);
 
   return (
     <div>
@@ -77,37 +130,22 @@ export default function HotelRoomsPage() {
             {rooms.length} room{rooms.length !== 1 ? "s" : ""} across {Object.keys(groupedByHotel).length} hotel{Object.keys(groupedByHotel).length !== 1 ? "s" : ""}
           </p>
         </div>
+        <ColumnToggle columns={COLUMNS} visible={visibleColumns} onChange={setVisibleColumns} storageKey={STORAGE_KEY} />
       </div>
 
       {/* Filters */}
       <div className="flex items-center gap-3 mb-5">
-        <select
-          value={filterHotel}
-          onChange={(e) => setFilterHotel(e.target.value)}
-          className="admin-input text-sm px-3 py-1.5 rounded-lg"
-        >
+        <select value={filterHotel} onChange={(e) => setFilterHotel(e.target.value)} className="admin-input text-sm px-3 py-1.5 rounded-lg">
           <option value="">All Hotels</option>
-          {HOTELS.map((h) => (
-            <option key={h} value={h}>{h}</option>
-          ))}
+          {HOTELS.map((h) => <option key={h} value={h}>{h}</option>)}
         </select>
 
-        <select
-          value={filterExperience}
-          onChange={(e) => setFilterExperience(e.target.value)}
-          className="admin-input text-sm px-3 py-1.5 rounded-lg"
-        >
+        <select value={filterExperience} onChange={(e) => setFilterExperience(e.target.value)} className="admin-input text-sm px-3 py-1.5 rounded-lg">
           <option value="">All Experiences</option>
-          {experiences.map((exp) => (
-            <option key={exp.id} value={exp.id}>{exp.title}</option>
-          ))}
+          {experiences.map((exp) => <option key={exp.id} value={exp.id}>{exp.title}</option>)}
         </select>
 
-        <select
-          value={filterStatus}
-          onChange={(e) => setFilterStatus(e.target.value)}
-          className="admin-input text-sm px-3 py-1.5 rounded-lg"
-        >
+        <select value={filterStatus} onChange={(e) => setFilterStatus(e.target.value)} className="admin-input text-sm px-3 py-1.5 rounded-lg">
           <option value="">All Statuses</option>
           <option value="available">Available</option>
           <option value="assigned">Assigned</option>
@@ -115,10 +153,7 @@ export default function HotelRoomsPage() {
         </select>
 
         {(filterHotel || filterExperience || filterStatus) && (
-          <button
-            onClick={() => { setFilterHotel(""); setFilterExperience(""); setFilterStatus(""); }}
-            className="text-xs admin-faint hover:admin-muted transition-colors"
-          >
+          <button onClick={() => { setFilterHotel(""); setFilterExperience(""); setFilterStatus(""); }} className="text-xs admin-faint hover:admin-muted transition-colors">
             Clear filters
           </button>
         )}
@@ -141,57 +176,66 @@ export default function HotelRoomsPage() {
               </div>
 
               <div className="rounded-xl overflow-hidden" style={{ border: "1px solid var(--admin-border)" }}>
-                <div className="grid grid-cols-[1fr_140px_70px_80px_130px_130px_60px] gap-3 px-5 py-3 admin-surface" style={{ borderBottom: "1px solid var(--admin-border)" }}>
-                  <span className="text-[10px] font-bold tracking-[0.1em] admin-faint uppercase">Room</span>
-                  <span className="text-[10px] font-bold tracking-[0.1em] admin-faint uppercase">Type</span>
-                  <span className="text-[10px] font-bold tracking-[0.1em] admin-faint uppercase">Transfer</span>
-                  <span className="text-[10px] font-bold tracking-[0.1em] admin-faint uppercase">Status</span>
-                  <span className="text-[10px] font-bold tracking-[0.1em] admin-faint uppercase">Guest</span>
-                  <span className="text-[10px] font-bold tracking-[0.1em] admin-faint uppercase">Dates</span>
-                  <span className="text-[10px] font-bold tracking-[0.1em] admin-faint uppercase">Notes</span>
+                {/* Header */}
+                <div className="grid gap-3 px-5 py-3 admin-surface" style={{ gridTemplateColumns: gridTemplate, borderBottom: "1px solid var(--admin-border)" }}>
+                  {COLUMNS.filter((c) => c.required || visibleColumns.has(c.key)).map((col) => (
+                    <SortableHeader key={col.key} label={col.label} sortKey={col.key} currentSort={sortKey} currentDir={sortDir} onSort={handleSort} />
+                  ))}
                 </div>
 
+                {/* Rows */}
                 {hotelRooms.map((room) => (
                   <div
                     key={room.id}
-                    className="grid grid-cols-[1fr_140px_70px_80px_130px_130px_60px] gap-3 px-5 py-3"
-                    style={{ borderBottom: "1px solid var(--admin-border)" }}
+                    className="grid gap-3 px-5 py-3"
+                    style={{ gridTemplateColumns: gridTemplate, borderBottom: "1px solid var(--admin-border)" }}
                   >
+                    {/* name — required */}
                     <div className="min-w-0">
                       <div className="text-sm font-medium admin-heading truncate">{room.name}</div>
                       {room.room_number && <div className="text-xs admin-faint">#{room.room_number}</div>}
                     </div>
-                    <span className="text-xs admin-muted self-center truncate">{room.room_type}</span>
-                    <span className="self-center">
-                      {room.transfer_need ? (
-                        <span className="inline-block px-2 py-0.5 rounded text-[10px] font-bold uppercase bg-amber-500/15 text-amber-400">Yes</span>
-                      ) : (
-                        <span className="text-xs admin-faint">—</span>
-                      )}
-                    </span>
-                    <span className="self-center">
-                      <span className={`inline-block px-2 py-0.5 rounded text-[10px] font-bold uppercase ${
-                        room.status === "assigned" ? "bg-blue-500/15 text-blue-400" :
-                        room.status === "held" ? "bg-amber-500/15 text-amber-400" :
-                        "bg-green-500/15 text-green-400"
-                      }`}>
-                        {room.status}
+                    {visibleColumns.has("room_type") && (
+                      <span className="text-xs admin-muted self-center truncate">{room.room_type}</span>
+                    )}
+                    {visibleColumns.has("transfer_need") && (
+                      <span className="self-center">
+                        {room.transfer_need ? (
+                          <span className="inline-block px-2 py-0.5 rounded text-[10px] font-bold uppercase bg-amber-500/15 text-amber-400">Yes</span>
+                        ) : (
+                          <span className="text-xs admin-faint">—</span>
+                        )}
                       </span>
-                    </span>
-                    <div className="self-center min-w-0">
-                      <span className="text-xs admin-muted truncate block">
-                        {room.booking?.name?.split(" — ")[0] || room.booking?.name?.split(" - ")[0] || "—"}
+                    )}
+                    {visibleColumns.has("status") && (
+                      <span className="self-center">
+                        <span className={`inline-block px-2 py-0.5 rounded text-[10px] font-bold uppercase ${
+                          room.status === "assigned" ? "bg-blue-500/15 text-blue-400" :
+                          room.status === "held" ? "bg-amber-500/15 text-amber-400" :
+                          "bg-green-500/15 text-green-400"
+                        }`}>
+                          {room.status}
+                        </span>
                       </span>
-                      {room.partner_tag_along && (
-                        <span className="text-[10px] admin-faint truncate block">+ {room.partner_tag_along}</span>
-                      )}
-                    </div>
-                    <span className="text-xs admin-muted self-center">
-                      {room.check_in ? `${formatDate(room.check_in)} → ${formatDate(room.check_out)}` : "—"}
-                    </span>
-                    <span className="text-xs admin-faint self-center truncate">
-                      {room.comments || "—"}
-                    </span>
+                    )}
+                    {visibleColumns.has("guest") && (
+                      <div className="self-center min-w-0">
+                        <span className="text-xs admin-muted truncate block">
+                          {room.booking?.name?.split(" — ")[0] || room.booking?.name?.split(" - ")[0] || "—"}
+                        </span>
+                        {room.partner_tag_along && (
+                          <span className="text-[10px] admin-faint truncate block">+ {room.partner_tag_along}</span>
+                        )}
+                      </div>
+                    )}
+                    {visibleColumns.has("check_in") && (
+                      <span className="text-xs admin-muted self-center">
+                        {room.check_in ? `${formatDate(room.check_in)} → ${formatDate(room.check_out)}` : "—"}
+                      </span>
+                    )}
+                    {visibleColumns.has("comments") && (
+                      <span className="text-xs admin-faint self-center truncate">{room.comments || "—"}</span>
+                    )}
                   </div>
                 ))}
               </div>

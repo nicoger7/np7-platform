@@ -457,13 +457,16 @@ export default function ExperienceDetailPage({
                 onChange={(e) => update("max_spots", Number(e.target.value))}
               />
             </div>
-            <div>
-              <label className={labelClass}>Spots taken</label>
+            <div className="rounded-lg p-2 bg-[#0aa3c7]/5" style={{ border: "1px solid rgba(10,163,199,0.15)" }}>
+              <label className={`${labelClass} flex items-center gap-2`}>
+                Spots taken
+                <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium bg-[#0aa3c7]/15 text-[#0aa3c7]">Auto</span>
+              </label>
               <input
                 type="number"
-                className={inputClass}
+                className={`${inputClass} opacity-70 cursor-default`}
                 value={exp.spots_taken}
-                onChange={(e) => update("spots_taken", Number(e.target.value))}
+                readOnly
               />
             </div>
           </div>
@@ -712,13 +715,16 @@ export default function ExperienceDetailPage({
                     onChange={(e) => update("price_to", e.target.value ? Number(e.target.value) : null)}
                   />
                 </div>
-                <div>
-                  <label className={labelClass}>Spots Remaining</label>
+                <div className="rounded-lg p-2 bg-[#0aa3c7]/5" style={{ border: "1px solid rgba(10,163,199,0.15)" }}>
+                  <label className={`${labelClass} flex items-center gap-2`}>
+                    Spots Remaining
+                    <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium bg-[#0aa3c7]/15 text-[#0aa3c7]">Auto</span>
+                  </label>
                   <input
                     type="number"
-                    className={inputClass}
+                    className={`${inputClass} opacity-70 cursor-default`}
                     value={exp.spots_remaining ?? ""}
-                    onChange={(e) => update("spots_remaining", e.target.value ? Number(e.target.value) : null)}
+                    readOnly
                   />
                 </div>
               </div>
@@ -754,13 +760,19 @@ export default function ExperienceDetailPage({
                 <label className={labelClass}>Expected Profit</label>
                 <input type="number" className={inputClass} value={exp.expected_profit || ""} onChange={(e) => update("expected_profit", e.target.value ? Number(e.target.value) : null)} />
               </div>
-              <div>
-                <label className={labelClass}>Paid Revenue</label>
-                <input type="number" className={inputClass} value={exp.paid_revenue || ""} onChange={(e) => update("paid_revenue", e.target.value ? Number(e.target.value) : null)} />
+              <div className="rounded-lg p-2 bg-[#0aa3c7]/5" style={{ border: "1px solid rgba(10,163,199,0.15)" }}>
+                <label className={`${labelClass} flex items-center gap-2`}>
+                  Paid Revenue
+                  <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium bg-[#0aa3c7]/15 text-[#0aa3c7]">Auto</span>
+                </label>
+                <input type="number" className={`${inputClass} opacity-70 cursor-default`} value={exp.paid_revenue || ""} readOnly />
               </div>
-              <div>
-                <label className={labelClass}>Paid Profit</label>
-                <input type="number" className={inputClass} value={exp.paid_profit || ""} onChange={(e) => update("paid_profit", e.target.value ? Number(e.target.value) : null)} />
+              <div className="rounded-lg p-2 bg-[#0aa3c7]/5" style={{ border: "1px solid rgba(10,163,199,0.15)" }}>
+                <label className={`${labelClass} flex items-center gap-2`}>
+                  Paid Profit
+                  <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium bg-[#0aa3c7]/15 text-[#0aa3c7]">Auto</span>
+                </label>
+                <input type="number" className={`${inputClass} opacity-70 cursor-default`} value={exp.paid_profit || ""} readOnly />
               </div>
             </div>
           </div>
