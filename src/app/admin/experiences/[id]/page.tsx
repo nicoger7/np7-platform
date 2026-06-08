@@ -9,21 +9,18 @@ interface Experience {
   id: string;
   title: string;
   slug: string;
+  code: string | null;
   location: string;
   description: string;
-  whats_included: string[];
   hero_image: string;
   gallery: string[];
   status: string;
-  currency: string;
   timezone: string;
-  hotel: string | null;
+  hotels: string[] | null;
   airport_code: string | null;
-  whatsapp_group_link: string | null;
   notes: string | null;
   cancellation_policy: string | null;
   active_status: string | null;
-  total_fixed_costs: number | null;
   notion_id: string | null;
 }
 
@@ -33,15 +30,12 @@ interface Edition {
   year: number;
   date_start: string | null;
   date_end: string | null;
-  price_from: number | null;
-  price_to: number | null;
-  deposit: number | null;
+  computed_price_from: number | null;
+  computed_price_to: number | null;
   max_spots: number | null;
   spots_taken: number;
   status: string;
-  coaches: string | null;
   experience_code: string | null;
-  po_code: string | null;
 }
 
 const HOTELS = ["Sorobon", "Wanapa", "Playa Surf", "Hotel Paradiso", "Alacati", "REF", "REF II"];
@@ -54,7 +48,7 @@ function slugify(text: string) {
 }
 
 function formatDateRange(start: string | null, end: string | null) {
-  if (!start) return "—";
+  if (!start) return "Dates TBD";
   const s = new Date(start);
   const e = end ? new Date(end) : null;
   const sMonth = s.toLocaleDateString("en-US", { month: "short" });
@@ -66,23 +60,20 @@ function formatDateRange(start: string | null, end: string | null) {
   return `${sMonth} ${s.getDate()} – ${eMonth} ${e.getDate()}, ${s.getFullYear()}`;
 }
 
-function EditionStatusBadge({ status }: { status: string }) {
-  return (
-    <span
-      className={`inline-block px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-[0.05em] ${
-        status === "published"
-          ? "bg-green-500/15 text-green-400"
-          : status === "archived"
-          ? "bg-red-500/15 text-red-400"
-          : status === "private"
-          ? "bg-purple-500/15 text-purple-400"
-          : "admin-surface admin-muted"
-      }`}
-    >
-      {status}
-    </span>
-  );
+function priceLabel(from: number | null, to: number | null) {
+  if (from == null && to == null) return "Price from packages";
+  if (from != null && to != null && from !== to)
+    return `€${from.toLocaleString()} – €${to.toLocaleString()}`;
+  const v = from ?? to;
+  return `€${Number(v).toLocaleString()}`;
 }
+
+const STATUS_STYLES: Record<string, string> = {
+  published: "bg-green-500/15 text-green-400",
+  archived: "bg-red-500/15 text-red-400",
+  private: "bg-purple-500/15 text-purple-400",
+  draft: "admin-surface admin-muted",
+};
 
 export default function ExperienceDetailPage({
   params,
@@ -91,13 +82,11 @@ export default function ExperienceDetailPage({
 }) {
   const { id } = use(params);
   const router = useRouter();
-  const [tab, setTab] = useState<"details" | "editions">("details");
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
   const [exp, setExp] = useState<Experience | null>(null);
   const [editions, setEditions] = useState<Edition[]>([]);
-  const [includedItem, setIncludedItem] = useState("");
   const [showImagePicker, setShowImagePicker] = useState(false);
 
   useEffect(() => {
@@ -119,21 +108,18 @@ export default function ExperienceDetailPage({
       body: JSON.stringify({
         title: exp.title,
         slug: exp.slug,
+        code: exp.code,
         location: exp.location,
         description: exp.description,
-        whats_included: exp.whats_included,
         hero_image: exp.hero_image,
         gallery: exp.gallery,
         status: exp.status,
-        currency: exp.currency,
         timezone: exp.timezone,
-        hotel: exp.hotel,
+        hotels: exp.hotels,
         airport_code: exp.airport_code,
-        whatsapp_group_link: exp.whatsapp_group_link,
         notes: exp.notes,
         cancellation_policy: exp.cancellation_policy,
         active_status: exp.active_status,
-        total_fixed_costs: exp.total_fixed_costs,
         notion_id: exp.notion_id,
       }),
     });
@@ -167,6 +153,14 @@ export default function ExperienceDetailPage({
     setExp((prev) => (prev ? { ...prev, [field]: value } : prev));
   }
 
+  function toggleHotel(hotel: string) {
+    const current = exp?.hotels || [];
+    const next = current.includes(hotel)
+      ? current.filter((h) => h !== hotel)
+      : [...current, hotel];
+    update("hotels", next);
+  }
+
   if (loading) {
     return <div className="text-sm admin-faint">Loading...</div>;
   }
@@ -175,6 +169,7 @@ export default function ExperienceDetailPage({
     return <div className="text-sm text-red-400">Experience not found</div>;
   }
 
+  const selectedHotels = exp.hotels || [];
   const inputClass =
     "w-full px-4 py-2.5 admin-input border rounded-lg text-sm focus:outline-none focus:border-[#0aa3c7] focus:ring-1 focus:ring-[#0aa3c7] transition-colors";
   const labelClass = "block text-xs font-medium admin-muted mb-1.5";
@@ -193,8 +188,18 @@ export default function ExperienceDetailPage({
             </svg>
           </button>
           <div>
-            <h1 className="text-2xl font-bold admin-heading">{exp.title}</h1>
-            <p className="text-sm admin-muted">{exp.location}{exp.hotel ? ` • ${exp.hotel}` : ""}</p>
+            <div className="flex items-center gap-2">
+              <h1 className="text-2xl font-bold admin-heading">{exp.title}</h1>
+              {exp.code && (
+                <span className="px-2 py-0.5 rounded text-[10px] font-bold tracking-[0.05em] bg-[#0aa3c7]/15 text-[#0aa3c7]">
+                  {exp.code}
+                </span>
+              )}
+            </div>
+            <p className="text-sm admin-muted">
+              {exp.location}
+              {selectedHotels.length > 0 ? ` • ${selectedHotels.join(", ")}` : ""}
+            </p>
           </div>
         </div>
         <div className="flex items-center gap-3">
@@ -204,39 +209,95 @@ export default function ExperienceDetailPage({
           >
             Delete
           </button>
-          {tab === "details" && (
-            <button
-              onClick={handleSave}
-              disabled={saving}
-              className="px-4 py-2 bg-[#0aa3c7] hover:bg-[#0aa3c7]/90 disabled:opacity-50 text-white text-sm font-bold rounded-lg transition-colors"
-            >
-              {saving ? "Saving..." : saved ? "Saved!" : "Save"}
-            </button>
-          )}
+          <button
+            onClick={handleSave}
+            disabled={saving}
+            className="px-4 py-2 bg-[#0aa3c7] hover:bg-[#0aa3c7]/90 disabled:opacity-50 text-white text-sm font-bold rounded-lg transition-colors"
+          >
+            {saving ? "Saving..." : saved ? "Saved!" : "Save"}
+          </button>
         </div>
       </div>
 
-      {/* Tabs */}
-      <div className="flex gap-1 mb-6" style={{ borderBottom: "1px solid var(--admin-border)" }}>
-        {(["details", "editions"] as const).map((t) => (
+      {/* ── Editions (tiles) — first thing you see ── */}
+      <div className="mb-8">
+        <div className="flex items-center justify-between mb-3">
+          <h2 className="text-sm font-bold admin-heading">
+            Editions <span className="admin-faint font-normal">({editions.length})</span>
+          </h2>
+          <p className="text-xs admin-faint">Year-specific instances — dates, spots, pricing, costs</p>
+        </div>
+
+        <div className="grid grid-cols-[repeat(auto-fill,minmax(220px,1fr))] gap-3">
+          {editions.map((ed) => (
+            <Link
+              key={ed.id}
+              href={`/admin/editions/${ed.id}`}
+              className="rounded-xl p-4 transition-all group"
+              style={{ border: "1px solid var(--admin-border)", backgroundColor: "var(--admin-surface)" }}
+              onMouseEnter={(e) => (e.currentTarget.style.borderColor = "var(--admin-text-faint)")}
+              onMouseLeave={(e) => (e.currentTarget.style.borderColor = "var(--admin-border)")}
+            >
+              <div className="flex items-center justify-between mb-3">
+                <span className="text-2xl font-bold admin-heading">{ed.year}</span>
+                <span
+                  className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-[0.05em] ${
+                    STATUS_STYLES[ed.status] || "admin-surface admin-muted"
+                  }`}
+                >
+                  {ed.status}
+                </span>
+              </div>
+              <div className="space-y-1.5">
+                <div className="flex items-center gap-2 text-xs admin-muted">
+                  <svg className="w-3.5 h-3.5 admin-faint" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                    <rect x="3" y="4" width="18" height="18" rx="2" /><path d="M16 2v4M8 2v4M3 10h18" />
+                  </svg>
+                  {formatDateRange(ed.date_start, ed.date_end)}
+                </div>
+                <div className="flex items-center gap-2 text-xs admin-muted">
+                  <svg className="w-3.5 h-3.5 admin-faint" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                    <path d="M12 1v22M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6" />
+                  </svg>
+                  {priceLabel(ed.computed_price_from, ed.computed_price_to)}
+                </div>
+                <div className="flex items-center gap-2 text-xs admin-muted">
+                  <svg className="w-3.5 h-3.5 admin-faint" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                    <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2M9 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8zM23 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75" />
+                  </svg>
+                  {ed.max_spots != null ? `${ed.spots_taken}/${ed.max_spots} spots` : `${ed.spots_taken} booked`}
+                </div>
+              </div>
+              {ed.experience_code && (
+                <div className="mt-3 pt-3 text-[10px] admin-faint font-mono" style={{ borderTop: "1px solid var(--admin-border)" }}>
+                  {ed.experience_code}
+                </div>
+              )}
+            </Link>
+          ))}
+
+          {/* Add edition tile */}
           <button
-            key={t}
-            onClick={() => setTab(t)}
-            className={`px-4 py-2.5 text-sm font-medium transition-colors border-b-2 -mb-[1px] capitalize ${
-              tab === t
-                ? "admin-heading border-[#0aa3c7]"
-                : "admin-muted border-transparent"
-            }`}
+            onClick={handleAddEdition}
+            className="rounded-xl p-4 flex flex-col items-center justify-center gap-2 min-h-[140px] border-2 border-dashed transition-colors"
+            style={{ borderColor: "var(--admin-border)" }}
+            onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = "var(--admin-surface-hover)")}
+            onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = "transparent")}
           >
-            {t === "editions" ? `Editions (${editions.length})` : t}
+            <svg className="w-6 h-6 admin-faint" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+              <path d="M12 5v14M5 12h14" />
+            </svg>
+            <span className="text-xs admin-muted font-medium">Add Edition</span>
           </button>
-        ))}
+        </div>
       </div>
 
-      {tab === "details" && (
-        <div className="max-w-[720px] space-y-5">
-          {/* Title & Slug */}
-          <div className="grid grid-cols-2 gap-4">
+      {/* ── Template details ── */}
+      <div className="max-w-[720px]">
+        <h2 className="text-sm font-bold admin-heading mb-4 pt-2">Template details</h2>
+        <div className="space-y-5">
+          {/* Title, Slug, Code */}
+          <div className="grid grid-cols-[1fr_1fr_120px] gap-4">
             <div>
               <label className={labelClass}>Title</label>
               <input
@@ -256,9 +317,23 @@ export default function ExperienceDetailPage({
                 onChange={(e) => update("slug", e.target.value)}
               />
             </div>
+            <div>
+              <label className={labelClass}>Code</label>
+              <input
+                className={`${inputClass} uppercase`}
+                value={exp.code || ""}
+                onChange={(e) => update("code", e.target.value.toUpperCase() || null)}
+                placeholder="BON"
+                maxLength={8}
+              />
+            </div>
           </div>
+          <p className="text-xs admin-faint -mt-3">
+            Editions auto-generate their slug (<span className="font-mono">{exp.slug}-2026</span>)
+            and code (<span className="font-mono">{exp.code || "CODE"}-2026</span>) from these.
+          </p>
 
-          {/* Location & Hotel */}
+          {/* Location & Airport */}
           <div className="grid grid-cols-2 gap-4">
             <div>
               <label className={labelClass}>Location</label>
@@ -269,23 +344,6 @@ export default function ExperienceDetailPage({
               />
             </div>
             <div>
-              <label className={labelClass}>Hotel</label>
-              <select
-                className={inputClass}
-                value={exp.hotel || ""}
-                onChange={(e) => update("hotel", e.target.value || null)}
-              >
-                <option value="">No hotel</option>
-                {HOTELS.map((h) => (
-                  <option key={h} value={h}>{h}</option>
-                ))}
-              </select>
-            </div>
-          </div>
-
-          {/* Airport & Timezone */}
-          <div className="grid grid-cols-2 gap-4">
-            <div>
               <label className={labelClass}>Airport code</label>
               <input
                 className={inputClass}
@@ -294,6 +352,35 @@ export default function ExperienceDetailPage({
                 placeholder="e.g. ADB, BON, VRN"
               />
             </div>
+          </div>
+
+          {/* Hotels (multi-select) */}
+          <div>
+            <label className={labelClass}>Hotels</label>
+            <p className="text-xs admin-faint mb-2">Select every hotel used across this experience&apos;s editions.</p>
+            <div className="flex flex-wrap gap-2">
+              {HOTELS.map((h) => {
+                const active = selectedHotels.includes(h);
+                return (
+                  <button
+                    key={h}
+                    type="button"
+                    onClick={() => toggleHotel(h)}
+                    className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${
+                      active ? "bg-[#0aa3c7]/15 text-[#0aa3c7]" : "admin-surface admin-muted"
+                    }`}
+                    style={{ border: `1px solid ${active ? "rgba(10,163,199,0.4)" : "var(--admin-border)"}` }}
+                  >
+                    {active && <span className="mr-1">✓</span>}
+                    {h}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
+          {/* Timezone */}
+          <div className="grid grid-cols-2 gap-4">
             <div>
               <label className={labelClass}>Timezone</label>
               <input
@@ -303,43 +390,6 @@ export default function ExperienceDetailPage({
                 placeholder="Europe/Berlin"
               />
             </div>
-          </div>
-
-          {/* Currency */}
-          <div className="grid grid-cols-3 gap-4">
-            <div>
-              <label className={labelClass}>Currency</label>
-              <select
-                className={inputClass}
-                value={exp.currency || "EUR"}
-                onChange={(e) => update("currency", e.target.value)}
-              >
-                <option value="EUR">EUR</option>
-                <option value="USD">USD</option>
-                <option value="GBP">GBP</option>
-              </select>
-            </div>
-            <div>
-              <label className={labelClass}>Total Fixed Costs ({exp.currency || "EUR"})</label>
-              <input
-                type="number"
-                className={inputClass}
-                value={exp.total_fixed_costs || ""}
-                onChange={(e) => update("total_fixed_costs", e.target.value ? Number(e.target.value) : null)}
-                placeholder="Template-level fixed costs"
-              />
-            </div>
-          </div>
-
-          {/* WhatsApp Group Link */}
-          <div>
-            <label className={labelClass}>WhatsApp group link</label>
-            <input
-              className={inputClass}
-              value={exp.whatsapp_group_link || ""}
-              onChange={(e) => update("whatsapp_group_link", e.target.value || null)}
-              placeholder="https://chat.whatsapp.com/..."
-            />
           </div>
 
           {/* Description */}
@@ -374,54 +424,10 @@ export default function ExperienceDetailPage({
             />
           </div>
 
-          {/* What's included */}
-          <div>
-            <label className={labelClass}>What&apos;s included</label>
-            <div className="space-y-1.5 mb-2">
-              {(exp.whats_included || []).map((item, i) => (
-                <div key={i} className="flex items-center gap-2">
-                  <span className="flex-1 px-3 py-1.5 admin-surface rounded-lg text-sm admin-muted" style={{ border: "1px solid var(--admin-border)" }}>
-                    {item}
-                  </span>
-                  <button
-                    onClick={() => {
-                      const arr = [...(exp.whats_included || [])];
-                      arr.splice(i, 1);
-                      update("whats_included", arr);
-                    }}
-                    className="admin-faint hover:text-red-400 transition-colors"
-                  >
-                    <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M18 6L6 18M6 6l12 12" /></svg>
-                  </button>
-                </div>
-              ))}
-            </div>
-            <div className="flex gap-2">
-              <input
-                className={inputClass}
-                placeholder="Add item..."
-                value={includedItem}
-                onChange={(e) => setIncludedItem(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === "Enter" && includedItem.trim()) {
-                    update("whats_included", [...(exp.whats_included || []), includedItem.trim()]);
-                    setIncludedItem("");
-                  }
-                }}
-              />
-              <button
-                onClick={() => {
-                  if (includedItem.trim()) {
-                    update("whats_included", [...(exp.whats_included || []), includedItem.trim()]);
-                    setIncludedItem("");
-                  }
-                }}
-                className="px-3 py-2 admin-surface admin-muted text-sm rounded-lg transition-colors"
-                style={{ border: "1px solid var(--admin-border)" }}
-              >
-                Add
-              </button>
-            </div>
+          {/* Note: What's included now lives on packages */}
+          <div className="rounded-lg p-3 text-xs admin-faint" style={{ border: "1px dashed var(--admin-border)" }}>
+            <span className="font-medium admin-muted">What&apos;s included</span> is now defined per package
+            (in each edition&apos;s Packages tab), not on the experience template.
           </div>
 
           {/* Hero image */}
@@ -508,81 +514,7 @@ export default function ExperienceDetailPage({
             </div>
           </div>
         </div>
-      )}
-
-      {tab === "editions" && (
-        <div>
-          <div className="flex items-center justify-between mb-4">
-            <p className="text-xs admin-faint">Year-specific instances of this experience</p>
-            <button
-              onClick={handleAddEdition}
-              className="px-3 py-1.5 bg-[#0aa3c7] hover:bg-[#0aa3c7]/90 text-white text-xs font-bold rounded-lg transition-colors"
-            >
-              Add Edition
-            </button>
-          </div>
-
-          {editions.length === 0 ? (
-            <div className="text-center py-16">
-              <p className="text-sm admin-faint">No editions yet</p>
-              <p className="text-xs admin-faint mt-1">Create editions to define year-specific dates, pricing, and spots</p>
-              <button
-                onClick={handleAddEdition}
-                className="mt-4 px-4 py-2 bg-[#0aa3c7] hover:bg-[#0aa3c7]/90 text-white text-sm font-bold rounded-lg transition-colors"
-              >
-                Add First Edition
-              </button>
-            </div>
-          ) : (
-            <div className="rounded-xl overflow-hidden" style={{ border: "1px solid var(--admin-border)" }}>
-              {/* Header */}
-              <div
-                className="grid grid-cols-[80px_180px_160px_80px_100px_1fr] gap-4 px-5 py-3 admin-surface"
-                style={{ borderBottom: "1px solid var(--admin-border)" }}
-              >
-                <span className="text-[10px] font-bold tracking-[0.1em] admin-faint uppercase">Year</span>
-                <span className="text-[10px] font-bold tracking-[0.1em] admin-faint uppercase">Dates</span>
-                <span className="text-[10px] font-bold tracking-[0.1em] admin-faint uppercase">Price</span>
-                <span className="text-[10px] font-bold tracking-[0.1em] admin-faint uppercase">Spots</span>
-                <span className="text-[10px] font-bold tracking-[0.1em] admin-faint uppercase">Status</span>
-                <span className="text-[10px] font-bold tracking-[0.1em] admin-faint uppercase">Code</span>
-              </div>
-
-              {editions.map((ed) => (
-                <Link
-                  key={ed.id}
-                  href={`/admin/editions/${ed.id}`}
-                  className="grid grid-cols-[80px_180px_160px_80px_100px_1fr] gap-4 px-5 py-3.5 transition-colors"
-                  style={{ borderBottom: "1px solid var(--admin-border)" }}
-                  onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = "var(--admin-surface-hover)")}
-                  onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = "transparent")}
-                >
-                  <span className="text-sm font-bold admin-heading self-center">{ed.year}</span>
-                  <span className="text-xs admin-muted self-center">
-                    {formatDateRange(ed.date_start, ed.date_end)}
-                  </span>
-                  <span className="text-xs admin-muted self-center">
-                    {ed.price_from && ed.price_to
-                      ? `€${Number(ed.price_from).toLocaleString()} – €${Number(ed.price_to).toLocaleString()}`
-                      : ed.price_from
-                      ? `from €${Number(ed.price_from).toLocaleString()}`
-                      : "—"}
-                  </span>
-                  <span className="text-xs admin-muted self-center">
-                    {ed.max_spots != null ? `${ed.spots_taken}/${ed.max_spots}` : "—"}
-                  </span>
-                  <span className="self-center">
-                    <EditionStatusBadge status={ed.status} />
-                  </span>
-                  <span className="text-xs admin-faint self-center truncate">
-                    {ed.experience_code || ed.po_code || "—"}
-                  </span>
-                </Link>
-              ))}
-            </div>
-          )}
-        </div>
-      )}
+      </div>
     </div>
   );
 }

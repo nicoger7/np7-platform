@@ -41,8 +41,22 @@ export async function GET(
     return NextResponse.json({ error: edition.error.message }, { status: 404 });
   }
 
+  // Derive the price range from this edition's active packages (price = retail/sell).
+  const { data: pkgs } = await adminClient
+    .from("exp_packages")
+    .select("price, status")
+    .eq("edition_id", id);
+  const prices = (pkgs || [])
+    .filter(
+      (p: { price: number | null; status: string | null }) =>
+        p.price != null && (p.status == null || p.status === "active")
+    )
+    .map((p: { price: number }) => Number(p.price));
+
   return NextResponse.json({
     ...edition.data,
+    computed_price_from: prices.length ? Math.min(...prices) : null,
+    computed_price_to: prices.length ? Math.max(...prices) : null,
     _counts: {
       bookings: bookingCount.count ?? 0,
       packages: packageCount.count ?? 0,

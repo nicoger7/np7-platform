@@ -30,9 +30,28 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   const client = createAdminClient();
   const body = await request.json();
-
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const { data, error } = await (client as any)
+  const adminClient = client as any;
+
+  // Auto-generate slug and experience_code from the parent experience.
+  //   slug = "<experience-slug>-<year>"
+  //   experience_code = "<EXPERIENCE-CODE>-<year>"
+  if (body.experience_id && body.year) {
+    const { data: exp } = await adminClient
+      .from("exp_experiences")
+      .select("slug, code, currency, whatsapp_group_link")
+      .eq("id", body.experience_id)
+      .single();
+
+    if (exp) {
+      if (!body.slug && exp.slug) body.slug = `${exp.slug}-${body.year}`;
+      if (!body.experience_code && exp.code)
+        body.experience_code = `${exp.code}-${body.year}`;
+      if (body.currency == null) body.currency = exp.currency || "EUR";
+    }
+  }
+
+  const { data, error } = await adminClient
     .from("exp_editions")
     .insert(body)
     .select(`*, exp_experiences(id, title, slug, location)`)

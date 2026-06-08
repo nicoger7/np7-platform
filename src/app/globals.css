@@ -9,6 +9,14 @@
   --color-surface: #f7f7f7;
   --color-border: #ebebeb;
   --font-sans: 'Inter', system-ui, -apple-system, sans-serif;
+
+  /* NP7 Experience — ocean brand palette (from the logo) */
+  --color-ocean: #00afdb;
+  --color-ocean-deep: #00374a;
+  --color-foam: #8fe6f2;
+  --color-sun: #ffc42e;
+  --color-coral: #f47b20;
+  --color-sand: #fff7ec;
 }
 
 html {
@@ -33,4 +41,31 @@ body {
   background: #ffffff;
   color: var(--color-ink);
   -webkit-font-smoothing: antialiased;
+}
+
+/* Hide scrollbars on horizontal carousels while keeping scroll/drag */
+.scrollbar-hide {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+.scrollbar-hide::-webkit-scrollbar {
+  display: none;
+}
+
+/* Gentle, non-trapping section snapping for the experience page */
+.snap-chapters {
+  scroll-snap-type: y proximity;
+}
+.snap-chapter {
+  scroll-snap-align: start;
+  scroll-margin-top: 64px;
+}
+
+/* Respect reduced-motion preferences for all scroll reveals */
+@media (prefers-reduced-motion: reduce) {
+  .reveal {
+    opacity: 1 !important;
+    transform: none !important;
+    transition: none !important;
+  }
 }

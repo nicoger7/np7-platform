@@ -42,9 +42,39 @@ export async function GET(
     );
   }
 
+  // Compute each edition's price range from its packages (price = retail/sell).
+  // Price is derived, never typed — min/max of the edition's active packages.
+  const editionList = editions.data || [];
+  const editionIds = editionList.map((e: { id: string }) => e.id);
+  let editionPackages: { edition_id: string | null; price: number | null; status: string | null }[] = [];
+
+  if (editionIds.length > 0) {
+    const { data: pkgs } = await adminClient
+      .from("exp_packages")
+      .select("edition_id, price, status")
+      .in("edition_id", editionIds);
+    editionPackages = pkgs || [];
+  }
+
+  const editionsWithPrice = editionList.map((ed: { id: string }) => {
+    const prices = editionPackages
+      .filter(
+        (p) =>
+          p.edition_id === ed.id &&
+          p.price != null &&
+          (p.status == null || p.status === "active")
+      )
+      .map((p) => Number(p.price));
+    return {
+      ...ed,
+      computed_price_from: prices.length ? Math.min(...prices) : null,
+      computed_price_to: prices.length ? Math.max(...prices) : null,
+    };
+  });
+
   return NextResponse.json({
     ...experience.data,
-    editions: editions.data || [],
+    editions: editionsWithPrice,
     packages: packages.data || [],
     costs: costs.data || [],
     bookings: bookings.data || [],
@@ -60,13 +90,15 @@ export async function PATCH(
   const { id } = await params;
   const body = await request.json();
 
-  // Sanitize: only allow template-level fields (no year-specific columns)
+  // Sanitize: only allow template-level fields.
+  // Edition-level fields (currency, total_fixed_costs, whatsapp_group_link,
+  // whats_included) live on exp_editions and are intentionally excluded here.
   const allowed = [
-    "title", "slug", "location", "location_country", "description",
-    "whats_included", "hero_image", "gallery", "cancellation_policy",
-    "status", "currency", "timezone", "hotel", "airport_code",
-    "whatsapp_group_link", "notes", "active_status", "location_lat",
-    "location_lng", "total_fixed_costs", "notion_id",
+    "title", "slug", "code", "location", "location_country", "description",
+    "hero_image", "gallery", "cancellation_policy",
+    "status", "timezone", "hotels", "airport_code",
+    "notes", "active_status", "location_lat",
+    "location_lng", "notion_id",
   ];
   const sanitized = Object.fromEntries(
     Object.entries(body).filter(([k]) => allowed.includes(k))

@@ -8,19 +8,22 @@ interface Edition {
   id: string;
   experience_id: string;
   year: number;
+  slug: string | null;
   date_start: string | null;
   date_end: string | null;
-  price_from: number | null;
-  price_to: number | null;
+  computed_price_from: number | null;
+  computed_price_to: number | null;
   deposit: number | null;
   max_spots: number | null;
   spots_taken: number;
   status: string;
+  currency: string | null;
   coaches: string | null;
   experience_code: string | null;
-  po_code: string | null;
   pricing_details: string | null;
   payment_page_id: string | null;
+  whatsapp_group_link: string | null;
+  total_fixed_costs: number | null;
   estimated_costs: number | null;
   expected_revenue: number | null;
   expected_profit: number | null;
@@ -178,18 +181,19 @@ export default function EditionDetailPage({
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         year: edition.year,
+        slug: edition.slug,
         date_start: edition.date_start,
         date_end: edition.date_end,
-        price_from: edition.price_from,
-        price_to: edition.price_to,
         deposit: edition.deposit,
         max_spots: edition.max_spots,
         status: edition.status,
+        currency: edition.currency,
         coaches: edition.coaches,
         experience_code: edition.experience_code,
-        po_code: edition.po_code,
         pricing_details: edition.pricing_details,
         payment_page_id: edition.payment_page_id,
+        whatsapp_group_link: edition.whatsapp_group_link,
+        total_fixed_costs: edition.total_fixed_costs,
         estimated_costs: edition.estimated_costs,
         expected_revenue: edition.expected_revenue,
         expected_profit: edition.expected_profit,
@@ -224,10 +228,18 @@ export default function EditionDetailPage({
     return <div className="text-sm text-red-400">Edition not found</div>;
   }
 
-  const currency = edition.exp_experiences?.currency || "EUR";
+  const currency = edition.currency || edition.exp_experiences?.currency || "EUR";
   const spotsRemaining = edition.max_spots != null
     ? Math.max(0, edition.max_spots - edition.spots_taken)
     : null;
+  const priceRange =
+    edition.computed_price_from == null && edition.computed_price_to == null
+      ? "No packages yet"
+      : edition.computed_price_from != null &&
+        edition.computed_price_to != null &&
+        edition.computed_price_from !== edition.computed_price_to
+      ? `${currency} ${Number(edition.computed_price_from).toLocaleString()} – ${Number(edition.computed_price_to).toLocaleString()}`
+      : `${currency} ${Number(edition.computed_price_from ?? edition.computed_price_to).toLocaleString()}`;
 
   const inputClass =
     "w-full px-4 py-2.5 admin-input border rounded-lg text-sm focus:outline-none focus:border-[#0aa3c7] focus:ring-1 focus:ring-[#0aa3c7] transition-colors";
@@ -370,23 +382,14 @@ export default function EditionDetailPage({
 
           {/* Pricing */}
           <div className="grid grid-cols-3 gap-4">
-            <div>
-              <label className={labelClass}>Price From ({currency})</label>
-              <input
-                type="number"
-                className={inputClass}
-                value={edition.price_from || ""}
-                onChange={(e) => update("price_from", e.target.value ? Number(e.target.value) : null)}
-              />
-            </div>
-            <div>
-              <label className={labelClass}>Price To ({currency})</label>
-              <input
-                type="number"
-                className={inputClass}
-                value={edition.price_to || ""}
-                onChange={(e) => update("price_to", e.target.value ? Number(e.target.value) : null)}
-              />
+            <div className="col-span-2 rounded-lg p-2 bg-[#0aa3c7]/5" style={{ border: "1px solid rgba(10,163,199,0.15)" }}>
+              <label className={`${labelClass} flex items-center gap-2`}>
+                Price range
+                <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium bg-[#0aa3c7]/15 text-[#0aa3c7]">From packages</span>
+              </label>
+              <div className={`${inputClass} opacity-80 flex items-center`} style={{ cursor: "default" }}>
+                {priceRange}
+              </div>
             </div>
             <div>
               <label className={labelClass}>Deposit ({currency})</label>
@@ -395,6 +398,34 @@ export default function EditionDetailPage({
                 className={inputClass}
                 value={edition.deposit || ""}
                 onChange={(e) => update("deposit", e.target.value ? Number(e.target.value) : null)}
+              />
+            </div>
+          </div>
+          <p className="text-xs admin-faint -mt-2">
+            Price is derived from this edition&apos;s packages — edit prices in the <span className="font-medium admin-muted">Packages</span> tab.
+          </p>
+
+          {/* Currency & Slug */}
+          <div className="grid grid-cols-3 gap-4">
+            <div>
+              <label className={labelClass}>Currency</label>
+              <select
+                className={inputClass}
+                value={edition.currency || "EUR"}
+                onChange={(e) => update("currency", e.target.value)}
+              >
+                <option value="EUR">EUR</option>
+                <option value="USD">USD</option>
+                <option value="GBP">GBP</option>
+              </select>
+            </div>
+            <div className="col-span-2">
+              <label className={labelClass}>Slug</label>
+              <input
+                className={inputClass}
+                value={edition.slug || ""}
+                onChange={(e) => update("slug", e.target.value || null)}
+                placeholder="auto-generated from experience"
               />
             </div>
           </div>
@@ -470,19 +501,21 @@ export default function EditionDetailPage({
                   />
                 </div>
                 <div>
-                  <label className={labelClass}>PO Code</label>
-                  <input
-                    className={inputClass}
-                    value={edition.po_code || ""}
-                    onChange={(e) => update("po_code", e.target.value || null)}
-                  />
-                </div>
-                <div>
                   <label className={labelClass}>Payment Page ID</label>
                   <input
                     className={inputClass}
                     value={edition.payment_page_id || ""}
                     onChange={(e) => update("payment_page_id", e.target.value || null)}
+                    placeholder="Stripe checkout / payment page"
+                  />
+                </div>
+                <div>
+                  <label className={labelClass}>WhatsApp group link</label>
+                  <input
+                    className={inputClass}
+                    value={edition.whatsapp_group_link || ""}
+                    onChange={(e) => update("whatsapp_group_link", e.target.value || null)}
+                    placeholder="https://chat.whatsapp.com/..."
                   />
                 </div>
               </div>
@@ -502,6 +535,10 @@ export default function EditionDetailPage({
           <div className="pt-4" style={{ borderTop: "1px solid var(--admin-border)" }}>
             <h3 className="text-xs font-bold tracking-[0.1em] admin-faint uppercase mb-4">Financials</h3>
             <div className="grid grid-cols-3 gap-4">
+              <div>
+                <label className={labelClass}>Total Fixed Costs ({currency})</label>
+                <input type="number" className={inputClass} value={edition.total_fixed_costs || ""} onChange={(e) => update("total_fixed_costs", e.target.value ? Number(e.target.value) : null)} placeholder="Costs not tied to headcount" />
+              </div>
               <div>
                 <label className={labelClass}>Estimated Costs ({currency})</label>
                 <input type="number" className={inputClass} value={edition.estimated_costs || ""} onChange={(e) => update("estimated_costs", e.target.value ? Number(e.target.value) : null)} />
