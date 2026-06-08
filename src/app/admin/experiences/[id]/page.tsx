@@ -28,6 +28,7 @@ interface Edition {
   id: string;
   experience_id: string;
   year: number;
+  label: string | null;
   date_start: string | null;
   date_end: string | null;
   computed_price_from: number | null;
@@ -135,13 +136,15 @@ export default function ExperienceDetailPage({
   }
 
   async function handleAddEdition() {
-    const nextYear = editions.length > 0
-      ? Math.max(...editions.map((e) => e.year)) + 1
+    // Multiple editions per year are allowed — default to the latest year
+    // (or current) and give a placeholder label the user can rename.
+    const year = editions.length > 0
+      ? Math.max(...editions.map((e) => e.year))
       : new Date().getFullYear();
     const res = await fetch("/api/admin/editions", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ experience_id: id, year: nextYear }),
+      body: JSON.stringify({ experience_id: id, year, label: "New edition" }),
     });
     if (res.ok) {
       const newEdition = await res.json();
@@ -239,9 +242,12 @@ export default function ExperienceDetailPage({
               onMouseLeave={(e) => (e.currentTarget.style.borderColor = "var(--admin-border)")}
             >
               <div className="flex items-center justify-between mb-3">
-                <span className="text-2xl font-bold admin-heading">{ed.year}</span>
+                <div className="min-w-0">
+                  <span className="block text-xl font-bold admin-heading truncate">{ed.label || ed.year}</span>
+                  {ed.label && <span className="text-[11px] admin-faint">{ed.year}</span>}
+                </div>
                 <span
-                  className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-[0.05em] ${
+                  className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-[0.05em] shrink-0 ${
                     STATUS_STYLES[ed.status] || "admin-surface admin-muted"
                   }`}
                 >

@@ -34,9 +34,9 @@ export async function POST(request: NextRequest) {
   const adminClient = client as any;
 
   // Auto-generate slug and experience_code from the parent experience.
-  //   slug = "<experience-slug>-<year>"
-  //   experience_code = "<EXPERIENCE-CODE>-<year>"
-  if (body.experience_id && body.year) {
+  // Suffix is the edition label (e.g. "week-ii") when set, else the year —
+  // so multiple editions in one year stay unique.
+  if (body.experience_id && (body.year || body.label)) {
     const { data: exp } = await adminClient
       .from("exp_experiences")
       .select("slug, code, currency, whatsapp_group_link")
@@ -44,9 +44,12 @@ export async function POST(request: NextRequest) {
       .single();
 
     if (exp) {
-      if (!body.slug && exp.slug) body.slug = `${exp.slug}-${body.year}`;
+      const suffix = String(body.label || body.year);
+      const slugSuffix = suffix.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
+      const codeSuffix = suffix.toUpperCase().replace(/[^A-Z0-9]+/g, "");
+      if (!body.slug && exp.slug) body.slug = `${exp.slug}-${slugSuffix}`;
       if (!body.experience_code && exp.code)
-        body.experience_code = `${exp.code}-${body.year}`;
+        body.experience_code = `${exp.code}-${codeSuffix}`;
       if (body.currency == null) body.currency = exp.currency || "EUR";
     }
   }

@@ -7,9 +7,9 @@ import { NP7_LOGO } from "@/components/experience/ocean-header";
 
 const NAV = [
   { label: "Boards", href: "#products" },
-  { label: "Foils", href: "#products" },
-  { label: "Tech", href: "#engineered" },
-  { label: "About", href: "#engineered" },
+  { label: "Fins", href: "#products" },
+  { label: "Shop", href: "#products" },
+  { label: "Workshop", href: "#workshop" },
 ];
 
 /**

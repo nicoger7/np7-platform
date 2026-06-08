@@ -9,6 +9,7 @@ interface Edition {
   id: string;
   experience_id: string;
   year: number;
+  label: string | null;
   slug: string | null;
   date_start: string | null;
   date_end: string | null;
@@ -290,6 +291,7 @@ export default function EditionDetailPage({
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         year: edition.year,
+        label: edition.label,
         slug: edition.slug,
         date_start: edition.date_start,
         date_end: edition.date_end,
@@ -372,7 +374,7 @@ export default function EditionDetailPage({
           <div>
             <div className="flex items-center gap-2">
               <h1 className="text-2xl font-bold admin-heading">
-                {edition.exp_experiences?.title || "Edition"} — {edition.year}
+                {edition.exp_experiences?.title || "Edition"} — {edition.label || edition.year}
               </h1>
               <span
                 className={`inline-block px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-[0.05em] ${
@@ -441,8 +443,17 @@ export default function EditionDetailPage({
       {/* ── Details tab ── */}
       {tab === "details" && (
         <div className="max-w-[720px] space-y-5">
-          {/* Year & Status */}
-          <div className="grid grid-cols-2 gap-4">
+          {/* Label, Year & Status */}
+          <div className="grid grid-cols-3 gap-4">
+            <div>
+              <label className={labelClass}>Label</label>
+              <input
+                className={inputClass}
+                value={edition.label || ""}
+                onChange={(e) => update("label", e.target.value || null)}
+                placeholder="e.g. Week II"
+              />
+            </div>
             <div>
               <label className={labelClass}>Year</label>
               <input
