@@ -6,6 +6,7 @@ export interface ColumnDef {
   key: string;
   label: string;
   required?: boolean; // cannot be hidden
+  defaultHidden?: boolean; // available in the toggle, but off by default
   width: string;
 }
 
@@ -122,5 +123,5 @@ export function loadVisibleColumns(storageKey: string, columns: ColumnDef[]): Se
       }
     }
   }
-  return new Set(columns.map((c) => c.key));
+  return new Set(columns.filter((c) => c.required || !c.defaultHidden).map((c) => c.key));
 }

@@ -9,17 +9,23 @@ interface Booking {
   id: string;
   name: string;
   status: string;
-  experience: { id: string; title: string; location: string; date_start: string } | null;
+  experience: { id: string; title: string; location: string } | null;
+  edition: { id: string; year: number; label: string | null } | null;
   package: { id: string; name: string } | null;
   contact: { id: string; name: string; email: string; phone: string } | null;
   agreed_price: number | null;
   fly_in: string | null;
   fly_out: string | null;
+  traveling_with: string | null;
   total_paid: number;
   outstanding: number;
   downpayment_received: boolean;
+  downpayment_invoice_sent: boolean;
   final_payment_received: boolean;
+  final_invoice_sent: boolean;
+  final_invoice_due: string | null;
   wa_group: boolean;
+  notes: string | null;
   created_at: string;
 }
 
@@ -43,12 +49,25 @@ type SortDir = "asc" | "desc" | null;
 
 const COLUMNS: ColumnDef[] = [
   { key: "name", label: "Name", width: "1fr", required: true },
+  { key: "contact", label: "Contact", width: "150px", defaultHidden: true },
   { key: "experience", label: "Experience", width: "140px" },
+  { key: "edition", label: "Edition", width: "110px", defaultHidden: true },
+  { key: "package", label: "Package", width: "140px", defaultHidden: true },
   { key: "status", label: "Status", width: "120px" },
   { key: "fly_in", label: "Fly In", width: "100px" },
   { key: "fly_out", label: "Fly Out", width: "100px" },
+  { key: "traveling_with", label: "Traveling With", width: "130px", defaultHidden: true },
   { key: "agreed_price", label: "Price", width: "100px" },
+  { key: "total_paid", label: "Paid", width: "100px", defaultHidden: true },
   { key: "outstanding", label: "Outstanding", width: "100px" },
+  { key: "downpayment_received", label: "Downpmt", width: "90px", defaultHidden: true },
+  { key: "downpayment_invoice_sent", label: "DP Invoice", width: "90px", defaultHidden: true },
+  { key: "final_payment_received", label: "Final Pmt", width: "90px", defaultHidden: true },
+  { key: "final_invoice_sent", label: "Final Inv", width: "90px", defaultHidden: true },
+  { key: "final_invoice_due", label: "Final Due", width: "100px", defaultHidden: true },
+  { key: "wa_group", label: "WA Group", width: "90px", defaultHidden: true },
+  { key: "notes", label: "Notes", width: "180px", defaultHidden: true },
+  { key: "created_at", label: "Created", width: "100px", defaultHidden: true },
 ];
 
 const STORAGE_KEY = "np7-bookings-columns";
@@ -66,6 +85,12 @@ function StatusBadge({ status }: { status: string }) {
 function formatDate(d: string | null) {
   if (!d) return "—";
   return new Date(d).toLocaleDateString("en-US", { month: "short", day: "numeric" });
+}
+
+function Check({ v }: { v: boolean }) {
+  return v
+    ? <span className="text-green-400 text-xs font-bold">✓</span>
+    : <span className="admin-faint text-xs">—</span>;
 }
 
 function compareValues(a: unknown, b: unknown, dir: "asc" | "desc"): number {
@@ -131,6 +156,15 @@ export default function BookingsPage() {
         if (sortKey === "experience") {
           aVal = a.experience?.title;
           bVal = b.experience?.title;
+        } else if (sortKey === "contact") {
+          aVal = a.contact?.name;
+          bVal = b.contact?.name;
+        } else if (sortKey === "package") {
+          aVal = a.package?.name;
+          bVal = b.package?.name;
+        } else if (sortKey === "edition") {
+          aVal = a.edition?.label ?? a.edition?.year;
+          bVal = b.edition?.label ?? b.edition?.year;
         } else {
           aVal = a[sortKey as keyof Booking];
           bVal = b[sortKey as keyof Booking];
@@ -273,8 +307,19 @@ export default function BookingsPage() {
                 <div className="text-sm font-medium admin-heading truncate">{b.name}</div>
                 {b.contact && <div className="text-xs admin-faint truncate">{b.contact.email}</div>}
               </div>
+              {visibleColumns.has("contact") && (
+                <span className="text-xs admin-muted truncate self-center">{b.contact?.name || "—"}</span>
+              )}
               {visibleColumns.has("experience") && (
                 <span className="text-xs admin-muted truncate self-center">{b.experience?.title || "—"}</span>
+              )}
+              {visibleColumns.has("edition") && (
+                <span className="text-xs admin-muted truncate self-center">
+                  {b.edition ? (b.edition.label ? `${b.edition.label} · ${b.edition.year}` : b.edition.year) : "—"}
+                </span>
+              )}
+              {visibleColumns.has("package") && (
+                <span className="text-xs admin-muted truncate self-center">{b.package?.name || "—"}</span>
               )}
               {visibleColumns.has("status") && (
                 <span className="self-center"><StatusBadge status={b.status} /></span>
@@ -285,9 +330,17 @@ export default function BookingsPage() {
               {visibleColumns.has("fly_out") && (
                 <span className="text-xs admin-muted self-center">{formatDate(b.fly_out)}</span>
               )}
+              {visibleColumns.has("traveling_with") && (
+                <span className="text-xs admin-muted truncate self-center">{b.traveling_with || "—"}</span>
+              )}
               {visibleColumns.has("agreed_price") && (
                 <span className="text-xs admin-muted self-center">
                   {b.agreed_price ? `€${Number(b.agreed_price).toLocaleString()}` : "—"}
+                </span>
+              )}
+              {visibleColumns.has("total_paid") && (
+                <span className="text-xs admin-muted self-center">
+                  {b.total_paid ? `€${Number(b.total_paid).toLocaleString()}` : "—"}
                 </span>
               )}
               {visibleColumns.has("outstanding") && (
@@ -298,6 +351,30 @@ export default function BookingsPage() {
                     ? "✓ Paid"
                     : "—"}
                 </span>
+              )}
+              {visibleColumns.has("downpayment_received") && (
+                <span className="self-center"><Check v={b.downpayment_received} /></span>
+              )}
+              {visibleColumns.has("downpayment_invoice_sent") && (
+                <span className="self-center"><Check v={b.downpayment_invoice_sent} /></span>
+              )}
+              {visibleColumns.has("final_payment_received") && (
+                <span className="self-center"><Check v={b.final_payment_received} /></span>
+              )}
+              {visibleColumns.has("final_invoice_sent") && (
+                <span className="self-center"><Check v={b.final_invoice_sent} /></span>
+              )}
+              {visibleColumns.has("final_invoice_due") && (
+                <span className="text-xs admin-muted self-center">{formatDate(b.final_invoice_due)}</span>
+              )}
+              {visibleColumns.has("wa_group") && (
+                <span className="self-center"><Check v={b.wa_group} /></span>
+              )}
+              {visibleColumns.has("notes") && (
+                <span className="text-xs admin-faint truncate self-center" title={b.notes || ""}>{b.notes || "—"}</span>
+              )}
+              {visibleColumns.has("created_at") && (
+                <span className="text-xs admin-faint self-center">{formatDate(b.created_at)}</span>
               )}
             </div>
           ))}
