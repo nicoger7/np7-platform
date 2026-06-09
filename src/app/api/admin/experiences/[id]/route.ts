@@ -56,6 +56,16 @@ export async function GET(
     editionPackages = pkgs || [];
   }
 
+  // Spots "taken" = confirmed bookings per edition (money-down & beyond),
+  // not the stored spots_taken field.
+  const CONFIRMED = ["downpayment_paid", "create_invoice", "paid", "confirmed", "attended"];
+  const confirmedByEdition: Record<string, number> = {};
+  for (const b of (bookings.data || []) as unknown as { edition_id: string | null; status: string }[]) {
+    if (b.edition_id && CONFIRMED.includes(b.status)) {
+      confirmedByEdition[b.edition_id] = (confirmedByEdition[b.edition_id] || 0) + 1;
+    }
+  }
+
   const editionsWithPrice = editionList.map((ed: { id: string }) => {
     const prices = editionPackages
       .filter(
@@ -69,6 +79,7 @@ export async function GET(
       ...ed,
       computed_price_from: prices.length ? Math.min(...prices) : null,
       computed_price_to: prices.length ? Math.max(...prices) : null,
+      confirmed_count: confirmedByEdition[ed.id] || 0,
     };
   });
 

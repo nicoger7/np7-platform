@@ -3,6 +3,7 @@
 import { useState, useEffect, use } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
+import { ContactPicker } from "@/components/contact-picker";
 
 interface BookingDetail {
   id: string;
@@ -80,12 +81,6 @@ interface AvailablePackage {
   price: number | null;
 }
 
-interface AvailableContact {
-  id: string;
-  name: string;
-  email: string | null;
-}
-
 const STATUSES = [
   { value: "lead", label: "Lead", color: "bg-gray-500" },
   { value: "interested", label: "Interested", color: "bg-yellow-500" },
@@ -122,7 +117,6 @@ export default function BookingDetailPage({
   // Reference data
   const [experiences, setExperiences] = useState<AvailableExperience[]>([]);
   const [packages, setPackages] = useState<AvailablePackage[]>([]);
-  const [contacts, setContacts] = useState<AvailableContact[]>([]);
   const [components, setComponents] = useState<AvailableComponent[]>([]);
 
   // New add-on form
@@ -137,13 +131,11 @@ export default function BookingDetailPage({
     Promise.all([
       fetch(`/api/admin/bookings/${id}`).then((r) => r.json()),
       fetch("/api/admin/experiences").then((r) => r.json()),
-      fetch("/api/admin/contacts?limit=200").then((r) => r.json()),
       fetch("/api/admin/components").then((r) => r.json()),
-    ]).then(([b, exps, cts, comps]) => {
+    ]).then(([b, exps, comps]) => {
       setBooking(b);
       const expList = exps.experiences || exps || [];
       setExperiences(expList.map((e: Record<string, string>) => ({ id: e.id, title: e.title })));
-      setContacts((cts.data || []).map((c: Record<string, string>) => ({ id: c.id, name: c.name, email: c.email })));
       setComponents(comps || []);
       // Load packages for the booking's experience
       if (b.experience_id) {
@@ -388,12 +380,13 @@ export default function BookingDetailPage({
           <div>
             <label className={labelClass}>Contact</label>
             <div className="flex gap-2">
-              <select className={`${inputClass} flex-1`} value={booking.contact_id || ""} onChange={(e) => update("contact_id", e.target.value || null)}>
-                <option value="">None</option>
-                {contacts.map((c) => (
-                  <option key={c.id} value={c.id}>{c.name}{c.email ? ` (${c.email})` : ""}</option>
-                ))}
-              </select>
+              <div className="flex-1">
+                <ContactPicker
+                  value={booking.contact_id}
+                  display={booking.contacts && booking.contact_id ? { id: booking.contact_id, name: booking.contacts.name, email: booking.contacts.email } : null}
+                  onChange={(cid) => update("contact_id", cid)}
+                />
+              </div>
               {booking.contact_id && (
                 <Link
                   href={`/admin/contacts/${booking.contact_id}`}

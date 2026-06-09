@@ -12,7 +12,10 @@ export async function GET(
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const adminClient = client as any;
 
-  const [edition, bookingCount, packageCount, costCount, roomCount] =
+  // Confirmed = money-down & beyond — this is the real "spots taken".
+  const CONFIRMED = ["downpayment_paid", "create_invoice", "paid", "confirmed", "attended"];
+
+  const [edition, bookingCount, confirmedCount, packageCount, costCount, roomCount] =
     await Promise.all([
       adminClient
         .from("exp_editions")
@@ -23,6 +26,11 @@ export async function GET(
         .from("exp_bookings")
         .select("id", { count: "exact", head: true })
         .eq("edition_id", id),
+      adminClient
+        .from("exp_bookings")
+        .select("id", { count: "exact", head: true })
+        .eq("edition_id", id)
+        .in("status", CONFIRMED),
       adminClient
         .from("exp_packages")
         .select("id", { count: "exact", head: true })
@@ -57,6 +65,7 @@ export async function GET(
     ...edition.data,
     computed_price_from: prices.length ? Math.min(...prices) : null,
     computed_price_to: prices.length ? Math.max(...prices) : null,
+    confirmed_count: confirmedCount.count ?? 0,
     _counts: {
       bookings: bookingCount.count ?? 0,
       packages: packageCount.count ?? 0,

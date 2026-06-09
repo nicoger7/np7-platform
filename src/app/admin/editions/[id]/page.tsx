@@ -18,6 +18,7 @@ interface Edition {
   deposit: number | null;
   max_spots: number | null;
   spots_taken: number;
+  confirmed_count: number;
   status: string;
   currency: string | null;
   coaches: string | null;
@@ -341,7 +342,7 @@ export default function EditionDetailPage({
 
   const currency = edition.currency || edition.exp_experiences?.currency || "EUR";
   const spotsRemaining = edition.max_spots != null
-    ? Math.max(0, edition.max_spots - edition.spots_taken)
+    ? Math.max(0, edition.max_spots - edition.confirmed_count)
     : null;
   const priceRange =
     edition.computed_price_from == null && edition.computed_price_to == null
@@ -564,12 +565,12 @@ export default function EditionDetailPage({
             <div className="rounded-lg p-2 bg-[#0aa3c7]/5" style={{ border: "1px solid rgba(10,163,199,0.15)" }}>
               <label className={`${labelClass} flex items-center gap-2`}>
                 Spots taken
-                <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium bg-[#0aa3c7]/15 text-[#0aa3c7]">Auto</span>
+                <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium bg-[#0aa3c7]/15 text-[#0aa3c7]">Confirmed</span>
               </label>
               <input
                 type="number"
                 className={`${inputClass} opacity-70 cursor-default`}
-                value={edition.spots_taken}
+                value={edition.confirmed_count}
                 readOnly
               />
             </div>

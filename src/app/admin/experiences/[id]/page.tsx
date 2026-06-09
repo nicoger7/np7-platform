@@ -35,6 +35,7 @@ interface Edition {
   computed_price_to: number | null;
   max_spots: number | null;
   spots_taken: number;
+  confirmed_count: number;
   status: string;
   experience_code: string | null;
 }
@@ -271,7 +272,7 @@ export default function ExperienceDetailPage({
                   <svg className="w-3.5 h-3.5 admin-faint" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                     <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2M9 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8zM23 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75" />
                   </svg>
-                  {ed.max_spots != null ? `${ed.spots_taken}/${ed.max_spots} spots` : `${ed.spots_taken} booked`}
+                  {ed.max_spots != null ? `${ed.confirmed_count}/${ed.max_spots} spots` : `${ed.confirmed_count} confirmed`}
                 </div>
               </div>
               {ed.experience_code && (
