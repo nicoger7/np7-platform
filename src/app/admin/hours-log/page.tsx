@@ -11,10 +11,19 @@ interface HoursEntry {
   category: string | null;
   entry: string | null;
   notes: string | null;
+  is_general: boolean | null;
+  processed_at: string | null;
   employee_id: string | null;
   experience_id: string | null;
-  team_members: { id: string; name: string } | null;
+  booking_id: string | null;
+  team_members: { id: string; name: string; rate_per_hour: number | null } | null;
   exp_experiences: { id: string; title: string } | null;
+  booking: { id: string; name: string } | null;
+}
+
+function cost(e: HoursEntry): number | null {
+  const rate = e.team_members?.rate_per_hour;
+  return rate != null ? Number(e.hours || 0) * Number(rate) : null;
 }
 
 interface TeamMember { id: string; name: string; }
@@ -28,8 +37,14 @@ const COLUMNS: ColumnDef[] = [
   { key: "date", label: "Date", width: "80px", required: true },
   { key: "hours", label: "Hrs", width: "50px" },
   { key: "team_member", label: "Member", width: "120px" },
+  { key: "cost", label: "Cost", width: "80px" },
   { key: "category", label: "Category", width: "100px" },
+  { key: "experience", label: "Experience", width: "140px", defaultHidden: true },
+  { key: "booking", label: "Booking", width: "130px", defaultHidden: true },
+  { key: "is_general", label: "General", width: "70px", defaultHidden: true },
+  { key: "processed_at", label: "Processed", width: "90px", defaultHidden: true },
   { key: "description", label: "Description", width: "1fr" },
+  { key: "notes", label: "Notes", width: "140px", defaultHidden: true },
   { key: "_actions", label: "", width: "60px", required: true },
 ];
 
@@ -65,7 +80,7 @@ export default function HoursLogPage() {
   const [visibleColumns, setVisibleColumns] = useState<Set<string>>(
     () => loadVisibleColumns(STORAGE_KEY, COLUMNS)
   );
-  const [form, setForm] = useState({ date: "", hours: "", category: "", entry: "", employee_id: "", experience_id: "", notes: "" });
+  const [form, setForm] = useState({ date: "", hours: "", category: "", entry: "", employee_id: "", experience_id: "", notes: "", is_general: false, processed_at: "" });
 
   function fetchData() {
     const params = new URLSearchParams();
@@ -101,25 +116,23 @@ export default function HoursLogPage() {
     ? [...entries].sort((a, b) => {
         let aVal: unknown;
         let bVal: unknown;
-        if (sortKey === "team_member") {
-          aVal = a.team_members?.name;
-          bVal = b.team_members?.name;
-        } else {
-          aVal = a[sortKey as keyof HoursEntry];
-          bVal = b[sortKey as keyof HoursEntry];
-        }
+        if (sortKey === "team_member") { aVal = a.team_members?.name; bVal = b.team_members?.name; }
+        else if (sortKey === "cost") { aVal = cost(a); bVal = cost(b); }
+        else if (sortKey === "experience") { aVal = a.exp_experiences?.title; bVal = b.exp_experiences?.title; }
+        else if (sortKey === "booking") { aVal = a.booking?.name; bVal = b.booking?.name; }
+        else { aVal = a[sortKey as keyof HoursEntry]; bVal = b[sortKey as keyof HoursEntry]; }
         return compareValues(aVal, bVal, sortDir);
       })
     : entries;
 
   function startEdit(e: HoursEntry) {
     setEditId(e.id);
-    setForm({ date: e.date || "", hours: e.hours?.toString() || "", category: e.category || "", entry: e.entry || "", employee_id: e.employee_id || "", experience_id: e.experience_id || "", notes: e.notes || "" });
+    setForm({ date: e.date || "", hours: e.hours?.toString() || "", category: e.category || "", entry: e.entry || "", employee_id: e.employee_id || "", experience_id: e.experience_id || "", notes: e.notes || "", is_general: e.is_general ?? false, processed_at: e.processed_at || "" });
     setShowNew(false);
   }
 
   async function handleSave() {
-    const body = { date: form.date || null, hours: form.hours ? Number(form.hours) : 0, category: form.category || null, entry: form.entry || null, employee_id: form.employee_id || null, experience_id: form.experience_id || null, notes: form.notes || null };
+    const body = { date: form.date || null, hours: form.hours ? Number(form.hours) : 0, category: form.category || null, entry: form.entry || null, employee_id: form.employee_id || null, experience_id: form.experience_id || null, notes: form.notes || null, is_general: form.is_general, processed_at: form.processed_at || null };
     if (editId) {
       await fetch(`/api/admin/hours-log/${editId}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
     } else {
@@ -148,7 +161,7 @@ export default function HoursLogPage() {
         </div>
         <div className="flex items-center gap-3">
           <ColumnToggle columns={COLUMNS} visible={visibleColumns} onChange={setVisibleColumns} storageKey={STORAGE_KEY} />
-          <button onClick={() => { setShowNew(!showNew); setEditId(null); setForm({ date: "", hours: "", category: "", entry: "", employee_id: "", experience_id: "", notes: "" }); }} className="px-4 py-2 bg-[#0aa3c7] hover:bg-[#0aa3c7]/90 text-white text-sm font-bold rounded-lg transition-colors">
+          <button onClick={() => { setShowNew(!showNew); setEditId(null); setForm({ date: "", hours: "", category: "", entry: "", employee_id: "", experience_id: "", notes: "", is_general: false, processed_at: "" }); }} className="px-4 py-2 bg-[#0aa3c7] hover:bg-[#0aa3c7]/90 text-white text-sm font-bold rounded-lg transition-colors">
             Log Hours
           </button>
         </div>
@@ -192,7 +205,16 @@ export default function HoursLogPage() {
             </div>
             <div><label className={labelClass}>Description</label><input className={inputClass} value={form.entry} onChange={(e) => setForm({ ...form, entry: e.target.value })} /></div>
           </div>
-          <div className="mb-4"><label className={labelClass}>Notes</label><input className={inputClass} value={form.notes} onChange={(e) => setForm({ ...form, notes: e.target.value })} /></div>
+          <div className="grid grid-cols-3 gap-4 mb-4">
+            <div><label className={labelClass}>Notes</label><input className={inputClass} value={form.notes} onChange={(e) => setForm({ ...form, notes: e.target.value })} /></div>
+            <div><label className={labelClass}>Processed on</label><input className={inputClass} type="date" value={form.processed_at} onChange={(e) => setForm({ ...form, processed_at: e.target.value })} /></div>
+            <div className="flex items-end pb-2">
+              <label className="flex items-center gap-2 cursor-pointer">
+                <input type="checkbox" checked={form.is_general} onChange={(e) => setForm({ ...form, is_general: e.target.checked })} className="w-4 h-4 accent-[#0aa3c7]" />
+                <span className="text-sm admin-muted">General (not experience-specific)</span>
+              </label>
+            </div>
+          </div>
           <div className="flex gap-2">
             <button onClick={handleSave} disabled={!form.hours} className="px-4 py-2 bg-[#0aa3c7] hover:bg-[#0aa3c7]/90 disabled:opacity-40 text-white text-sm font-bold rounded-lg">{editId ? "Update" : "Log"}</button>
             <button onClick={() => { setShowNew(false); setEditId(null); }} className="px-4 py-2 admin-muted text-sm rounded-lg">Cancel</button>
@@ -230,11 +252,29 @@ export default function HoursLogPage() {
               {visibleColumns.has("team_member") && (
                 <span className="text-xs admin-muted self-center truncate">{e.team_members?.name || "—"}</span>
               )}
+              {visibleColumns.has("cost") && (
+                <span className="text-xs self-center" title="hours × rate">{cost(e) != null ? `€${cost(e)!.toLocaleString()}` : "—"}</span>
+              )}
               {visibleColumns.has("category") && (
                 <span className="text-xs admin-muted self-center capitalize">{e.category || "—"}</span>
               )}
+              {visibleColumns.has("experience") && (
+                <span className="text-xs admin-muted self-center truncate">{e.exp_experiences?.title || (e.is_general ? "General" : "—")}</span>
+              )}
+              {visibleColumns.has("booking") && (
+                <span className="text-xs admin-muted self-center truncate">{e.booking?.name || "—"}</span>
+              )}
+              {visibleColumns.has("is_general") && (
+                <span className="self-center">{e.is_general ? <span className="text-green-400 text-xs">✓</span> : <span className="admin-faint text-xs">—</span>}</span>
+              )}
+              {visibleColumns.has("processed_at") && (
+                <span className="text-xs admin-faint self-center">{formatDate(e.processed_at)}</span>
+              )}
               {visibleColumns.has("description") && (
-                <span className="text-xs admin-faint self-center truncate">{e.entry || e.exp_experiences?.title || "—"}</span>
+                <span className="text-xs admin-faint self-center truncate">{e.entry || "—"}</span>
+              )}
+              {visibleColumns.has("notes") && (
+                <span className="text-xs admin-faint self-center truncate" title={e.notes || ""}>{e.notes || "—"}</span>
               )}
               {/* _actions — required */}
               <button onClick={(ev) => { ev.stopPropagation(); handleDelete(e.id); }} className="text-xs admin-faint hover:text-red-400 transition-colors self-center">

@@ -10,7 +10,7 @@ export async function GET(request: NextRequest) {
 
   let query = client
     .from("hours_log")
-    .select("*, team_members:employee_id(id, name), exp_experiences:experience_id(id, title)")
+    .select("*, team_members:employee_id(id, name, rate_per_hour), exp_experiences:experience_id(id, title), booking:booking_id(id, name)")
     .order("date", { ascending: false });
 
   if (employeeId) query = query.eq("employee_id", employeeId);
@@ -29,7 +29,7 @@ export async function POST(request: NextRequest) {
   const { data, error } = await client
     .from("hours_log")
     .insert(body)
-    .select("*, team_members:employee_id(id, name), exp_experiences:experience_id(id, title)")
+    .select("*, team_members:employee_id(id, name, rate_per_hour), exp_experiences:experience_id(id, title), booking:booking_id(id, name)")
     .single();
   if (error) return NextResponse.json({ error: error.message }, { status: 400 });
   return NextResponse.json(data, { status: 201 });

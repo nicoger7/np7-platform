@@ -115,8 +115,14 @@ function FactIcon({ name }: { name: string }) {
 /* live schema (generated types are stale) */
 type Edition = { date_start: string | null; date_end: string | null; max_spots: number | null; spots_taken: number | null; deposit: number | null; status: string | null };
 type PackageRow = { id: string; name: string; price: number | null; status: string | null };
+type ProgramItem = { title: string; description: string };
+type FaqRow = { q: string; a: string };
+type ContentRow = {
+  location_about: string | null; week_info: string | null;
+  daily_program: ProgramItem[] | null; highlights: string[] | null; faq: FaqRow[] | null;
+};
 type Detail = {
-  title: string; location: string | null; currency: string | null; price: number | null;
+  id: string; title: string; location: string | null; currency: string | null; price: number | null;
   description: string | null; hero_image: string | null; gallery: string[] | null; airport_code: string | null;
   exp_editions: Edition[] | null; exp_packages: PackageRow[] | null;
 };
@@ -134,11 +140,23 @@ export default async function ExperienceDetailPage({ params }: Props) {
   const { slug } = await params;
   const { data: raw } = await supabase
     .from("exp_experiences")
-    .select("title,location,currency,price,description,hero_image,gallery,airport_code,exp_editions(date_start,date_end,max_spots,spots_taken,deposit,status),exp_packages(id,name,price,status)")
+    .select("id,title,location,currency,price,description,hero_image,gallery,airport_code,exp_editions(date_start,date_end,max_spots,spots_taken,deposit,status),exp_packages(id,name,price,status)")
     .eq("slug", slug).eq("status", "published").maybeSingle();
 
   const experience = raw as unknown as Detail | null;
   if (!experience) notFound();
+
+  // Website content lives in a separate table not in the generated types yet.
+  // Fetch it tolerantly via an untyped client — if the table isn't created yet
+  // (or has no row), fall back to evergreen content.
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const sb = supabase as any;
+  const { data: contentRaw } = await sb
+    .from("exp_content")
+    .select("location_about,week_info,daily_program,highlights,faq")
+    .eq("experience_id", experience.id)
+    .maybeSingle();
+  const content = contentRaw as ContentRow | null;
 
   const today = new Date().toISOString().slice(0, 10);
   const editions = (experience.exp_editions ?? []).filter((e) => e.status === "published")
@@ -155,8 +173,26 @@ export default async function ExperienceDetailPage({ params }: Props) {
   const gallery = (experience.gallery ?? []).filter(Boolean);
   const place = experience.location?.split(",")[0] ?? "the water";
 
+  // editable website content (falls back to evergreen when empty)
+  const locationAbout = content?.location_about?.trim() ?? "";
+  const weekInfo = content?.week_info?.trim() ?? "";
+  const highlights = (content?.highlights ?? []).filter((h) => h && h.trim());
+  const programItems: AccordionItem[] =
+    (content?.daily_program ?? []).length > 0
+      ? content!.daily_program!.map((p, i) => ({
+          eyebrow: `Day ${i + 1}`,
+          title: p.title?.trim() || `Day ${i + 1}`,
+          content: <span className="whitespace-pre-line">{p.description}</span>,
+        }))
+      : ITINERARY;
+  const faqItems: AccordionItem[] =
+    (content?.faq ?? []).length > 0
+      ? content!.faq!.map((f) => ({ title: f.q, content: <span className="whitespace-pre-line">{f.a}</span> }))
+      : FAQ;
+
   const navSections: NavSection[] = [
     { id: "overview", label: "Overview" },
+    ...(locationAbout ? [{ id: "location", label: "The spot" }] : []),
     { id: "coaching", label: "Coaching" },
     { id: "included", label: "Included" },
     { id: "packages", label: "Packages" },
@@ -223,6 +259,16 @@ export default async function ExperienceDetailPage({ params }: Props) {
             <p className="text-[11px] font-bold tracking-[0.25em] text-[#00afdb] mb-3">WHY THIS TRIP</p>
             <h2 className="text-3xl sm:text-5xl font-black tracking-[-0.03em] text-[#00374a] mb-4">More than a windsurf trip</h2>
             {experience.description && <p className="text-[16px] text-[#6a7a80] leading-relaxed">{experience.description}</p>}
+            {weekInfo && <p className="text-[16px] text-[#6a7a80] leading-relaxed mt-4 whitespace-pre-line">{weekInfo}</p>}
+            {highlights.length > 0 && (
+              <div className="flex flex-wrap justify-center gap-2 mt-7">
+                {highlights.map((h) => (
+                  <span key={h} className="inline-flex items-center gap-1.5 text-[12.5px] font-semibold text-[#00374a] bg-[#00afdb]/10 px-3.5 py-1.5 rounded-full">
+                    <span className="text-[#00afdb]">✦</span>{h}
+                  </span>
+                ))}
+              </div>
+            )}
           </Reveal>
           <div className="space-y-16 sm:space-y-24">
             {USPS.map((u, i) => (
@@ -242,6 +288,24 @@ export default async function ExperienceDetailPage({ params }: Props) {
           </div>
         </div>
       </section>
+
+      {/* THE SPOT — editable location content */}
+      {locationAbout && (
+        <section id="location" className="scroll-mt-16 pb-20 sm:pb-28">
+          <div className="max-w-[1200px] mx-auto px-6 sm:px-8 grid lg:grid-cols-[1.1fr_1fr] gap-12 lg:gap-20 items-center">
+            <Reveal from="left">
+              <div className="aspect-[4/3] rounded-3xl bg-cover bg-center shadow-[0_20px_50px_rgba(0,55,74,0.12)]" style={{ backgroundImage: `url('${gallery[1] ?? heroImg ?? BRAND_IMG.spot}')` }} />
+            </Reveal>
+            <Reveal from="right">
+              <div>
+                <p className="text-[11px] font-bold tracking-[0.25em] text-[#00afdb] mb-3">THE SPOT</p>
+                <h2 className="text-3xl sm:text-5xl font-black tracking-[-0.03em] text-[#00374a] mb-5">{place}</h2>
+                <p className="text-[16px] text-[#5a6b72] leading-relaxed whitespace-pre-line">{locationAbout}</p>
+              </div>
+            </Reveal>
+          </div>
+        </section>
+      )}
 
       {/* COACHING — NP7 Method */}
       <section id="coaching" className="scroll-mt-16 py-20 sm:py-28 bg-[#00374a] text-white relative overflow-hidden">
@@ -317,7 +381,7 @@ export default async function ExperienceDetailPage({ params }: Props) {
             <h2 className="text-3xl sm:text-5xl font-black tracking-[-0.03em] text-[#00374a] mb-4">Your week in {place}</h2>
             <p className="text-[16px] text-[#6a7a80] leading-relaxed">Tap any day to see what&apos;s planned. It&apos;s all mapped out — you just enjoy it.</p>
           </Reveal>
-          <Reveal><Accordion items={ITINERARY} defaultOpen={0} variant="timeline" /></Reveal>
+          <Reveal><Accordion items={programItems} defaultOpen={0} variant="timeline" /></Reveal>
         </div>
       </section>
 
@@ -370,7 +434,7 @@ export default async function ExperienceDetailPage({ params }: Props) {
       <section id="faq" className="scroll-mt-16 py-20 sm:py-28 bg-[#f7f7f7]">
         <div className="max-w-[760px] mx-auto px-6 sm:px-8">
           <Reveal className="mb-12 text-center"><p className="text-[11px] font-bold tracking-[0.25em] text-[#00afdb] mb-3">GOOD TO KNOW</p><h2 className="text-3xl sm:text-5xl font-black tracking-[-0.03em] text-[#00374a]">Questions, answered</h2></Reveal>
-          <Reveal><Accordion items={FAQ} allowMultiple /></Reveal>
+          <Reveal><Accordion items={faqItems} allowMultiple /></Reveal>
         </div>
       </section>
 
