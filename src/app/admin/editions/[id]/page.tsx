@@ -65,6 +65,7 @@ interface Package {
   id: string;
   name: string;
   price: number | null;
+  cost_per_person: number | null;
   deposit: number | null;
   max_spots: number | null;
   status: string;
@@ -144,7 +145,7 @@ export default function EditionDetailPage({
   const [rooms, setRooms] = useState<Room[]>([]);
 
   // ── Inline CRUD form state ──
-  const emptyPkg = { name: "", price: "", deposit: "", max_spots: "", category: "", status: "active" };
+  const emptyPkg = { name: "", price: "", cost_per_person: "", deposit: "", max_spots: "", category: "", status: "active" };
   const [pkgForm, setPkgForm] = useState(emptyPkg);
   const [pkgEditId, setPkgEditId] = useState<string | null>(null);
   const [pkgShow, setPkgShow] = useState(false);
@@ -196,6 +197,7 @@ export default function EditionDetailPage({
     const body = {
       name: pkgForm.name,
       price: pkgForm.price ? Number(pkgForm.price) : null,
+      cost_per_person: pkgForm.cost_per_person ? Number(pkgForm.cost_per_person) : null,
       deposit: pkgForm.deposit ? Number(pkgForm.deposit) : null,
       max_spots: pkgForm.max_spots ? Number(pkgForm.max_spots) : null,
       category: pkgForm.category || null,
@@ -785,9 +787,10 @@ export default function EditionDetailPage({
           {(pkgShow || pkgEditId) && (
             <div className="mb-4 p-4 rounded-xl" style={{ border: "1px solid var(--admin-border)", backgroundColor: "var(--admin-surface)" }}>
               <h3 className="text-sm font-bold admin-heading mb-3">{pkgEditId ? "Edit Package" : "New Package"}</h3>
-              <div className="grid grid-cols-[1fr_110px_110px_90px_130px] gap-3 mb-3">
+              <div className="grid grid-cols-[1fr_100px_100px_100px_80px_120px] gap-3 mb-3">
                 <div><label className={labelClass}>Name *</label><input className={inputClass} value={pkgForm.name} onChange={(e) => setPkgForm({ ...pkgForm, name: e.target.value })} /></div>
-                <div><label className={labelClass}>Price ({currency})</label><input type="number" className={inputClass} value={pkgForm.price} onChange={(e) => setPkgForm({ ...pkgForm, price: e.target.value })} /></div>
+                <div><label className={labelClass}>Sell ({currency})</label><input type="number" className={inputClass} value={pkgForm.price} onChange={(e) => setPkgForm({ ...pkgForm, price: e.target.value })} /></div>
+                <div><label className={labelClass}>Cost / person</label><input type="number" className={inputClass} value={pkgForm.cost_per_person} onChange={(e) => setPkgForm({ ...pkgForm, cost_per_person: e.target.value })} placeholder="auto" /></div>
                 <div><label className={labelClass}>Deposit</label><input type="number" className={inputClass} value={pkgForm.deposit} onChange={(e) => setPkgForm({ ...pkgForm, deposit: e.target.value })} /></div>
                 <div><label className={labelClass}>Spots</label><input type="number" className={inputClass} value={pkgForm.max_spots} onChange={(e) => setPkgForm({ ...pkgForm, max_spots: e.target.value })} /></div>
                 <div><label className={labelClass}>Category</label><select className={inputClass} value={pkgForm.category} onChange={(e) => setPkgForm({ ...pkgForm, category: e.target.value })}>{PKG_CATEGORIES.map((c) => <option key={c} value={c}>{c ? c[0].toUpperCase() + c.slice(1) : "None"}</option>)}</select></div>
@@ -822,7 +825,7 @@ export default function EditionDetailPage({
                   onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = "var(--admin-surface-hover)")}
                   onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = "transparent")}
                 >
-                  <div className="min-w-0 self-center cursor-pointer" onClick={() => { setPkgEditId(pkg.id); setPkgShow(false); setPkgForm({ name: pkg.name, price: pkg.price?.toString() || "", deposit: pkg.deposit?.toString() || "", max_spots: pkg.max_spots?.toString() || "", category: pkg.category || "", status: pkg.status }); }}>
+                  <div className="min-w-0 self-center cursor-pointer" onClick={() => { setPkgEditId(pkg.id); setPkgShow(false); setPkgForm({ name: pkg.name, price: pkg.price?.toString() || "", cost_per_person: pkg.cost_per_person?.toString() || "", deposit: pkg.deposit?.toString() || "", max_spots: pkg.max_spots?.toString() || "", category: pkg.category || "", status: pkg.status }); }}>
                     <div className="text-sm font-medium admin-heading truncate">{pkg.name}</div>
                     {pkg.category && <div className="text-xs admin-faint capitalize">{pkg.category}</div>}
                   </div>

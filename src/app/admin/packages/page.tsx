@@ -9,14 +9,25 @@ interface Package {
   slug: string;
   description: string | null;
   price: number | null;
+  cost_per_person: number | null;
   deposit: number | null;
   max_spots: number | null;
   sort_order: number;
   status: string;
   category: string | null;
+  date: string | null;
+  includes: string | null;
   experience_id: string | null;
   edition_id: string | null;
   exp_experiences: { id: string; title: string } | null;
+  // computed in the API
+  component_count: number;
+  cost_estimate: number | null;
+  margin: number | null;
+}
+
+function money(n: number | null) {
+  return n != null ? `€${Number(n).toLocaleString()}` : "—";
 }
 
 interface Edition {
@@ -155,12 +166,15 @@ export default function PackagesPage() {
                 style={{ border: "1px solid var(--admin-border)" }}
               >
                 <div
-                  className="grid grid-cols-[1fr_100px_90px_90px_80px_80px] gap-3 px-5 py-3 admin-surface"
+                  className="grid grid-cols-[1fr_90px_80px_80px_90px_55px_70px_70px_80px] gap-3 px-5 py-3 admin-surface"
                   style={{ borderBottom: "1px solid var(--admin-border)" }}
                 >
                   <span className="text-[10px] font-bold tracking-[0.1em] admin-faint uppercase">Name</span>
                   <span className="text-[10px] font-bold tracking-[0.1em] admin-faint uppercase">Category</span>
-                  <span className="text-[10px] font-bold tracking-[0.1em] admin-faint uppercase">Price</span>
+                  <span className="text-[10px] font-bold tracking-[0.1em] admin-faint uppercase">Sell</span>
+                  <span className="text-[10px] font-bold tracking-[0.1em] admin-faint uppercase">Cost</span>
+                  <span className="text-[10px] font-bold tracking-[0.1em] admin-faint uppercase">Margin</span>
+                  <span className="text-[10px] font-bold tracking-[0.1em] admin-faint uppercase">Comps</span>
                   <span className="text-[10px] font-bold tracking-[0.1em] admin-faint uppercase">Deposit</span>
                   <span className="text-[10px] font-bold tracking-[0.1em] admin-faint uppercase">Spots</span>
                   <span className="text-[10px] font-bold tracking-[0.1em] admin-faint uppercase">Status</span>
@@ -175,19 +189,25 @@ export default function PackagesPage() {
                         ? `/admin/experiences/${pkg.experience_id}`
                         : "#"
                     }
-                    className="grid grid-cols-[1fr_100px_90px_90px_80px_80px] gap-3 px-5 py-3 transition-colors block"
+                    className="grid grid-cols-[1fr_90px_80px_80px_90px_55px_70px_70px_80px] gap-3 px-5 py-3 transition-colors block"
                     style={{ borderBottom: "1px solid var(--admin-border)" }}
                     onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = "var(--admin-surface-hover)")}
                     onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = "transparent")}
                   >
                     <span className="text-sm font-medium admin-heading truncate">{pkg.name}</span>
                     <span className="text-xs admin-muted self-center capitalize">{pkg.category || "—"}</span>
+                    <span className="text-xs admin-muted self-center">{money(pkg.price)}</span>
                     <span className="text-xs admin-muted self-center">
-                      {pkg.price != null ? `€${pkg.price.toLocaleString()}` : "—"}
+                      {money(pkg.cost_estimate)}
+                      {pkg.cost_per_person == null && pkg.cost_estimate != null && (
+                        <span className="ml-1 text-[9px] text-[#0aa3c7]" title="Derived from components">~</span>
+                      )}
                     </span>
-                    <span className="text-xs admin-muted self-center">
-                      {pkg.deposit != null ? `€${pkg.deposit.toLocaleString()}` : "—"}
+                    <span className={`text-xs self-center font-medium ${pkg.margin == null ? "admin-faint" : pkg.margin < 0 ? "text-red-400" : "text-green-400"}`}>
+                      {money(pkg.margin)}
                     </span>
+                    <span className="text-xs admin-muted self-center">{pkg.component_count || "—"}</span>
+                    <span className="text-xs admin-muted self-center">{money(pkg.deposit)}</span>
                     <span className="text-xs admin-muted self-center">{pkg.max_spots ?? "—"}</span>
                     <span className="self-center">
                       <StatusBadge status={pkg.status} />
