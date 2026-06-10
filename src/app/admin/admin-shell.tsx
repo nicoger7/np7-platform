@@ -24,6 +24,7 @@ const navByEnv: Record<Environment, { label: string; items: { label: string; hre
       label: "OPERATIONS",
       items: [
         { label: "Experiences", href: "/admin/experiences", icon: "compass" },
+        { label: "Website Content", href: "/admin/content", icon: "image" },
         { label: "Bookings", href: "/admin/bookings", icon: "inbox" },
         { label: "Contacts", href: "/admin/contacts", icon: "users" },
         { label: "Hotel Rooms", href: "/admin/hotel-rooms", icon: "bed" },

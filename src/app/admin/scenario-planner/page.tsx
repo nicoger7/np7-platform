@@ -8,24 +8,44 @@ interface Scenario {
   id: string;
   name: string;
   experience_id: string | null;
+  edition_id: string | null;
   assumptions: string | null;
+  num_beginner: number | null;
+  num_mixed: number | null;
+  num_pro: number | null;
+  beginner_package_id: string | null;
+  mixed_package_id: string | null;
+  pro_package_id: string | null;
   projected_revenue: number | null;
   projected_costs: number | null;
   projected_profit: number | null;
+  total_revenue: number | null;
+  margin_pct: number | null;
   notes: string | null;
   exp_experiences: { id: string; title: string } | null;
 }
 
 interface Experience { id: string; title: string; }
+interface Pkg { id: string; name: string; }
+
+function money(n: number | null | undefined) {
+  return n != null ? `€${Number(n).toLocaleString()}` : "—";
+}
 
 type SortDir = "asc" | "desc" | null;
 
 const COLUMNS: ColumnDef[] = [
   { key: "name", label: "Name", width: "1fr", required: true },
-  { key: "experience", label: "Experience", width: "160px" },
-  { key: "projected_revenue", label: "Revenue", width: "100px" },
+  { key: "experience", label: "Experience", width: "150px" },
+  { key: "num_beginner", label: "Beg", width: "50px", defaultHidden: true },
+  { key: "num_mixed", label: "Mix", width: "50px", defaultHidden: true },
+  { key: "num_pro", label: "Pro", width: "50px", defaultHidden: true },
+  { key: "total_revenue", label: "Calc Rev", width: "100px" },
+  { key: "projected_revenue", label: "Proj Rev", width: "100px", defaultHidden: true },
   { key: "projected_costs", label: "Costs", width: "100px" },
   { key: "projected_profit", label: "Profit", width: "100px" },
+  { key: "margin_pct", label: "Margin %", width: "80px" },
+  { key: "notes", label: "Notes", width: "160px", defaultHidden: true },
   { key: "_actions", label: "", width: "60px", required: true },
 ];
 
@@ -45,6 +65,7 @@ function compareValues(a: unknown, b: unknown, dir: "asc" | "desc"): number {
 export default function ScenarioPlannerPage() {
   const [scenarios, setScenarios] = useState<Scenario[]>([]);
   const [experiences, setExperiences] = useState<Experience[]>([]);
+  const [packages, setPackages] = useState<Pkg[]>([]);
   const [loading, setLoading] = useState(true);
   const [showNew, setShowNew] = useState(false);
   const [editId, setEditId] = useState<string | null>(null);
@@ -53,15 +74,17 @@ export default function ScenarioPlannerPage() {
   const [visibleColumns, setVisibleColumns] = useState<Set<string>>(
     () => loadVisibleColumns(STORAGE_KEY, COLUMNS)
   );
-  const [form, setForm] = useState({ name: "", experience_id: "", assumptions: "", projected_revenue: "", projected_costs: "", projected_profit: "", notes: "" });
+  const [form, setForm] = useState({ name: "", experience_id: "", assumptions: "", num_beginner: "", num_mixed: "", num_pro: "", beginner_package_id: "", mixed_package_id: "", pro_package_id: "", projected_revenue: "", projected_costs: "", projected_profit: "", notes: "" });
 
   function fetchData() {
     Promise.all([
       fetch("/api/admin/scenario-planner").then((r) => r.json()),
       fetch("/api/admin/experiences").then((r) => r.json()),
-    ]).then(([s, e]) => {
+      fetch("/api/admin/packages").then((r) => r.json()),
+    ]).then(([s, e, p]) => {
       setScenarios(s || []);
       setExperiences((e.experiences || e || []).map((x: Record<string, string>) => ({ id: x.id, title: x.title })));
+      setPackages((Array.isArray(p) ? p : []).map((x: Record<string, string>) => ({ id: x.id, name: x.name })));
       setLoading(false);
     });
   }
@@ -91,16 +114,19 @@ export default function ScenarioPlannerPage() {
 
   function startEdit(s: Scenario) {
     setEditId(s.id);
-    setForm({ name: s.name, experience_id: s.experience_id || "", assumptions: s.assumptions || "", projected_revenue: s.projected_revenue?.toString() || "", projected_costs: s.projected_costs?.toString() || "", projected_profit: s.projected_profit?.toString() || "", notes: s.notes || "" });
+    setForm({ name: s.name, experience_id: s.experience_id || "", assumptions: s.assumptions || "", num_beginner: s.num_beginner?.toString() || "", num_mixed: s.num_mixed?.toString() || "", num_pro: s.num_pro?.toString() || "", beginner_package_id: s.beginner_package_id || "", mixed_package_id: s.mixed_package_id || "", pro_package_id: s.pro_package_id || "", projected_revenue: s.projected_revenue?.toString() || "", projected_costs: s.projected_costs?.toString() || "", projected_profit: s.projected_profit?.toString() || "", notes: s.notes || "" });
     setShowNew(false);
   }
 
   async function handleSave() {
+    const numOrNull = (v: string) => (v ? Number(v) : null);
     const body = {
       name: form.name, experience_id: form.experience_id || null, assumptions: form.assumptions || null,
-      projected_revenue: form.projected_revenue ? Number(form.projected_revenue) : null,
-      projected_costs: form.projected_costs ? Number(form.projected_costs) : null,
-      projected_profit: form.projected_profit ? Number(form.projected_profit) : null,
+      num_beginner: numOrNull(form.num_beginner), num_mixed: numOrNull(form.num_mixed), num_pro: numOrNull(form.num_pro),
+      beginner_package_id: form.beginner_package_id || null, mixed_package_id: form.mixed_package_id || null, pro_package_id: form.pro_package_id || null,
+      projected_revenue: numOrNull(form.projected_revenue),
+      projected_costs: numOrNull(form.projected_costs),
+      projected_profit: numOrNull(form.projected_profit),
       notes: form.notes || null,
     };
     if (editId) {
@@ -135,7 +161,7 @@ export default function ScenarioPlannerPage() {
         </div>
         <div className="flex items-center gap-3">
           <ColumnToggle columns={COLUMNS} visible={visibleColumns} onChange={setVisibleColumns} storageKey={STORAGE_KEY} />
-          <button onClick={() => { setShowNew(!showNew); setEditId(null); setForm({ name: "", experience_id: "", assumptions: "", projected_revenue: "", projected_costs: "", projected_profit: "", notes: "" }); }} className="px-4 py-2 bg-[#0aa3c7] hover:bg-[#0aa3c7]/90 text-white text-sm font-bold rounded-lg transition-colors">
+          <button onClick={() => { setShowNew(!showNew); setEditId(null); setForm({ name: "", experience_id: "", assumptions: "", num_beginner: "", num_mixed: "", num_pro: "", beginner_package_id: "", mixed_package_id: "", pro_package_id: "", projected_revenue: "", projected_costs: "", projected_profit: "", notes: "" }); }} className="px-4 py-2 bg-[#0aa3c7] hover:bg-[#0aa3c7]/90 text-white text-sm font-bold rounded-lg transition-colors">
             New Scenario
           </button>
         </div>
@@ -153,8 +179,17 @@ export default function ScenarioPlannerPage() {
               </select>
             </div>
           </div>
+          {/* Spot counts × package → drives the computed revenue */}
           <div className="grid grid-cols-3 gap-4 mb-4">
-            <div><label className={labelClass}>Projected Revenue (€)</label><input className={inputClass} type="number" value={form.projected_revenue} onChange={(e) => setForm({ ...form, projected_revenue: e.target.value })} /></div>
+            <div><label className={labelClass}># Beginner</label><input className={inputClass} type="number" value={form.num_beginner} onChange={(e) => setForm({ ...form, num_beginner: e.target.value })} /></div>
+            <div><label className={labelClass}># Mixed</label><input className={inputClass} type="number" value={form.num_mixed} onChange={(e) => setForm({ ...form, num_mixed: e.target.value })} /></div>
+            <div><label className={labelClass}># Pro</label><input className={inputClass} type="number" value={form.num_pro} onChange={(e) => setForm({ ...form, num_pro: e.target.value })} /></div>
+            <div><label className={labelClass}>Beginner package</label><select className={inputClass} value={form.beginner_package_id} onChange={(e) => setForm({ ...form, beginner_package_id: e.target.value })}><option value="">—</option>{packages.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}</select></div>
+            <div><label className={labelClass}>Mixed package</label><select className={inputClass} value={form.mixed_package_id} onChange={(e) => setForm({ ...form, mixed_package_id: e.target.value })}><option value="">—</option>{packages.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}</select></div>
+            <div><label className={labelClass}>Pro package</label><select className={inputClass} value={form.pro_package_id} onChange={(e) => setForm({ ...form, pro_package_id: e.target.value })}><option value="">—</option>{packages.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}</select></div>
+          </div>
+          <div className="grid grid-cols-3 gap-4 mb-4">
+            <div><label className={labelClass}>Projected Revenue (€) <span className="admin-faint">override</span></label><input className={inputClass} type="number" value={form.projected_revenue} onChange={(e) => setForm({ ...form, projected_revenue: e.target.value })} /></div>
             <div><label className={labelClass}>Projected Costs (€)</label><input className={inputClass} type="number" value={form.projected_costs} onChange={(e) => setForm({ ...form, projected_costs: e.target.value })} /></div>
             <div><label className={labelClass}>Projected Profit (€)</label><input className={inputClass} type="number" value={form.projected_profit} onChange={(e) => setForm({ ...form, projected_profit: e.target.value })} /></div>
           </div>
@@ -197,11 +232,17 @@ export default function ScenarioPlannerPage() {
                   {s.assumptions && <div className="text-xs admin-faint truncate">{s.assumptions}</div>}
                 </div>
                 {visibleColumns.has("experience") && <span className="text-xs admin-muted self-center truncate">{s.exp_experiences?.title || "—"}</span>}
-                {visibleColumns.has("projected_revenue") && <span className="text-xs admin-muted self-center">{s.projected_revenue ? `€${Number(s.projected_revenue).toLocaleString()}` : "—"}</span>}
-                {visibleColumns.has("projected_costs") && <span className="text-xs admin-muted self-center">{s.projected_costs ? `€${Number(s.projected_costs).toLocaleString()}` : "—"}</span>}
+                {visibleColumns.has("num_beginner") && <span className="text-xs admin-muted self-center">{s.num_beginner ?? "—"}</span>}
+                {visibleColumns.has("num_mixed") && <span className="text-xs admin-muted self-center">{s.num_mixed ?? "—"}</span>}
+                {visibleColumns.has("num_pro") && <span className="text-xs admin-muted self-center">{s.num_pro ?? "—"}</span>}
+                {visibleColumns.has("total_revenue") && <span className="text-xs admin-muted self-center">{money(s.total_revenue)}</span>}
+                {visibleColumns.has("projected_revenue") && <span className="text-xs admin-muted self-center">{money(s.projected_revenue)}</span>}
+                {visibleColumns.has("projected_costs") && <span className="text-xs admin-muted self-center">{money(s.projected_costs)}</span>}
                 {visibleColumns.has("projected_profit") && (
-                  <span className={`text-xs self-center font-medium ${p && p > 0 ? "text-green-400" : p && p < 0 ? "text-red-400" : "admin-muted"}`}>{p !== null && p !== undefined ? `€${Number(p).toLocaleString()}` : "—"}</span>
+                  <span className={`text-xs self-center font-medium ${p && p > 0 ? "text-green-400" : p && p < 0 ? "text-red-400" : "admin-muted"}`}>{p !== null && p !== undefined ? money(Number(p)) : "—"}</span>
                 )}
+                {visibleColumns.has("margin_pct") && <span className={`text-xs self-center font-medium ${s.margin_pct == null ? "admin-faint" : s.margin_pct < 0 ? "text-red-400" : "text-green-400"}`}>{s.margin_pct != null ? `${s.margin_pct}%` : "—"}</span>}
+                {visibleColumns.has("notes") && <span className="text-xs admin-faint self-center truncate" title={s.notes || ""}>{s.notes || "—"}</span>}
                 {/* _actions — required */}
                 <button onClick={(e) => { e.stopPropagation(); handleDelete(s.id); }} className="text-xs admin-faint hover:text-red-400 transition-colors self-center">
                   <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M3 6h18M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a2 2 0 012-2h4a2 2 0 012 2v2" /></svg>
