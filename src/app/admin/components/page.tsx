@@ -17,12 +17,17 @@ interface Component {
   unit_cost: number | null;
   sell_price: number | null;
   addon_available: boolean;
+  scope: string | null;
   year: string[] | null;
   notes: string | null;
   is_global: boolean;
   experience_id: string | null;
   exp_experiences: { id: string; title: string } | null;
   created_at: string;
+}
+
+function arr(x: string[] | null) {
+  return x && x.length ? x.join(", ") : "—";
 }
 
 const CATEGORIES = [
@@ -44,6 +49,10 @@ const COLUMNS: ColumnDef[] = [
   { key: "sell_price", label: "Sell", width: "90px" },
   { key: "addon_available", label: "Add-on", width: "80px" },
   { key: "scope", label: "Scope", width: "70px" },
+  { key: "experience", label: "Experience", width: "140px", defaultHidden: true },
+  { key: "scope_text", label: "Location", width: "110px", defaultHidden: true },
+  { key: "year", label: "Year", width: "100px", defaultHidden: true },
+  { key: "notes", label: "Notes", width: "160px", defaultHidden: true },
   { key: "_actions", label: "", width: "60px", required: true },
 ];
 
@@ -79,6 +88,8 @@ export default function ComponentsPage() {
     unit_cost: "",
     sell_price: "",
     addon_available: false,
+    scope: "",
+    year: "",
     notes: "",
     is_global: true,
     experience_id: "",
@@ -126,6 +137,12 @@ export default function ComponentsPage() {
         if (sortKey === "scope") {
           aVal = a.is_global ? "global" : "local";
           bVal = b.is_global ? "global" : "local";
+        } else if (sortKey === "experience") {
+          aVal = a.exp_experiences?.title; bVal = b.exp_experiences?.title;
+        } else if (sortKey === "scope_text") {
+          aVal = a.scope; bVal = b.scope;
+        } else if (sortKey === "year") {
+          aVal = (a.year || []).join(","); bVal = (b.year || []).join(",");
         } else {
           aVal = a[sortKey as keyof Component];
           bVal = b[sortKey as keyof Component];
@@ -143,6 +160,8 @@ export default function ComponentsPage() {
       unit_cost: c.unit_cost?.toString() || "",
       sell_price: c.sell_price?.toString() || "",
       addon_available: c.addon_available || false,
+      scope: c.scope || "",
+      year: (c.year || []).join(", "),
       notes: c.notes || "",
       is_global: c.is_global,
       experience_id: c.experience_id || "",
@@ -152,7 +171,7 @@ export default function ComponentsPage() {
 
   function startNew() {
     setEditId(null);
-    setForm({ name: "", category: "coaching", description: "", unit_cost: "", sell_price: "", addon_available: false, notes: "", is_global: true, experience_id: "" });
+    setForm({ name: "", category: "coaching", description: "", unit_cost: "", sell_price: "", addon_available: false, scope: "", year: "", notes: "", is_global: true, experience_id: "" });
     setShowNew(true);
   }
 
@@ -164,6 +183,8 @@ export default function ComponentsPage() {
       unit_cost: form.unit_cost ? Number(form.unit_cost) : null,
       sell_price: form.sell_price ? Number(form.sell_price) : null,
       addon_available: form.addon_available,
+      scope: form.scope || null,
+      year: form.year ? form.year.split(",").map((y) => y.trim()).filter(Boolean) : null,
       notes: form.notes || null,
       is_global: form.is_global,
       experience_id: form.is_global ? null : form.experience_id || null,
@@ -205,9 +226,13 @@ export default function ComponentsPage() {
         <div><label className={labelClass}>Buy Price (€)</label><input className={inputClass} type="number" step="0.01" value={form.unit_cost} onChange={(e) => setForm({ ...form, unit_cost: e.target.value })} placeholder="0.00" /></div>
         <div><label className={labelClass}>Sell Price (€)</label><input className={inputClass} type="number" step="0.01" value={form.sell_price} onChange={(e) => setForm({ ...form, sell_price: e.target.value })} placeholder="0.00" /></div>
       </div>
-      <div className="grid grid-cols-3 gap-4 mb-4">
+      <div className="grid grid-cols-4 gap-4 mb-4">
         <div><label className={labelClass}>Description</label><input className={inputClass} value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} /></div>
+        <div><label className={labelClass}>Location scope</label><input className={inputClass} value={form.scope} onChange={(e) => setForm({ ...form, scope: e.target.value })} placeholder="e.g. per location" /></div>
+        <div><label className={labelClass}>Year <span className="admin-faint">(comma-sep)</span></label><input className={inputClass} value={form.year} onChange={(e) => setForm({ ...form, year: e.target.value })} placeholder="2026, 2027" /></div>
         <div><label className={labelClass}>Notes</label><input className={inputClass} value={form.notes} onChange={(e) => setForm({ ...form, notes: e.target.value })} /></div>
+      </div>
+      <div className="grid grid-cols-3 gap-4 mb-4">
         <div className="flex items-end pb-1">
           <label className="flex items-center gap-2 cursor-pointer">
             <input type="checkbox" checked={form.addon_available} onChange={(e) => setForm({ ...form, addon_available: e.target.checked })} className="w-4 h-4 accent-[#0aa3c7]" />
@@ -347,6 +372,18 @@ export default function ComponentsPage() {
                       {c.is_global ? "Global" : "Local"}
                     </span>
                   </span>
+                )}
+                {visibleColumns.has("experience") && (
+                  <span className="text-xs admin-muted self-center truncate">{c.exp_experiences?.title || (c.is_global ? "All" : "—")}</span>
+                )}
+                {visibleColumns.has("scope_text") && (
+                  <span className="text-xs admin-muted self-center truncate">{c.scope || "—"}</span>
+                )}
+                {visibleColumns.has("year") && (
+                  <span className="text-xs admin-muted self-center truncate">{arr(c.year)}</span>
+                )}
+                {visibleColumns.has("notes") && (
+                  <span className="text-xs admin-faint self-center truncate" title={c.notes || ""}>{c.notes || "—"}</span>
                 )}
                 {/* _actions — required */}
                 <button
