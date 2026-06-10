@@ -1,0 +1,102 @@
+"use client";
+
+import { useState } from "react";
+import { PackagePicker, type RealPackage } from "./package-picker";
+
+export type EditionLite = {
+  id: string;
+  label: string;
+  dateRange: string;
+  shortRange: string;
+  spotsLeft: number | null;
+  fromPrice: number | null;
+  deposit: number | null;
+  coaches: string | null;
+};
+
+/**
+ * Booking block for an experience. When the experience has multiple editions
+ * (weeks), shows a "Choose your week" selector that drives a per-week package
+ * picker — so each week only ever shows its own packages (no cross-week dupes).
+ * For a single edition, it just renders that week's picker.
+ */
+export function EditionBooking({
+  editions,
+  packagesByEdition,
+  currency = "EUR",
+}: {
+  editions: EditionLite[];
+  packagesByEdition: Record<string, RealPackage[]>;
+  currency?: string;
+}) {
+  const [sel, setSel] = useState(editions[0]?.id);
+  const ed = editions.find((e) => e.id === sel) ?? editions[0];
+  const packages = ed ? packagesByEdition[ed.id] ?? [] : [];
+  const multi = editions.length > 1;
+
+  const symbol = currency === "EUR" || !currency ? "€" : `${currency} `;
+  const fmt = (n: number) => `${symbol}${n.toLocaleString("en-US")}`;
+
+  return (
+    <div>
+      {multi && (
+        <div className="mb-9">
+          <p className="text-[11px] font-bold tracking-[0.2em] uppercase text-[#9aa6ac] mb-3.5 text-center">
+            Choose your week
+          </p>
+          <div className="grid sm:grid-cols-3 gap-3 max-w-[820px] mx-auto">
+            {editions.map((e) => {
+              const on = e.id === sel;
+              const full = e.spotsLeft != null && e.spotsLeft <= 0;
+              return (
+                <button
+                  key={e.id}
+                  onClick={() => !full && setSel(e.id)}
+                  aria-pressed={on}
+                  disabled={full}
+                  className={`relative text-left rounded-2xl border p-4 transition-all ${
+                    on
+                      ? "border-[#00afdb] bg-[#00afdb]/[0.05] shadow-[0_8px_24px_rgba(0,175,219,0.12)]"
+                      : "border-[#e3e9ec] bg-white hover:border-[#9fd9e8]"
+                  } ${full ? "opacity-55 cursor-not-allowed" : ""}`}
+                >
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="font-extrabold text-[#00374a] tracking-[-0.01em]">{e.label}</span>
+                    {on && (
+                      <span className="shrink-0 w-5 h-5 rounded-full bg-[#00afdb] text-white grid place-items-center">
+                        <svg className="w-3 h-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><path d="M20 6L9 17l-5-5" /></svg>
+                      </span>
+                    )}
+                  </div>
+                  <span className="block text-[13px] text-[#5a6b72] mt-0.5">{e.shortRange}</span>
+                  <div className="flex items-center justify-between mt-3">
+                    {e.fromPrice != null ? (
+                      <span className="text-[13px] font-bold text-[#00374a]">from {fmt(e.fromPrice)}</span>
+                    ) : <span />}
+                    {e.spotsLeft != null && (
+                      <span className={`text-[11px] font-bold ${full ? "text-[#f47b20]" : "text-green-600"}`}>
+                        {full ? "Fully booked" : `${e.spotsLeft} left`}
+                      </span>
+                    )}
+                  </div>
+                </button>
+              );
+            })}
+          </div>
+          {ed?.coaches && (
+            <p className="text-center text-[13px] text-[#5a6b72] mt-4">
+              Coaches this week: <span className="font-semibold text-[#00374a]">{ed.coaches}</span>
+            </p>
+          )}
+        </div>
+      )}
+
+      {/* key forces a fresh picker (resets level/accommodation) when the week changes */}
+      {packages.length > 0 ? (
+        <PackagePicker key={ed?.id} packages={packages} currency={currency} deposit={ed?.deposit} />
+      ) : (
+        <p className="text-center text-[#6a7a80]">Packages for this week are being finalised.</p>
+      )}
+    </div>
+  );
+}

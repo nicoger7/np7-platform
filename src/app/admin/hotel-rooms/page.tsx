@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import Link from "next/link";
 import { SortableHeader } from "@/components/sortable-header";
 import { ColumnToggle, ColumnDef, buildGridTemplate, loadVisibleColumns } from "@/components/column-toggle";
 
@@ -23,6 +24,7 @@ interface HotelRoom {
     status: string;
     contact: { id: string; name: string; email: string } | null;
   } | null;
+  edition: { year: number; label: string | null } | null;
 }
 
 interface Experience {
@@ -37,12 +39,15 @@ type SortDir = "asc" | "desc" | null;
 // Columns for table header/rows — actions at end is required but empty
 const COLUMNS: ColumnDef[] = [
   { key: "name", label: "Room", width: "1fr", required: true },
+  { key: "room_number", label: "Room #", width: "70px", defaultHidden: true },
   { key: "room_type", label: "Type", width: "140px" },
+  { key: "edition", label: "Edition", width: "100px", defaultHidden: true },
   { key: "transfer_need", label: "Transfer", width: "70px" },
   { key: "status", label: "Status", width: "80px" },
   { key: "guest", label: "Guest", width: "130px" },
+  { key: "partner_tag_along", label: "Partner", width: "120px", defaultHidden: true },
   { key: "check_in", label: "Dates", width: "130px" },
-  { key: "comments", label: "Notes", width: "60px" },
+  { key: "comments", label: "Notes", width: "120px", defaultHidden: true },
 ];
 
 const STORAGE_KEY = "np7-hotel-rooms-columns";
@@ -195,8 +200,14 @@ export default function HotelRoomsPage() {
                       <div className="text-sm font-medium admin-heading truncate">{room.name}</div>
                       {room.room_number && <div className="text-xs admin-faint">#{room.room_number}</div>}
                     </div>
+                    {visibleColumns.has("room_number") && (
+                      <span className="text-xs admin-muted self-center">{room.room_number || "—"}</span>
+                    )}
                     {visibleColumns.has("room_type") && (
                       <span className="text-xs admin-muted self-center truncate">{room.room_type}</span>
+                    )}
+                    {visibleColumns.has("edition") && (
+                      <span className="text-xs admin-muted self-center truncate">{room.edition ? (room.edition.label ? `${room.edition.label} · ${room.edition.year}` : room.edition.year) : "—"}</span>
                     )}
                     {visibleColumns.has("transfer_need") && (
                       <span className="self-center">
@@ -220,13 +231,20 @@ export default function HotelRoomsPage() {
                     )}
                     {visibleColumns.has("guest") && (
                       <div className="self-center min-w-0">
-                        <span className="text-xs admin-muted truncate block">
-                          {room.booking?.name?.split(" — ")[0] || room.booking?.name?.split(" - ")[0] || "—"}
-                        </span>
+                        {room.booking ? (
+                          <Link href={`/admin/bookings/${room.booking.id}`} className="text-xs text-[#0aa3c7] hover:underline truncate block" onClick={(e) => e.stopPropagation()}>
+                            {room.booking.name?.split(" — ")[0]?.split(" - ")[0] || room.booking.name}
+                          </Link>
+                        ) : (
+                          <span className="text-xs admin-faint">—</span>
+                        )}
                         {room.partner_tag_along && (
                           <span className="text-[10px] admin-faint truncate block">+ {room.partner_tag_along}</span>
                         )}
                       </div>
+                    )}
+                    {visibleColumns.has("partner_tag_along") && (
+                      <span className="text-xs admin-muted self-center truncate">{room.partner_tag_along || "—"}</span>
                     )}
                     {visibleColumns.has("check_in") && (
                       <span className="text-xs admin-muted self-center">
@@ -234,7 +252,7 @@ export default function HotelRoomsPage() {
                       </span>
                     )}
                     {visibleColumns.has("comments") && (
-                      <span className="text-xs admin-faint self-center truncate">{room.comments || "—"}</span>
+                      <span className="text-xs admin-faint self-center truncate" title={room.comments || ""}>{room.comments || "—"}</span>
                     )}
                   </div>
                 ))}

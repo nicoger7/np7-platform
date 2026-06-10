@@ -8,7 +8,8 @@ import { Carousel } from "@/components/experience/carousel";
 import { Accordion, type AccordionItem } from "@/components/experience/accordion";
 import { SectionNav, type NavSection } from "@/components/experience/section-nav";
 import { StickyCta } from "@/components/experience/sticky-cta";
-import { PackagePicker, type RealPackage } from "@/components/experience/package-picker";
+import { type RealPackage } from "@/components/experience/package-picker";
+import { EditionBooking, type EditionLite } from "@/components/experience/edition-booking";
 
 export const revalidate = 60;
 
@@ -113,8 +114,8 @@ function FactIcon({ name }: { name: string }) {
 }
 
 /* live schema (generated types are stale) */
-type Edition = { date_start: string | null; date_end: string | null; max_spots: number | null; spots_taken: number | null; deposit: number | null; status: string | null };
-type PackageRow = { id: string; name: string; price: number | null; status: string | null };
+type Edition = { id: string; label: string | null; coaches: string | null; date_start: string | null; date_end: string | null; max_spots: number | null; spots_taken: number | null; deposit: number | null; status: string | null };
+type PackageRow = { id: string; name: string; price: number | null; status: string | null; edition_id: string | null };
 type ProgramItem = { title: string; description: string };
 type FaqRow = { q: string; a: string };
 type ContentRow = {
@@ -140,7 +141,7 @@ export default async function ExperienceDetailPage({ params }: Props) {
   const { slug } = await params;
   const { data: raw } = await supabase
     .from("exp_experiences")
-    .select("id,title,location,currency,price,description,hero_image,gallery,airport_code,exp_editions(date_start,date_end,max_spots,spots_taken,deposit,status),exp_packages(id,name,price,status)")
+    .select("id,title,location,currency,price,description,hero_image,gallery,airport_code,exp_editions(id,label,coaches,date_start,date_end,max_spots,spots_taken,deposit,status),exp_packages(id,name,price,status,edition_id)")
     .eq("slug", slug).eq("status", "published").maybeSingle();
 
   const experience = raw as unknown as Detail | null;
@@ -159,16 +160,43 @@ export default async function ExperienceDetailPage({ params }: Props) {
   const content = contentRaw as ContentRow | null;
 
   const today = new Date().toISOString().slice(0, 10);
-  const editions = (experience.exp_editions ?? []).filter((e) => e.status === "published")
+  const allEditions = (experience.exp_editions ?? []).filter((e) => e.status === "published")
     .sort((a, b) => ((a.date_start ?? "") < (b.date_start ?? "") ? -1 : 1));
-  const edition = editions.find((e) => e.date_start && e.date_start >= today) ?? editions[0];
+  const multi = allEditions.length > 1;
+  // "primary" edition = soonest upcoming (drives hero defaults)
+  const edition = allEditions.find((e) => e.date_start && e.date_start >= today) ?? allEditions[0];
+
+  // group active packages by edition so each week only shows its own (no dupes)
+  const activePackages = (experience.exp_packages ?? []).filter((p) => p.status === "active" && p.price != null);
+  const packagesByEdition: Record<string, RealPackage[]> = {};
+  for (const ed of allEditions) packagesByEdition[ed.id] = [];
+  for (const p of activePackages) {
+    const x = parsePackageName(p.name);
+    const rp: RealPackage = { id: p.id, level: x.level, accommodation: x.accommodation, price: p.price as number };
+    if (p.edition_id && packagesByEdition[p.edition_id]) packagesByEdition[p.edition_id].push(rp);
+    else allEditions.forEach((ed) => packagesByEdition[ed.id].push(rp)); // unscoped → all weeks
+  }
+
+  const editionsLite: EditionLite[] = allEditions.map((ed, i) => {
+    const pks = packagesByEdition[ed.id] ?? [];
+    return {
+      id: ed.id,
+      label: ed.label?.trim() || `Week ${i + 1}`,
+      dateRange: fmtRange(ed.date_start, ed.date_end),
+      shortRange: fmtShort(ed.date_start, ed.date_end),
+      spotsLeft: ed.max_spots != null ? ed.max_spots - (ed.spots_taken ?? 0) : null,
+      fromPrice: pks.length ? Math.min(...pks.map((p) => p.price)) : null,
+      deposit: ed.deposit,
+      coaches: ed.coaches,
+    };
+  });
+
+  const allPrices = activePackages.map((p) => p.price as number);
+  const fromPrice = allPrices.length ? Math.min(...allPrices) : experience.price;
   const spotsLeft = edition?.max_spots != null ? edition.max_spots - (edition.spots_taken ?? 0) : null;
-
-  const packages: RealPackage[] = (experience.exp_packages ?? [])
-    .filter((p) => p.status === "active" && p.price != null)
-    .map((p) => { const x = parsePackageName(p.name); return { id: p.id, level: x.level, accommodation: x.accommodation, price: p.price as number }; });
-
-  const fromPrice = packages.length ? Math.min(...packages.map((p) => p.price)) : experience.price;
+  const totalSpotsLeft = editionsLite.reduce((s, e) => s + (e.spotsLeft ?? 0), 0);
+  const spanStart = allEditions[0]?.date_start ?? edition?.date_start ?? null;
+  const spanEnd = allEditions[allEditions.length - 1]?.date_end ?? edition?.date_end ?? null;
   const heroImg = experience.hero_image;
   const gallery = (experience.gallery ?? []).filter(Boolean);
   const place = experience.location?.split(",")[0] ?? "the water";
@@ -214,15 +242,24 @@ export default async function ExperienceDetailPage({ params }: Props) {
           <Reveal from="up">
             <div className="flex flex-wrap items-center gap-3 mb-4">
               <span className="text-[12px] font-bold tracking-[0.2em] uppercase text-white/75">{experience.location}</span>
-              {typeof spotsLeft === "number" && (
+              {multi ? (
+                <span className="inline-flex items-center gap-1.5 text-[12px] font-semibold px-3 py-1 rounded-full text-[#5fd0e8] bg-[#00afdb]/15 border border-[#00afdb]/30">
+                  <span className="w-1.5 h-1.5 rounded-full bg-[#5fd0e8] animate-pulse" />
+                  {allEditions.length} weeks{totalSpotsLeft > 0 ? ` · ${totalSpotsLeft} spots left` : ""}
+                </span>
+              ) : typeof spotsLeft === "number" ? (
                 <span className={`inline-flex items-center gap-1.5 text-[12px] font-semibold px-3 py-1 rounded-full ${spotsLeft > 0 ? "text-[#5fd0e8] bg-[#00afdb]/15 border border-[#00afdb]/30" : "text-white bg-[#f47b20]"}`}>
                   <span className="w-1.5 h-1.5 rounded-full bg-current animate-pulse" />
                   {spotsLeft > 0 ? `Only ${spotsLeft} spots left` : "Fully booked"}
                 </span>
-              )}
+              ) : null}
             </div>
             <h1 className="text-4xl sm:text-6xl lg:text-7xl font-black text-white leading-[0.98] tracking-[-0.035em] mb-4 max-w-[840px]">{experience.title}</h1>
-            {edition && <p className="text-[16px] sm:text-[17px] text-white/70 mb-8">{fmtRange(edition.date_start, edition.date_end)}</p>}
+            {(spanStart || edition) && (
+              <p className="text-[16px] sm:text-[17px] text-white/70 mb-8">
+                {multi ? `${fmtRange(spanStart, spanEnd)} · ${allEditions.length} weeks to choose from` : fmtRange(edition.date_start, edition.date_end)}
+              </p>
+            )}
             <div className="flex flex-wrap items-center gap-3">
               <Link href="#packages" className="px-7 py-4 rounded-full text-[14px] font-bold text-[#00374a] bg-white hover:-translate-y-0.5 transition-all">
                 {money(fromPrice, experience.currency) ? `See packages · from ${money(fromPrice, experience.currency)}` : "See packages"}
@@ -239,7 +276,7 @@ export default async function ExperienceDetailPage({ params }: Props) {
       <section className="bg-[#00374a] text-white">
         <div className="max-w-[1200px] mx-auto px-6 sm:px-8 py-7 grid grid-cols-2 sm:grid-cols-4 gap-y-6 gap-x-4">
           {[
-            { icon: "calendar", label: "When", value: fmtShort(edition?.date_start, edition?.date_end) },
+            { icon: "calendar", label: "When", value: multi ? `${fmtShort(spanStart, spanEnd)} · ${allEditions.length} weeks` : fmtShort(edition?.date_start, edition?.date_end) },
             { icon: "pin", label: "Where", value: experience.location ?? "—" },
             { icon: "users", label: "Group size", value: edition?.max_spots ? `Max ${edition.max_spots}` : "Small group" },
             { icon: "plane", label: "Airport", value: experience.airport_code ?? "—" },
@@ -360,10 +397,12 @@ export default async function ExperienceDetailPage({ params }: Props) {
           <Reveal className="text-center max-w-[600px] mx-auto mb-12">
             <p className="text-[11px] font-bold tracking-[0.25em] text-[#00afdb] mb-3">PACKAGES</p>
             <h2 className="text-3xl sm:text-5xl font-black tracking-[-0.03em] text-[#00374a] mb-4">Build your week</h2>
-            <p className="text-[16px] text-[#6a7a80]">Pick your coaching level and accommodation — your price updates instantly.</p>
+            <p className="text-[16px] text-[#6a7a80]">{multi ? "Choose your week, then pick your coaching level and accommodation — your price updates instantly." : "Pick your coaching level and accommodation — your price updates instantly."}</p>
           </Reveal>
-          {packages.length ? (
-            <Reveal><PackagePicker packages={packages} currency={experience.currency ?? undefined} deposit={edition?.deposit} /></Reveal>
+          {editionsLite.length > 0 ? (
+            <Reveal>
+              <EditionBooking editions={editionsLite} packagesByEdition={packagesByEdition} currency={experience.currency ?? undefined} />
+            </Reveal>
           ) : (
             <div className="text-center">
               <p className="text-[#6a7a80] mb-6">Packages for this trip are being finalised.</p>
@@ -464,7 +503,7 @@ export default async function ExperienceDetailPage({ params }: Props) {
         </div>
       </footer>
 
-      <StickyCta title={experience.title} priceFrom={fromPrice ?? 0} spotsLeft={spotsLeft} target="#packages" />
+      <StickyCta title={experience.title} priceFrom={fromPrice ?? 0} spotsLeft={multi ? totalSpotsLeft : spotsLeft} target="#packages" />
     </>
   );
 }
