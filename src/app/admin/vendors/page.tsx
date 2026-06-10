@@ -12,8 +12,14 @@ interface Vendor {
   phone: string | null;
   company: string | null;
   category: string | null;
+  chatwoot_contact_id: string | null;
   notes: string | null;
   created_at: string;
+}
+
+function fmtDate(d: string | null) {
+  if (!d) return "—";
+  return new Date(d).toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" });
 }
 
 const CATEGORIES = ["Hotel", "Transport", "Catering", "Gear", "Photography", "Media", "Other"];
@@ -24,7 +30,11 @@ const COLUMNS: ColumnDef[] = [
   { key: "name", label: "Name", width: "1fr", required: true },
   { key: "company", label: "Company", width: "140px" },
   { key: "email", label: "Email", width: "140px" },
+  { key: "phone", label: "Phone", width: "120px", defaultHidden: true },
   { key: "category", label: "Category", width: "100px" },
+  { key: "chatwoot_contact_id", label: "Chatwoot ID", width: "100px", defaultHidden: true },
+  { key: "notes", label: "Notes", width: "150px", defaultHidden: true },
+  { key: "created_at", label: "Created", width: "100px", defaultHidden: true },
   { key: "_actions", label: "", width: "80px", required: true },
 ];
 
@@ -168,7 +178,11 @@ export default function VendorsPage() {
               <Link href={`/admin/vendors/${v.id}`} className="text-sm font-medium admin-heading truncate hover:text-[#0aa3c7] transition-colors">{v.name}</Link>
               {visibleColumns.has("company") && <span className="text-xs admin-muted self-center truncate">{v.company || "—"}</span>}
               {visibleColumns.has("email") && <span className="text-xs admin-muted self-center truncate">{v.email || "—"}</span>}
+              {visibleColumns.has("phone") && <span className="text-xs admin-muted self-center truncate">{v.phone || "—"}</span>}
               {visibleColumns.has("category") && <span className="text-xs admin-muted self-center">{v.category || "—"}</span>}
+              {visibleColumns.has("chatwoot_contact_id") && <span className="text-xs admin-faint self-center truncate">{v.chatwoot_contact_id || "—"}</span>}
+              {visibleColumns.has("notes") && <span className="text-xs admin-faint self-center truncate" title={v.notes || ""}>{v.notes || "—"}</span>}
+              {visibleColumns.has("created_at") && <span className="text-xs admin-faint self-center">{fmtDate(v.created_at)}</span>}
               <button onClick={() => handleDelete(v.id)} className="text-xs admin-faint hover:text-red-400 transition-colors self-center">
                 <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M3 6h18M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a2 2 0 012-2h4a2 2 0 012 2v2" /></svg>
               </button>

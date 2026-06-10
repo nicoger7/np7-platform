@@ -6,10 +6,11 @@ import { OceanHeader, NP7_LOGO } from "@/components/experience/ocean-header";
 import { Reveal } from "@/components/experience/reveal";
 import { Carousel } from "@/components/experience/carousel";
 import { Accordion, type AccordionItem } from "@/components/experience/accordion";
-import { SectionNav, type NavSection } from "@/components/experience/section-nav";
 import { StickyCta } from "@/components/experience/sticky-cta";
 import { type RealPackage } from "@/components/experience/package-picker";
 import { EditionBooking, type EditionLite } from "@/components/experience/edition-booking";
+import { HeroVideo } from "@/components/experience/hero-video";
+import { DetailTabs, type DetailTab } from "@/components/experience/detail-tabs";
 
 export const revalidate = 60;
 
@@ -118,9 +119,11 @@ type Edition = { id: string; label: string | null; coaches: string | null; date_
 type PackageRow = { id: string; name: string; price: number | null; status: string | null; edition_id: string | null };
 type ProgramItem = { title: string; description: string };
 type FaqRow = { q: string; a: string };
+type ReviewRow = { name: string; country: string; quote: string; rating: number; image: string };
 type ContentRow = {
   location_about: string | null; week_info: string | null;
   daily_program: ProgramItem[] | null; highlights: string[] | null; faq: FaqRow[] | null;
+  hero_image: string | null; hero_video_url: string | null; gallery: string[] | null; reviews: ReviewRow[] | null;
 };
 type Detail = {
   id: string; title: string; location: string | null; currency: string | null; price: number | null;
@@ -154,7 +157,7 @@ export default async function ExperienceDetailPage({ params }: Props) {
   const sb = supabase as any;
   const { data: contentRaw } = await sb
     .from("exp_content")
-    .select("location_about,week_info,daily_program,highlights,faq")
+    .select("location_about,week_info,daily_program,highlights,faq,hero_image,hero_video_url,gallery,reviews")
     .eq("experience_id", experience.id)
     .maybeSingle();
   const content = contentRaw as ContentRow | null;
@@ -197,8 +200,10 @@ export default async function ExperienceDetailPage({ params }: Props) {
   const totalSpotsLeft = editionsLite.reduce((s, e) => s + (e.spotsLeft ?? 0), 0);
   const spanStart = allEditions[0]?.date_start ?? edition?.date_start ?? null;
   const spanEnd = allEditions[allEditions.length - 1]?.date_end ?? edition?.date_end ?? null;
-  const heroImg = experience.hero_image;
-  const gallery = (experience.gallery ?? []).filter(Boolean);
+  const tileImg = experience.hero_image; // listing tile / fallback
+  const heroVideoUrl = content?.hero_video_url?.trim() ?? "";
+  const heroMediaImage = content?.hero_image?.trim() || tileImg || BRAND_IMG.spot; // event-page hero image
+  const galleryImgs = ((content?.gallery?.length ? content.gallery : experience.gallery) ?? []).filter(Boolean);
   const place = experience.location?.split(",")[0] ?? "the water";
 
   // editable website content (falls back to evergreen when empty)

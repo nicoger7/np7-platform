@@ -14,6 +14,8 @@ interface TeamMember {
   rate_per_hour: number | null;
   active: boolean;
   notes: string | null;
+  total_hours: number;
+  total_cost: number | null;
 }
 
 type SortDir = "asc" | "desc" | null;
@@ -21,8 +23,12 @@ type SortDir = "asc" | "desc" | null;
 const COLUMNS: ColumnDef[] = [
   { key: "name", label: "Name", width: "1fr", required: true },
   { key: "email", label: "Email", width: "160px" },
+  { key: "phone", label: "Phone", width: "120px", defaultHidden: true },
   { key: "role", label: "Role", width: "120px" },
   { key: "rate_per_hour", label: "Rate/hr", width: "80px" },
+  { key: "total_hours", label: "Hours", width: "70px" },
+  { key: "total_cost", label: "Cost", width: "90px" },
+  { key: "notes", label: "Notes", width: "150px", defaultHidden: true },
   { key: "active", label: "Active", width: "60px" },
   { key: "_actions", label: "", width: "50px", required: true },
 ];
@@ -145,8 +151,12 @@ export default function TeamPage() {
             >
               <Link href={`/admin/team/${m.id}`} className="text-sm font-medium admin-heading truncate hover:text-[#0aa3c7] transition-colors">{m.name}</Link>
               {visibleColumns.has("email") && <span className="text-xs admin-muted self-center truncate">{m.email || "—"}</span>}
+              {visibleColumns.has("phone") && <span className="text-xs admin-muted self-center truncate">{m.phone || "—"}</span>}
               {visibleColumns.has("role") && <span className="text-xs admin-muted self-center">{m.role || "—"}</span>}
               {visibleColumns.has("rate_per_hour") && <span className="text-xs admin-muted self-center">{m.rate_per_hour ? `€${m.rate_per_hour}/h` : "—"}</span>}
+              {visibleColumns.has("total_hours") && <span className="text-xs admin-muted self-center">{m.total_hours ? `${m.total_hours}h` : "—"}</span>}
+              {visibleColumns.has("total_cost") && <span className="text-xs admin-muted self-center">{m.total_cost != null ? `€${m.total_cost.toLocaleString()}` : "—"}</span>}
+              {visibleColumns.has("notes") && <span className="text-xs admin-faint self-center truncate" title={m.notes || ""}>{m.notes || "—"}</span>}
               {visibleColumns.has("active") && (
                 <span className="self-center">{m.active ? <span className="text-green-400 text-xs">✓</span> : <span className="admin-faint text-xs">—</span>}</span>
               )}
