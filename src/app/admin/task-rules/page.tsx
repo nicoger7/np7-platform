@@ -24,7 +24,11 @@ type SortDir = "asc" | "desc" | null;
 const COLUMNS: ColumnDef[] = [
   { key: "name", label: "Name", width: "1fr", required: true },
   { key: "trigger", label: "Trigger", width: "160px" },
-  { key: "experience", label: "Experience", width: "100px" },
+  { key: "template", label: "Template", width: "140px", defaultHidden: true },
+  { key: "assignee", label: "Assignee", width: "100px", defaultHidden: true },
+  { key: "days_before_start", label: "Days Before", width: "90px", defaultHidden: true },
+  { key: "experience", label: "Experience", width: "120px" },
+  { key: "notes", label: "Notes", width: "150px", defaultHidden: true },
   { key: "active", label: "Active", width: "60px" },
   { key: "_actions", label: "", width: "50px", required: true },
 ];
@@ -185,7 +189,11 @@ export default function TaskRulesPage() {
                 {r.assignee && <div className="text-xs admin-faint">{r.assignee}</div>}
               </div>
               {visibleColumns.has("trigger") && <span className="text-xs admin-muted self-center truncate">{r.trigger || "—"}</span>}
+              {visibleColumns.has("template") && <span className="text-xs admin-muted self-center truncate">{r.template || "—"}</span>}
+              {visibleColumns.has("assignee") && <span className="text-xs admin-muted self-center truncate">{r.assignee || "—"}</span>}
+              {visibleColumns.has("days_before_start") && <span className="text-xs admin-muted self-center">{r.days_before_start != null ? `${r.days_before_start}d` : "—"}</span>}
               {visibleColumns.has("experience") && <span className="text-xs admin-muted self-center truncate">{r.exp_experiences?.title || "—"}</span>}
+              {visibleColumns.has("notes") && <span className="text-xs admin-faint self-center truncate" title={r.notes || ""}>{r.notes || "—"}</span>}
               {visibleColumns.has("active") && <span className="self-center">{r.active ? <span className="text-green-400 text-xs">✓</span> : <span className="admin-faint text-xs">—</span>}</span>}
               {/* _actions — required */}
               <button onClick={(e) => { e.stopPropagation(); handleDelete(r.id); }} className="text-xs admin-faint hover:text-red-400 transition-colors self-center">

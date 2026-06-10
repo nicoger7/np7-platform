@@ -12,9 +12,16 @@ interface Todo {
   due_date: string | null;
   assignee: string | null;
   experience_id: string | null;
+  task_rule_id: string | null;
   notes: string | null;
   team_members: { id: string; name: string } | null;
   exp_experiences: { id: string; title: string } | null;
+  task_rule: { id: string; name: string } | null;
+}
+
+function isOverdue(t: { due_date: string | null; status: string | null }) {
+  if (!t.due_date || t.status === "done" || t.status === "cancelled") return false;
+  return new Date(t.due_date) < new Date(new Date().toDateString());
 }
 
 interface TeamMember { id: string; name: string; }
@@ -32,7 +39,10 @@ const COLUMNS: ColumnDef[] = [
   { key: "priority", label: "Priority", width: "80px" },
   { key: "status", label: "Status", width: "80px" },
   { key: "assignee", label: "Assignee", width: "100px" },
-  { key: "due_date", label: "Due", width: "80px" },
+  { key: "experience", label: "Experience", width: "130px", defaultHidden: true },
+  { key: "task_rule", label: "Task Rule", width: "130px", defaultHidden: true },
+  { key: "due_date", label: "Due", width: "100px" },
+  { key: "notes", label: "Notes", width: "150px", defaultHidden: true },
   { key: "_actions", label: "", width: "50px", required: true },
 ];
 
@@ -158,6 +168,8 @@ export default function TodosPage() {
           return sortDir === "asc" ? numA - numB : numB - numA;
         }
         else if (sortKey === "assignee") { aVal = a.team_members?.name; bVal = b.team_members?.name; }
+        else if (sortKey === "experience") { aVal = a.exp_experiences?.title; bVal = b.exp_experiences?.title; }
+        else if (sortKey === "task_rule") { aVal = a.task_rule?.name; bVal = b.task_rule?.name; }
         else { aVal = a[sortKey as keyof Todo]; bVal = b[sortKey as keyof Todo]; }
         return compareValues(aVal, bVal, sortDir);
       })
@@ -271,8 +283,20 @@ export default function TodosPage() {
               {visibleColumns.has("assignee") && (
                 <span className="text-xs admin-muted self-center truncate">{t.team_members?.name || "—"}</span>
               )}
+              {visibleColumns.has("experience") && (
+                <span className="text-xs admin-muted self-center truncate">{t.exp_experiences?.title || "—"}</span>
+              )}
+              {visibleColumns.has("task_rule") && (
+                <span className="text-xs admin-muted self-center truncate">{t.task_rule?.name || "—"}</span>
+              )}
               {visibleColumns.has("due_date") && (
-                <span className="self-center">{formatDate(t.due_date)}</span>
+                <span className="self-center flex items-center gap-1.5">
+                  {formatDate(t.due_date)}
+                  {isOverdue(t) && <span className="inline-block px-1.5 py-0.5 rounded text-[9px] font-bold uppercase bg-red-500/15 text-red-400">Overdue</span>}
+                </span>
+              )}
+              {visibleColumns.has("notes") && (
+                <span className="text-xs admin-faint self-center truncate" title={t.notes || ""}>{t.notes || "—"}</span>
               )}
 
               {/* _actions — required */}
