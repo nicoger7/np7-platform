@@ -14,7 +14,7 @@ export async function GET(request: NextRequest) {
   // Sort params
   const sortParam = searchParams.get("sort") || "created_at";
   const orderParam = searchParams.get("order") || "desc";
-  const allowedSortCols = ["name", "email", "country", "source", "level", "accepts_marketing", "created_at"];
+  const allowedSortCols = ["name", "email", "country", "source", "level", "accepts_marketing", "created_at", "phone", "discipline", "tshirt_size", "date_of_birth"];
   const sortCol = allowedSortCols.includes(sortParam) ? sortParam : "created_at";
   const ascending = orderParam === "asc";
 

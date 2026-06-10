@@ -14,12 +14,26 @@ interface Contact {
   country: string | null;
   discipline: string | null;
   level: string | null;
+  level_notes: string | null;
   source: string | null;
   accepts_marketing: boolean;
   date_of_birth: string | null;
+  tshirt_size: string | null;
+  diet_allergies: string | null;
   experience_locations: string[] | null;
   interested_products: string[] | null;
+  notes: string | null;
+  ai_summary: string | null;
+  chatwoot_contact_id: string | null;
   created_at: string;
+}
+
+function arr(x: string[] | null) {
+  return x && x.length ? x.join(", ") : "—";
+}
+function fmtDate(d: string | null) {
+  if (!d) return "—";
+  return new Date(d).toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" });
 }
 
 type SortDir = "asc" | "desc" | null;
@@ -27,10 +41,23 @@ type SortDir = "asc" | "desc" | null;
 const COLUMNS: ColumnDef[] = [
   { key: "name", label: "Name", width: "1fr", required: true },
   { key: "email", label: "Email", width: "160px" },
+  { key: "email2", label: "Email 2", width: "150px", defaultHidden: true },
+  { key: "phone", label: "Phone", width: "120px", defaultHidden: true },
   { key: "country", label: "Country", width: "100px" },
+  { key: "discipline", label: "Discipline", width: "100px", defaultHidden: true },
   { key: "source", label: "Source", width: "80px" },
   { key: "level", label: "Level", width: "80px" },
+  { key: "level_notes", label: "Level Notes", width: "140px", defaultHidden: true },
+  { key: "date_of_birth", label: "DOB", width: "100px", defaultHidden: true },
+  { key: "tshirt_size", label: "T-Shirt", width: "70px", defaultHidden: true },
+  { key: "diet_allergies", label: "Diet", width: "120px", defaultHidden: true },
+  { key: "experience_locations", label: "Exp Locations", width: "140px", defaultHidden: true },
+  { key: "interested_products", label: "Interested In", width: "140px", defaultHidden: true },
+  { key: "notes", label: "Notes", width: "160px", defaultHidden: true },
+  { key: "ai_summary", label: "AI Summary", width: "180px", defaultHidden: true },
+  { key: "chatwoot_contact_id", label: "Chatwoot ID", width: "100px", defaultHidden: true },
   { key: "accepts_marketing", label: "Mktg", width: "80px" },
+  { key: "created_at", label: "Created", width: "100px", defaultHidden: true },
   { key: "_actions", label: "", width: "50px", required: true },
 ];
 
@@ -294,14 +321,50 @@ export default function ContactsPage() {
                 {visibleColumns.has("email") && (
                   <span className="text-xs admin-muted self-center truncate">{c.email || "—"}</span>
                 )}
+                {visibleColumns.has("email2") && (
+                  <span className="text-xs admin-muted self-center truncate">{c.email2 || "—"}</span>
+                )}
+                {visibleColumns.has("phone") && (
+                  <span className="text-xs admin-muted self-center truncate">{c.phone || "—"}</span>
+                )}
                 {visibleColumns.has("country") && (
                   <span className="text-xs admin-muted self-center">{c.country || "—"}</span>
+                )}
+                {visibleColumns.has("discipline") && (
+                  <span className="text-xs admin-muted self-center truncate">{c.discipline || "—"}</span>
                 )}
                 {visibleColumns.has("source") && (
                   <span className="text-xs admin-muted self-center capitalize">{c.source || "—"}</span>
                 )}
                 {visibleColumns.has("level") && (
                   <span className="text-xs admin-muted self-center">{c.level || "—"}</span>
+                )}
+                {visibleColumns.has("level_notes") && (
+                  <span className="text-xs admin-faint self-center truncate" title={c.level_notes || ""}>{c.level_notes || "—"}</span>
+                )}
+                {visibleColumns.has("date_of_birth") && (
+                  <span className="text-xs admin-muted self-center">{fmtDate(c.date_of_birth)}</span>
+                )}
+                {visibleColumns.has("tshirt_size") && (
+                  <span className="text-xs admin-muted self-center uppercase">{c.tshirt_size || "—"}</span>
+                )}
+                {visibleColumns.has("diet_allergies") && (
+                  <span className="text-xs admin-faint self-center truncate" title={c.diet_allergies || ""}>{c.diet_allergies || "—"}</span>
+                )}
+                {visibleColumns.has("experience_locations") && (
+                  <span className="text-xs admin-muted self-center truncate">{arr(c.experience_locations)}</span>
+                )}
+                {visibleColumns.has("interested_products") && (
+                  <span className="text-xs admin-muted self-center truncate">{arr(c.interested_products)}</span>
+                )}
+                {visibleColumns.has("notes") && (
+                  <span className="text-xs admin-faint self-center truncate" title={c.notes || ""}>{c.notes || "—"}</span>
+                )}
+                {visibleColumns.has("ai_summary") && (
+                  <span className="text-xs admin-faint self-center truncate" title={c.ai_summary || ""}>{c.ai_summary || "—"}</span>
+                )}
+                {visibleColumns.has("chatwoot_contact_id") && (
+                  <span className="text-xs admin-faint self-center truncate">{c.chatwoot_contact_id || "—"}</span>
                 )}
                 {visibleColumns.has("accepts_marketing") && (
                   <span className="self-center">
@@ -311,6 +374,9 @@ export default function ContactsPage() {
                       <span className="admin-faint text-xs">—</span>
                     )}
                   </span>
+                )}
+                {visibleColumns.has("created_at") && (
+                  <span className="text-xs admin-faint self-center">{fmtDate(c.created_at)}</span>
                 )}
                 {/* _actions — required */}
                 <button
