@@ -155,12 +155,13 @@ export default async function ExperienceDetailPage({ params }: Props) {
   // (or has no row), fall back to evergreen content.
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const sb = supabase as any;
-  const { data: contentRaw } = await sb
-    .from("exp_content")
-    .select("location_about,week_info,daily_program,highlights,faq,hero_image,hero_video_url,gallery,reviews")
-    .eq("experience_id", experience.id)
-    .maybeSingle();
-  const content = contentRaw as ContentRow | null;
+  // Split the fetch so the newer media columns (added in migration 013) can't
+  // break the existing text content if they haven't been applied yet.
+  const [{ data: baseRaw }, { data: mediaRaw }] = await Promise.all([
+    sb.from("exp_content").select("location_about,week_info,daily_program,highlights,faq").eq("experience_id", experience.id).maybeSingle(),
+    sb.from("exp_content").select("hero_image,hero_video_url,gallery,reviews").eq("experience_id", experience.id).maybeSingle(),
+  ]);
+  const content = (baseRaw || mediaRaw ? { ...(baseRaw ?? {}), ...(mediaRaw ?? {}) } : null) as ContentRow | null;
 
   const today = new Date().toISOString().slice(0, 10);
   const allEditions = (experience.exp_editions ?? []).filter((e) => e.status === "published")
@@ -222,18 +223,10 @@ export default async function ExperienceDetailPage({ params }: Props) {
     (content?.faq ?? []).length > 0
       ? content!.faq!.map((f) => ({ title: f.q, content: <span className="whitespace-pre-line">{f.a}</span> }))
       : FAQ;
-
-  const navSections: NavSection[] = [
-    { id: "overview", label: "Overview" },
-    ...(locationAbout ? [{ id: "location", label: "The spot" }] : []),
-    { id: "coaching", label: "Coaching" },
-    { id: "included", label: "Included" },
-    { id: "packages", label: "Packages" },
-    { id: "itinerary", label: "Day by day" },
-    { id: "crew", label: "The crew" },
-    ...(gallery.length ? [{ id: "gallery", label: "Gallery" }] : []),
-    { id: "faq", label: "FAQ" },
-  ];
+  const reviewItems =
+    (content?.reviews ?? []).length > 0
+      ? content!.reviews!.map((r) => ({ quote: r.quote, name: r.name, country: r.country, image: r.image || BRAND_IMG.group, rating: Math.max(1, Math.min(5, r.rating || 5)) }))
+      : MOMENTS.map((m) => ({ ...m, rating: 5 }));
 
   return (
     <>
@@ -241,7 +234,11 @@ export default async function ExperienceDetailPage({ params }: Props) {
 
       {/* HERO */}
       <section className="relative min-h-[88vh] flex items-end bg-[#00374a] overflow-hidden">
-        {heroImg && <div className="absolute inset-0 bg-cover bg-center scale-105" style={{ backgroundImage: `url('${heroImg}')` }} />}
+        {heroVideoUrl ? (
+          <HeroVideo url={heroVideoUrl} poster={heroMediaImage} />
+        ) : (
+          <div className="absolute inset-0 bg-cover bg-center scale-105" style={{ backgroundImage: `url('${heroMediaImage}')` }} />
+        )}
         <div className="absolute inset-0 bg-gradient-to-t from-[#00374a] via-black/35 to-black/35" />
         <div className="relative w-full max-w-[1200px] mx-auto px-6 sm:px-8 pb-16 pt-32">
           <Reveal from="up">
@@ -269,13 +266,11 @@ export default async function ExperienceDetailPage({ params }: Props) {
               <Link href="#packages" className="px-7 py-4 rounded-full text-[14px] font-bold text-[#00374a] bg-white hover:-translate-y-0.5 transition-all">
                 {money(fromPrice, experience.currency) ? `See packages · from ${money(fromPrice, experience.currency)}` : "See packages"}
               </Link>
-              <Link href="#overview" className="px-7 py-4 rounded-full text-[14px] font-bold text-white border-[1.5px] border-white/40 hover:bg-white/10 transition-all">How it works</Link>
+              <Link href="#details" className="px-7 py-4 rounded-full text-[14px] font-bold text-white border-[1.5px] border-white/40 hover:bg-white/10 transition-all">How it works</Link>
             </div>
           </Reveal>
         </div>
       </section>
-
-      <SectionNav sections={navSections} />
 
       {/* QUICK FACTS */}
       <section className="bg-[#00374a] text-white">
@@ -294,110 +289,39 @@ export default async function ExperienceDetailPage({ params }: Props) {
         </div>
       </section>
 
-      {/* OVERVIEW — USPs */}
-      <section id="overview" className="scroll-mt-16 py-20 sm:py-28">
-        <div className="max-w-[1200px] mx-auto px-6 sm:px-8">
-          <Reveal className="text-center max-w-[640px] mx-auto mb-16">
+      {/* WHY THIS TRIP — compact USPs */}
+      <section className="py-16 sm:py-20">
+        <div className="max-w-[1100px] mx-auto px-6 sm:px-8">
+          <Reveal className="text-center max-w-[640px] mx-auto mb-10">
             <p className="text-[11px] font-bold tracking-[0.25em] text-[#00afdb] mb-3">WHY THIS TRIP</p>
-            <h2 className="text-3xl sm:text-5xl font-black tracking-[-0.03em] text-[#00374a] mb-4">More than a windsurf trip</h2>
+            <h2 className="text-3xl sm:text-4xl font-black tracking-[-0.03em] text-[#00374a] mb-4">More than a windsurf trip</h2>
             {experience.description && <p className="text-[16px] text-[#6a7a80] leading-relaxed">{experience.description}</p>}
-            {weekInfo && <p className="text-[16px] text-[#6a7a80] leading-relaxed mt-4 whitespace-pre-line">{weekInfo}</p>}
-            {highlights.length > 0 && (
-              <div className="flex flex-wrap justify-center gap-2 mt-7">
-                {highlights.map((h) => (
-                  <span key={h} className="inline-flex items-center gap-1.5 text-[12.5px] font-semibold text-[#00374a] bg-[#00afdb]/10 px-3.5 py-1.5 rounded-full">
-                    <span className="text-[#00afdb]">✦</span>{h}
-                  </span>
-                ))}
-              </div>
-            )}
           </Reveal>
-          <div className="space-y-16 sm:space-y-24">
+          <div className="grid sm:grid-cols-3 gap-5">
             {USPS.map((u, i) => (
-              <div key={u.tag} className={`grid lg:grid-cols-2 gap-8 lg:gap-16 items-center ${i % 2 === 1 ? "lg:[&>*:first-child]:order-2" : ""}`}>
-                <Reveal from={i % 2 === 1 ? "right" : "left"}>
-                  <div className="aspect-[4/3] rounded-3xl bg-cover bg-center shadow-[0_20px_50px_rgba(0,55,74,0.12)]" style={{ backgroundImage: `url('${u.image}')` }} />
-                </Reveal>
-                <Reveal from={i % 2 === 1 ? "left" : "right"} delay={100}>
-                  <div>
-                    <span className="inline-block text-[10px] font-extrabold tracking-[0.2em] uppercase px-3 py-1.5 rounded-full bg-[#00afdb]/10 text-[#00afdb] mb-5">{u.tag}</span>
-                    <h3 className="text-2xl sm:text-3xl font-black tracking-[-0.02em] text-[#00374a] mb-4 leading-[1.1]">{u.title}</h3>
-                    <p className="text-[16px] text-[#5a6b72] leading-relaxed">{u.body}</p>
-                  </div>
-                </Reveal>
-              </div>
-            ))}
-          </div>
-        </div>
-      </section>
-
-      {/* THE SPOT — editable location content */}
-      {locationAbout && (
-        <section id="location" className="scroll-mt-16 pb-20 sm:pb-28">
-          <div className="max-w-[1200px] mx-auto px-6 sm:px-8 grid lg:grid-cols-[1.1fr_1fr] gap-12 lg:gap-20 items-center">
-            <Reveal from="left">
-              <div className="aspect-[4/3] rounded-3xl bg-cover bg-center shadow-[0_20px_50px_rgba(0,55,74,0.12)]" style={{ backgroundImage: `url('${gallery[1] ?? heroImg ?? BRAND_IMG.spot}')` }} />
-            </Reveal>
-            <Reveal from="right">
-              <div>
-                <p className="text-[11px] font-bold tracking-[0.25em] text-[#00afdb] mb-3">THE SPOT</p>
-                <h2 className="text-3xl sm:text-5xl font-black tracking-[-0.03em] text-[#00374a] mb-5">{place}</h2>
-                <p className="text-[16px] text-[#5a6b72] leading-relaxed whitespace-pre-line">{locationAbout}</p>
-              </div>
-            </Reveal>
-          </div>
-        </section>
-      )}
-
-      {/* COACHING — NP7 Method */}
-      <section id="coaching" className="scroll-mt-16 py-20 sm:py-28 bg-[#00374a] text-white relative overflow-hidden">
-        <div className="absolute inset-0 opacity-[0.05]" style={{ backgroundImage: "linear-gradient(rgba(255,255,255,1) 1px,transparent 1px),linear-gradient(90deg,rgba(255,255,255,1) 1px,transparent 1px)", backgroundSize: "60px 60px" }} />
-        <div className="relative max-w-[1200px] mx-auto px-6 sm:px-8">
-          <Reveal className="max-w-[640px] mb-14">
-            <p className="text-[11px] font-bold tracking-[0.25em] text-[#8fe6f2] mb-3">THE NP7 METHOD</p>
-            <h2 className="text-3xl sm:text-5xl font-black tracking-[-0.03em] mb-4">A full year of progress in one week</h2>
-            <p className="text-[16px] text-white/55 leading-relaxed">Simple, structured and tailored to you. Three things repeat every day — and they&apos;re why riders leave transformed.</p>
-          </Reveal>
-          <div className="grid md:grid-cols-3 gap-5">
-            {METHOD.map((s, i) => (
-              <Reveal key={s.n} delay={i * 110} className="h-full">
-                <div className="h-full rounded-3xl bg-white/[0.04] border border-white/10 p-7">
-                  <span className="text-[40px] font-black text-[#00afdb]/40">{s.n}</span>
-                  <h3 className="text-xl font-extrabold mt-2 mb-3">{s.t}</h3>
-                  <p className="text-[14.5px] text-white/60 leading-relaxed">{s.d}</p>
+              <Reveal key={u.tag} delay={i * 90}>
+                <div className="h-full bg-white rounded-2xl border border-[#ebeef0] p-7 shadow-[0_10px_30px_rgba(0,55,74,0.05)]">
+                  <span className="inline-block text-[10px] font-extrabold tracking-[0.2em] uppercase px-3 py-1.5 rounded-full bg-[#00afdb]/10 text-[#00afdb] mb-4">{u.tag}</span>
+                  <h3 className="text-[19px] font-black tracking-[-0.01em] text-[#00374a] mb-2.5 leading-[1.15]">{u.title}</h3>
+                  <p className="text-[14.5px] text-[#5a6b72] leading-relaxed">{u.body}</p>
                 </div>
               </Reveal>
             ))}
           </div>
-        </div>
-      </section>
-
-      {/* INCLUDED */}
-      <section id="included" className="scroll-mt-16 py-20 sm:py-28">
-        <div className="max-w-[1200px] mx-auto px-6 sm:px-8 grid lg:grid-cols-[1fr_1.1fr] gap-12 lg:gap-20 items-center">
-          <Reveal from="left">
-            <div className="aspect-[4/5] rounded-3xl bg-cover bg-center shadow-[0_20px_50px_rgba(0,55,74,0.12)]" style={{ backgroundImage: `url('${heroImg ?? BRAND_IMG.spot}')` }} />
-          </Reveal>
-          <Reveal from="right">
-            <div>
-              <p className="text-[11px] font-bold tracking-[0.25em] text-[#00afdb] mb-3">ALL ARRANGED</p>
-              <h2 className="text-3xl sm:text-5xl font-black tracking-[-0.03em] text-[#00374a] mb-4">You just show up</h2>
-              <p className="text-[16px] text-[#6a7a80] leading-relaxed mb-8">No logistics, no planning, no stress. Every package includes everything you need for the week:</p>
-              <ul className="grid sm:grid-cols-2 gap-x-6 gap-y-3.5">
-                {STANDARD_INCLUDED.map((item) => (
-                  <li key={item} className="flex items-start gap-3 text-[15px] text-[#3a4b52]">
-                    <span className="mt-0.5 shrink-0 w-5 h-5 rounded-full bg-[#00afdb]/10 text-[#00afdb] grid place-items-center"><svg className="w-3 h-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3.5" strokeLinecap="round" strokeLinejoin="round"><path d="M20 6L9 17l-5-5" /></svg></span>
-                    {item}
-                  </li>
-                ))}
-              </ul>
+          {highlights.length > 0 && (
+            <div className="flex flex-wrap justify-center gap-2 mt-9">
+              {highlights.map((h) => (
+                <span key={h} className="inline-flex items-center gap-1.5 text-[12.5px] font-semibold text-[#00374a] bg-[#00afdb]/10 px-3.5 py-1.5 rounded-full">
+                  <span className="text-[#00afdb]">✦</span>{h}
+                </span>
+              ))}
             </div>
-          </Reveal>
+          )}
         </div>
       </section>
 
       {/* PACKAGES */}
-      <section id="packages" className="scroll-mt-16 py-20 sm:py-28 bg-[#f7f7f7]">
+      <section id="packages" className="scroll-mt-16 py-16 sm:py-24 bg-[#f7f7f7]">
         <div className="max-w-[1200px] mx-auto px-6 sm:px-8">
           <Reveal className="text-center max-w-[600px] mx-auto mb-12">
             <p className="text-[11px] font-bold tracking-[0.25em] text-[#00afdb] mb-3">PACKAGES</p>
@@ -417,54 +341,118 @@ export default async function ExperienceDetailPage({ params }: Props) {
         </div>
       </section>
 
-      {/* ITINERARY */}
-      <section id="itinerary" className="scroll-mt-16 py-20 sm:py-28">
-        <div className="max-w-[760px] mx-auto px-6 sm:px-8">
-          <Reveal className="mb-12">
-            <p className="text-[11px] font-bold tracking-[0.25em] text-[#00afdb] mb-3">DAY BY DAY</p>
-            <h2 className="text-3xl sm:text-5xl font-black tracking-[-0.03em] text-[#00374a] mb-4">Your week in {place}</h2>
-            <p className="text-[16px] text-[#6a7a80] leading-relaxed">Tap any day to see what&apos;s planned. It&apos;s all mapped out — you just enjoy it.</p>
-          </Reveal>
-          <Reveal><Accordion items={programItems} defaultOpen={0} variant="timeline" /></Reveal>
-        </div>
-      </section>
+      {/* DETAILS — tabbed (collapses the long stack) */}
+      <div id="details" className="scroll-mt-0">
+      <DetailTabs
+        tabs={[
+          {
+            id: "overview",
+            label: "Overview",
+            content: (
+              <div className="max-w-[1000px] mx-auto px-6 sm:px-8 py-14 sm:py-20">
+                {weekInfo && <p className="text-[16px] text-[#5a6b72] leading-relaxed max-w-[700px] mb-12 whitespace-pre-line">{weekInfo}</p>}
+                <p className="text-[11px] font-bold tracking-[0.25em] text-[#00afdb] mb-3">THE NP7 METHOD</p>
+                <h3 className="text-2xl sm:text-3xl font-black tracking-[-0.02em] text-[#00374a] mb-8">A full year of progress in one week</h3>
+                <div className="grid md:grid-cols-3 gap-5 mb-16">
+                  {METHOD.map((s) => (
+                    <div key={s.n} className="rounded-2xl bg-[#f7fbfc] border border-[#e6eef0] p-6">
+                      <span className="text-[34px] font-black text-[#00afdb]/35">{s.n}</span>
+                      <h4 className="text-lg font-extrabold text-[#00374a] mt-1 mb-2">{s.t}</h4>
+                      <p className="text-[14px] text-[#6a7a80] leading-relaxed">{s.d}</p>
+                    </div>
+                  ))}
+                </div>
+                <p className="text-[11px] font-bold tracking-[0.25em] text-[#00afdb] mb-3">ALL ARRANGED · YOU JUST SHOW UP</p>
+                <h3 className="text-2xl sm:text-3xl font-black tracking-[-0.02em] text-[#00374a] mb-6">What&apos;s included</h3>
+                <ul className="grid sm:grid-cols-2 gap-x-6 gap-y-3">
+                  {STANDARD_INCLUDED.map((item) => (
+                    <li key={item} className="flex items-start gap-3 text-[15px] text-[#3a4b52]">
+                      <span className="mt-0.5 shrink-0 w-5 h-5 rounded-full bg-[#00afdb]/10 text-[#00afdb] grid place-items-center"><svg className="w-3 h-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3.5" strokeLinecap="round" strokeLinejoin="round"><path d="M20 6L9 17l-5-5" /></svg></span>
+                      {item}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            ),
+          },
+          ...(locationAbout
+            ? [{
+                id: "spot",
+                label: "The spot",
+                content: (
+                  <div className="max-w-[1000px] mx-auto px-6 sm:px-8 py-14 sm:py-20 grid lg:grid-cols-[1.1fr_1fr] gap-10 lg:gap-16 items-center">
+                    <div className="aspect-[4/3] rounded-3xl bg-cover bg-center shadow-[0_20px_50px_rgba(0,55,74,0.12)]" style={{ backgroundImage: `url('${galleryImgs[1] ?? heroMediaImage}')` }} />
+                    <div>
+                      <p className="text-[11px] font-bold tracking-[0.25em] text-[#00afdb] mb-3">THE SPOT</p>
+                      <h3 className="text-2xl sm:text-4xl font-black tracking-[-0.03em] text-[#00374a] mb-5">{place}</h3>
+                      <p className="text-[16px] text-[#5a6b72] leading-relaxed whitespace-pre-line">{locationAbout}</p>
+                    </div>
+                  </div>
+                ),
+              }]
+            : []),
+          {
+            id: "week",
+            label: "Perfect week",
+            content: (
+              <div className="max-w-[760px] mx-auto px-6 sm:px-8 py-14 sm:py-20">
+                <p className="text-[11px] font-bold tracking-[0.25em] text-[#00afdb] mb-3">YOUR PERFECT WEEK</p>
+                <h3 className="text-2xl sm:text-4xl font-black tracking-[-0.03em] text-[#00374a] mb-3">What a perfect week looks like</h3>
+                <p className="text-[14.5px] text-[#7a8a90] leading-relaxed mb-9 italic">This is the ideal flow — the exact day-to-day depends on the wind. We chase the best conditions and adapt as we go.</p>
+                <Accordion items={programItems} defaultOpen={0} variant="timeline" />
+              </div>
+            ),
+          },
+          {
+            id: "crew",
+            label: "The crew",
+            content: (
+              <div className="max-w-[1100px] mx-auto px-6 sm:px-8 py-14 sm:py-20">
+                <p className="text-[11px] font-bold tracking-[0.25em] text-[#00afdb] mb-3">YOUR COACHES</p>
+                <h3 className="text-2xl sm:text-4xl font-black tracking-[-0.03em] text-[#00374a] mb-8">Learn from the best</h3>
+                <Carousel label="Coaches">
+                  {COACHES.map((c) => (
+                    <article key={c.name} className="snap-start shrink-0 w-[280px] sm:w-[320px] bg-white rounded-3xl overflow-hidden border border-[#ebebeb]">
+                      <div className="h-[240px] bg-cover bg-center" style={{ backgroundImage: `url('${c.image}')` }} />
+                      <div className="p-5"><h4 className="text-lg font-extrabold text-[#00374a]">{c.name}</h4><p className="text-[11px] font-bold tracking-wide uppercase text-[#00afdb] mb-2.5">{c.role}</p><p className="text-[13.5px] text-[#6a7a80] leading-relaxed">{c.bio}</p></div>
+                    </article>
+                  ))}
+                </Carousel>
+                <p className="text-[11px] font-bold tracking-[0.25em] text-[#00afdb] mb-3 mt-16">THE CREW</p>
+                <h3 className="text-2xl sm:text-4xl font-black tracking-[-0.03em] text-[#00374a] mb-8">Moments &amp; new friends</h3>
+                <Carousel label="Guest moments">
+                  {reviewItems.map((m, i) => (
+                    <article key={i} className="snap-start shrink-0 w-[280px] sm:w-[360px] relative rounded-3xl overflow-hidden h-[400px]">
+                      <div className="absolute inset-0 bg-cover bg-center" style={{ backgroundImage: `url('${m.image}')` }} />
+                      <div className="absolute inset-0 bg-gradient-to-t from-black/85 via-black/20 to-transparent" />
+                      <div className="absolute bottom-0 p-7 text-white"><span className="text-[#ffd24a] text-sm">{"★".repeat(m.rating)}</span><p className="text-[16px] font-bold leading-snug mt-3 mb-4">&ldquo;{m.quote}&rdquo;</p><p className="text-[13px] text-white/70 font-semibold">{m.name}{m.country ? ` · ${m.country}` : ""}</p></div>
+                    </article>
+                  ))}
+                </Carousel>
+              </div>
+            ),
+          },
+          {
+            id: "faq",
+            label: "FAQ",
+            content: (
+              <div className="max-w-[760px] mx-auto px-6 sm:px-8 py-14 sm:py-20">
+                <h3 className="text-2xl sm:text-4xl font-black tracking-[-0.03em] text-[#00374a] mb-8">Questions, answered</h3>
+                <Accordion items={faqItems} allowMultiple />
+              </div>
+            ),
+          },
+        ] as DetailTab[]}
+      />
+      </div>
 
-      {/* CREW */}
-      <section id="crew" className="scroll-mt-16 py-20 sm:py-28 bg-[#f7f7f7]">
-        <div className="max-w-[1200px] mx-auto px-6 sm:px-8">
-          <Reveal className="mb-10"><p className="text-[11px] font-bold tracking-[0.25em] text-[#00afdb] mb-3">YOUR COACHES</p><h2 className="text-3xl sm:text-5xl font-black tracking-[-0.03em] text-[#00374a]">Learn from the best</h2></Reveal>
-          <Reveal className="mb-20">
-            <Carousel label="Coaches">
-              {COACHES.map((c) => (
-                <article key={c.name} className="snap-start shrink-0 w-[300px] sm:w-[340px] bg-white rounded-3xl overflow-hidden border border-[#ebebeb]">
-                  <div className="h-[260px] bg-cover bg-center" style={{ backgroundImage: `url('${c.image}')` }} />
-                  <div className="p-6"><h3 className="text-lg font-extrabold text-[#00374a]">{c.name}</h3><p className="text-[11px] font-bold tracking-wide uppercase text-[#00afdb] mb-3">{c.role}</p><p className="text-[14px] text-[#6a7a80] leading-relaxed">{c.bio}</p></div>
-                </article>
-              ))}
-            </Carousel>
-          </Reveal>
-          <Reveal className="mb-10"><p className="text-[11px] font-bold tracking-[0.25em] text-[#00afdb] mb-3">THE CREW</p><h2 className="text-3xl sm:text-5xl font-black tracking-[-0.03em] text-[#00374a]">Moments &amp; new friends</h2></Reveal>
-          <Reveal>
-            <Carousel label="Guest moments">
-              {MOMENTS.map((m, i) => (
-                <article key={i} className="snap-start shrink-0 w-[300px] sm:w-[380px] relative rounded-3xl overflow-hidden h-[420px]">
-                  <div className="absolute inset-0 bg-cover bg-center" style={{ backgroundImage: `url('${m.image}')` }} />
-                  <div className="absolute inset-0 bg-gradient-to-t from-black/85 via-black/20 to-transparent" />
-                  <div className="absolute bottom-0 p-7 text-white"><span className="text-[#ffd24a] text-sm">★★★★★</span><p className="text-[17px] font-bold leading-snug mt-3 mb-4">&ldquo;{m.quote}&rdquo;</p><p className="text-[13px] text-white/70 font-semibold">{m.name} · {m.country}</p></div>
-                </article>
-              ))}
-            </Carousel>
-          </Reveal>
-        </div>
-      </section>
-
-      {/* GALLERY (only if the trip has photos) */}
-      {gallery.length > 0 && (
-        <section id="gallery" className="scroll-mt-16 py-20 sm:py-28">
+      {/* GALLERY */}
+      {galleryImgs.length > 0 && (
+        <section className="py-16 sm:py-24 bg-[#f7f7f7]">
           <div className="max-w-[1200px] mx-auto px-6 sm:px-8">
-            <Reveal className="mb-10 text-center"><p className="text-[11px] font-bold tracking-[0.25em] text-[#00afdb] mb-3">GALLERY</p><h2 className="text-3xl sm:text-5xl font-black tracking-[-0.03em] text-[#00374a]">A week in pictures</h2></Reveal>
+            <Reveal className="mb-10 text-center"><p className="text-[11px] font-bold tracking-[0.25em] text-[#00afdb] mb-3">GALLERY</p><h2 className="text-3xl sm:text-4xl font-black tracking-[-0.03em] text-[#00374a]">A week in pictures</h2></Reveal>
             <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-              {gallery.map((src, i) => (
+              {galleryImgs.map((src, i) => (
                 <Reveal key={i} delay={(i % 4) * 80} className={i % 5 === 0 ? "col-span-2 row-span-2" : ""}>
                   <div className="aspect-square bg-cover bg-center rounded-2xl hover:opacity-90 transition-opacity" style={{ backgroundImage: `url('${src}')` }} />
                 </Reveal>
@@ -473,14 +461,6 @@ export default async function ExperienceDetailPage({ params }: Props) {
           </div>
         </section>
       )}
-
-      {/* FAQ */}
-      <section id="faq" className="scroll-mt-16 py-20 sm:py-28 bg-[#f7f7f7]">
-        <div className="max-w-[760px] mx-auto px-6 sm:px-8">
-          <Reveal className="mb-12 text-center"><p className="text-[11px] font-bold tracking-[0.25em] text-[#00afdb] mb-3">GOOD TO KNOW</p><h2 className="text-3xl sm:text-5xl font-black tracking-[-0.03em] text-[#00374a]">Questions, answered</h2></Reveal>
-          <Reveal><Accordion items={faqItems} allowMultiple /></Reveal>
-        </div>
-      </section>
 
       {/* FINAL CTA */}
       <section className="relative py-24 sm:py-32 bg-[#00374a] text-white overflow-hidden">
