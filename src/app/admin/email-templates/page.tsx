@@ -27,7 +27,12 @@ const COLUMNS: ColumnDef[] = [
   { key: "name", label: "Name", width: "1fr", required: true },
   { key: "subject", label: "Subject", width: "180px" },
   { key: "type", label: "Type", width: "120px" },
+  { key: "status", label: "Status", width: "90px", defaultHidden: true },
+  { key: "trigger_stage", label: "Trigger", width: "130px", defaultHidden: true },
+  { key: "experience", label: "Experience", width: "140px", defaultHidden: true },
   { key: "language", label: "Lang", width: "60px" },
+  { key: "body", label: "Body", width: "200px", defaultHidden: true },
+  { key: "notes", label: "Notes", width: "140px", defaultHidden: true },
   { key: "active", label: "Active", width: "60px" },
   { key: "_actions", label: "", width: "50px", required: true },
 ];
@@ -53,7 +58,7 @@ export default function EmailTemplatesPage() {
   const [visibleColumns, setVisibleColumns] = useState<Set<string>>(
     () => loadVisibleColumns(STORAGE_KEY, COLUMNS)
   );
-  const [form, setForm] = useState({ name: "", subject_line: "", body: "", type: "", trigger_stage: "", language: "en", active: true, experience_id: "", notes: "" });
+  const [form, setForm] = useState({ name: "", subject_line: "", body: "", type: "", trigger_stage: "", status: "", language: "en", active: true, experience_id: "", notes: "" });
 
   function fetchData() {
     Promise.all([
@@ -85,6 +90,7 @@ export default function EmailTemplatesPage() {
         let bVal: unknown;
         if (sortKey === "subject") { aVal = a.subject_line; bVal = b.subject_line; }
         else if (sortKey === "active") { aVal = a.active; bVal = b.active; }
+        else if (sortKey === "experience") { aVal = a.exp_experiences?.title; bVal = b.exp_experiences?.title; }
         else { aVal = a[sortKey as keyof EmailTemplate]; bVal = b[sortKey as keyof EmailTemplate]; }
         return compareValues(aVal, bVal, sortDir);
       })
@@ -92,12 +98,12 @@ export default function EmailTemplatesPage() {
 
   function startEdit(t: EmailTemplate) {
     setEditId(t.id);
-    setForm({ name: t.name, subject_line: t.subject_line || "", body: t.body || "", type: t.type || "", trigger_stage: t.trigger_stage || "", language: t.language || "en", active: t.active !== false, experience_id: t.experience_id || "", notes: t.notes || "" });
+    setForm({ name: t.name, subject_line: t.subject_line || "", body: t.body || "", type: t.type || "", trigger_stage: t.trigger_stage || "", status: t.status || "", language: t.language || "en", active: t.active !== false, experience_id: t.experience_id || "", notes: t.notes || "" });
     setShowNew(false);
   }
 
   async function handleSave() {
-    const body = { name: form.name, subject_line: form.subject_line || null, body: form.body || null, type: form.type || null, trigger_stage: form.trigger_stage || null, language: form.language, active: form.active, experience_id: form.experience_id || null, notes: form.notes || null };
+    const body = { name: form.name, subject_line: form.subject_line || null, body: form.body || null, type: form.type || null, trigger_stage: form.trigger_stage || null, status: form.status || null, language: form.language, active: form.active, experience_id: form.experience_id || null, notes: form.notes || null };
     if (editId) {
       await fetch(`/api/admin/email-templates/${editId}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
     } else {
@@ -125,7 +131,7 @@ export default function EmailTemplatesPage() {
         </div>
         <div className="flex items-center gap-3">
           <ColumnToggle columns={COLUMNS} visible={visibleColumns} onChange={setVisibleColumns} storageKey={STORAGE_KEY} />
-          <button onClick={() => { setShowNew(!showNew); setEditId(null); setForm({ name: "", subject_line: "", body: "", type: "", trigger_stage: "", language: "en", active: true, experience_id: "", notes: "" }); }} className="px-4 py-2 bg-[#0aa3c7] hover:bg-[#0aa3c7]/90 text-white text-sm font-bold rounded-lg transition-colors">
+          <button onClick={() => { setShowNew(!showNew); setEditId(null); setForm({ name: "", subject_line: "", body: "", type: "", trigger_stage: "", status: "", language: "en", active: true, experience_id: "", notes: "" }); }} className="px-4 py-2 bg-[#0aa3c7] hover:bg-[#0aa3c7]/90 text-white text-sm font-bold rounded-lg transition-colors">
             New Template
           </button>
         </div>
@@ -139,6 +145,7 @@ export default function EmailTemplatesPage() {
             <div className="col-span-2"><label className={labelClass}>Subject Line</label><input className={inputClass} value={form.subject_line} onChange={(e) => setForm({ ...form, subject_line: e.target.value })} /></div>
             <div><label className={labelClass}>Type</label><input className={inputClass} value={form.type} onChange={(e) => setForm({ ...form, type: e.target.value })} placeholder="welcome, reminder..." /></div>
             <div><label className={labelClass}>Trigger Stage</label><input className={inputClass} value={form.trigger_stage} onChange={(e) => setForm({ ...form, trigger_stage: e.target.value })} placeholder="booking_confirmed..." /></div>
+            <div><label className={labelClass}>Status</label><input className={inputClass} value={form.status} onChange={(e) => setForm({ ...form, status: e.target.value })} placeholder="draft, ready..." /></div>
             <div><label className={labelClass}>Language</label>
               <select className={inputClass} value={form.language} onChange={(e) => setForm({ ...form, language: e.target.value })}>
                 <option value="en">English</option>
@@ -198,7 +205,12 @@ export default function EmailTemplatesPage() {
               </div>
               {visibleColumns.has("subject") && <span className="text-xs admin-muted self-center truncate">{t.subject_line || "—"}</span>}
               {visibleColumns.has("type") && <span className="text-xs admin-muted self-center truncate">{t.type || "—"}</span>}
+              {visibleColumns.has("status") && <span className="text-xs admin-muted self-center truncate">{t.status || "—"}</span>}
+              {visibleColumns.has("trigger_stage") && <span className="text-xs admin-muted self-center truncate">{t.trigger_stage || "—"}</span>}
+              {visibleColumns.has("experience") && <span className="text-xs admin-muted self-center truncate">{t.exp_experiences?.title || "—"}</span>}
               {visibleColumns.has("language") && <span className="text-xs admin-muted self-center uppercase">{t.language || "—"}</span>}
+              {visibleColumns.has("body") && <span className="text-xs admin-faint self-center truncate" title={t.body || ""}>{t.body || "—"}</span>}
+              {visibleColumns.has("notes") && <span className="text-xs admin-faint self-center truncate" title={t.notes || ""}>{t.notes || "—"}</span>}
               {visibleColumns.has("active") && <span className="self-center">{t.active ? <span className="text-green-400 text-xs">✓</span> : <span className="admin-faint text-xs">—</span>}</span>}
               {/* _actions — required */}
               <button onClick={(e) => { e.stopPropagation(); handleDelete(t.id); }} className="text-xs admin-faint hover:text-red-400 transition-colors self-center">
