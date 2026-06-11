@@ -1,7 +1,51 @@
 import Link from "next/link";
+import { headers } from "next/headers";
 import type { Metadata } from "next";
 import { createAdminClient } from "@/lib/supabase";
 import { OceanHeader, NP7_LOGO } from "@/components/experience/ocean-header";
+import { ensureMemberAccount } from "@/lib/members";
+import { sendEmail } from "@/lib/email/send";
+
+function fmtRange(start?: string | null, end?: string | null) {
+  if (!start) return undefined;
+  const s = new Date(start), e = end ? new Date(end) : null;
+  const d = (x: Date) => x.toLocaleDateString("en-GB", { day: "numeric", month: "short" });
+  return e ? `${d(s)} – ${d(e)} ${e.getFullYear()}` : `${d(s)} ${s.getFullYear()}`;
+}
+
+/** Provision the member account + send the deposit confirmation (idempotent). */
+async function onDepositPaid(bookingId: string) {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const db = createAdminClient() as any;
+  await db.from("exp_bookings")
+    .update({ status: "downpayment_paid", downpayment_received: true, updated_at: new Date().toISOString() })
+    .eq("id", bookingId);
+
+  const { data: booking } = await db.from("exp_bookings")
+    .select("id, contact_id, exp_experiences(title), exp_editions(date_start,date_end), contacts(name,email)")
+    .eq("id", bookingId).maybeSingle();
+  const contact = booking?.contacts;
+  if (!contact?.email) return;
+
+  const h = await headers();
+  const origin = h.get("origin") ?? `https://${h.get("host")}`;
+  const firstName = (contact.name ?? "").split(" ")[0] || undefined;
+
+  const acct = await ensureMemberAccount({ contactId: booking.contact_id, email: contact.email, origin }).catch(() => null);
+  await sendEmail({
+    to: contact.email,
+    templateKey: "deposit_confirmation",
+    vars: {
+      firstName,
+      experienceTitle: booking.exp_experiences?.title,
+      dates: fmtRange(booking.exp_editions?.date_start, booking.exp_editions?.date_end),
+      activationLink: acct && "link" in acct ? acct.link : `${origin}/account/login`,
+    },
+    bookingId,
+    contactId: booking.contact_id,
+    dedupeKey: `deposit_confirmation:${bookingId}`,
+  }).catch(() => {});
+}
 
 export const metadata: Metadata = { title: "Reservation confirmed — NP7 Experience" };
 
@@ -31,14 +75,7 @@ export default async function ThanksPage({ params, searchParams }: Props) {
     if (res.ok && session.payment_status === "paid") {
       state = "paid";
       const bookingId = session.metadata?.booking_id;
-      if (bookingId) {
-        const client = createAdminClient();
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        await (client as any)
-          .from("exp_bookings")
-          .update({ status: "downpayment_paid", downpayment_received: true, updated_at: new Date().toISOString() })
-          .eq("id", bookingId);
-      }
+      if (bookingId) await onDepositPaid(bookingId).catch(() => {});
     }
   }
 

@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase";
+import { sendEmail } from "@/lib/email/send";
+import { getPortalUser } from "@/lib/auth";
 
 /**
  * Public reservation endpoint.
@@ -68,18 +70,27 @@ export async function POST(request: NextRequest) {
     return bad("This week is no longer available.", 409);
   }
 
-  // Contact: reuse by email, else create.
+  // Logged-in member? Use their own contact (and offer card-saving at checkout).
+  const member = await getPortalUser().catch(() => null);
+
+  // Contact: member's own → reuse by email → create.
   const fullName = `${firstName} ${lastName}`;
-  const { data: existing } = await db.from("contacts").select("id").eq("email", email).maybeSingle();
-  let contactId = existing?.id as string | undefined;
-  if (!contactId) {
-    const { data: created, error: cErr } = await db
-      .from("contacts")
-      .insert({ name: fullName, email, phone, source: "website" })
-      .select("id")
-      .single();
-    if (cErr) return bad("Could not save your details. Please try again.", 500);
-    contactId = created.id;
+  let contactId = member?.contactId as string | undefined;
+  let stripeCustomerId: string | null = null;
+  if (contactId) {
+    await db.from("contacts").update({ phone, updated_at: new Date().toISOString() }).eq("id", contactId);
+    const { data: c } = await db.from("contacts").select("stripe_customer_id").eq("id", contactId).maybeSingle();
+    stripeCustomerId = c?.stripe_customer_id ?? null;
+  } else {
+    const { data: existing } = await db.from("contacts").select("id, stripe_customer_id").eq("email", email).maybeSingle();
+    contactId = existing?.id;
+    stripeCustomerId = existing?.stripe_customer_id ?? null;
+    if (!contactId) {
+      const { data: created, error: cErr } = await db
+        .from("contacts").insert({ name: fullName, email, phone, source: "website" }).select("id").single();
+      if (cErr) return bad("Could not save your details. Please try again.", 500);
+      contactId = created.id;
+    }
   }
 
   // Booking — lands in the admin pipeline as "payment_pending".
@@ -99,18 +110,45 @@ export async function POST(request: NextRequest) {
     .single();
   if (bErr) return bad("Could not create your reservation. Please try again.", 500);
 
+  // Reservation-saved (no online payment completed) — confirm + nudge to pay.
+  async function reservationSaved() {
+    await sendEmail({
+      to: email,
+      templateKey: "reservation_received",
+      vars: { firstName, experienceTitle: exp.title, editionLabel: edition?.label ?? undefined, deposit: String(DEPOSIT_EUR) },
+      bookingId: booking.id,
+      contactId,
+      dedupeKey: `reservation_received:${booking.id}`,
+    }).catch(() => {});
+    return NextResponse.json({ ok: true, noPayment: true, bookingId: booking.id });
+  }
+
   const stripeKey = process.env.STRIPE_SECRET_KEY;
   if (!stripeKey) {
     // No payment configured yet — reservation saved; team follows up personally.
-    return NextResponse.json({ ok: true, noPayment: true, bookingId: booking.id });
+    return reservationSaved();
   }
 
   // Stripe Checkout session for the deposit (REST API, form-encoded).
   const origin = request.headers.get("origin") ?? `https://${request.headers.get("host")}`;
   const editionLabel = edition?.label ? ` — ${edition.label}` : "";
+
+  // Members get a Stripe Customer so they can opt to save their card.
+  if (member && !stripeCustomerId) {
+    const cRes = await fetch("https://api.stripe.com/v1/customers", {
+      method: "POST",
+      headers: { Authorization: `Bearer ${stripeKey}`, "Content-Type": "application/x-www-form-urlencoded" },
+      body: new URLSearchParams({ email, name: fullName, "metadata[contact_id]": contactId ?? "" }).toString(),
+    });
+    const cust = await cRes.json();
+    if (cRes.ok && cust.id) {
+      stripeCustomerId = cust.id;
+      await db.from("contacts").update({ stripe_customer_id: stripeCustomerId }).eq("id", contactId);
+    }
+  }
+
   const params = new URLSearchParams({
     mode: "payment",
-    customer_email: email,
     success_url: `${origin}/experience/${exp.slug}/thanks?session_id={CHECKOUT_SESSION_ID}`,
     cancel_url: `${origin}/experience/${exp.slug}#packages`,
     "line_items[0][quantity]": "1",
@@ -121,6 +159,14 @@ export async function POST(request: NextRequest) {
     "metadata[booking_id]": booking.id,
     "payment_intent_data[description]": `NP7 deposit · booking ${booking.id}`,
   });
+  if (stripeCustomerId) {
+    params.set("customer", stripeCustomerId);
+    // let members save their card for next time (Stripe-native consent)
+    params.set("payment_method_save", "enabled");
+    params.set("saved_payment_method_options[payment_method_save]", "enabled");
+  } else {
+    params.set("customer_email", email);
+  }
 
   const res = await fetch("https://api.stripe.com/v1/checkout/sessions", {
     method: "POST",
@@ -131,7 +177,7 @@ export async function POST(request: NextRequest) {
   if (!res.ok || !session.url) {
     console.error("stripe checkout error", session?.error?.message);
     // Reservation exists; degrade like the no-payment flow rather than losing the lead.
-    return NextResponse.json({ ok: true, noPayment: true, bookingId: booking.id });
+    return reservationSaved();
   }
 
   // Record the session on the booking for the thanks-page verification.

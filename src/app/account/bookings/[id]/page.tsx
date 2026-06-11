@@ -1,0 +1,144 @@
+import Link from "next/link";
+import { redirect, notFound } from "next/navigation";
+import type { Metadata } from "next";
+import { getPortalUser } from "@/lib/auth";
+import { getMemberBooking, getMemoryPhotos } from "@/lib/portal-data";
+import { bookingStatus, CHIP_CLASS, fmtDates, money } from "@/lib/portal-status";
+import { PortalHeader } from "@/components/portal/portal-header";
+import { ExtraNightsButton } from "@/components/portal/extra-nights-button";
+
+export const metadata: Metadata = { title: "My trip — NP7" };
+export const dynamic = "force-dynamic";
+
+type Props = { params: Promise<{ id: string }> };
+
+export default async function BookingDetail({ params }: Props) {
+  const { id } = await params;
+  const user = await getPortalUser();
+  if (!user) redirect("/account/login");
+  const b = await getMemberBooking(user.contactId, id);
+  if (!b) notFound();
+
+  const chip = bookingStatus(b);
+  const photos = b.edition?.id ? await getMemoryPhotos(b.edition.id).catch(() => []) : [];
+
+  const depositPaid = b.downpayment_received || ["downpayment_paid", "paid", "confirmed"].includes((b.status ?? "").toLowerCase());
+  const balance = b.agreed_price != null && b.edition?.deposit != null ? b.agreed_price - b.edition.deposit : null;
+  const cancellation = b.experience?.cancellation_policy ||
+    "Cancellations are handled case by case in line with our package travel terms. The deposit secures your spot; please contact us as early as possible if your plans change. Full terms are provided with your booking confirmation.";
+
+  return (
+    <>
+      <PortalHeader name={user.name} />
+      <main className="min-h-[100svh] bg-[#fff7ec]">
+        <div className="max-w-[1000px] mx-auto px-5 sm:px-8 py-8 sm:py-12">
+          <Link href="/account" className="text-[13px] font-semibold text-[#6a7a80] hover:text-[#00374a]">← My trips</Link>
+
+          <div className="flex flex-wrap items-start justify-between gap-3 mt-3 mb-8">
+            <div>
+              <h1 className="text-3xl sm:text-4xl font-black tracking-[-0.03em] text-[#00374a]">{b.experience?.title ?? "Your trip"}</h1>
+              <p className="text-[15px] text-[#6a7a80] mt-1.5">{b.edition?.label ? `${b.edition.label} · ` : ""}{fmtDates(b.edition?.date_start, b.edition?.date_end)}</p>
+            </div>
+            <span className={`inline-block px-3.5 py-1.5 rounded-full text-[12px] font-bold ${CHIP_CLASS[chip.tone]}`}>{chip.label}</span>
+          </div>
+
+          <div className="grid lg:grid-cols-[1.4fr_1fr] gap-5">
+            {/* left column */}
+            <div className="space-y-5">
+              {/* payment */}
+              <Card title="Payment">
+                <Row label="Package" value={b.pkg?.name ?? "—"} />
+                <Row label="Trip total" value={money(b.agreed_price, b.experience?.currency) ?? "—"} />
+                <Row label="Deposit" value={(money(b.edition?.deposit ?? 300, b.experience?.currency) ?? "€300") + (depositPaid ? " · paid ✓" : " · pending")} tone={depositPaid ? "green" : "amber"} />
+                {balance != null && balance > 0 && (
+                  <Row label="Remaining balance" value={`${money(balance, b.experience?.currency)} · by bank transfer`} />
+                )}
+                <p className="text-[12.5px] text-[#8a9aa0] mt-3 leading-relaxed">The remaining balance is paid by bank transfer — we&apos;ll send your invoice with all details in good time before the trip.</p>
+              </Card>
+
+              {/* prep */}
+              <Card title="Trip prep">
+                <p className="text-[14px] text-[#5a6b72] leading-relaxed mb-3">We&apos;ll add your detailed arrival info and packing list here as the trip gets closer. In the meantime:</p>
+                <div className="space-y-2.5">
+                  {b.edition?.whatsapp_group_link ? (
+                    <a href={b.edition.whatsapp_group_link} target="_blank" className="flex items-center gap-2 text-[14px] font-semibold text-[#00afdb] hover:underline">
+                      <span>💬</span> Join your group chat
+                    </a>
+                  ) : <p className="text-[13.5px] text-[#9aa6ac]">💬 Your group chat link will appear here soon.</p>}
+                  <div className="pt-1"><ExtraNightsButton bookingId={b.id} /></div>
+                </div>
+              </Card>
+
+              {/* memories */}
+              <Card title="Your memories">
+                {photos.length === 0 && !b.edition?.memories_video_url ? (
+                  <p className="text-[13.5px] text-[#9aa6ac]">Your photos &amp; video will appear here after the week.</p>
+                ) : (
+                  <>
+                    {photos.length > 0 && (
+                      <div className="grid grid-cols-3 sm:grid-cols-4 gap-2 mb-3">
+                        {photos.map((src, i) => (
+                          <a key={i} href={src} target="_blank" className="aspect-square rounded-lg bg-cover bg-center hover:opacity-90 transition-opacity" style={{ backgroundImage: `url('${src}')` }} />
+                        ))}
+                      </div>
+                    )}
+                    {b.edition?.memories_video_url && (
+                      <a href={b.edition.memories_video_url} target="_blank" className="inline-flex items-center gap-2 text-[14px] font-bold text-[#00afdb] hover:underline">▶ Watch your week&apos;s video</a>
+                    )}
+                  </>
+                )}
+              </Card>
+            </div>
+
+            {/* right column — documents */}
+            <div className="space-y-5">
+              <Card title="Travel documents">
+                <DocLink href={`/account/bookings/${b.id}/confirmation`} label="Trip confirmation" sub="Your booking summary (print / save as PDF)" />
+                <DocLink href="/experience/legal/package-travel" label="Standard information form" sub="Your rights under EU package-travel law" />
+                <details className="mt-2 border-t border-[#f3ede2] pt-3">
+                  <summary className="text-[14px] font-semibold text-[#00374a] cursor-pointer">Cancellation policy</summary>
+                  <p className="text-[13px] text-[#6a7a80] leading-relaxed mt-2 whitespace-pre-line">{cancellation}</p>
+                </details>
+              </Card>
+
+              <Card title="Need anything?">
+                <p className="text-[14px] text-[#5a6b72] leading-relaxed">We&apos;re here for you personally. Reply to any of our emails or reach us at <a href="mailto:experience@np-seven.com" className="text-[#00afdb] font-semibold">experience@np-seven.com</a>.</p>
+              </Card>
+            </div>
+          </div>
+        </div>
+      </main>
+    </>
+  );
+}
+
+function Card({ title, children }: { title: string; children: React.ReactNode }) {
+  return (
+    <section className="bg-white rounded-2xl border border-[#f0e6d6] p-6">
+      <h2 className="text-[11px] font-bold tracking-[0.2em] uppercase text-[#00afdb] mb-4">{title}</h2>
+      {children}
+    </section>
+  );
+}
+function Row({ label, value, tone }: { label: string; value: string; tone?: "green" | "amber" }) {
+  return (
+    <div className="flex items-center justify-between gap-4 py-2 border-b border-[#f7f1e7] last:border-0">
+      <span className="text-[13.5px] text-[#6a7a80]">{label}</span>
+      <span className={`text-[13.5px] font-bold text-right ${tone === "green" ? "text-green-700" : tone === "amber" ? "text-[#c4621a]" : "text-[#00374a]"}`}>{value}</span>
+    </div>
+  );
+}
+function DocLink({ href, label, sub }: { href: string; label: string; sub: string }) {
+  return (
+    <Link href={href} className="flex items-center gap-3 py-2.5 group">
+      <span className="shrink-0 w-9 h-9 rounded-lg bg-[#00afdb]/10 text-[#00afdb] grid place-items-center">
+        <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z" /><path d="M14 2v6h6" /></svg>
+      </span>
+      <span className="min-w-0 flex-1">
+        <span className="block text-[14px] font-bold text-[#00374a] group-hover:text-[#00afdb] transition-colors">{label}</span>
+        <span className="block text-[12px] text-[#9aa6ac]">{sub}</span>
+      </span>
+      <svg className="w-4 h-4 text-[#c9d4d8]" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M9 18l6-6-6-6" /></svg>
+    </Link>
+  );
+}

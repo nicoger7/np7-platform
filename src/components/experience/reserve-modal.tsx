@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
 export const DEPOSIT_EUR = 300;
 
@@ -30,6 +30,18 @@ export function ReserveModal({ ctx, onClose }: { ctx: ReserveContext; onClose: (
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState("");
   const [savedNoPayment, setSavedNoPayment] = useState(false);
+  const [member, setMember] = useState(false);
+
+  // prefill for logged-in members
+  useEffect(() => {
+    fetch("/api/portal/me").then((r) => r.json()).then((d) => {
+      if (d?.loggedIn) {
+        setMember(true);
+        setFirstName(d.firstName ?? ""); setLastName(d.lastName ?? "");
+        setEmail(d.email ?? ""); setPhone(d.phone ?? "");
+      }
+    }).catch(() => {});
+  }, []);
 
   const symbol = ctx.currency === "EUR" || !ctx.currency ? "€" : `${ctx.currency} `;
   const fmt = (n: number) => `${symbol}${n.toLocaleString("en-US")}`;
@@ -111,6 +123,11 @@ export function ReserveModal({ ctx, onClose }: { ctx: ReserveContext; onClose: (
               </div>
             </div>
 
+            {member && (
+              <p className="text-[12.5px] text-[#0782a0] bg-[#00afdb]/8 rounded-lg px-3.5 py-2 mb-3">
+                ✓ Booking as a member — you can save your card at checkout for next time.
+              </p>
+            )}
             <div className="grid grid-cols-2 gap-3 mb-3">
               <input required value={firstName} onChange={(e) => setFirstName(e.target.value)} placeholder="First name" autoComplete="given-name"
                 className="px-4 py-3.5 rounded-xl border border-[#dde6e9] text-[15px] text-[#00374a] outline-none focus:border-[#00afdb] placeholder:text-[#9aa6ac]" />
