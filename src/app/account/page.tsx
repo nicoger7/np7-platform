@@ -2,6 +2,7 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import type { Metadata } from "next";
 import { getPortalUser } from "@/lib/auth";
+import { createClient } from "@/lib/supabase/server";
 import { getMemberBookings } from "@/lib/portal-data";
 import { bookingStatus, CHIP_CLASS, fmtDates, money } from "@/lib/portal-status";
 import { PortalHeader } from "@/components/portal/portal-header";
@@ -11,7 +12,13 @@ export const dynamic = "force-dynamic";
 
 export default async function AccountHome() {
   const user = await getPortalUser();
-  if (!user) redirect("/account/login");
+  if (!user) {
+    // Sign out so the middleware doesn't bounce us straight back here
+    // (would loop if a Supabase session exists but no linked contact)
+    const supabase = await createClient();
+    await supabase.auth.signOut();
+    redirect("/account/login");
+  }
   const bookings = await getMemberBookings(user.contactId);
   const first = user.name?.split(" ")[0] ?? "there";
 
