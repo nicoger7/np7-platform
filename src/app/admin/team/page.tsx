@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import Link from "next/link";
 import { SortableHeader } from "@/components/sortable-header";
 import { ColumnToggle, ColumnDef, buildGridTemplate, loadVisibleColumns } from "@/components/column-toggle";
+import { RowActions } from "@/components/row-actions";
 
 interface TeamMember {
   id: string;
@@ -30,7 +31,7 @@ const COLUMNS: ColumnDef[] = [
   { key: "total_cost", label: "Cost", width: "90px" },
   { key: "notes", label: "Notes", width: "150px", defaultHidden: true },
   { key: "active", label: "Active", width: "60px" },
-  { key: "_actions", label: "", width: "50px", required: true },
+  { key: "_actions", label: "", width: "70px", required: true },
 ];
 
 const STORAGE_KEY = "np7-team-columns";
@@ -90,6 +91,11 @@ export default function TeamPage() {
   async function handleDelete(id: string) {
     if (!confirm("Delete this team member?")) return;
     await fetch(`/api/admin/team/${id}`, { method: "DELETE" });
+    fetchData();
+  }
+
+  async function handleDuplicate(id: string) {
+    await fetch(`/api/admin/team/${id}/duplicate`, { method: "POST" });
     fetchData();
   }
 
@@ -160,9 +166,7 @@ export default function TeamPage() {
               {visibleColumns.has("active") && (
                 <span className="self-center">{m.active ? <span className="text-green-400 text-xs">✓</span> : <span className="admin-faint text-xs">—</span>}</span>
               )}
-              <button onClick={() => handleDelete(m.id)} className="text-xs admin-faint hover:text-red-400 transition-colors self-center">
-                <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M3 6h18M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a2 2 0 012-2h4a2 2 0 012 2v2" /></svg>
-              </button>
+              <RowActions onDuplicate={() => handleDuplicate(m.id)} onDelete={() => handleDelete(m.id)} />
             </div>
           ))}
         </div>

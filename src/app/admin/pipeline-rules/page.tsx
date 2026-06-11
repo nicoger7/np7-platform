@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import { SortableHeader } from "@/components/sortable-header";
 import { ColumnToggle, ColumnDef, buildGridTemplate, loadVisibleColumns } from "@/components/column-toggle";
+import { RowActions } from "@/components/row-actions";
 
 interface PipelineRule {
   id: string;
@@ -44,7 +45,7 @@ const COLUMNS: ColumnDef[] = [
   { key: "days_after_trigger", label: "Delay", width: "60px" },
   { key: "notes", label: "Notes", width: "160px", defaultHidden: true },
   { key: "active", label: "Active", width: "60px" },
-  { key: "_actions", label: "", width: "50px", required: true },
+  { key: "_actions", label: "", width: "70px", required: true },
 ];
 
 const STORAGE_KEY = "np7-pipeline-rules-columns";
@@ -131,6 +132,11 @@ export default function PipelineRulesPage() {
   async function handleDelete(id: string) {
     if (!confirm("Delete this rule?")) return;
     await fetch(`/api/admin/pipeline-rules/${id}`, { method: "DELETE" });
+    fetchData();
+  }
+
+  async function handleDuplicate(id: string) {
+    await fetch(`/api/admin/pipeline-rules/${id}/duplicate`, { method: "POST" });
     fetchData();
   }
 
@@ -230,9 +236,7 @@ export default function PipelineRulesPage() {
               {visibleColumns.has("notes") && <span className="text-xs admin-faint self-center truncate" title={r.notes || ""}>{r.notes || "—"}</span>}
               {visibleColumns.has("active") && <span className="self-center">{r.active ? <span className="text-green-400 text-xs">✓</span> : <span className="admin-faint text-xs">—</span>}</span>}
               {/* _actions — required */}
-              <button onClick={(e) => { e.stopPropagation(); handleDelete(r.id); }} className="text-xs admin-faint hover:text-red-400 transition-colors self-center">
-                <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M3 6h18M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a2 2 0 012-2h4a2 2 0 012 2v2" /></svg>
-              </button>
+              <RowActions onDuplicate={() => handleDuplicate(r.id)} onDelete={() => handleDelete(r.id)} />
             </div>
           ))}
         </div>

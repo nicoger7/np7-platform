@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import { SortableHeader } from "@/components/sortable-header";
 import { ColumnToggle, ColumnDef, buildGridTemplate, loadVisibleColumns } from "@/components/column-toggle";
+import { RowActions } from "@/components/row-actions";
 
 interface Scenario {
   id: string;
@@ -46,7 +47,7 @@ const COLUMNS: ColumnDef[] = [
   { key: "projected_profit", label: "Profit", width: "100px" },
   { key: "margin_pct", label: "Margin %", width: "80px" },
   { key: "notes", label: "Notes", width: "160px", defaultHidden: true },
-  { key: "_actions", label: "", width: "60px", required: true },
+  { key: "_actions", label: "", width: "70px", required: true },
 ];
 
 const STORAGE_KEY = "np7-scenario-planner-columns";
@@ -140,6 +141,11 @@ export default function ScenarioPlannerPage() {
   async function handleDelete(id: string) {
     if (!confirm("Delete this scenario?")) return;
     await fetch(`/api/admin/scenario-planner/${id}`, { method: "DELETE" });
+    fetchData();
+  }
+
+  async function handleDuplicate(id: string) {
+    await fetch(`/api/admin/scenario-planner/${id}/duplicate`, { method: "POST" });
     fetchData();
   }
 
@@ -244,9 +250,7 @@ export default function ScenarioPlannerPage() {
                 {visibleColumns.has("margin_pct") && <span className={`text-xs self-center font-medium ${s.margin_pct == null ? "admin-faint" : s.margin_pct < 0 ? "text-red-400" : "text-green-400"}`}>{s.margin_pct != null ? `${s.margin_pct}%` : "—"}</span>}
                 {visibleColumns.has("notes") && <span className="text-xs admin-faint self-center truncate" title={s.notes || ""}>{s.notes || "—"}</span>}
                 {/* _actions — required */}
-                <button onClick={(e) => { e.stopPropagation(); handleDelete(s.id); }} className="text-xs admin-faint hover:text-red-400 transition-colors self-center">
-                  <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M3 6h18M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a2 2 0 012-2h4a2 2 0 012 2v2" /></svg>
-                </button>
+                <RowActions onDuplicate={() => handleDuplicate(s.id)} onDelete={() => handleDelete(s.id)} />
               </div>
             );
           })}

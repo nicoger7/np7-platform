@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import { SortableHeader } from "@/components/sortable-header";
 import { ColumnToggle, ColumnDef, buildGridTemplate, loadVisibleColumns } from "@/components/column-toggle";
+import { RowActions } from "@/components/row-actions";
 
 interface Todo {
   id: string;
@@ -43,7 +44,7 @@ const COLUMNS: ColumnDef[] = [
   { key: "task_rule", label: "Task Rule", width: "130px", defaultHidden: true },
   { key: "due_date", label: "Due", width: "100px" },
   { key: "notes", label: "Notes", width: "150px", defaultHidden: true },
-  { key: "_actions", label: "", width: "50px", required: true },
+  { key: "_actions", label: "", width: "70px", required: true },
 ];
 
 const STORAGE_KEY = "np7-todos-columns";
@@ -142,6 +143,11 @@ export default function TodosPage() {
   async function handleDelete(id: string) {
     if (!confirm("Delete this to-do?")) return;
     await fetch(`/api/admin/todos/${id}`, { method: "DELETE" });
+    fetchData();
+  }
+
+  async function handleDuplicate(id: string) {
+    await fetch(`/api/admin/todos/${id}/duplicate`, { method: "POST" });
     fetchData();
   }
 
@@ -300,9 +306,7 @@ export default function TodosPage() {
               )}
 
               {/* _actions — required */}
-              <button onClick={(e) => { e.stopPropagation(); handleDelete(t.id); }} className="text-xs admin-faint hover:text-red-400 transition-colors self-center">
-                <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M3 6h18M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a2 2 0 012-2h4a2 2 0 012 2v2" /></svg>
-              </button>
+              <RowActions onDuplicate={() => handleDuplicate(t.id)} onDelete={() => handleDelete(t.id)} />
             </div>
           ))}
         </div>

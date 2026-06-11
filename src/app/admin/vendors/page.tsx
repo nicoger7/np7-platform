@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import Link from "next/link";
 import { SortableHeader } from "@/components/sortable-header";
 import { ColumnToggle, ColumnDef, buildGridTemplate, loadVisibleColumns } from "@/components/column-toggle";
+import { RowActions } from "@/components/row-actions";
 
 interface Vendor {
   id: string;
@@ -108,6 +109,11 @@ export default function VendorsPage() {
     fetchData();
   }
 
+  async function handleDuplicate(id: string) {
+    await fetch(`/api/admin/vendors/${id}/duplicate`, { method: "POST" });
+    fetchData();
+  }
+
   const inputClass = "w-full px-3 py-2 admin-input border rounded-lg text-sm focus:outline-none focus:border-[#0aa3c7] focus:ring-1 focus:ring-[#0aa3c7] transition-colors";
   const labelClass = "block text-xs font-medium admin-muted mb-1";
   const gridTemplate = buildGridTemplate(COLUMNS, visibleColumns);
@@ -183,9 +189,7 @@ export default function VendorsPage() {
               {visibleColumns.has("chatwoot_contact_id") && <span className="text-xs admin-faint self-center truncate">{v.chatwoot_contact_id || "—"}</span>}
               {visibleColumns.has("notes") && <span className="text-xs admin-faint self-center truncate" title={v.notes || ""}>{v.notes || "—"}</span>}
               {visibleColumns.has("created_at") && <span className="text-xs admin-faint self-center">{fmtDate(v.created_at)}</span>}
-              <button onClick={() => handleDelete(v.id)} className="text-xs admin-faint hover:text-red-400 transition-colors self-center">
-                <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M3 6h18M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a2 2 0 012-2h4a2 2 0 012 2v2" /></svg>
-              </button>
+              <RowActions onDuplicate={() => handleDuplicate(v.id)} onDelete={() => handleDelete(v.id)} />
             </div>
           ))}
         </div>

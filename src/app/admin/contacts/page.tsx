@@ -165,27 +165,29 @@ export default function ContactsPage() {
             {totalCount} contact{totalCount !== 1 ? "s" : ""}
           </p>
         </div>
-        <button
-          onClick={() => setShowNew(!showNew)}
-          className="px-4 py-2 bg-[#0aa3c7] hover:bg-[#0aa3c7]/90 text-white text-sm font-bold rounded-lg transition-colors"
-        >
-          New Contact
-        </button>
+        <div className="flex items-center gap-3">
+          <ColumnToggle
+            columns={COLUMNS}
+            visible={visibleColumns}
+            onChange={setVisibleColumns}
+            storageKey={STORAGE_KEY}
+          />
+          <button
+            onClick={() => setShowNew(!showNew)}
+            className="px-4 py-2 bg-[#0aa3c7] hover:bg-[#0aa3c7]/90 text-white text-sm font-bold rounded-lg transition-colors"
+          >
+            New Contact
+          </button>
+        </div>
       </div>
 
-      {/* Search + column toggle */}
+      {/* Search */}
       <div className="flex items-center gap-3 mb-5">
         <input
           className={`${inputClass} max-w-sm`}
           placeholder="Search by name, email, or phone..."
           value={search}
           onChange={(e) => setSearch(e.target.value)}
-        />
-        <ColumnToggle
-          columns={COLUMNS}
-          visible={visibleColumns}
-          onChange={setVisibleColumns}
-          storageKey={STORAGE_KEY}
         />
       </div>
 
