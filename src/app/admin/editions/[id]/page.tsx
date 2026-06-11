@@ -4,6 +4,7 @@ import { useState, useEffect, use } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import BusinessCaseCard from "@/components/business-case-card";
+import { PackageComponentsEditor } from "@/components/package-components-editor";
 
 interface Edition {
   id: string;
@@ -41,6 +42,7 @@ interface Edition {
     location: string;
     hero_image: string | null;
     currency: string | null;
+    code: string | null;
   } | null;
   _counts?: {
     bookings: number;
@@ -149,6 +151,7 @@ export default function EditionDetailPage({
   const [pkgForm, setPkgForm] = useState(emptyPkg);
   const [pkgEditId, setPkgEditId] = useState<string | null>(null);
   const [pkgShow, setPkgShow] = useState(false);
+  const [pkgExpandedId, setPkgExpandedId] = useState<string | null>(null);
 
   const emptyCost = { item: "", estimated_amount: "", actual_amount: "", date: "", status: "estimate" };
   const [costForm, setCostForm] = useState(emptyCost);
@@ -215,6 +218,10 @@ export default function EditionDetailPage({
   async function deletePackage(pkgId: string) {
     if (!confirm("Delete this package?")) return;
     await fetch(`/api/admin/packages/${pkgId}`, { method: "DELETE" });
+    loadPackages();
+  }
+  async function duplicatePackage(pkgId: string) {
+    await fetch(`/api/admin/packages/${pkgId}/duplicate`, { method: "POST" });
     loadPackages();
   }
 
@@ -809,7 +816,8 @@ export default function EditionDetailPage({
             </div>
           ) : (
             <div className="rounded-xl overflow-hidden" style={{ border: "1px solid var(--admin-border)" }}>
-              <div className="grid grid-cols-[1fr_100px_100px_70px_80px_40px] gap-4 px-5 py-3 admin-surface" style={{ borderBottom: "1px solid var(--admin-border)" }}>
+              <div className="grid grid-cols-[24px_1fr_100px_100px_70px_80px_70px] gap-4 px-5 py-3 admin-surface" style={{ borderBottom: "1px solid var(--admin-border)" }}>
+                <span></span>
                 <span className="text-[10px] font-bold tracking-[0.1em] admin-faint uppercase">Name</span>
                 <span className="text-[10px] font-bold tracking-[0.1em] admin-faint uppercase">Price</span>
                 <span className="text-[10px] font-bold tracking-[0.1em] admin-faint uppercase">Deposit</span>
@@ -818,26 +826,43 @@ export default function EditionDetailPage({
                 <span></span>
               </div>
               {packages.map((pkg) => (
-                <div
-                  key={pkg.id}
-                  className="grid grid-cols-[1fr_100px_100px_70px_80px_40px] gap-4 px-5 py-3.5 transition-colors group"
-                  style={{ borderBottom: "1px solid var(--admin-border)" }}
-                  onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = "var(--admin-surface-hover)")}
-                  onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = "transparent")}
-                >
-                  <div className="min-w-0 self-center cursor-pointer" onClick={() => { setPkgEditId(pkg.id); setPkgShow(false); setPkgForm({ name: pkg.name, price: pkg.price?.toString() || "", cost_per_person: pkg.cost_per_person?.toString() || "", deposit: pkg.deposit?.toString() || "", max_spots: pkg.max_spots?.toString() || "", category: pkg.category || "", status: pkg.status }); }}>
-                    <div className="text-sm font-medium admin-heading truncate">{pkg.name}</div>
-                    {pkg.category && <div className="text-xs admin-faint capitalize">{pkg.category}</div>}
+                <div key={pkg.id} style={{ borderBottom: "1px solid var(--admin-border)" }}>
+                  <div
+                    className="grid grid-cols-[24px_1fr_100px_100px_70px_80px_70px] gap-4 px-5 py-3.5 transition-colors group"
+                    onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = "var(--admin-surface-hover)")}
+                    onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = "transparent")}
+                  >
+                    <button onClick={() => setPkgExpandedId(pkgExpandedId === pkg.id ? null : pkg.id)} className="admin-faint self-center" title="Components">
+                      <svg className={`w-3.5 h-3.5 transition-transform ${pkgExpandedId === pkg.id ? "rotate-90" : ""}`} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M9 18l6-6-6-6" /></svg>
+                    </button>
+                    <div className="min-w-0 self-center cursor-pointer" onClick={() => { setPkgEditId(pkg.id); setPkgShow(false); setPkgForm({ name: pkg.name, price: pkg.price?.toString() || "", cost_per_person: pkg.cost_per_person?.toString() || "", deposit: pkg.deposit?.toString() || "", max_spots: pkg.max_spots?.toString() || "", category: pkg.category || "", status: pkg.status }); }}>
+                      <div className="text-sm font-medium admin-heading truncate">{pkg.name}</div>
+                      {pkg.category && <div className="text-xs admin-faint capitalize">{pkg.category}</div>}
+                    </div>
+                    <span className="text-xs admin-muted self-center">{pkg.price ? `€${Number(pkg.price).toLocaleString()}` : "—"}</span>
+                    <span className="text-xs admin-muted self-center">{pkg.deposit ? `€${Number(pkg.deposit).toLocaleString()}` : "—"}</span>
+                    <span className="text-xs admin-muted self-center">{pkg.max_spots ?? "—"}</span>
+                    <span className="self-center">
+                      <span className={`inline-block px-2 py-0.5 rounded text-[10px] font-bold uppercase ${pkg.status === "active" ? "bg-green-500/15 text-green-400" : "bg-gray-500/15 text-gray-400"}`}>{pkg.status}</span>
+                    </span>
+                    <span className="flex items-center gap-2 self-center justify-end opacity-0 group-hover:opacity-100 transition-opacity">
+                      <button onClick={() => duplicatePackage(pkg.id)} className="admin-faint hover:text-[#0aa3c7] transition-colors" title="Duplicate">
+                        <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="9" y="9" width="13" height="13" rx="2" /><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1" /></svg>
+                      </button>
+                      <button onClick={() => deletePackage(pkg.id)} className="admin-faint hover:text-red-400 transition-colors" title="Delete">
+                        <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M3 6h18M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a2 2 0 012-2h4a2 2 0 012 2v2" /></svg>
+                      </button>
+                    </span>
                   </div>
-                  <span className="text-xs admin-muted self-center">{pkg.price ? `€${Number(pkg.price).toLocaleString()}` : "—"}</span>
-                  <span className="text-xs admin-muted self-center">{pkg.deposit ? `€${Number(pkg.deposit).toLocaleString()}` : "—"}</span>
-                  <span className="text-xs admin-muted self-center">{pkg.max_spots ?? "—"}</span>
-                  <span className="self-center">
-                    <span className={`inline-block px-2 py-0.5 rounded text-[10px] font-bold uppercase ${pkg.status === "active" ? "bg-green-500/15 text-green-400" : "bg-gray-500/15 text-gray-400"}`}>{pkg.status}</span>
-                  </span>
-                  <button onClick={() => deletePackage(pkg.id)} className="self-center opacity-0 group-hover:opacity-100 admin-faint hover:text-red-400 transition-all" title="Delete">
-                    <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M3 6h18M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a2 2 0 012-2h4a2 2 0 012 2v2" /></svg>
-                  </button>
+                  {pkgExpandedId === pkg.id && (
+                    <div className="px-5 pb-4">
+                      <PackageComponentsEditor
+                        packageId={pkg.id}
+                        namePrefix={edition.exp_experiences?.code ? `${edition.exp_experiences.code} - ` : undefined}
+                        onChanged={loadPackages}
+                      />
+                    </div>
+                  )}
                 </div>
               ))}
             </div>

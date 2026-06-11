@@ -19,7 +19,7 @@ export async function GET(
     await Promise.all([
       adminClient
         .from("exp_editions")
-        .select(`*, exp_experiences(id, title, slug, location, hero_image, currency)`)
+        .select(`*, exp_experiences(id, title, slug, location, hero_image, currency, code)`)
         .eq("id", id)
         .single(),
       adminClient

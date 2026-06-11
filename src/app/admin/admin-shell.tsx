@@ -24,18 +24,22 @@ const navByEnv: Record<Environment, { label: string; items: { label: string; hre
       label: "OPERATIONS",
       items: [
         { label: "Experiences", href: "/admin/experiences", icon: "compass" },
-        { label: "Website Content", href: "/admin/content", icon: "image" },
         { label: "Bookings", href: "/admin/bookings", icon: "inbox" },
         { label: "Contacts", href: "/admin/contacts", icon: "users" },
         { label: "Hotel Rooms", href: "/admin/hotel-rooms", icon: "bed" },
+        { label: "Packages", href: "/admin/packages", icon: "box" },
+        { label: "Components", href: "/admin/components", icon: "puzzle" },
+        { label: "To-Dos", href: "/admin/todos", icon: "checklist" },
       ],
     },
     {
-      label: "FINANCE",
+      label: "WEBSITE",
       items: [
-        { label: "Payments", href: "/admin/payments", icon: "receipt" },
-        { label: "Experience Costs", href: "/admin/exp-costs", icon: "receipt" },
-        { label: "Vendors", href: "/admin/vendors", icon: "building" },
+        { label: "File Storage", href: "/admin/images", icon: "image" },
+        { label: "Event Content", href: "/admin/content", icon: "layers" },
+        { label: "Member Management", href: "/admin/members", icon: "person" },
+        { label: "Blog", href: "/admin/blog", icon: "pen" },
+        { label: "Destinations", href: "/admin/destinations", icon: "compass" },
       ],
     },
     {
@@ -46,11 +50,11 @@ const navByEnv: Record<Environment, { label: string; items: { label: string; hre
       ],
     },
     {
-      label: "PLANNING",
+      label: "FINANCE",
       items: [
-        { label: "Packages", href: "/admin/packages", icon: "compass" },
-        { label: "Components", href: "/admin/components", icon: "puzzle" },
-        { label: "To-Dos", href: "/admin/todos", icon: "checklist" },
+        { label: "Payments", href: "/admin/payments", icon: "receipt" },
+        { label: "Experience Costs", href: "/admin/exp-costs", icon: "receipt" },
+        { label: "Vendors", href: "/admin/vendors", icon: "building" },
       ],
     },
     {
@@ -245,6 +249,12 @@ const icons: Record<string, React.ReactNode> = {
       <polyline points="22,6 12,13 2,6" />
     </svg>
   ),
+  pen: (
+    <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M12 20h9" />
+      <path d="M16.5 3.5a2.12 2.12 0 013 3L7 19l-4 1 1-4L16.5 3.5z" />
+    </svg>
+  ),
 };
 
 // ─── Themes ──────────────────────────────────────────────────────────────────
@@ -337,7 +347,11 @@ export default function AdminShell({
 
   const vars = themes[theme];
   const activeEnvConfig = environments.find((e) => e.id === env)!;
-  const sections = [sharedNavTop, ...navByEnv[env], sharedNavBottom];
+  // File Storage lives under WEBSITE for the experience env; keep the shared
+  // bottom section only for envs that don't include it.
+  const sections = env === "experience"
+    ? [sharedNavTop, ...navByEnv[env]]
+    : [sharedNavTop, ...navByEnv[env], sharedNavBottom];
 
   return (
     <div
