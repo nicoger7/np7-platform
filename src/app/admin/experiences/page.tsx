@@ -142,6 +142,40 @@ export default function ExperiencesPage() {
 
   const gridTemplate = buildGridTemplate(COLUMNS, visibleColumns);
 
+  // Group by status — published on top, then draft, then archived.
+  const STATUS_ORDER = ["published", "draft", "archived"];
+  const statusGroups = [
+    ...STATUS_ORDER.map((s) => ({ status: s, items: sorted.filter((e) => e.status === s) })),
+    { status: "other", items: sorted.filter((e) => !STATUS_ORDER.includes(e.status)) },
+  ].filter((g) => g.items.length > 0);
+
+  function GroupHeading({ status, count }: { status: string; count: number }) {
+    return (
+      <div className="flex items-center gap-2 mb-2 mt-6 first:mt-0">
+        <h2 className="text-xs font-bold tracking-[0.1em] admin-faint uppercase">{status}</h2>
+        <span className="text-[10px] admin-faint">({count})</span>
+      </div>
+    );
+  }
+
+  function ExpRow({ exp }: { exp: Experience }) {
+    return (
+      <button
+        onClick={() => router.push(`/admin/experiences/${exp.id}`)}
+        className="w-full grid gap-4 px-5 py-3.5 transition-colors text-left"
+        style={{ gridTemplateColumns: gridTemplate, borderBottom: "1px solid var(--admin-border)" }}
+        onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = "var(--admin-surface-hover)")}
+        onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = "transparent")}
+      >
+        <span className="text-sm font-medium admin-heading truncate">{exp.title}</span>
+        {visibleColumns.has("location") && <span className="text-xs admin-muted truncate self-center">{exp.location}</span>}
+        {visibleColumns.has("hotel") && <span className="text-xs admin-faint truncate self-center">{exp.hotel || "—"}</span>}
+        {visibleColumns.has("editions") && <span className="self-center"><EditionPills editions={editionsFor(exp.id)} /></span>}
+        {visibleColumns.has("status") && <span className="self-center"><StatusBadge status={exp.status} /></span>}
+      </button>
+    );
+  }
+
   return (
     <div>
       <div className="flex items-center justify-between mb-6">
@@ -210,65 +244,35 @@ export default function ExperiencesPage() {
       ) : experiences.length === 0 ? (
         <div className="py-12 text-center text-sm admin-faint">No experiences yet</div>
       ) : view === "list" ? (
-        /* ── List view ── */
-        <div className="rounded-xl overflow-hidden" style={{ border: "1px solid var(--admin-border)" }}>
-          {/* Header */}
-          <div
-            className="grid gap-4 px-5 py-3 admin-surface"
-            style={{ gridTemplateColumns: gridTemplate, borderBottom: "1px solid var(--admin-border)" }}
-          >
-            {COLUMNS.filter((c) => c.required || visibleColumns.has(c.key)).map((col) => (
-              <SortableHeader
-                key={col.key}
-                label={col.label}
-                sortKey={col.key}
-                currentSort={sortKey}
-                currentDir={sortDir}
-                onSort={handleSort}
-              />
-            ))}
-          </div>
-
-          {/* Rows */}
-          {sorted.map((exp) => (
-            <button
-              key={exp.id}
-              onClick={() => router.push(`/admin/experiences/${exp.id}`)}
-              className="w-full grid gap-4 px-5 py-3.5 transition-colors text-left"
-              style={{
-                gridTemplateColumns: gridTemplate,
-                borderBottom: "1px solid var(--admin-border)",
-              }}
-              onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = "var(--admin-surface-hover)")}
-              onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = "transparent")}
-            >
-              {/* title — required */}
-              <span className="text-sm font-medium admin-heading truncate">{exp.title}</span>
-              {visibleColumns.has("location") && (
-                <span className="text-xs admin-muted truncate self-center">{exp.location}</span>
-              )}
-              {visibleColumns.has("hotel") && (
-                <span className="text-xs admin-faint truncate self-center">{exp.hotel || "—"}</span>
-              )}
-              {visibleColumns.has("editions") && (
-                <span className="self-center">
-                  <EditionPills editions={editionsFor(exp.id)} />
-                </span>
-              )}
-              {visibleColumns.has("status") && (
-                <span className="self-center">
-                  <StatusBadge status={exp.status} />
-                </span>
-              )}
-            </button>
+        /* ── List view (grouped by status) ── */
+        <div>
+          {statusGroups.map((group) => (
+            <div key={group.status}>
+              <GroupHeading status={group.status} count={group.items.length} />
+              <div className="rounded-xl overflow-hidden" style={{ border: "1px solid var(--admin-border)" }}>
+                <div
+                  className="grid gap-4 px-5 py-3 admin-surface"
+                  style={{ gridTemplateColumns: gridTemplate, borderBottom: "1px solid var(--admin-border)" }}
+                >
+                  {COLUMNS.filter((c) => c.required || visibleColumns.has(c.key)).map((col) => (
+                    <SortableHeader key={col.key} label={col.label} sortKey={col.key} currentSort={sortKey} currentDir={sortDir} onSort={handleSort} />
+                  ))}
+                </div>
+                {group.items.map((exp) => <ExpRow key={exp.id} exp={exp} />)}
+              </div>
+            </div>
           ))}
         </div>
       ) : (
-        /* ── Tile view ── */
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
-          {experiences.map((exp) => {
-            const expEditions = editionsFor(exp.id);
-            return (
+        /* ── Tile view (grouped by status) ── */
+        <div className="space-y-6">
+          {statusGroups.map((group) => (
+            <div key={group.status}>
+              <GroupHeading status={group.status} count={group.items.length} />
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
+                {group.items.map((exp) => {
+                  const expEditions = editionsFor(exp.id);
+                  return (
               <button
                 key={exp.id}
                 onClick={() => router.push(`/admin/experiences/${exp.id}`)}
@@ -320,8 +324,11 @@ export default function ExperiencesPage() {
                   </div>
                 </div>
               </button>
-            );
-          })}
+                  );
+                })}
+              </div>
+            </div>
+          ))}
         </div>
       )}
     </div>
