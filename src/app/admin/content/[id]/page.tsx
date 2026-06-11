@@ -40,6 +40,11 @@ export default function ContentEditorPage({ params }: { params: Promise<{ id: st
   const [highlights, setHighlights] = useState<string[]>([]);
   const [faq, setFaq] = useState<FaqItem[]>([]);
 
+  // certainty
+  const [windProbability, setWindProbability] = useState("");
+  const [windRange, setWindRange] = useState("");
+  const [noWindProgram, setNoWindProgram] = useState("");
+
   useEffect(() => {
     fetch(`/api/admin/content/${id}`)
       .then((r) => r.json())
@@ -57,6 +62,9 @@ export default function ContentEditorPage({ params }: { params: Promise<{ id: st
         setProgram(Array.isArray(c.daily_program) ? c.daily_program : []);
         setHighlights(Array.isArray(c.highlights) ? c.highlights : []);
         setFaq(Array.isArray(c.faq) ? c.faq : []);
+        setWindProbability(c.wind_probability ?? "");
+        setWindRange(c.wind_range ?? "");
+        setNoWindProgram(c.no_wind_program ?? "");
       })
       .finally(() => setLoading(false));
   }, [id]);
@@ -88,6 +96,9 @@ export default function ContentEditorPage({ params }: { params: Promise<{ id: st
         daily_program: program,
         highlights,
         faq,
+        wind_probability: windProbability,
+        wind_range: windRange,
+        no_wind_program: noWindProgram,
       }),
     });
     if (res.ok) {
@@ -174,6 +185,17 @@ export default function ContentEditorPage({ params }: { params: Promise<{ id: st
         <Section title="About the week" hint="Extra context about how this trip runs.">
           <textarea value={weekInfo} onChange={(e) => setWeekInfo(e.target.value)} rows={4}
             placeholder="A relaxed week built around the best wind windows…" className="admin-input w-full px-4 py-3 rounded-lg border text-sm outline-none resize-y" />
+        </Section>
+
+        <Section title="Wind certainty & no-wind program" hint="Shown in the 'you can count on it' band. The no-wind program varies per experience.">
+          <div className="grid sm:grid-cols-2 gap-3 mb-3">
+            <input value={windProbability} onChange={(e) => setWindProbability(e.target.value)}
+              placeholder="Wind probability — e.g. 85–95%" className="admin-input px-4 py-2.5 rounded-lg border text-sm outline-none" />
+            <input value={windRange} onChange={(e) => setWindRange(e.target.value)}
+              placeholder="Wind range — e.g. 12–25 knots" className="admin-input px-4 py-2.5 rounded-lg border text-sm outline-none" />
+          </div>
+          <textarea value={noWindProgram} onChange={(e) => setNoWindProgram(e.target.value)} rows={3}
+            placeholder="No-wind program — what happens on a rare light-wind day…" className="admin-input w-full px-4 py-3 rounded-lg border text-sm outline-none resize-y" />
         </Section>
 
         <Section title="Perfect week — daily program" hint="What a perfect week looks like. Note on the page tells guests the real schedule depends on the wind.">

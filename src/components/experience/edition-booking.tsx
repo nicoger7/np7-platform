@@ -24,10 +24,14 @@ export function EditionBooking({
   editions,
   packagesByEdition,
   currency = "EUR",
+  experienceId,
+  experienceTitle,
 }: {
   editions: EditionLite[];
   packagesByEdition: Record<string, RealPackage[]>;
   currency?: string;
+  experienceId: string;
+  experienceTitle: string;
 }) {
   const [sel, setSel] = useState(editions[0]?.id);
   const ed = editions.find((e) => e.id === sel) ?? editions[0];
@@ -93,7 +97,18 @@ export function EditionBooking({
 
       {/* key forces a fresh picker (resets level/accommodation) when the week changes */}
       {packages.length > 0 ? (
-        <PackagePicker key={ed?.id} packages={packages} currency={currency} deposit={ed?.deposit} />
+        <PackagePicker
+          key={ed?.id}
+          packages={packages}
+          currency={currency}
+          reserve={{
+            experienceId,
+            experienceTitle,
+            editionId: ed?.id ?? null,
+            editionLabel: multi ? ed?.label ?? null : null,
+            editionDates: ed?.shortRange ?? null,
+          }}
+        />
       ) : (
         <p className="text-center text-[#6a7a80]">Packages for this week are being finalised.</p>
       )}

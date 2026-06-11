@@ -17,6 +17,9 @@ const EMPTY = {
   hero_video_url: "",
   gallery: [] as string[],
   reviews: [] as Review[],
+  no_wind_program: "",
+  wind_probability: "",
+  wind_range: "",
 };
 
 // Until migration 013 is applied, treat the missing table/columns as "empty".
@@ -103,6 +106,9 @@ export async function PUT(
     hero_video_url: typeof body.hero_video_url === "string" ? body.hero_video_url : "",
     gallery,
     reviews,
+    no_wind_program: typeof body.no_wind_program === "string" ? body.no_wind_program : "",
+    wind_probability: typeof body.wind_probability === "string" ? body.wind_probability : "",
+    wind_range: typeof body.wind_range === "string" ? body.wind_range : "",
     updated_at: new Date().toISOString(),
   };
 

@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import { ReserveModal, DEPOSIT_EUR, type ReserveContext } from "./reserve-modal";
 
 export type RealPackage = {
   id: string;
@@ -9,10 +10,19 @@ export type RealPackage = {
   price: number;
 };
 
+export type ReserveTarget = {
+  experienceId: string;
+  experienceTitle: string;
+  editionId: string | null;
+  editionLabel: string | null;
+  editionDates: string | null;
+};
+
 type Props = {
   packages: RealPackage[];
   currency?: string;
   deposit?: number | null;
+  reserve?: ReserveTarget;
 };
 
 const STANDARD_INCLUDES = [
@@ -28,7 +38,8 @@ const STANDARD_INCLUDES = [
  * Choose a coaching level, then an accommodation — the price updates instantly.
  * The page's primary conversion module.
  */
-export function PackagePicker({ packages, currency = "EUR", deposit }: Props) {
+export function PackagePicker({ packages, currency = "EUR", reserve }: Props) {
+  const [showReserve, setShowReserve] = useState(false);
   const symbol = currency === "EUR" || !currency ? "€" : `${currency} `;
   const fmt = (n: number) => `${symbol}${n.toLocaleString("en-US")}`;
 
@@ -145,13 +156,33 @@ export function PackagePicker({ packages, currency = "EUR", deposit }: Props) {
           <span className="text-3xl font-black tracking-[-0.02em] tabular-nums">{selected ? fmt(selected.price) : "—"}</span>
         </div>
 
-        <button className="w-full px-7 py-4 rounded-full text-[14px] font-bold bg-[#00afdb] text-white shadow-[0_4px_20px_rgba(0,175,219,0.35)] hover:bg-[#15c0ec] hover:-translate-y-0.5 transition-all">
-          Reserve my spot
+        <button
+          onClick={() => reserve && selected && setShowReserve(true)}
+          disabled={!reserve || !selected}
+          className="w-full px-7 py-4 rounded-full text-[14px] font-bold bg-[#00afdb] text-white shadow-[0_4px_20px_rgba(0,175,219,0.35)] hover:bg-[#15c0ec] hover:-translate-y-0.5 transition-all disabled:opacity-60"
+        >
+          Reserve my spot · {fmt(DEPOSIT_EUR)} deposit
         </button>
         <p className="text-[12px] text-white/40 text-center mt-3">
-          {deposit ? `Secure with a ${fmt(deposit)} deposit` : "No payment to enquire"} · free cancellation window
+          Just your name &amp; contact — we sort the rest personally after payment
         </p>
       </aside>
+
+      {showReserve && reserve && selected && (
+        <ReserveModal
+          ctx={
+            {
+              ...reserve,
+              packageId: selected.id,
+              level,
+              accommodation: selected.accommodation,
+              price: selected.price,
+              currency,
+            } satisfies ReserveContext
+          }
+          onClose={() => setShowReserve(false)}
+        />
+      )}
     </div>
   );
 }

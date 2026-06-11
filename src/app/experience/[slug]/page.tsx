@@ -10,7 +10,6 @@ import { StickyCta } from "@/components/experience/sticky-cta";
 import { type RealPackage } from "@/components/experience/package-picker";
 import { EditionBooking, type EditionLite } from "@/components/experience/edition-booking";
 import { HeroVideo } from "@/components/experience/hero-video";
-import { DetailTabs, type DetailTab } from "@/components/experience/detail-tabs";
 
 export const revalidate = 60;
 
@@ -25,27 +24,34 @@ const BRAND_IMG = {
   coach: "https://surfcenter-experience.com/wp-content/uploads/2025/11/Rossmeier-2.jpg",
 };
 
-const USPS = [
-  { tag: "The crew", title: "You arrive solo. You leave with a crew.", body: "Small groups of like-minded riders, shared sunset sessions and beach dinners. Most guests come once and rebook with the friends they made.", image: BRAND_IMG.group },
-  { tag: "The coaching", title: "Coached by one of the world's best.", body: "Nico Prien (GER-7), top-ranked pro and the biggest windsurf channel on YouTube. Daily video analysis and personal focus points — the NP7 Method.", image: BRAND_IMG.action },
-  { tag: "The ease", title: "Everything handled. You just show up.", body: "Hotel, gear, breakfast, beach lunches, transfers and activities — all arranged. No logistics, no stress. Land, ride, repeat.", image: BRAND_IMG.ease },
+/* The outcome stack — what you take home. Transformation, not features. */
+const OUTCOMES = [
+  { icon: "⚡", t: "Real confidence on the water", d: "Comfortable in more wind and chop than you arrived in — stance locked, fear gone." },
+  { icon: "🎯", t: "Control & speed", d: "Effortless, controlled, faster riding — from straight-line speed to clean transitions." },
+  { icon: "🔄", t: "Better jibes", d: "The move everyone wants, broken into steps that finally click." },
+  { icon: "🧠", t: "A year's worth of knowledge", d: "Maneuver know-how, equipment insights, and your personal roadmap for what to work on next." },
+  { icon: "🌍", t: "Friends from all over the world", d: "A small, hand-picked group of people who love this as much as you do." },
+  { icon: "📸", t: "Your week on photo & video", d: "We shoot the whole week — you take the proof home." },
 ];
 
+/* The NP7 Method — the unique mechanism (copy grounded in surfcenter-experience). */
+const METHOD_INTRO =
+  "Nico's proven coaching approach, developed teaching hundreds of thousands of windsurfers through YouTube and camps worldwide. Complex movements, broken into clear, actionable steps — tailored to you.";
 const METHOD = [
-  { n: "01", t: "On-water coaching", d: "Daily guided sessions, grouped by level so you're always pushed at the right pace." },
-  { n: "02", t: "Video analysis", d: "We film you on the water, then break it down on the big screen each evening — you see exactly what to change." },
-  { n: "03", t: "Focus points", d: "Leave every day with clear things to work on. A year's worth of direction in one week." },
+  { n: "01", t: "Structured coaching scheme", d: "Every session builds on the last. Level groups, clear progression, no random tips — a system that compounds through the week." },
+  { n: "02", t: "Daily focus points", d: "You always know the one thing to work on next session. Simple, personal, and it sticks." },
+  { n: "03", t: "Video analysis", d: "We film you on the water and break it down frame-by-frame each evening. Seeing yourself is what makes it click — riders call it the single biggest unlock of the week.", gameChanger: true },
 ];
 
 const STANDARD_INCLUDED = [
-  "6 days of pro coaching with the NP7 team",
-  "Daily video analysis sessions",
-  "Pro windsurf gear rental included",
+  "6 days of pro coaching",
+  "Daily video analysis",
+  "Pro windsurf gear rental",
   "Breakfast every morning",
-  "Healthy beach lunch most days",
-  "Airport transfers on location",
+  "Healthy lunch on the beach daily",
+  "Event shirt & lycra",
   "Group activities & sunset sessions",
-  "A crew you'll want to come back for",
+  "Photos & video of your week",
 ];
 
 const ITINERARY: AccordionItem[] = [
@@ -70,11 +76,12 @@ const MOMENTS = [
 ];
 
 const FAQ: AccordionItem[] = [
+  { title: "What's not included?", content: "Flights, airport transfers and dinners. Book your own flights (we'll guide you on the best arrival times), we're happy to arrange your airport transfer for you, and dinners are out together as a group — everyone covers their own." },
   { title: "I'm travelling solo — will I fit in?", content: "Absolutely — most guests come alone. Small groups and shared meals mean you'll know everyone by day two." },
   { title: "What level do I need to be?", content: "Anything from total beginner to semi-pro. We group by level so you're always with the right people." },
   { title: "Is gear included?", content: "Yes — pro windsurf gear rental is included in every package. Bring your own harness if you like." },
-  { title: "How do flights work?", content: "Flights aren't included so you can find the best route, but we guide you on timing and handle all transfers once you arrive." },
-  { title: "What's the cancellation policy?", content: "Secure your spot with a deposit and benefit from a free cancellation window. Full terms are shared at booking." },
+  { title: "Can I arrive earlier or leave later?", content: "Yes — you can add extra hotel nights with us at any time after booking. Just tell us your flight dates and we'll arrange it." },
+  { title: "How does booking work?", content: "Reserve your spot with a €300 deposit — just your name and contact details, nothing more. After payment we contact you personally to sort every detail, and the remaining balance is due later." },
 ];
 
 /* ------------------------------- helpers ------------------------------- */
@@ -124,6 +131,7 @@ type ContentRow = {
   location_about: string | null; week_info: string | null;
   daily_program: ProgramItem[] | null; highlights: string[] | null; faq: FaqRow[] | null;
   hero_image: string | null; hero_video_url: string | null; gallery: string[] | null; reviews: ReviewRow[] | null;
+  no_wind_program: string | null; wind_probability: string | null; wind_range: string | null;
 };
 type Detail = {
   id: string; title: string; location: string | null; currency: string | null; price: number | null;
@@ -159,7 +167,7 @@ export default async function ExperienceDetailPage({ params }: Props) {
   // break the existing text content if they haven't been applied yet.
   const [{ data: baseRaw }, { data: mediaRaw }] = await Promise.all([
     sb.from("exp_content").select("location_about,week_info,daily_program,highlights,faq").eq("experience_id", experience.id).maybeSingle(),
-    sb.from("exp_content").select("hero_image,hero_video_url,gallery,reviews").eq("experience_id", experience.id).maybeSingle(),
+    sb.from("exp_content").select("hero_image,hero_video_url,gallery,reviews,no_wind_program,wind_probability,wind_range").eq("experience_id", experience.id).maybeSingle(),
   ]);
   const content = (baseRaw || mediaRaw ? { ...(baseRaw ?? {}), ...(mediaRaw ?? {}) } : null) as ContentRow | null;
 
@@ -210,6 +218,9 @@ export default async function ExperienceDetailPage({ params }: Props) {
   // editable website content (falls back to evergreen when empty)
   const locationAbout = content?.location_about?.trim() ?? "";
   const weekInfo = content?.week_info?.trim() ?? "";
+  const windProbability = content?.wind_probability?.trim() ?? "";
+  const windRange = content?.wind_range?.trim() ?? "";
+  const noWindProgram = content?.no_wind_program?.trim() ?? "";
   const highlights = (content?.highlights ?? []).filter((h) => h && h.trim());
   const programItems: AccordionItem[] =
     (content?.daily_program ?? []).length > 0
@@ -264,9 +275,9 @@ export default async function ExperienceDetailPage({ params }: Props) {
             )}
             <div className="flex flex-wrap items-center gap-3">
               <Link href="#packages" className="px-7 py-4 rounded-full text-[14px] font-bold text-[#00374a] bg-white hover:-translate-y-0.5 transition-all">
-                {money(fromPrice, experience.currency) ? `See packages · from ${money(fromPrice, experience.currency)}` : "See packages"}
+                {money(fromPrice, experience.currency) ? `Reserve your spot · from ${money(fromPrice, experience.currency)}` : "Reserve your spot"}
               </Link>
-              <Link href="#details" className="px-7 py-4 rounded-full text-[14px] font-bold text-white border-[1.5px] border-white/40 hover:bg-white/10 transition-all">How it works</Link>
+              <Link href="#method" className="px-7 py-4 rounded-full text-[14px] font-bold text-white border-[1.5px] border-white/40 hover:bg-white/10 transition-all">How it works</Link>
             </div>
           </Reveal>
         </div>
@@ -289,21 +300,24 @@ export default async function ExperienceDetailPage({ params }: Props) {
         </div>
       </section>
 
-      {/* WHY THIS TRIP — compact USPs */}
-      <section className="py-16 sm:py-20">
+      {/* 1 · THE DREAM — what you'll take home (outcome stack) */}
+      <section className="py-16 sm:py-24">
         <div className="max-w-[1100px] mx-auto px-6 sm:px-8">
-          <Reveal className="text-center max-w-[640px] mx-auto mb-10">
-            <p className="text-[11px] font-bold tracking-[0.25em] text-[#00afdb] mb-3">WHY THIS TRIP</p>
-            <h2 className="text-3xl sm:text-4xl font-black tracking-[-0.03em] text-[#00374a] mb-4">More than a windsurf trip</h2>
-            {experience.description && <p className="text-[16px] text-[#6a7a80] leading-relaxed">{experience.description}</p>}
+          <Reveal className="text-center max-w-[680px] mx-auto mb-12">
+            <p className="text-[11px] font-bold tracking-[0.25em] text-[#00afdb] mb-3">YOUR WINDSURF DREAM, MADE REAL</p>
+            <h2 className="text-3xl sm:text-5xl font-black tracking-[-0.03em] text-[#00374a] mb-4">What you&apos;ll take home</h2>
+            <p className="text-[16px] text-[#6a7a80] leading-relaxed">
+              {experience.description || "One week, full deep dive into the sport you love — epic conditions, world-class coaching, and a crew that feels like old friends by day two."}
+            </p>
+            {weekInfo && <p className="text-[15px] text-[#6a7a80] leading-relaxed mt-3 whitespace-pre-line">{weekInfo}</p>}
           </Reveal>
-          <div className="grid sm:grid-cols-3 gap-5">
-            {USPS.map((u, i) => (
-              <Reveal key={u.tag} delay={i * 90}>
-                <div className="h-full bg-white rounded-2xl border border-[#ebeef0] p-7 shadow-[0_10px_30px_rgba(0,55,74,0.05)]">
-                  <span className="inline-block text-[10px] font-extrabold tracking-[0.2em] uppercase px-3 py-1.5 rounded-full bg-[#00afdb]/10 text-[#00afdb] mb-4">{u.tag}</span>
-                  <h3 className="text-[19px] font-black tracking-[-0.01em] text-[#00374a] mb-2.5 leading-[1.15]">{u.title}</h3>
-                  <p className="text-[14.5px] text-[#5a6b72] leading-relaxed">{u.body}</p>
+          <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-5">
+            {OUTCOMES.map((o, i) => (
+              <Reveal key={o.t} delay={(i % 3) * 90}>
+                <div className="h-full bg-white rounded-2xl border border-[#ebeef0] p-6 shadow-[0_10px_30px_rgba(0,55,74,0.05)]">
+                  <span className="text-[26px] leading-none" aria-hidden>{o.icon}</span>
+                  <h3 className="text-[17px] font-black tracking-[-0.01em] text-[#00374a] mt-3 mb-2 leading-[1.2]">{o.t}</h3>
+                  <p className="text-[14px] text-[#5a6b72] leading-relaxed">{o.d}</p>
                 </div>
               </Reveal>
             ))}
@@ -320,17 +334,122 @@ export default async function ExperienceDetailPage({ params }: Props) {
         </div>
       </section>
 
-      {/* PACKAGES */}
+      {/* 2 · THE NP7 TRAINING SYSTEM — the unique mechanism */}
+      <section id="method" className="scroll-mt-16 py-16 sm:py-24 bg-[#00374a] text-white relative overflow-hidden">
+        <div className="absolute inset-0 opacity-[0.05]" style={{ backgroundImage: "linear-gradient(rgba(255,255,255,1) 1px,transparent 1px),linear-gradient(90deg,rgba(255,255,255,1) 1px,transparent 1px)", backgroundSize: "60px 60px" }} />
+        <div className="relative max-w-[1100px] mx-auto px-6 sm:px-8">
+          <Reveal className="max-w-[660px] mb-12">
+            <p className="text-[11px] font-bold tracking-[0.25em] text-[#8fe6f2] mb-3">THE NP7 TRAINING SYSTEM</p>
+            <h2 className="text-3xl sm:text-5xl font-black tracking-[-0.03em] mb-4">Coaching that actually changes your riding</h2>
+            <p className="text-[16px] text-white/60 leading-relaxed">{METHOD_INTRO}</p>
+          </Reveal>
+          <div className="grid md:grid-cols-3 gap-5">
+            {METHOD.map((s, i) => (
+              <Reveal key={s.n} delay={i * 110} className="h-full">
+                <div className={`h-full rounded-3xl p-7 border ${s.gameChanger ? "bg-[#00afdb]/15 border-[#00afdb]/50 shadow-[0_0_50px_rgba(0,175,219,0.15)]" : "bg-white/[0.04] border-white/10"}`}>
+                  {s.gameChanger && (
+                    <span className="inline-block text-[9px] font-extrabold tracking-[0.2em] uppercase px-2.5 py-1 rounded-full bg-[#00afdb] text-white mb-3">The game changer</span>
+                  )}
+                  <span className={`block text-[40px] font-black ${s.gameChanger ? "text-[#5fd0e8]" : "text-[#00afdb]/40"}`}>{s.n}</span>
+                  <h3 className="text-xl font-extrabold mt-2 mb-3">{s.t}</h3>
+                  <p className="text-[14.5px] text-white/65 leading-relaxed">{s.d}</p>
+                </div>
+              </Reveal>
+            ))}
+          </div>
+          <Reveal>
+            <p className="mt-10 text-[17px] sm:text-[19px] font-bold text-[#8fe6f2] max-w-[640px]">
+              &ldquo;You leave with at least a year&apos;s worth of knowledge on what to work on next.&rdquo;
+              <span className="block text-[13px] font-semibold text-white/45 mt-2">— the NP7 promise, week after week</span>
+            </p>
+          </Reveal>
+        </div>
+      </section>
+
+      {/* 3 · CERTAINTY — you can count on it */}
+      <section className="py-16 sm:py-24 bg-[#fff7ec]">
+        <div className="max-w-[1100px] mx-auto px-6 sm:px-8">
+          <Reveal className="text-center max-w-[640px] mx-auto mb-10">
+            <p className="text-[11px] font-bold tracking-[0.25em] text-[#00afdb] mb-3">NO LUCK REQUIRED</p>
+            <h2 className="text-3xl sm:text-5xl font-black tracking-[-0.03em] text-[#00374a]">You can count on it</h2>
+          </Reveal>
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+            {[
+              { big: windProbability || "Trade winds", small: windProbability ? "wind probability in season" : "steady & reliable", sub: windRange || null },
+              { big: "★ 5.0", small: "guest rating", sub: "5-star reviews, week after week" },
+              { big: "Good vibes", small: "guaranteed", sub: "small, hand-picked groups" },
+              { big: "Plan B", small: "no-wind program", sub: "zero wasted days" },
+            ].map((s, i) => (
+              <Reveal key={s.small} delay={i * 80}>
+                <div className="h-full bg-white rounded-2xl border border-[#f0e6d6] p-6 text-center">
+                  <div className="text-[26px] sm:text-[30px] font-black tracking-[-0.02em] text-[#00374a]">{s.big}</div>
+                  <div className="text-[11px] font-bold tracking-[0.12em] uppercase text-[#00afdb] mt-1">{s.small}</div>
+                  {s.sub && <div className="text-[12.5px] text-[#8a9aa0] mt-2">{s.sub}</div>}
+                </div>
+              </Reveal>
+            ))}
+          </div>
+          {noWindProgram && (
+            <Reveal>
+              <div className="mt-6 bg-white rounded-2xl border border-[#f0e6d6] p-6 sm:p-7 max-w-[820px] mx-auto">
+                <p className="text-[11px] font-bold tracking-[0.2em] uppercase text-[#00afdb] mb-2">And if the wind takes a day off?</p>
+                <p className="text-[14.5px] text-[#4a5b62] leading-relaxed whitespace-pre-line">{noWindProgram}</p>
+              </div>
+            </Reveal>
+          )}
+        </div>
+      </section>
+
+      {/* 4 · THE SPOT */}
+      {locationAbout && (
+        <section className="py-16 sm:py-24">
+          <div className="max-w-[1100px] mx-auto px-6 sm:px-8 grid lg:grid-cols-[1.1fr_1fr] gap-10 lg:gap-16 items-center">
+            <Reveal from="left">
+              <div className="aspect-[4/3] rounded-3xl bg-cover bg-center shadow-[0_20px_50px_rgba(0,55,74,0.12)]" style={{ backgroundImage: `url('${galleryImgs[1] ?? heroMediaImage}')` }} />
+            </Reveal>
+            <Reveal from="right">
+              <div>
+                <p className="text-[11px] font-bold tracking-[0.25em] text-[#00afdb] mb-3">THE SPOT</p>
+                <h2 className="text-3xl sm:text-5xl font-black tracking-[-0.03em] text-[#00374a] mb-5">{place}</h2>
+                <p className="text-[16px] text-[#5a6b72] leading-relaxed whitespace-pre-line">{locationAbout}</p>
+                {(windRange || windProbability) && (
+                  <div className="flex flex-wrap gap-2 mt-6">
+                    {windRange && <span className="text-[12.5px] font-bold text-[#00374a] bg-[#00afdb]/10 px-3.5 py-1.5 rounded-full">💨 {windRange}</span>}
+                    {windProbability && <span className="text-[12.5px] font-bold text-[#00374a] bg-[#00afdb]/10 px-3.5 py-1.5 rounded-full">📈 {windProbability} wind probability</span>}
+                  </div>
+                )}
+              </div>
+            </Reveal>
+          </div>
+        </section>
+      )}
+
+      {/* 5 · PACKAGES + BOOKING */}
       <section id="packages" className="scroll-mt-16 py-16 sm:py-24 bg-[#f7f7f7]">
         <div className="max-w-[1200px] mx-auto px-6 sm:px-8">
           <Reveal className="text-center max-w-[600px] mx-auto mb-12">
             <p className="text-[11px] font-bold tracking-[0.25em] text-[#00afdb] mb-3">PACKAGES</p>
             <h2 className="text-3xl sm:text-5xl font-black tracking-[-0.03em] text-[#00374a] mb-4">Build your week</h2>
             <p className="text-[16px] text-[#6a7a80]">{multi ? "Choose your week, then pick your coaching level and accommodation — your price updates instantly." : "Pick your coaching level and accommodation — your price updates instantly."}</p>
+            <p className="text-[14px] font-semibold text-[#00374a] mt-3">Reserve with a <span className="text-[#00afdb] font-extrabold">€300 deposit</span> — the rest is due later.</p>
+            <div className="flex flex-wrap justify-center gap-x-4 gap-y-1.5 mt-5">
+              {STANDARD_INCLUDED.map((item) => (
+                <span key={item} className="inline-flex items-center gap-1.5 text-[12px] font-medium text-[#5a6b72]">
+                  <svg className="w-3 h-3 text-[#00afdb]" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3.5" strokeLinecap="round" strokeLinejoin="round"><path d="M20 6L9 17l-5-5" /></svg>
+                  {item}
+                </span>
+              ))}
+            </div>
           </Reveal>
           {editionsLite.length > 0 ? (
             <Reveal>
-              <EditionBooking editions={editionsLite} packagesByEdition={packagesByEdition} currency={experience.currency ?? undefined} />
+              <EditionBooking
+                editions={editionsLite}
+                packagesByEdition={packagesByEdition}
+                currency={experience.currency ?? undefined}
+                experienceId={experience.id}
+                experienceTitle={experience.title}
+              />
             </Reveal>
           ) : (
             <div className="text-center">
@@ -341,116 +460,56 @@ export default async function ExperienceDetailPage({ params }: Props) {
         </div>
       </section>
 
-      {/* DETAILS — tabbed (collapses the long stack) */}
-      <div id="details" className="scroll-mt-0">
-      <DetailTabs
-        tabs={[
-          {
-            id: "overview",
-            label: "Overview",
-            content: (
-              <div className="max-w-[1000px] mx-auto px-6 sm:px-8 py-14 sm:py-20">
-                {weekInfo && <p className="text-[16px] text-[#5a6b72] leading-relaxed max-w-[700px] mb-12 whitespace-pre-line">{weekInfo}</p>}
-                <p className="text-[11px] font-bold tracking-[0.25em] text-[#00afdb] mb-3">THE NP7 METHOD</p>
-                <h3 className="text-2xl sm:text-3xl font-black tracking-[-0.02em] text-[#00374a] mb-8">A full year of progress in one week</h3>
-                <div className="grid md:grid-cols-3 gap-5 mb-16">
-                  {METHOD.map((s) => (
-                    <div key={s.n} className="rounded-2xl bg-[#f7fbfc] border border-[#e6eef0] p-6">
-                      <span className="text-[34px] font-black text-[#00afdb]/35">{s.n}</span>
-                      <h4 className="text-lg font-extrabold text-[#00374a] mt-1 mb-2">{s.t}</h4>
-                      <p className="text-[14px] text-[#6a7a80] leading-relaxed">{s.d}</p>
-                    </div>
-                  ))}
-                </div>
-                <p className="text-[11px] font-bold tracking-[0.25em] text-[#00afdb] mb-3">ALL ARRANGED · YOU JUST SHOW UP</p>
-                <h3 className="text-2xl sm:text-3xl font-black tracking-[-0.02em] text-[#00374a] mb-6">What&apos;s included</h3>
-                <ul className="grid sm:grid-cols-2 gap-x-6 gap-y-3">
-                  {STANDARD_INCLUDED.map((item) => (
-                    <li key={item} className="flex items-start gap-3 text-[15px] text-[#3a4b52]">
-                      <span className="mt-0.5 shrink-0 w-5 h-5 rounded-full bg-[#00afdb]/10 text-[#00afdb] grid place-items-center"><svg className="w-3 h-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3.5" strokeLinecap="round" strokeLinejoin="round"><path d="M20 6L9 17l-5-5" /></svg></span>
-                      {item}
-                    </li>
-                  ))}
-                </ul>
-              </div>
-            ),
-          },
-          ...(locationAbout
-            ? [{
-                id: "spot",
-                label: "The spot",
-                content: (
-                  <div className="max-w-[1000px] mx-auto px-6 sm:px-8 py-14 sm:py-20 grid lg:grid-cols-[1.1fr_1fr] gap-10 lg:gap-16 items-center">
-                    <div className="aspect-[4/3] rounded-3xl bg-cover bg-center shadow-[0_20px_50px_rgba(0,55,74,0.12)]" style={{ backgroundImage: `url('${galleryImgs[1] ?? heroMediaImage}')` }} />
-                    <div>
-                      <p className="text-[11px] font-bold tracking-[0.25em] text-[#00afdb] mb-3">THE SPOT</p>
-                      <h3 className="text-2xl sm:text-4xl font-black tracking-[-0.03em] text-[#00374a] mb-5">{place}</h3>
-                      <p className="text-[16px] text-[#5a6b72] leading-relaxed whitespace-pre-line">{locationAbout}</p>
-                    </div>
-                  </div>
-                ),
-              }]
-            : []),
-          {
-            id: "week",
-            label: "Perfect week",
-            content: (
-              <div className="max-w-[760px] mx-auto px-6 sm:px-8 py-14 sm:py-20">
-                <p className="text-[11px] font-bold tracking-[0.25em] text-[#00afdb] mb-3">YOUR PERFECT WEEK</p>
-                <h3 className="text-2xl sm:text-4xl font-black tracking-[-0.03em] text-[#00374a] mb-3">What a perfect week looks like</h3>
-                <p className="text-[14.5px] text-[#7a8a90] leading-relaxed mb-9 italic">This is the ideal flow — the exact day-to-day depends on the wind. We chase the best conditions and adapt as we go.</p>
-                <Accordion items={programItems} defaultOpen={0} variant="timeline" />
-              </div>
-            ),
-          },
-          {
-            id: "crew",
-            label: "The crew",
-            content: (
-              <div className="max-w-[1100px] mx-auto px-6 sm:px-8 py-14 sm:py-20">
-                <p className="text-[11px] font-bold tracking-[0.25em] text-[#00afdb] mb-3">YOUR COACHES</p>
-                <h3 className="text-2xl sm:text-4xl font-black tracking-[-0.03em] text-[#00374a] mb-8">Learn from the best</h3>
-                <Carousel label="Coaches">
-                  {COACHES.map((c) => (
-                    <article key={c.name} className="snap-start shrink-0 w-[280px] sm:w-[320px] bg-white rounded-3xl overflow-hidden border border-[#ebebeb]">
-                      <div className="h-[240px] bg-cover bg-center" style={{ backgroundImage: `url('${c.image}')` }} />
-                      <div className="p-5"><h4 className="text-lg font-extrabold text-[#00374a]">{c.name}</h4><p className="text-[11px] font-bold tracking-wide uppercase text-[#00afdb] mb-2.5">{c.role}</p><p className="text-[13.5px] text-[#6a7a80] leading-relaxed">{c.bio}</p></div>
-                    </article>
-                  ))}
-                </Carousel>
-                <p className="text-[11px] font-bold tracking-[0.25em] text-[#00afdb] mb-3 mt-16">THE CREW</p>
-                <h3 className="text-2xl sm:text-4xl font-black tracking-[-0.03em] text-[#00374a] mb-8">Moments &amp; new friends</h3>
-                <Carousel label="Guest moments">
-                  {reviewItems.map((m, i) => (
-                    <article key={i} className="snap-start shrink-0 w-[280px] sm:w-[360px] relative rounded-3xl overflow-hidden h-[400px]">
-                      <div className="absolute inset-0 bg-cover bg-center" style={{ backgroundImage: `url('${m.image}')` }} />
-                      <div className="absolute inset-0 bg-gradient-to-t from-black/85 via-black/20 to-transparent" />
-                      <div className="absolute bottom-0 p-7 text-white"><span className="text-[#ffd24a] text-sm">{"★".repeat(m.rating)}</span><p className="text-[16px] font-bold leading-snug mt-3 mb-4">&ldquo;{m.quote}&rdquo;</p><p className="text-[13px] text-white/70 font-semibold">{m.name}{m.country ? ` · ${m.country}` : ""}</p></div>
-                    </article>
-                  ))}
-                </Carousel>
-              </div>
-            ),
-          },
-          {
-            id: "faq",
-            label: "FAQ",
-            content: (
-              <div className="max-w-[760px] mx-auto px-6 sm:px-8 py-14 sm:py-20">
-                <h3 className="text-2xl sm:text-4xl font-black tracking-[-0.03em] text-[#00374a] mb-8">Questions, answered</h3>
-                <Accordion items={faqItems} allowMultiple />
-              </div>
-            ),
-          },
-        ] as DetailTab[]}
-      />
-      </div>
+      {/* 6 · YOUR PERFECT WEEK */}
+      <section className="py-16 sm:py-24">
+        <div className="max-w-[760px] mx-auto px-6 sm:px-8">
+          <Reveal className="mb-10">
+            <p className="text-[11px] font-bold tracking-[0.25em] text-[#00afdb] mb-3">DAY BY DAY</p>
+            <h2 className="text-3xl sm:text-5xl font-black tracking-[-0.03em] text-[#00374a] mb-3">Your perfect week in {place}</h2>
+            <p className="text-[14.5px] text-[#7a8a90] leading-relaxed italic">This is what the ideal week looks like — the exact day-to-day depends on the wind. We chase the best conditions and adapt as we go.</p>
+          </Reveal>
+          <Reveal><Accordion items={programItems} defaultOpen={0} variant="timeline" /></Reveal>
+        </div>
+      </section>
 
-      {/* GALLERY */}
+      {/* 7 · PROOF — coaches & reviews */}
+      <section className="py-16 sm:py-24 bg-[#f7f7f7]">
+        <div className="max-w-[1100px] mx-auto px-6 sm:px-8">
+          <Reveal className="mb-8"><p className="text-[11px] font-bold tracking-[0.25em] text-[#00afdb] mb-3">YOUR COACHES</p><h2 className="text-3xl sm:text-4xl font-black tracking-[-0.03em] text-[#00374a]">Learn from the best</h2></Reveal>
+          <Reveal className="mb-16">
+            <Carousel label="Coaches">
+              {COACHES.map((c) => (
+                <article key={c.name} className="snap-start shrink-0 w-[280px] sm:w-[320px] bg-white rounded-3xl overflow-hidden border border-[#ebebeb]">
+                  <div className="h-[240px] bg-cover bg-center" style={{ backgroundImage: `url('${c.image}')` }} />
+                  <div className="p-5"><h3 className="text-lg font-extrabold text-[#00374a]">{c.name}</h3><p className="text-[11px] font-bold tracking-wide uppercase text-[#00afdb] mb-2.5">{c.role}</p><p className="text-[13.5px] text-[#6a7a80] leading-relaxed">{c.bio}</p></div>
+                </article>
+              ))}
+            </Carousel>
+          </Reveal>
+          <Reveal className="mb-8"><p className="text-[11px] font-bold tracking-[0.25em] text-[#00afdb] mb-3">★ 5.0 — WHAT GUESTS SAY</p><h2 className="text-3xl sm:text-4xl font-black tracking-[-0.03em] text-[#00374a]">Moments &amp; new friends</h2></Reveal>
+          <Reveal>
+            <Carousel label="Guest reviews">
+              {reviewItems.map((m, i) => (
+                <article key={i} className="snap-start shrink-0 w-[280px] sm:w-[360px] relative rounded-3xl overflow-hidden h-[400px]">
+                  <div className="absolute inset-0 bg-cover bg-center" style={{ backgroundImage: `url('${m.image}')` }} />
+                  <div className="absolute inset-0 bg-gradient-to-t from-black/85 via-black/20 to-transparent" />
+                  <div className="absolute bottom-0 p-7 text-white"><span className="text-[#ffd24a] text-sm">{"★".repeat(m.rating)}</span><p className="text-[16px] font-bold leading-snug mt-3 mb-4">&ldquo;{m.quote}&rdquo;</p><p className="text-[13px] text-white/70 font-semibold">{m.name}{m.country ? ` · ${m.country}` : ""}</p></div>
+                </article>
+              ))}
+            </Carousel>
+          </Reveal>
+        </div>
+      </section>
+
+      {/* 8 · YOUR MEMORIES */}
       {galleryImgs.length > 0 && (
-        <section className="py-16 sm:py-24 bg-[#f7f7f7]">
+        <section className="py-16 sm:py-24">
           <div className="max-w-[1200px] mx-auto px-6 sm:px-8">
-            <Reveal className="mb-10 text-center"><p className="text-[11px] font-bold tracking-[0.25em] text-[#00afdb] mb-3">GALLERY</p><h2 className="text-3xl sm:text-4xl font-black tracking-[-0.03em] text-[#00374a]">A week in pictures</h2></Reveal>
+            <Reveal className="mb-10 text-center">
+              <p className="text-[11px] font-bold tracking-[0.25em] text-[#00afdb] mb-3">YOUR MEMORIES IN THE MAKING</p>
+              <h2 className="text-3xl sm:text-4xl font-black tracking-[-0.03em] text-[#00374a]">You&apos;ll take these home</h2>
+              <p className="text-[15px] text-[#6a7a80] mt-3">We shoot every week on photo &amp; video — this is what it looks like.</p>
+            </Reveal>
             <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
               {galleryImgs.map((src, i) => (
                 <Reveal key={i} delay={(i % 4) * 80} className={i % 5 === 0 ? "col-span-2 row-span-2" : ""}>
@@ -462,18 +521,26 @@ export default async function ExperienceDetailPage({ params }: Props) {
         </section>
       )}
 
-      {/* FINAL CTA */}
+      {/* 9 · FAQ */}
+      <section className="py-16 sm:py-24 bg-[#fff7ec]">
+        <div className="max-w-[760px] mx-auto px-6 sm:px-8">
+          <Reveal className="mb-10 text-center"><p className="text-[11px] font-bold tracking-[0.25em] text-[#00afdb] mb-3">GOOD TO KNOW</p><h2 className="text-3xl sm:text-4xl font-black tracking-[-0.03em] text-[#00374a]">Questions, answered</h2></Reveal>
+          <Reveal><Accordion items={faqItems} allowMultiple /></Reveal>
+        </div>
+      </section>
+
+      {/* 10 · FINAL CTA */}
       <section className="relative py-24 sm:py-32 bg-[#00374a] text-white overflow-hidden">
         <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_50%_0%,rgba(0,175,219,0.2),transparent_60%)]" />
         <div className="relative max-w-[640px] mx-auto px-6 text-center">
           {typeof spotsLeft === "number" && spotsLeft > 0 && (
             <span className="inline-flex items-center gap-1.5 text-[12px] font-semibold text-[#5fd0e8] bg-[#00afdb]/15 border border-[#00afdb]/30 px-3 py-1 rounded-full mb-6"><span className="w-1.5 h-1.5 rounded-full bg-[#5fd0e8] animate-pulse" />Only {spotsLeft} spots left</span>
           )}
-          <h2 className="text-3xl sm:text-5xl font-black tracking-[-0.03em] mb-5 leading-[1.05]">Ready for {place}?</h2>
-          <p className="text-[17px] text-white/55 mb-9">Reserve your spot now, or tell us you&apos;re interested and we&apos;ll hold a place while you decide.</p>
+          <h2 className="text-3xl sm:text-5xl font-black tracking-[-0.03em] mb-5 leading-[1.05]">Your dream week is real.<br />Make it yours.</h2>
+          <p className="text-[17px] text-white/55 mb-9">Reserve with a €300 deposit — just your name and contact details. After payment, we&apos;ll reach out personally to sort every detail.</p>
           <div className="flex flex-wrap items-center justify-center gap-3">
-            <Link href="#packages" className="px-8 py-4 rounded-full text-[14px] font-bold text-[#00374a] bg-white hover:-translate-y-0.5 transition-all">Reserve my spot</Link>
-            <Link href={`mailto:experience@np-seven.com?subject=Interested: ${experience.title}`} className="px-8 py-4 rounded-full text-[14px] font-bold text-white border-[1.5px] border-white/40 hover:bg-white/10 transition-all">I&apos;m interested</Link>
+            <Link href="#packages" className="px-8 py-4 rounded-full text-[14px] font-bold text-[#00374a] bg-white hover:-translate-y-0.5 transition-all">Reserve my spot · €300</Link>
+            <Link href={`mailto:experience@np-seven.com?subject=Question: ${experience.title}`} className="px-8 py-4 rounded-full text-[14px] font-bold text-white border-[1.5px] border-white/40 hover:bg-white/10 transition-all">Ask us anything</Link>
           </div>
         </div>
       </section>
