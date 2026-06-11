@@ -40,7 +40,12 @@ interface Edition {
   experience_code: string | null;
 }
 
-const HOTELS = ["Sorobon", "Wanapa", "Playa Surf", "Hotel Paradiso", "Alacati", "REF", "REF II"];
+interface Hotel { id: string | null; name: string; prefix: string | null; }
+
+// UTC-offset timezone options
+const TIMEZONES = [
+  "UTC-5", "UTC-4", "UTC-3", "UTC-1", "UTC+0", "UTC+1", "UTC+2", "UTC+3", "UTC+4", "UTC+5", "UTC+8", "UTC+9", "UTC+10",
+];
 
 function slugify(text: string) {
   return text
@@ -90,6 +95,9 @@ export default function ExperienceDetailPage({
   const [exp, setExp] = useState<Experience | null>(null);
   const [editions, setEditions] = useState<Edition[]>([]);
   const [showImagePicker, setShowImagePicker] = useState(false);
+  const [hotels, setHotels] = useState<Hotel[]>([]);
+  const [showAddHotel, setShowAddHotel] = useState(false);
+  const [newHotel, setNewHotel] = useState({ name: "", prefix: "" });
 
   useEffect(() => {
     fetch(`/api/admin/experiences/${id}`)
@@ -99,7 +107,26 @@ export default function ExperienceDetailPage({
         setEditions(d.editions || []);
         setLoading(false);
       });
+    fetch(`/api/admin/hotels`)
+      .then((r) => r.json())
+      .then((d) => setHotels(d.hotels || []));
   }, [id]);
+
+  async function addHotel() {
+    if (!newHotel.name) return;
+    const res = await fetch(`/api/admin/hotels`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ name: newHotel.name, prefix: newHotel.prefix || null }),
+    });
+    if (res.ok) {
+      const created = await res.json();
+      setHotels((h) => [...h, { id: created.id, name: created.name, prefix: created.prefix }]);
+      toggleHotel(created.name);
+      setNewHotel({ name: "", prefix: "" });
+      setShowAddHotel(false);
+    }
+  }
 
   async function handleSave() {
     if (!exp) return;
@@ -361,41 +388,60 @@ export default function ExperienceDetailPage({
             </div>
           </div>
 
-          {/* Hotels (multi-select) */}
+          {/* Hotels (multi-select, DB-backed) */}
           <div>
             <label className={labelClass}>Hotels</label>
-            <p className="text-xs admin-faint mb-2">Select every hotel used across this experience&apos;s editions.</p>
-            <div className="flex flex-wrap gap-2">
-              {HOTELS.map((h) => {
-                const active = selectedHotels.includes(h);
+            <p className="text-xs admin-faint mb-2">Select every hotel used across this experience&apos;s editions. Prefix shown in brackets.</p>
+            <div className="flex flex-wrap gap-2 items-center">
+              {hotels.map((h) => {
+                const active = selectedHotels.includes(h.name);
                 return (
                   <button
-                    key={h}
+                    key={h.name}
                     type="button"
-                    onClick={() => toggleHotel(h)}
+                    onClick={() => toggleHotel(h.name)}
                     className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${
                       active ? "bg-[#0aa3c7]/15 text-[#0aa3c7]" : "admin-surface admin-muted"
                     }`}
                     style={{ border: `1px solid ${active ? "rgba(10,163,199,0.4)" : "var(--admin-border)"}` }}
                   >
                     {active && <span className="mr-1">✓</span>}
-                    {h}
+                    {h.name}{h.prefix ? <span className="ml-1 admin-faint">({h.prefix})</span> : null}
                   </button>
                 );
               })}
+              {/* selected hotels not in the DB list (legacy) stay toggleable */}
+              {selectedHotels.filter((s) => !hotels.some((h) => h.name === s)).map((s) => (
+                <button key={s} type="button" onClick={() => toggleHotel(s)} className="px-3 py-1.5 rounded-lg text-xs font-medium bg-[#0aa3c7]/15 text-[#0aa3c7]" style={{ border: "1px solid rgba(10,163,199,0.4)" }}>
+                  <span className="mr-1">✓</span>{s}
+                </button>
+              ))}
+              <button type="button" onClick={() => setShowAddHotel((v) => !v)} className="px-3 py-1.5 rounded-lg text-xs font-medium admin-surface admin-faint" style={{ border: "1px dashed var(--admin-border)" }}>
+                + Add hotel
+              </button>
             </div>
+            {showAddHotel && (
+              <div className="flex items-center gap-2 mt-3">
+                <input className={`${inputClass} max-w-[220px]`} placeholder="Hotel name" value={newHotel.name} onChange={(e) => setNewHotel({ ...newHotel, name: e.target.value })} />
+                <input className={`${inputClass} max-w-[120px]`} placeholder="Prefix (e.g. BON)" value={newHotel.prefix} onChange={(e) => setNewHotel({ ...newHotel, prefix: e.target.value.toUpperCase() })} />
+                <button type="button" onClick={addHotel} disabled={!newHotel.name} className="px-3 py-2 bg-[#0aa3c7] hover:bg-[#0aa3c7]/90 disabled:opacity-40 text-white text-xs font-bold rounded-lg transition-colors">Add</button>
+              </div>
+            )}
           </div>
 
           {/* Timezone */}
           <div className="grid grid-cols-2 gap-4">
             <div>
               <label className={labelClass}>Timezone</label>
-              <input
+              <select
                 className={inputClass}
                 value={exp.timezone || ""}
                 onChange={(e) => update("timezone", e.target.value)}
-                placeholder="Europe/Berlin"
-              />
+              >
+                <option value="">Select timezone…</option>
+                {TIMEZONES.map((tz) => <option key={tz} value={tz}>{tz}</option>)}
+                {exp.timezone && !TIMEZONES.includes(exp.timezone) && <option value={exp.timezone}>{exp.timezone}</option>}
+              </select>
             </div>
           </div>
 
