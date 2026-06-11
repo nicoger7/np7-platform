@@ -131,12 +131,22 @@ export default async function ThanksPage({ params, searchParams }: Props) {
             </div>
           )}
 
-          <Link
-            href={`/experience/${slug}${ok ? "" : "#packages"}`}
-            className={`inline-block px-8 py-4 rounded-full text-[14px] font-bold transition-all hover:-translate-y-0.5 ${ok ? "text-[#00374a] bg-white border border-[#e3d9c8]" : "text-white bg-[#00afdb] shadow-[0_4px_18px_rgba(0,175,219,0.35)]"}`}
-          >
-            {ok ? "Back to the experience" : "Try again"}
-          </Link>
+          <div className={ok ? "flex flex-col sm:flex-row items-center justify-center gap-3" : ""}>
+            {ok && (
+              <Link
+                href="/account"
+                className="inline-block px-8 py-4 rounded-full text-[14px] font-bold text-white bg-[#00afdb] shadow-[0_4px_18px_rgba(0,175,219,0.35)] transition-all hover:-translate-y-0.5"
+              >
+                Go to my account
+              </Link>
+            )}
+            <Link
+              href={`/experience/${slug}${ok ? "" : "#packages"}`}
+              className={`inline-block px-8 py-4 rounded-full text-[14px] font-bold transition-all hover:-translate-y-0.5 ${ok ? "text-[#00374a] bg-white border border-[#e3d9c8]" : "text-white bg-[#00afdb] shadow-[0_4px_18px_rgba(0,175,219,0.35)]"}`}
+            >
+              {ok ? "Back to the experience" : "Try again"}
+            </Link>
+          </div>
 
           <div className="mt-12 flex items-center justify-center gap-3 text-[12px] text-[#9aa6ac]">
             {/* eslint-disable-next-line @next/next/no-img-element */}
