@@ -9,24 +9,23 @@ export async function GET(request: NextRequest) {
   const category = searchParams.get("category");
   const globalOnly = searchParams.get("global");
 
-  let query = client
-    .from("exp_components")
-    .select("*, exp_experiences(id, title)")
-    .order("category")
-    .order("name");
+  // Try with the edition embed (needs migration 016); fall back without it.
+  const buildQuery = (withEdition: boolean) => {
+    let q = client
+      .from("exp_components")
+      .select(withEdition
+        ? "*, exp_experiences(id, title), edition:edition_id(id, year, label)"
+        : "*, exp_experiences(id, title)")
+      .order("category")
+      .order("name");
+    if (experienceId) q = q.or(`is_global.eq.true,experience_id.eq.${experienceId}`);
+    if (globalOnly === "true") q = q.eq("is_global", true);
+    if (category) q = q.eq("category", category);
+    return q;
+  };
 
-  if (experienceId) {
-    // Show global + experience-specific
-    query = query.or(`is_global.eq.true,experience_id.eq.${experienceId}`);
-  }
-  if (globalOnly === "true") {
-    query = query.eq("is_global", true);
-  }
-  if (category) {
-    query = query.eq("category", category);
-  }
-
-  const { data, error } = await query;
+  let { data, error } = await buildQuery(true);
+  if (error) ({ data, error } = await buildQuery(false));
 
   if (error) {
     return NextResponse.json({ error: error.message }, { status: 500 });
@@ -40,11 +39,22 @@ export async function POST(request: NextRequest) {
   const client = createAdminClient();
   const body = await request.json();
 
-  const { data, error } = await client
+  let { data, error } = await client
     .from("exp_components")
     .insert(body)
     .select("*, exp_experiences(id, title)")
     .single();
+
+  // Pre-migration fallback: retry without edition_id if the column is missing
+  if (error && /edition_id/.test(error.message) && "edition_id" in body) {
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    const { edition_id: _omit, ...rest } = body;
+    ({ data, error } = await client
+      .from("exp_components")
+      .insert(rest)
+      .select("*, exp_experiences(id, title)")
+      .single());
+  }
 
   if (error) {
     return NextResponse.json({ error: error.message }, { status: 400 });

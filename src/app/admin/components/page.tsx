@@ -7,6 +7,14 @@ import { ColumnToggle, ColumnDef, buildGridTemplate, loadVisibleColumns } from "
 interface Experience {
   id: string;
   title: string;
+  code: string | null;
+}
+
+interface Edition {
+  id: string;
+  experience_id: string;
+  year: number;
+  label: string | null;
 }
 
 interface Component {
@@ -18,27 +26,36 @@ interface Component {
   sell_price: number | null;
   addon_available: boolean;
   scope: string | null;
-  year: string[] | null;
   notes: string | null;
   is_global: boolean;
   experience_id: string | null;
+  edition_id: string | null;
   exp_experiences: { id: string; title: string } | null;
+  edition: { id: string; year: number; label: string | null } | null;
   created_at: string;
 }
 
-function arr(x: string[] | null) {
-  return x && x.length ? x.join(", ") : "—";
-}
-
-const CATEGORIES = [
-  { value: "coaching", label: "Coaching", color: "bg-blue-500" },
-  { value: "accommodation", label: "Accommodation", color: "bg-purple-500" },
-  { value: "meals", label: "Meals", color: "bg-orange-500" },
-  { value: "transport", label: "Transport", color: "bg-green-500" },
-  { value: "gear", label: "Gear", color: "bg-yellow-500" },
-  { value: "activity", label: "Activity", color: "bg-pink-500" },
-  { value: "other", label: "Other", color: "bg-gray-500" },
+// Base categories with colours; new free-form categories fall back to gray.
+const BASE_CATEGORIES = [
+  { value: "coaching", color: "bg-blue-500" },
+  { value: "accommodation", color: "bg-purple-500" },
+  { value: "meals", color: "bg-orange-500" },
+  { value: "transport", color: "bg-green-500" },
+  { value: "gear", color: "bg-yellow-500" },
+  { value: "activity", color: "bg-pink-500" },
+  { value: "other", color: "bg-gray-500" },
 ];
+const CATEGORY_COLORS: Record<string, string> = Object.fromEntries(BASE_CATEGORIES.map((c) => [c.value, c.color]));
+function categoryColor(cat: string | null) {
+  return (cat && CATEGORY_COLORS[cat]) || "bg-gray-500";
+}
+function titleCase(s: string) {
+  return s ? s[0].toUpperCase() + s.slice(1) : s;
+}
+function editionName(ed: { year: number; label: string | null } | null) {
+  if (!ed) return "—";
+  return ed.label || String(ed.year);
+}
 
 type SortDir = "asc" | "desc" | null;
 
@@ -50,10 +67,10 @@ const COLUMNS: ColumnDef[] = [
   { key: "addon_available", label: "Add-on", width: "80px" },
   { key: "scope", label: "Scope", width: "70px" },
   { key: "experience", label: "Experience", width: "140px", defaultHidden: true },
+  { key: "edition", label: "Edition", width: "100px", defaultHidden: true },
   { key: "scope_text", label: "Location", width: "110px", defaultHidden: true },
-  { key: "year", label: "Year", width: "100px", defaultHidden: true },
   { key: "notes", label: "Notes", width: "160px", defaultHidden: true },
-  { key: "_actions", label: "", width: "60px", required: true },
+  { key: "_actions", label: "", width: "72px", required: true },
 ];
 
 const STORAGE_KEY = "np7-components-columns";
@@ -72,6 +89,7 @@ function compareValues(a: unknown, b: unknown, dir: "asc" | "desc"): number {
 export default function ComponentsPage() {
   const [components, setComponents] = useState<Component[]>([]);
   const [experiences, setExperiences] = useState<Experience[]>([]);
+  const [editions, setEditions] = useState<Edition[]>([]);
   const [loading, setLoading] = useState(true);
   const [filterCategory, setFilterCategory] = useState("");
   const [showNew, setShowNew] = useState(false);
@@ -81,19 +99,11 @@ export default function ComponentsPage() {
   const [visibleColumns, setVisibleColumns] = useState<Set<string>>(
     () => loadVisibleColumns(STORAGE_KEY, COLUMNS)
   );
-  const [form, setForm] = useState({
-    name: "",
-    category: "coaching",
-    description: "",
-    unit_cost: "",
-    sell_price: "",
-    addon_available: false,
-    scope: "",
-    year: "",
-    notes: "",
-    is_global: true,
-    experience_id: "",
-  });
+  const emptyForm = {
+    name: "", category: "coaching", description: "", unit_cost: "", sell_price: "",
+    addon_available: false, scope: "", notes: "", is_global: true, experience_id: "", edition_id: "",
+  };
+  const [form, setForm] = useState(emptyForm);
 
   useEffect(() => {
     fetchData();
@@ -103,15 +113,37 @@ export default function ComponentsPage() {
     Promise.all([
       fetch("/api/admin/components").then((r) => r.json()),
       fetch("/api/admin/experiences").then((r) => r.json()),
-    ]).then(([comps, exps]) => {
+      fetch("/api/admin/editions").then((r) => r.json()),
+    ]).then(([comps, exps, eds]) => {
       setComponents(comps || []);
       setExperiences(
-        (exps.experiences || exps || []).map((e: Record<string, unknown>) => ({
+        (exps.experiences || exps || []).map((e: Record<string, string>) => ({
           id: e.id,
           title: e.title,
+          code: e.code ?? null,
         }))
       );
+      setEditions(Array.isArray(eds) ? eds : []);
       setLoading(false);
+    });
+  }
+
+  // Distinct categories (base + any custom ones already in use) for the datalist + filters
+  const allCategories = Array.from(
+    new Set([...BASE_CATEGORIES.map((c) => c.value), ...components.map((c) => c.category).filter(Boolean)])
+  );
+  const expCodeById = new Map(experiences.map((e) => [e.id, e.code]));
+  const formEditions = form.experience_id ? editions.filter((e) => e.experience_id === form.experience_id) : [];
+
+  // When picking an experience for a local component, prefill the name prefix (e.g. "BON - ")
+  function pickExperience(experience_id: string) {
+    const code = expCodeById.get(experience_id);
+    setForm((f) => {
+      const next = { ...f, experience_id, edition_id: "" };
+      if (code && (!f.name.trim() || /^[A-Z0-9]{2,6}\s-\s?$/.test(f.name))) {
+        next.name = `${code} - `;
+      }
+      return next;
     });
   }
 
@@ -141,8 +173,8 @@ export default function ComponentsPage() {
           aVal = a.exp_experiences?.title; bVal = b.exp_experiences?.title;
         } else if (sortKey === "scope_text") {
           aVal = a.scope; bVal = b.scope;
-        } else if (sortKey === "year") {
-          aVal = (a.year || []).join(","); bVal = (b.year || []).join(",");
+        } else if (sortKey === "edition") {
+          aVal = editionName(a.edition); bVal = editionName(b.edition);
         } else {
           aVal = a[sortKey as keyof Component];
           bVal = b[sortKey as keyof Component];
@@ -161,33 +193,33 @@ export default function ComponentsPage() {
       sell_price: c.sell_price?.toString() || "",
       addon_available: c.addon_available || false,
       scope: c.scope || "",
-      year: (c.year || []).join(", "),
       notes: c.notes || "",
       is_global: c.is_global,
       experience_id: c.experience_id || "",
+      edition_id: c.edition_id || "",
     });
     setShowNew(false);
   }
 
   function startNew() {
     setEditId(null);
-    setForm({ name: "", category: "coaching", description: "", unit_cost: "", sell_price: "", addon_available: false, scope: "", year: "", notes: "", is_global: true, experience_id: "" });
+    setForm(emptyForm);
     setShowNew(true);
   }
 
   async function handleSave() {
     const body = {
       name: form.name,
-      category: form.category,
+      category: form.category || "other",
       description: form.description || null,
       unit_cost: form.unit_cost ? Number(form.unit_cost) : null,
       sell_price: form.sell_price ? Number(form.sell_price) : null,
       addon_available: form.addon_available,
       scope: form.scope || null,
-      year: form.year ? form.year.split(",").map((y) => y.trim()).filter(Boolean) : null,
       notes: form.notes || null,
       is_global: form.is_global,
       experience_id: form.is_global ? null : form.experience_id || null,
+      edition_id: form.is_global ? null : form.edition_id || null,
     };
 
     if (editId) {
@@ -198,6 +230,11 @@ export default function ComponentsPage() {
 
     setShowNew(false);
     setEditId(null);
+    fetchData();
+  }
+
+  async function handleDuplicate(id: string) {
+    await fetch(`/api/admin/components/${id}/duplicate`, { method: "POST" });
     fetchData();
   }
 
@@ -218,18 +255,18 @@ export default function ComponentsPage() {
       <h3 className="text-sm font-bold admin-heading mb-4">{editId ? "Edit Component" : "New Component"}</h3>
       <div className="grid grid-cols-4 gap-4 mb-4">
         <div><label className={labelClass}>Name *</label><input className={inputClass} value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} /></div>
-        <div><label className={labelClass}>Category</label>
-          <select className={inputClass} value={form.category} onChange={(e) => setForm({ ...form, category: e.target.value })}>
-            {CATEGORIES.map((c) => (<option key={c.value} value={c.value}>{c.label}</option>))}
-          </select>
+        <div><label className={labelClass}>Category <span className="admin-faint">(or type new)</span></label>
+          <input className={inputClass} list="component-categories" value={form.category} onChange={(e) => setForm({ ...form, category: e.target.value })} placeholder="coaching, meals…" />
+          <datalist id="component-categories">
+            {allCategories.map((c) => <option key={c} value={c} />)}
+          </datalist>
         </div>
         <div><label className={labelClass}>Buy Price (€)</label><input className={inputClass} type="number" step="0.01" value={form.unit_cost} onChange={(e) => setForm({ ...form, unit_cost: e.target.value })} placeholder="0.00" /></div>
         <div><label className={labelClass}>Sell Price (€)</label><input className={inputClass} type="number" step="0.01" value={form.sell_price} onChange={(e) => setForm({ ...form, sell_price: e.target.value })} placeholder="0.00" /></div>
       </div>
-      <div className="grid grid-cols-4 gap-4 mb-4">
+      <div className="grid grid-cols-3 gap-4 mb-4">
         <div><label className={labelClass}>Description</label><input className={inputClass} value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} /></div>
         <div><label className={labelClass}>Location scope</label><input className={inputClass} value={form.scope} onChange={(e) => setForm({ ...form, scope: e.target.value })} placeholder="e.g. per location" /></div>
-        <div><label className={labelClass}>Year <span className="admin-faint">(comma-sep)</span></label><input className={inputClass} value={form.year} onChange={(e) => setForm({ ...form, year: e.target.value })} placeholder="2026, 2027" /></div>
         <div><label className={labelClass}>Notes</label><input className={inputClass} value={form.notes} onChange={(e) => setForm({ ...form, notes: e.target.value })} /></div>
       </div>
       <div className="grid grid-cols-3 gap-4 mb-4">
@@ -256,12 +293,21 @@ export default function ComponentsPage() {
         </div>
       </div>
       {!form.is_global && (
-        <div className="mb-4 max-w-xs">
-          <label className={labelClass}>Experience</label>
-          <select className={inputClass} value={form.experience_id} onChange={(e) => setForm({ ...form, experience_id: e.target.value })}>
-            <option value="">Select experience...</option>
-            {experiences.map((exp) => (<option key={exp.id} value={exp.id}>{exp.title}</option>))}
-          </select>
+        <div className="grid grid-cols-2 gap-4 mb-4 max-w-xl">
+          <div>
+            <label className={labelClass}>Experience</label>
+            <select className={inputClass} value={form.experience_id} onChange={(e) => pickExperience(e.target.value)}>
+              <option value="">Select experience...</option>
+              {experiences.map((exp) => (<option key={exp.id} value={exp.id}>{exp.title}{exp.code ? ` (${exp.code})` : ""}</option>))}
+            </select>
+          </div>
+          <div>
+            <label className={labelClass}>Edition <span className="admin-faint">(optional)</span></label>
+            <select className={inputClass} value={form.edition_id} onChange={(e) => setForm({ ...form, edition_id: e.target.value })} disabled={!form.experience_id}>
+              <option value="">All editions</option>
+              {formEditions.map((ed) => <option key={ed.id} value={ed.id}>{ed.label || ed.year}</option>)}
+            </select>
+          </div>
         </div>
       )}
       <div className="flex gap-2">
@@ -292,10 +338,10 @@ export default function ComponentsPage() {
 
       {/* Filters */}
       <div className="flex items-center gap-2 mb-5">
-        <button onClick={() => setFilterCategory("")} className={`px-3 py-1.5 text-xs font-medium rounded-lg transition-colors ${!filterCategory ? "bg-[#0aa3c7]/15 text-[#0aa3c7]" : "admin-surface admin-muted"}`} style={{ border: "1px solid var(--admin-border)" }}>All</button>
-        {CATEGORIES.map((cat) => (
-          <button key={cat.value} onClick={() => setFilterCategory(filterCategory === cat.value ? "" : cat.value)} className={`px-3 py-1.5 text-xs font-medium rounded-lg transition-colors ${filterCategory === cat.value ? "bg-[#0aa3c7]/15 text-[#0aa3c7]" : "admin-surface admin-muted"}`} style={{ border: "1px solid var(--admin-border)" }}>
-            {cat.label}
+        <button onClick={() => setFilterCategory("")} className={`px-3 py-1.5 text-xs font-medium rounded-lg transition-colors capitalize ${!filterCategory ? "bg-[#0aa3c7]/15 text-[#0aa3c7]" : "admin-surface admin-muted"}`} style={{ border: "1px solid var(--admin-border)" }}>All</button>
+        {allCategories.map((cat) => (
+          <button key={cat} onClick={() => setFilterCategory(filterCategory === cat ? "" : cat)} className={`px-3 py-1.5 text-xs font-medium rounded-lg transition-colors capitalize ${filterCategory === cat ? "bg-[#0aa3c7]/15 text-[#0aa3c7]" : "admin-surface admin-muted"}`} style={{ border: "1px solid var(--admin-border)" }}>
+            {cat}
           </button>
         ))}
       </div>
@@ -324,7 +370,6 @@ export default function ComponentsPage() {
 
           {/* Rows */}
           {sorted.map((c) => {
-            const cat = CATEGORIES.find((x) => x.value === c.category);
             return (
               <div
                 key={c.id}
@@ -342,8 +387,8 @@ export default function ComponentsPage() {
                 {visibleColumns.has("category") && (
                   <span className="self-center">
                     <span className="inline-flex items-center gap-1.5 text-xs">
-                      <span className={`w-2 h-2 rounded-full ${cat?.color || "bg-gray-500"}`} />
-                      <span className="admin-muted">{cat?.label || c.category}</span>
+                      <span className={`w-2 h-2 rounded-full ${categoryColor(c.category)}`} />
+                      <span className="admin-muted capitalize">{c.category}</span>
                     </span>
                   </span>
                 )}
@@ -376,24 +421,34 @@ export default function ComponentsPage() {
                 {visibleColumns.has("experience") && (
                   <span className="text-xs admin-muted self-center truncate">{c.exp_experiences?.title || (c.is_global ? "All" : "—")}</span>
                 )}
+                {visibleColumns.has("edition") && (
+                  <span className="text-xs admin-muted self-center truncate">{editionName(c.edition)}</span>
+                )}
                 {visibleColumns.has("scope_text") && (
                   <span className="text-xs admin-muted self-center truncate">{c.scope || "—"}</span>
-                )}
-                {visibleColumns.has("year") && (
-                  <span className="text-xs admin-muted self-center truncate">{arr(c.year)}</span>
                 )}
                 {visibleColumns.has("notes") && (
                   <span className="text-xs admin-faint self-center truncate" title={c.notes || ""}>{c.notes || "—"}</span>
                 )}
                 {/* _actions — required */}
-                <button
-                  onClick={(e) => { e.stopPropagation(); handleDelete(c.id); }}
-                  className="text-xs admin-faint hover:text-red-400 transition-colors self-center"
-                >
-                  <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                    <path d="M3 6h18M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a2 2 0 012-2h4a2 2 0 012 2v2" />
-                  </svg>
-                </button>
+                <span className="flex items-center gap-2 self-center justify-end">
+                  <button
+                    onClick={(e) => { e.stopPropagation(); handleDuplicate(c.id); }}
+                    className="text-xs admin-faint hover:text-[#0aa3c7] transition-colors"
+                    title="Duplicate"
+                  >
+                    <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="9" y="9" width="13" height="13" rx="2" /><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1" /></svg>
+                  </button>
+                  <button
+                    onClick={(e) => { e.stopPropagation(); handleDelete(c.id); }}
+                    className="text-xs admin-faint hover:text-red-400 transition-colors"
+                    title="Delete"
+                  >
+                    <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                      <path d="M3 6h18M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a2 2 0 012-2h4a2 2 0 012 2v2" />
+                    </svg>
+                  </button>
+                </span>
               </div>
             );
           })}
