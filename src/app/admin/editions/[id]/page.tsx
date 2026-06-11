@@ -136,7 +136,7 @@ export default function EditionDetailPage({
 }) {
   const { id } = use(params);
   const router = useRouter();
-  const [tab, setTab] = useState<"details" | "bookings" | "packages" | "costs" | "rooms">("details");
+  const [tab, setTab] = useState<"details" | "bookings" | "packages" | "costs" | "rooms" | "notes">("details");
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
@@ -167,6 +167,44 @@ export default function EditionDetailPage({
   const [bookingForm, setBookingForm] = useState(emptyBooking);
   const [bookingShow, setBookingShow] = useState(false);
 
+  // Details-tab section show/hide (consistent with list-page column toggles)
+  const SECTION_KEY = "np7-edition-sections";
+  const ALL_SECTIONS = [
+    { key: "operations", label: "Operations" },
+    { key: "financials", label: "Financials" },
+  ];
+  const [hiddenSections, setHiddenSections] = useState<Set<string>>(() => {
+    if (typeof window === "undefined") return new Set();
+    try { return new Set(JSON.parse(localStorage.getItem(SECTION_KEY) || "[]")); } catch { return new Set(); }
+  });
+  const [sectionMenu, setSectionMenu] = useState(false);
+  function toggleSection(key: string) {
+    setHiddenSections((prev) => {
+      const next = new Set(prev);
+      if (next.has(key)) next.delete(key); else next.add(key);
+      if (typeof window !== "undefined") localStorage.setItem(SECTION_KEY, JSON.stringify([...next]));
+      return next;
+    });
+  }
+
+  // Notes
+  interface Note { id: string; author: string; body: string; created_at: string }
+  const [notes, setNotes] = useState<Note[]>([]);
+  const [newNote, setNewNote] = useState("");
+  const loadNotes = () =>
+    fetch(`/api/admin/editions/${id}/notes`).then((r) => r.json()).then((d) => setNotes(d.notes || []));
+  async function addNote() {
+    if (!newNote.trim()) return;
+    await fetch(`/api/admin/editions/${id}/notes`, {
+      method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ body: newNote.trim() }),
+    });
+    setNewNote(""); loadNotes();
+  }
+  async function deleteNote(noteId: string) {
+    await fetch(`/api/admin/editions/${id}/notes?note_id=${noteId}`, { method: "DELETE" });
+    loadNotes();
+  }
+
   const loadBookings = () =>
     fetch(`/api/admin/bookings?edition_id=${id}`).then((r) => r.json()).then((d) => setBookings(d.bookings || []));
   const loadPackages = () =>
@@ -190,6 +228,7 @@ export default function EditionDetailPage({
     if (tab === "packages") { loadPackages(); loadBookings(); }
     if (tab === "costs") loadCosts();
     if (tab === "rooms") { loadRooms(); loadBookings(); }
+    if (tab === "notes") loadNotes();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [tab, id]);
 
@@ -311,13 +350,8 @@ export default function EditionDetailPage({
         currency: edition.currency,
         coaches: edition.coaches,
         experience_code: edition.experience_code,
-        pricing_details: edition.pricing_details,
         payment_page_id: edition.payment_page_id,
         whatsapp_group_link: edition.whatsapp_group_link,
-        total_fixed_costs: edition.total_fixed_costs,
-        estimated_costs: edition.estimated_costs,
-        expected_revenue: edition.expected_revenue,
-        expected_profit: edition.expected_profit,
         active: edition.active,
         notion_id: edition.notion_id,
       }),
@@ -407,6 +441,31 @@ export default function EditionDetailPage({
           </div>
         </div>
         <div className="flex items-center gap-3">
+          {tab === "details" && (
+            <div className="relative">
+              <button
+                onClick={() => setSectionMenu((v) => !v)}
+                className={`p-2 rounded-lg transition-colors ${sectionMenu ? "bg-[#0aa3c7]/15 text-[#0aa3c7]" : "admin-faint"}`}
+                style={{ border: "1px solid var(--admin-border)" }}
+                title="Show/hide sections"
+              >
+                <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <circle cx="12" cy="12" r="3" /><path d="M19.07 4.93l-1.41 1.41M4.93 4.93l1.41 1.41M4.93 19.07l1.41-1.41M19.07 19.07l-1.41-1.41M12 2v2M12 20v2M2 12h2M20 12h2" />
+                </svg>
+              </button>
+              {sectionMenu && (
+                <div className="absolute right-0 top-full mt-1 z-50 py-1.5 rounded-xl min-w-[160px]" style={{ border: "1px solid var(--admin-border)", backgroundColor: "var(--admin-bg)", boxShadow: "0 8px 24px rgba(0,0,0,0.3)" }}>
+                  <div className="px-3 pb-1.5 mb-1 text-[10px] font-bold tracking-[0.1em] admin-faint uppercase" style={{ borderBottom: "1px solid var(--admin-border)" }}>Sections</div>
+                  {ALL_SECTIONS.map((s) => (
+                    <label key={s.key} className="flex items-center gap-2.5 px-3 py-1.5 cursor-pointer text-sm admin-muted hover:admin-heading transition-colors">
+                      <input type="checkbox" checked={!hiddenSections.has(s.key)} onChange={() => toggleSection(s.key)} className="w-3.5 h-3.5 accent-[#0aa3c7]" />
+                      {s.label}
+                    </label>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
           <button
             onClick={handleDelete}
             className="px-3 py-2 text-xs text-red-400/60 hover:text-red-400 transition-colors"
@@ -427,7 +486,7 @@ export default function EditionDetailPage({
 
       {/* Tabs */}
       <div className="flex gap-1 mb-6" style={{ borderBottom: "1px solid var(--admin-border)" }}>
-        {(["details", "bookings", "packages", "costs", "rooms"] as const).map((t) => {
+        {(["details", "bookings", "packages", "costs", "rooms", "notes"] as const).map((t) => {
           const count = edition._counts?.[t as keyof typeof edition._counts];
           return (
             <button
@@ -598,6 +657,7 @@ export default function EditionDetailPage({
           </div>
 
           {/* Operations */}
+          {!hiddenSections.has("operations") && (
           <div className="pt-4" style={{ borderTop: "1px solid var(--admin-border)" }}>
             <h3 className="text-xs font-bold tracking-[0.1em] admin-faint uppercase mb-4">Operations</h3>
             <div className="space-y-4">
@@ -649,45 +709,21 @@ export default function EditionDetailPage({
                   />
                 </div>
               </div>
-              <div>
-                <label className={labelClass}>Pricing Details</label>
-                <textarea
-                  className={`${inputClass} min-h-[80px] resize-y`}
-                  value={edition.pricing_details || ""}
-                  onChange={(e) => update("pricing_details", e.target.value || null)}
-                  placeholder="Pricing breakdown, inclusions..."
-                />
-              </div>
             </div>
           </div>
+          )}
 
           {/* Financials */}
+          {!hiddenSections.has("financials") && (
           <div className="pt-4" style={{ borderTop: "1px solid var(--admin-border)" }}>
             <h3 className="text-xs font-bold tracking-[0.1em] admin-faint uppercase mb-4">Financials</h3>
 
-            {/* Computed business case — sell − cost from packages × confirmed heads */}
-            <div className="mb-5">
+            {/* Computed business case — sell − cost from packages × confirmed heads.
+                Overhead is pulled from the Costs tab (estimated/actual) — no manual override. */}
+            <div className="mb-4">
               <BusinessCaseCard editionId={id} />
             </div>
-
-            <div className="text-[10px] font-bold tracking-[0.1em] admin-faint uppercase mb-3">Manual overrides (optional)</div>
-            <div className="grid grid-cols-3 gap-4">
-              <div>
-                <label className={labelClass}>Total Fixed Costs ({currency})</label>
-                <input type="number" className={inputClass} value={edition.total_fixed_costs || ""} onChange={(e) => update("total_fixed_costs", e.target.value ? Number(e.target.value) : null)} placeholder="Costs not tied to headcount" />
-              </div>
-              <div>
-                <label className={labelClass}>Estimated Costs ({currency})</label>
-                <input type="number" className={inputClass} value={edition.estimated_costs || ""} onChange={(e) => update("estimated_costs", e.target.value ? Number(e.target.value) : null)} />
-              </div>
-              <div>
-                <label className={labelClass}>Expected Revenue ({currency})</label>
-                <input type="number" className={inputClass} value={edition.expected_revenue || ""} onChange={(e) => update("expected_revenue", e.target.value ? Number(e.target.value) : null)} />
-              </div>
-              <div>
-                <label className={labelClass}>Expected Profit ({currency})</label>
-                <input type="number" className={inputClass} value={edition.expected_profit || ""} onChange={(e) => update("expected_profit", e.target.value ? Number(e.target.value) : null)} />
-              </div>
+            <div className="grid grid-cols-2 gap-4 max-w-md">
               <div className="rounded-lg p-2 bg-[#0aa3c7]/5" style={{ border: "1px solid rgba(10,163,199,0.15)" }}>
                 <label className={`${labelClass} flex items-center gap-2`}>
                   Paid Revenue
@@ -703,7 +739,9 @@ export default function EditionDetailPage({
                 <input type="number" className={`${inputClass} opacity-70 cursor-default`} value={edition.paid_profit || ""} readOnly />
               </div>
             </div>
+            <p className="text-[10px] admin-faint mt-2">Costs come from the Costs tab (estimated &amp; actual). Add fixed costs there as line items.</p>
           </div>
+          )}
         </div>
       )}
 
@@ -1009,6 +1047,44 @@ export default function EditionDetailPage({
                   <button onClick={() => deleteRoom(room.id)} className="self-center opacity-0 group-hover:opacity-100 admin-faint hover:text-red-400 transition-all" title="Delete">
                     <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M3 6h18M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a2 2 0 012-2h4a2 2 0 012 2v2" /></svg>
                   </button>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* ── Notes tab ── */}
+      {tab === "notes" && (
+        <div className="max-w-[720px]">
+          <div className="mb-4">
+            <textarea
+              className={`${inputClass} min-h-[80px] resize-y`}
+              placeholder="Add a note… (date and your name are stamped automatically)"
+              value={newNote}
+              onChange={(e) => setNewNote(e.target.value)}
+            />
+            <div className="flex justify-end mt-2">
+              <button onClick={addNote} disabled={!newNote.trim()} className="px-4 py-2 bg-[#0aa3c7] hover:bg-[#0aa3c7]/90 disabled:opacity-40 text-white text-sm font-bold rounded-lg transition-colors">Add note</button>
+            </div>
+          </div>
+
+          {notes.length === 0 ? (
+            <div className="text-center py-12 text-sm admin-faint">No notes yet.</div>
+          ) : (
+            <div className="space-y-3">
+              {notes.map((n) => (
+                <div key={n.id} className="rounded-xl p-4 group" style={{ border: "1px solid var(--admin-border)", backgroundColor: "var(--admin-surface)" }}>
+                  <div className="flex items-center justify-between mb-1.5">
+                    <span className="text-xs font-medium admin-heading">{n.author}</span>
+                    <div className="flex items-center gap-3">
+                      <span className="text-[11px] admin-faint">{new Date(n.created_at).toLocaleString("en-GB", { day: "2-digit", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" })}</span>
+                      <button onClick={() => deleteNote(n.id)} className="opacity-0 group-hover:opacity-100 admin-faint hover:text-red-400 transition-all" title="Delete">
+                        <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M18 6L6 18M6 6l12 12" /></svg>
+                      </button>
+                    </div>
+                  </div>
+                  <p className="text-sm admin-muted whitespace-pre-line">{n.body}</p>
                 </div>
               ))}
             </div>
