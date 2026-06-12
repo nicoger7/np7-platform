@@ -144,7 +144,7 @@ export function DiveHero({
         className="absolute inset-0"
         style={{
           background:
-            "linear-gradient(180deg, rgba(255,196,46,0.78) 0%, rgba(244,123,32,0.60) 30%, rgba(0,175,219,0.42) 66%, rgba(0,55,74,0.55) 100%)",
+            "linear-gradient(180deg, rgba(255,196,46,0.78) 0%, rgba(244,123,32,0.60) 30%, rgba(0,175,219,0.42) 64%, rgba(26,163,199,0.58) 100%)",
         }}
         aria-hidden
       />
@@ -152,7 +152,7 @@ export function DiveHero({
         className="absolute inset-0"
         style={{
           background:
-            "linear-gradient(180deg, #ffc42e 0%, #f47b20 34%, #00afdb 70%, #00374a 100%)",
+            "linear-gradient(180deg, #ffc42e 0%, #f47b20 34%, #00afdb 70%, #1aa3c7 100%)",
           mixBlendMode: "soft-light",
         }}
         aria-hidden
@@ -210,10 +210,12 @@ export function DiveHero({
         {/* warm sun-to-sea wash over the footage */}
         {sunWash}
 
-        {/* deepening colour grade */}
+        {/* as the dive deepens, tint toward the bright shallow turquoise the
+            descent opens with — NOT deep navy, which would read as a dark bar
+            against the bright water below. The water only goes navy lower down. */}
         <div
           ref={gradeRef}
-          className="absolute inset-0 bg-[#00374a]"
+          className="absolute inset-0 bg-[#1aa3c7]"
           style={{ opacity: 0 }}
           aria-hidden
         />
