@@ -11,13 +11,16 @@
  * this is what they float on.
  */
 
-// Layered onto the wrapper background (top layer first):
-//  1) surface light washing down over the top of the descent
-//  2) the ocean column — shallow turquoise -> ocean -> deep navy -> seabed
-const OCEAN = [
-  "linear-gradient(180deg, rgba(143,230,242,0.30) 0%, rgba(143,230,242,0.07) 9%, transparent 20%)",
-  "linear-gradient(180deg,#1aa3c7 0%,#0e86ab 18%,#0a6184 38%,#024d68 56%,#00374a 76%,#02212e 100%)",
-].join(",");
+// ONE continuous ocean column — shallow turquoise just under the surface down
+// to a near-black seabed. Single gradient, no extra surface wash layered on top
+// (that second layer was what made a visible band under the foam). The bright
+// shallows now come purely from this turquoise top + the foam surface above it.
+const OCEAN =
+  "linear-gradient(180deg,#1aa3c7 0%,#129ec2 9%,#0e86ab 20%,#0a6184 38%,#024d68 56%,#00374a 76%,#02212e 100%)";
+
+// the ocean's exact top colour — the foam surface dissolves into this so the
+// hero melts seamlessly into the water with no hard edge
+const SURFACE = "26,163,199"; // #1aa3c7
 
 // deterministic bubble field (no random => no hydration drift)
 const BUBBLES = [
@@ -34,34 +37,53 @@ const BUBBLES = [
 export function DepthBackdrop({ children }: { children: React.ReactNode }) {
   return (
     <div className="relative">
-      {/* The surface you dive through — a white foam crest that is the *leading
-          edge* of the descent itself. Because it rides on top of this section
-          (which is pulled up over the hero), it sweeps up as you scroll and the
-          first feature rides up directly beneath it — no flat slab of water in
-          between. Transparent above the wave so the hero reads through; turquoise
-          below, seamless into the ocean column. */}
-      <div className="relative z-10 -mb-px" aria-hidden>
-        <svg
-          className="block w-full h-[58px] sm:h-[88px]"
-          viewBox="0 0 1200 100"
-          preserveAspectRatio="none"
-        >
-          {/* turquoise water body below the wave line */}
-          <path
-            d="M0,44 C200,12 400,70 600,42 C800,14 1000,68 1200,40 L1200,100 L0,100 Z"
-            fill="#1aa3c7"
-          />
-          {/* white foam ribbon riding the crest */}
-          <path
-            d="M0,44 C200,12 400,70 600,42 C800,14 1000,68 1200,40 L1200,56 C1000,84 800,30 600,58 C400,86 200,28 0,60 Z"
-            fill="#ffffff"
-            opacity="0.9"
-          />
-        </svg>
-      </div>
-
-      {/* the ocean column — its turquoise top meets the crest seamlessly */}
+      {/* ONE ocean column. The hero (behind, above this box's top edge) dissolves
+          into the very same turquoise via the surface element below, so there is
+          a single continuous blue from the waterline all the way down — the first
+          feature sits directly on it with no band between. */}
       <div className="relative" style={{ background: OCEAN }}>
+        {/* The surface you dive through. Straddles the waterline (pulled up over
+            the hero): a soft transparent→turquoise dissolve so the footage melts
+            into the ocean with no hard edge, plus a white foam wave riding on top.
+            No solid blue fill of its own — the dissolve *is* the ocean colour, so
+            nothing bands. */}
+        <div
+          className="absolute inset-x-0 top-0 z-20 -translate-y-[62%] pointer-events-none"
+          aria-hidden
+        >
+          <svg
+            className="block w-full h-[112px] sm:h-[150px]"
+            viewBox="0 0 1200 150"
+            preserveAspectRatio="none"
+          >
+            <defs>
+              <linearGradient id="dpDissolve" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0%" stopColor={`rgb(${SURFACE})`} stopOpacity="0" />
+                <stop offset="54%" stopColor={`rgb(${SURFACE})`} stopOpacity="1" />
+                <stop offset="100%" stopColor={`rgb(${SURFACE})`} stopOpacity="1" />
+              </linearGradient>
+              <linearGradient id="dpFoam" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0%" stopColor="#ffffff" stopOpacity="0.92" />
+                <stop offset="55%" stopColor="#ffffff" stopOpacity="0.45" />
+                <stop offset="100%" stopColor="#ffffff" stopOpacity="0" />
+              </linearGradient>
+            </defs>
+            {/* hero dissolves into the ocean turquoise */}
+            <rect x="0" y="0" width="1200" height="150" fill="url(#dpDissolve)" />
+            {/* foam body melting down into the water */}
+            <path
+              d="M0,80 C200,50 400,102 600,76 C800,48 1000,100 1200,72 L1200,150 L0,150 Z"
+              fill="url(#dpFoam)"
+            />
+            {/* crisp white crest riding the wave line */}
+            <path
+              d="M0,80 C200,50 400,102 600,76 C800,48 1000,100 1200,72 L1200,90 C1000,114 800,62 600,92 C400,114 200,58 0,94 Z"
+              fill="#ffffff"
+              opacity="0.82"
+            />
+          </svg>
+        </div>
+
         {/* bubbles rising in the viewport at any depth (CSS-only, sticky) */}
         <div className="sticky top-0 z-0 h-0" aria-hidden>
           <div className="absolute top-0 left-0 w-full h-screen overflow-hidden pointer-events-none">

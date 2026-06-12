@@ -108,7 +108,7 @@ export function FindYourFit() {
   const seg = SEGMENTS[active];
 
   return (
-    <section id="find-your-fit" className="scroll-mt-20 pt-7 sm:pt-9 pb-16">
+    <section id="find-your-fit" className="scroll-mt-20 pt-14 sm:pt-16 pb-16">
       <div className="max-w-[1200px] mx-auto px-6 sm:px-8">
         <div className="text-center max-w-[620px] mx-auto mb-10">
           <p className="text-[11px] font-bold tracking-[0.25em] text-[#8fe6f2] mb-3">FIND YOUR FIT</p>
@@ -167,7 +167,7 @@ export function FindYourFit() {
             <div>
               <Link
                 href="#experiences"
-                className="inline-flex items-center gap-2 px-7 py-3.5 rounded-full text-[14px] font-bold text-white bg-[#f47b20] shadow-[0_4px_18px_rgba(244,123,32,0.38)] hover:bg-[#ff8a3d] hover:-translate-y-0.5 transition-all"
+                className="inline-flex items-center gap-2 px-7 py-3.5 rounded-full text-[14px] font-bold text-[#00374a] bg-[#ffc42e] shadow-[0_4px_16px_rgba(255,196,46,0.28)] hover:bg-[#ffce52] hover:-translate-y-0.5 transition-all"
               >
                 {seg.cta}
                 <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M5 12h14M13 6l6 6-6 6" /></svg>

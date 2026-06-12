@@ -265,7 +265,7 @@ export default async function ExperienceOverviewPage() {
             className="absolute inset-0 pointer-events-none"
             style={{
               background:
-                "radial-gradient(ellipse 72% 58% at 50% 42%, rgba(244,123,32,0.30) 0%, rgba(255,196,46,0.13) 36%, transparent 70%)",
+                "radial-gradient(ellipse 72% 58% at 50% 42%, rgba(255,196,46,0.22) 0%, rgba(255,176,40,0.10) 40%, transparent 72%)",
             }}
             aria-hidden
           />
@@ -286,7 +286,7 @@ export default async function ExperienceOverviewPage() {
             <p className="text-white/45 mb-7 text-[15px]">New experiences and early-bird dates, straight to your inbox.</p>
             <form className="flex gap-2">
               <input type="email" placeholder="your@email.com" className="flex-1 px-5 py-3.5 rounded-full border border-white/15 bg-white/[0.06] text-white text-sm outline-none focus:border-[#00afdb] placeholder:text-white/30" />
-              <button type="submit" className="px-6 py-3.5 rounded-full text-[13px] font-bold bg-[#f47b20] text-white shadow-[0_4px_16px_rgba(244,123,32,0.32)] hover:bg-[#ff8a3d] transition-colors">Subscribe</button>
+              <button type="submit" className="px-6 py-3.5 rounded-full text-[13px] font-bold bg-[#ffc42e] text-[#00374a] shadow-[0_4px_14px_rgba(255,196,46,0.26)] hover:bg-[#ffce52] transition-colors">Subscribe</button>
             </form>
           </div>
           <div className="max-w-[1200px] mx-auto px-6 sm:px-8 border-t border-white/[0.07] pt-7 flex flex-col sm:flex-row items-center justify-between gap-4 text-[12px] text-white/40">
