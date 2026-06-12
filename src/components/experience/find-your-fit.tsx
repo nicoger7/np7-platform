@@ -167,7 +167,7 @@ export function FindYourFit() {
             <div>
               <Link
                 href="#experiences"
-                className="inline-flex items-center gap-2 px-7 py-3.5 rounded-full text-[14px] font-bold text-white bg-[#00afdb] shadow-[0_4px_18px_rgba(0,175,219,0.3)] hover:bg-[#15c0ec] hover:-translate-y-0.5 transition-all"
+                className="inline-flex items-center gap-2 px-7 py-3.5 rounded-full text-[14px] font-bold text-white bg-[#f47b20] shadow-[0_4px_18px_rgba(244,123,32,0.38)] hover:bg-[#ff8a3d] hover:-translate-y-0.5 transition-all"
               >
                 {seg.cta}
                 <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M5 12h14M13 6l6 6-6 6" /></svg>
