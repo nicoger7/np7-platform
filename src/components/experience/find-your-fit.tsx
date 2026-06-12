@@ -108,12 +108,12 @@ export function FindYourFit() {
   const seg = SEGMENTS[active];
 
   return (
-    <section id="find-your-fit" className="scroll-mt-20 bg-white py-20 sm:py-28">
+    <section id="find-your-fit" className="scroll-mt-20 pt-7 sm:pt-9 pb-16">
       <div className="max-w-[1200px] mx-auto px-6 sm:px-8">
         <div className="text-center max-w-[620px] mx-auto mb-10">
-          <p className="text-[11px] font-bold tracking-[0.25em] text-[#00afdb] mb-3">FIND YOUR FIT</p>
-          <h2 className="text-3xl sm:text-5xl font-black tracking-[-0.03em] text-[#00374a] mb-4">Whatever brings you to the water</h2>
-          <p className="text-[16px] text-[#6a7a80] leading-relaxed">Tap what sounds like you — and see how we&apos;ll look after you.</p>
+          <p className="text-[11px] font-bold tracking-[0.25em] text-[#8fe6f2] mb-3">FIND YOUR FIT</p>
+          <h2 className="text-3xl sm:text-5xl font-black tracking-[-0.03em] text-white mb-4">Whatever brings you to the water</h2>
+          <p className="text-[16px] text-white/70 leading-relaxed">Tap what sounds like you — and see how we&apos;ll look after you.</p>
         </div>
 
         {/* chips */}
@@ -128,11 +128,11 @@ export function FindYourFit() {
                 onClick={() => setActive(i)}
                 className={`inline-flex items-center gap-2 px-4 sm:px-5 py-3 rounded-full text-[13.5px] font-bold border transition-all ${
                   on
-                    ? "bg-[#00374a] text-white border-[#00374a] shadow-[0_8px_24px_rgba(0,55,74,0.18)]"
-                    : "bg-white text-[#3a4b52] border-[#e3e9ec] hover:border-[#00afdb] hover:text-[#00374a]"
+                    ? "bg-white text-[#00374a] border-white shadow-[0_8px_24px_rgba(0,20,30,0.25)]"
+                    : "bg-white/[0.07] text-white/80 border-white/15 hover:border-[#8fe6f2] hover:text-white"
                 }`}
               >
-                <span className={on ? "text-[#5fd0e8]" : "text-[#00afdb]"}>{s.icon}</span>
+                <span className={on ? "text-[#00afdb]" : "text-[#8fe6f2]"}>{s.icon}</span>
                 {s.chip}
               </button>
             );
@@ -143,7 +143,7 @@ export function FindYourFit() {
         <div
           key={seg.id}
           role="tabpanel"
-          className="fyf-anim grid lg:grid-cols-2 rounded-[28px] overflow-hidden border border-[#ebeef0] bg-[#f7fbfc] shadow-[0_20px_60px_rgba(0,55,74,0.08)]"
+          className="fyf-anim grid lg:grid-cols-2 rounded-[28px] overflow-hidden border border-white/10 bg-white/[0.06] backdrop-blur-md shadow-[0_30px_70px_rgba(0,20,30,0.35)]"
         >
           <div className="relative min-h-[280px] lg:min-h-[420px]">
             <div className="absolute inset-0 bg-cover bg-center" style={{ backgroundImage: `url('${seg.image}')` }} />
@@ -152,12 +152,12 @@ export function FindYourFit() {
           </div>
 
           <div className="p-8 sm:p-11 flex flex-col justify-center">
-            <h3 className="text-2xl sm:text-[32px] font-black tracking-[-0.02em] text-[#00374a] leading-[1.08] mb-4">{seg.title}</h3>
-            <p className="text-[15.5px] text-[#5a6b72] leading-relaxed mb-6">{seg.body}</p>
+            <h3 className="text-2xl sm:text-[32px] font-black tracking-[-0.02em] text-white leading-[1.08] mb-4">{seg.title}</h3>
+            <p className="text-[15.5px] text-white/70 leading-relaxed mb-6">{seg.body}</p>
             <ul className="space-y-3 mb-8">
               {seg.points.map((p) => (
-                <li key={p} className="flex items-start gap-3 text-[15px] text-[#23363d] font-medium">
-                  <span className="mt-0.5 shrink-0 w-5 h-5 rounded-full bg-[#00afdb]/12 text-[#00afdb] grid place-items-center">
+                <li key={p} className="flex items-start gap-3 text-[15px] text-white/85 font-medium">
+                  <span className="mt-0.5 shrink-0 w-5 h-5 rounded-full bg-[#8fe6f2]/20 text-[#8fe6f2] grid place-items-center">
                     <svg className="w-3 h-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3.5" strokeLinecap="round" strokeLinejoin="round"><path d="M20 6L9 17l-5-5" /></svg>
                   </span>
                   {p}
