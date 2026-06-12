@@ -60,9 +60,11 @@ export async function middleware(request: NextRequest) {
         : redirect("/admin/login");
     }
     if (!(await isTeamMember(user.email))) {
+      // A logged-in non-team account hitting /admin should land on the team
+      // login (so they can sign in with a team account), NOT the member portal.
       return isAdminApi
         ? NextResponse.json({ error: "Forbidden" }, { status: 403 })
-        : redirect("/account"); // logged-in members go to their portal
+        : redirect("/admin/login");
     }
   }
 
