@@ -25,6 +25,9 @@ interface ComponentOption {
 
 const NEW_COMPONENT_CATEGORIES = ["coaching", "accommodation", "meals", "transport", "gear", "activity", "other"];
 
+/** Shared grid: name | cost | sell | margin | qty | remove */
+const COMP_GRID = "minmax(0,1fr) 68px 68px 68px 48px 20px";
+
 function money(n: number | null | undefined) {
   return n != null ? `€${Number(n).toLocaleString()}` : "—";
 }
@@ -36,10 +39,13 @@ function money(n: number | null | undefined) {
  */
 export function PackageComponentsEditor({
   packageId,
+  experienceId,
   namePrefix,
   onChanged,
 }: {
   packageId: string;
+  /** Restrict the picker to this experience's components (+ global + unscoped) */
+  experienceId?: string | null;
   /** e.g. "BON - " — prefilled when creating a new component */
   namePrefix?: string;
   onChanged?: () => void;
@@ -53,15 +59,18 @@ export function PackageComponentsEditor({
   const [newComp, setNewComp] = useState({ name: namePrefix || "", category: "other", unit_cost: "", sell_price: "" });
 
   const load = useCallback(() => {
+    const compsUrl = experienceId
+      ? `/api/admin/components?experience_id=${experienceId}`
+      : `/api/admin/components`;
     Promise.all([
       fetch(`/api/admin/packages/${packageId}/components`).then((r) => r.json()),
-      fetch(`/api/admin/components`).then((r) => r.json()),
+      fetch(compsUrl).then((r) => r.json()),
     ]).then(([l, c]) => {
       setLinks(Array.isArray(l) ? l : []);
       setOptions(Array.isArray(c) ? c : []);
       setLoading(false);
     });
-  }, [packageId]);
+  }, [packageId, experienceId]);
 
   useEffect(() => { load(); }, [load]);
 
@@ -100,6 +109,7 @@ export function PackageComponentsEditor({
         unit_cost: newComp.unit_cost ? Number(newComp.unit_cost) : null,
         sell_price: newComp.sell_price ? Number(newComp.sell_price) : null,
         is_global: false,
+        experience_id: experienceId || null,
       }),
     });
     if (res.ok) {
@@ -147,29 +157,54 @@ export function PackageComponentsEditor({
       {links.length === 0 ? (
         <p className="text-xs admin-faint mb-2">No components linked yet.</p>
       ) : (
-        <div className="space-y-1 mb-3">
-          {links.map((l) => (
-            <div key={l.id} className="flex items-center gap-2 text-xs">
-              <span className="flex-1 admin-muted truncate">{l.exp_components?.name || "?"}</span>
-              <span className="admin-faint font-mono w-24 text-right">
-                {money(l.exp_components?.unit_cost)} / {money(l.exp_components?.sell_price)}
-              </span>
-              <input
-                type="number"
-                min={1}
-                defaultValue={l.quantity}
-                onBlur={(e) => {
-                  const q = Number(e.target.value) || 1;
-                  if (q !== l.quantity) setQty(l.component_id, q);
-                }}
-                className={`${inputClass} w-14 text-center`}
-                title="Quantity"
-              />
-              <button onClick={() => detach(l.component_id)} className="admin-faint hover:text-red-400 transition-colors" title="Remove">
-                <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M18 6L6 18M6 6l12 12" /></svg>
-              </button>
-            </div>
-          ))}
+        <div className="mb-3">
+          {/* Column header */}
+          <div
+            className="grid items-center gap-2 px-1 pb-1.5 text-[10px] font-bold uppercase tracking-[0.08em] admin-faint"
+            style={{ gridTemplateColumns: COMP_GRID }}
+          >
+            <span>Component</span>
+            <span className="text-right">Cost</span>
+            <span className="text-right">Sell</span>
+            <span className="text-right">Margin</span>
+            <span className="text-center">Qty</span>
+            <span />
+          </div>
+          <div className="space-y-px">
+            {links.map((l) => {
+              const cost = Number(l.exp_components?.unit_cost) || 0;
+              const sell = Number(l.exp_components?.sell_price) || 0;
+              const margin = sell - cost;
+              return (
+                <div
+                  key={l.id}
+                  className="grid items-center gap-2 px-1 py-1 text-xs rounded-md transition-colors"
+                  style={{ gridTemplateColumns: COMP_GRID }}
+                  onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = "var(--admin-surface-hover)")}
+                  onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = "transparent")}
+                >
+                  <span className="admin-muted truncate" title={l.exp_components?.name || ""}>{l.exp_components?.name || "?"}</span>
+                  <span className="admin-faint font-mono text-right tabular-nums whitespace-nowrap">{money(l.exp_components?.unit_cost)}</span>
+                  <span className="admin-faint font-mono text-right tabular-nums whitespace-nowrap">{money(l.exp_components?.sell_price)}</span>
+                  <span className={`font-mono text-right tabular-nums whitespace-nowrap ${margin < 0 ? "text-red-400" : "text-green-400/80"}`}>{money(margin)}</span>
+                  <input
+                    type="number"
+                    min={1}
+                    defaultValue={l.quantity}
+                    onBlur={(e) => {
+                      const q = Number(e.target.value) || 1;
+                      if (q !== l.quantity) setQty(l.component_id, q);
+                    }}
+                    className={`${inputClass} w-12 text-center`}
+                    title="Quantity"
+                  />
+                  <button onClick={() => detach(l.component_id)} className="admin-faint hover:text-red-400 transition-colors justify-self-center" title="Remove">
+                    <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M18 6L6 18M6 6l12 12" /></svg>
+                  </button>
+                </div>
+              );
+            })}
+          </div>
         </div>
       )}
 

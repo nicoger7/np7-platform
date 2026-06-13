@@ -896,6 +896,7 @@ export default function EditionDetailPage({
                     <div className="px-5 pb-4">
                       <PackageComponentsEditor
                         packageId={pkg.id}
+                        experienceId={expId}
                         namePrefix={edition.exp_experiences?.code ? `${edition.exp_experiences.code} - ` : undefined}
                         onChanged={loadPackages}
                       />

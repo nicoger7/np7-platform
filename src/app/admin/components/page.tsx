@@ -68,7 +68,6 @@ const COLUMNS: ColumnDef[] = [
   { key: "scope", label: "Scope", width: "70px" },
   { key: "experience", label: "Experience", width: "140px", defaultHidden: true },
   { key: "edition", label: "Edition", width: "100px", defaultHidden: true },
-  { key: "scope_text", label: "Location", width: "110px", defaultHidden: true },
   { key: "notes", label: "Notes", width: "160px", defaultHidden: true },
   { key: "_actions", label: "", width: "72px", required: true },
 ];
@@ -101,7 +100,7 @@ export default function ComponentsPage() {
   );
   const emptyForm = {
     name: "", category: "coaching", description: "", unit_cost: "", sell_price: "",
-    addon_available: false, scope: "", notes: "", is_global: true, experience_id: "", edition_id: "",
+    addon_available: false, notes: "", is_global: true, experience_id: "", edition_id: "",
   };
   const [form, setForm] = useState(emptyForm);
 
@@ -171,8 +170,6 @@ export default function ComponentsPage() {
           bVal = b.is_global ? "global" : "local";
         } else if (sortKey === "experience") {
           aVal = a.exp_experiences?.title; bVal = b.exp_experiences?.title;
-        } else if (sortKey === "scope_text") {
-          aVal = a.scope; bVal = b.scope;
         } else if (sortKey === "edition") {
           aVal = editionName(a.edition); bVal = editionName(b.edition);
         } else {
@@ -192,7 +189,6 @@ export default function ComponentsPage() {
       unit_cost: c.unit_cost?.toString() || "",
       sell_price: c.sell_price?.toString() || "",
       addon_available: c.addon_available || false,
-      scope: c.scope || "",
       notes: c.notes || "",
       is_global: c.is_global,
       experience_id: c.experience_id || "",
@@ -215,7 +211,6 @@ export default function ComponentsPage() {
       unit_cost: form.unit_cost ? Number(form.unit_cost) : null,
       sell_price: form.sell_price ? Number(form.sell_price) : null,
       addon_available: form.addon_available,
-      scope: form.scope || null,
       notes: form.notes || null,
       is_global: form.is_global,
       experience_id: form.is_global ? null : form.experience_id || null,
@@ -264,9 +259,8 @@ export default function ComponentsPage() {
         <div><label className={labelClass}>Buy Price (€)</label><input className={inputClass} type="number" step="0.01" value={form.unit_cost} onChange={(e) => setForm({ ...form, unit_cost: e.target.value })} placeholder="0.00" /></div>
         <div><label className={labelClass}>Sell Price (€)</label><input className={inputClass} type="number" step="0.01" value={form.sell_price} onChange={(e) => setForm({ ...form, sell_price: e.target.value })} placeholder="0.00" /></div>
       </div>
-      <div className="grid grid-cols-3 gap-4 mb-4">
+      <div className="grid grid-cols-2 gap-4 mb-4">
         <div><label className={labelClass}>Description</label><input className={inputClass} value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} /></div>
-        <div><label className={labelClass}>Location scope</label><input className={inputClass} value={form.scope} onChange={(e) => setForm({ ...form, scope: e.target.value })} placeholder="e.g. per location" /></div>
         <div><label className={labelClass}>Notes</label><input className={inputClass} value={form.notes} onChange={(e) => setForm({ ...form, notes: e.target.value })} /></div>
       </div>
       <div className="grid grid-cols-3 gap-4 mb-4">
@@ -423,9 +417,6 @@ export default function ComponentsPage() {
                 )}
                 {visibleColumns.has("edition") && (
                   <span className="text-xs admin-muted self-center truncate">{editionName(c.edition)}</span>
-                )}
-                {visibleColumns.has("scope_text") && (
-                  <span className="text-xs admin-muted self-center truncate">{c.scope || "—"}</span>
                 )}
                 {visibleColumns.has("notes") && (
                   <span className="text-xs admin-faint self-center truncate" title={c.notes || ""}>{c.notes || "—"}</span>

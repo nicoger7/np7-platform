@@ -18,7 +18,8 @@ export async function GET(request: NextRequest) {
         : "*, exp_experiences(id, title)")
       .order("category")
       .order("name");
-    if (experienceId) q = q.or(`is_global.eq.true,experience_id.eq.${experienceId}`);
+    // Relevant to an experience = global, scoped to it, or not yet scoped (null fallback)
+    if (experienceId) q = q.or(`is_global.eq.true,experience_id.eq.${experienceId},experience_id.is.null`);
     if (globalOnly === "true") q = q.eq("is_global", true);
     if (category) q = q.eq("category", category);
     return q;

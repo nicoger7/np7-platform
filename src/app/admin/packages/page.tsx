@@ -344,7 +344,7 @@ export default function PackagesPage() {
                       </div>
                       {expanded && (
                         <div className="px-5 pb-4">
-                          <PackageComponentsEditor packageId={pkg.id} namePrefix={code ? `${code} - ` : undefined} onChanged={load} />
+                          <PackageComponentsEditor packageId={pkg.id} experienceId={pkg.experience_id} namePrefix={code ? `${code} - ` : undefined} onChanged={load} />
                         </div>
                       )}
                     </div>

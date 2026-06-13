@@ -4,6 +4,7 @@ import { useState, useEffect, use } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import ImagePickerModal from "@/components/image-picker-modal";
+import { ExperienceComponentsManager } from "@/components/experience-components-manager";
 
 interface Experience {
   id: string;
@@ -482,6 +483,9 @@ export default function ExperienceDetailPage({
             <span className="font-medium admin-muted">What&apos;s included</span> is now defined per package
             (in each edition&apos;s Packages tab), not on the experience template.
           </div>
+
+          {/* Components for this experience */}
+          <ExperienceComponentsManager experienceId={id} code={exp.code} />
 
           {/* Hero image */}
           <div>
