@@ -6,12 +6,18 @@ export const dynamic = "force-dynamic";
 export const maxDuration = 60;
 
 /**
- * Daily reminder runner (Vercel cron → vercel.json). Idempotent: every send
+ * Daily lifecycle runner (Vercel cron → vercel.json). Idempotent: every send
  * uses a per-booking dedupe_key so re-runs never double-send.
  *
- * Maps the core booking reminders to booking state + edition dates. The 96
- * Notion-migrated pipeline_rules remain the editable source of truth in
- * /admin/pipeline-rules; this runner covers the essential transactional ones.
+ * Covers the market-standard booking arc against booking state + edition dates:
+ *   • payment nudges    — up to 2 (+2d, +5d), stop once the deposit is paid
+ *   • balance invoice    — invoice + reminder (~45d / ~30d out), stop once paid
+ *   • balance paid        — one confirmation
+ *   • pre-trip            — planning (~21d) + final countdown (~3d, WhatsApp)
+ *   • post-trip           — thank-you + review/photos (~3d after the week ends)
+ *
+ * The 96 Notion-migrated pipeline_rules remain the team-editable source of truth
+ * in /admin/pipeline-rules; this runner sends the transactional sequence.
  */
 function authorized(req: NextRequest): boolean {
   const secret = process.env.CRON_SECRET;
@@ -35,47 +41,86 @@ export async function GET(req: NextRequest) {
   const db = createAdminClient() as any;
   const now = Date.now();
   const DAY = 86400000;
+  const reviewLink = process.env.NP7_REVIEW_URL || undefined;
+
+  // Go-live cutoff: never email "backwards". Set EMAIL_PIPELINE_LIVE_FROM (ISO
+  // date) when Resend is connected — bookings whose trip (or, for lead nudges,
+  // whose reservation) predates it are skipped entirely, so turning the engine
+  // on never blasts historical guests. Unset → no suppression (dev/testing).
+  const liveFromRaw = process.env.EMAIL_PIPELINE_LIVE_FROM;
+  const liveFrom = liveFromRaw ? new Date(liveFromRaw).getTime() : null;
+  const onOrAfterCutoff = (d?: string | null) => liveFrom == null || (!!d && new Date(d).getTime() >= liveFrom);
 
   const { data: bookings } = await db
     .from("exp_bookings")
-    .select("id,status,agreed_price,downpayment_received,final_payment_received,created_at,contacts(name,email),exp_experiences(title),exp_editions(date_start,date_end,deposit)")
-    .not("status", "in", "(lost,attended)");
+    .select("id,status,agreed_price,downpayment_received,final_payment_received,created_at,contacts(name,email),exp_experiences(title,slug),exp_editions(date_start,date_end,deposit,whatsapp_group_link)")
+    .not("status", "in", "(lost)");
 
-  const out = { evaluated: (bookings ?? []).length, nudge: 0, balance: 0, pretrip: 0 };
+  const out = {
+    evaluated: (bookings ?? []).length,
+    nudge: 0, balance: 0, balance_paid: 0, pretrip: 0, pretrip_final: 0, post_trip: 0,
+  };
+  const bump = (k: keyof typeof out, r: { status: string }) => { if (r.status === "sent") (out[k] as number)++; };
 
   for (const b of bookings ?? []) {
     const email = b.contacts?.email;
     if (!email) continue;
     const firstName = (b.contacts?.name ?? "").split(" ")[0] || undefined;
     const start = b.exp_editions?.date_start as string | null;
+    const end = b.exp_editions?.date_end as string | null;
     const daysToStart = start ? Math.round((new Date(start).getTime() - now) / DAY) : null;
+    const daysSinceEnd = end ? Math.round((now - new Date(end).getTime()) / DAY) : null;
     const ageDays = b.created_at ? Math.round((now - new Date(b.created_at).getTime()) / DAY) : 0;
     const deposit = b.exp_editions?.deposit ?? 300;
-    const balance = b.agreed_price != null ? b.agreed_price - deposit : null;
-    const depositPaid = b.downpayment_received || ["downpayment_paid", "paid", "confirmed"].includes((b.status ?? "").toLowerCase());
+    const balanceNum = b.agreed_price != null ? b.agreed_price - deposit : null;
+    const status = (b.status ?? "").toLowerCase();
+    const depositPaid = b.downpayment_received || ["downpayment_paid", "paid", "confirmed", "attended"].includes(status);
+    const balancePaid = !!b.final_payment_received || ["paid", "attended"].includes(status);
+
+    // Cutoff: trip-relative mails need the trip on/after go-live; lead nudges
+    // need the reservation on/after go-live. Skip everything else (no backwards).
+    const tripLive = onOrAfterCutoff(start);
+    const leadLive = onOrAfterCutoff(b.created_at);
 
     const vars = {
       firstName, experienceTitle: b.exp_experiences?.title,
       deposit: String(deposit),
-      balance: balance != null ? `€${balance.toLocaleString("en-US")}` : undefined,
-      dates: fmtRange(start, b.exp_editions?.date_end),
+      balance: balanceNum != null ? `€${balanceNum.toLocaleString("en-US")}` : undefined,
+      dates: fmtRange(start, end),
+      whatsappLink: b.exp_editions?.whatsapp_group_link ?? undefined,
+      reviewLink,
       bookingLink: `${origin}/account`,
     };
+    const send = (templateKey: string, dedupeKey: string) =>
+      sendEmail({ to: email, templateKey, vars, bookingId: b.id, dedupeKey });
 
-    // 1 · deposit still pending after 2 days
-    if (!depositPaid && b.status === "payment_pending" && ageDays >= 2 && (daysToStart == null || daysToStart > 3)) {
-      const r = await sendEmail({ to: email, templateKey: "payment_pending_nudge", vars, bookingId: b.id, dedupeKey: `payment_pending_nudge:${b.id}` });
-      if (r.status === "sent") out.nudge++;
+    // 1 · deposit still pending — up to two gentle nudges (+2d, +5d), stop once paid
+    if (leadLive && !depositPaid && status === "payment_pending" && (daysToStart == null || daysToStart > 3)) {
+      if (ageDays >= 2) bump("nudge", await send("payment_pending_nudge", `payment_pending_nudge:d2:${b.id}`));
+      if (ageDays >= 5) bump("nudge", await send("payment_pending_nudge", `payment_pending_nudge:d5:${b.id}`));
     }
-    // 2 · balance due ~6 weeks out
-    if (depositPaid && !b.final_payment_received && balance && balance > 0 && daysToStart != null && daysToStart <= 45 && daysToStart > 14) {
-      const r = await sendEmail({ to: email, templateKey: "balance_invoice_reminder", vars, bookingId: b.id, dedupeKey: `balance_invoice_reminder:${b.id}` });
-      if (r.status === "sent") out.balance++;
+
+    // 2 · balance — invoice + reminder, stop once paid (proxied by days-to-start since
+    //     there's no per-booking "invoice sent" timestamp; the team triggers it in time)
+    if (tripLive && depositPaid && !balancePaid && balanceNum && balanceNum > 0 && daysToStart != null) {
+      if (daysToStart <= 45 && daysToStart > 30) bump("balance", await send("balance_invoice_reminder", `balance_invoice_reminder:r1:${b.id}`));
+      if (daysToStart <= 30 && daysToStart > 14) bump("balance", await send("balance_invoice_reminder", `balance_invoice_reminder:r2:${b.id}`));
     }
-    // 3 · pre-trip info ~10 days out
-    if (daysToStart != null && daysToStart <= 12 && daysToStart >= 3) {
-      const r = await sendEmail({ to: email, templateKey: "pre_trip_info", vars, bookingId: b.id, dedupeKey: `pre_trip_info:${b.id}` });
-      if (r.status === "sent") out.pretrip++;
+
+    // 3 · balance paid in full — one confirmation
+    if (tripLive && depositPaid && balancePaid && balanceNum && balanceNum > 0) {
+      bump("balance_paid", await send("balance_paid_confirmation", `balance_paid_confirmation:${b.id}`));
+    }
+
+    // 4 · pre-trip planning (~21d out) and final countdown (~3d out) — paid guests only
+    if (tripLive && depositPaid && daysToStart != null) {
+      if (daysToStart <= 21 && daysToStart > 7) bump("pretrip", await send("pre_trip_info", `pre_trip_info:${b.id}`));
+      if (daysToStart <= 3 && daysToStart >= 0) bump("pretrip_final", await send("pre_trip_final", `pre_trip_final:${b.id}`));
+    }
+
+    // 5 · post-trip thank-you + review/photos (~3d after the week ends)
+    if (tripLive && depositPaid && daysSinceEnd != null && daysSinceEnd >= 3 && daysSinceEnd <= 14) {
+      bump("post_trip", await send("post_trip_thank_you", `post_trip_thank_you:${b.id}`));
     }
   }
 

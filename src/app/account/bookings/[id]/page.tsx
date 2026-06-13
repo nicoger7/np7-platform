@@ -4,7 +4,7 @@ import type { Metadata } from "next";
 import { getPortalUser } from "@/lib/auth";
 import { getMemberBooking, getMemoryPhotos } from "@/lib/portal-data";
 import { bookingStatus, CHIP_CLASS, fmtDates, money } from "@/lib/portal-status";
-import { PortalHeader } from "@/components/portal/portal-header";
+import { PortalChrome } from "@/components/portal/portal-chrome";
 import { ExtraNightsButton } from "@/components/portal/extra-nights-button";
 
 export const metadata: Metadata = { title: "My trip — NP7" };
@@ -29,7 +29,7 @@ export default async function BookingDetail({ params }: Props) {
 
   return (
     <>
-      <PortalHeader name={user.name} />
+      <PortalChrome />
       <main className="min-h-[100svh] bg-[#fff7ec]">
         <div className="max-w-[1000px] mx-auto px-5 sm:px-8 py-8 sm:py-12">
           <Link href="/account" className="text-[13px] font-semibold text-[#6a7a80] hover:text-[#00374a]">← My trips</Link>

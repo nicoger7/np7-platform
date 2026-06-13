@@ -15,6 +15,22 @@ async function isTeamMember(email: string | undefined): Promise<boolean> {
 }
 
 export async function middleware(request: NextRequest) {
+  const path = request.nextUrl.pathname;
+
+  // ── Remember the active sub-site so the member portal keeps that section's
+  //    header. Public Experience/Hardware pages need no auth, so set the cookie
+  //    and return early (skips the Supabase round-trip on every page view). ──
+  if (!path.startsWith("/admin") && !path.startsWith("/account") && !path.startsWith("/api")) {
+    const section = path.startsWith("/hardware") ? "hardware" : path.startsWith("/experience") ? "experience" : null;
+    if (section) {
+      const res = NextResponse.next({ request });
+      if (request.cookies.get("np7_section")?.value !== section) {
+        res.cookies.set("np7_section", section, { path: "/", maxAge: 60 * 60 * 24 * 30, sameSite: "lax" });
+      }
+      return res;
+    }
+  }
+
   let supabaseResponse = NextResponse.next({ request });
 
   const supabase = createServerClient(
@@ -37,7 +53,6 @@ export async function middleware(request: NextRequest) {
   );
 
   const { data: { user } } = await supabase.auth.getUser();
-  const path = request.nextUrl.pathname;
 
   const isAdminApi = path.startsWith("/api/admin");
   const isAdminPage = path.startsWith("/admin");
@@ -84,5 +99,5 @@ export async function middleware(request: NextRequest) {
 }
 
 export const config = {
-  matcher: ["/admin/:path*", "/api/admin/:path*", "/account/:path*"],
+  matcher: ["/admin/:path*", "/api/admin/:path*", "/account/:path*", "/experience/:path*", "/hardware/:path*"],
 };

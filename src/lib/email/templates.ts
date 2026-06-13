@@ -11,6 +11,8 @@ export type EmailVars = {
   balance?: string;
   activationLink?: string;
   bookingLink?: string;
+  whatsappLink?: string;
+  reviewLink?: string;
   [k: string]: string | undefined;
 };
 
@@ -93,6 +95,49 @@ export const TEMPLATES: Record<string, (v: EmailVars) => Built> = {
         p(`Not long now until <strong>${esc(v.experienceTitle || "")}${v.dates ? " (" + esc(v.dates) + ")" : ""}</strong>! Here's everything you need to get ready — packing list, arrival info and your group chat are all in your trip account:`) +
         (v.bookingLink ? emailButton("Open my trip details", v.bookingLink) : "") +
         p(`Can't wait to ride with you.<br>— Nico & the NP7 team`),
+    }),
+  }),
+
+  balance_paid_confirmation: (v) => ({
+    subject: `All paid up — you're set for ${v.experienceTitle ?? "your NP7 trip"} 🎉`,
+    html: emailLayout({
+      preheader: "Your balance is settled — everything's ready for your trip.",
+      bodyHtml:
+        greet(v) +
+        p(`Your balance is paid in full — everything's sorted for <strong>${esc(v.experienceTitle || "")}${v.dates ? " (" + esc(v.dates) + ")" : ""}</strong>. Nothing left to do but count down the days. 🌊`) +
+        p(`Closer to departure we'll send your final pre-trip details — packing list, arrival info and your group chat. It's all in your trip account too:`) +
+        (v.bookingLink ? emailButton("Open my trip", v.bookingLink) : "") +
+        p(`See you on the water.<br>— Nico & the NP7 team`),
+    }),
+  }),
+
+  pre_trip_final: (v) => ({
+    subject: `Almost time — final details for ${v.experienceTitle ?? "your NP7 trip"} 🌊`,
+    html: emailLayout({
+      preheader: "Arrival info and your group chat — see you very soon.",
+      bodyHtml:
+        greet(v) +
+        p(`Just a few days to go until <strong>${esc(v.experienceTitle || "")}${v.dates ? " (" + esc(v.dates) + ")" : ""}</strong>! Here are your final details.`) +
+        p(`<strong>Before you fly:</strong> give your packing list one last check, and have your arrival & airport transfer info handy — it's all in your trip account.`) +
+        (v.whatsappLink
+          ? p(`<strong>Join your group chat</strong> so you're in the loop with the crew and our team on the ground:`) + emailButton("Join the group chat", v.whatsappLink)
+          : (v.bookingLink ? emailButton("Open my trip details", v.bookingLink) : "")) +
+        p(`Safe travels — we can't wait to ride with you.<br>— Nico & the NP7 team`),
+    }),
+  }),
+
+  post_trip_thank_you: (v) => ({
+    subject: `What a week 🤙 thank you — ${v.experienceTitle ?? "your NP7 trip"}`,
+    html: emailLayout({
+      preheader: "Thank you for riding with us — your photos and a small ask.",
+      bodyHtml:
+        greet(v) +
+        p(`Thank you for joining <strong>${esc(v.experienceTitle || "")}</strong> — it was epic having you on the water. We hope you went home a better windsurfer with a few new friends. 🤙`) +
+        p(`<strong>Your photos</strong> are being sorted and will appear in your trip account soon — we'll let you know the moment they're up.`) +
+        (v.reviewLink
+          ? p(`If you had a great time, a short review means the world to us and helps other riders find their next trip:`) + emailButton("Leave a review", v.reviewLink)
+          : p(`If you had a great time, we'd love to hear from you — just reply to this email, it makes our day.`)) +
+        p(`Until the next session.<br>— Nico & the NP7 team`),
     }),
   }),
 };

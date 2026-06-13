@@ -43,6 +43,13 @@ export async function sendEmail(args: SendArgs): Promise<SendResult> {
     return { status: "failed", error: (e as Error).message };
   }
 
+  const apiKey = process.env.RESEND_API_KEY;
+  const from = process.env.EMAIL_FROM || "NP7 Experience <hello@np-seven.com>";
+
+  // No provider configured → skip WITHOUT claiming the dedupe_key, so the email
+  // still goes out once a key is added (never burn idempotency keys on a no-op).
+  if (!apiKey) return { status: "skipped" };
+
   // insert log row first (dedupe guard)
   const logRow = {
     template_key: templateKey,
@@ -61,13 +68,6 @@ export async function sendEmail(args: SendArgs): Promise<SendResult> {
     return { status: "failed", error: insErr.message };
   }
   const logId = inserted.id as string;
-
-  const apiKey = process.env.RESEND_API_KEY;
-  const from = process.env.EMAIL_FROM || "NP7 Experience <hello@np-seven.com>";
-  if (!apiKey) {
-    await db.from("email_log").update({ status: "skipped", error: "RESEND_API_KEY not set" }).eq("id", logId);
-    return { status: "skipped" };
-  }
 
   try {
     const res = await fetch("https://api.resend.com/emails", {

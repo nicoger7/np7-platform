@@ -5,7 +5,7 @@ import { getPortalUser } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 import { getMemberBookings } from "@/lib/portal-data";
 import { bookingStatus, CHIP_CLASS, fmtDates, money } from "@/lib/portal-status";
-import { PortalHeader } from "@/components/portal/portal-header";
+import { PortalChrome } from "@/components/portal/portal-chrome";
 
 export const metadata: Metadata = { title: "My trips — NP7" };
 export const dynamic = "force-dynamic";
@@ -24,7 +24,7 @@ export default async function AccountHome() {
 
   return (
     <>
-      <PortalHeader name={user.name} />
+      <PortalChrome />
       <main className="min-h-[100svh] bg-[#fff7ec]">
         <div className="max-w-[1000px] mx-auto px-5 sm:px-8 py-10 sm:py-14">
           <h1 className="text-3xl sm:text-4xl font-black tracking-[-0.03em] text-[#00374a] mb-1.5">Hey {first} 🤙</h1>

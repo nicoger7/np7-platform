@@ -39,20 +39,43 @@ export async function POST(request: NextRequest) {
     return bad("Invalid request");
   }
 
-  const firstName = (body.firstName ?? "").trim();
-  const lastName = (body.lastName ?? "").trim();
-  const email = (body.email ?? "").trim().toLowerCase();
-  const phone = (body.phone ?? "").trim();
   const { experienceId, editionId, packageId } = body;
-
-  if (!firstName || !lastName) return bad("Please fill in your name.");
-  if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) return bad("Please enter a valid email address.");
-  if (phone.replace(/[^\d+]/g, "").length < 6) return bad("Please enter a valid phone number.");
   if (!experienceId || !packageId) return bad("Missing trip selection.");
 
   const client = createAdminClient();
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const db = client as any;
+
+  // Logged-in member? Their verified contact is the source of truth — client-sent
+  // name/email is ignored (a member only ever sees a confirm screen, no form).
+  const member = await getPortalUser().catch(() => null);
+
+  let firstName: string, lastName: string, email: string, phone: string;
+  let contactId = member?.contactId as string | undefined;
+  let stripeCustomerId: string | null = null;
+
+  if (member && contactId) {
+    const { data: c } = await db.from("contacts").select("name, email, phone, stripe_customer_id").eq("id", contactId).maybeSingle();
+    const [mFirst, ...mRest] = String(c?.name ?? "").trim().split(/\s+/);
+    firstName = mFirst || "";
+    lastName = mRest.join(" ");
+    email = (c?.email ?? member.email ?? "").toLowerCase();
+    stripeCustomerId = c?.stripe_customer_id ?? null;
+    // accept an updated phone from the confirm screen, else keep what we have
+    const bodyPhone = (body.phone ?? "").trim();
+    phone = bodyPhone.replace(/[^\d+]/g, "").length >= 6 ? bodyPhone : (c?.phone ?? "");
+    if (phone && phone !== c?.phone) {
+      await db.from("contacts").update({ phone, updated_at: new Date().toISOString() }).eq("id", contactId);
+    }
+  } else {
+    firstName = (body.firstName ?? "").trim();
+    lastName = (body.lastName ?? "").trim();
+    email = (body.email ?? "").trim().toLowerCase();
+    phone = (body.phone ?? "").trim();
+    if (!firstName || !lastName) return bad("Please fill in your name.");
+    if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) return bad("Please enter a valid email address.");
+    if (phone.replace(/[^\d+]/g, "").length < 6) return bad("Please enter a valid phone number.");
+  }
 
   // Load + sanity-check the selection server-side (never trust client prices).
   const [{ data: exp }, { data: pkg }, { data: edition }] = await Promise.all([
@@ -70,18 +93,10 @@ export async function POST(request: NextRequest) {
     return bad("This week is no longer available.", 409);
   }
 
-  // Logged-in member? Use their own contact (and offer card-saving at checkout).
-  const member = await getPortalUser().catch(() => null);
+  const fullName = `${firstName} ${lastName}`.trim();
 
-  // Contact: member's own → reuse by email → create.
-  const fullName = `${firstName} ${lastName}`;
-  let contactId = member?.contactId as string | undefined;
-  let stripeCustomerId: string | null = null;
-  if (contactId) {
-    await db.from("contacts").update({ phone, updated_at: new Date().toISOString() }).eq("id", contactId);
-    const { data: c } = await db.from("contacts").select("stripe_customer_id").eq("id", contactId).maybeSingle();
-    stripeCustomerId = c?.stripe_customer_id ?? null;
-  } else {
+  // Contact: member's own (already resolved) → reuse by email → create.
+  if (!contactId) {
     const { data: existing } = await db.from("contacts").select("id, stripe_customer_id").eq("email", email).maybeSingle();
     contactId = existing?.id;
     stripeCustomerId = existing?.stripe_customer_id ?? null;
