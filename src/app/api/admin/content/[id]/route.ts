@@ -15,12 +15,21 @@ const EMPTY = {
   faq: [] as FaqItem[],
   hero_image: "",
   hero_video_url: "",
+  hero_video_start: null as number | null,
+  hero_video_end: null as number | null,
   gallery: [] as string[],
   reviews: [] as Review[],
   no_wind_program: "",
   wind_probability: "",
   wind_range: "",
 };
+
+// Coerce a hero-video timestamp to a non-negative integer second count (or null).
+function toSeconds(v: unknown): number | null {
+  if (v === null || v === undefined || v === "") return null;
+  const n = Math.floor(Number(v));
+  return Number.isFinite(n) && n >= 0 ? n : null;
+}
 
 // Until migration 013 is applied, treat the missing table/columns as "empty".
 function isMissing(message?: string | null) {
@@ -104,6 +113,8 @@ export async function PUT(
     faq,
     hero_image: typeof body.hero_image === "string" ? body.hero_image : "",
     hero_video_url: typeof body.hero_video_url === "string" ? body.hero_video_url : "",
+    hero_video_start: toSeconds(body.hero_video_start),
+    hero_video_end: toSeconds(body.hero_video_end),
     gallery,
     reviews,
     no_wind_program: typeof body.no_wind_program === "string" ? body.no_wind_program : "",
@@ -112,11 +123,23 @@ export async function PUT(
     updated_at: new Date().toISOString(),
   };
 
-  const { data, error } = await db
+  let { data, error } = await db
     .from("exp_content")
     .upsert(row, { onConflict: "experience_id" })
     .select()
     .single();
+
+  // Pre-migration-018 fallback: if the timestamp columns don't exist yet,
+  // retry without them so content still saves.
+  if (error && /hero_video_(start|end)/.test(error.message || "")) {
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    const { hero_video_start: _s, hero_video_end: _e, ...rest } = row;
+    ({ data, error } = await db
+      .from("exp_content")
+      .upsert(rest, { onConflict: "experience_id" })
+      .select()
+      .single());
+  }
 
   if (error) {
     if (isMissing(error.message)) {

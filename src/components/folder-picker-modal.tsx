@@ -11,6 +11,8 @@ interface FolderPickerModalProps {
   title: string;
   action: string;
   currentFolder?: string;
+  /** Open already navigated into this folder (e.g. a section's auto-folder). */
+  startFolder?: string;
   onSelect: (folder: string) => void;
   onClose: () => void;
 }
@@ -19,12 +21,15 @@ export default function FolderPickerModal({
   title,
   action,
   currentFolder,
+  startFolder,
   onSelect,
   onClose,
 }: FolderPickerModalProps) {
   const [folders, setFolders] = useState<FolderItem[]>([]);
-  const [browsing, setBrowsing] = useState("");
+  const [browsing, setBrowsing] = useState(startFolder || "");
   const [loading, setLoading] = useState(true);
+  const [newName, setNewName] = useState("");
+  const [creating, setCreating] = useState(false);
 
   const fetchFolders = useCallback(async () => {
     setLoading(true);
@@ -47,6 +52,21 @@ export default function FolderPickerModal({
   useEffect(() => {
     fetchFolders();
   }, [fetchFolders]);
+
+  async function createFolder() {
+    const name = newName.trim().replace(/^\/+|\/+$/g, "");
+    if (!name || creating) return;
+    setCreating(true);
+    const path = browsing ? `${browsing}/${name}` : name;
+    await fetch("/api/admin/images", {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ folder: path }),
+    });
+    setCreating(false);
+    setNewName("");
+    setBrowsing(path); // navigate into the new folder (triggers a refetch)
+  }
 
   const breadcrumbs = browsing ? browsing.split("/").filter(Boolean) : [];
 
@@ -98,6 +118,31 @@ export default function FolderPickerModal({
               </span>
             );
           })}
+        </div>
+
+        {/* New folder */}
+        <div
+          className="flex items-center gap-2 px-4 py-2.5"
+          style={{ borderBottom: "1px solid var(--admin-border)" }}
+        >
+          <svg className="w-4 h-4 admin-faint flex-shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+            <path d="M12 5v14M5 12h14" />
+          </svg>
+          <input
+            value={newName}
+            onChange={(e) => setNewName(e.target.value)}
+            onKeyDown={(e) => { if (e.key === "Enter") createFolder(); }}
+            placeholder="New folder name…"
+            className="admin-input flex-1 px-2.5 py-1.5 rounded-lg border text-sm outline-none"
+          />
+          <button
+            onClick={createFolder}
+            disabled={!newName.trim() || creating}
+            className="px-3 py-1.5 text-xs font-bold rounded-lg transition-colors admin-surface admin-muted disabled:opacity-30"
+            style={{ border: "1px solid var(--admin-border)" }}
+          >
+            {creating ? "…" : "Create"}
+          </button>
         </div>
 
         {/* Folder list */}

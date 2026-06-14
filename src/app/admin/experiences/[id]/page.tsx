@@ -534,6 +534,7 @@ export default function ExperienceDetailPage({
 
           {showImagePicker && (
             <ImagePickerModal
+              defaultFolder={exp.slug ? `experiences/${exp.slug}/hero` : undefined}
               onSelect={(url) => {
                 update("hero_image", url);
                 setShowImagePicker(false);

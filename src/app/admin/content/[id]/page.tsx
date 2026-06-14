@@ -29,6 +29,8 @@ export default function ContentEditorPage({ params }: { params: Promise<{ id: st
   const [tileImage, setTileImage] = useState("");
   const [heroImage, setHeroImage] = useState("");
   const [heroVideo, setHeroVideo] = useState("");
+  const [heroVideoStart, setHeroVideoStart] = useState("");
+  const [heroVideoEnd, setHeroVideoEnd] = useState("");
   const [gallery, setGallery] = useState<string[]>([]);
   const [reviews, setReviews] = useState<Review[]>([]);
   const [picker, setPicker] = useState<PickerTarget | null>(null);
@@ -55,6 +57,8 @@ export default function ContentEditorPage({ params }: { params: Promise<{ id: st
         setTileImage(c.tile_image ?? "");
         setHeroImage(c.hero_image ?? "");
         setHeroVideo(c.hero_video_url ?? "");
+        setHeroVideoStart(c.hero_video_start != null ? String(c.hero_video_start) : "");
+        setHeroVideoEnd(c.hero_video_end != null ? String(c.hero_video_end) : "");
         setGallery(Array.isArray(c.gallery) ? c.gallery : []);
         setReviews(Array.isArray(c.reviews) ? c.reviews : []);
         setLocationAbout(c.location_about ?? "");
@@ -89,6 +93,8 @@ export default function ContentEditorPage({ params }: { params: Promise<{ id: st
         tile_image: tileImage,
         hero_image: heroImage,
         hero_video_url: heroVideo,
+        hero_video_start: heroVideoStart === "" ? null : Number(heroVideoStart),
+        hero_video_end: heroVideoEnd === "" ? null : Number(heroVideoEnd),
         gallery,
         reviews,
         location_about: locationAbout,
@@ -148,8 +154,35 @@ export default function ContentEditorPage({ params }: { params: Promise<{ id: st
             className="admin-input w-full px-4 py-2.5 rounded-lg border text-sm outline-none mb-3"
           />
           {heroVideo.trim() ? (
-            <div className="admin-surface admin-border border rounded-xl p-3 text-[13px] admin-muted">
-              ▶ Using YouTube video background. Clear the field above to use an image instead.
+            <div className="admin-surface admin-border border rounded-xl p-3">
+              <p className="text-[13px] admin-muted mb-3">
+                ▶ Using YouTube video background. Clear the field above to use an image instead.
+              </p>
+              <div className="flex flex-wrap items-end gap-4">
+                <label className="block">
+                  <span className="block text-xs admin-muted mb-1">Start <span className="admin-faint">(seconds)</span></span>
+                  <input
+                    type="number" min={0} value={heroVideoStart}
+                    onChange={(e) => setHeroVideoStart(e.target.value)}
+                    placeholder="0"
+                    className="admin-input w-28 px-3 py-2 rounded-lg border text-sm outline-none"
+                  />
+                  <span className="block text-[11px] admin-faint mt-1 tabular-nums">{mmss(heroVideoStart)}</span>
+                </label>
+                <label className="block">
+                  <span className="block text-xs admin-muted mb-1">End <span className="admin-faint">(seconds)</span></span>
+                  <input
+                    type="number" min={0} value={heroVideoEnd}
+                    onChange={(e) => setHeroVideoEnd(e.target.value)}
+                    placeholder="full clip"
+                    className="admin-input w-28 px-3 py-2 rounded-lg border text-sm outline-none"
+                  />
+                  <span className="block text-[11px] admin-faint mt-1 tabular-nums">{mmss(heroVideoEnd)}</span>
+                </label>
+                <p className="text-[11px] admin-faint max-w-[260px] leading-relaxed">
+                  Leave both empty to loop the whole clip. Set a window to loop just that segment.
+                </p>
+              </div>
             </div>
           ) : (
             <ImageField url={heroImage} onPick={() => setPicker({ kind: "hero" })} onClear={() => setHeroImage("")} ratio="aspect-[21/9]" />
@@ -283,7 +316,13 @@ export default function ContentEditorPage({ params }: { params: Promise<{ id: st
         </div>
       </div>
 
-      {picker && <ImagePickerModal onSelect={applyPicked} onClose={() => setPicker(null)} />}
+      {picker && (
+        <ImagePickerModal
+          defaultFolder={slug ? `experiences/${slug}/${picker.kind === "review" ? "reviews" : picker.kind}` : undefined}
+          onSelect={applyPicked}
+          onClose={() => setPicker(null)}
+        />
+      )}
     </div>
   );
 }
@@ -320,6 +359,14 @@ function Stars({ value, onChange }: { value: number; onChange: (v: number) => vo
       ))}
     </div>
   );
+}
+
+// Format a seconds string as "m:ss" for the timestamp hint (empty string when blank/invalid).
+function mmss(secs: string) {
+  if (secs === "") return "";
+  const n = Math.floor(Number(secs));
+  if (!Number.isFinite(n) || n < 0) return "";
+  return `${Math.floor(n / 60)}:${String(n % 60).padStart(2, "0")}`;
 }
 
 function Section({ title, hint, children }: { title: string; hint?: string; children: React.ReactNode }) {

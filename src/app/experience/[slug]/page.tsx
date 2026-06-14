@@ -211,6 +211,21 @@ export default async function ExperienceDetailPage({ params }: Props) {
   const spanEnd = allEditions[allEditions.length - 1]?.date_end ?? edition?.date_end ?? null;
   const tileImg = experience.hero_image; // listing tile / fallback
   const heroVideoUrl = content?.hero_video_url?.trim() ?? "";
+  // Segment timestamps fetched separately so a pre-migration-018 missing column
+  // can never null out the media row (and the existing hero video).
+  let heroVideoStart: number | null = null;
+  let heroVideoEnd: number | null = null;
+  if (heroVideoUrl) {
+    const { data: seg } = await sb
+      .from("exp_content")
+      .select("hero_video_start,hero_video_end")
+      .eq("experience_id", experience.id)
+      .maybeSingle();
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    heroVideoStart = (seg as any)?.hero_video_start ?? null;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    heroVideoEnd = (seg as any)?.hero_video_end ?? null;
+  }
   const heroMediaImage = content?.hero_image?.trim() || tileImg || BRAND_IMG.spot; // event-page hero image
   const galleryImgs = ((content?.gallery?.length ? content.gallery : experience.gallery) ?? []).filter(Boolean);
   const place = experience.location?.split(",")[0] ?? "the water";
@@ -246,7 +261,7 @@ export default async function ExperienceDetailPage({ params }: Props) {
       {/* HERO */}
       <section className="relative min-h-[88vh] flex items-end bg-[#00374a] overflow-hidden">
         {heroVideoUrl ? (
-          <HeroVideo url={heroVideoUrl} poster={heroMediaImage} />
+          <HeroVideo url={heroVideoUrl} start={heroVideoStart} end={heroVideoEnd} poster={heroMediaImage} />
         ) : (
           <div className="absolute inset-0 bg-cover bg-center scale-105" style={{ backgroundImage: `url('${heroMediaImage}')` }} />
         )}

@@ -16,6 +16,8 @@ interface FileItem {
 interface ImagePickerModalProps {
   onSelect: (url: string) => void;
   onClose: () => void;
+  /** Open the library here and default uploads to this folder (e.g. experiences/alacati/hero). */
+  defaultFolder?: string;
 }
 
 function formatSize(bytes: number) {
@@ -28,9 +30,10 @@ function formatSize(bytes: number) {
 export default function ImagePickerModal({
   onSelect,
   onClose,
+  defaultFolder,
 }: ImagePickerModalProps) {
   const [files, setFiles] = useState<FileItem[]>([]);
-  const [folder, setFolder] = useState("");
+  const [folder, setFolder] = useState(defaultFolder || "");
   const [loading, setLoading] = useState(true);
   const [uploading, setUploading] = useState(false);
   const [selected, setSelected] = useState<string | null>(null);
@@ -340,6 +343,7 @@ export default function ImagePickerModal({
         <FolderPickerModal
           title={`Upload ${pendingFiles.length} file${pendingFiles.length > 1 ? "s" : ""} to...`}
           action="Upload here"
+          startFolder={defaultFolder || folder}
           onSelect={(targetFolder) => {
             setUploadPicker(false);
             uploadToFolder(pendingFiles, targetFolder);
