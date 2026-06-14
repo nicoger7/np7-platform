@@ -37,6 +37,8 @@ export function DiveHero({
   const videoRef = useRef<HTMLVideoElement>(null);
   const zoomRef = useRef<HTMLDivElement>(null);
   const gradeRef = useRef<HTMLDivElement>(null);
+  const scrimRef = useRef<HTMLDivElement>(null);
+  const shallowsRef = useRef<HTMLDivElement>(null);
   const contentRef = useRef<HTMLDivElement>(null);
   const cueRef = useRef<HTMLDivElement>(null);
   const [mode, setMode] = useState<"video" | "static">("video");
@@ -95,7 +97,18 @@ export function DiveHero({
       if (zoomRef.current)
         zoomRef.current.style.transform = `scale(${1 + 0.12 * p})`;
       if (gradeRef.current)
-        gradeRef.current.style.opacity = String(clamp((p - 0.12) / 0.6) * 0.26);
+        gradeRef.current.style.opacity = String(clamp((p - 0.12) / 0.6) * 0.15);
+
+      // the dark scrim only earns its keep while the logo/headline are visible —
+      // fade it out early so no navy blob lingers above the foam during the dive
+      if (scrimRef.current)
+        scrimRef.current.style.opacity = String(Math.max(1 - p / 0.45, 0));
+
+      // a bottom-anchored bright-turquoise "shallows" wash rises as we dive,
+      // dissolving the footage's darker horizon into the exact #1aa3c7 the
+      // descent opens with — keeps footage → foam → Find Your Fit continuous
+      if (shallowsRef.current)
+        shallowsRef.current.style.opacity = String(clamp((p - 0.4) / 0.6));
 
       // headline drifts up + fades over the first ~half
       const pe = clamp(p / 0.5);
@@ -160,7 +173,9 @@ export function DiveHero({
     </>
   );
 
-  /* soft dark scrim so the colour-matched logo & text separate from the water */
+  /* soft dark scrim so the colour-matched logo & text separate from the water.
+     The static fallback keeps it fixed; the video branch wires it to scrimRef
+     and fades it out on scroll so it can't linger as a dark band over the dive. */
   const scrim = (
     <div
       className="absolute inset-0 bg-[radial-gradient(ellipse_58%_48%_at_50%_42%,rgba(0,28,42,0.55)_0%,rgba(0,28,42,0.2)_45%,transparent_75%)]"
@@ -219,7 +234,28 @@ export function DiveHero({
           style={{ opacity: 0 }}
           aria-hidden
         />
-        {scrim}
+
+        {/* rising shallows: a bottom-anchored bright-turquoise wash that ramps in
+            as the dive deepens, dissolving the footage's darker horizon into the
+            exact #1aa3c7 the descent + foam wave open with (no dark hand-off) */}
+        <div
+          ref={shallowsRef}
+          className="absolute inset-0"
+          style={{
+            background:
+              "linear-gradient(to top, #1aa3c7 0%, #1aa3c7 35%, rgba(26,163,199,0) 80%)",
+            opacity: 0,
+          }}
+          aria-hidden
+        />
+
+        {/* soft dark scrim — faded out early (scrimRef) so it lifts the logo while
+            it's visible but never lingers as a dark band over the dive */}
+        <div
+          ref={scrimRef}
+          className="absolute inset-0 bg-[radial-gradient(ellipse_58%_48%_at_50%_42%,rgba(0,28,42,0.55)_0%,rgba(0,28,42,0.2)_45%,transparent_75%)]"
+          aria-hidden
+        />
 
         {/* headline / logo / CTAs */}
         <div
