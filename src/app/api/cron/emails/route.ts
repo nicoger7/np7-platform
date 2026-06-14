@@ -41,7 +41,6 @@ export async function GET(req: NextRequest) {
   const db = createAdminClient() as any;
   const now = Date.now();
   const DAY = 86400000;
-  const reviewLink = process.env.NP7_REVIEW_URL || undefined;
 
   // Go-live cutoff: never email "backwards". Set EMAIL_PIPELINE_LIVE_FROM (ISO
   // date) when Resend is connected — bookings whose trip (or, for lead nudges,
@@ -88,7 +87,7 @@ export async function GET(req: NextRequest) {
       balance: balanceNum != null ? `€${balanceNum.toLocaleString("en-US")}` : undefined,
       dates: fmtRange(start, end),
       whatsappLink: b.exp_editions?.whatsapp_group_link ?? undefined,
-      reviewLink,
+      reviewLink: `${origin}/account/bookings/${b.id}/review`,
       bookingLink: `${origin}/account`,
     };
     const send = (templateKey: string, dedupeKey: string) =>

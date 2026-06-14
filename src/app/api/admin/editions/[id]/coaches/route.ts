@@ -6,7 +6,8 @@ export async function GET(
   _request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  const client = createAdminClient();
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const client = createAdminClient() as any;
   const { id } = await params;
   const { data, error } = await client
     .from("exp_edition_coaches")
@@ -23,7 +24,8 @@ export async function POST(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  const client = createAdminClient();
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const client = createAdminClient() as any;
   const { id } = await params;
   const body = await request.json();
 
@@ -62,7 +64,8 @@ export async function PATCH(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  const client = createAdminClient();
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const client = createAdminClient() as any;
   const { id } = await params;
   const body = await request.json();
   if (!body.coach_id) return NextResponse.json({ error: "coach_id required" }, { status: 400 });
@@ -86,7 +89,8 @@ export async function DELETE(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  const client = createAdminClient();
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const client = createAdminClient() as any;
   const { id } = await params;
   const coachId = new URL(request.url).searchParams.get("coach_id");
   if (!coachId) return NextResponse.json({ error: "coach_id required" }, { status: 400 });

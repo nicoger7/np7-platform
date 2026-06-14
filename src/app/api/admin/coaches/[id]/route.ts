@@ -6,7 +6,8 @@ export async function PATCH(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  const client = createAdminClient();
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const client = createAdminClient() as any;
   const { id } = await params;
   const body = await request.json();
   const patch: Record<string, unknown> = { updated_at: new Date().toISOString() };
@@ -28,7 +29,8 @@ export async function DELETE(
   _request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  const client = createAdminClient();
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const client = createAdminClient() as any;
   const { id } = await params;
   const { error } = await client.from("exp_coaches").delete().eq("id", id);
   if (error) return NextResponse.json({ error: error.message }, { status: 400 });

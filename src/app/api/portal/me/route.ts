@@ -8,7 +8,7 @@ export async function GET() {
   if (!user) return NextResponse.json({ loggedIn: false });
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const db = createAdminClient() as any;
-  const { data } = await db.from("contacts").select("name, email, phone").eq("id", user.contactId).maybeSingle();
+  const { data } = await db.from("contacts").select("name, email, phone, country").eq("id", user.contactId).maybeSingle();
   const [firstName, ...rest] = (data?.name ?? user.name ?? "").split(" ");
   return NextResponse.json({
     loggedIn: true,
@@ -16,5 +16,6 @@ export async function GET() {
     lastName: rest.join(" "),
     email: data?.email ?? user.email,
     phone: data?.phone ?? "",
+    country: data?.country ?? "",
   });
 }

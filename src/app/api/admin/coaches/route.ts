@@ -3,7 +3,8 @@ import { createAdminClient } from "@/lib/supabase";
 
 // GET /api/admin/coaches — the reusable coach library
 export async function GET() {
-  const client = createAdminClient();
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const client = createAdminClient() as any;
   const { data, error } = await client
     .from("exp_coaches")
     .select("*")
@@ -14,7 +15,8 @@ export async function GET() {
 
 // POST /api/admin/coaches — add a coach to the library
 export async function POST(request: NextRequest) {
-  const client = createAdminClient();
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const client = createAdminClient() as any;
   const body = await request.json();
   const { data, error } = await client
     .from("exp_coaches")

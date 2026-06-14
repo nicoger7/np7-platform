@@ -6,7 +6,8 @@ export async function GET(
   _request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  const client = createAdminClient();
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const client = createAdminClient() as any;
   const { id } = await params;
   const { data, error } = await client
     .from("exp_review_placements")
@@ -22,7 +23,8 @@ export async function POST(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  const client = createAdminClient();
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const client = createAdminClient() as any;
   const { id } = await params;
   const body = await request.json();
   if (!body.review_id || !body.experience_id) {
@@ -49,7 +51,8 @@ export async function PATCH(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  const client = createAdminClient();
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const client = createAdminClient() as any;
   const { id } = await params;
   const body = await request.json();
   if (!body.review_id) return NextResponse.json({ error: "review_id required" }, { status: 400 });
@@ -69,7 +72,8 @@ export async function DELETE(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  const client = createAdminClient();
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const client = createAdminClient() as any;
   const { id } = await params;
   const reviewId = new URL(request.url).searchParams.get("review_id");
   if (!reviewId) return NextResponse.json({ error: "review_id required" }, { status: 400 });

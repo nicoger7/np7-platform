@@ -6,6 +6,7 @@ import { createAdminClient } from "@/lib/supabase";
 export type MemberBooking = {
   id: string;
   status: string | null;
+  experience_id: string | null;
   agreed_price: number | null;
   downpayment_received: boolean | null;
   final_payment_received: boolean | null;
@@ -19,7 +20,7 @@ export type MemberBooking = {
 };
 
 const SELECT =
-  "id,status,agreed_price,downpayment_received,final_payment_received,created_at," +
+  "id,status,experience_id,agreed_price,downpayment_received,final_payment_received,created_at," +
   "exp_experiences(title,slug,currency,cancellation_policy)," +
   "exp_editions(id,label,date_start,date_end,deposit,whatsapp_group_link,memories_video_url)," +
   "exp_packages(name,price)";
@@ -27,7 +28,7 @@ const SELECT =
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 function shape(b: any): MemberBooking {
   return {
-    id: b.id, status: b.status, agreed_price: b.agreed_price,
+    id: b.id, status: b.status, experience_id: b.experience_id, agreed_price: b.agreed_price,
     downpayment_received: b.downpayment_received, final_payment_received: b.final_payment_received,
     created_at: b.created_at,
     experience: b.exp_experiences ?? null,
@@ -63,6 +64,17 @@ export async function getMemberProfile(contactId: string): Promise<MemberProfile
     .select("name,email,phone,country,tshirt_size,diet_allergies,date_of_birth,level,marketing_opt_in")
     .eq("id", contactId).maybeSingle();
   return data ?? null;
+}
+
+/** The experience's gallery images (exp_content.gallery, falling back to the
+    experience's own gallery) — offered to members as photos for their review. */
+export async function getTripGallery(experienceId: string): Promise<string[]> {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const db = createAdminClient() as any;
+  const { data: content } = await db.from("exp_content").select("gallery").eq("experience_id", experienceId).maybeSingle();
+  if (content?.gallery?.length) return (content.gallery as string[]).filter(Boolean);
+  const { data: exp } = await db.from("exp_experiences").select("gallery").eq("id", experienceId).maybeSingle();
+  return ((exp?.gallery as string[] | null) ?? []).filter(Boolean);
 }
 
 /** Photos for a week's memories, from storage assets/memories/{editionId}/. */

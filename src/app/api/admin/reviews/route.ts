@@ -3,7 +3,8 @@ import { createAdminClient } from "@/lib/supabase";
 
 // GET /api/admin/reviews?status= — the review pool (optionally filtered by status)
 export async function GET(request: NextRequest) {
-  const client = createAdminClient();
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const client = createAdminClient() as any;
   const status = new URL(request.url).searchParams.get("status");
   let q = client
     .from("exp_reviews")
@@ -17,7 +18,8 @@ export async function GET(request: NextRequest) {
 
 // POST /api/admin/reviews — manually create a review (pre-approved by default)
 export async function POST(request: NextRequest) {
-  const client = createAdminClient();
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const client = createAdminClient() as any;
   const body = await request.json();
   const { data, error } = await client
     .from("exp_reviews")

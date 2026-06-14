@@ -541,7 +541,8 @@ export default async function ExperienceDetailPage({ params }: Props) {
           <Reveal className="mb-8"><p className="text-[11px] font-bold tracking-[0.25em] text-[#00afdb] mb-3">★ 5.0 — WHAT GUESTS SAY</p><h2 className="text-3xl sm:text-4xl font-black tracking-[-0.03em] text-[#00374a]">Moments &amp; new friends</h2></Reveal>
           <Reveal>
             <Carousel label="Guest reviews">
-              {reviewItems.map((m, i) => (
+              {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
+              {reviewItems.map((m: any, i: number) => (
                 <article key={i} className="snap-start shrink-0 w-[280px] sm:w-[360px] relative rounded-3xl overflow-hidden h-[400px]">
                   <div className="absolute inset-0 bg-cover bg-center" style={{ backgroundImage: `url('${m.image}')` }} />
                   <div className="absolute inset-0 bg-gradient-to-t from-black/85 via-black/20 to-transparent" />

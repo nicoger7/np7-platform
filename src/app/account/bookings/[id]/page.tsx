@@ -23,6 +23,7 @@ export default async function BookingDetail({ params }: Props) {
   const photos = b.edition?.id ? await getMemoryPhotos(b.edition.id).catch(() => []) : [];
 
   const depositPaid = b.downpayment_received || ["downpayment_paid", "paid", "confirmed"].includes((b.status ?? "").toLowerCase());
+  const tripEnded = b.edition?.date_end ? new Date(b.edition.date_end) < new Date() : false;
   const balance = b.agreed_price != null && b.edition?.deposit != null ? b.agreed_price - b.edition.deposit : null;
   const cancellation = b.experience?.cancellation_policy ||
     "Cancellations are handled case by case in line with our package travel terms. The deposit secures your spot; please contact us as early as possible if your plans change. Full terms are provided with your booking confirmation.";
@@ -45,6 +46,19 @@ export default async function BookingDetail({ params }: Props) {
           <div className="grid lg:grid-cols-[1.4fr_1fr] gap-5">
             {/* left column */}
             <div className="space-y-5">
+              {/* review nudge — once the week is over */}
+              {tripEnded && (
+                <section className="bg-gradient-to-br from-[#00afdb] to-[#0782a0] rounded-2xl p-6 text-white">
+                  <h2 className="text-[11px] font-bold tracking-[0.2em] uppercase text-white/80 mb-2">How was it?</h2>
+                  <p className="text-[15px] font-bold leading-snug mb-1">Loved your week? Leave a review.</p>
+                  <p className="text-[13.5px] text-white/85 leading-relaxed mb-4">It takes a minute and helps other riders find their next trip. You can add a photo too.</p>
+                  <Link href={`/account/bookings/${b.id}/review`}
+                    className="inline-flex items-center gap-2 px-6 py-3 rounded-full text-[13.5px] font-bold text-[#00374a] bg-white hover:-translate-y-0.5 transition-transform">
+                    ⭐ Leave a review
+                  </Link>
+                </section>
+              )}
+
               {/* payment */}
               <Card title="Payment">
                 <Row label="Package" value={b.pkg?.name ?? "—"} />
