@@ -1,0 +1,37 @@
+import { NextRequest, NextResponse } from "next/server";
+import { createAdminClient } from "@/lib/supabase";
+
+// PATCH /api/admin/reviews/:id — edit / approve / hide a review
+export async function PATCH(
+  request: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  const client = createAdminClient();
+  const { id } = await params;
+  const body = await request.json();
+  const patch: Record<string, unknown> = {};
+  for (const k of ["author_name", "author_country", "quote", "photo_url", "status", "experience_id", "edition_id"]) {
+    if (k in body) patch[k] = body[k] === "" ? null : body[k];
+  }
+  if ("rating" in body) patch.rating = Math.max(1, Math.min(5, Number(body.rating) || 5));
+  const { data, error } = await client
+    .from("exp_reviews")
+    .update(patch)
+    .eq("id", id)
+    .select("*")
+    .single();
+  if (error) return NextResponse.json({ error: error.message }, { status: 400 });
+  return NextResponse.json(data);
+}
+
+// DELETE /api/admin/reviews/:id — delete a review (cascades placements)
+export async function DELETE(
+  _request: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  const client = createAdminClient();
+  const { id } = await params;
+  const { error } = await client.from("exp_reviews").delete().eq("id", id);
+  if (error) return NextResponse.json({ error: error.message }, { status: 400 });
+  return NextResponse.json({ success: true });
+}

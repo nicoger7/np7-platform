@@ -249,10 +249,47 @@ export default async function ExperienceDetailPage({ params }: Props) {
     (content?.faq ?? []).length > 0
       ? content!.faq!.map((f) => ({ title: f.q, content: <span className="whitespace-pre-line">{f.a}</span> }))
       : FAQ;
+  // Data-driven guides for the primary edition (fallback to brand defaults).
+  // Fetched separately so missing tables (pre-migration 019) can't break the page.
+  let guideItems: { name: string; role: string; bio: string; image: string }[] = COACHES;
+  if (edition?.id) {
+    const { data: gc } = await sb
+      .from("exp_edition_coaches")
+      .select("sort_order,name_override,role_override,bio_override,image_override,exp_coaches(name,role,bio,image_url)")
+      .eq("edition_id", edition.id)
+      .order("sort_order");
+    if (gc && gc.length) {
+      guideItems = gc
+        .map((g: { name_override: string | null; role_override: string | null; bio_override: string | null; image_override: string | null; exp_coaches: { name: string | null; role: string | null; bio: string | null; image_url: string | null } | null }) => ({
+          name: g.name_override ?? g.exp_coaches?.name ?? "",
+          role: g.role_override ?? g.exp_coaches?.role ?? "",
+          bio: g.bio_override ?? g.exp_coaches?.bio ?? "",
+          image: g.image_override ?? g.exp_coaches?.image_url ?? BRAND_IMG.group,
+        }))
+        .filter((c: { name: string }) => c.name);
+    }
+  }
+
+  // Admin-curated participant reviews for this experience (fallback to legacy content.reviews).
+  const { data: placementRows } = await sb
+    .from("exp_review_placements")
+    .select("sort_order, exp_reviews(author_name,author_country,rating,quote,photo_url,status)")
+    .eq("experience_id", experience.id)
+    .order("sort_order");
+  const placedReviews = (placementRows ?? [])
+    .map((p: { exp_reviews: { author_name: string | null; author_country: string | null; rating: number | null; quote: string | null; photo_url: string | null; status: string } | null }) => p.exp_reviews)
+    .filter((r: { status: string } | null): r is { author_name: string | null; author_country: string | null; rating: number | null; quote: string | null; photo_url: string | null; status: string } => !!r && r.status === "approved")
+    .map((r: { author_name: string | null; author_country: string | null; rating: number | null; quote: string | null; photo_url: string | null }) => ({
+      quote: r.quote ?? "", name: r.author_name ?? "", country: r.author_country ?? "",
+      image: r.photo_url || BRAND_IMG.group, rating: Math.max(1, Math.min(5, r.rating || 5)),
+    }));
+
   const reviewItems =
-    (content?.reviews ?? []).length > 0
-      ? content!.reviews!.map((r) => ({ quote: r.quote, name: r.name, country: r.country, image: r.image || BRAND_IMG.group, rating: Math.max(1, Math.min(5, r.rating || 5)) }))
-      : MOMENTS.map((m) => ({ ...m, rating: 5 }));
+    placedReviews.length > 0
+      ? placedReviews
+      : (content?.reviews ?? []).length > 0
+        ? content!.reviews!.map((r) => ({ quote: r.quote, name: r.name, country: r.country, image: r.image || BRAND_IMG.group, rating: Math.max(1, Math.min(5, r.rating || 5)) }))
+        : MOMENTS.map((m) => ({ ...m, rating: 5 }));
 
   return (
     <>
@@ -493,7 +530,7 @@ export default async function ExperienceDetailPage({ params }: Props) {
           <Reveal className="mb-8"><p className="text-[11px] font-bold tracking-[0.25em] text-[#00afdb] mb-3">YOUR COACHES</p><h2 className="text-3xl sm:text-4xl font-black tracking-[-0.03em] text-[#00374a]">Learn from the best</h2></Reveal>
           <Reveal className="mb-16">
             <Carousel label="Coaches">
-              {COACHES.map((c) => (
+              {guideItems.map((c) => (
                 <article key={c.name} className="snap-start shrink-0 w-[280px] sm:w-[320px] bg-white rounded-3xl overflow-hidden border border-[#ebebeb]">
                   <div className="h-[240px] bg-cover bg-center" style={{ backgroundImage: `url('${c.image}')` }} />
                   <div className="p-5"><h3 className="text-lg font-extrabold text-[#00374a]">{c.name}</h3><p className="text-[11px] font-bold tracking-wide uppercase text-[#00afdb] mb-2.5">{c.role}</p><p className="text-[13.5px] text-[#6a7a80] leading-relaxed">{c.bio}</p></div>
