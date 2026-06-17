@@ -252,7 +252,7 @@ function BuyModule({ product }: { product: Product }) {
       ? null
       : product.stock_count > 0
         ? `${product.stock_count} in stock`
-        : "Made to order";
+        : "Sold out";
 
   return (
     <section id="buy" className="scroll-mt-20 py-20 sm:py-32 bg-[#0a0a0c] border-t border-white/10">
