@@ -19,6 +19,7 @@ const LIME = "#c6ff3a";
 
 type Product = {
   name: string;
+  slug: string | null;
   category: string;
   type: "board" | "fin";
   price: number;
@@ -29,12 +30,12 @@ type Product = {
 
 /* placeholder catalogue — wired to hw_products when populated. Boards & fins only. */
 const FALLBACK_PRODUCTS: Product[] = [
-  { name: "NP7 Freeride 120", category: "Board", type: "board", price: 2490, specs: ["120 L", "247 cm", "Carbon"], accent: LIME, stock: "In stock" },
-  { name: "NP7 Slalom 110", category: "Board", type: "board", price: 2990, specs: ["110 L", "227 cm", "Pre-preg"], accent: PINK, stock: "Made to order" },
-  { name: "NP7 Wave 92", category: "Board", type: "board", price: 2690, specs: ["92 L", "228 cm", "Carbon"], accent: LIME, stock: "In stock" },
-  { name: "Slalom Fin 38", category: "Fin", type: "fin", price: 189, specs: ["38 cm", "Tuttle", "G10"], accent: PINK, stock: "In stock" },
-  { name: "Wave Fin 22", category: "Fin", type: "fin", price: 119, specs: ["22 cm", "US Box"], accent: LIME, stock: "In stock" },
-  { name: "Weed Fin 30", category: "Fin", type: "fin", price: 149, specs: ["30 cm", "Power Box"], accent: PINK, stock: "In stock" },
+  { name: "NP7 Freeride 120", slug: null, category: "Board", type: "board", price: 2490, specs: ["120 L", "247 cm", "Carbon"], accent: LIME, stock: "In stock" },
+  { name: "NP7 Slalom 110", slug: null, category: "Board", type: "board", price: 2990, specs: ["110 L", "227 cm", "Pre-preg"], accent: PINK, stock: "Made to order" },
+  { name: "NP7 Wave 92", slug: null, category: "Board", type: "board", price: 2690, specs: ["92 L", "228 cm", "Carbon"], accent: LIME, stock: "In stock" },
+  { name: "Slalom Fin 38", slug: null, category: "Fin", type: "fin", price: 189, specs: ["38 cm", "Tuttle", "G10"], accent: PINK, stock: "In stock" },
+  { name: "Wave Fin 22", slug: null, category: "Fin", type: "fin", price: 119, specs: ["22 cm", "US Box"], accent: LIME, stock: "In stock" },
+  { name: "Weed Fin 30", slug: null, category: "Fin", type: "fin", price: 149, specs: ["30 cm", "Power Box"], accent: PINK, stock: "In stock" },
 ];
 
 const CATEGORIES = [
@@ -77,14 +78,15 @@ function FinGlyph({ accent }: { accent: string }) {
 export default async function HardwarePage() {
   const { data } = await supabase
     .from("hw_products")
-    .select("name,category,price,year,specs")
+    .select("name,slug,category,price,year,specs")
     .eq("status", "published");
 
-  const dbProducts = (data ?? []) as Array<{ name: string; category: string | null; price: number | null; specs: unknown }>;
+  const dbProducts = (data ?? []) as Array<{ name: string; slug: string | null; category: string | null; price: number | null; specs: unknown }>;
   const products: Product[] =
     dbProducts.length > 0
       ? dbProducts.map((p, i) => ({
           name: p.name,
+          slug: p.slug ?? null,
           category: p.category ?? "Board",
           type: /fin/i.test(p.category ?? "") ? "fin" : "board",
           price: p.price ?? 0,
@@ -180,8 +182,8 @@ export default async function HardwarePage() {
           </Reveal>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
-            {products.map((p, i) => (
-              <Reveal key={p.name} delay={(i % 3) * 80} as="article">
+            {products.map((p, i) => {
+              const cardInner = (
                 <div className="group relative rounded-2xl border border-white/10 bg-[#141416] overflow-hidden hover:-translate-y-1 transition-all duration-300 h-full">
                   <div className="relative h-44 grid place-items-center bg-[radial-gradient(circle_at_50%_30%,rgba(255,255,255,0.05),transparent_70%)]">
                     {p.type === "fin" ? <FinGlyph accent={p.accent} /> : <BoardGlyph accent={p.accent} />}
@@ -205,8 +207,19 @@ export default async function HardwarePage() {
                   </div>
                   <span className="absolute inset-x-0 bottom-0 h-[2px] scale-x-0 group-hover:scale-x-100 origin-left transition-transform duration-300" style={{ background: p.accent }} />
                 </div>
-              </Reveal>
-            ))}
+              );
+              return (
+                <Reveal key={p.name} delay={(i % 3) * 80} as="article">
+                  {p.slug ? (
+                    <Link href={`/hardware/${p.slug}`} className="block h-full">
+                      {cardInner}
+                    </Link>
+                  ) : (
+                    cardInner
+                  )}
+                </Reveal>
+              );
+            })}
           </div>
         </div>
       </section>
