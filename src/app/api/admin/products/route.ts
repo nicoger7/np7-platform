@@ -59,7 +59,7 @@ export async function POST(request: NextRequest) {
     name: String(body.name),
     slug,
     template: body.template ?? "board",
-    category: body.category ?? "board",
+    category: body.category ?? "boards",
     status: body.status ?? "draft",
   };
 

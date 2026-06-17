@@ -11,6 +11,7 @@ import {
   SpecRow,
   FIT_ICONS,
   PRODUCT_STATUSES,
+  PRODUCT_CATEGORIES,
   emptyFit,
 } from "@/lib/hardware/types";
 import { TEMPLATE_OPTIONS } from "@/lib/hardware/templates";
@@ -586,12 +587,15 @@ export default function ProductDetailPage({
             </div>
             <div>
               <label className={labelClass}>Category</label>
-              <input
+              <select
                 className={inputClass}
-                value={product.category || ""}
+                value={product.category || "boards"}
                 onChange={(e) => update("category", e.target.value)}
-                placeholder="e.g. Board"
-              />
+              >
+                {PRODUCT_CATEGORIES.map((c) => (
+                  <option key={c} value={c}>{c[0].toUpperCase() + c.slice(1)}</option>
+                ))}
+              </select>
             </div>
           </div>
 

@@ -60,6 +60,10 @@ export type Product = {
 
 export const PRODUCT_STATUSES = ["draft", "published", "archived"] as const;
 
+/** DB-constrained product categories (hw_products_category_check). */
+export const PRODUCT_CATEGORIES = ["boards", "fins", "foils", "accessories"] as const;
+export type ProductCategory = (typeof PRODUCT_CATEGORIES)[number];
+
 /** A blank fit row for the admin editor. */
 export function emptyFit(): FitSegment {
   return { id: crypto.randomUUID(), chip: "", tag: "", title: "", body: "", points: [""], cta: "", cta_href: "#buy", icon: "spark", image: "" };

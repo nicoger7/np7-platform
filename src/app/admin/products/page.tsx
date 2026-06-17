@@ -7,6 +7,7 @@ import { SortableHeader } from "@/components/sortable-header";
 import { ColumnToggle, ColumnDef, buildGridTemplate, loadVisibleColumns } from "@/components/column-toggle";
 import { RowActions } from "@/components/row-actions";
 import { TEMPLATE_OPTIONS, DEFAULT_TEMPLATE } from "@/lib/hardware/templates";
+import { PRODUCT_CATEGORIES } from "@/lib/hardware/types";
 import { PRODUCT_STATUSES, Product } from "@/lib/hardware/types";
 
 type SortDir = "asc" | "desc" | null;
@@ -57,7 +58,7 @@ export default function ProductsPage() {
   const [visibleColumns, setVisibleColumns] = useState<Set<string>>(
     () => loadVisibleColumns(STORAGE_KEY, COLUMNS)
   );
-  const [form, setForm] = useState({ name: "", template: DEFAULT_TEMPLATE });
+  const [form, setForm] = useState({ name: "", template: DEFAULT_TEMPLATE, category: "boards" });
   const [creating, setCreating] = useState(false);
 
   function fetchData() {
@@ -100,7 +101,7 @@ export default function ProductsPage() {
     const res = await fetch("/api/admin/products", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ name: form.name, template: form.template }),
+      body: JSON.stringify({ name: form.name, template: form.template, category: form.category }),
     });
     if (res.ok) {
       const data = await res.json();
@@ -166,16 +167,28 @@ export default function ProductsPage() {
           style={{ border: "1px solid var(--admin-border)", backgroundColor: "var(--admin-surface)" }}
         >
           <h3 className="text-sm font-bold admin-heading mb-4">New Product</h3>
-          <div className="grid grid-cols-2 gap-4 mb-4">
+          <div className="grid grid-cols-3 gap-4 mb-4">
             <div>
               <label className={labelClass}>Name *</label>
               <input
                 className={inputClass}
                 value={form.name}
                 onChange={(e) => setForm({ ...form, name: e.target.value })}
-                placeholder="e.g. Fanatic Falcon 99"
+                placeholder="e.g. NP7 Rockstar Fin"
                 autoFocus
               />
+            </div>
+            <div>
+              <label className={labelClass}>Category</label>
+              <select
+                className={inputClass}
+                value={form.category}
+                onChange={(e) => setForm({ ...form, category: e.target.value })}
+              >
+                {PRODUCT_CATEGORIES.map((c) => (
+                  <option key={c} value={c}>{c[0].toUpperCase() + c.slice(1)}</option>
+                ))}
+              </select>
             </div>
             <div>
               <label className={labelClass}>Template</label>
@@ -199,7 +212,7 @@ export default function ProductsPage() {
               {creating ? "Creating…" : "Create"}
             </button>
             <button
-              onClick={() => { setShowNew(false); setForm({ name: "", template: DEFAULT_TEMPLATE }); }}
+              onClick={() => { setShowNew(false); setForm({ name: "", template: DEFAULT_TEMPLATE, category: "boards" }); }}
               className="px-4 py-2 admin-muted text-sm rounded-lg"
             >
               Cancel
