@@ -91,6 +91,8 @@ export default function ComponentsPage() {
   const [editions, setEditions] = useState<Edition[]>([]);
   const [loading, setLoading] = useState(true);
   const [filterCategory, setFilterCategory] = useState("");
+  const [filterExperience, setFilterExperience] = useState("");
+  const [filterEdition, setFilterEdition] = useState("");
   const [showNew, setShowNew] = useState(false);
   const [editId, setEditId] = useState<string | null>(null);
   const [sortKey, setSortKey] = useState<string | null>(null);
@@ -157,9 +159,15 @@ export default function ComponentsPage() {
     }
   }
 
-  const filtered = filterCategory
-    ? components.filter((c) => c.category === filterCategory)
-    : components;
+  const filterEditionOptions = filterExperience
+    ? editions.filter((e) => e.experience_id === filterExperience)
+    : editions;
+  const filtered = components.filter((c) => {
+    if (filterCategory && c.category !== filterCategory) return false;
+    if (filterExperience && !(c.is_global || c.experience_id === filterExperience)) return false;
+    if (filterEdition && c.edition_id !== filterEdition) return false;
+    return true;
+  });
 
   const sorted = sortKey && sortDir
     ? [...filtered].sort((a, b) => {
@@ -331,7 +339,30 @@ export default function ComponentsPage() {
       </div>
 
       {/* Filters */}
-      <div className="flex items-center gap-2 mb-5">
+      <div className="flex flex-wrap items-center gap-2 mb-3">
+        <select
+          value={filterExperience}
+          onChange={(e) => { setFilterExperience(e.target.value); setFilterEdition(""); }}
+          className="admin-input text-xs px-3 py-1.5 rounded-lg"
+        >
+          <option value="">All experiences</option>
+          {experiences.map((exp) => <option key={exp.id} value={exp.id}>{exp.title}</option>)}
+        </select>
+        <select
+          value={filterEdition}
+          onChange={(e) => setFilterEdition(e.target.value)}
+          className="admin-input text-xs px-3 py-1.5 rounded-lg"
+        >
+          <option value="">All editions</option>
+          {filterEditionOptions.map((ed) => (
+            <option key={ed.id} value={ed.id}>{ed.label || ed.year}</option>
+          ))}
+        </select>
+        {(filterExperience || filterEdition) && (
+          <button onClick={() => { setFilterExperience(""); setFilterEdition(""); }} className="text-xs admin-faint hover:admin-muted transition-colors px-1">Clear</button>
+        )}
+      </div>
+      <div className="flex flex-wrap items-center gap-2 mb-5">
         <button onClick={() => setFilterCategory("")} className={`px-3 py-1.5 text-xs font-medium rounded-lg transition-colors capitalize ${!filterCategory ? "bg-[#0aa3c7]/15 text-[#0aa3c7]" : "admin-surface admin-muted"}`} style={{ border: "1px solid var(--admin-border)" }}>All</button>
         {allCategories.map((cat) => (
           <button key={cat} onClick={() => setFilterCategory(filterCategory === cat ? "" : cat)} className={`px-3 py-1.5 text-xs font-medium rounded-lg transition-colors capitalize ${filterCategory === cat ? "bg-[#0aa3c7]/15 text-[#0aa3c7]" : "admin-surface admin-muted"}`} style={{ border: "1px solid var(--admin-border)" }}>
