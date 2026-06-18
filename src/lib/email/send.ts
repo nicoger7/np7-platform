@@ -1,6 +1,14 @@
 import { createAdminClient } from "@/lib/supabase";
 import { renderTemplate, type EmailVars } from "./templates";
 
+/** A single email attachment (Resend format). */
+export type EmailAttachment = {
+  /** Filename shown to the recipient, e.g. "deposit-invoice.pdf". */
+  filename: string;
+  /** Raw file contents as a Buffer or base64 string. */
+  content: Buffer | string;
+};
+
 type SendArgs = {
   to: string;
   templateKey: string;
@@ -10,6 +18,8 @@ type SendArgs = {
   bookingId?: string | null;
   contactId?: string | null;
   ruleId?: string | null;
+  /** Optional file attachments (Resend supports PDF, etc.). Best-effort — ignored if provider not configured. */
+  attachments?: EmailAttachment[];
 };
 
 type SendResult = { status: "sent" | "failed" | "skipped"; id?: string; error?: string };
@@ -22,7 +32,7 @@ type SendResult = { status: "sent" | "failed" | "skipped"; id?: string; error?: 
  * - DB template_key override (email_templates row) wins over the code default.
  */
 export async function sendEmail(args: SendArgs): Promise<SendResult> {
-  const { to, templateKey, vars, dedupeKey, bookingId, contactId, ruleId } = args;
+  const { to, templateKey, vars, dedupeKey, bookingId, contactId, ruleId, attachments } = args;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const db = createAdminClient() as any;
 
@@ -73,7 +83,23 @@ export async function sendEmail(args: SendArgs): Promise<SendResult> {
     const res = await fetch("https://api.resend.com/emails", {
       method: "POST",
       headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
-      body: JSON.stringify({ from, to, subject, html }),
+      body: JSON.stringify({
+          from,
+          to,
+          subject,
+          html,
+          ...(attachments && attachments.length > 0
+            ? {
+                attachments: attachments.map((a) => ({
+                  filename: a.filename,
+                  content:
+                    Buffer.isBuffer(a.content)
+                      ? a.content.toString("base64")
+                      : a.content,
+                })),
+              }
+            : {}),
+        }),
     });
     const json = await res.json().catch(() => ({}));
     if (!res.ok) {

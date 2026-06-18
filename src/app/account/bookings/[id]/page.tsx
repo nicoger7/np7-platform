@@ -6,6 +6,7 @@ import { getMemberBooking, getMemoryPhotos } from "@/lib/portal-data";
 import { bookingStatus, CHIP_CLASS, fmtDates, money } from "@/lib/portal-status";
 import { PortalChrome } from "@/components/portal/portal-chrome";
 import { ExtraNightsButton } from "@/components/portal/extra-nights-button";
+import { MemberDocuments } from "@/components/portal/member-documents";
 
 export const metadata: Metadata = { title: "My trip — NP7" };
 export const dynamic = "force-dynamic";
@@ -109,6 +110,7 @@ export default async function BookingDetail({ params }: Props) {
               <Card title="Travel documents">
                 <DocLink href={`/account/bookings/${b.id}/confirmation`} label="Trip confirmation" sub="Your booking summary (print / save as PDF)" />
                 <DocLink href="/experience/legal/package-travel" label="Standard information form" sub="Your rights under EU package-travel law" />
+                <MemberDocuments bookingId={b.id} />
                 <details className="mt-2 border-t border-[#f3ede2] pt-3">
                   <summary className="text-[14px] font-semibold text-[#00374a] cursor-pointer">Cancellation policy</summary>
                   <p className="text-[13px] text-[#6a7a80] leading-relaxed mt-2 whitespace-pre-line">{cancellation}</p>

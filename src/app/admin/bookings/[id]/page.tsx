@@ -4,6 +4,7 @@ import { useState, useEffect, use } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { ContactPicker } from "@/components/contact-picker";
+import { type DocumentType, formatMoney } from "@/lib/invoices/types";
 
 interface BookingDetail {
   id: string;
@@ -63,6 +64,18 @@ interface HotelRoom {
   check_out: string | null;
 }
 
+interface BookingDocument {
+  id: string;
+  type: DocumentType;
+  invoice_number: string | null;
+  title: string | null;
+  amount: number | null;
+  currency: string;
+  status: "issued" | "void";
+  issued_at: string;
+  signedUrl: string | null;
+}
+
 interface AvailableComponent {
   id: string;
   name: string;
@@ -112,7 +125,13 @@ export default function BookingDetailPage({
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
-  const [tab, setTab] = useState<"details" | "payments" | "addons" | "rooms">("details");
+  const [tab, setTab] = useState<"details" | "payments" | "addons" | "rooms" | "documents">("details");
+
+  // Documents tab state
+  const [documents, setDocuments] = useState<BookingDocument[]>([]);
+  const [docsLoading, setDocsLoading] = useState(false);
+  const [genError, setGenError] = useState<string | null>(null);
+  const [generating, setGenerating] = useState<DocumentType | null>(null);
 
   // Reference data
   const [experiences, setExperiences] = useState<AvailableExperience[]>([]);
@@ -149,6 +168,43 @@ export default function BookingDetailPage({
 
   function update(field: string, value: unknown) {
     setBooking((prev) => (prev ? { ...prev, [field]: value } : prev));
+  }
+
+  async function fetchDocuments() {
+    setDocsLoading(true);
+    const res = await fetch(`/api/admin/bookings/${id}/documents`);
+    if (res.ok) {
+      const data = await res.json();
+      setDocuments(data.documents || []);
+    }
+    setDocsLoading(false);
+  }
+
+  async function generateDocument(type: DocumentType) {
+    setGenerating(type);
+    setGenError(null);
+    const res = await fetch(`/api/admin/bookings/${id}/documents`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ type }),
+    });
+    if (res.ok) {
+      await fetchDocuments();
+    } else {
+      const err = await res.json().catch(() => ({ error: "Unknown error" }));
+      setGenError(err.error || err.message || "Generation failed");
+    }
+    setGenerating(null);
+  }
+
+  async function voidDocument(docId: string) {
+    if (!confirm("Void this document?")) return;
+    const res = await fetch(`/api/admin/documents/${docId}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ status: "void" }),
+    });
+    if (res.ok) fetchDocuments();
   }
 
   async function handleSave() {
@@ -247,6 +303,12 @@ export default function BookingDetailPage({
     }
   }
 
+  // Load documents when tab activates
+  useEffect(() => {
+    if (tab === "documents") fetchDocuments();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tab]);
+
   if (loading) return <div className="text-sm admin-faint">Loading...</div>;
   if (!booking) return <div className="text-sm text-red-400">Booking not found</div>;
 
@@ -308,7 +370,7 @@ export default function BookingDetailPage({
 
       {/* Tabs */}
       <div className="flex gap-1 mb-6" style={{ borderBottom: "1px solid var(--admin-border)" }}>
-        {(["details", "payments", "addons", "rooms"] as const).map((t) => (
+        {(["details", "payments", "addons", "rooms", "documents"] as const).map((t) => (
           <button
             key={t}
             onClick={() => setTab(t)}
@@ -316,7 +378,7 @@ export default function BookingDetailPage({
               tab === t ? "admin-heading border-[#0aa3c7]" : "admin-muted border-transparent"
             }`}
           >
-            {t === "addons" ? `Add-ons (${booking.addons.length})` : t === "payments" ? `Payments (${booking.payments.length})` : t === "rooms" ? `Rooms (${booking.hotel_rooms.length})` : t}
+            {t === "addons" ? `Add-ons (${booking.addons.length})` : t === "payments" ? `Payments (${booking.payments.length})` : t === "rooms" ? `Rooms (${booking.hotel_rooms.length})` : t === "documents" ? `Documents (${documents.length})` : t}
           </button>
         ))}
       </div>
@@ -726,6 +788,107 @@ export default function BookingDetailPage({
                   {room.check_in && (
                     <span className="text-xs admin-faint">{formatDate(room.check_in)} → {formatDate(room.check_out)}</span>
                   )}
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* ─── Documents Tab ─── */}
+      {tab === "documents" && (
+        <div className="max-w-[860px]">
+          {/* Generate buttons */}
+          <div className="flex items-center gap-3 mb-4 flex-wrap">
+            <span className="text-xs admin-faint">Generate:</span>
+            {(["deposit_invoice", "final_invoice", "booking_confirmation"] as const).map((type) => (
+              <button
+                key={type}
+                onClick={() => generateDocument(type)}
+                disabled={generating === type}
+                className="px-3 py-1.5 bg-[#0aa3c7] hover:bg-[#0aa3c7]/90 disabled:opacity-50 text-white text-xs font-bold rounded-lg transition-colors"
+              >
+                {generating === type
+                  ? "Generating..."
+                  : type === "deposit_invoice"
+                  ? "Deposit Invoice"
+                  : type === "final_invoice"
+                  ? "Final Invoice"
+                  : "Booking Confirmation"}
+              </button>
+            ))}
+          </div>
+
+          {genError && (
+            <div className="mb-4 px-4 py-3 rounded-lg text-sm text-red-400" style={{ backgroundColor: "rgba(239,68,68,0.08)", border: "1px solid rgba(239,68,68,0.2)" }}>
+              {genError}
+            </div>
+          )}
+
+          {docsLoading ? (
+            <div className="py-10 text-center text-sm admin-faint">Loading documents...</div>
+          ) : documents.length === 0 ? (
+            <div className="py-12 text-center text-sm admin-faint">No documents yet</div>
+          ) : (
+            <div className="rounded-xl overflow-hidden" style={{ border: "1px solid var(--admin-border)" }}>
+              <div
+                className="grid gap-3 px-5 py-3 admin-surface"
+                style={{ gridTemplateColumns: "130px 1fr 100px 90px 70px 70px 70px", borderBottom: "1px solid var(--admin-border)" }}
+              >
+                {["Invoice #", "Title", "Type", "Amount", "Date", "Status", ""].map((h) => (
+                  <span key={h} className="text-[10px] font-bold tracking-[0.1em] admin-faint uppercase">{h}</span>
+                ))}
+              </div>
+              {documents.map((doc) => (
+                <div
+                  key={doc.id}
+                  className="grid gap-3 px-5 py-3 transition-colors"
+                  style={{ gridTemplateColumns: "130px 1fr 100px 90px 70px 70px 70px", borderBottom: "1px solid var(--admin-border)" }}
+                  onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = "var(--admin-surface-hover)")}
+                  onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = "transparent")}
+                >
+                  <span className="text-xs font-mono admin-muted self-center truncate">
+                    {doc.invoice_number || "—"}
+                  </span>
+                  <span className="text-sm font-medium admin-heading self-center truncate">
+                    {doc.title || doc.type.replace(/_/g, " ")}
+                  </span>
+                  <span className="text-xs admin-muted self-center capitalize">
+                    {doc.type.replace(/_/g, " ")}
+                  </span>
+                  <span className="text-sm font-medium admin-heading self-center">
+                    {formatMoney(doc.amount, doc.currency)}
+                  </span>
+                  <span className="text-xs admin-faint self-center">
+                    {new Date(doc.issued_at).toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "2-digit" })}
+                  </span>
+                  <span className="self-center">
+                    <span className={`inline-block px-1.5 py-0.5 rounded text-[10px] font-bold uppercase ${
+                      doc.status === "void" ? "bg-red-500/15 text-red-400" : "bg-green-500/15 text-green-400"
+                    }`}>
+                      {doc.status}
+                    </span>
+                  </span>
+                  <div className="self-center flex items-center gap-2">
+                    {doc.signedUrl && (
+                      <a
+                        href={doc.signedUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-xs text-[#0aa3c7] hover:text-[#0aa3c7]/80 transition-colors"
+                      >
+                        PDF
+                      </a>
+                    )}
+                    {doc.status !== "void" && (
+                      <button
+                        onClick={() => voidDocument(doc.id)}
+                        className="text-xs text-red-400/50 hover:text-red-400 transition-colors"
+                      >
+                        Void
+                      </button>
+                    )}
+                  </div>
                 </div>
               ))}
             </div>

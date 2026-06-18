@@ -56,6 +56,8 @@ const navByEnv: Record<Environment, { label: string; items: { label: string; hre
         { label: "Payments", href: "/admin/payments", icon: "receipt" },
         { label: "Experience Costs", href: "/admin/exp-costs", icon: "receipt" },
         { label: "Vendors", href: "/admin/vendors", icon: "building" },
+        { label: "Documents", href: "/admin/documents", icon: "receipt" },
+        { label: "Company Settings", href: "/admin/settings", icon: "building" },
       ],
     },
     {

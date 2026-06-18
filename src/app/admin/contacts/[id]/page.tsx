@@ -2,6 +2,8 @@
 
 import { useState, useEffect, use } from "react";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
+import { type DocumentType, formatMoney } from "@/lib/invoices/types";
 
 interface Contact {
   id: string;
@@ -36,6 +38,21 @@ interface ContactBooking {
   exp_experiences: { title: string } | null;
 }
 
+interface ContactDocument {
+  id: string;
+  booking_id: string | null;
+  contact_id: string | null;
+  type: DocumentType;
+  invoice_number: string | null;
+  title: string | null;
+  amount: number | null;
+  currency: string;
+  status: "issued" | "void";
+  issued_at: string;
+  signedUrl: string | null;
+  booking_name?: string | null;
+}
+
 export default function ContactDetailPage({
   params,
 }: {
@@ -45,6 +62,7 @@ export default function ContactDetailPage({
   const router = useRouter();
   const [contact, setContact] = useState<Contact | null>(null);
   const [bookings, setBookings] = useState<ContactBooking[]>([]);
+  const [contactDocs, setContactDocs] = useState<ContactDocument[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
@@ -55,9 +73,14 @@ export default function ContactDetailPage({
     Promise.all([
       fetch(`/api/admin/contacts/${id}`).then((r) => r.json()),
       fetch(`/api/admin/bookings?contact_id=${id}`).then((r) => r.json()),
-    ]).then(([d, b]) => {
+      fetch(`/api/admin/documents`).then((r) => r.json()),
+    ]).then(([d, b, allDocs]) => {
       setContact(d);
       setBookings(b.bookings || []);
+      const docs: ContactDocument[] = (allDocs.documents || []).filter(
+        (doc: ContactDocument) => doc.contact_id === id
+      );
+      setContactDocs(docs);
       setLoading(false);
     });
   }, [id]);
@@ -364,6 +387,70 @@ export default function ContactDetailPage({
                   <span className="text-xs admin-muted self-center truncate">{b.exp_experiences?.title || "—"}</span>
                   <span className="text-xs admin-muted self-center capitalize">{b.status}</span>
                   <span className="text-xs admin-muted self-center">{b.agreed_price ? `€${Number(b.agreed_price).toLocaleString()}` : "—"}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* Documents */}
+        {contactDocs.length > 0 && (
+          <div className="pt-4" style={{ borderTop: "1px solid var(--admin-border)" }}>
+            <h3 className="text-xs font-bold tracking-[0.1em] admin-faint uppercase mb-3">Documents ({contactDocs.length})</h3>
+            <div className="rounded-xl overflow-hidden" style={{ border: "1px solid var(--admin-border)" }}>
+              <div
+                className="grid gap-3 px-4 py-2.5 admin-surface"
+                style={{ gridTemplateColumns: "130px 1fr 110px 90px 70px 60px", borderBottom: "1px solid var(--admin-border)" }}
+              >
+                {["Invoice #", "Title / Booking", "Type", "Amount", "Date", ""].map((h) => (
+                  <span key={h} className="text-[10px] font-bold tracking-[0.1em] admin-faint uppercase">{h}</span>
+                ))}
+              </div>
+              {contactDocs.map((doc) => (
+                <div
+                  key={doc.id}
+                  className="grid gap-3 px-4 py-3 transition-colors"
+                  style={{ gridTemplateColumns: "130px 1fr 110px 90px 70px 60px", borderBottom: "1px solid var(--admin-border)" }}
+                  onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = "var(--admin-surface-hover)")}
+                  onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = "transparent")}
+                >
+                  <span className="text-xs font-mono admin-muted self-center truncate">
+                    {doc.invoice_number || "—"}
+                  </span>
+                  <div className="min-w-0 self-center">
+                    <div className="text-sm font-medium admin-heading truncate">
+                      {doc.title || doc.type.replace(/_/g, " ")}
+                    </div>
+                    {doc.booking_id && (
+                      <Link
+                        href={`/admin/bookings/${doc.booking_id}`}
+                        className="text-xs admin-faint hover:text-[#0aa3c7] truncate block"
+                      >
+                        {doc.booking_name || doc.booking_id}
+                      </Link>
+                    )}
+                  </div>
+                  <span className="text-xs admin-muted self-center capitalize">
+                    {doc.type.replace(/_/g, " ")}
+                  </span>
+                  <span className="text-sm font-medium admin-heading self-center">
+                    {formatMoney(doc.amount, doc.currency)}
+                  </span>
+                  <span className="text-xs admin-faint self-center">
+                    {new Date(doc.issued_at).toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "2-digit" })}
+                  </span>
+                  <div className="self-center">
+                    {doc.signedUrl && (
+                      <a
+                        href={doc.signedUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-xs text-[#0aa3c7] hover:text-[#0aa3c7]/80 transition-colors"
+                      >
+                        PDF
+                      </a>
+                    )}
+                  </div>
                 </div>
               ))}
             </div>
