@@ -107,6 +107,13 @@ export default function HotelRoomsPage() {
     return true;
   });
 
+  // Scope the experience filter to ones that actually have rooms or are live —
+  // not every experience that ever existed.
+  const roomExpIds = new Set(rooms.map((r) => r.experience_id).filter(Boolean));
+  const pickerExperiences = experiences.filter(
+    (e) => roomExpIds.has(e.id) || e.status === "published"
+  );
+
   const sorted = sortKey && sortDir
     ? [...filtered].sort((a, b) => {
         let aVal: unknown;
@@ -147,7 +154,7 @@ export default function HotelRoomsPage() {
 
         <select value={filterExperience} onChange={(e) => setFilterExperience(e.target.value)} className="admin-input text-sm px-3 py-1.5 rounded-lg">
           <option value="">All Experiences</option>
-          {experiences.map((exp) => <option key={exp.id} value={exp.id}>{exp.title}</option>)}
+          {pickerExperiences.map((exp) => <option key={exp.id} value={exp.id}>{exp.title}</option>)}
         </select>
 
         <select value={filterStatus} onChange={(e) => setFilterStatus(e.target.value)} className="admin-input text-sm px-3 py-1.5 rounded-lg">
