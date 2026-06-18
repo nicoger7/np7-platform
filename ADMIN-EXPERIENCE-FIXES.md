@@ -125,7 +125,11 @@ edition; update API. (Pairs with `ADMIN-GAPS` `booking_id` + ROADMAP §8 self-on
 **Task Rules**, **Destinations** (until §I), **Members → Log**. Optionally a shared "under construction"
 route stub.
 
-## M. Pipeline Rules (`/admin/pipeline-rules`) — Effort M–L
+## M. Pipeline Rules (`/admin/pipeline-rules`) — Effort M–L  ✅ DONE (timeline view + scope filter)
+> Shipped: Timeline view grouped by trigger stage (lifecycle rank, ordered by delay) + global/
+> per-experience scope filter; click a rule to edit. Cron untouched. **Deferred (separate data task):**
+> the duplicate/`language[]` audit + collapse, and per-rule → email-template deep links (no FK today).
+
 **Issue:** flat table of **96 Notion-migrated rules** — and they're the **live source of truth** for
 the email cron (`/api/cron/emails`), so don't delete blindly.
 **Plan:**

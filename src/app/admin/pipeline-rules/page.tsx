@@ -31,6 +31,17 @@ interface Experience { id: string; title: string; }
 
 type SortDir = "asc" | "desc" | null;
 
+// Order trigger stages along the booking lifecycle (heuristic on the free-text trigger).
+function stageRank(trigger: string | null): number {
+  const t = (trigger || "").toLowerCase();
+  if (t.includes("lead") || t.includes("enquir") || t.includes("new")) return 0;
+  if (t.includes("reservation") || t.includes("downpayment") || t.includes("deposit")) return 1;
+  if (t.includes("balance") || t.includes("final") || t.includes("invoice")) return 2;
+  if (t.includes("pre-trip") || t.includes("pre trip") || t.includes("before") || t.includes("week")) return 3;
+  if (t.includes("post") || t.includes("after") || t.includes("review") || t.includes("thank")) return 4;
+  return 2.5;
+}
+
 const COLUMNS: ColumnDef[] = [
   { key: "name", label: "Name", width: "1fr", required: true },
   { key: "experience", label: "Experience", width: "140px", defaultHidden: true },
@@ -67,6 +78,8 @@ export default function PipelineRulesPage() {
   const [loading, setLoading] = useState(true);
   const [showNew, setShowNew] = useState(false);
   const [editId, setEditId] = useState<string | null>(null);
+  const [groupView, setGroupView] = useState(true);
+  const [scope, setScope] = useState(""); // "" all · "global" · experience id
   const [sortKey, setSortKey] = useState<string | null>(null);
   const [sortDir, setSortDir] = useState<SortDir>(null);
   const [visibleColumns, setVisibleColumns] = useState<Set<string>>(
@@ -98,8 +111,27 @@ export default function PipelineRulesPage() {
     }
   }
 
+  const scopedRules = scope === "global"
+    ? rules.filter((r) => !r.experience_id)
+    : scope
+      ? rules.filter((r) => r.experience_id === scope)
+      : rules;
+
+  // Timeline groups: by trigger, ordered by lifecycle stage then delay.
+  const groups = Array.from(
+    scopedRules.reduce((m, r) => {
+      const key = r.trigger || "(no trigger)";
+      if (!m.has(key)) m.set(key, []);
+      m.get(key)!.push(r);
+      return m;
+    }, new Map<string, PipelineRule[]>())
+  ).map(([trigger, items]) => ({
+    trigger,
+    items: items.sort((a, b) => (a.days_after_trigger ?? 0) - (b.days_after_trigger ?? 0)),
+  })).sort((a, b) => stageRank(a.trigger) - stageRank(b.trigger) || a.trigger.localeCompare(b.trigger));
+
   const sorted = sortKey && sortDir
-    ? [...rules].sort((a, b) => {
+    ? [...scopedRules].sort((a, b) => {
         let aVal: unknown;
         let bVal: unknown;
         if (sortKey === "trigger_stage") { aVal = a.trigger; bVal = b.trigger; }
@@ -110,7 +142,7 @@ export default function PipelineRulesPage() {
         else { aVal = a[sortKey as keyof PipelineRule]; bVal = b[sortKey as keyof PipelineRule]; }
         return compareValues(aVal, bVal, sortDir);
       })
-    : rules;
+    : scopedRules;
 
   function startEdit(r: PipelineRule) {
     setEditId(r.id);
@@ -159,6 +191,20 @@ export default function PipelineRulesPage() {
         </div>
       </div>
 
+      <div className="flex flex-wrap items-center gap-2 mb-5">
+        <div className="flex items-center rounded-lg overflow-hidden" style={{ border: "1px solid var(--admin-border)" }}>
+          <button onClick={() => setGroupView(true)} className={`px-3 py-1.5 text-xs font-medium ${groupView ? "bg-[#0aa3c7]/15 text-[#0aa3c7]" : "admin-muted"}`}>Timeline</button>
+          <button onClick={() => setGroupView(false)} className={`px-3 py-1.5 text-xs font-medium ${!groupView ? "bg-[#0aa3c7]/15 text-[#0aa3c7]" : "admin-muted"}`}>Table</button>
+        </div>
+        <select value={scope} onChange={(e) => setScope(e.target.value)} className="admin-input text-xs px-3 py-1.5 rounded-lg">
+          <option value="">All rules</option>
+          <option value="global">Global only</option>
+          {experiences.map((e) => <option key={e.id} value={e.id}>{e.title}</option>)}
+        </select>
+        <span className="text-xs admin-faint">{scopedRules.length} shown</span>
+        <span className="text-[11px] admin-faint ml-auto">Drives the email cron — edit carefully.</span>
+      </div>
+
       {(showNew || editId) && (
         <div className="mb-6 p-5 rounded-xl" style={{ border: "1px solid var(--admin-border)", backgroundColor: "var(--admin-surface)" }}>
           <h3 className="text-sm font-bold admin-heading mb-4">{editId ? "Edit Rule" : "New Rule"}</h3>
@@ -198,8 +244,36 @@ export default function PipelineRulesPage() {
 
       {loading ? (
         <div className="py-12 text-center text-sm admin-faint">Loading...</div>
-      ) : rules.length === 0 ? (
-        <div className="py-16 text-center"><p className="text-sm admin-faint">No pipeline rules yet</p></div>
+      ) : scopedRules.length === 0 ? (
+        <div className="py-16 text-center"><p className="text-sm admin-faint">No rules match this filter</p></div>
+      ) : groupView ? (
+        <div className="space-y-5">
+          {groups.map((g) => (
+            <div key={g.trigger}>
+              <div className="flex items-baseline gap-2 mb-2">
+                <h2 className="text-sm font-bold admin-heading">{g.trigger}</h2>
+                <span className="text-[11px] admin-faint">{g.items.length} rule{g.items.length !== 1 ? "s" : ""}</span>
+              </div>
+              <div className="rounded-xl overflow-hidden" style={{ border: "1px solid var(--admin-border)" }}>
+                {g.items.map((r) => (
+                  <div
+                    key={r.id}
+                    className="flex items-center gap-3 px-4 py-2.5 text-xs transition-colors"
+                    style={{ borderBottom: "1px solid var(--admin-border)" }}
+                    onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = "var(--admin-surface-hover)")}
+                    onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = "transparent")}
+                  >
+                    <span className="w-14 text-right font-mono admin-faint shrink-0">+{r.days_after_trigger ?? 0}d</span>
+                    <button onClick={() => startEdit(r)} className="flex-1 text-left admin-heading truncate hover:text-[#0aa3c7]">{r.name}</button>
+                    <span className="admin-faint truncate max-w-[140px] hidden sm:block">{r.exp_experiences?.title || "Global"}</span>
+                    <span className="admin-faint w-12 hidden sm:block">{(r.language || []).join("/")}</span>
+                    <span className={`w-10 text-right ${r.active !== false ? "text-green-400" : "admin-faint"}`}>{r.active !== false ? "on" : "off"}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          ))}
+        </div>
       ) : (
         <div className="rounded-xl overflow-hidden" style={{ border: "1px solid var(--admin-border)" }}>
           {/* Header */}
