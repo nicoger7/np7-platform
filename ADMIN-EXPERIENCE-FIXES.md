@@ -5,8 +5,8 @@ this is the concrete plan, not just the wishlist. Each item: **Issue → Plan (D
 Effort**. Effort: **S** ≈ <½d · **M** ≈ ½–2d · **L** ≈ multi-day.
 
 ## Migrations needed (roll-up)
-- `exp_costs.edition_id` (FK → exp_editions) — item J
-- `hours_log.edition_id` (FK → exp_editions) — item K
+- ~~`exp_costs.edition_id`~~ — item J — ✅ **column already exists in DB** (UI-only now)
+- ~~`hours_log.edition_id`~~ — item K — ✅ **column already exists in DB** (UI-only now)
 - `destinations` new table + (optional) `exp_experiences.destination_id` — item I
 - (Q2) optional `exp_experiences.thumbnail` if hero/thumb get split — item B
 - All manual-apply per `APPLY_MIGRATIONS.md`.
@@ -60,7 +60,7 @@ component links — experiences/editions just aren't wired.
 - Add `ColumnToggle` to the Bookings/Packages/Costs/Rooms tabs (today fixed columns; component exists).
 - Role-gate the Details-tab `financials` section reveal (interim `is_admin`; later §8 matrix).
 
-## E. Bookings — Effort M (+ two S sub-items)
+## E. Bookings — Effort M (+ two S sub-items)  ✅ DONE (E.1/E.2/E.3)
 **Issue:** main "New Booking" button is a **TODO stub** (`onClick={() => {/* TODO */}}`, line 233);
 edition booking form has **no participant** — only a free-text `name`.
 **Plan:**
