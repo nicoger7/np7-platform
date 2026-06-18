@@ -109,7 +109,7 @@ export async function PATCH(
     "hero_image", "gallery", "cancellation_policy",
     "status", "timezone", "hotels", "airport_code",
     "notes", "active_status", "location_lat",
-    "location_lng", "notion_id",
+    "location_lng", "notion_id", "destination_id",
   ];
   const sanitized = Object.fromEntries(
     Object.entries(body).filter(([k]) => allowed.includes(k))

@@ -102,7 +102,7 @@ edition booking form has **no participant** — only a free-text `name`.
   payments, gallery, reviews, emails. Make list rows clickable.
 - **S** "Log" → WIP badge (§L).
 
-## I. Destinations (`/admin/destinations`) — Effort L  ⚠️ needs surfcenter URL (Q3)
+## I. Destinations (`/admin/destinations`) — Effort L  ✅ DONE (migration 022 pending apply)
 **Issue:** **no data model** — page derives destinations from experience locations.
 **Plan:**
 - Migration: new `destinations` table (fields mirrored from surfcenter-experience.com → Destinations:

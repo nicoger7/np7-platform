@@ -39,7 +39,7 @@ const navByEnv: Record<Environment, { label: string; items: { label: string; hre
         { label: "Event Content", href: "/admin/content", icon: "layers" },
         { label: "Member Management", href: "/admin/members", icon: "person" },
         { label: "Blog", href: "/admin/blog", icon: "pen" },
-        { label: "Destinations", href: "/admin/destinations", icon: "compass", wip: true },
+        { label: "Destinations", href: "/admin/destinations", icon: "compass" },
         { label: "Guest Reviews", href: "/admin/guest-reviews", icon: "star" },
       ],
     },

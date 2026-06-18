@@ -23,6 +23,7 @@ interface Experience {
   cancellation_policy: string | null;
   active_status: string | null;
   notion_id: string | null;
+  destination_id: string | null;
 }
 
 interface Edition {
@@ -97,6 +98,7 @@ export default function ExperienceDetailPage({
   const [editions, setEditions] = useState<Edition[]>([]);
   const [showImagePicker, setShowImagePicker] = useState(false);
   const [activeSection, setActiveSection] = useState("editions");
+  const [destinations, setDestinations] = useState<{ id: string; name: string }[]>([]);
   const [hotels, setHotels] = useState<Hotel[]>([]);
   const [showAddHotel, setShowAddHotel] = useState(false);
   const [newHotel, setNewHotel] = useState({ name: "", prefix: "" });
@@ -112,6 +114,9 @@ export default function ExperienceDetailPage({
     fetch(`/api/admin/hotels`)
       .then((r) => r.json())
       .then((d) => setHotels(d.hotels || []));
+    fetch(`/api/admin/destinations`)
+      .then((r) => r.json())
+      .then((d) => setDestinations(Array.isArray(d) ? d.map((x: { id: string; name: string }) => ({ id: x.id, name: x.name })) : []));
   }, [id]);
 
   async function addHotel() {
@@ -477,6 +482,19 @@ export default function ExperienceDetailPage({
               value={exp.description || ""}
               onChange={(e) => update("description", e.target.value)}
             />
+          </div>
+
+          {/* Destination */}
+          <div>
+            <label className={labelClass}>Destination <span className="admin-faint">(links to the destination page)</span></label>
+            <select
+              className={inputClass}
+              value={exp.destination_id || ""}
+              onChange={(e) => update("destination_id", e.target.value || null)}
+            >
+              <option value="">— none</option>
+              {destinations.map((dst) => <option key={dst.id} value={dst.id}>{dst.name}</option>)}
+            </select>
           </div>
 
           {/* Internal Notes */}
