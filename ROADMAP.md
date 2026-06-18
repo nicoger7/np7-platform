@@ -306,3 +306,9 @@ _Dump ideas here; we triage into the sections above._
   edition participant typeahead (auto-name) · J/K edition selectors on costs+hours (columns already
   existed) · B experiences detail sub-nav + "Main image" relabel · F.1 confirmed (picker already
   experience-scoped). D reframed: guides/reviews stay per-edition (coaches/program differ per week).
+- 2026-06-19 — Admin fixes batch **COMPLETE** (A–M + I) → merged to `dev` (a9debc1, 17 commits).
+  Added: C duplication · G Event Content tabs + per-edition module host + tile single-source ·
+  M pipeline timeline · H member detail page · I Destinations (table + CRUD + bidirectional link).
+  Experience + Content sub-navs converted to real section TABS (were scroll anchors). **Pending:**
+  migration 022 (destinations). Deferred: finance role-gate (§8), pipeline dedup audit, public
+  destination pages, edition-duplicate live test.
