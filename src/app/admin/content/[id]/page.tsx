@@ -3,6 +3,8 @@
 import { useEffect, useState, use } from "react";
 import Link from "next/link";
 import ImagePickerModal from "@/components/image-picker-modal";
+import { EditionGuidesEditor } from "@/components/edition-guides-editor";
+import { EditionReviewsEditor } from "@/components/edition-reviews-editor";
 
 type ProgramItem = { title: string; description: string };
 type FaqItem = { q: string; a: string };
@@ -47,6 +49,10 @@ export default function ContentEditorPage({ params }: { params: Promise<{ id: st
   const [windRange, setWindRange] = useState("");
   const [noWindProgram, setNoWindProgram] = useState("");
 
+  // Per-edition modules (guides/reviews differ per week)
+  const [editions, setEditions] = useState<{ id: string; year: number | null; label: string | null }[]>([]);
+  const [editionId, setEditionId] = useState("");
+
   useEffect(() => {
     fetch(`/api/admin/content/${id}`)
       .then((r) => r.json())
@@ -73,6 +79,14 @@ export default function ContentEditorPage({ params }: { params: Promise<{ id: st
       .finally(() => setLoading(false));
   }, [id]);
 
+  useEffect(() => {
+    fetch("/api/admin/editions").then((r) => r.json()).then((d) => {
+      const eds = (Array.isArray(d) ? d : []).filter((e: { experience_id: string }) => e.experience_id === id);
+      setEditions(eds.map((e: { id: string; year: number | null; label: string | null }) => ({ id: e.id, year: e.year, label: e.label })));
+      if (eds[0]) setEditionId((prev) => prev || eds[0].id);
+    });
+  }, [id]);
+
   function applyPicked(url: string) {
     if (!picker) return;
     if (picker.kind === "tile") setTileImage(url);
@@ -90,7 +104,6 @@ export default function ContentEditorPage({ params }: { params: Promise<{ id: st
       method: "PUT",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        tile_image: tileImage,
         hero_image: heroImage,
         hero_video_url: heroVideo,
         hero_video_start: heroVideoStart === "" ? null : Number(heroVideoStart),
@@ -140,10 +153,25 @@ export default function ContentEditorPage({ params }: { params: Promise<{ id: st
         )}
       </div>
 
+      {/* In-page sub-nav */}
+      <div className="sticky top-0 z-10 flex flex-wrap items-center gap-1 mb-5 py-2" style={{ backgroundColor: "var(--admin-bg)", borderBottom: "1px solid var(--admin-border)" }}>
+        {[["media", "Media"], ["story", "Story"], ["program", "Program"], ["modules", "Per-edition"], ["reviews", "Reviews"], ["faq", "FAQ"]].map(([a, l]) => (
+          <a key={a} href={`#${a}`} className="px-2.5 py-1 text-xs font-medium admin-muted hover:text-[#0aa3c7] rounded-lg transition-colors">{l}</a>
+        ))}
+      </div>
+
       <div className="space-y-7">
         {/* IMAGES */}
-        <Section title="Tile image" hint="Shown on the experiences list (mirrors the experiences admin).">
-          <ImageField url={tileImage} onPick={() => setPicker({ kind: "tile" })} onClear={() => setTileImage("")} ratio="aspect-[16/10]" />
+        <Section id="media" title="Main image (hero + card)" hint="Single source — set on the experience page. Used as the listing card and the public hero fallback.">
+          {tileImage ? (
+            <div className="rounded-xl overflow-hidden max-w-[360px]" style={{ border: "1px solid var(--admin-border)" }}>
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img src={tileImage} alt="" className="w-full h-auto" />
+            </div>
+          ) : (
+            <p className="text-xs admin-faint">No image yet.</p>
+          )}
+          <Link href={`/admin/experiences/${id}#media`} className="inline-block mt-2 text-xs text-[#0aa3c7] hover:underline">Edit on the experience page →</Link>
         </Section>
 
         <Section title="Event hero" hint="The big image at the top of the event page. Paste a YouTube link for a video background, or pick an image. Video wins if both are set.">
@@ -210,7 +238,7 @@ export default function ContentEditorPage({ params }: { params: Promise<{ id: st
         </Section>
 
         {/* TEXT */}
-        <Section title="About the location" hint="The windsurf spot / destination. Line breaks are kept.">
+        <Section id="story" title="About the location" hint="The windsurf spot / destination. Line breaks are kept.">
           <textarea value={locationAbout} onChange={(e) => setLocationAbout(e.target.value)} rows={5}
             placeholder="Bonaire is a flat-water paradise…" className="admin-input w-full px-4 py-3 rounded-lg border text-sm outline-none resize-y" />
         </Section>
@@ -231,7 +259,7 @@ export default function ContentEditorPage({ params }: { params: Promise<{ id: st
             placeholder="No-wind program — what happens on a rare light-wind day…" className="admin-input w-full px-4 py-3 rounded-lg border text-sm outline-none resize-y" />
         </Section>
 
-        <Section title="Perfect week — daily program" hint="What a perfect week looks like. Note on the page tells guests the real schedule depends on the wind.">
+        <Section id="program" title="Perfect week — daily program" hint="What a perfect week looks like. Note on the page tells guests the real schedule depends on the wind.">
           <div className="space-y-3">
             {program.map((p, i) => (
               <div key={i} className="admin-surface admin-border border rounded-xl p-3.5">
@@ -262,7 +290,25 @@ export default function ContentEditorPage({ params }: { params: Promise<{ id: st
           </div>
         </Section>
 
-        <Section title="Reviews" hint="Guest testimonials shown on the page.">
+        <Section id="modules" title="Per-edition modules" hint="Guides and reviews differ per week — pick an edition to manage its coaches and placed reviews. (Also editable on the edition page.)">
+          {editions.length === 0 ? (
+            <p className="text-xs admin-faint">No editions yet — create one on the experience page.</p>
+          ) : (
+            <div className="space-y-4">
+              <select className="admin-input w-full max-w-[280px] px-3 py-2 rounded-lg border text-sm" value={editionId} onChange={(e) => setEditionId(e.target.value)}>
+                {editions.map((ed) => <option key={ed.id} value={ed.id}>{ed.label || ed.year}</option>)}
+              </select>
+              {editionId && (
+                <>
+                  <EditionGuidesEditor editionId={editionId} slug={slug} />
+                  <EditionReviewsEditor editionId={editionId} experienceId={id} />
+                </>
+              )}
+            </div>
+          )}
+        </Section>
+
+        <Section id="reviews" title="Reviews (legacy)" hint="Manually-entered testimonials. Approved guest reviews placed per edition (above) take priority on the public page.">
           <div className="space-y-3">
             {reviews.map((r, i) => (
               <div key={i} className="admin-surface admin-border border rounded-xl p-3.5 flex gap-3">
@@ -290,7 +336,7 @@ export default function ContentEditorPage({ params }: { params: Promise<{ id: st
           </div>
         </Section>
 
-        <Section title="FAQ" hint="Trip-specific questions. Leave empty to use the default FAQ.">
+        <Section id="faq" title="FAQ" hint="Trip-specific questions. Leave empty to use the default FAQ.">
           <div className="space-y-3">
             {faq.map((f, i) => (
               <div key={i} className="admin-surface admin-border border rounded-xl p-3.5">
@@ -369,9 +415,9 @@ function mmss(secs: string) {
   return `${Math.floor(n / 60)}:${String(n % 60).padStart(2, "0")}`;
 }
 
-function Section({ title, hint, children }: { title: string; hint?: string; children: React.ReactNode }) {
+function Section({ title, hint, children, id }: { title: string; hint?: string; children: React.ReactNode; id?: string }) {
   return (
-    <section>
+    <section id={id} className={id ? "scroll-mt-20" : undefined}>
       <h2 className="text-[15px] font-bold admin-heading">{title}</h2>
       {hint ? <p className="text-xs admin-faint mb-3 mt-0.5">{hint}</p> : <div className="mb-3" />}
       {children}

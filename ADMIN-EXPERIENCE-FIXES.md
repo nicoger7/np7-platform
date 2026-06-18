@@ -53,7 +53,11 @@ component links — experiences/editions just aren't wired.
   NOT bookings/payments/rooms-with-guests. UI: modal prompting **existing experience (picker) vs new**.
 - Add "Duplicate" buttons on experiences + editions detail.
 
-## D. Editions (`/admin/editions/[id]/page.tsx`) — Effort M
+## D. Editions (`/admin/editions/[id]/page.tsx`) — Effort M  ⚖️ REFRAMED (per Nico: modules differ per week)
+> Guides/Reviews are **kept** on the edition (correctly per-edition) AND now also reachable from Event
+> Content's per-edition module host (§G). Tab column-toggles deferred (low value on small embedded
+> tables); financials role-gate deferred to ROADMAP §8 (no access matrix yet).
+
 **Issue:** guides/reviews live on editions (tabs); other tabs lack show/hide; financials not role-gated.
 **Plan:**
 - Remove `guides` + `reviews` from the tab array; relocate their managers to Event Content (§G).
@@ -83,7 +87,7 @@ edition booking form has **no participant** — only a free-text `name`.
   No schema change; optional one-off rename of existing rows.
 - **S** ✅ Components page (`/admin/components/page.tsx`): add experience / year / experience+year filters.
 
-## G. Event Content (`/admin/content`) — Effort M
+## G. Event Content (`/admin/content`) — Effort M  ✅ DONE (sub-nav · tile single-source · per-edition module host)
 **Issue:** everything on one page; tile image duplicated vs experiences/operations.
 **Plan:**
 - Sub-menu (same pattern as §B) in the content editor.
