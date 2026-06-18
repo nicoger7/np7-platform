@@ -302,3 +302,7 @@ _Dump ideas here; we triage into the sections above._
 - 2026-06-19 — Admin fixes batch (branch `admin-experience-fixes`) — quick wins shipped:
   L WIP badges · E.1 removed AI summary from contacts · E.2 scoped hotel-room experience filter ·
   F.2 components-page experience/edition filters.
+- 2026-06-19 — Admin fixes batch cont'd: A ops dashboard (+aggregator API) · E.3 new-booking modal +
+  edition participant typeahead (auto-name) · J/K edition selectors on costs+hours (columns already
+  existed) · B experiences detail sub-nav + "Main image" relabel · F.1 confirmed (picker already
+  experience-scoped). D reframed: guides/reviews stay per-edition (coaches/program differ per week).

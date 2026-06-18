@@ -251,8 +251,15 @@ export default function ExperienceDetailPage({
         </div>
       </div>
 
+      {/* In-page sub-nav */}
+      <div className="sticky top-0 z-10 flex items-center gap-1 mb-6 py-2" style={{ backgroundColor: "var(--admin-bg)", borderBottom: "1px solid var(--admin-border)" }}>
+        {[["editions", "Editions"], ["template", "Template"], ["components", "Components"], ["media", "Media"]].map(([anchor, label]) => (
+          <a key={anchor} href={`#${anchor}`} className="px-3 py-1.5 text-xs font-medium admin-muted hover:text-[#0aa3c7] rounded-lg transition-colors">{label}</a>
+        ))}
+      </div>
+
       {/* ── Editions (tiles) — first thing you see ── */}
-      <div className="mb-8">
+      <div id="editions" className="mb-8 scroll-mt-20">
         <div className="flex items-center justify-between mb-3">
           <h2 className="text-sm font-bold admin-heading">
             Editions <span className="admin-faint font-normal">({editions.length})</span>
@@ -328,7 +335,7 @@ export default function ExperienceDetailPage({
       </div>
 
       {/* ── Template details ── */}
-      <div className="max-w-[720px]">
+      <div id="template" className="max-w-[720px] scroll-mt-20">
         <h2 className="text-sm font-bold admin-heading mb-4 pt-2">Template details</h2>
         <div className="space-y-5">
           {/* Title, Slug, Code */}
@@ -485,11 +492,13 @@ export default function ExperienceDetailPage({
           </div>
 
           {/* Components for this experience */}
-          <ExperienceComponentsManager experienceId={id} code={exp.code} />
+          <div id="components" className="scroll-mt-20">
+            <ExperienceComponentsManager experienceId={id} code={exp.code} />
+          </div>
 
-          {/* Hero image */}
-          <div>
-            <label className={labelClass}>Hero image</label>
+          {/* Main image (hero + card) */}
+          <div id="media" className="scroll-mt-20">
+            <label className={labelClass}>Main image <span className="admin-faint">(hero + listing card)</span></label>
             {exp.hero_image ? (
               <div className="relative group max-w-[400px]">
                 <div className="rounded-xl overflow-hidden" style={{ border: "1px solid var(--admin-border)" }}>

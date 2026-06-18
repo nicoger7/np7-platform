@@ -32,7 +32,7 @@ Effort**. Effort: **S** ≈ <½d · **M** ≈ ½–2d · **L** ≈ multi-day.
   upcoming departures (`fly_in` 7–14d) · new leads (pipeline stage=new) · activity feed.
 - Role-gate the money widgets (interim: `is_admin`; later: ROADMAP §8 access matrix).
 
-## B. Experiences detail (`/admin/experiences/[id]/page.tsx`) — Effort M
+## B. Experiences detail (`/admin/experiences/[id]/page.tsx`) — Effort M  ✅ DONE (relabel; sub-nav added)
 **Issue:** flooded page (Editions → Template details → long ExperienceComponentsManager → media);
 "Hero image" label misleading.
 **Plan:**
@@ -106,12 +106,12 @@ edition booking form has **no participant** — only a free-text `name`.
   Optional `exp_experiences.destination_id`.
 - CRUD API + editor UI `/admin/destinations` + `[id]`.
 
-## J. Experience Costs (`/admin/exp-costs`) — Effort S–M
+## J. Experience Costs (`/admin/exp-costs`) — Effort S–M  ✅ DONE (UI; column pre-existed)
 **Issue:** costs attach to experience only, not edition.
 **Plan:** migration `exp_costs.edition_id` (FK); add edition selector to the cost form; edition
 column/filter; update API. ("addition" = edition.)
 
-## K. Hours Log (`/admin/hours-log`) — Effort S–M
+## K. Hours Log (`/admin/hours-log`) — Effort S–M  ✅ DONE (UI; column pre-existed)
 **Issue:** hours attach to experience only → can't do per-edition financials.
 **Plan:** migration `hours_log.edition_id` (FK); add edition selector to the hours form; filter by
 edition; update API. (Pairs with `ADMIN-GAPS` `booking_id` + ROADMAP §8 self-only hours.)
