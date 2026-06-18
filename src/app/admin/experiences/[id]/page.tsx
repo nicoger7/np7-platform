@@ -236,6 +236,16 @@ export default function ExperienceDetailPage({
         </div>
         <div className="flex items-center gap-3">
           <button
+            onClick={async () => {
+              const r = await fetch(`/api/admin/experiences/${id}/duplicate`, { method: "POST" });
+              if (r.ok) { const d = await r.json(); router.push(`/admin/experiences/${d.id}`); }
+            }}
+            className="px-3 py-2 text-xs admin-muted hover:admin-heading transition-colors"
+            title="Duplicate template + components (not editions)"
+          >
+            Duplicate
+          </button>
+          <button
             onClick={handleDelete}
             className="px-3 py-2 text-xs text-red-400/60 hover:text-red-400 transition-colors"
           >

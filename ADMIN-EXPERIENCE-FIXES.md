@@ -42,7 +42,7 @@ Effort**. Effort: **S** ≈ <½d · **M** ≈ ½–2d · **L** ≈ multi-day.
   (a) relabel → "Main image (hero + card)", or (b) add `thumbnail` column + UI + update
   `experience/page.tsx` card to use it. Tile/thumb source consolidates into Event Content (§G).
 
-## C. Duplication (`src/lib/duplicate.ts` + new routes) — Effort M
+## C. Duplication (`src/lib/duplicate.ts` + new routes) — Effort M  ✅ DONE
 **Issue:** can't duplicate experiences/editions. `duplicateRow()` exists; packages already deep-copy
 component links — experiences/editions just aren't wired.
 **Plan:**

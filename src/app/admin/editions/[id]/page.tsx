@@ -143,6 +143,11 @@ export default function EditionDetailPage({
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
+  const [dupOpen, setDupOpen] = useState(false);
+  const [dupTarget, setDupTarget] = useState<"existing" | "new">("existing");
+  const [dupExpId, setDupExpId] = useState("");
+  const [duplicating, setDuplicating] = useState(false);
+  const [dupExperiences, setDupExperiences] = useState<{ id: string; title: string }[]>([]);
   const [edition, setEdition] = useState<Edition | null>(null);
   const [bookings, setBookings] = useState<Booking[]>([]);
   const [packages, setPackages] = useState<Package[]>([]);
@@ -375,6 +380,25 @@ export default function EditionDetailPage({
     setTimeout(() => setSaved(false), 2000);
   }
 
+  useEffect(() => {
+    if (!dupOpen || dupExperiences.length) return;
+    fetch("/api/admin/experiences").then((r) => r.json()).then((d) => {
+      const list = Array.isArray(d) ? d : d.experiences || [];
+      setDupExperiences(list.map((e: Record<string, string>) => ({ id: e.id, title: e.title })));
+    });
+  }, [dupOpen, dupExperiences.length]);
+
+  async function duplicateEdition() {
+    setDuplicating(true);
+    const res = await fetch(`/api/admin/editions/${id}/duplicate`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(dupTarget === "new" ? { target: "new" } : { target: "existing", experienceId: dupExpId }),
+    });
+    setDuplicating(false);
+    if (res.ok) { const d = await res.json(); router.push(`/admin/editions/${d.id}`); }
+  }
+
   async function handleDelete() {
     if (!confirm("Delete this edition? This cannot be undone.")) return;
     await fetch(`/api/admin/editions/${id}`, { method: "DELETE" });
@@ -480,6 +504,13 @@ export default function EditionDetailPage({
               )}
             </div>
           )}
+          <button
+            onClick={() => { setDupExpId(edition.experience_id); setDupTarget("existing"); setDupOpen(true); }}
+            className="px-3 py-2 text-xs admin-muted hover:admin-heading transition-colors"
+            title="Duplicate this edition (packages, components, costs)"
+          >
+            Duplicate
+          </button>
           <button
             onClick={handleDelete}
             className="px-3 py-2 text-xs text-red-400/60 hover:text-red-400 transition-colors"
@@ -1127,6 +1158,36 @@ export default function EditionDetailPage({
               ))}
             </div>
           )}
+        </div>
+      )}
+
+      {dupOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4" onClick={(e) => { if (e.target === e.currentTarget) setDupOpen(false); }}>
+          <div className="w-full max-w-[440px] rounded-2xl p-6" style={{ backgroundColor: "var(--admin-sidebar)", border: "1px solid var(--admin-border)" }}>
+            <h2 className="text-lg font-bold admin-heading mb-1">Duplicate edition</h2>
+            <p className="text-xs admin-faint mb-4">Copies packages, component links and the cost structure — not bookings, payments or room assignments.</p>
+            <div className="space-y-3 mb-5">
+              <label className="flex items-center gap-2 text-sm admin-muted cursor-pointer">
+                <input type="radio" checked={dupTarget === "existing"} onChange={() => setDupTarget("existing")} className="accent-[#0aa3c7]" />
+                Into an existing experience
+              </label>
+              {dupTarget === "existing" && (
+                <select className="w-full px-3 py-2 admin-input border rounded-lg text-sm focus:outline-none focus:border-[#0aa3c7] ml-6 max-w-[calc(100%-1.5rem)]" value={dupExpId} onChange={(e) => setDupExpId(e.target.value)}>
+                  {dupExperiences.map((e) => <option key={e.id} value={e.id}>{e.title}</option>)}
+                </select>
+              )}
+              <label className="flex items-center gap-2 text-sm admin-muted cursor-pointer">
+                <input type="radio" checked={dupTarget === "new"} onChange={() => setDupTarget("new")} className="accent-[#0aa3c7]" />
+                Into a new experience <span className="admin-faint">(copies the template too)</span>
+              </label>
+            </div>
+            <div className="flex gap-2">
+              <button onClick={duplicateEdition} disabled={duplicating || (dupTarget === "existing" && !dupExpId)} className="px-4 py-2 bg-[#0aa3c7] hover:bg-[#0aa3c7]/90 disabled:opacity-40 text-white text-sm font-bold rounded-lg transition-colors">
+                {duplicating ? "Duplicating…" : "Duplicate"}
+              </button>
+              <button onClick={() => setDupOpen(false)} className="px-4 py-2 admin-muted text-sm rounded-lg">Cancel</button>
+            </div>
+          </div>
         </div>
       )}
     </div>
