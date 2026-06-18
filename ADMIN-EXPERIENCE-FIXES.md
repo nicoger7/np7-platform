@@ -95,7 +95,7 @@ edition booking form has **no participant** — only a free-text `name`.
   point public + admin reads at it (coupled with §B hero decision).
 - Host the relocated Guides & Reviews managers (from §D).
 
-## H. Members (`/admin/members`) — Effort M
+## H. Members (`/admin/members`) — Effort M  ✅ DONE
 **Issue:** list-only; can't open a member; "log" not built.
 **Plan:**
 - New `/admin/members/[id]/page.tsx` + `GET /api/admin/members/[id]` showing attached bookings,

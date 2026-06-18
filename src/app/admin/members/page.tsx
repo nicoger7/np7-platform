@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState, useCallback } from "react";
+import Link from "next/link";
 
 type Member = {
   id: string; name: string; email: string | null; bookings: number;
@@ -50,7 +51,7 @@ export default function MembersPage() {
               <div key={m.id} className="admin-surface admin-border border rounded-xl px-5 py-3.5 flex items-center justify-between gap-4">
                 <div className="min-w-0">
                   <div className="flex items-center gap-2">
-                    <span className="font-semibold admin-heading truncate">{m.name}</span>
+                    <Link href={`/admin/members/${m.id}`} className="font-semibold admin-heading truncate hover:text-[#0aa3c7] transition-colors">{m.name}</Link>
                     {m.banned && <span className="text-[10px] font-bold uppercase px-2 py-0.5 rounded bg-red-500/15 text-red-400">Deactivated</span>}
                     {m.marketing && <span className="text-[10px] font-bold uppercase px-2 py-0.5 rounded bg-green-500/15 text-green-500">Newsletter</span>}
                   </div>
@@ -72,7 +73,7 @@ export default function MembersPage() {
             {guests.map((g) => (
               <div key={g.id} className="admin-surface admin-border border rounded-xl px-5 py-3.5 flex items-center justify-between gap-4">
                 <div className="min-w-0">
-                  <span className="font-semibold admin-heading truncate block">{g.name}</span>
+                  <Link href={`/admin/members/${g.id}`} className="font-semibold admin-heading truncate block hover:text-[#0aa3c7] transition-colors">{g.name}</Link>
                   <span className="text-xs admin-faint">{g.email} · {g.bookings} booking{g.bookings === 1 ? "" : "s"}</span>
                 </div>
                 <button onClick={() => act("invite", g.id, "Invite sent")} disabled={!!busy || !g.email}
