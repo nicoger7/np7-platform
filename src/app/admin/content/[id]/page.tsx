@@ -52,6 +52,7 @@ export default function ContentEditorPage({ params }: { params: Promise<{ id: st
   // Per-edition modules (guides/reviews differ per week)
   const [editions, setEditions] = useState<{ id: string; year: number | null; label: string | null }[]>([]);
   const [editionId, setEditionId] = useState("");
+  const [tab, setTab] = useState("media");
 
   useEffect(() => {
     fetch(`/api/admin/content/${id}`)
@@ -153,16 +154,16 @@ export default function ContentEditorPage({ params }: { params: Promise<{ id: st
         )}
       </div>
 
-      {/* In-page sub-nav */}
-      <div className="sticky top-0 z-10 flex flex-wrap items-center gap-1 mb-5 py-2" style={{ backgroundColor: "var(--admin-bg)", borderBottom: "1px solid var(--admin-border)" }}>
-        {[["media", "Media"], ["story", "Story"], ["program", "Program"], ["modules", "Per-edition"], ["reviews", "Reviews"], ["faq", "FAQ"]].map(([a, l]) => (
-          <a key={a} href={`#${a}`} className="px-2.5 py-1 text-xs font-medium admin-muted hover:text-[#0aa3c7] rounded-lg transition-colors">{l}</a>
+      {/* Section tabs */}
+      <div className="flex flex-wrap items-center gap-1 mb-5" style={{ borderBottom: "1px solid var(--admin-border)" }}>
+        {[["media", "Media"], ["story", "Story"], ["program", "Program"], ["modules", "Per-edition"], ["reviews", "Reviews"], ["faq", "FAQ"]].map(([k, l]) => (
+          <button key={k} onClick={() => setTab(k)} className={`px-3.5 py-2 text-sm font-medium transition-colors border-b-2 -mb-[1px] ${tab === k ? "admin-heading border-[#0aa3c7]" : "admin-muted border-transparent"}`}>{l}</button>
         ))}
       </div>
 
       <div className="space-y-7">
         {/* IMAGES */}
-        <Section id="media" title="Main image (hero + card)" hint="Single source — set on the experience page. Used as the listing card and the public hero fallback.">
+        <Section show={tab === "media"} title="Main image (hero + card)" hint="Single source — set on the experience page. Used as the listing card and the public hero fallback.">
           {tileImage ? (
             <div className="rounded-xl overflow-hidden max-w-[360px]" style={{ border: "1px solid var(--admin-border)" }}>
               {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -174,7 +175,7 @@ export default function ContentEditorPage({ params }: { params: Promise<{ id: st
           <Link href={`/admin/experiences/${id}#media`} className="inline-block mt-2 text-xs text-[#0aa3c7] hover:underline">Edit on the experience page →</Link>
         </Section>
 
-        <Section title="Event hero" hint="The big image at the top of the event page. Paste a YouTube link for a video background, or pick an image. Video wins if both are set.">
+        <Section show={tab === "media"} title="Event hero" hint="The big image at the top of the event page. Paste a YouTube link for a video background, or pick an image. Video wins if both are set.">
           <input
             value={heroVideo}
             onChange={(e) => setHeroVideo(e.target.value)}
@@ -217,7 +218,7 @@ export default function ContentEditorPage({ params }: { params: Promise<{ id: st
           )}
         </Section>
 
-        <Section title="Gallery" hint="Photos shown in the gallery grid.">
+        <Section show={tab === "media"} title="Gallery" hint="Photos shown in the gallery grid.">
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
             {gallery.map((url, i) => (
               <div key={i} className="relative group aspect-square rounded-lg overflow-hidden admin-border border">
@@ -238,17 +239,17 @@ export default function ContentEditorPage({ params }: { params: Promise<{ id: st
         </Section>
 
         {/* TEXT */}
-        <Section id="story" title="About the location" hint="The windsurf spot / destination. Line breaks are kept.">
+        <Section show={tab === "story"} title="About the location" hint="The windsurf spot / destination. Line breaks are kept.">
           <textarea value={locationAbout} onChange={(e) => setLocationAbout(e.target.value)} rows={5}
             placeholder="Bonaire is a flat-water paradise…" className="admin-input w-full px-4 py-3 rounded-lg border text-sm outline-none resize-y" />
         </Section>
 
-        <Section title="About the week" hint="Extra context about how this trip runs.">
+        <Section show={tab === "story"} title="About the week" hint="Extra context about how this trip runs.">
           <textarea value={weekInfo} onChange={(e) => setWeekInfo(e.target.value)} rows={4}
             placeholder="A relaxed week built around the best wind windows…" className="admin-input w-full px-4 py-3 rounded-lg border text-sm outline-none resize-y" />
         </Section>
 
-        <Section title="Wind certainty & no-wind program" hint="Shown in the 'you can count on it' band. The no-wind program varies per experience.">
+        <Section show={tab === "story"} title="Wind certainty & no-wind program" hint="Shown in the 'you can count on it' band. The no-wind program varies per experience.">
           <div className="grid sm:grid-cols-2 gap-3 mb-3">
             <input value={windProbability} onChange={(e) => setWindProbability(e.target.value)}
               placeholder="Wind probability — e.g. 85–95%" className="admin-input px-4 py-2.5 rounded-lg border text-sm outline-none" />
@@ -259,7 +260,7 @@ export default function ContentEditorPage({ params }: { params: Promise<{ id: st
             placeholder="No-wind program — what happens on a rare light-wind day…" className="admin-input w-full px-4 py-3 rounded-lg border text-sm outline-none resize-y" />
         </Section>
 
-        <Section id="program" title="Perfect week — daily program" hint="What a perfect week looks like. Note on the page tells guests the real schedule depends on the wind.">
+        <Section show={tab === "program"} title="Perfect week — daily program" hint="What a perfect week looks like. Note on the page tells guests the real schedule depends on the wind.">
           <div className="space-y-3">
             {program.map((p, i) => (
               <div key={i} className="admin-surface admin-border border rounded-xl p-3.5">
@@ -277,7 +278,7 @@ export default function ContentEditorPage({ params }: { params: Promise<{ id: st
           </div>
         </Section>
 
-        <Section title="Highlights" hint="Short 'why this trip' bullets.">
+        <Section show={tab === "program"} title="Highlights" hint="Short 'why this trip' bullets.">
           <div className="space-y-2">
             {highlights.map((h, i) => (
               <div key={i} className="flex items-center gap-2">
@@ -290,7 +291,7 @@ export default function ContentEditorPage({ params }: { params: Promise<{ id: st
           </div>
         </Section>
 
-        <Section id="modules" title="Per-edition modules" hint="Guides and reviews differ per week — pick an edition to manage its coaches and placed reviews. (Also editable on the edition page.)">
+        <Section show={tab === "modules"} title="Per-edition modules" hint="Guides and reviews differ per week — pick an edition to manage its coaches and placed reviews. (Also editable on the edition page.)">
           {editions.length === 0 ? (
             <p className="text-xs admin-faint">No editions yet — create one on the experience page.</p>
           ) : (
@@ -308,7 +309,7 @@ export default function ContentEditorPage({ params }: { params: Promise<{ id: st
           )}
         </Section>
 
-        <Section id="reviews" title="Reviews (legacy)" hint="Manually-entered testimonials. Approved guest reviews placed per edition (above) take priority on the public page.">
+        <Section show={tab === "reviews"} title="Reviews (legacy)" hint="Manually-entered testimonials. Approved guest reviews placed per edition (above) take priority on the public page.">
           <div className="space-y-3">
             {reviews.map((r, i) => (
               <div key={i} className="admin-surface admin-border border rounded-xl p-3.5 flex gap-3">
@@ -336,7 +337,7 @@ export default function ContentEditorPage({ params }: { params: Promise<{ id: st
           </div>
         </Section>
 
-        <Section id="faq" title="FAQ" hint="Trip-specific questions. Leave empty to use the default FAQ.">
+        <Section show={tab === "faq"} title="FAQ" hint="Trip-specific questions. Leave empty to use the default FAQ.">
           <div className="space-y-3">
             {faq.map((f, i) => (
               <div key={i} className="admin-surface admin-border border rounded-xl p-3.5">
@@ -415,9 +416,10 @@ function mmss(secs: string) {
   return `${Math.floor(n / 60)}:${String(n % 60).padStart(2, "0")}`;
 }
 
-function Section({ title, hint, children, id }: { title: string; hint?: string; children: React.ReactNode; id?: string }) {
+function Section({ title, hint, children, show = true }: { title: string; hint?: string; children: React.ReactNode; id?: string; show?: boolean }) {
+  if (!show) return null;
   return (
-    <section id={id} className={id ? "scroll-mt-20" : undefined}>
+    <section>
       <h2 className="text-[15px] font-bold admin-heading">{title}</h2>
       {hint ? <p className="text-xs admin-faint mb-3 mt-0.5">{hint}</p> : <div className="mb-3" />}
       {children}

@@ -96,6 +96,7 @@ export default function ExperienceDetailPage({
   const [exp, setExp] = useState<Experience | null>(null);
   const [editions, setEditions] = useState<Edition[]>([]);
   const [showImagePicker, setShowImagePicker] = useState(false);
+  const [activeSection, setActiveSection] = useState("editions");
   const [hotels, setHotels] = useState<Hotel[]>([]);
   const [showAddHotel, setShowAddHotel] = useState(false);
   const [newHotel, setNewHotel] = useState({ name: "", prefix: "" });
@@ -261,15 +262,21 @@ export default function ExperienceDetailPage({
         </div>
       </div>
 
-      {/* In-page sub-nav */}
-      <div className="sticky top-0 z-10 flex items-center gap-1 mb-6 py-2" style={{ backgroundColor: "var(--admin-bg)", borderBottom: "1px solid var(--admin-border)" }}>
-        {[["editions", "Editions"], ["template", "Template"], ["components", "Components"], ["media", "Media"]].map(([anchor, label]) => (
-          <a key={anchor} href={`#${anchor}`} className="px-3 py-1.5 text-xs font-medium admin-muted hover:text-[#0aa3c7] rounded-lg transition-colors">{label}</a>
+      {/* Section tabs */}
+      <div className="flex items-center gap-1 mb-6" style={{ borderBottom: "1px solid var(--admin-border)" }}>
+        {[["editions", "Editions"], ["template", "Template"], ["components", "Components"], ["media", "Media"]].map(([key, label]) => (
+          <button
+            key={key}
+            onClick={() => setActiveSection(key)}
+            className={`px-4 py-2.5 text-sm font-medium transition-colors border-b-2 -mb-[1px] ${activeSection === key ? "admin-heading border-[#0aa3c7]" : "admin-muted border-transparent"}`}
+          >
+            {label}
+          </button>
         ))}
       </div>
 
-      {/* ── Editions (tiles) — first thing you see ── */}
-      <div id="editions" className="mb-8 scroll-mt-20">
+      {/* ── Editions (tiles) ── */}
+      <div className={`mb-8 ${activeSection === "editions" ? "" : "hidden"}`}>
         <div className="flex items-center justify-between mb-3">
           <h2 className="text-sm font-bold admin-heading">
             Editions <span className="admin-faint font-normal">({editions.length})</span>
@@ -344,10 +351,9 @@ export default function ExperienceDetailPage({
         </div>
       </div>
 
-      {/* ── Template details ── */}
-      <div id="template" className="max-w-[720px] scroll-mt-20">
-        <h2 className="text-sm font-bold admin-heading mb-4 pt-2">Template details</h2>
-        <div className="space-y-5">
+      {/* ── Template / Components / Media tabs ── */}
+      <div className="max-w-[720px]">
+        <div className={activeSection === "template" ? "space-y-5" : "hidden"}>
           {/* Title, Slug, Code */}
           <div className="grid grid-cols-[1fr_1fr_120px] gap-4">
             <div>
@@ -501,13 +507,17 @@ export default function ExperienceDetailPage({
             (in each edition&apos;s Packages tab), not on the experience template.
           </div>
 
-          {/* Components for this experience */}
-          <div id="components" className="scroll-mt-20">
-            <ExperienceComponentsManager experienceId={id} code={exp.code} />
-          </div>
+        </div>
 
+        {/* Components tab */}
+        <div className={activeSection === "components" ? "" : "hidden"}>
+          <ExperienceComponentsManager experienceId={id} code={exp.code} />
+        </div>
+
+        {/* Media tab */}
+        <div className={activeSection === "media" ? "space-y-5" : "hidden"}>
           {/* Main image (hero + card) */}
-          <div id="media" className="scroll-mt-20">
+          <div>
             <label className={labelClass}>Main image <span className="admin-faint">(hero + listing card)</span></label>
             {exp.hero_image ? (
               <div className="relative group max-w-[400px]">
