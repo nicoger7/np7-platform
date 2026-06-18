@@ -17,11 +17,7 @@ export default function NewExperiencePage() {
     title: "",
     slug: "",
     location: "",
-    date_start: "",
-    date_end: "",
     price: "",
-    deposit: "",
-    max_spots: 12,
     description: "",
     status: "draft",
     hotel: "",
@@ -48,7 +44,6 @@ export default function NewExperiencePage() {
       body: JSON.stringify({
         ...form,
         price: form.price ? Number(form.price) : null,
-        deposit: form.deposit ? Number(form.deposit) : null,
         hotel: form.hotel || null,
         airport_code: form.airport_code || null,
         whatsapp_group_link: form.whatsapp_group_link || null,
@@ -60,8 +55,9 @@ export default function NewExperiencePage() {
     const data = await res.json();
     setSaving(false);
 
-    if (data.experience) {
-      router.push(`/admin/experiences/${data.experience.id}`);
+    // The API returns the created row directly.
+    if (data?.id) {
+      router.push(`/admin/experiences/${data.id}`);
     }
   }
 
@@ -141,46 +137,20 @@ export default function NewExperiencePage() {
           </div>
         </div>
 
-        <div className="grid grid-cols-2 gap-4">
-          <div>
-            <label className={labelClass}>Start date</label>
-            <input
-              type="date"
-              className={inputClass}
-              value={form.date_start}
-              onChange={(e) => update("date_start", e.target.value)}
-            />
-          </div>
-          <div>
-            <label className={labelClass}>End date</label>
-            <input
-              type="date"
-              className={inputClass}
-              value={form.date_end}
-              onChange={(e) => update("date_end", e.target.value)}
-            />
-          </div>
+        <div className="rounded-lg p-3 text-xs admin-faint" style={{ border: "1px dashed var(--admin-border)" }}>
+          Dates, spots, deposit and per-package pricing are set on each <span className="font-medium admin-muted">edition</span> after
+          you create the experience — an experience is the reusable template.
         </div>
 
-        <div className="grid grid-cols-4 gap-4">
+        <div className="grid grid-cols-2 gap-4">
           <div>
-            <label className={labelClass}>Price</label>
+            <label className={labelClass}>From price <span className="admin-faint">(optional)</span></label>
             <input
               type="number"
               className={inputClass}
               value={form.price}
               onChange={(e) => update("price", e.target.value)}
               placeholder="1890"
-            />
-          </div>
-          <div>
-            <label className={labelClass}>Deposit</label>
-            <input
-              type="number"
-              className={inputClass}
-              value={form.deposit}
-              onChange={(e) => update("deposit", e.target.value)}
-              placeholder="590"
             />
           </div>
           <div>
@@ -194,15 +164,6 @@ export default function NewExperiencePage() {
               <option value="USD">USD</option>
               <option value="GBP">GBP</option>
             </select>
-          </div>
-          <div>
-            <label className={labelClass}>Max spots</label>
-            <input
-              type="number"
-              className={inputClass}
-              value={form.max_spots}
-              onChange={(e) => update("max_spots", Number(e.target.value))}
-            />
           </div>
         </div>
 

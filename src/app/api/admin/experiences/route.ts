@@ -17,14 +17,29 @@ export async function GET() {
   return NextResponse.json(data);
 }
 
-// POST /api/admin/experiences — create an experience
+// Real exp_experiences (template) columns. Edition-level fields (date_start,
+// date_end, max_spots, spots_taken, deposit, year, …) live on exp_editions and
+// must NOT be written here — inserting them throws "column does not exist".
+const ALLOWED_COLUMNS = [
+  "title", "slug", "code", "location", "description", "hero_image", "gallery",
+  "status", "timezone", "hotels", "hotel", "airport_code", "notes",
+  "cancellation_policy", "active_status", "location_lat", "location_lng",
+  "notion_id", "currency", "price", "whatsapp_group_link", "whats_included",
+  "total_fixed_costs",
+];
+
+// POST /api/admin/experiences — create an experience (template fields only)
 export async function POST(request: NextRequest) {
   const client = createAdminClient();
   const body = await request.json();
 
+  const sanitized = Object.fromEntries(
+    Object.entries(body).filter(([k]) => ALLOWED_COLUMNS.includes(k))
+  );
+
   const { data, error } = await client
     .from("exp_experiences")
-    .insert(body)
+    .insert(sanitized)
     .select()
     .single();
 
