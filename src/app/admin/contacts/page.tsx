@@ -54,7 +54,6 @@ const COLUMNS: ColumnDef[] = [
   { key: "experience_locations", label: "Exp Locations", width: "140px", defaultHidden: true },
   { key: "interested_products", label: "Interested In", width: "140px", defaultHidden: true },
   { key: "notes", label: "Notes", width: "160px", defaultHidden: true },
-  { key: "ai_summary", label: "AI Summary", width: "180px", defaultHidden: true },
   { key: "chatwoot_contact_id", label: "Chatwoot ID", width: "100px", defaultHidden: true },
   { key: "accepts_marketing", label: "Mktg", width: "80px" },
   { key: "created_at", label: "Created", width: "100px", defaultHidden: true },
@@ -361,9 +360,6 @@ export default function ContactsPage() {
                 )}
                 {visibleColumns.has("notes") && (
                   <span className="text-xs admin-faint self-center truncate" title={c.notes || ""}>{c.notes || "—"}</span>
-                )}
-                {visibleColumns.has("ai_summary") && (
-                  <span className="text-xs admin-faint self-center truncate" title={c.ai_summary || ""}>{c.ai_summary || "—"}</span>
                 )}
                 {visibleColumns.has("chatwoot_contact_id") && (
                   <span className="text-xs admin-faint self-center truncate">{c.chatwoot_contact_id || "—"}</span>
