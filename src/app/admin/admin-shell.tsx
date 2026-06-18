@@ -18,7 +18,7 @@ const environments: { id: Environment; label: string; shortLabel: string; color:
 
 // ─── Navigation per environment ──────────────────────────────────────────────
 
-const navByEnv: Record<Environment, { label: string; items: { label: string; href: string; icon: string }[] }[]> = {
+const navByEnv: Record<Environment, { label: string; items: { label: string; href: string; icon: string; wip?: boolean }[] }[]> = {
   experience: [
     {
       label: "OPERATIONS",
@@ -29,7 +29,7 @@ const navByEnv: Record<Environment, { label: string; items: { label: string; hre
         { label: "Hotel Rooms", href: "/admin/hotel-rooms", icon: "bed" },
         { label: "Packages", href: "/admin/packages", icon: "box" },
         { label: "Components", href: "/admin/components", icon: "puzzle" },
-        { label: "To-Dos", href: "/admin/todos", icon: "checklist" },
+        { label: "To-Dos", href: "/admin/todos", icon: "checklist", wip: true },
       ],
     },
     {
@@ -39,7 +39,7 @@ const navByEnv: Record<Environment, { label: string; items: { label: string; hre
         { label: "Event Content", href: "/admin/content", icon: "layers" },
         { label: "Member Management", href: "/admin/members", icon: "person" },
         { label: "Blog", href: "/admin/blog", icon: "pen" },
-        { label: "Destinations", href: "/admin/destinations", icon: "compass" },
+        { label: "Destinations", href: "/admin/destinations", icon: "compass", wip: true },
         { label: "Guest Reviews", href: "/admin/guest-reviews", icon: "star" },
       ],
     },
@@ -64,7 +64,7 @@ const navByEnv: Record<Environment, { label: string; items: { label: string; hre
       label: "AUTOMATION",
       items: [
         { label: "Pipeline Rules", href: "/admin/pipeline-rules", icon: "flow" },
-        { label: "Task Rules", href: "/admin/task-rules", icon: "rules" },
+        { label: "Task Rules", href: "/admin/task-rules", icon: "rules", wip: true },
         { label: "Email Templates", href: "/admin/email-templates", icon: "mail" },
         { label: "Email Log", href: "/admin/email-log", icon: "mail" },
       ],
@@ -499,7 +499,16 @@ export default function AdminShell({
                       }}
                     >
                       {icons[item.icon]}
-                      {item.label}
+                      <span className="flex-1">{item.label}</span>
+                      {item.wip && (
+                        <span
+                          className="text-[8px] font-bold tracking-wider px-1.5 py-0.5 rounded uppercase"
+                          title="Under construction"
+                          style={{ border: "1px solid var(--admin-border)", color: "var(--admin-text-muted)" }}
+                        >
+                          WIP
+                        </span>
+                      )}
                     </Link>
                   );
                 })}
