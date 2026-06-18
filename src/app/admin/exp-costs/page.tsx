@@ -9,6 +9,7 @@ interface ExpCost {
   id: string;
   item: string;
   experience_id: string | null;
+  edition_id: string | null;
   estimated_amount: number | null;
   actual_amount: number | null;
   status: string | null;
@@ -66,6 +67,7 @@ const statusColor = (s: string | null) => {
 export default function ExpCostsPage() {
   const [costs, setCosts] = useState<ExpCost[]>([]);
   const [experiences, setExperiences] = useState<Experience[]>([]);
+  const [editions, setEditions] = useState<{ id: string; experience_id: string; year: number | null; label: string | null }[]>([]);
   const [loading, setLoading] = useState(true);
   const [filterExp, setFilterExp] = useState("");
   const [showNew, setShowNew] = useState(false);
@@ -75,7 +77,7 @@ export default function ExpCostsPage() {
   const [visibleColumns, setVisibleColumns] = useState<Set<string>>(
     () => loadVisibleColumns(STORAGE_KEY, COLUMNS)
   );
-  const [form, setForm] = useState({ item: "", experience_id: "", estimated_amount: "", actual_amount: "", status: "estimate", date: "", notes: "" });
+  const [form, setForm] = useState({ item: "", experience_id: "", edition_id: "", estimated_amount: "", actual_amount: "", status: "estimate", date: "", notes: "" });
 
   function fetchData() {
     const qs = filterExp ? `?experience_id=${filterExp}` : "";
@@ -90,6 +92,9 @@ export default function ExpCostsPage() {
   }
 
   useEffect(() => { fetchData(); }, [filterExp]);
+  useEffect(() => {
+    fetch("/api/admin/editions").then((r) => r.json()).then((d) => setEditions(Array.isArray(d) ? d : []));
+  }, []);
 
   function handleSort(key: string) {
     if (sortKey === key) {
@@ -119,12 +124,12 @@ export default function ExpCostsPage() {
 
   function startEdit(c: ExpCost) {
     setEditId(c.id);
-    setForm({ item: c.item, experience_id: c.experience_id || "", estimated_amount: c.estimated_amount?.toString() || "", actual_amount: c.actual_amount?.toString() || "", status: c.status || "estimate", date: c.date || "", notes: c.notes || "" });
+    setForm({ item: c.item, experience_id: c.experience_id || "", edition_id: c.edition_id || "", estimated_amount: c.estimated_amount?.toString() || "", actual_amount: c.actual_amount?.toString() || "", status: c.status || "estimate", date: c.date || "", notes: c.notes || "" });
     setShowNew(false);
   }
 
   async function handleSave() {
-    const body = { item: form.item, experience_id: form.experience_id || null, estimated_amount: form.estimated_amount ? Number(form.estimated_amount) : null, actual_amount: form.actual_amount ? Number(form.actual_amount) : null, status: form.status || null, date: form.date || null, notes: form.notes || null };
+    const body = { item: form.item, experience_id: form.experience_id || null, edition_id: form.experience_id ? (form.edition_id || null) : null, estimated_amount: form.estimated_amount ? Number(form.estimated_amount) : null, actual_amount: form.actual_amount ? Number(form.actual_amount) : null, status: form.status || null, date: form.date || null, notes: form.notes || null };
     if (editId) {
       await fetch(`/api/admin/exp-costs/${editId}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
     } else {
@@ -158,7 +163,7 @@ export default function ExpCostsPage() {
         </div>
         <div className="flex items-center gap-3">
           <ColumnToggle columns={COLUMNS} visible={visibleColumns} onChange={setVisibleColumns} storageKey={STORAGE_KEY} />
-          <button onClick={() => { setShowNew(!showNew); setEditId(null); setForm({ item: "", experience_id: "", estimated_amount: "", actual_amount: "", status: "estimate", date: "", notes: "" }); }} className="px-4 py-2 bg-[#0aa3c7] hover:bg-[#0aa3c7]/90 text-white text-sm font-bold rounded-lg transition-colors">
+          <button onClick={() => { setShowNew(!showNew); setEditId(null); setForm({ item: "", experience_id: "", edition_id: "", estimated_amount: "", actual_amount: "", status: "estimate", date: "", notes: "" }); }} className="px-4 py-2 bg-[#0aa3c7] hover:bg-[#0aa3c7]/90 text-white text-sm font-bold rounded-lg transition-colors">
             New Cost
           </button>
         </div>
@@ -178,9 +183,15 @@ export default function ExpCostsPage() {
           <div className="grid grid-cols-3 gap-4 mb-4">
             <div><label className={labelClass}>Item *</label><input className={inputClass} value={form.item} onChange={(e) => setForm({ ...form, item: e.target.value })} /></div>
             <div><label className={labelClass}>Experience</label>
-              <select className={inputClass} value={form.experience_id} onChange={(e) => setForm({ ...form, experience_id: e.target.value })}>
+              <select className={inputClass} value={form.experience_id} onChange={(e) => setForm({ ...form, experience_id: e.target.value, edition_id: "" })}>
                 <option value="">—</option>
                 {experiences.map((e) => <option key={e.id} value={e.id}>{e.title}</option>)}
+              </select>
+            </div>
+            <div><label className={labelClass}>Edition <span className="admin-faint">(optional)</span></label>
+              <select className={inputClass} value={form.edition_id} onChange={(e) => setForm({ ...form, edition_id: e.target.value })} disabled={!form.experience_id}>
+                <option value="">— all / experience-wide</option>
+                {editions.filter((ed) => ed.experience_id === form.experience_id).map((ed) => <option key={ed.id} value={ed.id}>{ed.label || ed.year}</option>)}
               </select>
             </div>
             <div><label className={labelClass}>Status</label>

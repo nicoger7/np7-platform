@@ -15,6 +15,7 @@ interface HoursEntry {
   processed_at: string | null;
   employee_id: string | null;
   experience_id: string | null;
+  edition_id: string | null;
   booking_id: string | null;
   team_members: { id: string; name: string; rate_per_hour: number | null } | null;
   exp_experiences: { id: string; title: string } | null;
@@ -70,6 +71,7 @@ export default function HoursLogPage() {
   const [entries, setEntries] = useState<HoursEntry[]>([]);
   const [team, setTeam] = useState<TeamMember[]>([]);
   const [experiences, setExperiences] = useState<Experience[]>([]);
+  const [editions, setEditions] = useState<{ id: string; experience_id: string; year: number | null; label: string | null }[]>([]);
   const [loading, setLoading] = useState(true);
   const [filterEmployee, setFilterEmployee] = useState("");
   const [filterExp, setFilterExp] = useState("");
@@ -80,7 +82,7 @@ export default function HoursLogPage() {
   const [visibleColumns, setVisibleColumns] = useState<Set<string>>(
     () => loadVisibleColumns(STORAGE_KEY, COLUMNS)
   );
-  const [form, setForm] = useState({ date: "", hours: "", category: "", entry: "", employee_id: "", experience_id: "", notes: "", is_general: false, processed_at: "" });
+  const [form, setForm] = useState({ date: "", hours: "", category: "", entry: "", employee_id: "", experience_id: "", edition_id: "", notes: "", is_general: false, processed_at: "" });
 
   function fetchData() {
     const params = new URLSearchParams();
@@ -100,6 +102,9 @@ export default function HoursLogPage() {
   }
 
   useEffect(() => { fetchData(); }, [filterEmployee, filterExp]);
+  useEffect(() => {
+    fetch("/api/admin/editions").then((r) => r.json()).then((d) => setEditions(Array.isArray(d) ? d : []));
+  }, []);
 
   function handleSort(key: string) {
     if (sortKey === key) {
@@ -127,12 +132,12 @@ export default function HoursLogPage() {
 
   function startEdit(e: HoursEntry) {
     setEditId(e.id);
-    setForm({ date: e.date || "", hours: e.hours?.toString() || "", category: e.category || "", entry: e.entry || "", employee_id: e.employee_id || "", experience_id: e.experience_id || "", notes: e.notes || "", is_general: e.is_general ?? false, processed_at: e.processed_at || "" });
+    setForm({ date: e.date || "", hours: e.hours?.toString() || "", category: e.category || "", entry: e.entry || "", employee_id: e.employee_id || "", experience_id: e.experience_id || "", edition_id: e.edition_id || "", notes: e.notes || "", is_general: e.is_general ?? false, processed_at: e.processed_at || "" });
     setShowNew(false);
   }
 
   async function handleSave() {
-    const body = { date: form.date || null, hours: form.hours ? Number(form.hours) : 0, category: form.category || null, entry: form.entry || null, employee_id: form.employee_id || null, experience_id: form.experience_id || null, notes: form.notes || null, is_general: form.is_general, processed_at: form.processed_at || null };
+    const body = { date: form.date || null, hours: form.hours ? Number(form.hours) : 0, category: form.category || null, entry: form.entry || null, employee_id: form.employee_id || null, experience_id: form.experience_id || null, edition_id: form.experience_id ? (form.edition_id || null) : null, notes: form.notes || null, is_general: form.is_general, processed_at: form.processed_at || null };
     if (editId) {
       await fetch(`/api/admin/hours-log/${editId}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
     } else {
@@ -161,7 +166,7 @@ export default function HoursLogPage() {
         </div>
         <div className="flex items-center gap-3">
           <ColumnToggle columns={COLUMNS} visible={visibleColumns} onChange={setVisibleColumns} storageKey={STORAGE_KEY} />
-          <button onClick={() => { setShowNew(!showNew); setEditId(null); setForm({ date: "", hours: "", category: "", entry: "", employee_id: "", experience_id: "", notes: "", is_general: false, processed_at: "" }); }} className="px-4 py-2 bg-[#0aa3c7] hover:bg-[#0aa3c7]/90 text-white text-sm font-bold rounded-lg transition-colors">
+          <button onClick={() => { setShowNew(!showNew); setEditId(null); setForm({ date: "", hours: "", category: "", entry: "", employee_id: "", experience_id: "", edition_id: "", notes: "", is_general: false, processed_at: "" }); }} className="px-4 py-2 bg-[#0aa3c7] hover:bg-[#0aa3c7]/90 text-white text-sm font-bold rounded-lg transition-colors">
             Log Hours
           </button>
         </div>
@@ -198,9 +203,15 @@ export default function HoursLogPage() {
               </select>
             </div>
             <div><label className={labelClass}>Experience</label>
-              <select className={inputClass} value={form.experience_id} onChange={(e) => setForm({ ...form, experience_id: e.target.value })}>
+              <select className={inputClass} value={form.experience_id} onChange={(e) => setForm({ ...form, experience_id: e.target.value, edition_id: "" })}>
                 <option value="">—</option>
                 {experiences.map((e) => <option key={e.id} value={e.id}>{e.title}</option>)}
+              </select>
+            </div>
+            <div><label className={labelClass}>Edition <span className="admin-faint">(optional)</span></label>
+              <select className={inputClass} value={form.edition_id} onChange={(e) => setForm({ ...form, edition_id: e.target.value })} disabled={!form.experience_id}>
+                <option value="">— experience-wide</option>
+                {editions.filter((ed) => ed.experience_id === form.experience_id).map((ed) => <option key={ed.id} value={ed.id}>{ed.label || ed.year}</option>)}
               </select>
             </div>
             <div><label className={labelClass}>Description</label><input className={inputClass} value={form.entry} onChange={(e) => setForm({ ...form, entry: e.target.value })} /></div>
