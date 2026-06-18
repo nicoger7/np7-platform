@@ -21,7 +21,7 @@ Effort**. Effort: **S** ≈ <½d · **M** ≈ ½–2d · **L** ≈ multi-day.
 
 ---
 
-## A. Dashboard (`/admin/page.tsx`) — Effort M
+## A. Dashboard (`/admin/page.tsx`) — Effort M  ✅ DONE
 **Issue:** today it's 3 counters (experiences/bookings/contacts).
 **Plan:**
 - API: new `GET /api/admin/dashboard` aggregating the widgets in one call (faster than N fetches).
@@ -76,8 +76,9 @@ edition booking form has **no participant** — only a free-text `name`.
 ## F. Components — Effort M
 **Issue:** Notion-era naming; package picker lists ALL components; no filters on the components page.
 **Plan:**
-- **Real fix:** package component picker filters by `experience_id` (+ year) via
-  `GET /api/admin/components?experience_id=&year=`. Then names can stay short.
+- **Real fix:** ✅ package component picker filters by `experience_id` via
+  `GET /api/admin/components?experience_id=` (already shipped). `+year` deferred (low value;
+  editor is already experience-scoped). Then names can stay short.
 - Naming = plain label (e.g. "Coaching – beginner"); experience/category/year are structured fields.
   No schema change; optional one-off rename of existing rows.
 - **S** ✅ Components page (`/admin/components/page.tsx`): add experience / year / experience+year filters.
