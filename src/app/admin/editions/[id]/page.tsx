@@ -7,6 +7,7 @@ import BusinessCaseCard from "@/components/business-case-card";
 import { PackageComponentsEditor } from "@/components/package-components-editor";
 import { EditionGuidesEditor } from "@/components/edition-guides-editor";
 import { EditionReviewsEditor } from "@/components/edition-reviews-editor";
+import { ContactPicker, ContactLite } from "@/components/contact-picker";
 
 interface Edition {
   id: string;
@@ -165,8 +166,9 @@ export default function EditionDetailPage({
   const [roomEditId, setRoomEditId] = useState<string | null>(null);
   const [roomShow, setRoomShow] = useState(false);
 
-  const emptyBooking = { name: "", status: "lead", agreed_price: "", package_id: "" };
+  const emptyBooking = { name: "", contact_id: "", status: "lead", agreed_price: "", package_id: "" };
   const [bookingForm, setBookingForm] = useState(emptyBooking);
+  const [bookingContact, setBookingContact] = useState<ContactLite | null>(null);
   const [bookingShow, setBookingShow] = useState(false);
 
   // Details-tab section show/hide (consistent with list-page column toggles)
@@ -315,10 +317,20 @@ export default function EditionDetailPage({
     loadRooms();
   }
 
+  // Auto booking name: "{experience code} {year} — {participant}"
+  function autoBookingName(contact: ContactLite | null) {
+    if (!contact) return "";
+    const code = edition?.experience_code || edition?.exp_experiences?.code || edition?.exp_experiences?.title || "";
+    const yr = edition?.label || edition?.year || "";
+    return `${code}${yr ? ` ${yr}` : ""} — ${contact.name}`.trim();
+  }
+
   // Bookings (add inline; edit on detail page)
   async function addBooking() {
+    if (!bookingForm.contact_id) return;
     const body = {
-      name: bookingForm.name,
+      name: autoBookingName(bookingContact) || bookingContact?.name || "",
+      contact_id: bookingForm.contact_id,
       status: bookingForm.status,
       agreed_price: bookingForm.agreed_price ? Number(bookingForm.agreed_price) : null,
       package_id: bookingForm.package_id || null,
@@ -326,7 +338,7 @@ export default function EditionDetailPage({
       experience_id: expId,
     };
     await fetch(`/api/admin/bookings`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
-    setBookingShow(false); setBookingForm(emptyBooking); loadBookings();
+    setBookingShow(false); setBookingForm(emptyBooking); setBookingContact(null); loadBookings();
   }
   async function deleteBooking(bookingId: string) {
     if (!confirm("Delete this booking?")) return;
@@ -760,15 +772,25 @@ export default function EditionDetailPage({
 
           {bookingShow && (
             <div className="mb-4 p-4 rounded-xl" style={{ border: "1px solid var(--admin-border)", backgroundColor: "var(--admin-surface)" }}>
-              <div className="grid grid-cols-[1fr_140px_110px_1fr] gap-3 mb-3">
-                <div><label className={labelClass}>Name *</label><input className={inputClass} value={bookingForm.name} onChange={(e) => setBookingForm({ ...bookingForm, name: e.target.value })} /></div>
+              <div className="mb-3">
+                <label className={labelClass}>Participant *</label>
+                <ContactPicker
+                  value={bookingForm.contact_id || null}
+                  display={bookingContact}
+                  allowCreate
+                  placeholder="Search or create a contact…"
+                  onChange={(cid, c) => { setBookingContact(c); setBookingForm({ ...bookingForm, contact_id: cid || "" }); }}
+                />
+                {bookingContact && <p className="text-[11px] admin-faint mt-1">Booking name: <span className="admin-muted font-medium">{autoBookingName(bookingContact)}</span></p>}
+              </div>
+              <div className="grid grid-cols-[140px_110px_1fr] gap-3 mb-3">
                 <div><label className={labelClass}>Status</label><select className={inputClass} value={bookingForm.status} onChange={(e) => setBookingForm({ ...bookingForm, status: e.target.value })}>{ADD_BOOKING_STATUSES.map((s) => <option key={s} value={s}>{BOOKING_STATUSES[s]?.label || s}</option>)}</select></div>
                 <div><label className={labelClass}>Price ({currency})</label><input type="number" className={inputClass} value={bookingForm.agreed_price} onChange={(e) => setBookingForm({ ...bookingForm, agreed_price: e.target.value })} /></div>
                 <div><label className={labelClass}>Package</label><select className={inputClass} value={bookingForm.package_id} onChange={(e) => setBookingForm({ ...bookingForm, package_id: e.target.value })}><option value="">None</option>{packages.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}</select></div>
               </div>
               <div className="flex gap-2">
-                <button onClick={addBooking} disabled={!bookingForm.name} className="px-4 py-2 bg-[#0aa3c7] hover:bg-[#0aa3c7]/90 disabled:opacity-40 text-white text-sm font-bold rounded-lg transition-colors">Create</button>
-                <button onClick={() => { setBookingShow(false); setBookingForm(emptyBooking); }} className="px-4 py-2 admin-muted text-sm rounded-lg transition-colors">Cancel</button>
+                <button onClick={addBooking} disabled={!bookingForm.contact_id} className="px-4 py-2 bg-[#0aa3c7] hover:bg-[#0aa3c7]/90 disabled:opacity-40 text-white text-sm font-bold rounded-lg transition-colors">Create</button>
+                <button onClick={() => { setBookingShow(false); setBookingForm(emptyBooking); setBookingContact(null); }} className="px-4 py-2 admin-muted text-sm rounded-lg transition-colors">Cancel</button>
               </div>
             </div>
           )}

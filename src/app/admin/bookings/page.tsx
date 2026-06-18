@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { SortableHeader } from "@/components/sortable-header";
 import { ColumnToggle, ColumnDef, buildGridTemplate, loadVisibleColumns } from "@/components/column-toggle";
+import { NewBookingModal } from "@/components/new-booking-modal";
 
 interface Booking {
   id: string;
@@ -111,6 +112,7 @@ export default function BookingsPage() {
   const [view, setView] = useState<ViewMode>("table");
   const [filterStatus, setFilterStatus] = useState<string>("");
   const [filterExperience, setFilterExperience] = useState<string>("");
+  const [showNew, setShowNew] = useState(false);
   const [sortKey, setSortKey] = useState<string | null>(null);
   const [sortDir, setSortDir] = useState<SortDir>(null);
   const [visibleColumns, setVisibleColumns] = useState<Set<string>>(
@@ -230,7 +232,7 @@ export default function BookingsPage() {
 
           <button
             className="px-4 py-2 bg-[#0aa3c7] hover:bg-[#0aa3c7]/90 text-white text-sm font-bold rounded-lg transition-colors"
-            onClick={() => { /* TODO: open new booking modal */ }}
+            onClick={() => setShowNew(true)}
           >
             New Booking
           </button>
@@ -427,6 +429,7 @@ export default function BookingsPage() {
           </div>
         </div>
       )}
+      {showNew && <NewBookingModal onClose={() => setShowNew(false)} />}
     </div>
   );
 }

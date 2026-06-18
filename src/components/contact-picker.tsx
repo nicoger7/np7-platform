@@ -14,13 +14,17 @@ interface Props {
   display?: ContactLite | null;
   onChange: (id: string | null, contact: ContactLite | null) => void;
   placeholder?: string;
+  /** Show an inline "create new contact" affordance when no match. */
+  allowCreate?: boolean;
 }
 
-export function ContactPicker({ value, display, onChange, placeholder = "Search by name, email or phone…" }: Props) {
+export function ContactPicker({ value, display, onChange, placeholder = "Search by name, email or phone…", allowCreate = false }: Props) {
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
   const [results, setResults] = useState<ContactLite[]>([]);
   const [loading, setLoading] = useState(false);
+  const [creating, setCreating] = useState(false);
+  const [newEmail, setNewEmail] = useState("");
   const [selected, setSelected] = useState<ContactLite | null>(display ?? null);
   const ref = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -61,6 +65,23 @@ export function ContactPicker({ value, display, onChange, placeholder = "Search 
     onChange(c?.id ?? null, c);
     setOpen(false);
     setQuery("");
+  }
+
+  async function createContact() {
+    const name = query.trim();
+    if (!name || creating) return;
+    setCreating(true);
+    const res = await fetch("/api/admin/contacts", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ name, email: newEmail.trim() || null }),
+    });
+    setCreating(false);
+    if (res.ok) {
+      const c = await res.json();
+      setNewEmail("");
+      pick({ id: c.id, name: c.name, email: c.email });
+    }
   }
 
   const triggerClass =
@@ -112,6 +133,25 @@ export function ContactPicker({ value, display, onChange, placeholder = "Search 
             ))}
             {!loading && results.length === 0 && (
               <div className="px-3 py-3 text-xs admin-faint">No matching contacts.</div>
+            )}
+            {allowCreate && query.trim() && (
+              <div className="p-2 mt-1" style={{ borderTop: "1px solid var(--admin-border)" }}>
+                <p className="text-[10px] uppercase tracking-wide admin-faint mb-1.5 px-1">Create new contact</p>
+                <input
+                  value={newEmail}
+                  onChange={(e) => setNewEmail(e.target.value)}
+                  placeholder="Email (optional)"
+                  className="w-full mb-1.5 px-3 py-2 admin-input border rounded-lg text-sm focus:outline-none focus:border-[#0aa3c7]"
+                />
+                <button
+                  type="button"
+                  onClick={createContact}
+                  disabled={creating}
+                  className="w-full px-3 py-2 bg-[#0aa3c7] hover:bg-[#0aa3c7]/90 disabled:opacity-40 text-white text-xs font-bold rounded-lg transition-colors"
+                >
+                  {creating ? "Creating…" : `Create "${query.trim()}"`}
+                </button>
+              </div>
             )}
           </div>
         </div>
