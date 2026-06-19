@@ -354,7 +354,7 @@ export default async function ExperienceDetailPage({ params }: Props) {
       <OceanHeader bookHref="#packages" />
 
       {/* HERO */}
-      <section className="relative min-h-[88vh] flex items-end bg-[#00374a] overflow-hidden">
+      <section className="relative min-h-[74vh] flex items-end bg-[#00374a] overflow-hidden">
         {heroVideoUrl ? (
           <HeroVideo url={heroVideoUrl} start={heroVideoStart} end={heroVideoEnd} poster={heroMediaImage} />
         ) : (
@@ -363,7 +363,7 @@ export default async function ExperienceDetailPage({ params }: Props) {
         <div className="absolute inset-0 bg-gradient-to-t from-[#00374a] via-black/35 to-black/35" />
         {/* subtle warm sun glow — the brand's "sun to sea" warmth */}
         <div className="absolute inset-0 bg-[radial-gradient(ellipse_65%_55%_at_82%_-5%,rgba(244,123,32,0.22),transparent_55%)]" aria-hidden />
-        <div className="relative w-full max-w-[1200px] mx-auto px-6 sm:px-8 pb-16 pt-32">
+        <div className="relative w-full max-w-[1200px] mx-auto px-6 sm:px-8 pb-9 pt-28">
           <Reveal from="up">
             <div className="flex flex-wrap items-center gap-3 mb-4">
               <span className="text-[12px] font-bold tracking-[0.2em] uppercase text-white/75">{experience.location}</span>
@@ -381,7 +381,7 @@ export default async function ExperienceDetailPage({ params }: Props) {
             </div>
             <h1 className="text-4xl sm:text-6xl lg:text-7xl font-black text-white leading-[0.98] tracking-[-0.035em] mb-4 max-w-[840px]">{experience.title}</h1>
             {(spanStart || edition) && (
-              <p className="text-[16px] sm:text-[17px] text-white/70 mb-8">
+              <p className="text-[16px] sm:text-[17px] text-white/70 mb-6">
                 {multi ? `${fmtRange(spanStart, spanEnd)} · ${allEditions.length} weeks to choose from` : fmtRange(edition.date_start, edition.date_end)}
               </p>
             )}
@@ -398,7 +398,7 @@ export default async function ExperienceDetailPage({ params }: Props) {
       {/* QUICK FACTS — blue, integrated into the dark hero zone. The light "your
           epic week" below now provides the clear break, so this can stay seamless. */}
       <section className="bg-[#00374a] text-white">
-        <div className="max-w-[1200px] mx-auto px-6 sm:px-8 py-7 grid grid-cols-2 sm:grid-cols-4 gap-y-6 gap-x-4">
+        <div className="max-w-[1200px] mx-auto px-6 sm:px-8"><div className="border-t border-white/10 py-6 grid grid-cols-2 sm:grid-cols-4 gap-y-6 gap-x-4">
           {([
             { icon: "calendar", label: multi ? `${allEditions.length} weeks to choose` : "When", value: multi
                 ? <span className="space-y-0.5">{editionsLite.map((e) => <span key={e.id} className="block">{e.label} · {e.shortRange}</span>)}</span>
@@ -412,7 +412,7 @@ export default async function ExperienceDetailPage({ params }: Props) {
               <span><span className="block text-[10px] font-bold tracking-[0.15em] uppercase text-white/40">{f.label}</span><span className="block text-[13.5px] font-bold">{f.value}</span></span>
             </div>
           ))}
-        </div>
+        </div></div>
       </section>
 
       {/* 1 · THE DREAM — your epic week (pinned scroll through the outcomes) */}
