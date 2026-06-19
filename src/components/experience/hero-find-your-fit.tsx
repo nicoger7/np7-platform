@@ -94,7 +94,7 @@ export function HeroFindYourFit({ src, poster, children }: { src: string; poster
       // fit stage: scrim + content ramp in once the hero is gone
       const fp = clamp((p - HERO_END) / (1 - HERO_END));
       const fitIn = clamp((p - HERO_END * 0.85) / (HERO_END * 0.3));
-      if (scrimRef.current) scrimRef.current.style.opacity = String(0.15 + fitIn * 0.5);
+      if (scrimRef.current) scrimRef.current.style.opacity = String(0.1 + fitIn * 0.32);
       if (fitRef.current) { fitRef.current.style.opacity = String(fitIn); fitRef.current.style.pointerEvents = fitIn > 0.5 ? "auto" : "none"; }
       if (railRef.current) railRef.current.style.height = `${fp * 100}%`;
 
@@ -149,7 +149,7 @@ export function HeroFindYourFit({ src, poster, children }: { src: string; poster
         </div>
         {sunWash}
         {/* readability scrim — light over the hero, deeper over the fits */}
-        <div ref={scrimRef} className="absolute inset-0 bg-gradient-to-t from-[#00374a]/85 via-[#00374a]/35 to-[#00374a]/10" style={{ opacity: 0.15 }} aria-hidden />
+        <div ref={scrimRef} className="absolute inset-0 bg-gradient-to-t from-[#00374a]/70 via-[#00374a]/20 to-transparent" style={{ opacity: 0.1 }} aria-hidden />
 
         {/* HERO (scene 0) */}
         <div ref={heroRef} className="absolute inset-0 z-10 flex flex-col items-center justify-center text-center px-6 will-change-transform">{children}</div>
@@ -193,15 +193,33 @@ export function HeroFindYourFit({ src, poster, children }: { src: string; poster
               </div>
             </div>
 
-            {/* detail flies through */}
-            <div className="relative h-[58vh] lg:h-[68vh]">
+            {/* detail flies through — text only, over the live video backdrop */}
+            <div className="relative h-[58vh] lg:h-[62vh]">
               {SEGMENTS.map((s, i) => {
                 const on = i === active;
                 return (
-                  <div key={s.id} aria-hidden={!on} className="fyf-card absolute inset-0 rounded-[28px] overflow-hidden border border-white/15 shadow-[0_30px_70px_rgba(0,20,30,0.45)]" style={{ opacity: on ? 1 : 0, transform: on ? "none" : "translateY(28px) scale(0.985)", pointerEvents: on ? "auto" : "none" }}>
-                    <div className="absolute inset-0 bg-cover bg-center" style={{ backgroundImage: `url('${s.image}')` }} />
-                    <div className="absolute inset-0 bg-gradient-to-t from-[#00374a] via-[#00374a]/60 to-[#00374a]/5" />
-                    <FitDetail s={s} overlay />
+                  <div key={s.id} aria-hidden={!on} className="fyf-card absolute inset-0 flex flex-col justify-end" style={{ opacity: on ? 1 : 0, transform: on ? "none" : "translateY(26px)", pointerEvents: on ? "auto" : "none" }}>
+                    {/* gentle local wash so the copy reads while the footage stays visible above it */}
+                    <div className="absolute inset-x-0 bottom-0 h-[88%] bg-gradient-to-t from-[#00374a]/75 via-[#00374a]/25 to-transparent pointer-events-none" />
+                    <div className="relative fyf-copy">
+                      <span className="inline-block text-[10px] font-extrabold tracking-[0.2em] uppercase px-3 py-1.5 rounded-full bg-white/90 text-[#00374a] mb-4">{s.tag}</span>
+                      <h3 className="text-2xl sm:text-[34px] font-black tracking-[-0.02em] text-white leading-[1.05] mb-3">{s.title}</h3>
+                      <p className="text-[14.5px] sm:text-[16px] text-white/90 leading-relaxed mb-5 max-w-[560px]">{s.body}</p>
+                      <ul className="grid sm:grid-cols-2 gap-x-6 gap-y-2 mb-6 max-w-[620px]">
+                        {s.points.map((p) => (
+                          <li key={p} className="flex items-start gap-2.5 text-[13.5px] text-white/90 font-medium">
+                            <span className="mt-0.5 shrink-0 w-4 h-4 rounded-full bg-[#8fe6f2]/25 text-[#8fe6f2] grid place-items-center">
+                              <svg className="w-2.5 h-2.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3.5" strokeLinecap="round" strokeLinejoin="round"><path d="M20 6L9 17l-5-5" /></svg>
+                            </span>
+                            {p}
+                          </li>
+                        ))}
+                      </ul>
+                      <Link href="#experiences" className="inline-flex items-center gap-2 px-6 py-3 rounded-full text-[13.5px] font-bold text-[#00374a] bg-[#ffc42e] shadow-[0_4px_16px_rgba(255,196,46,0.28)] hover:bg-[#ffce52] hover:-translate-y-0.5 transition-all">
+                        {s.cta}
+                        <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M5 12h14M13 6l6 6-6 6" /></svg>
+                      </Link>
+                    </div>
                   </div>
                 );
               })}
@@ -212,6 +230,7 @@ export function HeroFindYourFit({ src, poster, children }: { src: string; poster
 
       <style>{`
         .fyf-card { transition: opacity .5s ease, transform .5s ease; }
+        .fyf-copy h3, .fyf-copy p, .fyf-copy li { text-shadow: 0 1px 16px rgba(0,20,30,0.55); }
         @media (prefers-reduced-motion: reduce) { .fyf-card { transition: none; } }
         .scrollbar-hide::-webkit-scrollbar { display: none; }
         .scrollbar-hide { -ms-overflow-style: none; scrollbar-width: none; }
