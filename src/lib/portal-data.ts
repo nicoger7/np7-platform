@@ -77,12 +77,29 @@ export async function getTripGallery(experienceId: string): Promise<string[]> {
   return ((exp?.gallery as string[] | null) ?? []).filter(Boolean);
 }
 
-/** Photos for a week's memories, from storage assets/memories/{editionId}/. */
-export async function getMemoryPhotos(editionId: string): Promise<string[]> {
+/** List image files in one storage folder under the `assets` bucket → public URLs.
+    Folder entries (sub-directories) have no `id`, so they're naturally excluded. */
+async function listAssetFolder(folder: string): Promise<string[]> {
   const admin = createAdminClient();
   const base = `${process.env.NEXT_PUBLIC_SUPABASE_URL}/storage/v1/object/public/assets`;
-  const { data } = await admin.storage.from("assets").list(`memories/${editionId}`, { limit: 200 });
+  const { data } = await admin.storage.from("assets").list(folder, { limit: 200 });
   return (data ?? [])
     .filter((f) => f.id && f.name !== ".emptyFolderPlaceholder")
-    .map((f) => `${base}/memories/${editionId}/${f.name}`);
+    .map((f) => `${base}/${folder}/${f.name}`);
+}
+
+/** Whole-week "everyone" photos, from storage assets/memories/{editionId}/.
+    Per-participant photos live in the p/{bookingId}/ subfolder and are excluded here. */
+export async function getMemoryPhotos(editionId: string): Promise<string[]> {
+  return listAssetFolder(`memories/${editionId}`);
+}
+
+/** A participant's gallery = their personal photos (assets/memories/{editionId}/p/{bookingId}/)
+    plus the week's shared "everyone" photos. Each client only ever sees their own + shared. */
+export async function getMemoryPhotosForBooking(editionId: string, bookingId: string): Promise<string[]> {
+  const [mine, everyone] = await Promise.all([
+    listAssetFolder(`memories/${editionId}/p/${bookingId}`),
+    listAssetFolder(`memories/${editionId}`),
+  ]);
+  return [...mine, ...everyone];
 }

@@ -2,7 +2,7 @@ import Link from "next/link";
 import { redirect, notFound } from "next/navigation";
 import type { Metadata } from "next";
 import { getPortalUser } from "@/lib/auth";
-import { getMemberBooking, getMemoryPhotos } from "@/lib/portal-data";
+import { getMemberBooking, getMemoryPhotosForBooking } from "@/lib/portal-data";
 import { bookingStatus, CHIP_CLASS, fmtDates, money } from "@/lib/portal-status";
 import { PortalChrome } from "@/components/portal/portal-chrome";
 import { ExtraNightsButton } from "@/components/portal/extra-nights-button";
@@ -21,7 +21,7 @@ export default async function BookingDetail({ params }: Props) {
   if (!b) notFound();
 
   const chip = bookingStatus(b);
-  const photos = b.edition?.id ? await getMemoryPhotos(b.edition.id).catch(() => []) : [];
+  const photos = b.edition?.id ? await getMemoryPhotosForBooking(b.edition.id, b.id).catch(() => []) : [];
 
   const depositPaid = b.downpayment_received || ["downpayment_paid", "paid", "confirmed"].includes((b.status ?? "").toLowerCase());
   const tripEnded = b.edition?.date_end ? new Date(b.edition.date_end) < new Date() : false;
