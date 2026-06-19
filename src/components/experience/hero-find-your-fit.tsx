@@ -159,67 +159,63 @@ export function HeroFindYourFit({ src, poster, children }: { src: string; poster
           <svg className="w-6 h-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M6 9l6 6 6-6" /></svg>
         </div>
 
-        {/* FIND YOUR FIT stage (scenes 1..N) over the same video */}
+        {/* FIND YOUR FIT stage (scenes 1..N) — clean text over the running video */}
         <div ref={fitRef} className="absolute inset-0 z-20" style={{ opacity: 0 }}>
-          {/* progress rail */}
-          <div className="absolute left-3 sm:left-6 top-1/2 -translate-y-1/2 h-[46vh] w-[3px] rounded-full bg-white/15">
+          {/* one cinematic gradient, bottom-weighted — no boxes */}
+          <div className="absolute inset-0 pointer-events-none bg-gradient-to-t from-[#001b29] via-[#00374a]/30 to-transparent" />
+
+          {/* progress rail (far left) */}
+          <div className="absolute left-4 sm:left-7 top-1/2 -translate-y-1/2 h-[40vh] w-[2px] rounded-full bg-white/20 z-10">
             <div ref={railRef} className="w-full rounded-full bg-[#8fe6f2]" style={{ height: "0%" }} />
             {SEGMENTS.map((_, i) => (
-              <button key={i} aria-label={`Go to ${SEGMENTS[i].tag}`} onClick={() => goTo(i)} className="absolute -left-[6px] w-[15px] h-[15px] grid place-items-center" style={{ top: `calc(${(i / (N - 1)) * 100}% - 7px)` }}>
-                <span className={`block rounded-full transition-all ${active === i ? "w-[11px] h-[11px] bg-[#8fe6f2] shadow-[0_0_10px_rgba(143,230,242,0.8)]" : "w-[7px] h-[7px] bg-white/45"}`} />
+              <button key={i} aria-label={`Go to ${SEGMENTS[i].tag}`} onClick={() => goTo(i)} className="absolute -left-[8px] w-[18px] h-[18px] grid place-items-center" style={{ top: `calc(${(i / (N - 1)) * 100}% - 9px)` }}>
+                <span className={`block rounded-full transition-all ${active === i ? "w-[10px] h-[10px] bg-[#8fe6f2] shadow-[0_0_12px_rgba(143,230,242,0.9)]" : "w-[6px] h-[6px] bg-white/50"}`} />
               </button>
             ))}
           </div>
 
-          <div className="h-full w-full max-w-[1180px] mx-auto px-10 sm:px-16 grid lg:grid-cols-[300px_1fr] gap-7 lg:gap-14 items-center">
-            {/* overview */}
-            <div className="relative">
-              <p className="text-[11px] font-bold tracking-[0.25em] text-[#8fe6f2] mb-3">FIND YOUR FIT</p>
-              <h2 className="text-2xl sm:text-4xl font-black tracking-[-0.03em] text-white mb-2 leading-[1.05] drop-shadow">Whatever brings you to the water</h2>
-              <p className="text-[14px] text-white/70 leading-relaxed mb-5 hidden lg:block">Scroll through — or jump straight to the one that&apos;s you.</p>
-              <div className="flex lg:flex-col gap-2 overflow-x-auto lg:overflow-visible scrollbar-hide -mx-2 px-2 lg:mx-0 lg:px-0">
-                {SEGMENTS.map((s, i) => {
-                  const on = i === active;
-                  return (
-                    <button key={s.id} onClick={() => goTo(i)} aria-current={on} className={`shrink-0 lg:w-full flex items-center gap-3 text-left px-4 py-3 rounded-2xl border transition-all ${on ? "bg-white text-[#00374a] border-white shadow-[0_8px_24px_rgba(0,20,30,0.3)]" : "bg-white/[0.1] text-white/85 border-white/15 hover:border-[#8fe6f2]/60 backdrop-blur-sm"}`}>
-                      <span className={`shrink-0 ${on ? "text-[#00afdb]" : "text-[#8fe6f2]"}`}>{s.icon}</span>
-                      <span className="min-w-0">
-                        <span className="block text-[13.5px] font-extrabold leading-tight">{s.tag}</span>
-                        <span className={`block text-[12px] leading-tight ${on ? "text-[#5a6b72]" : "text-white/55"}`}>{s.chip}</span>
-                      </span>
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
+          {/* content — anchored to the bottom over the gradient */}
+          <div className="relative h-full max-w-[1120px] mx-auto px-12 sm:px-20 flex flex-col justify-end pb-12 sm:pb-16">
+            <p className="text-[11px] font-bold tracking-[0.3em] text-[#8fe6f2] mb-4 fyf-copy">FIND YOUR FIT</p>
 
-            {/* detail flies through — text only, over the live video backdrop */}
-            <div className="relative h-[58vh] lg:h-[62vh]">
+            {/* overview — clean labels, no boxes */}
+            <div className="flex gap-x-7 gap-y-2 mb-7 overflow-x-auto scrollbar-hide flex-nowrap">
               {SEGMENTS.map((s, i) => {
                 const on = i === active;
                 return (
-                  <div key={s.id} aria-hidden={!on} className="fyf-card absolute inset-0 flex flex-col justify-end" style={{ opacity: on ? 1 : 0, transform: on ? "none" : "translateY(26px)", pointerEvents: on ? "auto" : "none" }}>
-                    {/* gentle local wash so the copy reads while the footage stays visible above it */}
-                    <div className="absolute inset-x-0 bottom-0 h-[88%] bg-gradient-to-t from-[#00374a]/75 via-[#00374a]/25 to-transparent pointer-events-none" />
-                    <div className="relative fyf-copy">
-                      <span className="inline-block text-[10px] font-extrabold tracking-[0.2em] uppercase px-3 py-1.5 rounded-full bg-white/90 text-[#00374a] mb-4">{s.tag}</span>
-                      <h3 className="text-2xl sm:text-[34px] font-black tracking-[-0.02em] text-white leading-[1.05] mb-3">{s.title}</h3>
-                      <p className="text-[14.5px] sm:text-[16px] text-white/90 leading-relaxed mb-5 max-w-[560px]">{s.body}</p>
-                      <ul className="grid sm:grid-cols-2 gap-x-6 gap-y-2 mb-6 max-w-[620px]">
-                        {s.points.map((p) => (
-                          <li key={p} className="flex items-start gap-2.5 text-[13.5px] text-white/90 font-medium">
-                            <span className="mt-0.5 shrink-0 w-4 h-4 rounded-full bg-[#8fe6f2]/25 text-[#8fe6f2] grid place-items-center">
-                              <svg className="w-2.5 h-2.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3.5" strokeLinecap="round" strokeLinejoin="round"><path d="M20 6L9 17l-5-5" /></svg>
-                            </span>
-                            {p}
-                          </li>
-                        ))}
-                      </ul>
-                      <Link href="#experiences" className="inline-flex items-center gap-2 px-6 py-3 rounded-full text-[13.5px] font-bold text-[#00374a] bg-[#ffc42e] shadow-[0_4px_16px_rgba(255,196,46,0.28)] hover:bg-[#ffce52] hover:-translate-y-0.5 transition-all">
-                        {s.cta}
-                        <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M5 12h14M13 6l6 6-6 6" /></svg>
-                      </Link>
-                    </div>
+                  <button key={s.id} onClick={() => goTo(i)} aria-current={on} className="group shrink-0 flex items-center gap-2 text-left fyf-copy">
+                    <span className={`transition-colors ${on ? "text-[#8fe6f2]" : "text-white/35 group-hover:text-white/70"}`}>{s.icon}</span>
+                    <span className="leading-tight">
+                      <span className={`block text-[13.5px] font-extrabold transition-colors ${on ? "text-white" : "text-white/55 group-hover:text-white/85"}`}>{s.tag}</span>
+                      <span className={`block text-[11px] transition-colors ${on ? "text-[#8fe6f2]" : "text-white/35"}`}>{s.chip}</span>
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+
+            {/* active feature */}
+            <div className="relative min-h-[280px] sm:min-h-[290px]">
+              {SEGMENTS.map((s, i) => {
+                const on = i === active;
+                return (
+                  <div key={s.id} aria-hidden={!on} className="fyf-card fyf-copy absolute inset-0" style={{ opacity: on ? 1 : 0, transform: on ? "none" : "translateY(18px)", pointerEvents: on ? "auto" : "none" }}>
+                    <h3 className="text-2xl sm:text-[36px] font-black tracking-[-0.02em] text-white leading-[1.05] mb-3">{s.title}</h3>
+                    <p className="text-[14.5px] sm:text-[16px] text-white/90 leading-relaxed mb-5 max-w-[560px]">{s.body}</p>
+                    <ul className="grid sm:grid-cols-2 gap-x-7 gap-y-2 mb-6 max-w-[600px]">
+                      {s.points.map((p) => (
+                        <li key={p} className="flex items-start gap-2.5 text-[13.5px] text-white/90 font-medium">
+                          <span className="mt-0.5 shrink-0 w-4 h-4 rounded-full bg-[#8fe6f2]/25 text-[#8fe6f2] grid place-items-center">
+                            <svg className="w-2.5 h-2.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3.5" strokeLinecap="round" strokeLinejoin="round"><path d="M20 6L9 17l-5-5" /></svg>
+                          </span>
+                          {p}
+                        </li>
+                      ))}
+                    </ul>
+                    <Link href="#experiences" className="inline-flex items-center gap-2 px-6 py-3 rounded-full text-[13.5px] font-bold text-[#00374a] bg-[#ffc42e] shadow-[0_4px_16px_rgba(255,196,46,0.28)] hover:bg-[#ffce52] hover:-translate-y-0.5 transition-all">
+                      {s.cta}
+                      <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M5 12h14M13 6l6 6-6 6" /></svg>
+                    </Link>
                   </div>
                 );
               })}
