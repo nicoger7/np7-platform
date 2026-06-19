@@ -331,6 +331,16 @@ export default async function ExperienceDetailPage({ params }: Props) {
         ? content!.reviews!.map((r) => ({ quote: r.quote, name: r.name, country: r.country, image: r.image || BRAND_IMG.group, rating: Math.max(1, Math.min(5, r.rating || 5)), verified: false }))
         : MOMENTS.map((m) => ({ ...m, rating: 5, verified: false }));
 
+  // Destination quick-module (migration 022; tolerant — hidden until applied + linked)
+  let destination: { slug: string | null; name: string; region: string | null; country: string | null; tagline: string | null; hero_image: string | null } | null = null;
+  {
+    const { data: ed } = await sb.from("exp_experiences").select("destination_id").eq("id", experience.id).maybeSingle();
+    if (ed?.destination_id) {
+      const { data: dd } = await sb.from("destinations").select("slug,name,region,country,tagline,hero_image,status").eq("id", ed.destination_id).maybeSingle();
+      if (dd && dd.status === "published" && dd.slug) destination = dd;
+    }
+  }
+
   return (
     <>
       <OceanHeader bookHref="#packages" />
@@ -506,6 +516,28 @@ export default async function ExperienceDetailPage({ params }: Props) {
                   </div>
                 )}
               </div>
+            </Reveal>
+          </div>
+        </section>
+      )}
+
+      {/* 4b · DESTINATION quick-module → full destination page */}
+      {destination && (
+        <section className="py-12 sm:py-16">
+          <div className="max-w-[1100px] mx-auto px-6 sm:px-8">
+            <Reveal>
+              <Link href={`/destinations/${destination.slug}`} className="group relative block rounded-3xl overflow-hidden min-h-[240px] flex items-end bg-[#00374a] shadow-[0_20px_50px_rgba(0,55,74,0.15)]">
+                {destination.hero_image && <div className="absolute inset-0 bg-cover bg-center scale-105 group-hover:scale-110 transition-transform duration-700" style={{ backgroundImage: `url('${destination.hero_image}')` }} />}
+                <div className="absolute inset-0 bg-gradient-to-t from-[#00374a] via-[#00374a]/40 to-transparent" />
+                <div className="relative p-7 sm:p-9 text-white max-w-[640px]">
+                  <p className="text-[11px] font-bold tracking-[0.25em] text-[#8fe6f2] mb-2">DISCOVER THE DESTINATION</p>
+                  <h2 className="text-2xl sm:text-3xl font-black tracking-[-0.02em]">{destination.name}</h2>
+                  {destination.tagline && <p className="text-[14.5px] text-white/80 mt-1.5">{destination.tagline}</p>}
+                  <span className="inline-flex items-center gap-1.5 text-[13px] font-bold mt-4 group-hover:gap-2.5 transition-all">Explore {destination.name}
+                    <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M5 12h14M13 6l6 6-6 6" /></svg>
+                  </span>
+                </div>
+              </Link>
             </Reveal>
           </div>
         </section>
