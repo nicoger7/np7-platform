@@ -393,10 +393,10 @@ export default async function ExperienceDetailPage({ params }: Props) {
         </div>
       </section>
 
-      {/* QUICK FACTS — elevated card bridging the hero into the page */}
-      <section className="relative bg-white pb-14 sm:pb-20">
-        <div className="max-w-[1080px] mx-auto px-6 sm:px-8 -mt-12 sm:-mt-16 relative z-20">
-          <div className="rounded-2xl sm:rounded-[26px] bg-white shadow-[0_26px_70px_-28px_rgba(0,55,74,0.55)] ring-1 ring-[#edf1f3] px-5 sm:px-9 py-6 sm:py-7 grid grid-cols-2 sm:grid-cols-4 gap-y-6 gap-x-5">
+      {/* QUICK FACTS — a clean panel on the same dark, bridging hero → epic week */}
+      <section className="bg-[#00374a]">
+        <div className="max-w-[1080px] mx-auto px-6 sm:px-8 py-11 sm:py-14">
+          <div className="rounded-2xl sm:rounded-[26px] bg-white shadow-[0_24px_55px_-22px_rgba(0,0,0,0.55)] px-5 sm:px-9 py-6 sm:py-7 grid grid-cols-2 sm:grid-cols-4 gap-y-6 gap-x-5">
             {([
               { icon: "calendar", label: multi ? `${allEditions.length} weeks to choose` : "When", value: multi
                   ? <span className="space-y-0.5">{editionsLite.map((e) => <span key={e.id} className="block">{e.label} · {e.shortRange}</span>)}</span>
