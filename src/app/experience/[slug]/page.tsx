@@ -437,16 +437,6 @@ export default async function ExperienceDetailPage({ params }: Props) {
         intro={experience.description || "One week, fully immersed in the sport you love — epic conditions, world-class coaching, and a crew that feels like old friends by day two."}
         weekInfo={weekInfo}
       />
-      {highlights.length > 0 && (
-        <section className="bg-[#f6f9fa] pt-2 pb-16 sm:pb-20">
-          <div className="max-w-[1100px] mx-auto px-6 sm:px-8 flex flex-wrap justify-center gap-2">
-            {highlights.map((h) => (
-              <span key={h} className="text-[12.5px] font-semibold text-[#00374a] bg-[#00afdb]/10 px-3.5 py-1.5 rounded-full">{h}</span>
-            ))}
-          </div>
-        </section>
-      )}
-
       {/* 2 · THE NP7 TRAINING SYSTEM — the unique mechanism */}
       <section id="method" className="scroll-mt-16 py-16 sm:py-24 bg-[#00374a] text-white relative overflow-hidden">
         <Slideshow images={vibeImages} className="opacity-45" />
@@ -611,6 +601,13 @@ export default async function ExperienceDetailPage({ params }: Props) {
       {/* 6 · YOUR PERFECT WEEK */}
       <section className="py-16 sm:py-24">
         <div className="max-w-[760px] mx-auto px-6 sm:px-8">
+          {highlights.length > 0 && (
+            <Reveal className="flex flex-wrap gap-2 mb-8">
+              {highlights.map((h) => (
+                <span key={h} className="text-[12.5px] font-semibold text-[#00374a] bg-[#00afdb]/10 px-3.5 py-1.5 rounded-full">{h}</span>
+              ))}
+            </Reveal>
+          )}
           <Reveal className="mb-10">
             <p className="text-[11px] font-bold tracking-[0.25em] text-[#00afdb] mb-3">DAY BY DAY</p>
             <h2 className="text-3xl sm:text-5xl font-black tracking-[-0.03em] text-[#00374a] mb-3">Your perfect week in {place}</h2>
