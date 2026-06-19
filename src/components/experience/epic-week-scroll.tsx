@@ -49,6 +49,7 @@ export function EpicWeekScroll({
   const sectionRef = useRef<HTMLDivElement>(null);
   const innerRef = useRef<HTMLDivElement>(null);
   const railRef = useRef<HTMLDivElement>(null);
+  const cardRefs = useRef<(HTMLElement | null)[]>([]);
   const [active, setActive] = useState(0);
   const [enabled, setEnabled] = useState(true);
 
@@ -75,7 +76,19 @@ export function EpicWeekScroll({
         const scrollable = section.offsetHeight - inner.offsetHeight;
         const p = clamp(-rect.top / Math.max(1, scrollable));
         if (railRef.current) railRef.current.style.height = `${p * 100}%`;
-        setActive(clamp(Math.floor(p * N), 0, N - 1));
+        // each card flies up with the scroll: in from below, out through the top
+        const cont = p * N;                       // 0..N continuous position
+        const dist = inner.offsetHeight * 0.72;   // travel distance per card
+        for (let i = 0; i < N; i++) {
+          const el = cardRefs.current[i];
+          if (!el) continue;
+          const d = cont - (i + 0.5);             // <0 below (incoming), >0 above (gone)
+          const op = clamp(1 - Math.abs(d) * 1.35);
+          el.style.opacity = String(op);
+          el.style.transform = `translateY(${-d * dist}px)`;
+          el.style.pointerEvents = op > 0.6 ? "auto" : "none";
+        }
+        setActive(clamp(Math.floor(cont), 0, N - 1));
       });
     };
     onScroll();
@@ -164,12 +177,10 @@ export function EpicWeekScroll({
             </div>
           </div>
 
-          {/* detail cards fly through */}
+          {/* detail cards fly up with the scroll: in from below, out through the top */}
           <div className="relative h-[60vh] lg:h-[66vh]">
-            {outcomes.map((o, i) => {
-              const on = i === active;
-              return (
-                <article key={o.t} aria-hidden={!on} className="epic-card absolute inset-0 rounded-[28px] overflow-hidden border border-white/12 shadow-[0_30px_70px_rgba(0,15,25,0.5)]" style={{ opacity: on ? 1 : 0, transform: on ? "none" : "translateY(26px) scale(0.985)", pointerEvents: on ? "auto" : "none" }}>
+            {outcomes.map((o, i) => (
+                <article key={o.t} ref={(el) => { cardRefs.current[i] = el; }} aria-hidden={i !== active} className="epic-card absolute inset-0 rounded-[28px] overflow-hidden border border-black/[0.06] shadow-[0_30px_70px_rgba(0,30,45,0.3)]" style={{ willChange: "transform, opacity" }}>
                   {img(i) && <div className="absolute inset-0 bg-cover bg-center" style={{ backgroundImage: `url('${img(i)}')` }} />}
                   <div className="absolute inset-0 bg-gradient-to-t from-[#00263a] via-[#00374a]/55 to-[#00374a]/5" />
                   <div className="absolute inset-0 flex flex-col justify-end p-8 sm:p-12">
@@ -179,15 +190,13 @@ export function EpicWeekScroll({
                     <p className="text-[15px] sm:text-[17px] text-white/85 leading-relaxed max-w-[560px]">{o.d}</p>
                   </div>
                 </article>
-              );
-            })}
+            ))}
           </div>
         </div>
       </div>
 
       <style>{`
-        .epic-card { transition: opacity .55s ease, transform .55s ease; }
-        @media (prefers-reduced-motion: reduce) { .epic-card { transition: none; } }
+        .epic-card { transition: none; opacity: 0; }
       `}</style>
     </section>
   );
