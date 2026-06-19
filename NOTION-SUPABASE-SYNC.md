@@ -31,6 +31,7 @@ A re-import must be **additive-only**:
 - **Package components**: +89 links on Bonaire Week II/III (from the Week I scheme). Notion scheme may differ. **Open:** Alacati packages still have 0 components (no Alacati components exist yet).
 - **Components → experience**: BON-* assigned to Bonaire Winter, GAR-* to Lake Garda (earlier).
 - **Bookings**: 8 duplicate bookings deleted earlier (Notion may still list them).
+- **Package level rename (2026-06-19)**: 14 package names "Pro" → "Advanced" in Supabase. Notion still says "Pro" — rename there too, or keep Supabase authoritative.
 
 ## When you do migrate again
 - Write a new `supabase/migrations/NNN_*.sql` that only inserts new `notion_id`s (per the golden rule).
