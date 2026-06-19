@@ -412,6 +412,19 @@ export default async function ExperienceDetailPage({ params }: Props) {
         </div>
       </section>
 
+      {/* HIGHLIGHTS — punchy "why this trip" pills, paired with the quick facts */}
+      {highlights.length > 0 && (
+        <section className="bg-white border-b border-[#eef2f3]">
+          <div className="max-w-[1100px] mx-auto px-6 sm:px-8 py-5 flex flex-wrap justify-center gap-2">
+            {highlights.map((h) => (
+              <span key={h} className="inline-flex items-center gap-1.5 text-[12.5px] font-semibold text-[#00374a] bg-[#00afdb]/10 px-3.5 py-1.5 rounded-full">
+                <span className="text-[#00afdb]">✦</span>{h}
+              </span>
+            ))}
+          </div>
+        </section>
+      )}
+
       {/* 1 · THE DREAM — your epic week (outcome cards) */}
       <section className="py-16 sm:py-24">
         <div className="max-w-[1100px] mx-auto px-6 sm:px-8">
@@ -440,15 +453,6 @@ export default async function ExperienceDetailPage({ params }: Props) {
               </Reveal>
             ))}
           </div>
-          {highlights.length > 0 && (
-            <div className="flex flex-wrap justify-center gap-2 mt-9">
-              {highlights.map((h) => (
-                <span key={h} className="inline-flex items-center gap-1.5 text-[12.5px] font-semibold text-[#00374a] bg-[#00afdb]/10 px-3.5 py-1.5 rounded-full">
-                  <span className="text-[#00afdb]">✦</span>{h}
-                </span>
-              ))}
-            </div>
-          )}
         </div>
       </section>
 
