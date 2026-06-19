@@ -377,7 +377,7 @@ export default async function HardwareProductPage({ params }: Props) {
   }
 
   return (
-    <div className="bg-[#0c0c0e] text-white">
+    <div className="hardware-root bg-[#0c0c0e] text-white">
       <HardwareHeader />
 
       {template.modules.map(renderModule)}

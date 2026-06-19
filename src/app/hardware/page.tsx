@@ -96,7 +96,7 @@ export default async function HardwarePage() {
       : FALLBACK_PRODUCTS;
 
   return (
-    <div className="bg-[#0c0c0e] text-white">
+    <div className="hardware-root bg-[#0c0c0e] text-white">
       <HardwareHeader />
 
       {/* HERO — workshop */}

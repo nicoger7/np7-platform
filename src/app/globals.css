@@ -43,6 +43,13 @@ body {
   -webkit-font-smoothing: antialiased;
 }
 
+/* Dark-themed routes (hardware): paint html + body dark so scroll-up / overscroll
+   repaint never flashes the white default behind the page. */
+html:has(.hardware-root),
+body:has(.hardware-root) {
+  background: #0c0c0e;
+}
+
 /* Hide scrollbars on horizontal carousels while keeping scroll/drag */
 .scrollbar-hide {
   -ms-overflow-style: none;
