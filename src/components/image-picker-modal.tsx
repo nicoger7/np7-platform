@@ -27,6 +27,31 @@ function formatSize(bytes: number) {
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 }
 
+/** Resize large images client-side (canvas → JPEG) so uploads stay well under the
+    serverless ~4.5 MB body limit and load fast. SVG/GIF and already-small files pass through. */
+async function downscaleImage(file: File, maxDim = 2560, quality = 0.85): Promise<File> {
+  if (!file.type.startsWith("image/") || /svg|gif/i.test(file.type)) return file;
+  try {
+    const bitmap = await createImageBitmap(file);
+    const longest = Math.max(bitmap.width, bitmap.height);
+    const scale = Math.min(1, maxDim / longest);
+    if (scale >= 1 && file.size < 3_500_000) { bitmap.close?.(); return file; }
+    const w = Math.round(bitmap.width * scale);
+    const h = Math.round(bitmap.height * scale);
+    const canvas = document.createElement("canvas");
+    canvas.width = w; canvas.height = h;
+    const ctx = canvas.getContext("2d");
+    if (!ctx) { bitmap.close?.(); return file; }
+    ctx.drawImage(bitmap, 0, 0, w, h);
+    bitmap.close?.();
+    const blob = await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, "image/jpeg", quality));
+    if (!blob) return file;
+    return new File([blob], file.name.replace(/\.[^.]+$/, "") + ".jpg", { type: "image/jpeg" });
+  } catch {
+    return file;
+  }
+}
+
 export default function ImagePickerModal({
   onSelect,
   onClose,
@@ -39,6 +64,7 @@ export default function ImagePickerModal({
   const [selected, setSelected] = useState<string | null>(null);
   const [uploadPicker, setUploadPicker] = useState(false);
   const [pendingFiles, setPendingFiles] = useState<File[] | null>(null);
+  const [error, setError] = useState("");
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const fetchFiles = useCallback(async () => {
@@ -56,15 +82,36 @@ export default function ImagePickerModal({
 
   async function uploadToFolder(fileArr: File[], targetFolder: string) {
     setUploading(true);
-    for (const file of fileArr) {
-      const formData = new FormData();
-      formData.append("file", file);
-      formData.append("folder", targetFolder);
-      await fetch("/api/admin/images", { method: "POST", body: formData });
+    setError("");
+    let lastUrl = "";
+    try {
+      for (const raw of fileArr) {
+        const file = await downscaleImage(raw);
+        // safe, collision-free storage key (original names can have spaces/unicode)
+        const ext = (file.name.split(".").pop() || "jpg").toLowerCase().replace(/[^a-z0-9]/g, "");
+        const base = file.name.replace(/\.[^.]+$/, "").toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/-+/g, "-").replace(/^-|-$/g, "").slice(0, 40) || "image";
+        const named = new File([file], `${base}-${Date.now()}.${ext}`, { type: file.type });
+        const formData = new FormData();
+        formData.append("file", named);
+        formData.append("folder", targetFolder);
+        const res = await fetch("/api/admin/images", { method: "POST", body: formData });
+        if (!res.ok) {
+          const j = await res.json().catch(() => ({}));
+          throw new Error(j.error || `Upload failed (${res.status})`);
+        }
+        const j = await res.json();
+        lastUrl = j.url || lastUrl;
+      }
+    } catch (e) {
+      setUploading(false);
+      setError((e as Error).message || "Upload failed — please try again with a smaller image.");
+      return;
     }
     setUploading(false);
     setFolder(targetFolder);
-    fetchFiles();
+    await fetchFiles();
+    // single upload → select it straight away so it's applied without hunting for it
+    if (lastUrl && fileArr.length === 1) onSelect(lastUrl);
   }
 
   function handleFilesSelected(fileList: FileList) {
@@ -145,6 +192,12 @@ export default function ImagePickerModal({
             </button>
           </div>
         </div>
+
+        {error && (
+          <div className="mx-5 mt-3 rounded-lg px-4 py-2.5 text-[13px] font-medium" style={{ backgroundColor: "rgba(239,68,68,0.12)", color: "#ef4444", border: "1px solid rgba(239,68,68,0.3)" }}>
+            {error}
+          </div>
+        )}
 
         {/* Breadcrumbs */}
         <div
