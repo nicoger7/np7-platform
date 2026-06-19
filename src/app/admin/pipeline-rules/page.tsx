@@ -180,8 +180,8 @@ export default function PipelineRulesPage() {
     <div>
       <div className="flex items-center justify-between mb-6">
         <div>
-          <h1 className="text-2xl font-bold admin-heading mb-1">Pipeline Rules</h1>
-          <p className="text-sm admin-muted">{rules.length} rule{rules.length !== 1 ? "s" : ""}</p>
+          <h1 className="text-2xl font-bold admin-heading mb-1">Email Rules</h1>
+          <p className="text-sm admin-muted">{rules.length} automated email{rules.length !== 1 ? "s" : ""} across the booking lifecycle</p>
         </div>
         <div className="flex items-center gap-3">
           <ColumnToggle columns={COLUMNS} visible={visibleColumns} onChange={setVisibleColumns} storageKey={STORAGE_KEY} />

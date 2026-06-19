@@ -63,7 +63,7 @@ const navByEnv: Record<Environment, { label: string; items: { label: string; hre
     {
       label: "AUTOMATION",
       items: [
-        { label: "Pipeline Rules", href: "/admin/pipeline-rules", icon: "flow" },
+        { label: "Email Rules", href: "/admin/pipeline-rules", icon: "flow" },
         { label: "Task Rules", href: "/admin/task-rules", icon: "rules", wip: true },
         { label: "Email Templates", href: "/admin/email-templates", icon: "mail" },
         { label: "Email Log", href: "/admin/email-log", icon: "mail" },
