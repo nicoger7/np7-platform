@@ -1,12 +1,11 @@
 import Link from "next/link";
 import type { Metadata } from "next";
 import { supabase } from "@/lib/supabase";
-import { DiveHero } from "@/components/experience/dive-hero";
+import { HeroFindYourFit } from "@/components/experience/hero-find-your-fit";
 import { DepthBackdrop } from "@/components/experience/depth-backdrop";
 import { OceanHeader, NP7_LOGO } from "@/components/experience/ocean-header";
 import { Reveal } from "@/components/experience/reveal";
 import { Carousel } from "@/components/experience/carousel";
-import { FindYourFit } from "@/components/experience/find-your-fit";
 
 export const metadata: Metadata = {
   title: "NP7 Experience — Premium Watersports Travel",
@@ -116,7 +115,7 @@ export default async function ExperienceOverviewPage() {
       {/* ---------------------------------------------------------------- */}
       {/* HERO — scroll-scrubbed windsurf "dive"                            */}
       {/* ---------------------------------------------------------------- */}
-      <DiveHero src={HERO_VIDEO} poster={HERO_POSTER}>
+      <HeroFindYourFit src={HERO_VIDEO} poster={HERO_POSTER}>
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img
           src={NP7_EXPERIENCE_LOGO}
@@ -143,21 +142,14 @@ export default async function ExperienceOverviewPage() {
             See destinations
           </Link>
         </div>
-      </DiveHero>
+      </HeroFindYourFit>
 
       {/* ---------------------------------------------------------------- */}
-      {/* THE DESCENT — one continuous ocean from here to the seabed.        */}
-      {/* Pulled up over the hero's sticky scroll-out tail (z-10) so its     */}
-      {/* foam-crested top edge sweeps up across the footage as you scroll   */}
-      {/* and the first feature rides up directly beneath the wave — no flat */}
-      {/* slab of water between the dive and "Find your fit". The overlap    */}
-      {/* (~38vh) sets when the crest first appears over the dive (p≈0.6).   */}
+      {/* THE DESCENT — the ocean picks up after the hero + Find-your-fit     */}
+      {/* video stage (which now runs on the same continuous scroll above).   */}
       {/* ---------------------------------------------------------------- */}
-      <div className="relative z-10 -mt-[38vh]">
+      <div className="relative z-10">
       <DepthBackdrop>
-        {/* FIND YOUR FIT — self-segmentation */}
-        <FindYourFit />
-
         {/* UPCOMING EXPERIENCES — white cards floating on the water */}
         <section id="experiences" className="scroll-mt-20 pt-20 sm:pt-28 pb-24">
           <div className="max-w-[1200px] mx-auto px-6 sm:px-8">
