@@ -144,6 +144,19 @@ export async function getBookingPaid(bookingId: string): Promise<number> {
     .reduce((s: number, p: { amount: number | null }) => s + (Number(p.amount) || 0), 0);
 }
 
+/** Members can download the full photo package a limited number of times. */
+export const MEMORY_DOWNLOAD_LIMIT = 3;
+
+/** Downloads still allowed for this booking (tolerant: pre-migration the column is
+    absent → treat as none used). */
+export async function getMemoryDownloadsRemaining(bookingId: string): Promise<number> {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const db = createAdminClient() as any;
+  const { data } = await db.from("exp_bookings").select("memory_download_count").eq("id", bookingId).maybeSingle();
+  const used = data?.memory_download_count ?? 0;
+  return Math.max(0, MEMORY_DOWNLOAD_LIMIT - used);
+}
+
 export type HotelInfo = { name: string; image_url: string | null; images: string[] | null; description: string | null; website: string | null };
 
 /** Resolve the hotel for a booking (by the package's hotel_id, else name match on the
