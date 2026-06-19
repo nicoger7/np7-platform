@@ -120,6 +120,7 @@ function FactIcon({ name }: { name: string }) {
     case "pin": return <svg className={c} viewBox="0 0 24 24" {...p}><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0118 0z" /><circle cx="12" cy="10" r="3" /></svg>;
     case "users": return <svg className={c} viewBox="0 0 24 24" {...p}><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2" /><circle cx="9" cy="7" r="4" /></svg>;
     case "plane": return <svg className={c} viewBox="0 0 24 24" {...p}><path d="M17.8 19.2L16 11l3.5-3.5a2.1 2.1 0 00-3-3L13 8 4.8 6.2a.7.7 0 00-.7 1.1L9 11l-2 3-2-.5a.5.5 0 00-.5.8L7 17l1.8 2.5a.5.5 0 00.8-.5L9 17l3-2 3.6 4.9a.7.7 0 001.2-.7z" /></svg>;
+    case "wind": return <svg className={c} viewBox="0 0 24 24" {...p}><path d="M3 8h10a3 3 0 1 0-3-3M3 12h15a3 3 0 1 1-3 3M3 16h9a2.5 2.5 0 1 1-2.5 2.5" /></svg>;
     default: return null;
   }
 }
@@ -377,14 +378,16 @@ export default async function ExperienceDetailPage({ params }: Props) {
       {/* QUICK FACTS */}
       <section className="bg-[#00374a] text-white">
         <div className="max-w-[1200px] mx-auto px-6 sm:px-8 py-7 grid grid-cols-2 sm:grid-cols-4 gap-y-6 gap-x-4">
-          {[
-            { icon: "calendar", label: "When", value: multi ? `${fmtShort(spanStart, spanEnd)} · ${allEditions.length} weeks` : fmtShort(edition?.date_start, edition?.date_end) },
+          {([
+            { icon: "calendar", label: multi ? `${allEditions.length} weeks to choose` : "When", value: multi
+                ? <span className="space-y-0.5">{editionsLite.map((e) => <span key={e.id} className="block">{e.label} · {e.shortRange}</span>)}</span>
+                : fmtShort(edition?.date_start, edition?.date_end) },
             { icon: "pin", label: "Where", value: experience.location ?? "—" },
-            { icon: "users", label: "Group size", value: edition?.max_spots ? `Max ${edition.max_spots}` : "Small group" },
+            { icon: "wind", label: "Wind", value: windProbability || windRange || "Reliable, steady wind" },
             { icon: "plane", label: "Airport", value: experience.airport_code ?? "—" },
-          ].map((f) => (
-            <div key={f.label} className="flex items-center gap-3">
-              <span className="text-[#00afdb]"><FactIcon name={f.icon} /></span>
+          ] as const).map((f) => (
+            <div key={f.label} className="flex items-start gap-3">
+              <span className="text-[#00afdb] mt-0.5"><FactIcon name={f.icon} /></span>
               <span><span className="block text-[10px] font-bold tracking-[0.15em] uppercase text-white/40">{f.label}</span><span className="block text-[13.5px] font-bold">{f.value}</span></span>
             </div>
           ))}
@@ -417,9 +420,10 @@ export default async function ExperienceDetailPage({ params }: Props) {
 
       {/* 2 · THE NP7 TRAINING SYSTEM — the unique mechanism */}
       <section id="method" className="scroll-mt-16 py-16 sm:py-24 bg-[#00374a] text-white relative overflow-hidden">
-        <Slideshow images={vibeImages} className="opacity-[0.22]" />
-        <div className="absolute inset-0 bg-gradient-to-b from-[#00374a]/80 via-[#00374a]/70 to-[#00374a]/90" />
-        <div className="absolute inset-0 opacity-[0.05]" style={{ backgroundImage: "linear-gradient(rgba(255,255,255,1) 1px,transparent 1px),linear-gradient(90deg,rgba(255,255,255,1) 1px,transparent 1px)", backgroundSize: "60px 60px" }} />
+        <Slideshow images={vibeImages} className="opacity-45" />
+        {/* readable scrim — photo shows through more than before; warm glow keeps it fun, not clinical */}
+        <div className="absolute inset-0 bg-gradient-to-br from-[#00374a]/85 via-[#00374a]/65 to-[#013242]/85" />
+        <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_75%_15%,rgba(0,175,219,0.25),transparent_55%)]" />
         <div className="relative max-w-[1100px] mx-auto px-6 sm:px-8">
           <Reveal className="max-w-[660px] mb-12">
             <p className="text-[11px] font-bold tracking-[0.25em] text-[#8fe6f2] mb-3">THE NP7 TRAINING SYSTEM</p>
@@ -453,15 +457,15 @@ export default async function ExperienceDetailPage({ params }: Props) {
       <section className="py-16 sm:py-24 bg-[#fff7ec]">
         <div className="max-w-[1100px] mx-auto px-6 sm:px-8">
           <Reveal className="text-center max-w-[640px] mx-auto mb-10">
-            <p className="text-[11px] font-bold tracking-[0.25em] text-[#00afdb] mb-3">NO LUCK REQUIRED</p>
-            <h2 className="text-3xl sm:text-5xl font-black tracking-[-0.03em] text-[#00374a]">You can count on it</h2>
+            <p className="text-[11px] font-bold tracking-[0.25em] text-[#00afdb] mb-3">THE ODDS ARE IN YOUR FAVOUR</p>
+            <h2 className="text-3xl sm:text-5xl font-black tracking-[-0.03em] text-[#00374a]">Set up for a great week</h2>
           </Reveal>
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
             {[
               { big: windProbability || "Trade winds", small: windProbability ? "wind probability in season" : "steady & reliable", sub: windRange || null },
               { big: "★ 5.0", small: "guest rating", sub: "5-star reviews, week after week" },
-              { big: "Good vibes", small: "guaranteed", sub: "small, hand-picked groups" },
-              { big: "Plan B", small: "no-wind program", sub: "zero wasted days" },
+              { big: "Small groups", small: "great crew", sub: "hand-picked, friendly vibe" },
+              { big: "Plan B", small: "no-wind program", sub: "we make every day count" },
             ].map((s, i) => (
               <Reveal key={s.small} delay={i * 80}>
                 <div className="h-full bg-white rounded-2xl border border-[#f0e6d6] p-6 text-center">

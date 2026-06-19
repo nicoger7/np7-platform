@@ -37,9 +37,9 @@ export function ScrollStory({ items, images }: { items: StoryItem[]; images: str
   const imgFor = (i: number) => images[i % images.length];
 
   return (
-    <div className="grid lg:grid-cols-[1fr_1.05fr] gap-10 lg:gap-16 items-start">
-      {/* Sticky image panel (desktop) */}
-      <div className="hidden lg:block sticky top-24 h-[72vh] rounded-[28px] overflow-hidden shadow-[0_30px_70px_rgba(0,55,74,0.18)] bg-[#00374a]">
+    <div className="grid lg:grid-cols-[1.25fr_1fr] gap-10 lg:gap-14 items-start">
+      {/* Sticky image panel (desktop) — landscape, not a tall narrow strip */}
+      <div className="hidden lg:block sticky top-28 aspect-[4/3] max-h-[64vh] rounded-[28px] overflow-hidden shadow-[0_30px_70px_rgba(0,55,74,0.18)] bg-[#00374a]">
         {hasImages ? (
           items.map((_, i) => (
             <div
