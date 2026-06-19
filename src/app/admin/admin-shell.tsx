@@ -105,7 +105,7 @@ const sharedNavTop: NavGroup = {
 const sharedNavBottom: NavGroup = {
   label: "GENERAL",
   items: [
-    { label: "Images", href: "/admin/images", icon: "image" },
+    { label: "File Storage", href: "/admin/images", icon: "image" },
   ],
 };
 
