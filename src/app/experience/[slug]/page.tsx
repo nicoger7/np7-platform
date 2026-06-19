@@ -10,6 +10,8 @@ import { StickyCta } from "@/components/experience/sticky-cta";
 import { type RealPackage } from "@/components/experience/package-picker";
 import { EditionBooking, type EditionLite } from "@/components/experience/edition-booking";
 import { HeroVideo } from "@/components/experience/hero-video";
+import { ScrollStory } from "@/components/experience/scroll-story";
+import { GalleryStrip } from "@/components/experience/gallery-strip";
 
 export const revalidate = 60;
 
@@ -228,6 +230,13 @@ export default async function ExperienceDetailPage({ params }: Props) {
   }
   const heroMediaImage = content?.hero_image?.trim() || tileImg || BRAND_IMG.spot; // event-page hero image
   const galleryImgs = ((content?.gallery?.length ? content.gallery : experience.gallery) ?? []).filter(Boolean);
+  // Image pool that drives the vibey sections (scroll story, etc). Prefer the
+  // trip's own gallery; fall back to the hero + evergreen brand shots so the page
+  // never feels empty even before photos are uploaded.
+  const vibeImages = (galleryImgs.length
+    ? galleryImgs
+    : [heroMediaImage, BRAND_IMG.action, BRAND_IMG.group, BRAND_IMG.spot, BRAND_IMG.ease, BRAND_IMG.coach]
+  ).filter(Boolean);
   const place = experience.location?.split(",")[0] ?? "the water";
 
   // editable website content (falls back to evergreen when empty)
@@ -354,7 +363,7 @@ export default async function ExperienceDetailPage({ params }: Props) {
         </div>
       </section>
 
-      {/* 1 · THE DREAM — what you'll take home (outcome stack) */}
+      {/* 1 · THE DREAM — what you'll take home (scroll story) */}
       <section className="py-16 sm:py-24">
         <div className="max-w-[1100px] mx-auto px-6 sm:px-8">
           <Reveal className="text-center max-w-[680px] mx-auto mb-12">
@@ -365,17 +374,7 @@ export default async function ExperienceDetailPage({ params }: Props) {
             </p>
             {weekInfo && <p className="text-[15px] text-[#6a7a80] leading-relaxed mt-3 whitespace-pre-line">{weekInfo}</p>}
           </Reveal>
-          <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-5">
-            {OUTCOMES.map((o, i) => (
-              <Reveal key={o.t} delay={(i % 3) * 90}>
-                <div className="h-full bg-white rounded-2xl border border-[#ebeef0] p-6 shadow-[0_10px_30px_rgba(0,55,74,0.05)]">
-                  <span className="text-[26px] leading-none" aria-hidden>{o.icon}</span>
-                  <h3 className="text-[17px] font-black tracking-[-0.01em] text-[#00374a] mt-3 mb-2 leading-[1.2]">{o.t}</h3>
-                  <p className="text-[14px] text-[#5a6b72] leading-relaxed">{o.d}</p>
-                </div>
-              </Reveal>
-            ))}
-          </div>
+          <ScrollStory items={OUTCOMES} images={vibeImages} />
           {highlights.length > 0 && (
             <div className="flex flex-wrap justify-center gap-2 mt-9">
               {highlights.map((h) => (
@@ -562,23 +561,17 @@ export default async function ExperienceDetailPage({ params }: Props) {
         </div>
       </section>
 
-      {/* 8 · YOUR MEMORIES */}
+      {/* 8 · YOUR MEMORIES — filmstrip fly-by */}
       {galleryImgs.length > 0 && (
-        <section className="py-16 sm:py-24">
+        <section className="py-16 sm:py-20 overflow-hidden">
           <div className="max-w-[1200px] mx-auto px-6 sm:px-8">
-            <Reveal className="mb-10 text-center">
+            <Reveal className="mb-9 text-center">
               <p className="text-[11px] font-bold tracking-[0.25em] text-[#00afdb] mb-3">YOUR MEMORIES IN THE MAKING</p>
               <h2 className="text-3xl sm:text-4xl font-black tracking-[-0.03em] text-[#00374a]">You&apos;ll take these home</h2>
-              <p className="text-[15px] text-[#6a7a80] mt-3">We shoot every week on photo &amp; video — this is what it looks like.</p>
+              <p className="text-[15px] text-[#6a7a80] mt-3">We shoot every week on photo &amp; video — tap any frame to dive in.</p>
             </Reveal>
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-              {galleryImgs.map((src, i) => (
-                <Reveal key={i} delay={(i % 4) * 80} className={i % 5 === 0 ? "col-span-2 row-span-2" : ""}>
-                  <div className="aspect-square bg-cover bg-center rounded-2xl hover:opacity-90 transition-opacity" style={{ backgroundImage: `url('${src}')` }} />
-                </Reveal>
-              ))}
-            </div>
           </div>
+          <Reveal><GalleryStrip images={galleryImgs} /></Reveal>
         </section>
       )}
 
