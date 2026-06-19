@@ -83,7 +83,11 @@ export function EpicWeekScroll({
         for (let i = 0; i < N; i++) {
           const el = cardRefs.current[i];
           if (!el) continue;
-          const d = cont - (i + 0.5);             // <0 below (incoming), >0 above (gone)
+          let d = cont - (i + 0.5);               // <0 below (incoming), >0 above (gone)
+          // first card is already next to the text on the way in; last card stays
+          // next to the text on the way out (neither flies off past the centre)
+          if (i === 0) d = Math.max(0, d);
+          if (i === N - 1) d = Math.min(0, d);
           const ad = Math.abs(d);
           const eased = Math.sign(d) * Math.pow(ad, 1.7) * 1.85;   // flat near centre → dwell
           const op = clamp(1 - Math.max(0, ad - 0.14) * 1.55);     // hold full opacity at centre
@@ -147,9 +151,10 @@ export function EpicWeekScroll({
   return (
     <section ref={sectionRef} className="relative bg-[#f6f9fa]" style={{ height: `${N * 80 + 50}vh` }}>
       <div ref={innerRef} className="sticky top-0 h-[100svh] overflow-hidden text-[#00374a]">
-        {/* soft light backdrop — cool sea glow + a subtle warm sun glow */}
+        {/* soft light backdrop — cool sea glow + a warm sun glow (sun to sea) */}
         <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_72%_-5%,rgba(0,175,219,0.10),transparent_55%)]" />
-        <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_8%_106%,rgba(244,123,32,0.08),transparent_50%)]" />
+        <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_6%_104%,rgba(244,123,32,0.15),transparent_52%)]" />
+        <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_96%_-8%,rgba(255,150,60,0.1),transparent_46%)]" />
 
         {/* progress rail (desktop) */}
         <div className="hidden lg:block absolute left-4 sm:left-7 top-1/2 -translate-y-1/2 h-[42vh] w-[2px] rounded-full bg-[#00374a]/12 z-10">

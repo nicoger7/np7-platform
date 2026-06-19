@@ -373,8 +373,9 @@ export default async function ExperienceDetailPage({ params }: Props) {
           <div className="absolute inset-0 bg-cover bg-center scale-105" style={{ backgroundImage: `url('${heroMediaImage}')` }} />
         )}
         <div className="absolute inset-0 bg-gradient-to-t from-[#00374a] via-black/35 to-black/35" />
-        {/* subtle warm sun glow — the brand's "sun to sea" warmth */}
-        <div className="absolute inset-0 bg-[radial-gradient(ellipse_65%_55%_at_82%_-5%,rgba(244,123,32,0.22),transparent_55%)]" aria-hidden />
+        {/* warm sun glow — the brand's "sun to sea" warmth, now clearly in frame */}
+        <div className="absolute inset-0 bg-[radial-gradient(ellipse_58%_50%_at_80%_8%,rgba(244,123,32,0.34),transparent_56%)]" aria-hidden />
+        <div className="absolute inset-x-0 bottom-0 h-1/3 bg-[radial-gradient(ellipse_70%_100%_at_50%_100%,rgba(255,150,60,0.14),transparent_70%)]" aria-hidden />
         <div className="relative w-full max-w-[1200px] mx-auto px-6 sm:px-8 pb-9 pt-28">
           <Reveal from="up">
             <div className="flex flex-wrap items-center gap-3 mb-4">
