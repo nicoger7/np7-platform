@@ -393,22 +393,27 @@ export default async function ExperienceDetailPage({ params }: Props) {
         </div>
       </section>
 
-      {/* QUICK FACTS */}
-      <section className="bg-[#00374a] text-white">
-        <div className="max-w-[1200px] mx-auto px-6 sm:px-8 py-7 grid grid-cols-2 sm:grid-cols-4 gap-y-6 gap-x-4">
-          {([
-            { icon: "calendar", label: multi ? `${allEditions.length} weeks to choose` : "When", value: multi
-                ? <span className="space-y-0.5">{editionsLite.map((e) => <span key={e.id} className="block">{e.label} · {e.shortRange}</span>)}</span>
-                : fmtShort(edition?.date_start, edition?.date_end) },
-            { icon: "pin", label: "Where", value: experience.location ?? "—" },
-            { icon: "wind", label: "Wind", value: windProbability || windRange || "Reliable, steady wind" },
-            { icon: "plane", label: "Airport", value: experience.airport_code ?? "—" },
-          ] as const).map((f) => (
-            <div key={f.label} className="flex items-start gap-3">
-              <span className="text-[#00afdb] mt-0.5"><FactIcon name={f.icon} /></span>
-              <span><span className="block text-[10px] font-bold tracking-[0.15em] uppercase text-white/40">{f.label}</span><span className="block text-[13.5px] font-bold">{f.value}</span></span>
-            </div>
-          ))}
+      {/* QUICK FACTS — elevated card bridging the hero into the page */}
+      <section className="relative bg-white pb-14 sm:pb-20">
+        <div className="max-w-[1080px] mx-auto px-6 sm:px-8 -mt-12 sm:-mt-16 relative z-20">
+          <div className="rounded-2xl sm:rounded-[26px] bg-white shadow-[0_26px_70px_-28px_rgba(0,55,74,0.55)] ring-1 ring-[#edf1f3] px-5 sm:px-9 py-6 sm:py-7 grid grid-cols-2 sm:grid-cols-4 gap-y-6 gap-x-5">
+            {([
+              { icon: "calendar", label: multi ? `${allEditions.length} weeks to choose` : "When", value: multi
+                  ? <span className="space-y-0.5">{editionsLite.map((e) => <span key={e.id} className="block">{e.label} · {e.shortRange}</span>)}</span>
+                  : fmtShort(edition?.date_start, edition?.date_end) },
+              { icon: "pin", label: "Where", value: experience.location ?? "—" },
+              { icon: "wind", label: "Wind", value: windProbability || windRange || "Reliable, steady wind" },
+              { icon: "plane", label: "Airport", value: experience.airport_code ?? "—" },
+            ] as const).map((f) => (
+              <div key={f.label} className="flex items-start gap-3">
+                <span className="w-9 h-9 rounded-xl bg-[#00afdb]/10 text-[#00afdb] grid place-items-center shrink-0"><FactIcon name={f.icon} /></span>
+                <span className="min-w-0">
+                  <span className="block text-[10px] font-bold tracking-[0.15em] uppercase text-[#9aa6ac] mb-0.5">{f.label}</span>
+                  <span className="block text-[13.5px] font-bold text-[#00374a] leading-snug">{f.value}</span>
+                </span>
+              </div>
+            ))}
+          </div>
         </div>
       </section>
 
@@ -422,7 +427,7 @@ export default async function ExperienceDetailPage({ params }: Props) {
         weekInfo={weekInfo}
       />
       {highlights.length > 0 && (
-        <section className="bg-[#001b29] pb-14 sm:pb-20 pt-2">
+        <section className="bg-[#00374a] py-10 sm:py-12">
           <div className="max-w-[1100px] mx-auto px-6 sm:px-8 flex flex-wrap justify-center gap-2">
             {highlights.map((h) => (
               <span key={h} className="text-[12.5px] font-semibold text-white/90 bg-white/10 px-3.5 py-1.5 rounded-full">{h}</span>

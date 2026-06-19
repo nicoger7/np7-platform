@@ -52,10 +52,15 @@ export function EpicWeekScroll({
   const [active, setActive] = useState(0);
   const [enabled, setEnabled] = useState(true);
 
-  // disable pinning for reduced-motion / very short viewports (mobile-safe fallback)
+  // pin only on desktop — phones/tablets get a clean, balanced grid (no sideways scroll)
   useEffect(() => {
-    const reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-    setEnabled(!reduce && window.innerHeight > 560);
+    const compute = () => {
+      const reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+      setEnabled(!reduce && window.innerWidth >= 1024 && window.innerHeight > 560);
+    };
+    compute();
+    window.addEventListener("resize", compute);
+    return () => window.removeEventListener("resize", compute);
   }, []);
 
   useEffect(() => {
@@ -93,25 +98,25 @@ export function EpicWeekScroll({
 
   const img = (i: number) => (images.length ? images[i % images.length] : null);
 
-  // ---- static fallback (no pinning) ----------------------------------------
+  // ---- static fallback: clean wrapping grid (mobile / reduced-motion) ------
   if (!enabled) {
     return (
-      <section className="py-16 sm:py-24 bg-[#00374a] text-white">
-        <div className="max-w-[1100px] mx-auto px-6 sm:px-8">
-          <div className="max-w-[680px] mb-10">
+      <section className="py-14 sm:py-20 bg-[#00374a] text-white">
+        <div className="max-w-[1080px] mx-auto px-5 sm:px-8">
+          <div className="max-w-[640px] mb-8 sm:mb-10">
             <p className="text-[11px] font-bold tracking-[0.25em] text-[#8fe6f2] mb-3">{eyebrow}</p>
-            <h2 className="text-3xl sm:text-5xl font-black tracking-[-0.03em] mb-4">{title}</h2>
-            <p className="text-[16px] text-white/60 leading-relaxed">{intro}</p>
-            {weekInfo && <p className="text-[15px] text-white/55 leading-relaxed mt-3 whitespace-pre-line">{weekInfo}</p>}
+            <h2 className="text-[28px] sm:text-5xl font-black tracking-[-0.03em] leading-[1.08] mb-3 sm:mb-4">{title}</h2>
+            <p className="text-[15px] sm:text-[16px] text-white/65 leading-relaxed">{intro}</p>
+            {weekInfo && <p className="text-[14px] text-white/55 leading-relaxed mt-3 whitespace-pre-line">{weekInfo}</p>}
           </div>
-          <div className="grid sm:grid-cols-2 gap-5">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             {outcomes.map((o, i) => (
-              <article key={o.t} className="relative min-h-[280px] rounded-3xl overflow-hidden bg-[#012c3b] flex flex-col justify-end">
+              <article key={o.t} className="relative min-h-[210px] sm:min-h-[250px] rounded-3xl overflow-hidden bg-[#012c3b] flex flex-col justify-end">
                 {img(i) && <div className="absolute inset-0 bg-cover bg-center" style={{ backgroundImage: `url('${img(i)}')` }} />}
-                <div className="absolute inset-0 bg-gradient-to-t from-[#00374a] via-[#00374a]/55 to-[#00374a]/5" />
-                <div className="relative p-6">
-                  <span className="inline-grid place-items-center w-11 h-11 rounded-2xl bg-white/15 backdrop-blur-sm text-white mb-3" aria-hidden><Icon name={o.icon} /></span>
-                  <h3 className="text-[18px] font-black tracking-[-0.01em] leading-[1.2]">{o.t}</h3>
+                <div className="absolute inset-0 bg-gradient-to-t from-[#00263a] via-[#00374a]/55 to-[#00374a]/5" />
+                <div className="relative p-5 sm:p-6">
+                  <span className="inline-grid place-items-center w-10 h-10 rounded-2xl bg-white/15 backdrop-blur-sm text-[#8fe6f2] mb-3" aria-hidden><Icon name={o.icon} /></span>
+                  <h3 className="text-[17px] sm:text-[18px] font-black tracking-[-0.01em] leading-[1.2]">{o.t}</h3>
                   <p className="text-[13.5px] text-white/80 leading-relaxed mt-1.5">{o.d}</p>
                 </div>
               </article>
