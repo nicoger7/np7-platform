@@ -31,8 +31,10 @@ const SEGMENTS: Segment[] = [
 const N = SEGMENTS.length;
 const HERO_SCENES = 1.3;       // scroll length of the logo hero
 const FIT_SCENES = 0.85;       // scroll length per fit
-const TOTAL = HERO_SCENES + N * FIT_SCENES;
-const HERO_END = HERO_SCENES / TOTAL; // progress at which the fits take over
+const DIVE_SCENES = 1.1;       // dive-out: video fades + experiences rise over it
+const TOTAL = HERO_SCENES + N * FIT_SCENES + DIVE_SCENES;
+const HERO_END = HERO_SCENES / TOTAL;                       // fits take over
+const FITS_END = (HERO_SCENES + N * FIT_SCENES) / TOTAL;    // fits done, dive-out begins
 
 const clamp = (v: number) => (v < 0 ? 0 : v > 1 ? 1 : v);
 
@@ -95,19 +97,19 @@ export function HeroFindYourFit({ src, poster, children }: { src: string; poster
       if (heroRef.current) { heroRef.current.style.opacity = String(Math.max(1 - he * 1.2, 0)); heroRef.current.style.transform = `translateY(${-70 * he}px)`; heroRef.current.style.pointerEvents = he > 0.9 ? "none" : "auto"; }
       if (cueRef.current) cueRef.current.style.opacity = String(Math.max(1 - p / (HERO_END * 0.4), 0));
 
-      // fit stage: top/bottom vignette ramps in, brand wash eases off the centre
-      const fp = clamp((p - HERO_END) / (1 - HERO_END));
+      // fit stage spans HERO_END..FITS_END; the dive-out spans FITS_END..1
+      const fp = clamp((p - HERO_END) / (FITS_END - HERO_END));
       const fitIn = clamp((p - HERO_END * 0.85) / (HERO_END * 0.3));
-      // exit: over the last stretch the whole video scene fades away (it keeps
-      // scrubbing the entire time) revealing the ocean the next section sits on —
-      // no hard line, the experiences scroll straight up out of the water.
-      const exit = clamp((fp - 0.82) / 0.18);
+      // dive-out: the whole video scene fades away over a full screen of scroll
+      // (it keeps scrubbing the entire time) while the experiences rise up over it —
+      // no hard line, and no empty blue because the cards cover as the video goes.
+      const exit = clamp((p - FITS_END) / (1 - FITS_END));
       if (zoomRef.current) zoomRef.current.style.opacity = String(1 - exit);
       if (scrimRef.current) scrimRef.current.style.opacity = String(fitIn * (1 - exit));
       // wash stays a tint from the very start (so the footage reads while it scrubs),
       // then eases further over the fits, then fades out with the rest
       if (sunWashRef.current) sunWashRef.current.style.opacity = String((0.6 - fitIn * 0.25) * (1 - exit));
-      if (fitRef.current) { fitRef.current.style.opacity = String(fitIn * (1 - exit)); fitRef.current.style.pointerEvents = fitIn > 0.5 && exit < 0.5 ? "auto" : "none"; }
+      if (fitRef.current) { fitRef.current.style.opacity = String(fitIn * (1 - exit)); fitRef.current.style.pointerEvents = fitIn > 0.5 && exit < 0.4 ? "auto" : "none"; }
       if (railRef.current) railRef.current.style.height = `${fp * 100}%`;
 
       const idx = Math.min(N - 1, Math.floor(fp * N));
@@ -127,7 +129,7 @@ export function HeroFindYourFit({ src, poster, children }: { src: string; poster
     if (!wrap) return;
     const scrollable = wrap.offsetHeight - window.innerHeight;
     const docTop = window.scrollY + wrap.getBoundingClientRect().top;
-    const targetP = HERO_END + ((i + 0.5) / N) * (1 - HERO_END);
+    const targetP = HERO_END + ((i + 0.5) / N) * (FITS_END - HERO_END);
     window.scrollTo({ top: docTop + targetP * scrollable, behavior: "smooth" });
   }
 
@@ -203,13 +205,13 @@ export function HeroFindYourFit({ src, poster, children }: { src: string; poster
             </div>
           </div>
 
-          {/* active feature — bottom, centred, large */}
-          <div className="absolute bottom-0 inset-x-0 pb-[72px] sm:pb-24 px-6 flex justify-center z-10">
+          {/* active feature — centred, large, grabs attention right away */}
+          <div className="absolute inset-0 px-6 flex items-center justify-center z-10 pt-[300px] pb-14 sm:pt-[112px] sm:pb-16">
             <div className="relative w-full max-w-[760px] min-h-[250px] sm:min-h-[280px]">
               {SEGMENTS.map((s, i) => {
                 const on = i === active;
                 return (
-                  <div key={s.id} aria-hidden={!on} className="fyf-card fyf-copy absolute inset-x-0 bottom-0 text-center" style={{ opacity: on ? 1 : 0, transform: on ? "none" : "translateY(20px)", pointerEvents: on ? "auto" : "none" }}>
+                  <div key={s.id} aria-hidden={!on} className="fyf-card fyf-copy absolute inset-0 flex flex-col items-center justify-center text-center" style={{ opacity: on ? 1 : 0, transform: on ? "none" : "translateY(20px)", pointerEvents: on ? "auto" : "none" }}>
                     <h3 className="text-3xl sm:text-5xl font-black tracking-[-0.02em] text-white leading-[1.04] mb-4">{s.title}</h3>
                     <p className="text-[16px] sm:text-[19px] text-white/90 leading-relaxed mb-6 max-w-[620px] mx-auto">{s.body}</p>
                     <div className="flex flex-wrap justify-center gap-x-5 gap-y-2 mb-7 max-w-[680px] mx-auto">

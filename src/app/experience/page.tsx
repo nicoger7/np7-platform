@@ -149,7 +149,7 @@ export default async function ExperienceOverviewPage() {
       {/* find-your-fit video stage: pulled up so they scroll into view while  */}
       {/* the scrubbed video is still fading out behind them (no line).        */}
       {/* ---------------------------------------------------------------- */}
-      <div className="relative z-10 -mt-[34vh]">
+      <div className="relative z-10 -mt-[78vh]">
       <DepthBackdrop>
         {/* UPCOMING EXPERIENCES — white cards floating on the water */}
         <section id="experiences" className="scroll-mt-20 pt-20 sm:pt-28 pb-24">
