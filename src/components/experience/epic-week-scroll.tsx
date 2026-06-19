@@ -51,6 +51,7 @@ export function EpicWeekScroll({
   const innerRef = useRef<HTMLDivElement>(null);
   const railRef = useRef<HTMLDivElement>(null);
   const cardRefs = useRef<(HTMLElement | null)[]>([]);
+  const activeRef = useRef(0);
   const [active, setActive] = useState(0);
   const [enabled, setEnabled] = useState(true);
 
@@ -70,44 +71,58 @@ export function EpicWeekScroll({
     if (!enabled) return;
     const section = sectionRef.current, inner = innerRef.current;
     if (!section || !inner) return;
-    let raf = 0;
-    const onScroll = () => {
-      cancelAnimationFrame(raf);
-      raf = requestAnimationFrame(() => {
-        const rect = section.getBoundingClientRect();
-        const scrollable = section.offsetHeight - inner.offsetHeight;
-        const p = clamp(-rect.top / Math.max(1, scrollable));
-        if (railRef.current) railRef.current.style.height = `${p * 100}%`;
-        // each card flies up with the scroll: in from below, out through the top.
-        // An eased curve makes it dwell near the centre (slow to pass) then fly out fast.
-        const cont = p * N;                       // 0..N continuous position
-        const dist = inner.offsetHeight * (window.innerWidth < 1024 ? 0.5 : 0.72); // travel per card
-        for (let i = 0; i < N; i++) {
-          const el = cardRefs.current[i];
-          if (!el) continue;
-          let d = cont - (i + 0.5);               // <0 below (incoming), >0 above (gone)
-          // first card is already next to the text on the way in; last card stays
-          // next to the text on the way out (neither flies off past the centre)
-          if (i === 0) d = Math.max(0, d);
-          if (i === N - 1) d = Math.min(0, d);
-          const ad = Math.abs(d);
-          const eased = Math.sign(d) * Math.pow(ad, 1.7) * 1.85;   // flat near centre → dwell
-          const op = clamp(1 - Math.max(0, ad - 0.14) * 1.55);     // hold full opacity at centre
-          el.style.opacity = String(op);
-          el.style.transform = `translateY(${-eased * dist}px)`;
-          el.style.pointerEvents = op > 0.6 ? "auto" : "none";
-        }
-        setActive(clamp(Math.floor(cont), 0, N - 1));
-      });
+    let raf = 0, running = true, current = -1; // eased scroll progress (−1 = uninitialised)
+
+    const targetProgress = () => {
+      const scrollable = section.offsetHeight - inner.offsetHeight;
+      return clamp(-section.getBoundingClientRect().top / Math.max(1, scrollable));
     };
-    onScroll();
-    window.addEventListener("scroll", onScroll, { passive: true });
-    window.addEventListener("resize", onScroll);
-    return () => {
-      window.removeEventListener("scroll", onScroll);
-      window.removeEventListener("resize", onScroll);
-      cancelAnimationFrame(raf);
+
+    const render = (p: number) => {
+      if (railRef.current) railRef.current.style.height = `${p * 100}%`;
+      // each card flies up with the scroll: in from below, out through the top.
+      // An eased curve makes it dwell near the centre (slow to pass) then fly out fast.
+      const cont = p * N;                       // 0..N continuous position
+      const dist = inner.offsetHeight * (window.innerWidth < 1024 ? 0.5 : 0.72); // travel per card
+      for (let i = 0; i < N; i++) {
+        const el = cardRefs.current[i];
+        if (!el) continue;
+        let d = cont - (i + 0.5);               // <0 below (incoming), >0 above (gone)
+        // first card is already next to the text on the way in; last card stays
+        // next to the text on the way out (neither flies off past the centre)
+        if (i === 0) d = Math.max(0, d);
+        if (i === N - 1) d = Math.min(0, d);
+        const ad = Math.abs(d);
+        const eased = Math.sign(d) * Math.pow(ad, 1.7) * 1.85;   // flat near centre → dwell
+        const op = clamp(1 - Math.max(0, ad - 0.14) * 1.55);     // hold full opacity at centre
+        el.style.opacity = String(op);
+        el.style.transform = `translateY(${-eased * dist}px)`;
+        el.style.pointerEvents = op > 0.6 ? "auto" : "none";
+      }
+      const idx = clamp(Math.floor(cont), 0, N - 1);
+      if (idx !== activeRef.current) { activeRef.current = idx; setActive(idx); }
     };
+
+    // continuous loop: the cards smoothly catch up to the scroll (temporal easing),
+    // same feel as the hero video scrub
+    const tick = () => {
+      const target = targetProgress();
+      if (current < 0) current = target;       // first frame: snap, don't sweep from 0
+      current += (target - current) * 0.13;
+      if (Math.abs(target - current) < 0.0004) current = target;
+      render(current);
+      raf = running ? requestAnimationFrame(tick) : 0;
+    };
+
+    const io = new IntersectionObserver(([e]) => {
+      running = e.isIntersecting;
+      if (running && !raf) raf = requestAnimationFrame(tick);
+      else if (!running && raf) { cancelAnimationFrame(raf); raf = 0; }
+    }, { threshold: 0 });
+    io.observe(section);
+    raf = requestAnimationFrame(tick);
+
+    return () => { running = false; cancelAnimationFrame(raf); io.disconnect(); };
   }, [enabled, N]);
 
   function goTo(i: number) {
