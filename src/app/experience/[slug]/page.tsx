@@ -12,6 +12,7 @@ import { EditionBooking, type EditionLite } from "@/components/experience/editio
 import { HeroVideo } from "@/components/experience/hero-video";
 import { ScrollStory } from "@/components/experience/scroll-story";
 import { GalleryStrip } from "@/components/experience/gallery-strip";
+import { Slideshow } from "@/components/experience/slideshow";
 
 export const revalidate = 60;
 
@@ -389,6 +390,8 @@ export default async function ExperienceDetailPage({ params }: Props) {
 
       {/* 2 · THE NP7 TRAINING SYSTEM — the unique mechanism */}
       <section id="method" className="scroll-mt-16 py-16 sm:py-24 bg-[#00374a] text-white relative overflow-hidden">
+        <Slideshow images={vibeImages} className="opacity-[0.22]" />
+        <div className="absolute inset-0 bg-gradient-to-b from-[#00374a]/80 via-[#00374a]/70 to-[#00374a]/90" />
         <div className="absolute inset-0 opacity-[0.05]" style={{ backgroundImage: "linear-gradient(rgba(255,255,255,1) 1px,transparent 1px),linear-gradient(90deg,rgba(255,255,255,1) 1px,transparent 1px)", backgroundSize: "60px 60px" }} />
         <div className="relative max-w-[1100px] mx-auto px-6 sm:px-8">
           <Reveal className="max-w-[660px] mb-12">
