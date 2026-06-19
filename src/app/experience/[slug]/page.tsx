@@ -361,7 +361,7 @@ export default async function ExperienceDetailPage({ params }: Props) {
           <div className="absolute inset-0 bg-cover bg-center scale-105" style={{ backgroundImage: `url('${heroMediaImage}')` }} />
         )}
         <div className="absolute inset-0 bg-gradient-to-t from-[#00374a] via-black/35 to-black/35" />
-        <div className="relative w-full max-w-[1200px] mx-auto px-6 sm:px-8 pb-16 pt-32">
+        <div className="relative w-full max-w-[1200px] mx-auto px-6 sm:px-8 pb-28 pt-32">
           <Reveal from="up">
             <div className="flex flex-wrap items-center gap-3 mb-4">
               <span className="text-[12px] font-bold tracking-[0.2em] uppercase text-white/75">{experience.location}</span>
@@ -389,25 +389,31 @@ export default async function ExperienceDetailPage({ params }: Props) {
               </Link>
               <Link href="#method" className="px-7 py-4 rounded-full text-[14px] font-bold text-white border-[1.5px] border-white/40 hover:bg-white/10 transition-all">How it works</Link>
             </div>
-
-            {/* quick facts — part of the hero, so it flows straight into the page */}
-            <div className="mt-10 pt-7 border-t border-white/15 grid grid-cols-2 sm:grid-cols-4 gap-y-5 gap-x-6 max-w-[840px]">
-              {([
-                { icon: "calendar", label: multi ? "Weeks" : "When", value: multi ? `${allEditions.length} weeks to choose` : fmtShort(edition?.date_start, edition?.date_end) },
-                { icon: "pin", label: "Where", value: experience.location ?? "—" },
-                { icon: "wind", label: "Wind", value: windProbability || windRange || "Reliable, steady wind" },
-                { icon: "plane", label: "Airport", value: experience.airport_code ?? "—" },
-              ] as const).map((f) => (
-                <div key={f.label} className="flex items-start gap-2.5">
-                  <span className="text-[#5fd0e8] mt-0.5 shrink-0"><FactIcon name={f.icon} /></span>
-                  <span className="min-w-0">
-                    <span className="block text-[10px] font-bold tracking-[0.15em] uppercase text-white/45">{f.label}</span>
-                    <span className="block text-[13.5px] font-bold text-white leading-snug">{f.value}</span>
-                  </span>
-                </div>
-              ))}
-            </div>
           </Reveal>
+        </div>
+      </section>
+
+      {/* QUICK FACTS — one elevated card straddling the hero into the next module.
+          Lives on the same dark as the hero foot + the epic week, so there's no
+          white void: the card bridges them and the page flows straight on. */}
+      <section className="relative z-20 bg-[#00374a]">
+        <div className="max-w-[1060px] mx-auto px-6 sm:px-8 -mt-12 sm:-mt-14 pb-4 sm:pb-5">
+          <div className="rounded-[22px] sm:rounded-[26px] bg-white shadow-[0_34px_80px_-34px_rgba(0,0,0,0.9)] ring-1 ring-black/[0.04] px-2 sm:px-3 py-4 sm:py-5 grid grid-cols-2 sm:grid-cols-4 divide-y sm:divide-y-0 sm:divide-x divide-[#eef2f4]">
+            {([
+              { icon: "calendar", label: multi ? "Weeks" : "When", value: multi ? `${allEditions.length} weeks to choose` : fmtShort(edition?.date_start, edition?.date_end) },
+              { icon: "pin", label: "Where", value: experience.location ?? "—" },
+              { icon: "wind", label: "Wind", value: windProbability || windRange || "Reliable, steady wind" },
+              { icon: "plane", label: "Airport", value: experience.airport_code ?? "—" },
+            ] as const).map((f) => (
+              <div key={f.label} className="flex items-center gap-3 px-4 sm:px-5 py-2.5 sm:py-1.5">
+                <span className="w-10 h-10 rounded-xl bg-[#00afdb]/10 text-[#00afdb] grid place-items-center shrink-0"><FactIcon name={f.icon} /></span>
+                <span className="min-w-0">
+                  <span className="block text-[10px] font-bold tracking-[0.15em] uppercase text-[#9aa6ac]">{f.label}</span>
+                  <span className="block text-[13.5px] font-bold text-[#00374a] leading-snug">{f.value}</span>
+                </span>
+              </div>
+            ))}
+          </div>
         </div>
       </section>
 
