@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase";
 import { sendEmail } from "@/lib/email/send";
+import { noteForStatus, type AddonStatus } from "@/lib/addons";
 
 // GET /api/admin/bookings/:id/addons — list add-ons for a booking
 export async function GET(
@@ -62,7 +63,7 @@ export async function PATCH(
   const body = await request.json();
   if (!body.addon_id) return NextResponse.json({ error: "addon_id is required" }, { status: 400 });
 
-  const status = body.status === "declined" ? "declined" : "confirmed";
+  const status: AddonStatus = body.status === "declined" ? "declined" : "confirmed";
   const patch: Record<string, unknown> = { status };
   if (status === "confirmed") patch.confirmed_at = new Date().toISOString();
 
@@ -70,8 +71,9 @@ export async function PATCH(
     .from("exp_booking_addons").update(patch).eq("id", body.addon_id).eq("booking_id", id)
     .select("*, exp_components(name)").single();
   if (error && /column|schema cache|does not exist/i.test(error.message)) {
-    // pre-migration 024 — nothing to flip; just return the row
-    ({ data, error } = await client.from("exp_booking_addons").select("*, exp_components(name)").eq("id", body.addon_id).single());
+    // pre-migration 024 — persist the state in the notes sentinel instead
+    ({ data, error } = await client.from("exp_booking_addons").update({ notes: noteForStatus(status) }).eq("id", body.addon_id).eq("booking_id", id)
+      .select("*, exp_components(name)").single());
   }
   if (error) return NextResponse.json({ error: error.message }, { status: 400 });
 

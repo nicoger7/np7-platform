@@ -108,34 +108,11 @@ export default async function BookingDetail({ params }: Props) {
                 </Card>
               )}
 
-              {/* your coaches */}
-              {coaches.length > 0 && (
-                <Card title="Your coaches">
-                  <div className="space-y-4">
-                    {coaches.map((c) => (
-                      <div key={c.name} className="flex items-start gap-3">
-                        <div className="w-14 h-14 rounded-full bg-cover bg-center shrink-0 bg-[#eef3f4]" style={{ backgroundImage: c.image ? `url('${c.image}')` : undefined }} />
-                        <div className="min-w-0">
-                          <p className="text-[14.5px] font-bold text-[#00374a]">{c.name}</p>
-                          {c.role && <p className="text-[11px] font-bold tracking-wide uppercase text-[#00afdb]">{c.role}</p>}
-                          {c.bio && <p className="text-[13px] text-[#6a7a80] leading-relaxed mt-1">{c.bio}</p>}
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </Card>
-              )}
-
               {/* prep */}
               <Card title="Trip prep">
                 <TripAddons bookingId={b.id} depositPaid={depositPaid} />
-                <div className="mt-5 pt-4 border-t border-[#f3ede2] space-y-2.5">
-                  {b.edition?.whatsapp_group_link ? (
-                    <a href={b.edition.whatsapp_group_link} target="_blank" className="flex items-center gap-2 text-[14px] font-semibold text-[#00afdb] hover:underline">
-                      <span>💬</span> Join your group chat
-                    </a>
-                  ) : <p className="text-[13.5px] text-[#9aa6ac]">💬 Your group chat link will appear here soon.</p>}
-                  <div className="pt-1"><ExtraNightsButton bookingId={b.id} /></div>
+                <div className="mt-5 pt-4 border-t border-[#f3ede2]">
+                  <ExtraNightsButton bookingId={b.id} />
                 </div>
               </Card>
 
@@ -158,8 +135,33 @@ export default async function BookingDetail({ params }: Props) {
               </Card>
             </div>
 
-            {/* right column — documents */}
+            {/* right column */}
             <div className="space-y-5">
+              {coaches.length > 0 && (
+                <Card title="Your coaches">
+                  <div className="space-y-4">
+                    {coaches.map((c) => (
+                      <div key={c.name} className="flex items-start gap-3">
+                        <div className="w-14 h-14 rounded-full bg-cover bg-center shrink-0 bg-[#eef3f4]" style={{ backgroundImage: c.image ? `url('${c.image}')` : undefined }} />
+                        <div className="min-w-0">
+                          <p className="text-[14.5px] font-bold text-[#00374a]">{c.name}</p>
+                          {c.role && <p className="text-[11px] font-bold tracking-wide uppercase text-[#00afdb]">{c.role}</p>}
+                          {c.bio && <p className="text-[13px] text-[#6a7a80] leading-relaxed mt-1">{c.bio}</p>}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </Card>
+              )}
+
+              {b.edition?.whatsapp_group_link && (
+                <Card title="Your group">
+                  <a href={b.edition.whatsapp_group_link} target="_blank" className="flex items-center gap-2 text-[14px] font-semibold text-[#00afdb] hover:underline">
+                    <span>💬</span> Join your group chat
+                  </a>
+                </Card>
+              )}
+
               <Card title="Travel documents">
                 <DocLink href={`/account/bookings/${b.id}/confirmation`} label="Trip confirmation" sub="Your booking summary (print / save as PDF)" />
                 <DocLink href="/experience/legal/package-travel" label="Standard information form" sub="Your rights under EU package-travel law" />

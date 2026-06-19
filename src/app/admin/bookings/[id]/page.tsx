@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { ContactPicker } from "@/components/contact-picker";
 import { type DocumentType, formatMoney } from "@/lib/invoices/types";
+import { effectiveAddonStatus } from "@/lib/addons";
 
 interface BookingDetail {
   id: string;
@@ -757,14 +758,17 @@ export default function BookingDetailPage({
                 <span className="text-[10px] font-bold tracking-[0.1em] admin-faint uppercase"></span>
               </div>
               {booking.addons.map((a) => {
-                const requested = a.status === "requested";
+                const eff = effectiveAddonStatus(a);
+                if (eff === "declined") return null; // "no add-ons needed" marker — not shown to the team
+                const requested = eff === "requested";
+                const isMember = a.source === "member" || (a.notes ?? "").startsWith("member:");
                 return (
                 <div key={a.id} className="grid grid-cols-[1fr_110px_90px_120px] gap-3 px-5 py-3" style={{ borderBottom: "1px solid var(--admin-border)" }}>
                   <div className="min-w-0">
                     <div className="text-sm font-medium admin-heading truncate flex items-center gap-2">
                       {a.label}
                       {requested && <span className="shrink-0 text-[9px] font-bold uppercase tracking-wide px-1.5 py-0.5 rounded bg-amber-500/15 text-amber-500">Requested by member</span>}
-                      {a.status === "confirmed" && a.source === "member" && <span className="shrink-0 text-[9px] font-bold uppercase tracking-wide px-1.5 py-0.5 rounded bg-green-500/15 text-green-500">Confirmed</span>}
+                      {eff === "confirmed" && isMember && <span className="shrink-0 text-[9px] font-bold uppercase tracking-wide px-1.5 py-0.5 rounded bg-green-500/15 text-green-500">Confirmed</span>}
                     </div>
                     {a.notes && <div className="text-xs admin-faint truncate">{a.notes}</div>}
                   </div>

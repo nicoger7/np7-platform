@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requirePortalApi } from "@/lib/auth";
 import { createAdminClient } from "@/lib/supabase";
+import { effectiveAddonStatus, noteForStatus } from "@/lib/addons";
 
 // Member-facing add-ons for a booking. Members can request components flagged
 // addon_available; the team confirms them in admin (status flips to 'confirmed').
@@ -31,34 +32,65 @@ export async function GET(_request: NextRequest, { params }: { params: Promise<{
 }
 
 // POST { component_id } → request an add-on (status 'requested')
+//      { none: true }    → mark "no add-ons needed" (a declined marker), advancing prep
+async function insertAddon(
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  db: any,
+  full: Record<string, unknown>,
+  stripped: Record<string, unknown>,
+) {
+  let { error } = await db.from("exp_booking_addons").insert(full);
+  if (error && /column|schema cache|does not exist/i.test(error.message)) {
+    ({ error } = await db.from("exp_booking_addons").insert(stripped)); // pre-migration 024
+  }
+  return error;
+}
+
 export async function POST(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const auth = await requirePortalApi();
   if (!auth.ok) return auth.res;
   const { id } = await params;
-  const { component_id } = await request.json().catch(() => ({}));
-  if (!component_id) return NextResponse.json({ error: "Missing component" }, { status: 400 });
+  const body = await request.json().catch(() => ({}));
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const db = createAdminClient() as any;
   const booking = await ownedBooking(db, id, auth.user.contactId);
   if (!booking) return NextResponse.json({ error: "Booking not found" }, { status: 404 });
 
+  // "No add-ons needed" — a declined marker so the prep step can complete.
+  if (body.none) {
+    const { data: existing } = await db.from("exp_booking_addons").select("id,status,notes,component_id").eq("booking_id", id).is("component_id", null);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    if ((existing ?? []).some((a: any) => effectiveAddonStatus(a) === "declined")) return NextResponse.json({ ok: true });
+    const note = noteForStatus("declined");
+    const error = await insertAddon(
+      db,
+      { booking_id: id, component_id: null, label: "No add-ons needed", price: 0, status: "declined", source: "member", notes: note },
+      { booking_id: id, component_id: null, label: "No add-ons needed", price: 0, notes: note },
+    );
+    if (error) return NextResponse.json({ error: error.message }, { status: 400 });
+    return NextResponse.json({ ok: true });
+  }
+
+  const component_id = body.component_id;
+  if (!component_id) return NextResponse.json({ error: "Missing component" }, { status: 400 });
+
   const { data: comp } = await db.from("exp_components").select("id,name,sell_price,addon_available").eq("id", component_id).maybeSingle();
   if (!comp || !comp.addon_available) return NextResponse.json({ error: "Not available" }, { status: 400 });
 
-  // avoid duplicate pending requests for the same component
-  const { data: existing } = await db.from("exp_booking_addons").select("id,status").eq("booking_id", id).eq("component_id", component_id);
+  // avoid duplicate active requests for the same component
+  const { data: existing } = await db.from("exp_booking_addons").select("id,status,notes").eq("booking_id", id).eq("component_id", component_id);
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  if ((existing ?? []).some((a: any) => a.status !== "declined")) {
+  if ((existing ?? []).some((a: any) => effectiveAddonStatus(a) !== "declined")) {
     return NextResponse.json({ error: "Already requested" }, { status: 409 });
   }
 
-  const full = { booking_id: id, component_id, label: comp.name, price: comp.sell_price ?? null, status: "requested", source: "member", requested_at: new Date().toISOString() };
-  let { error } = await db.from("exp_booking_addons").insert(full);
-  if (error && /column|schema cache|does not exist/i.test(error.message)) {
-    // pre-migration 024 — insert without the new columns
-    ({ error } = await db.from("exp_booking_addons").insert({ booking_id: id, component_id, label: comp.name, price: comp.sell_price ?? null }));
-  }
+  const note = noteForStatus("requested");
+  const error = await insertAddon(
+    db,
+    { booking_id: id, component_id, label: comp.name, price: comp.sell_price ?? null, status: "requested", source: "member", requested_at: new Date().toISOString(), notes: note },
+    { booking_id: id, component_id, label: comp.name, price: comp.sell_price ?? null, notes: note },
+  );
   if (error) return NextResponse.json({ error: error.message }, { status: 400 });
   return NextResponse.json({ ok: true });
 }

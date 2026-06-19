@@ -1,4 +1,5 @@
 import { createAdminClient } from "@/lib/supabase";
+import { effectiveAddonStatus } from "@/lib/addons";
 
 /* Server-only data access for the member portal. Always scoped to the
    member's own contactId (the caller verifies the session first). */
@@ -158,13 +159,14 @@ export async function getMemoryDownloadsRemaining(bookingId: string): Promise<nu
 }
 
 /** Total of confirmed add-ons on a booking — added to what the member owes.
-    Tolerant: pre-migration (no status column) every add-on counts as confirmed. */
+    Uses the effective status (status column or notes sentinel) so requested/declined
+    rows don't count, pre- or post-migration. */
 export async function getConfirmedAddonsTotal(bookingId: string): Promise<number> {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const db = createAdminClient() as any;
-  const { data } = await db.from("exp_booking_addons").select("price,status").eq("booking_id", bookingId);
+  const { data } = await db.from("exp_booking_addons").select("price,status,notes").eq("booking_id", bookingId);
   return (data ?? [])
-    .filter((a: { status?: string | null }) => (a.status ?? "confirmed") === "confirmed")
+    .filter((a: { status?: string | null; notes?: string | null }) => effectiveAddonStatus(a) === "confirmed")
     .reduce((s: number, a: { price: number | null }) => s + (Number(a.price) || 0), 0);
 }
 

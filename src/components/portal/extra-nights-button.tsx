@@ -18,19 +18,19 @@ export function ExtraNightsButton({ bookingId }: { bookingId: string }) {
   }
 
   if (done) {
-    return <p className="text-[13.5px] text-green-700 font-semibold">✓ Request sent — we&apos;ll be in touch about your dates.</p>;
+    return <p className="text-[13.5px] text-green-700 font-semibold">✓ Request sent — we&apos;ll be in touch.</p>;
   }
 
   return (
     <>
       {!open ? (
         <button onClick={() => setOpen(true)} className="text-[13.5px] font-bold text-[#00afdb] hover:underline">
-          Request extra nights / different flight dates →
+          Any other requests? →
         </button>
       ) : (
         <div className="space-y-3">
           <textarea value={message} onChange={(e) => setMessage(e.target.value)} rows={3}
-            placeholder="E.g. I'd like to arrive 2 nights earlier (flying in on the 28th)…"
+            placeholder="Anything else we should know — dietary needs, transfers, a special request…"
             className="w-full px-4 py-3 rounded-xl border border-[#dde6e9] text-[14px] text-[#00374a] outline-none focus:border-[#00afdb]" />
           <div className="flex gap-2">
             <button onClick={submit} disabled={busy} className="px-5 py-2.5 rounded-full text-[13px] font-bold text-white bg-[#00afdb] disabled:opacity-60">
