@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useCallback } from "react";
 import { effectiveAddonStatus } from "@/lib/addons";
-import { hasFlights, type FlightInfo } from "@/lib/flights";
+import { hasFlightDetails, type FlightInfo } from "@/lib/flights";
 
 type Available = { id: string; name: string; description: string | null; sell_price: number | null };
 type Mine = { id: string; component_id: string | null; label: string; price: number | null; status?: string | null; notes?: string | null };
@@ -32,17 +32,28 @@ export function TripAddons({ bookingId, depositPaid, initialFlights }: { booking
   const [showFlights, setShowFlights] = useState(false);
   const [editingFlights, setEditingFlights] = useState(false);
   const [savingFlights, setSavingFlights] = useState(false);
-  const flightsSaved = hasFlights(flights);
+  const flightsSaved = hasFlightDetails(flights);
+  const flightsBooked = flights?.booked === true;
+
+  async function putFlights(payload: FlightInfo) {
+    const res = await fetch(`/api/portal/bookings/${bookingId}/flights`, {
+      method: "PUT", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    });
+    const d = await res.json().catch(() => ({}));
+    if (res.ok) setFlights(d.flights ?? payload);
+    return res.ok;
+  }
 
   async function saveFlights() {
     setSavingFlights(true);
-    const res = await fetch(`/api/portal/bookings/${bookingId}/flights`, {
-      method: "PUT", headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(flightForm),
-    });
-    const d = await res.json().catch(() => ({}));
+    const ok = await putFlights({ ...flightForm, booked: flights?.booked ?? false });
     setSavingFlights(false);
-    if (res.ok) { setFlights(d.flights ?? flightForm); setEditingFlights(false); }
+    if (ok) setEditingFlights(false);
+  }
+
+  async function markBooked() {
+    await putFlights({ ...(flights ?? {}), booked: true });
   }
   const setFF = (k: keyof FlightInfo, v: string) => setFlightForm((f) => ({ ...f, [k]: v }));
 
@@ -109,15 +120,21 @@ export function TripAddons({ bookingId, depositPaid, initialFlights }: { booking
       {/* process steps */}
       <ol className="space-y-2.5">
         {STEPS.map((s, i) => {
-          const done = (i === 0 && depositPaid) || (i === 1 && flightsSaved) || (i === 2 && resolved) || (i === 4 && flightsSaved);
+          const done = (i === 0 && depositPaid) || (i === 1 && flightsSaved) || (i === 2 && resolved) || (i === 4 && flightsBooked);
           return (
             <li key={s.t} className="flex gap-3">
               <span className={`shrink-0 w-6 h-6 rounded-full grid place-items-center text-[12px] font-bold ${done ? "bg-green-500 text-white" : "bg-[#e3eef1] text-[#00748f]"}`}>
                 {done ? "✓" : i + 1}
               </span>
-              <div>
+              <div className="min-w-0">
                 <p className="text-[14px] font-bold text-[#00374a] leading-tight">{s.t}</p>
                 <p className="text-[12.5px] text-[#8a9aa0] leading-snug">{s.d}</p>
+                {i === 4 && !flightsBooked && (
+                  <button onClick={markBooked}
+                    className="mt-1.5 px-3 py-1 rounded-full text-[12px] font-bold text-white bg-[#00afdb] hover:bg-[#15c0ec] transition-colors">
+                    I&apos;ve booked them ✓
+                  </button>
+                )}
               </div>
             </li>
           );
@@ -152,8 +169,9 @@ export function TripAddons({ bookingId, depositPaid, initialFlights }: { booking
       <div className="border-t border-[#f3ede2] pt-4">
         <button onClick={() => setShowFlights((v) => !v)} className="flex items-center justify-between w-full text-left">
           <span className="text-[14px] font-bold text-[#00374a]">
-            {flightsSaved ? "Your flights ✈" : "I booked my flights ✈"}
+            {flightsSaved ? "Your flights ✈" : "Add your flight details ✈"}
             {flightsSaved && <span className="ml-1.5 text-green-600">✓</span>}
+            {flightsBooked && <span className="ml-1.5 text-[11px] font-bold uppercase tracking-wide text-green-600">Booked</span>}
           </span>
           <svg className={`w-4 h-4 text-[#8a9aa0] transition-transform ${showFlights ? "rotate-180" : ""}`} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M6 9l6 6 6-6" /></svg>
         </button>
@@ -224,9 +242,9 @@ function FlightFields({ legend, form, setFF, keys }: { legend: string; form: Fli
     <div>
       <p className="text-[11px] font-bold tracking-[0.12em] uppercase text-[#9aa6ac] mb-1.5">{legend}</p>
       <div className="grid grid-cols-[1fr_90px_1fr] gap-2">
-        <input type="date" value={form[keys[0]] ?? ""} onChange={(e) => setFF(keys[0], e.target.value)} className={input} />
-        <input type="time" value={form[keys[1]] ?? ""} onChange={(e) => setFF(keys[1], e.target.value)} className={input} />
-        <input type="text" value={form[keys[2]] ?? ""} onChange={(e) => setFF(keys[2], e.target.value)} placeholder="Flight no." className={input} />
+        <input type="date" value={(form[keys[0]] as string | null) ?? ""} onChange={(e) => setFF(keys[0], e.target.value)} className={input} />
+        <input type="time" value={(form[keys[1]] as string | null) ?? ""} onChange={(e) => setFF(keys[1], e.target.value)} className={input} />
+        <input type="text" value={(form[keys[2]] as string | null) ?? ""} onChange={(e) => setFF(keys[2], e.target.value)} placeholder="Flight no." className={input} />
       </div>
     </div>
   );

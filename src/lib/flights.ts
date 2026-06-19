@@ -10,12 +10,22 @@ export type FlightInfo = {
   departureDate?: string | null;
   departureTime?: string | null;
   departureFlightNo?: string | null;
+  /** Member has confirmed they've actually booked their flights. */
+  booked?: boolean | null;
 };
 
 export const FLIGHT_NOTE_PREFIX = "[flights]";
 
+const DETAIL_FIELDS: (keyof FlightInfo)[] = ["arrivalDate", "arrivalTime", "arrivalFlightNo", "departureDate", "departureTime", "departureFlightNo"];
+
+/** Any flight detail entered (ignores the booked flag). */
+export function hasFlightDetails(info: FlightInfo | null | undefined): boolean {
+  return !!info && DETAIL_FIELDS.some((f) => info[f] != null && String(info[f]).trim() !== "");
+}
+
+/** Anything at all set (details or booked) — used to decide whether to persist. */
 export function hasFlights(info: FlightInfo | null | undefined): boolean {
-  return !!info && Object.values(info).some((v) => v != null && String(v).trim() !== "");
+  return !!info && (hasFlightDetails(info) || info.booked === true);
 }
 
 export function serializeFlightNote(info: FlightInfo): string {
@@ -43,10 +53,11 @@ const FIELDS: (keyof FlightInfo)[] = ["arrivalDate", "arrivalTime", "arrivalFlig
 
 /** Keep only known fields, trimmed; empty strings → null. */
 export function sanitizeFlightInfo(raw: Record<string, unknown>): FlightInfo {
-  const out: FlightInfo = {};
+  const out: Record<string, string | boolean | null> = {};
   for (const f of FIELDS) {
-    const v = raw[f];
-    out[f] = typeof v === "string" && v.trim() !== "" ? v.trim() : null;
+    const v = raw[f as string];
+    out[f as string] = typeof v === "string" && v.trim() !== "" ? v.trim() : null;
   }
-  return out;
+  if (typeof raw.booked === "boolean") out.booked = raw.booked;
+  return out as FlightInfo;
 }
