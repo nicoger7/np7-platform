@@ -11,6 +11,7 @@ interface Review {
   quote: string | null;
   photo_url: string | null;
   status: string;
+  booking_id: string | null;
 }
 
 interface Placement {
@@ -21,26 +22,34 @@ interface Placement {
 }
 
 /**
- * Curate which approved reviews appear on this edition: pick from the pool,
- * reorder, remove. The pool is filled by participant submissions (member area)
- * and managed at /admin/reviews.
+ * Curate which approved reviews appear on the public experience page: pick from
+ * the pool, reorder, remove. The pool is filled by participant submissions
+ * (member area) and managed at /admin/guest-reviews.
+ *
+ * Reviews are an EXPERIENCE-level concept (same testimonials across all weeks),
+ * so the default scope is the experience. Pass `editionId` only for the legacy
+ * per-edition behaviour.
  */
-export function EditionReviewsEditor({ editionId, experienceId }: { editionId: string; experienceId: string }) {
+export function ReviewPlacementsEditor({ experienceId, editionId }: { experienceId: string; editionId?: string }) {
   const [placed, setPlaced] = useState<Placement[]>([]);
   const [pool, setPool] = useState<Review[]>([]);
   const [loading, setLoading] = useState(true);
   const [addId, setAddId] = useState("");
 
+  const base = editionId
+    ? `/api/admin/editions/${editionId}/reviews`
+    : `/api/admin/experiences/${experienceId}/reviews`;
+
   const load = useCallback(() => {
     Promise.all([
-      fetch(`/api/admin/editions/${editionId}/reviews`).then((r) => r.json()),
+      fetch(base).then((r) => r.json()),
       fetch(`/api/admin/reviews?status=approved`).then((r) => r.json()),
     ]).then(([p, pool]) => {
       setPlaced(Array.isArray(p) ? p : []);
       setPool(Array.isArray(pool) ? pool : []);
       setLoading(false);
     });
-  }, [editionId]);
+  }, [base]);
 
   useEffect(() => { load(); }, [load]);
 
@@ -48,15 +57,15 @@ export function EditionReviewsEditor({ editionId, experienceId }: { editionId: s
 
   async function place() {
     if (!addId) return;
-    await fetch(`/api/admin/editions/${editionId}/reviews`, {
+    await fetch(base, {
       method: "POST", headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ review_id: addId, experience_id: experienceId }),
+      body: JSON.stringify(editionId ? { review_id: addId, experience_id: experienceId } : { review_id: addId }),
     });
     setAddId(""); load();
   }
 
   async function unplace(reviewId: string) {
-    await fetch(`/api/admin/editions/${editionId}/reviews?review_id=${reviewId}`, { method: "DELETE" });
+    await fetch(`${base}?review_id=${reviewId}`, { method: "DELETE" });
     load();
   }
 
@@ -64,8 +73,8 @@ export function EditionReviewsEditor({ editionId, experienceId }: { editionId: s
     const a = placed[idx]; const b = placed[idx + dir];
     if (!a || !b) return;
     await Promise.all([
-      fetch(`/api/admin/editions/${editionId}/reviews`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ review_id: a.review_id, sort_order: b.sort_order }) }),
-      fetch(`/api/admin/editions/${editionId}/reviews`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ review_id: b.review_id, sort_order: a.sort_order }) }),
+      fetch(base, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ review_id: a.review_id, sort_order: b.sort_order }) }),
+      fetch(base, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ review_id: b.review_id, sort_order: a.sort_order }) }),
     ]);
     load();
   }
@@ -79,13 +88,13 @@ export function EditionReviewsEditor({ editionId, experienceId }: { editionId: s
     <div className="rounded-xl p-4" style={{ border: "1px solid var(--admin-border)", backgroundColor: "var(--admin-surface)" }}>
       <div className="flex items-center justify-between mb-3">
         <div>
-          <h3 className="text-sm font-bold admin-heading">Reviews on this edition</h3>
-          <p className="text-xs admin-faint mt-0.5">Pick approved reviews from the pool. Participants submit them post-trip; approve in <Link href="/admin/guest-reviews" className="text-[#0aa3c7] hover:underline">Reviews</Link>.</p>
+          <h3 className="text-sm font-bold admin-heading">{editionId ? "Reviews on this edition" : "Reviews on this experience"}</h3>
+          <p className="text-xs admin-faint mt-0.5">Pick approved reviews from the pool. Participants submit them post-trip; approve in <Link href="/admin/guest-reviews" className="text-[#0aa3c7] hover:underline">Reviews</Link>. A <span className="font-semibold">Verified</span> tag means the review is tied to a real booking.</p>
         </div>
       </div>
 
       {placed.length === 0 ? (
-        <p className="text-xs admin-faint mb-3">No reviews placed on this edition yet.</p>
+        <p className="text-xs admin-faint mb-3">No reviews placed yet.</p>
       ) : (
         <div className="space-y-1.5 mb-4">
           {placed.map((p, idx) => {
@@ -95,7 +104,12 @@ export function EditionReviewsEditor({ editionId, experienceId }: { editionId: s
                 <div className="w-9 h-9 rounded-lg bg-cover bg-center shrink-0" style={{ backgroundImage: r?.photo_url ? `url('${r.photo_url}')` : undefined, border: "1px solid var(--admin-border)" }} />
                 <div className="min-w-0 flex-1">
                   <div className="text-xs admin-muted truncate">{r?.quote ? `“${r.quote}”` : "—"}</div>
-                  <div className="text-[11px] admin-faint truncate"><span className="text-[#ffc42e]">{stars(r?.rating ?? null)}</span> · {r?.author_name || "Anon"}{r?.author_country ? ` · ${r.author_country}` : ""}</div>
+                  <div className="text-[11px] admin-faint truncate flex items-center gap-1.5">
+                    <span><span className="text-[#ffc42e]">{stars(r?.rating ?? null)}</span> · {r?.author_name || "Anon"}{r?.author_country ? ` · ${r.author_country}` : ""}</span>
+                    {r?.booking_id && (
+                      <span className="inline-flex items-center gap-0.5 text-[9px] font-bold text-green-500 bg-green-500/10 px-1.5 py-0.5 rounded uppercase tracking-wide">✓ Verified</span>
+                    )}
+                  </div>
                 </div>
                 <div className="flex items-center gap-1.5 shrink-0">
                   <button onClick={() => move(idx, -1)} disabled={idx === 0} className="admin-faint hover:admin-heading disabled:opacity-20 text-xs px-1" title="Move up">↑</button>

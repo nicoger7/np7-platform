@@ -11,6 +11,7 @@ interface Review {
   quote: string | null;
   photo_url: string | null;
   status: string;
+  booking_id: string | null;
   submitted_at: string | null;
   created_at: string;
   experience_id: string | null;
@@ -130,6 +131,11 @@ export default function GuestReviewsPage() {
                 <div className="flex items-center gap-2 mb-1">
                   <span className="text-[#ffc42e] text-sm">{stars(r.rating)}</span>
                   <span className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase ${STATUS_STYLE[r.status] || ""}`}>{r.status}</span>
+                  {r.booking_id ? (
+                    <span className="inline-flex items-center gap-0.5 px-2 py-0.5 rounded text-[10px] font-bold uppercase bg-[#00afdb]/15 text-[#0aa3c7]" title="Tied to a real booking">✓ Verified</span>
+                  ) : (
+                    <span className="px-2 py-0.5 rounded text-[10px] font-bold uppercase bg-gray-500/10 admin-faint" title="Hand-entered, not linked to a booking">Manual</span>
+                  )}
                   {r.exp_experiences && <span className="text-[11px] admin-faint truncate">{r.exp_experiences.title}{r.exp_editions ? ` · ${r.exp_editions.label || r.exp_editions.year}` : ""}</span>}
                 </div>
                 <textarea

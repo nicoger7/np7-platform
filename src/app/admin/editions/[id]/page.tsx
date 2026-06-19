@@ -6,7 +6,6 @@ import { useRouter } from "next/navigation";
 import BusinessCaseCard from "@/components/business-case-card";
 import { PackageComponentsEditor } from "@/components/package-components-editor";
 import { EditionGuidesEditor } from "@/components/edition-guides-editor";
-import { EditionReviewsEditor } from "@/components/edition-reviews-editor";
 import { ContactPicker, ContactLite } from "@/components/contact-picker";
 
 interface Edition {
@@ -139,7 +138,7 @@ export default function EditionDetailPage({
 }) {
   const { id } = use(params);
   const router = useRouter();
-  const [tab, setTab] = useState<"details" | "bookings" | "packages" | "guides" | "reviews" | "costs" | "rooms" | "notes">("details");
+  const [tab, setTab] = useState<"details" | "bookings" | "packages" | "guides" | "costs" | "rooms" | "notes">("details");
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
@@ -531,7 +530,7 @@ export default function EditionDetailPage({
 
       {/* Tabs */}
       <div className="flex gap-1 mb-6" style={{ borderBottom: "1px solid var(--admin-border)" }}>
-        {(["details", "bookings", "packages", "guides", "reviews", "costs", "rooms", "notes"] as const).map((t) => {
+        {(["details", "bookings", "packages", "guides", "costs", "rooms", "notes"] as const).map((t) => {
           const count = edition._counts?.[t as keyof typeof edition._counts];
           return (
             <button
@@ -967,14 +966,6 @@ export default function EditionDetailPage({
       {/* ── Guides tab ── */}
       {tab === "guides" && (
         <EditionGuidesEditor editionId={id} slug={edition.exp_experiences?.slug} />
-      )}
-
-      {/* ── Reviews tab ── */}
-      {tab === "reviews" && (
-        <EditionReviewsEditor
-          editionId={id}
-          experienceId={edition.experience_id}
-        />
       )}
 
       {/* ── Costs tab ── */}

@@ -273,23 +273,25 @@ export default async function ExperienceDetailPage({ params }: Props) {
   // Admin-curated participant reviews for this experience (fallback to legacy content.reviews).
   const { data: placementRows } = await sb
     .from("exp_review_placements")
-    .select("sort_order, exp_reviews(author_name,author_country,rating,quote,photo_url,status)")
+    .select("sort_order, exp_reviews(author_name,author_country,rating,quote,photo_url,status,booking_id)")
     .eq("experience_id", experience.id)
     .order("sort_order");
+  type PlacedReview = { author_name: string | null; author_country: string | null; rating: number | null; quote: string | null; photo_url: string | null; status: string; booking_id: string | null };
   const placedReviews = (placementRows ?? [])
-    .map((p: { exp_reviews: { author_name: string | null; author_country: string | null; rating: number | null; quote: string | null; photo_url: string | null; status: string } | null }) => p.exp_reviews)
-    .filter((r: { status: string } | null): r is { author_name: string | null; author_country: string | null; rating: number | null; quote: string | null; photo_url: string | null; status: string } => !!r && r.status === "approved")
-    .map((r: { author_name: string | null; author_country: string | null; rating: number | null; quote: string | null; photo_url: string | null }) => ({
+    .map((p: { exp_reviews: PlacedReview | null }) => p.exp_reviews)
+    .filter((r: PlacedReview | null): r is PlacedReview => !!r && r.status === "approved")
+    .map((r: PlacedReview) => ({
       quote: r.quote ?? "", name: r.author_name ?? "", country: r.author_country ?? "",
       image: r.photo_url || BRAND_IMG.group, rating: Math.max(1, Math.min(5, r.rating || 5)),
+      verified: !!r.booking_id,
     }));
 
   const reviewItems =
     placedReviews.length > 0
       ? placedReviews
       : (content?.reviews ?? []).length > 0
-        ? content!.reviews!.map((r) => ({ quote: r.quote, name: r.name, country: r.country, image: r.image || BRAND_IMG.group, rating: Math.max(1, Math.min(5, r.rating || 5)) }))
-        : MOMENTS.map((m) => ({ ...m, rating: 5 }));
+        ? content!.reviews!.map((r) => ({ quote: r.quote, name: r.name, country: r.country, image: r.image || BRAND_IMG.group, rating: Math.max(1, Math.min(5, r.rating || 5)), verified: false }))
+        : MOMENTS.map((m) => ({ ...m, rating: 5, verified: false }));
 
   return (
     <>
@@ -546,6 +548,12 @@ export default async function ExperienceDetailPage({ params }: Props) {
                 <article key={i} className="snap-start shrink-0 w-[280px] sm:w-[360px] relative rounded-3xl overflow-hidden h-[400px]">
                   <div className="absolute inset-0 bg-cover bg-center" style={{ backgroundImage: `url('${m.image}')` }} />
                   <div className="absolute inset-0 bg-gradient-to-t from-black/85 via-black/20 to-transparent" />
+                  {m.verified && (
+                    <span className="absolute top-4 right-4 inline-flex items-center gap-1 text-[10px] font-bold tracking-wide uppercase text-white bg-[#00afdb]/90 backdrop-blur px-2.5 py-1 rounded-full shadow-sm">
+                      <svg className="w-3 h-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><path d="M20 6L9 17l-5-5" /></svg>
+                      Verified
+                    </span>
+                  )}
                   <div className="absolute bottom-0 p-7 text-white"><span className="text-[#ffd24a] text-sm">{"★".repeat(m.rating)}</span><p className="text-[16px] font-bold leading-snug mt-3 mb-4">&ldquo;{m.quote}&rdquo;</p><p className="text-[13px] text-white/70 font-semibold">{m.name}{m.country ? ` · ${m.country}` : ""}</p></div>
                 </article>
               ))}

@@ -4,7 +4,7 @@ import { useEffect, useState, use } from "react";
 import Link from "next/link";
 import ImagePickerModal from "@/components/image-picker-modal";
 import { EditionGuidesEditor } from "@/components/edition-guides-editor";
-import { EditionReviewsEditor } from "@/components/edition-reviews-editor";
+import { ReviewPlacementsEditor } from "@/components/edition-reviews-editor";
 
 type ProgramItem = { title: string; description: string };
 type FaqItem = { q: string; a: string };
@@ -284,7 +284,7 @@ export default function ContentEditorPage({ params }: { params: Promise<{ id: st
           </div>
         </Section>
 
-        <Section show={tab === "modules"} title="Per-edition modules" hint="Guides and reviews differ per week — pick an edition to manage its coaches and placed reviews. (Also editable on the edition page.)">
+        <Section show={tab === "modules"} title="Per-edition guides" hint="Coaches and program differ per week — pick an edition to manage its guides. (Reviews are managed once for the whole experience, in the Reviews tab.)">
           {editions.length === 0 ? (
             <p className="text-xs admin-faint">No editions yet — create one on the experience page.</p>
           ) : (
@@ -292,17 +292,16 @@ export default function ContentEditorPage({ params }: { params: Promise<{ id: st
               <select className="admin-input w-full max-w-[280px] px-3 py-2 rounded-lg border text-sm" value={editionId} onChange={(e) => setEditionId(e.target.value)}>
                 {editions.map((ed) => <option key={ed.id} value={ed.id}>{ed.label || ed.year}</option>)}
               </select>
-              {editionId && (
-                <>
-                  <EditionGuidesEditor editionId={editionId} slug={slug} />
-                  <EditionReviewsEditor editionId={editionId} experienceId={id} />
-                </>
-              )}
+              {editionId && <EditionGuidesEditor editionId={editionId} slug={slug} />}
             </div>
           )}
         </Section>
 
-        <Section show={tab === "reviews"} title="Reviews (legacy)" hint="Manually-entered testimonials. Approved guest reviews placed per edition (above) take priority on the public page.">
+        <Section show={tab === "reviews"} title="Guest reviews" hint="Curate the approved participant reviews shown on the public experience page. Verified reviews are tied to a real booking.">
+          <ReviewPlacementsEditor experienceId={id} />
+        </Section>
+
+        <Section show={tab === "reviews"} title="Manual reviews (legacy)" hint="Hand-entered testimonials. The curated guest reviews above take priority on the public page.">
           <div className="space-y-3">
             {reviews.map((r, i) => (
               <div key={i} className="admin-surface admin-border border rounded-xl p-3.5 flex gap-3">
