@@ -389,31 +389,25 @@ export default async function ExperienceDetailPage({ params }: Props) {
               </Link>
               <Link href="#method" className="px-7 py-4 rounded-full text-[14px] font-bold text-white border-[1.5px] border-white/40 hover:bg-white/10 transition-all">How it works</Link>
             </div>
-          </Reveal>
-        </div>
-      </section>
 
-      {/* QUICK FACTS — a clean panel on the same dark, bridging hero → epic week */}
-      <section className="bg-[#00374a]">
-        <div className="max-w-[1080px] mx-auto px-6 sm:px-8 py-11 sm:py-14">
-          <div className="rounded-2xl sm:rounded-[26px] bg-white shadow-[0_24px_55px_-22px_rgba(0,0,0,0.55)] px-5 sm:px-9 py-6 sm:py-7 grid grid-cols-2 sm:grid-cols-4 gap-y-6 gap-x-5">
-            {([
-              { icon: "calendar", label: multi ? `${allEditions.length} weeks to choose` : "When", value: multi
-                  ? <span className="space-y-0.5">{editionsLite.map((e) => <span key={e.id} className="block">{e.label} · {e.shortRange}</span>)}</span>
-                  : fmtShort(edition?.date_start, edition?.date_end) },
-              { icon: "pin", label: "Where", value: experience.location ?? "—" },
-              { icon: "wind", label: "Wind", value: windProbability || windRange || "Reliable, steady wind" },
-              { icon: "plane", label: "Airport", value: experience.airport_code ?? "—" },
-            ] as const).map((f) => (
-              <div key={f.label} className="flex items-start gap-3">
-                <span className="w-9 h-9 rounded-xl bg-[#00afdb]/10 text-[#00afdb] grid place-items-center shrink-0"><FactIcon name={f.icon} /></span>
-                <span className="min-w-0">
-                  <span className="block text-[10px] font-bold tracking-[0.15em] uppercase text-[#9aa6ac] mb-0.5">{f.label}</span>
-                  <span className="block text-[13.5px] font-bold text-[#00374a] leading-snug">{f.value}</span>
-                </span>
-              </div>
-            ))}
-          </div>
+            {/* quick facts — part of the hero, so it flows straight into the page */}
+            <div className="mt-10 pt-7 border-t border-white/15 grid grid-cols-2 sm:grid-cols-4 gap-y-5 gap-x-6 max-w-[840px]">
+              {([
+                { icon: "calendar", label: multi ? "Weeks" : "When", value: multi ? `${allEditions.length} weeks to choose` : fmtShort(edition?.date_start, edition?.date_end) },
+                { icon: "pin", label: "Where", value: experience.location ?? "—" },
+                { icon: "wind", label: "Wind", value: windProbability || windRange || "Reliable, steady wind" },
+                { icon: "plane", label: "Airport", value: experience.airport_code ?? "—" },
+              ] as const).map((f) => (
+                <div key={f.label} className="flex items-start gap-2.5">
+                  <span className="text-[#5fd0e8] mt-0.5 shrink-0"><FactIcon name={f.icon} /></span>
+                  <span className="min-w-0">
+                    <span className="block text-[10px] font-bold tracking-[0.15em] uppercase text-white/45">{f.label}</span>
+                    <span className="block text-[13.5px] font-bold text-white leading-snug">{f.value}</span>
+                  </span>
+                </div>
+              ))}
+            </div>
+          </Reveal>
         </div>
       </section>
 
