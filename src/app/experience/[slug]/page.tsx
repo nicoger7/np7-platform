@@ -10,7 +10,6 @@ import { StickyCta } from "@/components/experience/sticky-cta";
 import { type RealPackage } from "@/components/experience/package-picker";
 import { EditionBooking, type EditionLite } from "@/components/experience/edition-booking";
 import { HeroVideo } from "@/components/experience/hero-video";
-import { ScrollStory } from "@/components/experience/scroll-story";
 import { GalleryStrip } from "@/components/experience/gallery-strip";
 import { Slideshow } from "@/components/experience/slideshow";
 
@@ -404,18 +403,34 @@ export default async function ExperienceDetailPage({ params }: Props) {
         </div>
       </section>
 
-      {/* 1 · THE DREAM — what you'll take home (scroll story) */}
+      {/* 1 · THE DREAM — your epic week (outcome cards) */}
       <section className="py-16 sm:py-24">
         <div className="max-w-[1100px] mx-auto px-6 sm:px-8">
           <Reveal className="text-center max-w-[680px] mx-auto mb-12">
-            <p className="text-[11px] font-bold tracking-[0.25em] text-[#00afdb] mb-3">YOUR WINDSURF DREAM, MADE REAL</p>
-            <h2 className="text-3xl sm:text-5xl font-black tracking-[-0.03em] text-[#00374a] mb-4">What you&apos;ll take home</h2>
+            <p className="text-[11px] font-bold tracking-[0.25em] text-[#00afdb] mb-3">YOUR EPIC WEEK</p>
+            <h2 className="text-3xl sm:text-5xl font-black tracking-[-0.03em] text-[#00374a] mb-4">The best week of your windsurf year</h2>
             <p className="text-[16px] text-[#6a7a80] leading-relaxed">
-              {experience.description || "One week, full deep dive into the sport you love — epic conditions, world-class coaching, and a crew that feels like old friends by day two."}
+              {experience.description || "One week, fully immersed in the sport you love — epic conditions, world-class coaching, and a crew that feels like old friends by day two."}
             </p>
             {weekInfo && <p className="text-[15px] text-[#6a7a80] leading-relaxed mt-3 whitespace-pre-line">{weekInfo}</p>}
           </Reveal>
-          <ScrollStory items={OUTCOMES} images={vibeImages} />
+          <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-5">
+            {OUTCOMES.map((o, i) => (
+              <Reveal key={o.t} delay={(i % 3) * 90}>
+                <article className="group relative h-full min-h-[300px] rounded-3xl overflow-hidden bg-[#00374a] flex flex-col justify-end shadow-[0_14px_40px_rgba(0,55,74,0.10)]">
+                  {vibeImages.length > 0 && (
+                    <div className="absolute inset-0 bg-cover bg-center group-hover:scale-[1.06] transition-transform duration-[800ms] ease-out" style={{ backgroundImage: `url('${vibeImages[i % vibeImages.length]}')` }} />
+                  )}
+                  <div className="absolute inset-0 bg-gradient-to-t from-[#00374a] via-[#00374a]/55 to-[#00374a]/5" />
+                  <div className="relative p-6">
+                    <span className="inline-grid place-items-center w-11 h-11 rounded-2xl bg-white/15 backdrop-blur-sm text-[22px] mb-3" aria-hidden>{o.icon}</span>
+                    <h3 className="text-[18px] font-black tracking-[-0.01em] text-white leading-[1.2]">{o.t}</h3>
+                    <p className="text-[13.5px] text-white/80 leading-relaxed mt-1.5">{o.d}</p>
+                  </div>
+                </article>
+              </Reveal>
+            ))}
+          </div>
           {highlights.length > 0 && (
             <div className="flex flex-wrap justify-center gap-2 mt-9">
               {highlights.map((h) => (
