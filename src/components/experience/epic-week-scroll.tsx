@@ -101,13 +101,13 @@ export function EpicWeekScroll({
   // ---- static fallback: clean wrapping grid (mobile / reduced-motion) ------
   if (!enabled) {
     return (
-      <section className="py-14 sm:py-20 bg-[#00374a] text-white">
+      <section className="py-14 sm:py-20 bg-[#f6f9fa] text-[#00374a]">
         <div className="max-w-[1080px] mx-auto px-5 sm:px-8">
           <div className="max-w-[640px] mb-8 sm:mb-10">
-            <p className="text-[11px] font-bold tracking-[0.25em] text-[#8fe6f2] mb-3">{eyebrow}</p>
+            <p className="text-[11px] font-bold tracking-[0.25em] text-[#00afdb] mb-3">{eyebrow}</p>
             <h2 className="text-[28px] sm:text-5xl font-black tracking-[-0.03em] leading-[1.08] mb-3 sm:mb-4">{title}</h2>
-            <p className="text-[15px] sm:text-[16px] text-white/65 leading-relaxed">{intro}</p>
-            {weekInfo && <p className="text-[14px] text-white/55 leading-relaxed mt-3 whitespace-pre-line">{weekInfo}</p>}
+            <p className="text-[15px] sm:text-[16px] text-[#6a7a80] leading-relaxed">{intro}</p>
+            {weekInfo && <p className="text-[14px] text-[#7a8a90] leading-relaxed mt-3 whitespace-pre-line">{weekInfo}</p>}
           </div>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             {outcomes.map((o, i) => (
@@ -129,18 +129,17 @@ export function EpicWeekScroll({
 
   // ---- pinned scroll -------------------------------------------------------
   return (
-    <section ref={sectionRef} className="relative bg-[#00374a]" style={{ height: `${N * 80 + 50}vh` }}>
-      <div ref={innerRef} className="sticky top-0 h-screen overflow-hidden text-white">
-        {/* static depth backdrop */}
-        <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_70%_0%,rgba(0,175,219,0.18),transparent_55%)]" />
-        <div className="absolute inset-0 bg-gradient-to-b from-[#00374a] via-[#012c3b] to-[#001b29]" />
+    <section ref={sectionRef} className="relative bg-[#f6f9fa]" style={{ height: `${N * 80 + 50}vh` }}>
+      <div ref={innerRef} className="sticky top-0 h-screen overflow-hidden text-[#00374a]">
+        {/* soft light backdrop */}
+        <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_72%_-5%,rgba(0,175,219,0.10),transparent_55%)]" />
 
         {/* progress rail */}
-        <div className="absolute left-4 sm:left-7 top-1/2 -translate-y-1/2 h-[42vh] w-[2px] rounded-full bg-white/15 z-10">
-          <div ref={railRef} className="w-full rounded-full bg-[#8fe6f2]" style={{ height: "0%" }} />
+        <div className="absolute left-4 sm:left-7 top-1/2 -translate-y-1/2 h-[42vh] w-[2px] rounded-full bg-[#00374a]/12 z-10">
+          <div ref={railRef} className="w-full rounded-full bg-[#00afdb]" style={{ height: "0%" }} />
           {outcomes.map((_, i) => (
             <button key={i} aria-label={`Go to ${outcomes[i].t}`} onClick={() => goTo(i)} className="absolute -left-[8px] w-[18px] h-[18px] grid place-items-center" style={{ top: `calc(${(i / (N - 1)) * 100}% - 9px)` }}>
-              <span className={`block rounded-full transition-all ${active === i ? "w-[10px] h-[10px] bg-[#8fe6f2] shadow-[0_0_12px_rgba(143,230,242,0.9)]" : "w-[6px] h-[6px] bg-white/45"}`} />
+              <span className={`block rounded-full transition-all ${active === i ? "w-[10px] h-[10px] bg-[#00afdb] shadow-[0_0_12px_rgba(0,175,219,0.5)]" : "w-[6px] h-[6px] bg-[#00374a]/25"}`} />
             </button>
           ))}
         </div>
@@ -148,15 +147,15 @@ export function EpicWeekScroll({
         <div className="relative h-full max-w-[1180px] mx-auto px-12 sm:px-16 grid lg:grid-cols-[290px_1fr] gap-7 lg:gap-14 items-center">
           {/* overview */}
           <div className="relative">
-            <p className="text-[11px] font-bold tracking-[0.25em] text-[#8fe6f2] mb-3">{eyebrow}</p>
-            <h2 className="text-2xl sm:text-[34px] font-black tracking-[-0.03em] mb-3 leading-[1.06]">{title}</h2>
-            <p className="text-[13.5px] text-white/55 leading-relaxed mb-5 hidden lg:block">{intro}</p>
+            <p className="text-[11px] font-bold tracking-[0.25em] text-[#00afdb] mb-3">{eyebrow}</p>
+            <h2 className="text-2xl sm:text-[34px] font-black tracking-[-0.03em] text-[#00374a] mb-3 leading-[1.06]">{title}</h2>
+            <p className="text-[13.5px] text-[#6a7a80] leading-relaxed mb-5 hidden lg:block">{intro}</p>
             <div className="flex lg:flex-col gap-2 overflow-x-auto lg:overflow-visible scrollbar-hide -mx-2 px-2 lg:mx-0 lg:px-0">
               {outcomes.map((o, i) => {
                 const on = i === active;
                 return (
-                  <button key={o.t} onClick={() => goTo(i)} aria-current={on} className={`shrink-0 lg:w-full flex items-center gap-3 text-left px-3.5 py-2.5 rounded-2xl border transition-all ${on ? "bg-white/[0.13] border-[#8fe6f2]/60 text-white" : "bg-transparent border-white/10 text-white/55 hover:text-white/85 hover:border-white/25"}`}>
-                    <span className={`shrink-0 ${on ? "text-[#8fe6f2]" : "text-white/40"}`}><Icon name={o.icon} /></span>
+                  <button key={o.t} onClick={() => goTo(i)} aria-current={on} className={`shrink-0 lg:w-full flex items-center gap-3 text-left px-3.5 py-2.5 rounded-2xl border transition-all ${on ? "bg-[#00afdb]/[0.08] border-[#00afdb]/45 text-[#00374a] shadow-[0_6px_18px_rgba(0,175,219,0.12)]" : "bg-white border-[#e3e9ec] text-[#5a6b72] hover:text-[#00374a] hover:border-[#bcd]"}`}>
+                    <span className={`shrink-0 ${on ? "text-[#00afdb]" : "text-[#9aa6ac]"}`}><Icon name={o.icon} /></span>
                     <span className="block text-[13px] font-bold leading-tight">{o.t}</span>
                   </button>
                 );

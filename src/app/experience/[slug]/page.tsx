@@ -427,10 +427,10 @@ export default async function ExperienceDetailPage({ params }: Props) {
         weekInfo={weekInfo}
       />
       {highlights.length > 0 && (
-        <section className="bg-[#00374a] py-10 sm:py-12">
+        <section className="bg-[#f6f9fa] pt-2 pb-16 sm:pb-20">
           <div className="max-w-[1100px] mx-auto px-6 sm:px-8 flex flex-wrap justify-center gap-2">
             {highlights.map((h) => (
-              <span key={h} className="text-[12.5px] font-semibold text-white/90 bg-white/10 px-3.5 py-1.5 rounded-full">{h}</span>
+              <span key={h} className="text-[12.5px] font-semibold text-[#00374a] bg-[#00afdb]/10 px-3.5 py-1.5 rounded-full">{h}</span>
             ))}
           </div>
         </section>
