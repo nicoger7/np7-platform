@@ -6,6 +6,7 @@ import { DepthBackdrop } from "@/components/experience/depth-backdrop";
 import { OceanHeader, NP7_LOGO } from "@/components/experience/ocean-header";
 import { Reveal } from "@/components/experience/reveal";
 import { Carousel } from "@/components/experience/carousel";
+import { UpcomingExperiences, type ExpCard } from "@/components/experience/upcoming-experiences";
 
 export const metadata: Metadata = {
   title: "NP7 Experience — Premium Watersports Travel",
@@ -97,6 +98,28 @@ export default async function ExperienceOverviewPage() {
       return ad < bd ? -1 : 1;
     });
 
+  // Card data for the month-filtered grid. `months` = every upcoming edition's
+  // YYYY-MM, so the month chips reflect exactly what's bookable.
+  const today = new Date().toISOString().slice(0, 10);
+  const expCards: ExpCard[] = experiences.map((exp) => ({
+    id: exp.id,
+    slug: exp.slug,
+    title: exp.title,
+    location: exp.location,
+    description: exp.description,
+    hero_image: exp.hero_image,
+    priceLabel: money(exp.price, exp.currency),
+    dateLabel: fmtRange(exp.ed?.date_start, exp.ed?.date_end),
+    spotsLeft: exp.spotsLeft,
+    months: Array.from(
+      new Set(
+        (exp.exp_editions ?? [])
+          .filter((e) => e.status === "published" && e.date_start && e.date_start >= today)
+          .map((e) => e.date_start!.slice(0, 7))
+      )
+    ).sort(),
+  }));
+
   // unique destinations derived from experience locations
   const destinations = Array.from(
     experiences.reduce((map, e) => {
@@ -163,44 +186,7 @@ export default async function ExperienceOverviewPage() {
             {experiences.length === 0 ? (
               <p className="text-center text-white/70">New experiences are being planned — check back soon.</p>
             ) : (
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-                {experiences.map((exp, i) => (
-                  <Reveal key={exp.id} delay={(i % 3) * 90} as="article">
-                    <Link
-                      href={`/experience/${exp.slug}`}
-                      className="group block bg-white rounded-[18px] overflow-hidden border border-white/10 shadow-[0_24px_50px_rgba(0,20,30,0.28)] hover:-translate-y-1.5 hover:shadow-[0_30px_60px_rgba(0,20,30,0.4)] transition-all duration-300 h-full"
-                    >
-                      <div className="relative h-[210px] bg-[#e9eef0] bg-cover bg-center overflow-hidden" style={{ backgroundImage: exp.hero_image ? `url('${exp.hero_image}')` : undefined }}>
-                        <div className="absolute inset-0 bg-gradient-to-t from-black/35 to-transparent" />
-                        {typeof exp.spotsLeft === "number" && (
-                          <span className={`absolute top-3 right-3 text-[11px] font-bold px-3 py-1.5 rounded-full backdrop-blur-md ${exp.spotsLeft > 0 ? "bg-white/85 text-[#00374a]" : "bg-[#f47b20] text-white"}`}>
-                            {exp.spotsLeft > 0 ? `${exp.spotsLeft} spots left` : "Fully booked"}
-                          </span>
-                        )}
-                        <span className="absolute bottom-3 left-3 text-[11px] font-bold tracking-wide uppercase text-white drop-shadow">
-                          {exp.location}
-                        </span>
-                      </div>
-                      <div className="p-6">
-                        <p className="text-[12px] font-semibold text-[#00afdb] mb-1.5">{fmtRange(exp.ed?.date_start, exp.ed?.date_end)}</p>
-                        <h3 className="text-xl font-extrabold tracking-[-0.02em] text-[#00374a] mb-2.5 group-hover:text-[#00afdb] transition-colors">{exp.title}</h3>
-                        {exp.description && (
-                          <p className="text-[14px] text-[#6a7a80] leading-relaxed line-clamp-2 mb-4">{exp.description}</p>
-                        )}
-                        <div className="flex items-center justify-between pt-3 border-t border-[#f0f0f0]">
-                          {money(exp.price, exp.currency) ? (
-                            <span className="text-[15px] font-bold text-[#00374a]">from {money(exp.price, exp.currency)}</span>
-                          ) : <span />}
-                          <span className="inline-flex items-center gap-1.5 text-[12px] font-bold text-[#00afdb] group-hover:gap-2.5 transition-all">
-                            View trip
-                            <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M5 12h14M13 6l6 6-6 6" /></svg>
-                          </span>
-                        </div>
-                      </div>
-                    </Link>
-                  </Reveal>
-                ))}
-              </div>
+              <UpcomingExperiences experiences={expCards} />
             )}
           </div>
         </section>
