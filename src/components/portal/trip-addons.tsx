@@ -9,7 +9,7 @@ type Mine = { id: string; component_id: string | null; label: string; price: num
 const STEPS = [
   { t: "Pay your deposit", d: "Secures your spot — done if you're here." },
   { t: "Check your flights", d: "Find arrival/departure times that fit the week." },
-  { t: "Sort your extras", d: "Want extra nights or gear? Request them — or choose none." },
+  { t: "Request extras", d: "Want extra nights, gear or more? Request them — or choose none." },
   { t: "We confirm", d: "We'll confirm availability and add it to your trip." },
   { t: "Book your flights", d: "Once your dates are set, lock in your flights." },
 ];
@@ -120,32 +120,31 @@ export function TripAddons({ bookingId, depositPaid }: { bookingId: string; depo
         </div>
       )}
 
-      {/* offers / none */}
-      {!loading && (offer.length > 0 || !resolved) && (
+      {/* "No extras needed" confirmation */}
+      {noneChosen && active.length === 0 && (
+        <p className="border-t border-[#f3ede2] pt-4 text-[13px] text-[#5a6b72]">✓ No extras needed — you&apos;re all set. You can still add something below.</p>
+      )}
+
+      {/* Add to your trip — always a folded module; expands on click */}
+      {!loading && (
         <div className="border-t border-[#f3ede2] pt-4">
-          {!resolved ? (
-            <>
-              <p className="text-[12.5px] font-bold text-[#6a7a80] mb-2.5">Add to your trip</p>
+          <button
+            onClick={() => setShowOffers((v) => !v)}
+            className="flex items-center justify-between w-full text-left"
+          >
+            <span className="text-[14px] font-bold text-[#00374a]">Add to your trip{offer.length > 0 ? ` · ${offer.length}` : ""}</span>
+            <svg className={`w-4 h-4 text-[#8a9aa0] transition-transform ${showOffers ? "rotate-180" : ""}`} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M6 9l6 6 6-6" /></svg>
+          </button>
+          {showOffers && (
+            <div className="mt-3">
               {offer.length > 0 ? <Offers /> : <p className="text-[13px] text-[#8a9aa0]">No optional extras for this trip.</p>}
-              <button onClick={chooseNone} disabled={busy === "none"}
-                className="mt-3 text-[13px] font-semibold text-[#6a7a80] hover:text-[#00374a] underline underline-offset-2">
-                {busy === "none" ? "…" : "No extras needed — I'm all set"}
-              </button>
-            </>
-          ) : (
-            <>
-              {noneChosen && active.length === 0 && <p className="text-[13px] text-[#5a6b72] mb-2">✓ No extras needed — you&apos;re all set.</p>}
-              {offer.length > 0 && (
-                showOffers ? (
-                  <>
-                    <Offers />
-                    <button onClick={() => setShowOffers(false)} className="mt-2 text-[12.5px] font-semibold text-[#8a9aa0] hover:text-[#00374a]">Hide</button>
-                  </>
-                ) : (
-                  <button onClick={() => setShowOffers(true)} className="text-[13px] font-bold text-[#00afdb] hover:underline">+ Add something else</button>
-                )
+              {!resolved && (
+                <button onClick={chooseNone} disabled={busy === "none"}
+                  className="mt-3 text-[13px] font-semibold text-[#6a7a80] hover:text-[#00374a] underline underline-offset-2">
+                  {busy === "none" ? "…" : "No extras needed — I'm all set"}
+                </button>
               )}
-            </>
+            </div>
           )}
         </div>
       )}
