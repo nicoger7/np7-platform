@@ -1,5 +1,6 @@
 import { createAdminClient } from "@/lib/supabase";
 import { effectiveAddonStatus } from "@/lib/addons";
+import { parseFlightNote, type FlightInfo } from "@/lib/flights";
 
 /* Server-only data access for the member portal. Always scoped to the
    member's own contactId (the caller verifies the session first). */
@@ -168,6 +169,26 @@ export async function getConfirmedAddonsTotal(bookingId: string): Promise<number
   return (data ?? [])
     .filter((a: { status?: string | null; notes?: string | null }) => effectiveAddonStatus(a) === "confirmed")
     .reduce((s: number, a: { price: number | null }) => s + (Number(a.price) || 0), 0);
+}
+
+/** Member-entered flight details for a booking. Reads flight_info (migration 025)
+    or the notes sentinel, then merges arrival/departure dates from fly_in/fly_out. */
+export async function getBookingFlights(bookingId: string): Promise<FlightInfo | null> {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const db = createAdminClient() as any;
+  const { data: base } = await db.from("exp_bookings").select("fly_in, fly_out, notes").eq("id", bookingId).maybeSingle();
+  let info: FlightInfo | null = null;
+  const { data: fi } = await db.from("exp_bookings").select("flight_info").eq("id", bookingId).maybeSingle();
+  if (fi?.flight_info) info = fi.flight_info as FlightInfo;
+  if (!info) info = parseFlightNote(base?.notes);
+  if (base?.fly_in || base?.fly_out) {
+    info = {
+      ...(info ?? {}),
+      arrivalDate: info?.arrivalDate ?? base?.fly_in ?? null,
+      departureDate: info?.departureDate ?? base?.fly_out ?? null,
+    };
+  }
+  return info;
 }
 
 export type HotelInfo = { name: string; image_url: string | null; images: string[] | null; description: string | null; website: string | null };

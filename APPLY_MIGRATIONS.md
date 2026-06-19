@@ -66,6 +66,15 @@ alter table exp_booking_addons add column if not exists requested_at timestamptz
 alter table exp_booking_addons add column if not exists confirmed_at timestamptz;
 ```
 
+## 025 — booking flight info (`20260619_025_booking_flight_info.sql`)
+A structured home for member-entered flight times + flight numbers. Dates stay in the
+existing `fly_in`/`fly_out`. Until applied, the portal stores the full detail in a notes
+sentinel, so the feature already works.
+
+```sql
+alter table exp_bookings add column if not exists flight_info jsonb;
+```
+
 ## Verify
 ```sql
 select count(*) from destinations;                  -- 022: table exists
@@ -75,6 +84,7 @@ select image_url, images, description from hotels limit 1; -- 023: hotel media
 select hotel_id from exp_packages limit 1;          -- 023: package link
 select memory_download_count from exp_bookings limit 1;    -- 024: download cap
 select status, source from exp_booking_addons limit 1;     -- 024: add-on flow
+select flight_info from exp_bookings limit 1;              -- 025: flight detail
 ```
 Then: **Destinations** admin is live (022); the experience **Template** tab can pick a page template,
 **Hotels** admin (`/admin/hotels`) can hold photos, and the public booking step shows the hotel name +
