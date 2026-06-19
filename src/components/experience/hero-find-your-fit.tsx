@@ -52,7 +52,6 @@ export function HeroFindYourFit({ src, poster, children }: { src: string; poster
   const fitRef = useRef<HTMLDivElement>(null);
   const scrimRef = useRef<HTMLDivElement>(null);
   const sunWashRef = useRef<HTMLDivElement>(null);
-  const oceanFadeRef = useRef<HTMLDivElement>(null);
   const railRef = useRef<HTMLDivElement>(null);
   const activeRef = useRef(0);
   const [active, setActive] = useState(0);
@@ -99,14 +98,15 @@ export function HeroFindYourFit({ src, poster, children }: { src: string; poster
       // fit stage: top/bottom vignette ramps in, brand wash eases off the centre
       const fp = clamp((p - HERO_END) / (1 - HERO_END));
       const fitIn = clamp((p - HERO_END * 0.85) / (HERO_END * 0.3));
-      // exit: over the last stretch, clear the dark overlays + fit copy and dissolve
-      // the foot of the stage into the ocean surface, so the dive reads cleanly
-      const exit = clamp((fp - 0.88) / 0.12);
+      // exit: over the last stretch the whole video scene fades away (it keeps
+      // scrubbing the entire time) revealing the ocean the next section sits on —
+      // no hard line, the experiences scroll straight up out of the water.
+      const exit = clamp((fp - 0.82) / 0.18);
+      if (zoomRef.current) zoomRef.current.style.opacity = String(1 - exit);
       if (scrimRef.current) scrimRef.current.style.opacity = String(fitIn * (1 - exit));
       // wash stays a tint from the very start (so the footage reads while it scrubs),
-      // then eases further over the fits
-      if (sunWashRef.current) sunWashRef.current.style.opacity = String(0.6 - fitIn * 0.25);
-      if (oceanFadeRef.current) oceanFadeRef.current.style.opacity = String(exit);
+      // then eases further over the fits, then fades out with the rest
+      if (sunWashRef.current) sunWashRef.current.style.opacity = String((0.6 - fitIn * 0.25) * (1 - exit));
       if (fitRef.current) { fitRef.current.style.opacity = String(fitIn * (1 - exit)); fitRef.current.style.pointerEvents = fitIn > 0.5 && exit < 0.5 ? "auto" : "none"; }
       if (railRef.current) railRef.current.style.height = `${fp * 100}%`;
 
@@ -153,9 +153,9 @@ export function HeroFindYourFit({ src, poster, children }: { src: string; poster
   }
 
   return (
-    <section ref={wrapRef} id="find-your-fit" className="relative w-full" style={{ height: `${TOTAL * 100}vh` }}>
+    <section ref={wrapRef} id="find-your-fit" className="relative w-full bg-[#1aa3c7]" style={{ height: `${TOTAL * 100}vh` }}>
       <div className="sticky top-0 h-[100svh] min-h-[560px] overflow-hidden">
-        {/* video backdrop — runs the whole way */}
+        {/* video backdrop — runs the whole way, then fades out into the ocean */}
         <div ref={zoomRef} className="absolute inset-0 will-change-transform">
           <video ref={videoRef} src={src} poster={poster} muted playsInline preload="auto" tabIndex={-1} aria-hidden disablePictureInPicture className="absolute inset-0 w-full h-full object-cover pointer-events-none" />
         </div>
@@ -232,9 +232,6 @@ export function HeroFindYourFit({ src, poster, children }: { src: string; poster
             </div>
           </div>
         </div>
-
-        {/* dive surface — the foot of the stage dissolves into the ocean below */}
-        <div ref={oceanFadeRef} className="absolute inset-0 z-30 pointer-events-none" style={{ opacity: 0, background: "linear-gradient(to bottom, transparent 48%, rgba(26,163,199,0.55) 76%, #1aa3c7 100%)" }} aria-hidden />
       </div>
 
       <style>{`

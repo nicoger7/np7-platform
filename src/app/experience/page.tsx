@@ -145,10 +145,11 @@ export default async function ExperienceOverviewPage() {
       </HeroFindYourFit>
 
       {/* ---------------------------------------------------------------- */}
-      {/* THE DESCENT — the ocean picks up after the hero + Find-your-fit     */}
-      {/* video stage (which now runs on the same continuous scroll above).   */}
+      {/* THE DESCENT — the ocean + experiences rise up over the tail of the  */}
+      {/* find-your-fit video stage: pulled up so they scroll into view while  */}
+      {/* the scrubbed video is still fading out behind them (no line).        */}
       {/* ---------------------------------------------------------------- */}
-      <div className="relative z-10">
+      <div className="relative z-10 -mt-[34vh]">
       <DepthBackdrop>
         {/* UPCOMING EXPERIENCES — white cards floating on the water */}
         <section id="experiences" className="scroll-mt-20 pt-20 sm:pt-28 pb-24">
