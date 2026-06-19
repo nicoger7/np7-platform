@@ -8,7 +8,8 @@ import { createClient } from "@/lib/supabase/client";
 type Tone = "ocean" | "hardware";
 
 const TABS = [
-  { href: "/account", label: "My trips", exact: true },
+  { href: "/account", label: "Home", exact: true },
+  { href: "/account/trips", label: "My trips" },
   { href: "/account/gear", label: "My gear" },
   { href: "/account/cart", label: "Cart", cart: true },
   { href: "/account/profile", label: "Profile" },

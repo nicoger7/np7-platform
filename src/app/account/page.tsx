@@ -4,11 +4,11 @@ import type { Metadata } from "next";
 import { getPortalUser } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 import { getMemberBookings, getMemberBannerImages } from "@/lib/portal-data";
-import { bookingStatus, CHIP_CLASS, fmtDates, money } from "@/lib/portal-status";
+import { fmtDates } from "@/lib/portal-status";
 import { PortalChrome } from "@/components/portal/portal-chrome";
 import { MemberHomeBanner } from "@/components/portal/member-home-banner";
 
-export const metadata: Metadata = { title: "My trips — NP7" };
+export const metadata: Metadata = { title: "My account — NP7" };
 export const dynamic = "force-dynamic";
 
 export default async function AccountHome() {
@@ -40,58 +40,66 @@ export default async function AccountHome() {
           <MemberHomeBanner
             images={bannerImages}
             name={first}
-            subtitle={bookings.length ? "Here are your trips. Tap one to manage everything." : "Your booked trips will show up here."}
+            subtitle="Welcome to your NP7 home — your trips, your gear and everything in between."
           />
 
-          {/* small dashboard */}
-          {bookings.length > 0 && (
-            <div className="flex flex-wrap gap-3 mb-8">
-              <Stat label="Trips booked" value={String(bookings.length)} />
-              {nextTrip && (
-                <Stat
-                  label="Next trip"
-                  value={`${nextTrip.experience?.title ?? "Trip"} · ${fmtDates(nextTrip.edition?.date_start, nextTrip.edition?.date_end)}`}
-                />
-              )}
-            </div>
+          {/* dashboard stats */}
+          <div className="flex flex-wrap gap-3 mb-7">
+            <Stat label="Trips booked" value={String(bookings.length)} />
+            {nextTrip && (
+              <Stat
+                label="Next trip"
+                value={`${nextTrip.experience?.title ?? "Trip"} · ${fmtDates(nextTrip.edition?.date_start, nextTrip.edition?.date_end)}`}
+              />
+            )}
+          </div>
+
+          {/* next-up highlight */}
+          {nextTrip && (
+            <Link
+              href={`/account/bookings/${nextTrip.id}`}
+              className="group block bg-gradient-to-br from-[#00afdb] to-[#0782a0] rounded-2xl p-6 text-white mb-7 hover:-translate-y-0.5 transition-transform"
+            >
+              <p className="text-[11px] font-bold tracking-[0.2em] uppercase text-white/75 mb-1.5">Next up</p>
+              <h2 className="text-2xl font-black tracking-[-0.02em]">{nextTrip.experience?.title ?? "Your trip"}</h2>
+              <p className="text-[14px] text-white/85 mt-1">{nextTrip.edition?.label ? `${nextTrip.edition.label} · ` : ""}{fmtDates(nextTrip.edition?.date_start, nextTrip.edition?.date_end)}</p>
+              <span className="inline-flex items-center gap-1.5 text-[13px] font-bold mt-4 group-hover:gap-2.5 transition-all">Manage trip
+                <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M5 12h14M13 6l6 6-6 6" /></svg>
+              </span>
+            </Link>
           )}
 
-          {bookings.length === 0 ? (
-            <div className="bg-white rounded-2xl border border-[#f0e6d6] p-8 text-center">
-              <p className="text-[15px] text-[#6a7a80] mb-5">No trips yet — your next adventure is waiting.</p>
-              <Link href="/experience" className="inline-block px-7 py-3.5 rounded-full text-[14px] font-bold text-white bg-[#00afdb]">Explore experiences</Link>
-            </div>
-          ) : (
-            <div className="grid gap-4">
-              {bookings.map((b) => {
-                const chip = bookingStatus(b);
-                return (
-                  <Link key={b.id} href={`/account/bookings/${b.id}`}
-                    className="group bg-white rounded-2xl border border-[#f0e6d6] p-6 hover:-translate-y-0.5 hover:shadow-[0_16px_40px_rgba(0,55,74,0.08)] transition-all">
-                    <div className="flex items-start justify-between gap-4">
-                      <div className="min-w-0">
-                        <h2 className="text-xl font-extrabold tracking-[-0.01em] text-[#00374a] group-hover:text-[#00afdb] transition-colors">
-                          {b.experience?.title ?? "Your trip"}
-                        </h2>
-                        <p className="text-[14px] text-[#6a7a80] mt-1">
-                          {b.edition?.label ? `${b.edition.label} · ` : ""}{fmtDates(b.edition?.date_start, b.edition?.date_end)}
-                        </p>
-                        {b.pkg?.name && <p className="text-[13px] text-[#9aa6ac] mt-1.5">{b.pkg.name}</p>}
-                      </div>
-                      <span className={`shrink-0 inline-block px-3 py-1.5 rounded-full text-[11px] font-bold ${CHIP_CLASS[chip.tone]}`}>{chip.label}</span>
-                    </div>
-                    <div className="flex items-center justify-between mt-4 pt-4 border-t border-[#f3ede2]">
-                      <span className="text-[14px] font-bold text-[#00374a]">{money(b.agreed_price, b.experience?.currency) ?? "—"}</span>
-                      <span className="inline-flex items-center gap-1.5 text-[12px] font-bold text-[#00afdb] group-hover:gap-2.5 transition-all">
-                        Manage trip
-                        <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M5 12h14M13 6l6 6-6 6" /></svg>
-                      </span>
-                    </div>
-                  </Link>
-                );
-              })}
-            </div>
-          )}
+          {/* section cards */}
+          <div className="grid sm:grid-cols-2 gap-4">
+            <SectionCard
+              href="/account/trips"
+              accent="#00afdb"
+              title="My Trips"
+              desc={bookings.length ? `${bookings.length} trip${bookings.length === 1 ? "" : "s"} · payment, prep, photos & more` : "Book your first windsurf adventure"}
+              icon={<path d="M3 7l9-4 9 4-9 4-9-4zM3 7v10l9 4 9-4V7M12 11v10" />}
+            />
+            <SectionCard
+              href="/account/gear"
+              accent="#7aa400"
+              title="My Gear"
+              desc="Track your board & fin orders from build to delivery"
+              icon={<><rect x="3" y="3" width="18" height="18" rx="2" /><path d="M3 9h18M9 21V9" /></>}
+            />
+            <SectionCard
+              href="/account/profile"
+              accent="#c4621a"
+              title="Profile"
+              desc="Your details, sizes, diet & preferences"
+              icon={<><circle cx="12" cy="8" r="4" /><path d="M4 21a8 8 0 0 1 16 0" /></>}
+            />
+            <SectionCard
+              href="/experience"
+              accent="#00374a"
+              title="Explore more"
+              desc="Browse upcoming experiences & destinations"
+              icon={<><circle cx="12" cy="12" r="9" /><path d="M3 12h18M12 3a15 15 0 0 1 0 18 15 15 0 0 1 0-18z" /></>}
+            />
+          </div>
         </div>
       </main>
     </>
@@ -104,5 +112,19 @@ function Stat({ label, value }: { label: string; value: string }) {
       <p className="text-[10px] font-bold tracking-[0.15em] uppercase text-[#00afdb]">{label}</p>
       <p className="text-[14px] font-bold text-[#00374a] mt-0.5">{value}</p>
     </div>
+  );
+}
+
+function SectionCard({ href, title, desc, accent, icon }: { href: string; title: string; desc: string; accent: string; icon: React.ReactNode }) {
+  return (
+    <Link href={href} className="group bg-white rounded-2xl border border-[#f0e6d6] p-6 flex items-start gap-4 hover:-translate-y-0.5 hover:shadow-[0_16px_40px_rgba(0,55,74,0.08)] transition-all">
+      <span className="shrink-0 w-11 h-11 rounded-xl grid place-items-center" style={{ backgroundColor: `${accent}1a`, color: accent }}>
+        <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round">{icon}</svg>
+      </span>
+      <div className="min-w-0">
+        <h3 className="text-[17px] font-extrabold tracking-[-0.01em] text-[#00374a] group-hover:text-[#00afdb] transition-colors">{title}</h3>
+        <p className="text-[13.5px] text-[#6a7a80] leading-snug mt-1">{desc}</p>
+      </div>
+    </Link>
   );
 }
