@@ -183,11 +183,38 @@ export default async function ExperienceDetailPage({ params }: Props) {
 
   // group active packages by edition so each week only shows its own (no dupes)
   const activePackages = (experience.exp_packages ?? []).filter((p) => p.status === "active" && p.price != null);
+
+  // Resolve each package's hotel for the booking step (name + preview photo).
+  // Tolerant: hotels media columns + exp_packages.hotel_id arrive in migration 023,
+  // so a missing column just yields no hotel preview (never breaks the page).
+  type HotelLite = { id: string; name: string; image_url: string | null; images: string[] | null; description: string | null };
+  let hotelsList: HotelLite[] = [];
+  {
+    const { data } = await sb.from("hotels").select("id,name,image_url,images,description");
+    if (Array.isArray(data)) hotelsList = data as HotelLite[];
+  }
+  const pkgHotelId: Record<string, string> = {};
+  if (activePackages.length) {
+    const { data } = await sb.from("exp_packages").select("id,hotel_id").in("id", activePackages.map((p) => p.id));
+    if (Array.isArray(data)) for (const r of data as { id: string; hotel_id: string | null }[]) if (r.hotel_id) pkgHotelId[r.id] = r.hotel_id;
+  }
+  const hotelById = new Map(hotelsList.map((h) => [h.id, h]));
+  const resolveHotel = (pkgId: string, name: string, accommodation: string): HotelLite | null => {
+    const linked = pkgHotelId[pkgId] ? hotelById.get(pkgHotelId[pkgId]) : null;
+    if (linked) return linked;
+    const hay = `${name} ${accommodation}`.toLowerCase();
+    return hotelsList.find((h) => h.name && hay.includes(h.name.toLowerCase())) ?? null;
+  };
+
   const packagesByEdition: Record<string, RealPackage[]> = {};
   for (const ed of allEditions) packagesByEdition[ed.id] = [];
   for (const p of activePackages) {
     const x = parsePackageName(p.name);
-    const rp: RealPackage = { id: p.id, level: x.level, accommodation: x.accommodation, price: p.price as number };
+    const h = resolveHotel(p.id, p.name, x.accommodation);
+    const rp: RealPackage = {
+      id: p.id, level: x.level, accommodation: x.accommodation, price: p.price as number,
+      hotelName: h?.name ?? null, hotelImage: h?.image_url ?? null, hotelImages: h?.images ?? null, hotelDescription: h?.description ?? null,
+    };
     if (p.edition_id && packagesByEdition[p.edition_id]) packagesByEdition[p.edition_id].push(rp);
     else allEditions.forEach((ed) => packagesByEdition[ed.id].push(rp)); // unscoped → all weeks
   }

@@ -8,6 +8,10 @@ export type RealPackage = {
   level: string;
   accommodation: string;
   price: number;
+  hotelName?: string | null;
+  hotelImage?: string | null;
+  hotelImages?: string[] | null;
+  hotelDescription?: string | null;
 };
 
 export type ReserveTarget = {
@@ -116,7 +120,7 @@ export function PackagePicker({ packages, currency = "EUR", reserve }: Props) {
                   key={a.id}
                   onClick={() => setAccId(a.id)}
                   aria-pressed={active}
-                  className={`w-full flex items-center justify-between gap-4 text-left px-5 py-4 rounded-xl border transition-all ${
+                  className={`w-full flex items-center justify-between gap-4 text-left px-4 py-3 rounded-xl border transition-all ${
                     active
                       ? "border-[#00afdb] bg-[#00afdb]/[0.05] shadow-[0_6px_20px_rgba(0,175,219,0.1)]"
                       : "border-[#e3e9ec] hover:border-[#bcd] bg-white"
@@ -126,7 +130,15 @@ export function PackagePicker({ packages, currency = "EUR", reserve }: Props) {
                     <span className={`w-4 h-4 rounded-full border-2 grid place-items-center shrink-0 ${active ? "border-[#00afdb]" : "border-[#cbd5d9]"}`}>
                       {active && <span className="w-2 h-2 rounded-full bg-[#00afdb]" />}
                     </span>
-                    <span className="text-[14px] font-semibold text-[#1f3138] truncate">{a.accommodation}</span>
+                    {a.hotelImage && (
+                      <span className="w-14 h-12 rounded-lg bg-cover bg-center shrink-0" style={{ backgroundImage: `url('${a.hotelImage}')` }} aria-hidden />
+                    )}
+                    <span className="min-w-0">
+                      <span className="block text-[14px] font-semibold text-[#1f3138] truncate">{a.hotelName || a.accommodation}</span>
+                      {a.hotelName && a.accommodation && a.accommodation !== a.hotelName && (
+                        <span className="block text-[12px] text-[#7a8a90] truncate">{a.accommodation}</span>
+                      )}
+                    </span>
                   </span>
                   <span className="text-[14px] font-bold text-[#1f3138] shrink-0">{fmt(a.price)}</span>
                 </button>
@@ -137,10 +149,21 @@ export function PackagePicker({ packages, currency = "EUR", reserve }: Props) {
       </div>
 
       {/* summary */}
-      <aside className="lg:sticky lg:top-24 rounded-3xl bg-[#00374a] text-white p-7 shadow-[0_20px_60px_rgba(0,55,74,0.25)]">
+      <aside className="lg:sticky lg:top-24 rounded-3xl bg-[#00374a] text-white shadow-[0_20px_60px_rgba(0,55,74,0.25)] overflow-hidden">
+        {selected?.hotelImage && (
+          <div className="relative h-36 bg-cover bg-center" style={{ backgroundImage: `url('${selected.hotelImage}')` }}>
+            <div className="absolute inset-0 bg-gradient-to-t from-[#00374a] via-[#00374a]/30 to-transparent" />
+            {selected.hotelName && (
+              <span className="absolute bottom-3 left-7 text-[13px] font-bold text-white drop-shadow">🏨 {selected.hotelName}</span>
+            )}
+          </div>
+        )}
+        <div className="p-7">
         <p className="text-[11px] font-bold tracking-[0.2em] uppercase text-white/40 mb-1">Your package</p>
         <h3 className="text-xl font-extrabold tracking-[-0.02em]">{level}</h3>
-        <p className="text-[13px] text-white/55 mb-5">{selected?.accommodation}</p>
+        <p className="text-[13px] text-white/55 mb-1">{selected?.hotelName || selected?.accommodation}</p>
+        {selected?.hotelDescription && <p className="text-[12px] text-white/40 mb-4 leading-relaxed">{selected.hotelDescription}</p>}
+        {!selected?.hotelDescription && <div className="mb-4" />}
 
         <ul className="space-y-2 mb-6">
           {STANDARD_INCLUDES.map((inc) => (
@@ -166,6 +189,7 @@ export function PackagePicker({ packages, currency = "EUR", reserve }: Props) {
         <p className="text-[12px] text-white/40 text-center mt-3">
           Just your name &amp; contact — we sort the rest personally after payment
         </p>
+        </div>
       </aside>
 
       {showReserve && reserve && selected && (

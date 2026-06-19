@@ -20,6 +20,7 @@ interface Package {
   includes: string | null;
   experience_id: string | null;
   edition_id: string | null;
+  hotel_id: string | null;
   exp_experiences: { id: string; title: string } | null;
   // computed in the API
   component_count: number;
@@ -70,13 +71,14 @@ function StatusBadge({ status }: { status: string }) {
 
 const emptyForm = {
   name: "", price: "", cost_per_person: "", deposit: "", max_spots: "",
-  category: "", status: "active", experience_id: "", edition_id: "",
+  category: "", status: "active", experience_id: "", edition_id: "", hotel_id: "",
 };
 
 export default function PackagesPage() {
   const [packages, setPackages] = useState<Package[]>([]);
   const [editions, setEditions] = useState<Edition[]>([]);
   const [experiences, setExperiences] = useState<Experience[]>([]);
+  const [hotels, setHotels] = useState<{ id: string; name: string }[]>([]);
   const [loading, setLoading] = useState(true);
   const [filterExperienceId, setFilterExperienceId] = useState("");
   const [filterEditionId, setFilterEditionId] = useState("");
@@ -90,11 +92,13 @@ export default function PackagesPage() {
       fetch("/api/admin/packages").then((r) => r.json()),
       fetch("/api/admin/editions").then((r) => r.json()),
       fetch("/api/admin/experiences").then((r) => r.json()),
-    ]).then(([pkgs, eds, exps]) => {
+      fetch("/api/admin/hotels").then((r) => r.json()),
+    ]).then(([pkgs, eds, exps, hot]) => {
       setPackages(Array.isArray(pkgs) ? pkgs : []);
       setEditions(Array.isArray(eds) ? eds : []);
       const list = Array.isArray(exps) ? exps : exps.experiences || [];
       setExperiences(list.map((e: Record<string, string>) => ({ id: e.id, title: e.title, code: e.code ?? null })));
+      setHotels((hot?.hotels || []).filter((h: { id: string | null }) => h.id).map((h: { id: string; name: string }) => ({ id: h.id, name: h.name })));
       setLoading(false);
     });
   }, []);
@@ -143,6 +147,7 @@ export default function PackagesPage() {
       status: p.status || "active",
       experience_id: p.experience_id || "",
       edition_id: p.edition_id || "",
+      hotel_id: p.hotel_id || "",
     });
   }
 
@@ -157,6 +162,7 @@ export default function PackagesPage() {
       status: form.status,
       experience_id: form.experience_id || null,
       edition_id: form.edition_id || null,
+      hotel_id: form.hotel_id || null,
     };
     if (editId) {
       await fetch(`/api/admin/packages/${editId}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
@@ -265,6 +271,15 @@ export default function PackagesPage() {
                 <option value="sold_out">Sold out</option>
                 <option value="archived">Archived</option>
               </select>
+            </div>
+          </div>
+          <div className="grid grid-cols-[260px_1fr] gap-4 mb-4">
+            <div><label className={labelClass}>Hotel</label>
+              <select className={inputClass} value={form.hotel_id} onChange={(e) => setForm({ ...form, hotel_id: e.target.value })}>
+                <option value="">No hotel / auto-detect</option>
+                {hotels.map((h) => <option key={h.id} value={h.id}>{h.name}</option>)}
+              </select>
+              <p className="text-[11px] admin-faint mt-1">Drives the hotel name &amp; photos in the public booking step. Leave blank to auto-match by name.</p>
             </div>
           </div>
           <div className="flex gap-2">

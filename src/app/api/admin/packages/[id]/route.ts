@@ -36,16 +36,21 @@ export async function PATCH(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  const client = createAdminClient();
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const client = createAdminClient() as any;
   const { id } = await params;
   const body = await request.json();
 
-  const { data, error } = await client
-    .from("exp_packages")
-    .update({ ...body, updated_at: new Date().toISOString() })
-    .eq("id", id)
-    .select()
-    .single();
+  // hotel_id (migration 023) may not exist yet — strip & retry if rejected.
+  const PENDING_OPTIONAL = ["hotel_id"];
+  const doUpdate = (payload: Record<string, unknown>) =>
+    client.from("exp_packages").update({ ...payload, updated_at: new Date().toISOString() }).eq("id", id).select().single();
+
+  let { data, error } = await doUpdate(body);
+  if (error && /column|schema cache|does not exist/i.test(error.message)) {
+    const stripped = Object.fromEntries(Object.entries(body).filter(([k]) => !PENDING_OPTIONAL.includes(k)));
+    ({ data, error } = await doUpdate(stripped));
+  }
 
   if (error) {
     return NextResponse.json({ error: error.message }, { status: 400 });

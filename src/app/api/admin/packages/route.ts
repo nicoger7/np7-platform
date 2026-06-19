@@ -72,16 +72,23 @@ export async function GET(request: NextRequest) {
   return NextResponse.json(enriched);
 }
 
+// Columns from migration 023 that may not be applied yet.
+const PENDING_OPTIONAL = ["hotel_id"];
+
 // POST /api/admin/packages — create a package
 export async function POST(request: NextRequest) {
-  const client = createAdminClient();
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const client = createAdminClient() as any;
   const body = await request.json();
 
-  const { data, error } = await client
-    .from("exp_packages")
-    .insert(body)
-    .select()
-    .single();
+  const doInsert = (payload: Record<string, unknown>) =>
+    client.from("exp_packages").insert(payload).select().single();
+
+  let { data, error } = await doInsert(body);
+  if (error && /column|schema cache|does not exist/i.test(error.message)) {
+    const stripped = Object.fromEntries(Object.entries(body).filter(([k]) => !PENDING_OPTIONAL.includes(k)));
+    ({ data, error } = await doInsert(stripped));
+  }
 
   if (error) {
     return NextResponse.json({ error: error.message }, { status: 400 });
