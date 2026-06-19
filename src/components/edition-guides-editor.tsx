@@ -24,6 +24,9 @@ interface GuideLink {
 
 type PickerTarget = { coachId: string; mode: "template" | "override" };
 
+// Standard team roles (suggested in the role fields; free text still allowed).
+export const TEAM_ROLES = ["Head Coach", "Coach", "Co-Coach", "Trip Assistant"];
+
 const eff = (link: GuideLink, field: "name" | "role" | "bio" | "image") => {
   const override = link[`${field}_override` as keyof GuideLink] as string | null;
   const base = (link.exp_coaches?.[(field === "image" ? "image_url" : field) as keyof Coach] as string | null) ?? null;
@@ -112,19 +115,20 @@ export function EditionGuidesEditor({ editionId, slug }: { editionId: string; sl
   const labelClass = "block text-[10px] font-bold uppercase tracking-wide admin-faint mb-1";
   const folder = slug ? `experiences/${slug}/coaches` : undefined;
 
-  if (loading) return <div className="text-xs admin-faint py-2">Loading guides…</div>;
+  if (loading) return <div className="text-xs admin-faint py-2">Loading team…</div>;
 
   return (
     <div className="rounded-xl p-4" style={{ border: "1px solid var(--admin-border)", backgroundColor: "var(--admin-surface)" }}>
+      <datalist id="team-roles">{TEAM_ROLES.map((r) => <option key={r} value={r} />)}</datalist>
       <div className="flex items-center justify-between mb-3">
         <div>
-          <h3 className="text-sm font-bold admin-heading">Guides</h3>
-          <p className="text-xs admin-faint mt-0.5">Coaches shown on the public page. Added coaches join the shared library — reusable across experiences.</p>
+          <h3 className="text-sm font-bold admin-heading">Your team</h3>
+          <p className="text-xs admin-faint mt-0.5">Coaches &amp; assistants shown on the public page and in My Trip. Members join the shared library — reusable across experiences.</p>
         </div>
       </div>
 
       {links.length === 0 ? (
-        <p className="text-xs admin-faint mb-3">No guides assigned yet.</p>
+        <p className="text-xs admin-faint mb-3">No team members yet.</p>
       ) : (
         <div className="space-y-1.5 mb-4">
           {links.map((link, idx) => {
@@ -154,7 +158,7 @@ export function EditionGuidesEditor({ editionId, slug }: { editionId: string; sl
                     <div className="space-y-2">
                       <p className="text-[11px] font-bold admin-muted">Template <span className="admin-faint font-normal">· edits apply everywhere</span></p>
                       <div><label className={labelClass}>Name</label><input className={`${inputClass} w-full`} defaultValue={link.exp_coaches?.name ?? ""} onBlur={(e) => { if (e.target.value !== (link.exp_coaches?.name ?? "")) patchTemplate(link.coach_id, { name: e.target.value }); }} /></div>
-                      <div><label className={labelClass}>Role</label><input className={`${inputClass} w-full`} defaultValue={link.exp_coaches?.role ?? ""} onBlur={(e) => { if (e.target.value !== (link.exp_coaches?.role ?? "")) patchTemplate(link.coach_id, { role: e.target.value || null }); }} /></div>
+                      <div><label className={labelClass}>Role</label><input list="team-roles" className={`${inputClass} w-full`} defaultValue={link.exp_coaches?.role ?? ""} onBlur={(e) => { if (e.target.value !== (link.exp_coaches?.role ?? "")) patchTemplate(link.coach_id, { role: e.target.value || null }); }} /></div>
                       <div><label className={labelClass}>Bio</label><textarea className={`${inputClass} w-full min-h-[56px] resize-y`} defaultValue={link.exp_coaches?.bio ?? ""} onBlur={(e) => { if (e.target.value !== (link.exp_coaches?.bio ?? "")) patchTemplate(link.coach_id, { bio: e.target.value || null }); }} /></div>
                       <div>
                         <label className={labelClass}>Photo</label>
@@ -165,7 +169,7 @@ export function EditionGuidesEditor({ editionId, slug }: { editionId: string; sl
                     <div className="space-y-2">
                       <p className="text-[11px] font-bold admin-muted">This edition <span className="admin-faint font-normal">· blank = use template</span></p>
                       <div><label className={labelClass}>Name</label><input className={`${inputClass} w-full`} defaultValue={link.name_override ?? ""} placeholder={link.exp_coaches?.name ?? ""} onBlur={(e) => { if (e.target.value !== (link.name_override ?? "")) patchLink(link.coach_id, { name_override: e.target.value }); }} /></div>
-                      <div><label className={labelClass}>Role</label><input className={`${inputClass} w-full`} defaultValue={link.role_override ?? ""} placeholder={link.exp_coaches?.role ?? ""} onBlur={(e) => { if (e.target.value !== (link.role_override ?? "")) patchLink(link.coach_id, { role_override: e.target.value }); }} /></div>
+                      <div><label className={labelClass}>Role</label><input list="team-roles" className={`${inputClass} w-full`} defaultValue={link.role_override ?? ""} placeholder={link.exp_coaches?.role ?? ""} onBlur={(e) => { if (e.target.value !== (link.role_override ?? "")) patchLink(link.coach_id, { role_override: e.target.value }); }} /></div>
                       <div><label className={labelClass}>Bio</label><textarea className={`${inputClass} w-full min-h-[56px] resize-y`} defaultValue={link.bio_override ?? ""} placeholder={link.exp_coaches?.bio ?? ""} onBlur={(e) => { if (e.target.value !== (link.bio_override ?? "")) patchLink(link.coach_id, { bio_override: e.target.value }); }} /></div>
                       <div>
                         <label className={labelClass}>Photo</label>
@@ -186,19 +190,19 @@ export function EditionGuidesEditor({ editionId, slug }: { editionId: string; sl
       {/* Add row */}
       <div className="flex items-center gap-2">
         <select value={addId} onChange={(e) => setAddId(e.target.value)} className={`${inputClass} flex-1`}>
-          <option value="">Add an existing coach…</option>
+          <option value="">Add a team member…</option>
           {library.filter((c) => !assignedIds.has(c.id)).map((c) => (
             <option key={c.id} value={c.id}>{c.name}{c.role ? ` — ${c.role}` : ""}</option>
           ))}
         </select>
         <button onClick={assignExisting} disabled={!addId} className="px-3 py-1.5 bg-[#0aa3c7] hover:bg-[#0aa3c7]/90 disabled:opacity-40 text-white text-xs font-bold rounded-lg transition-colors">Add</button>
-        <button onClick={() => setShowNew((v) => !v)} className="px-3 py-1.5 admin-surface admin-muted text-xs rounded-lg transition-colors" style={{ border: "1px solid var(--admin-border)" }}>+ New coach</button>
+        <button onClick={() => setShowNew((v) => !v)} className="px-3 py-1.5 admin-surface admin-muted text-xs rounded-lg transition-colors" style={{ border: "1px solid var(--admin-border)" }}>+ New member</button>
       </div>
 
       {showNew && (
         <div className="mt-3 grid grid-cols-2 gap-2 p-3 rounded-lg" style={{ border: "1px solid var(--admin-border)" }}>
           <input className={`${inputClass} w-full`} placeholder="Name *" value={newCoach.name} onChange={(e) => setNewCoach({ ...newCoach, name: e.target.value })} />
-          <input className={`${inputClass} w-full`} placeholder="Role (e.g. Head coach)" value={newCoach.role} onChange={(e) => setNewCoach({ ...newCoach, role: e.target.value })} />
+          <input list="team-roles" className={`${inputClass} w-full`} placeholder="Role (e.g. Head Coach, Trip Assistant)" value={newCoach.role} onChange={(e) => setNewCoach({ ...newCoach, role: e.target.value })} />
           <textarea className={`${inputClass} w-full col-span-2 min-h-[48px] resize-y`} placeholder="Short bio" value={newCoach.bio} onChange={(e) => setNewCoach({ ...newCoach, bio: e.target.value })} />
           <button onClick={() => setPicker({ coachId: "__new__", mode: "template" })} className={`${inputClass} text-left admin-muted`}>{newCoach.image_url ? "Photo selected ✓" : "Pick photo…"}</button>
           <button onClick={createAndAssign} disabled={!newCoach.name.trim()} className="px-3 py-1.5 bg-[#0aa3c7] hover:bg-[#0aa3c7]/90 disabled:opacity-40 text-white text-xs font-bold rounded-lg">Create & add</button>

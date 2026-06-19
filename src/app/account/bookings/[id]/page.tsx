@@ -139,7 +139,7 @@ export default async function BookingDetail({ params }: Props) {
             {/* right column */}
             <div className="space-y-5">
               {coaches.length > 0 && (
-                <Card title="Your coaches">
+                <Card title="Your team">
                   <div className="space-y-4">
                     {coaches.map((c) => (
                       <div key={c.name} className="flex items-start gap-3">

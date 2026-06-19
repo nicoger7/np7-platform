@@ -558,7 +558,7 @@ export default async function ExperienceDetailPage({ params }: Props) {
       {/* 7 · PROOF — coaches & reviews */}
       <section className="py-16 sm:py-24 bg-[#f7f7f7]">
         <div className="max-w-[1100px] mx-auto px-6 sm:px-8">
-          <Reveal className="mb-8"><p className="text-[11px] font-bold tracking-[0.25em] text-[#00afdb] mb-3">YOUR COACHES</p><h2 className="text-3xl sm:text-4xl font-black tracking-[-0.03em] text-[#00374a]">Learn from the best</h2></Reveal>
+          <Reveal className="mb-8"><p className="text-[11px] font-bold tracking-[0.25em] text-[#00afdb] mb-3">YOUR TEAM</p><h2 className="text-3xl sm:text-4xl font-black tracking-[-0.03em] text-[#00374a]">Learn from the best</h2></Reveal>
           <Reveal className="mb-16">
             <Carousel label="Coaches">
               {guideItems.map((c) => (

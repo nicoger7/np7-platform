@@ -284,7 +284,7 @@ export default function ContentEditorPage({ params }: { params: Promise<{ id: st
           </div>
         </Section>
 
-        <Section show={tab === "modules"} title="Per-edition guides" hint="Coaches and program differ per week — pick an edition to manage its guides. (Reviews are managed once for the whole experience, in the Reviews tab.)">
+        <Section show={tab === "modules"} title="Per-edition team" hint="Your team (head coach, coaches, co-coaches, trip assistant) can differ per week — pick an edition to manage it. (Reviews are managed once for the whole experience, in the Reviews tab.)">
           {editions.length === 0 ? (
             <p className="text-xs admin-faint">No editions yet — create one on the experience page.</p>
           ) : (
