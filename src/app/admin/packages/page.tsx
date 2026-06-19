@@ -42,7 +42,7 @@ interface Experience {
   code: string | null;
 }
 
-const PKG_CATEGORIES = ["", "pro", "beginner", "mixed"];
+const PKG_CATEGORIES = ["", "advanced", "beginner", "mixed"];
 
 function money(n: number | null) {
   return n != null ? `€${Number(n).toLocaleString()}` : "—";

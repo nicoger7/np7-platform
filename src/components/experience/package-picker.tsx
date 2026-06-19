@@ -29,6 +29,22 @@ type Props = {
   reserve?: ReserveTarget;
 };
 
+/** Short "who's this for / what you'll learn" note per coaching level. */
+function levelGuide(level: string): { title: string; blurb: string } | null {
+  const l = (level || "").toLowerCase();
+  if (/beginner|starter|first/.test(l))
+    return {
+      title: "Beginner",
+      blurb: "Never windsurfed, or just a few lessons in — you'll nail the basics: getting going, steering and using the harness, with your own dedicated beginner coach (not the head coach).",
+    };
+  if (/advanced|pro|inter/.test(l))
+    return {
+      title: "Advanced",
+      blurb: "You've got the basics down. Now level up: planing, footstraps, the power jibe, controlled and light-wind planing and more — plus deep-dive theory and gear & technique workshops with head coach Nico.",
+    };
+  return null;
+}
+
 const STANDARD_INCLUDES = [
   "6 days of pro coaching",
   "Daily video analysis",
@@ -107,6 +123,14 @@ export function PackagePicker({ packages, currency = "EUR", reserve }: Props) {
               );
             })}
           </div>
+          {(() => {
+            const info = levelGuide(level);
+            return info ? (
+              <div className="mt-3 rounded-xl bg-[#f7fbfc] border border-[#e6eef0] px-4 py-3">
+                <p className="text-[13px] text-[#4a5b62] leading-relaxed"><span className="font-bold text-[#00374a]">{info.title}</span> — {info.blurb}</p>
+              </div>
+            ) : null;
+          })()}
         </div>
 
         {/* accommodation */}
