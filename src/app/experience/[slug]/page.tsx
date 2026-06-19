@@ -46,17 +46,6 @@ const METHOD = [
   { n: "03", t: "Video analysis", d: "We film you on the water and break it down frame-by-frame each evening. Seeing yourself is what makes it click — riders call it the single biggest unlock of the week.", gameChanger: true },
 ];
 
-const STANDARD_INCLUDED = [
-  "6 days of pro coaching",
-  "Daily video analysis",
-  "Pro windsurf gear rental",
-  "Breakfast every morning",
-  "Healthy lunch on the beach daily",
-  "Event shirt & lycra",
-  "Group activities & sunset sessions",
-  "Photos & video of your week",
-];
-
 const ITINERARY: AccordionItem[] = [
   { eyebrow: "Day 1", title: "Arrival · Registration · Warm-up", content: "Land, transfer to your hotel and settle into the vibe. Collect your gear and ease into your first session — no pressure, just feel the spot." },
   { eyebrow: "Day 2", title: "First coaching block + baseline video", content: "Level groups are set. Morning on-water coaching, then your first video analysis so we know exactly where you're starting from." },
@@ -135,7 +124,16 @@ function FactIcon({ name }: { name: string }) {
 
 /* live schema (generated types are stale) */
 type Edition = { id: string; label: string | null; coaches: string | null; date_start: string | null; date_end: string | null; max_spots: number | null; spots_taken: number | null; deposit: number | null; status: string | null };
-type PackageRow = { id: string; name: string; price: number | null; status: string | null; edition_id: string | null };
+type PackageRow = { id: string; name: string; price: number | null; status: string | null; edition_id: string | null; includes: unknown };
+
+/** Coerce the jsonb `exp_packages.includes` into a clean list of display strings. */
+function parseIncludes(raw: unknown): string[] {
+  if (!Array.isArray(raw)) return [];
+  return raw
+    .map((it) => (typeof it === "string" ? it : it && typeof it === "object" ? String((it as Record<string, unknown>).name ?? (it as Record<string, unknown>).label ?? (it as Record<string, unknown>).text ?? "") : ""))
+    .map((s) => s.trim())
+    .filter(Boolean);
+}
 type ProgramItem = { title: string; description: string };
 type FaqRow = { q: string; a: string };
 type ReviewRow = { name: string; country: string; quote: string; rating: number; image: string };
@@ -164,7 +162,7 @@ export default async function ExperienceDetailPage({ params }: Props) {
   const { slug } = await params;
   const { data: raw } = await supabase
     .from("exp_experiences")
-    .select("id,title,location,currency,price,description,hero_image,gallery,airport_code,exp_editions(id,label,coaches,date_start,date_end,max_spots,spots_taken,deposit,status),exp_packages(id,name,price,status,edition_id)")
+    .select("id,title,location,currency,price,description,hero_image,gallery,airport_code,exp_editions(id,label,coaches,date_start,date_end,max_spots,spots_taken,deposit,status),exp_packages(id,name,price,status,edition_id,includes)")
     .eq("slug", slug).eq("status", "published").maybeSingle();
 
   const experience = raw as unknown as Detail | null;
@@ -223,6 +221,7 @@ export default async function ExperienceDetailPage({ params }: Props) {
     const rp: RealPackage = {
       id: p.id, level: x.level, accommodation: x.accommodation, price: p.price as number,
       hotelName: h?.name ?? null, hotelImage: h?.image_url ?? null, hotelImages: h?.images ?? null, hotelDescription: h?.description ?? null,
+      includes: parseIncludes(p.includes),
     };
     if (p.edition_id && packagesByEdition[p.edition_id]) packagesByEdition[p.edition_id].push(rp);
     else allEditions.forEach((ed) => packagesByEdition[ed.id].push(rp)); // unscoped → all weeks
@@ -555,14 +554,6 @@ export default async function ExperienceDetailPage({ params }: Props) {
             <h2 className="text-3xl sm:text-5xl font-black tracking-[-0.03em] text-[#00374a] mb-4">Build your week</h2>
             <p className="text-[16px] text-[#6a7a80]">{multi ? "Choose your week, then pick your coaching level and accommodation — your price updates instantly." : "Pick your coaching level and accommodation — your price updates instantly."}</p>
             <p className="text-[14px] font-semibold text-[#00374a] mt-3">Reserve with a <span className="text-[#00afdb] font-extrabold">€300 deposit</span> — the rest is due later.</p>
-            <div className="flex flex-wrap justify-center gap-x-4 gap-y-1.5 mt-5">
-              {STANDARD_INCLUDED.map((item) => (
-                <span key={item} className="inline-flex items-center gap-1.5 text-[12px] font-medium text-[#5a6b72]">
-                  <svg className="w-3 h-3 text-[#00afdb]" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3.5" strokeLinecap="round" strokeLinejoin="round"><path d="M20 6L9 17l-5-5" /></svg>
-                  {item}
-                </span>
-              ))}
-            </div>
           </Reveal>
           {editionsLite.length > 0 ? (
             <Reveal>

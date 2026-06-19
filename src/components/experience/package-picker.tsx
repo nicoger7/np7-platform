@@ -12,6 +12,8 @@ export type RealPackage = {
   hotelImage?: string | null;
   hotelImages?: string[] | null;
   hotelDescription?: string | null;
+  /** Curated "what's included" list shown on the website (exp_packages.includes). */
+  includes?: string[] | null;
 };
 
 export type ReserveTarget = {
@@ -45,12 +47,14 @@ function levelGuide(level: string): { title: string; blurb: string } | null {
   return null;
 }
 
-const STANDARD_INCLUDES = [
+// Fallback list shown when a package has no curated `includes` set in the back-end.
+const DEFAULT_INCLUDES = [
   "6 days of pro coaching",
   "Daily video analysis",
-  "Pro gear rental included",
+  "Pro windsurf gear rental",
   "Breakfast every morning",
-  "Airport transfers on site",
+  "Healthy lunch on the beach daily",
+  "Photos & video of your week",
 ];
 
 /**
@@ -190,7 +194,7 @@ export function PackagePicker({ packages, currency = "EUR", reserve }: Props) {
         {!selected?.hotelDescription && <div className="mb-4" />}
 
         <ul className="space-y-2 mb-6">
-          {STANDARD_INCLUDES.map((inc) => (
+          {((selected?.includes && selected.includes.length ? selected.includes : DEFAULT_INCLUDES)).map((inc) => (
             <li key={inc} className="flex items-start gap-2.5 text-[13.5px] text-white/80">
               <svg className="w-4 h-4 mt-0.5 shrink-0 text-[#00afdb]" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M20 6L9 17l-5-5" /></svg>
               {inc}

@@ -17,7 +17,7 @@ interface Package {
   status: string;
   category: string | null;
   date: string | null;
-  includes: string | null;
+  includes: unknown; // jsonb — curated "what's included" list shown on the website
   experience_id: string | null;
   edition_id: string | null;
   hotel_id: string | null;
@@ -71,8 +71,17 @@ function StatusBadge({ status }: { status: string }) {
 
 const emptyForm = {
   name: "", price: "", cost_per_person: "", deposit: "", max_spots: "",
-  category: "", status: "active", experience_id: "", edition_id: "", hotel_id: "",
+  category: "", status: "active", experience_id: "", edition_id: "", hotel_id: "", includes: "",
 };
+
+/** jsonb includes (array of strings / objects) → one-per-line text for the editor. */
+function includesToText(raw: unknown): string {
+  if (!Array.isArray(raw)) return "";
+  return raw
+    .map((it) => (typeof it === "string" ? it : it && typeof it === "object" ? String((it as Record<string, unknown>).name ?? (it as Record<string, unknown>).label ?? (it as Record<string, unknown>).text ?? "") : ""))
+    .filter(Boolean)
+    .join("\n");
+}
 
 export default function PackagesPage() {
   const [packages, setPackages] = useState<Package[]>([]);
@@ -148,6 +157,7 @@ export default function PackagesPage() {
       experience_id: p.experience_id || "",
       edition_id: p.edition_id || "",
       hotel_id: p.hotel_id || "",
+      includes: includesToText(p.includes),
     });
   }
 
@@ -163,6 +173,7 @@ export default function PackagesPage() {
       experience_id: form.experience_id || null,
       edition_id: form.edition_id || null,
       hotel_id: form.hotel_id || null,
+      includes: form.includes.split("\n").map((s) => s.trim()).filter(Boolean),
     };
     if (editId) {
       await fetch(`/api/admin/packages/${editId}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
@@ -280,6 +291,10 @@ export default function PackagesPage() {
                 {hotels.map((h) => <option key={h.id} value={h.id}>{h.name}</option>)}
               </select>
               <p className="text-[11px] admin-faint mt-1">Drives the hotel name &amp; photos in the public booking step. Leave blank to auto-match by name.</p>
+            </div>
+            <div><label className={labelClass}>What&apos;s included (website)</label>
+              <textarea className={`${inputClass} h-[120px] resize-y leading-relaxed`} value={form.includes} onChange={(e) => setForm({ ...form, includes: e.target.value })} placeholder={"One inclusion per line, e.g.\n6 days of pro coaching\nDaily video analysis\nAirport transfers on site"} />
+              <p className="text-[11px] admin-faint mt-1">Marketing list shown in the package box on the website — one per line. Independent of the cost components below; add anything you want to advertise. Leave blank to show the standard list.</p>
             </div>
           </div>
           <div className="flex gap-2">
