@@ -414,7 +414,7 @@ export default async function ExperienceDetailPage({ params }: Props) {
         <div className="max-w-[1200px] mx-auto px-6 sm:px-8"><div className="border-t border-white/10 py-6 grid grid-cols-2 sm:grid-cols-4 gap-y-6 gap-x-4">
           {([
             { icon: "calendar", label: multi ? `${allEditions.length} weeks to choose` : "When", value: multi
-                ? <span className="space-y-0.5">{editionsLite.map((e) => <span key={e.id} className="block">{e.label} · {e.shortRange}</span>)}</span>
+                ? fmtShort(spanStart, spanEnd)
                 : fmtShort(edition?.date_start, edition?.date_end) },
             { icon: "pin", label: "Where", value: experience.location ?? "—" },
             { icon: "wind", label: "Wind", value: windProbability || windRange || "Reliable, steady wind" },

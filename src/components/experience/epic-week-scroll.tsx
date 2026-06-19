@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { Reveal } from "./reveal";
 
 /**
  * "Your epic week" — a pinned, scroll-driven walk through the trip outcomes.
@@ -53,11 +54,12 @@ export function EpicWeekScroll({
   const [active, setActive] = useState(0);
   const [enabled, setEnabled] = useState(true);
 
-  // pinned fly on phone + desktop; only reduced-motion / tiny viewports get the static grid
+  // pinned fly on desktop only — phones get a clean reveal grid (the pinned two-column
+  // scroll cramps on mobile: weird spacing + the images cross-fade into each other)
   useEffect(() => {
     const compute = () => {
       const reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-      setEnabled(!reduce && window.innerHeight > 480);
+      setEnabled(!reduce && window.innerWidth >= 1024 && window.innerHeight > 540);
     };
     compute();
     window.addEventListener("resize", compute);
@@ -131,15 +133,15 @@ export function EpicWeekScroll({
           </div>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             {outcomes.map((o, i) => (
-              <article key={o.t} className="relative min-h-[210px] sm:min-h-[250px] rounded-3xl overflow-hidden bg-[#012c3b] flex flex-col justify-end">
+              <Reveal key={o.t} as="article" from="up" delay={(i % 2) * 90} className="relative min-h-[230px] sm:min-h-[250px] rounded-3xl overflow-hidden bg-[#012c3b] flex flex-col justify-end">
                 {img(i) && <div className="absolute inset-0 bg-cover bg-center" style={{ backgroundImage: `url('${img(i)}')` }} />}
                 <div className="absolute inset-0 bg-gradient-to-t from-[#00263a] via-[#00374a]/55 to-[#00374a]/5" />
                 <div className="relative p-5 sm:p-6">
                   <span className="inline-grid place-items-center w-10 h-10 rounded-2xl bg-white/15 backdrop-blur-sm text-[#8fe6f2] mb-3" aria-hidden><Icon name={o.icon} /></span>
-                  <h3 className="text-[17px] sm:text-[18px] font-black tracking-[-0.01em] leading-[1.2]">{o.t}</h3>
+                  <h3 className="text-[17px] sm:text-[18px] font-black tracking-[-0.01em] leading-[1.2] text-white">{o.t}</h3>
                   <p className="text-[13.5px] text-white/80 leading-relaxed mt-1.5">{o.d}</p>
                 </div>
-              </article>
+              </Reveal>
             ))}
           </div>
         </div>
@@ -194,7 +196,7 @@ export function EpicWeekScroll({
                   <div className="absolute inset-0 flex flex-col justify-end p-8 sm:p-12">
                     <span className="inline-grid place-items-center w-12 h-12 rounded-2xl bg-white/15 backdrop-blur-sm text-[#8fe6f2] mb-4" aria-hidden><Icon name={o.icon} /></span>
                     <span className="text-[11px] font-bold tracking-[0.2em] text-[#8fe6f2] mb-2">{String(i + 1).padStart(2, "0")} / {String(N).padStart(2, "0")}</span>
-                    <h3 className="text-3xl sm:text-[42px] font-black tracking-[-0.02em] leading-[1.04] mb-3 max-w-[640px]">{o.t}</h3>
+                    <h3 className="text-3xl sm:text-[42px] font-black tracking-[-0.02em] leading-[1.04] mb-3 max-w-[640px] text-white">{o.t}</h3>
                     <p className="text-[15px] sm:text-[17px] text-white/85 leading-relaxed max-w-[560px]">{o.d}</p>
                   </div>
                 </article>
