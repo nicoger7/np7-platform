@@ -2,11 +2,12 @@ import Link from "next/link";
 import { redirect, notFound } from "next/navigation";
 import type { Metadata } from "next";
 import { getPortalUser } from "@/lib/auth";
-import { getMemberBooking, getMemoryPhotosForBooking } from "@/lib/portal-data";
+import { getMemberBooking, getMemoryPhotosForBooking, getBookingPaid, getBookingHotel, getEditionCoaches } from "@/lib/portal-data";
 import { bookingStatus, CHIP_CLASS, fmtDates, money } from "@/lib/portal-status";
 import { PortalChrome } from "@/components/portal/portal-chrome";
 import { ExtraNightsButton } from "@/components/portal/extra-nights-button";
 import { MemberDocuments } from "@/components/portal/member-documents";
+import { MemberGallery } from "@/components/portal/member-gallery";
 
 export const metadata: Metadata = { title: "My trip — NP7" };
 export const dynamic = "force-dynamic";
@@ -21,11 +22,19 @@ export default async function BookingDetail({ params }: Props) {
   if (!b) notFound();
 
   const chip = bookingStatus(b);
-  const photos = b.edition?.id ? await getMemoryPhotosForBooking(b.edition.id, b.id).catch(() => []) : [];
+  const [photos, paid, hotel, coaches] = await Promise.all([
+    b.edition?.id ? getMemoryPhotosForBooking(b.edition.id, b.id).catch(() => []) : Promise.resolve([]),
+    getBookingPaid(b.id).catch(() => 0),
+    getBookingHotel(b.id).catch(() => null),
+    b.edition?.id ? getEditionCoaches(b.edition.id).catch(() => []) : Promise.resolve([]),
+  ]);
 
-  const depositPaid = b.downpayment_received || ["downpayment_paid", "paid", "confirmed"].includes((b.status ?? "").toLowerCase());
+  const deposit = b.edition?.deposit ?? 300;
+  const total = b.agreed_price ?? null;
+  const depositPaid = paid >= deposit || b.downpayment_received || ["downpayment_paid", "paid", "confirmed"].includes((b.status ?? "").toLowerCase());
+  const paidInFull = total != null && paid >= total && total > 0;
+  const remaining = total != null ? Math.max(0, total - paid) : null;
   const tripEnded = b.edition?.date_end ? new Date(b.edition.date_end) < new Date() : false;
-  const balance = b.agreed_price != null && b.edition?.deposit != null ? b.agreed_price - b.edition.deposit : null;
   const cancellation = b.experience?.cancellation_policy ||
     "Cancellations are handled case by case in line with our package travel terms. The deposit secures your spot; please contact us as early as possible if your plans change. Full terms are provided with your booking confirmation.";
 
@@ -63,13 +72,54 @@ export default async function BookingDetail({ params }: Props) {
               {/* payment */}
               <Card title="Payment">
                 <Row label="Package" value={b.pkg?.name ?? "—"} />
-                <Row label="Trip total" value={money(b.agreed_price, b.experience?.currency) ?? "—"} />
-                <Row label="Deposit" value={(money(b.edition?.deposit ?? 300, b.experience?.currency) ?? "€300") + (depositPaid ? " · paid ✓" : " · pending")} tone={depositPaid ? "green" : "amber"} />
-                {balance != null && balance > 0 && (
-                  <Row label="Remaining balance" value={`${money(balance, b.experience?.currency)} · by bank transfer`} />
+                <Row label="Trip total" value={money(total, b.experience?.currency) ?? "—"} />
+                {paid > 0 && <Row label="Paid so far" value={(money(paid, b.experience?.currency) ?? "—") + " ✓"} tone="green" />}
+                {paidInFull ? (
+                  <Row label="Status" value="Paid in full ✓" tone="green" />
+                ) : (
+                  <>
+                    <Row label="Deposit" value={(money(deposit, b.experience?.currency) ?? "€300") + (depositPaid ? " · paid ✓" : " · pending")} tone={depositPaid ? "green" : "amber"} />
+                    {remaining != null && remaining > 0 && (
+                      <Row label="Remaining balance" value={`${money(remaining, b.experience?.currency)} · by bank transfer`} />
+                    )}
+                  </>
                 )}
-                <p className="text-[12.5px] text-[#8a9aa0] mt-3 leading-relaxed">The remaining balance is paid by bank transfer — we&apos;ll send your invoice with all details in good time before the trip.</p>
+                {!paidInFull && (
+                  <p className="text-[12.5px] text-[#8a9aa0] mt-3 leading-relaxed">The remaining balance is paid by bank transfer — we&apos;ll send your invoice with all details in good time before the trip. Payments we&apos;ve received are reflected above.</p>
+                )}
               </Card>
+
+              {/* your stay */}
+              {hotel && (
+                <Card title="Your stay">
+                  {hotel.image_url && (
+                    <div className="rounded-xl overflow-hidden mb-3 aspect-[16/9] bg-cover bg-center" style={{ backgroundImage: `url('${hotel.image_url}')` }} />
+                  )}
+                  <p className="text-[15px] font-bold text-[#00374a]">{hotel.name}</p>
+                  {hotel.description && <p className="text-[13.5px] text-[#5a6b72] leading-relaxed mt-1.5 whitespace-pre-line">{hotel.description}</p>}
+                  {hotel.website && (
+                    <a href={hotel.website} target="_blank" className="inline-flex items-center gap-1.5 text-[13.5px] font-semibold text-[#00afdb] hover:underline mt-2">Hotel website ↗</a>
+                  )}
+                </Card>
+              )}
+
+              {/* your coaches */}
+              {coaches.length > 0 && (
+                <Card title="Your coaches">
+                  <div className="space-y-4">
+                    {coaches.map((c) => (
+                      <div key={c.name} className="flex items-start gap-3">
+                        <div className="w-14 h-14 rounded-full bg-cover bg-center shrink-0 bg-[#eef3f4]" style={{ backgroundImage: c.image ? `url('${c.image}')` : undefined }} />
+                        <div className="min-w-0">
+                          <p className="text-[14.5px] font-bold text-[#00374a]">{c.name}</p>
+                          {c.role && <p className="text-[11px] font-bold tracking-wide uppercase text-[#00afdb]">{c.role}</p>}
+                          {c.bio && <p className="text-[13px] text-[#6a7a80] leading-relaxed mt-1">{c.bio}</p>}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </Card>
+              )}
 
               {/* prep */}
               <Card title="Trip prep">
@@ -91,10 +141,8 @@ export default async function BookingDetail({ params }: Props) {
                 ) : (
                   <>
                     {photos.length > 0 && (
-                      <div className="grid grid-cols-3 sm:grid-cols-4 gap-2 mb-3">
-                        {photos.map((src, i) => (
-                          <a key={i} href={src} target="_blank" className="aspect-square rounded-lg bg-cover bg-center hover:opacity-90 transition-opacity" style={{ backgroundImage: `url('${src}')` }} />
-                        ))}
+                      <div className="mb-3">
+                        <MemberGallery photos={photos} />
                       </div>
                     )}
                     {b.edition?.memories_video_url && (

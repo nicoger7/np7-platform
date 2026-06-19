@@ -103,3 +103,65 @@ export async function getMemoryPhotosForBooking(editionId: string, bookingId: st
   ]);
   return [...mine, ...everyone];
 }
+
+/** Sum of incoming (customer→us) payments logged for a booking, from exp_payments.
+    Lets the member see what's actually been received (deposit + any bank transfer). */
+export async function getBookingPaid(bookingId: string): Promise<number> {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const db = createAdminClient() as any;
+  const { data } = await db.from("exp_payments").select("amount,direction").eq("booking_id", bookingId);
+  return (data ?? [])
+    .filter((p: { direction: string | null }) => p.direction !== "out")
+    .reduce((s: number, p: { amount: number | null }) => s + (Number(p.amount) || 0), 0);
+}
+
+export type HotelInfo = { name: string; image_url: string | null; images: string[] | null; description: string | null; website: string | null };
+
+/** Resolve the hotel for a booking (by the package's hotel_id, else name match on the
+    package title) and return its media. Tolerant of migration 023 being unapplied → null. */
+export async function getBookingHotel(bookingId: string): Promise<HotelInfo | null> {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const db = createAdminClient() as any;
+  const { data: bk } = await db.from("exp_bookings").select("package_id, exp_packages(name)").eq("id", bookingId).maybeSingle();
+  if (!bk) return null;
+  const pkgName: string = bk.exp_packages?.name ?? "";
+  let hotelId: string | null = null;
+  if (bk.package_id) {
+    const { data: p } = await db.from("exp_packages").select("hotel_id").eq("id", bk.package_id).maybeSingle();
+    hotelId = p?.hotel_id ?? null; // null if column missing pre-migration
+  }
+  const { data: hotels } = await db.from("hotels").select("id,name,image_url,images,description,website");
+  if (!Array.isArray(hotels)) return null; // media columns missing pre-migration → no stay module
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  let hotel = hotelId ? hotels.find((h: any) => h.id === hotelId) : null;
+  if (!hotel && pkgName) {
+    const hay = pkgName.toLowerCase();
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    hotel = hotels.find((h: any) => h.name && hay.includes(h.name.toLowerCase())) ?? null;
+  }
+  if (!hotel || (!hotel.image_url && !hotel.description)) return null;
+  return { name: hotel.name, image_url: hotel.image_url ?? null, images: hotel.images ?? null, description: hotel.description ?? null, website: hotel.website ?? null };
+}
+
+export type CoachCard = { name: string; role: string; bio: string; image: string | null };
+
+/** A week's coaches (exp_edition_coaches + exp_coaches, with per-edition overrides),
+    mirroring the public experience page. */
+export async function getEditionCoaches(editionId: string): Promise<CoachCard[]> {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const db = createAdminClient() as any;
+  const { data } = await db
+    .from("exp_edition_coaches")
+    .select("sort_order,name_override,role_override,bio_override,image_override,exp_coaches(name,role,bio,image_url)")
+    .eq("edition_id", editionId)
+    .order("sort_order");
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  return (data ?? [])
+    .map((g: any) => ({
+      name: g.name_override ?? g.exp_coaches?.name ?? "",
+      role: g.role_override ?? g.exp_coaches?.role ?? "",
+      bio: g.bio_override ?? g.exp_coaches?.bio ?? "",
+      image: g.image_override ?? g.exp_coaches?.image_url ?? null,
+    }))
+    .filter((c: CoachCard) => c.name);
+}
