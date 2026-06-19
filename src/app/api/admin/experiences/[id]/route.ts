@@ -110,17 +110,23 @@ export async function PATCH(
     "status", "timezone", "hotels", "airport_code",
     "notes", "active_status", "location_lat",
     "location_lng", "notion_id", "destination_id",
+    "page_template",
   ];
+  // Columns from migrations that may not be applied yet — if the DB rejects them
+  // we strip and retry so saving never breaks before the migration is run.
+  const PENDING_OPTIONAL = ["page_template"];
   const sanitized = Object.fromEntries(
     Object.entries(body).filter(([k]) => allowed.includes(k))
   );
 
-  const { data, error } = await client
-    .from("exp_experiences")
-    .update({ ...sanitized, updated_at: new Date().toISOString() })
-    .eq("id", id)
-    .select()
-    .single();
+  const doUpdate = (payload: Record<string, unknown>) =>
+    client.from("exp_experiences").update({ ...payload, updated_at: new Date().toISOString() }).eq("id", id).select().single();
+
+  let { data, error } = await doUpdate(sanitized);
+  if (error && /column|schema cache|does not exist/i.test(error.message)) {
+    const stripped = Object.fromEntries(Object.entries(sanitized).filter(([k]) => !PENDING_OPTIONAL.includes(k)));
+    ({ data, error } = await doUpdate(stripped));
+  }
 
   if (error) {
     return NextResponse.json({ error: error.message }, { status: 400 });

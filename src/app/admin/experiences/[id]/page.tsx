@@ -23,6 +23,7 @@ interface Experience {
   active_status: string | null;
   notion_id: string | null;
   destination_id: string | null;
+  page_template: string | null;
 }
 
 interface Edition {
@@ -154,6 +155,7 @@ export default function ExperienceDetailPage({
         cancellation_policy: exp.cancellation_policy,
         active_status: exp.active_status,
         notion_id: exp.notion_id,
+        page_template: exp.page_template,
       }),
     });
     setSaving(false);
@@ -356,6 +358,36 @@ export default function ExperienceDetailPage({
       {/* ── Template / Components / Media tabs ── */}
       <div className="max-w-[720px]">
         <div className={activeSection === "template" ? "space-y-5" : "hidden"}>
+          {/* Page template */}
+          <div>
+            <label className={labelClass}>Event-page template</label>
+            <p className="text-xs admin-faint mb-2">Controls the public event-page layout. Smaller events can use a lighter template.</p>
+            <div className="flex flex-wrap gap-2">
+              {[
+                { key: "full", label: "Full", desc: "The complete, image-rich page" },
+                { key: "compact", label: "Compact", desc: "Lighter layout for small events (coming soon)", disabled: true },
+              ].map((t) => {
+                const current = (exp.page_template || "full") === t.key;
+                return (
+                  <button
+                    key={t.key}
+                    type="button"
+                    disabled={t.disabled}
+                    onClick={() => !t.disabled && update("page_template", t.key)}
+                    title={t.desc}
+                    className={`px-4 py-2.5 rounded-lg text-sm font-medium border text-left transition-colors ${
+                      current ? "admin-heading border-[#0aa3c7] bg-[#0aa3c7]/10" : "admin-surface admin-muted"
+                    } ${t.disabled ? "opacity-40 cursor-not-allowed" : ""}`}
+                    style={{ borderColor: current ? undefined : "var(--admin-border)" }}
+                  >
+                    <span className="block">{t.label}</span>
+                    <span className="block text-[11px] admin-faint font-normal mt-0.5">{t.desc}</span>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
           {/* Title, Slug, Code */}
           <div className="grid grid-cols-[1fr_1fr_120px] gap-4">
             <div>
