@@ -139,6 +139,25 @@ export function ReserveModal({ ctx, onClose }: { ctx: ReserveContext; onClose: (
               </div>
             </div>
 
+            {/* what happens next — the journey after reserving */}
+            <div className="mb-6">
+              <p className="text-[11px] font-bold uppercase tracking-[0.14em] text-[#9aa6ac] mb-2.5">What happens next</p>
+              <ol className="space-y-2">
+                {[
+                  "Reserve today — your €300 deposit secures your spot.",
+                  "We reach out personally to sort every detail.",
+                  "Plan it in your trip account — flights, extra nights & your team.",
+                  "Pay the balance by bank transfer, in good time before the trip.",
+                  "Show up & have your epic week. 🤙",
+                ].map((t, i) => (
+                  <li key={i} className="flex items-start gap-2.5 text-[13px] text-[#5a6b72] leading-snug">
+                    <span className="shrink-0 w-5 h-5 rounded-full bg-[#00afdb]/12 text-[#0782a0] grid place-items-center text-[11px] font-bold">{i + 1}</span>
+                    {t}
+                  </li>
+                ))}
+              </ol>
+            </div>
+
             {!ready ? (
               <div className="py-8 text-center text-[13px] text-[#9aa6ac]">One sec…</div>
             ) : member ? (
