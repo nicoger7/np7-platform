@@ -111,6 +111,14 @@ function parsePackageName(name: string) {
   return { level: segs[0] || "Standard", accommodation: segs.slice(1).join(" – ") || "No hotel" };
 }
 
+function waHref(v: string): string {
+  const s = v.trim();
+  if (/^https?:\/\//i.test(s)) return s;
+  if (/^wa\.me\//i.test(s)) return `https://${s}`;
+  const digits = s.replace(/[^\d]/g, "");
+  return digits ? `https://wa.me/${digits}` : s;
+}
+
 function FactIcon({ name }: { name: string }) {
   const c = "w-5 h-5";
   const p = { fill: "none" as const, stroke: "currentColor", strokeWidth: 1.8, strokeLinecap: "round" as const, strokeLinejoin: "round" as const };
@@ -288,20 +296,21 @@ export default async function ExperienceDetailPage({ params }: Props) {
       : FAQ;
   // Data-driven guides for the primary edition (fallback to brand defaults).
   // Fetched separately so missing tables (pre-migration 019) can't break the page.
-  let guideItems: { name: string; role: string; bio: string; image: string }[] = COACHES;
+  let guideItems: { name: string; role: string; bio: string; image: string; whatsapp?: string | null }[] = COACHES;
   if (edition?.id) {
-    const { data: gc } = await sb
-      .from("exp_edition_coaches")
-      .select("sort_order,name_override,role_override,bio_override,image_override,exp_coaches(name,role,bio,image_url)")
-      .eq("edition_id", edition.id)
-      .order("sort_order");
+    // whatsapp_link arrives in migration 027 — try with it, fall back without.
+    const sel = (wa: boolean) => `sort_order,name_override,role_override,bio_override,image_override,exp_coaches(name,role,bio,image_url${wa ? ",whatsapp_link" : ""})`;
+    let { data: gc, error } = await sb.from("exp_edition_coaches").select(sel(true)).eq("edition_id", edition.id).order("sort_order");
+    if (error) ({ data: gc } = await sb.from("exp_edition_coaches").select(sel(false)).eq("edition_id", edition.id).order("sort_order"));
     if (gc && gc.length) {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       guideItems = gc
-        .map((g: { name_override: string | null; role_override: string | null; bio_override: string | null; image_override: string | null; exp_coaches: { name: string | null; role: string | null; bio: string | null; image_url: string | null } | null }) => ({
+        .map((g: any) => ({
           name: g.name_override ?? g.exp_coaches?.name ?? "",
           role: g.role_override ?? g.exp_coaches?.role ?? "",
           bio: g.bio_override ?? g.exp_coaches?.bio ?? "",
           image: g.image_override ?? g.exp_coaches?.image_url ?? BRAND_IMG.group,
+          whatsapp: g.exp_coaches?.whatsapp_link ?? null,
         }))
         .filter((c: { name: string }) => c.name);
     }
@@ -615,7 +624,9 @@ export default async function ExperienceDetailPage({ params }: Props) {
               {guideItems.map((c) => (
                 <article key={c.name} className="snap-start shrink-0 w-[280px] sm:w-[320px] bg-white rounded-3xl overflow-hidden border border-[#ebebeb]">
                   <div className="h-[240px] bg-cover bg-center" style={{ backgroundImage: `url('${c.image}')` }} />
-                  <div className="p-5"><h3 className="text-lg font-extrabold text-[#00374a]">{c.name}</h3><p className="text-[11px] font-bold tracking-wide uppercase text-[#00afdb] mb-2.5">{c.role}</p><p className="text-[13.5px] text-[#6a7a80] leading-relaxed">{c.bio}</p></div>
+                  <div className="p-5"><h3 className="text-lg font-extrabold text-[#00374a]">{c.name}</h3><p className="text-[11px] font-bold tracking-wide uppercase text-[#00afdb] mb-2.5">{c.role}</p><p className="text-[13.5px] text-[#6a7a80] leading-relaxed">{c.bio}</p>
+                    {c.whatsapp && <a href={waHref(c.whatsapp)} target="_blank" rel="noopener" className="inline-flex items-center gap-1.5 mt-3 text-[13px] font-bold text-[#1aa851] hover:underline">💬 Chat on WhatsApp</a>}
+                  </div>
                 </article>
               ))}
             </Carousel>
