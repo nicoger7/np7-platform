@@ -157,6 +157,17 @@ export async function getMemoryDownloadsRemaining(bookingId: string): Promise<nu
   return Math.max(0, MEMORY_DOWNLOAD_LIMIT - used);
 }
 
+/** Total of confirmed add-ons on a booking — added to what the member owes.
+    Tolerant: pre-migration (no status column) every add-on counts as confirmed. */
+export async function getConfirmedAddonsTotal(bookingId: string): Promise<number> {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const db = createAdminClient() as any;
+  const { data } = await db.from("exp_booking_addons").select("price,status").eq("booking_id", bookingId);
+  return (data ?? [])
+    .filter((a: { status?: string | null }) => (a.status ?? "confirmed") === "confirmed")
+    .reduce((s: number, a: { price: number | null }) => s + (Number(a.price) || 0), 0);
+}
+
 export type HotelInfo = { name: string; image_url: string | null; images: string[] | null; description: string | null; website: string | null };
 
 /** Resolve the hotel for a booking (by the package's hotel_id, else name match on the

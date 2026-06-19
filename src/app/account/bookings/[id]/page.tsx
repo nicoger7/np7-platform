@@ -2,12 +2,13 @@ import Link from "next/link";
 import { redirect, notFound } from "next/navigation";
 import type { Metadata } from "next";
 import { getPortalUser } from "@/lib/auth";
-import { getMemberBooking, getMemoryPhotosForBooking, getBookingPaid, getBookingHotel, getEditionCoaches, getMemoryDownloadsRemaining } from "@/lib/portal-data";
+import { getMemberBooking, getMemoryPhotosForBooking, getBookingPaid, getBookingHotel, getEditionCoaches, getMemoryDownloadsRemaining, getConfirmedAddonsTotal } from "@/lib/portal-data";
 import { bookingStatus, CHIP_CLASS, fmtDates, money } from "@/lib/portal-status";
 import { PortalChrome } from "@/components/portal/portal-chrome";
 import { ExtraNightsButton } from "@/components/portal/extra-nights-button";
 import { MemberDocuments } from "@/components/portal/member-documents";
 import { MemberGallery } from "@/components/portal/member-gallery";
+import { TripAddons } from "@/components/portal/trip-addons";
 
 export const metadata: Metadata = { title: "My trip — NP7" };
 export const dynamic = "force-dynamic";
@@ -22,16 +23,18 @@ export default async function BookingDetail({ params }: Props) {
   if (!b) notFound();
 
   const chip = bookingStatus(b);
-  const [photos, paid, hotel, coaches, downloadsRemaining] = await Promise.all([
+  const [photos, paid, hotel, coaches, downloadsRemaining, addonsTotal] = await Promise.all([
     b.edition?.id ? getMemoryPhotosForBooking(b.edition.id, b.id).catch(() => []) : Promise.resolve([]),
     getBookingPaid(b.id).catch(() => 0),
     getBookingHotel(b.id).catch(() => null),
     b.edition?.id ? getEditionCoaches(b.edition.id).catch(() => []) : Promise.resolve([]),
     getMemoryDownloadsRemaining(b.id).catch(() => 3),
+    getConfirmedAddonsTotal(b.id).catch(() => 0),
   ]);
 
   const deposit = b.edition?.deposit ?? 300;
-  const total = b.agreed_price ?? null;
+  const baseTotal = b.agreed_price ?? null;
+  const total = baseTotal != null ? baseTotal + addonsTotal : addonsTotal > 0 ? addonsTotal : null;
   const depositPaid = paid >= deposit || b.downpayment_received || ["downpayment_paid", "paid", "confirmed"].includes((b.status ?? "").toLowerCase());
   const paidInFull = total != null && paid >= total && total > 0;
   const remaining = total != null ? Math.max(0, total - paid) : null;
@@ -73,6 +76,7 @@ export default async function BookingDetail({ params }: Props) {
               {/* payment */}
               <Card title="Payment">
                 <Row label="Package" value={b.pkg?.name ?? "—"} />
+                {addonsTotal > 0 && <Row label="Confirmed add-ons" value={`+ ${money(addonsTotal, b.experience?.currency)}`} />}
                 <Row label="Trip total" value={money(total, b.experience?.currency) ?? "—"} />
                 {paid > 0 && <Row label="Paid so far" value={(money(paid, b.experience?.currency) ?? "—") + " ✓"} tone="green" />}
                 {paidInFull ? (
@@ -124,8 +128,8 @@ export default async function BookingDetail({ params }: Props) {
 
               {/* prep */}
               <Card title="Trip prep">
-                <p className="text-[14px] text-[#5a6b72] leading-relaxed mb-3">We&apos;ll add your detailed arrival info and packing list here as the trip gets closer. In the meantime:</p>
-                <div className="space-y-2.5">
+                <TripAddons bookingId={b.id} depositPaid={depositPaid} />
+                <div className="mt-5 pt-4 border-t border-[#f3ede2] space-y-2.5">
                   {b.edition?.whatsapp_group_link ? (
                     <a href={b.edition.whatsapp_group_link} target="_blank" className="flex items-center gap-2 text-[14px] font-semibold text-[#00afdb] hover:underline">
                       <span>💬</span> Join your group chat

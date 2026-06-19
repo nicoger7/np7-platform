@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase";
+import { sendEmail } from "@/lib/email/send";
 
 // GET /api/admin/bookings/:id/addons — list add-ons for a booking
 export async function GET(
@@ -47,6 +48,60 @@ export async function POST(
   }
 
   return NextResponse.json(data, { status: 201 });
+}
+
+// PATCH /api/admin/bookings/:id/addons — confirm (or update) a member-requested add-on.
+// On confirm it counts toward the balance and the member gets a "confirmed" email.
+export async function PATCH(
+  request: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const client = createAdminClient() as any;
+  const { id } = await params;
+  const body = await request.json();
+  if (!body.addon_id) return NextResponse.json({ error: "addon_id is required" }, { status: 400 });
+
+  const status = body.status === "declined" ? "declined" : "confirmed";
+  const patch: Record<string, unknown> = { status };
+  if (status === "confirmed") patch.confirmed_at = new Date().toISOString();
+
+  let { data, error } = await client
+    .from("exp_booking_addons").update(patch).eq("id", body.addon_id).eq("booking_id", id)
+    .select("*, exp_components(name)").single();
+  if (error && /column|schema cache|does not exist/i.test(error.message)) {
+    // pre-migration 024 — nothing to flip; just return the row
+    ({ data, error } = await client.from("exp_booking_addons").select("*, exp_components(name)").eq("id", body.addon_id).single());
+  }
+  if (error) return NextResponse.json({ error: error.message }, { status: 400 });
+
+  // notify the member on confirm (best-effort)
+  if (status === "confirmed") {
+    const { data: bk } = await client
+      .from("exp_bookings")
+      .select("id, agreed_price, contacts(name,email), exp_experiences(title)")
+      .eq("id", id).maybeSingle();
+    const email = bk?.contacts?.email;
+    if (email) {
+      const label = data?.label ?? data?.exp_components?.name ?? "your add-on";
+      const price = data?.price != null ? `€${Number(data.price).toLocaleString("en-US")}` : "";
+      await sendEmail({
+        to: email,
+        templateKey: "addon_confirmed",
+        bookingId: id,
+        dedupeKey: `addon_confirmed:${body.addon_id}`,
+        vars: {
+          firstName: (bk?.contacts?.name ?? "").split(" ")[0] || "there",
+          experienceTitle: bk?.exp_experiences?.title ?? "",
+          addonLabel: label,
+          addonPrice: price,
+          bookingLink: `${process.env.NEXT_PUBLIC_SITE_URL ?? ""}/account/bookings/${id}`,
+        },
+      }).catch(() => {});
+    }
+  }
+
+  return NextResponse.json(data);
 }
 
 // DELETE /api/admin/bookings/:id/addons — remove an add-on

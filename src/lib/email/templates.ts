@@ -140,6 +140,19 @@ export const TEMPLATES: Record<string, (v: EmailVars) => Built> = {
         p(`Until the next session.<br>— Nico & the NP7 team`),
     }),
   }),
+
+  addon_confirmed: (v) => ({
+    subject: `Confirmed: ${v.addonLabel ?? "your add-on"} — ${v.experienceTitle ?? "your NP7 trip"}`,
+    html: emailLayout({
+      preheader: "Your requested add-on is confirmed.",
+      bodyHtml:
+        greet(v) +
+        p(`Good news — we've confirmed <strong>${esc(v.addonLabel || "your add-on")}</strong> for your trip${v.experienceTitle ? " to <strong>" + esc(v.experienceTitle) + "</strong>" : ""}.`) +
+        (v.addonPrice ? p(`It adds <strong>${esc(v.addonPrice)}</strong> to your balance${v.balance ? `, bringing your remaining balance to <strong>${esc(v.balance)}</strong>` : ""} — payable by bank transfer with the rest.`) : "") +
+        (v.bookingLink ? emailButton("View it in your trip", v.bookingLink) : "") +
+        p(`Any questions, just reply.<br>— Nico & the NP7 team`),
+    }),
+  }),
 };
 
 const FALLBACK_KEYS = Object.keys(TEMPLATES);

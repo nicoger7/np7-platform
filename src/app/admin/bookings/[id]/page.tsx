@@ -51,6 +51,8 @@ interface Addon {
   price: number | null;
   notes: string | null;
   component_id: string | null;
+  status: string | null;
+  source: string | null;
   exp_components: { id: string; name: string; category: string; unit_cost: number } | null;
 }
 
@@ -277,6 +279,16 @@ export default function BookingDetailPage({
   async function removeAddon(addonId: string) {
     await fetch(`/api/admin/bookings/${id}/addons?addon_id=${addonId}`, { method: "DELETE" });
     setBooking((prev) => prev ? { ...prev, addons: prev.addons.filter((a) => a.id !== addonId) } : prev);
+  }
+
+  async function confirmAddon(addonId: string) {
+    const res = await fetch(`/api/admin/bookings/${id}/addons`, {
+      method: "PATCH", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ addon_id: addonId, status: "confirmed" }),
+    });
+    if (res.ok) {
+      setBooking((prev) => prev ? { ...prev, addons: prev.addons.map((a) => a.id === addonId ? { ...a, status: "confirmed" } : a) } : prev);
+    }
   }
 
   async function addPayment() {
@@ -744,19 +756,31 @@ export default function BookingDetailPage({
                 <span className="text-[10px] font-bold tracking-[0.1em] admin-faint uppercase">Price</span>
                 <span className="text-[10px] font-bold tracking-[0.1em] admin-faint uppercase"></span>
               </div>
-              {booking.addons.map((a) => (
-                <div key={a.id} className="grid grid-cols-[1fr_120px_100px_60px] gap-3 px-5 py-3" style={{ borderBottom: "1px solid var(--admin-border)" }}>
+              {booking.addons.map((a) => {
+                const requested = a.status === "requested";
+                return (
+                <div key={a.id} className="grid grid-cols-[1fr_110px_90px_120px] gap-3 px-5 py-3" style={{ borderBottom: "1px solid var(--admin-border)" }}>
                   <div className="min-w-0">
-                    <div className="text-sm font-medium admin-heading truncate">{a.label}</div>
+                    <div className="text-sm font-medium admin-heading truncate flex items-center gap-2">
+                      {a.label}
+                      {requested && <span className="shrink-0 text-[9px] font-bold uppercase tracking-wide px-1.5 py-0.5 rounded bg-amber-500/15 text-amber-500">Requested by member</span>}
+                      {a.status === "confirmed" && a.source === "member" && <span className="shrink-0 text-[9px] font-bold uppercase tracking-wide px-1.5 py-0.5 rounded bg-green-500/15 text-green-500">Confirmed</span>}
+                    </div>
                     {a.notes && <div className="text-xs admin-faint truncate">{a.notes}</div>}
                   </div>
                   <span className="text-xs admin-muted self-center capitalize">{a.exp_components?.category || "custom"}</span>
                   <span className="text-xs admin-muted self-center">{a.price ? `€${Number(a.price).toLocaleString()}` : "—"}</span>
-                  <button onClick={() => removeAddon(a.id)} className="text-xs admin-faint hover:text-red-400 transition-colors self-center">
-                    <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M18 6L6 18M6 6l12 12" /></svg>
-                  </button>
+                  <div className="flex items-center justify-end gap-2 self-center">
+                    {requested && (
+                      <button onClick={() => confirmAddon(a.id)} className="text-[11px] font-bold px-2.5 py-1 rounded-md bg-[#0aa3c7] text-white hover:bg-[#0aa3c7]/90 transition-colors">Confirm</button>
+                    )}
+                    <button onClick={() => removeAddon(a.id)} className="text-xs admin-faint hover:text-red-400 transition-colors">
+                      <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M18 6L6 18M6 6l12 12" /></svg>
+                    </button>
+                  </div>
                 </div>
-              ))}
+                );
+              })}
             </div>
           )}
         </div>
