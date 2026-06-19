@@ -122,6 +122,18 @@ function FactIcon({ name }: { name: string }) {
   }
 }
 
+function CertaintyIcon({ name }: { name: string }) {
+  const c = "w-6 h-6";
+  const p = { fill: "none" as const, stroke: "currentColor", strokeWidth: 1.8, strokeLinecap: "round" as const, strokeLinejoin: "round" as const };
+  switch (name) {
+    case "wind": return <svg className={c} viewBox="0 0 24 24" {...p}><path d="M3 8h10a3 3 0 1 0-3-3M3 12h15a3 3 0 1 1-3 3M3 16h9a2.5 2.5 0 1 1-2.5 2.5" /></svg>;
+    case "star": return <svg className={c} viewBox="0 0 24 24" fill="currentColor" stroke="none"><path d="M12 2.5l2.9 6.1 6.6.9-4.8 4.6 1.2 6.6L12 18.6 6.1 21.3l1.2-6.6L2.5 9.5l6.6-.9z" /></svg>;
+    case "crew": return <svg className={c} viewBox="0 0 24 24" {...p}><circle cx="8" cy="8" r="3" /><circle cx="17" cy="10" r="2.5" /><path d="M2 20c0-3 2.7-5 6-5s6 2 6 5" /><path d="M16 15c2.6 0 4 1.7 4 4" /></svg>;
+    case "sun": return <svg className={c} viewBox="0 0 24 24" {...p}><circle cx="12" cy="12" r="4" /><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4" /></svg>;
+    default: return null;
+  }
+}
+
 /* live schema (generated types are stale) */
 type Edition = { id: string; label: string | null; coaches: string | null; date_start: string | null; date_end: string | null; max_spots: number | null; spots_taken: number | null; deposit: number | null; status: string | null };
 type PackageRow = { id: string; name: string; price: number | null; status: string | null; edition_id: string | null; includes: unknown };
@@ -470,21 +482,34 @@ export default async function ExperienceDetailPage({ params }: Props) {
       </section>
 
       {/* 3 · CERTAINTY — you can count on it */}
-      <section className="py-16 sm:py-24 bg-[#fff7ec]">
-        <div className="max-w-[1100px] mx-auto px-6 sm:px-8">
+      <section className="relative py-16 sm:py-24 bg-[#fff7ec] overflow-hidden">
+        {/* wind drifting across the water — a bit of life behind the facts */}
+        <div className="pointer-events-none absolute inset-0" aria-hidden>
+          {[
+            { top: "16%", w: 220, dur: 9, delay: 0, c: "0,175,219" },
+            { top: "34%", w: 150, dur: 12, delay: 3.5, c: "244,123,32" },
+            { top: "58%", w: 260, dur: 8, delay: 1.5, c: "0,175,219" },
+            { top: "72%", w: 130, dur: 13, delay: 5, c: "0,175,219" },
+            { top: "88%", w: 190, dur: 10.5, delay: 2.4, c: "244,123,32" },
+          ].map((s, i) => (
+            <span key={i} className="cw-streak" style={{ top: s.top, width: s.w, animationDuration: `${s.dur}s`, animationDelay: `${s.delay}s`, background: `linear-gradient(90deg, transparent, rgba(${s.c},0.5), transparent)` }} />
+          ))}
+        </div>
+        <div className="relative max-w-[1100px] mx-auto px-6 sm:px-8">
           <Reveal className="text-center max-w-[640px] mx-auto mb-10">
             <p className="text-[11px] font-bold tracking-[0.25em] text-[#00afdb] mb-3">THE ODDS ARE IN YOUR FAVOUR</p>
             <h2 className="text-3xl sm:text-5xl font-black tracking-[-0.03em] text-[#00374a]">Set up for a great week</h2>
           </Reveal>
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
             {[
-              { big: windProbability || "Trade winds", small: windProbability ? "wind probability in season" : "steady & reliable", sub: windRange || null },
-              { big: "★ 5.0", small: "guest rating", sub: "5-star reviews, week after week" },
-              { big: "Small groups", small: "great crew", sub: "hand-picked, friendly vibe" },
-              { big: "Plan B", small: "no-wind program", sub: "we make every day count" },
+              { icon: "wind", big: windProbability || "Trade winds", small: windProbability ? "wind probability in season" : "steady & reliable", sub: windRange || null },
+              { icon: "star", big: "5.0", small: "guest rating", sub: "5-star reviews, week after week" },
+              { icon: "crew", big: "Small groups", small: "great crew", sub: "hand-picked, friendly vibe" },
+              { icon: "sun", big: "Plan B", small: "no-wind program", sub: "we make every day count" },
             ].map((s, i) => (
               <Reveal key={s.small} delay={i * 80}>
-                <div className="h-full bg-white rounded-2xl border border-[#f0e6d6] p-6 text-center">
+                <div className="group h-full bg-white rounded-2xl border border-[#f0e6d6] p-6 text-center shadow-[0_8px_24px_rgba(0,55,74,0.05)] hover:shadow-[0_18px_40px_rgba(0,55,74,0.12)] hover:-translate-y-1.5 transition-all duration-300">
+                  <span className="mx-auto mb-3 grid place-items-center w-12 h-12 rounded-2xl bg-gradient-to-br from-[#00afdb]/12 to-[#f47b20]/10 text-[#00afdb] group-hover:scale-110 transition-transform"><CertaintyIcon name={s.icon} /></span>
                   <div className="text-[26px] sm:text-[30px] font-black tracking-[-0.02em] text-[#00374a]">{s.big}</div>
                   <div className="text-[11px] font-bold tracking-[0.12em] uppercase text-[#00afdb] mt-1">{s.small}</div>
                   {s.sub && <div className="text-[12.5px] text-[#8a9aa0] mt-2">{s.sub}</div>}
@@ -492,6 +517,11 @@ export default async function ExperienceDetailPage({ params }: Props) {
               </Reveal>
             ))}
           </div>
+          <style>{`
+            .cw-streak { position: absolute; left: -280px; height: 2px; border-radius: 9999px; animation-name: cwDrift; animation-timing-function: linear; animation-iteration-count: infinite; }
+            @keyframes cwDrift { from { transform: translateX(0); opacity: 0; } 10% { opacity: 1; } 90% { opacity: 1; } to { transform: translateX(calc(100vw + 320px)); opacity: 0; } }
+            @media (prefers-reduced-motion: reduce) { .cw-streak { animation: none; opacity: 0; } }
+          `}</style>
           {noWindProgram && (
             <Reveal>
               <div className="mt-6 bg-white rounded-2xl border border-[#f0e6d6] p-6 sm:p-7 max-w-[820px] mx-auto">
