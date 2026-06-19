@@ -96,7 +96,9 @@ export function HeroFindYourFit({ src, poster, children }: { src: string; poster
       const fp = clamp((p - HERO_END) / (1 - HERO_END));
       const fitIn = clamp((p - HERO_END * 0.85) / (HERO_END * 0.3));
       if (scrimRef.current) scrimRef.current.style.opacity = String(fitIn);
-      if (sunWashRef.current) sunWashRef.current.style.opacity = String(1 - fitIn * 0.55);
+      // wash stays a tint from the very start (so the footage reads while it scrubs),
+      // then eases further over the fits
+      if (sunWashRef.current) sunWashRef.current.style.opacity = String(0.6 - fitIn * 0.25);
       if (fitRef.current) { fitRef.current.style.opacity = String(fitIn); fitRef.current.style.pointerEvents = fitIn > 0.5 ? "auto" : "none"; }
       if (railRef.current) railRef.current.style.height = `${fp * 100}%`;
 
@@ -149,7 +151,7 @@ export function HeroFindYourFit({ src, poster, children }: { src: string; poster
         <div ref={zoomRef} className="absolute inset-0 will-change-transform">
           <video ref={videoRef} src={src} poster={poster} muted playsInline preload="auto" tabIndex={-1} aria-hidden disablePictureInPicture className="absolute inset-0 w-full h-full object-cover pointer-events-none" />
         </div>
-        <div ref={sunWashRef} className="absolute inset-0 will-change-[opacity]">{sunWash}</div>
+        <div ref={sunWashRef} className="absolute inset-0 will-change-[opacity]" style={{ opacity: 0.6 }}>{sunWash}</div>
         {/* readability vignette — dark top & bottom for the cards/detail, clear centre */}
         <div ref={scrimRef} className="absolute inset-0 pointer-events-none" style={{ opacity: 0, background: "linear-gradient(to bottom, rgba(0,30,45,0.9) 0%, rgba(0,30,45,0) 24%, rgba(0,18,28,0) 60%, rgba(0,16,26,0.95) 100%)" }} aria-hidden />
 
@@ -174,7 +176,7 @@ export function HeroFindYourFit({ src, poster, children }: { src: string; poster
           </div>
 
           {/* overview cards — top, centred, clear of the fixed nav */}
-          <div className="absolute top-0 inset-x-0 pt-[88px] sm:pt-[104px] px-5 flex flex-col items-center z-10">
+          <div className="absolute top-0 inset-x-0 pt-[104px] sm:pt-[120px] px-5 flex flex-col items-center z-10">
             <p className="text-[12px] sm:text-[13px] font-bold tracking-[0.3em] text-[#8fe6f2] mb-1.5 fyf-copy">FIND YOUR FIT</p>
             <h2 className="text-xl sm:text-[26px] font-black tracking-[-0.02em] text-white text-center mb-5 fyf-copy">Whatever brings you to the water</h2>
             <div className="flex flex-wrap justify-center gap-2.5 sm:gap-3.5 max-w-[920px]">
@@ -194,8 +196,8 @@ export function HeroFindYourFit({ src, poster, children }: { src: string; poster
           </div>
 
           {/* active feature — bottom, centred, large */}
-          <div className="absolute bottom-0 inset-x-0 pb-12 sm:pb-16 px-6 flex justify-center z-10">
-            <div className="relative w-full max-w-[760px] min-h-[260px] sm:min-h-[300px]">
+          <div className="absolute bottom-0 inset-x-0 pb-[72px] sm:pb-24 px-6 flex justify-center z-10">
+            <div className="relative w-full max-w-[760px] min-h-[250px] sm:min-h-[280px]">
               {SEGMENTS.map((s, i) => {
                 const on = i === active;
                 return (
