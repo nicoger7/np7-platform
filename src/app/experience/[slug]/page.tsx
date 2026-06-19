@@ -361,7 +361,9 @@ export default async function ExperienceDetailPage({ params }: Props) {
           <div className="absolute inset-0 bg-cover bg-center scale-105" style={{ backgroundImage: `url('${heroMediaImage}')` }} />
         )}
         <div className="absolute inset-0 bg-gradient-to-t from-[#00374a] via-black/35 to-black/35" />
-        <div className="relative w-full max-w-[1200px] mx-auto px-6 sm:px-8 pb-28 pt-32">
+        {/* subtle warm sun glow — the brand's "sun to sea" warmth */}
+        <div className="absolute inset-0 bg-[radial-gradient(ellipse_65%_55%_at_82%_-5%,rgba(244,123,32,0.22),transparent_55%)]" aria-hidden />
+        <div className="relative w-full max-w-[1200px] mx-auto px-6 sm:px-8 pb-16 pt-32">
           <Reveal from="up">
             <div className="flex flex-wrap items-center gap-3 mb-4">
               <span className="text-[12px] font-bold tracking-[0.2em] uppercase text-white/75">{experience.location}</span>
@@ -393,27 +395,23 @@ export default async function ExperienceDetailPage({ params }: Props) {
         </div>
       </section>
 
-      {/* QUICK FACTS — one elevated card straddling the hero into the next module.
-          Lives on the same dark as the hero foot + the epic week, so there's no
-          white void: the card bridges them and the page flows straight on. */}
-      <section className="relative z-20 bg-[#00374a]">
-        <div className="max-w-[1060px] mx-auto px-6 sm:px-8 -mt-12 sm:-mt-14 pb-4 sm:pb-5">
-          <div className="rounded-[22px] sm:rounded-[26px] bg-white shadow-[0_34px_80px_-34px_rgba(0,0,0,0.9)] ring-1 ring-black/[0.04] px-2 sm:px-3 py-4 sm:py-5 grid grid-cols-2 sm:grid-cols-4 divide-y sm:divide-y-0 sm:divide-x divide-[#eef2f4]">
-            {([
-              { icon: "calendar", label: multi ? "Weeks" : "When", value: multi ? `${allEditions.length} weeks to choose` : fmtShort(edition?.date_start, edition?.date_end) },
-              { icon: "pin", label: "Where", value: experience.location ?? "—" },
-              { icon: "wind", label: "Wind", value: windProbability || windRange || "Reliable, steady wind" },
-              { icon: "plane", label: "Airport", value: experience.airport_code ?? "—" },
-            ] as const).map((f) => (
-              <div key={f.label} className="flex items-center gap-3 px-4 sm:px-5 py-2.5 sm:py-1.5">
-                <span className="w-10 h-10 rounded-xl bg-[#00afdb]/10 text-[#00afdb] grid place-items-center shrink-0"><FactIcon name={f.icon} /></span>
-                <span className="min-w-0">
-                  <span className="block text-[10px] font-bold tracking-[0.15em] uppercase text-[#9aa6ac]">{f.label}</span>
-                  <span className="block text-[13.5px] font-bold text-[#00374a] leading-snug">{f.value}</span>
-                </span>
-              </div>
-            ))}
-          </div>
+      {/* QUICK FACTS — blue, integrated into the dark hero zone. The light "your
+          epic week" below now provides the clear break, so this can stay seamless. */}
+      <section className="bg-[#00374a] text-white">
+        <div className="max-w-[1200px] mx-auto px-6 sm:px-8 py-7 grid grid-cols-2 sm:grid-cols-4 gap-y-6 gap-x-4">
+          {([
+            { icon: "calendar", label: multi ? `${allEditions.length} weeks to choose` : "When", value: multi
+                ? <span className="space-y-0.5">{editionsLite.map((e) => <span key={e.id} className="block">{e.label} · {e.shortRange}</span>)}</span>
+                : fmtShort(edition?.date_start, edition?.date_end) },
+            { icon: "pin", label: "Where", value: experience.location ?? "—" },
+            { icon: "wind", label: "Wind", value: windProbability || windRange || "Reliable, steady wind" },
+            { icon: "plane", label: "Airport", value: experience.airport_code ?? "—" },
+          ] as const).map((f) => (
+            <div key={f.label} className="flex items-start gap-3">
+              <span className="text-[#00afdb] mt-0.5"><FactIcon name={f.icon} /></span>
+              <span><span className="block text-[10px] font-bold tracking-[0.15em] uppercase text-white/40">{f.label}</span><span className="block text-[13.5px] font-bold">{f.value}</span></span>
+            </div>
+          ))}
         </div>
       </section>
 

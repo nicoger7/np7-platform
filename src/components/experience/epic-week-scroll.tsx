@@ -131,8 +131,9 @@ export function EpicWeekScroll({
   return (
     <section ref={sectionRef} className="relative bg-[#f6f9fa]" style={{ height: `${N * 80 + 50}vh` }}>
       <div ref={innerRef} className="sticky top-0 h-screen overflow-hidden text-[#00374a]">
-        {/* soft light backdrop */}
+        {/* soft light backdrop — cool sea glow + a subtle warm sun glow */}
         <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_72%_-5%,rgba(0,175,219,0.10),transparent_55%)]" />
+        <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_8%_106%,rgba(244,123,32,0.08),transparent_50%)]" />
 
         {/* progress rail */}
         <div className="absolute left-4 sm:left-7 top-1/2 -translate-y-1/2 h-[42vh] w-[2px] rounded-full bg-[#00374a]/12 z-10">
