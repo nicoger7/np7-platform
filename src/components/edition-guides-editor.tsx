@@ -9,6 +9,7 @@ interface Coach {
   role: string | null;
   bio: string | null;
   image_url: string | null;
+  whatsapp_link: string | null;
 }
 
 interface GuideLink {
@@ -134,6 +135,8 @@ export function EditionGuidesEditor({ editionId, slug }: { editionId: string; sl
           {links.map((link, idx) => {
             const expanded = expandedId === link.coach_id;
             const hasOverride = !!(link.name_override || link.role_override || link.bio_override || link.image_override);
+            // whatsapp_link comes from the library (select * — tolerant), not the embed
+            const lib = library.find((c) => c.id === link.coach_id) || null;
             return (
               <div key={link.id} className="rounded-lg" style={{ border: "1px solid var(--admin-border)" }}>
                 <div className="flex items-center gap-3 p-2">
@@ -160,6 +163,7 @@ export function EditionGuidesEditor({ editionId, slug }: { editionId: string; sl
                       <div><label className={labelClass}>Name</label><input className={`${inputClass} w-full`} defaultValue={link.exp_coaches?.name ?? ""} onBlur={(e) => { if (e.target.value !== (link.exp_coaches?.name ?? "")) patchTemplate(link.coach_id, { name: e.target.value }); }} /></div>
                       <div><label className={labelClass}>Role</label><input list="team-roles" className={`${inputClass} w-full`} defaultValue={link.exp_coaches?.role ?? ""} onBlur={(e) => { if (e.target.value !== (link.exp_coaches?.role ?? "")) patchTemplate(link.coach_id, { role: e.target.value || null }); }} /></div>
                       <div><label className={labelClass}>Bio</label><textarea className={`${inputClass} w-full min-h-[56px] resize-y`} defaultValue={link.exp_coaches?.bio ?? ""} onBlur={(e) => { if (e.target.value !== (link.exp_coaches?.bio ?? "")) patchTemplate(link.coach_id, { bio: e.target.value || null }); }} /></div>
+                      <div><label className={labelClass}>WhatsApp link <span className="admin-faint">(members can chat directly)</span></label><input className={`${inputClass} w-full`} defaultValue={lib?.whatsapp_link ?? ""} placeholder="wa.me/4368054000977" onBlur={(e) => { if (e.target.value !== (lib?.whatsapp_link ?? "")) patchTemplate(link.coach_id, { whatsapp_link: e.target.value || null }); }} /></div>
                       <div>
                         <label className={labelClass}>Photo</label>
                         <button onClick={() => setPicker({ coachId: link.coach_id, mode: "template" })} className={`${inputClass} w-full text-left admin-muted`}>{link.exp_coaches?.image_url ? "Change photo…" : "Pick photo…"}</button>

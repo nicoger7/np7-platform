@@ -236,18 +236,16 @@ export async function getBookingHotel(bookingId: string): Promise<HotelInfo | nu
   return { name: hotel.name, image_url: hotel.image_url ?? null, images: hotel.images ?? null, description: hotel.description ?? null, website: hotel.website ?? null };
 }
 
-export type CoachCard = { name: string; role: string; bio: string; image: string | null };
+export type CoachCard = { name: string; role: string; bio: string; image: string | null; whatsapp: string | null };
 
 /** A week's coaches (exp_edition_coaches + exp_coaches, with per-edition overrides),
-    mirroring the public experience page. */
+    mirroring the public experience page. Tolerant of whatsapp_link (migration 027). */
 export async function getEditionCoaches(editionId: string): Promise<CoachCard[]> {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const db = createAdminClient() as any;
-  const { data } = await db
-    .from("exp_edition_coaches")
-    .select("sort_order,name_override,role_override,bio_override,image_override,exp_coaches(name,role,bio,image_url)")
-    .eq("edition_id", editionId)
-    .order("sort_order");
+  const sel = (wa: boolean) => `sort_order,name_override,role_override,bio_override,image_override,exp_coaches(name,role,bio,image_url${wa ? ",whatsapp_link" : ""})`;
+  let { data, error } = await db.from("exp_edition_coaches").select(sel(true)).eq("edition_id", editionId).order("sort_order");
+  if (error) ({ data } = await db.from("exp_edition_coaches").select(sel(false)).eq("edition_id", editionId).order("sort_order"));
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   return (data ?? [])
     .map((g: any) => ({
@@ -255,6 +253,7 @@ export async function getEditionCoaches(editionId: string): Promise<CoachCard[]>
       role: g.role_override ?? g.exp_coaches?.role ?? "",
       bio: g.bio_override ?? g.exp_coaches?.bio ?? "",
       image: g.image_override ?? g.exp_coaches?.image_url ?? null,
+      whatsapp: g.exp_coaches?.whatsapp_link ?? null,
     }))
     .filter((c: CoachCard) => c.name);
 }

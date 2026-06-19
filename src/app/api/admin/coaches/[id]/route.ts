@@ -11,15 +11,15 @@ export async function PATCH(
   const { id } = await params;
   const body = await request.json();
   const patch: Record<string, unknown> = { updated_at: new Date().toISOString() };
-  for (const k of ["name", "role", "bio", "image_url"]) {
+  for (const k of ["name", "role", "bio", "image_url", "whatsapp_link"]) {
     if (k in body) patch[k] = body[k];
   }
-  const { data, error } = await client
-    .from("exp_coaches")
-    .update(patch)
-    .eq("id", id)
-    .select("*")
-    .single();
+  const doUpdate = (p: Record<string, unknown>) => client.from("exp_coaches").update(p).eq("id", id).select("*").single();
+  let { data, error } = await doUpdate(patch);
+  if (error && /column|schema cache|does not exist/i.test(error.message)) {
+    const { whatsapp_link: _omit, ...rest } = patch; void _omit; // migration 027 not applied
+    ({ data, error } = await doUpdate(rest));
+  }
   if (error) return NextResponse.json({ error: error.message }, { status: 400 });
   return NextResponse.json(data);
 }

@@ -84,6 +84,13 @@ alter table exp_experiences add column if not exists airport_distance  text;
 alter table exp_experiences add column if not exists transport_options text[] default '{}';
 ```
 
+## 027 — team WhatsApp link (`20260619_027_coach_whatsapp.sql`)
+Per-team-member WhatsApp chat link (e.g. the trip assistant), shown in My Trip → Your team.
+```sql
+alter table exp_coaches add column if not exists whatsapp_link text;
+```
+After applying: set Simona's → `https://wa.me/4368054000977` (or in the team editor).
+
 ## Verify
 ```sql
 select count(*) from destinations;                  -- 022: table exists
