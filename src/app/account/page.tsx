@@ -3,9 +3,10 @@ import { redirect } from "next/navigation";
 import type { Metadata } from "next";
 import { getPortalUser } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
-import { getMemberBookings } from "@/lib/portal-data";
+import { getMemberBookings, getMemberBannerImages } from "@/lib/portal-data";
 import { bookingStatus, CHIP_CLASS, fmtDates, money } from "@/lib/portal-status";
 import { PortalChrome } from "@/components/portal/portal-chrome";
+import { MemberHomeBanner } from "@/components/portal/member-home-banner";
 
 export const metadata: Metadata = { title: "My trips — NP7" };
 export const dynamic = "force-dynamic";
@@ -19,18 +20,41 @@ export default async function AccountHome() {
     await supabase.auth.signOut();
     redirect("/account/login");
   }
-  const bookings = await getMemberBookings(user.contactId);
+  const [bookings, bannerImages] = await Promise.all([
+    getMemberBookings(user.contactId),
+    getMemberBannerImages(user.contactId).catch(() => []),
+  ]);
   const first = user.name?.split(" ")[0] ?? "there";
+
+  const today = new Date().toISOString().slice(0, 10);
+  const upcoming = bookings
+    .filter((b) => b.edition?.date_start && b.edition.date_start >= today)
+    .sort((a, b) => ((a.edition?.date_start ?? "") < (b.edition?.date_start ?? "") ? -1 : 1));
+  const nextTrip = upcoming[0] ?? null;
 
   return (
     <>
       <PortalChrome />
       <main className="min-h-[100svh] bg-[#fff7ec]">
         <div className="max-w-[1000px] mx-auto px-5 sm:px-8 py-10 sm:py-14">
-          <h1 className="text-3xl sm:text-4xl font-black tracking-[-0.03em] text-[#00374a] mb-1.5">Hey {first} 🤙</h1>
-          <p className="text-[15px] text-[#6a7a80] mb-8">
-            {bookings.length ? "Here are your trips. Tap one to manage everything." : "Your booked trips will show up here."}
-          </p>
+          <MemberHomeBanner
+            images={bannerImages}
+            name={first}
+            subtitle={bookings.length ? "Here are your trips. Tap one to manage everything." : "Your booked trips will show up here."}
+          />
+
+          {/* small dashboard */}
+          {bookings.length > 0 && (
+            <div className="flex flex-wrap gap-3 mb-8">
+              <Stat label="Trips booked" value={String(bookings.length)} />
+              {nextTrip && (
+                <Stat
+                  label="Next trip"
+                  value={`${nextTrip.experience?.title ?? "Trip"} · ${fmtDates(nextTrip.edition?.date_start, nextTrip.edition?.date_end)}`}
+                />
+              )}
+            </div>
+          )}
 
           {bookings.length === 0 ? (
             <div className="bg-white rounded-2xl border border-[#f0e6d6] p-8 text-center">
@@ -71,5 +95,14 @@ export default async function AccountHome() {
         </div>
       </main>
     </>
+  );
+}
+
+function Stat({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="bg-white rounded-2xl border border-[#f0e6d6] px-5 py-3.5">
+      <p className="text-[10px] font-bold tracking-[0.15em] uppercase text-[#00afdb]">{label}</p>
+      <p className="text-[14px] font-bold text-[#00374a] mt-0.5">{value}</p>
+    </div>
   );
 }

@@ -51,6 +51,35 @@ export async function getMemberBooking(contactId: string, bookingId: string): Pr
   return data ? shape(data) : null;
 }
 
+/** Images for the member-home banner slideshow: the member's own trip photos
+    across all bookings; if they have none yet, the hero images of the experiences
+    they've booked. De-duped and capped. */
+export async function getMemberBannerImages(contactId: string): Promise<string[]> {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const db = createAdminClient() as any;
+  const bookings = await getMemberBookings(contactId);
+  const lists = await Promise.all(
+    bookings.map((b) => (b.edition?.id ? getMemoryPhotosForBooking(b.edition.id, b.id).catch(() => []) : Promise.resolve([])))
+  );
+  let imgs = lists.flat().filter(Boolean);
+
+  if (imgs.length === 0) {
+    const expIds = [...new Set(bookings.map((b) => b.experience_id).filter(Boolean))] as string[];
+    if (expIds.length) {
+      const [{ data: content }, { data: exps }] = await Promise.all([
+        db.from("exp_content").select("experience_id,hero_image").in("experience_id", expIds),
+        db.from("exp_experiences").select("id,hero_image").in("id", expIds),
+      ]);
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const byContent = new Map((content ?? []).map((c: any) => [c.experience_id, c.hero_image]));
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const byExp = new Map((exps ?? []).map((e: any) => [e.id, e.hero_image]));
+      imgs = expIds.map((id) => byContent.get(id) || byExp.get(id)).filter(Boolean) as string[];
+    }
+  }
+  return [...new Set(imgs)].slice(0, 15);
+}
+
 export type MemberProfile = {
   name: string; email: string | null; phone: string | null; country: string | null;
   tshirt_size: string | null; diet_allergies: string | null; date_of_birth: string | null;
