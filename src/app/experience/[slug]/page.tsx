@@ -28,12 +28,12 @@ const BRAND_IMG = {
 
 /* The outcome stack — what you take home. Transformation, not features. */
 const OUTCOMES = [
-  { icon: "⚡", t: "Real confidence on the water", d: "Comfortable in more wind and chop than you arrived in — stance locked, fear gone." },
-  { icon: "🎯", t: "Control & speed", d: "Effortless, controlled, faster riding — from straight-line speed to clean transitions." },
-  { icon: "🔄", t: "Better jibes", d: "The move everyone wants, broken into steps that finally click." },
-  { icon: "🧠", t: "A year's worth of knowledge", d: "Maneuver know-how, equipment insights, and your personal roadmap for what to work on next." },
-  { icon: "🌍", t: "Friends from all over the world", d: "A small, hand-picked group of people who love this as much as you do." },
-  { icon: "📸", t: "Your week on photo & video", d: "We shoot the whole week — you take the proof home." },
+  { icon: "bolt", t: "Real confidence on the water", d: "Comfortable in more wind and chop than you arrived in — stance locked, fear gone." },
+  { icon: "gauge", t: "Control & speed", d: "Effortless, controlled, faster riding — from straight-line speed to clean transitions." },
+  { icon: "rotate", t: "Better jibes", d: "The move everyone wants, broken into steps that finally click." },
+  { icon: "idea", t: "A year's worth of knowledge", d: "Maneuver know-how, equipment insights, and your personal roadmap for what to work on next." },
+  { icon: "globe", t: "Friends from all over the world", d: "A small, hand-picked group of people who love this as much as you do." },
+  { icon: "camera", t: "Your week on photo & video", d: "We shoot the whole week — you take the proof home." },
 ];
 
 /* The NP7 Method — the unique mechanism (copy grounded in surfcenter-experience). */
@@ -117,6 +117,20 @@ function waHref(v: string): string {
   if (/^wa\.me\//i.test(s)) return `https://${s}`;
   const digits = s.replace(/[^\d]/g, "");
   return digits ? `https://wa.me/${digits}` : s;
+}
+
+function OutcomeIcon({ name }: { name: string }) {
+  const c = "w-5 h-5";
+  const p = { fill: "none" as const, stroke: "currentColor", strokeWidth: 1.8, strokeLinecap: "round" as const, strokeLinejoin: "round" as const };
+  switch (name) {
+    case "bolt": return <svg className={c} viewBox="0 0 24 24" {...p}><path d="M13 2L4 14h7l-1 8 9-12h-7l1-8z" /></svg>;
+    case "gauge": return <svg className={c} viewBox="0 0 24 24" {...p}><path d="M4 18a8 8 0 1 1 16 0" /><path d="M12 18l4.5-4.5" /></svg>;
+    case "rotate": return <svg className={c} viewBox="0 0 24 24" {...p}><path d="M21 12a9 9 0 1 1-2.64-6.36" /><path d="M21 4v5h-5" /></svg>;
+    case "idea": return <svg className={c} viewBox="0 0 24 24" {...p}><path d="M9 18h6" /><path d="M10 21h4" /><path d="M12 3a6 6 0 0 0-3.5 10.9c.6.5 1 1.3 1 2.1h5c0-.8.4-1.6 1-2.1A6 6 0 0 0 12 3z" /></svg>;
+    case "globe": return <svg className={c} viewBox="0 0 24 24" {...p}><circle cx="12" cy="12" r="9" /><path d="M3 12h18M12 3a15 15 0 0 1 0 18 15 15 0 0 1 0-18z" /></svg>;
+    case "camera": return <svg className={c} viewBox="0 0 24 24" {...p}><path d="M3 9a2 2 0 0 1 2-2h2l1.5-2h7L19 7h0a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V9z" /><circle cx="12" cy="13" r="3.5" /></svg>;
+    default: return null;
+  }
 }
 
 function FactIcon({ name }: { name: string }) {
@@ -432,7 +446,7 @@ export default async function ExperienceDetailPage({ params }: Props) {
                   )}
                   <div className="absolute inset-0 bg-gradient-to-t from-[#00374a] via-[#00374a]/55 to-[#00374a]/5" />
                   <div className="relative p-6">
-                    <span className="inline-grid place-items-center w-11 h-11 rounded-2xl bg-white/15 backdrop-blur-sm text-[22px] mb-3" aria-hidden>{o.icon}</span>
+                    <span className="inline-grid place-items-center w-11 h-11 rounded-2xl bg-white/15 backdrop-blur-sm text-white mb-3" aria-hidden><OutcomeIcon name={o.icon} /></span>
                     <h3 className="text-[18px] font-black tracking-[-0.01em] text-white leading-[1.2]">{o.t}</h3>
                     <p className="text-[13.5px] text-white/80 leading-relaxed mt-1.5">{o.d}</p>
                   </div>
@@ -535,8 +549,8 @@ export default async function ExperienceDetailPage({ params }: Props) {
                 <p className="text-[16px] text-[#5a6b72] leading-relaxed whitespace-pre-line">{locationAbout}</p>
                 {(windRange || windProbability) && (
                   <div className="flex flex-wrap gap-2 mt-6">
-                    {windRange && <span className="text-[12.5px] font-bold text-[#00374a] bg-[#00afdb]/10 px-3.5 py-1.5 rounded-full">💨 {windRange}</span>}
-                    {windProbability && <span className="text-[12.5px] font-bold text-[#00374a] bg-[#00afdb]/10 px-3.5 py-1.5 rounded-full">📈 {windProbability} wind probability</span>}
+                    {windRange && <span className="text-[12.5px] font-bold text-[#00374a] bg-[#00afdb]/10 px-3.5 py-1.5 rounded-full">{windRange}</span>}
+                    {windProbability && <span className="text-[12.5px] font-bold text-[#00374a] bg-[#00afdb]/10 px-3.5 py-1.5 rounded-full">{windProbability} wind probability</span>}
                   </div>
                 )}
               </div>
@@ -625,7 +639,9 @@ export default async function ExperienceDetailPage({ params }: Props) {
                 <article key={c.name} className="snap-start shrink-0 w-[280px] sm:w-[320px] bg-white rounded-3xl overflow-hidden border border-[#ebebeb]">
                   <div className="h-[240px] bg-cover bg-center" style={{ backgroundImage: `url('${c.image}')` }} />
                   <div className="p-5"><h3 className="text-lg font-extrabold text-[#00374a]">{c.name}</h3><p className="text-[11px] font-bold tracking-wide uppercase text-[#00afdb] mb-2.5">{c.role}</p><p className="text-[13.5px] text-[#6a7a80] leading-relaxed">{c.bio}</p>
-                    {c.whatsapp && <a href={waHref(c.whatsapp)} target="_blank" rel="noopener" className="inline-flex items-center gap-1.5 mt-3 text-[13px] font-bold text-[#1aa851] hover:underline">💬 Chat on WhatsApp</a>}
+                    {c.whatsapp && <a href={waHref(c.whatsapp)} target="_blank" rel="noopener" className="inline-flex items-center gap-1.5 mt-3 text-[13px] font-bold text-[#1aa851] hover:underline">
+                      <svg className="w-4 h-4" viewBox="0 0 24 24" fill="currentColor"><path d="M.057 24l1.687-6.163a11.867 11.867 0 01-1.587-5.946C.16 5.335 5.495 0 12.05 0a11.817 11.817 0 018.413 3.488 11.824 11.824 0 013.48 8.414c-.003 6.557-5.338 11.892-11.893 11.892a11.9 11.9 0 01-5.688-1.448L.057 24zm6.597-3.807c1.676.995 3.276 1.591 5.392 1.592 5.448 0 9.886-4.434 9.889-9.885.002-5.462-4.415-9.89-9.881-9.892-5.452 0-9.887 4.434-9.889 9.884a9.86 9.86 0 001.51 5.26l-.999 3.648 3.978-1.205zm11.387-5.464c-.074-.124-.272-.198-.57-.347-.297-.149-1.758-.868-2.031-.967-.272-.099-.47-.149-.669.149-.198.297-.768.967-.941 1.165-.173.198-.347.223-.644.074-.297-.149-1.255-.462-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.297-.347.446-.521.151-.172.2-.296.3-.495.099-.198.05-.372-.025-.521-.074-.148-.669-1.611-.916-2.206-.242-.579-.487-.501-.669-.51l-.57-.01c-.198 0-.52.074-.792.372s-1.04 1.016-1.04 2.479 1.065 2.876 1.213 3.074c.149.198 2.095 3.2 5.076 4.487.709.306 1.263.489 1.694.626.712.226 1.36.194 1.872.118.571-.085 1.758-.719 2.006-1.413.248-.695.248-1.29.173-1.414z" /></svg>
+                      Chat on WhatsApp</a>}
                   </div>
                 </article>
               ))}

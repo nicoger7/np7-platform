@@ -159,9 +159,12 @@ export type Database = {
       }
       exp_blog_posts: {
         Row: {
+          author: string
+          category: string | null
           content: string | null
           cover_image: string | null
           created_at: string | null
+          excerpt: string | null
           id: string
           published_at: string | null
           slug: string
@@ -170,9 +173,12 @@ export type Database = {
           updated_at: string | null
         }
         Insert: {
+          author?: string
+          category?: string | null
           content?: string | null
           cover_image?: string | null
           created_at?: string | null
+          excerpt?: string | null
           id?: string
           published_at?: string | null
           slug: string
@@ -181,9 +187,12 @@ export type Database = {
           updated_at?: string | null
         }
         Update: {
+          author?: string
+          category?: string | null
           content?: string | null
           cover_image?: string | null
           created_at?: string | null
+          excerpt?: string | null
           id?: string
           published_at?: string | null
           slug?: string

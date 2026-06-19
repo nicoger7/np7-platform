@@ -176,7 +176,7 @@ export function TripAddons({ bookingId, depositPaid, initialFlights, arrival, ed
             {open && isFlights && (
               <div className="px-3 pb-3 pt-3 border-t border-[#f0e6d6]">
                 <div className="rounded-lg bg-[#eef6f8] p-3 mb-3 text-[13px] text-[#4a5b62] space-y-1.5">
-                  <p className="font-bold text-[#00374a]">✈ You book your own flights</p>
+                  <p className="font-bold text-[#00374a]">You book your own flights</p>
                   <p className="leading-snug">We don&apos;t book flights for you — choose times that fit the week and add them here. Happy to advise on the best arrival/departure if you&apos;re unsure.</p>
                   {arrival?.airportCode && (
                     <p>Airport: <strong className="text-[#00374a]">{arrival.airportCode}</strong>{arrival.airportDistance ? ` · ${arrival.airportDistance}` : ""}</p>

@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase";
+import { requireTeamMember } from "@/lib/admin-auth";
 
 // Audit/identity fields that should never be copied into a duplicate.
 const STRIP = new Set(["id", "created_at", "updated_at", "notion_id", "slug"]);
@@ -14,6 +15,9 @@ export async function duplicateRow(
   id: string,
   opts: { nameField?: string; select?: string } = {}
 ) {
+  const denied = await requireTeamMember();
+  if (denied) return denied;
+
   const { nameField = "name", select = "*" } = opts;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const client = createAdminClient() as any;

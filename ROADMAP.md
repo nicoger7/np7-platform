@@ -20,8 +20,9 @@
   Will crash. Files: `src/app/experience/page.tsx`, `src/app/experience/[slug]/page.tsx`,
   `src/app/api/admin/bookings/route.ts`, `src/app/api/admin/bookings/[id]/route.ts`.
   See `ADMIN-GAPS.md` → "CRITICAL BUG" section.
-- 🟡 **Pending migration** — 021 (invoicing) still needs manual apply (019/020 applied).
-  See `APPLY_MIGRATIONS.md`. Invoicing: Sicherungsschein = go-live blocker.
+- 🟡 **Pending migrations** — 021 (invoicing) + **022 (destinations)** need manual apply
+  (019/020 applied). See `APPLY_MIGRATIONS.md`. Invoicing: Sicherungsschein = go-live blocker;
+  destinations editor (item I) won't work until 022 is applied.
 
 ---
 
@@ -44,9 +45,9 @@
 ## 2. Admin panel (Notion replacement)
 ~28 sections live. Cross-cutting work:
 - 🟡 **Column gaps** — many pages miss DB columns in the UI. Full list in `ADMIN-GAPS.md`.
-- 🟡 **Experience-side fixes punch-list** — dashboard rebuild, sub-menus, duplication, bookings,
-  components, pipeline-rules tidy, under-construction labels, etc. Full detail in
-  `ADMIN-EXPERIENCE-FIXES.md`.
+- 🟢 **Experience-side fixes punch-list (A–M) — DONE** (`ADMIN-EXPERIENCE-FIXES.md`). Carry-forwards:
+  apply migration 022; D's financials role-gate waits on §8 access matrix; M's duplicate/language
+  audit + rule→template links are a separate data task; F `+year` filter skipped.
 - ⚪ **Standalone Payments page** — payments only visible inside booking detail today.
 
 Top of the `ADMIN-GAPS.md` priority list:
@@ -299,6 +300,8 @@ _Dump ideas here; we triage into the sections above._
 - 2026-06-19 — Captured Experience-side admin fixes → `ADMIN-EXPERIENCE-FIXES.md`, then upgraded
   it to a concrete implementation plan (per-item DB/API/UI/files + effort, migrations roll-up,
   execution order). Migration status: 019/020 applied, 021 pending.
+- 2026-06-19 — Execution thread completed A–M. Carry-forwards: apply migration 022 (destinations);
+  D financials role-gate → §8; M audit + template links separate; F +year skipped.
 - 2026-06-19 — Admin fixes batch (branch `admin-experience-fixes`) — quick wins shipped:
   L WIP badges · E.1 removed AI summary from contacts · E.2 scoped hotel-room experience filter ·
   F.2 components-page experience/edition filters.

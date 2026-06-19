@@ -178,7 +178,7 @@ export function PackagePicker({ packages, currency = "EUR", reserve }: Props) {
           <div className="relative h-36 bg-cover bg-center" style={{ backgroundImage: `url('${selected.hotelImage}')` }}>
             <div className="absolute inset-0 bg-gradient-to-t from-[#00374a] via-[#00374a]/30 to-transparent" />
             {selected.hotelName && (
-              <span className="absolute bottom-3 left-7 text-[13px] font-bold text-white drop-shadow">🏨 {selected.hotelName}</span>
+              <span className="absolute bottom-3 left-7 text-[13px] font-bold text-white drop-shadow">{selected.hotelName}</span>
             )}
           </div>
         )}

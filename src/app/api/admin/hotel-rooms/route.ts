@@ -1,6 +1,7 @@
 import { createClient } from "@/lib/supabase/server";
 import { createClient as createServiceClient } from "@supabase/supabase-js";
 import { NextRequest } from "next/server";
+import { isActiveTeamMember } from "@/lib/admin-auth";
 
 function getServiceClient() {
   return createServiceClient(
@@ -14,7 +15,7 @@ async function requireAuth() {
   const {
     data: { user },
   } = await supabase.auth.getUser();
-  if (!user) throw new Error("Unauthorized");
+  if (!user || !(await isActiveTeamMember(user.id))) throw new Error("Unauthorized");
   return user;
 }
 

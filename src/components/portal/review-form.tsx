@@ -64,7 +64,7 @@ export function ReviewForm({ bookingId, gallery }: { bookingId: string; gallery:
         <div className="mx-auto w-14 h-14 rounded-full bg-[#00afdb] grid place-items-center mb-5">
           <svg className="w-7 h-7 text-white" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><path d="M20 6L9 17l-5-5" /></svg>
         </div>
-        <h2 className="text-2xl font-black tracking-[-0.02em] text-[#00374a] mb-2">Thank you! 🤙</h2>
+        <h2 className="text-2xl font-black tracking-[-0.02em] text-[#00374a] mb-2">Thank you!</h2>
         <p className="text-[14.5px] text-[#5a6b72] leading-relaxed mb-6 max-w-md mx-auto">
           Your review has been submitted. We&apos;ll give it a quick look and it may appear on the trip page soon.
         </p>

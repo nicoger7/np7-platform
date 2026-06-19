@@ -107,7 +107,7 @@ export function ReserveModal({ ctx, onClose }: { ctx: ReserveContext; onClose: (
             <div className="mx-auto w-14 h-14 rounded-full bg-[#00afdb] grid place-items-center mb-5">
               <svg className="w-7 h-7 text-white" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><path d="M20 6L9 17l-5-5" /></svg>
             </div>
-            <h3 className="text-2xl font-black tracking-[-0.02em] text-[#00374a] mb-2">Spot reserved! 🤙</h3>
+            <h3 className="text-2xl font-black tracking-[-0.02em] text-[#00374a] mb-2">Spot reserved!</h3>
             <p className="text-[14.5px] text-[#5a6b72] leading-relaxed mb-6">We&apos;ll send your deposit payment link right away and contact you personally to sort every detail.</p>
             <button onClick={onClose} className="px-7 py-3.5 rounded-full text-[13.5px] font-bold text-white bg-[#00afdb]">Done</button>
           </div>
@@ -148,7 +148,7 @@ export function ReserveModal({ ctx, onClose }: { ctx: ReserveContext; onClose: (
                   "We reach out personally to sort every detail.",
                   "Plan it in your trip account — flights, extra nights & your team.",
                   "Pay the balance by bank transfer, in good time before the trip.",
-                  "Show up & have your epic week. 🤙",
+                  "Show up & have your epic week.",
                 ].map((t, i) => (
                   <li key={i} className="flex items-start gap-2.5 text-[13px] text-[#5a6b72] leading-snug">
                     <span className="shrink-0 w-5 h-5 rounded-full bg-[#00afdb]/12 text-[#0782a0] grid place-items-center text-[11px] font-bold">{i + 1}</span>
