@@ -12,6 +12,7 @@ import { EditionBooking, type EditionLite } from "@/components/experience/editio
 import { HeroVideo } from "@/components/experience/hero-video";
 import { GalleryStrip } from "@/components/experience/gallery-strip";
 import { Slideshow } from "@/components/experience/slideshow";
+import { EpicWeekScroll } from "@/components/experience/epic-week-scroll";
 
 export const revalidate = 60;
 
@@ -117,20 +118,6 @@ function waHref(v: string): string {
   if (/^wa\.me\//i.test(s)) return `https://${s}`;
   const digits = s.replace(/[^\d]/g, "");
   return digits ? `https://wa.me/${digits}` : s;
-}
-
-function OutcomeIcon({ name }: { name: string }) {
-  const c = "w-5 h-5";
-  const p = { fill: "none" as const, stroke: "currentColor", strokeWidth: 1.8, strokeLinecap: "round" as const, strokeLinejoin: "round" as const };
-  switch (name) {
-    case "bolt": return <svg className={c} viewBox="0 0 24 24" {...p}><path d="M13 2L4 14h7l-1 8 9-12h-7l1-8z" /></svg>;
-    case "gauge": return <svg className={c} viewBox="0 0 24 24" {...p}><path d="M4 18a8 8 0 1 1 16 0" /><path d="M12 18l4.5-4.5" /></svg>;
-    case "rotate": return <svg className={c} viewBox="0 0 24 24" {...p}><path d="M21 12a9 9 0 1 1-2.64-6.36" /><path d="M21 4v5h-5" /></svg>;
-    case "idea": return <svg className={c} viewBox="0 0 24 24" {...p}><path d="M9 18h6" /><path d="M10 21h4" /><path d="M12 3a6 6 0 0 0-3.5 10.9c.6.5 1 1.3 1 2.1h5c0-.8.4-1.6 1-2.1A6 6 0 0 0 12 3z" /></svg>;
-    case "globe": return <svg className={c} viewBox="0 0 24 24" {...p}><circle cx="12" cy="12" r="9" /><path d="M3 12h18M12 3a15 15 0 0 1 0 18 15 15 0 0 1 0-18z" /></svg>;
-    case "camera": return <svg className={c} viewBox="0 0 24 24" {...p}><path d="M3 9a2 2 0 0 1 2-2h2l1.5-2h7L19 7h0a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V9z" /><circle cx="12" cy="13" r="3.5" /></svg>;
-    default: return null;
-  }
 }
 
 function FactIcon({ name }: { name: string }) {
@@ -426,45 +413,24 @@ export default async function ExperienceDetailPage({ params }: Props) {
         </div>
       </section>
 
-      {/* 1 · THE DREAM — your epic week (outcome cards) */}
-      <section className="py-16 sm:py-24">
-        <div className="max-w-[1100px] mx-auto px-6 sm:px-8">
-          <Reveal className="text-center max-w-[680px] mx-auto mb-12">
-            <p className="text-[11px] font-bold tracking-[0.25em] text-[#00afdb] mb-3">YOUR EPIC WEEK</p>
-            <h2 className="text-3xl sm:text-5xl font-black tracking-[-0.03em] text-[#00374a] mb-4">The best week of your windsurf year</h2>
-            <p className="text-[16px] text-[#6a7a80] leading-relaxed">
-              {experience.description || "One week, fully immersed in the sport you love — epic conditions, world-class coaching, and a crew that feels like old friends by day two."}
-            </p>
-            {weekInfo && <p className="text-[15px] text-[#6a7a80] leading-relaxed mt-3 whitespace-pre-line">{weekInfo}</p>}
-          </Reveal>
-          <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-5">
-            {OUTCOMES.map((o, i) => (
-              <Reveal key={o.t} delay={(i % 3) * 90}>
-                <article className="group relative h-full min-h-[300px] rounded-3xl overflow-hidden bg-[#00374a] flex flex-col justify-end shadow-[0_14px_40px_rgba(0,55,74,0.10)]">
-                  {vibeImages.length > 0 && (
-                    <div className="absolute inset-0 bg-cover bg-center group-hover:scale-[1.06] transition-transform duration-[800ms] ease-out" style={{ backgroundImage: `url('${vibeImages[i % vibeImages.length]}')` }} />
-                  )}
-                  <div className="absolute inset-0 bg-gradient-to-t from-[#00374a] via-[#00374a]/55 to-[#00374a]/5" />
-                  <div className="relative p-6">
-                    <span className="inline-grid place-items-center w-11 h-11 rounded-2xl bg-white/15 backdrop-blur-sm text-white mb-3" aria-hidden><OutcomeIcon name={o.icon} /></span>
-                    <h3 className="text-[18px] font-black tracking-[-0.01em] text-white leading-[1.2]">{o.t}</h3>
-                    <p className="text-[13.5px] text-white/80 leading-relaxed mt-1.5">{o.d}</p>
-                  </div>
-                </article>
-              </Reveal>
+      {/* 1 · THE DREAM — your epic week (pinned scroll through the outcomes) */}
+      <EpicWeekScroll
+        outcomes={OUTCOMES}
+        images={vibeImages}
+        eyebrow="YOUR EPIC WEEK"
+        title="The best week of your windsurf year"
+        intro={experience.description || "One week, fully immersed in the sport you love — epic conditions, world-class coaching, and a crew that feels like old friends by day two."}
+        weekInfo={weekInfo}
+      />
+      {highlights.length > 0 && (
+        <section className="bg-[#001b29] pb-14 sm:pb-20 pt-2">
+          <div className="max-w-[1100px] mx-auto px-6 sm:px-8 flex flex-wrap justify-center gap-2">
+            {highlights.map((h) => (
+              <span key={h} className="text-[12.5px] font-semibold text-white/90 bg-white/10 px-3.5 py-1.5 rounded-full">{h}</span>
             ))}
           </div>
-          {highlights.length > 0 && (
-            <div className="flex flex-wrap justify-center gap-2 mt-9">
-              {highlights.map((h) => (
-                <span key={h} className="inline-flex items-center gap-1.5 text-[12.5px] font-semibold text-[#00374a] bg-[#00afdb]/10 px-3.5 py-1.5 rounded-full">
-                  <span className="text-[#00afdb]">✦</span>{h}
-                </span>
-              ))}
-            </div>
-          )}
-        </div>
-      </section>
+        </section>
+      )}
 
       {/* 2 · THE NP7 TRAINING SYSTEM — the unique mechanism */}
       <section id="method" className="scroll-mt-16 py-16 sm:py-24 bg-[#00374a] text-white relative overflow-hidden">
