@@ -191,6 +191,23 @@ export async function getBookingFlights(bookingId: string): Promise<FlightInfo |
   return info;
 }
 
+export type ArrivalInfo = { airportCode: string | null; airportDistance: string | null; transportOptions: string[] };
+
+/** Airport + transport info for an experience (shown in member Trip prep).
+    Tolerant: airport_distance/transport_options arrive in migration 026. */
+export async function getExperienceArrivalInfo(experienceId: string): Promise<ArrivalInfo> {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const db = createAdminClient() as any;
+  const { data: base } = await db.from("exp_experiences").select("airport_code").eq("id", experienceId).maybeSingle();
+  const out: ArrivalInfo = { airportCode: base?.airport_code ?? null, airportDistance: null, transportOptions: [] };
+  const { data: extra } = await db.from("exp_experiences").select("airport_distance, transport_options").eq("id", experienceId).maybeSingle();
+  if (extra) {
+    out.airportDistance = extra.airport_distance ?? null;
+    out.transportOptions = Array.isArray(extra.transport_options) ? extra.transport_options : [];
+  }
+  return out;
+}
+
 export type HotelInfo = { name: string; image_url: string | null; images: string[] | null; description: string | null; website: string | null };
 
 /** Resolve the hotel for a booking (by the package's hotel_id, else name match on the

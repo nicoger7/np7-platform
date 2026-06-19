@@ -75,6 +75,15 @@ sentinel, so the feature already works.
 alter table exp_bookings add column if not exists flight_info jsonb;
 ```
 
+## 026 — experience arrival info (`20260619_026_experience_arrival_info.sql`)
+Airport distance + transport options shown to members in Trip prep (airport code already
+exists). Until applied, the member just sees the airport code + "you book your own flights".
+
+```sql
+alter table exp_experiences add column if not exists airport_distance  text;
+alter table exp_experiences add column if not exists transport_options text[] default '{}';
+```
+
 ## Verify
 ```sql
 select count(*) from destinations;                  -- 022: table exists
@@ -85,6 +94,7 @@ select hotel_id from exp_packages limit 1;          -- 023: package link
 select memory_download_count from exp_bookings limit 1;    -- 024: download cap
 select status, source from exp_booking_addons limit 1;     -- 024: add-on flow
 select flight_info from exp_bookings limit 1;              -- 025: flight detail
+select airport_distance, transport_options from exp_experiences limit 1; -- 026: arrival info
 ```
 Then: **Destinations** admin is live (022); the experience **Template** tab can pick a page template,
 **Hotels** admin (`/admin/hotels`) can hold photos, and the public booking step shows the hotel name +

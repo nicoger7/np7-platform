@@ -3,6 +3,7 @@
 import { useEffect, useState, useCallback } from "react";
 import { effectiveAddonStatus } from "@/lib/addons";
 import { hasFlightDetails, type FlightInfo } from "@/lib/flights";
+import type { ArrivalInfo } from "@/lib/portal-data";
 
 type Available = { id: string; name: string; description: string | null; sell_price: number | null };
 type Mine = { id: string; component_id: string | null; label: string; price: number | null; status?: string | null; notes?: string | null };
@@ -19,7 +20,7 @@ function money(n: number | null) {
   return n != null ? `€${Number(n).toLocaleString("en-US")}` : "";
 }
 
-export function TripAddons({ bookingId, depositPaid, initialFlights }: { bookingId: string; depositPaid: boolean; initialFlights: FlightInfo | null }) {
+export function TripAddons({ bookingId, depositPaid, initialFlights, arrival, editionStart, editionEnd }: { bookingId: string; depositPaid: boolean; initialFlights: FlightInfo | null; arrival: ArrivalInfo | null; editionStart: string | null; editionEnd: string | null }) {
   const [available, setAvailable] = useState<Available[]>([]);
   const [mine, setMine] = useState<Mine[]>([]);
   const [loading, setLoading] = useState(true);
@@ -28,7 +29,12 @@ export function TripAddons({ bookingId, depositPaid, initialFlights }: { booking
 
   // flights
   const [flights, setFlights] = useState<FlightInfo | null>(initialFlights);
-  const [flightForm, setFlightForm] = useState<FlightInfo>(initialFlights ?? {});
+  // Prefill the form dates with the trip's own dates so the member doesn't retype them.
+  const [flightForm, setFlightForm] = useState<FlightInfo>({
+    ...(initialFlights ?? {}),
+    arrivalDate: initialFlights?.arrivalDate ?? editionStart ?? undefined,
+    departureDate: initialFlights?.departureDate ?? editionEnd ?? undefined,
+  });
   const [showFlights, setShowFlights] = useState(false);
   const [editingFlights, setEditingFlights] = useState(false);
   const [savingFlights, setSavingFlights] = useState(false);
@@ -169,6 +175,21 @@ export function TripAddons({ bookingId, depositPaid, initialFlights }: { booking
 
             {open && isFlights && (
               <div className="px-3 pb-3 pt-3 border-t border-[#f0e6d6]">
+                <div className="rounded-lg bg-[#eef6f8] p-3 mb-3 text-[13px] text-[#4a5b62] space-y-1.5">
+                  <p className="font-bold text-[#00374a]">✈ You book your own flights</p>
+                  <p className="leading-snug">We don&apos;t book flights for you — choose times that fit the week and add them here. Happy to advise on the best arrival/departure if you&apos;re unsure.</p>
+                  {arrival?.airportCode && (
+                    <p>Airport: <strong className="text-[#00374a]">{arrival.airportCode}</strong>{arrival.airportDistance ? ` · ${arrival.airportDistance}` : ""}</p>
+                  )}
+                  {arrival && arrival.transportOptions.length > 0 && (
+                    <div className="flex flex-wrap gap-1.5 pt-1">
+                      <span className="text-[12px] text-[#8a9aa0]">Getting there:</span>
+                      {arrival.transportOptions.map((t) => (
+                        <span key={t} className={`px-2 py-0.5 rounded-full text-[11px] font-semibold ${/recommend/i.test(t) ? "bg-[#00afdb]/15 text-[#0782a0]" : "bg-white text-[#5a6b72] border border-[#dde6e9]"}`}>{t}</span>
+                      ))}
+                    </div>
+                  )}
+                </div>
                 {flightsSaved && !editingFlights ? (
                   <div className="space-y-2 text-[13.5px]">
                     <FlightSummary label="Arrival" date={flights?.arrivalDate} time={flights?.arrivalTime} no={flights?.arrivalFlightNo} />

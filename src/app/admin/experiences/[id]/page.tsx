@@ -24,6 +24,8 @@ interface Experience {
   notion_id: string | null;
   destination_id: string | null;
   page_template: string | null;
+  airport_distance: string | null;
+  transport_options: string[] | null;
 }
 
 interface Edition {
@@ -156,6 +158,8 @@ export default function ExperienceDetailPage({
         active_status: exp.active_status,
         notion_id: exp.notion_id,
         page_template: exp.page_template,
+        airport_distance: exp.airport_distance,
+        transport_options: exp.transport_options,
       }),
     });
     setSaving(false);
@@ -442,6 +446,28 @@ export default function ExperienceDetailPage({
                 value={exp.airport_code || ""}
                 onChange={(e) => update("airport_code", e.target.value || null)}
                 placeholder="e.g. ADB, BON, VRN"
+              />
+            </div>
+          </div>
+
+          {/* Arrival info (shown to members in Trip prep) */}
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className={labelClass}>Distance from airport</label>
+              <input
+                className={inputClass}
+                value={exp.airport_distance || ""}
+                onChange={(e) => update("airport_distance", e.target.value || null)}
+                placeholder="e.g. ≈ 30 min · 25 km"
+              />
+            </div>
+            <div>
+              <label className={labelClass}>Transport options <span className="admin-faint">(comma-separated)</span></label>
+              <input
+                className={inputClass}
+                value={(exp.transport_options || []).join(", ")}
+                onChange={(e) => update("transport_options", e.target.value.split(",").map((s) => s.trim()).filter(Boolean))}
+                placeholder="Airport transfer, Taxi, Rental car (recommended)"
               />
             </div>
           </div>

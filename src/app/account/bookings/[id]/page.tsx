@@ -2,7 +2,7 @@ import Link from "next/link";
 import { redirect, notFound } from "next/navigation";
 import type { Metadata } from "next";
 import { getPortalUser } from "@/lib/auth";
-import { getMemberBooking, getMemoryPhotosForBooking, getBookingPaid, getBookingHotel, getEditionCoaches, getMemoryDownloadsRemaining, getConfirmedAddonsTotal, getBookingFlights } from "@/lib/portal-data";
+import { getMemberBooking, getMemoryPhotosForBooking, getBookingPaid, getBookingHotel, getEditionCoaches, getMemoryDownloadsRemaining, getConfirmedAddonsTotal, getBookingFlights, getExperienceArrivalInfo } from "@/lib/portal-data";
 import { bookingStatus, CHIP_CLASS, fmtDates, money } from "@/lib/portal-status";
 import { PortalChrome } from "@/components/portal/portal-chrome";
 import { ExtraNightsButton } from "@/components/portal/extra-nights-button";
@@ -23,7 +23,7 @@ export default async function BookingDetail({ params }: Props) {
   if (!b) notFound();
 
   const chip = bookingStatus(b);
-  const [photos, paid, hotel, coaches, downloadsRemaining, addonsTotal, flights] = await Promise.all([
+  const [photos, paid, hotel, coaches, downloadsRemaining, addonsTotal, flights, arrival] = await Promise.all([
     b.edition?.id ? getMemoryPhotosForBooking(b.edition.id, b.id).catch(() => []) : Promise.resolve([]),
     getBookingPaid(b.id).catch(() => 0),
     getBookingHotel(b.id).catch(() => null),
@@ -31,6 +31,7 @@ export default async function BookingDetail({ params }: Props) {
     getMemoryDownloadsRemaining(b.id).catch(() => 3),
     getConfirmedAddonsTotal(b.id).catch(() => 0),
     getBookingFlights(b.id).catch(() => null),
+    b.experience_id ? getExperienceArrivalInfo(b.experience_id).catch(() => null) : Promise.resolve(null),
   ]);
 
   const deposit = b.edition?.deposit ?? 300;
@@ -111,7 +112,7 @@ export default async function BookingDetail({ params }: Props) {
 
               {/* prep */}
               <Card title="Trip prep">
-                <TripAddons bookingId={b.id} depositPaid={depositPaid} initialFlights={flights} />
+                <TripAddons bookingId={b.id} depositPaid={depositPaid} initialFlights={flights} arrival={arrival} editionStart={b.edition?.date_start ?? null} editionEnd={b.edition?.date_end ?? null} />
                 <div className="mt-5 pt-4 border-t border-[#f3ede2]">
                   <ExtraNightsButton bookingId={b.id} />
                 </div>
