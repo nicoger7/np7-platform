@@ -30,6 +30,7 @@ interface HotelRoom {
 interface Experience {
   id: string;
   title: string;
+  status?: string;
 }
 
 const HOTELS = ["Sorobon", "Wanapa", "Playa Surf", "Hotel Paradiso", "Alacati", "REF", "REF II"];

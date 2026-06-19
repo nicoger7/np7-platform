@@ -37,7 +37,7 @@ export async function POST(request: NextRequest) {
     Object.entries(body).filter(([k]) => ALLOWED_COLUMNS.includes(k))
   );
 
-  const { data, error } = await client
+  const { data, error } = await (client as any)
     .from("exp_experiences")
     .insert(sanitized)
     .select()

@@ -18,7 +18,10 @@ const environments: { id: Environment; label: string; shortLabel: string; color:
 
 // ─── Navigation per environment ──────────────────────────────────────────────
 
-const navByEnv: Record<Environment, { label: string; items: { label: string; href: string; icon: string; wip?: boolean }[] }[]> = {
+type NavItem = { label: string; href: string; icon: string; wip?: boolean };
+type NavGroup = { label: string; items: NavItem[] };
+
+const navByEnv: Record<Environment, NavGroup[]> = {
   experience: [
     {
       label: "OPERATIONS",
@@ -91,14 +94,14 @@ const navByEnv: Record<Environment, { label: string; items: { label: string; hre
   ],
 };
 
-const sharedNavTop = {
+const sharedNavTop: NavGroup = {
   label: "HOME",
   items: [
     { label: "Dashboard", href: "/admin", icon: "grid" },
   ],
 };
 
-const sharedNavBottom = {
+const sharedNavBottom: NavGroup = {
   label: "GENERAL",
   items: [
     { label: "Images", href: "/admin/images", icon: "image" },

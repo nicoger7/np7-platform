@@ -3,7 +3,6 @@
 import { useState, useEffect, use } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import ImagePickerModal from "@/components/image-picker-modal";
 import { ExperienceComponentsManager } from "@/components/experience-components-manager";
 
 interface Experience {
@@ -96,7 +95,6 @@ export default function ExperienceDetailPage({
   const [saved, setSaved] = useState(false);
   const [exp, setExp] = useState<Experience | null>(null);
   const [editions, setEditions] = useState<Edition[]>([]);
-  const [showImagePicker, setShowImagePicker] = useState(false);
   const [activeSection, setActiveSection] = useState("editions");
   const [destinations, setDestinations] = useState<{ id: string; name: string }[]>([]);
   const [hotels, setHotels] = useState<Hotel[]>([]);
@@ -147,7 +145,6 @@ export default function ExperienceDetailPage({
         code: exp.code,
         location: exp.location,
         description: exp.description,
-        hero_image: exp.hero_image,
         gallery: exp.gallery,
         status: exp.status,
         timezone: exp.timezone,
@@ -269,7 +266,7 @@ export default function ExperienceDetailPage({
 
       {/* Section tabs */}
       <div className="flex items-center gap-1 mb-6" style={{ borderBottom: "1px solid var(--admin-border)" }}>
-        {[["editions", "Editions"], ["template", "Template"], ["components", "Components"], ["media", "Media"]].map(([key, label]) => (
+        {[["editions", "Editions"], ["template", "Template"], ["components", "Components"]].map(([key, label]) => (
           <button
             key={key}
             onClick={() => setActiveSection(key)}
@@ -525,70 +522,11 @@ export default function ExperienceDetailPage({
             (in each edition&apos;s Packages tab), not on the experience template.
           </div>
 
-        </div>
-
-        {/* Components tab */}
-        <div className={activeSection === "components" ? "" : "hidden"}>
-          <ExperienceComponentsManager experienceId={id} code={exp.code} />
-        </div>
-
-        {/* Media tab */}
-        <div className={activeSection === "media" ? "space-y-5" : "hidden"}>
-          {/* Main image (hero + card) */}
-          <div>
-            <label className={labelClass}>Main image <span className="admin-faint">(hero + listing card)</span></label>
-            {exp.hero_image ? (
-              <div className="relative group max-w-[400px]">
-                <div className="rounded-xl overflow-hidden" style={{ border: "1px solid var(--admin-border)" }}>
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img src={exp.hero_image} alt="Hero" className="w-full h-auto" />
-                </div>
-                <div className="absolute inset-0 rounded-xl bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-3">
-                  <button
-                    type="button"
-                    onClick={() => setShowImagePicker(true)}
-                    className="px-4 py-2 bg-white/15 hover:bg-white/25 rounded-lg text-sm text-white font-medium transition-colors"
-                  >
-                    Change
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => update("hero_image", "")}
-                    className="px-4 py-2 bg-red-500/20 hover:bg-red-500/30 rounded-lg text-sm text-red-400 font-medium transition-colors"
-                  >
-                    Remove
-                  </button>
-                </div>
-              </div>
-            ) : (
-              <button
-                type="button"
-                onClick={() => setShowImagePicker(true)}
-                className="w-full max-w-[400px] py-10 rounded-xl border-2 border-dashed transition-colors flex flex-col items-center gap-2"
-                style={{ borderColor: "var(--admin-border)" }}
-                onMouseEnter={(e) => e.currentTarget.style.backgroundColor = "var(--admin-surface-hover)"}
-                onMouseLeave={(e) => e.currentTarget.style.backgroundColor = "transparent"}
-              >
-                <svg className="w-8 h-8 admin-faint" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round">
-                  <rect x="3" y="3" width="18" height="18" rx="2" />
-                  <circle cx="8.5" cy="8.5" r="1.5" />
-                  <path d="m21 15-5-5L5 21" />
-                </svg>
-                <span className="text-sm admin-muted">Click to select image</span>
-              </button>
-            )}
+          {/* Main image note — single source is Event Content */}
+          <div className="rounded-lg p-3 text-xs admin-faint" style={{ border: "1px dashed var(--admin-border)" }}>
+            <span className="font-medium admin-muted">Main image</span> (hero + listing card) is managed in{" "}
+            <span className="admin-muted">Website → Event Content → Media</span>, the single source for all imagery.
           </div>
-
-          {showImagePicker && (
-            <ImagePickerModal
-              defaultFolder={exp.slug ? `experiences/${exp.slug}/hero` : undefined}
-              onSelect={(url) => {
-                update("hero_image", url);
-                setShowImagePicker(false);
-              }}
-              onClose={() => setShowImagePicker(false)}
-            />
-          )}
 
           {/* Status */}
           <div>
@@ -618,7 +556,14 @@ export default function ExperienceDetailPage({
               ))}
             </div>
           </div>
+
         </div>
+
+        {/* Components tab */}
+        <div className={activeSection === "components" ? "" : "hidden"}>
+          <ExperienceComponentsManager experienceId={id} code={exp.code} />
+        </div>
+
       </div>
     </div>
   );

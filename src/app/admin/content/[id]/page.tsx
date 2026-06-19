@@ -105,6 +105,7 @@ export default function ContentEditorPage({ params }: { params: Promise<{ id: st
       method: "PUT",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
+        tile_image: tileImage,
         hero_image: heroImage,
         hero_video_url: heroVideo,
         hero_video_start: heroVideoStart === "" ? null : Number(heroVideoStart),
@@ -163,16 +164,8 @@ export default function ContentEditorPage({ params }: { params: Promise<{ id: st
 
       <div className="space-y-7">
         {/* IMAGES */}
-        <Section show={tab === "media"} title="Main image (hero + card)" hint="Single source — set on the experience page. Used as the listing card and the public hero fallback.">
-          {tileImage ? (
-            <div className="rounded-xl overflow-hidden max-w-[360px]" style={{ border: "1px solid var(--admin-border)" }}>
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img src={tileImage} alt="" className="w-full h-auto" />
-            </div>
-          ) : (
-            <p className="text-xs admin-faint">No image yet.</p>
-          )}
-          <Link href={`/admin/experiences/${id}#media`} className="inline-block mt-2 text-xs text-[#0aa3c7] hover:underline">Edit on the experience page →</Link>
+        <Section show={tab === "media"} title="Main image (hero + card)" hint="The single source for this experience's imagery — used as the listing card on the overview page and as the public hero fallback.">
+          <ImageField url={tileImage} onPick={() => setPicker({ kind: "tile" })} onClear={() => setTileImage("")} ratio="aspect-[4/3]" />
         </Section>
 
         <Section show={tab === "media"} title="Event hero" hint="The big image at the top of the event page. Paste a YouTube link for a video background, or pick an image. Video wins if both are set.">
