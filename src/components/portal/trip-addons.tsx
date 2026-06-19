@@ -124,28 +124,6 @@ export function TripAddons({ bookingId, depositPaid, initialFlights }: { booking
         })}
       </ol>
 
-      {/* my requests */}
-      {active.length > 0 && (
-        <div className="border-t border-[#f3ede2] pt-4 space-y-2">
-          {active.map((m) => {
-            const confirmed = effectiveAddonStatus(m) === "confirmed";
-            return (
-              <div key={m.id} className="flex items-center justify-between gap-3 text-[13.5px]">
-                <span className="font-semibold text-[#00374a]">{m.label}{m.price ? ` · ${money(m.price)}` : ""}</span>
-                <span className={`shrink-0 px-2.5 py-1 rounded-full text-[11px] font-bold ${confirmed ? "bg-green-100 text-green-700" : "bg-amber-100 text-amber-700"}`}>
-                  {confirmed ? "Confirmed ✓" : "Requested"}
-                </span>
-              </div>
-            );
-          })}
-        </div>
-      )}
-
-      {/* "No extras needed" confirmation */}
-      {noneChosen && active.length === 0 && (
-        <p className="border-t border-[#f3ede2] pt-4 text-[13px] text-[#5a6b72]">✓ No extras needed — you&apos;re all set. You can still add something below.</p>
-      )}
-
       {/* Add to your trip — always a folded module; expands on click */}
       {!loading && (
         <div className="border-t border-[#f3ede2] pt-4">
@@ -206,6 +184,26 @@ export function TripAddons({ bookingId, depositPaid, initialFlights }: { booking
           </div>
         )}
       </div>
+
+      {/* current requests / status */}
+      {active.length > 0 && (
+        <div className="border-t border-[#f3ede2] pt-4 space-y-2">
+          {active.map((m) => {
+            const confirmed = effectiveAddonStatus(m) === "confirmed";
+            return (
+              <div key={m.id} className="flex items-center justify-between gap-3 text-[13.5px]">
+                <span className="font-semibold text-[#00374a]">{m.label}{m.price ? ` · ${money(m.price)}` : ""}</span>
+                <span className={`shrink-0 px-2.5 py-1 rounded-full text-[11px] font-bold ${confirmed ? "bg-green-100 text-green-700" : "bg-amber-100 text-amber-700"}`}>
+                  {confirmed ? "Confirmed ✓" : "Requested"}
+                </span>
+              </div>
+            );
+          })}
+        </div>
+      )}
+      {noneChosen && active.length === 0 && (
+        <p className="border-t border-[#f3ede2] pt-4 text-[13px] text-[#5a6b72]">✓ No extras needed — you&apos;re all set.</p>
+      )}
     </div>
   );
 }
