@@ -53,11 +53,11 @@ export function EpicWeekScroll({
   const [active, setActive] = useState(0);
   const [enabled, setEnabled] = useState(true);
 
-  // pin only on desktop — phones/tablets get a clean, balanced grid (no sideways scroll)
+  // pinned fly on phone + desktop; only reduced-motion / tiny viewports get the static grid
   useEffect(() => {
     const compute = () => {
       const reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-      setEnabled(!reduce && window.innerWidth >= 1024 && window.innerHeight > 560);
+      setEnabled(!reduce && window.innerHeight > 480);
     };
     compute();
     window.addEventListener("resize", compute);
@@ -76,16 +76,19 @@ export function EpicWeekScroll({
         const scrollable = section.offsetHeight - inner.offsetHeight;
         const p = clamp(-rect.top / Math.max(1, scrollable));
         if (railRef.current) railRef.current.style.height = `${p * 100}%`;
-        // each card flies up with the scroll: in from below, out through the top
+        // each card flies up with the scroll: in from below, out through the top.
+        // An eased curve makes it dwell near the centre (slow to pass) then fly out fast.
         const cont = p * N;                       // 0..N continuous position
-        const dist = inner.offsetHeight * 0.72;   // travel distance per card
+        const dist = inner.offsetHeight * (window.innerWidth < 1024 ? 0.5 : 0.72); // travel per card
         for (let i = 0; i < N; i++) {
           const el = cardRefs.current[i];
           if (!el) continue;
           const d = cont - (i + 0.5);             // <0 below (incoming), >0 above (gone)
-          const op = clamp(1 - Math.abs(d) * 1.35);
+          const ad = Math.abs(d);
+          const eased = Math.sign(d) * Math.pow(ad, 1.7) * 1.85;   // flat near centre → dwell
+          const op = clamp(1 - Math.max(0, ad - 0.14) * 1.55);     // hold full opacity at centre
           el.style.opacity = String(op);
-          el.style.transform = `translateY(${-d * dist}px)`;
+          el.style.transform = `translateY(${-eased * dist}px)`;
           el.style.pointerEvents = op > 0.6 ? "auto" : "none";
         }
         setActive(clamp(Math.floor(cont), 0, N - 1));
@@ -143,13 +146,13 @@ export function EpicWeekScroll({
   // ---- pinned scroll -------------------------------------------------------
   return (
     <section ref={sectionRef} className="relative bg-[#f6f9fa]" style={{ height: `${N * 80 + 50}vh` }}>
-      <div ref={innerRef} className="sticky top-0 h-screen overflow-hidden text-[#00374a]">
+      <div ref={innerRef} className="sticky top-0 h-[100svh] overflow-hidden text-[#00374a]">
         {/* soft light backdrop — cool sea glow + a subtle warm sun glow */}
         <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_72%_-5%,rgba(0,175,219,0.10),transparent_55%)]" />
         <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_8%_106%,rgba(244,123,32,0.08),transparent_50%)]" />
 
-        {/* progress rail */}
-        <div className="absolute left-4 sm:left-7 top-1/2 -translate-y-1/2 h-[42vh] w-[2px] rounded-full bg-[#00374a]/12 z-10">
+        {/* progress rail (desktop) */}
+        <div className="hidden lg:block absolute left-4 sm:left-7 top-1/2 -translate-y-1/2 h-[42vh] w-[2px] rounded-full bg-[#00374a]/12 z-10">
           <div ref={railRef} className="w-full rounded-full bg-[#00afdb]" style={{ height: "0%" }} />
           {outcomes.map((_, i) => (
             <button key={i} aria-label={`Go to ${outcomes[i].t}`} onClick={() => goTo(i)} className="absolute -left-[8px] w-[18px] h-[18px] grid place-items-center" style={{ top: `calc(${(i / (N - 1)) * 100}% - 9px)` }}>
@@ -158,13 +161,13 @@ export function EpicWeekScroll({
           ))}
         </div>
 
-        <div className="relative h-full max-w-[1180px] mx-auto px-12 sm:px-16 grid lg:grid-cols-[290px_1fr] gap-7 lg:gap-14 items-center">
+        <div className="relative h-full max-w-[1180px] mx-auto px-5 sm:px-12 lg:px-16 grid lg:grid-cols-[290px_1fr] gap-5 lg:gap-14 items-center">
           {/* overview */}
           <div className="relative">
             <p className="text-[11px] font-bold tracking-[0.25em] text-[#00afdb] mb-3">{eyebrow}</p>
             <h2 className="text-2xl sm:text-[34px] font-black tracking-[-0.03em] text-[#00374a] mb-3 leading-[1.06]">{title}</h2>
             <p className="text-[13.5px] text-[#6a7a80] leading-relaxed mb-5 hidden lg:block">{intro}</p>
-            <div className="flex lg:flex-col gap-2 overflow-x-auto lg:overflow-visible scrollbar-hide -mx-2 px-2 lg:mx-0 lg:px-0">
+            <div className="hidden lg:flex lg:flex-col gap-2">
               {outcomes.map((o, i) => {
                 const on = i === active;
                 return (
