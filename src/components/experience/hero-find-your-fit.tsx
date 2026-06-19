@@ -53,6 +53,7 @@ export function HeroFindYourFit({ src, poster, children }: { src: string; poster
   const cueRef = useRef<HTMLDivElement>(null);
   const fitRef = useRef<HTMLDivElement>(null);
   const scrimRef = useRef<HTMLDivElement>(null);
+  const centerRef = useRef<HTMLDivElement>(null);
   const sunWashRef = useRef<HTMLDivElement>(null);
   const railRef = useRef<HTMLDivElement>(null);
   const activeRef = useRef(0);
@@ -106,6 +107,8 @@ export function HeroFindYourFit({ src, poster, children }: { src: string; poster
       const exit = clamp((p - FITS_END) / (1 - FITS_END));
       if (zoomRef.current) zoomRef.current.style.opacity = String(1 - exit);
       if (scrimRef.current) scrimRef.current.style.opacity = String(fitIn * (1 - exit));
+      // centre dim — the fit copy sits in the middle now, so darken behind it for legibility
+      if (centerRef.current) centerRef.current.style.opacity = String(fitIn * (1 - exit));
       // wash stays a tint from the very start (so the footage reads while it scrubs),
       // then eases further over the fits, then fades out with the rest
       if (sunWashRef.current) sunWashRef.current.style.opacity = String((0.6 - fitIn * 0.25) * (1 - exit));
@@ -164,6 +167,8 @@ export function HeroFindYourFit({ src, poster, children }: { src: string; poster
         <div ref={sunWashRef} className="absolute inset-0 will-change-[opacity]" style={{ opacity: 0.6 }}>{sunWash}</div>
         {/* readability vignette — dark top & bottom for the cards/detail, clear centre */}
         <div ref={scrimRef} className="absolute inset-0 pointer-events-none" style={{ opacity: 0, background: "linear-gradient(to bottom, rgba(0,30,45,0.9) 0%, rgba(0,30,45,0) 24%, rgba(0,18,28,0) 60%, rgba(0,16,26,0.95) 100%)" }} aria-hidden />
+        {/* centre dim behind the (now-centred) fit copy, so it reads over the footage */}
+        <div ref={centerRef} className="absolute inset-0 pointer-events-none" style={{ opacity: 0, background: "radial-gradient(ellipse 60% 50% at 50% 52%, rgba(0,26,40,0.62) 0%, rgba(0,26,40,0.34) 45%, transparent 72%)" }} aria-hidden />
 
         {/* HERO (scene 0) */}
         <div ref={heroRef} className="absolute inset-0 z-10 flex flex-col items-center justify-center text-center px-6 will-change-transform">{children}</div>
