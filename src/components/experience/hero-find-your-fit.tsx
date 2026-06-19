@@ -51,6 +51,7 @@ export function HeroFindYourFit({ src, poster, children }: { src: string; poster
   const cueRef = useRef<HTMLDivElement>(null);
   const fitRef = useRef<HTMLDivElement>(null);
   const scrimRef = useRef<HTMLDivElement>(null);
+  const sunWashRef = useRef<HTMLDivElement>(null);
   const railRef = useRef<HTMLDivElement>(null);
   const activeRef = useRef(0);
   const [active, setActive] = useState(0);
@@ -91,10 +92,11 @@ export function HeroFindYourFit({ src, poster, children }: { src: string; poster
       if (heroRef.current) { heroRef.current.style.opacity = String(Math.max(1 - he * 1.2, 0)); heroRef.current.style.transform = `translateY(${-70 * he}px)`; heroRef.current.style.pointerEvents = he > 0.9 ? "none" : "auto"; }
       if (cueRef.current) cueRef.current.style.opacity = String(Math.max(1 - p / (HERO_END * 0.4), 0));
 
-      // fit stage: scrim + content ramp in once the hero is gone
+      // fit stage: top/bottom vignette ramps in, brand wash eases off the centre
       const fp = clamp((p - HERO_END) / (1 - HERO_END));
       const fitIn = clamp((p - HERO_END * 0.85) / (HERO_END * 0.3));
-      if (scrimRef.current) scrimRef.current.style.opacity = String(0.1 + fitIn * 0.32);
+      if (scrimRef.current) scrimRef.current.style.opacity = String(fitIn);
+      if (sunWashRef.current) sunWashRef.current.style.opacity = String(1 - fitIn * 0.55);
       if (fitRef.current) { fitRef.current.style.opacity = String(fitIn); fitRef.current.style.pointerEvents = fitIn > 0.5 ? "auto" : "none"; }
       if (railRef.current) railRef.current.style.height = `${fp * 100}%`;
 
@@ -147,9 +149,9 @@ export function HeroFindYourFit({ src, poster, children }: { src: string; poster
         <div ref={zoomRef} className="absolute inset-0 will-change-transform">
           <video ref={videoRef} src={src} poster={poster} muted playsInline preload="auto" tabIndex={-1} aria-hidden disablePictureInPicture className="absolute inset-0 w-full h-full object-cover pointer-events-none" />
         </div>
-        {sunWash}
-        {/* readability scrim — light over the hero, deeper over the fits */}
-        <div ref={scrimRef} className="absolute inset-0 bg-gradient-to-t from-[#00374a]/70 via-[#00374a]/20 to-transparent" style={{ opacity: 0.1 }} aria-hidden />
+        <div ref={sunWashRef} className="absolute inset-0 will-change-[opacity]">{sunWash}</div>
+        {/* readability vignette — dark top & bottom for the cards/detail, clear centre */}
+        <div ref={scrimRef} className="absolute inset-0 pointer-events-none" style={{ opacity: 0, background: "linear-gradient(to bottom, rgba(0,30,45,0.9) 0%, rgba(0,30,45,0) 24%, rgba(0,18,28,0) 60%, rgba(0,16,26,0.95) 100%)" }} aria-hidden />
 
         {/* HERO (scene 0) */}
         <div ref={heroRef} className="absolute inset-0 z-10 flex flex-col items-center justify-center text-center px-6 will-change-transform">{children}</div>
@@ -159,13 +161,10 @@ export function HeroFindYourFit({ src, poster, children }: { src: string; poster
           <svg className="w-6 h-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M6 9l6 6 6-6" /></svg>
         </div>
 
-        {/* FIND YOUR FIT stage (scenes 1..N) — clean text over the running video */}
+        {/* FIND YOUR FIT stage (scenes 1..N) — cards on top, detail centred at the foot */}
         <div ref={fitRef} className="absolute inset-0 z-20" style={{ opacity: 0 }}>
-          {/* one cinematic gradient, bottom-weighted — no boxes */}
-          <div className="absolute inset-0 pointer-events-none bg-gradient-to-t from-[#001b29] via-[#00374a]/30 to-transparent" />
-
           {/* progress rail (far left) */}
-          <div className="absolute left-4 sm:left-7 top-1/2 -translate-y-1/2 h-[40vh] w-[2px] rounded-full bg-white/20 z-10">
+          <div className="absolute left-4 sm:left-7 top-1/2 -translate-y-1/2 h-[34vh] w-[2px] rounded-full bg-white/20 z-10">
             <div ref={railRef} className="w-full rounded-full bg-[#8fe6f2]" style={{ height: "0%" }} />
             {SEGMENTS.map((_, i) => (
               <button key={i} aria-label={`Go to ${SEGMENTS[i].tag}`} onClick={() => goTo(i)} className="absolute -left-[8px] w-[18px] h-[18px] grid place-items-center" style={{ top: `calc(${(i / (N - 1)) * 100}% - 9px)` }}>
@@ -174,45 +173,45 @@ export function HeroFindYourFit({ src, poster, children }: { src: string; poster
             ))}
           </div>
 
-          {/* content — anchored to the bottom over the gradient */}
-          <div className="relative h-full max-w-[1120px] mx-auto px-12 sm:px-20 flex flex-col justify-end pb-12 sm:pb-16">
-            <p className="text-[11px] font-bold tracking-[0.3em] text-[#8fe6f2] mb-4 fyf-copy">FIND YOUR FIT</p>
-
-            {/* overview — clean labels, no boxes */}
-            <div className="flex gap-x-7 gap-y-2 mb-7 overflow-x-auto scrollbar-hide flex-nowrap">
+          {/* overview cards — top, centred */}
+          <div className="absolute top-0 inset-x-0 pt-7 sm:pt-9 px-6 flex flex-col items-center z-10">
+            <p className="text-[11px] font-bold tracking-[0.3em] text-white mb-4 fyf-copy">FIND YOUR FIT</p>
+            <div className="flex gap-2.5 sm:gap-3 flex-nowrap overflow-x-auto scrollbar-hide max-w-full justify-start sm:justify-center px-1">
               {SEGMENTS.map((s, i) => {
                 const on = i === active;
                 return (
-                  <button key={s.id} onClick={() => goTo(i)} aria-current={on} className="group shrink-0 flex items-center gap-2 text-left fyf-copy">
-                    <span className={`transition-colors ${on ? "text-[#8fe6f2]" : "text-white/35 group-hover:text-white/70"}`}>{s.icon}</span>
-                    <span className="leading-tight">
-                      <span className={`block text-[13.5px] font-extrabold transition-colors ${on ? "text-white" : "text-white/55 group-hover:text-white/85"}`}>{s.tag}</span>
-                      <span className={`block text-[11px] transition-colors ${on ? "text-[#8fe6f2]" : "text-white/35"}`}>{s.chip}</span>
+                  <button key={s.id} onClick={() => goTo(i)} aria-current={on} className={`shrink-0 flex items-center gap-2.5 px-4 py-2.5 rounded-2xl border transition-all ${on ? "bg-white text-[#00374a] border-white shadow-[0_12px_34px_rgba(0,20,30,0.4)] scale-[1.04]" : "bg-white/[0.12] text-white border-white/25 backdrop-blur-md hover:bg-white/[0.2]"}`}>
+                    <span className={`shrink-0 ${on ? "text-[#00afdb]" : "text-[#8fe6f2]"}`}>{s.icon}</span>
+                    <span className="text-left">
+                      <span className="block text-[13px] font-extrabold leading-tight">{s.tag}</span>
+                      <span className={`block text-[11px] leading-tight ${on ? "text-[#5a6b72]" : "text-white/65"}`}>{s.chip}</span>
                     </span>
                   </button>
                 );
               })}
             </div>
+          </div>
 
-            {/* active feature */}
-            <div className="relative min-h-[280px] sm:min-h-[290px]">
+          {/* active feature — bottom, centred, large */}
+          <div className="absolute bottom-0 inset-x-0 pb-12 sm:pb-16 px-6 flex justify-center z-10">
+            <div className="relative w-full max-w-[760px] min-h-[260px] sm:min-h-[300px]">
               {SEGMENTS.map((s, i) => {
                 const on = i === active;
                 return (
-                  <div key={s.id} aria-hidden={!on} className="fyf-card fyf-copy absolute inset-0" style={{ opacity: on ? 1 : 0, transform: on ? "none" : "translateY(18px)", pointerEvents: on ? "auto" : "none" }}>
-                    <h3 className="text-2xl sm:text-[36px] font-black tracking-[-0.02em] text-white leading-[1.05] mb-3">{s.title}</h3>
-                    <p className="text-[14.5px] sm:text-[16px] text-white/90 leading-relaxed mb-5 max-w-[560px]">{s.body}</p>
-                    <ul className="grid sm:grid-cols-2 gap-x-7 gap-y-2 mb-6 max-w-[600px]">
+                  <div key={s.id} aria-hidden={!on} className="fyf-card fyf-copy absolute inset-x-0 bottom-0 text-center" style={{ opacity: on ? 1 : 0, transform: on ? "none" : "translateY(20px)", pointerEvents: on ? "auto" : "none" }}>
+                    <h3 className="text-3xl sm:text-5xl font-black tracking-[-0.02em] text-white leading-[1.04] mb-4">{s.title}</h3>
+                    <p className="text-[16px] sm:text-[19px] text-white/90 leading-relaxed mb-6 max-w-[620px] mx-auto">{s.body}</p>
+                    <div className="flex flex-wrap justify-center gap-x-5 gap-y-2 mb-7 max-w-[680px] mx-auto">
                       {s.points.map((p) => (
-                        <li key={p} className="flex items-start gap-2.5 text-[13.5px] text-white/90 font-medium">
-                          <span className="mt-0.5 shrink-0 w-4 h-4 rounded-full bg-[#8fe6f2]/25 text-[#8fe6f2] grid place-items-center">
+                        <span key={p} className="inline-flex items-center gap-2 text-[13.5px] sm:text-[14.5px] text-white/85 font-medium">
+                          <span className="shrink-0 w-4 h-4 rounded-full bg-[#8fe6f2]/25 text-[#8fe6f2] grid place-items-center">
                             <svg className="w-2.5 h-2.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3.5" strokeLinecap="round" strokeLinejoin="round"><path d="M20 6L9 17l-5-5" /></svg>
                           </span>
                           {p}
-                        </li>
+                        </span>
                       ))}
-                    </ul>
-                    <Link href="#experiences" className="inline-flex items-center gap-2 px-6 py-3 rounded-full text-[13.5px] font-bold text-[#00374a] bg-[#ffc42e] shadow-[0_4px_16px_rgba(255,196,46,0.28)] hover:bg-[#ffce52] hover:-translate-y-0.5 transition-all">
+                    </div>
+                    <Link href="#experiences" className="inline-flex items-center gap-2 px-7 py-3.5 rounded-full text-[14px] font-bold text-[#00374a] bg-[#ffc42e] shadow-[0_6px_22px_rgba(255,196,46,0.32)] hover:bg-[#ffce52] hover:-translate-y-0.5 transition-all">
                       {s.cta}
                       <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M5 12h14M13 6l6 6-6 6" /></svg>
                     </Link>
