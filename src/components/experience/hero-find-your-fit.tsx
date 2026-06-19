@@ -52,6 +52,7 @@ export function HeroFindYourFit({ src, poster, children }: { src: string; poster
   const fitRef = useRef<HTMLDivElement>(null);
   const scrimRef = useRef<HTMLDivElement>(null);
   const sunWashRef = useRef<HTMLDivElement>(null);
+  const oceanFadeRef = useRef<HTMLDivElement>(null);
   const railRef = useRef<HTMLDivElement>(null);
   const activeRef = useRef(0);
   const [active, setActive] = useState(0);
@@ -62,10 +63,13 @@ export function HeroFindYourFit({ src, poster, children }: { src: string; poster
     const wrap = wrapRef.current, video = videoRef.current;
     if (!wrap || !video) return;
     let duration = 0, ready = false, current = 0;
-    const onMeta = () => { duration = video.duration || 0; ready = true; video.play().then(() => video.pause()).catch(() => {}); };
+    const onMeta = () => { duration = video.duration || 0; ready = duration > 0; video.play().then(() => video.pause()).catch(() => {}); };
     const onError = () => setMode("static");
     video.addEventListener("loadedmetadata", onMeta);
     video.addEventListener("error", onError);
+    // If metadata already loaded before this listener attached (cached / fast load),
+    // the event won't fire again — prime it now so scrubbing actually starts.
+    if (video.readyState >= 1 && video.duration) onMeta();
 
     const progress = () => {
       const dist = wrap.offsetHeight - window.innerHeight;
@@ -81,7 +85,7 @@ export function HeroFindYourFit({ src, poster, children }: { src: string; poster
 
       if (ready && duration) {
         const t = p * (duration - 0.05);
-        if (video.readyState >= 2 && Math.abs(video.currentTime - t) > 0.01) {
+        if (video.readyState >= 1 && Math.abs(video.currentTime - t) > 0.01) {
           try { video.currentTime = t; } catch { /* seeking mid-load */ }
         }
       }
@@ -95,11 +99,15 @@ export function HeroFindYourFit({ src, poster, children }: { src: string; poster
       // fit stage: top/bottom vignette ramps in, brand wash eases off the centre
       const fp = clamp((p - HERO_END) / (1 - HERO_END));
       const fitIn = clamp((p - HERO_END * 0.85) / (HERO_END * 0.3));
-      if (scrimRef.current) scrimRef.current.style.opacity = String(fitIn);
+      // exit: over the last stretch, clear the dark overlays + fit copy and dissolve
+      // the foot of the stage into the ocean surface, so the dive reads cleanly
+      const exit = clamp((fp - 0.88) / 0.12);
+      if (scrimRef.current) scrimRef.current.style.opacity = String(fitIn * (1 - exit));
       // wash stays a tint from the very start (so the footage reads while it scrubs),
       // then eases further over the fits
       if (sunWashRef.current) sunWashRef.current.style.opacity = String(0.6 - fitIn * 0.25);
-      if (fitRef.current) { fitRef.current.style.opacity = String(fitIn); fitRef.current.style.pointerEvents = fitIn > 0.5 ? "auto" : "none"; }
+      if (oceanFadeRef.current) oceanFadeRef.current.style.opacity = String(exit);
+      if (fitRef.current) { fitRef.current.style.opacity = String(fitIn * (1 - exit)); fitRef.current.style.pointerEvents = fitIn > 0.5 && exit < 0.5 ? "auto" : "none"; }
       if (railRef.current) railRef.current.style.height = `${fp * 100}%`;
 
       const idx = Math.min(N - 1, Math.floor(fp * N));
@@ -224,6 +232,9 @@ export function HeroFindYourFit({ src, poster, children }: { src: string; poster
             </div>
           </div>
         </div>
+
+        {/* dive surface — the foot of the stage dissolves into the ocean below */}
+        <div ref={oceanFadeRef} className="absolute inset-0 z-30 pointer-events-none" style={{ opacity: 0, background: "linear-gradient(to bottom, transparent 48%, rgba(26,163,199,0.55) 76%, #1aa3c7 100%)" }} aria-hidden />
       </div>
 
       <style>{`
