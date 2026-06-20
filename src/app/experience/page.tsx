@@ -7,6 +7,7 @@ import { OceanHeader, NP7_LOGO } from "@/components/experience/ocean-header";
 import { Reveal } from "@/components/experience/reveal";
 import { Carousel } from "@/components/experience/carousel";
 import { UpcomingExperiences, type ExpCard } from "@/components/experience/upcoming-experiences";
+import { paidSpotsByEdition, spotsLeftFrom } from "@/lib/availability";
 
 export const metadata: Metadata = {
   title: "NP7 Experience — Premium Watersports Travel",
@@ -27,6 +28,7 @@ const HERO_POSTER =
 /* ----------------------------- data shaping ----------------------------- */
 
 type Edition = {
+  id: string;
   date_start: string | null;
   date_end: string | null;
   max_spots: number | null;
@@ -81,17 +83,14 @@ export default async function ExperienceOverviewPage() {
   const { data } = await supabase
     .from("exp_experiences")
     .select(
-      "id,title,slug,location,price,currency,description,hero_image,exp_editions(date_start,date_end,max_spots,spots_taken,status,active)"
+      "id,title,slug,location,price,currency,description,hero_image,exp_editions(id,date_start,date_end,max_spots,spots_taken,status,active)"
     )
     .eq("status", "published");
 
-  const experiences = ((data as RawExperience[] | null) ?? [])
-    .map((exp) => {
-      const ed = nextEdition(exp.exp_editions);
-      const spotsLeft =
-        ed && ed.max_spots != null ? ed.max_spots - (ed.spots_taken ?? 0) : null;
-      return { ...exp, ed, spotsLeft };
-    })
+  const withEd = ((data as RawExperience[] | null) ?? []).map((exp) => ({ ...exp, ed: nextEdition(exp.exp_editions) }));
+  const securedByEd = await paidSpotsByEdition(withEd.map((x) => x.ed?.id)); // spots left = paid only
+  const experiences = withEd
+    .map((exp) => ({ ...exp, spotsLeft: exp.ed ? spotsLeftFrom(exp.ed.max_spots, securedByEd[exp.ed.id] ?? 0) : null }))
     .sort((a, b) => {
       const ad = a.ed?.date_start ?? "9999";
       const bd = b.ed?.date_start ?? "9999";

@@ -10,6 +10,7 @@ import { StickyCta } from "@/components/experience/sticky-cta";
 import { type RealPackage } from "@/components/experience/package-picker";
 import { EditionBooking, type EditionLite } from "@/components/experience/edition-booking";
 import { HeroVideo } from "@/components/experience/hero-video";
+import { paidSpotsByEdition, spotsLeftFrom } from "@/lib/availability";
 import { GalleryStrip } from "@/components/experience/gallery-strip";
 import { Slideshow } from "@/components/experience/slideshow";
 import { EpicWeekScroll } from "@/components/experience/epic-week-scroll";
@@ -199,6 +200,7 @@ export default async function ExperienceDetailPage({ params }: Props) {
   const multi = allEditions.length > 1;
   // "primary" edition = soonest upcoming (drives hero defaults)
   const edition = allEditions.find((e) => e.date_start && e.date_start >= today) ?? allEditions[0];
+  const securedByEd = await paidSpotsByEdition(allEditions.map((e) => e.id)); // spots left = paid only
 
   // group active packages by edition so each week only shows its own (no dupes)
   const activePackages = (experience.exp_packages ?? []).filter((p) => p.status === "active" && p.price != null);
@@ -246,7 +248,7 @@ export default async function ExperienceDetailPage({ params }: Props) {
       label: ed.label?.trim() || `Week ${i + 1}`,
       dateRange: fmtRange(ed.date_start, ed.date_end),
       shortRange: fmtShort(ed.date_start, ed.date_end),
-      spotsLeft: ed.max_spots != null ? ed.max_spots - (ed.spots_taken ?? 0) : null,
+      spotsLeft: spotsLeftFrom(ed.max_spots, securedByEd[ed.id] ?? 0),
       fromPrice: pks.length ? Math.min(...pks.map((p) => p.price)) : null,
       deposit: ed.deposit,
       coaches: ed.coaches,
@@ -255,7 +257,7 @@ export default async function ExperienceDetailPage({ params }: Props) {
 
   const allPrices = activePackages.map((p) => p.price as number);
   const fromPrice = allPrices.length ? Math.min(...allPrices) : experience.price;
-  const spotsLeft = edition?.max_spots != null ? edition.max_spots - (edition.spots_taken ?? 0) : null;
+  const spotsLeft = edition ? spotsLeftFrom(edition.max_spots, securedByEd[edition.id] ?? 0) : null;
   const totalSpotsLeft = editionsLite.reduce((s, e) => s + (e.spotsLeft ?? 0), 0);
   const spanStart = allEditions[0]?.date_start ?? edition?.date_start ?? null;
   const spanEnd = allEditions[allEditions.length - 1]?.date_end ?? edition?.date_end ?? null;
