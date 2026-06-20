@@ -62,7 +62,7 @@ export function emailLayout(opts: { division?: Division; preheader?: string; hea
 <span style="display:none!important;opacity:0;color:#eef3f4;height:0;width:0;overflow:hidden;">${esc(preheader)}</span>
 <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#eef3f4;"><tr><td align="center" style="padding:28px 16px;">
 <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:560px;background:#ffffff;border-radius:18px;overflow:hidden;box-shadow:0 8px 30px rgba(0,55,74,0.08);">
-  ${hero ? `<tr><td style="padding:0;font-size:0;line-height:0;background:#dfeaee;"><img src="${hero}" width="560" alt="" style="display:block;width:100%;max-width:560px;height:auto;"></td></tr>` : ""}
+  ${hero ? `<tr><td style="padding:0;font-size:0;line-height:0;background:#dfeaee;"><img src="${hero}" width="560" height="200" alt="" style="display:block;width:100%;max-width:560px;height:200px;object-fit:cover;object-position:center;"></td></tr>` : ""}
   <tr><td bgcolor="${t.accent}" height="5" style="height:5px;line-height:5px;font-size:0;background:${t.accent};background-image:${t.gradient};">&nbsp;</td></tr>
   <tr><td align="center" style="background:#ffffff;padding:24px 24px 6px;"><img src="${t.logo}" alt="${esc(t.logoAlt)}" width="${t.logoW}" style="display:block;width:${t.logoW}px;max-width:60%;height:auto;"></td></tr>
   <tr><td style="padding:12px 32px 30px;color:#33434a;font-size:15px;line-height:1.6;">${bodyHtml}</td></tr>

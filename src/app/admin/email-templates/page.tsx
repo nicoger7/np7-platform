@@ -5,6 +5,7 @@ import { SortableHeader } from "@/components/sortable-header";
 import { ColumnToggle, ColumnDef, buildGridTemplate, loadVisibleColumns } from "@/components/column-toggle";
 import { RowActions } from "@/components/row-actions";
 import ImagePickerModal from "@/components/image-picker-modal";
+import { DEFAULT_BODIES, DEFAULT_SUBJECTS } from "@/lib/email/default-bodies";
 
 interface EmailTemplate {
   id: string;
@@ -151,8 +152,16 @@ export default function EmailTemplatesPage() {
   function startEdit(t: EmailTemplate) {
     setEditId(t.id);
     setShowAdvanced(false);
-    setForm({ name: t.name, template_key: t.template_key || "", subject_line: t.subject_line || "", body: t.body || "", header_image: t.header_image || "", type: t.type || "", trigger_stage: t.trigger_stage || "", status: t.status || "", language: t.language || "en", active: t.active !== false, experience_id: t.experience_id || "", notes: t.notes || "" });
+    const key = t.template_key || "";
+    setForm({ name: t.name, template_key: key, subject_line: t.subject_line || DEFAULT_SUBJECTS[key] || "", body: t.body || DEFAULT_BODIES[key] || "", header_image: t.header_image || "", type: t.type || "", trigger_stage: t.trigger_stage || "", status: t.status || "", language: t.language || "en", active: t.active !== false, experience_id: t.experience_id || "", notes: t.notes || "" });
     setShowNew(false);
+  }
+
+  function resetToDefault() {
+    const key = form.template_key;
+    if (!key || !DEFAULT_BODIES[key]) return;
+    if (!confirm("Replace the current wording with the built-in default?")) return;
+    setForm((f) => ({ ...f, body: DEFAULT_BODIES[key], subject_line: DEFAULT_SUBJECTS[key] ?? f.subject_line }));
   }
 
   function insertVar(token: string) {
@@ -245,8 +254,13 @@ export default function EmailTemplatesPage() {
           {/* Body + live preview */}
           <div className="grid grid-cols-2 gap-4 mb-4">
             <div>
-              <div className="flex items-center justify-between mb-1.5">
-                <label className={labelClass + " mb-0"}>Body</label>
+              <div className="flex items-center justify-between mb-1.5 gap-2">
+                <div className="flex items-center gap-2">
+                  <label className={labelClass + " mb-0"}>Body</label>
+                  {form.template_key && DEFAULT_BODIES[form.template_key] && (
+                    <button type="button" onClick={resetToDefault} className="text-[10px] admin-faint hover:text-[#0aa3c7] transition-colors">↺ Back to default</button>
+                  )}
+                </div>
                 <div className="flex flex-wrap gap-1.5 justify-end">
                   {VARS.map(([token, label]) => (
                     <button key={token} type="button" onClick={() => insertVar(token)} title={`Insert {{${token}}}`} className="px-2 py-0.5 text-[11px] rounded-md admin-surface admin-muted hover:text-[#0aa3c7] transition-colors" style={{ border: "1px solid var(--admin-border)" }}>+ {label}</button>
