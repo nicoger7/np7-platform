@@ -357,7 +357,7 @@ export default function ContentEditorPage({ params }: { params: Promise<{ id: st
 
       {picker && (
         <ImagePickerModal
-          defaultFolder={slug ? `experiences/${slug}/${picker.kind === "review" ? "reviews" : picker.kind}` : undefined}
+          defaultFolder={slug ? `experiences/${slug}` : undefined}
           onSelect={applyPicked}
           onClose={() => setPicker(null)}
         />

@@ -114,7 +114,7 @@ export function EditionGuidesEditor({ editionId, slug }: { editionId: string; sl
 
   const inputClass = "px-2 py-1.5 admin-input border rounded-lg text-xs focus:outline-none focus:border-[#0aa3c7]";
   const labelClass = "block text-[10px] font-bold uppercase tracking-wide admin-faint mb-1";
-  const folder = slug ? `experiences/${slug}/coaches` : undefined;
+  const folder = slug ? `experiences/${slug}` : undefined;
 
   if (loading) return <div className="text-xs admin-faint py-2">Loading team…</div>;
 

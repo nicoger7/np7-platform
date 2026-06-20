@@ -164,7 +164,7 @@ export default function DestinationEditor({ params }: { params: Promise<{ id: st
 
       {picker && (
         <ImagePickerModal
-          defaultFolder={folder ? `${folder}/${picker.kind}` : undefined}
+          defaultFolder={folder}
           onSelect={(url) => {
             if (picker.kind === "hero") set("hero_image", url);
             else if (picker.kind === "gallery") set("gallery", [...gallery, url]);

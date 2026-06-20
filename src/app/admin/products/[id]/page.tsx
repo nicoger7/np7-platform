@@ -1400,15 +1400,7 @@ export default function ProductDetailPage({
       {/* ── Image picker modal ── */}
       {picker && (
         <ImagePickerModal
-          defaultFolder={
-            slug
-              ? picker.kind === "hero"
-                ? `products/${slug}/hero`
-                : picker.kind === "gallery"
-                ? `products/${slug}/gallery`
-                : `products/${slug}/fits`
-              : undefined
-          }
+          defaultFolder={slug ? `products/${slug}` : undefined}
           onSelect={applyPicked}
           onClose={() => setPicker(null)}
         />
