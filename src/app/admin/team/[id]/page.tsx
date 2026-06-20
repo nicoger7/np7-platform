@@ -2,6 +2,7 @@
 
 import { useState, useEffect, use } from "react";
 import { useRouter } from "next/navigation";
+import { ACCESS_LEVELS, ACCESS_LABELS, normalizeLevel } from "@/lib/access";
 
 interface TeamMember {
   id: string;
@@ -12,6 +13,7 @@ interface TeamMember {
   rate_per_hour: number | null;
   active: boolean;
   notes: string | null;
+  access_level: string | null;
 }
 
 interface HoursEntry {
@@ -31,6 +33,8 @@ export default function TeamDetailPage({ params }: { params: Promise<{ id: strin
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
+  const [inviting, setInviting] = useState(false);
+  const [invited, setInvited] = useState(false);
 
   useEffect(() => {
     Promise.all([
@@ -51,6 +55,15 @@ export default function TeamDetailPage({ params }: { params: Promise<{ id: strin
     if (!confirm("Delete this team member?")) return;
     await fetch(`/api/admin/team/${id}`, { method: "DELETE" });
     router.push("/admin/team");
+  }
+
+  async function handleInvite() {
+    if (!member?.email) { alert("Add an email and Save first, then send the invite."); return; }
+    setInviting(true);
+    const res = await fetch(`/api/admin/team/${id}/invite`, { method: "POST" });
+    setInviting(false);
+    if (res.ok) { setInvited(true); setTimeout(() => setInvited(false), 3000); }
+    else { const j = await res.json().catch(() => ({})); alert(j.error || "Could not send the invite."); }
   }
 
   function update(field: string, value: unknown) {
@@ -104,6 +117,28 @@ export default function TeamDetailPage({ params }: { params: Promise<{ id: strin
         </div>
         <div><label className={labelClass}>Notes</label>
           <textarea className={`${inputClass} min-h-[80px] resize-y`} value={member.notes || ""} onChange={(e) => update("notes", e.target.value || null)} />
+        </div>
+
+        {/* Access & login */}
+        <div className="pt-4" style={{ borderTop: "1px solid var(--admin-border)" }}>
+          <h3 className="text-xs font-bold tracking-[0.1em] admin-faint uppercase mb-3">Access &amp; login</h3>
+          <div className="grid grid-cols-2 gap-4 items-start">
+            <div>
+              <label className={labelClass}>Access level</label>
+              <select className={inputClass} value={normalizeLevel(member.access_level)} onChange={(e) => update("access_level", e.target.value)}>
+                {ACCESS_LEVELS.map((lvl) => <option key={lvl} value={lvl}>{ACCESS_LABELS[lvl]}</option>)}
+              </select>
+              <p className="text-[11px] admin-faint mt-1.5">Remember to <strong>Save</strong> after changing.</p>
+            </div>
+            <div>
+              <label className={labelClass}>Login</label>
+              <button onClick={handleInvite} disabled={inviting || !member.email}
+                className="w-full px-4 py-2.5 border border-[#0aa3c7] text-[#0aa3c7] hover:bg-[#0aa3c7]/10 disabled:opacity-40 text-sm font-bold rounded-lg transition-colors">
+                {inviting ? "Sending…" : invited ? "Invite sent ✓" : "Send login invite"}
+              </button>
+              <p className="text-[11px] admin-faint mt-1.5">Emails a one-time login link{member.email ? ` to ${member.email}` : " (add an email first)"}.</p>
+            </div>
+          </div>
         </div>
 
         {/* Hours Log */}

@@ -1,9 +1,17 @@
 import { NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase";
+import { createClient } from "@/lib/supabase/server";
+import { getActiveTeamMember } from "@/lib/admin-auth";
 
 // GET /api/admin/dashboard — one aggregated payload for the ops dashboard.
 // Middleware already gates this to active team members.
 export async function GET() {
+  // Finance figures are owner-only — don't even send them to managers.
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  const member = user ? await getActiveTeamMember(user) : null;
+  const isOwner = member?.accessLevel === "owner";
+
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const db = createAdminClient() as any;
   const today = new Date().toISOString().slice(0, 10);
@@ -46,10 +54,8 @@ export async function GET() {
     upcomingEditions: upcomingEditions.data ?? [],
     recentEmails: recentEmails.data ?? [],
     overdueTodos: overdueTodos.count ?? 0,
-    finance: {
-      // TODO: role-gate per ROADMAP §8 (access matrix). Interim: visible to all team members.
-      openRevenue: sum(openBookings.data),
-      unmatchedPayments: unmatchedPayments.count ?? 0,
-    },
+    finance: isOwner
+      ? { openRevenue: sum(openBookings.data), unmatchedPayments: unmatchedPayments.count ?? 0 }
+      : null,
   });
 }

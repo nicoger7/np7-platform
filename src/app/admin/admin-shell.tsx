@@ -5,6 +5,7 @@ import { usePathname, useRouter } from "next/navigation";
 import { useState, useEffect, useRef } from "react";
 import { createClient } from "@/lib/supabase/client";
 import type { User } from "@supabase/supabase-js";
+import { canAccess, type AccessLevel } from "@/lib/access";
 
 // ─── Environments ────────────────────────────────────────────────────────────
 
@@ -316,9 +317,11 @@ type Theme = keyof typeof themes;
 
 export default function AdminShell({
   user,
+  accessLevel = "owner",
   children,
 }: {
   user: User;
+  accessLevel?: AccessLevel;
   children: React.ReactNode;
 }) {
   const pathname = usePathname();
@@ -383,9 +386,13 @@ export default function AdminShell({
   const activeEnvConfig = environments.find((e) => e.id === env)!;
   // File Storage lives under WEBSITE for the experience env; keep the shared
   // bottom section only for envs that don't include it.
-  const sections = env === "experience"
+  const allSections = env === "experience"
     ? [sharedNavTop, ...navByEnv[env]]
     : [sharedNavTop, ...navByEnv[env], sharedNavBottom];
+  // Hide nav the member's access level can't reach (middleware enforces it too).
+  const sections = allSections
+    .map((g) => ({ ...g, items: g.items.filter((i) => canAccess(accessLevel, i.href)) }))
+    .filter((g) => g.items.length > 0);
 
   return (
     <div

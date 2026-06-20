@@ -9,7 +9,7 @@ interface DashboardData {
   upcomingEditions: { id: string; label: string | null; year: number | null; date_start: string | null; date_end: string | null; max_spots: number | null; spots_taken: number | null; exp_experiences: { title: string; slug: string } | null }[];
   recentEmails: { template_key: string; to_email: string | null; status: string | null; subject: string | null; sent_at: string | null; created_at: string }[];
   overdueTodos: number;
-  finance: { openRevenue: number; unmatchedPayments: number };
+  finance: { openRevenue: number; unmatchedPayments: number } | null;
 }
 
 function money(n: number | null | undefined) {
@@ -77,10 +77,10 @@ export default function AdminDashboard() {
         <StatCard label="Upcoming editions" value={d.counts.upcomingEditions} accent />
       </div>
 
-      {/* Finance strip (interim: visible to all team — role-gate per ROADMAP §8) */}
+      {/* Finance cards are owner-only (the API omits them for managers). */}
       <div className="grid grid-cols-2 lg:grid-cols-3 gap-4 mb-6">
-        <StatCard label="Open revenue" value={money(d.finance.openRevenue)} href="/admin/payments" accent />
-        <StatCard label="Unmatched payments" value={d.finance.unmatchedPayments} href="/admin/payments" />
+        {d.finance && <StatCard label="Open revenue" value={money(d.finance.openRevenue)} href="/admin/payments" accent />}
+        {d.finance && <StatCard label="Unmatched payments" value={d.finance.unmatchedPayments} href="/admin/payments" />}
         <StatCard label="Overdue to-dos" value={d.overdueTodos} href="/admin/todos" />
       </div>
 
