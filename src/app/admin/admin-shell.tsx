@@ -58,10 +58,10 @@ const navByEnv: Record<Environment, NavGroup[]> = {
       label: "FINANCE",
       items: [
         { label: "Payments", href: "/admin/payments", icon: "receipt" },
-        { label: "Experience Costs", href: "/admin/exp-costs", icon: "receipt" },
-        { label: "Vendors", href: "/admin/vendors", icon: "building" },
-        { label: "Documents", href: "/admin/documents", icon: "receipt" },
-        { label: "Company Settings", href: "/admin/settings", icon: "building" },
+        { label: "Experience Costs", href: "/admin/exp-costs", icon: "chartline" },
+        { label: "Vendors", href: "/admin/vendors", icon: "truck" },
+        { label: "Documents", href: "/admin/documents", icon: "file" },
+        { label: "Company Settings", href: "/admin/settings", icon: "cog" },
       ],
     },
     {
@@ -225,6 +225,18 @@ const icons: Record<string, React.ReactNode> = {
       <polyline points="22 12 18 12 15 21 9 3 6 12 2 12" />
     </svg>
   ),
+  file: (
+    <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+      <path d="M14 2v6h6M9 13h6M9 17h6" />
+    </svg>
+  ),
+  cog: (
+    <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <circle cx="12" cy="12" r="3" />
+      <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" />
+    </svg>
+  ),
   checklist: (
     <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
       <line x1="8" y1="6" x2="21" y2="6" />
@@ -315,6 +327,7 @@ export default function AdminShell({
   const [theme, setTheme] = useState<Theme>("dark");
   const [env, setEnv] = useState<Environment>("experience");
   const [envMenuOpen, setEnvMenuOpen] = useState(false);
+  const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
   const envMenuRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -322,7 +335,20 @@ export default function AdminShell({
     if (savedTheme && themes[savedTheme]) setTheme(savedTheme);
     const savedEnv = localStorage.getItem("np7-admin-env") as Environment | null;
     if (savedEnv && navByEnv[savedEnv]) setEnv(savedEnv);
+    try {
+      const savedCollapsed = JSON.parse(localStorage.getItem("np7-admin-collapsed") || "[]");
+      if (Array.isArray(savedCollapsed)) setCollapsed(new Set(savedCollapsed));
+    } catch { /* ignore */ }
   }, []);
+
+  const toggleGroup = (label: string) => {
+    setCollapsed((prev) => {
+      const next = new Set(prev);
+      if (next.has(label)) next.delete(label); else next.add(label);
+      localStorage.setItem("np7-admin-collapsed", JSON.stringify([...next]));
+      return next;
+    });
+  };
 
   useEffect(() => {
     function handleClickOutside(e: MouseEvent) {
@@ -478,15 +504,22 @@ export default function AdminShell({
         </div>
 
         <nav className="flex-1 p-3 space-y-4">
-          {sections.map((section) => (
+          {sections.map((section) => {
+            const collapsible = section.items.length > 1;
+            const isCollapsed = collapsible && collapsed.has(section.label);
+            return (
             <div key={section.label}>
-              <div
-                className="px-3 mb-1.5 text-[10px] font-bold tracking-[0.15em]"
-                style={{ color: "var(--admin-text-faint)" }}
+              <button
+                onClick={() => collapsible && toggleGroup(section.label)}
+                className="w-full flex items-center gap-1.5 px-3 mb-1.5 text-[10px] font-bold tracking-[0.15em] group"
+                style={{ color: "var(--admin-text-faint)", cursor: collapsible ? "pointer" : "default" }}
               >
-                {section.label}
-              </div>
-              <div className="space-y-0.5">
+                {collapsible && (
+                  <svg className="w-3 h-3 transition-transform" style={{ transform: isCollapsed ? "rotate(-90deg)" : "none", opacity: 0.6 }} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M6 9l6 6 6-6" /></svg>
+                )}
+                <span>{section.label}</span>
+              </button>
+              <div className="space-y-0.5" style={{ display: isCollapsed ? "none" : "block" }}>
                 {section.items.map((item) => {
                   const active = item.href === "/admin"
                     ? pathname === "/admin"
@@ -518,7 +551,8 @@ export default function AdminShell({
                 })}
               </div>
             </div>
-          ))}
+            );
+          })}
         </nav>
 
         <div className="p-4" style={{ borderTop: "1px solid var(--admin-border)" }}>
