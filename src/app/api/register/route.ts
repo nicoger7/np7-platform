@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { checkBotId } from "botid/server";
 import { createAdminClient } from "@/lib/supabase";
 import { sendEmail } from "@/lib/email/send";
 import { getPortalUser } from "@/lib/auth";
@@ -29,6 +30,10 @@ function bad(msg: string, status = 400) {
 }
 
 export async function POST(request: NextRequest) {
+  // Invisible bot check (Vercel BotID). Auto-bypasses in dev; enforces on Vercel.
+  const verdict = await checkBotId();
+  if ("isBot" in verdict && verdict.isBot) return bad("Couldn't verify your request. Please try again.", 403);
+
   let body: Body;
   try {
     body = await request.json();

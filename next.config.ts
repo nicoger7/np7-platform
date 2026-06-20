@@ -1,4 +1,5 @@
 import type { NextConfig } from "next";
+import { withBotId } from "botid/next/config";
 
 const nextConfig: NextConfig = {
   // Allow the local preview (loads via 127.0.0.1) to fetch dev /_next resources;
@@ -7,4 +8,6 @@ const nextConfig: NextConfig = {
   allowedDevOrigins: ["127.0.0.1"],
 };
 
-export default nextConfig;
+// Wrap with Vercel BotID so the registration form (and other protected routes)
+// can be verified server-side. Invisible to real users; checks run on Vercel.
+export default withBotId(nextConfig);
