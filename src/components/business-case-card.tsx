@@ -9,11 +9,13 @@ interface Case {
   gross_margin: number;
   overhead: number;
   profit: number;
+  planned_revenue?: number;
 }
 
 interface Financials {
   currency: string;
   confirmed: Case;
+  actual: Case;
   capacity: Case | null;
   packages: {
     id: string;
@@ -25,9 +27,10 @@ interface Financials {
     component_count: number;
   }[];
   overhead: {
-    items: { item: string; amount: number }[];
+    items: { item: string; estimate: number; actual: number | null; amount: number }[];
     fixed_costs: number;
     total: number;
+    actual_total: number;
   };
 }
 
@@ -57,7 +60,7 @@ function ProfitBar({ c }: { c: Case }) {
   );
 }
 
-function PnL({ title, sub, c, currency, highlight }: { title: string; sub: string; c: Case; currency: string; highlight?: boolean }) {
+function PnL({ title, sub, c, currency, highlight, profitLabel = "Estimated profit", revenueLabel = "Revenue" }: { title: string; sub: string; c: Case; currency: string; highlight?: boolean; profitLabel?: string; revenueLabel?: string }) {
   const row = (label: string, value: number, opts?: { strong?: boolean; tone?: "muted" | "neg" | "pos" }) => (
     <div className="flex items-center justify-between py-1 text-xs">
       <span className={opts?.strong ? "admin-heading font-medium" : "admin-muted"}>{label}</span>
@@ -89,11 +92,17 @@ function PnL({ title, sub, c, currency, highlight }: { title: string; sub: strin
       </div>
       <ProfitBar c={c} />
       <div className="mt-3 pt-2" style={{ borderTop: "1px solid var(--admin-border)" }}>
-        {row("Revenue", c.revenue)}
+        {row(revenueLabel, c.revenue)}
+        {c.planned_revenue != null && c.planned_revenue > 0 && (
+          <div className="flex items-center justify-between -mt-0.5 mb-0.5 text-[10px] admin-faint">
+            <span>{Math.round((c.revenue / c.planned_revenue) * 100)}% of {money(currency, c.planned_revenue)} owed</span>
+            <span />
+          </div>
+        )}
         {row("Variable cost", c.variable_cost, { tone: "neg" })}
         {row("Gross margin", c.gross_margin, { strong: true })}
         {row("Overhead", c.overhead, { tone: "neg" })}
-        {row("Estimated profit", c.profit, { strong: true, tone: c.profit < 0 ? "neg" : "pos" })}
+        {row(profitLabel, c.profit, { strong: true, tone: c.profit < 0 ? "neg" : "pos" })}
       </div>
     </div>
   );
@@ -121,7 +130,7 @@ export default function BusinessCaseCard({ editionId }: { editionId: string }) {
     return <div className="rounded-xl p-4 text-xs admin-faint" style={{ border: "1px solid var(--admin-border)" }}>Couldn&apos;t load the business case. Refresh to retry.</div>;
   }
 
-  const { currency, confirmed, capacity } = fin;
+  const { currency, confirmed, actual, capacity } = fin;
 
   return (
     <div className="rounded-xl overflow-hidden" style={{ border: "1px solid var(--admin-border)" }}>
@@ -139,14 +148,20 @@ export default function BusinessCaseCard({ editionId }: { editionId: string }) {
             <path d="M9 18l6-6-6-6" />
           </svg>
           <div className="text-left">
-            <div className="text-xs admin-faint">Estimated profit · {confirmed.heads} confirmed</div>
+            <div className="text-xs admin-faint">Plan · {confirmed.heads} confirmed</div>
             <div className={`text-xl font-bold ${confirmed.profit < 0 ? "text-red-400" : "text-green-400"}`}>
               {money(currency, confirmed.profit)}
             </div>
           </div>
+          <div className="text-left pl-4 ml-1 hidden sm:block" style={{ borderLeft: "1px solid var(--admin-border)" }}>
+            <div className="text-xs admin-faint">Reality so far</div>
+            <div className={`text-xl font-bold ${actual.profit < 0 ? "text-red-400" : "text-green-400"}`}>
+              {money(currency, actual.profit)}
+            </div>
+          </div>
         </div>
         <div className="text-right">
-          <div className="text-[10px] admin-faint uppercase tracking-[0.1em]">{open ? "Hide" : "Business case"}</div>
+          <div className="text-[10px] admin-faint uppercase tracking-[0.1em]">{open ? "Hide" : "Plan vs reality"}</div>
           {capacity && (
             <div className="text-xs admin-muted">
               at sell-out: <span className={capacity.profit < 0 ? "text-red-400" : "text-green-400"}>{money(currency, capacity.profit)}</span>
@@ -157,17 +172,20 @@ export default function BusinessCaseCard({ editionId }: { editionId: string }) {
 
       {open && (
         <div className="p-4 space-y-5" style={{ borderTop: "1px solid var(--admin-border)" }}>
-          {/* Confirmed vs capacity */}
+          {/* Plan vs Reality */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-            <PnL title="Confirmed" sub={`${confirmed.heads} paid/committed`} c={confirmed} currency={currency} highlight />
-            {capacity ? (
-              <PnL title="Sell-out projection" sub={`${capacity.heads} spots × avg margin`} c={capacity} currency={currency} />
-            ) : (
-              <div className="rounded-xl p-4 flex items-center justify-center text-xs admin-faint" style={{ border: "1px dashed var(--admin-border)" }}>
-                Set max spots on this edition to project a sell-out.
-              </div>
-            )}
+            <PnL title="Plan" sub={`${confirmed.heads} confirmed · package economics`} c={confirmed} currency={currency} highlight profitLabel="Planned profit" />
+            <PnL title="Reality so far" sub="real cash in − costs to date" c={actual} currency={currency} profitLabel="Actual profit" revenueLabel="Collected" />
           </div>
+
+          {/* Sell-out projection */}
+          {capacity ? (
+            <PnL title="Sell-out projection" sub={`${capacity.heads} spots × avg margin`} c={capacity} currency={currency} />
+          ) : (
+            <div className="rounded-xl p-4 flex items-center justify-center text-xs admin-faint" style={{ border: "1px dashed var(--admin-border)" }}>
+              Set max spots on this edition to project a sell-out.
+            </div>
+          )}
 
           {/* Per-package margins */}
           <div>
@@ -199,30 +217,41 @@ export default function BusinessCaseCard({ editionId }: { editionId: string }) {
             </div>
           </div>
 
-          {/* Overhead breakdown */}
+          {/* Overhead breakdown — estimate → actual per line */}
           {(fin.overhead.items.length > 0 || fin.overhead.fixed_costs > 0) && (
             <div>
-              <div className="text-[10px] font-bold tracking-[0.1em] admin-faint uppercase mb-2">Overhead — {money(currency, fin.overhead.total)}</div>
-              <div className="space-y-1">
+              <div className="flex items-baseline justify-between mb-2">
+                <span className="text-[10px] font-bold tracking-[0.1em] admin-faint uppercase">Overhead costs</span>
+                <span className="text-[10px] admin-faint">est {money(currency, fin.overhead.total)} → real {money(currency, fin.overhead.actual_total)}</span>
+              </div>
+              <div className="rounded-lg overflow-hidden" style={{ border: "1px solid var(--admin-border)" }}>
+                <div className="grid grid-cols-[1fr_90px_90px] gap-2 px-3 py-1.5 admin-surface" style={{ borderBottom: "1px solid var(--admin-border)" }}>
+                  <span className="text-[10px] font-bold admin-faint uppercase">Item</span>
+                  <span className="text-[10px] font-bold admin-faint uppercase text-right">Estimate</span>
+                  <span className="text-[10px] font-bold admin-faint uppercase text-right">Actual</span>
+                </div>
                 {fin.overhead.fixed_costs > 0 && (
-                  <div className="flex items-center justify-between text-xs">
+                  <div className="grid grid-cols-[1fr_90px_90px] gap-2 px-3 py-1.5 text-xs" style={{ borderBottom: "1px solid var(--admin-border)" }}>
                     <span className="admin-muted">Template fixed costs</span>
-                    <span className="admin-muted font-mono">{money(currency, fin.overhead.fixed_costs)}</span>
+                    <span className="admin-muted font-mono text-right">{money(currency, fin.overhead.fixed_costs)}</span>
+                    <span className="admin-faint font-mono text-right">—</span>
                   </div>
                 )}
                 {fin.overhead.items.map((it, i) => (
-                  <div key={i} className="flex items-center justify-between text-xs">
+                  <div key={i} className="grid grid-cols-[1fr_90px_90px] gap-2 px-3 py-1.5 text-xs" style={{ borderBottom: "1px solid var(--admin-border)" }}>
                     <span className="admin-muted truncate pr-2">{it.item}</span>
-                    <span className="admin-muted font-mono">{money(currency, it.amount)}</span>
+                    <span className="admin-muted font-mono text-right">{money(currency, it.estimate)}</span>
+                    <span className={`font-mono text-right ${it.actual != null ? "text-green-400" : "admin-faint"}`}>{it.actual != null ? money(currency, it.actual) : "est."}</span>
                   </div>
                 ))}
               </div>
             </div>
           )}
 
-          <p className="text-[10px] admin-faint">
-            Estimate uses package sell − cost rolled up from components, × confirmed heads, minus edition overhead.
-            Actuals (real paid vs spent) will replace this once payments land.
+          <p className="text-[10px] admin-faint leading-relaxed">
+            <b>Plan</b> = package sell − cost (from components) × confirmed heads, minus overhead estimates.
+            <b> Reality</b> = real payments collected − costs to date. Each overhead line shows its estimate until a
+            real invoice (Actual) replaces it on the Costs tab, so the numbers sharpen toward truth as the trip runs.
           </p>
         </div>
       )}

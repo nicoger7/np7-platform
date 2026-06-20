@@ -129,18 +129,39 @@ export async function GET(
   }
   const confHeads = confirmed.length;
 
-  // 7. Overhead = edition costs (estimated) + template-level fixed costs
+  // 7. Overhead = edition cost line items + template-level fixed costs.
+  //    Each line keeps its ESTIMATE until a real invoice (actual_amount) replaces it.
   const { data: costRows } = await db
     .from("exp_costs")
     .select("item, estimated_amount, actual_amount, status")
     .eq("edition_id", id);
-  const costs: { item: string; estimated_amount: number | null; status: string | null }[] =
+  const costs: { item: string; estimated_amount: number | null; actual_amount: number | null; status: string | null }[] =
     (costRows || []).filter((c: { status: string | null }) => c.status !== "cancelled");
-  const costsTotal = costs.reduce((a, c) => a + (Number(c.estimated_amount) || 0), 0);
+  // "effective" cost per line = actual when it has landed, otherwise the estimate
+  const eff = (c: { estimated_amount: number | null; actual_amount: number | null }) =>
+    c.actual_amount != null ? Number(c.actual_amount) : Number(c.estimated_amount) || 0;
+  const costsTotal = costs.reduce((a, c) => a + (Number(c.estimated_amount) || 0), 0); // pure estimate
+  const costsEffective = costs.reduce((a, c) => a + eff(c), 0);                         // estimate→actual
   const fixedCosts = Number(edition.total_fixed_costs) || 0;
-  const overheadTotal = costsTotal + fixedCosts;
+  const overheadTotal = costsTotal + fixedCosts;          // planned overhead
+  const overheadActual = costsEffective + fixedCosts;     // reality (actuals where known)
 
-  // 8. Confirmed business case
+  // 7b. Reality revenue = real payments received against this edition's bookings.
+  const bookingIds = bookings.map((b) => b.id);
+  let paymentsReceived = 0;
+  if (bookingIds.length) {
+    const { data: pays } = await db
+      .from("exp_payments")
+      .select("amount, status, direction")
+      .in("booking_id", bookingIds);
+    for (const p of (pays || []) as { amount: number | null; status: string | null; direction: string | null }[]) {
+      if (p.status === "cancelled" || p.status === "refunded" || p.status === "void") continue;
+      if (p.direction === "out" || p.direction === "outgoing") continue; // skip outgoing/vendor payments
+      paymentsReceived += Number(p.amount) || 0;
+    }
+  }
+
+  // 8. Plan (confirmed business case) and Reality (cash in vs cost-to-date)
   const confirmedCase = {
     heads: confHeads,
     revenue: round(confRevenue),
@@ -148,6 +169,15 @@ export async function GET(
     gross_margin: round(confRevenue - confCost),
     overhead: round(overheadTotal),
     profit: round(confRevenue - confCost - overheadTotal),
+  };
+  const actualCase = {
+    heads: confHeads,
+    revenue: round(paymentsReceived),         // real cash collected
+    planned_revenue: round(confRevenue),      // what's owed at confirmed heads
+    variable_cost: round(confCost),           // per-head component cost (estimate)
+    gross_margin: round(paymentsReceived - confCost),
+    overhead: round(overheadActual),          // estimate→actual line costs
+    profit: round(paymentsReceived - confCost - overheadActual),
   };
 
   // 9. Sell-out projection at max_spots
@@ -172,6 +202,7 @@ export async function GET(
     currency,
     confirmed_statuses: CONFIRMED_STATUSES,
     confirmed: confirmedCase,
+    actual: actualCase,
     capacity: capacityCase,
     packages: pkgStats
       .map((s) => ({
@@ -185,9 +216,15 @@ export async function GET(
       }))
       .sort((a, b) => b.confirmed_count - a.confirmed_count),
     overhead: {
-      items: costs.map((c) => ({ item: c.item, amount: round(Number(c.estimated_amount) || 0) })),
+      items: costs.map((c) => ({
+        item: c.item,
+        estimate: round(Number(c.estimated_amount) || 0),
+        actual: c.actual_amount != null ? round(Number(c.actual_amount)) : null,
+        amount: round(eff(c)),
+      })),
       fixed_costs: round(fixedCosts),
       total: round(overheadTotal),
+      actual_total: round(overheadActual),
     },
   });
 }
