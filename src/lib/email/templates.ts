@@ -17,15 +17,17 @@ export type EmailVars = {
 };
 
 type Built = { subject: string; html: string };
+type LayoutOpts = { division?: Division; headerImage?: string | null };
 
 const p = (s: string) => `<p style="margin:0 0 14px;">${s}</p>`;
 const greet = (v: EmailVars) => p(`Hey ${esc(v.firstName || "there")} 🤙`);
 
 /** Code-default templates, keyed by template_key. */
-export const TEMPLATES: Record<string, (v: EmailVars) => Built> = {
-  reservation_received: (v) => ({
+export const TEMPLATES: Record<string, (v: EmailVars, opts?: LayoutOpts) => Built> = {
+  reservation_received: (v, opts) => ({
     subject: `We've got your spot — ${v.experienceTitle ?? "NP7 Experience"}`,
     html: emailLayout({
+      ...opts,
       preheader: "Your reservation is saved — here's how to complete it.",
       bodyHtml:
         greet(v) +
@@ -35,9 +37,10 @@ export const TEMPLATES: Record<string, (v: EmailVars) => Built> = {
     }),
   }),
 
-  deposit_confirmation: (v) => ({
+  deposit_confirmation: (v, opts) => ({
     subject: `You're in! 🤙 ${v.experienceTitle ?? "Your NP7 trip"} is booked`,
     html: emailLayout({
+      ...opts,
       preheader: "Deposit received — activate your trip account.",
       bodyHtml:
         greet(v) +
@@ -49,9 +52,10 @@ export const TEMPLATES: Record<string, (v: EmailVars) => Built> = {
     }),
   }),
 
-  account_magic_link: (v) => ({
+  account_magic_link: (v, opts) => ({
     subject: `Your NP7 login link`,
     html: emailLayout({
+      ...opts,
       preheader: "Sign in to your NP7 trip account.",
       bodyHtml:
         greet(v) +
@@ -61,9 +65,10 @@ export const TEMPLATES: Record<string, (v: EmailVars) => Built> = {
     }),
   }),
 
-  payment_pending_nudge: (v) => ({
+  payment_pending_nudge: (v, opts) => ({
     subject: `Your spot is waiting — ${v.experienceTitle ?? "NP7 Experience"}`,
     html: emailLayout({
+      ...opts,
       preheader: "Complete your deposit to lock in your spot.",
       bodyHtml:
         greet(v) +
@@ -73,9 +78,10 @@ export const TEMPLATES: Record<string, (v: EmailVars) => Built> = {
     }),
   }),
 
-  balance_invoice_reminder: (v) => ({
+  balance_invoice_reminder: (v, opts) => ({
     subject: `Balance for ${v.experienceTitle ?? "your NP7 trip"} — invoice`,
     html: emailLayout({
+      ...opts,
       preheader: "Your remaining balance is now due by bank transfer.",
       bodyHtml:
         greet(v) +
@@ -86,9 +92,10 @@ export const TEMPLATES: Record<string, (v: EmailVars) => Built> = {
     }),
   }),
 
-  pre_trip_info: (v) => ({
+  pre_trip_info: (v, opts) => ({
     subject: `Getting ready for ${v.experienceTitle ?? "your NP7 trip"} 🌊`,
     html: emailLayout({
+      ...opts,
       preheader: "Everything you need before you fly out.",
       bodyHtml:
         greet(v) +
@@ -98,9 +105,10 @@ export const TEMPLATES: Record<string, (v: EmailVars) => Built> = {
     }),
   }),
 
-  balance_paid_confirmation: (v) => ({
+  balance_paid_confirmation: (v, opts) => ({
     subject: `All paid up — you're set for ${v.experienceTitle ?? "your NP7 trip"} 🎉`,
     html: emailLayout({
+      ...opts,
       preheader: "Your balance is settled — everything's ready for your trip.",
       bodyHtml:
         greet(v) +
@@ -111,9 +119,10 @@ export const TEMPLATES: Record<string, (v: EmailVars) => Built> = {
     }),
   }),
 
-  pre_trip_final: (v) => ({
+  pre_trip_final: (v, opts) => ({
     subject: `Almost time — final details for ${v.experienceTitle ?? "your NP7 trip"} 🌊`,
     html: emailLayout({
+      ...opts,
       preheader: "Arrival info and your group chat — see you very soon.",
       bodyHtml:
         greet(v) +
@@ -126,9 +135,10 @@ export const TEMPLATES: Record<string, (v: EmailVars) => Built> = {
     }),
   }),
 
-  post_trip_thank_you: (v) => ({
+  post_trip_thank_you: (v, opts) => ({
     subject: `What a week 🤙 thank you — ${v.experienceTitle ?? "your NP7 trip"}`,
     html: emailLayout({
+      ...opts,
       preheader: "Thank you for riding with us — your photos and a small ask.",
       bodyHtml:
         greet(v) +
@@ -141,9 +151,10 @@ export const TEMPLATES: Record<string, (v: EmailVars) => Built> = {
     }),
   }),
 
-  addon_confirmed: (v) => ({
+  addon_confirmed: (v, opts) => ({
     subject: `Confirmed: ${v.addonLabel ?? "your add-on"} — ${v.experienceTitle ?? "your NP7 trip"}`,
     html: emailLayout({
+      ...opts,
       preheader: "Your requested add-on is confirmed.",
       bodyHtml:
         greet(v) +
@@ -171,13 +182,14 @@ export function renderTemplate(
   key: string,
   vars: EmailVars,
   dbOverride?: { subject_line?: string | null; body?: string | null } | null,
-  division: Division = "experience"
+  division: Division = "experience",
+  headerImage?: string | null
 ): Built {
   if (dbOverride?.body) {
     const subject = dbOverride.subject_line ? interpolate(dbOverride.subject_line, vars) : (TEMPLATES[key]?.(vars).subject ?? "NP7 Experience");
-    return { subject, html: emailLayout({ division, bodyHtml: interpolate(dbOverride.body, vars) }) };
+    return { subject, html: emailLayout({ division, headerImage, bodyHtml: interpolate(dbOverride.body, vars) }) };
   }
   const fn = TEMPLATES[key];
   if (!fn) throw new Error(`Unknown email template: ${key}. Known: ${FALLBACK_KEYS.join(", ")}`);
-  return fn(vars);
+  return fn(vars, { division, headerImage });
 }
