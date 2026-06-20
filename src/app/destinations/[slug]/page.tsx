@@ -266,25 +266,29 @@ export default async function DestinationPage({ params }: Props) {
       {/* PARTNERS */}
       {partners.length > 0 && (
         <section id="partners" className="scroll-mt-[120px] py-20 sm:py-24 bg-[#fff7ec]">
-          <div className="max-w-[1000px] mx-auto px-6 sm:px-8">
-            <Reveal className="mb-10 text-center max-w-[620px] mx-auto">
+          <div className="max-w-[1180px] mx-auto px-6 sm:px-8">
+            <Reveal className="mb-12 text-center max-w-[620px] mx-auto">
               <p className="text-[11px] font-bold tracking-[0.28em] text-[#f47b20] mb-3">ON THE GROUND</p>
               <h2 className="text-3xl sm:text-4xl font-black tracking-[-0.03em] text-[#00374a]">Local partners</h2>
+              <p className="text-[15px] text-[#6a7a80] mt-3 leading-relaxed">The spots you&apos;ll actually be at — where you ride, where you stay, where you refuel.</p>
+              <div className="h-[3px] w-14 rounded-full mx-auto mt-5" style={{ background: SUN_TO_SEA }} />
             </Reveal>
-            <div className="grid sm:grid-cols-2 gap-4">
+            <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-5">
               {partners.map((p, i) => (
-                <Reveal key={i} delay={i * 50}>
-                  <div className="bg-white rounded-2xl border border-[#f0e6d6] p-5 flex items-start gap-4 h-full hover:-translate-y-0.5 hover:shadow-[0_12px_30px_rgba(244,123,32,0.12)] transition-all">
+                <Reveal key={i} delay={i * 70}>
+                  <div className="group bg-white rounded-3xl overflow-hidden border border-[#f0e6d6] h-full hover:-translate-y-0.5 hover:shadow-[0_18px_44px_rgba(244,123,32,0.16)] transition-all">
                     {p.image ? (
-                      // eslint-disable-next-line @next/next/no-img-element
-                      <img src={p.image} alt={p.name} className="w-20 h-20 rounded-xl object-cover shrink-0 border border-[#f0e6d6]" />
+                      <div className="h-[200px] overflow-hidden bg-[#00374a]">
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                        <img src={p.image} alt={p.name} className="w-full h-full object-cover transition-transform duration-[1.1s] ease-out group-hover:scale-105" />
+                      </div>
                     ) : (
-                      <div className="w-20 h-20 rounded-xl shrink-0 grid place-items-center text-white font-black text-2xl" style={{ background: SUN_TO_SEA }} aria-hidden>{p.name?.trim()?.[0]?.toUpperCase() ?? "•"}</div>
+                      <div className="h-[200px] grid place-items-center text-white font-black text-5xl" style={{ background: SUN_TO_SEA }} aria-hidden>{p.name?.trim()?.[0]?.toUpperCase() ?? "•"}</div>
                     )}
-                    <div className="min-w-0">
-                      <p className="text-[15px] font-bold text-[#00374a]">{p.name}</p>
-                      {p.description && <p className="text-[13.5px] text-[#6a7a80] leading-relaxed mt-1">{p.description}</p>}
-                      {p.url && <a href={p.url} target="_blank" rel="noopener" className="inline-block text-[13px] font-semibold text-[#00afdb] hover:underline mt-2">Visit ↗</a>}
+                    <div className="p-5">
+                      <h3 className="text-[17px] font-extrabold text-[#00374a] leading-tight">{p.name}</h3>
+                      {p.description && <p className="text-[13.5px] text-[#6a7a80] leading-relaxed mt-1.5">{p.description}</p>}
+                      {p.url && <a href={p.url} target="_blank" rel="noopener" className="inline-flex items-center gap-1 text-[13px] font-bold text-[#00afdb] hover:underline mt-3">Visit ↗</a>}
                     </div>
                   </div>
                 </Reveal>
