@@ -4,7 +4,7 @@ import type { Metadata } from "next";
 import { getPortalUser } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 import { getMemberBookings, getMemberBannerImages } from "@/lib/portal-data";
-import { fmtDates } from "@/lib/portal-status";
+import { fmtDates, needsDownpayment } from "@/lib/portal-status";
 import { PortalChrome } from "@/components/portal/portal-chrome";
 import { MemberHomeBanner } from "@/components/portal/member-home-banner";
 import { flags } from "@/lib/flags";
@@ -32,6 +32,7 @@ export default async function AccountHome() {
     .filter((b) => b.edition?.date_start && b.edition.date_start >= today)
     .sort((a, b) => ((a.edition?.date_start ?? "") < (b.edition?.date_start ?? "") ? -1 : 1));
   const nextTrip = upcoming[0] ?? null;
+  const unsecured = bookings.filter(needsDownpayment);
 
   return (
     <>
@@ -43,6 +44,23 @@ export default async function AccountHome() {
             name={first}
             subtitle="Welcome to your NP7 home — your trips, your gear and everything in between."
           />
+
+          {/* secure-your-spot — unsecured registrations */}
+          {unsecured.length > 0 && (
+            <div className="mb-7 rounded-2xl p-5 sm:p-6 text-white" style={{ background: "linear-gradient(135deg,#f47b20,#d8631a)" }}>
+              <p className="text-[11px] font-bold tracking-[0.2em] uppercase text-white/80 mb-1.5">Action needed</p>
+              <h2 className="text-xl font-black tracking-[-0.02em] mb-1">Secure your spot</h2>
+              <p className="text-[14px] text-white/90 mb-4 max-w-[560px]">You&apos;re registered, but your place isn&apos;t held yet. Pay the refundable downpayment to lock it in — you&apos;ve got 14 days to change your mind, plenty of time to sort flights.</p>
+              {unsecured.map((b) => (
+                <Link key={b.id} href={`/account/bookings/${b.id}`} className="flex items-center justify-between gap-3 bg-white/15 hover:bg-white/25 rounded-xl px-4 py-3 mb-2 last:mb-0 transition-colors">
+                  <span className="font-bold text-[14px] truncate">{b.experience?.title ?? "Your trip"}<span className="font-normal text-white/80"> · {fmtDates(b.edition?.date_start, b.edition?.date_end)}</span></span>
+                  <span className="shrink-0 inline-flex items-center gap-1.5 text-[13px] font-bold">Secure now
+                    <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M5 12h14M13 6l6 6-6 6" /></svg>
+                  </span>
+                </Link>
+              ))}
+            </div>
+          )}
 
           {/* dashboard stats */}
           <div className="flex flex-wrap gap-3 mb-7">

@@ -31,6 +31,7 @@ interface Booking {
 }
 
 const STATUSES = [
+  { value: "registered", label: "Registered (lead)", color: "bg-sky-400" },
   { value: "lead", label: "Lead", color: "bg-gray-500" },
   { value: "interested", label: "Interested", color: "bg-yellow-500" },
   { value: "enquiring", label: "Enquiring", color: "bg-blue-400" },

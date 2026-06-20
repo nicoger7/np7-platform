@@ -10,8 +10,16 @@ export function bookingStatus(b: Pick<MemberBooking, "status" | "downpayment_rec
   if (s === "confirmed") return { label: "Confirmed", tone: "blue" };
   if (s === "attended") return { label: "Completed", tone: "gray" };
   if (s === "lost") return { label: "Cancelled", tone: "gray" };
+  if (s === "registered") return { label: "Spot not secured yet", tone: "amber" };
   if (s === "payment_pending") return { label: "Deposit pending", tone: "amber" };
   return { label: "Reserved", tone: "amber" };
+}
+
+/** A booking whose spot isn't secured yet → show the "Secure your spot" CTA. */
+export function needsDownpayment(b: Pick<MemberBooking, "status" | "downpayment_received" | "final_payment_received">): boolean {
+  if (b.downpayment_received || b.final_payment_received) return false;
+  const s = (b.status ?? "").toLowerCase();
+  return !["paid", "confirmed", "attended", "lost", "cancelled"].includes(s);
 }
 
 export const CHIP_CLASS: Record<StatusChip["tone"], string> = {
