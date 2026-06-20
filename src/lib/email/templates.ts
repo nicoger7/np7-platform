@@ -25,15 +25,18 @@ const greet = (v: EmailVars) => p(`Hey ${esc(v.firstName || "there")} 🤙`);
 /** Code-default templates, keyed by template_key. */
 export const TEMPLATES: Record<string, (v: EmailVars, opts?: LayoutOpts) => Built> = {
   reservation_received: (v, opts) => ({
-    subject: `We've got your spot — ${v.experienceTitle ?? "NP7 Experience"}`,
+    subject: `You're registered — ${v.experienceTitle ?? "NP7 Experience"} 🤙`,
     html: emailLayout({
       ...opts,
-      preheader: "Your reservation is saved — here's how to complete it.",
+      preheader: "You're on the list — here's how it works and how to secure your spot.",
       bodyHtml:
         greet(v) +
-        p(`Your spot for <strong>${esc(v.experienceTitle || "")}${v.editionLabel ? " · " + esc(v.editionLabel) : ""}</strong> is reserved. We'll send your deposit payment link right away.`) +
-        p(`Once your deposit is in, we'll reach out personally to sort every detail with you.`) +
-        p(`Stoked to have you on the water.<br>— Nico & the NP7 team`),
+        p(`You're registered for <strong>${esc(v.experienceTitle || "")}${v.editionLabel ? " · " + esc(v.editionLabel) : ""}</strong> — awesome to have you. Here's how it works from here:`) +
+        p(`<strong>1. Secure your spot.</strong> Your place is held once you pay the refundable downpayment in your account — you've got 14 days to change your mind and get it back, plenty of time to sort flights.`) +
+        p(`<strong>2. Plan it with us.</strong> Manage your booking, add extra nights and meet your crew — all in your trip account.`) +
+        p(`<strong>3. Pay the balance later</strong> by bank transfer, in good time before the trip.`) +
+        (v.bookingLink ? emailButton("Secure my spot", v.bookingLink) : "") +
+        p(`Any questions, just reply — we're happy to help.<br>— Nico & the NP7 team`),
     }),
   }),
 

@@ -37,7 +37,7 @@ type SendResult = { status: "sent" | "failed" | "skipped"; id?: string; error?: 
  * is automated customer lifecycle mail and stays suppressed during the soft launch until
  * EMAIL_LIFECYCLE_LIVE=true, because admin data may still be wrong.
  */
-const SOFT_LAUNCH_ALLOWED = new Set(["account_magic_link"]);
+const SOFT_LAUNCH_ALLOWED = new Set(["account_magic_link", "reservation_received"]);
 function lifecycleSuppressed(templateKey: string): boolean {
   const live = process.env.EMAIL_LIFECYCLE_LIVE === "true" || process.env.EMAIL_LIFECYCLE_LIVE === "1";
   return !live && !SOFT_LAUNCH_ALLOWED.has(templateKey);

@@ -19,31 +19,29 @@ export type ReserveContext = {
 };
 
 /**
- * The booking flow. Guests fill First name · Last name · Email · Phone, then pay
- * the €300 deposit via Stripe. Logged-in members skip the form entirely — we
- * already have their details, so they get a one-line confirm → straight to
- * Stripe (with their saved card offered). Every extra field costs conversions.
+ * Free, low-friction registration. Guests give just First name · Last name ·
+ * Email (+ optional marketing consent) — no phone, no payment. Registering
+ * creates a lead; the refundable downpayment that SECURES the spot happens later
+ * from the member account. Logged-in members skip the form (one-tap register).
  */
 export function ReserveModal({ ctx, onClose }: { ctx: ReserveContext; onClose: () => void }) {
   const [firstName, setFirstName] = useState("");
   const [lastName, setLastName] = useState("");
   const [email, setEmail] = useState("");
-  const [phone, setPhone] = useState("");
+  const [marketingOptIn, setMarketingOptIn] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState("");
-  const [savedNoPayment, setSavedNoPayment] = useState(false);
+  const [registered, setRegistered] = useState(false);
   const [member, setMember] = useState(false);
-  const [ready, setReady] = useState(false); // /me resolved → know guest vs member
+  const [ready, setReady] = useState(false);
 
-  // detect a logged-in member and prefill
   useEffect(() => {
     fetch("/api/portal/me")
       .then((r) => r.json())
       .then((d) => {
         if (d?.loggedIn) {
           setMember(true);
-          setFirstName(d.firstName ?? ""); setLastName(d.lastName ?? "");
-          setEmail(d.email ?? ""); setPhone(d.phone ?? "");
+          setFirstName(d.firstName ?? ""); setLastName(d.lastName ?? ""); setEmail(d.email ?? "");
         }
       })
       .catch(() => {})
@@ -57,27 +55,19 @@ export function ReserveModal({ ctx, onClose }: { ctx: ReserveContext; onClose: (
     setError("");
     setSubmitting(true);
     try {
-      const res = await fetch("/api/reserve", {
+      const res = await fetch("/api/register", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           experienceId: ctx.experienceId,
           editionId: ctx.editionId,
           packageId: ctx.packageId,
-          firstName, lastName, email, phone,
+          firstName, lastName, email, marketingOptIn,
         }),
       });
       const json = await res.json();
-      if (!res.ok) {
-        setError(json.error ?? "Something went wrong — please try again.");
-        setSubmitting(false);
-        return;
-      }
-      if (json.url) {
-        window.location.href = json.url; // → Stripe Checkout
-        return;
-      }
-      setSavedNoPayment(true); // fallback: reservation saved, payment link follows
+      if (!res.ok) { setError(json.error ?? "Something went wrong — please try again."); setSubmitting(false); return; }
+      setRegistered(true);
       setSubmitting(false);
     } catch {
       setError("Something went wrong — please try again.");
@@ -85,37 +75,33 @@ export function ReserveModal({ ctx, onClose }: { ctx: ReserveContext; onClose: (
     }
   }
 
-  async function logoutAndBookAsGuest() {
+  async function logoutAndRegisterAsGuest() {
     await createClient().auth.signOut().catch(() => {});
     setMember(false);
-    setFirstName(""); setLastName(""); setEmail(""); setPhone("");
+    setFirstName(""); setLastName(""); setEmail("");
   }
 
   const inputCls = "px-4 py-3.5 rounded-xl border border-[#dde6e9] text-[15px] text-[#00374a] outline-none focus:border-[#00afdb] placeholder:text-[#9aa6ac]";
-  const reassurances = [
-    "After payment we contact you personally for everything else — no forms, no paperwork.",
-    "Flying in earlier or out later? Add extra hotel nights with us anytime after booking.",
-    `The remaining balance (${fmt(Math.max(ctx.price - DEPOSIT_EUR, 0))}) is due later — we'll sort it together.`,
-  ];
 
   return (
-    <div className="fixed inset-0 z-[70] flex items-end sm:items-center justify-center p-0 sm:p-6" role="dialog" aria-modal="true" aria-label="Reserve your spot">
+    <div className="fixed inset-0 z-[70] flex items-end sm:items-center justify-center p-0 sm:p-6" role="dialog" aria-modal="true" aria-label="Register for the clinic">
       <button className="absolute inset-0 bg-[#00141d]/70 backdrop-blur-sm" onClick={onClose} aria-label="Close" />
       <div className="relative w-full sm:max-w-[460px] bg-white rounded-t-3xl sm:rounded-3xl shadow-[0_30px_80px_rgba(0,20,30,0.4)] max-h-[92svh] overflow-y-auto">
-        {savedNoPayment ? (
+        {registered ? (
           <div className="p-8 text-center">
             <div className="mx-auto w-14 h-14 rounded-full bg-[#00afdb] grid place-items-center mb-5">
               <svg className="w-7 h-7 text-white" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><path d="M20 6L9 17l-5-5" /></svg>
             </div>
-            <h3 className="text-2xl font-black tracking-[-0.02em] text-[#00374a] mb-2">Spot reserved!</h3>
-            <p className="text-[14.5px] text-[#5a6b72] leading-relaxed mb-6">We&apos;ll send your deposit payment link right away and contact you personally to sort every detail.</p>
-            <button onClick={onClose} className="px-7 py-3.5 rounded-full text-[13.5px] font-bold text-white bg-[#00afdb]">Done</button>
+            <h3 className="text-2xl font-black tracking-[-0.02em] text-[#00374a] mb-2">You&apos;re registered! 🤙</h3>
+            <p className="text-[14.5px] text-[#5a6b72] leading-relaxed mb-6">We&apos;ve emailed you how it works. When you&apos;re ready, <strong>secure your spot</strong> with the refundable downpayment in your account — no rush, you&apos;ve got time.</p>
+            <a href="/account" className="inline-block px-7 py-3.5 rounded-full text-[13.5px] font-bold text-white bg-[#00afdb]">Open my account</a>
+            <button onClick={onClose} className="block w-full mt-3 text-[12.5px] font-semibold text-[#7a8a90] hover:text-[#00374a]">Done</button>
           </div>
         ) : (
           <div className="p-6 sm:p-8">
             <div className="flex items-start justify-between gap-4 mb-5">
               <div>
-                <h3 className="text-xl font-black tracking-[-0.02em] text-[#00374a]">Reserve your spot</h3>
+                <h3 className="text-xl font-black tracking-[-0.02em] text-[#00374a]">Register for the clinic</h3>
                 <p className="text-[13px] text-[#6a7a80] mt-1">
                   {ctx.experienceTitle}
                   {ctx.editionLabel ? ` · ${ctx.editionLabel}` : ""}
@@ -134,21 +120,21 @@ export function ReserveModal({ ctx, onClose }: { ctx: ReserveContext; onClose: (
                 <span className="font-bold text-[#00374a] shrink-0">{fmt(ctx.price)}</span>
               </div>
               <div className="flex items-center justify-between gap-3 mt-2 pt-2 border-t border-[#e6eef0] text-[13.5px]">
-                <span className="text-[#5a6b72]">Due today to reserve</span>
-                <span className="font-black text-[#00afdb] text-[16px] shrink-0">{fmt(DEPOSIT_EUR)}</span>
+                <span className="text-[#5a6b72]">Due today to register</span>
+                <span className="font-black text-[#00afdb] text-[15px] shrink-0">Free</span>
               </div>
             </div>
 
-            {/* what happens next — the journey after reserving */}
+            {/* what happens next */}
             <div className="mb-6">
-              <p className="text-[11px] font-bold uppercase tracking-[0.14em] text-[#9aa6ac] mb-2.5">What happens next</p>
+              <p className="text-[11px] font-bold uppercase tracking-[0.14em] text-[#9aa6ac] mb-2.5">How it works</p>
               <ol className="space-y-2">
                 {[
-                  "Reserve today — your €300 deposit secures your spot.",
-                  "We reach out personally to sort every detail.",
-                  "Plan it in your trip account — flights, extra nights & your team.",
-                  "Pay the balance by bank transfer, in good time before the trip.",
-                  "Show up & have your epic week.",
+                  "Register free today — no payment, no commitment.",
+                  "We email you how it works & set up your account.",
+                  `Secure your spot with the refundable ${fmt(DEPOSIT_EUR)} downpayment — 14 days to change your mind.`,
+                  "Plan it in your account — flights, extra nights & your team.",
+                  "Pay the balance later, then show up & ride.",
                 ].map((t, i) => (
                   <li key={i} className="flex items-start gap-2.5 text-[13px] text-[#5a6b72] leading-snug">
                     <span className="shrink-0 w-5 h-5 rounded-full bg-[#00afdb]/12 text-[#0782a0] grid place-items-center text-[11px] font-bold">{i + 1}</span>
@@ -161,53 +147,44 @@ export function ReserveModal({ ctx, onClose }: { ctx: ReserveContext; onClose: (
             {!ready ? (
               <div className="py-8 text-center text-[13px] text-[#9aa6ac]">One sec…</div>
             ) : member ? (
-              /* ── Logged-in member: one-line confirm → Stripe ── */
               <>
                 <div className="rounded-2xl border border-[#cdeefa] bg-[#00afdb]/8 px-5 py-4 mb-5">
-                  <p className="text-[12px] font-bold uppercase tracking-[0.14em] text-[#0782a0] mb-1">Booking as</p>
+                  <p className="text-[12px] font-bold uppercase tracking-[0.14em] text-[#0782a0] mb-1">Registering as</p>
                   <p className="text-[15px] font-bold text-[#00374a]">{firstName} {lastName}</p>
-                  <p className="text-[13px] text-[#5a6b72] mt-0.5 break-all">{email}{phone ? ` · ${phone}` : ""}</p>
-                  <p className="text-[12.5px] text-[#0782a0] mt-2">✓ You can save your card at checkout for next time.</p>
+                  <p className="text-[13px] text-[#5a6b72] mt-0.5 break-all">{email}</p>
                 </div>
-
                 {error && <p className="text-[13px] text-red-500 mb-4">{error}</p>}
-
                 <button onClick={go} disabled={submitting}
                   className="w-full px-7 py-4 rounded-full text-[15px] font-bold text-white bg-[#00afdb] shadow-[0_6px_24px_rgba(0,175,219,0.35)] hover:bg-[#15c0ec] disabled:opacity-60 transition-all">
-                  {submitting ? "One sec…" : `Continue to payment · ${fmt(DEPOSIT_EUR)} deposit`}
+                  {submitting ? "One sec…" : "Register me — free"}
                 </button>
-                <button onClick={logoutAndBookAsGuest} disabled={submitting}
+                <button onClick={logoutAndRegisterAsGuest} disabled={submitting}
                   className="w-full mt-3 text-[12.5px] font-semibold text-[#7a8a90] hover:text-[#00374a] transition-colors disabled:opacity-60">
-                  Not you? Log out &amp; book as someone else
+                  Not you? Log out &amp; register as someone else
                 </button>
               </>
             ) : (
-              /* ── Guest: the 4-field form ── */
               <form onSubmit={(e) => { e.preventDefault(); go(); }}>
                 <div className="grid grid-cols-2 gap-3 mb-3">
                   <input required value={firstName} onChange={(e) => setFirstName(e.target.value)} placeholder="First name" autoComplete="given-name" className={inputCls} />
                   <input required value={lastName} onChange={(e) => setLastName(e.target.value)} placeholder="Last name" autoComplete="family-name" className={inputCls} />
                 </div>
-                <input required type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="Email" autoComplete="email" className={`w-full mb-3 ${inputCls}`} />
-                <input required type="tel" value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="Phone (incl. country code)" autoComplete="tel" className={`w-full mb-5 ${inputCls}`} />
+                <input required type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="Email" autoComplete="email" className={`w-full mb-4 ${inputCls}`} />
+
+                <label className="flex items-start gap-2.5 mb-5 cursor-pointer">
+                  <input type="checkbox" checked={marketingOptIn} onChange={(e) => setMarketingOptIn(e.target.checked)} className="mt-0.5 w-4 h-4 accent-[#00afdb]" />
+                  <span className="text-[12.5px] text-[#5a6b72] leading-snug">Keep me posted on trips, tips &amp; the odd offer. <span className="text-[#9aa6ac]">(optional — you&apos;ll still get everything about your booking)</span></span>
+                </label>
 
                 {error && <p className="text-[13px] text-red-500 mb-4">{error}</p>}
 
                 <button type="submit" disabled={submitting}
                   className="w-full px-7 py-4 rounded-full text-[15px] font-bold text-white bg-[#00afdb] shadow-[0_6px_24px_rgba(0,175,219,0.35)] hover:bg-[#15c0ec] disabled:opacity-60 transition-all">
-                  {submitting ? "One sec…" : `Reserve now · pay ${fmt(DEPOSIT_EUR)} deposit`}
+                  {submitting ? "One sec…" : "Register free"}
                 </button>
+                <p className="mt-3 text-center text-[12px] text-[#9aa6ac]">No payment now. Your spot is secured later with a refundable downpayment.</p>
               </form>
             )}
-
-            <ul className="mt-5 space-y-2">
-              {reassurances.map((t) => (
-                <li key={t} className="flex items-start gap-2 text-[12.5px] text-[#7a8a90] leading-relaxed">
-                  <svg className="w-3.5 h-3.5 mt-0.5 shrink-0 text-[#00afdb]" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><path d="M20 6L9 17l-5-5" /></svg>
-                  {t}
-                </li>
-              ))}
-            </ul>
           </div>
         )}
       </div>

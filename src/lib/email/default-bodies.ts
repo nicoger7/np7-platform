@@ -9,7 +9,7 @@ const BTN = (label: string, linkVar: string) =>
 const SIGN = "<br>— Nico &amp; the NP7 team";
 
 export const DEFAULT_SUBJECTS: Record<string, string> = {
-  reservation_received: "We've got your spot — {{experienceTitle}}",
+  reservation_received: "You're registered — {{experienceTitle}} 🤙",
   deposit_confirmation: "You're in! 🤙 {{experienceTitle}} is booked",
   account_magic_link: "Your NP7 login link",
   payment_pending_nudge: "Your spot is waiting — {{experienceTitle}}",
@@ -24,9 +24,12 @@ export const DEFAULT_SUBJECTS: Record<string, string> = {
 export const DEFAULT_BODIES: Record<string, string> = {
   reservation_received:
     P("Hey {{firstName}} 🤙") +
-    P("Your spot for <strong>{{experienceTitle}}</strong> is reserved. We'll send your deposit payment link right away.") +
-    P("Once your deposit is in, we'll reach out personally to sort every detail with you.") +
-    P("Stoked to have you on the water." + SIGN),
+    P("You're registered for <strong>{{experienceTitle}}</strong> — awesome to have you. Here's how it works from here:") +
+    P("<strong>1. Secure your spot.</strong> Your place is held once you pay the refundable downpayment in your account — 14 days to change your mind, plenty of time to sort flights.") +
+    P("<strong>2. Plan it with us.</strong> Manage your booking, add extra nights and meet your crew in your trip account.") +
+    P("<strong>3. Pay the balance later</strong> by bank transfer, in good time before the trip.") +
+    BTN("Secure my spot", "bookingLink") +
+    P("Any questions, just reply." + SIGN),
 
   deposit_confirmation:
     P("Hey {{firstName}} 🤙") +
