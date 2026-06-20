@@ -26,6 +26,7 @@ export default function DestinationsPage() {
   const [showNew, setShowNew] = useState(false);
   const [form, setForm] = useState({ name: "", region: "", country: "" });
   const [error, setError] = useState("");
+  const [generating, setGenerating] = useState(false);
 
   const load = useCallback(() => {
     fetch("/api/admin/destinations").then((r) => r.json()).then((d) => {
@@ -45,6 +46,15 @@ export default function DestinationsPage() {
     else { const j = await res.json().catch(() => ({})); setError(j.error || "Failed"); }
   }
 
+  async function generate() {
+    setGenerating(true);
+    const res = await fetch("/api/admin/destinations/generate", { method: "POST" });
+    setGenerating(false);
+    const j = await res.json().catch(() => ({}));
+    if (res.ok) { alert(`Created ${j.created} destination${j.created === 1 ? "" : "s"} and linked ${j.linked} experience${j.linked === 1 ? "" : "s"}. Edit + fill content below.`); load(); }
+    else alert(j.error || "Couldn't generate destinations.");
+  }
+
   const inputClass = "w-full px-3 py-2 admin-input border rounded-lg text-sm focus:outline-none focus:border-[#0aa3c7]";
   const labelClass = "block text-xs font-medium admin-muted mb-1";
 
@@ -55,7 +65,10 @@ export default function DestinationsPage() {
           <h1 className="text-2xl font-bold admin-heading mb-1">Destinations</h1>
           <p className="text-sm admin-muted">Reusable location pages — a trip points to its destination, the destination lists its trips.</p>
         </div>
-        <button onClick={() => setShowNew(!showNew)} className="px-4 py-2 bg-[#0aa3c7] hover:bg-[#0aa3c7]/90 text-white text-sm font-bold rounded-lg transition-colors">New Destination</button>
+        <div className="flex items-center gap-3">
+          <button onClick={generate} disabled={generating} className="px-4 py-2 admin-surface admin-muted text-sm font-bold rounded-lg transition-colors disabled:opacity-50" style={{ border: "1px solid var(--admin-border)" }} title="Create a destination for each experience location and link them">{generating ? "Generating…" : "Generate from experiences"}</button>
+          <button onClick={() => setShowNew(!showNew)} className="px-4 py-2 bg-[#0aa3c7] hover:bg-[#0aa3c7]/90 text-white text-sm font-bold rounded-lg transition-colors">New Destination</button>
+        </div>
       </div>
 
       {showNew && (

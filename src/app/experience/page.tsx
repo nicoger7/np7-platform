@@ -46,6 +46,7 @@ type RawExperience = {
   currency: string | null;
   description: string | null;
   hero_image: string | null;
+  destination_id: string | null;
   exp_editions: Edition[] | null;
 };
 
@@ -83,7 +84,7 @@ export default async function ExperienceOverviewPage() {
   const { data } = await supabase
     .from("exp_experiences")
     .select(
-      "id,title,slug,location,price,currency,description,hero_image,exp_editions(id,date_start,date_end,max_spots,spots_taken,status,active)"
+      "id,title,slug,location,price,currency,description,hero_image,destination_id,exp_editions(id,date_start,date_end,max_spots,spots_taken,status,active)"
     )
     .eq("status", "published");
 
@@ -119,8 +120,12 @@ export default async function ExperienceOverviewPage() {
     ).sort(),
   }));
 
-  // unique destinations derived from experience locations
-  const destinations = Array.from(
+  // Destinations: prefer real destination records (clickable → /destinations/:slug);
+  // fall back to location-derived cards (non-clickable) until they're generated in admin.
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { data: destRows } = await (supabase as any).from("destinations").select("id,slug,name,hero_image").eq("status", "published").order("sort_order");
+  const tableDest = (destRows ?? []) as { id: string; slug: string; name: string; hero_image: string | null }[];
+  const derived = Array.from(
     experiences.reduce((map, e) => {
       const loc = e.location ?? "Somewhere epic";
       if (!map.has(loc)) map.set(loc, { location: loc, image: e.hero_image, count: 0 });
@@ -129,6 +134,9 @@ export default async function ExperienceOverviewPage() {
     }, new Map<string, { location: string; image: string | null; count: number }>())
     .values()
   );
+  const destCards = tableDest.length
+    ? tableDest.map((d) => ({ key: d.slug, title: d.name, image: d.hero_image, count: experiences.filter((e) => e.destination_id === d.id).length, href: `/destinations/${d.slug}` }))
+    : derived.map((d) => ({ key: d.location, title: d.location, image: d.image, count: d.count, href: "#experiences" }));
 
   return (
     <>
@@ -199,13 +207,13 @@ export default async function ExperienceOverviewPage() {
             </Reveal>
             <Reveal>
               <Carousel label="Destinations">
-                {destinations.map((d) => (
-                  <Link key={d.location} href="#experiences" className="snap-start shrink-0 w-[260px] sm:w-[300px] group">
+                {destCards.map((d) => (
+                  <Link key={d.key} href={d.href} className="snap-start shrink-0 w-[260px] sm:w-[300px] group">
                     <div className="relative h-[360px] rounded-3xl overflow-hidden">
                       <div className="absolute inset-0 bg-cover bg-center bg-[#0a4a5e] transition-transform duration-500 group-hover:scale-105" style={{ backgroundImage: d.image ? `url('${d.image}')` : undefined }} />
                       <div className="absolute inset-0 bg-gradient-to-t from-[#00374a] via-[#00374a]/20 to-transparent" />
                       <div className="absolute bottom-0 p-6">
-                        <h3 className="text-2xl font-black tracking-[-0.02em]">{d.location}</h3>
+                        <h3 className="text-2xl font-black tracking-[-0.02em]">{d.title}</h3>
                         <p className="text-[12px] font-semibold text-[#8fe6f2] mt-1">{d.count} {d.count === 1 ? "trip" : "trips"} in 2026</p>
                       </div>
                     </div>
