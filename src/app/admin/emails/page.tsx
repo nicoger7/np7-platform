@@ -67,6 +67,16 @@ export default async function EmailsHubPage() {
         )}
       </div>
 
+      {/* Lifecycle flow */}
+      <div className="flex items-center gap-1.5 flex-wrap mb-6 text-[11px]">
+        {["Account", "Reserve", "Deposit", "Balance", "Pre-trip", "Post-trip"].map((s, i, arr) => (
+          <span key={s} className="flex items-center gap-1.5">
+            <span className="px-2.5 py-1 rounded-full bg-[#0aa3c7]/10 text-[#0aa3c7] font-bold">{s}</span>
+            {i < arr.length - 1 && <span className="admin-faint">→</span>}
+          </span>
+        ))}
+      </div>
+
       {/* Cards */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
         {cards.map((c) => (
