@@ -41,6 +41,7 @@ export function PackageComponentsEditor({
   packageId,
   experienceId,
   namePrefix,
+  sellPrice,
   onChanged,
 }: {
   packageId: string;
@@ -48,6 +49,8 @@ export function PackageComponentsEditor({
   experienceId?: string | null;
   /** e.g. "BON - " — prefilled when creating a new component */
   namePrefix?: string;
+  /** The package's current (manual) sell price — to show override status + a one-click sync. */
+  sellPrice?: number | null;
   onChanged?: () => void;
 }) {
   const [links, setLinks] = useState<LinkedComponent[]>([]);
@@ -136,23 +139,54 @@ export function PackageComponentsEditor({
     { cost: 0, sell: 0 }
   );
 
+  const computedBuy = Math.round(totals.cost * 100) / 100;
+  const computedSell = Math.round(totals.sell * 100) / 100;
+  const computedMargin = Math.round((totals.sell - totals.cost) * 100) / 100;
+  const priceMatches = sellPrice != null && Math.abs(Number(sellPrice) - computedSell) < 0.005;
+
+  /** Set the package's sell price to the components total (the manual override). */
+  async function applyComputedPrice() {
+    await fetch(`/api/admin/packages/${packageId}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ price: computedSell }),
+    });
+    onChanged?.();
+  }
+
   const inputClass = "px-2 py-1.5 admin-input border rounded-lg text-xs focus:outline-none focus:border-[#0aa3c7]";
 
   if (loading) return <div className="text-xs admin-faint py-2">Loading components…</div>;
 
   return (
     <div className="rounded-lg p-3" style={{ border: "1px solid var(--admin-border)" }}>
-      <div className="flex items-center justify-between mb-2">
+      <div className="flex flex-wrap items-center justify-between gap-2 mb-2">
         <span className="text-[10px] font-bold tracking-[0.1em] admin-faint uppercase">
           Components ({links.length})
         </span>
-        <span className="text-[10px] admin-muted font-mono">
-          cost {money(totals.cost)} · sell {money(totals.sell)} · margin{" "}
-          <span className={totals.sell - totals.cost < 0 ? "text-red-400" : "text-green-400"}>
-            {money(totals.sell - totals.cost)}
+        <div className="flex items-center gap-3">
+          <span className="text-[10px] admin-muted font-mono">
+            buy {money(computedBuy)} · sell {money(computedSell)} · margin{" "}
+            <span className={computedMargin < 0 ? "text-red-400" : "text-green-400"}>{money(computedMargin)}</span>
           </span>
-        </span>
+          {links.length > 0 && (priceMatches ? (
+            <span className="text-[10px] font-semibold text-green-400/90 whitespace-nowrap">price = components ✓</span>
+          ) : (
+            <button
+              onClick={applyComputedPrice}
+              title={sellPrice != null ? `Package price is ${money(sellPrice)} — click to set it to the components total` : "Set the package price to the components total"}
+              className="px-2 py-1 bg-[#0aa3c7] hover:bg-[#0aa3c7]/90 text-white text-[10px] font-bold rounded-md transition-colors whitespace-nowrap"
+            >
+              Set price → {money(computedSell)}
+            </button>
+          ))}
+        </div>
       </div>
+      {sellPrice != null && !priceMatches && links.length > 0 && (
+        <p className="text-[10px] admin-faint mb-2">
+          Sell price is a <strong>manual override</strong> ({money(sellPrice)}). Components add up to {money(computedSell)}.
+        </p>
+      )}
 
       {links.length === 0 ? (
         <p className="text-xs admin-faint mb-2">No components linked yet.</p>
