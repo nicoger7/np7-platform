@@ -109,6 +109,21 @@ export default async function DestinationPage({ params }: Props) {
   // a faint photographic backdrop behind the deep-ocean conditions band
   const condBg = gallery[1] || gallery[0] || hero;
 
+  // "Local partners" = where you stay (hotels, auto-pulled) + the other local
+  // spots (surf station, restaurant…), shown together as one richer grid.
+  type Place = { key: string; image: string; name: string; sub?: string; description?: string; href?: string; hrefLabel?: string; tag?: string };
+  const places: Place[] = [
+    ...hotels.map((h): Place => ({
+      key: `h-${h.id}`, image: h.image_url || h.images?.[0] || "", name: h.name,
+      sub: h.location ?? undefined, description: h.description ?? undefined,
+      href: h.website ?? undefined, hrefLabel: "Visit hotel ↗", tag: "Where you stay",
+    })),
+    ...partners.map((p, i): Place => ({
+      key: `p-${i}`, image: p.image ?? "", name: p.name!,
+      description: p.description, href: p.url, hrefLabel: "Visit ↗",
+    })),
+  ];
+
   // Three concise quick-stats floated over the hero
   const heroChips = [
     d.wind_probability && { label: "Wind", value: d.wind_probability },
@@ -121,8 +136,7 @@ export default async function DestinationPage({ params }: Props) {
     facts.length > 0 && { id: "conditions", label: "Conditions" },
     gallery.length > 0 && { id: "gallery", label: "Gallery" },
     { id: "trips", label: "Trips" },
-    hotels.length > 0 && { id: "stay", label: "Where you stay" },
-    partners.length > 0 && { id: "partners", label: "Local partners" },
+    places.length > 0 && { id: "partners", label: "Local partners" },
   ].filter(Boolean) as NavSection[];
 
   return (
@@ -246,62 +260,34 @@ export default async function DestinationPage({ params }: Props) {
         </div>
       </section>
 
-      {/* WHERE YOU STAY — auto-pulled from the hotels linked to this destination's trips */}
-      {hotels.length > 0 && (
-        <section id="stay" className="scroll-mt-[120px] py-20 sm:py-24 bg-[#f7f7f7]">
-          <div className="max-w-[1100px] mx-auto px-6 sm:px-8">
-            <Reveal className="mb-12 text-center max-w-[620px] mx-auto">
-              <p className="text-[11px] font-bold tracking-[0.28em] text-[#00afdb] mb-3">YOUR BASE</p>
-              <h2 className="text-3xl sm:text-5xl font-black tracking-[-0.03em] text-[#00374a]">Where you stay</h2>
-            </Reveal>
-            <div className={`grid gap-5 ${hotels.length === 1 ? "sm:grid-cols-1 max-w-[720px] mx-auto" : "sm:grid-cols-2"}`}>
-              {hotels.map((h, i) => {
-                const img = h.image_url || h.images?.[0] || "";
-                return (
-                  <Reveal key={h.id} delay={i * 70}>
-                    <div className="group bg-white rounded-3xl overflow-hidden border border-[#ebebeb] h-full hover:shadow-[0_16px_40px_rgba(0,55,74,0.1)] transition-shadow">
-                      {img && <div className="h-[240px] bg-cover bg-center bg-[#00374a] overflow-hidden"><div className="w-full h-full bg-cover bg-center transition-transform duration-[1.1s] ease-out group-hover:scale-105" style={{ backgroundImage: `url('${img}')` }} /></div>}
-                      <div className="p-6">
-                        <h3 className="text-xl font-extrabold text-[#00374a]">{h.name}</h3>
-                        {h.location && <p className="text-[12px] font-semibold tracking-wide uppercase text-[#8a9aa0] mt-0.5">{h.location}</p>}
-                        {h.description && <p className="text-[14px] text-[#6a7a80] leading-relaxed mt-2">{h.description}</p>}
-                        {h.website && <a href={h.website} target="_blank" rel="noopener" className="inline-block text-[13px] font-bold text-[#00afdb] hover:underline mt-3">Visit hotel ↗</a>}
-                      </div>
-                    </div>
-                  </Reveal>
-                );
-              })}
-            </div>
-          </div>
-        </section>
-      )}
-
-      {/* PARTNERS */}
-      {partners.length > 0 && (
+      {/* LOCAL PARTNERS — where you stay (hotels, auto-pulled) + the other local spots, together */}
+      {places.length > 0 && (
         <section id="partners" className="scroll-mt-[120px] py-20 sm:py-24 bg-[#fff7ec]">
           <div className="max-w-[1180px] mx-auto px-6 sm:px-8">
-            <Reveal className="mb-12 text-center max-w-[620px] mx-auto">
+            <Reveal className="mb-12 text-center max-w-[640px] mx-auto">
               <p className="text-[11px] font-bold tracking-[0.28em] text-[#f47b20] mb-3">ON THE GROUND</p>
               <h2 className="text-3xl sm:text-4xl font-black tracking-[-0.03em] text-[#00374a]">Local partners</h2>
-              <p className="text-[15px] text-[#6a7a80] mt-3 leading-relaxed">The spots you&apos;ll actually be at — where you ride, where you stay, where you refuel.</p>
+              <p className="text-[15px] text-[#6a7a80] mt-3 leading-relaxed">The spots you&apos;ll actually be at — where you stay, where you ride, where you refuel.</p>
               <div className="h-[3px] w-14 rounded-full mx-auto mt-5" style={{ background: SUN_TO_SEA }} />
             </Reveal>
             <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-5">
-              {partners.map((p, i) => (
-                <Reveal key={i} delay={i * 70}>
+              {places.map((place, i) => (
+                <Reveal key={place.key} delay={i * 70}>
                   <div className="group bg-white rounded-3xl overflow-hidden border border-[#f0e6d6] h-full hover:-translate-y-0.5 hover:shadow-[0_18px_44px_rgba(244,123,32,0.16)] transition-all">
-                    {p.image ? (
-                      <div className="h-[200px] overflow-hidden bg-[#00374a]">
-                        {/* eslint-disable-next-line @next/next/no-img-element */}
-                        <img src={p.image} alt={p.name} className="w-full h-full object-cover transition-transform duration-[1.1s] ease-out group-hover:scale-105" />
-                      </div>
-                    ) : (
-                      <div className="h-[200px] grid place-items-center text-white font-black text-5xl" style={{ background: SUN_TO_SEA }} aria-hidden>{p.name?.trim()?.[0]?.toUpperCase() ?? "•"}</div>
-                    )}
+                    <div className="relative h-[200px] overflow-hidden bg-[#00374a]">
+                      {place.image ? (
+                        // eslint-disable-next-line @next/next/no-img-element
+                        <img src={place.image} alt={place.name} className="w-full h-full object-cover transition-transform duration-[1.1s] ease-out group-hover:scale-105" />
+                      ) : (
+                        <div className="w-full h-full grid place-items-center text-white font-black text-5xl" style={{ background: SUN_TO_SEA }} aria-hidden>{place.name?.trim()?.[0]?.toUpperCase() ?? "•"}</div>
+                      )}
+                      {place.tag && <span className="absolute top-3 left-3 px-2.5 py-1 rounded-full text-[10px] font-bold tracking-[0.08em] uppercase text-white shadow-sm" style={{ background: "#f47b20" }}>{place.tag}</span>}
+                    </div>
                     <div className="p-5">
-                      <h3 className="text-[17px] font-extrabold text-[#00374a] leading-tight">{p.name}</h3>
-                      {p.description && <p className="text-[13.5px] text-[#6a7a80] leading-relaxed mt-1.5">{p.description}</p>}
-                      {p.url && <a href={p.url} target="_blank" rel="noopener" className="inline-flex items-center gap-1 text-[13px] font-bold text-[#00afdb] hover:underline mt-3">Visit ↗</a>}
+                      <h3 className="text-[17px] font-extrabold text-[#00374a] leading-tight">{place.name}</h3>
+                      {place.sub && <p className="text-[12px] font-semibold tracking-wide uppercase text-[#8a9aa0] mt-0.5">{place.sub}</p>}
+                      {place.description && <p className="text-[13.5px] text-[#6a7a80] leading-relaxed mt-1.5">{place.description}</p>}
+                      {place.href && <a href={place.href} target="_blank" rel="noopener" className="inline-flex items-center gap-1 text-[13px] font-bold text-[#00afdb] hover:underline mt-3">{place.hrefLabel}</a>}
                     </div>
                   </div>
                 </Reveal>
