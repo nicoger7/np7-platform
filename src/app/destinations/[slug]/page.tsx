@@ -15,11 +15,12 @@ type Destination = {
   hero_image: string | null; tagline: string | null; intro: string | null;
   wind_probability: string | null; wind_season: string | null; wind_speed: string | null;
   best_season: string | null; conditions: string | null; skill_levels: string | null;
-  gallery: string[] | null; partners: { name?: string; description?: string; url?: string }[] | null;
+  gallery: string[] | null; partners: { name?: string; description?: string; url?: string; image?: string }[] | null;
 };
 type Trip = { id: string; title: string; slug: string; hero_image: string | null; location: string | null };
+type Hotel = { id: string; name: string; image_url: string | null; images: string[] | null; description: string | null; website: string | null; location: string | null };
 
-async function getDestination(slug: string): Promise<{ destination: Destination; trips: Trip[] } | null> {
+async function getDestination(slug: string): Promise<{ destination: Destination; trips: Trip[]; hotels: Hotel[] } | null> {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const sb = supabase as any;
   const { data: destination } = await sb.from("destinations").select("*").eq("slug", slug).eq("status", "published").maybeSingle();
@@ -29,7 +30,24 @@ async function getDestination(slug: string): Promise<{ destination: Destination;
     .select("id,title,slug,hero_image,location")
     .eq("destination_id", destination.id)
     .eq("status", "published");
-  return { destination, trips: (trips ?? []) as Trip[] };
+  const tripList = (trips ?? []) as Trip[];
+
+  // Hotels auto-pull: a destination's trips → their packages → linked hotels.
+  // Reuses the hotel data the team already enters for packages (no re-entry).
+  let hotels: Hotel[] = [];
+  try {
+    const ids = tripList.map((t) => t.id);
+    if (ids.length) {
+      const { data: pkgs } = await sb.from("exp_packages").select("hotel_id").in("experience_id", ids).not("hotel_id", "is", null);
+      const hotelIds = [...new Set((pkgs ?? []).map((p: { hotel_id: string | null }) => p.hotel_id).filter(Boolean))];
+      if (hotelIds.length) {
+        const { data: h } = await sb.from("hotels").select("id,name,image_url,images,description,website,location").in("id", hotelIds);
+        hotels = ((h ?? []) as Hotel[]).filter((x) => x.image_url || (x.images && x.images.length));
+      }
+    }
+  } catch { /* hotels are optional — never block the page */ }
+
+  return { destination, trips: tripList, hotels };
 }
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
@@ -44,7 +62,7 @@ export default async function DestinationPage({ params }: Props) {
   const { slug } = await params;
   const res = await getDestination(slug).catch(() => null);
   if (!res) notFound();
-  const { destination: d, trips } = res;
+  const { destination: d, trips, hotels } = res;
 
   const place = [d.region, d.country].filter(Boolean).join(" · ");
   const hero = d.hero_image || (d.gallery?.[0] ?? "");
@@ -142,6 +160,36 @@ export default async function DestinationPage({ params }: Props) {
         </div>
       </section>
 
+      {/* WHERE YOU STAY — auto-pulled from the hotels linked to this destination's trips */}
+      {hotels.length > 0 && (
+        <section className="py-16 sm:py-20 bg-[#f7f7f7]">
+          <div className="max-w-[1100px] mx-auto px-6 sm:px-8">
+            <Reveal className="mb-10 text-center max-w-[600px] mx-auto">
+              <p className="text-[11px] font-bold tracking-[0.25em] text-[#00afdb] mb-3">YOUR BASE</p>
+              <h2 className="text-3xl sm:text-5xl font-black tracking-[-0.03em] text-[#00374a]">Where you stay</h2>
+            </Reveal>
+            <div className={`grid gap-5 ${hotels.length === 1 ? "sm:grid-cols-1 max-w-[680px] mx-auto" : "sm:grid-cols-2"}`}>
+              {hotels.map((h) => {
+                const img = h.image_url || h.images?.[0] || "";
+                return (
+                  <Reveal key={h.id}>
+                    <div className="bg-white rounded-3xl overflow-hidden border border-[#ebebeb] h-full">
+                      {img && <div className="h-[220px] bg-cover bg-center bg-[#00374a]" style={{ backgroundImage: `url('${img}')` }} />}
+                      <div className="p-5">
+                        <h3 className="text-lg font-extrabold text-[#00374a]">{h.name}</h3>
+                        {h.location && <p className="text-[12px] font-semibold tracking-wide uppercase text-[#8a9aa0] mt-0.5">{h.location}</p>}
+                        {h.description && <p className="text-[13.5px] text-[#6a7a80] leading-relaxed mt-2">{h.description}</p>}
+                        {h.website && <a href={h.website} target="_blank" rel="noopener" className="inline-block text-[13px] font-bold text-[#00afdb] hover:underline mt-3">Visit hotel ↗</a>}
+                      </div>
+                    </div>
+                  </Reveal>
+                );
+              })}
+            </div>
+          </div>
+        </section>
+      )}
+
       {/* PARTNERS */}
       {partners.length > 0 && (
         <section className="py-16 sm:py-20 bg-[#fff7ec]">
@@ -150,10 +198,16 @@ export default async function DestinationPage({ params }: Props) {
             <div className="grid sm:grid-cols-2 gap-4">
               {partners.map((p, i) => (
                 <Reveal key={i}>
-                  <div className="bg-white rounded-2xl border border-[#f0e6d6] p-5">
-                    <p className="text-[15px] font-bold text-[#00374a]">{p.name}</p>
-                    {p.description && <p className="text-[13.5px] text-[#6a7a80] leading-relaxed mt-1">{p.description}</p>}
-                    {p.url && <a href={p.url} target="_blank" rel="noopener" className="inline-block text-[13px] font-semibold text-[#00afdb] hover:underline mt-2">Visit ↗</a>}
+                  <div className="bg-white rounded-2xl border border-[#f0e6d6] p-5 flex items-start gap-4">
+                    {p.image && (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img src={p.image} alt={p.name} className="w-16 h-16 rounded-xl object-cover shrink-0 border border-[#f0e6d6]" />
+                    )}
+                    <div className="min-w-0">
+                      <p className="text-[15px] font-bold text-[#00374a]">{p.name}</p>
+                      {p.description && <p className="text-[13.5px] text-[#6a7a80] leading-relaxed mt-1">{p.description}</p>}
+                      {p.url && <a href={p.url} target="_blank" rel="noopener" className="inline-block text-[13px] font-semibold text-[#00afdb] hover:underline mt-2">Visit ↗</a>}
+                    </div>
                   </div>
                 </Reveal>
               ))}

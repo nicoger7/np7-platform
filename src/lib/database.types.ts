@@ -166,11 +166,15 @@ export type Database = {
           created_at: string | null
           excerpt: string | null
           id: string
+          members_only: boolean
           published_at: string | null
           slug: string
           status: string | null
+          template: string
+          template_data: Json
           title: string
           updated_at: string | null
+          world: string
         }
         Insert: {
           author?: string
@@ -180,11 +184,15 @@ export type Database = {
           created_at?: string | null
           excerpt?: string | null
           id?: string
+          members_only?: boolean
           published_at?: string | null
           slug: string
           status?: string | null
+          template?: string
+          template_data?: Json
           title: string
           updated_at?: string | null
+          world?: string
         }
         Update: {
           author?: string
@@ -194,11 +202,15 @@ export type Database = {
           created_at?: string | null
           excerpt?: string | null
           id?: string
+          members_only?: boolean
           published_at?: string | null
           slug?: string
           status?: string | null
+          template?: string
+          template_data?: Json
           title?: string
           updated_at?: string | null
+          world?: string
         }
         Relationships: []
       }

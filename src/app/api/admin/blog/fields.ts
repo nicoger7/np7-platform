@@ -18,6 +18,10 @@ const EDITABLE_FIELDS = [
   "excerpt",
   "category",
   "author",
+  "template",
+  "template_data",
+  "world",
+  "members_only",
 ] as const;
 
 export function pickBlogFields(body: unknown): BlogWrite {
