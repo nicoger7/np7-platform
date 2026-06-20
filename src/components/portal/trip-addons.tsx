@@ -100,6 +100,9 @@ export function TripAddons({ bookingId, depositPaid, initialFlights, arrival, ed
   const active = mine.filter((m) => effectiveAddonStatus(m) !== "declined");
   const noneChosen = mine.some((m) => effectiveAddonStatus(m) === "declined");
   const resolved = active.length > 0 || noneChosen;
+  // "We confirm" is done once everything requested is confirmed (vacuously true
+  // when the member chose no extras — nothing left to confirm).
+  const addonsConfirmed = resolved && active.every((m) => effectiveAddonStatus(m) === "confirmed");
   const requestedIds = new Set(active.map((m) => m.component_id).filter(Boolean));
   const offer = available.filter((a) => !requestedIds.has(a.id));
 
@@ -133,7 +136,7 @@ export function TripAddons({ bookingId, depositPaid, initialFlights, arrival, ed
   return (
     <div className="space-y-2">
       {STEPS.map((s, i) => {
-        const done = (i === 0 && depositPaid) || (i === 1 && flightsSaved) || (i === 2 && resolved) || (i === 4 && flightsBooked);
+        const done = (i === 0 && depositPaid) || (i === 1 && flightsSaved) || (i === 2 && resolved) || (i === 3 && addonsConfirmed) || (i === 4 && flightsBooked);
         const isFlights = i === 1;
         const isExtras = i === 2;
         const open = (isFlights && showFlights) || (isExtras && showOffers);
@@ -145,7 +148,7 @@ export function TripAddons({ bookingId, depositPaid, initialFlights, arrival, ed
               {badge(i, done)}
               <div className="min-w-0">
                 <p className="text-[14px] font-bold text-[#00374a] leading-tight">{s.t}</p>
-                <p className="text-[12.5px] text-[#8a9aa0] leading-snug">{s.d}</p>
+                <p className="text-[12.5px] text-[#8a9aa0] leading-snug">{i === 3 && addonsConfirmed ? (active.length > 0 ? "All your extras are confirmed and added to your trip." : "No extras to confirm — you're all set.") : s.d}</p>
                 {i === 4 && !flightsBooked && (
                   <button onClick={markBooked} className="mt-1.5 px-3 py-1 rounded-full text-[12px] font-bold text-white bg-[#00afdb] hover:bg-[#15c0ec] transition-colors">I&apos;ve booked them ✓</button>
                 )}
