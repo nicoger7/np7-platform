@@ -1,7 +1,6 @@
 "use client";
 
 import { useState, useEffect, useCallback, useRef } from "react";
-import FolderPickerModal from "@/components/folder-picker-modal";
 
 interface FileItem {
   name: string;
@@ -52,297 +51,208 @@ async function downscaleImage(file: File, maxDim = 2560, quality = 0.85): Promis
   }
 }
 
-export default function ImagePickerModal({
-  onSelect,
-  onClose,
-  defaultFolder,
-}: ImagePickerModalProps) {
-  const [files, setFiles] = useState<FileItem[]>([]);
+/** Collision-free, URL-safe storage key from any original filename. */
+function safeName(file: File) {
+  const ext = (file.name.split(".").pop() || "jpg").toLowerCase().replace(/[^a-z0-9]/g, "");
+  const base = file.name.replace(/\.[^.]+$/, "").toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/-+/g, "-").replace(/^-|-$/g, "").slice(0, 40) || "image";
+  return `${base}-${Date.now()}-${Math.random().toString(36).slice(2, 6)}.${ext}`;
+}
+
+export default function ImagePickerModal({ onSelect, onClose, defaultFolder }: ImagePickerModalProps) {
+  const [view, setView] = useState<"all" | "folders">("all");
+  const [all, setAll] = useState<FileItem[]>([]);
+  const [folderFiles, setFolderFiles] = useState<FileItem[]>([]);
   const [folder, setFolder] = useState(defaultFolder || "");
   const [loading, setLoading] = useState(true);
   const [uploading, setUploading] = useState(false);
+  const [progress, setProgress] = useState<{ done: number; total: number } | null>(null);
   const [selected, setSelected] = useState<string | null>(null);
-  const [uploadPicker, setUploadPicker] = useState(false);
-  const [pendingFiles, setPendingFiles] = useState<File[] | null>(null);
+  const [query, setQuery] = useState("");
   const [error, setError] = useState("");
+  const [dragOver, setDragOver] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const fetchFiles = useCallback(async () => {
+  const uploadTarget = (view === "folders" && folder) ? folder : (defaultFolder || folder || "uploads");
+
+  const loadAll = useCallback(async () => {
     setLoading(true);
-    const params = folder ? `?folder=${encodeURIComponent(folder)}` : "";
-    const res = await fetch(`/api/admin/images${params}`);
-    const data = await res.json();
-    setFiles(data.files || []);
+    const res = await fetch(`/api/admin/images?recursive=1`);
+    const data = await res.json().catch(() => ({ files: [] }));
+    setAll(data.files || []);
     setLoading(false);
-  }, [folder]);
+  }, []);
+
+  const loadFolder = useCallback(async (f: string) => {
+    setLoading(true);
+    const params = f ? `?folder=${encodeURIComponent(f)}` : "";
+    const res = await fetch(`/api/admin/images${params}`);
+    const data = await res.json().catch(() => ({ files: [] }));
+    setFolderFiles(data.files || []);
+    setLoading(false);
+  }, []);
+
+  useEffect(() => { loadAll(); }, [loadAll]);
+  useEffect(() => { if (view === "folders") loadFolder(folder); }, [view, folder, loadFolder]);
 
   useEffect(() => {
-    fetchFiles();
-  }, [fetchFiles]);
+    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [onClose]);
 
-  async function uploadToFolder(fileArr: File[], targetFolder: string) {
+  async function doUpload(fileArr: File[]) {
+    if (!fileArr.length) return;
     setUploading(true);
     setError("");
+    setProgress({ done: 0, total: fileArr.length });
     let lastUrl = "";
     try {
-      for (const raw of fileArr) {
-        const file = await downscaleImage(raw);
-        // safe, collision-free storage key (original names can have spaces/unicode)
-        const ext = (file.name.split(".").pop() || "jpg").toLowerCase().replace(/[^a-z0-9]/g, "");
-        const base = file.name.replace(/\.[^.]+$/, "").toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/-+/g, "-").replace(/^-|-$/g, "").slice(0, 40) || "image";
-        const named = new File([file], `${base}-${Date.now()}.${ext}`, { type: file.type });
-        const formData = new FormData();
-        formData.append("file", named);
-        formData.append("folder", targetFolder);
-        const res = await fetch("/api/admin/images", { method: "POST", body: formData });
-        if (!res.ok) {
-          const j = await res.json().catch(() => ({}));
-          throw new Error(j.error || `Upload failed (${res.status})`);
-        }
+      for (let i = 0; i < fileArr.length; i++) {
+        const file = await downscaleImage(fileArr[i]);
+        const named = new File([file], safeName(file), { type: file.type });
+        const fd = new FormData();
+        fd.append("file", named);
+        fd.append("folder", uploadTarget);
+        const res = await fetch("/api/admin/images", { method: "POST", body: fd });
+        if (!res.ok) { const j = await res.json().catch(() => ({})); throw new Error(j.error || `Upload failed (${res.status})`); }
         const j = await res.json();
         lastUrl = j.url || lastUrl;
+        setProgress({ done: i + 1, total: fileArr.length });
       }
     } catch (e) {
-      setUploading(false);
-      setError((e as Error).message || "Upload failed — please try again with a smaller image.");
+      setUploading(false); setProgress(null);
+      setError((e as Error).message || "Upload failed — try a smaller image.");
       return;
     }
-    setUploading(false);
-    setFolder(targetFolder);
-    await fetchFiles();
-    // single upload → select it straight away so it's applied without hunting for it
+    setUploading(false); setProgress(null);
+    await loadAll();
+    if (view === "folders") await loadFolder(folder);
+    if (lastUrl) setSelected(lastUrl);
     if (lastUrl && fileArr.length === 1) onSelect(lastUrl);
   }
 
-  function handleFilesSelected(fileList: FileList) {
-    setPendingFiles(Array.from(fileList));
-    setUploadPicker(true);
+  function onDrop(e: React.DragEvent) {
+    e.preventDefault(); setDragOver(false);
+    const files = Array.from(e.dataTransfer.files).filter((f) => f.type.startsWith("image/"));
+    if (files.length) doUpload(files);
   }
 
+  // What to show
+  const q = query.trim().toLowerCase();
+  const allImages = all.filter((f) => !q || f.path.toLowerCase().includes(q));
+  const folders = view === "folders" ? folderFiles.filter((f) => f.isFolder) : [];
+  const folderImages = view === "folders" ? folderFiles.filter((f) => !f.isFolder && f.type?.startsWith("image/")) : [];
+  const grid = view === "all" ? allImages : folderImages;
   const breadcrumbs = folder ? folder.split("/").filter(Boolean) : [];
-  const folders = files.filter((f) => f.isFolder);
-  const images = files.filter((f) => !f.isFolder && f.type?.startsWith("image/"));
+
+  const tabBtn = (active: boolean) =>
+    `px-3.5 py-1.5 rounded-lg text-[12.5px] font-bold transition-colors ${active ? "bg-[#0aa3c7] text-white" : "admin-muted hover:admin-heading"}`;
 
   return (
-    <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm"
-      onClick={(e) => {
-        if (e.target === e.currentTarget) onClose();
-      }}
-    >
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm" onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}>
       <div
-        className="rounded-2xl w-full max-w-[960px] max-h-[85vh] flex flex-col mx-4"
-        style={{
-          backgroundColor: "var(--admin-sidebar)",
-          border: "1px solid var(--admin-border)",
-        }}
+        className="rounded-2xl w-full max-w-[1080px] h-[86vh] flex flex-col mx-4 overflow-hidden"
+        style={{ backgroundColor: "var(--admin-sidebar)", border: "1px solid var(--admin-border)" }}
+        onDragOver={(e) => { e.preventDefault(); if (!dragOver) setDragOver(true); }}
+        onDragLeave={(e) => { if (e.currentTarget === e.target) setDragOver(false); }}
+        onDrop={onDrop}
       >
-        {/* Header */}
-        <div
-          className="flex items-center justify-between p-5"
-          style={{ borderBottom: "1px solid var(--admin-border)" }}
-        >
-          <div>
-            <h2 className="text-lg font-bold admin-heading">Select Image</h2>
-            <p className="text-xs admin-muted mt-0.5">
-              Choose from your library or upload a new image
-            </p>
+        {/* Header: title · segmented control · search · upload · close */}
+        <div className="flex items-center gap-3 p-4 sm:p-5" style={{ borderBottom: "1px solid var(--admin-border)" }}>
+          <h2 className="text-base font-bold admin-heading shrink-0">Media library</h2>
+          <div className="flex items-center gap-1 p-0.5 rounded-xl shrink-0" style={{ backgroundColor: "var(--admin-bg)" }}>
+            <button onClick={() => setView("all")} className={tabBtn(view === "all")}>All</button>
+            <button onClick={() => setView("folders")} className={tabBtn(view === "folders")}>Folders</button>
           </div>
-          <div className="flex items-center gap-3">
-            <button
-              onClick={() => fileInputRef.current?.click()}
-              disabled={uploading}
-              className="px-4 py-2 bg-[#0aa3c7] hover:bg-[#0aa3c7]/90 disabled:opacity-50 text-white text-sm font-bold rounded-lg transition-colors"
-            >
-              {uploading ? "Uploading..." : "Upload"}
-            </button>
+          <div className="relative flex-1 min-w-0">
+            <svg className="w-4 h-4 admin-faint absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><circle cx="11" cy="11" r="7" /><path d="M21 21l-4.3-4.3" /></svg>
             <input
-              ref={fileInputRef}
-              type="file"
-              multiple
-              accept="image/*"
-              className="hidden"
-              onChange={(e) => {
-                if (e.target.files && e.target.files.length > 0) {
-                  handleFilesSelected(e.target.files);
-                }
-              }}
+              value={query}
+              onChange={(e) => { setQuery(e.target.value); if (view !== "all") setView("all"); }}
+              placeholder="Search all images…"
+              className="w-full pl-9 pr-3 py-2 admin-input border rounded-lg text-sm focus:outline-none focus:border-[#0aa3c7]"
             />
-            <button
-              onClick={onClose}
-              className="w-8 h-8 flex items-center justify-center rounded-lg transition-colors"
-              onMouseEnter={(e) =>
-                (e.currentTarget.style.backgroundColor =
-                  "var(--admin-surface-hover)")
-              }
-              onMouseLeave={(e) =>
-                (e.currentTarget.style.backgroundColor = "transparent")
-              }
-            >
-              <svg
-                className="w-5 h-5 admin-muted"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="2"
-                strokeLinecap="round"
-              >
-                <path d="M18 6L6 18M6 6l12 12" />
-              </svg>
-            </button>
           </div>
+          <button onClick={() => fileInputRef.current?.click()} disabled={uploading} className="shrink-0 px-4 py-2 bg-[#0aa3c7] hover:bg-[#0aa3c7]/90 disabled:opacity-50 text-white text-sm font-bold rounded-lg transition-colors">
+            {uploading ? (progress ? `Uploading ${progress.done}/${progress.total}…` : "Uploading…") : "Upload"}
+          </button>
+          <input ref={fileInputRef} type="file" multiple accept="image/*" className="hidden" onChange={(e) => { if (e.target.files?.length) doUpload(Array.from(e.target.files)); e.target.value = ""; }} />
+          <button onClick={onClose} className="shrink-0 w-8 h-8 grid place-items-center rounded-lg admin-muted hover:admin-heading" aria-label="Close">
+            <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M18 6L6 18M6 6l12 12" /></svg>
+          </button>
         </div>
 
-        {error && (
-          <div className="mx-5 mt-3 rounded-lg px-4 py-2.5 text-[13px] font-medium" style={{ backgroundColor: "rgba(239,68,68,0.12)", color: "#ef4444", border: "1px solid rgba(239,68,68,0.3)" }}>
-            {error}
+        {error && <div className="mx-5 mt-3 rounded-lg px-4 py-2.5 text-[13px] font-medium" style={{ backgroundColor: "rgba(239,68,68,0.12)", color: "#ef4444", border: "1px solid rgba(239,68,68,0.3)" }}>{error}</div>}
+
+        {/* Folder breadcrumbs (folders view only) */}
+        {view === "folders" && (
+          <div className="flex items-center gap-1.5 text-sm px-5 py-2.5 flex-wrap" style={{ borderBottom: "1px solid var(--admin-border)" }}>
+            <button onClick={() => setFolder("")} className={folder ? "admin-muted" : "admin-heading font-medium"}>assets</button>
+            {breadcrumbs.map((crumb, i) => {
+              const path = breadcrumbs.slice(0, i + 1).join("/");
+              const isLast = i === breadcrumbs.length - 1;
+              return (
+                <span key={path} className="flex items-center gap-1.5">
+                  <span className="admin-faint">/</span>
+                  <button onClick={() => setFolder(path)} className={isLast ? "admin-heading font-medium" : "admin-muted"}>{crumb}</button>
+                </span>
+              );
+            })}
           </div>
         )}
 
-        {/* Breadcrumbs */}
-        <div
-          className="flex items-center gap-1.5 text-sm px-5 py-3"
-          style={{ borderBottom: "1px solid var(--admin-border)" }}
-        >
-          <button
-            onClick={() => setFolder("")}
-            className={`transition-colors ${folder ? "admin-muted" : "admin-heading font-medium"}`}
-          >
-            assets
-          </button>
-          {breadcrumbs.map((crumb, i) => {
-            const path = breadcrumbs.slice(0, i + 1).join("/");
-            const isLast = i === breadcrumbs.length - 1;
-            return (
-              <span key={path} className="flex items-center gap-1.5">
-                <span className="admin-faint">/</span>
-                <button
-                  onClick={() => setFolder(path)}
-                  className={`transition-colors ${isLast ? "admin-heading font-medium" : "admin-muted"}`}
-                >
-                  {crumb}
-                </button>
-              </span>
-            );
-          })}
-          {folder && (
-            <button
-              onClick={() => {
-                const parts = folder.split("/").filter(Boolean);
-                parts.pop();
-                setFolder(parts.join("/"));
-              }}
-              className="ml-auto text-xs admin-muted transition-colors"
-            >
-              <svg
-                className="w-4 h-4 inline mr-1"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="2"
-                strokeLinecap="round"
-              >
-                <path d="M19 12H5M12 19l-7-7 7-7" />
-              </svg>
-              Back
-            </button>
-          )}
-        </div>
-
         {/* Content */}
-        <div className="flex-1 overflow-auto p-5 min-h-0">
+        <div className="relative flex-1 overflow-auto p-4 sm:p-5 min-h-0">
+          {dragOver && (
+            <div className="absolute inset-3 z-10 rounded-2xl border-2 border-dashed border-[#0aa3c7] bg-[#0aa3c7]/10 grid place-items-center pointer-events-none">
+              <p className="text-sm font-bold text-[#0aa3c7]">Drop to upload to “{uploadTarget}”</p>
+            </div>
+          )}
+
           {loading ? (
-            <div className="flex items-center justify-center h-[300px]">
-              <p className="text-sm admin-faint">Loading...</p>
+            <div className="grid grid-cols-3 sm:grid-cols-4 lg:grid-cols-6 gap-3">
+              {Array.from({ length: 18 }).map((_, i) => <div key={i} className="aspect-square rounded-xl animate-pulse" style={{ backgroundColor: "var(--admin-bg)" }} />)}
             </div>
           ) : (
             <>
-              {/* Folders */}
+              {/* Folders (folders view) */}
               {folders.length > 0 && (
                 <div className="grid grid-cols-3 sm:grid-cols-5 lg:grid-cols-7 gap-3 mb-5">
                   {folders.map((item) => (
-                    <button
-                      key={item.path}
-                      onClick={() => setFolder(item.path)}
-                      className="flex flex-col items-center gap-1.5 p-3 rounded-xl transition-all group"
-                      style={{ border: "1px solid var(--admin-border)" }}
-                      onMouseEnter={(e) =>
-                        (e.currentTarget.style.backgroundColor =
-                          "var(--admin-surface-hover)")
-                      }
-                      onMouseLeave={(e) =>
-                        (e.currentTarget.style.backgroundColor = "transparent")
-                      }
-                    >
-                      <svg
-                        className="w-7 h-7 admin-faint group-hover:text-[#0aa3c7] transition-colors"
-                        viewBox="0 0 24 24"
-                        fill="currentColor"
-                      >
-                        <path d="M2 6a2 2 0 012-2h5l2 2h9a2 2 0 012 2v10a2 2 0 01-2 2H4a2 2 0 01-2-2V6z" />
-                      </svg>
-                      <span className="text-[11px] admin-muted truncate max-w-full">
-                        {item.name}
-                      </span>
+                    <button key={item.path} onClick={() => setFolder(item.path)} className="flex flex-col items-center gap-1.5 p-3 rounded-xl transition-colors hover:bg-[var(--admin-surface-hover)]" style={{ border: "1px solid var(--admin-border)" }}>
+                      <svg className="w-7 h-7 admin-faint" viewBox="0 0 24 24" fill="currentColor"><path d="M2 6a2 2 0 012-2h5l2 2h9a2 2 0 012 2v10a2 2 0 01-2 2H4a2 2 0 01-2-2V6z" /></svg>
+                      <span className="text-[11px] admin-muted truncate max-w-full">{item.name}</span>
                     </button>
                   ))}
                 </div>
               )}
 
-              {/* Images */}
-              {images.length > 0 ? (
-                <div className="grid grid-cols-3 sm:grid-cols-4 lg:grid-cols-5 gap-3">
-                  {images.map((item) => {
+              {grid.length > 0 ? (
+                <div className="grid grid-cols-3 sm:grid-cols-4 lg:grid-cols-6 gap-3">
+                  {grid.map((item) => {
                     const isSelected = selected === item.url;
+                    const dir = item.path.includes("/") ? item.path.slice(0, item.path.lastIndexOf("/")) : "";
                     return (
                       <button
                         key={item.path}
                         onClick={() => setSelected(item.url)}
-                        onDoubleClick={() => {
-                          if (item.url) onSelect(item.url);
-                        }}
-                        className="relative rounded-xl overflow-hidden transition-all text-left"
-                        style={{
-                          border: isSelected
-                            ? "2px solid #0aa3c7"
-                            : "1px solid var(--admin-border)",
-                          boxShadow: isSelected
-                            ? "0 0 0 1px #0aa3c7"
-                            : "none",
-                        }}
+                        onDoubleClick={() => item.url && onSelect(item.url)}
+                        title={item.path}
+                        className="group relative rounded-xl overflow-hidden text-left transition-all"
+                        style={{ border: isSelected ? "2px solid #0aa3c7" : "1px solid var(--admin-border)", boxShadow: isSelected ? "0 0 0 3px rgba(10,163,199,0.25)" : "none" }}
                       >
-                        <div
-                          className="aspect-square flex items-center justify-center overflow-hidden"
-                          style={{ backgroundColor: "var(--admin-bg)" }}
-                        >
+                        <div className="aspect-square overflow-hidden" style={{ backgroundColor: "var(--admin-bg)" }}>
                           {/* eslint-disable-next-line @next/next/no-img-element */}
-                          <img
-                            src={item.url!}
-                            alt={item.name}
-                            className="w-full h-full object-cover"
-                          />
+                          <img src={item.url!} alt={item.name} loading="lazy" className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105" />
                         </div>
-                        <div className="p-2">
-                          <p className="text-[11px] admin-muted truncate">
-                            {item.name}
-                          </p>
-                          <p className="text-[10px] admin-faint">
-                            {formatSize(item.size)}
-                          </p>
+                        <div className="absolute inset-x-0 bottom-0 p-2 bg-gradient-to-t from-black/75 to-transparent opacity-0 group-hover:opacity-100 transition-opacity">
+                          <p className="text-[11px] text-white font-medium truncate">{item.name}</p>
+                          {view === "all" && dir && <p className="text-[9.5px] text-white/60 truncate">{dir}</p>}
+                          {view !== "all" && <p className="text-[9.5px] text-white/60">{formatSize(item.size)}</p>}
                         </div>
                         {isSelected && (
-                          <div className="absolute top-2 right-2 w-5 h-5 bg-[#0aa3c7] rounded-full flex items-center justify-center">
-                            <svg
-                              className="w-3 h-3 text-white"
-                              viewBox="0 0 24 24"
-                              fill="none"
-                              stroke="currentColor"
-                              strokeWidth="3"
-                              strokeLinecap="round"
-                              strokeLinejoin="round"
-                            >
-                              <polyline points="20 6 9 17 4 12" />
-                            </svg>
+                          <div className="absolute top-2 right-2 w-5 h-5 bg-[#0aa3c7] rounded-full grid place-items-center shadow">
+                            <svg className="w-3 h-3 text-white" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12" /></svg>
                           </div>
                         )}
                       </button>
@@ -351,11 +261,10 @@ export default function ImagePickerModal({
                 </div>
               ) : (
                 folders.length === 0 && (
-                  <div className="flex flex-col items-center justify-center h-[200px]">
-                    <p className="text-sm admin-faint">No images here</p>
-                    <p className="text-xs admin-faint mt-1">
-                      Upload images or browse a folder
-                    </p>
+                  <div className="flex flex-col items-center justify-center h-[260px] text-center">
+                    <svg className="w-10 h-10 admin-faint mb-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5"><rect x="3" y="3" width="18" height="18" rx="2" /><circle cx="9" cy="9" r="2" /><path d="M21 15l-5-5L5 21" /></svg>
+                    <p className="text-sm admin-muted">{q ? "No images match your search" : "No images here yet"}</p>
+                    <p className="text-xs admin-faint mt-1">Drag &amp; drop images anywhere, or use Upload.</p>
                   </div>
                 )
               )}
@@ -364,52 +273,17 @@ export default function ImagePickerModal({
         </div>
 
         {/* Footer */}
-        <div
-          className="flex items-center justify-between p-5"
-          style={{ borderTop: "1px solid var(--admin-border)" }}
-        >
+        <div className="flex items-center justify-between p-4 sm:p-5" style={{ borderTop: "1px solid var(--admin-border)" }}>
           <p className="text-xs admin-faint">
-            {selected ? "Double-click or press Select" : "Click to select, double-click to confirm"}
+            {view === "all" ? `${allImages.length} image${allImages.length === 1 ? "" : "s"}` : `Uploads go to “${uploadTarget}”`}
+            <span className="hidden sm:inline"> · double-click to confirm</span>
           </p>
           <div className="flex gap-3">
-            <button
-              onClick={onClose}
-              className="px-4 py-2 text-sm admin-muted transition-colors"
-            >
-              Cancel
-            </button>
-            <button
-              onClick={() => {
-                if (selected) onSelect(selected);
-              }}
-              disabled={!selected}
-              className="px-5 py-2 bg-[#0aa3c7] hover:bg-[#0aa3c7]/90 disabled:opacity-30 text-white text-sm font-bold rounded-lg transition-colors"
-            >
-              Select
-            </button>
+            <button onClick={onClose} className="px-4 py-2 text-sm admin-muted">Cancel</button>
+            <button onClick={() => selected && onSelect(selected)} disabled={!selected} className="px-5 py-2 bg-[#0aa3c7] hover:bg-[#0aa3c7]/90 disabled:opacity-30 text-white text-sm font-bold rounded-lg transition-colors">Select</button>
           </div>
         </div>
       </div>
-
-      {/* Upload folder picker */}
-      {uploadPicker && pendingFiles && (
-        <FolderPickerModal
-          title={`Upload ${pendingFiles.length} file${pendingFiles.length > 1 ? "s" : ""} to...`}
-          action="Upload here"
-          startFolder={defaultFolder || folder}
-          onSelect={(targetFolder) => {
-            setUploadPicker(false);
-            uploadToFolder(pendingFiles, targetFolder);
-            setPendingFiles(null);
-            if (fileInputRef.current) fileInputRef.current.value = "";
-          }}
-          onClose={() => {
-            setUploadPicker(false);
-            setPendingFiles(null);
-            if (fileInputRef.current) fileInputRef.current.value = "";
-          }}
-        />
-      )}
     </div>
   );
 }

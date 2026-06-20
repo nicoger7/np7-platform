@@ -21,6 +21,14 @@ async function requireAuth() {
   return user;
 }
 
+type ListedFile = {
+  name: string; path: string; isFolder: boolean; url: string | null;
+  size: number; type: string | null; updatedAt: string | null;
+};
+
+const isFolderItem = (item: { metadata?: unknown; id?: string | null }) =>
+  !item.metadata || item.id === null;
+
 export async function GET(request: NextRequest) {
   try {
     await requireAuth();
@@ -28,24 +36,59 @@ export async function GET(request: NextRequest) {
     return Response.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  const folder = request.nextUrl.searchParams.get("folder") || "";
+  const sp = request.nextUrl.searchParams;
+  const folder = sp.get("folder") || "";
+  const recursive = sp.get("recursive") === "1";
   const admin = getServiceClient();
+  const baseUrl = `${process.env.NEXT_PUBLIC_SUPABASE_URL}/storage/v1/object/public/${BUCKET}`;
 
+  // ── Recursive mode: walk the whole tree so EVERY image surfaces in one
+  // searchable, newest-first view (the library's default). Bounded so a huge
+  // bucket can't hang the request.
+  if (recursive) {
+    const images: ListedFile[] = [];
+    const queue: string[] = [folder];
+    let visited = 0;
+    const MAX_FOLDERS = 250;
+    while (queue.length && visited < MAX_FOLDERS && images.length < 1500) {
+      const prefix = queue.shift()!;
+      visited++;
+      const { data, error } = await admin.storage
+        .from(BUCKET)
+        .list(prefix, { limit: 1000, sortBy: { column: "name", order: "asc" } });
+      if (error) continue;
+      for (const item of data || []) {
+        if (item.name === ".emptyFolderPlaceholder") continue;
+        const path = prefix ? `${prefix}/${item.name}` : item.name;
+        if (isFolderItem(item)) {
+          queue.push(path);
+        } else if ((item.metadata?.mimetype || "").startsWith("image/")) {
+          images.push({
+            name: item.name, path, isFolder: false, url: `${baseUrl}/${path}`,
+            size: item.metadata?.size || 0, type: item.metadata?.mimetype || null,
+            updatedAt: item.updated_at,
+          });
+        }
+      }
+    }
+    images.sort((a, b) => (b.updatedAt || "").localeCompare(a.updatedAt || ""));
+    return Response.json({ files: images, recursive: true });
+  }
+
+  // ── Single-folder mode (folder browsing)
   const { data, error } = await admin.storage
     .from(BUCKET)
-    .list(folder, { limit: 200, sortBy: { column: "name", order: "asc" } });
+    .list(folder, { limit: 1000, sortBy: { column: "name", order: "asc" } });
 
   if (error) {
     return Response.json({ error: error.message }, { status: 500 });
   }
 
-  const baseUrl = `${process.env.NEXT_PUBLIC_SUPABASE_URL}/storage/v1/object/public/${BUCKET}`;
-
-  const files = (data || [])
+  const files: ListedFile[] = (data || [])
     .filter((item) => item.name !== ".emptyFolderPlaceholder")
     .map((item) => {
       const path = folder ? `${folder}/${item.name}` : item.name;
-      const isFolder = !item.metadata || item.id === null;
+      const isFolder = isFolderItem(item);
       return {
         name: item.name,
         path,
