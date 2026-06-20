@@ -2,7 +2,8 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import type { Metadata } from "next";
 import { supabase } from "@/lib/supabase";
-import { OceanHeader, NP7_LOGO } from "@/components/experience/ocean-header";
+import { OceanHeader } from "@/components/experience/ocean-header";
+import { NP7_EXPERIENCE_LOGO, SUN_TO_SEA } from "@/components/shared/brand";
 import { Reveal } from "@/components/experience/reveal";
 import { GalleryStrip } from "@/components/experience/gallery-strip";
 import { ParallaxHero } from "@/components/experience/parallax-hero";
@@ -92,6 +93,8 @@ export default async function DestinationPage({ params }: Props) {
   ].filter((f): f is { label: string; value: string } => Boolean(f.value));
   const gallery = (d.gallery ?? []).filter(Boolean);
   const partners = (d.partners ?? []).filter((p) => p && p.name);
+  // a faint photographic backdrop behind the deep-ocean conditions band
+  const condBg = gallery[1] || gallery[0] || hero;
 
   // Three concise quick-stats floated over the hero
   const heroChips = [
@@ -141,7 +144,10 @@ export default async function DestinationPage({ params }: Props) {
         <section id="overview" className="scroll-mt-[120px] py-20 sm:py-28">
           <div className="max-w-[820px] mx-auto px-6 sm:px-8">
             <Reveal>
-              <p className="text-[11px] font-bold tracking-[0.28em] text-[#00afdb] mb-5">THE DESTINATION</p>
+              <div className="flex items-center gap-3 mb-5">
+                <span className="h-[3px] w-10 rounded-full" style={{ background: SUN_TO_SEA }} />
+                <p className="text-[11px] font-bold tracking-[0.28em] text-[#f47b20]">THE DESTINATION</p>
+              </div>
               <p className="text-[19px] sm:text-[23px] leading-[1.62] text-[#3a4a50] font-medium whitespace-pre-line [text-wrap:pretty]">{d.intro}</p>
             </Reveal>
           </div>
@@ -152,23 +158,32 @@ export default async function DestinationPage({ params }: Props) {
       {facts.length > 0 && (
         <>
           <section id="conditions" className="scroll-mt-[120px] relative bg-[#00374a] text-white py-20 sm:py-28 overflow-hidden">
-            <div className="absolute -top-40 left-1/2 -translate-x-1/2 w-[700px] h-[700px] rounded-full opacity-25 blur-[120px]" style={{ background: "radial-gradient(circle,#00afdb,transparent 70%)" }} aria-hidden />
+            {condBg && <div className="absolute inset-0 bg-cover bg-center opacity-[0.18]" style={{ backgroundImage: `url('${condBg}')` }} aria-hidden />}
+            <div className="absolute inset-0 bg-gradient-to-b from-[#00374a]/85 via-[#00374a]/82 to-[#00374a]" aria-hidden />
+            <div className="absolute -top-40 left-1/2 -translate-x-1/2 w-[700px] h-[700px] rounded-full opacity-25 blur-[120px]" style={{ background: "radial-gradient(circle,#f47b20,transparent 70%)" }} aria-hidden />
             <div className="relative max-w-[1100px] mx-auto px-6 sm:px-8">
               <Reveal className="text-center mb-12 max-w-[620px] mx-auto">
-                <p className="text-[11px] font-bold tracking-[0.28em] text-[#5fd0e8] mb-3">WHAT TO EXPECT</p>
+                <p className="text-[11px] font-bold tracking-[0.28em] text-[#ffc42e] mb-3">WHAT TO EXPECT</p>
                 <h2 className="text-3xl sm:text-5xl font-black tracking-[-0.03em]">The conditions</h2>
+                <div className="h-[3px] w-14 rounded-full mx-auto mt-5" style={{ background: SUN_TO_SEA }} />
               </Reveal>
               <div className="grid grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4">
                 {facts.map((f, i) => (
                   <Reveal key={f.label} delay={i * 60}>
                     <div className="h-full rounded-2xl bg-white/[0.06] border border-white/10 p-5 sm:p-6 hover:bg-white/[0.1] hover:-translate-y-0.5 transition-all">
-                      <div className="w-10 h-10 rounded-xl bg-[#00afdb]/15 text-[#5fd0e8] grid place-items-center mb-4"><StatIcon label={f.label} /></div>
+                      <div className="w-10 h-10 rounded-xl bg-[#f47b20]/20 text-[#ffb766] grid place-items-center mb-4"><StatIcon label={f.label} /></div>
                       <p className="text-[10px] font-bold tracking-[0.14em] uppercase text-white/50">{f.label}</p>
                       <p className="text-[20px] sm:text-[26px] font-black text-white mt-1.5 leading-tight"><CountUp value={f.value} /></p>
                     </div>
                   </Reveal>
                 ))}
               </div>
+              <Reveal className="mt-9 text-center">
+                <p className="inline-flex items-start gap-2 text-[13.5px] text-white/60 max-w-[600px] mx-auto leading-relaxed">
+                  <svg className="w-4 h-4 mt-0.5 shrink-0 text-[#ffc42e]" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round"><circle cx="12" cy="12" r="9" /><path d="M12 8v4M12 16h.01" /></svg>
+                  <span>Wind is nature, not a promise — we can&apos;t guarantee it. But {d.name} stacks the odds in your favour, and we plan every day around the forecast to chase the best of it together.</span>
+                </p>
+              </Reveal>
             </div>
           </section>
           <WaveDivider topColor="#00374a" flip />
@@ -190,8 +205,9 @@ export default async function DestinationPage({ params }: Props) {
       <section id="trips" className="scroll-mt-[120px] py-20 sm:py-28">
         <div className="max-w-[1180px] mx-auto px-6 sm:px-8">
           <Reveal className="mb-12 text-center max-w-[620px] mx-auto">
-            <p className="text-[11px] font-bold tracking-[0.28em] text-[#00afdb] mb-3">TRIPS HERE</p>
+            <p className="text-[11px] font-bold tracking-[0.28em] text-[#f47b20] mb-3">TRIPS HERE</p>
             <h2 className="text-3xl sm:text-5xl font-black tracking-[-0.03em] text-[#00374a]">Trips to {d.name}</h2>
+            <div className="h-[3px] w-14 rounded-full mx-auto mt-5" style={{ background: SUN_TO_SEA }} />
           </Reveal>
           {trips.length > 0 ? (
             <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-5">
@@ -259,9 +275,11 @@ export default async function DestinationPage({ params }: Props) {
               {partners.map((p, i) => (
                 <Reveal key={i} delay={i * 50}>
                   <div className="bg-white rounded-2xl border border-[#f0e6d6] p-5 flex items-start gap-4 h-full hover:-translate-y-0.5 hover:shadow-[0_12px_30px_rgba(244,123,32,0.12)] transition-all">
-                    {p.image && (
+                    {p.image ? (
                       // eslint-disable-next-line @next/next/no-img-element
-                      <img src={p.image} alt={p.name} className="w-16 h-16 rounded-xl object-cover shrink-0 border border-[#f0e6d6]" />
+                      <img src={p.image} alt={p.name} className="w-20 h-20 rounded-xl object-cover shrink-0 border border-[#f0e6d6]" />
+                    ) : (
+                      <div className="w-20 h-20 rounded-xl shrink-0 grid place-items-center text-white font-black text-2xl" style={{ background: SUN_TO_SEA }} aria-hidden>{p.name?.trim()?.[0]?.toUpperCase() ?? "•"}</div>
                     )}
                     <div className="min-w-0">
                       <p className="text-[15px] font-bold text-[#00374a]">{p.name}</p>
@@ -280,7 +298,7 @@ export default async function DestinationPage({ params }: Props) {
       <footer className="bg-[#00374a] text-white/40 py-10">
         <div className="max-w-[1200px] mx-auto px-6 sm:px-8 flex items-center justify-between gap-4 text-[12px]">
           <div className="flex items-center gap-3">
-            <Link href="/" aria-label="NP7 home">{/* eslint-disable-next-line @next/next/no-img-element */}<img src={NP7_LOGO} alt="NP7" className="h-5 w-auto invert opacity-70" /></Link>
+            <Link href="/" aria-label="NP7 Experience home">{/* eslint-disable-next-line @next/next/no-img-element */}<img src={NP7_EXPERIENCE_LOGO} alt="NP7 Experience" className="h-7 w-auto opacity-90" /></Link>
             <span>© 2026 NP7 Experience</span>
           </div>
           <Link href="/experience" className="hover:text-white transition-colors">All experiences →</Link>
