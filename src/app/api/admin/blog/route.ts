@@ -20,6 +20,9 @@ export async function POST(request: NextRequest) {
   if (denied) return denied;
   const client = createAdminClient();
   const fields = pickBlogFields(await request.json());
+  // slug is NOT NULL + unique; a brand-new post has no title yet, so give it a
+  // unique placeholder here (server-side) until the editor sets a real one.
+  if (!fields.slug) fields.slug = `untitled-${Date.now()}`;
   const { data, error } = await client.from("exp_blog_posts").insert(fields).select().single();
   if (error) return NextResponse.json({ error: error.message }, { status: 400 });
   return NextResponse.json(data, { status: 201 });

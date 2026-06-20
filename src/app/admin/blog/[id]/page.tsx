@@ -4,6 +4,23 @@ import { useEffect, useState, use } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import ImagePickerModal from "@/components/image-picker-modal";
+import {
+  TEMPLATE_ORDER,
+  BLOG_TEMPLATES,
+  getTemplate,
+  worldForTemplate,
+  type BlogTemplateId,
+  type TemplateData,
+  type World,
+} from "@/lib/blog-templates";
+import { TemplateFieldsEditor } from "@/components/blog/template-fields-editor";
+import { BlogIcon } from "@/components/blog/blog-icons";
+
+const WORLD_OPTIONS: { id: World; label: string }[] = [
+  { id: "experience", label: "Travel" },
+  { id: "hardware", label: "Gear" },
+  { id: "technique", label: "Technique" },
+];
 
 function slugify(text: string) {
   return text
@@ -35,6 +52,11 @@ export default function BlogEditorPage({ params }: { params: Promise<{ id: strin
   const [status, setStatus] = useState<"draft" | "published">("draft");
   const [publishedAt, setPublishedAt] = useState<string | null>(null);
 
+  const [template, setTemplate] = useState<BlogTemplateId>("standard");
+  const [world, setWorld] = useState<World>("experience");
+  const [membersOnly, setMembersOnly] = useState(true);
+  const [templateData, setTemplateData] = useState<TemplateData>({});
+
   useEffect(() => {
     fetch(`/api/admin/blog/${id}`)
       .then((r) => r.json())
@@ -55,6 +77,10 @@ export default function BlogEditorPage({ params }: { params: Promise<{ id: strin
         setContent(p.content ?? "");
         setStatus(p.status === "published" ? "published" : "draft");
         setPublishedAt(p.published_at ?? null);
+        setTemplate((p.template as BlogTemplateId) ?? "standard");
+        setWorld((p.world as World) ?? "experience");
+        setMembersOnly(p.members_only !== false);
+        setTemplateData(p.template_data && typeof p.template_data === "object" ? p.template_data : {});
       })
       .finally(() => setLoading(false));
   }, [id]);
@@ -64,6 +90,14 @@ export default function BlogEditorPage({ params }: { params: Promise<{ id: strin
     // Never re-derive the slug for a published post — that would break its live
     // URL. Auto-sync only applies to untouched drafts.
     if (!slugTouched && status !== "published") setSlug(slugify(value));
+  }
+
+  function onTemplateChange(id: BlogTemplateId) {
+    setTemplate(id);
+    // Default the world from the template, and seed the category label if empty —
+    // both stay editable, this just keeps editing effort minimal.
+    setWorld(worldForTemplate(id));
+    if (!category.trim() && id !== "standard") setCategory(BLOG_TEMPLATES[id].label);
   }
 
   async function save(nextStatus?: "draft" | "published") {
@@ -78,7 +112,7 @@ export default function BlogEditorPage({ params }: { params: Promise<{ id: strin
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         title,
-        slug: slug || slugify(title) || `untitled-${Date.now()}`,
+        slug: slug || slugify(title) || `untitled-${id.slice(0, 8)}`,
         category: category || null,
         author,
         cover_image: coverImage || null,
@@ -86,6 +120,10 @@ export default function BlogEditorPage({ params }: { params: Promise<{ id: strin
         content,
         status: effectiveStatus,
         published_at: effectivePublishedAt,
+        template,
+        world,
+        members_only: membersOnly,
+        template_data: templateData,
       }),
     });
     if (res.ok) {
@@ -118,18 +156,43 @@ export default function BlogEditorPage({ params }: { params: Promise<{ id: strin
     <div className="p-6 sm:p-8 max-w-[860px] mx-auto pb-28">
       <div className="flex items-start justify-between gap-4 mb-6">
         <div>
-          <Link href="/admin/blog" className="text-xs admin-faint hover:admin-heading">← Blog</Link>
+          <Link href="/admin/blog" className="text-xs admin-faint hover:admin-heading">← Magazine</Link>
           <h1 className="text-2xl font-bold admin-heading mt-1">{title || "Untitled post"}</h1>
           <p className="text-sm admin-muted mt-0.5">
-            {status === "published" ? "Live on the public blog" : "Draft · not visible publicly"}
+            {status === "published" ? "Live on the public magazine" : "Draft · not visible publicly"}
           </p>
         </div>
         {status === "published" && slug && (
-          <Link href={`/experience/blog/${slug}`} target="_blank" className="shrink-0 text-[12px] font-semibold text-[#0aa3c7] hover:underline">View live ↗</Link>
+          <Link href={`/blog/${slug}`} target="_blank" className="shrink-0 text-[12px] font-semibold text-[#0aa3c7] hover:underline">View live ↗</Link>
         )}
       </div>
 
       <div className="space-y-7">
+        <Section title="Format" hint="Pick a template — the public post lays itself out automatically. You just fill the fields.">
+          <div className="grid grid-cols-2 lg:grid-cols-3 gap-2.5">
+            {TEMPLATE_ORDER.map((tid) => {
+              const t = BLOG_TEMPLATES[tid];
+              const active = template === tid;
+              return (
+                <button
+                  key={tid}
+                  type="button"
+                  onClick={() => onTemplateChange(tid)}
+                  className={`text-left rounded-xl border p-3.5 transition-colors ${
+                    active ? "border-[#0aa3c7] bg-[#0aa3c7]/[0.06]" : "admin-border admin-surface hover:border-[#0aa3c7]/50"
+                  }`}
+                >
+                  <div className="flex items-center gap-2 mb-1">
+                    <span className={active ? "text-[#0aa3c7]" : "admin-muted"}><BlogIcon name={t.icon} className="w-[18px] h-[18px]" /></span>
+                    <span className="text-[13px] font-bold admin-heading">{t.label}</span>
+                  </div>
+                  <p className="text-[11px] admin-faint leading-snug">{t.tagline}</p>
+                </button>
+              );
+            })}
+          </div>
+        </Section>
+
         <Section title="Title">
           <input
             value={title}
@@ -141,7 +204,7 @@ export default function BlogEditorPage({ params }: { params: Promise<{ id: strin
 
         <Section title="Slug" hint="The post URL. Generated from the title — edit to override.">
           <div className="flex items-center gap-2">
-            <span className="text-[13px] admin-faint shrink-0">/experience/blog/</span>
+            <span className="text-[13px] admin-faint shrink-0">/blog/</span>
             <input
               value={slug}
               onChange={(e) => {
@@ -216,6 +279,12 @@ export default function BlogEditorPage({ params }: { params: Promise<{ id: strin
           />
         </Section>
 
+        {template !== "standard" && (
+          <Section title={`${getTemplate(template).label} details`} hint="These fill the structured part of the post — facts strip, specs, steps and so on.">
+            <TemplateFieldsEditor template={getTemplate(template)} data={templateData} onChange={setTemplateData} />
+          </Section>
+        )}
+
         <Section
           title="Content"
           hint="Markdown supported: ## heading, ### subheading, **bold**, *italic*, [link](https://…), ![photo](image-url), - bullet list, 1. numbered list, > quote, --- divider. Blank line starts a new paragraph."
@@ -227,6 +296,42 @@ export default function BlogEditorPage({ params }: { params: Promise<{ id: strin
             placeholder={"The week started with 25 knots…\n\n## Day one\n\nWe rigged early and…"}
             className="admin-input w-full px-4 py-3 rounded-lg border text-sm outline-none resize-y leading-relaxed"
           />
+        </Section>
+
+        <Section title="Visibility & section" hint="Members-only posts show a teaser + free-signup wall to logged-out visitors. World sets the accent colour and the Travel/Gear filter on the blog.">
+          <button
+            type="button"
+            onClick={() => setMembersOnly((v) => !v)}
+            className="w-full flex items-center justify-between gap-4 admin-surface admin-border border rounded-xl px-4 py-3.5 text-left hover:border-[#0aa3c7]/50 transition-colors"
+          >
+            <span>
+              <span className="block text-[13px] font-bold admin-heading">Members-only</span>
+              <span className="block text-[11px] admin-faint mt-0.5">
+                {membersOnly ? "Teaser is public; full post needs a free account." : "Fully public — anyone can read all of it."}
+              </span>
+            </span>
+            <span className={`shrink-0 w-11 h-6 rounded-full p-0.5 transition-colors ${membersOnly ? "bg-[#0aa3c7]" : "admin-border border"}`}>
+              <span className={`block w-5 h-5 rounded-full bg-white transition-transform ${membersOnly ? "translate-x-5" : ""}`} />
+            </span>
+          </button>
+
+          <div className="mt-3 flex flex-wrap gap-1.5">
+            {WORLD_OPTIONS.map((w) => {
+              const active = world === w.id;
+              return (
+                <button
+                  key={w.id}
+                  type="button"
+                  onClick={() => setWorld(w.id)}
+                  className={`px-3.5 py-2 rounded-full text-[12.5px] font-semibold border transition-colors ${
+                    active ? "bg-[#0aa3c7] text-white border-[#0aa3c7]" : "admin-border admin-muted hover:admin-heading"
+                  }`}
+                >
+                  {w.label}
+                </button>
+              );
+            })}
+          </div>
         </Section>
 
         <Section title="Danger zone">

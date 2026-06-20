@@ -25,4 +25,7 @@ export const flags = {
   showHardware: show(process.env.SHOW_HARDWARE),
   showGear: show(process.env.SHOW_GEAR),
   showCart: show(process.env.SHOW_CART),
+  // Top-level brand-neutral blog. Hidden in production until SHOW_BLOG=true so
+  // the team can seed posts first; visible in dev + preview as usual.
+  showBlog: show(process.env.SHOW_BLOG),
 };

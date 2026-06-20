@@ -2,15 +2,31 @@
 
 import { useRouter } from "next/navigation";
 import { NP7_LOGO } from "@/components/shared/brand";
-import { AuthForm } from "./auth-form";
+import { AuthForm, type Mode } from "./auth-form";
 
 /**
  * Member auth popup — the "typical signup/login pop-up". Opened by the member
  * button on both sub-sites. Password login first, with magic-link + register as
  * clear secondary options (see AuthForm). The /account/login page is the no-JS
  * / email-redirect fallback.
+ *
+ * Callers can open it straight into "create account" (`initialMode`), give it a
+ * contextual heading (`title`/`subtitle`), and override what happens on a
+ * successful login (`onLoggedIn`) — e.g. the blog gate just refreshes in place.
  */
-export function AuthModal({ onClose }: { onClose: () => void }) {
+export function AuthModal({
+  onClose,
+  initialMode = "login",
+  title = "My NP7",
+  subtitle = "Log in to manage your trips & gear",
+  onLoggedIn,
+}: {
+  onClose: () => void;
+  initialMode?: Mode;
+  title?: string;
+  subtitle?: string;
+  onLoggedIn?: () => void;
+}) {
   const router = useRouter();
 
   return (
@@ -24,13 +40,14 @@ export function AuthModal({ onClose }: { onClose: () => void }) {
         <div className="text-center mb-6">
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img src={NP7_LOGO} alt="NP7" className="h-7 w-auto mx-auto mb-3" />
-          <h2 className="text-xl font-black tracking-[-0.02em] text-[#00374a]">My NP7</h2>
-          <p className="text-[13px] text-[#6a7a80] mt-1">Log in to manage your trips &amp; gear</p>
+          <h2 className="text-xl font-black tracking-[-0.02em] text-[#00374a]">{title}</h2>
+          <p className="text-[13px] text-[#6a7a80] mt-1">{subtitle}</p>
         </div>
 
         <AuthForm
           compact
-          onLoggedIn={() => { onClose(); router.push("/account"); router.refresh(); }}
+          initialMode={initialMode}
+          onLoggedIn={onLoggedIn ?? (() => { onClose(); router.push("/account"); router.refresh(); })}
         />
       </div>
     </div>

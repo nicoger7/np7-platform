@@ -4,18 +4,19 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 
-type Mode = "login" | "magic" | "register";
+export type Mode = "login" | "magic" | "register";
 
 /**
  * Shared member auth form. Password login is the primary path; magic-link and
  * "create account" are clear secondary options. Used both inside the AuthModal
- * popup and on the /account/login fallback page.
+ * popup and on the /account/login fallback page. `initialMode` lets a caller
+ * (e.g. the blog signup gate) open straight into "create account".
  */
-export function AuthForm({ onLoggedIn, compact = false }: { onLoggedIn?: () => void; compact?: boolean }) {
+export function AuthForm({ onLoggedIn, compact = false, initialMode = "login" }: { onLoggedIn?: () => void; compact?: boolean; initialMode?: Mode }) {
   const router = useRouter();
   const supabase = createClient();
 
-  const [mode, setMode] = useState<Mode>("login");
+  const [mode, setMode] = useState<Mode>(initialMode);
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");

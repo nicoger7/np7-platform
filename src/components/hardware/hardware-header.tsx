@@ -11,7 +11,14 @@ const NAV = [
   { label: "Fins", href: "#products" },
   { label: "Shop", href: "#products" },
   { label: "Workshop", href: "#workshop" },
+  // right-aligned, next to the account button + CTA
+  { label: "Magazine", href: "/blog", side: "right" as const },
+  { label: "About", href: "/about", side: "right" as const },
 ];
+
+const leftNav = NAV.filter((n) => n.side !== "right");
+const rightNav = NAV.filter((n) => n.side === "right");
+const navLink = "text-[12px] font-bold uppercase tracking-[0.12em] text-white/55 hover:text-[#c2ff38] transition-colors font-mono";
 
 /**
  * Hardware header — black/techy counterpart to the ocean header.
@@ -42,6 +49,7 @@ export function HardwareHeader({ variant = "overlay" }: { variant?: "overlay" | 
       }
     >
       <div className="max-w-[1200px] mx-auto px-5 sm:px-8 h-16 flex items-center justify-between gap-4">
+        {/* LEFT — brand + primary nav */}
         <div className="flex items-center gap-3 sm:gap-4">
           <Link href="/" aria-label="NP7 home" className="shrink-0">
             {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -49,21 +57,20 @@ export function HardwareHeader({ variant = "overlay" }: { variant?: "overlay" | 
           </Link>
           <span className="w-px h-6 bg-white/20 hidden sm:block" />
           <BrandSwitch active="hardware" />
+          <nav className="hidden lg:flex items-center gap-7 ml-1">
+            {leftNav.map((n, i) => (
+              <Link key={i} href={n.href} className={navLink}>{n.label}</Link>
+            ))}
+          </nav>
         </div>
 
-        <nav className="hidden lg:flex items-center gap-8">
-          {NAV.map((n, i) => (
-            <Link
-              key={i}
-              href={n.href}
-              className="text-[12px] font-bold uppercase tracking-[0.12em] text-white/55 hover:text-[#c2ff38] transition-colors font-mono"
-            >
-              {n.label}
-            </Link>
-          ))}
-        </nav>
-
-        <div className="flex items-center gap-2.5">
+        {/* RIGHT — secondary nav + account + CTA */}
+        <div className="flex items-center gap-5">
+          <nav className="hidden lg:flex items-center gap-7">
+            {rightNav.map((n, i) => (
+              <Link key={i} href={n.href} className={navLink}>{n.label}</Link>
+            ))}
+          </nav>
           <MemberButton section="hardware" />
           <Link
             href="#products"

@@ -1,11 +1,12 @@
 import React from "react";
 
 /**
- * Minimal markdown renderer for blog posts, styled for the ocean brand.
- * Supports the subset documented in the admin editor hint: ## / ### headings,
- * **bold**, *italic*, `code`, [link](url), ![image](url) on its own line,
- * - / 1. lists, > quotes and --- dividers. Builds React elements only —
- * raw HTML in the content is rendered as text, so posts can't inject script.
+ * Minimal markdown renderer for blog posts. Supports the subset documented in
+ * the admin editor hint: ## / ### headings, **bold**, *italic*, `code`,
+ * [link](url), ![image](url) on its own line, - / 1. lists, > quotes and ---
+ * dividers. Builds React elements only — raw HTML in the content is rendered as
+ * text, so posts can't inject script. Body typography is intentionally uniform
+ * across all templates/worlds; accent variation lives in the post chrome.
  */
 
 type Block =
@@ -154,4 +155,13 @@ export function PostBody({ content }: { content: string }) {
       })}
     </div>
   );
+}
+
+/** Split markdown into a free teaser (first N paragraphs) and the gated rest. */
+export function splitForTeaser(content: string, paragraphs = 2): { teaser: string; hasMore: boolean } {
+  const norm = content.replace(/\r\n/g, "\n").trim();
+  if (!norm) return { teaser: "", hasMore: false };
+  const chunks = norm.split(/\n\s*\n/);
+  if (chunks.length <= paragraphs) return { teaser: norm, hasMore: false };
+  return { teaser: chunks.slice(0, paragraphs).join("\n\n"), hasMore: true };
 }

@@ -13,9 +13,14 @@ const NAV = [
   { label: "Experiences", href: "/experience#experiences" },
   { label: "Destinations", href: "/experience#destinations" },
   { label: "Disciplines", href: "/experience#disciplines" },
-  { label: "Blog", href: "/experience/blog" },
-  { label: "About", href: "/experience#vibe" },
+  // right-aligned, next to the account button + CTA
+  { label: "Magazine", href: "/blog", side: "right" as const },
+  { label: "About", href: "/about", side: "right" as const },
 ];
+
+const leftNav = NAV.filter((n) => n.side !== "right");
+const rightNav = NAV.filter((n) => n.side === "right");
+const navLink = "text-[12.5px] font-semibold text-white/70 hover:text-white transition-colors tracking-wide";
 
 /**
  * Sticky header for the Experience sub-site.
@@ -57,6 +62,7 @@ export function OceanHeader({
       }
     >
       <div className="max-w-[1200px] mx-auto px-5 sm:px-8 h-16 flex items-center justify-between gap-4">
+        {/* LEFT — brand + primary nav */}
         <div className="flex items-center gap-3 sm:gap-4">
           <Link href="/" aria-label="NP7 home" className="shrink-0">
             {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -64,21 +70,20 @@ export function OceanHeader({
           </Link>
           <span className="w-px h-6 bg-white/20 hidden sm:block" />
           <BrandSwitch active="experience" />
+          <nav className="hidden lg:flex items-center gap-7 ml-1">
+            {leftNav.map((n) => (
+              <Link key={n.href} href={n.href} className={navLink}>{n.label}</Link>
+            ))}
+          </nav>
         </div>
 
-        <nav className="hidden lg:flex items-center gap-8">
-          {NAV.map((n) => (
-            <Link
-              key={n.href}
-              href={n.href}
-              className="text-[12.5px] font-semibold text-white/70 hover:text-white transition-colors tracking-wide"
-            >
-              {n.label}
-            </Link>
-          ))}
-        </nav>
-
-        <div className="flex items-center gap-2.5">
+        {/* RIGHT — secondary nav + account + CTA */}
+        <div className="flex items-center gap-5">
+          <nav className="hidden lg:flex items-center gap-7">
+            {rightNav.map((n) => (
+              <Link key={n.href} href={n.href} className={navLink}>{n.label}</Link>
+            ))}
+          </nav>
           <MemberButton section="experience" />
           <Link
             href={bookHref}

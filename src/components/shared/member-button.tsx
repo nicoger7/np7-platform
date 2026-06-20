@@ -14,9 +14,16 @@ import { AuthModal } from "./auth-modal";
  * portal keeps that section's header. The href is /account so it still works
  * with JS off (middleware redirects to the /account/login fallback page).
  */
-export function MemberButton({ section }: { section: "experience" | "hardware" }) {
+export function MemberButton({
+  section,
+  tone = "onDark",
+}: {
+  section: "experience" | "hardware";
+  tone?: "onDark" | "onLight";
+}) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
+  const base = tone === "onLight" ? "border-[#00374a]/15 text-[#00374a]/70" : "border-white/20 text-white/80";
   const accent = section === "hardware" ? "hover:text-[#c2ff38] hover:border-[#c2ff38]/50" : "hover:text-[#00afdb] hover:border-[#00afdb]/60";
 
   function rememberSection() {
@@ -40,7 +47,7 @@ export function MemberButton({ section }: { section: "experience" | "hardware" }
         href="/account"
         aria-label="My account"
         onClick={handleClick}
-        className={`shrink-0 grid place-items-center w-9 h-9 rounded-full border border-white/20 text-white/80 transition-colors cursor-pointer ${accent}`}
+        className={`shrink-0 grid place-items-center w-9 h-9 rounded-full border transition-colors cursor-pointer ${base} ${accent}`}
       >
         <svg className="w-[18px] h-[18px]" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
           <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
