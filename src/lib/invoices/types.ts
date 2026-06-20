@@ -1,0 +1,86 @@
+// Shared contract for invoicing & documents — used by the PDF engine, the admin
+// + portal APIs, and the UIs. Keep in sync with migration 20260618_021_invoicing.sql.
+
+export type Division = "experience" | "hardware";
+
+export type VatMode = "margin" | "standard";
+
+export const DOCUMENT_TYPES = [
+  "deposit_invoice",
+  "final_invoice",
+  "booking_confirmation",
+  "credit_note",
+  "sicherungsschein",
+  "other",
+] as const;
+export type DocumentType = (typeof DOCUMENT_TYPES)[number];
+
+/** Per-division legal/company profile (company_settings row). */
+export type CompanySettings = {
+  division: Division;
+  legal_name: string | null;
+  address_line1: string | null;
+  address_line2: string | null;
+  postal_code: string | null;
+  city: string | null;
+  country: string | null;
+  email: string | null;
+  phone: string | null;
+  website: string | null;
+  vat_id: string | null;
+  tax_number: string | null;
+  register_info: string | null;
+  managing_director: string | null;
+  iban: string | null;
+  bic: string | null;
+  bank_name: string | null;
+  logo_url: string | null;
+  currency: string;
+  vat_mode: VatMode;
+  vat_rate: number | null;
+  invoice_prefix: string | null;
+  invoice_footer: string | null;
+  terms_url: string | null;
+  sicherungsschein_insurer: string | null;
+  sicherungsschein_number: string | null;
+};
+
+/** A stored/generated document (documents row). */
+export type DocumentRow = {
+  id: string;
+  booking_id: string | null;
+  contact_id: string | null;
+  division: Division;
+  type: DocumentType;
+  invoice_number: string | null;
+  title: string | null;
+  file_path: string | null;
+  amount: number | null;
+  currency: string;
+  status: "issued" | "void";
+  issued_at: string;
+  created_at: string;
+  meta: Record<string, unknown>;
+};
+
+/** Input to the document generator. The service resolves booking/contact/edition/settings. */
+export type GenerateInput = {
+  bookingId: string;
+  type: Extract<DocumentType, "deposit_invoice" | "final_invoice" | "booking_confirmation">;
+  /** Force a specific division; otherwise inferred (experience for bookings). */
+  division?: Division;
+};
+
+export const DIVISIONS: Division[] = ["experience", "hardware"];
+
+/** Format the gapless counter int into a human invoice number. */
+export function formatInvoiceNumber(prefix: string | null, year: number, seq: number): string {
+  return `${prefix || "INV"}-${year}-${String(seq).padStart(4, "0")}`;
+}
+
+/** Money formatter for PDF + UI. */
+export function formatMoney(amount: number | null | undefined, currency = "EUR"): string {
+  if (amount == null) return "—";
+  const symbol = currency === "EUR" ? "€" : currency === "USD" ? "$" : `${currency} `;
+  return `${symbol}${Number(amount).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+}

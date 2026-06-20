@@ -9,15 +9,70 @@
   --color-surface: #f7f7f7;
   --color-border: #ebebeb;
   --font-sans: 'Inter', system-ui, -apple-system, sans-serif;
+
+  /* NP7 Experience — ocean brand palette (from the logo) */
+  --color-ocean: #00afdb;
+  --color-ocean-deep: #00374a;
+  --color-foam: #8fe6f2;
+  --color-sun: #ffc42e;
+  --color-coral: #f47b20;
+  --color-sand: #fff7ec;
 }
 
 html {
   scroll-behavior: smooth;
 }
 
+/* Admin theme utilities — driven by CSS vars set in admin-shell.tsx */
+.admin-heading { color: var(--admin-text); }
+.admin-muted { color: var(--admin-text-muted); }
+.admin-faint { color: var(--admin-text-faint); }
+.admin-surface { background-color: var(--admin-surface); }
+.admin-border { border-color: var(--admin-border); }
+.admin-input {
+  background-color: var(--admin-input-bg);
+  border-color: var(--admin-input-border);
+  color: var(--admin-text);
+}
+.admin-input::placeholder { color: var(--admin-text-faint); }
+
 body {
   font-family: var(--font-sans);
   background: #ffffff;
   color: var(--color-ink);
   -webkit-font-smoothing: antialiased;
+}
+
+/* Dark-themed routes (hardware): paint html + body dark so scroll-up / overscroll
+   repaint never flashes the white default behind the page. */
+html:has(.hardware-root),
+body:has(.hardware-root) {
+  background: #0c0c0e;
+}
+
+/* Hide scrollbars on horizontal carousels while keeping scroll/drag */
+.scrollbar-hide {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+.scrollbar-hide::-webkit-scrollbar {
+  display: none;
+}
+
+/* Gentle, non-trapping section snapping for the experience page */
+.snap-chapters {
+  scroll-snap-type: y proximity;
+}
+.snap-chapter {
+  scroll-snap-align: start;
+  scroll-margin-top: 64px;
+}
+
+/* Respect reduced-motion preferences for all scroll reveals */
+@media (prefers-reduced-motion: reduce) {
+  .reveal {
+    opacity: 1 !important;
+    transform: none !important;
+    transition: none !important;
+  }
 }

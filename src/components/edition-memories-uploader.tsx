@@ -1,0 +1,162 @@
+"use client";
+
+import { useState, useEffect, useCallback, useRef } from "react";
+
+/**
+ * Photographer/admin uploader for a week's participant photos.
+ *
+ * Scope picker decides who sees what:
+ *  - "Everyone"      → assets/memories/{editionId}/        (shared with all participants)
+ *  - a participant   → assets/memories/{editionId}/p/{bookingId}/  (only that client sees them)
+ *
+ * getMemoryPhotosForBooking() returns a participant's own folder + the shared folder,
+ * so each client only ever sees their own pics plus the whole-group shots.
+ * Also edits the highlight video URL (exp_editions.memories_video_url).
+ */
+type Booking = { id: string; name: string | null; contact: { name: string | null } | null };
+
+export function EditionMemoriesUploader({ editionId, initialVideoUrl }: { editionId: string; initialVideoUrl: string | null }) {
+  const [bookings, setBookings] = useState<Booking[]>([]);
+  const [scope, setScope] = useState<string>(""); // "" = everyone, else bookingId
+  const [photos, setPhotos] = useState<{ name: string; path: string; url: string }[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [uploading, setUploading] = useState(false);
+  const [progress, setProgress] = useState<{ done: number; total: number } | null>(null);
+  const [counts, setCounts] = useState<Record<string, number>>({}); // scope key -> photo count
+  const [videoUrl, setVideoUrl] = useState(initialVideoUrl ?? "");
+  const [videoSaved, setVideoSaved] = useState(false);
+  const fileInput = useRef<HTMLInputElement>(null);
+
+  const folderFor = useCallback(
+    (s: string) => (s ? `memories/${editionId}/p/${s}` : `memories/${editionId}`),
+    [editionId]
+  );
+
+  // participant list for this week
+  useEffect(() => {
+    fetch(`/api/admin/bookings?edition_id=${editionId}`)
+      .then((r) => r.json())
+      .then((d) => setBookings(Array.isArray(d?.bookings) ? d.bookings : []));
+  }, [editionId]);
+
+  const listFolder = useCallback(async (folder: string) => {
+    const res = await fetch(`/api/admin/images?folder=${encodeURIComponent(folder)}`);
+    const data = await res.json();
+    return (Array.isArray(data) ? data : data.files ?? [])
+      .filter((f: { url: string | null; name: string }) => f.url && f.name !== ".emptyFolderPlaceholder");
+  }, []);
+
+  const load = useCallback(async () => {
+    setLoading(true);
+    setPhotos(await listFolder(folderFor(scope)));
+    setLoading(false);
+  }, [folderFor, scope, listFolder]);
+
+  useEffect(() => { load(); }, [load]);
+
+  // refresh per-scope counts (everyone + each participant)
+  const refreshCounts = useCallback(async () => {
+    const keys = ["", ...bookings.map((b) => b.id)];
+    const entries = await Promise.all(keys.map(async (k) => [k, (await listFolder(folderFor(k))).length] as const));
+    setCounts(Object.fromEntries(entries));
+  }, [bookings, folderFor, listFolder]);
+  useEffect(() => { if (bookings.length) refreshCounts(); }, [bookings, refreshCounts]);
+
+  async function upload(files: FileList | null) {
+    if (!files || files.length === 0) return;
+    setUploading(true);
+    setProgress({ done: 0, total: files.length });
+    const folder = folderFor(scope);
+    for (let i = 0; i < files.length; i++) {
+      const fd = new FormData();
+      fd.append("file", files[i]);
+      fd.append("folder", folder);
+      await fetch("/api/admin/images", { method: "POST", body: fd });
+      setProgress({ done: i + 1, total: files.length });
+    }
+    setUploading(false);
+    setProgress(null);
+    if (fileInput.current) fileInput.current.value = "";
+    load(); refreshCounts();
+  }
+
+  async function remove(path: string) {
+    if (!confirm("Remove this photo from the gallery?")) return;
+    await fetch("/api/admin/images", { method: "DELETE", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ paths: [path] }) });
+    load(); refreshCounts();
+  }
+
+  async function saveVideo() {
+    await fetch(`/api/admin/editions/${editionId}`, {
+      method: "PATCH", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ memories_video_url: videoUrl.trim() || null }),
+    });
+    setVideoSaved(true);
+    setTimeout(() => setVideoSaved(false), 2000);
+  }
+
+  const scopeLabel = scope ? (bookings.find((b) => b.id === scope)?.contact?.name || bookings.find((b) => b.id === scope)?.name || "this participant") : "Everyone";
+  const chip = (key: string, label: string) => (
+    <button
+      key={key || "all"}
+      onClick={() => setScope(key)}
+      className={`px-3 py-1.5 rounded-lg text-xs font-medium border transition-colors ${scope === key ? "border-[#0aa3c7] bg-[#0aa3c7]/10 admin-heading" : "admin-surface admin-muted"}`}
+      style={{ borderColor: scope === key ? undefined : "var(--admin-border)" }}
+    >
+      {label}{counts[key] != null ? <span className="admin-faint"> · {counts[key]}</span> : ""}
+    </button>
+  );
+
+  return (
+    <div className="space-y-6">
+      <div className="rounded-xl p-4" style={{ border: "1px solid var(--admin-border)", backgroundColor: "var(--admin-surface)" }}>
+        <h3 className="text-sm font-bold admin-heading">Participant photos</h3>
+        <p className="text-xs admin-faint mt-0.5 mb-3">
+          Pick who the photos are for, then upload. <span className="admin-muted">Everyone</span> = shared with all
+          participants this week; a name = <span className="admin-muted">only that client sees them</span> in their member area.
+          (Private trip photos — separate from the public marketing gallery in Event Content.)
+        </p>
+
+        {/* scope picker */}
+        <div className="flex flex-wrap gap-1.5 mb-4">
+          {chip("", "👥 Everyone")}
+          {bookings.map((b) => chip(b.id, b.contact?.name || b.name || "Participant"))}
+          {bookings.length === 0 && <span className="text-xs admin-faint">No participants booked yet.</span>}
+        </div>
+
+        <div className="flex items-center gap-3 mb-4">
+          <input ref={fileInput} type="file" accept="image/*" multiple onChange={(e) => upload(e.target.files)} className="hidden" id="memories-file" />
+          <label htmlFor="memories-file" className={`px-4 py-2 rounded-lg text-xs font-bold cursor-pointer transition-colors ${uploading ? "opacity-50 pointer-events-none" : ""} bg-[#0aa3c7] hover:bg-[#0aa3c7]/90 text-white`}>
+            {uploading ? `Uploading ${progress?.done}/${progress?.total}…` : `Upload photos for ${scopeLabel}`}
+          </label>
+        </div>
+
+        {loading ? (
+          <p className="text-xs admin-faint">Loading…</p>
+        ) : photos.length === 0 ? (
+          <p className="text-xs admin-faint">No photos for {scopeLabel} yet.</p>
+        ) : (
+          <div className="grid grid-cols-3 sm:grid-cols-5 gap-2">
+            {photos.map((p) => (
+              <div key={p.path} className="relative group aspect-square rounded-lg overflow-hidden" style={{ border: "1px solid var(--admin-border)" }}>
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img src={p.url} alt="" className="w-full h-full object-cover" />
+                <button onClick={() => remove(p.path)} className="absolute top-1 right-1 w-6 h-6 rounded bg-black/60 text-white text-sm grid place-items-center opacity-0 group-hover:opacity-100 transition-opacity" title="Remove">×</button>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
+      <div className="rounded-xl p-4" style={{ border: "1px solid var(--admin-border)", backgroundColor: "var(--admin-surface)" }}>
+        <h3 className="text-sm font-bold admin-heading">Highlight video</h3>
+        <p className="text-xs admin-faint mt-0.5 mb-3">Optional — a YouTube/Vimeo link shown to all participants in their memories card.</p>
+        <div className="flex items-center gap-2">
+          <input value={videoUrl} onChange={(e) => setVideoUrl(e.target.value)} placeholder="https://youtu.be/…" className="admin-input flex-1 px-3 py-2 rounded-lg border text-sm outline-none focus:border-[#0aa3c7]" />
+          <button onClick={saveVideo} className="px-3 py-2 bg-[#0aa3c7] hover:bg-[#0aa3c7]/90 text-white text-xs font-bold rounded-lg transition-colors">Save</button>
+          {videoSaved && <span className="text-xs text-green-400">Saved ✓</span>}
+        </div>
+      </div>
+    </div>
+  );
+}

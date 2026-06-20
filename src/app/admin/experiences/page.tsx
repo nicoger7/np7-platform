@@ -1,0 +1,336 @@
+"use client";
+
+import { useState, useEffect } from "react";
+import Link from "next/link";
+import { useRouter } from "next/navigation";
+import { SortableHeader } from "@/components/sortable-header";
+import { ColumnToggle, ColumnDef, buildGridTemplate, loadVisibleColumns } from "@/components/column-toggle";
+
+interface Experience {
+  id: string;
+  title: string;
+  slug: string;
+  location: string;
+  status: string;
+  hero_image: string;
+  hotel: string | null;
+}
+
+interface Edition {
+  experience_id: string;
+  year: number;
+  status: string;
+}
+
+type ViewMode = "list" | "tile";
+type SortDir = "asc" | "desc" | null;
+
+const COLUMNS: ColumnDef[] = [
+  { key: "title", label: "Title", width: "1fr", required: true },
+  { key: "location", label: "Location", width: "140px" },
+  { key: "hotel", label: "Hotel", width: "100px" },
+  { key: "editions", label: "Editions", width: "160px" },
+  { key: "status", label: "Status", width: "90px" },
+];
+
+const STORAGE_KEY = "np7-exp-columns";
+
+function StatusBadge({ status }: { status: string }) {
+  return (
+    <span
+      className={`inline-block px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-[0.05em] ${
+        status === "published"
+          ? "bg-green-500/15 text-green-400"
+          : status === "archived"
+          ? "bg-red-500/15 text-red-400"
+          : "admin-surface admin-muted"
+      }`}
+    >
+      {status}
+    </span>
+  );
+}
+
+function EditionPills({ editions }: { editions: Edition[] }) {
+  if (!editions || editions.length === 0) {
+    return <span className="text-xs admin-faint">—</span>;
+  }
+  return (
+    <div className="flex flex-wrap gap-1">
+      {editions.map((ed) => (
+        <span
+          key={ed.year}
+          className={`inline-block px-1.5 py-0.5 rounded text-[10px] font-medium ${
+            ed.status === "published"
+              ? "bg-[#0aa3c7]/15 text-[#0aa3c7]"
+              : ed.status === "archived"
+              ? "bg-gray-500/15 text-gray-400"
+              : "bg-amber-500/15 text-amber-400"
+          }`}
+        >
+          {ed.year}
+        </span>
+      ))}
+    </div>
+  );
+}
+
+function compareValues(a: unknown, b: unknown, dir: "asc" | "desc"): number {
+  if (a == null && b == null) return 0;
+  if (a == null) return dir === "asc" ? 1 : -1;
+  if (b == null) return dir === "asc" ? -1 : 1;
+  const aNum = Number(a);
+  const bNum = Number(b);
+  if (!isNaN(aNum) && !isNaN(bNum)) return dir === "asc" ? aNum - bNum : bNum - aNum;
+  const cmp = String(a).localeCompare(String(b));
+  return dir === "asc" ? cmp : -cmp;
+}
+
+export default function ExperiencesPage() {
+  const [experiences, setExperiences] = useState<Experience[]>([]);
+  const [editions, setEditions] = useState<Edition[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [view, setView] = useState<ViewMode>(() => {
+    if (typeof window !== "undefined") {
+      return (localStorage.getItem("np7-exp-view") as ViewMode) || "list";
+    }
+    return "list";
+  });
+  const [sortKey, setSortKey] = useState<string | null>(null);
+  const [sortDir, setSortDir] = useState<SortDir>(null);
+  const [visibleColumns, setVisibleColumns] = useState<Set<string>>(
+    () => loadVisibleColumns(STORAGE_KEY, COLUMNS)
+  );
+  const router = useRouter();
+
+  useEffect(() => {
+    Promise.all([
+      fetch("/api/admin/experiences").then((r) => r.json()),
+      fetch("/api/admin/editions").then((r) => r.json()),
+    ]).then(([exps, eds]) => {
+      setExperiences(Array.isArray(exps) ? exps : exps.experiences || []);
+      setEditions(Array.isArray(eds) ? eds : []);
+      setLoading(false);
+    });
+  }, []);
+
+  function editionsFor(expId: string): Edition[] {
+    return editions
+      .filter((e) => e.experience_id === expId)
+      .sort((a, b) => b.year - a.year);
+  }
+
+  function setViewMode(mode: ViewMode) {
+    setView(mode);
+    localStorage.setItem("np7-exp-view", mode);
+  }
+
+  function handleSort(key: string) {
+    if (sortKey === key) {
+      if (sortDir === "asc") setSortDir("desc");
+      else if (sortDir === "desc") { setSortKey(null); setSortDir(null); }
+      else { setSortDir("asc"); }
+    } else {
+      setSortKey(key);
+      setSortDir("asc");
+    }
+  }
+
+  const sorted = sortKey && sortDir
+    ? [...experiences].sort((a, b) => compareValues(a[sortKey as keyof Experience], b[sortKey as keyof Experience], sortDir))
+    : experiences;
+
+  const gridTemplate = buildGridTemplate(COLUMNS, visibleColumns);
+
+  // Group by status — published on top, then draft, then archived.
+  const STATUS_ORDER = ["published", "draft", "archived"];
+  const statusGroups = [
+    ...STATUS_ORDER.map((s) => ({ status: s, items: sorted.filter((e) => e.status === s) })),
+    { status: "other", items: sorted.filter((e) => !STATUS_ORDER.includes(e.status)) },
+  ].filter((g) => g.items.length > 0);
+
+  function GroupHeading({ status, count }: { status: string; count: number }) {
+    return (
+      <div className="flex items-center gap-2 mb-2 mt-6 first:mt-0">
+        <h2 className="text-xs font-bold tracking-[0.1em] admin-faint uppercase">{status}</h2>
+        <span className="text-[10px] admin-faint">({count})</span>
+      </div>
+    );
+  }
+
+  function ExpRow({ exp }: { exp: Experience }) {
+    return (
+      <button
+        onClick={() => router.push(`/admin/experiences/${exp.id}`)}
+        className="w-full grid gap-4 px-5 py-3.5 transition-colors text-left"
+        style={{ gridTemplateColumns: gridTemplate, borderBottom: "1px solid var(--admin-border)" }}
+        onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = "var(--admin-surface-hover)")}
+        onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = "transparent")}
+      >
+        <span className="text-sm font-medium admin-heading truncate">{exp.title}</span>
+        {visibleColumns.has("location") && <span className="text-xs admin-muted truncate self-center">{exp.location}</span>}
+        {visibleColumns.has("hotel") && <span className="text-xs admin-faint truncate self-center">{exp.hotel || "—"}</span>}
+        {visibleColumns.has("editions") && <span className="self-center"><EditionPills editions={editionsFor(exp.id)} /></span>}
+        {visibleColumns.has("status") && <span className="self-center"><StatusBadge status={exp.status} /></span>}
+      </button>
+    );
+  }
+
+  return (
+    <div>
+      <div className="flex items-center justify-between mb-6">
+        <div>
+          <h1 className="text-2xl font-bold admin-heading mb-1">Experiences</h1>
+          <p className="text-sm admin-muted">Manage your trip templates and editions</p>
+        </div>
+        <div className="flex items-center gap-3">
+          <ColumnToggle
+            columns={COLUMNS}
+            visible={visibleColumns}
+            onChange={setVisibleColumns}
+            storageKey={STORAGE_KEY}
+          />
+
+          {/* View toggle */}
+          <div
+            className="flex rounded-lg overflow-hidden"
+            style={{ border: "1px solid var(--admin-border)" }}
+          >
+            <button
+              onClick={() => setViewMode("list")}
+              className="p-2 transition-colors"
+              style={{
+                backgroundColor: view === "list" ? "var(--admin-active)" : "transparent",
+                color: view === "list" ? "var(--admin-text)" : "var(--admin-text-faint)",
+              }}
+              title="List view"
+            >
+              <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+                <line x1="3" y1="6" x2="21" y2="6" />
+                <line x1="3" y1="12" x2="21" y2="12" />
+                <line x1="3" y1="18" x2="21" y2="18" />
+              </svg>
+            </button>
+            <button
+              onClick={() => setViewMode("tile")}
+              className="p-2 transition-colors"
+              style={{
+                backgroundColor: view === "tile" ? "var(--admin-active)" : "transparent",
+                color: view === "tile" ? "var(--admin-text)" : "var(--admin-text-faint)",
+                borderLeft: "1px solid var(--admin-border)",
+              }}
+              title="Tile view"
+            >
+              <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+                <rect x="3" y="3" width="7" height="7" rx="1" />
+                <rect x="14" y="3" width="7" height="7" rx="1" />
+                <rect x="3" y="14" width="7" height="7" rx="1" />
+                <rect x="14" y="14" width="7" height="7" rx="1" />
+              </svg>
+            </button>
+          </div>
+
+          <Link
+            href="/admin/experiences/new"
+            className="px-4 py-2 bg-[#0aa3c7] hover:bg-[#0aa3c7]/90 text-white text-sm font-bold rounded-lg transition-colors"
+          >
+            New Experience
+          </Link>
+        </div>
+      </div>
+
+      {loading ? (
+        <div className="py-12 text-center text-sm admin-faint">Loading...</div>
+      ) : experiences.length === 0 ? (
+        <div className="py-12 text-center text-sm admin-faint">No experiences yet</div>
+      ) : view === "list" ? (
+        /* ── List view (grouped by status) ── */
+        <div>
+          {statusGroups.map((group) => (
+            <div key={group.status}>
+              <GroupHeading status={group.status} count={group.items.length} />
+              <div className="rounded-xl overflow-hidden" style={{ border: "1px solid var(--admin-border)" }}>
+                <div
+                  className="grid gap-4 px-5 py-3 admin-surface"
+                  style={{ gridTemplateColumns: gridTemplate, borderBottom: "1px solid var(--admin-border)" }}
+                >
+                  {COLUMNS.filter((c) => c.required || visibleColumns.has(c.key)).map((col) => (
+                    <SortableHeader key={col.key} label={col.label} sortKey={col.key} currentSort={sortKey} currentDir={sortDir} onSort={handleSort} />
+                  ))}
+                </div>
+                {group.items.map((exp) => <ExpRow key={exp.id} exp={exp} />)}
+              </div>
+            </div>
+          ))}
+        </div>
+      ) : (
+        /* ── Tile view (grouped by status) ── */
+        <div className="space-y-6">
+          {statusGroups.map((group) => (
+            <div key={group.status}>
+              <GroupHeading status={group.status} count={group.items.length} />
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
+                {group.items.map((exp) => {
+                  const expEditions = editionsFor(exp.id);
+                  return (
+              <button
+                key={exp.id}
+                onClick={() => router.push(`/admin/experiences/${exp.id}`)}
+                className="rounded-xl overflow-hidden text-left transition-all group"
+                style={{ border: "1px solid var(--admin-border)" }}
+                onMouseEnter={(e) => (e.currentTarget.style.borderColor = "var(--admin-text-faint)")}
+                onMouseLeave={(e) => (e.currentTarget.style.borderColor = "var(--admin-border)")}
+              >
+                {/* Hero image */}
+                <div className="aspect-[16/9] overflow-hidden" style={{ backgroundColor: "var(--admin-surface)" }}>
+                  {exp.hero_image ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img
+                      src={exp.hero_image}
+                      alt={exp.title}
+                      className="w-full h-full object-cover group-hover:scale-[1.03] transition-transform duration-300"
+                    />
+                  ) : (
+                    <div className="w-full h-full flex items-center justify-center">
+                      <svg className="w-10 h-10 admin-faint" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round">
+                        <rect x="3" y="3" width="18" height="18" rx="2" />
+                        <circle cx="8.5" cy="8.5" r="1.5" />
+                        <path d="m21 15-5-5L5 21" />
+                      </svg>
+                    </div>
+                  )}
+                </div>
+
+                {/* Content */}
+                <div className="p-4">
+                  <div className="flex items-start justify-between gap-2 mb-2">
+                    <h3 className="text-sm font-semibold admin-heading leading-tight">{exp.title}</h3>
+                    <StatusBadge status={exp.status} />
+                  </div>
+
+                  <div className="flex items-center gap-1.5 mb-3">
+                    <svg className="w-3.5 h-3.5 admin-faint flex-shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+                      <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0118 0z" />
+                      <circle cx="12" cy="10" r="3" />
+                    </svg>
+                    <span className="text-xs admin-muted truncate">{exp.location}</span>
+                  </div>
+
+                  <div className="flex items-center justify-between pt-3" style={{ borderTop: "1px solid var(--admin-border)" }}>
+                    <span className="text-xs admin-faint">
+                      {expEditions.length === 0 ? "No editions" : `${expEditions.length} edition${expEditions.length !== 1 ? "s" : ""}`}
+                    </span>
+                    <EditionPills editions={expEditions} />
+                  </div>
+                </div>
+              </button>
+                  );
+                })}
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}

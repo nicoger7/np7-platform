@@ -1,0 +1,129 @@
+import { NextRequest, NextResponse } from "next/server";
+import { createAdminClient } from "@/lib/supabase";
+
+// GET /api/admin/editions/:id — single edition with related counts
+export async function GET(
+  _request: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  const client = createAdminClient();
+  const { id } = await params;
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const adminClient = client as any;
+
+  // Confirmed = money-down & beyond — this is the real "spots taken".
+  const CONFIRMED = ["downpayment_paid", "create_invoice", "paid", "confirmed", "attended"];
+
+  const [edition, bookingCount, confirmedCount, packageCount, costCount, roomCount] =
+    await Promise.all([
+      adminClient
+        .from("exp_editions")
+        .select(`*, exp_experiences(id, title, slug, location, hero_image, currency, code)`)
+        .eq("id", id)
+        .single(),
+      adminClient
+        .from("exp_bookings")
+        .select("id", { count: "exact", head: true })
+        .eq("edition_id", id),
+      adminClient
+        .from("exp_bookings")
+        .select("id", { count: "exact", head: true })
+        .eq("edition_id", id)
+        .in("status", CONFIRMED),
+      adminClient
+        .from("exp_packages")
+        .select("id", { count: "exact", head: true })
+        .eq("edition_id", id),
+      adminClient
+        .from("exp_costs")
+        .select("id", { count: "exact", head: true })
+        .eq("edition_id", id),
+      adminClient
+        .from("exp_hotel_rooms")
+        .select("id", { count: "exact", head: true })
+        .eq("edition_id", id),
+    ]);
+
+  if (edition.error) {
+    return NextResponse.json({ error: edition.error.message }, { status: 404 });
+  }
+
+  // Derive the price range from this edition's active packages (price = retail/sell).
+  const { data: pkgs } = await adminClient
+    .from("exp_packages")
+    .select("price, status")
+    .eq("edition_id", id);
+  const prices = (pkgs || [])
+    .filter(
+      (p: { price: number | null; status: string | null }) =>
+        p.price != null && (p.status == null || p.status === "active")
+    )
+    .map((p: { price: number }) => Number(p.price));
+
+  return NextResponse.json({
+    ...edition.data,
+    computed_price_from: prices.length ? Math.min(...prices) : null,
+    computed_price_to: prices.length ? Math.max(...prices) : null,
+    confirmed_count: confirmedCount.count ?? 0,
+    _counts: {
+      bookings: bookingCount.count ?? 0,
+      packages: packageCount.count ?? 0,
+      costs: costCount.count ?? 0,
+      rooms: roomCount.count ?? 0,
+    },
+  });
+}
+
+// PUT /api/admin/editions/:id — update edition
+export async function PUT(
+  request: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  const client = createAdminClient();
+  const { id } = await params;
+  const body = await request.json();
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { data, error } = await (client as any)
+    .from("exp_editions")
+    .update({ ...body, updated_at: new Date().toISOString() })
+    .eq("id", id)
+    .select(`*, exp_experiences(id, title, slug, location)`)
+    .single();
+
+  if (error) {
+    return NextResponse.json({ error: error.message }, { status: 400 });
+  }
+
+  return NextResponse.json(data);
+}
+
+// PATCH /api/admin/editions/:id — partial update (alias for PUT)
+export async function PATCH(
+  request: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  return PUT(request, { params });
+}
+
+// DELETE /api/admin/editions/:id — delete edition
+export async function DELETE(
+  _request: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  const client = createAdminClient();
+  const { id } = await params;
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { error } = await (client as any)
+    .from("exp_editions")
+    .delete()
+    .eq("id", id);
+
+  if (error) {
+    return NextResponse.json({ error: error.message }, { status: 400 });
+  }
+
+  return NextResponse.json({ success: true });
+}
