@@ -1,0 +1,8 @@
+{
+  "mcpServers": {
+    "meta-ads": {
+      "command": "node",
+      "args": ["mcp/meta-ads/dist/stdio.js"]
+    }
+  }
+}

@@ -12,6 +12,8 @@ const eslintConfig = defineConfig([
     "out/**",
     "build/**",
     "next-env.d.ts",
+    // Standalone MCP sub-package — has its own tsconfig/deps.
+    "mcp/**",
   ]),
 ]);
 
