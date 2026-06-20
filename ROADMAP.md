@@ -13,6 +13,28 @@
 
 ---
 
+## ⭐ Current outstanding — live checklist (2026-06-20)
+
+**Building now**
+- ⚪ **Magazine** — promote blog to a standalone "Magazine" world (own /magazine identity), link **right-bound** in BOTH Experience + Hardware headers (next to member icon, persists across worlds), make it kick-ass (featured story, categories, rich articles). *(blog exists at /experience/blog but as a plain sub-section.)*
+- 🟡 **Registration redesign** — Phase 1 done (free signup→lead, BotID, welcome mail, registered status, Secure-your-spot banner, spots=paid-only). Next: invoice-engine adaptation (pro-forma → real invoice, deposit-deducted/add-on math, configurable deposit + 50% downpayment + 90-day final, all "due-by" deadlines, Surfcenter company settings, pay-by-bank-transfer flow).
+- 🟡 **Waiver** — member sign flow done (draw signature + audit). Next: admin signed/pending view + per-experience editor + signed PDF doc + "Sign your waiver" link on booking + travel-partner (partner_tag_along) & level capture form.
+
+**Dropped / needs input**
+- ⚪ **Destination pages** — detail page exists (/destinations/[slug]) but unclear if it matches the surfcenter examples; not linked from nav; no index page. NEED the example re-shared.
+
+**Pending migrations (DB agent):** 029 (email header_image), 030 (contacts.marketing_opt_in), 031 (waiver).
+
+**Go-live switches (later):** EMAIL_LIFECYCLE_LIVE=true (when admin data clean); SHOW_EXPERIENCE=true (reveal); confirm BotID dev build green.
+
+**Legal / trust before public reveal:** Impressum, AGB, privacy + cookie-consent banner, package-travel pre-contractual form — naming **Surfcenter** as operator for now (they carry the Sicherungsschein). Sold-out gate (stop securing at capacity). Email bounce handling. Error monitoring. Team notifications on new registration/add-on. SEO/OG meta.
+
+**Ops:** Simona invite still not received (mailbox? Email Log? spam). Email image reposition (focal point). Set up Supabase token so Claude can run migrations + read Email Log itself.
+
+**Everything above is staged on `dev` (behind SHOW_EXPERIENCE). Not live on main.**
+
+---
+
 ## 0. Urgent / breaking
 
 - 🔴 **Editions-refactor query bugs** — public + API code still reads columns that moved
