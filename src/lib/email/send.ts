@@ -28,6 +28,18 @@ type SendArgs = {
 type SendResult = { status: "sent" | "failed" | "skipped"; id?: string; error?: string };
 
 /**
+ * Sign-up / login mail (the magic link) is purely transactional, user-triggered, and
+ * carries no admin-entered booking data — so it's always allowed. Every other template
+ * is automated customer lifecycle mail and stays suppressed during the soft launch until
+ * EMAIL_LIFECYCLE_LIVE=true, because admin data may still be wrong.
+ */
+const SOFT_LAUNCH_ALLOWED = new Set(["account_magic_link"]);
+function lifecycleSuppressed(templateKey: string): boolean {
+  const live = process.env.EMAIL_LIFECYCLE_LIVE === "true" || process.env.EMAIL_LIFECYCLE_LIVE === "1";
+  return !live && !SOFT_LAUNCH_ALLOWED.has(templateKey);
+}
+
+/**
  * Send one transactional email through Resend and record it in `email_log`.
  *
  * - Idempotent: a row with the same `dedupe_key` already present → "skipped".
@@ -36,6 +48,14 @@ type SendResult = { status: "sent" | "failed" | "skipped"; id?: string; error?: 
  */
 export async function sendEmail(args: SendArgs): Promise<SendResult> {
   const { to, templateKey, vars, dedupeKey, bookingId, contactId, ruleId, attachments, division = "experience" } = args;
+
+  // Soft-launch guard: only sign-up/login mail goes out; all automated customer
+  // lifecycle mail is held until EMAIL_LIFECYCLE_LIVE=true. Returns BEFORE any DB
+  // write so no dedupe_key is burned — the send fires for real once enabled.
+  if (lifecycleSuppressed(templateKey)) {
+    return { status: "skipped", error: "soft launch: lifecycle email suppressed (set EMAIL_LIFECYCLE_LIVE=true to enable)" };
+  }
+
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const db = createAdminClient() as any;
 
