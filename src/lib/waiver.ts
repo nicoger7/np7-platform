@@ -1,5 +1,5 @@
 /** Bump when the default wording changes materially (so we know which version each person signed). */
-export const WAIVER_VERSION = 1;
+export const WAIVER_VERSION = 2;
 
 export type WaiverVars = {
   companyLegalName?: string;
@@ -29,28 +29,30 @@ export const DEFAULT_WAIVER = `
 <p>Windsurfing, wing foiling, foiling and related water- and beach-based activities, coaching, the use of equipment (provided by the Organiser or by third-party suppliers it works with), and associated transfers and on-site activities organised or facilitated by the Organiser.</p>
 <h3>2 · Assumption of risk</h3>
 <p>Watersports are inherently risky. I voluntarily accept the risks, including but not limited to: drowning and water inhalation; collisions with equipment, the seabed, people or objects; equipment failure; falls and impact; wind, waves, currents, tides and weather; sun, heat, cold and dehydration; marine life; the actions of others; and remote locations with limited medical facilities. Injury, illness, disability or death can result even with proper precautions.</p>
-<h3>3 · Fitness, swimming &amp; health</h3>
+<h3>3 · Wind, weather &amp; conditions — no guarantee</h3>
+<p>Wind and weather are natural and beyond anyone&rsquo;s control. The Organiser does <strong>not</strong> and cannot guarantee any particular wind, weather, water or surf conditions, or that any given session runs as planned. The programme may be adapted, shortened, relocated or replaced with alternative activities for safety or because of the conditions, at the Organiser&rsquo;s reasonable discretion. A lack of wind or unfavourable weather is part of the nature of the trip; on its own it is not a defect and does not give rise to a refund, except as required by my mandatory statutory rights or the booking terms I agreed to. I book in the knowledge that conditions vary.</p>
+<h3>4 · Fitness, swimming &amp; health</h3>
 <p>I confirm I am fit to participate, that <strong>I can swim</strong>, and that I have disclosed any medical condition, injury or medication affecting my safety — and I will report any change. I participate at my own judgement and risk.</p>
-<h3>4 · Rules &amp; instructions</h3>
+<h3>5 · Rules &amp; instructions</h3>
 <p>I will follow all safety briefings, the instructions of coaches and staff, equipment limits, condition/flag systems and local rules. The Organiser may suspend or end my participation for safety reasons, with no refund where I caused it.</p>
-<h3>5 · Equipment</h3>
+<h3>6 · Equipment</h3>
 <p>Where equipment is provided — by the Organiser or by a third-party supplier — I will use it carefully and as instructed, check it before use, and report any damage or concern. Where equipment is supplied by a third party, that supplier&rsquo;s own terms may also apply. I am responsible for loss of or damage to equipment caused by my misuse or negligence.</p>
-<h3>6 · Release &amp; waiver of liability</h3>
+<h3>7 · Release &amp; waiver of liability</h3>
 <p>To the maximum extent permitted by applicable law, I release and hold harmless the Organiser, its owners, staff, coaches, agents and partners from all claims for loss, damage, injury or death arising out of or in connection with my participation, including claims based on ordinary negligence.</p>
 <p><strong>This release does NOT apply — and the Organiser remains fully liable — for:</strong> (a) injury to life, body or health resulting from a negligent or intentional breach of duty by the Organiser or its legal representatives or agents; (b) other loss resulting from intent or gross negligence of the Organiser or its legal representatives or agents; and (c) any liability that cannot be excluded or limited by mandatory law (including under the German Product Liability Act and statutory package-travel rights). My mandatory statutory consumer rights are unaffected.</p>
-<h3>7 · Indemnity</h3>
+<h3>8 · Indemnity</h3>
 <p>To the extent permitted by law, I will indemnify the Organiser against third-party claims arising from my own breach of this agreement or my reckless or unlawful conduct.</p>
-<h3>8 · Insurance</h3>
+<h3>9 · Insurance</h3>
 <p>The Organiser does not provide personal accident, medical, repatriation or travel insurance, and I am strongly advised to arrange my own adequate cover. I am responsible for my own medical, rescue and evacuation costs.</p>
-<h3>9 · Media (optional)</h3>
+<h3>10 · Media (optional)</h3>
 <p>Photos and videos taken during the experience may be used by the Organiser for its own promotion. I can withdraw this consent at any time by contacting {{companyEmail}}; opting out does not affect my participation.</p>
-<h3>10 · Minors</h3>
+<h3>11 · Minors</h3>
 <p>If the Participant is under 18, this agreement must be read and signed by a parent or legal guardian on the minor&rsquo;s behalf.</p>
-<h3>11 · Governing law</h3>
+<h3>12 · Governing law</h3>
 <p>This agreement is governed by the law of the Federal Republic of Germany, excluding the UN Convention on Contracts for the International Sale of Goods. The place of jurisdiction is {{companyCity}}, to the extent legally permissible. If I am a consumer, the mandatory consumer-protection rules of my country of residence remain unaffected.</p>
-<h3>12 · Severability</h3>
+<h3>13 · Severability</h3>
 <p>If any provision is or becomes invalid, the remainder stays in force and the invalid provision is replaced by the valid one that comes closest to its purpose.</p>
-<h3>13 · Acknowledgement</h3>
+<h3>14 · Acknowledgement</h3>
 <p>I confirm that I have read and understood this agreement, that I have had the opportunity to ask questions, and that I am signing it freely.</p>
 `;
 
