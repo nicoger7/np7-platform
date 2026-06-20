@@ -49,18 +49,27 @@ async function getDestination(slug: string): Promise<{ destination: Destination;
     .eq("status", "published");
   const tripList = (trips ?? []) as Trip[];
 
-  // Hotels auto-pull: a destination's trips → their packages → linked hotels.
-  // Reuses the hotel data the team already enters for packages (no re-entry).
+  // Hotels auto-pull: the hotels a destination's trips actually use — linked
+  // either on a package (hotel_id) OR via the trips' room assignments
+  // (exp_hotel_rooms.hotel → hotels.name). Reuses what the team already enters
+  // in Admin → Hotels; only hotels with a photo surface (self-curating).
   let hotels: Hotel[] = [];
   try {
     const ids = tripList.map((t) => t.id);
     if (ids.length) {
-      const { data: pkgs } = await sb.from("exp_packages").select("hotel_id").in("experience_id", ids).not("hotel_id", "is", null);
+      const [{ data: pkgs }, { data: rooms }] = await Promise.all([
+        sb.from("exp_packages").select("hotel_id").in("experience_id", ids).not("hotel_id", "is", null),
+        sb.from("exp_hotel_rooms").select("hotel").in("experience_id", ids),
+      ]);
       const hotelIds = [...new Set((pkgs ?? []).map((p: { hotel_id: string | null }) => p.hotel_id).filter(Boolean))];
-      if (hotelIds.length) {
-        const { data: h } = await sb.from("hotels").select("id,name,image_url,images,description,website,location").in("id", hotelIds);
-        hotels = ((h ?? []) as Hotel[]).filter((x) => x.image_url || (x.images && x.images.length));
-      }
+      const hotelNames = [...new Set((rooms ?? []).map((r: { hotel: string | null }) => r.hotel).filter(Boolean))];
+      const cols = "id,name,image_url,images,description,website,location";
+      const queries = [];
+      if (hotelIds.length) queries.push(sb.from("hotels").select(cols).in("id", hotelIds));
+      if (hotelNames.length) queries.push(sb.from("hotels").select(cols).in("name", hotelNames));
+      const merged = new Map<string, Hotel>();
+      for (const r of await Promise.all(queries)) for (const h of ((r.data ?? []) as Hotel[])) merged.set(h.id, h);
+      hotels = [...merged.values()].filter((x) => x.image_url || (x.images && x.images.length));
     }
   } catch { /* hotels are optional — never block the page */ }
 
