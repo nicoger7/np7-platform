@@ -1,4 +1,4 @@
-import { cookies } from "next/headers";
+import { cookies, headers } from "next/headers";
 import Link from "next/link";
 import { OceanHeader } from "@/components/experience/ocean-header";
 import { HardwareHeader } from "@/components/hardware/hardware-header";
@@ -7,24 +7,27 @@ import { flags } from "@/lib/flags";
 import { PortalSubnav } from "./portal-subnav";
 
 /**
- * Portal chrome — adapts to whether the public site is live yet:
+ * Portal chrome — adapts to whether the public site is live yet.
  *
- * - **Public site live** (dev/preview always; prod once a SHOW_* flag is set):
- *   the member area wears the FULL section header — docked OceanHeader (teal,
- *   Experience) or HardwareHeader (black, Hardware) with the brand switch — so
- *   it matches the rest of the site.
- * - **Public site still hidden** (current production quiet launch): falls back
- *   to a MINIMAL logo-only header, so the member area stays "membership only"
- *   and never exposes the unreleased marketing menu.
+ * - **Full section header** (docked OceanHeader / HardwareHeader with the brand
+ *   switch + Magazine/About nav): shown everywhere EXCEPT the live quiet-launch
+ *   production domain — i.e. on dev, preview deploys and localhost, and on
+ *   production once a world is revealed (SHOW_EXPERIENCE / SHOW_HARDWARE).
+ * - **Minimal logo-only header**: only on the live `np-seven.com` while the
+ *   public worlds are still hidden, so production stays "membership only".
  *
- * This means dev and main can share the exact same code: production stays
- * membership-only by flag, dev shows the finished product. Section + tone
- * follow the `np7_section` cookie; Gear/Cart subnav stays flag-gated.
+ * Keyed off the request host rather than VERCEL_ENV so it's robust no matter how
+ * the dev/preview deploy is configured. Section + tone follow the np7_section
+ * cookie; Gear/Cart subnav stays flag-gated.
  */
 export async function PortalChrome() {
-  const store = await cookies();
+  const [store, head] = await Promise.all([cookies(), headers()]);
   const section = store.get("np7_section")?.value === "hardware" ? "hardware" : "experience";
-  const siteLive = flags.showExperience || flags.showHardware;
+
+  const host = (head.get("host") || "").split(":")[0].toLowerCase();
+  const onLiveDomain = /(^|\.)np-seven\.com$/.test(host);
+  // Full header unless we're on the live domain with every world still hidden.
+  const siteLive = !onLiveDomain || flags.showExperience || flags.showHardware;
 
   return (
     <>
