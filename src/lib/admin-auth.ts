@@ -1,6 +1,31 @@
 import { NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase";
 import { createClient } from "@/lib/supabase/server";
+import { normalizeLevel, type AccessLevel } from "@/lib/access";
+
+/**
+ * Resolve the active team member behind an auth user and their access level.
+ * Matches by linked auth_user_id first, then falls back to email and self-heals
+ * the link (so a member invited/added by email is recognised on first login).
+ * Returns null for non-members or deactivated members. access_level tolerates
+ * the column not yet existing (→ "owner", never lock out).
+ */
+export async function getActiveTeamMember(
+  user: { id: string; email?: string | null }
+): Promise<{ id: string; accessLevel: AccessLevel } | null> {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const client = createAdminClient() as any;
+  let { data } = await client.from("team_members").select("*").eq("auth_user_id", user.id).limit(1).maybeSingle();
+  if (!data && user.email) {
+    const byEmail = await client.from("team_members").select("*").ilike("email", user.email).limit(1).maybeSingle();
+    data = byEmail.data;
+    if (data && !data.auth_user_id) {
+      await client.from("team_members").update({ auth_user_id: user.id }).eq("id", data.id);
+    }
+  }
+  if (!data || data.active === false) return null;
+  return { id: data.id as string, accessLevel: normalizeLevel(data.access_level) };
+}
 
 /**
  * Server-side mirror of the is_team_member() SQL helper (migration 009):

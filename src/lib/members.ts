@@ -53,6 +53,41 @@ export async function ensureMemberAccount(opts: {
   return { link: confirmLink(opts.origin, tokenHash, opts.next) };
 }
 
+/**
+ * Invite a team member: ensure an auth account exists for their email, email
+ * them a one-time login link that lands in /admin, and return the new/linked
+ * auth user id so the caller can link team_members.auth_user_id.
+ */
+export async function inviteTeamMember(opts: {
+  email: string; origin: string; firstName?: string;
+}): Promise<{ sent: boolean; userId?: string }> {
+  const admin = createAdminClient();
+  const email = opts.email.trim().toLowerCase();
+
+  let userId = await findAuthUserByEmail(email);
+  if (!userId) {
+    const { data, error } = await admin.auth.admin.createUser({ email, email_confirm: true });
+    if (error) {
+      userId = await findAuthUserByEmail(email); // race / already exists
+      if (!userId) return { sent: false };
+    } else {
+      userId = data.user.id;
+    }
+  }
+
+  const { data: linkData, error } = await admin.auth.admin.generateLink({ type: "magiclink", email });
+  const tokenHash = linkData?.properties?.hashed_token;
+  if (error || !tokenHash) return { sent: false, userId };
+
+  await sendEmail({
+    to: email,
+    templateKey: "account_magic_link",
+    vars: { firstName: opts.firstName, activationLink: confirmLink(opts.origin, tokenHash, "/admin") },
+    contactId: null,
+  });
+  return { sent: true, userId };
+}
+
 /** Generate a login link for an existing member and (optionally) email it. */
 export async function sendMemberMagicLink(opts: {
   email: string; origin: string; firstName?: string; next?: string;

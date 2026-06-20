@@ -5,6 +5,7 @@ import Link from "next/link";
 import { SortableHeader } from "@/components/sortable-header";
 import { ColumnToggle, ColumnDef, buildGridTemplate, loadVisibleColumns } from "@/components/column-toggle";
 import { RowActions } from "@/components/row-actions";
+import { ACCESS_LEVELS, ACCESS_LABELS } from "@/lib/access";
 
 interface TeamMember {
   id: string;
@@ -56,7 +57,7 @@ export default function TeamPage() {
   const [visibleColumns, setVisibleColumns] = useState<Set<string>>(
     () => loadVisibleColumns(STORAGE_KEY, COLUMNS)
   );
-  const [form, setForm] = useState({ name: "", email: "", role: "", phone: "", rate_per_hour: "", notes: "" });
+  const [form, setForm] = useState({ name: "", email: "", role: "", phone: "", rate_per_hour: "", notes: "", access_level: "manager" });
 
   function fetchData() {
     fetch("/api/admin/team").then((r) => r.json()).then((d) => { setMembers(d || []); setLoading(false); });
@@ -85,7 +86,7 @@ export default function TeamPage() {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ ...form, rate_per_hour: form.rate_per_hour ? Number(form.rate_per_hour) : null }),
     });
-    if (res.ok) { setShowNew(false); setForm({ name: "", email: "", role: "", phone: "", rate_per_hour: "", notes: "" }); fetchData(); }
+    if (res.ok) { setShowNew(false); setForm({ name: "", email: "", role: "", phone: "", rate_per_hour: "", notes: "", access_level: "manager" }); fetchData(); }
   }
 
   async function handleDelete(id: string) {
@@ -123,10 +124,16 @@ export default function TeamPage() {
             <div><label className={labelClass}>Name *</label><input className={inputClass} value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} /></div>
             <div><label className={labelClass}>Email</label><input className={inputClass} type="email" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} /></div>
             <div><label className={labelClass}>Phone</label><input className={inputClass} value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })} /></div>
-            <div><label className={labelClass}>Role</label><input className={inputClass} value={form.role} onChange={(e) => setForm({ ...form, role: e.target.value })} /></div>
+            <div><label className={labelClass}>Role <span className="admin-faint font-normal">(job title)</span></label><input className={inputClass} value={form.role} onChange={(e) => setForm({ ...form, role: e.target.value })} /></div>
             <div><label className={labelClass}>Hourly Rate (€)</label><input className={inputClass} type="number" step="0.01" value={form.rate_per_hour} onChange={(e) => setForm({ ...form, rate_per_hour: e.target.value })} /></div>
-            <div><label className={labelClass}>Notes</label><input className={inputClass} value={form.notes} onChange={(e) => setForm({ ...form, notes: e.target.value })} /></div>
+            <div><label className={labelClass}>Access level</label>
+              <select className={inputClass} value={form.access_level} onChange={(e) => setForm({ ...form, access_level: e.target.value })}>
+                {ACCESS_LEVELS.map((lvl) => <option key={lvl} value={lvl}>{ACCESS_LABELS[lvl]}</option>)}
+              </select>
+            </div>
+            <div className="col-span-2"><label className={labelClass}>Notes</label><input className={inputClass} value={form.notes} onChange={(e) => setForm({ ...form, notes: e.target.value })} /></div>
           </div>
+          <p className="text-[11px] admin-faint mb-4 -mt-2">Access controls what they can open. <strong>Role</strong> above is just a job-title label. After creating, open the member to send their login invite.</p>
           <div className="flex gap-2">
             <button onClick={handleCreate} disabled={!form.name} className="px-4 py-2 bg-[#0aa3c7] hover:bg-[#0aa3c7]/90 disabled:opacity-40 text-white text-sm font-bold rounded-lg">Create</button>
             <button onClick={() => setShowNew(false)} className="px-4 py-2 admin-muted text-sm rounded-lg">Cancel</button>

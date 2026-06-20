@@ -7,6 +7,7 @@ import { getMemberBookings, getMemberBannerImages } from "@/lib/portal-data";
 import { fmtDates } from "@/lib/portal-status";
 import { PortalChrome } from "@/components/portal/portal-chrome";
 import { MemberHomeBanner } from "@/components/portal/member-home-banner";
+import { flags } from "@/lib/flags";
 
 export const metadata: Metadata = { title: "My account — NP7" };
 export const dynamic = "force-dynamic";
@@ -78,13 +79,15 @@ export default async function AccountHome() {
               desc={bookings.length ? `${bookings.length} trip${bookings.length === 1 ? "" : "s"} · payment, prep, photos & more` : "Book your first windsurf adventure"}
               icon={<path d="M3 7l9-4 9 4-9 4-9-4zM3 7v10l9 4 9-4V7M12 11v10" />}
             />
-            <SectionCard
-              href="/account/gear"
-              accent="#7aa400"
-              title="My Gear"
-              desc="Track your board & fin orders from build to delivery"
-              icon={<><rect x="3" y="3" width="18" height="18" rx="2" /><path d="M3 9h18M9 21V9" /></>}
-            />
+            {flags.showGear && (
+              <SectionCard
+                href="/account/gear"
+                accent="#7aa400"
+                title="My Gear"
+                desc="Track your board & fin orders from build to delivery"
+                icon={<><rect x="3" y="3" width="18" height="18" rx="2" /><path d="M3 9h18M9 21V9" /></>}
+              />
+            )}
             <SectionCard
               href="/account/profile"
               accent="#c4621a"
@@ -92,13 +95,15 @@ export default async function AccountHome() {
               desc="Your details, sizes, diet & preferences"
               icon={<><circle cx="12" cy="8" r="4" /><path d="M4 21a8 8 0 0 1 16 0" /></>}
             />
-            <SectionCard
-              href="/experience"
-              accent="#00374a"
-              title="Explore more"
-              desc="Browse upcoming experiences & destinations"
-              icon={<><circle cx="12" cy="12" r="9" /><path d="M3 12h18M12 3a15 15 0 0 1 0 18 15 15 0 0 1 0-18z" /></>}
-            />
+            {flags.showExperience && (
+              <SectionCard
+                href="/experience"
+                accent="#00374a"
+                title="Explore more"
+                desc="Browse upcoming experiences & destinations"
+                icon={<><circle cx="12" cy="12" r="9" /><path d="M3 12h18M12 3a15 15 0 0 1 0 18 15 15 0 0 1 0-18z" /></>}
+              />
+            )}
           </div>
         </div>
       </main>

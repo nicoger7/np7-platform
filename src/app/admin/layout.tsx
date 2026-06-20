@@ -1,5 +1,5 @@
 import { createClient } from "@/lib/supabase/server";
-import { isActiveTeamMember } from "@/lib/admin-auth";
+import { getActiveTeamMember } from "@/lib/admin-auth";
 import AdminShell from "./admin-shell";
 
 export const metadata = {
@@ -19,9 +19,10 @@ export default async function AdminLayout({
   // Show the admin chrome only to active team members. A merely-authenticated
   // account (e.g. a member-portal user, or a stale session) landing on
   // /admin/login must see just the login form — not the full navigation.
-  if (!user || !(await isActiveTeamMember(user.id))) {
+  const member = user ? await getActiveTeamMember(user) : null;
+  if (!member) {
     return <>{children}</>;
   }
 
-  return <AdminShell user={user}>{children}</AdminShell>;
+  return <AdminShell user={user!} accessLevel={member.accessLevel}>{children}</AdminShell>;
 }
