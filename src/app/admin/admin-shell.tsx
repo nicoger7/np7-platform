@@ -34,7 +34,6 @@ const navByEnv: Record<Environment, NavGroup[]> = {
         { label: "Hotels", href: "/admin/hotels", icon: "building" },
         { label: "Packages", href: "/admin/packages", icon: "box" },
         { label: "Components", href: "/admin/components", icon: "puzzle" },
-        { label: "To-Dos", href: "/admin/todos", icon: "checklist", wip: true },
       ],
     },
     {
@@ -69,7 +68,6 @@ const navByEnv: Record<Environment, NavGroup[]> = {
       label: "AUTOMATION",
       items: [
         { label: "Email Rules", href: "/admin/pipeline-rules", icon: "flow" },
-        { label: "Task Rules", href: "/admin/task-rules", icon: "rules", wip: true },
         { label: "Email Templates", href: "/admin/email-templates", icon: "mail" },
         { label: "Email Log", href: "/admin/email-log", icon: "mail" },
       ],
