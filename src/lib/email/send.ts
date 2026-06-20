@@ -19,6 +19,10 @@ type SendArgs = {
   bookingId?: string | null;
   contactId?: string | null;
   ruleId?: string | null;
+  /** Experience this mail is about — its hero photo becomes the email header.
+   *  If omitted, it's resolved from bookingId. General mails (none) use the
+   *  template's admin image, then the default. */
+  experienceId?: string | null;
   /** Which brand sends this — picks the from/reply-to address AND the email theme. Defaults to experience. */
   division?: Division;
   /** Optional file attachments (Resend supports PDF, etc.). Best-effort — ignored if provider not configured. */
@@ -47,7 +51,7 @@ function lifecycleSuppressed(templateKey: string): boolean {
  * - DB template_key override (email_templates row) wins over the code default.
  */
 export async function sendEmail(args: SendArgs): Promise<SendResult> {
-  const { to, templateKey, vars, dedupeKey, bookingId, contactId, ruleId, attachments, division = "experience" } = args;
+  const { to, templateKey, vars, dedupeKey, bookingId, contactId, ruleId, attachments, experienceId, division = "experience" } = args;
 
   // Soft-launch guard: only sign-up/login mail goes out; all automated customer
   // lifecycle mail is held until EMAIL_LIFECYCLE_LIVE=true. Returns BEFORE any DB
@@ -67,10 +71,29 @@ export async function sendEmail(args: SendArgs): Promise<SendResult> {
     .maybeSingle();
   const useOverride = override && override.active !== false ? override : null;
 
+  // Header image: experience-tied mails use that experience's hero photo (the one
+  // on its public page); general mails fall back to the template's admin image,
+  // then the division default (handled inside emailLayout).
+  let headerImage: string | undefined;
+  let expId = experienceId || undefined;
+  if (!expId && bookingId) {
+    const { data: bk } = await db.from("exp_bookings").select("experience_id").eq("id", bookingId).maybeSingle();
+    expId = bk?.experience_id || undefined;
+  }
+  if (expId) {
+    const { data: content } = await db.from("exp_content").select("hero_image").eq("experience_id", expId).maybeSingle();
+    headerImage = content?.hero_image || undefined;
+    if (!headerImage) {
+      const { data: exp } = await db.from("exp_experiences").select("hero_image").eq("id", expId).maybeSingle();
+      headerImage = exp?.hero_image || undefined;
+    }
+  }
+  if (!headerImage) headerImage = useOverride?.header_image || undefined;
+
   let subject = "";
   let html = "";
   try {
-    const built = renderTemplate(templateKey, vars, useOverride, division, useOverride?.header_image || undefined);
+    const built = renderTemplate(templateKey, vars, useOverride, division, headerImage);
     subject = built.subject;
     html = built.html;
   } catch (e) {
