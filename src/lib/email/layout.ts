@@ -23,6 +23,20 @@ const THEMES: Record<Division, {
   },
 };
 
+/** Per-division sender + reply-to. The np-seven.com domain is verified in Resend, so
+ *  any address on it can SEND; for replies to actually arrive, a real inbox/forward must
+ *  exist for the reply-to address. Env vars override the defaults if ever needed. */
+export const SENDERS: Record<Division, { from: string; replyTo: string }> = {
+  experience: {
+    from: process.env.EMAIL_FROM_EXPERIENCE || "NP7 Experience <experience@np-seven.com>",
+    replyTo: process.env.EMAIL_REPLY_TO_EXPERIENCE || "experience@np-seven.com",
+  },
+  hardware: {
+    from: process.env.EMAIL_FROM_HARDWARE || "NP7 Hardware <hardware@np-seven.com>",
+    replyTo: process.env.EMAIL_REPLY_TO_HARDWARE || "hardware@np-seven.com",
+  },
+};
+
 /** Branded, email-client-safe (table + inline-style) HTML shell, per division. */
 export function emailLayout(opts: { division?: Division; preheader?: string; bodyHtml: string }): string {
   const { division = "experience", preheader = "", bodyHtml } = opts;

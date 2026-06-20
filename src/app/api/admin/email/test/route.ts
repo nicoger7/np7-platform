@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { SENDERS } from "@/lib/email/layout";
 
 /**
  * POST /api/admin/email/test  { to }
@@ -18,10 +19,10 @@ export async function POST(req: NextRequest) {
   }
 
   const apiKey = process.env.RESEND_API_KEY;
-  const from = process.env.EMAIL_FROM || "NP7 Experience <hello@np-seven.com>";
+  const { from, replyTo } = SENDERS.experience;
   if (!apiKey) {
     return NextResponse.json(
-      { error: "RESEND_API_KEY isn't set yet. Add it (and EMAIL_FROM) to the Vercel env, then redeploy." },
+      { error: "RESEND_API_KEY isn't set yet. Add it to the Vercel env, then redeploy." },
       { status: 400 }
     );
   }
@@ -33,6 +34,7 @@ export async function POST(req: NextRequest) {
       body: JSON.stringify({
         from,
         to,
+        reply_to: replyTo,
         subject: "NP7 email test ✅",
         html: `<div style="font-family:system-ui,sans-serif;max-width:480px;margin:0 auto;padding:28px">
           <h2 style="margin:0 0 8px">It works! 🎉</h2>

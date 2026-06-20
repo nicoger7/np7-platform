@@ -1,5 +1,6 @@
 import { createAdminClient } from "@/lib/supabase";
 import { renderTemplate, type EmailVars } from "./templates";
+import { SENDERS, type Division } from "./layout";
 
 /** A single email attachment (Resend format). */
 export type EmailAttachment = {
@@ -18,6 +19,8 @@ type SendArgs = {
   bookingId?: string | null;
   contactId?: string | null;
   ruleId?: string | null;
+  /** Which brand sends this — picks the from/reply-to address AND the email theme. Defaults to experience. */
+  division?: Division;
   /** Optional file attachments (Resend supports PDF, etc.). Best-effort — ignored if provider not configured. */
   attachments?: EmailAttachment[];
 };
@@ -32,7 +35,7 @@ type SendResult = { status: "sent" | "failed" | "skipped"; id?: string; error?: 
  * - DB template_key override (email_templates row) wins over the code default.
  */
 export async function sendEmail(args: SendArgs): Promise<SendResult> {
-  const { to, templateKey, vars, dedupeKey, bookingId, contactId, ruleId, attachments } = args;
+  const { to, templateKey, vars, dedupeKey, bookingId, contactId, ruleId, attachments, division = "experience" } = args;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const db = createAdminClient() as any;
 
@@ -46,7 +49,7 @@ export async function sendEmail(args: SendArgs): Promise<SendResult> {
   let subject = "";
   let html = "";
   try {
-    const built = renderTemplate(templateKey, vars, override?.active === false ? null : override);
+    const built = renderTemplate(templateKey, vars, override?.active === false ? null : override, division);
     subject = built.subject;
     html = built.html;
   } catch (e) {
@@ -54,7 +57,7 @@ export async function sendEmail(args: SendArgs): Promise<SendResult> {
   }
 
   const apiKey = process.env.RESEND_API_KEY;
-  const from = process.env.EMAIL_FROM || "NP7 Experience <hello@np-seven.com>";
+  const { from, replyTo } = SENDERS[division];
 
   // No provider configured → skip WITHOUT claiming the dedupe_key, so the email
   // still goes out once a key is added (never burn idempotency keys on a no-op).
@@ -86,6 +89,7 @@ export async function sendEmail(args: SendArgs): Promise<SendResult> {
       body: JSON.stringify({
           from,
           to,
+          reply_to: replyTo,
           subject,
           html,
           ...(attachments && attachments.length > 0
