@@ -1,10 +1,21 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase";
+import { AUTOMATIONS } from "@/lib/email/automations";
 
 export async function GET(request: NextRequest) {
   const client = createAdminClient();
   const { searchParams } = new URL(request.url);
   const experienceId = searchParams.get("experience_id");
+
+  // Ensure the 10 lifecycle emails always exist as editable rows (independent of
+  // whether the seed migration has run) so they show up and can be edited.
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const adb = client as any;
+  const { data: existing } = await adb.from("email_templates").select("template_key");
+  const have = new Set((existing || []).map((r: { template_key: string | null }) => r.template_key).filter(Boolean));
+  const missing = AUTOMATIONS.filter((a) => !have.has(a.key)).map((a) => ({ template_key: a.key, name: a.name, active: true }));
+  if (missing.length) await adb.from("email_templates").insert(missing);
+
   let query = client.from("email_templates").select("*, exp_experiences:experience_id(id, title)").order("name");
   if (experienceId) query = query.eq("experience_id", experienceId);
   const { data, error } = await query;

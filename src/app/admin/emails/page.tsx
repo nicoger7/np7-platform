@@ -79,33 +79,35 @@ export default async function EmailsHubPage() {
         ))}
       </div>
 
-      {/* Cards */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
+      {/* Cards — small previews; click any to edit */}
+      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
         {cards.map((c) => (
-          <div key={c.key} className="rounded-xl overflow-hidden flex flex-col" style={{ border: "1px solid var(--admin-border)", backgroundColor: "var(--admin-surface)" }}>
-            <div className="p-4">
-              <div className="flex items-center justify-between gap-2 mb-1.5">
+          <Link key={c.key} href={`/admin/email-templates?edit=${c.key}`} className="group rounded-xl overflow-hidden flex flex-col transition-all hover:-translate-y-0.5" style={{ border: "1px solid var(--admin-border)", backgroundColor: "var(--admin-surface)" }}>
+            <div className="p-3.5">
+              <div className="flex items-center justify-between gap-2 mb-1">
                 <div className="flex items-center gap-2 min-w-0">
-                  <span className="shrink-0 text-[10px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded bg-[#0aa3c7]/15 text-[#0aa3c7]">{c.stage}</span>
-                  <h3 className="text-sm font-bold admin-heading truncate">{c.name}</h3>
+                  <span className="shrink-0 text-[9px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded bg-[#0aa3c7]/15 text-[#0aa3c7]">{c.stage}</span>
+                  <h3 className="text-[13px] font-bold admin-heading truncate group-hover:text-[#0aa3c7] transition-colors">{c.name}</h3>
                 </div>
                 {c.isLive ? (
-                  <span className="shrink-0 inline-flex items-center gap-1.5 text-[10px] font-bold px-2 py-1 rounded-full bg-green-500/15 text-green-400"><span className="w-1.5 h-1.5 rounded-full bg-green-400" />LIVE</span>
+                  <span className="shrink-0 inline-flex items-center gap-1 text-[9px] font-bold px-1.5 py-0.5 rounded-full bg-green-500/15 text-green-400"><span className="w-1 h-1 rounded-full bg-green-400" />LIVE</span>
                 ) : (
-                  <span className="shrink-0 inline-flex items-center gap-1.5 text-[10px] font-bold px-2 py-1 rounded-full bg-amber-400/15 text-amber-300"><span className="w-1.5 h-1.5 rounded-full bg-amber-300" />PAUSED</span>
+                  <span className="shrink-0 inline-flex items-center gap-1 text-[9px] font-bold px-1.5 py-0.5 rounded-full bg-amber-400/15 text-amber-300"><span className="w-1 h-1 rounded-full bg-amber-300" />PAUSED</span>
                 )}
               </div>
-              <p className="text-xs admin-muted">{c.trigger}</p>
-              <p className="text-[11px] admin-faint mt-1.5 truncate"><span className="admin-faint">Subject:</span> {c.subject}{c.hasOverride && <span className="ml-1.5 text-[#0aa3c7]">· edited copy</span>}</p>
+              <p className="text-[11px] admin-muted truncate">{c.trigger}{c.hasOverride && <span className="ml-1.5 text-[#0aa3c7]">· edited</span>}</p>
             </div>
-            <div className="bg-white border-t" style={{ borderColor: "var(--admin-border)" }}>
-              <iframe title={`${c.name} preview`} srcDoc={c.html} sandbox="" className="w-full h-[320px]" />
+            <div className="relative bg-white border-t" style={{ borderColor: "var(--admin-border)" }}>
+              <iframe title={`${c.name} preview`} srcDoc={c.html} sandbox="" className="w-full h-[200px] pointer-events-none" />
+              <div className="absolute inset-x-0 bottom-0 flex justify-center pb-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                <span className="text-[10px] font-bold text-white bg-[#0aa3c7] rounded-full px-2.5 py-1 shadow-lg">Click to edit →</span>
+              </div>
             </div>
-          </div>
+          </Link>
         ))}
       </div>
 
-      <p className="text-xs admin-faint mt-6">Want to change the wording of an email? Edit it in <Link href="/admin/email-templates" className="text-[#0aa3c7] hover:underline">Email Templates</Link> — your edits show up here as &ldquo;edited copy&rdquo;. Sent emails are logged in <Link href="/admin/email-log" className="text-[#0aa3c7] hover:underline">Email Log</Link>.</p>
+      <p className="text-xs admin-faint mt-6">Click any email to edit its wording &amp; photo. Sent emails are logged in <Link href="/admin/email-log" className="text-[#0aa3c7] hover:underline">Email Log</Link>.</p>
     </div>
   );
 }

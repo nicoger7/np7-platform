@@ -77,6 +77,18 @@ export default function EmailTemplatesPage() {
   const [showAdvanced, setShowAdvanced] = useState(false);
   const [pickingImage, setPickingImage] = useState(false);
   const bodyRef = useRef<HTMLTextAreaElement>(null);
+  const autoOpenedRef = useRef(false);
+
+  // Deep-link: /admin/email-templates?edit=<template_key> opens that template's
+  // editor straight away (used by the Emails hub "click to edit").
+  useEffect(() => {
+    if (autoOpenedRef.current || templates.length === 0) return;
+    const key = new URLSearchParams(window.location.search).get("edit");
+    autoOpenedRef.current = true;
+    if (!key) return;
+    const t = templates.find((x) => x.template_key === key);
+    if (t) startEdit(t);
+  }, [templates]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Live, debounced email preview while the editor is open.
   useEffect(() => {
@@ -155,7 +167,10 @@ export default function EmailTemplatesPage() {
   }
 
   async function handleSave() {
-    const payload = { name: form.name, subject_line: form.subject_line || null, body: form.body || null, header_image: form.header_image || null, type: form.type || null, trigger_stage: form.trigger_stage || null, status: form.status || null, language: form.language, active: form.active, experience_id: form.experience_id || null, notes: form.notes || null };
+    // Only include header_image when set — so copy edits save even before the
+    // header_image column migration (029) has run.
+    const payload: Record<string, unknown> = { name: form.name, subject_line: form.subject_line || null, body: form.body || null, type: form.type || null, trigger_stage: form.trigger_stage || null, status: form.status || null, language: form.language, active: form.active, experience_id: form.experience_id || null, notes: form.notes || null };
+    if (form.header_image) payload.header_image = form.header_image;
     const url = editId ? `/api/admin/email-templates/${editId}` : "/api/admin/email-templates";
     const res = await fetch(url, { method: editId ? "PATCH" : "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
     if (!res.ok) {
