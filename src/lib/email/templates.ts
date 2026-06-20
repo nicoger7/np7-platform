@@ -1,4 +1,4 @@
-import { emailLayout, emailButton, esc } from "./layout";
+import { emailLayout, emailButton, esc, type Division } from "./layout";
 
 export type EmailVars = {
   firstName?: string;
@@ -170,11 +170,12 @@ function interpolate(s: string, v: EmailVars): string {
 export function renderTemplate(
   key: string,
   vars: EmailVars,
-  dbOverride?: { subject_line?: string | null; body?: string | null } | null
+  dbOverride?: { subject_line?: string | null; body?: string | null } | null,
+  division: Division = "experience"
 ): Built {
   if (dbOverride?.body) {
     const subject = dbOverride.subject_line ? interpolate(dbOverride.subject_line, vars) : (TEMPLATES[key]?.(vars).subject ?? "NP7 Experience");
-    return { subject, html: emailLayout({ bodyHtml: interpolate(dbOverride.body, vars) }) };
+    return { subject, html: emailLayout({ division, bodyHtml: interpolate(dbOverride.body, vars) }) };
   }
   const fn = TEMPLATES[key];
   if (!fn) throw new Error(`Unknown email template: ${key}. Known: ${FALLBACK_KEYS.join(", ")}`);
