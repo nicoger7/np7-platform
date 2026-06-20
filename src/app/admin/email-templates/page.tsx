@@ -60,6 +60,27 @@ export default function EmailTemplatesPage() {
     () => loadVisibleColumns(STORAGE_KEY, COLUMNS)
   );
   const [form, setForm] = useState({ name: "", subject_line: "", body: "", type: "", trigger_stage: "", status: "", language: "en", active: true, experience_id: "", notes: "" });
+  const [previewHtml, setPreviewHtml] = useState("");
+  const [previewSubject, setPreviewSubject] = useState("");
+  const [previewDivision, setPreviewDivision] = useState<"experience" | "hardware">("experience");
+
+  // Live, debounced email preview while the editor is open.
+  useEffect(() => {
+    if (!showNew && !editId) return;
+    const ctrl = new AbortController();
+    const t = setTimeout(() => {
+      fetch("/api/admin/email/preview", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ body: form.body, subject: form.subject_line, division: previewDivision }),
+        signal: ctrl.signal,
+      })
+        .then((r) => r.json())
+        .then((d) => { setPreviewHtml(d.html || ""); setPreviewSubject(d.subject || ""); })
+        .catch(() => {});
+    }, 300);
+    return () => { clearTimeout(t); ctrl.abort(); };
+  }, [form.body, form.subject_line, previewDivision, showNew, editId]);
 
   function fetchData() {
     Promise.all([
@@ -173,7 +194,34 @@ export default function EmailTemplatesPage() {
               </label>
             </div>
           </div>
-          <div className="mb-4"><label className={labelClass}>Body</label><textarea className={`${inputClass} min-h-[120px] resize-y font-mono text-xs`} value={form.body} onChange={(e) => setForm({ ...form, body: e.target.value })} placeholder="Email body..." /></div>
+          <div className="grid grid-cols-2 gap-4 mb-4">
+            {/* Body editor */}
+            <div>
+              <label className={labelClass}>Body <span className="admin-faint font-normal">(HTML — wrapped in the branded frame automatically)</span></label>
+              <textarea className={`${inputClass} min-h-[360px] resize-y font-mono text-xs`} value={form.body} onChange={(e) => setForm({ ...form, body: e.target.value })} placeholder="<p>Hey {{firstName}} 🤙</p>" />
+              <p className="mt-1.5 text-[11px] admin-faint leading-relaxed">
+                Variables: <code>{"{{firstName}}"}</code> <code>{"{{experienceTitle}}"}</code> <code>{"{{dates}}"}</code> <code>{"{{deposit}}"}</code> <code>{"{{balance}}"}</code> <code>{"{{bookingLink}}"}</code> <code>{"{{activationLink}}"}</code> — filled with sample data in the preview.
+              </p>
+            </div>
+            {/* Live preview */}
+            <div>
+              <div className="flex items-center justify-between mb-1">
+                <label className={labelClass + " mb-0"}>Live preview</label>
+                <div className="inline-flex rounded-md overflow-hidden" style={{ border: "1px solid var(--admin-border)" }}>
+                  {(["experience", "hardware"] as const).map((d) => (
+                    <button key={d} type="button" onClick={() => setPreviewDivision(d)}
+                      className={`px-2.5 py-1 text-[11px] font-semibold capitalize transition-colors ${previewDivision === d ? "bg-[#0aa3c7] text-white" : "admin-muted"}`}>
+                      {d}
+                    </button>
+                  ))}
+                </div>
+              </div>
+              {previewSubject && <div className="text-[11px] admin-muted mb-1 truncate"><span className="admin-faint">Subject:</span> {previewSubject}</div>}
+              <div className="rounded-lg overflow-hidden bg-white" style={{ border: "1px solid var(--admin-border)", height: 360 }}>
+                <iframe title="Email preview" srcDoc={previewHtml} sandbox="" className="w-full h-full" />
+              </div>
+            </div>
+          </div>
           <div className="mb-4"><label className={labelClass}>Notes</label><input className={inputClass} value={form.notes} onChange={(e) => setForm({ ...form, notes: e.target.value })} /></div>
           <div className="flex gap-2">
             <button onClick={handleSave} disabled={!form.name} className="px-4 py-2 bg-[#0aa3c7] hover:bg-[#0aa3c7]/90 disabled:opacity-40 text-white text-sm font-bold rounded-lg">{editId ? "Update" : "Create"}</button>
