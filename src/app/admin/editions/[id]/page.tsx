@@ -768,22 +768,6 @@ export default function EditionDetailPage({
             <div className="mb-4">
               <BusinessCaseCard editionId={id} />
             </div>
-            <div className="grid grid-cols-2 gap-4 max-w-md">
-              <div className="rounded-lg p-2 bg-[#0aa3c7]/5" style={{ border: "1px solid rgba(10,163,199,0.15)" }}>
-                <label className={`${labelClass} flex items-center gap-2`}>
-                  Paid Revenue
-                  <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium bg-[#0aa3c7]/15 text-[#0aa3c7]">Auto</span>
-                </label>
-                <input type="number" className={`${inputClass} opacity-70 cursor-default`} value={edition.paid_revenue || ""} readOnly />
-              </div>
-              <div className="rounded-lg p-2 bg-[#0aa3c7]/5" style={{ border: "1px solid rgba(10,163,199,0.15)" }}>
-                <label className={`${labelClass} flex items-center gap-2`}>
-                  Paid Profit
-                  <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium bg-[#0aa3c7]/15 text-[#0aa3c7]">Auto</span>
-                </label>
-                <input type="number" className={`${inputClass} opacity-70 cursor-default`} value={edition.paid_profit || ""} readOnly />
-              </div>
-            </div>
             <p className="text-[10px] admin-faint mt-2">Costs come from the Costs tab (estimated &amp; actual). Add fixed costs there as line items.</p>
           </div>
           )}
