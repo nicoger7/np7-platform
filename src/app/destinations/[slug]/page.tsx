@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import type { Metadata } from "next";
-import { supabase } from "@/lib/supabase";
+import { supabase, createAdminClient } from "@/lib/supabase";
 import { OceanHeader } from "@/components/experience/ocean-header";
 import { NP7_EXPERIENCE_LOGO, SUN_TO_SEA } from "@/components/shared/brand";
 import { Reveal } from "@/components/experience/reveal";
@@ -57,9 +57,13 @@ async function getDestination(slug: string): Promise<{ destination: Destination;
   try {
     const ids = tripList.map((t) => t.id);
     if (ids.length) {
+      // exp_hotel_rooms / exp_packages are team-only (RLS), so read them with the
+      // service-role client on the server — same pattern as availability counts.
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const admin = createAdminClient() as any;
       const [{ data: pkgs }, { data: rooms }] = await Promise.all([
-        sb.from("exp_packages").select("hotel_id").in("experience_id", ids).not("hotel_id", "is", null),
-        sb.from("exp_hotel_rooms").select("hotel").in("experience_id", ids),
+        admin.from("exp_packages").select("hotel_id").in("experience_id", ids).not("hotel_id", "is", null),
+        admin.from("exp_hotel_rooms").select("hotel").in("experience_id", ids),
       ]);
       const hotelIds = [...new Set((pkgs ?? []).map((p: { hotel_id: string | null }) => p.hotel_id).filter(Boolean))];
       const hotelNames = [...new Set((rooms ?? []).map((r: { hotel: string | null }) => r.hotel).filter(Boolean))];
