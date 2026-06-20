@@ -9,12 +9,13 @@ import { canAccess, type AccessLevel } from "@/lib/access";
 
 // ─── Environments ────────────────────────────────────────────────────────────
 
-type Environment = "experience" | "hardware" | "product-dev";
+type Environment = "experience" | "hardware" | "product-dev" | "analytics";
 
-const environments: { id: Environment; label: string; shortLabel: string; color: string }[] = [
+const environments: { id: Environment; label: string; shortLabel: string; color: string; ownerOnly?: boolean }[] = [
   { id: "experience", label: "NP7 Experience", shortLabel: "Experience", color: "#0aa3c7" },
   { id: "hardware", label: "NP7 Hardware", shortLabel: "Hardware", color: "#f59e0b" },
   { id: "product-dev", label: "Product Development", shortLabel: "Product Dev", color: "#8b5cf6" },
+  { id: "analytics", label: "Analytics", shortLabel: "Analytics", color: "#10b981", ownerOnly: true },
 ];
 
 // ─── Navigation per environment ──────────────────────────────────────────────
@@ -57,7 +58,6 @@ const navByEnv: Record<Environment, NavGroup[]> = {
     {
       label: "FINANCE",
       items: [
-        { label: "Analytics", href: "/admin/analytics", icon: "chart" },
         { label: "Payments", href: "/admin/payments", icon: "receipt" },
         { label: "Experience Costs", href: "/admin/exp-costs", icon: "chartline" },
         { label: "Vendors", href: "/admin/vendors", icon: "truck" },
@@ -89,6 +89,14 @@ const navByEnv: Record<Environment, NavGroup[]> = {
       items: [
         { label: "Boards", href: "/admin/boards", icon: "layers", wip: true },
         { label: "Reviews", href: "/admin/reviews", icon: "star", wip: true },
+      ],
+    },
+  ],
+  analytics: [
+    {
+      label: "ANALYTICS",
+      items: [
+        { label: "Business", href: "/admin/analytics", icon: "chart" },
       ],
     },
   ],
@@ -335,11 +343,15 @@ export default function AdminShell({
     const savedTheme = localStorage.getItem("np7-admin-theme") as Theme | null;
     if (savedTheme && themes[savedTheme]) setTheme(savedTheme);
     const savedEnv = localStorage.getItem("np7-admin-env") as Environment | null;
-    if (savedEnv && navByEnv[savedEnv]) setEnv(savedEnv);
+    if (savedEnv && navByEnv[savedEnv]) {
+      const cfg = environments.find((x) => x.id === savedEnv);
+      if (!cfg?.ownerOnly || accessLevel === "owner") setEnv(savedEnv);
+    }
     try {
       const savedCollapsed = JSON.parse(localStorage.getItem("np7-admin-collapsed") || "[]");
       if (Array.isArray(savedCollapsed)) setCollapsed(new Set(savedCollapsed));
     } catch { /* ignore */ }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const toggleGroup = (label: string) => {
@@ -467,7 +479,7 @@ export default function AdminShell({
                   border: "1px solid var(--admin-border)",
                 }}
               >
-                {environments.map((e) => (
+                {environments.filter((e) => !e.ownerOnly || accessLevel === "owner").map((e) => (
                   <button
                     key={e.id}
                     onClick={() => switchEnv(e.id)}
