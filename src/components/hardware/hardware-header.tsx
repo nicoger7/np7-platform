@@ -12,8 +12,8 @@ const NAV = [
   { label: "Shop", href: "#products" },
   { label: "Workshop", href: "#workshop" },
   // right-aligned, next to the account button + CTA
-  { label: "Magazine", href: "/blog", side: "right" as const },
-  { label: "About", href: "/about", side: "right" as const },
+  { label: "Magazine", href: "/blog?from=hardware", side: "right" as const },
+  { label: "About", href: "/about?from=hardware", side: "right" as const },
 ];
 
 const leftNav = NAV.filter((n) => n.side !== "right");

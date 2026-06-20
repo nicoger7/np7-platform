@@ -17,7 +17,7 @@ export const metadata: Metadata = {
 
 export const revalidate = 60;
 
-type Props = { searchParams: Promise<{ world?: string }> };
+type Props = { searchParams: Promise<{ world?: string; from?: string }> };
 
 const TABS = [
   { key: "", label: "All" },
@@ -33,12 +33,13 @@ function teaser(p: CardPost) {
 }
 
 export default async function BlogIndexPage({ searchParams }: Props) {
-  const { world } = await searchParams;
+  const { world, from } = await searchParams;
   const activeWorld =
     world === "experience" || world === "hardware" || world === "technique" ? world : "";
 
-  // Chrome follows the section the reader came from (like the member area).
-  const section = resolveSection((await cookies()).get("np7_section")?.value);
+  // Chrome follows the world you arrived from: the `?from=` the header link
+  // carries wins, then the np7_section cookie, then the default (experience).
+  const section = resolveSection(from ?? (await cookies()).get("np7_section")?.value);
   const chrome = SECTION_CHROME[section];
 
   let query = supabase

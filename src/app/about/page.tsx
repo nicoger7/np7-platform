@@ -29,8 +29,10 @@ const WORLDS = [
   },
 ];
 
-export default async function AboutPage() {
-  const section = resolveSection((await cookies()).get("np7_section")?.value);
+export default async function AboutPage({ searchParams }: { searchParams: Promise<{ from?: string }> }) {
+  const { from } = await searchParams;
+  // `?from=` (carried by the header link) wins over the np7_section cookie.
+  const section = resolveSection(from ?? (await cookies()).get("np7_section")?.value);
   const chrome = SECTION_CHROME[section];
 
   return (

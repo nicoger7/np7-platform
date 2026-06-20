@@ -25,14 +25,19 @@ export async function middleware(request: NextRequest) {
   //    header. Public Experience/Hardware pages need no auth, so set the cookie
   //    and return early (skips the Supabase round-trip on every page view). ──
   if (!path.startsWith("/admin") && !path.startsWith("/account") && !path.startsWith("/api")) {
-    const section = path.startsWith("/hardware") ? "hardware" : path.startsWith("/experience") ? "experience" : null;
-    if (section) {
-      const res = NextResponse.next({ request });
-      if (request.cookies.get("np7_section")?.value !== section) {
-        res.cookies.set("np7_section", section, { path: "/", maxAge: 60 * 60 * 24 * 30, sameSite: "lax" });
-      }
-      return res;
+    // The shared magazine/about pages carry the world they were opened from via
+    // ?from= (the header links set it) — persist it so posts/internal nav inherit it.
+    const from = request.nextUrl.searchParams.get("from");
+    const section =
+      path.startsWith("/hardware") ? "hardware"
+      : path.startsWith("/experience") ? "experience"
+      : (path.startsWith("/blog") || path.startsWith("/about")) && (from === "hardware" || from === "experience") ? from
+      : null;
+    const res = NextResponse.next({ request });
+    if (section && request.cookies.get("np7_section")?.value !== section) {
+      res.cookies.set("np7_section", section, { path: "/", maxAge: 60 * 60 * 24 * 30, sameSite: "lax" });
     }
+    return res; // public pages — no auth round-trip
   }
 
   let supabaseResponse = NextResponse.next({ request });
@@ -111,5 +116,5 @@ export async function middleware(request: NextRequest) {
 }
 
 export const config = {
-  matcher: ["/admin/:path*", "/api/admin/:path*", "/account/:path*", "/experience/:path*", "/hardware/:path*"],
+  matcher: ["/admin/:path*", "/api/admin/:path*", "/account/:path*", "/experience/:path*", "/hardware/:path*", "/blog/:path*", "/about/:path*"],
 };
