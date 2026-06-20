@@ -1,0 +1,39 @@
+import type { Division } from "./layout";
+
+/**
+ * The real email automations — the single source of truth for what the system
+ * actually sends (mirrors the code templates + the cron's lifecycle sequence).
+ *
+ * kind:
+ *  - "transactional" → always sends (user-triggered, no admin data). Live now.
+ *  - "lifecycle"     → automated customer mail. Sends only when EMAIL_LIFECYCLE_LIVE=true
+ *                       (the soft-launch guard). Paused until you flip it on.
+ */
+export type AutomationKind = "transactional" | "lifecycle";
+
+export type Automation = {
+  key: string;
+  name: string;
+  stage: string;
+  trigger: string;
+  division: Division;
+  kind: AutomationKind;
+};
+
+export const AUTOMATIONS: Automation[] = [
+  { key: "account_magic_link", name: "Login / sign-up link", stage: "Account", trigger: "When someone signs up or requests a login link", division: "experience", kind: "transactional" },
+  { key: "reservation_received", name: "Reservation received", stage: "Reserve", trigger: "Right after someone reserves a spot", division: "experience", kind: "lifecycle" },
+  { key: "deposit_confirmation", name: "Deposit confirmed", stage: "Deposit", trigger: "When the deposit is paid — activates their trip account", division: "experience", kind: "lifecycle" },
+  { key: "payment_pending_nudge", name: "Deposit reminder", stage: "Deposit", trigger: "2 and 5 days after reserving, if the deposit isn't paid yet", division: "experience", kind: "lifecycle" },
+  { key: "balance_invoice_reminder", name: "Balance invoice & reminder", stage: "Balance", trigger: "~45 and ~30 days before the trip", division: "experience", kind: "lifecycle" },
+  { key: "balance_paid_confirmation", name: "Balance paid", stage: "Balance", trigger: "When the remaining balance is paid in full", division: "experience", kind: "lifecycle" },
+  { key: "pre_trip_info", name: "Pre-trip info", stage: "Pre-trip", trigger: "~21 days before the trip", division: "experience", kind: "lifecycle" },
+  { key: "pre_trip_final", name: "Final details", stage: "Pre-trip", trigger: "~3 days before the trip — packing, arrival, group chat", division: "experience", kind: "lifecycle" },
+  { key: "post_trip_thank_you", name: "Thank you + review", stage: "Post-trip", trigger: "~3 days after the trip ends", division: "experience", kind: "lifecycle" },
+  { key: "addon_confirmed", name: "Add-on confirmed", stage: "Add-ons", trigger: "When you confirm a requested add-on", division: "experience", kind: "lifecycle" },
+];
+
+/** Whether the automated lifecycle pipeline is switched on (env, server-only). */
+export function lifecycleLive(): boolean {
+  return process.env.EMAIL_LIFECYCLE_LIVE === "true" || process.env.EMAIL_LIFECYCLE_LIVE === "1";
+}
