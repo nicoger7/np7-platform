@@ -57,6 +57,7 @@ const navByEnv: Record<Environment, NavGroup[]> = {
     {
       label: "FINANCE",
       items: [
+        { label: "Analytics", href: "/admin/analytics", icon: "chart" },
         { label: "Payments", href: "/admin/payments", icon: "receipt" },
         { label: "Experience Costs", href: "/admin/exp-costs", icon: "chartline" },
         { label: "Vendors", href: "/admin/vendors", icon: "truck" },
@@ -88,7 +89,6 @@ const navByEnv: Record<Environment, NavGroup[]> = {
       items: [
         { label: "Boards", href: "/admin/boards", icon: "layers", wip: true },
         { label: "Reviews", href: "/admin/reviews", icon: "star", wip: true },
-        { label: "Analytics", href: "/admin/analytics", icon: "chart", wip: true },
       ],
     },
   ],

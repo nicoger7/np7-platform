@@ -20,9 +20,9 @@ export const ACCESS_LABELS: Record<AccessLevel, string> = {
 /** Sections only an Owner may open — pages AND their APIs. */
 const OWNER_ONLY = [
   "/admin/payments", "/admin/exp-costs", "/admin/vendors", "/admin/documents",
-  "/admin/settings", "/admin/team", "/admin/hours-log",
+  "/admin/settings", "/admin/team", "/admin/hours-log", "/admin/analytics",
   "/api/admin/payments", "/api/admin/exp-costs", "/api/admin/vendors", "/api/admin/documents",
-  "/api/admin/company-settings", "/api/admin/team", "/api/admin/hours-log",
+  "/api/admin/company-settings", "/api/admin/team", "/api/admin/hours-log", "/api/admin/analytics",
 ];
 
 export function normalizeLevel(v: unknown): AccessLevel {
