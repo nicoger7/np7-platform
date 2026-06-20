@@ -30,15 +30,17 @@ export default async function EmailsHubPage() {
   // Reflect any saved copy override (same logic sendEmail uses), so previews match reality.
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const db = createAdminClient() as any;
-  const { data: overrides } = await db.from("email_templates").select("template_key, subject_line, body, active");
-  const overrideByKey = new Map<string, { subject_line?: string | null; body?: string | null; active?: boolean | null }>();
-  for (const o of (overrides || []) as { template_key: string | null; subject_line?: string | null; body?: string | null; active?: boolean | null }[]) {
+  const { data: overrides } = await db.from("email_templates").select("*");
+  type Ov = { template_key: string | null; subject_line?: string | null; body?: string | null; active?: boolean | null; header_image?: string | null };
+  const overrideByKey = new Map<string, Ov>();
+  for (const o of (overrides || []) as Ov[]) {
     if (o.template_key) overrideByKey.set(o.template_key, o);
   }
 
   const cards = AUTOMATIONS.map((a) => {
     const ov = overrideByKey.get(a.key);
-    const built = renderTemplate(a.key, SAMPLE, ov?.active === false ? null : ov);
+    const useOv = ov && ov.active !== false ? ov : null;
+    const built = renderTemplate(a.key, SAMPLE, useOv, a.division, useOv?.header_image || undefined);
     return { ...a, html: built.html, subject: built.subject, isLive: a.kind === "transactional" || live, hasOverride: !!ov?.body && ov?.active !== false };
   });
 

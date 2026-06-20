@@ -59,17 +59,18 @@ export async function sendEmail(args: SendArgs): Promise<SendResult> {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const db = createAdminClient() as any;
 
-  // optional DB override
+  // optional DB override (select * so a not-yet-migrated header_image column can't error)
   const { data: override } = await db
     .from("email_templates")
-    .select("subject_line, body, active")
+    .select("*")
     .eq("template_key", templateKey)
     .maybeSingle();
+  const useOverride = override && override.active !== false ? override : null;
 
   let subject = "";
   let html = "";
   try {
-    const built = renderTemplate(templateKey, vars, override?.active === false ? null : override, division);
+    const built = renderTemplate(templateKey, vars, useOverride, division, useOverride?.header_image || undefined);
     subject = built.subject;
     html = built.html;
   } catch (e) {

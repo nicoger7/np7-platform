@@ -1,15 +1,18 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { SortableHeader } from "@/components/sortable-header";
 import { ColumnToggle, ColumnDef, buildGridTemplate, loadVisibleColumns } from "@/components/column-toggle";
 import { RowActions } from "@/components/row-actions";
+import ImagePickerModal from "@/components/image-picker-modal";
 
 interface EmailTemplate {
   id: string;
   name: string;
+  template_key: string | null;
   subject_line: string | null;
   body: string | null;
+  header_image: string | null;
   type: string | null;
   trigger_stage: string | null;
   status: string | null;
@@ -24,14 +27,20 @@ interface Experience { id: string; title: string; }
 
 type SortDir = "asc" | "desc" | null;
 
+/** Click-to-insert variables — [token, friendly label]. */
+const VARS: [string, string][] = [
+  ["firstName", "First name"], ["experienceTitle", "Trip"], ["dates", "Dates"],
+  ["deposit", "Deposit"], ["balance", "Balance"], ["bookingLink", "Booking link"], ["activationLink", "Login link"],
+];
+
 const COLUMNS: ColumnDef[] = [
   { key: "name", label: "Name", width: "1fr", required: true },
   { key: "subject", label: "Subject", width: "180px" },
-  { key: "type", label: "Type", width: "120px" },
+  { key: "type", label: "Type", width: "120px", defaultHidden: true },
   { key: "status", label: "Status", width: "90px", defaultHidden: true },
   { key: "trigger_stage", label: "Trigger", width: "130px", defaultHidden: true },
   { key: "experience", label: "Experience", width: "140px", defaultHidden: true },
-  { key: "language", label: "Lang", width: "60px" },
+  { key: "language", label: "Lang", width: "60px", defaultHidden: true },
   { key: "body", label: "Body", width: "200px", defaultHidden: true },
   { key: "notes", label: "Notes", width: "140px", defaultHidden: true },
   { key: "active", label: "Active", width: "60px" },
@@ -39,6 +48,8 @@ const COLUMNS: ColumnDef[] = [
 ];
 
 const STORAGE_KEY = "np7-email-templates-columns";
+
+const EMPTY_FORM = { name: "", template_key: "", subject_line: "", body: "", header_image: "", type: "", trigger_stage: "", status: "", language: "en", active: true, experience_id: "", notes: "" };
 
 function compareValues(a: unknown, b: unknown, dir: "asc" | "desc"): number {
   if (a == null && b == null) return 0;
@@ -59,10 +70,13 @@ export default function EmailTemplatesPage() {
   const [visibleColumns, setVisibleColumns] = useState<Set<string>>(
     () => loadVisibleColumns(STORAGE_KEY, COLUMNS)
   );
-  const [form, setForm] = useState({ name: "", subject_line: "", body: "", type: "", trigger_stage: "", status: "", language: "en", active: true, experience_id: "", notes: "" });
+  const [form, setForm] = useState(EMPTY_FORM);
   const [previewHtml, setPreviewHtml] = useState("");
   const [previewSubject, setPreviewSubject] = useState("");
   const [previewDivision, setPreviewDivision] = useState<"experience" | "hardware">("experience");
+  const [showAdvanced, setShowAdvanced] = useState(false);
+  const [pickingImage, setPickingImage] = useState(false);
+  const bodyRef = useRef<HTMLTextAreaElement>(null);
 
   // Live, debounced email preview while the editor is open.
   useEffect(() => {
@@ -72,7 +86,7 @@ export default function EmailTemplatesPage() {
       fetch("/api/admin/email/preview", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ body: form.body, subject: form.subject_line, division: previewDivision }),
+        body: JSON.stringify({ body: form.body, subject: form.subject_line, division: previewDivision, headerImage: form.header_image, templateKey: form.template_key }),
         signal: ctrl.signal,
       })
         .then((r) => r.json())
@@ -80,7 +94,7 @@ export default function EmailTemplatesPage() {
         .catch(() => {});
     }, 300);
     return () => { clearTimeout(t); ctrl.abort(); };
-  }, [form.body, form.subject_line, previewDivision, showNew, editId]);
+  }, [form.body, form.subject_line, form.header_image, form.template_key, previewDivision, showNew, editId]);
 
   function fetchData() {
     Promise.all([
@@ -118,18 +132,36 @@ export default function EmailTemplatesPage() {
       })
     : templates;
 
+  function openNew() {
+    setShowNew(true); setEditId(null); setShowAdvanced(false); setForm(EMPTY_FORM);
+  }
+
   function startEdit(t: EmailTemplate) {
     setEditId(t.id);
-    setForm({ name: t.name, subject_line: t.subject_line || "", body: t.body || "", type: t.type || "", trigger_stage: t.trigger_stage || "", status: t.status || "", language: t.language || "en", active: t.active !== false, experience_id: t.experience_id || "", notes: t.notes || "" });
+    setShowAdvanced(false);
+    setForm({ name: t.name, template_key: t.template_key || "", subject_line: t.subject_line || "", body: t.body || "", header_image: t.header_image || "", type: t.type || "", trigger_stage: t.trigger_stage || "", status: t.status || "", language: t.language || "en", active: t.active !== false, experience_id: t.experience_id || "", notes: t.notes || "" });
     setShowNew(false);
   }
 
+  function insertVar(token: string) {
+    const text = `{{${token}}}`;
+    const ta = bodyRef.current;
+    if (!ta) { setForm((f) => ({ ...f, body: f.body + text })); return; }
+    const start = ta.selectionStart ?? ta.value.length;
+    const end = ta.selectionEnd ?? ta.value.length;
+    const next = form.body.slice(0, start) + text + form.body.slice(end);
+    setForm((f) => ({ ...f, body: next }));
+    requestAnimationFrame(() => { ta.focus(); const pos = start + text.length; ta.setSelectionRange(pos, pos); });
+  }
+
   async function handleSave() {
-    const body = { name: form.name, subject_line: form.subject_line || null, body: form.body || null, type: form.type || null, trigger_stage: form.trigger_stage || null, status: form.status || null, language: form.language, active: form.active, experience_id: form.experience_id || null, notes: form.notes || null };
-    if (editId) {
-      await fetch(`/api/admin/email-templates/${editId}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
-    } else {
-      await fetch("/api/admin/email-templates", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+    const payload = { name: form.name, subject_line: form.subject_line || null, body: form.body || null, header_image: form.header_image || null, type: form.type || null, trigger_stage: form.trigger_stage || null, status: form.status || null, language: form.language, active: form.active, experience_id: form.experience_id || null, notes: form.notes || null };
+    const url = editId ? `/api/admin/email-templates/${editId}` : "/api/admin/email-templates";
+    const res = await fetch(url, { method: editId ? "PATCH" : "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
+    if (!res.ok) {
+      const j = await res.json().catch(() => ({}));
+      alert(j.error?.includes("header_image") ? "Couldn't save — apply migration 029 (adds the header image column) first." : (j.error || "Couldn't save."));
+      return;
     }
     setShowNew(false); setEditId(null); fetchData();
   }
@@ -151,6 +183,14 @@ export default function EmailTemplatesPage() {
 
   return (
     <div>
+      {pickingImage && (
+        <ImagePickerModal
+          defaultFolder="email"
+          onSelect={(url) => { setForm((f) => ({ ...f, header_image: url })); setPickingImage(false); }}
+          onClose={() => setPickingImage(false)}
+        />
+      )}
+
       <div className="flex items-center justify-between mb-6">
         <div>
           <h1 className="text-2xl font-bold admin-heading mb-1">Email Templates</h1>
@@ -158,60 +198,57 @@ export default function EmailTemplatesPage() {
         </div>
         <div className="flex items-center gap-3">
           <ColumnToggle columns={COLUMNS} visible={visibleColumns} onChange={setVisibleColumns} storageKey={STORAGE_KEY} />
-          <button onClick={() => { setShowNew(!showNew); setEditId(null); setForm({ name: "", subject_line: "", body: "", type: "", trigger_stage: "", status: "", language: "en", active: true, experience_id: "", notes: "" }); }} className="px-4 py-2 bg-[#0aa3c7] hover:bg-[#0aa3c7]/90 text-white text-sm font-bold rounded-lg transition-colors">
-            New Template
-          </button>
+          <button onClick={openNew} className="px-4 py-2 bg-[#0aa3c7] hover:bg-[#0aa3c7]/90 text-white text-sm font-bold rounded-lg transition-colors">New Template</button>
         </div>
       </div>
 
       {(showNew || editId) && (
         <div className="mb-6 p-5 rounded-xl" style={{ border: "1px solid var(--admin-border)", backgroundColor: "var(--admin-surface)" }}>
-          <h3 className="text-sm font-bold admin-heading mb-4">{editId ? "Edit Template" : "New Template"}</h3>
+          <h3 className="text-sm font-bold admin-heading mb-4">{editId ? "Edit email" : "New email"}</h3>
+
+          {/* Name + subject */}
           <div className="grid grid-cols-3 gap-4 mb-4">
             <div><label className={labelClass}>Name *</label><input className={inputClass} value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} /></div>
-            <div className="col-span-2"><label className={labelClass}>Subject Line</label><input className={inputClass} value={form.subject_line} onChange={(e) => setForm({ ...form, subject_line: e.target.value })} /></div>
-            <div><label className={labelClass}>Type</label><input className={inputClass} value={form.type} onChange={(e) => setForm({ ...form, type: e.target.value })} placeholder="welcome, reminder..." /></div>
-            <div><label className={labelClass}>Trigger Stage</label><input className={inputClass} value={form.trigger_stage} onChange={(e) => setForm({ ...form, trigger_stage: e.target.value })} placeholder="booking_confirmed..." /></div>
-            <div><label className={labelClass}>Status</label><input className={inputClass} value={form.status} onChange={(e) => setForm({ ...form, status: e.target.value })} placeholder="draft, ready..." /></div>
-            <div><label className={labelClass}>Language</label>
-              <select className={inputClass} value={form.language} onChange={(e) => setForm({ ...form, language: e.target.value })}>
-                <option value="en">English</option>
-                <option value="de">German</option>
-                <option value="es">Spanish</option>
-                <option value="fr">French</option>
-              </select>
-            </div>
-            <div><label className={labelClass}>Experience</label>
-              <select className={inputClass} value={form.experience_id} onChange={(e) => setForm({ ...form, experience_id: e.target.value })}>
-                <option value="">—</option>
-                {experiences.map((e) => <option key={e.id} value={e.id}>{e.title}</option>)}
-              </select>
-            </div>
-            <div className="flex items-end pb-1">
-              <label className="flex items-center gap-2 cursor-pointer">
-                <input type="checkbox" checked={form.active} onChange={(e) => setForm({ ...form, active: e.target.checked })} className="w-4 h-4 accent-[#0aa3c7]" />
-                <span className="text-sm admin-muted">Active</span>
-              </label>
+            <div className="col-span-2"><label className={labelClass}>Subject line</label><input className={inputClass} value={form.subject_line} onChange={(e) => setForm({ ...form, subject_line: e.target.value })} placeholder="What the recipient sees in their inbox" /></div>
+          </div>
+
+          {/* Header image */}
+          <div className="mb-4">
+            <label className={labelClass}>Header image <span className="admin-faint font-normal">— the photo at the top; leave blank for the default</span></label>
+            <div className="flex items-center gap-3">
+              {form.header_image ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img src={form.header_image} alt="" className="h-12 w-24 object-cover rounded-md" style={{ border: "1px solid var(--admin-border)" }} />
+              ) : (
+                <div className="h-12 w-24 rounded-md grid place-items-center text-[10px] admin-faint" style={{ border: "1px dashed var(--admin-border)" }}>default</div>
+              )}
+              <button type="button" onClick={() => setPickingImage(true)} className="px-3 py-1.5 text-xs font-bold rounded-lg admin-surface admin-muted" style={{ border: "1px solid var(--admin-border)" }}>{form.header_image ? "Change image" : "Choose image"}</button>
+              {form.header_image && <button type="button" onClick={() => setForm({ ...form, header_image: "" })} className="text-xs admin-faint hover:text-red-400 transition-colors">Remove</button>}
             </div>
           </div>
+
+          {/* Body + live preview */}
           <div className="grid grid-cols-2 gap-4 mb-4">
-            {/* Body editor */}
             <div>
-              <label className={labelClass}>Body <span className="admin-faint font-normal">(HTML — wrapped in the branded frame automatically)</span></label>
-              <textarea className={`${inputClass} min-h-[360px] resize-y font-mono text-xs`} value={form.body} onChange={(e) => setForm({ ...form, body: e.target.value })} placeholder="<p>Hey {{firstName}} 🤙</p>" />
-              <p className="mt-1.5 text-[11px] admin-faint leading-relaxed">
-                Variables: <code>{"{{firstName}}"}</code> <code>{"{{experienceTitle}}"}</code> <code>{"{{dates}}"}</code> <code>{"{{deposit}}"}</code> <code>{"{{balance}}"}</code> <code>{"{{bookingLink}}"}</code> <code>{"{{activationLink}}"}</code> — filled with sample data in the preview.
-              </p>
+              <div className="flex items-center justify-between mb-1.5">
+                <label className={labelClass + " mb-0"}>Body</label>
+                <div className="flex flex-wrap gap-1.5 justify-end">
+                  {VARS.map(([token, label]) => (
+                    <button key={token} type="button" onClick={() => insertVar(token)} title={`Insert {{${token}}}`} className="px-2 py-0.5 text-[11px] rounded-md admin-surface admin-muted hover:text-[#0aa3c7] transition-colors" style={{ border: "1px solid var(--admin-border)" }}>+ {label}</button>
+                  ))}
+                </div>
+              </div>
+              <textarea ref={bodyRef} className={`${inputClass} min-h-[360px] resize-y font-mono text-xs`} value={form.body} onChange={(e) => setForm({ ...form, body: e.target.value })} placeholder="Leave blank to use the built-in wording, or write your own. Tip: click a variable button above to drop it in." />
+              <p className="mt-1.5 text-[11px] admin-faint">The branded frame, logo, colours and footer are added automatically — just write the message.</p>
             </div>
-            {/* Live preview */}
             <div>
               <div className="flex items-center justify-between mb-1">
                 <label className={labelClass + " mb-0"}>Live preview</label>
                 <div className="inline-flex rounded-md overflow-hidden" style={{ border: "1px solid var(--admin-border)" }}>
-                  {(["experience", "hardware"] as const).map((d) => (
-                    <button key={d} type="button" onClick={() => setPreviewDivision(d)}
-                      className={`px-2.5 py-1 text-[11px] font-semibold capitalize transition-colors ${previewDivision === d ? "bg-[#0aa3c7] text-white" : "admin-muted"}`}>
-                      {d}
+                  {(["experience", "hardware"] as const).map((dv) => (
+                    <button key={dv} type="button" onClick={() => setPreviewDivision(dv)}
+                      className={`px-2.5 py-1 text-[11px] font-semibold capitalize transition-colors ${previewDivision === dv ? "bg-[#0aa3c7] text-white" : "admin-muted"}`}>
+                      {dv}
                     </button>
                   ))}
                 </div>
@@ -222,9 +259,39 @@ export default function EmailTemplatesPage() {
               </div>
             </div>
           </div>
-          <div className="mb-4"><label className={labelClass}>Notes</label><input className={inputClass} value={form.notes} onChange={(e) => setForm({ ...form, notes: e.target.value })} /></div>
+
+          {/* Advanced (collapsed) */}
+          <button type="button" onClick={() => setShowAdvanced((v) => !v)} className="text-xs admin-faint hover:text-[#0aa3c7] transition-colors mb-3">
+            {showAdvanced ? "▾ Hide advanced" : "▸ Advanced (trigger, status, language, audience)"}
+          </button>
+          {showAdvanced && (
+            <div className="grid grid-cols-3 gap-4 mb-4 p-4 rounded-lg" style={{ border: "1px solid var(--admin-border)" }}>
+              <div><label className={labelClass}>Type</label><input className={inputClass} value={form.type} onChange={(e) => setForm({ ...form, type: e.target.value })} placeholder="welcome, reminder..." /></div>
+              <div><label className={labelClass}>Trigger stage</label><input className={inputClass} value={form.trigger_stage} onChange={(e) => setForm({ ...form, trigger_stage: e.target.value })} placeholder="booking_confirmed..." /></div>
+              <div><label className={labelClass}>Status</label><input className={inputClass} value={form.status} onChange={(e) => setForm({ ...form, status: e.target.value })} placeholder="draft, ready..." /></div>
+              <div><label className={labelClass}>Language</label>
+                <select className={inputClass} value={form.language} onChange={(e) => setForm({ ...form, language: e.target.value })}>
+                  <option value="en">English</option><option value="de">German</option><option value="es">Spanish</option><option value="fr">French</option>
+                </select>
+              </div>
+              <div><label className={labelClass}>Experience</label>
+                <select className={inputClass} value={form.experience_id} onChange={(e) => setForm({ ...form, experience_id: e.target.value })}>
+                  <option value="">—</option>
+                  {experiences.map((e) => <option key={e.id} value={e.id}>{e.title}</option>)}
+                </select>
+              </div>
+              <div className="flex items-end pb-1">
+                <label className="flex items-center gap-2 cursor-pointer">
+                  <input type="checkbox" checked={form.active} onChange={(e) => setForm({ ...form, active: e.target.checked })} className="w-4 h-4 accent-[#0aa3c7]" />
+                  <span className="text-sm admin-muted">Active</span>
+                </label>
+              </div>
+              <div className="col-span-3"><label className={labelClass}>Notes</label><input className={inputClass} value={form.notes} onChange={(e) => setForm({ ...form, notes: e.target.value })} /></div>
+            </div>
+          )}
+
           <div className="flex gap-2">
-            <button onClick={handleSave} disabled={!form.name} className="px-4 py-2 bg-[#0aa3c7] hover:bg-[#0aa3c7]/90 disabled:opacity-40 text-white text-sm font-bold rounded-lg">{editId ? "Update" : "Create"}</button>
+            <button onClick={handleSave} disabled={!form.name} className="px-4 py-2 bg-[#0aa3c7] hover:bg-[#0aa3c7]/90 disabled:opacity-40 text-white text-sm font-bold rounded-lg">{editId ? "Save" : "Create"}</button>
             <button onClick={() => { setShowNew(false); setEditId(null); }} className="px-4 py-2 admin-muted text-sm rounded-lg">Cancel</button>
           </div>
         </div>
@@ -236,7 +303,6 @@ export default function EmailTemplatesPage() {
         <div className="py-16 text-center"><p className="text-sm admin-faint">No templates yet</p></div>
       ) : (
         <div className="rounded-xl overflow-hidden" style={{ border: "1px solid var(--admin-border)" }}>
-          {/* Header */}
           <div className="grid gap-3 px-5 py-3 admin-surface" style={{ gridTemplateColumns: gridTemplate, borderBottom: "1px solid var(--admin-border)" }}>
             {COLUMNS.filter((c) => c.required || visibleColumns.has(c.key)).map((col) =>
               col.key === "_actions" ? <span key={col.key} /> : (
@@ -245,14 +311,12 @@ export default function EmailTemplatesPage() {
             )}
           </div>
 
-          {/* Rows */}
           {sorted.map((t) => (
             <div key={t.id} className="grid gap-3 px-5 py-3 cursor-pointer transition-colors" style={{ gridTemplateColumns: gridTemplate, borderBottom: "1px solid var(--admin-border)" }}
               onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = "var(--admin-surface-hover)")}
               onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = "transparent")}
               onClick={() => startEdit(t)}
             >
-              {/* name — required */}
               <div className="min-w-0 self-center">
                 <div className="text-sm font-medium admin-heading truncate">{t.name}</div>
                 {t.trigger_stage && <div className="text-xs admin-faint">{t.trigger_stage}</div>}
@@ -266,7 +330,6 @@ export default function EmailTemplatesPage() {
               {visibleColumns.has("body") && <span className="text-xs admin-faint self-center truncate" title={t.body || ""}>{t.body || "—"}</span>}
               {visibleColumns.has("notes") && <span className="text-xs admin-faint self-center truncate" title={t.notes || ""}>{t.notes || "—"}</span>}
               {visibleColumns.has("active") && <span className="self-center">{t.active ? <span className="text-green-400 text-xs">✓</span> : <span className="admin-faint text-xs">—</span>}</span>}
-              {/* _actions — required */}
               <RowActions onDuplicate={() => handleDuplicate(t.id)} onDelete={() => handleDelete(t.id)} />
             </div>
           ))}
