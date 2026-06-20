@@ -25,7 +25,7 @@ export async function GET() {
   const [
     expCount, bookCount, contactCount, upcomingEditionsCount,
     latestBookings, upcomingEditions, recentEmails, overdueTodos,
-    openBookings, unmatchedPayments,
+    openBookings, unmatchedPayments, pendingAddonRows,
   ] = await Promise.all([
     head("exp_experiences"),
     head("exp_bookings"),
@@ -38,6 +38,8 @@ export async function GET() {
     // open revenue: not-yet-fully-paid live bookings
     db.from("exp_bookings").select("agreed_price").eq("final_payment_received", false).not("status", "in", "(lost,attended,cancelled)"),
     head("exp_payments", (q: any) => q.eq("unmatched", true)),
+    // add-ons a member requested and the team hasn't confirmed yet
+    db.from("exp_booking_addons").select("id,booking_id,label,price,exp_bookings(name)").eq("status", "requested").order("requested_at", { ascending: false, nullsFirst: false }).limit(20),
   ]);
 
   const sum = (rows: { agreed_price: number | null }[] | null) =>
@@ -54,6 +56,8 @@ export async function GET() {
     upcomingEditions: upcomingEditions.data ?? [],
     recentEmails: recentEmails.data ?? [],
     overdueTodos: overdueTodos.count ?? 0,
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    pendingAddons: (pendingAddonRows.data ?? []).map((a: any) => ({ id: a.id, bookingId: a.booking_id, label: a.label, price: a.price, bookingName: a.exp_bookings?.name ?? "Booking" })),
     finance: isOwner
       ? { openRevenue: sum(openBookings.data), unmatchedPayments: unmatchedPayments.count ?? 0 }
       : null,

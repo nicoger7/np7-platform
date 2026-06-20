@@ -10,6 +10,7 @@ interface DashboardData {
   recentEmails: { template_key: string; to_email: string | null; status: string | null; subject: string | null; sent_at: string | null; created_at: string }[];
   overdueTodos: number;
   finance: { openRevenue: number; unmatchedPayments: number } | null;
+  pendingAddons: { id: string; bookingId: string; label: string; price: number | null; bookingName: string }[];
 }
 
 function money(n: number | null | undefined) {
@@ -82,9 +83,25 @@ export default function AdminDashboard() {
         {d.finance && <StatCard label="Open revenue" value={money(d.finance.openRevenue)} href="/admin/payments" accent />}
         {d.finance && <StatCard label="Unmatched payments" value={d.finance.unmatchedPayments} href="/admin/payments" />}
         <StatCard label="Overdue to-dos" value={d.overdueTodos} href="/admin/todos" />
+        <StatCard label="Pending add-ons" value={d.pendingAddons.length} accent={d.pendingAddons.length > 0} />
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+        {/* Pending add-ons to confirm */}
+        <Panel title={`Pending add-ons${d.pendingAddons.length ? ` (${d.pendingAddons.length})` : ""}`}>
+          {d.pendingAddons.length === 0 ? <p className="text-xs admin-faint">No add-on requests waiting.</p> : (
+            <div className="space-y-1.5">
+              {d.pendingAddons.map((a) => (
+                <Link key={a.id} href={`/admin/bookings/${a.bookingId}?tab=addons`} className="flex items-center gap-3 text-xs py-1.5 px-2 -mx-2 rounded-lg hover:bg-[var(--admin-surface-hover)]">
+                  <span className="flex-1 admin-heading truncate">{a.bookingName} <span className="admin-faint">· {a.label}</span></span>
+                  <span className="shrink-0 text-[9px] font-bold uppercase px-1.5 py-0.5 rounded bg-amber-500/15 text-amber-500">Requested</span>
+                  <span className="admin-muted w-16 text-right">{money(a.price)}</span>
+                </Link>
+              ))}
+            </div>
+          )}
+        </Panel>
+
         {/* Latest bookings */}
         <Panel title="Latest bookings" href="/admin/bookings">
           {d.latestBookings.length === 0 ? <p className="text-xs admin-faint">No bookings yet.</p> : (

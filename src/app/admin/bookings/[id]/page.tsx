@@ -129,6 +129,11 @@ export default function BookingDetailPage({
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
   const [tab, setTab] = useState<"details" | "payments" | "addons" | "rooms" | "documents">("details");
+  // Deep-link to a tab, e.g. /admin/bookings/:id?tab=addons (from the dashboard).
+  useEffect(() => {
+    const t = new URLSearchParams(window.location.search).get("tab");
+    if (t === "addons" || t === "payments" || t === "rooms" || t === "documents") setTab(t);
+  }, []);
 
   // Documents tab state
   const [documents, setDocuments] = useState<BookingDocument[]>([]);
