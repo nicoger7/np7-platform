@@ -401,6 +401,8 @@ export default function AdminShell({
         ...Object.fromEntries(Object.entries(vars)),
         backgroundColor: "var(--admin-bg)",
         color: "var(--admin-text)",
+        // Bigger default so the team doesn't have to zoom in every session.
+        zoom: 1.1,
       }}
     >
       {/* Sidebar */}
