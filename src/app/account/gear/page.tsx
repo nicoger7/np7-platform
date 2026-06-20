@@ -1,13 +1,15 @@
 import Link from "next/link";
-import { redirect } from "next/navigation";
+import { redirect, notFound } from "next/navigation";
 import type { Metadata } from "next";
 import { getPortalUser } from "@/lib/auth";
+import { flags } from "@/lib/flags";
 import { PortalChrome } from "@/components/portal/portal-chrome";
 
 export const metadata: Metadata = { title: "My gear — NP7" };
 export const dynamic = "force-dynamic";
 
 export default async function GearPage() {
+  if (!flags.showGear) notFound();
   const user = await getPortalUser();
   if (!user) redirect("/account/login");
 

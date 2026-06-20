@@ -1,5 +1,7 @@
 import Link from "next/link";
 import type { Metadata } from "next";
+import { redirect } from "next/navigation";
+import { flags } from "@/lib/flags";
 
 export const metadata: Metadata = {
   title: "NP7 — Nico Prien | GER-7",
@@ -21,6 +23,8 @@ const Arrow = () => (
 );
 
 export default function LandingPage() {
+  // No public world live yet → the bare domain is the members' door (no hint of more).
+  if (!flags.showExperience && !flags.showHardware) redirect("/account");
   return (
     <main className="relative h-[100svh] w-full flex flex-col md:flex-row overflow-hidden bg-black">
       {/* ---------------------------------------------------------------- */}

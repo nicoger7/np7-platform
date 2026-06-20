@@ -1,6 +1,7 @@
 import { cookies } from "next/headers";
 import { OceanHeader } from "@/components/experience/ocean-header";
 import { HardwareHeader } from "@/components/hardware/hardware-header";
+import { flags } from "@/lib/flags";
 import { PortalSubnav } from "./portal-subnav";
 
 /**
@@ -16,7 +17,7 @@ export async function PortalChrome() {
   return (
     <>
       {section === "hardware" ? <HardwareHeader variant="docked" /> : <OceanHeader variant="docked" />}
-      <PortalSubnav tone={section === "hardware" ? "hardware" : "ocean"} />
+      <PortalSubnav tone={section === "hardware" ? "hardware" : "ocean"} showGear={flags.showGear} showCart={flags.showCart} />
     </>
   );
 }

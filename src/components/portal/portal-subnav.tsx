@@ -7,23 +7,25 @@ import { createClient } from "@/lib/supabase/client";
 
 type Tone = "ocean" | "hardware";
 
-const TABS = [
+const ALL_TABS = [
   { href: "/account", label: "Home", exact: true },
   { href: "/account/trips", label: "My trips" },
-  { href: "/account/gear", label: "My gear" },
-  { href: "/account/cart", label: "Cart", cart: true },
+  { href: "/account/gear", label: "My gear", flag: "gear" as const },
+  { href: "/account/cart", label: "Cart", cart: true, flag: "cart" as const },
   { href: "/account/profile", label: "Profile" },
 ];
 
 /**
  * Member-portal submenu, shown directly under the section header. Tabs for
  * My trips / My gear / Cart / Profile (active by pathname), a live cart badge,
- * and log out. `tone` matches the surrounding section chrome.
+ * and log out. `tone` matches the surrounding section chrome. Gear/Cart tabs are
+ * hidden until those surfaces are switched on (showGear / showCart).
  */
-export function PortalSubnav({ tone }: { tone: Tone }) {
+export function PortalSubnav({ tone, showGear = false, showCart = false }: { tone: Tone; showGear?: boolean; showCart?: boolean }) {
   const pathname = usePathname();
   const router = useRouter();
   const [cartCount, setCartCount] = useState(0);
+  const TABS = ALL_TABS.filter((t) => (t.flag === "gear" ? showGear : t.flag === "cart" ? showCart : true));
 
   useEffect(() => {
     let alive = true;
