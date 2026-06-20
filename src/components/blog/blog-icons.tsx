@@ -33,6 +33,7 @@ const ICONS: Record<string, ReactNode> = {
   gauge: (<><path d="M5 19a8 8 0 1114 0" {...P} /><path d="M12 14l4-3" {...P} /></>),
   sail: (<><path d="M12 3v15M12 3C8 6 5 11 4 18h8M19 18l-3-9" {...P} /><path d="M3 21h18" {...P} /></>),
   clock: (<><circle cx="12" cy="12" r="8" {...P} /><path d="M12 8v4l3 2" {...P} /></>),
+  family: (<><circle cx="8" cy="8" r="2.6" {...P} /><circle cx="16.5" cy="9" r="2.1" {...P} /><path d="M3.5 19v-1.5a4 4 0 0 1 4-4h1a4 4 0 0 1 4 4V19M14 19v-1a3.2 3.2 0 0 1 3.2-3.2h.6A3.2 3.2 0 0 1 21 18v1" {...P} /></>),
 };
 
 export function BlogIcon({ name, className = "w-4 h-4" }: { name: string; className?: string }) {

@@ -31,7 +31,9 @@ export type FieldKind =
   | "features" // { title: string; description: string }[]  → card grid
   | "steps" // { title: string; description: string }[]  → numbered
   | "callout" // multi-line, shown as an accented quote
-  | "youtube"; // url → embed
+  | "youtube" // url → embed
+  | "image" // single image url (picker)
+  | "spots"; // Spot[] — a destination's spots, each with its own facts (see SPOT_FIELDS)
 
 /** Where the field appears in the fixed, consistent post frame. */
 export type FieldSlot = "hero" | "facts" | "body";
@@ -122,22 +124,45 @@ const SPOTGUIDE: BlogTemplate = {
   shortLabel: "Spot",
   world: "experience",
   icon: "pin",
-  tagline: "A destination deep-dive — conditions, season, logistics, where to stay.",
+  tagline: "A destination guide — overall conditions, travel, family info & one or more spots.",
   cta: { defaultLabel: "See trips here" },
   fields: [
-    { key: "spotName", label: "Spot", kind: "text", slot: "hero", placeholder: "Sotavento, Fuerteventura" },
+    // hero
+    { key: "destinationName", label: "Destination", kind: "text", slot: "hero", placeholder: "Fuerteventura" },
     { key: "region", label: "Region / country", kind: "text", slot: "hero", placeholder: "Canary Islands, Spain" },
-    { key: "bestSeason", label: "Best season", kind: "text", slot: "facts", factIcon: "sun", placeholder: "May – Sept" },
-    { key: "windDirection", label: "Wind", kind: "text", slot: "facts", factIcon: "wind", placeholder: "Cross-onshore N" },
+    // facts — destination at a glance
+    { key: "bestSeason", label: "Best season", kind: "text", slot: "facts", factIcon: "sun", placeholder: "Year-round · peak May–Sep" },
     { key: "waterType", label: "Water", kind: "select", slot: "facts", factIcon: "wave", options: ["Flat water", "Choppy", "Waves", "Mixed"] },
     { key: "level", label: "Level", kind: "select", slot: "facts", factIcon: "gauge", options: ["Beginner", "Intermediate", "Advanced", "All levels"] },
-    { key: "conditions", label: "The conditions", kind: "textarea", slot: "body", placeholder: "Reliable thermal wind builds through the afternoon…" },
-    { key: "gettingThere", label: "Getting there", kind: "textarea", slot: "body", placeholder: "Fly into FUE, 35 min transfer south…" },
+    { key: "familyFriendly", label: "Family", kind: "select", slot: "facts", factIcon: "family", options: ["Very family-friendly", "Family-friendly", "Some family spots", "Better for adults"] },
+    // body — destination general info, then the spots, then logistics
+    { key: "overallConditions", label: "Overall conditions", kind: "textarea", slot: "body", placeholder: "What the wind and water are typically like across the destination…" },
+    { key: "spots", label: "The spots", kind: "spots", slot: "body", hint: "One or more spots — each gets its own conditions, level, best wind, water & infrastructure." },
+    { key: "gettingThere", label: "Getting there", kind: "textarea", slot: "body", placeholder: "Flights, ferries, transfers — how you reach the destination." },
+    { key: "gettingAround", label: "Getting around", kind: "textarea", slot: "body", placeholder: "Car rental, public transport, how spread out the spots are." },
+    { key: "infrastructure", label: "Infrastructure", kind: "textarea", slot: "body", placeholder: "Schools, rental, repair, shops, medical — what's on the ground." },
+    { key: "familyInfo", label: "For families", kind: "textarea", slot: "body", placeholder: "Beaches, non-windsurf activities, which spots suit kids…" },
     { key: "whereToStay", label: "Where to stay & eat", kind: "list", slot: "body", listStyle: "bullet" },
+    // cta
     { key: "ctaUrl", label: "Trips link (URL)", kind: "text", slot: "body", hint: "Link to the matching Experience / destination.", placeholder: "/destinations/fuerteventura" },
     { key: "ctaLabel", label: "Button text", kind: "text", slot: "body", placeholder: "See trips here" },
   ],
 };
+
+/**
+ * Per-spot sub-schema for the `spots` field. The admin editor renders one
+ * FieldEditor per entry inside each spot card; the public renderer reads these
+ * keys to build a spot card. Categorised so the data stays consistent.
+ */
+export const SPOT_FIELDS: TemplateField[] = [
+  { key: "name", label: "Spot name", kind: "text", slot: "body", placeholder: "Sotavento" },
+  { key: "image", label: "Photo", kind: "image", slot: "body" },
+  { key: "level", label: "Level", kind: "select", slot: "body", options: ["Beginner", "Intermediate", "Advanced", "All levels"] },
+  { key: "windDirection", label: "Best wind", kind: "text", slot: "body", placeholder: "Side-onshore N" },
+  { key: "waterType", label: "Water", kind: "select", slot: "body", options: ["Flat water", "Choppy", "Waves", "Mixed"] },
+  { key: "conditions", label: "Conditions", kind: "textarea", slot: "body", placeholder: "What it's like on the water here…" },
+  { key: "infrastructure", label: "Infrastructure", kind: "list", slot: "body", listStyle: "bullet", hint: "Tags: school, rental, bar, parking…" },
+];
 
 const TECHNIQUE_GUIDE: BlogTemplate = {
   id: "technique_guide",
@@ -255,6 +280,32 @@ export function asProsCons(v: unknown): ProsCons {
   const o = (v && typeof v === "object" ? v : {}) as ProsCons;
   return { pros: asList(o.pros), cons: asList(o.cons) };
 }
+export type Spot = {
+  name: string;
+  image: string;
+  level: string;
+  windDirection: string;
+  waterType: string;
+  conditions: string;
+  infrastructure: string[];
+};
+export function asSpots(v: unknown): Spot[] {
+  if (!Array.isArray(v)) return [];
+  return v
+    .map((x) => {
+      const o = (x && typeof x === "object" ? x : {}) as Record<string, unknown>;
+      return {
+        name: asText(o.name),
+        image: asText(o.image),
+        level: asText(o.level),
+        windDirection: asText(o.windDirection),
+        waterType: asText(o.waterType),
+        conditions: asText(o.conditions),
+        infrastructure: asList(o.infrastructure),
+      };
+    })
+    .filter((s) => s.name || s.conditions || s.image);
+}
 
 /** True if a field actually has content worth rendering. */
 export function fieldHasValue(field: TemplateField, data: TemplateData): boolean {
@@ -270,6 +321,8 @@ export function fieldHasValue(field: TemplateField, data: TemplateData): boolean
       return asFeatures(v).length > 0;
     case "steps":
       return asSteps(v).length > 0;
+    case "spots":
+      return asSpots(v).length > 0;
     case "proscons": {
       const pc = asProsCons(v);
       return pc.pros.length > 0 || pc.cons.length > 0;

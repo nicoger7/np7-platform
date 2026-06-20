@@ -3,6 +3,7 @@ import {
   type WorldTheme,
   type TemplateData,
   type TemplateField,
+  type Spot,
   fieldsForSlot,
   fieldHasValue,
   asText,
@@ -11,7 +12,9 @@ import {
   asFeatures,
   asSteps,
   asProsCons,
+  asSpots,
 } from "@/lib/blog-templates";
+import { BlogIcon } from "./blog-icons";
 
 /** Keys handled by the dedicated CTA band, not the generic block loop. */
 const CTA_KEYS = new Set(["ctaUrl", "ctaLabel"]);
@@ -220,9 +223,78 @@ function Block({ field, theme, data }: { field: TemplateField; theme: WorldTheme
       );
     }
 
+    case "image": {
+      const src = asText(v);
+      if (!src) return null;
+      return (
+        <figure className="py-1">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src={src} alt={field.label} className="w-full rounded-2xl" loading="lazy" />
+        </figure>
+      );
+    }
+
+    case "spots": {
+      const spots = asSpots(v);
+      if (spots.length === 0) return null;
+      return (
+        <section>
+          <SectionHeading accent={accent}>
+            {field.label}
+            <span className="ml-1 text-[#9aa6ac]">· {spots.length}</span>
+          </SectionHeading>
+          <div className="space-y-5">
+            {spots.map((s, i) => <SpotCard key={i} spot={s} theme={theme} />)}
+          </div>
+        </section>
+      );
+    }
+
     default:
       return null;
   }
+}
+
+function SpotCard({ spot, theme }: { spot: Spot; theme: WorldTheme }) {
+  const accent = theme.accent;
+  const facts = [
+    { icon: "gauge", label: spot.level },
+    { icon: "wind", label: spot.windDirection },
+    { icon: "wave", label: spot.waterType },
+  ].filter((f) => f.label);
+
+  return (
+    <article className="rounded-2xl border border-[#ece3d3] bg-white overflow-hidden">
+      {spot.image && (
+        <div className="relative h-44 sm:h-56 bg-[#e9eef0]">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src={spot.image} alt={spot.name} className="absolute inset-0 w-full h-full object-cover" loading="lazy" />
+        </div>
+      )}
+      <div className="p-6">
+        {spot.name && <h3 className="text-xl font-extrabold tracking-[-0.01em] text-[#00374a]">{spot.name}</h3>}
+        {facts.length > 0 && (
+          <div className="flex flex-wrap gap-2 mt-3">
+            {facts.map((f, i) => (
+              <span key={i} className="inline-flex items-center gap-1.5 text-[12.5px] font-semibold text-[#00374a] rounded-full px-3 py-1.5" style={{ backgroundColor: `${accent}14` }}>
+                <span style={{ color: accent }}><BlogIcon name={f.icon} className="w-[15px] h-[15px]" /></span>
+                {f.label}
+              </span>
+            ))}
+          </div>
+        )}
+        {spot.conditions && <p className="mt-4 text-[15.5px] text-[#5a6b72] leading-relaxed whitespace-pre-line">{spot.conditions}</p>}
+        {spot.infrastructure.length > 0 && (
+          <div className="mt-4 flex flex-wrap items-center gap-1.5">
+            <span className="text-[11px] font-bold uppercase tracking-[0.1em] text-[#9aa6ac] mr-1">On site</span>
+            {spot.infrastructure.map((t, i) => (
+              <span key={i} className="text-[12px] font-semibold text-[#5a6b72] bg-[#f3ede0] rounded-full px-2.5 py-1">{t}</span>
+            ))}
+          </div>
+        )}
+      </div>
+    </article>
+  );
 }
 
 /* ---- small inline marks ---- */

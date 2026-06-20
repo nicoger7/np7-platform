@@ -1,9 +1,12 @@
 "use client";
 
+import { useState } from "react";
 import {
   type BlogTemplate,
   type TemplateField,
   type TemplateData,
+  type Spot,
+  SPOT_FIELDS,
   asText,
   asNumber,
   asList,
@@ -13,6 +16,7 @@ import {
   asProsCons,
   fieldsForSlot,
 } from "@/lib/blog-templates";
+import ImagePickerModal from "@/components/image-picker-modal";
 
 /**
  * Renders an editor input for every field of a template, driven entirely by the
@@ -187,9 +191,82 @@ function FieldEditor({ field, value, set }: { field: TemplateField; value: unkno
         </div>
       );
 
+    case "image":
+      return <ImageField field={field} value={value} set={set} />;
+
+    case "spots":
+      return (
+        <div>
+          <FieldLabel field={field} />
+          <SpotsEditor spots={Array.isArray(value) ? (value as Spot[]) : []} onChange={set} />
+        </div>
+      );
+
     default:
       return null;
   }
+}
+
+function ImageField({ field, value, set }: { field: TemplateField; value: unknown; set: (v: unknown) => void }) {
+  const [open, setOpen] = useState(false);
+  const url = asText(value);
+  return (
+    <div>
+      <FieldLabel field={field} />
+      {url ? (
+        <div className="relative aspect-[16/10] max-w-[280px] rounded-lg overflow-hidden admin-border border">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src={url} alt="" className="w-full h-full object-cover" />
+          <div className="absolute top-1.5 right-1.5 flex gap-1">
+            <button type="button" onClick={() => setOpen(true)} className="px-2 py-0.5 rounded text-[11px] font-bold bg-black/60 text-white hover:bg-black/80">Change</button>
+            <button type="button" onClick={() => set("")} className="px-2 py-0.5 rounded text-[11px] font-bold bg-black/60 text-white hover:bg-red-500">Remove</button>
+          </div>
+        </div>
+      ) : (
+        <button type="button" onClick={() => setOpen(true)} className="aspect-[16/10] max-w-[280px] w-full rounded-lg border-2 border-dashed admin-border grid place-items-center admin-muted hover:admin-heading hover:border-[#0aa3c7] transition-colors">
+          <span className="flex items-center gap-1.5 text-[12px] font-semibold">
+            <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8"><rect x="3" y="3" width="18" height="18" rx="2" /><circle cx="9" cy="9" r="2" /><path d="M21 15l-5-5L5 21" /></svg>
+            Choose image
+          </span>
+        </button>
+      )}
+      {open && <ImagePickerModal onSelect={(u) => { set(u); setOpen(false); }} onClose={() => setOpen(false)} />}
+    </div>
+  );
+}
+
+function SpotsEditor({ spots, onChange }: { spots: Spot[]; onChange: (v: Spot[]) => void }) {
+  const blank: Spot = { name: "", image: "", level: "", windDirection: "", waterType: "", conditions: "", infrastructure: [] };
+  const update = (i: number, key: string, val: unknown) =>
+    onChange(spots.map((s, j) => (j === i ? { ...s, [key]: val } : s)));
+
+  return (
+    <div className="space-y-4">
+      {spots.map((spot, i) => (
+        <div key={i} className="admin-surface admin-border border rounded-xl p-4">
+          <div className="flex items-center justify-between mb-3">
+            <span className="text-[12px] font-bold admin-faint">Spot {i + 1}{(spot as Spot).name ? ` · ${(spot as Spot).name}` : ""}</span>
+            <RowButtons
+              onUp={() => onChange(move(spots, i, -1))}
+              onDown={() => onChange(move(spots, i, 1))}
+              onRemove={() => onChange(spots.filter((_, j) => j !== i))}
+            />
+          </div>
+          <div className="grid sm:grid-cols-2 gap-4">
+            {SPOT_FIELDS.map((f) => {
+              const full = f.kind === "textarea" || f.kind === "list" || f.kind === "image";
+              return (
+                <div key={f.key} className={full ? "sm:col-span-2" : ""}>
+                  <FieldEditor field={f} value={(spot as Record<string, unknown>)[f.key]} set={(v) => update(i, f.key, v)} />
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      ))}
+      <AddButton label="Add spot" onClick={() => onChange([...spots, blank])} />
+    </div>
+  );
 }
 
 /* ---- editors ---- */
