@@ -7,7 +7,7 @@ import type { InstallTheme } from "./install-types";
  * the install action are decided by the parent (InstallPrompt).
  */
 export function InstallBanner({
-  appName,
+  title,
   tagline,
   iconSrc,
   ctaLabel,
@@ -15,7 +15,7 @@ export function InstallBanner({
   onInstall,
   onDismiss,
 }: {
-  appName: string;
+  title: string;
   tagline: string;
   iconSrc: string;
   ctaLabel: string;
@@ -37,8 +37,8 @@ export function InstallBanner({
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img src={iconSrc} alt="" className="h-12 w-12 shrink-0 rounded-xl" />
         <div className="min-w-0 flex-1">
-          <p className="truncate text-sm font-bold">{appName}</p>
-          <p className="truncate text-xs" style={{ color: theme.surfaceMuted }}>
+          <p className="text-sm font-bold leading-tight">{title}</p>
+          <p className="truncate text-xs mt-0.5" style={{ color: theme.surfaceMuted }}>
             {tagline}
           </p>
         </div>

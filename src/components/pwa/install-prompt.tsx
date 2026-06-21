@@ -42,10 +42,12 @@ export function InstallPrompt({
   return (
     <>
       <InstallBanner
-        appName={appName}
+        title="Add to Home Screen"
         tagline={tagline}
         iconSrc={iconSrc}
-        ctaLabel={iosSafari ? "How to" : "Install"}
+        // iOS can't install programmatically → the CTA opens step-by-step
+        // instructions, so say so ("Show me") instead of the vague "How to".
+        ctaLabel={iosSafari ? "Show me" : "Install"}
         theme={theme}
         onInstall={onInstall}
         onDismiss={dismiss}

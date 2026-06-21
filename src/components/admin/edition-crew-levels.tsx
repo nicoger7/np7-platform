@@ -64,6 +64,18 @@ export function EditionCrewLevels({ editionId }: { editionId: string }) {
     fire(`/api/admin/members/${m.contactId}/level`, { action: "toggle_milestone", milestone_id: milestoneId, achieved });
   }
 
+  // "Select all" / "Clear all" for one rider's whole tier — one bulk write.
+  function setTier(m: EditionCrewMember, tier: string, achieved: boolean) {
+    const tierIds = catalog.filter((c) => c.tier === tier).map((c) => c.id);
+    if (!tierIds.length) return;
+    const set = new Set(m.achievedIds);
+    tierIds.forEach((id) => (achieved ? set.add(id) : set.delete(id)));
+    const achievedIds = [...set];
+    const derived = deriveSuggestedLevel(catalog, set);
+    patch(m.contactId, derived ? { achievedIds, coach_level: derived, level_status: "verified", reviewed: true } : { achievedIds });
+    fire(`/api/admin/members/${m.contactId}/level`, { action: "set_milestones", milestone_ids: tierIds, achieved });
+  }
+
   function bulk(achieved: boolean) {
     if (!bulkSkill || selected.size === 0) return;
     const ids = [...selected];
@@ -103,32 +115,45 @@ export function EditionCrewLevels({ editionId }: { editionId: string }) {
           const pick = picks[m.contactId] ?? m.coach_level ?? suggested ?? "";
           return (
             <div key={m.contactId} style={{ borderBottom: "1px solid var(--admin-border)" }}>
-              <div className="flex flex-wrap items-center gap-2.5 px-4 py-3">
-                <input type="checkbox" checked={selected.has(m.contactId)} onChange={() => toggleSel(m.contactId)} className="w-3.5 h-3.5 accent-[#0aa3c7]" />
-                <div className="flex-1 min-w-[140px]">
-                  <p className="text-sm font-medium admin-heading">{m.name}</p>
-                  <p className="text-[11px] admin-faint">self: {m.self_level ?? "—"}{suggested ? ` · milestones → ${suggested}` : ""}</p>
+              <div className="px-3 sm:px-4 py-3">
+                {/* Identity row — name, self-rating, current verdict */}
+                <div className="flex items-center gap-2.5">
+                  <input type="checkbox" checked={selected.has(m.contactId)} onChange={() => toggleSel(m.contactId)} className="w-4 h-4 accent-[#0aa3c7] shrink-0" />
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-medium admin-heading truncate">{m.name}</p>
+                    <p className="text-[11px] admin-faint truncate">self: {m.self_level ?? "—"}{suggested ? ` · milestones → ${suggested}` : ""}</p>
+                  </div>
+                  <span className={`shrink-0 px-1.5 py-0.5 rounded text-[10px] uppercase ${statusChip(m.level_status)}`}>{m.coach_level ?? m.self_level ?? "—"}{m.level_status ? ` · ${m.level_status}` : ""}</span>
                 </div>
-                <span className={`px-1.5 py-0.5 rounded text-[10px] uppercase ${statusChip(m.level_status)}`}>{m.coach_level ?? m.self_level ?? "—"}{m.level_status ? ` · ${m.level_status}` : ""}</span>
-                <button disabled={!m.self_level} onClick={() => { patch(m.contactId, { coach_level: m.self_level, level_status: "verified", reviewed: true }); fire(`/api/admin/members/${m.contactId}/level`, { action: "approve_self" }); }} className="text-xs px-2 py-1 rounded disabled:opacity-40" style={{ backgroundColor: "rgba(34,197,94,0.16)", color: "#22c55e" }} title="Verify at their self-rating">Approve self</button>
-                <select value={pick} onChange={(e) => setPicks((p) => ({ ...p, [m.contactId]: e.target.value }))} className="text-xs px-2 py-1 rounded" style={formEl}>
-                  <option value="">Level…</option>
-                  {LEVELS.map((l) => <option key={l} value={l}>{l}</option>)}
-                </select>
-                <button disabled={!pick} onClick={() => { patch(m.contactId, { coach_level: pick, level_status: "suggested", reviewed: false }); fire(`/api/admin/members/${m.contactId}/level`, { action: "set_level", level: pick }); }} className="text-xs px-2 py-1 rounded disabled:opacity-40" style={formEl}>Suggest</button>
-                <button disabled={!pick} onClick={() => { patch(m.contactId, { coach_level: pick, level_status: "verified", reviewed: true }); fire(`/api/admin/members/${m.contactId}/level`, { action: "set_level", level: pick, verify: true }); }} className="text-xs px-2 py-1 rounded disabled:opacity-40 font-bold" style={{ backgroundColor: "#0aa3c7", color: "#fff" }}>Verify</button>
-                {catalog.length > 0 && (
-                  <button onClick={() => setExpanded((e) => (e === m.contactId ? null : m.contactId))} className="text-xs admin-muted px-1.5 py-1">Skills {expanded === m.contactId ? "▴" : "▾"}</button>
-                )}
+                {/* Actions row — set/verify a level, or jump into skills */}
+                <div className="flex flex-wrap items-center gap-1.5 mt-2.5">
+                  <button disabled={!m.self_level} onClick={() => { patch(m.contactId, { coach_level: m.self_level, level_status: "verified", reviewed: true }); fire(`/api/admin/members/${m.contactId}/level`, { action: "approve_self" }); }} className="text-xs px-2 py-1 rounded disabled:opacity-40" style={{ backgroundColor: "rgba(34,197,94,0.16)", color: "#22c55e" }} title="Verify at their self-rating">Approve self</button>
+                  <div className="flex items-center gap-1.5">
+                    <select value={pick} onChange={(e) => setPicks((p) => ({ ...p, [m.contactId]: e.target.value }))} className="text-xs px-2 py-1 rounded" style={formEl}>
+                      <option value="">Level…</option>
+                      {LEVELS.map((l) => <option key={l} value={l}>{l}</option>)}
+                    </select>
+                    <button disabled={!pick} onClick={() => { patch(m.contactId, { coach_level: pick, level_status: "suggested", reviewed: false }); fire(`/api/admin/members/${m.contactId}/level`, { action: "set_level", level: pick }); }} className="text-xs px-2 py-1 rounded disabled:opacity-40" style={formEl}>Suggest</button>
+                    <button disabled={!pick} onClick={() => { patch(m.contactId, { coach_level: pick, level_status: "verified", reviewed: true }); fire(`/api/admin/members/${m.contactId}/level`, { action: "set_level", level: pick, verify: true }); }} className="text-xs px-2 py-1 rounded disabled:opacity-40 font-bold" style={{ backgroundColor: "#0aa3c7", color: "#fff" }}>Verify</button>
+                  </div>
+                  {catalog.length > 0 && (
+                    <button onClick={() => setExpanded((e) => (e === m.contactId ? null : m.contactId))} className="ml-auto text-xs font-medium px-2 py-1 rounded" style={expanded === m.contactId ? { backgroundColor: "var(--admin-accent-weak)", color: "var(--admin-accent)" } : { color: "var(--admin-text-muted)" }}>{m.achievedIds.length}/{catalog.length} skills {expanded === m.contactId ? "▴" : "▾"}</button>
+                  )}
+                </div>
               </div>
               {expanded === m.contactId && catalog.length > 0 && (
-                <div className="px-4 pb-3 space-y-2">
+                <div className="px-3 sm:px-4 pb-3 space-y-2.5" style={{ backgroundColor: "var(--admin-surface)" }}>
                   {LEVELS.map((t) => {
                     const inTier = catalog.filter((c) => c.tier === t);
                     if (inTier.length === 0) return null;
+                    const doneCount = inTier.filter((c) => achieved.has(c.id)).length;
+                    const allDone = doneCount === inTier.length;
                     return (
-                      <div key={t}>
-                        <p className="text-[10px] uppercase tracking-wider admin-faint mb-1">{t}</p>
+                      <div key={t} className="pt-2.5">
+                        <div className="flex items-center gap-2 mb-1.5">
+                          <p className="text-[10px] uppercase tracking-wider admin-faint">{t} <span className="admin-faint">· {doneCount}/{inTier.length}</span></p>
+                          <button onClick={() => setTier(m, t, !allDone)} className="text-[10px] font-semibold px-1.5 py-0.5 rounded" style={{ color: "var(--admin-accent)", backgroundColor: "var(--admin-accent-weak)" }}>{allDone ? "Clear all" : "Select all"}</button>
+                        </div>
                         <div className="flex flex-wrap gap-1.5">
                           {inTier.map((c) => {
                             const on = achieved.has(c.id);

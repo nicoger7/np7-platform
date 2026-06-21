@@ -20,7 +20,7 @@ export function AdminInstallPrompt() {
     <InstallPrompt
       storageKey="admin"
       appName="NP7 Admin"
-      tagline="Bookings, CRM & ops on your home screen"
+      tagline="Open NP7 Admin like an app — bookings & ops in one tap"
       iconSrc="/icons/admin-icon-192.png"
       theme={ADMIN_THEME}
     />
