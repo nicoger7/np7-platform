@@ -210,8 +210,9 @@ export function HeroFindYourFit({ src, poster, children }: { src: string; poster
             </div>
           </div>
 
-          {/* active feature — centred, large, grabs attention right away */}
-          <div className="absolute inset-0 px-6 flex items-end sm:items-center justify-center z-10 pt-[252px] pb-12 sm:pt-[112px] sm:pb-16">
+          {/* active feature — centred, large, grabs attention right away. On mobile it
+              centres in the space BELOW the overview cards (top padding clears them). */}
+          <div className="absolute inset-0 px-6 flex items-center justify-center z-10 pt-[238px] pb-10 sm:pt-[112px] sm:pb-16">
             <div className="relative w-full max-w-[760px] min-h-[250px] sm:min-h-[280px]">
               {SEGMENTS.map((s, i) => {
                 const on = i === active;
