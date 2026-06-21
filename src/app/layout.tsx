@@ -3,6 +3,7 @@ import { Inter } from "next/font/google";
 import "./globals.css";
 import { CookieConsent } from "@/components/shared/cookie-consent";
 import { AnalyticsTracker } from "@/components/analytics/tracker";
+import { MetaPixel } from "@/components/analytics/meta-pixel";
 
 const inter = Inter({
   subsets: ["latin"],
@@ -43,6 +44,7 @@ export default function RootLayout({
       <body className="min-h-screen flex flex-col">
         {children}
         <AnalyticsTracker />
+        <MetaPixel />
         <CookieConsent />
       </body>
     </html>

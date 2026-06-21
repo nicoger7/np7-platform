@@ -5,6 +5,7 @@
  */
 
 import { hasAnalyticsConsent } from "@/components/shared/cookie-consent";
+import { metaForward } from "@/lib/meta-pixel";
 
 const VID_KEY = "np7_vid"; // stable-ish visitor id (localStorage)
 const SID_KEY = "np7_sid"; // per-tab session id (sessionStorage)
@@ -60,7 +61,12 @@ function experienceSlug(path: string): string | undefined {
  */
 export function track(event: string, meta?: Record<string, unknown>): void {
   try {
-    if (typeof window === "undefined" || !hasAnalyticsConsent()) return;
+    if (typeof window === "undefined") return;
+    // Forward conversions to Meta — self-gated on its OWN marketing consent, so
+    // it stays independent of first-party analytics consent (and is inert until
+    // a Pixel id + marketing consent both exist).
+    metaForward(event, meta);
+    if (!hasAnalyticsConsent()) return;
     const path = window.location.pathname;
     const params = new URLSearchParams(window.location.search);
     const payload = {
