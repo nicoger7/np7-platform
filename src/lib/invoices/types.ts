@@ -7,6 +7,7 @@ export type VatMode = "margin" | "standard";
 
 export const DOCUMENT_TYPES = [
   "deposit_invoice",
+  "downpayment_invoice",
   "final_invoice",
   "booking_confirmation",
   "credit_note",
@@ -14,6 +15,12 @@ export const DOCUMENT_TYPES = [
   "other",
 ] as const;
 export type DocumentType = (typeof DOCUMENT_TYPES)[number];
+
+/** The invoice/document types the generator can produce from a booking. */
+export type GeneratableType = Extract<
+  DocumentType,
+  "deposit_invoice" | "downpayment_invoice" | "final_invoice" | "booking_confirmation"
+>;
 
 /** Per-division legal/company profile (company_settings row). */
 export type CompanySettings = {
@@ -66,7 +73,7 @@ export type DocumentRow = {
 /** Input to the document generator. The service resolves booking/contact/edition/settings. */
 export type GenerateInput = {
   bookingId: string;
-  type: Extract<DocumentType, "deposit_invoice" | "final_invoice" | "booking_confirmation">;
+  type: GeneratableType;
   /** Force a specific division; otherwise inferred (experience for bookings). */
   division?: Division;
 };

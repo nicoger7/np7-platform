@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 
 type DocumentType =
   | "deposit_invoice"
+  | "downpayment_invoice"
   | "final_invoice"
   | "booking_confirmation"
   | "credit_note"
@@ -24,6 +25,7 @@ interface BookingDocument {
 
 const TYPE_LABELS: Record<DocumentType, string> = {
   deposit_invoice: "Deposit invoice",
+  downpayment_invoice: "Down-payment invoice",
   final_invoice: "Final invoice",
   booking_confirmation: "Booking confirmation",
   credit_note: "Credit note",

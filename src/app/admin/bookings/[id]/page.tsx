@@ -847,7 +847,7 @@ export default function BookingDetailPage({
           {/* Generate buttons */}
           <div className="flex items-center gap-3 mb-4 flex-wrap">
             <span className="text-xs admin-faint">Generate:</span>
-            {(["deposit_invoice", "final_invoice", "booking_confirmation"] as const).map((type) => (
+            {(["deposit_invoice", "downpayment_invoice", "final_invoice", "booking_confirmation"] as const).map((type) => (
               <button
                 key={type}
                 onClick={() => generateDocument(type)}
@@ -858,6 +858,8 @@ export default function BookingDetailPage({
                   ? "Generating..."
                   : type === "deposit_invoice"
                   ? "Deposit Invoice"
+                  : type === "downpayment_invoice"
+                  ? "Down-Payment Invoice"
                   : type === "final_invoice"
                   ? "Final Invoice"
                   : "Booking Confirmation"}

@@ -20,6 +20,11 @@ import {
   type DocumentRow,
   type CompanySettings,
 } from "./types";
+import {
+  milestoneAmount,
+  type PackagePaymentConfig,
+  type BookingPaymentState,
+} from "@/lib/payments";
 
 // ─── DB helpers ───────────────────────────────────────────────────────────────
 
@@ -109,7 +114,13 @@ type ResolvedBooking = {
     date_end: string | null;
     deposit: number | null;
   } | null;
-  exp_packages: { name: string | null; deposit: number | null } | null;
+  exp_packages: {
+    name: string | null;
+    deposit: number | null;
+    downpayment_percent: number | null;
+    final_days_before: number | null;
+    deposit_refund_days: number | null;
+  } | null;
 };
 
 async function resolveBooking(bookingId: string): Promise<ResolvedBooking> {
@@ -122,7 +133,7 @@ async function resolveBooking(bookingId: string): Promise<ResolvedBooking> {
        contacts(name, email, billing_address, billing_postal_code, billing_city, billing_country),
        exp_experiences(title, slug),
        exp_editions(label, year, date_start, date_end, deposit),
-       exp_packages(name, deposit)`
+       exp_packages(name, deposit, downpayment_percent, final_days_before, deposit_refund_days)`
     )
     .eq("id", bookingId)
     .maybeSingle();
@@ -183,12 +194,39 @@ export async function generateDocument(input: GenerateInput): Promise<DocumentRo
     resolveCompanySettings(division),
   ]);
 
-  const deposit = computeDeposit(booking);
+  // Milestone amounts — single source of truth shared with the member payment
+  // plan (computePaymentPlan). Deposit honours an edition-level override; the
+  // rest of the schedule (down-payment %, final timing) comes from the package.
   const total = booking.agreed_price ?? 0;
-  const balance = total - deposit;
+  const cfg: PackagePaymentConfig = {
+    deposit: computeDeposit(booking),
+    downpayment_percent: booking.exp_packages?.downpayment_percent ?? null,
+    final_days_before: booking.exp_packages?.final_days_before ?? null,
+    deposit_refund_days: booking.exp_packages?.deposit_refund_days ?? null,
+  };
+  const state: BookingPaymentState = {
+    total,
+    editionStart: booking.exp_editions?.date_start ?? null,
+  };
+  const depositAmt = milestoneAmount("deposit", cfg, state);
+  const downpaymentAmt = milestoneAmount("downpayment", cfg, state);
+  const finalAmt = milestoneAmount("final", cfg, state);
+
   const currency = company.currency || "EUR";
   const isInvoice = type !== "booking_confirmation";
   const year = new Date().getFullYear();
+
+  // Don't issue an invoice for a stage that doesn't exist in this plan
+  // (e.g. a deposit invoice when the package has deposit = 0 → 2-stage plan).
+  if (type === "deposit_invoice" && depositAmt <= 0) {
+    throw new Error("This booking has no deposit stage (deposit = 0) — nothing to invoice. Issue the down-payment invoice instead.");
+  }
+  if (type === "downpayment_invoice" && downpaymentAmt <= 0) {
+    throw new Error("This booking has no down-payment stage — nothing to invoice.");
+  }
+  if (type === "final_invoice" && finalAmt <= 0) {
+    throw new Error("This booking has no outstanding final balance — nothing to invoice.");
+  }
 
   // 2. Allocate invoice number (only for invoice types)
   let invoiceNumber: string | null = null;
@@ -213,7 +251,8 @@ export async function generateDocument(input: GenerateInput): Promise<DocumentRo
     booking: {
       id: booking.id,
       agreedPrice: total,
-      deposit,
+      deposit: depositAmt,
+      downpayment: downpaymentAmt,
       currency,
       packageName: pkg?.name ?? null,
       notes: booking.notes,
@@ -262,8 +301,9 @@ export async function generateDocument(input: GenerateInput): Promise<DocumentRo
 
   // 6. Determine amount for the documents row
   let amount: number | null = null;
-  if (type === "deposit_invoice") amount = deposit;
-  else if (type === "final_invoice") amount = balance;
+  if (type === "deposit_invoice") amount = depositAmt;
+  else if (type === "downpayment_invoice") amount = downpaymentAmt;
+  else if (type === "final_invoice") amount = finalAmt;
 
   // 7. Insert documents row
   const docRow = {
@@ -273,7 +313,13 @@ export async function generateDocument(input: GenerateInput): Promise<DocumentRo
     type,
     invoice_number: invoiceNumber,
     title: isInvoice
-      ? `${type === "deposit_invoice" ? "Deposit Invoice" : "Invoice"} – ${exp.title}${ed?.label ? " · " + ed.label : ""}`
+      ? `${
+          type === "deposit_invoice"
+            ? "Deposit Invoice"
+            : type === "downpayment_invoice"
+            ? "Down-Payment Invoice"
+            : "Final Invoice"
+        } – ${exp.title}${ed?.label ? " · " + ed.label : ""}`
       : `Booking Confirmation – ${exp.title}${ed?.label ? " · " + ed.label : ""}`,
     file_path: filePath,
     amount,

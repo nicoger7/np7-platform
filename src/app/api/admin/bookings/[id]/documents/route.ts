@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase";
 import { generateDocument } from "@/lib/invoices/generate";
 import { DOCUMENT_TYPES } from "@/lib/invoices/types";
-import type { DocumentType } from "@/lib/invoices/types";
+import type { DocumentType, GeneratableType } from "@/lib/invoices/types";
 
 // Admin routes are gated by middleware; no per-route auth check needed.
 
@@ -75,21 +75,18 @@ export async function POST(
 
   if (
     !type ||
-    !["deposit_invoice", "final_invoice", "booking_confirmation"].includes(type)
+    !["deposit_invoice", "downpayment_invoice", "final_invoice", "booking_confirmation"].includes(type)
   ) {
     return NextResponse.json(
       {
-        error: `Invalid type. Must be one of: deposit_invoice, final_invoice, booking_confirmation. Got: "${type ?? ""}"`,
+        error: `Invalid type. Must be one of: deposit_invoice, downpayment_invoice, final_invoice, booking_confirmation. Got: "${type ?? ""}"`,
       },
       { status: 400 }
     );
   }
 
   // Satisfy TypeScript narrowing — we've verified it above
-  const safeType = type as Extract<
-    DocumentType,
-    "deposit_invoice" | "final_invoice" | "booking_confirmation"
-  >;
+  const safeType = type as GeneratableType;
 
   try {
     const row = await generateDocument({ bookingId: id, type: safeType });

@@ -17,7 +17,7 @@ import {
   StyleSheet,
 } from "@react-pdf/renderer";
 
-import type { CompanySettings, DocumentType, VatMode } from "./types";
+import type { CompanySettings, GeneratableType, VatMode } from "./types";
 import { formatMoney } from "./types";
 
 // ─── Colour / typography tokens ──────────────────────────────────────────────
@@ -92,14 +92,18 @@ const s = StyleSheet.create({
 
 // ─── Resolved data object ─────────────────────────────────────────────────────
 export type InvoiceData = {
-  type: Extract<DocumentType, "deposit_invoice" | "final_invoice" | "booking_confirmation">;
+  type: GeneratableType;
   company: CompanySettings;
   invoiceNumber: string | null;
   invoiceDate: string;         // ISO date string
   booking: {
     id: string;
     agreedPrice: number;
+    /** Deposit milestone amount (0 when the package has no deposit stage). */
     deposit: number;
+    /** Down-payment milestone amount — the interim payment that brings the
+     *  paid total up to the configured percentage (default 50%) of the trip. */
+    downpayment: number;
     currency: string;
     packageName: string | null;
     notes?: string | null;
@@ -194,7 +198,13 @@ function SellerBlock({ company }: { company: CompanySettings }) {
 function DocInfoBlock({ data }: { data: InvoiceData }) {
   const { type, invoiceNumber, invoiceDate, booking, edition } = data;
   const isConfirmation = type === "booking_confirmation";
-  const docTitle = isConfirmation ? "Booking Confirmation" : type === "deposit_invoice" ? "Deposit Invoice" : "Invoice";
+  const docTitle = isConfirmation
+    ? "Booking Confirmation"
+    : type === "deposit_invoice"
+    ? "Deposit Invoice"
+    : type === "downpayment_invoice"
+    ? "Down-Payment Invoice"
+    : "Final Invoice";
 
   return (
     <View style={s.docInfoBlock}>
@@ -359,19 +369,94 @@ function DepositInvoiceLines({ data }: { data: InvoiceData }) {
   );
 }
 
+function DownpaymentInvoiceLines({ data }: { data: InvoiceData }) {
+  const { booking, company, experience, edition } = data;
+  const currency = booking.currency || company.currency;
+  const isMargin = company.vat_mode === "margin";
+  const vatRate = company.vat_rate ?? 0;
+
+  const description = [experience.title, edition?.label].filter(Boolean).join(" · ");
+  const packageDesc = booking.packageName ? `Package: ${booking.packageName}` : "";
+
+  const downpayment = booking.downpayment;
+  const dpNet = isMargin ? downpayment : downpayment / (1 + vatRate / 100);
+  const dpVat = isMargin ? 0 : downpayment - dpNet;
+  // What's been invoiced before this one, and what's left after it.
+  const investedBefore = booking.deposit; // deposit already invoiced (0 when none)
+  const remaining = booking.agreedPrice - booking.deposit - downpayment;
+
+  return (
+    <View>
+      <View style={s.tableHeader}>
+        <Text style={[s.colHeader, s.col_desc]}>Description</Text>
+        <Text style={[s.colHeader, s.col_period]}>Service period</Text>
+        <Text style={[s.colHeader, s.col_amount]}>Amount</Text>
+      </View>
+
+      {/* Interim payment line */}
+      <View style={s.tableRow}>
+        <View style={s.col_desc}>
+          <Text style={{ fontFamily: "Helvetica-Bold" }}>{description} – Interim Payment (Down-Payment)</Text>
+          {packageDesc ? <Text style={s.smallText}>{packageDesc}</Text> : null}
+        </View>
+        <Text style={s.col_period}>{servicePeriod(edition)}</Text>
+        <Text style={s.col_amount}>{formatMoney(downpayment, currency)}</Text>
+      </View>
+
+      <View style={s.divider} />
+
+      {/* Totals */}
+      <View style={s.totalsBox}>
+        {!isMargin && (
+          <>
+            <View style={s.totalRow}>
+              <Text style={s.totalLabel}>Net amount:</Text>
+              <Text style={s.totalValue}>{formatMoney(dpNet, currency)}</Text>
+            </View>
+            <View style={s.totalRow}>
+              <Text style={s.totalLabel}>VAT ({vatRate}%):</Text>
+              <Text style={s.totalValue}>{formatMoney(dpVat, currency)}</Text>
+            </View>
+          </>
+        )}
+        <View style={s.grandTotalRow}>
+          <Text style={s.grandLabel}>Amount due (interim payment):</Text>
+          <Text style={s.grandValue}>{formatMoney(downpayment, currency)}</Text>
+        </View>
+      </View>
+
+      {/* Remaining balance note */}
+      <View style={[s.noteBox, { marginTop: 16 }]}>
+        <Text>
+          Note: This invoice covers an interim down-payment.
+          {investedBefore > 0
+            ? ` Together with the deposit of ${formatMoney(investedBefore, currency)} invoiced separately, ${formatMoney(investedBefore + downpayment, currency)} of ${formatMoney(booking.agreedPrice, currency)} is now invoiced.`
+            : ` ${formatMoney(downpayment, currency)} of ${formatMoney(booking.agreedPrice, currency)} is now invoiced.`}
+          {" "}The remaining balance of {formatMoney(remaining, currency)} will be invoiced
+          separately and is payable by bank transfer before the trip start date.
+        </Text>
+      </View>
+    </View>
+  );
+}
+
 function FinalInvoiceLines({ data }: { data: InvoiceData }) {
   const { booking, company, experience, edition } = data;
   const currency = booking.currency || company.currency;
   const isMargin = company.vat_mode === "margin";
   const vatRate = company.vat_rate ?? 0;
-  const balance = booking.agreedPrice - booking.deposit;
+  // The final balance deducts every advance payment already invoiced
+  // (deposit + down-payment) — so a deposit = 0 booking simply deducts the
+  // down-payment, and a fully prepaid booking shows a zero balance.
+  const invoicedAdvance = booking.deposit + booking.downpayment;
+  const balance = booking.agreedPrice - invoicedAdvance;
 
   const description = [experience.title, edition?.label].filter(Boolean).join(" · ");
   const packageDesc = booking.packageName ? `Package: ${booking.packageName}` : "";
 
   const totalNet = isMargin ? booking.agreedPrice : booking.agreedPrice / (1 + vatRate / 100);
-  const depositNet = isMargin ? booking.deposit : booking.deposit / (1 + vatRate / 100);
-  const balanceNet = totalNet - depositNet;
+  const advanceNet = isMargin ? invoicedAdvance : invoicedAdvance / (1 + vatRate / 100);
+  const balanceNet = totalNet - advanceNet;
   const balanceVat = isMargin ? 0 : balance - balanceNet;
 
   return (
@@ -392,15 +477,29 @@ function FinalInvoiceLines({ data }: { data: InvoiceData }) {
         <Text style={s.col_amount}>{formatMoney(booking.agreedPrice, currency)}</Text>
       </View>
 
-      {/* Deposit already paid deduction */}
-      <View style={[s.tableRow, { color: GREY }]}>
-        <View style={s.col_desc}>
-          <Text style={{ fontFamily: "Helvetica-Bold" }}>Less: Deposit already invoiced</Text>
-          <Text style={s.smallText}>Invoice for advance payment previously issued</Text>
+      {/* Deposit already invoiced deduction */}
+      {booking.deposit > 0 && (
+        <View style={[s.tableRow, { color: GREY }]}>
+          <View style={s.col_desc}>
+            <Text style={{ fontFamily: "Helvetica-Bold" }}>Less: Deposit already invoiced</Text>
+            <Text style={s.smallText}>Invoice for advance payment previously issued</Text>
+          </View>
+          <Text style={s.col_period}> </Text>
+          <Text style={s.col_amount}>−{formatMoney(booking.deposit, currency)}</Text>
         </View>
-        <Text style={s.col_period}> </Text>
-        <Text style={s.col_amount}>−{formatMoney(booking.deposit, currency)}</Text>
-      </View>
+      )}
+
+      {/* Down-payment already invoiced deduction */}
+      {booking.downpayment > 0 && (
+        <View style={[s.tableRow, { color: GREY }]}>
+          <View style={s.col_desc}>
+            <Text style={{ fontFamily: "Helvetica-Bold" }}>Less: Down-payment already invoiced</Text>
+            <Text style={s.smallText}>Interim payment invoice previously issued</Text>
+          </View>
+          <Text style={s.col_period}> </Text>
+          <Text style={s.col_amount}>−{formatMoney(booking.downpayment, currency)}</Text>
+        </View>
+      )}
 
       <View style={s.divider} />
 
@@ -532,6 +631,7 @@ export function buildInvoiceDocument(data: InvoiceData): React.ReactElement {
 
         {/* Content */}
         {type === "deposit_invoice" && <DepositInvoiceLines data={data} />}
+        {type === "downpayment_invoice" && <DownpaymentInvoiceLines data={data} />}
         {type === "final_invoice" && <FinalInvoiceLines data={data} />}
         {isConfirmation && <BookingConfirmation data={data} />}
 
