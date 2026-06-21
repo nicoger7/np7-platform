@@ -218,7 +218,7 @@ export default function ExperienceDetailPage({
   return (
     <div>
       {/* Header */}
-      <div className="flex items-center justify-between mb-6">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between mb-6">
         <div className="flex items-center gap-3">
           <button
             onClick={() => router.push("/admin/experiences")}
@@ -285,7 +285,7 @@ export default function ExperienceDetailPage({
 
       {/* ── Editions (tiles) ── */}
       <div className={`mb-8 ${activeSection === "editions" ? "" : "hidden"}`}>
-        <div className="flex items-center justify-between mb-3">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between mb-3">
           <h2 className="text-sm font-bold admin-heading">
             Editions <span className="admin-faint font-normal">({editions.length})</span>
           </h2>
@@ -302,7 +302,7 @@ export default function ExperienceDetailPage({
               onMouseEnter={(e) => (e.currentTarget.style.borderColor = "var(--admin-text-faint)")}
               onMouseLeave={(e) => (e.currentTarget.style.borderColor = "var(--admin-border)")}
             >
-              <div className="flex items-center justify-between mb-3">
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between mb-3">
                 <div className="min-w-0">
                   <span className="block text-xl font-bold admin-heading truncate">{ed.label || ed.year}</span>
                   {ed.label && <span className="text-[11px] admin-faint">{ed.year}</span>}

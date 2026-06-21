@@ -194,7 +194,7 @@ function BehaviourTab() {
 
   return (
     <>
-      <div className="flex items-center justify-between mb-4">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between mb-4">
         <p className="text-xs admin-faint">Consent-gated, first-party — only visitors who accept analytics are counted.</p>
         <div className="flex items-center gap-1">
           {[7, 30, 90].map((n) => (

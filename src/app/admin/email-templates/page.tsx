@@ -215,7 +215,7 @@ export default function EmailTemplatesPage() {
         />
       )}
 
-      <div className="flex items-center justify-between mb-6">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between mb-6">
         <div>
           <h1 className="text-2xl font-bold admin-heading mb-1">Email Templates</h1>
           <p className="text-sm admin-muted">{templates.length} template{templates.length !== 1 ? "s" : ""}</p>
@@ -271,7 +271,7 @@ export default function EmailTemplatesPage() {
               <p className="mt-1.5 text-[11px] admin-faint">The branded frame, logo, colours and footer are added automatically — just write the message.</p>
             </div>
             <div>
-              <div className="flex items-center justify-between mb-1">
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between mb-1">
                 <label className={labelClass + " mb-0"}>Live preview</label>
                 <div className="inline-flex rounded-md overflow-hidden" style={{ border: "1px solid var(--admin-border)" }}>
                   {(["experience", "hardware"] as const).map((dv) => (

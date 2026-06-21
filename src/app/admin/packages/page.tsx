@@ -217,7 +217,7 @@ export default function PackagesPage() {
 
   return (
     <div>
-      <div className="flex items-center justify-between mb-6">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between mb-6">
         <div>
           <h1 className="text-2xl font-bold admin-heading mb-1">Packages</h1>
           <p className="text-sm admin-muted">
@@ -334,7 +334,7 @@ export default function PackagesPage() {
         <div className="space-y-6">
           {Array.from(grouped.entries()).map(([label, group]) => (
             <div key={label}>
-              <div className="flex items-center justify-between mb-3">
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between mb-3">
                 <h2 className="text-sm font-bold admin-heading">{label}</h2>
                 {group.editionId && (
                   <Link href={`/admin/editions/${group.editionId}`} className="text-xs text-[#0aa3c7] hover:text-[#0aa3c7]/80 transition-colors">

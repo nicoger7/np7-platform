@@ -58,7 +58,7 @@ export default function DestinationEditor({ params }: { params: Promise<{ id: st
 
   return (
     <div className="max-w-[760px]">
-      <div className="flex items-center justify-between mb-6">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between mb-6">
         <div>
           <Link href="/admin/destinations" className="text-xs admin-faint hover:admin-heading">← Destinations</Link>
           <h1 className="text-2xl font-bold admin-heading mt-1">{d.name}</h1>

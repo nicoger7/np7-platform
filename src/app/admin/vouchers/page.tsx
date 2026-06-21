@@ -85,7 +85,7 @@ export default function VouchersPage() {
 
   return (
     <div>
-      <div className="flex items-center justify-between mb-6">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between mb-6">
         <div>
           <h1 className="text-2xl font-bold admin-heading">Gift Vouchers</h1>
           <p className="text-sm admin-muted mt-0.5">

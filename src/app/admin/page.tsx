@@ -39,7 +39,7 @@ function StatCard({ label, value, href, accent }: { label: string; value: string
 function Panel({ title, href, children }: { title: string; href?: string; children: React.ReactNode }) {
   return (
     <div className="rounded-xl p-5" style={{ backgroundColor: "var(--admin-surface)", border: "1px solid var(--admin-border)" }}>
-      <div className="flex items-center justify-between mb-3">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between mb-3">
         <h2 className="text-sm font-bold admin-heading">{title}</h2>
         {href && <Link href={href} className="text-xs text-[#0aa3c7] hover:underline">View all →</Link>}
       </div>
