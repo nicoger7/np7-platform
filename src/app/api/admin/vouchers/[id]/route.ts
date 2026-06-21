@@ -1,0 +1,71 @@
+import { NextRequest, NextResponse } from "next/server";
+import { createAdminClient } from "@/lib/supabase";
+import { redeemByFrom } from "@/lib/vouchers";
+
+// Admin routes are gated by middleware; no per-route auth check needed.
+
+type RouteContext = { params: Promise<{ id: string }> };
+
+function isMissingTable(message?: string | null) {
+  return !!message && /(gift_vouchers|relation|schema cache|does not exist)/i.test(message);
+}
+
+// ─── PATCH /api/admin/vouchers/[id] ────────────────────────────────────────────
+// Body: { action: "activate" | "cancel" }
+//   activate → payment confirmed: status active, issued + redeem_by (= +1 year)
+//   cancel   → status cancelled
+export async function PATCH(request: NextRequest, { params }: RouteContext) {
+  const { id } = await params;
+  const body: { action?: string } = await request.json().catch(() => ({}));
+  const action = body.action;
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const db = createAdminClient() as any;
+
+  const now = new Date().toISOString();
+  let updates: Record<string, unknown>;
+
+  if (action === "activate") {
+    // Confirm the bank transfer and start the 1-year validity clock.
+    const { data: existing } = await db
+      .from("gift_vouchers")
+      .select("paid_at, status")
+      .eq("id", id)
+      .maybeSingle();
+    if (existing && !["pending", "active"].includes(existing.status)) {
+      return NextResponse.json(
+        { error: `Can't activate a voucher that is "${existing.status}".` },
+        { status: 409 }
+      );
+    }
+    updates = {
+      status: "active",
+      paid_at: existing?.paid_at ?? now,
+      issued_at: now,
+      redeem_by: redeemByFrom(now),
+    };
+  } else if (action === "cancel") {
+    updates = { status: "cancelled" };
+  } else {
+    return NextResponse.json(
+      { error: `Invalid action "${action ?? ""}". Must be "activate" or "cancel".` },
+      { status: 400 }
+    );
+  }
+
+  const { data, error } = await db
+    .from("gift_vouchers")
+    .update(updates)
+    .eq("id", id)
+    .select()
+    .single();
+
+  if (error) {
+    if (isMissingTable(error.message)) {
+      return NextResponse.json({ error: "Run migration 036 first (gift_vouchers table missing)." }, { status: 503 });
+    }
+    return NextResponse.json({ error: error.message }, { status: 400 });
+  }
+
+  return NextResponse.json({ ok: true, voucher: data });
+}
