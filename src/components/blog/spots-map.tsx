@@ -44,7 +44,8 @@ export function SpotsMap({ spots, accent, accentInk }: { spots: Spot[]; accent: 
         return L.marker([p.lat, p.lng], { icon }).bindPopup(`<strong>${p.name}</strong>`);
       });
       const group = L.featureGroup(markers).addTo(map);
-      map.fitBounds(group.getBounds().pad(0.3));
+      // fit all spots just inside the frame (snug, with a little breathing room)
+      map.fitBounds(group.getBounds().pad(0.12), { maxZoom: 12 });
       if (points.length === 1) map.setZoom(11);
     })();
     return () => {

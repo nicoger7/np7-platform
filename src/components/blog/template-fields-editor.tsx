@@ -6,12 +6,15 @@ import {
   type TemplateField,
   type TemplateData,
   type Spot,
+  type Option,
   SPOT_FIELDS,
+  OPTION_FIELDS,
   WIND_DIRECTIONS,
   WIND_QUALITY_META,
   CONDITION_TYPES,
   asWindWindow,
   asConditionsAvail,
+  asMatrix,
   asText,
   asNumber,
   asList,
@@ -223,6 +226,22 @@ function FieldEditor({ field, value, set }: { field: TemplateField; value: unkno
         </div>
       );
 
+    case "options":
+      return (
+        <div>
+          <FieldLabel field={field} />
+          <OptionsEditor options={Array.isArray(value) ? (value as Option[]) : []} onChange={set} />
+        </div>
+      );
+
+    case "matrix":
+      return (
+        <div>
+          <FieldLabel field={field} />
+          <MatrixEditor value={value} set={set} />
+        </div>
+      );
+
     default:
       return null;
   }
@@ -351,6 +370,80 @@ function SpotsEditor({ spots, onChange }: { spots: Spot[]; onChange: (v: Spot[])
         </div>
       ))}
       <AddButton label="Add spot" onClick={() => onChange([...spots, blank])} />
+    </div>
+  );
+}
+
+function OptionsEditor({ options, onChange }: { options: Option[]; onChange: (v: Option[]) => void }) {
+  const blank: Option = { name: "", image: "", bestFor: "", pros: [], cons: [] };
+  const update = (i: number, key: string, val: unknown) =>
+    onChange(options.map((o, j) => (j === i ? { ...o, [key]: val } : o)));
+  return (
+    <div className="space-y-4">
+      {options.map((opt, i) => (
+        <div key={i} className="admin-surface admin-border border rounded-xl p-4">
+          <div className="flex items-center justify-between mb-3">
+            <span className="text-[12px] font-bold admin-faint">Option {i + 1}{opt.name ? ` · ${opt.name}` : ""}</span>
+            <RowButtons
+              onUp={() => onChange(move(options, i, -1))}
+              onDown={() => onChange(move(options, i, 1))}
+              onRemove={() => onChange(options.filter((_, j) => j !== i))}
+            />
+          </div>
+          <div className="grid sm:grid-cols-2 gap-4">
+            {OPTION_FIELDS.map((f) => {
+              const full = f.kind === "list" || f.kind === "image";
+              return (
+                <div key={f.key} className={full ? "sm:col-span-2" : ""}>
+                  <FieldEditor field={f} value={(opt as Record<string, unknown>)[f.key]} set={(v) => update(i, f.key, v)} />
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      ))}
+      <AddButton label="Add option" onClick={() => onChange([...options, blank])} />
+    </div>
+  );
+}
+
+function MatrixEditor({ value, set }: { value: unknown; set: (v: unknown) => void }) {
+  const m = asMatrix(value);
+  const cols = m.columns;
+  const setCols = (columns: string[]) =>
+    set({ columns, rows: m.rows.map((r) => ({ ...r, values: columns.map((_, i) => r.values[i] ?? "") })) });
+  const updateRow = (ri: number, patch: Partial<{ label: string; values: string[] }>) =>
+    set({ ...m, rows: m.rows.map((r, j) => (j === ri ? { ...r, ...patch } : r)) });
+  const setCell = (ri: number, ci: number, val: string) =>
+    updateRow(ri, { values: cols.map((_, i) => (i === ci ? val : m.rows[ri].values[i] ?? "")) });
+
+  return (
+    <div className="space-y-3">
+      <div>
+        <div className="text-[12px] font-bold admin-heading mb-1.5">Columns (the options)</div>
+        <ListEditor items={cols} onChange={setCols} placeholder="Freeride" />
+      </div>
+      {cols.length > 0 && (
+        <div>
+          <div className="text-[12px] font-bold admin-heading mb-1.5">Rows (attributes)</div>
+          <div className="space-y-2">
+            {m.rows.map((r, ri) => (
+              <div key={ri} className="admin-surface admin-border border rounded-lg p-2.5">
+                <div className="flex items-center gap-2 mb-2">
+                  <input value={r.label} onChange={(e) => updateRow(ri, { label: e.target.value })} placeholder="Attribute (e.g. Cambers)" className={`${input} flex-1`} />
+                  <IconBtn onClick={() => set({ ...m, rows: m.rows.filter((_, j) => j !== ri) })} label="Remove" danger><path d="M18 6L6 18M6 6l12 12" /></IconBtn>
+                </div>
+                <div className="grid gap-1.5" style={{ gridTemplateColumns: `repeat(${cols.length}, minmax(0,1fr))` }}>
+                  {cols.map((c, ci) => (
+                    <input key={ci} value={r.values[ci] ?? ""} onChange={(e) => setCell(ri, ci, e.target.value)} placeholder={c} className={`${input} !text-[12px] !px-2`} />
+                  ))}
+                </div>
+              </div>
+            ))}
+            <AddButton label="Add row" onClick={() => set({ ...m, rows: [...m.rows, { label: "", values: cols.map(() => "") }] })} />
+          </div>
+        </div>
+      )}
     </div>
   );
 }

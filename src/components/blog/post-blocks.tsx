@@ -12,6 +12,11 @@ import {
   asSteps,
   asProsCons,
   asSpots,
+  asOptions,
+  asMatrix,
+  matrixHasValue,
+  type Option,
+  type ComparisonMatrix,
 } from "@/lib/blog-templates";
 import { SpotsAccordion, type SpotNote } from "./spots-accordion";
 import { SpotsMap } from "./spots-map";
@@ -255,9 +260,91 @@ function Block({ field, theme, data, slug, notesBySpot }: { field: TemplateField
       );
     }
 
+    case "options": {
+      const options = asOptions(v);
+      if (options.length === 0) return null;
+      return (
+        <section>
+          <SectionHeading accent={accent}>{field.label}</SectionHeading>
+          <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
+            {options.map((o, i) => <OptionCard key={i} option={o} />)}
+          </div>
+        </section>
+      );
+    }
+
+    case "matrix": {
+      const m = asMatrix(v);
+      if (!matrixHasValue(m)) return null;
+      return (
+        <section>
+          <SectionHeading accent={accent}>{field.label}</SectionHeading>
+          <ComparisonTable matrix={m} accent={accent} />
+        </section>
+      );
+    }
+
     default:
       return null;
   }
+}
+
+function OptionCard({ option }: { option: Option }) {
+  return (
+    <article className="rounded-2xl border border-[#ece3d3] bg-white overflow-hidden flex flex-col">
+      {option.image && (
+        <div className="relative h-36 bg-[#e9eef0]">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src={option.image} alt={option.name} className="absolute inset-0 w-full h-full object-cover" loading="lazy" />
+        </div>
+      )}
+      <div className="p-5 flex-1">
+        <h3 className="text-[18px] font-extrabold text-[#00374a]">{option.name}</h3>
+        {option.bestFor && <p className="text-[13px] text-[#6a7a80] mt-1 mb-3">{option.bestFor}</p>}
+        {option.pros.length > 0 && (
+          <ul className="space-y-1.5 mb-3">
+            {option.pros.map((p, i) => (
+              <li key={i} className="flex items-start gap-2 text-[13.5px] text-[#3e5a48] leading-snug"><Check className="text-[#1f9e57]" /> <span>{p}</span></li>
+            ))}
+          </ul>
+        )}
+        {option.cons.length > 0 && (
+          <ul className="space-y-1.5">
+            {option.cons.map((c, i) => (
+              <li key={i} className="flex items-start gap-2 text-[13.5px] text-[#6a4a48] leading-snug"><Minus className="text-[#d2564f]" /> <span>{c}</span></li>
+            ))}
+          </ul>
+        )}
+      </div>
+    </article>
+  );
+}
+
+function ComparisonTable({ matrix, accent }: { matrix: ComparisonMatrix; accent: string }) {
+  return (
+    <div className="overflow-x-auto rounded-2xl border border-[#ece3d3]">
+      <table className="w-full border-collapse text-left min-w-[480px]">
+        <thead>
+          <tr>
+            <th className="px-4 py-3 bg-[#fdfaf3] text-[12px] font-bold uppercase tracking-[0.08em] text-[#9aa6ac] sticky left-0" />
+            {matrix.columns.map((c, i) => (
+              <th key={i} className="px-4 py-3 text-[13px] font-extrabold text-white text-center" style={{ backgroundColor: accent }}>{c}</th>
+            ))}
+          </tr>
+        </thead>
+        <tbody>
+          {matrix.rows.map((r, ri) => (
+            <tr key={ri} className={ri % 2 === 0 ? "bg-white" : "bg-[#fdfaf3]"}>
+              <th className="px-4 py-3 text-[13px] font-bold text-[#00374a] whitespace-nowrap">{r.label}</th>
+              {matrix.columns.map((_, ci) => (
+                <td key={ci} className="px-4 py-3 text-[13.5px] text-[#5a6b72] text-center">{r.values[ci] || "—"}</td>
+              ))}
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
 }
 
 /* ---- small inline marks ---- */

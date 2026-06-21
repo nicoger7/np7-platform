@@ -16,6 +16,8 @@ export type BlogTemplateId =
   | "standard"
   | "equipment_review"
   | "product_intro"
+  | "gear_guide"
+  | "comparison"
   | "spotguide"
   | "technique_guide";
 
@@ -35,7 +37,9 @@ export type FieldKind =
   | "image" // single image url (picker)
   | "windrose" // WindWindow — per-direction quality (best/good/no)
   | "frequency" // ConditionsAvail — per condition-type frequency (often/sometimes/never)
-  | "spots"; // Spot[] — a destination's spots, each with its own facts (see SPOT_FIELDS)
+  | "spots" // Spot[] — a destination's spots, each with its own facts (see SPOT_FIELDS)
+  | "options" // Option[] — compared options, each with pros/cons (see OPTION_FIELDS)
+  | "matrix"; // ComparisonMatrix — attributes compared across columns
 
 /** Where the field appears in the fixed, consistent post frame. */
 export type FieldSlot = "hero" | "facts" | "body";
@@ -117,6 +121,50 @@ const PRODUCT_INTRO: BlogTemplate = {
     { key: "specs", label: "Key specs", kind: "pairs", slot: "body" },
     { key: "ctaUrl", label: "Product link (URL)", kind: "text", slot: "body", hint: "Adds a button at the end.", placeholder: "/hardware/glide-1200" },
     { key: "ctaLabel", label: "Button text", kind: "text", slot: "body", placeholder: "Discover the product" },
+  ],
+};
+
+const GEAR_GUIDE: BlogTemplate = {
+  id: "gear_guide",
+  label: "Gear Guide",
+  shortLabel: "Guide",
+  world: "hardware",
+  icon: "ruler",
+  tagline: "Help riders choose the right gear — the factors, a sizing table, rules of thumb & mistakes.",
+  cta: { defaultLabel: "Shop the range" },
+  fields: [
+    { key: "subject", label: "Subject", kind: "text", slot: "hero", placeholder: "Windsurf fins" },
+    { key: "outcome", label: "What you'll learn", kind: "text", slot: "hero", hint: "Shown under the title.", placeholder: "How to pick the right fin size for your board, sail and conditions." },
+    { key: "bestFor", label: "Best for", kind: "text", slot: "facts", factIcon: "target", placeholder: "Freeride & slalom sailors" },
+    { key: "ruleOfThumb", label: "Rule of thumb", kind: "text", slot: "facts", factIcon: "ruler", placeholder: "Board width ÷ 2 + a few cm" },
+    { key: "factors", label: "What decides it", kind: "features", slot: "body", hint: "The things that drive the choice." },
+    { key: "guideCallout", label: "Key takeaway", kind: "callout", slot: "body", placeholder: "Stay within ±3 cm of the recommended size — beyond that you upset the whole setup." },
+    { key: "sizingTable", label: "Sizing guide", kind: "pairs", slot: "body", hint: "Scenario → adjustment, e.g. Bigger sail → +1–2 cm." },
+    { key: "mistakes", label: "Common mistakes", kind: "list", slot: "body", listStyle: "warn" },
+    { key: "tips", label: "Pro tips", kind: "list", slot: "body", listStyle: "check" },
+    { key: "ctaUrl", label: "Shop link (URL)", kind: "text", slot: "body", hint: "Adds a button at the end.", placeholder: "/hardware" },
+    { key: "ctaLabel", label: "Button text", kind: "text", slot: "body", placeholder: "Shop the range" },
+  ],
+};
+
+const COMPARISON: BlogTemplate = {
+  id: "comparison",
+  label: "Comparison",
+  shortLabel: "Compare",
+  world: "hardware",
+  icon: "compare",
+  tagline: "Compare options head-to-head — each profiled, a side-by-side table, and which to pick.",
+  cta: { defaultLabel: "Shop the range" },
+  fields: [
+    { key: "subject", label: "Subject", kind: "text", slot: "hero", placeholder: "Freeride vs Freerace vs Race sails" },
+    { key: "outcome", label: "What you'll decide", kind: "text", slot: "hero", hint: "Shown under the title.", placeholder: "Which sail type fits your level, conditions and priorities." },
+    { key: "forWho", label: "For", kind: "text", slot: "facts", factIcon: "target", placeholder: "Intermediate–advanced" },
+    { key: "category", label: "Category", kind: "text", slot: "facts", factIcon: "box", placeholder: "Sails" },
+    { key: "options", label: "The options", kind: "options", slot: "body", hint: "Each option — who it's for, pros & cons." },
+    { key: "matrix", label: "Side by side", kind: "matrix", slot: "body", hint: "Attributes compared across the options." },
+    { key: "recommendation", label: "How to choose", kind: "callout", slot: "body", placeholder: "Less is often more — pick the sail you'll actually enjoy rigging and sailing." },
+    { key: "ctaUrl", label: "Shop link (URL)", kind: "text", slot: "body", placeholder: "/hardware" },
+    { key: "ctaLabel", label: "Button text", kind: "text", slot: "body", placeholder: "Shop the range" },
   ],
 };
 
@@ -228,6 +276,57 @@ export function parseCoords(v: string): { lat: number; lng: number } | null {
   return { lat, lng };
 }
 
+/* ------------------------- comparison sub-data ------------------------- */
+
+/** Per-option sub-schema for the `options` field (Comparison template). */
+export const OPTION_FIELDS: TemplateField[] = [
+  { key: "name", label: "Option name", kind: "text", slot: "body", placeholder: "Freeride" },
+  { key: "image", label: "Photo", kind: "image", slot: "body" },
+  { key: "bestFor", label: "Best for", kind: "text", slot: "body", placeholder: "Beginners to intermediates after easy speed" },
+  { key: "pros", label: "Pros", kind: "list", slot: "body", listStyle: "check" },
+  { key: "cons", label: "Cons", kind: "list", slot: "body", listStyle: "warn" },
+];
+
+export type Option = { name: string; image: string; bestFor: string; pros: string[]; cons: string[] };
+export function asOptions(v: unknown): Option[] {
+  if (!Array.isArray(v)) return [];
+  return v
+    .map((x) => {
+      const o = (x && typeof x === "object" ? x : {}) as Record<string, unknown>;
+      return {
+        name: asText(o.name),
+        image: asText(o.image),
+        bestFor: asText(o.bestFor),
+        pros: asList(o.pros),
+        cons: asList(o.cons),
+      };
+    })
+    .filter((o) => o.name || o.bestFor || o.pros.length || o.cons.length);
+}
+
+/** A side-by-side comparison grid: column headers + attribute rows. */
+export type MatrixRow = { label: string; values: string[] };
+export type ComparisonMatrix = { columns: string[]; rows: MatrixRow[] };
+export function asMatrix(v: unknown): ComparisonMatrix {
+  const o = (v && typeof v === "object" ? v : {}) as Record<string, unknown>;
+  const columns = Array.isArray(o.columns) ? o.columns.map((c) => String(c ?? "")) : [];
+  const rows = Array.isArray(o.rows)
+    ? (o.rows as unknown[])
+        .map((r) => {
+          const rr = (r && typeof r === "object" ? r : {}) as Record<string, unknown>;
+          return {
+            label: asText(rr.label),
+            values: Array.isArray(rr.values) ? rr.values.map((x) => String(x ?? "")) : [],
+          };
+        })
+        .filter((r) => r.label || r.values.some((x) => x.trim()))
+    : [];
+  return { columns, rows };
+}
+export function matrixHasValue(m: ComparisonMatrix): boolean {
+  return m.columns.length > 0 && m.rows.length > 0;
+}
+
 const TECHNIQUE_GUIDE: BlogTemplate = {
   id: "technique_guide",
   label: "Technique Guide",
@@ -254,6 +353,8 @@ export const BLOG_TEMPLATES: Record<BlogTemplateId, BlogTemplate> = {
   standard: STANDARD,
   equipment_review: EQUIPMENT_REVIEW,
   product_intro: PRODUCT_INTRO,
+  gear_guide: GEAR_GUIDE,
+  comparison: COMPARISON,
   spotguide: SPOTGUIDE,
   technique_guide: TECHNIQUE_GUIDE,
 };
@@ -262,6 +363,8 @@ export const BLOG_TEMPLATES: Record<BlogTemplateId, BlogTemplate> = {
 export const TEMPLATE_ORDER: BlogTemplateId[] = [
   "equipment_review",
   "product_intro",
+  "gear_guide",
+  "comparison",
   "spotguide",
   "technique_guide",
   "standard",
@@ -391,6 +494,10 @@ export function fieldHasValue(field: TemplateField, data: TemplateData): boolean
       return asSteps(v).length > 0;
     case "spots":
       return asSpots(v).length > 0;
+    case "options":
+      return asOptions(v).length > 0;
+    case "matrix":
+      return matrixHasValue(asMatrix(v));
     case "windrose":
       return windWindowHasValue(asWindWindow(v));
     case "frequency":
