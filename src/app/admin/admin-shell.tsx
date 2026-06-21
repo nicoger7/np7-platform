@@ -11,12 +11,23 @@ import { canAccess, type AccessLevel } from "@/lib/access";
 
 type Environment = "experience" | "hardware" | "product-dev" | "analytics";
 
-const environments: { id: Environment; label: string; shortLabel: string; color: string; ownerOnly?: boolean }[] = [
-  { id: "experience", label: "NP7 Experience", shortLabel: "Experience", color: "#0aa3c7" },
-  { id: "hardware", label: "NP7 Hardware", shortLabel: "Hardware", color: "#f59e0b" },
-  { id: "product-dev", label: "Product Development", shortLabel: "Product Dev", color: "#8b5cf6" },
-  { id: "analytics", label: "Analytics", shortLabel: "Analytics", color: "#10b981", ownerOnly: true },
+// `color` doubles as the admin accent for that world, mirroring the public site:
+// Experience = ocean cyan, Hardware = neon lime (black text on it). `accentContrast`
+// is the readable text color when the accent is a button/badge background.
+const environments: { id: Environment; label: string; shortLabel: string; color: string; accentContrast: string; ownerOnly?: boolean }[] = [
+  { id: "experience", label: "NP7 Experience", shortLabel: "Experience", color: "#0aa3c7", accentContrast: "#ffffff" },
+  { id: "hardware", label: "NP7 Hardware", shortLabel: "Hardware", color: "#c2ff38", accentContrast: "#0a0a0a" },
+  { id: "product-dev", label: "Product Development", shortLabel: "Product Dev", color: "#8b5cf6", accentContrast: "#ffffff" },
+  { id: "analytics", label: "Analytics", shortLabel: "Analytics", color: "#10b981", accentContrast: "#06281d", ownerOnly: true },
 ];
+
+/** hex (#rgb or #rrggbb) → rgba() with the given alpha. */
+function hexA(hex: string, a: number): string {
+  const h = hex.replace("#", "");
+  const full = h.length === 3 ? h.split("").map((c) => c + c).join("") : h;
+  const n = parseInt(full, 16);
+  return `rgba(${(n >> 16) & 255}, ${(n >> 8) & 255}, ${n & 255}, ${a})`;
+}
 
 // ─── Navigation per environment ──────────────────────────────────────────────
 
@@ -415,8 +426,17 @@ export default function AdminShell({
     router.refresh();
   }
 
-  const vars = themes[theme];
   const activeEnvConfig = environments.find((e) => e.id === env)!;
+  // The admin accent follows the active world (Experience cyan / Hardware lime),
+  // so the back-office is branded like the public site.
+  const accent = activeEnvConfig.color;
+  const accentVars = {
+    "--admin-accent": accent,
+    "--admin-accent-contrast": activeEnvConfig.accentContrast,
+    "--admin-accent-weak": hexA(accent, 0.16),
+    "--admin-active": hexA(accent, theme === "dark" ? 0.18 : 0.1),
+  };
+  const vars = { ...themes[theme], ...accentVars };
   // File Storage lives under WEBSITE for the experience env; keep the shared
   // bottom section only for envs that don't include it.
   const allSections = env === "experience"

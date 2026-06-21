@@ -74,7 +74,7 @@ export default function AnalyticsPage() {
           <button
             key={k}
             onClick={() => setTab(k)}
-            className={`px-4 py-2 rounded-lg text-[13px] font-bold transition-colors ${tab === k ? "text-white bg-[#0aa3c7]" : "admin-muted"}`}
+            className={`px-4 py-2 rounded-lg text-[13px] font-bold transition-colors ${tab === k ? "text-[var(--admin-accent-contrast)] bg-[var(--admin-accent)]" : "admin-muted"}`}
             style={tab === k ? undefined : { border: "1px solid var(--admin-border)" }}
           >
             {label}
@@ -198,7 +198,7 @@ function BehaviourTab() {
         <p className="text-xs admin-faint">Consent-gated, first-party — only visitors who accept analytics are counted.</p>
         <div className="flex items-center gap-1">
           {[7, 30, 90].map((n) => (
-            <button key={n} onClick={() => setDays(n)} className={`px-3 py-1.5 rounded-lg text-[12px] font-bold transition-colors ${days === n ? "text-white bg-[#0aa3c7]" : "admin-muted"}`} style={days === n ? undefined : { border: "1px solid var(--admin-border)" }}>
+            <button key={n} onClick={() => setDays(n)} className={`px-3 py-1.5 rounded-lg text-[12px] font-bold transition-colors ${days === n ? "text-[var(--admin-accent-contrast)] bg-[var(--admin-accent)]" : "admin-muted"}`} style={days === n ? undefined : { border: "1px solid var(--admin-border)" }}>
               {n}d
             </button>
           ))}

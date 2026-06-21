@@ -172,7 +172,7 @@ export default function PipelineRulesPage() {
     fetchData();
   }
 
-  const inputClass = "w-full px-3 py-2 admin-input border rounded-lg text-sm focus:outline-none focus:border-[#0aa3c7] focus:ring-1 focus:ring-[#0aa3c7] transition-colors";
+  const inputClass = "w-full px-3 py-2 admin-input border rounded-lg text-sm focus:outline-none focus:border-[var(--admin-accent)] focus:ring-1 focus:ring-[var(--admin-accent)] transition-colors";
   const labelClass = "block text-xs font-medium admin-muted mb-1";
   const gridTemplate = buildGridTemplate(COLUMNS, visibleColumns);
 
@@ -185,7 +185,7 @@ export default function PipelineRulesPage() {
         </div>
         <div className="flex items-center gap-3">
           <ColumnToggle columns={COLUMNS} visible={visibleColumns} onChange={setVisibleColumns} storageKey={STORAGE_KEY} />
-          <button onClick={() => { setShowNew(!showNew); setEditId(null); setForm({ name: "", trigger: "", type: "", action: "", status: "", subject_line: "", language: "", stop_if: "", tags: "", experience_id: "", days_after_trigger: "", active: true, notes: "" }); }} className="px-4 py-2 bg-[#0aa3c7] hover:bg-[#0aa3c7]/90 text-white text-sm font-bold rounded-lg transition-colors">
+          <button onClick={() => { setShowNew(!showNew); setEditId(null); setForm({ name: "", trigger: "", type: "", action: "", status: "", subject_line: "", language: "", stop_if: "", tags: "", experience_id: "", days_after_trigger: "", active: true, notes: "" }); }} className="px-4 py-2 bg-[var(--admin-accent)] hover:bg-[var(--admin-accent)]/90 text-[var(--admin-accent-contrast)] text-sm font-bold rounded-lg transition-colors">
             New Rule
           </button>
         </div>
@@ -193,8 +193,8 @@ export default function PipelineRulesPage() {
 
       <div className="flex flex-wrap items-center gap-2 mb-5">
         <div className="flex items-center rounded-lg overflow-hidden" style={{ border: "1px solid var(--admin-border)" }}>
-          <button onClick={() => setGroupView(true)} className={`px-3 py-1.5 text-xs font-medium ${groupView ? "bg-[#0aa3c7]/15 text-[#0aa3c7]" : "admin-muted"}`}>Timeline</button>
-          <button onClick={() => setGroupView(false)} className={`px-3 py-1.5 text-xs font-medium ${!groupView ? "bg-[#0aa3c7]/15 text-[#0aa3c7]" : "admin-muted"}`}>Table</button>
+          <button onClick={() => setGroupView(true)} className={`px-3 py-1.5 text-xs font-medium ${groupView ? "bg-[var(--admin-accent)]/15 text-[#0aa3c7]" : "admin-muted"}`}>Timeline</button>
+          <button onClick={() => setGroupView(false)} className={`px-3 py-1.5 text-xs font-medium ${!groupView ? "bg-[var(--admin-accent)]/15 text-[#0aa3c7]" : "admin-muted"}`}>Table</button>
         </div>
         <select value={scope} onChange={(e) => setScope(e.target.value)} className="admin-input text-xs px-3 py-1.5 rounded-lg">
           <option value="">All rules</option>
@@ -236,7 +236,7 @@ export default function PipelineRulesPage() {
           </div>
           <div className="mb-4"><label className={labelClass}>Notes</label><input className={inputClass} value={form.notes} onChange={(e) => setForm({ ...form, notes: e.target.value })} /></div>
           <div className="flex gap-2">
-            <button onClick={handleSave} disabled={!form.name} className="px-4 py-2 bg-[#0aa3c7] hover:bg-[#0aa3c7]/90 disabled:opacity-40 text-white text-sm font-bold rounded-lg">{editId ? "Update" : "Create"}</button>
+            <button onClick={handleSave} disabled={!form.name} className="px-4 py-2 bg-[var(--admin-accent)] hover:bg-[var(--admin-accent)]/90 disabled:opacity-40 text-[var(--admin-accent-contrast)] text-sm font-bold rounded-lg">{editId ? "Update" : "Create"}</button>
             <button onClick={() => { setShowNew(false); setEditId(null); }} className="px-4 py-2 admin-muted text-sm rounded-lg">Cancel</button>
           </div>
         </div>

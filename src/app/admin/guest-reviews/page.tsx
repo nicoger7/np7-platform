@@ -74,7 +74,7 @@ export default function GuestReviewsPage() {
     setShowNew(false); load();
   }
 
-  const inputClass = "w-full px-3 py-2 admin-input border rounded-lg text-sm focus:outline-none focus:border-[#0aa3c7] focus:ring-1 focus:ring-[#0aa3c7] transition-colors";
+  const inputClass = "w-full px-3 py-2 admin-input border rounded-lg text-sm focus:outline-none focus:border-[var(--admin-accent)] focus:ring-1 focus:ring-[var(--admin-accent)] transition-colors";
   const labelClass = "block text-xs font-medium admin-muted mb-1";
   const stars = (n: number | null) => "★".repeat(Math.max(1, Math.min(5, n || 5)));
 
@@ -85,13 +85,13 @@ export default function GuestReviewsPage() {
           <h1 className="text-2xl font-bold admin-heading mb-1">Guest Reviews</h1>
           <p className="text-sm admin-muted">Participant submissions — approve and place them on experiences/editions.</p>
         </div>
-        <button onClick={() => setShowNew(!showNew)} className="px-4 py-2 bg-[#0aa3c7] hover:bg-[#0aa3c7]/90 text-white text-sm font-bold rounded-lg transition-colors">New Review</button>
+        <button onClick={() => setShowNew(!showNew)} className="px-4 py-2 bg-[var(--admin-accent)] hover:bg-[var(--admin-accent)]/90 text-[var(--admin-accent-contrast)] text-sm font-bold rounded-lg transition-colors">New Review</button>
       </div>
 
       {/* Filters */}
       <div className="flex items-center gap-2 mb-5">
         {(["all", "pending", "approved", "hidden"] as const).map((f) => (
-          <button key={f} onClick={() => setFilter(f)} className={`px-3 py-1.5 text-xs font-medium rounded-lg transition-colors capitalize ${filter === f ? "bg-[#0aa3c7]/15 text-[#0aa3c7]" : "admin-surface admin-muted"}`} style={{ border: "1px solid var(--admin-border)" }}>
+          <button key={f} onClick={() => setFilter(f)} className={`px-3 py-1.5 text-xs font-medium rounded-lg transition-colors capitalize ${filter === f ? "bg-[var(--admin-accent)]/15 text-[#0aa3c7]" : "admin-surface admin-muted"}`} style={{ border: "1px solid var(--admin-border)" }}>
             {f} <span className="admin-faint">({counts[f]})</span>
           </button>
         ))}
@@ -112,7 +112,7 @@ export default function GuestReviewsPage() {
           </div>
           <div className="mb-4"><label className={labelClass}>Quote *</label><textarea className={`${inputClass} min-h-[60px] resize-y`} value={form.quote} onChange={(e) => setForm({ ...form, quote: e.target.value })} /></div>
           <div className="flex gap-2">
-            <button onClick={create} disabled={!form.quote.trim()} className="px-4 py-2 bg-[#0aa3c7] hover:bg-[#0aa3c7]/90 disabled:opacity-40 text-white text-sm font-bold rounded-lg">Create</button>
+            <button onClick={create} disabled={!form.quote.trim()} className="px-4 py-2 bg-[var(--admin-accent)] hover:bg-[var(--admin-accent)]/90 disabled:opacity-40 text-[var(--admin-accent-contrast)] text-sm font-bold rounded-lg">Create</button>
             <button onClick={() => setShowNew(false)} className="px-4 py-2 admin-muted text-sm rounded-lg">Cancel</button>
           </div>
         </div>
@@ -144,8 +144,8 @@ export default function GuestReviewsPage() {
                   className="w-full bg-transparent text-sm admin-heading resize-y min-h-[40px] outline-none"
                 />
                 <div className="flex items-center gap-3 mt-1 text-[11px] admin-faint">
-                  <input defaultValue={r.author_name ?? ""} placeholder="author" onBlur={(e) => { if (e.target.value !== (r.author_name ?? "")) patch(r.id, { author_name: e.target.value }); }} className="bg-transparent outline-none border-b border-transparent focus:border-[#0aa3c7] w-28" />
-                  <input defaultValue={r.author_country ?? ""} placeholder="country" onBlur={(e) => { if (e.target.value !== (r.author_country ?? "")) patch(r.id, { author_country: e.target.value }); }} className="bg-transparent outline-none border-b border-transparent focus:border-[#0aa3c7] w-24" />
+                  <input defaultValue={r.author_name ?? ""} placeholder="author" onBlur={(e) => { if (e.target.value !== (r.author_name ?? "")) patch(r.id, { author_name: e.target.value }); }} className="bg-transparent outline-none border-b border-transparent focus:border-[var(--admin-accent)] w-28" />
+                  <input defaultValue={r.author_country ?? ""} placeholder="country" onBlur={(e) => { if (e.target.value !== (r.author_country ?? "")) patch(r.id, { author_country: e.target.value }); }} className="bg-transparent outline-none border-b border-transparent focus:border-[var(--admin-accent)] w-24" />
                 </div>
               </div>
               <div className="flex flex-col items-end gap-2 shrink-0">

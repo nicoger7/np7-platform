@@ -88,7 +88,7 @@ export default function MembersPage() {
   }
   const toggleOpen = (id: string) => setOpenLevel((s) => { const n = new Set(s); n.has(id) ? n.delete(id) : n.add(id); return n; });
 
-  const inputCls = "px-3 py-2 admin-input border rounded-lg text-sm focus:outline-none focus:border-[#0aa3c7] focus:ring-1 focus:ring-[#0aa3c7] transition-colors";
+  const inputCls = "px-3 py-2 admin-input border rounded-lg text-sm focus:outline-none focus:border-[var(--admin-accent)] focus:ring-1 focus:ring-[var(--admin-accent)] transition-colors";
 
   return (
     <div className="p-6 sm:p-8 max-w-[1000px] mx-auto">
@@ -99,7 +99,7 @@ export default function MembersPage() {
         </div>
         <button
           onClick={toggleLevelView}
-          className={`shrink-0 px-4 py-2 rounded-lg text-[13px] font-bold transition-colors ${levelView ? "bg-[#0aa3c7] text-white" : "admin-muted"}`}
+          className={`shrink-0 px-4 py-2 rounded-lg text-[13px] font-bold transition-colors ${levelView ? "bg-[var(--admin-accent)] text-[var(--admin-accent-contrast)]" : "admin-muted"}`}
           style={levelView ? undefined : { border: "1px solid var(--admin-border)" }}
         >
           {levelView ? "✓ Level view" : "Level view"}
@@ -163,7 +163,7 @@ export default function MembersPage() {
                         </>
                       ) : (
                         <button onClick={() => act("invite", m.id, "Invite sent")} disabled={!!busy || !m.email}
-                          className="px-4 py-2 rounded-lg text-[12px] font-bold bg-[#0aa3c7] text-white hover:bg-[#0aa3c7]/90 disabled:opacity-50">
+                          className="px-4 py-2 rounded-lg text-[12px] font-bold bg-[var(--admin-accent)] text-[var(--admin-accent-contrast)] hover:bg-[var(--admin-accent)]/90 disabled:opacity-50">
                           {busy === m.id + "invite" ? "…" : "Invite to portal"}
                         </button>
                       )}

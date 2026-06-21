@@ -71,7 +71,7 @@ export default function SpotNotesAdminPage() {
             key={f}
             onClick={() => setFilter(f)}
             className={`px-3.5 py-1.5 rounded-full text-[12.5px] font-semibold border transition-colors ${
-              filter === f ? "bg-[#0aa3c7] text-white border-[#0aa3c7]" : "admin-border admin-muted hover:admin-heading"
+              filter === f ? "bg-[var(--admin-accent)] text-[var(--admin-accent-contrast)] border-[var(--admin-accent)]" : "admin-border admin-muted hover:admin-heading"
             }`}
           >
             {f[0].toUpperCase() + f.slice(1)}

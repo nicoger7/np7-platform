@@ -73,7 +73,7 @@ export default async function EmailsHubPage() {
       <div className="flex items-center gap-1.5 flex-wrap mb-6 text-[11px]">
         {["Account", "Reserve", "Deposit", "Balance", "Pre-trip", "Post-trip"].map((s, i, arr) => (
           <span key={s} className="flex items-center gap-1.5">
-            <span className="px-2.5 py-1 rounded-full bg-[#0aa3c7]/10 text-[#0aa3c7] font-bold">{s}</span>
+            <span className="px-2.5 py-1 rounded-full bg-[var(--admin-accent)]/10 text-[#0aa3c7] font-bold">{s}</span>
             {i < arr.length - 1 && <span className="admin-faint">→</span>}
           </span>
         ))}
@@ -86,7 +86,7 @@ export default async function EmailsHubPage() {
             <div className="p-3.5">
               <div className="flex items-center justify-between gap-2 mb-1">
                 <div className="flex items-center gap-2 min-w-0">
-                  <span className="shrink-0 text-[9px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded bg-[#0aa3c7]/15 text-[#0aa3c7]">{c.stage}</span>
+                  <span className="shrink-0 text-[9px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded bg-[var(--admin-accent)]/15 text-[#0aa3c7]">{c.stage}</span>
                   <h3 className="text-[13px] font-bold admin-heading truncate group-hover:text-[#0aa3c7] transition-colors">{c.name}</h3>
                 </div>
                 {c.isLive ? (
@@ -100,7 +100,7 @@ export default async function EmailsHubPage() {
             <div className="relative bg-white border-t" style={{ borderColor: "var(--admin-border)" }}>
               <iframe title={`${c.name} preview`} srcDoc={c.html} sandbox="" className="w-full h-[200px] pointer-events-none" />
               <div className="absolute inset-x-0 bottom-0 flex justify-center pb-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                <span className="text-[10px] font-bold text-white bg-[#0aa3c7] rounded-full px-2.5 py-1 shadow-lg">Click to edit →</span>
+                <span className="text-[10px] font-bold text-[var(--admin-accent-contrast)] bg-[var(--admin-accent)] rounded-full px-2.5 py-1 shadow-lg">Click to edit →</span>
               </div>
             </div>
           </Link>

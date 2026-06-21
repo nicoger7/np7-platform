@@ -469,7 +469,7 @@ export default function EditionDetailPage({
       : `${currency} ${Number(edition.computed_price_from ?? edition.computed_price_to).toLocaleString()}`;
 
   const inputClass =
-    "w-full px-4 py-2.5 admin-input border rounded-lg text-sm focus:outline-none focus:border-[#0aa3c7] focus:ring-1 focus:ring-[#0aa3c7] transition-colors";
+    "w-full px-4 py-2.5 admin-input border rounded-lg text-sm focus:outline-none focus:border-[var(--admin-accent)] focus:ring-1 focus:ring-[var(--admin-accent)] transition-colors";
   const labelClass = "block text-xs font-medium admin-muted mb-1.5";
 
   return (
@@ -517,7 +517,7 @@ export default function EditionDetailPage({
             <div className="relative">
               <button
                 onClick={() => setSectionMenu((v) => !v)}
-                className={`p-2 rounded-lg transition-colors ${sectionMenu ? "bg-[#0aa3c7]/15 text-[#0aa3c7]" : "admin-faint"}`}
+                className={`p-2 rounded-lg transition-colors ${sectionMenu ? "bg-[var(--admin-accent)]/15 text-[#0aa3c7]" : "admin-faint"}`}
                 style={{ border: "1px solid var(--admin-border)" }}
                 title="Show/hide sections"
               >
@@ -555,7 +555,7 @@ export default function EditionDetailPage({
             <button
               onClick={handleSave}
               disabled={saving}
-              className="px-4 py-2 bg-[#0aa3c7] hover:bg-[#0aa3c7]/90 disabled:opacity-50 text-white text-sm font-bold rounded-lg transition-colors"
+              className="px-4 py-2 bg-[var(--admin-accent)] hover:bg-[var(--admin-accent)]/90 disabled:opacity-50 text-[var(--admin-accent-contrast)] text-sm font-bold rounded-lg transition-colors"
             >
               {saving ? "Saving..." : saved ? "Saved!" : "Save"}
             </button>
@@ -579,13 +579,13 @@ export default function EditionDetailPage({
               title="Drag to reorder"
               className={`px-4 py-2.5 text-sm font-medium transition-colors border-b-2 -mb-[1px] cursor-grab active:cursor-grabbing ${
                 tab === t
-                  ? "admin-heading border-[#0aa3c7]"
+                  ? "admin-heading border-[var(--admin-accent)]"
                   : "admin-muted border-transparent"
               }`}
             >
               {TAB_LABEL[t]}
               {count != null && count > 0 && (
-                <span className="ml-1.5 inline-flex items-center justify-center w-4 h-4 rounded-full bg-[#0aa3c7]/15 text-[#0aa3c7] text-[10px] font-bold">
+                <span className="ml-1.5 inline-flex items-center justify-center w-4 h-4 rounded-full bg-[var(--admin-accent)]/15 text-[#0aa3c7] text-[10px] font-bold">
                   {count}
                 </span>
               )}
@@ -656,10 +656,10 @@ export default function EditionDetailPage({
 
           {/* Pricing */}
           <div className="grid grid-cols-3 gap-4">
-            <div className="col-span-2 rounded-lg p-2 bg-[#0aa3c7]/5" style={{ border: "1px solid rgba(10,163,199,0.15)" }}>
+            <div className="col-span-2 rounded-lg p-2 bg-[var(--admin-accent)]/5" style={{ border: "1px solid rgba(10,163,199,0.15)" }}>
               <label className={`${labelClass} flex items-center gap-2`}>
                 Price range
-                <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium bg-[#0aa3c7]/15 text-[#0aa3c7]">From packages</span>
+                <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium bg-[var(--admin-accent)]/15 text-[#0aa3c7]">From packages</span>
               </label>
               <div className={`${inputClass} opacity-80 flex items-center`} style={{ cursor: "default" }}>
                 {priceRange}
@@ -715,10 +715,10 @@ export default function EditionDetailPage({
                 onChange={(e) => update("max_spots", e.target.value ? Number(e.target.value) : null)}
               />
             </div>
-            <div className="rounded-lg p-2 bg-[#0aa3c7]/5" style={{ border: "1px solid rgba(10,163,199,0.15)" }}>
+            <div className="rounded-lg p-2 bg-[var(--admin-accent)]/5" style={{ border: "1px solid rgba(10,163,199,0.15)" }}>
               <label className={`${labelClass} flex items-center gap-2`}>
                 Spots taken
-                <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium bg-[#0aa3c7]/15 text-[#0aa3c7]">Confirmed</span>
+                <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium bg-[var(--admin-accent)]/15 text-[#0aa3c7]">Confirmed</span>
               </label>
               <input
                 type="number"
@@ -727,10 +727,10 @@ export default function EditionDetailPage({
                 readOnly
               />
             </div>
-            <div className="rounded-lg p-2 bg-[#0aa3c7]/5" style={{ border: "1px solid rgba(10,163,199,0.15)" }}>
+            <div className="rounded-lg p-2 bg-[var(--admin-accent)]/5" style={{ border: "1px solid rgba(10,163,199,0.15)" }}>
               <label className={`${labelClass} flex items-center gap-2`}>
                 Spots remaining
-                <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium bg-[#0aa3c7]/15 text-[#0aa3c7]">Auto</span>
+                <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium bg-[var(--admin-accent)]/15 text-[#0aa3c7]">Auto</span>
               </label>
               <input
                 type="number"
@@ -821,7 +821,7 @@ export default function EditionDetailPage({
             <p className="text-xs admin-faint">{bookings.length} booking{bookings.length !== 1 ? "s" : ""} for this edition</p>
             <div className="flex items-center gap-3">
               <Link href={`/admin/bookings?edition_id=${id}`} className="text-xs text-[#0aa3c7] hover:text-[#0aa3c7]/80 transition-colors">View all →</Link>
-              <button onClick={() => setBookingShow((v) => !v)} className="px-3 py-1.5 bg-[#0aa3c7] hover:bg-[#0aa3c7]/90 text-white text-xs font-bold rounded-lg transition-colors">New Booking</button>
+              <button onClick={() => setBookingShow((v) => !v)} className="px-3 py-1.5 bg-[var(--admin-accent)] hover:bg-[var(--admin-accent)]/90 text-[var(--admin-accent-contrast)] text-xs font-bold rounded-lg transition-colors">New Booking</button>
             </div>
           </div>
 
@@ -844,7 +844,7 @@ export default function EditionDetailPage({
                 <div><label className={labelClass}>Package</label><select className={inputClass} value={bookingForm.package_id} onChange={(e) => setBookingForm({ ...bookingForm, package_id: e.target.value })}><option value="">None</option>{packages.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}</select></div>
               </div>
               <div className="flex gap-2">
-                <button onClick={addBooking} disabled={!bookingForm.contact_id} className="px-4 py-2 bg-[#0aa3c7] hover:bg-[#0aa3c7]/90 disabled:opacity-40 text-white text-sm font-bold rounded-lg transition-colors">Create</button>
+                <button onClick={addBooking} disabled={!bookingForm.contact_id} className="px-4 py-2 bg-[var(--admin-accent)] hover:bg-[var(--admin-accent)]/90 disabled:opacity-40 text-[var(--admin-accent-contrast)] text-sm font-bold rounded-lg transition-colors">Create</button>
                 <button onClick={() => { setBookingShow(false); setBookingForm(emptyBooking); setBookingContact(null); }} className="px-4 py-2 admin-muted text-sm rounded-lg transition-colors">Cancel</button>
               </div>
             </div>
@@ -912,7 +912,7 @@ export default function EditionDetailPage({
             <p className="text-xs admin-faint">{packages.length} package{packages.length !== 1 ? "s" : ""} for this edition</p>
             <div className="flex items-center gap-3">
               <Link href={`/admin/packages?edition_id=${id}`} className="text-xs text-[#0aa3c7] hover:text-[#0aa3c7]/80 transition-colors">View all →</Link>
-              <button onClick={() => { setPkgEditId(null); setPkgForm(emptyPkg); setPkgShow(true); }} className="px-3 py-1.5 bg-[#0aa3c7] hover:bg-[#0aa3c7]/90 text-white text-xs font-bold rounded-lg transition-colors">New Package</button>
+              <button onClick={() => { setPkgEditId(null); setPkgForm(emptyPkg); setPkgShow(true); }} className="px-3 py-1.5 bg-[var(--admin-accent)] hover:bg-[var(--admin-accent)]/90 text-[var(--admin-accent-contrast)] text-xs font-bold rounded-lg transition-colors">New Package</button>
             </div>
           </div>
 
@@ -928,7 +928,7 @@ export default function EditionDetailPage({
                 <div><label className={labelClass}>Category</label><select className={inputClass} value={pkgForm.category} onChange={(e) => setPkgForm({ ...pkgForm, category: e.target.value })}>{PKG_CATEGORIES.map((c) => <option key={c} value={c}>{c ? c[0].toUpperCase() + c.slice(1) : "None"}</option>)}</select></div>
               </div>
               <div className="flex items-center gap-2">
-                <button onClick={savePackage} disabled={!pkgForm.name} className="px-4 py-2 bg-[#0aa3c7] hover:bg-[#0aa3c7]/90 disabled:opacity-40 text-white text-sm font-bold rounded-lg transition-colors">{pkgEditId ? "Update" : "Create"}</button>
+                <button onClick={savePackage} disabled={!pkgForm.name} className="px-4 py-2 bg-[var(--admin-accent)] hover:bg-[var(--admin-accent)]/90 disabled:opacity-40 text-[var(--admin-accent-contrast)] text-sm font-bold rounded-lg transition-colors">{pkgEditId ? "Update" : "Create"}</button>
                 <button onClick={() => { setPkgShow(false); setPkgEditId(null); setPkgForm(emptyPkg); }} className="px-4 py-2 admin-muted text-sm rounded-lg transition-colors">Cancel</button>
                 <span className="text-xs admin-faint ml-2">Edit components from the <Link href={`/admin/packages?edition_id=${id}`} className="text-[#0aa3c7]">packages page</Link>.</span>
               </div>
@@ -1009,7 +1009,7 @@ export default function EditionDetailPage({
             <p className="text-xs admin-faint">{costs.length} cost item{costs.length !== 1 ? "s" : ""} for this edition</p>
             <div className="flex items-center gap-3">
               <Link href={`/admin/exp-costs?edition_id=${id}`} className="text-xs text-[#0aa3c7] hover:text-[#0aa3c7]/80 transition-colors">View all →</Link>
-              <button onClick={() => { setCostEditId(null); setCostForm(emptyCost); setCostShow(true); }} className="px-3 py-1.5 bg-[#0aa3c7] hover:bg-[#0aa3c7]/90 text-white text-xs font-bold rounded-lg transition-colors">New Cost</button>
+              <button onClick={() => { setCostEditId(null); setCostForm(emptyCost); setCostShow(true); }} className="px-3 py-1.5 bg-[var(--admin-accent)] hover:bg-[var(--admin-accent)]/90 text-[var(--admin-accent-contrast)] text-xs font-bold rounded-lg transition-colors">New Cost</button>
             </div>
           </div>
 
@@ -1024,7 +1024,7 @@ export default function EditionDetailPage({
                 <div><label className={labelClass}>Status</label><select className={inputClass} value={costForm.status} onChange={(e) => setCostForm({ ...costForm, status: e.target.value })}>{COST_STATUSES.map((s) => <option key={s} value={s}>{s[0].toUpperCase() + s.slice(1)}</option>)}</select></div>
               </div>
               <div className="flex gap-2">
-                <button onClick={saveCost} disabled={!costForm.item} className="px-4 py-2 bg-[#0aa3c7] hover:bg-[#0aa3c7]/90 disabled:opacity-40 text-white text-sm font-bold rounded-lg transition-colors">{costEditId ? "Update" : "Create"}</button>
+                <button onClick={saveCost} disabled={!costForm.item} className="px-4 py-2 bg-[var(--admin-accent)] hover:bg-[var(--admin-accent)]/90 disabled:opacity-40 text-[var(--admin-accent-contrast)] text-sm font-bold rounded-lg transition-colors">{costEditId ? "Update" : "Create"}</button>
                 <button onClick={() => { setCostShow(false); setCostEditId(null); setCostForm(emptyCost); }} className="px-4 py-2 admin-muted text-sm rounded-lg transition-colors">Cancel</button>
               </div>
             </div>
@@ -1081,7 +1081,7 @@ export default function EditionDetailPage({
             <p className="text-xs admin-faint">{rooms.length} room{rooms.length !== 1 ? "s" : ""} for this edition</p>
             <div className="flex items-center gap-3">
               <Link href={`/admin/hotel-rooms?edition_id=${id}`} className="text-xs text-[#0aa3c7] hover:text-[#0aa3c7]/80 transition-colors">View all →</Link>
-              <button onClick={() => { setRoomEditId(null); setRoomForm(emptyRoom); setRoomShow(true); }} className="px-3 py-1.5 bg-[#0aa3c7] hover:bg-[#0aa3c7]/90 text-white text-xs font-bold rounded-lg transition-colors">New Room</button>
+              <button onClick={() => { setRoomEditId(null); setRoomForm(emptyRoom); setRoomShow(true); }} className="px-3 py-1.5 bg-[var(--admin-accent)] hover:bg-[var(--admin-accent)]/90 text-[var(--admin-accent-contrast)] text-xs font-bold rounded-lg transition-colors">New Room</button>
             </div>
           </div>
 
@@ -1099,7 +1099,7 @@ export default function EditionDetailPage({
                 <div><label className={labelClass}>Guest (booking)</label><select className={inputClass} value={roomForm.booking_id} onChange={(e) => setRoomForm({ ...roomForm, booking_id: e.target.value })}><option value="">Unassigned</option>{bookings.map((b) => <option key={b.id} value={b.id}>{b.name}</option>)}</select></div>
               </div>
               <div className="flex gap-2">
-                <button onClick={saveRoom} disabled={!roomForm.name} className="px-4 py-2 bg-[#0aa3c7] hover:bg-[#0aa3c7]/90 disabled:opacity-40 text-white text-sm font-bold rounded-lg transition-colors">{roomEditId ? "Update" : "Create"}</button>
+                <button onClick={saveRoom} disabled={!roomForm.name} className="px-4 py-2 bg-[var(--admin-accent)] hover:bg-[var(--admin-accent)]/90 disabled:opacity-40 text-[var(--admin-accent-contrast)] text-sm font-bold rounded-lg transition-colors">{roomEditId ? "Update" : "Create"}</button>
                 <button onClick={() => { setRoomShow(false); setRoomEditId(null); setRoomForm(emptyRoom); }} className="px-4 py-2 admin-muted text-sm rounded-lg transition-colors">Cancel</button>
               </div>
             </div>
@@ -1159,7 +1159,7 @@ export default function EditionDetailPage({
               onChange={(e) => setNewNote(e.target.value)}
             />
             <div className="flex justify-end mt-2">
-              <button onClick={addNote} disabled={!newNote.trim()} className="px-4 py-2 bg-[#0aa3c7] hover:bg-[#0aa3c7]/90 disabled:opacity-40 text-white text-sm font-bold rounded-lg transition-colors">Add note</button>
+              <button onClick={addNote} disabled={!newNote.trim()} className="px-4 py-2 bg-[var(--admin-accent)] hover:bg-[var(--admin-accent)]/90 disabled:opacity-40 text-[var(--admin-accent-contrast)] text-sm font-bold rounded-lg transition-colors">Add note</button>
             </div>
           </div>
 
@@ -1197,7 +1197,7 @@ export default function EditionDetailPage({
                 Into an existing experience
               </label>
               {dupTarget === "existing" && (
-                <select className="w-full px-3 py-2 admin-input border rounded-lg text-sm focus:outline-none focus:border-[#0aa3c7] ml-6 max-w-[calc(100%-1.5rem)]" value={dupExpId} onChange={(e) => setDupExpId(e.target.value)}>
+                <select className="w-full px-3 py-2 admin-input border rounded-lg text-sm focus:outline-none focus:border-[var(--admin-accent)] ml-6 max-w-[calc(100%-1.5rem)]" value={dupExpId} onChange={(e) => setDupExpId(e.target.value)}>
                   {dupExperiences.map((e) => <option key={e.id} value={e.id}>{e.title}</option>)}
                 </select>
               )}
@@ -1207,7 +1207,7 @@ export default function EditionDetailPage({
               </label>
             </div>
             <div className="flex gap-2">
-              <button onClick={duplicateEdition} disabled={duplicating || (dupTarget === "existing" && !dupExpId)} className="px-4 py-2 bg-[#0aa3c7] hover:bg-[#0aa3c7]/90 disabled:opacity-40 text-white text-sm font-bold rounded-lg transition-colors">
+              <button onClick={duplicateEdition} disabled={duplicating || (dupTarget === "existing" && !dupExpId)} className="px-4 py-2 bg-[var(--admin-accent)] hover:bg-[var(--admin-accent)]/90 disabled:opacity-40 text-[var(--admin-accent-contrast)] text-sm font-bold rounded-lg transition-colors">
                 {duplicating ? "Duplicating…" : "Duplicate"}
               </button>
               <button onClick={() => setDupOpen(false)} className="px-4 py-2 admin-muted text-sm rounded-lg">Cancel</button>

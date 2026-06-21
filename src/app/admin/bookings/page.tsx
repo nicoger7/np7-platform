@@ -232,7 +232,7 @@ export default function BookingsPage() {
           </div>
 
           <button
-            className="px-4 py-2 bg-[#0aa3c7] hover:bg-[#0aa3c7]/90 text-white text-sm font-bold rounded-lg transition-colors"
+            className="px-4 py-2 bg-[var(--admin-accent)] hover:bg-[var(--admin-accent)]/90 text-[var(--admin-accent-contrast)] text-sm font-bold rounded-lg transition-colors"
             onClick={() => setShowNew(true)}
           >
             New Booking

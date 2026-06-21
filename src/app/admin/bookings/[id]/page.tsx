@@ -340,7 +340,7 @@ export default function BookingDetailPage({
   const statusInfo = STATUSES.find((s) => s.value === booking.status);
 
   const inputClass =
-    "w-full px-4 py-2.5 admin-input border rounded-lg text-sm focus:outline-none focus:border-[#0aa3c7] focus:ring-1 focus:ring-[#0aa3c7] transition-colors";
+    "w-full px-4 py-2.5 admin-input border rounded-lg text-sm focus:outline-none focus:border-[var(--admin-accent)] focus:ring-1 focus:ring-[var(--admin-accent)] transition-colors";
   const labelClass = "block text-xs font-medium admin-muted mb-1.5";
   const checkboxClass = "flex items-center gap-2 text-sm admin-muted cursor-pointer select-none";
 
@@ -384,7 +384,7 @@ export default function BookingDetailPage({
           <button
             onClick={handleSave}
             disabled={saving}
-            className="px-4 py-2 bg-[#0aa3c7] hover:bg-[#0aa3c7]/90 disabled:opacity-50 text-white text-sm font-bold rounded-lg transition-colors"
+            className="px-4 py-2 bg-[var(--admin-accent)] hover:bg-[var(--admin-accent)]/90 disabled:opacity-50 text-[var(--admin-accent-contrast)] text-sm font-bold rounded-lg transition-colors"
           >
             {saving ? "Saving..." : saved ? "Saved!" : "Save"}
           </button>
@@ -398,7 +398,7 @@ export default function BookingDetailPage({
             key={t}
             onClick={() => setTab(t)}
             className={`px-4 py-2.5 text-sm font-medium transition-colors border-b-2 -mb-[1px] capitalize ${
-              tab === t ? "admin-heading border-[#0aa3c7]" : "admin-muted border-transparent"
+              tab === t ? "admin-heading border-[var(--admin-accent)]" : "admin-muted border-transparent"
             }`}
           >
             {t === "addons" ? `Add-ons (${booking.addons.length})` : t === "payments" ? `Payments (${booking.payments.length})` : t === "rooms" ? `Rooms (${booking.hotel_rooms.length})` : t === "documents" ? `Documents (${documents.length})` : t}
@@ -425,7 +425,7 @@ export default function BookingDetailPage({
                   onClick={() => update("status", s.value)}
                   className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${
                     booking.status === s.value
-                      ? "bg-[#0aa3c7]/20 text-[#0aa3c7] border border-[#0aa3c7]/30"
+                      ? "bg-[var(--admin-accent)]/20 text-[#0aa3c7] border border-[var(--admin-accent)]/30"
                       : "admin-surface admin-faint border"
                   }`}
                   style={{ borderColor: booking.status !== s.value ? "var(--admin-border)" : undefined }}
@@ -512,10 +512,10 @@ export default function BookingDetailPage({
 
           {/* Computed: total paid + outstanding */}
           <div className="grid grid-cols-2 gap-4">
-            <div className="rounded-lg p-3 bg-[#0aa3c7]/5" style={{ border: "1px solid rgba(10,163,199,0.15)" }}>
+            <div className="rounded-lg p-3 bg-[var(--admin-accent)]/5" style={{ border: "1px solid rgba(10,163,199,0.15)" }}>
               <label className={`${labelClass} flex items-center gap-2`}>
                 Total Paid
-                <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium bg-[#0aa3c7]/15 text-[#0aa3c7]">Auto</span>
+                <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium bg-[var(--admin-accent)]/15 text-[#0aa3c7]">Auto</span>
               </label>
               <input
                 className={`${inputClass} opacity-70 cursor-default`}
@@ -523,10 +523,10 @@ export default function BookingDetailPage({
                 readOnly
               />
             </div>
-            <div className="rounded-lg p-3 bg-[#0aa3c7]/5" style={{ border: "1px solid rgba(10,163,199,0.15)" }}>
+            <div className="rounded-lg p-3 bg-[var(--admin-accent)]/5" style={{ border: "1px solid rgba(10,163,199,0.15)" }}>
               <label className={`${labelClass} flex items-center gap-2`}>
                 Outstanding
-                <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium bg-[#0aa3c7]/15 text-[#0aa3c7]">Auto</span>
+                <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium bg-[var(--admin-accent)]/15 text-[#0aa3c7]">Auto</span>
               </label>
               <input
                 className={`${inputClass} opacity-70 cursor-default ${outstanding > 0 ? "text-amber-400" : "text-green-400"}`}
@@ -616,7 +616,7 @@ export default function BookingDetailPage({
             </div>
             <button
               onClick={() => setShowPaymentForm(!showPaymentForm)}
-              className="px-3 py-1.5 bg-[#0aa3c7] hover:bg-[#0aa3c7]/90 text-white text-xs font-bold rounded-lg transition-colors"
+              className="px-3 py-1.5 bg-[var(--admin-accent)] hover:bg-[var(--admin-accent)]/90 text-[var(--admin-accent-contrast)] text-xs font-bold rounded-lg transition-colors"
             >
               Record Payment
             </button>
@@ -664,7 +664,7 @@ export default function BookingDetailPage({
                 </div>
               </div>
               <div className="flex gap-2">
-                <button onClick={addPayment} disabled={!paymentForm.amount} className="px-3 py-1.5 bg-[#0aa3c7] hover:bg-[#0aa3c7]/90 disabled:opacity-40 text-white text-xs font-bold rounded-lg">
+                <button onClick={addPayment} disabled={!paymentForm.amount} className="px-3 py-1.5 bg-[var(--admin-accent)] hover:bg-[var(--admin-accent)]/90 disabled:opacity-40 text-[var(--admin-accent-contrast)] text-xs font-bold rounded-lg">
                   Add
                 </button>
                 <button onClick={() => setShowPaymentForm(false)} className="px-3 py-1.5 admin-muted text-xs rounded-lg">Cancel</button>
@@ -717,7 +717,7 @@ export default function BookingDetailPage({
             <p className="text-xs admin-faint">Extra components beyond the package</p>
             <button
               onClick={() => setShowAddonForm(!showAddonForm)}
-              className="px-3 py-1.5 bg-[#0aa3c7] hover:bg-[#0aa3c7]/90 text-white text-xs font-bold rounded-lg transition-colors"
+              className="px-3 py-1.5 bg-[var(--admin-accent)] hover:bg-[var(--admin-accent)]/90 text-[var(--admin-accent-contrast)] text-xs font-bold rounded-lg transition-colors"
             >
               Add Component
             </button>
@@ -757,7 +757,7 @@ export default function BookingDetailPage({
                 </div>
               </div>
               <div className="flex gap-2">
-                <button onClick={addAddon} disabled={!addonForm.label && !addonForm.component_id} className="px-3 py-1.5 bg-[#0aa3c7] hover:bg-[#0aa3c7]/90 disabled:opacity-40 text-white text-xs font-bold rounded-lg">
+                <button onClick={addAddon} disabled={!addonForm.label && !addonForm.component_id} className="px-3 py-1.5 bg-[var(--admin-accent)] hover:bg-[var(--admin-accent)]/90 disabled:opacity-40 text-[var(--admin-accent-contrast)] text-xs font-bold rounded-lg">
                   Add
                 </button>
                 <button onClick={() => setShowAddonForm(false)} className="px-3 py-1.5 admin-muted text-xs rounded-lg">Cancel</button>
@@ -794,7 +794,7 @@ export default function BookingDetailPage({
                   <span className="text-xs admin-muted self-center">{a.price ? `€${Number(a.price).toLocaleString()}` : "—"}</span>
                   <div className="flex items-center justify-end gap-2 self-center">
                     {requested && (
-                      <button onClick={() => confirmAddon(a.id)} className="text-[11px] font-bold px-2.5 py-1 rounded-md bg-[#0aa3c7] text-white hover:bg-[#0aa3c7]/90 transition-colors">Confirm</button>
+                      <button onClick={() => confirmAddon(a.id)} className="text-[11px] font-bold px-2.5 py-1 rounded-md bg-[var(--admin-accent)] text-[var(--admin-accent-contrast)] hover:bg-[var(--admin-accent)]/90 transition-colors">Confirm</button>
                     )}
                     <button onClick={() => removeAddon(a.id)} className="text-xs admin-faint hover:text-red-400 transition-colors">
                       <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M18 6L6 18M6 6l12 12" /></svg>
@@ -852,7 +852,7 @@ export default function BookingDetailPage({
                 key={type}
                 onClick={() => generateDocument(type)}
                 disabled={generating === type}
-                className="px-3 py-1.5 bg-[#0aa3c7] hover:bg-[#0aa3c7]/90 disabled:opacity-50 text-white text-xs font-bold rounded-lg transition-colors"
+                className="px-3 py-1.5 bg-[var(--admin-accent)] hover:bg-[var(--admin-accent)]/90 disabled:opacity-50 text-[var(--admin-accent-contrast)] text-xs font-bold rounded-lg transition-colors"
               >
                 {generating === type
                   ? "Generating..."

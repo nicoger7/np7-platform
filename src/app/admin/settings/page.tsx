@@ -80,7 +80,7 @@ export default function CompanySettingsPage() {
   }
 
   const inputClass =
-    "w-full px-4 py-2.5 admin-input border rounded-lg text-sm focus:outline-none focus:border-[#0aa3c7] focus:ring-1 focus:ring-[#0aa3c7] transition-colors";
+    "w-full px-4 py-2.5 admin-input border rounded-lg text-sm focus:outline-none focus:border-[var(--admin-accent)] focus:ring-1 focus:ring-[var(--admin-accent)] transition-colors";
   const labelClass = "block text-xs font-medium admin-muted mb-1.5";
   const sectionHeadingClass = "text-xs font-bold tracking-[0.12em] admin-faint uppercase mb-3 pt-2";
 
@@ -95,7 +95,7 @@ export default function CompanySettingsPage() {
         <button
           onClick={handleSave}
           disabled={saving || loading}
-          className="px-4 py-2 bg-[#0aa3c7] hover:bg-[#0aa3c7]/90 disabled:opacity-50 text-white text-sm font-bold rounded-lg transition-colors"
+          className="px-4 py-2 bg-[var(--admin-accent)] hover:bg-[var(--admin-accent)]/90 disabled:opacity-50 text-[var(--admin-accent-contrast)] text-sm font-bold rounded-lg transition-colors"
         >
           {saving ? "Saving..." : saved ? "Saved!" : "Save"}
         </button>
@@ -340,7 +340,7 @@ export default function CompanySettingsPage() {
             <button
               onClick={handleSave}
               disabled={saving || loading}
-              className="px-5 py-2.5 bg-[#0aa3c7] hover:bg-[#0aa3c7]/90 disabled:opacity-50 text-white text-sm font-bold rounded-lg transition-colors"
+              className="px-5 py-2.5 bg-[var(--admin-accent)] hover:bg-[var(--admin-accent)]/90 disabled:opacity-50 text-[var(--admin-accent-contrast)] text-sm font-bold rounded-lg transition-colors"
             >
               {saving ? "Saving..." : saved ? "Saved!" : "Save changes"}
             </button>

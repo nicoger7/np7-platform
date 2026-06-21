@@ -212,7 +212,7 @@ export default function ExperienceDetailPage({
 
   const selectedHotels = exp.hotels || [];
   const inputClass =
-    "w-full px-4 py-2.5 admin-input border rounded-lg text-sm focus:outline-none focus:border-[#0aa3c7] focus:ring-1 focus:ring-[#0aa3c7] transition-colors";
+    "w-full px-4 py-2.5 admin-input border rounded-lg text-sm focus:outline-none focus:border-[var(--admin-accent)] focus:ring-1 focus:ring-[var(--admin-accent)] transition-colors";
   const labelClass = "block text-xs font-medium admin-muted mb-1.5";
 
   return (
@@ -232,7 +232,7 @@ export default function ExperienceDetailPage({
             <div className="flex items-center gap-2">
               <h1 className="text-2xl font-bold admin-heading">{exp.title}</h1>
               {exp.code && (
-                <span className="px-2 py-0.5 rounded text-[10px] font-bold tracking-[0.05em] bg-[#0aa3c7]/15 text-[#0aa3c7]">
+                <span className="px-2 py-0.5 rounded text-[10px] font-bold tracking-[0.05em] bg-[var(--admin-accent)]/15 text-[#0aa3c7]">
                   {exp.code}
                 </span>
               )}
@@ -263,7 +263,7 @@ export default function ExperienceDetailPage({
           <button
             onClick={handleSave}
             disabled={saving}
-            className="px-4 py-2 bg-[#0aa3c7] hover:bg-[#0aa3c7]/90 disabled:opacity-50 text-white text-sm font-bold rounded-lg transition-colors"
+            className="px-4 py-2 bg-[var(--admin-accent)] hover:bg-[var(--admin-accent)]/90 disabled:opacity-50 text-[var(--admin-accent-contrast)] text-sm font-bold rounded-lg transition-colors"
           >
             {saving ? "Saving..." : saved ? "Saved!" : "Save"}
           </button>
@@ -276,7 +276,7 @@ export default function ExperienceDetailPage({
           <button
             key={key}
             onClick={() => setActiveSection(key)}
-            className={`px-4 py-2.5 text-sm font-medium transition-colors border-b-2 -mb-[1px] ${activeSection === key ? "admin-heading border-[#0aa3c7]" : "admin-muted border-transparent"}`}
+            className={`px-4 py-2.5 text-sm font-medium transition-colors border-b-2 -mb-[1px] ${activeSection === key ? "admin-heading border-[var(--admin-accent)]" : "admin-muted border-transparent"}`}
           >
             {label}
           </button>
@@ -380,7 +380,7 @@ export default function ExperienceDetailPage({
                     onClick={() => !t.disabled && update("page_template", t.key)}
                     title={t.desc}
                     className={`px-4 py-2.5 rounded-lg text-sm font-medium border text-left transition-colors ${
-                      current ? "admin-heading border-[#0aa3c7] bg-[#0aa3c7]/10" : "admin-surface admin-muted"
+                      current ? "admin-heading border-[var(--admin-accent)] bg-[var(--admin-accent)]/10" : "admin-surface admin-muted"
                     } ${t.disabled ? "opacity-40 cursor-not-allowed" : ""}`}
                     style={{ borderColor: current ? undefined : "var(--admin-border)" }}
                   >
@@ -485,7 +485,7 @@ export default function ExperienceDetailPage({
                     type="button"
                     onClick={() => toggleHotel(h.name)}
                     className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${
-                      active ? "bg-[#0aa3c7]/15 text-[#0aa3c7]" : "admin-surface admin-muted"
+                      active ? "bg-[var(--admin-accent)]/15 text-[#0aa3c7]" : "admin-surface admin-muted"
                     }`}
                     style={{ border: `1px solid ${active ? "rgba(10,163,199,0.4)" : "var(--admin-border)"}` }}
                   >
@@ -496,7 +496,7 @@ export default function ExperienceDetailPage({
               })}
               {/* selected hotels not in the DB list (legacy) stay toggleable */}
               {selectedHotels.filter((s) => !hotels.some((h) => h.name === s)).map((s) => (
-                <button key={s} type="button" onClick={() => toggleHotel(s)} className="px-3 py-1.5 rounded-lg text-xs font-medium bg-[#0aa3c7]/15 text-[#0aa3c7]" style={{ border: "1px solid rgba(10,163,199,0.4)" }}>
+                <button key={s} type="button" onClick={() => toggleHotel(s)} className="px-3 py-1.5 rounded-lg text-xs font-medium bg-[var(--admin-accent)]/15 text-[#0aa3c7]" style={{ border: "1px solid rgba(10,163,199,0.4)" }}>
                   <span className="mr-1">✓</span>{s}
                 </button>
               ))}
@@ -508,7 +508,7 @@ export default function ExperienceDetailPage({
               <div className="flex items-center gap-2 mt-3">
                 <input className={`${inputClass} max-w-[220px]`} placeholder="Hotel name" value={newHotel.name} onChange={(e) => setNewHotel({ ...newHotel, name: e.target.value })} />
                 <input className={`${inputClass} max-w-[120px]`} placeholder="Prefix (e.g. BON)" value={newHotel.prefix} onChange={(e) => setNewHotel({ ...newHotel, prefix: e.target.value.toUpperCase() })} />
-                <button type="button" onClick={addHotel} disabled={!newHotel.name} className="px-3 py-2 bg-[#0aa3c7] hover:bg-[#0aa3c7]/90 disabled:opacity-40 text-white text-xs font-bold rounded-lg transition-colors">Add</button>
+                <button type="button" onClick={addHotel} disabled={!newHotel.name} className="px-3 py-2 bg-[var(--admin-accent)] hover:bg-[var(--admin-accent)]/90 disabled:opacity-40 text-[var(--admin-accent-contrast)] text-xs font-bold rounded-lg transition-colors">Add</button>
               </div>
             )}
           </div>

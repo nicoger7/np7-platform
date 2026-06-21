@@ -131,7 +131,7 @@ export default function PaymentsPage() {
     URL.revokeObjectURL(url);
   }
 
-  const inputClass = "w-full px-3 py-2 admin-input border rounded-lg text-sm focus:outline-none focus:border-[#0aa3c7] focus:ring-1 focus:ring-[#0aa3c7] transition-colors";
+  const inputClass = "w-full px-3 py-2 admin-input border rounded-lg text-sm focus:outline-none focus:border-[var(--admin-accent)] focus:ring-1 focus:ring-[var(--admin-accent)] transition-colors";
   const labelClass = "block text-xs font-medium admin-muted mb-1";
 
   return (
@@ -143,7 +143,7 @@ export default function PaymentsPage() {
         </div>
         <div className="flex items-center gap-2">
           <button onClick={exportCsv} className="px-3 py-2 admin-surface admin-muted text-sm rounded-lg transition-colors" style={{ border: "1px solid var(--admin-border)" }}>Export CSV</button>
-          <button onClick={startNew} className="px-4 py-2 bg-[#0aa3c7] hover:bg-[#0aa3c7]/90 text-white text-sm font-bold rounded-lg transition-colors">New Payment</button>
+          <button onClick={startNew} className="px-4 py-2 bg-[var(--admin-accent)] hover:bg-[var(--admin-accent)]/90 text-[var(--admin-accent-contrast)] text-sm font-bold rounded-lg transition-colors">New Payment</button>
         </div>
       </div>
 
@@ -200,7 +200,7 @@ export default function PaymentsPage() {
             <div><label className={labelClass}>Notes</label><input className={inputClass} value={form.notes} onChange={(e) => setForm({ ...form, notes: e.target.value })} /></div>
           </div>
           <div className="flex gap-2">
-            <button onClick={save} disabled={!form.amount} className="px-4 py-2 bg-[#0aa3c7] hover:bg-[#0aa3c7]/90 disabled:opacity-40 text-white text-sm font-bold rounded-lg transition-colors">{editId ? "Update" : "Create"}</button>
+            <button onClick={save} disabled={!form.amount} className="px-4 py-2 bg-[var(--admin-accent)] hover:bg-[var(--admin-accent)]/90 disabled:opacity-40 text-[var(--admin-accent-contrast)] text-sm font-bold rounded-lg transition-colors">{editId ? "Update" : "Create"}</button>
             <button onClick={() => { setShowNew(false); setEditId(null); setForm(emptyForm); }} className="px-4 py-2 admin-muted text-sm rounded-lg transition-colors">Cancel</button>
           </div>
         </div>

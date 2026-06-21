@@ -179,7 +179,7 @@ export default function BlogEditorPage({ params }: { params: Promise<{ id: strin
                   type="button"
                   onClick={() => onTemplateChange(tid)}
                   className={`text-left rounded-xl border p-3.5 transition-colors ${
-                    active ? "border-[#0aa3c7] bg-[#0aa3c7]/[0.06]" : "admin-border admin-surface hover:border-[#0aa3c7]/50"
+                    active ? "border-[var(--admin-accent)] bg-[var(--admin-accent)]/[0.06]" : "admin-border admin-surface hover:border-[var(--admin-accent)]/50"
                   }`}
                 >
                   <div className="flex items-center gap-2 mb-1">
@@ -259,7 +259,7 @@ export default function BlogEditorPage({ params }: { params: Promise<{ id: strin
             <button
               type="button"
               onClick={() => setPicker(true)}
-              className="aspect-[21/9] max-w-[480px] w-full rounded-xl border-2 border-dashed admin-border grid place-items-center admin-muted hover:admin-heading hover:border-[#0aa3c7] transition-colors"
+              className="aspect-[21/9] max-w-[480px] w-full rounded-xl border-2 border-dashed admin-border grid place-items-center admin-muted hover:admin-heading hover:border-[var(--admin-accent)] transition-colors"
             >
               <span className="flex flex-col items-center gap-1.5 text-[13px] font-semibold">
                 <svg className="w-7 h-7" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8"><rect x="3" y="3" width="18" height="18" rx="2" /><circle cx="9" cy="9" r="2" /><path d="M21 15l-5-5L5 21" /></svg>
@@ -302,7 +302,7 @@ export default function BlogEditorPage({ params }: { params: Promise<{ id: strin
           <button
             type="button"
             onClick={() => setMembersOnly((v) => !v)}
-            className="w-full flex items-center justify-between gap-4 admin-surface admin-border border rounded-xl px-4 py-3.5 text-left hover:border-[#0aa3c7]/50 transition-colors"
+            className="w-full flex items-center justify-between gap-4 admin-surface admin-border border rounded-xl px-4 py-3.5 text-left hover:border-[var(--admin-accent)]/50 transition-colors"
           >
             <span>
               <span className="block text-[13px] font-bold admin-heading">Members-only</span>
@@ -310,7 +310,7 @@ export default function BlogEditorPage({ params }: { params: Promise<{ id: strin
                 {membersOnly ? "Teaser is public; full post needs a free account." : "Fully public — anyone can read all of it."}
               </span>
             </span>
-            <span className={`shrink-0 w-11 h-6 rounded-full p-0.5 transition-colors ${membersOnly ? "bg-[#0aa3c7]" : "admin-border border"}`}>
+            <span className={`shrink-0 w-11 h-6 rounded-full p-0.5 transition-colors ${membersOnly ? "bg-[var(--admin-accent)]" : "admin-border border"}`}>
               <span className={`block w-5 h-5 rounded-full bg-white transition-transform ${membersOnly ? "translate-x-5" : ""}`} />
             </span>
           </button>
@@ -324,7 +324,7 @@ export default function BlogEditorPage({ params }: { params: Promise<{ id: strin
                   type="button"
                   onClick={() => setWorld(w.id)}
                   className={`px-3.5 py-2 rounded-full text-[12.5px] font-semibold border transition-colors ${
-                    active ? "bg-[#0aa3c7] text-white border-[#0aa3c7]" : "admin-border admin-muted hover:admin-heading"
+                    active ? "bg-[var(--admin-accent)] text-[var(--admin-accent-contrast)] border-[var(--admin-accent)]" : "admin-border admin-muted hover:admin-heading"
                   }`}
                 >
                   {w.label}
@@ -360,7 +360,7 @@ export default function BlogEditorPage({ params }: { params: Promise<{ id: strin
             <button
               onClick={() => save("published")}
               disabled={saving}
-              className="px-5 py-2.5 rounded-lg text-[13px] font-bold border border-[#0aa3c7]/50 text-[#0aa3c7] hover:bg-[#0aa3c7]/10 disabled:opacity-50 transition-colors"
+              className="px-5 py-2.5 rounded-lg text-[13px] font-bold border border-[var(--admin-accent)]/50 text-[#0aa3c7] hover:bg-[var(--admin-accent)]/10 disabled:opacity-50 transition-colors"
             >
               Publish
             </button>
@@ -368,7 +368,7 @@ export default function BlogEditorPage({ params }: { params: Promise<{ id: strin
           <button
             onClick={() => save()}
             disabled={saving}
-            className="px-6 py-2.5 rounded-lg text-[13px] font-bold bg-[#0aa3c7] text-white hover:bg-[#0aa3c7]/90 disabled:opacity-50 transition-colors"
+            className="px-6 py-2.5 rounded-lg text-[13px] font-bold bg-[var(--admin-accent)] text-[var(--admin-accent-contrast)] hover:bg-[var(--admin-accent)]/90 disabled:opacity-50 transition-colors"
           >
             {saving ? "Saving…" : status === "published" ? "Save & update" : "Save draft"}
           </button>

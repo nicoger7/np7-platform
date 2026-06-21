@@ -50,7 +50,7 @@ export default function DestinationEditor({ params }: { params: Promise<{ id: st
   if (loading) return <div className="flex items-center justify-center h-64"><p className="text-sm admin-faint">Loading…</p></div>;
   if (!d) return <div className="py-16 text-center"><p className="text-sm admin-faint">Destination not found</p><p className="text-xs admin-faint mt-1">Run migration 022 if you just added it.</p></div>;
 
-  const inputClass = "w-full px-3 py-2 admin-input border rounded-lg text-sm focus:outline-none focus:border-[#0aa3c7]";
+  const inputClass = "w-full px-3 py-2 admin-input border rounded-lg text-sm focus:outline-none focus:border-[var(--admin-accent)]";
   const labelClass = "block text-xs font-medium admin-muted mb-1";
   const folder = d.slug ? `destinations/${d.slug}` : undefined;
   const partners = d.partners ?? [];
@@ -65,7 +65,7 @@ export default function DestinationEditor({ params }: { params: Promise<{ id: st
         </div>
         <div className="flex items-center gap-3">
           <button onClick={remove} className="px-3 py-2 text-xs text-red-400/60 hover:text-red-400">Delete</button>
-          <button onClick={save} className="px-4 py-2 bg-[#0aa3c7] hover:bg-[#0aa3c7]/90 text-white text-sm font-bold rounded-lg">{saved ? "Saved!" : "Save"}</button>
+          <button onClick={save} className="px-4 py-2 bg-[var(--admin-accent)] hover:bg-[var(--admin-accent)]/90 text-[var(--admin-accent-contrast)] text-sm font-bold rounded-lg">{saved ? "Saved!" : "Save"}</button>
         </div>
       </div>
 

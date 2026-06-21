@@ -158,7 +158,7 @@ export default function ContentEditorPage({ params }: { params: Promise<{ id: st
       {/* Section tabs */}
       <div className="flex flex-wrap items-center gap-1 mb-5" style={{ borderBottom: "1px solid var(--admin-border)" }}>
         {[["media", "Media"], ["story", "Story"], ["program", "Program"], ["modules", "Per-edition"], ["reviews", "Reviews"], ["faq", "FAQ"]].map(([k, l]) => (
-          <button key={k} onClick={() => setTab(k)} className={`px-3.5 py-2 text-sm font-medium transition-colors border-b-2 -mb-[1px] ${tab === k ? "admin-heading border-[#0aa3c7]" : "admin-muted border-transparent"}`}>{l}</button>
+          <button key={k} onClick={() => setTab(k)} className={`px-3.5 py-2 text-sm font-medium transition-colors border-b-2 -mb-[1px] ${tab === k ? "admin-heading border-[var(--admin-accent)]" : "admin-muted border-transparent"}`}>{l}</button>
         ))}
       </div>
 
@@ -225,7 +225,7 @@ export default function ContentEditorPage({ params }: { params: Promise<{ id: st
               </div>
             ))}
             <button type="button" onClick={() => setPicker({ kind: "gallery" })}
-              className="aspect-square rounded-lg border-2 border-dashed admin-border grid place-items-center admin-muted hover:admin-heading hover:border-[#0aa3c7] transition-colors">
+              className="aspect-square rounded-lg border-2 border-dashed admin-border grid place-items-center admin-muted hover:admin-heading hover:border-[var(--admin-accent)] transition-colors">
               <svg className="w-6 h-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M12 5v14M5 12h14" /></svg>
             </button>
           </div>
@@ -306,7 +306,7 @@ export default function ContentEditorPage({ params }: { params: Promise<{ id: st
             {reviews.map((r, i) => (
               <div key={i} className="admin-surface admin-border border rounded-xl p-3.5 flex gap-3">
                 <button type="button" onClick={() => setPicker({ kind: "review", index: i })}
-                  className="shrink-0 w-16 h-16 rounded-lg overflow-hidden admin-border border grid place-items-center admin-faint hover:border-[#0aa3c7] transition-colors">
+                  className="shrink-0 w-16 h-16 rounded-lg overflow-hidden admin-border border grid place-items-center admin-faint hover:border-[var(--admin-accent)] transition-colors">
                   {r.image ? (
                     // eslint-disable-next-line @next/next/no-img-element
                     <img src={r.image} alt="" className="w-full h-full object-cover" />
@@ -349,7 +349,7 @@ export default function ContentEditorPage({ params }: { params: Promise<{ id: st
         <div className="max-w-[860px] mx-auto px-6 sm:px-8 py-3 flex items-center justify-end gap-4">
           {error && <span className="text-[13px] text-red-400 mr-auto">{error}</span>}
           {saved && <span className="text-[13px] text-green-400 mr-auto">Saved ✓</span>}
-          <button onClick={save} disabled={saving} className="px-6 py-2.5 rounded-lg text-[13px] font-bold bg-[#0aa3c7] text-white hover:bg-[#0aa3c7]/90 disabled:opacity-50 transition-colors">
+          <button onClick={save} disabled={saving} className="px-6 py-2.5 rounded-lg text-[13px] font-bold bg-[var(--admin-accent)] text-[var(--admin-accent-contrast)] hover:bg-[var(--admin-accent)]/90 disabled:opacity-50 transition-colors">
             {saving ? "Saving…" : "Save content"}
           </button>
         </div>
@@ -380,7 +380,7 @@ function ImageField({ url, onPick, onClear, ratio }: { url: string; onPick: () =
     );
   }
   return (
-    <button type="button" onClick={onPick} className={`${ratio} max-w-[480px] w-full rounded-xl border-2 border-dashed admin-border grid place-items-center admin-muted hover:admin-heading hover:border-[#0aa3c7] transition-colors`}>
+    <button type="button" onClick={onPick} className={`${ratio} max-w-[480px] w-full rounded-xl border-2 border-dashed admin-border grid place-items-center admin-muted hover:admin-heading hover:border-[var(--admin-accent)] transition-colors`}>
       <span className="flex flex-col items-center gap-1.5 text-[13px] font-semibold">
         <svg className="w-7 h-7" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8"><rect x="3" y="3" width="18" height="18" rx="2" /><circle cx="9" cy="9" r="2" /><path d="M21 15l-5-5L5 21" /></svg>
         Choose image

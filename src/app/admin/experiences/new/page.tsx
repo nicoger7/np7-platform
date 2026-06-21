@@ -62,7 +62,7 @@ export default function NewExperiencePage() {
   }
 
   const inputClass =
-    "w-full px-4 py-2.5 admin-input border rounded-lg text-sm focus:outline-none focus:border-[#0aa3c7] focus:ring-1 focus:ring-[#0aa3c7] transition-colors";
+    "w-full px-4 py-2.5 admin-input border rounded-lg text-sm focus:outline-none focus:border-[var(--admin-accent)] focus:ring-1 focus:ring-[var(--admin-accent)] transition-colors";
   const labelClass = "block text-xs font-medium admin-muted mb-1.5";
 
   return (
@@ -228,7 +228,7 @@ export default function NewExperiencePage() {
           <button
             type="submit"
             disabled={saving || !form.title || !form.location}
-            className="px-6 py-2.5 bg-[#0aa3c7] hover:bg-[#0aa3c7]/90 disabled:opacity-50 text-white text-sm font-bold rounded-lg transition-colors"
+            className="px-6 py-2.5 bg-[var(--admin-accent)] hover:bg-[var(--admin-accent)]/90 disabled:opacity-50 text-[var(--admin-accent-contrast)] text-sm font-bold rounded-lg transition-colors"
           >
             {saving ? "Creating..." : "Create Experience"}
           </button>

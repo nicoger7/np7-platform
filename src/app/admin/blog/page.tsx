@@ -93,7 +93,7 @@ export default function BlogAdminPage() {
           <button
             onClick={() => setPicking(true)}
             disabled={creating}
-            className="px-5 py-2.5 rounded-lg text-[13px] font-bold bg-[#0aa3c7] text-white hover:bg-[#0aa3c7]/90 disabled:opacity-50 transition-colors"
+            className="px-5 py-2.5 rounded-lg text-[13px] font-bold bg-[var(--admin-accent)] text-[var(--admin-accent-contrast)] hover:bg-[var(--admin-accent)]/90 disabled:opacity-50 transition-colors"
           >
             {creating ? "Creating…" : "+ New post"}
           </button>
@@ -122,7 +122,7 @@ export default function BlogAdminPage() {
               <Link
                 key={p.id}
                 href={`/admin/blog/${p.id}`}
-                className="group flex items-center justify-between gap-4 admin-surface admin-border border rounded-xl px-5 py-4 hover:border-[#0aa3c7] transition-colors"
+                className="group flex items-center justify-between gap-4 admin-surface admin-border border rounded-xl px-5 py-4 hover:border-[var(--admin-accent)] transition-colors"
               >
                 <div className="min-w-0">
                   <div className="flex items-center gap-2.5">
@@ -167,7 +167,7 @@ export default function BlogAdminPage() {
                     type="button"
                     disabled={creating}
                     onClick={() => createPost(tid)}
-                    className="text-left rounded-xl border admin-border admin-surface p-4 hover:border-[#0aa3c7] hover:bg-[#0aa3c7]/[0.06] disabled:opacity-50 transition-colors"
+                    className="text-left rounded-xl border admin-border admin-surface p-4 hover:border-[var(--admin-accent)] hover:bg-[var(--admin-accent)]/[0.06] disabled:opacity-50 transition-colors"
                   >
                     <div className="flex items-center gap-2 mb-1.5">
                       <span className="text-[#0aa3c7]"><BlogIcon name={t.icon} className="w-[18px] h-[18px]" /></span>

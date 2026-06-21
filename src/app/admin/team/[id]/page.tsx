@@ -73,7 +73,7 @@ export default function TeamDetailPage({ params }: { params: Promise<{ id: strin
   if (loading) return <div className="text-sm admin-faint">Loading...</div>;
   if (!member) return <div className="text-sm text-red-400">Team member not found</div>;
 
-  const inputClass = "w-full px-4 py-2.5 admin-input border rounded-lg text-sm focus:outline-none focus:border-[#0aa3c7] focus:ring-1 focus:ring-[#0aa3c7] transition-colors";
+  const inputClass = "w-full px-4 py-2.5 admin-input border rounded-lg text-sm focus:outline-none focus:border-[var(--admin-accent)] focus:ring-1 focus:ring-[var(--admin-accent)] transition-colors";
   const labelClass = "block text-xs font-medium admin-muted mb-1.5";
   const totalHours = hours.reduce((s, h) => s + Number(h.hours || 0), 0);
 
@@ -91,7 +91,7 @@ export default function TeamDetailPage({ params }: { params: Promise<{ id: strin
         </div>
         <div className="flex items-center gap-3">
           <button onClick={handleDelete} className="px-3 py-2 text-xs text-red-400/60 hover:text-red-400 transition-colors">Delete</button>
-          <button onClick={handleSave} disabled={saving} className="px-4 py-2 bg-[#0aa3c7] hover:bg-[#0aa3c7]/90 disabled:opacity-50 text-white text-sm font-bold rounded-lg transition-colors">
+          <button onClick={handleSave} disabled={saving} className="px-4 py-2 bg-[var(--admin-accent)] hover:bg-[var(--admin-accent)]/90 disabled:opacity-50 text-[var(--admin-accent-contrast)] text-sm font-bold rounded-lg transition-colors">
             {saving ? "Saving..." : saved ? "Saved!" : "Save"}
           </button>
         </div>
@@ -133,7 +133,7 @@ export default function TeamDetailPage({ params }: { params: Promise<{ id: strin
             <div>
               <label className={labelClass}>Login</label>
               <button onClick={handleInvite} disabled={inviting || !member.email}
-                className="w-full px-4 py-2.5 border border-[#0aa3c7] text-[#0aa3c7] hover:bg-[#0aa3c7]/10 disabled:opacity-40 text-sm font-bold rounded-lg transition-colors">
+                className="w-full px-4 py-2.5 border border-[var(--admin-accent)] text-[#0aa3c7] hover:bg-[var(--admin-accent)]/10 disabled:opacity-40 text-sm font-bold rounded-lg transition-colors">
                 {inviting ? "Sending…" : invited ? "Invite sent ✓" : "Send login invite"}
               </button>
               <p className="text-[11px] admin-faint mt-1.5">Emails a one-time login link{member.email ? ` to ${member.email}` : " (add an email first)"}.</p>

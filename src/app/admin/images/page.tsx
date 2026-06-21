@@ -234,7 +234,7 @@ export default function ImagesPage() {
           <button
             onClick={handleUploadClick}
             disabled={uploading}
-            className="px-4 py-2 bg-[#0aa3c7] hover:bg-[#0aa3c7]/90 disabled:opacity-50 text-white text-sm font-bold rounded-lg transition-colors"
+            className="px-4 py-2 bg-[var(--admin-accent)] hover:bg-[var(--admin-accent)]/90 disabled:opacity-50 text-[var(--admin-accent-contrast)] text-sm font-bold rounded-lg transition-colors"
           >
             {uploading ? "Uploading..." : "Upload"}
           </button>
@@ -296,7 +296,7 @@ export default function ImagesPage() {
           }
         }}
         className={`min-h-[400px] rounded-xl border-2 border-dashed transition-colors ${
-          dragOver ? "border-[#0aa3c7] bg-[#0aa3c7]/5" : ""
+          dragOver ? "border-[var(--admin-accent)] bg-[var(--admin-accent)]/5" : ""
         }`}
         style={!dragOver ? { borderColor: "var(--admin-border)" } : undefined}
       >
@@ -374,7 +374,7 @@ export default function ImagesPage() {
                       }
                     }}
                     className={`flex flex-col items-center gap-2 p-4 rounded-xl transition-all group ${
-                      folderDragOver === item.path ? "ring-2 ring-[#0aa3c7] bg-[#0aa3c7]/10" : ""
+                      folderDragOver === item.path ? "ring-2 ring-[var(--admin-accent)] bg-[var(--admin-accent)]/10" : ""
                     }`}
                     style={{ border: folderDragOver === item.path ? "1px solid #0aa3c7" : "1px solid var(--admin-border)" }}
                     onMouseEnter={(e) => {
@@ -442,7 +442,7 @@ export default function ImagesPage() {
                           onClick={() => toggleSelect(item.path)}
                           className={`absolute top-2 left-2 z-10 w-5 h-5 rounded border-2 flex items-center justify-center transition-all ${
                             isSelected
-                              ? "bg-[#0aa3c7] border-[#0aa3c7]"
+                              ? "bg-[var(--admin-accent)] border-[var(--admin-accent)]"
                               : "border-white/50 bg-black/30 opacity-0 group-hover:opacity-100"
                           }`}
                         >
@@ -555,7 +555,7 @@ export default function ImagesPage() {
           <div className="w-px h-5" style={{ backgroundColor: "var(--admin-border)" }} />
           <button
             onClick={() => setMovingSelected(true)}
-            className="px-3 py-1.5 bg-[#0aa3c7] hover:bg-[#0aa3c7]/90 text-white text-xs font-bold rounded-lg transition-colors"
+            className="px-3 py-1.5 bg-[var(--admin-accent)] hover:bg-[var(--admin-accent)]/90 text-[var(--admin-accent-contrast)] text-xs font-bold rounded-lg transition-colors"
           >
             Move
           </button>

@@ -80,7 +80,7 @@ export default function VouchersPage() {
   }
 
   const inputClass =
-    "px-3 py-2 admin-input border rounded-lg text-sm focus:outline-none focus:border-[#0aa3c7] focus:ring-1 focus:ring-[#0aa3c7] transition-colors";
+    "px-3 py-2 admin-input border rounded-lg text-sm focus:outline-none focus:border-[var(--admin-accent)] focus:ring-1 focus:ring-[var(--admin-accent)] transition-colors";
   const pendingCount = vouchers.filter((v) => v.status === "pending").length;
 
   return (

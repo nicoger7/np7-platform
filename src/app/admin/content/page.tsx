@@ -63,7 +63,7 @@ export default function ContentHubPage() {
             <Link
               key={e.id}
               href={`/admin/content/${e.id}`}
-              className="group flex items-center justify-between gap-4 admin-surface admin-border border rounded-xl px-5 py-4 hover:border-[#0aa3c7] transition-colors"
+              className="group flex items-center justify-between gap-4 admin-surface admin-border border rounded-xl px-5 py-4 hover:border-[var(--admin-accent)] transition-colors"
             >
               <div className="min-w-0">
                 <div className="flex items-center gap-2.5">

@@ -201,7 +201,7 @@ export default function EmailTemplatesPage() {
     fetchData();
   }
 
-  const inputClass = "w-full px-3 py-2 admin-input border rounded-lg text-sm focus:outline-none focus:border-[#0aa3c7] focus:ring-1 focus:ring-[#0aa3c7] transition-colors";
+  const inputClass = "w-full px-3 py-2 admin-input border rounded-lg text-sm focus:outline-none focus:border-[var(--admin-accent)] focus:ring-1 focus:ring-[var(--admin-accent)] transition-colors";
   const labelClass = "block text-xs font-medium admin-muted mb-1";
   const gridTemplate = buildGridTemplate(COLUMNS, visibleColumns);
 
@@ -222,7 +222,7 @@ export default function EmailTemplatesPage() {
         </div>
         <div className="flex items-center gap-3">
           <ColumnToggle columns={COLUMNS} visible={visibleColumns} onChange={setVisibleColumns} storageKey={STORAGE_KEY} />
-          <button onClick={openNew} className="px-4 py-2 bg-[#0aa3c7] hover:bg-[#0aa3c7]/90 text-white text-sm font-bold rounded-lg transition-colors">New Template</button>
+          <button onClick={openNew} className="px-4 py-2 bg-[var(--admin-accent)] hover:bg-[var(--admin-accent)]/90 text-[var(--admin-accent-contrast)] text-sm font-bold rounded-lg transition-colors">New Template</button>
         </div>
       </div>
 
@@ -276,7 +276,7 @@ export default function EmailTemplatesPage() {
                 <div className="inline-flex rounded-md overflow-hidden" style={{ border: "1px solid var(--admin-border)" }}>
                   {(["experience", "hardware"] as const).map((dv) => (
                     <button key={dv} type="button" onClick={() => setPreviewDivision(dv)}
-                      className={`px-2.5 py-1 text-[11px] font-semibold capitalize transition-colors ${previewDivision === dv ? "bg-[#0aa3c7] text-white" : "admin-muted"}`}>
+                      className={`px-2.5 py-1 text-[11px] font-semibold capitalize transition-colors ${previewDivision === dv ? "bg-[var(--admin-accent)] text-[var(--admin-accent-contrast)]" : "admin-muted"}`}>
                       {dv}
                     </button>
                   ))}
@@ -320,7 +320,7 @@ export default function EmailTemplatesPage() {
           )}
 
           <div className="flex gap-2">
-            <button onClick={handleSave} disabled={!form.name} className="px-4 py-2 bg-[#0aa3c7] hover:bg-[#0aa3c7]/90 disabled:opacity-40 text-white text-sm font-bold rounded-lg">{editId ? "Save" : "Create"}</button>
+            <button onClick={handleSave} disabled={!form.name} className="px-4 py-2 bg-[var(--admin-accent)] hover:bg-[var(--admin-accent)]/90 disabled:opacity-40 text-[var(--admin-accent-contrast)] text-sm font-bold rounded-lg">{editId ? "Save" : "Create"}</button>
             <button onClick={() => { setShowNew(false); setEditId(null); }} className="px-4 py-2 admin-muted text-sm rounded-lg">Cancel</button>
           </div>
         </div>

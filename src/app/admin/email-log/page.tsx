@@ -50,7 +50,7 @@ export default function EmailLogPage() {
         <div className="flex flex-wrap gap-2">
           <input type="email" value={testTo} onChange={(e) => setTestTo(e.target.value)} placeholder="you@example.com"
             className="flex-1 min-w-[200px] px-3 py-2 rounded-lg text-sm admin-input admin-border border outline-none" style={{ backgroundColor: "var(--admin-input-bg)" }} />
-          <button onClick={sendTest} disabled={testing || !testTo.trim()} className="px-4 py-2 rounded-lg text-sm font-bold bg-[#0aa3c7] hover:bg-[#0aa3c7]/90 disabled:opacity-40 text-white transition-colors">{testing ? "Sending…" : "Send test"}</button>
+          <button onClick={sendTest} disabled={testing || !testTo.trim()} className="px-4 py-2 rounded-lg text-sm font-bold bg-[var(--admin-accent)] hover:bg-[var(--admin-accent)]/90 disabled:opacity-40 text-[var(--admin-accent-contrast)] transition-colors">{testing ? "Sending…" : "Send test"}</button>
         </div>
         {testMsg && <p className={`text-[12px] mt-2 ${testMsg.ok ? "text-green-500" : "text-red-400"}`}>{testMsg.text}</p>}
       </div>

@@ -55,7 +55,7 @@ export default function DestinationsPage() {
     else alert(j.error || "Couldn't generate destinations.");
   }
 
-  const inputClass = "w-full px-3 py-2 admin-input border rounded-lg text-sm focus:outline-none focus:border-[#0aa3c7]";
+  const inputClass = "w-full px-3 py-2 admin-input border rounded-lg text-sm focus:outline-none focus:border-[var(--admin-accent)]";
   const labelClass = "block text-xs font-medium admin-muted mb-1";
 
   return (
@@ -67,7 +67,7 @@ export default function DestinationsPage() {
         </div>
         <div className="flex items-center gap-3">
           <button onClick={generate} disabled={generating} className="px-4 py-2 admin-surface admin-muted text-sm font-bold rounded-lg transition-colors disabled:opacity-50" style={{ border: "1px solid var(--admin-border)" }} title="Create a destination for each experience location and link them">{generating ? "Generating…" : "Generate from experiences"}</button>
-          <button onClick={() => setShowNew(!showNew)} className="px-4 py-2 bg-[#0aa3c7] hover:bg-[#0aa3c7]/90 text-white text-sm font-bold rounded-lg transition-colors">New Destination</button>
+          <button onClick={() => setShowNew(!showNew)} className="px-4 py-2 bg-[var(--admin-accent)] hover:bg-[var(--admin-accent)]/90 text-[var(--admin-accent-contrast)] text-sm font-bold rounded-lg transition-colors">New Destination</button>
         </div>
       </div>
 
@@ -81,7 +81,7 @@ export default function DestinationsPage() {
           </div>
           {error && <p className="text-xs text-red-400 mb-2">{error}</p>}
           <div className="flex gap-2">
-            <button onClick={create} disabled={!form.name.trim()} className="px-4 py-2 bg-[#0aa3c7] hover:bg-[#0aa3c7]/90 disabled:opacity-40 text-white text-sm font-bold rounded-lg">Create</button>
+            <button onClick={create} disabled={!form.name.trim()} className="px-4 py-2 bg-[var(--admin-accent)] hover:bg-[var(--admin-accent)]/90 disabled:opacity-40 text-[var(--admin-accent-contrast)] text-sm font-bold rounded-lg">Create</button>
             <button onClick={() => setShowNew(false)} className="px-4 py-2 admin-muted text-sm rounded-lg">Cancel</button>
           </div>
         </div>

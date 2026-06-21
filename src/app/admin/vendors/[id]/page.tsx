@@ -50,7 +50,7 @@ export default function VendorDetailPage({ params }: { params: Promise<{ id: str
   if (loading) return <div className="text-sm admin-faint">Loading...</div>;
   if (!vendor) return <div className="text-sm text-red-400">Vendor not found</div>;
 
-  const inputClass = "w-full px-4 py-2.5 admin-input border rounded-lg text-sm focus:outline-none focus:border-[#0aa3c7] focus:ring-1 focus:ring-[#0aa3c7] transition-colors";
+  const inputClass = "w-full px-4 py-2.5 admin-input border rounded-lg text-sm focus:outline-none focus:border-[var(--admin-accent)] focus:ring-1 focus:ring-[var(--admin-accent)] transition-colors";
   const labelClass = "block text-xs font-medium admin-muted mb-1.5";
 
   return (
@@ -67,7 +67,7 @@ export default function VendorDetailPage({ params }: { params: Promise<{ id: str
         </div>
         <div className="flex items-center gap-3">
           <button onClick={handleDelete} className="px-3 py-2 text-xs text-red-400/60 hover:text-red-400 transition-colors">Delete</button>
-          <button onClick={handleSave} disabled={saving} className="px-4 py-2 bg-[#0aa3c7] hover:bg-[#0aa3c7]/90 disabled:opacity-50 text-white text-sm font-bold rounded-lg transition-colors">
+          <button onClick={handleSave} disabled={saving} className="px-4 py-2 bg-[var(--admin-accent)] hover:bg-[var(--admin-accent)]/90 disabled:opacity-50 text-[var(--admin-accent-contrast)] text-sm font-bold rounded-lg transition-colors">
             {saving ? "Saving..." : saved ? "Saved!" : "Save"}
           </button>
         </div>

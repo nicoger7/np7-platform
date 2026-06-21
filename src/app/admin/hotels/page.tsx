@@ -78,7 +78,7 @@ export default function HotelsPage() {
     setPick(null);
   }
 
-  const inputClass = "admin-input w-full px-3 py-2 rounded-lg border text-sm outline-none focus:border-[#0aa3c7]";
+  const inputClass = "admin-input w-full px-3 py-2 rounded-lg border text-sm outline-none focus:border-[var(--admin-accent)]";
   const labelClass = "block text-xs font-medium admin-muted mb-1";
 
   if (loading) return <div className="p-8 text-sm admin-faint">Loading…</div>;
@@ -90,7 +90,7 @@ export default function HotelsPage() {
           <h1 className="text-2xl font-bold admin-heading mb-1">Hotels</h1>
           <p className="text-sm admin-muted">Hotel details &amp; photos shown in the booking accommodation step.</p>
         </div>
-        <button onClick={() => setShowNew(!showNew)} className="px-4 py-2 bg-[#0aa3c7] hover:bg-[#0aa3c7]/90 text-white text-sm font-bold rounded-lg transition-colors">New Hotel</button>
+        <button onClick={() => setShowNew(!showNew)} className="px-4 py-2 bg-[var(--admin-accent)] hover:bg-[var(--admin-accent)]/90 text-[var(--admin-accent-contrast)] text-sm font-bold rounded-lg transition-colors">New Hotel</button>
       </div>
 
       {legacy && (
@@ -104,7 +104,7 @@ export default function HotelsPage() {
           <div className="flex items-end gap-3">
             <div className="flex-1"><label className={labelClass}>Name</label><input className={inputClass} value={newHotel.name} onChange={(e) => setNewHotel({ ...newHotel, name: e.target.value })} /></div>
             <div className="w-32"><label className={labelClass}>Prefix</label><input className={inputClass} value={newHotel.prefix} onChange={(e) => setNewHotel({ ...newHotel, prefix: e.target.value })} placeholder="e.g. SOR" /></div>
-            <button onClick={create} disabled={!newHotel.name} className="px-4 py-2 bg-[#0aa3c7] disabled:opacity-40 text-white text-sm font-bold rounded-lg">Add</button>
+            <button onClick={create} disabled={!newHotel.name} className="px-4 py-2 bg-[var(--admin-accent)] disabled:opacity-40 text-[var(--admin-accent-contrast)] text-sm font-bold rounded-lg">Add</button>
           </div>
         </div>
       )}
@@ -160,7 +160,7 @@ export default function HotelsPage() {
             <div className="flex items-center justify-end gap-3 mt-4">
               <button onClick={() => remove(h)} disabled={!h.id} className="text-xs admin-faint hover:text-red-400 transition-colors disabled:opacity-40">Delete</button>
               {savedId === h.id && <span className="text-xs text-green-400">Saved ✓</span>}
-              <button onClick={() => save(h)} disabled={!h.id || savingId === h.id} className="px-4 py-2 bg-[#0aa3c7] hover:bg-[#0aa3c7]/90 disabled:opacity-40 text-white text-xs font-bold rounded-lg transition-colors">{savingId === h.id ? "Saving…" : "Save"}</button>
+              <button onClick={() => save(h)} disabled={!h.id || savingId === h.id} className="px-4 py-2 bg-[var(--admin-accent)] hover:bg-[var(--admin-accent)]/90 disabled:opacity-40 text-[var(--admin-accent-contrast)] text-xs font-bold rounded-lg transition-colors">{savingId === h.id ? "Saving…" : "Save"}</button>
             </div>
           </div>
         ))}

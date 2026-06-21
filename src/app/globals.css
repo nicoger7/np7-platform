@@ -84,6 +84,33 @@ html {
   .admin-tablecard > [style*="grid-template-columns"] { min-width: 720px; }
 }
 
+/* ── Modern form controls across the admin ───────────────────────────── */
+/* Replace the dated native <select> arrow with a clean chevron. */
+.admin-root select {
+  -webkit-appearance: none; -moz-appearance: none; appearance: none;
+  background-image: url("data:image/svg+xml;charset=US-ASCII,%3Csvg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='%23889098' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 0.6rem center;
+  background-size: 0.9rem;
+  padding-right: 2rem;
+}
+.admin-root select,
+.admin-root input,
+.admin-root textarea {
+  transition: border-color .15s ease, box-shadow .15s ease;
+}
+/* Consistent, env-coloured focus ring on every text control + select. */
+.admin-root select:focus,
+.admin-root textarea:focus,
+.admin-root input:not([type="checkbox"]):not([type="radio"]):focus {
+  outline: none;
+  border-color: var(--admin-accent);
+  box-shadow: 0 0 0 3px var(--admin-accent-weak);
+}
+/* Checkboxes/radios pick up the active world's accent too. */
+.admin-root input[type="checkbox"],
+.admin-root input[type="radio"] { accent-color: var(--admin-accent); }
+
 /* Subtle, modern scrollbars inside the admin */
 .admin-root ::-webkit-scrollbar { width: 10px; height: 10px; }
 .admin-root ::-webkit-scrollbar-thumb {
