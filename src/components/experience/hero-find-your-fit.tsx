@@ -136,6 +136,43 @@ export function HeroFindYourFit({ src, poster, children }: { src: string; poster
     window.scrollTo({ top: docTop + targetP * scrollable, behavior: "smooth" });
   }
 
+  // Shared renders — reused by the mobile (centred group) and desktop layouts.
+  const fitCards = SEGMENTS.map((s, i) => {
+    const on = i === active;
+    return (
+      <button key={s.id} onClick={() => goTo(i)} aria-current={on} className={`flex items-center gap-2.5 sm:gap-3 px-3.5 sm:px-5 py-2.5 sm:py-3.5 rounded-xl sm:rounded-2xl border transition-all ${on ? "bg-white text-[#00374a] border-white shadow-[0_14px_38px_rgba(0,20,30,0.45)] sm:scale-[1.04]" : "bg-white/[0.12] text-white border-white/25 backdrop-blur-md hover:bg-white/[0.2]"}`}>
+        <span className={`shrink-0 ${on ? "text-[#00afdb]" : "text-[#8fe6f2]"}`}>{s.icon}</span>
+        <span className="text-left min-w-0">
+          <span className="block text-[13px] sm:text-[14.5px] font-extrabold leading-tight truncate">{s.tag}</span>
+          <span className={`block text-[11.5px] sm:text-[12px] leading-tight truncate ${on ? "text-[#5a6b72]" : "text-white/65"}`}>{s.chip}</span>
+        </span>
+      </button>
+    );
+  });
+  const fitDetails = SEGMENTS.map((s, i) => {
+    const on = i === active;
+    return (
+      <div key={s.id} aria-hidden={!on} className="fyf-card fyf-copy absolute inset-0 flex flex-col items-center justify-center text-center" style={{ opacity: on ? 1 : 0, transform: on ? "none" : "translateY(20px)", pointerEvents: on ? "auto" : "none" }}>
+        <h3 className="text-3xl sm:text-5xl font-black tracking-[-0.02em] text-white leading-[1.04] mb-3 sm:mb-4">{s.title}</h3>
+        <p className="text-[15.5px] sm:text-[19px] text-white/90 leading-relaxed mb-5 sm:mb-6 max-w-[620px] mx-auto">{s.body}</p>
+        <div className="flex flex-wrap justify-center gap-x-5 gap-y-2 mb-6 sm:mb-7 max-w-[680px] mx-auto">
+          {s.points.map((p) => (
+            <span key={p} className="inline-flex items-center gap-2 text-[13px] sm:text-[14.5px] text-white/85 font-medium">
+              <span className="shrink-0 w-4 h-4 rounded-full bg-[#8fe6f2]/25 text-[#8fe6f2] grid place-items-center">
+                <svg className="w-2.5 h-2.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3.5" strokeLinecap="round" strokeLinejoin="round"><path d="M20 6L9 17l-5-5" /></svg>
+              </span>
+              {p}
+            </span>
+          ))}
+        </div>
+        <Link href="#experiences" className="inline-flex items-center gap-2 px-7 py-3.5 rounded-full text-[14px] font-bold text-[#00374a] bg-[#ffc42e] shadow-[0_6px_22px_rgba(255,196,46,0.32)] hover:bg-[#ffce52] hover:-translate-y-0.5 transition-all">
+          {s.cta}
+          <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M5 12h14M13 6l6 6-6 6" /></svg>
+        </Link>
+      </div>
+    );
+  });
+
   // Static fallback: plain hero + a simple stacked Find your fit
   if (mode === "static") {
     return (
@@ -190,54 +227,25 @@ export function HeroFindYourFit({ src, poster, children }: { src: string; poster
             ))}
           </div>
 
-          {/* overview cards — top, centred, clear of the fixed nav */}
-          <div className="absolute top-0 inset-x-0 pt-[104px] sm:pt-[120px] px-5 flex flex-col items-center z-10">
-            <p className="text-[12px] sm:text-[13px] font-bold tracking-[0.3em] text-[#8fe6f2] mb-1.5 fyf-copy">FIND YOUR FIT</p>
-            <h2 className="text-xl sm:text-[26px] font-black tracking-[-0.02em] text-white text-center mb-5 fyf-copy">Whatever brings you to the water</h2>
-            <div className="grid grid-cols-2 gap-2 w-full sm:flex sm:flex-wrap sm:w-auto sm:justify-center sm:gap-3.5 max-w-[920px]">
-              {SEGMENTS.map((s, i) => {
-                const on = i === active;
-                return (
-                  <button key={s.id} onClick={() => goTo(i)} aria-current={on} className={`flex items-center gap-2.5 sm:gap-3 px-3.5 sm:px-5 py-2.5 sm:py-3.5 rounded-xl sm:rounded-2xl border transition-all ${on ? "bg-white text-[#00374a] border-white shadow-[0_14px_38px_rgba(0,20,30,0.45)] sm:scale-[1.04]" : "bg-white/[0.12] text-white border-white/25 backdrop-blur-md hover:bg-white/[0.2]"}`}>
-                    <span className={`shrink-0 ${on ? "text-[#00afdb]" : "text-[#8fe6f2]"}`}>{s.icon}</span>
-                    <span className="text-left min-w-0">
-                      <span className="block text-[13px] sm:text-[14.5px] font-extrabold leading-tight truncate">{s.tag}</span>
-                      <span className={`block text-[11.5px] sm:text-[12px] leading-tight truncate ${on ? "text-[#5a6b72]" : "text-white/65"}`}>{s.chip}</span>
-                    </span>
-                  </button>
-                );
-              })}
+          {/* ── MOBILE: cards + active detail centred together as one group, so it
+                 sits in the true vertical middle on any phone height (no overlap) ── */}
+          <div className="sm:hidden absolute inset-0 z-10 flex flex-col items-center justify-center gap-7 px-5 pt-[64px] pb-6">
+            <div className="w-full flex flex-col items-center">
+              <p className="text-[12px] font-bold tracking-[0.3em] text-[#8fe6f2] mb-1.5 fyf-copy">FIND YOUR FIT</p>
+              <h2 className="text-xl font-black tracking-[-0.02em] text-white text-center mb-4 fyf-copy">Whatever brings you to the water</h2>
+              <div className="grid grid-cols-2 gap-2 w-full">{fitCards}</div>
             </div>
+            <div className="relative w-full min-h-[300px]">{fitDetails}</div>
           </div>
 
-          {/* active feature — centred, large, grabs attention right away. On mobile it
-              centres in the space BELOW the overview cards (top padding clears them). */}
-          <div className="absolute inset-0 px-6 flex items-center justify-center z-10 pt-[238px] pb-10 sm:pt-[112px] sm:pb-16">
-            <div className="relative w-full max-w-[760px] min-h-[250px] sm:min-h-[280px]">
-              {SEGMENTS.map((s, i) => {
-                const on = i === active;
-                return (
-                  <div key={s.id} aria-hidden={!on} className="fyf-card fyf-copy absolute inset-0 flex flex-col items-center justify-center text-center" style={{ opacity: on ? 1 : 0, transform: on ? "none" : "translateY(20px)", pointerEvents: on ? "auto" : "none" }}>
-                    <h3 className="text-3xl sm:text-5xl font-black tracking-[-0.02em] text-white leading-[1.04] mb-4">{s.title}</h3>
-                    <p className="text-[16px] sm:text-[19px] text-white/90 leading-relaxed mb-6 max-w-[620px] mx-auto">{s.body}</p>
-                    <div className="flex flex-wrap justify-center gap-x-5 gap-y-2 mb-7 max-w-[680px] mx-auto">
-                      {s.points.map((p) => (
-                        <span key={p} className="inline-flex items-center gap-2 text-[13.5px] sm:text-[14.5px] text-white/85 font-medium">
-                          <span className="shrink-0 w-4 h-4 rounded-full bg-[#8fe6f2]/25 text-[#8fe6f2] grid place-items-center">
-                            <svg className="w-2.5 h-2.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3.5" strokeLinecap="round" strokeLinejoin="round"><path d="M20 6L9 17l-5-5" /></svg>
-                          </span>
-                          {p}
-                        </span>
-                      ))}
-                    </div>
-                    <Link href="#experiences" className="inline-flex items-center gap-2 px-7 py-3.5 rounded-full text-[14px] font-bold text-[#00374a] bg-[#ffc42e] shadow-[0_6px_22px_rgba(255,196,46,0.32)] hover:bg-[#ffce52] hover:-translate-y-0.5 transition-all">
-                      {s.cta}
-                      <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M5 12h14M13 6l6 6-6 6" /></svg>
-                    </Link>
-                  </div>
-                );
-              })}
-            </div>
+          {/* ── DESKTOP: overview cards pinned top, detail centred (unchanged) ── */}
+          <div className="hidden sm:flex absolute top-0 inset-x-0 pt-[120px] px-5 flex-col items-center z-10">
+            <p className="text-[13px] font-bold tracking-[0.3em] text-[#8fe6f2] mb-1.5 fyf-copy">FIND YOUR FIT</p>
+            <h2 className="text-[26px] font-black tracking-[-0.02em] text-white text-center mb-5 fyf-copy">Whatever brings you to the water</h2>
+            <div className="flex flex-wrap justify-center gap-3.5 max-w-[920px]">{fitCards}</div>
+          </div>
+          <div className="hidden sm:flex absolute inset-0 px-6 items-center justify-center z-10 pt-[112px] pb-16">
+            <div className="relative w-full max-w-[760px] min-h-[280px]">{fitDetails}</div>
           </div>
         </div>
       </div>
