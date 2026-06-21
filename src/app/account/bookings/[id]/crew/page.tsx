@@ -89,7 +89,7 @@ function CrewMember({ p, isYou }: { p: PublicProfile; isYou: boolean }) {
       <p className="text-[14px] font-bold text-[#00374a] truncate">{p.displayName}{isYou && <span className="text-[#9aa6ac] font-semibold"> · you</span>}</p>
       {p.username && <p className="text-[11.5px] text-[#9aa6ac] truncate">@{p.username}</p>}
       {meta && <p className="text-[12px] text-[#6a7a80] mt-1">{meta}</p>}
-      {p.level && <span className="mt-2 inline-block text-[11px] font-bold bg-[#e1f5ee] text-[#0f6e56] px-2.5 py-0.5 rounded-md">{p.level}</span>}
+      {p.level && <span className="mt-2 inline-flex items-center gap-1 text-[11px] font-bold bg-[#e1f5ee] text-[#0f6e56] px-2.5 py-0.5 rounded-md">{p.levelVerified && <span title="Coach-verified">✓</span>}{p.level}</span>}
     </div>
   );
 }

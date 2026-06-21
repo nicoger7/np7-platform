@@ -31,9 +31,14 @@ New columns on `contacts` (all nullable, additive — Notion sync rule honoured)
 | `username` | `citext unique` | optional handle, `@`-less storage, 3–20 chars `[a-z0-9_]` |
 | `avatar_url` | `text` | chosen from the member's own trip photos (upload = later) |
 | `display_city` | `text` | optional, more identifying than `country` → own field toggle |
+| `self_level` | `text` | member's self-declared level (Beginner/Intermediate/Advanced/Pro) |
 | `profile_visibility` | `jsonb default '{}'` | surface + field toggles (see below) |
 
-Reused as-is: `name` (→ "Nico P."), `country`, `date_of_birth` (→ age), `level`.
+Reused as-is: `name` (→ "Nico P."), `country`, `date_of_birth` (→ age). The coach-assessed
+`level` (+ `level_notes`) stays **team-owned** and is never touched by the portal — the community
+profile uses the separate, member-editable `self_level` so a self-rating can't overwrite a
+coach's operational assessment. The community profile shows `self_level` only (no fallback to the
+assessed `level`).
 
 `profile_visibility` shape (all default false/absent):
 

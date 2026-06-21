@@ -5,6 +5,8 @@
    way a contact becomes visible to someone else, and it returns null unless the
    owner opted into that specific surface. */
 
+import { displayLevel } from "@/lib/member-level";
+
 export type ProfileSurface = "crew" | "reviews" | "spot_notes";
 export type ProfileField = "age" | "country" | "city" | "level";
 
@@ -59,6 +61,16 @@ export function ageFrom(dob: string | null | undefined): number | null {
 
 export const MINOR_AGE = 18;
 
+/** Self-declared community level (separate from the coach-assessed contacts.level). */
+export const SELF_LEVELS = ["Beginner", "Intermediate", "Advanced", "Pro"] as const;
+export type SelfLevel = (typeof SELF_LEVELS)[number];
+
+/** Normalise a desired self-level to the canonical set, or "" to clear it. */
+export function normalizeSelfLevel(raw: unknown): SelfLevel | "" {
+  if (typeof raw !== "string") return "";
+  return (SELF_LEVELS as readonly string[]).includes(raw) ? (raw as SelfLevel) : "";
+}
+
 /** The shape of a `contacts` row this module needs. Kept loose so callers can
     pass the raw service-role row (extra keys ignored). */
 export type ContactProfileRow = {
@@ -68,7 +80,9 @@ export type ContactProfileRow = {
   avatar_url?: string | null;
   country?: string | null;
   display_city?: string | null;
-  level?: string | null;
+  self_level?: string | null;     // member's self-declared (migration 036)
+  level?: string | null;          // coach's value (legacy/operational)
+  level_status?: string | null;   // self | suggested | verified (migration 036)
   date_of_birth?: string | null;
   profile_visibility?: unknown;
 };
@@ -81,6 +95,7 @@ export type PublicProfile = {
   avatarUrl: string | null;
   initials: string;
   level: string | null;
+  levelVerified: boolean;
   country: string | null;
   city: string | null;
   age: number | null;
@@ -95,13 +110,16 @@ export function publicProfileFor(contact: ContactProfileRow, surface: ProfileSur
   const vis = parseVisibility(contact.profile_visibility);
   if (!vis.surfaces[surface]) return null;
   const age = vis.fields.age ? ageFrom(contact.date_of_birth) : null;
+  // verified → coach value (+ badge); else self-declared; else legacy `level`
+  const dl = displayLevel(contact);
   return {
     contactId: contact.id,
     displayName: firstNameInitial(contact.name),
     username: contact.username ?? null,
     avatarUrl: contact.avatar_url ?? null,
     initials: initialsFrom(contact.name),
-    level: vis.fields.level ? contact.level ?? null : null,
+    level: vis.fields.level ? dl.level : null,
+    levelVerified: vis.fields.level ? dl.verified : false,
     country: vis.fields.country ? contact.country ?? null : null,
     city: vis.fields.city ? contact.display_city ?? null : null,
     // never surface the age of a minor, regardless of the toggle

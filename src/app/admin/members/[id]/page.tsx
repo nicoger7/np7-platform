@@ -2,6 +2,7 @@
 
 import { useState, useEffect, use } from "react";
 import Link from "next/link";
+import { AdminMemberLevel } from "@/components/admin/admin-member-level";
 
 interface MemberData {
   contact: { id: string; name: string; email: string | null; phone: string | null; country: string | null; level: string | null; auth_user_id?: string | null };
@@ -51,6 +52,12 @@ export default function MemberDetailPage({ params }: { params: Promise<{ id: str
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+        <div className="lg:col-span-2">
+          <Panel title="Level & skills">
+            <AdminMemberLevel contactId={c.id} />
+          </Panel>
+        </div>
+
         <Panel title="Bookings" count={d.bookings.length}>
           {d.bookings.length === 0 ? <p className="text-xs admin-faint">No bookings.</p> : (
             <div className="space-y-1.5">

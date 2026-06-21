@@ -5,6 +5,7 @@ import {
   EMPTY_VISIBILITY, ageFrom, MINOR_AGE, parseVisibility, publicProfileFor,
   type ContactProfileRow, type ProfileSurface, type PublicProfile, type Visibility,
 } from "@/lib/member-profile";
+import { deriveSuggestedLevel } from "@/lib/member-level";
 
 /* Server-only data access for the member portal. Always scoped to the
    member's own contactId (the caller verifies the session first). */
@@ -93,6 +94,8 @@ export type MemberProfile = {
   // community-profile fields (migration 035) — null/empty until applied
   username: string | null; avatar_url: string | null; display_city: string | null;
   visibility: Visibility;
+  // level system (migration 036) — null/false until applied
+  self_level: string | null; level_status: string | null; coach_can_manage_level: boolean;
 };
 
 export async function getMemberProfile(contactId: string): Promise<MemberProfile | null> {
@@ -102,19 +105,27 @@ export async function getMemberProfile(contactId: string): Promise<MemberProfile
     .select("name,email,phone,country,tshirt_size,diet_allergies,date_of_birth,level,marketing_opt_in")
     .eq("id", contactId).maybeSingle();
   if (!data) return null;
-  // community-profile columns live in a separate, tolerant read so the portal
-  // keeps working before migration 035 is applied (unknown columns → error → defaults).
+  // 035 and 036 columns live in SEPARATE tolerant reads so applying one without
+  // the other never blanks the features of the other (unknown column → error → defaults).
   let username: string | null = null, avatar_url: string | null = null, display_city: string | null = null;
   let visibility: Visibility = EMPTY_VISIBILITY;
-  const extra = await db.from("contacts")
+  const c035 = await db.from("contacts")
     .select("username,avatar_url,display_city,profile_visibility").eq("id", contactId).maybeSingle();
-  if (extra.data) {
-    username = extra.data.username ?? null;
-    avatar_url = extra.data.avatar_url ?? null;
-    display_city = extra.data.display_city ?? null;
-    visibility = parseVisibility(extra.data.profile_visibility);
+  if (c035.data) {
+    username = c035.data.username ?? null;
+    avatar_url = c035.data.avatar_url ?? null;
+    display_city = c035.data.display_city ?? null;
+    visibility = parseVisibility(c035.data.profile_visibility);
   }
-  return { ...data, username, avatar_url, display_city, visibility };
+  let self_level: string | null = null, level_status: string | null = null, coach_can_manage_level = false;
+  const c036 = await db.from("contacts")
+    .select("self_level,level_status,coach_can_manage_level").eq("id", contactId).maybeSingle();
+  if (c036.data) {
+    self_level = c036.data.self_level ?? null;
+    level_status = c036.data.level_status ?? null;
+    coach_can_manage_level = !!c036.data.coach_can_manage_level;
+  }
+  return { ...data, username, avatar_url, display_city, visibility, self_level, level_status, coach_can_manage_level };
 }
 
 /** The member's own trip photos (their personal + the week's shared photos),
@@ -155,8 +166,15 @@ export async function getCrewProfiles(editionId: string, viewerContactId: string
   const { data: rows, error } = await db.from("contacts").select(sel).in("id", contactIds);
   if (error || !rows) return { going, sharing: 0, profiles: [] };
 
+  // The 036 level fields ride along in a SEPARATE tolerant read so the crew still
+  // works on a 035-only DB (the projection falls back to the legacy `level`).
+  const lvl036 = await db.from("contacts").select("id,self_level,level_status").in("id", contactIds);
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const lvlBy = new Map((lvl036.data ?? []).map((r: any) => [r.id, r]));
+
   const profiles: PublicProfile[] = [];
-  for (const row of rows as ContactProfileRow[]) {
+  for (const base of rows as ContactProfileRow[]) {
+    const row = { ...base, ...(lvlBy.get(base.id) ?? {}) } as ContactProfileRow;
     const age = ageFrom(row.date_of_birth);
     if (age != null && age < MINOR_AGE) continue; // never list a minor
     const p = publicProfileFor(row, "crew");
@@ -188,6 +206,57 @@ export async function getCommunityAuthors(contactIds: (string | null | undefined
     if (p) out[row.id] = { displayName: p.displayName, avatarUrl: p.avatarUrl, username: p.username, initials: p.initials };
   }
   return out;
+}
+
+export type LevelMilestone = { id: string; key: string; label: string; tier: string; sort_order: number; achieved: boolean };
+export type LevelHistoryEntry = { level: string | null; status: string | null; source: string | null; note: string | null; created_at: string };
+export type MemberLevelDetail = {
+  self_level: string | null; coach_level: string | null; level_status: string | null;
+  coach_can_manage_level: boolean; suggested: string | null;
+  milestones: LevelMilestone[]; history: LevelHistoryEntry[];
+};
+
+/**
+ * Everything the level UIs (member "Your level" + admin "Level & skills") need:
+ * the member's level fields, the milestone catalog with achieved flags, the
+ * derived suggestion, and the history. Service-role; tolerant of migration 036
+ * being unapplied (missing columns/tables → empty/defaults, never throws).
+ */
+export async function getMemberLevelDetail(contactId: string): Promise<MemberLevelDetail> {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const db = createAdminClient() as any;
+  const base = await db.from("contacts").select("level").eq("id", contactId).maybeSingle();
+  const coach_level: string | null = base.data?.level ?? null;
+
+  let self_level: string | null = null, level_status: string | null = null, coach_can_manage_level = false;
+  const c036 = await db.from("contacts").select("self_level,level_status,coach_can_manage_level").eq("id", contactId).maybeSingle();
+  if (c036.data) {
+    self_level = c036.data.self_level ?? null;
+    level_status = c036.data.level_status ?? null;
+    coach_can_manage_level = !!c036.data.coach_can_manage_level;
+  }
+
+  let milestones: LevelMilestone[] = [];
+  const cat = await db.from("level_milestones").select("id,key,label,tier,sort_order").eq("active", true).order("sort_order");
+  if (!cat.error && cat.data) {
+    const ach = await db.from("contact_milestones").select("milestone_id").eq("contact_id", contactId);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const achieved = new Set((ach.data ?? []).map((r: any) => r.milestone_id));
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    milestones = (cat.data as any[]).map((m) => ({ id: m.id, key: m.key, label: m.label, tier: m.tier, sort_order: m.sort_order, achieved: achieved.has(m.id) }));
+  }
+
+  let history: LevelHistoryEntry[] = [];
+  const h = await db.from("contact_level_history").select("level,status,source,note,created_at")
+    .eq("contact_id", contactId).order("created_at", { ascending: false }).limit(20);
+  if (!h.error && h.data) history = h.data as LevelHistoryEntry[];
+
+  const suggested = deriveSuggestedLevel(
+    milestones.map((m) => ({ id: m.id, key: m.key, label: m.label, tier: m.tier, sort_order: m.sort_order })),
+    new Set(milestones.filter((m) => m.achieved).map((m) => m.id))
+  );
+
+  return { self_level, coach_level, level_status, coach_can_manage_level, suggested, milestones, history };
 }
 
 /** The experience's gallery images (exp_content.gallery, falling back to the

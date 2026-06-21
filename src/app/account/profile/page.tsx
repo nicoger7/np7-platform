@@ -1,10 +1,12 @@
 import { redirect } from "next/navigation";
 import type { Metadata } from "next";
 import { getPortalUser } from "@/lib/auth";
-import { getMemberProfile, getProfilePhotoChoices } from "@/lib/portal-data";
+import { getMemberProfile, getProfilePhotoChoices, getMemberLevelDetail } from "@/lib/portal-data";
+import { displayLevel } from "@/lib/member-level";
 import { PortalChrome } from "@/components/portal/portal-chrome";
 import { ProfileForm } from "@/components/portal/profile-form";
 import { CommunityProfile } from "@/components/portal/community-profile";
+import { YourLevel } from "@/components/portal/your-level";
 
 export const metadata: Metadata = { title: "Profile — NP7" };
 export const dynamic = "force-dynamic";
@@ -12,10 +14,14 @@ export const dynamic = "force-dynamic";
 export default async function ProfilePage() {
   const user = await getPortalUser();
   if (!user) redirect("/account/login");
-  const [profile, photoChoices] = await Promise.all([
+  const [profile, photoChoices, levelDetail] = await Promise.all([
     getMemberProfile(user.contactId),
     getProfilePhotoChoices(user.contactId).catch(() => []),
+    getMemberLevelDetail(user.contactId).catch(() => null),
   ]);
+  const shownLevel = profile
+    ? displayLevel({ self_level: profile.self_level, level: profile.level, level_status: profile.level_status }).level
+    : null;
 
   return (
     <>
@@ -27,10 +33,11 @@ export default async function ProfilePage() {
           {profile ? (
             <div className="space-y-5">
               <ProfileForm profile={profile} />
+              {levelDetail && <YourLevel detail={levelDetail} />}
               <CommunityProfile
                 name={profile.name}
                 country={profile.country}
-                level={profile.level}
+                shownLevel={shownLevel}
                 dateOfBirth={profile.date_of_birth}
                 username={profile.username}
                 avatarUrl={profile.avatar_url}

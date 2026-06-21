@@ -9,7 +9,7 @@ import {
 type Props = {
   name: string;
   country: string | null;
-  level: string | null;
+  shownLevel: string | null; // the public-display level (set in "Your level")
   dateOfBirth: string | null;
   username: string | null;
   avatarUrl: string | null;
@@ -173,7 +173,7 @@ export function CommunityProfile(p: Props) {
           {(previewPlace || previewAge != null) && (
             <p className="text-[12px] text-[#6a7a80] mt-1">{[previewPlace, previewAge != null ? `${previewAge}` : ""].filter(Boolean).join(" · ")}</p>
           )}
-          {fields.level && p.level && <span className="mt-2 inline-block text-[11px] font-bold bg-[#e1f5ee] text-[#0f6e56] px-2.5 py-0.5 rounded-md">{p.level}</span>}
+          {fields.level && p.shownLevel && <span className="mt-2 inline-block text-[11px] font-bold bg-[#e1f5ee] text-[#0f6e56] px-2.5 py-0.5 rounded-md">{p.shownLevel}</span>}
         </div>
         {isMinor && <p className="text-[12px] text-[#c4621a] mt-2">Under-18 riders are never listed in a trip crew, and your age is never shown.</p>}
       </div>

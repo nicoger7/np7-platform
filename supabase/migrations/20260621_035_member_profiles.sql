@@ -11,6 +11,10 @@ create extension if not exists citext;
 alter table contacts add column if not exists username           citext;
 alter table contacts add column if not exists avatar_url         text;
 alter table contacts add column if not exists display_city       text;
+-- member's own self-declared level for the community profile — kept SEPARATE
+-- from the coaches' assessed `level` (+ `level_notes`), which stay team-owned so
+-- a member self-rating can never overwrite an operational assessment.
+alter table contacts add column if not exists self_level         text;
 -- surface + field visibility toggles; everything defaults off (absent key = false):
 --   { "surfaces": { "crew": bool, "reviews": bool, "spot_notes": bool },
 --     "fields":   { "age": bool, "country": bool, "city": bool, "level": bool } }
