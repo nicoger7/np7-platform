@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, use } from "react";
+import { useState, useEffect, useRef, use } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import BusinessCaseCard from "@/components/business-case-card";
@@ -8,6 +8,16 @@ import { PackageComponentsEditor } from "@/components/package-components-editor"
 import { EditionMemoriesUploader } from "@/components/edition-memories-uploader";
 import { ContactPicker, ContactLite } from "@/components/contact-picker";
 import { EditionCrewLevels } from "@/components/admin/edition-crew-levels";
+
+// Edition detail sub-tabs. The order is reorderable by drag-and-drop and saved
+// per admin in localStorage (each team member keeps their own preferred order).
+const DEFAULT_TABS = ["details", "bookings", "levels", "packages", "memories", "costs", "rooms", "notes"] as const;
+type EditionTab = (typeof DEFAULT_TABS)[number];
+const TAB_ORDER_KEY = "np7_edition_tab_order";
+const TAB_LABEL: Record<EditionTab, string> = {
+  details: "Details", bookings: "Bookings", levels: "Levels", packages: "Packages",
+  memories: "Memories", costs: "Costs", rooms: "Hotel Rooms", notes: "Notes",
+};
 
 interface Edition {
   id: string;
@@ -140,7 +150,30 @@ export default function EditionDetailPage({
 }) {
   const { id } = use(params);
   const router = useRouter();
-  const [tab, setTab] = useState<"details" | "bookings" | "levels" | "packages" | "memories" | "costs" | "rooms" | "notes">("details");
+  const [tab, setTab] = useState<EditionTab>("details");
+  const [tabOrder, setTabOrder] = useState<EditionTab[]>([...DEFAULT_TABS]);
+  const dragTab = useRef<number | null>(null);
+
+  // load the saved order (per-admin, localStorage); ignore anything that isn't a
+  // valid permutation of the current tab set (so adding/removing tabs is safe).
+  useEffect(() => {
+    try {
+      const saved = JSON.parse(localStorage.getItem(TAB_ORDER_KEY) || "null");
+      if (Array.isArray(saved) && saved.length === DEFAULT_TABS.length && DEFAULT_TABS.every((t) => saved.includes(t))) {
+        setTabOrder(saved as EditionTab[]);
+      }
+    } catch { /* ignore */ }
+  }, []);
+
+  function reorderTabs(from: number, to: number) {
+    setTabOrder((order) => {
+      const next = [...order];
+      const [moved] = next.splice(from, 1);
+      next.splice(to, 0, moved);
+      try { localStorage.setItem(TAB_ORDER_KEY, JSON.stringify(next)); } catch { /* ignore */ }
+      return next;
+    });
+  }
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
@@ -530,21 +563,27 @@ export default function EditionDetailPage({
         </div>
       </div>
 
-      {/* Tabs */}
-      <div className="flex gap-1 mb-6" style={{ borderBottom: "1px solid var(--admin-border)" }}>
-        {(["details", "bookings", "levels", "packages", "memories", "costs", "rooms", "notes"] as const).map((t) => {
+      {/* Tabs — drag to reorder (saved per admin) */}
+      <div className="flex gap-1 mb-6 flex-wrap" style={{ borderBottom: "1px solid var(--admin-border)" }}>
+        {tabOrder.map((t, i) => {
           const count = edition._counts?.[t as keyof typeof edition._counts];
           return (
             <button
               key={t}
+              draggable
+              onDragStart={() => { dragTab.current = i; }}
+              onDragOver={(e) => e.preventDefault()}
+              onDrop={() => { if (dragTab.current != null && dragTab.current !== i) reorderTabs(dragTab.current, i); dragTab.current = null; }}
+              onDragEnd={() => { dragTab.current = null; }}
               onClick={() => setTab(t)}
-              className={`px-4 py-2.5 text-sm font-medium transition-colors border-b-2 -mb-[1px] capitalize ${
+              title="Drag to reorder"
+              className={`px-4 py-2.5 text-sm font-medium transition-colors border-b-2 -mb-[1px] cursor-grab active:cursor-grabbing ${
                 tab === t
                   ? "admin-heading border-[#0aa3c7]"
                   : "admin-muted border-transparent"
               }`}
             >
-              {t === "rooms" ? "Hotel Rooms" : t === "costs" ? "Costs" : t}
+              {TAB_LABEL[t]}
               {count != null && count > 0 && (
                 <span className="ml-1.5 inline-flex items-center justify-center w-4 h-4 rounded-full bg-[#0aa3c7]/15 text-[#0aa3c7] text-[10px] font-bold">
                   {count}
