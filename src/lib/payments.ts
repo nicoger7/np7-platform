@@ -30,10 +30,15 @@ export type PackagePaymentConfig = {
 export type BookingPaymentState = {
   /** Trip total incl. confirmed add-ons (the booking's agreed_price + extras). */
   total: number;
+  /** Sum of payments actually received. When given, it drives milestone status
+   *  (a milestone is paid once cumulative payments reach its threshold) — so the
+   *  member view works without the explicit flags / before migration 032. */
+  paidAmount?: number | null;
   /** ISO date (yyyy-mm-dd) the edition starts, if known. */
   editionStart?: string | null;
-  depositReceived?: boolean | null;
   depositReceivedAt?: string | null;
+  /** Explicit milestone flags — used as the status driver when paidAmount is absent. */
+  depositReceived?: boolean | null;
   downpaymentReceived?: boolean | null;
   finalPaymentReceived?: boolean | null;
 };
@@ -101,9 +106,12 @@ export function computePaymentPlan(cfg: PackagePaymentConfig, state: BookingPaym
   const downpaymentDue = state.depositReceivedAt ? addDays(state.depositReceivedAt, refundDays) : null;
   const finalDue = state.editionStart ? addDays(state.editionStart, -finalDaysBefore) : null;
 
-  const depositPaid = !!state.depositReceived;
-  const downPaid = !!state.downpaymentReceived;
-  const finalPaid = !!state.finalPaymentReceived;
+  // Prefer the actual paid amount (cumulative thresholds); fall back to flags.
+  const byAmount = typeof state.paidAmount === "number";
+  const paidAmt = state.paidAmount ?? 0;
+  const depositPaid = byAmount ? paidAmt + 0.01 >= depositAmt : !!state.depositReceived;
+  const downPaid = byAmount ? paidAmt + 0.01 >= downpaymentTarget : !!state.downpaymentReceived;
+  const finalPaid = byAmount ? paidAmt + 0.01 >= total && total > 0 : !!state.finalPaymentReceived;
 
   const all: Milestone[] = [
     {

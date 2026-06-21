@@ -9,6 +9,8 @@ import { ExtraNightsButton } from "@/components/portal/extra-nights-button";
 import { MemberDocuments } from "@/components/portal/member-documents";
 import { MemberGallery } from "@/components/portal/member-gallery";
 import { TripAddons } from "@/components/portal/trip-addons";
+import { PaymentPlan } from "@/components/portal/payment-plan";
+import { computePaymentPlan } from "@/lib/payments";
 
 export const metadata: Metadata = { title: "My trip — NP7" };
 export const dynamic = "force-dynamic";
@@ -38,8 +40,6 @@ export default async function BookingDetail({ params }: Props) {
   const baseTotal = b.agreed_price ?? null;
   const total = baseTotal != null ? baseTotal + addonsTotal : addonsTotal > 0 ? addonsTotal : null;
   const depositPaid = paid >= deposit || b.downpayment_received || ["downpayment_paid", "paid", "confirmed"].includes((b.status ?? "").toLowerCase());
-  const paidInFull = total != null && paid >= total && total > 0;
-  const remaining = total != null ? Math.max(0, total - paid) : null;
   const tripEnded = b.edition?.date_end ? new Date(b.edition.date_end) < new Date() : false;
   const cancellation = b.experience?.cancellation_policy ||
     "Cancellations are handled case by case in line with our package travel terms. The deposit secures your spot; please contact us as early as possible if your plans change. Full terms are provided with your booking confirmation.";
@@ -75,25 +75,21 @@ export default async function BookingDetail({ params }: Props) {
                 </section>
               )}
 
-              {/* payment */}
-              <Card title="Payment">
+              {/* payment plan — deposit → downpayment → final */}
+              <Card title="Payment plan">
                 <Row label="Package" value={b.pkg?.name ?? "—"} />
                 {addonsTotal > 0 && <Row label="Confirmed add-ons" value={`+ ${money(addonsTotal, b.experience?.currency)}`} />}
-                <Row label="Trip total" value={money(total, b.experience?.currency) ?? "—"} />
-                {paid > 0 && <Row label="Paid so far" value={(money(paid, b.experience?.currency) ?? "—") + " ✓"} tone="green" />}
-                {paidInFull ? (
-                  <Row label="Status" value="Paid in full ✓" tone="green" />
-                ) : (
-                  <>
-                    <Row label="Deposit" value={(money(deposit, b.experience?.currency) ?? "€300") + (depositPaid ? " · paid ✓" : " · pending")} tone={depositPaid ? "green" : "amber"} />
-                    {remaining != null && remaining > 0 && (
-                      <Row label="Remaining balance" value={`${money(remaining, b.experience?.currency)} · by bank transfer`} />
+                <div className="mt-3.5">
+                  <PaymentPlan
+                    milestones={computePaymentPlan(
+                      { deposit: b.edition?.deposit ?? null },
+                      { total: total ?? 0, paidAmount: paid, editionStart: b.edition?.date_start ?? null }
                     )}
-                  </>
-                )}
-                {!paidInFull && (
-                  <p className="text-[12.5px] text-[#8a9aa0] mt-3 leading-relaxed">The remaining balance is paid by bank transfer — we&apos;ll send your invoice with all details in good time before the trip. Payments we&apos;ve received are reflected above.</p>
-                )}
+                    currency={b.experience?.currency ?? "EUR"}
+                    total={total ?? 0}
+                    paid={paid}
+                  />
+                </div>
               </Card>
 
               {/* your stay */}
