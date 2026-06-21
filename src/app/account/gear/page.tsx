@@ -15,7 +15,7 @@ export default async function GearPage() {
 
   return (
     <>
-      <PortalChrome />
+      <PortalChrome section="hardware" />
       <main className="min-h-[100svh] bg-[#fff7ec]">
         <div className="max-w-[1000px] mx-auto px-5 sm:px-8 py-10 sm:py-14">
           <h1 className="text-3xl sm:text-4xl font-black tracking-[-0.03em] text-[#00374a] mb-1.5">My gear</h1>

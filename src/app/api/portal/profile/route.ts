@@ -19,7 +19,12 @@ export async function PUT(request: NextRequest) {
   if (str(body.name) !== undefined) base.name = str(body.name);
   if (str(body.phone) !== undefined) base.phone = str(body.phone);
   if (str(body.country) !== undefined) base.country = str(body.country);
-  if (str(body.tshirt_size) !== undefined) base.tshirt_size = str(body.tshirt_size);
+  if (str(body.tshirt_size) !== undefined) {
+    // The DB CHECK constraint allows only lowercase sizes (or null) — normalise
+    // so an uppercase value or an empty "Select…" never 400s the whole save.
+    const t = str(body.tshirt_size)?.toLowerCase();
+    base.tshirt_size = t && ["xs", "s", "m", "l", "xl", "xxl"].includes(t) ? t : null;
+  }
   if (str(body.diet_allergies) !== undefined) base.diet_allergies = str(body.diet_allergies);
   if (str(body.date_of_birth) !== undefined) base.date_of_birth = str(body.date_of_birth) || null;
   if (typeof body.marketing_opt_in === "boolean") {

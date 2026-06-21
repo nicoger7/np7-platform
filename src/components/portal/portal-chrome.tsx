@@ -1,4 +1,4 @@
-import { cookies, headers } from "next/headers";
+import { headers } from "next/headers";
 import Link from "next/link";
 import { OceanHeader } from "@/components/experience/ocean-header";
 import { HardwareHeader } from "@/components/hardware/hardware-header";
@@ -17,12 +17,15 @@ import { PortalSubnav } from "./portal-subnav";
  *   public worlds are still hidden, so production stays "membership only".
  *
  * Keyed off the request host rather than VERCEL_ENV so it's robust no matter how
- * the dev/preview deploy is configured. Section + tone follow the np7_section
- * cookie; Gear/Cart subnav stays flag-gated.
+ * the dev/preview deploy is configured.
+ *
+ * Tone defaults to **Experience** — the member portal IS the trip area, so it must
+ * not inherit a stale `np7_section=hardware` cookie left over from browsing the
+ * shop. The few hardware-member surfaces (My Gear / Cart) pass `section="hardware"`
+ * explicitly. Gear/Cart subnav stays flag-gated.
  */
-export async function PortalChrome() {
-  const [store, head] = await Promise.all([cookies(), headers()]);
-  const section = store.get("np7_section")?.value === "hardware" ? "hardware" : "experience";
+export async function PortalChrome({ section = "experience" }: { section?: "experience" | "hardware" } = {}) {
+  const head = await headers();
 
   const host = (head.get("host") || "").split(":")[0].toLowerCase();
   const onLiveDomain = /(^|\.)np-seven\.com$/.test(host);

@@ -185,7 +185,7 @@ export function CommunityProfile(p: Props) {
         </div>
         {onButEmpty.length > 0 && (
           <p className="text-[12px] text-[#b8702a] mt-2.5 leading-relaxed">
-            {onButEmpty.join(", ")} {onButEmpty.length === 1 ? "is" : "are"} switched on but still empty — add your country &amp; date of birth under <span className="font-semibold">Your details</span>, and your level in <span className="font-semibold">Your level</span>, and they&apos;ll show here.
+            {onButEmpty.join(", ")} {onButEmpty.length === 1 ? "is" : "are"} switched on but still empty — add your country &amp; date of birth in your <span className="font-semibold">Account</span>, and set your level in <span className="font-semibold">Your level</span> below, and they&apos;ll show here.
           </p>
         )}
         {isMinor && <p className="text-[12px] text-[#c4621a] mt-2">Under-18 riders are never listed in a trip crew, and your age is never shown.</p>}

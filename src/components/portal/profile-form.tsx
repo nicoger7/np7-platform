@@ -19,6 +19,7 @@ export function ProfileForm({ profile }: { profile: MemberProfile }) {
   });
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
+  const [error, setError] = useState("");
 
   // password section
   const [pw, setPw] = useState("");
@@ -28,12 +29,19 @@ export function ProfileForm({ profile }: { profile: MemberProfile }) {
   const set = (k: keyof typeof f, v: string | boolean) => setF((s) => ({ ...s, [k]: v }));
 
   async function save() {
-    setSaving(true); setSaved(false);
-    const res = await fetch("/api/portal/profile", {
-      method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(f),
-    });
-    setSaving(false);
-    if (res.ok) { setSaved(true); setTimeout(() => setSaved(false), 2500); }
+    setSaving(true); setSaved(false); setError("");
+    try {
+      const res = await fetch("/api/portal/profile", {
+        method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(f),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (res.ok) { setSaved(true); setTimeout(() => setSaved(false), 2500); }
+      else setError(data.error || "Couldn't save — please try again.");
+    } catch {
+      setError("Couldn't save — please check your connection and try again.");
+    } finally {
+      setSaving(false);
+    }
   }
 
   async function setPassword(e: React.FormEvent) {
@@ -58,7 +66,7 @@ export function ProfileForm({ profile }: { profile: MemberProfile }) {
           <div><label className={label}>T-shirt size</label>
             <select className={field} value={f.tshirt_size} onChange={(e) => set("tshirt_size", e.target.value)}>
               <option value="">Select…</option>
-              {SIZES.map((s) => <option key={s} value={s}>{s}</option>)}
+              {SIZES.map((s) => <option key={s} value={s.toLowerCase()}>{s}</option>)}
             </select>
           </div>
           <div><label className={label}>Date of birth</label><input type="date" className={field} value={f.date_of_birth} onChange={(e) => set("date_of_birth", e.target.value)} /></div>
@@ -71,6 +79,7 @@ export function ProfileForm({ profile }: { profile: MemberProfile }) {
         <div className="flex items-center gap-3 mt-6">
           <button onClick={save} disabled={saving} className="px-6 py-3 rounded-full text-[14px] font-bold text-white bg-[#00afdb] hover:bg-[#15c0ec] disabled:opacity-60 transition-all">{saving ? "Saving…" : "Save changes"}</button>
           {saved && <span className="text-[13px] font-semibold text-green-700">Saved ✓</span>}
+          {error && <span className="text-[13px] font-semibold text-red-600">{error}</span>}
         </div>
       </section>
 

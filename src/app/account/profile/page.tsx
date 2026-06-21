@@ -1,16 +1,18 @@
 import { redirect } from "next/navigation";
+import Link from "next/link";
 import type { Metadata } from "next";
 import { getPortalUser } from "@/lib/auth";
 import { getMemberProfile, getProfilePhotoChoices, getMemberLevelDetail } from "@/lib/portal-data";
 import { displayLevel } from "@/lib/member-level";
 import { PortalChrome } from "@/components/portal/portal-chrome";
-import { ProfileForm } from "@/components/portal/profile-form";
 import { CommunityProfile } from "@/components/portal/community-profile";
 import { YourLevel } from "@/components/portal/your-level";
 
 export const metadata: Metadata = { title: "Profile — NP7" };
 export const dynamic = "force-dynamic";
 
+/** Profile = your PUBLIC, crew-facing identity (avatar, handle, level, what others
+ *  see). Private details & settings live on /account/settings (the Account page). */
 export default async function ProfilePage() {
   const user = await getPortalUser();
   if (!user) redirect("/account/login");
@@ -29,11 +31,12 @@ export default async function ProfilePage() {
       <main className="min-h-[100svh] bg-[#fff7ec]">
         <div className="max-w-[760px] mx-auto px-5 sm:px-8 py-10 sm:py-14">
           <h1 className="text-3xl sm:text-4xl font-black tracking-[-0.03em] text-[#00374a] mb-1.5">Your profile</h1>
-          <p className="text-[15px] text-[#6a7a80] mb-8">Keep your details up to date — it helps us prep your perfect week.</p>
+          <p className="text-[15px] text-[#6a7a80] mb-8">
+            How other NP7 riders see you on trips, reviews and spot notes — you choose exactly what&apos;s shown.{" "}
+            <Link href="/account/settings" className="font-semibold text-[#00afdb] hover:underline">Manage your private details →</Link>
+          </p>
           {profile ? (
             <div className="space-y-5">
-              <ProfileForm profile={profile} />
-              {levelDetail && <YourLevel detail={levelDetail} />}
               <CommunityProfile
                 name={profile.name}
                 country={profile.country}
@@ -45,6 +48,7 @@ export default async function ProfilePage() {
                 visibility={profile.visibility}
                 photoChoices={photoChoices}
               />
+              {levelDetail && <YourLevel detail={levelDetail} />}
             </div>
           ) : <p className="text-[#6a7a80]">Profile not found.</p>}
         </div>
