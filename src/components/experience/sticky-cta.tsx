@@ -9,6 +9,8 @@ type Props = {
   spotsLeft?: number | null;
   /** anchor to scroll to when the button is clicked */
   target?: string;
+  /** every week is full → show a waitlist CTA instead of "Reserve" */
+  soldOut?: boolean;
 };
 
 /**
@@ -21,6 +23,7 @@ export function StickyCta({
   currency = "€",
   spotsLeft,
   target = "#packages",
+  soldOut = false,
 }: Props) {
   const [show, setShow] = useState(false);
 
@@ -42,22 +45,28 @@ export function StickyCta({
           <div className="min-w-0 flex-1">
             <p className="text-[13px] font-bold text-white truncate">{title}</p>
             <div className="flex items-center gap-2.5 text-[12px]">
-              <span className="text-white/60">
-                from <span className="text-white font-bold">{currency}{priceFrom.toLocaleString("en-US")}</span>
-              </span>
-              {typeof spotsLeft === "number" && spotsLeft > 0 && (
-                <span className="inline-flex items-center gap-1.5 text-[#5fd0e8] font-semibold">
-                  <span className="w-1.5 h-1.5 rounded-full bg-[#5fd0e8] animate-pulse" />
-                  {spotsLeft} spots left
-                </span>
+              {soldOut ? (
+                <span className="text-[#f9a35a] font-semibold">Fully booked</span>
+              ) : (
+                <>
+                  <span className="text-white/60">
+                    from <span className="text-white font-bold">{currency}{priceFrom.toLocaleString("en-US")}</span>
+                  </span>
+                  {typeof spotsLeft === "number" && spotsLeft > 0 && (
+                    <span className="inline-flex items-center gap-1.5 text-[#5fd0e8] font-semibold">
+                      <span className="w-1.5 h-1.5 rounded-full bg-[#5fd0e8] animate-pulse" />
+                      {spotsLeft} spots left
+                    </span>
+                  )}
+                </>
               )}
             </div>
           </div>
           <a
-            href={target}
+            href={soldOut ? `mailto:experience@np-seven.com?subject=Waitlist: ${title}` : target}
             className="shrink-0 px-6 py-3 rounded-full text-[13px] font-bold bg-[#0aa3c7] text-white shadow-[0_4px_16px_rgba(10,163,199,0.3)] hover:bg-[#0bb6dd] transition-colors"
           >
-            Reserve
+            {soldOut ? "Join waitlist" : "Reserve"}
           </a>
         </div>
       </div>

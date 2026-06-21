@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase";
 import { sendEmail } from "@/lib/email/send";
 import { getPortalUser } from "@/lib/auth";
+import { paidSpotsByEdition, spotsLeftFrom } from "@/lib/availability";
 
 /**
  * Public reservation endpoint.
@@ -82,7 +83,7 @@ export async function POST(request: NextRequest) {
     db.from("exp_experiences").select("id,title,slug,currency").eq("id", experienceId).maybeSingle(),
     db.from("exp_packages").select("id,name,price,experience_id,edition_id,status").eq("id", packageId).maybeSingle(),
     editionId
-      ? db.from("exp_editions").select("id,label,date_start,date_end,experience_id").eq("id", editionId).maybeSingle()
+      ? db.from("exp_editions").select("id,label,date_start,date_end,experience_id,max_spots").eq("id", editionId).maybeSingle()
       : Promise.resolve({ data: null }),
   ]);
 
@@ -91,6 +92,18 @@ export async function POST(request: NextRequest) {
   }
   if (editionId && (!edition || edition.experience_id !== exp.id)) {
     return bad("This week is no longer available.", 409);
+  }
+
+  // Don't let a paid deposit be taken for a week that's already full. A spot is
+  // only held by a SECURED booking (paid downpayment), so we count those vs the
+  // cap. Best-effort, app-level: a true simultaneous double-book would need a DB
+  // constraint (future migration); this stops the common over-booking case.
+  if (editionId && edition?.max_spots != null) {
+    const secured = await paidSpotsByEdition([editionId]);
+    const left = spotsLeftFrom(edition.max_spots, secured[editionId] ?? 0);
+    if (left !== null && left <= 0) {
+      return bad("This week is fully booked. Please pick another week or join the waitlist.", 409);
+    }
   }
 
   const fullName = `${firstName} ${lastName}`.trim();

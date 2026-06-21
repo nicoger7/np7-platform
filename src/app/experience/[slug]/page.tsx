@@ -259,6 +259,11 @@ export default async function ExperienceDetailPage({ params }: Props) {
   const fromPrice = allPrices.length ? Math.min(...allPrices) : experience.price;
   const spotsLeft = edition ? spotsLeftFrom(edition.max_spots, securedByEd[edition.id] ?? 0) : null;
   const totalSpotsLeft = editionsLite.reduce((s, e) => s + (e.spotsLeft ?? 0), 0);
+  // Sold out = every week that HAS a cap is full (uncapped weeks never count as
+  // sold out — spotsLeft is null for those, not 0).
+  const soldOut = multi
+    ? editionsLite.length > 0 && editionsLite.every((e) => e.spotsLeft === 0)
+    : spotsLeft === 0;
   const spanStart = allEditions[0]?.date_start ?? edition?.date_start ?? null;
   const spanEnd = allEditions[allEditions.length - 1]?.date_end ?? edition?.date_end ?? null;
   const tileImg = experience.hero_image; // listing tile / fallback
@@ -401,9 +406,15 @@ export default async function ExperienceDetailPage({ params }: Props) {
               </p>
             )}
             <div className="flex flex-wrap items-center gap-3">
-              <Link href="#packages" className="px-7 py-4 rounded-full text-[14px] font-bold text-[#00374a] bg-white hover:-translate-y-0.5 transition-all">
-                {money(fromPrice, experience.currency) ? `Reserve your spot · from ${money(fromPrice, experience.currency)}` : "Reserve your spot"}
-              </Link>
+              {soldOut ? (
+                <Link href={`mailto:experience@np-seven.com?subject=Waitlist: ${experience.title}`} className="px-7 py-4 rounded-full text-[14px] font-bold text-[#00374a] bg-white hover:-translate-y-0.5 transition-all">
+                  Fully booked · join the waitlist
+                </Link>
+              ) : (
+                <Link href="#packages" className="px-7 py-4 rounded-full text-[14px] font-bold text-[#00374a] bg-white hover:-translate-y-0.5 transition-all">
+                  {money(fromPrice, experience.currency) ? `Reserve your spot · from ${money(fromPrice, experience.currency)}` : "Reserve your spot"}
+                </Link>
+              )}
               <Link href="#method" className="px-7 py-4 rounded-full text-[14px] font-bold text-white border-[1.5px] border-white/40 hover:bg-white/10 transition-all">How it works</Link>
             </div>
           </Reveal>
@@ -685,15 +696,29 @@ export default async function ExperienceDetailPage({ params }: Props) {
       <section className="relative py-24 sm:py-32 bg-[#00374a] text-white overflow-hidden">
         <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_50%_0%,rgba(0,175,219,0.2),transparent_60%)]" />
         <div className="relative max-w-[640px] mx-auto px-6 text-center">
-          {typeof spotsLeft === "number" && spotsLeft > 0 && (
-            <span className="inline-flex items-center gap-1.5 text-[12px] font-semibold text-[#5fd0e8] bg-[#00afdb]/15 border border-[#00afdb]/30 px-3 py-1 rounded-full mb-6"><span className="w-1.5 h-1.5 rounded-full bg-[#5fd0e8] animate-pulse" />Only {spotsLeft} spots left</span>
+          {soldOut ? (
+            <>
+              <span className="inline-flex items-center gap-1.5 text-[12px] font-semibold text-white bg-[#f47b20] px-3 py-1 rounded-full mb-6">Fully booked</span>
+              <h2 className="text-3xl sm:text-5xl font-black tracking-[-0.03em] mb-5 leading-[1.05]">This trip is fully booked.<br />Want in next time?</h2>
+              <p className="text-[17px] text-white/55 mb-9">Every spot is taken — but plans change and new weeks open up. Join the waitlist and we&apos;ll reach out the moment a place frees up.</p>
+              <div className="flex flex-wrap items-center justify-center gap-3">
+                <Link href={`mailto:experience@np-seven.com?subject=Waitlist: ${experience.title}`} className="px-8 py-4 rounded-full text-[14px] font-bold text-[#00374a] bg-white hover:-translate-y-0.5 transition-all">Join the waitlist</Link>
+                <Link href={`mailto:experience@np-seven.com?subject=Question: ${experience.title}`} className="px-8 py-4 rounded-full text-[14px] font-bold text-white border-[1.5px] border-white/40 hover:bg-white/10 transition-all">Ask us anything</Link>
+              </div>
+            </>
+          ) : (
+            <>
+              {typeof spotsLeft === "number" && spotsLeft > 0 && (
+                <span className="inline-flex items-center gap-1.5 text-[12px] font-semibold text-[#5fd0e8] bg-[#00afdb]/15 border border-[#00afdb]/30 px-3 py-1 rounded-full mb-6"><span className="w-1.5 h-1.5 rounded-full bg-[#5fd0e8] animate-pulse" />Only {spotsLeft} spots left</span>
+              )}
+              <h2 className="text-3xl sm:text-5xl font-black tracking-[-0.03em] mb-5 leading-[1.05]">Your dream week is real.<br />Make it yours.</h2>
+              <p className="text-[17px] text-white/55 mb-9">Reserve with a €300 deposit — just your name and contact details. After payment, we&apos;ll reach out personally to sort every detail.</p>
+              <div className="flex flex-wrap items-center justify-center gap-3">
+                <Link href="#packages" className="px-8 py-4 rounded-full text-[14px] font-bold text-[#00374a] bg-white hover:-translate-y-0.5 transition-all">Reserve my spot · €300</Link>
+                <Link href={`mailto:experience@np-seven.com?subject=Question: ${experience.title}`} className="px-8 py-4 rounded-full text-[14px] font-bold text-white border-[1.5px] border-white/40 hover:bg-white/10 transition-all">Ask us anything</Link>
+              </div>
+            </>
           )}
-          <h2 className="text-3xl sm:text-5xl font-black tracking-[-0.03em] mb-5 leading-[1.05]">Your dream week is real.<br />Make it yours.</h2>
-          <p className="text-[17px] text-white/55 mb-9">Reserve with a €300 deposit — just your name and contact details. After payment, we&apos;ll reach out personally to sort every detail.</p>
-          <div className="flex flex-wrap items-center justify-center gap-3">
-            <Link href="#packages" className="px-8 py-4 rounded-full text-[14px] font-bold text-[#00374a] bg-white hover:-translate-y-0.5 transition-all">Reserve my spot · €300</Link>
-            <Link href={`mailto:experience@np-seven.com?subject=Question: ${experience.title}`} className="px-8 py-4 rounded-full text-[14px] font-bold text-white border-[1.5px] border-white/40 hover:bg-white/10 transition-all">Ask us anything</Link>
-          </div>
         </div>
       </section>
 
@@ -707,7 +732,7 @@ export default async function ExperienceDetailPage({ params }: Props) {
         </div>
       </footer>
 
-      <StickyCta title={experience.title} priceFrom={fromPrice ?? 0} spotsLeft={multi ? totalSpotsLeft : spotsLeft} target="#packages" />
+      <StickyCta title={experience.title} priceFrom={fromPrice ?? 0} spotsLeft={multi ? totalSpotsLeft : spotsLeft} target="#packages" soldOut={soldOut} />
     </>
   );
 }
