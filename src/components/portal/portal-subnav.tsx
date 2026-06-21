@@ -12,6 +12,7 @@ const ALL_TABS = [
   { href: "/account/trips", label: "My trips" },
   { href: "/account/gear", label: "My gear", flag: "gear" as const },
   { href: "/account/cart", label: "Cart", cart: true, flag: "cart" as const },
+  { href: "/account/vouchers", label: "Gift vouchers" },
   { href: "/account/profile", label: "Profile" },
 ];
 
