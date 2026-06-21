@@ -20,9 +20,9 @@ export function AnalyticsTracker() {
   }, [pathname]);
 
   useEffect(() => {
-    const onConsent = (e: Event) => {
-      if ((e as CustomEvent).detail === "all") trackPageview();
-    };
+    // On any consent change, attempt a pageview — trackPageview() self-gates on
+    // analytics consent, so it only sends when analytics was actually granted.
+    const onConsent = () => trackPageview();
     window.addEventListener("np7-consent", onConsent);
     return () => window.removeEventListener("np7-consent", onConsent);
   }, []);

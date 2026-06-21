@@ -33,7 +33,12 @@ export default async function PrivacyPage() {
       <p>Our hosting provider processes technical access data (e.g. IP address, timestamp) to deliver and secure the site (Art. 6(1)(f)). We use bot-protection on sign-up forms to prevent abuse.</p>
 
       <h2>3. Cookies &amp; local storage</h2>
-      <p>We use only what’s needed to run the site: a sign-in session cookie, a small preference for which section you’re viewing, and a record of your cookie choice. We set <strong>no advertising or third-party tracking cookies</strong>. Any future analytics is loaded only after you consent (see the cookie banner).</p>
+      <p>We group cookies and similar local storage into three categories, which you control in the cookie banner (Art. 6(1)(a) for the optional ones):</p>
+      <ul>
+        <li><strong>Essential</strong> (always on, no consent needed, Art. 6(1)(f)) — a sign-in session cookie, a small preference for which section you’re viewing, and a record of your cookie choice.</li>
+        <li><strong>Analytics</strong> (off unless you opt in) — our own <strong>first-party</strong> measurement of page views and the booking funnel. No third-party analytics tools, no advertising networks, and we store no IP address with it.</li>
+        <li><strong>Marketing</strong> (off unless you opt in) — the <strong>Meta (Facebook) Pixel</strong>. When enabled it shares your interactions (e.g. pages viewed, registrations) with Meta Platforms Ireland Ltd. so we can measure and target our advertising. This sets third-party cookies and may transfer data to Meta (incl. the USA, safeguarded by EU Standard Contractual Clauses). You can withdraw consent any time via the cookie banner; this does not affect prior processing.</li>
+      </ul>
 
       <h2>4. Processors &amp; recipients</h2>
       <ul>
@@ -41,6 +46,7 @@ export default async function PrivacyPage() {
         <li><strong>Vercel</strong> — application hosting &amp; bot protection.</li>
         <li><strong>Resend</strong> — transactional &amp; (opted-in) marketing email delivery.</li>
         <li><strong>Surfcenter</strong> — our operating partner for bookings &amp; payments; receives the data needed to fulfil your trip.</li>
+        <li><strong>Meta Platforms Ireland</strong> — Facebook/Instagram advertising measurement (Meta Pixel), <strong>only if you opt into Marketing cookies</strong>.</li>
       </ul>
       <p>Where a processor operates outside the EU/EEA, transfers are safeguarded by EU Standard Contractual Clauses or an adequacy decision.</p>
 
