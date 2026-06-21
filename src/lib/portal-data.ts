@@ -203,7 +203,7 @@ export async function getCrewProfiles(editionId: string, viewerContactId: string
   return { going, sharing: profiles.length, profiles };
 }
 
-export type AuthorBadge = { displayName: string; avatarUrl: string | null; username: string | null; initials: string };
+export type AuthorBadge = { displayName: string; avatarUrl: string | null; username: string | null; initials: string; level: string | null; levelVerified: boolean; skills: string[] };
 
 /**
  * Public author badges for a set of contacts, for a given community surface
@@ -219,10 +219,28 @@ export async function getCommunityAuthors(contactIds: (string | null | undefined
   const sel = "id,name,username,avatar_url,country,display_city,level,date_of_birth,profile_visibility";
   const { data: rows, error } = await db.from("contacts").select(sel).in("id", ids);
   if (error || !rows) return {};
+  // 036 level fields ride along in a tolerant read (verified level → ✓ on the byline)
+  const lvl036 = await db.from("contacts").select("id,self_level,level_status").in("id", ids);
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const lvlBy = new Map((lvl036.data ?? []).map((r: any) => [r.id, r]));
+
   const out: Record<string, AuthorBadge> = {};
-  for (const row of rows as ContactProfileRow[]) {
+  for (const base of rows as ContactProfileRow[]) {
+    const row = { ...base, ...(lvlBy.get(base.id) ?? {}) } as ContactProfileRow;
     const p = publicProfileFor(row, surface);
-    if (p) out[row.id] = { displayName: p.displayName, avatarUrl: p.avatarUrl, username: p.username, initials: p.initials };
+    if (p) out[row.id] = { displayName: p.displayName, avatarUrl: p.avatarUrl, username: p.username, initials: p.initials, level: p.level, levelVerified: p.levelVerified, skills: [] };
+  }
+
+  // skills on hover — only verified members who show their level (same gate as the crew)
+  const verifiedIds = Object.keys(out).filter((id) => out[id].levelVerified);
+  if (verifiedIds.length) {
+    const catalog = await readActiveCatalog(db);
+    if (catalog.length) {
+      const labelById = new Map(catalog.map((m) => [m.id, m.label]));
+      const ms = await db.from("contact_milestones").select("contact_id,milestone_id").in("contact_id", verifiedIds);
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      for (const r of (ms.data ?? []) as any[]) { const lbl = labelById.get(r.milestone_id); if (lbl && out[r.contact_id]) out[r.contact_id].skills.push(lbl); }
+    }
   }
   return out;
 }

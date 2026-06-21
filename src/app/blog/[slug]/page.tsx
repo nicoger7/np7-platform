@@ -119,6 +119,7 @@ export default async function BlogPostPage({ params }: Props) {
     (notesBySpot[n.spot_name] ??= []).push({
       author_name: n.author_name, body: n.body,
       displayName: a?.displayName ?? null, avatarUrl: a?.avatarUrl ?? null, initials: a?.initials ?? null,
+      level: a?.level ?? null, levelVerified: a?.levelVerified ?? false, skills: a?.skills ?? [],
     });
   }
 

@@ -19,6 +19,8 @@ export type SpotNote = {
   author_name: string | null; body: string;
   // attached when the author opted into a public profile (migration 035)
   displayName?: string | null; avatarUrl?: string | null; initials?: string | null;
+  // their level + verified skills (shown on hover), when they share their level
+  level?: string | null; levelVerified?: boolean; skills?: string[];
 };
 
 /**
@@ -155,7 +157,18 @@ export function SpotsAccordion({
                                   ) : note.displayName ? (
                                     <span className="shrink-0 w-7 h-7 rounded-full grid place-items-center bg-[#eef3f4] text-[#6a7a80] text-[11px] font-bold mt-0.5" aria-hidden="true">{note.initials || who[0]}</span>
                                   ) : null}
-                                  <span><span className="font-bold text-[#00374a]">{who}:</span> {note.body}</span>
+                                  <span>
+                                    <span className="font-bold text-[#00374a]">{who}</span>
+                                    {note.level && (
+                                      <span
+                                        title={note.skills && note.skills.length ? `Coach-verified skills: ${note.skills.join(", ")}` : note.levelVerified ? "Coach-verified" : undefined}
+                                        className={`ml-1.5 inline-flex items-center gap-0.5 align-middle text-[10px] font-bold px-1.5 py-0.5 rounded-md bg-[#e1f5ee] text-[#0f6e56] ${note.skills && note.skills.length ? "cursor-help" : ""}`}
+                                      >
+                                        {note.levelVerified && <span aria-hidden>✓</span>}{note.level}
+                                      </span>
+                                    )}
+                                    <span className="font-bold text-[#00374a]">:</span> {note.body}
+                                  </span>
                                 </li>
                               );
                             })}
