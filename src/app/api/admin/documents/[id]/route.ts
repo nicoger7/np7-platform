@@ -7,10 +7,13 @@ type RouteContext = { params: Promise<{ id: string }> };
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
+// Match a genuinely-missing TABLE (relation), not a missing column — otherwise
+// "column documents.updated_at does not exist" was wrongly read as "table missing"
+// and returned a 503, silently breaking Void.
 function isMissingTable(message?: string | null) {
   return (
     !!message &&
-    /(documents|relation|schema cache|does not exist)/i.test(message)
+    /schema cache|could not find the table|relation .* does not exist/i.test(message)
   );
 }
 
@@ -79,8 +82,7 @@ export async function PATCH(
     return NextResponse.json({ error: "Nothing to update." }, { status: 400 });
   }
 
-  updates.updated_at = new Date().toISOString();
-
+  // NB: the `documents` table has no `updated_at` column — don't write one.
   const { data, error } = await db
     .from("documents")
     .update(updates)
@@ -94,19 +96,6 @@ export async function PATCH(
         { error: "Run migration 021 first (documents table missing)." },
         { status: 503 }
       );
-    }
-    if (/updated_at/.test(error.message || "")) {
-      // Column may not exist pre-migration; retry without it
-      const { updated_at: _ts, ...rest } = updates;
-      void _ts;
-      const { data: retryData, error: retryError } = await db
-        .from("documents")
-        .update(rest)
-        .eq("id", id)
-        .select()
-        .single();
-      if (retryError) return NextResponse.json({ error: retryError.message }, { status: 400 });
-      return NextResponse.json(retryData);
     }
     return NextResponse.json({ error: error.message }, { status: 400 });
   }

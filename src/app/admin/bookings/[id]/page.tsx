@@ -210,12 +210,17 @@ export default function BookingDetailPage({
 
   async function voidDocument(docId: string) {
     if (!confirm("Void this document?")) return;
+    setGenError(null);
     const res = await fetch(`/api/admin/documents/${docId}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ status: "void" }),
     });
     if (res.ok) fetchDocuments();
+    else {
+      const j = await res.json().catch(() => ({}));
+      setGenError(j.error || "Couldn't void this document.");
+    }
   }
 
   async function handleSave() {
