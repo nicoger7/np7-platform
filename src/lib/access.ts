@@ -23,6 +23,8 @@ const OWNER_ONLY = [
   "/admin/settings", "/admin/team", "/admin/hours-log", "/admin/analytics",
   "/api/admin/payments", "/api/admin/exp-costs", "/api/admin/vendors", "/api/admin/documents",
   "/api/admin/company-settings", "/api/admin/team", "/api/admin/hours-log", "/api/admin/analytics",
+  // Permanent delete from the archive is owner-only (archive + restore are not).
+  "/api/admin/archive/purge",
 ];
 
 export function normalizeLevel(v: unknown): AccessLevel {

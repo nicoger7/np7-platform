@@ -119,6 +119,7 @@ const sharedNavTop: NavGroup = {
   label: "HOME",
   items: [
     { label: "Dashboard", href: "/admin", icon: "grid" },
+    { label: "Archive", href: "/admin/archive", icon: "archive" },
   ],
 };
 
@@ -229,6 +230,13 @@ const icons: Record<string, React.ReactNode> = {
       <line x1="12" y1="22" x2="12" y2="7" />
       <path d="M12 7H7.5a2.5 2.5 0 010-5C11 2 12 7 12 7z" />
       <path d="M12 7h4.5a2.5 2.5 0 000-5C13 2 12 7 12 7z" />
+    </svg>
+  ),
+  archive: (
+    <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <rect x="2" y="3" width="20" height="5" rx="1" />
+      <path d="M4 8v11a1 1 0 001 1h14a1 1 0 001-1V8" />
+      <line x1="10" y1="12" x2="14" y2="12" />
     </svg>
   ),
   building: (
