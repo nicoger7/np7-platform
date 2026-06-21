@@ -14,6 +14,7 @@ import {
   asSpots,
 } from "@/lib/blog-templates";
 import { SpotsAccordion } from "./spots-accordion";
+import { SpotsMap } from "./spots-map";
 
 /** Keys handled by the dedicated CTA band, not the generic block loop. */
 const CTA_KEYS = new Set(["ctaUrl", "ctaLabel"]);
@@ -242,6 +243,9 @@ function Block({ field, theme, data }: { field: TemplateField; theme: WorldTheme
             {field.label}
             <span className="ml-1 text-[#9aa6ac]">· {spots.length}</span>
           </SectionHeading>
+          <div className="mb-5">
+            <SpotsMap spots={spots} accent={accent} accentInk={theme.accentInk} />
+          </div>
           <SpotsAccordion spots={spots} accent={accent} />
         </section>
       );
