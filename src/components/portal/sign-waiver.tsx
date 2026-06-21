@@ -14,7 +14,8 @@ export function SignWaiver({ bookingId, html, defaultName, signed }: {
   const [agree, setAgree] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState("");
-  const [done, setDone] = useState(!!signed);
+  const [justSigned, setJustSigned] = useState(false);
+  const fmtSignedAt = (at: string) => new Date(at).toLocaleDateString("en-GB", { day: "numeric", month: "long", year: "numeric" });
 
   async function submit() {
     setError("");
@@ -27,11 +28,11 @@ export function SignWaiver({ bookingId, html, defaultName, signed }: {
       body: JSON.stringify({ name: name.trim(), signature, agree }),
     });
     setSubmitting(false);
-    if (res.ok) setDone(true);
+    if (res.ok) setJustSigned(true);
     else { const j = await res.json().catch(() => ({})); setError(j.error || "Couldn't save — please try again."); }
   }
 
-  if (done) {
+  if (justSigned) {
     return (
       <main className="min-h-[100svh] bg-[#fff7ec] grid place-items-center px-5">
         <div className="bg-white rounded-2xl border border-[#f0e6d6] p-8 max-w-[440px] text-center">
@@ -39,6 +40,26 @@ export function SignWaiver({ bookingId, html, defaultName, signed }: {
           <h1 className="text-2xl font-black text-[#00374a] mb-2">Waiver signed ✓</h1>
           <p className="text-[14px] text-[#5a6b72] mb-6">Thanks{signed?.name ? `, ${signed.name}` : name ? `, ${name}` : ""} — it&apos;s saved in your account and with our team.</p>
           <a href="/account" className="inline-block px-7 py-3.5 rounded-full text-[13.5px] font-bold text-white bg-[#00afdb]">Back to my account</a>
+        </div>
+      </main>
+    );
+  }
+
+  // Already signed → show the signed document (read-only), not the form.
+  if (signed) {
+    return (
+      <main className="min-h-[100svh] bg-[#fff7ec]">
+        <style>{`.waiver-doc h2{font-size:17px;font-weight:800;color:#00374a;margin:0 0 8px}.waiver-doc h3{font-size:14px;font-weight:700;color:#00374a;margin:16px 0 4px}.waiver-doc p{margin:0 0 10px}.waiver-doc strong{color:#00374a}`}</style>
+        <div className="max-w-[720px] mx-auto px-5 sm:px-8 py-10">
+          <a href="/account" className="text-[13px] font-semibold text-[#0782a0]">← My account</a>
+          <h1 className="text-2xl font-black text-[#00374a] mt-3 mb-4">Your signed waiver</h1>
+          <div className="flex items-center gap-2.5 bg-green-50 border border-green-200 rounded-xl px-4 py-3 mb-5">
+            <span className="shrink-0 w-7 h-7 rounded-full bg-green-500 text-white grid place-items-center text-[14px] font-bold">✓</span>
+            <p className="text-[13.5px] text-green-800"><strong>Signed by {signed.name}</strong> on {fmtSignedAt(signed.at)} — saved in your account and with our team.</p>
+          </div>
+          <div className="bg-white rounded-2xl border border-[#f0e6d6] p-6 sm:p-8">
+            <div className="waiver-doc text-[13.5px] text-[#3a4a50] leading-relaxed" dangerouslySetInnerHTML={{ __html: html }} />
+          </div>
         </div>
       </main>
     );

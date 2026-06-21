@@ -38,15 +38,15 @@ export function PaymentPlan({
         {milestones.map((m, i) => {
           const last = i === milestones.length - 1;
           return (
-            <li key={m.kind} className="relative flex gap-3.5 pb-5 last:pb-0">
-              {!last && <span className="absolute left-[11px] top-6 bottom-0 w-px bg-[#eadfce]" aria-hidden />}
+            <li key={m.kind} className="relative flex gap-3 pb-5 last:pb-0">
+              {!last && <span className="absolute left-3 top-6 bottom-0 w-px -translate-x-1/2 bg-[#eadfce]" aria-hidden />}
               <span className={`relative z-10 shrink-0 w-6 h-6 rounded-full grid place-items-center text-[12px] font-bold ${dot(m.status)}`}>
                 {m.status === "paid" ? "✓" : i + 1}
               </span>
-              <div className="min-w-0 flex-1 -mt-0.5">
-                <div className="flex items-baseline justify-between gap-3">
-                  <p className="text-[14px] font-bold text-[#00374a] leading-tight">{m.label}</p>
-                  <p className="text-[14px] font-extrabold text-[#00374a] tabular-nums shrink-0">{money(m.amount, currency)}</p>
+              <div className="min-w-0 flex-1 mt-[3px]">
+                <div className="flex items-start justify-between gap-2">
+                  <p className="text-[14px] font-bold text-[#00374a] leading-snug">{m.label}</p>
+                  <p className="text-[14px] font-extrabold text-[#00374a] tabular-nums shrink-0 pl-1">{money(m.amount, currency)}</p>
                 </div>
                 <p className={`text-[12.5px] leading-snug mt-0.5 ${m.status === "paid" ? "text-green-600 font-semibold" : m.status === "due" ? "text-[#c9620f] font-semibold" : "text-[#9aa6ac]"}`}>
                   {m.status === "paid" ? "Paid ✓" : m.dueLabel}

@@ -10,6 +10,7 @@ import { MemberDocuments } from "@/components/portal/member-documents";
 import { MemberGallery } from "@/components/portal/member-gallery";
 import { TripAddons } from "@/components/portal/trip-addons";
 import { PaymentPlan } from "@/components/portal/payment-plan";
+import { CancelTrip } from "@/components/portal/cancel-trip";
 import { computePaymentPlan } from "@/lib/payments";
 import { createAdminClient } from "@/lib/supabase";
 
@@ -48,6 +49,10 @@ export default async function BookingDetail({ params }: Props) {
     .then((r) => r.data).catch(() => null);
   const cancellation = b.experience?.cancellation_policy ||
     "Cancellations are handled case by case in line with our package travel terms. The deposit secures your spot; please contact us as early as possible if your plans change. Full terms are provided with your booking confirmation.";
+  const plan = computePaymentPlan(
+    { deposit: b.edition?.deposit ?? null },
+    { total: total ?? 0, paidAmount: paid, editionStart: b.edition?.date_start ?? null }
+  );
 
   // Once the trip is over, photos are what the member wants first — so the
   // memories card jumps to the top of the column (otherwise it sits at the end).
@@ -112,15 +117,18 @@ export default async function BookingDetail({ params }: Props) {
                 {addonsTotal > 0 && <Row label="Confirmed add-ons" value={`+ ${money(addonsTotal, b.experience?.currency)}`} />}
                 <div className="mt-3.5">
                   <PaymentPlan
-                    milestones={computePaymentPlan(
-                      { deposit: b.edition?.deposit ?? null },
-                      { total: total ?? 0, paidAmount: paid, editionStart: b.edition?.date_start ?? null }
-                    )}
+                    milestones={plan}
                     currency={b.experience?.currency ?? "EUR"}
                     total={total ?? 0}
                     paid={paid}
                   />
                 </div>
+                {!tripEnded && (
+                  <div className="mt-4 pt-3 border-t border-[#f3ede2] flex items-center justify-between gap-3">
+                    <span className="text-[12px] text-[#9aa6ac] leading-snug">Plans changed?</span>
+                    <CancelTrip bookingId={b.id} milestones={plan} paid={paid} currency={b.experience?.currency ?? "EUR"} />
+                  </div>
+                )}
               </Card>
 
               {/* waiver */}
