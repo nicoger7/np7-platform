@@ -61,9 +61,7 @@ export function HeroFindYourFit({ src, poster, children }: { src: string; poster
   const [mode, setMode] = useState<"video" | "static">("video");
 
   useEffect(() => {
-    // Phones get the clean stacked version — the pinned, video-scrubbed scroll
-    // (with overlapping absolute layers) only behaves on a wide viewport.
-    if (window.matchMedia("(max-width: 640px)").matches || window.matchMedia("(prefers-reduced-motion: reduce)").matches) { setMode("static"); return; }
+    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) { setMode("static"); return; }
     const wrap = wrapRef.current, video = videoRef.current;
     if (!wrap || !video) return;
     let duration = 0, ready = false, current = 0;
@@ -196,15 +194,15 @@ export function HeroFindYourFit({ src, poster, children }: { src: string; poster
           <div className="absolute top-0 inset-x-0 pt-[104px] sm:pt-[120px] px-5 flex flex-col items-center z-10">
             <p className="text-[12px] sm:text-[13px] font-bold tracking-[0.3em] text-[#8fe6f2] mb-1.5 fyf-copy">FIND YOUR FIT</p>
             <h2 className="text-xl sm:text-[26px] font-black tracking-[-0.02em] text-white text-center mb-5 fyf-copy">Whatever brings you to the water</h2>
-            <div className="flex flex-wrap justify-center gap-2.5 sm:gap-3.5 max-w-[920px]">
+            <div className="grid grid-cols-2 gap-2 w-full sm:flex sm:flex-wrap sm:w-auto sm:justify-center sm:gap-3.5 max-w-[920px]">
               {SEGMENTS.map((s, i) => {
                 const on = i === active;
                 return (
-                  <button key={s.id} onClick={() => goTo(i)} aria-current={on} className={`flex items-center gap-3 px-5 py-3.5 rounded-2xl border transition-all ${on ? "bg-white text-[#00374a] border-white shadow-[0_14px_38px_rgba(0,20,30,0.45)] scale-[1.04]" : "bg-white/[0.12] text-white border-white/25 backdrop-blur-md hover:bg-white/[0.2]"}`}>
+                  <button key={s.id} onClick={() => goTo(i)} aria-current={on} className={`flex items-center gap-2.5 sm:gap-3 px-3.5 sm:px-5 py-2.5 sm:py-3.5 rounded-xl sm:rounded-2xl border transition-all ${on ? "bg-white text-[#00374a] border-white shadow-[0_14px_38px_rgba(0,20,30,0.45)] sm:scale-[1.04]" : "bg-white/[0.12] text-white border-white/25 backdrop-blur-md hover:bg-white/[0.2]"}`}>
                     <span className={`shrink-0 ${on ? "text-[#00afdb]" : "text-[#8fe6f2]"}`}>{s.icon}</span>
-                    <span className="text-left">
-                      <span className="block text-[14.5px] font-extrabold leading-tight">{s.tag}</span>
-                      <span className={`block text-[12px] leading-tight ${on ? "text-[#5a6b72]" : "text-white/65"}`}>{s.chip}</span>
+                    <span className="text-left min-w-0">
+                      <span className="block text-[13px] sm:text-[14.5px] font-extrabold leading-tight truncate">{s.tag}</span>
+                      <span className={`block text-[11.5px] sm:text-[12px] leading-tight truncate ${on ? "text-[#5a6b72]" : "text-white/65"}`}>{s.chip}</span>
                     </span>
                   </button>
                 );
@@ -213,7 +211,7 @@ export function HeroFindYourFit({ src, poster, children }: { src: string; poster
           </div>
 
           {/* active feature — centred, large, grabs attention right away */}
-          <div className="absolute inset-0 px-6 flex items-center justify-center z-10 pt-[300px] pb-14 sm:pt-[112px] sm:pb-16">
+          <div className="absolute inset-0 px-6 flex items-end sm:items-center justify-center z-10 pt-[252px] pb-12 sm:pt-[112px] sm:pb-16">
             <div className="relative w-full max-w-[760px] min-h-[250px] sm:min-h-[280px]">
               {SEGMENTS.map((s, i) => {
                 const on = i === active;
