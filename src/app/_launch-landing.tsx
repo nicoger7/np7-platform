@@ -134,6 +134,11 @@ export function LaunchLanding() {
 
         <div className="mt-8 text-center">
           <p className="text-[11px] text-white/20 tracking-wide">&copy; 2026 NP7 GmbH &middot; Nico Prien &middot; GER-7</p>
+          <div className="mt-2 flex items-center justify-center gap-4 text-[11px] text-white/25">
+            <a href="/impressum" className="hover:text-white/50 transition-colors">Impressum</a>
+            <a href="/privacy" className="hover:text-white/50 transition-colors">Privacy</a>
+            <a href="/terms" className="hover:text-white/50 transition-colors">Terms</a>
+          </div>
         </div>
       </div>
     </main>
