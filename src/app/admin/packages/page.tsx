@@ -12,6 +12,9 @@ interface Package {
   price: number | null;
   cost_per_person: number | null;
   deposit: number | null;
+  deposit_refund_days: number | null;
+  downpayment_percent: number | null;
+  final_days_before: number | null;
   max_spots: number | null;
   sort_order: number;
   status: string;
@@ -71,6 +74,7 @@ function StatusBadge({ status }: { status: string }) {
 
 const emptyForm = {
   name: "", price: "", cost_per_person: "", deposit: "", max_spots: "",
+  deposit_refund_days: "", downpayment_percent: "", final_days_before: "",
   category: "", status: "active", experience_id: "", edition_id: "", hotel_id: "", includes: "",
 };
 
@@ -151,6 +155,9 @@ export default function PackagesPage() {
       price: p.price?.toString() || "",
       cost_per_person: p.cost_per_person?.toString() || "",
       deposit: p.deposit?.toString() || "",
+      deposit_refund_days: p.deposit_refund_days?.toString() || "",
+      downpayment_percent: p.downpayment_percent?.toString() || "",
+      final_days_before: p.final_days_before?.toString() || "",
       max_spots: p.max_spots?.toString() || "",
       category: p.category || "",
       status: p.status || "active",
@@ -167,6 +174,11 @@ export default function PackagesPage() {
       price: form.price ? Number(form.price) : null,
       cost_per_person: form.cost_per_person ? Number(form.cost_per_person) : null,
       deposit: form.deposit ? Number(form.deposit) : null,
+      // Milestone config (migration 032) — only sent when set, so package saves
+      // keep working before 032 is applied.
+      ...(form.deposit_refund_days ? { deposit_refund_days: Number(form.deposit_refund_days) } : {}),
+      ...(form.downpayment_percent ? { downpayment_percent: Number(form.downpayment_percent) } : {}),
+      ...(form.final_days_before ? { final_days_before: Number(form.final_days_before) } : {}),
       max_spots: form.max_spots ? Number(form.max_spots) : null,
       category: form.category || null,
       status: form.status,
@@ -282,6 +294,15 @@ export default function PackagesPage() {
                 <option value="sold_out">Sold out</option>
                 <option value="archived">Archived</option>
               </select>
+            </div>
+          </div>
+          {/* Payment plan (Phase 2): deposit → downpayment → final. Needs migration 032. */}
+          <div className="mb-4">
+            <p className="text-[11px] font-bold uppercase tracking-wide admin-faint mb-1.5">Payment plan</p>
+            <div className="grid grid-cols-3 gap-4">
+              <div><label className={labelClass}>Deposit refundable (days)</label><input type="number" className={inputClass} value={form.deposit_refund_days} onChange={(e) => setForm({ ...form, deposit_refund_days: e.target.value })} placeholder="14" /></div>
+              <div><label className={labelClass}>Downpayment (% of total)</label><input type="number" className={inputClass} value={form.downpayment_percent} onChange={(e) => setForm({ ...form, downpayment_percent: e.target.value })} placeholder="50" /></div>
+              <div><label className={labelClass}>Final due (days before trip)</label><input type="number" className={inputClass} value={form.final_days_before} onChange={(e) => setForm({ ...form, final_days_before: e.target.value })} placeholder="90" /></div>
             </div>
           </div>
           <div className="grid grid-cols-[260px_1fr] gap-4 mb-4">
