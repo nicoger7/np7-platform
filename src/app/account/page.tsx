@@ -65,54 +65,66 @@ export default async function AccountHome() {
             subtitle="Welcome to your NP7 home — your trips, your gear and everything in between."
           />
 
-          {lvl && profile && (
-            <div className="mt-5">
-              <LevelHomeCard
-                avatarUrl={profile.avatar_url}
-                initials={initialsFrom(profile.name)}
-                displayName={firstNameInitial(profile.name)}
-                username={profile.username}
-                level={lvl.level}
-                verified={lvl.verified}
-                nextTier={lvl.nextTier}
-                toNext={lvl.toNext}
-                pct={lvl.pct}
-              />
-            </div>
-          )}
+          {/* main + level sidebar — one column on mobile, two on desktop */}
+          <div className="mt-6 grid lg:grid-cols-[1.6fr_1fr] gap-5 items-start">
+            {/* level card: first on mobile, right sidebar on desktop */}
+            {lvl && profile && (
+              <aside className="lg:order-2 lg:sticky lg:top-32">
+                <LevelHomeCard
+                  avatarUrl={profile.avatar_url}
+                  initials={initialsFrom(profile.name)}
+                  displayName={firstNameInitial(profile.name)}
+                  username={profile.username}
+                  level={lvl.level}
+                  verified={lvl.verified}
+                  nextTier={lvl.nextTier}
+                  toNext={lvl.toNext}
+                  pct={lvl.pct}
+                />
+              </aside>
+            )}
 
-          {/* Your trips — one card each, carrying its own action */}
-          {tripCards.length > 0 && (
-            <div className="mt-7">
+            {/* your trips — one card each, carrying its own action */}
+            <div className="lg:order-1">
               <p className="text-[11px] font-bold tracking-[0.18em] uppercase text-[#9aa6ac] mb-3">Your {tripCards.length > 1 ? "trips" : "next trip"}</p>
-              <div className="space-y-3">
-                {tripCards.map(({ b, secure }) => (
-                  <Link key={b.id} href={`/account/bookings/${b.id}`}
-                    className={`group block rounded-2xl p-5 transition-all hover:-translate-y-0.5 ${secure ? "text-white" : "bg-white border border-[#f0e6d6] hover:shadow-[0_16px_40px_rgba(0,55,74,0.08)]"}`}
-                    style={secure ? { background: "linear-gradient(135deg,#f47b20,#d8631a)" } : undefined}>
-                    {secure && <p className="text-[10px] font-bold tracking-[0.2em] uppercase text-white/80 mb-1.5">Action needed · secure your spot</p>}
-                    <div className="flex items-center justify-between gap-3">
-                      <div className="min-w-0">
-                        <h2 className={`text-xl font-black tracking-[-0.02em] truncate ${secure ? "text-white" : "text-[#00374a]"}`}>{b.experience?.title ?? "Your trip"}</h2>
-                        <p className={`text-[13.5px] mt-0.5 ${secure ? "text-white/85" : "text-[#6a7a80]"}`}>{b.edition?.label ? `${b.edition.label} · ` : ""}{fmtDates(b.edition?.date_start, b.edition?.date_end)}</p>
+              {tripCards.length > 0 ? (
+                <div className="space-y-3">
+                  {tripCards.map(({ b, secure }) => (
+                    <Link key={b.id} href={`/account/bookings/${b.id}`}
+                      className={`group block rounded-2xl p-5 transition-all hover:-translate-y-0.5 ${secure ? "text-white" : "bg-white border border-[#f0e6d6] hover:shadow-[0_16px_40px_rgba(0,55,74,0.08)]"}`}
+                      style={secure ? { background: "linear-gradient(135deg,#f47b20,#d8631a)" } : undefined}>
+                      {secure && <p className="text-[10px] font-bold tracking-[0.2em] uppercase text-white/80 mb-1.5">Action needed · secure your spot</p>}
+                      <div className="flex items-center justify-between gap-3">
+                        <div className="min-w-0">
+                          <h2 className={`text-xl font-black tracking-[-0.02em] truncate ${secure ? "text-white" : "text-[#00374a]"}`}>{b.experience?.title ?? "Your trip"}</h2>
+                          <p className={`text-[13.5px] mt-0.5 ${secure ? "text-white/85" : "text-[#6a7a80]"}`}>{b.edition?.label ? `${b.edition.label} · ` : ""}{fmtDates(b.edition?.date_start, b.edition?.date_end)}</p>
+                        </div>
+                        <span className={`shrink-0 inline-flex items-center gap-1.5 text-[13px] font-bold group-hover:gap-2.5 transition-all ${secure ? "text-white" : "text-[#00afdb]"}`}>
+                          {secure ? "Secure now" : "Manage"}
+                          <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M5 12h14M13 6l6 6-6 6" /></svg>
+                        </span>
                       </div>
-                      <span className={`shrink-0 inline-flex items-center gap-1.5 text-[13px] font-bold group-hover:gap-2.5 transition-all ${secure ? "text-white" : "text-[#00afdb]"}`}>
-                        {secure ? "Secure now" : "Manage"}
-                        <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M5 12h14M13 6l6 6-6 6" /></svg>
-                      </span>
-                    </div>
-                  </Link>
-                ))}
-              </div>
+                    </Link>
+                  ))}
+                </div>
+              ) : (
+                <Link href="/experience" className="group block bg-white rounded-2xl border border-[#f0e6d6] p-6 hover:-translate-y-0.5 hover:shadow-[0_16px_40px_rgba(0,55,74,0.08)] transition-all">
+                  <h2 className="text-xl font-black tracking-[-0.02em] text-[#00374a]">No trips booked yet</h2>
+                  <p className="text-[13.5px] text-[#6a7a80] mt-0.5">Your next windsurf adventure is waiting.</p>
+                  <span className="inline-flex items-center gap-1.5 text-[13px] font-bold text-[#00afdb] mt-3 group-hover:gap-2.5 transition-all">Explore experiences
+                    <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M5 12h14M13 6l6 6-6 6" /></svg>
+                  </span>
+                </Link>
+              )}
             </div>
-          )}
+          </div>
 
-          {/* Quick links — uniform, single accent */}
-          <div className="grid sm:grid-cols-2 gap-3 mt-7">
-            <SectionCard href="/account/trips" title="My trips" desc={bookings.length ? `${bookings.length} trip${bookings.length === 1 ? "" : "s"} · prep, payment, photos` : "Book your first adventure"} icon={<path d="M3 7l9-4 9 4-9 4-9-4zM3 7v10l9 4 9-4V7M12 11v10" />} />
-            {flags.showGear && <SectionCard href="/account/gear" title="My gear" desc="Track your board & fin orders" icon={<><rect x="3" y="3" width="18" height="18" rx="2" /><path d="M3 9h18M9 21V9" /></>} />}
+          {/* Quick links — uniform, single accent; a row across the bottom on desktop */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 mt-6">
+            <SectionCard href="/account/trips" title="My trips" desc={bookings.length ? `${bookings.length} trip${bookings.length === 1 ? "" : "s"} · prep, photos` : "Book your first adventure"} icon={<path d="M3 7l9-4 9 4-9 4-9-4zM3 7v10l9 4 9-4V7M12 11v10" />} />
+            {flags.showGear && <SectionCard href="/account/gear" title="My gear" desc="Board & fin orders" icon={<><rect x="3" y="3" width="18" height="18" rx="2" /><path d="M3 9h18M9 21V9" /></>} />}
             <SectionCard href="/account/level" title="Progress" desc="Your level & skills" icon={<path d="M4 19V5M4 19h16M8 16v-4M12 16V8M16 16v-7" />} />
-            {flags.showExperience && <SectionCard href="/experience" title="Explore" desc="Upcoming trips & destinations" icon={<><circle cx="12" cy="12" r="9" /><path d="M3 12h18M12 3a15 15 0 0 1 0 18 15 15 0 0 1 0-18z" /></>} />}
+            {flags.showExperience && <SectionCard href="/experience" title="Explore" desc="Trips & destinations" icon={<><circle cx="12" cy="12" r="9" /><path d="M3 12h18M12 3a15 15 0 0 1 0 18 15 15 0 0 1 0-18z" /></>} />}
           </div>
         </div>
       </main>
