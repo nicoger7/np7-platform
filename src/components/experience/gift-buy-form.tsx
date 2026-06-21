@@ -3,6 +3,7 @@
 import { useMemo, useState } from "react";
 import Link from "next/link";
 import { fmtVoucherMoney } from "@/lib/vouchers";
+import { track } from "@/lib/analytics-client";
 
 type Exp = { id: string; title: string; currency: string | null };
 type Pkg = { id: string; name: string; price: number | null; experience_id: string };
@@ -33,7 +34,7 @@ export function GiftBuyForm({ experiences, packages }: { experiences: Exp[]; pac
       body: JSON.stringify({ experienceId: expId, packageId: pkgId || null, recipientName, recipientEmail, message }),
     });
     setBusy(false);
-    if (res.ok) setDone(true);
+    if (res.ok) { track("voucher_buy", { experience: expId }); setDone(true); }
     else { const j = await res.json().catch(() => ({})); setError(j.error || "Couldn't create the voucher — please try again."); }
   }
 

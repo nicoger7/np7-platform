@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
+import { track } from "@/lib/analytics-client";
 
 export const DEPOSIT_EUR = 300;
 
@@ -35,6 +36,11 @@ export function ReserveModal({ ctx, onClose }: { ctx: ReserveContext; onClose: (
   const [member, setMember] = useState(false);
   const [ready, setReady] = useState(false);
 
+  // The modal only mounts once the visitor clicks "Reserve" → start of the funnel.
+  useEffect(() => {
+    track("reserve_start", { package: ctx.packageId, level: ctx.level });
+  }, [ctx.packageId, ctx.level]);
+
   useEffect(() => {
     fetch("/api/portal/me")
       .then((r) => r.json())
@@ -67,6 +73,7 @@ export function ReserveModal({ ctx, onClose }: { ctx: ReserveContext; onClose: (
       });
       const json = await res.json();
       if (!res.ok) { setError(json.error ?? "Something went wrong — please try again."); setSubmitting(false); return; }
+      track("register", { package: ctx.packageId, member });
       setRegistered(true);
       setSubmitting(false);
     } catch {

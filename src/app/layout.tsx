@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { Inter } from "next/font/google";
 import "./globals.css";
 import { CookieConsent } from "@/components/shared/cookie-consent";
+import { AnalyticsTracker } from "@/components/analytics/tracker";
 
 const inter = Inter({
   subsets: ["latin"],
@@ -41,6 +42,7 @@ export default function RootLayout({
     <html lang="en" className={`${inter.variable} antialiased`}>
       <body className="min-h-screen flex flex-col">
         {children}
+        <AnalyticsTracker />
         <CookieConsent />
       </body>
     </html>
