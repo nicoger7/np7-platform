@@ -13,7 +13,7 @@ export function LevelHomeCard({
 }) {
   const ring = Math.max(0, Math.min(100, Math.round(pct)));
   return (
-    <Link href="/account/profile" className="group flex items-center gap-3.5 bg-white rounded-2xl border border-[#f0e6d6] px-4 py-3.5 hover:-translate-y-0.5 hover:shadow-[0_12px_30px_rgba(0,55,74,0.07)] transition-all">
+    <Link href="/account/level" className="group flex items-center gap-3 bg-white rounded-2xl border border-[#f0e6d6] px-4 py-3 hover:-translate-y-0.5 hover:shadow-[0_12px_30px_rgba(0,55,74,0.07)] transition-all">
       <div className="relative w-[52px] h-[52px] shrink-0">
         <svg viewBox="0 0 36 36" className="w-[52px] h-[52px] -rotate-90" aria-hidden="true">
           <circle cx="18" cy="18" r="16" fill="none" stroke="#eef3f4" strokeWidth="3" />

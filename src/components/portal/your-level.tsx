@@ -120,20 +120,20 @@ export function YourLevel({ detail }: { detail: MemberLevelDetail }) {
         </div>
       )}
 
-      {/* ── what's next (folded; open by default when nothing earned yet) ── */}
+      {/* ── what's next — one row by default, rest unfolds ── */}
       {hasCatalog && nextSkills.length > 0 && (
         <div className="mt-4 pt-4 border-t border-[#f3ede2]">
-          <button type="button" onClick={() => setShowNext((s) => !s)} className="flex items-center gap-1.5 text-[13px] font-semibold text-[#00374a]">
-            <svg className={`w-4 h-4 text-[#00afdb] transition-transform ${showNext || earned === 0 ? "rotate-90" : ""}`} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M9 18l6-6-6-6" /></svg>
-            What&apos;s next <span className="text-[#9aa6ac] font-normal">— {nextSkills.length} to unlock{nextTier ? `, next: ${nextTier}` : ""}</span>
-          </button>
-          {(showNext || earned === 0) && (
-            <div className="flex flex-wrap gap-1.5 mt-3">
-              {nextSkills.map((m) => (
-                <span key={m.id} title={m.description ?? m.label} className={chipLocked}>{m.label}</span>
-              ))}
-            </div>
-          )}
+          <p className="text-[13px] font-semibold text-[#00374a] mb-2.5">What&apos;s next <span className="text-[#9aa6ac] font-normal">— {nextSkills.length} to unlock{nextTier ? `, next: ${nextTier}` : ""}</span></p>
+          <div className="flex flex-wrap gap-1.5">
+            {(showNext ? nextSkills : nextSkills.slice(0, 6)).map((m) => (
+              <span key={m.id} title={m.description ?? m.label} className={chipLocked}>{m.label}</span>
+            ))}
+            {nextSkills.length > 6 && (
+              <button type="button" onClick={() => setShowNext((s) => !s)} className="text-[12px] font-semibold text-[#00afdb] px-2.5 py-1">
+                {showNext ? "Show less" : `+${nextSkills.length - 6} more`}
+              </button>
+            )}
+          </div>
         </div>
       )}
 

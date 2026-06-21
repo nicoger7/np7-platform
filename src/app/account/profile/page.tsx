@@ -2,11 +2,10 @@ import { redirect } from "next/navigation";
 import Link from "next/link";
 import type { Metadata } from "next";
 import { getPortalUser } from "@/lib/auth";
-import { getMemberProfile, getProfilePhotoChoices, getMemberLevelDetail } from "@/lib/portal-data";
+import { getMemberProfile, getProfilePhotoChoices } from "@/lib/portal-data";
 import { displayLevel } from "@/lib/member-level";
 import { PortalChrome } from "@/components/portal/portal-chrome";
 import { CommunityProfile } from "@/components/portal/community-profile";
-import { YourLevel } from "@/components/portal/your-level";
 
 export const metadata: Metadata = { title: "Profile — NP7" };
 export const dynamic = "force-dynamic";
@@ -16,10 +15,9 @@ export const dynamic = "force-dynamic";
 export default async function ProfilePage() {
   const user = await getPortalUser();
   if (!user) redirect("/account/login");
-  const [profile, photoChoices, levelDetail] = await Promise.all([
+  const [profile, photoChoices] = await Promise.all([
     getMemberProfile(user.contactId),
     getProfilePhotoChoices(user.contactId).catch(() => []),
-    getMemberLevelDetail(user.contactId).catch(() => null),
   ]);
   const shownLevel = profile
     ? displayLevel({ self_level: profile.self_level, level: profile.level, level_status: profile.level_status }).level
@@ -48,7 +46,6 @@ export default async function ProfilePage() {
                 visibility={profile.visibility}
                 photoChoices={photoChoices}
               />
-              {levelDetail && <YourLevel detail={levelDetail} />}
             </div>
           ) : <p className="text-[#6a7a80]">Profile not found.</p>}
         </div>
