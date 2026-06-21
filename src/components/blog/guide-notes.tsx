@@ -42,23 +42,22 @@ export async function GuideNotes({ blogPostId, slug, accent }: { blogPostId: str
             const a = n.contact_id ? authors[n.contact_id] : undefined;
             const who = a?.displayName || n.author_name || "Member";
             return (
-              <li key={i} className="flex gap-2.5 text-[14.5px] text-[#5a6b72] leading-relaxed">
+              <li key={i} className="flex gap-3">
                 {a?.avatarUrl ? (
-                  <span className="shrink-0 w-9 h-9 rounded-full bg-cover bg-center mt-0.5" style={{ backgroundImage: `url('${a.avatarUrl}')` }} aria-hidden="true" />
+                  <span className="shrink-0 w-9 h-9 rounded-full bg-cover bg-center ring-1 ring-[#00374a]/5" style={{ backgroundImage: `url('${a.avatarUrl}')` }} aria-hidden="true" />
                 ) : (
-                  <span className="shrink-0 w-9 h-9 rounded-full grid place-items-center text-[12.5px] font-bold mt-0.5" style={{ backgroundColor: `${accent}1a`, color: accent }} aria-hidden="true">
+                  <span className="shrink-0 w-9 h-9 rounded-full grid place-items-center text-[12.5px] font-bold ring-1 ring-[#00374a]/5" style={{ backgroundColor: `${accent}1a`, color: accent }} aria-hidden="true">
                     {(a?.initials || who[0]).toUpperCase()}
                   </span>
                 )}
-                <span>
-                  <span className="font-bold text-[#00374a]">{who}</span>
-                  {a?.level && (
-                    <span className="ml-1.5 align-middle">
-                      <LevelBadge level={a.level} verified={!!a.levelVerified} skills={a.skills ?? []} align="left" />
-                    </span>
-                  )}
-                  <span className="font-bold text-[#00374a]">:</span> {n.body}
-                </span>
+                <div className="min-w-0 flex-1">
+                  <div className="flex items-center flex-wrap gap-x-2 gap-y-0.5">
+                    <span className="font-bold text-[#00374a] text-[14px] leading-tight">{who}</span>
+                    {a?.username && <span className="text-[12px] text-[#9aa6ac] leading-tight">@{a.username}</span>}
+                    {a?.level && <LevelBadge level={a.level} verified={!!a.levelVerified} skills={a.skills ?? []} align="left" />}
+                  </div>
+                  <p className="text-[14.5px] text-[#5a6b72] leading-relaxed mt-1">{n.body}</p>
+                </div>
               </li>
             );
           })}

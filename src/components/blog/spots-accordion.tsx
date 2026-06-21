@@ -19,7 +19,7 @@ import { SpotNoteForm } from "./spot-note-form";
 export type SpotNote = {
   author_name: string | null; body: string;
   // attached when the author opted into a public profile (migration 035)
-  displayName?: string | null; avatarUrl?: string | null; initials?: string | null;
+  displayName?: string | null; username?: string | null; avatarUrl?: string | null; initials?: string | null;
   // their level + verified skills (shown on hover), when they share their level
   level?: string | null; levelVerified?: boolean; skills?: string[];
 };
@@ -152,21 +152,20 @@ export function SpotsAccordion({
                             {notes.map((note, k) => {
                               const who = note.displayName || note.author_name || "Member";
                               return (
-                                <li key={k} className="flex gap-2.5 text-[14.5px] text-[#5a6b72] leading-relaxed">
+                                <li key={k} className="flex gap-3">
                                   {note.avatarUrl ? (
-                                    <span className="shrink-0 w-9 h-9 rounded-full bg-cover bg-center mt-0.5" style={{ backgroundImage: `url('${note.avatarUrl}')` }} aria-hidden="true" />
-                                  ) : note.displayName ? (
-                                    <span className="shrink-0 w-9 h-9 rounded-full grid place-items-center bg-[#eef3f4] text-[#6a7a80] text-[12.5px] font-bold mt-0.5" aria-hidden="true">{note.initials || who[0]}</span>
-                                  ) : null}
-                                  <span>
-                                    <span className="font-bold text-[#00374a]">{who}</span>
-                                    {note.level && (
-                                      <span className="ml-1.5 align-middle">
-                                        <LevelBadge level={note.level} verified={!!note.levelVerified} skills={note.skills ?? []} align="left" />
-                                      </span>
-                                    )}
-                                    <span className="font-bold text-[#00374a]">:</span> {note.body}
-                                  </span>
+                                    <span className="shrink-0 w-9 h-9 rounded-full bg-cover bg-center ring-1 ring-[#00374a]/5" style={{ backgroundImage: `url('${note.avatarUrl}')` }} aria-hidden="true" />
+                                  ) : (
+                                    <span className="shrink-0 w-9 h-9 rounded-full grid place-items-center bg-[#eef3f4] text-[#6a7a80] text-[12.5px] font-bold ring-1 ring-[#00374a]/5" aria-hidden="true">{(note.initials || who[0]).toUpperCase()}</span>
+                                  )}
+                                  <div className="min-w-0 flex-1">
+                                    <div className="flex items-center flex-wrap gap-x-2 gap-y-0.5">
+                                      <span className="font-bold text-[#00374a] text-[14px] leading-tight">{who}</span>
+                                      {note.username && <span className="text-[12px] text-[#9aa6ac] leading-tight">@{note.username}</span>}
+                                      {note.level && <LevelBadge level={note.level} verified={!!note.levelVerified} skills={note.skills ?? []} align="left" />}
+                                    </div>
+                                    <p className="text-[14.5px] text-[#5a6b72] leading-relaxed mt-1">{note.body}</p>
+                                  </div>
                                 </li>
                               );
                             })}
