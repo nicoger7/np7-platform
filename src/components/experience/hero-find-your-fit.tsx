@@ -229,7 +229,7 @@ export function HeroFindYourFit({ src, poster, children }: { src: string; poster
 
           {/* ── MOBILE: cards + active detail centred together as one group, so it
                  sits in the true vertical middle on any phone height (no overlap) ── */}
-          <div className="sm:hidden absolute inset-0 z-10 flex flex-col items-center justify-center gap-5 px-5 pt-[60px] pb-5">
+          <div className="sm:hidden absolute inset-0 z-10 flex flex-col items-center justify-center gap-5 px-5 pt-[60px] pb-24">
             <div className="w-full flex flex-col items-center shrink-0">
               <p className="text-[12px] font-bold tracking-[0.3em] text-[#8fe6f2] mb-1.5 fyf-copy">FIND YOUR FIT</p>
               <h2 className="text-xl font-black tracking-[-0.02em] text-white text-center mb-3 fyf-copy">Whatever brings you to the water</h2>
