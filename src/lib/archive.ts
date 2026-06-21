@@ -37,6 +37,14 @@ export function missingArchivedCol(msg?: string | null): boolean {
   return !!msg && /archived_at/.test(msg) && /(does not exist|column|schema cache)/i.test(msg);
 }
 
+/** Drop archived rows from a fetched list. Tolerant: pre-migration the column is
+ *  absent (archived_at undefined) so every row is kept. Use on select("*") lists.
+ *  Untyped on `archived_at` because the generated DB types don't include it until
+ *  migration 039 is applied + types regenerated. */
+export function notArchived<T>(rows: T[] | null | undefined): T[] {
+  return (rows ?? []).filter((r) => !(r as { archived_at?: unknown } | null)?.archived_at);
+}
+
 /** Soft-delete = set archived_at. Pre-migration (column missing) → hard delete,
  *  so the existing Delete buttons keep working until 039 is applied. */
 export async function softDelete(db: DB, table: string, id: string): Promise<{ ok: boolean; archived: boolean; error?: string }> {

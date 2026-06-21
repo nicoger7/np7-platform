@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase";
+import { notArchived } from "@/lib/archive";
 
 // GET /api/admin/editions — list editions (optionally filtered by experience_id or year)
 export async function GET(request: NextRequest) {
@@ -23,7 +24,7 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 
-  return NextResponse.json(data || []);
+  return NextResponse.json(notArchived(data));
 }
 
 // POST /api/admin/editions — create a new edition

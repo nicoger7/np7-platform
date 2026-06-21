@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase";
+import { notArchived } from "@/lib/archive";
 
 function slugify(name: string): string {
   return name
@@ -28,7 +29,7 @@ export async function GET(request: NextRequest) {
 
   const { data, error } = await q;
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
-  return NextResponse.json(data ?? []);
+  return NextResponse.json(notArchived(data));
 }
 
 // POST /api/admin/products — create a product

@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase";
+import { notArchived } from "@/lib/archive";
 
 // GET /api/admin/packages — list packages (optionally filtered by experience)
 export async function GET(request: NextRequest) {
@@ -32,7 +33,7 @@ export async function GET(request: NextRequest) {
   //   cost_estimate   = cost_per_person if set, else Σ(component buy × qty)
   //   margin          = price − cost_estimate
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const pkgs = (data || []) as any[];
+  const pkgs = notArchived(data) as any[];
   const pkgIds = pkgs.map((p) => p.id);
   const linkCount: Record<string, number> = {};
   const compCostByPkg: Record<string, number> = {};

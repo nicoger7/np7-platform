@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase";
+import { missingArchivedCol } from "@/lib/archive";
 
 // GET /api/admin/contacts — list all contacts
 export async function GET(request: NextRequest) {
@@ -18,19 +19,23 @@ export async function GET(request: NextRequest) {
   const sortCol = allowedSortCols.includes(sortParam) ? sortParam : "created_at";
   const ascending = orderParam === "asc";
 
-  let query = client
-    .from("contacts")
-    .select("*", { count: "exact" })
-    .order(sortCol, { ascending })
-    .range(offset, offset + limit - 1);
+  // Hide archived rows at the DB level so pagination + count stay correct.
+  // Tolerant: retry without the filter if migration 039 isn't applied yet.
+  const buildQuery = (active: boolean) => {
+    let q = client
+      .from("contacts")
+      .select("*", { count: "exact" })
+      .order(sortCol, { ascending })
+      .range(offset, offset + limit - 1);
+    if (active) q = q.is("archived_at", null);
+    if (search) {
+      q = q.or(`name.ilike.%${search}%,email.ilike.%${search}%,phone.ilike.%${search}%`);
+    }
+    return q;
+  };
 
-  if (search) {
-    query = query.or(
-      `name.ilike.%${search}%,email.ilike.%${search}%,phone.ilike.%${search}%`
-    );
-  }
-
-  const { data, error, count } = await query;
+  let { data, error, count } = await buildQuery(true);
+  if (error && missingArchivedCol(error.message)) ({ data, error, count } = await buildQuery(false));
 
   if (error) {
     return NextResponse.json({ error: error.message }, { status: 500 });

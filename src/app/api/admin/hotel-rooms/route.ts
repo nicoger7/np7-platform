@@ -2,6 +2,7 @@ import { createClient } from "@/lib/supabase/server";
 import { createClient as createServiceClient } from "@supabase/supabase-js";
 import { NextRequest } from "next/server";
 import { isActiveTeamMember } from "@/lib/admin-auth";
+import { notArchived } from "@/lib/archive";
 
 function getServiceClient() {
   return createServiceClient(
@@ -53,7 +54,7 @@ export async function GET(request: NextRequest) {
   const { data, error } = await query;
 
   if (error) return Response.json({ error: error.message }, { status: 500 });
-  return Response.json({ rooms: data });
+  return Response.json({ rooms: notArchived(data) });
 }
 
 export async function POST(request: NextRequest) {

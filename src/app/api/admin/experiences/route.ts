@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase";
+import { notArchived } from "@/lib/archive";
 
 // GET /api/admin/experiences — list all experiences
 export async function GET() {
@@ -14,7 +15,7 @@ export async function GET() {
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 
-  return NextResponse.json(data);
+  return NextResponse.json(notArchived(data));
 }
 
 // Real exp_experiences (template) columns. Edition-level fields (date_start,

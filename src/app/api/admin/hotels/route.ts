@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase";
+import { notArchived } from "@/lib/archive";
 
 // Fallback until the hotels table exists (migration 016)
 const LEGACY_HOTELS = [
@@ -21,7 +22,7 @@ export async function GET() {
     // table not created yet — serve the legacy hardcoded list
     return NextResponse.json({ hotels: LEGACY_HOTELS, source: "legacy" });
   }
-  return NextResponse.json({ hotels: data || [], source: "db" });
+  return NextResponse.json({ hotels: notArchived(data), source: "db" });
 }
 
 // POST /api/admin/hotels — add a hotel (name + prefix)
