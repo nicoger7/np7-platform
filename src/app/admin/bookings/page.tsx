@@ -188,14 +188,14 @@ export default function BookingsPage() {
 
   return (
     <div>
-      <div className="flex items-center justify-between mb-6">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-6">
         <div>
           <h1 className="text-2xl font-bold admin-heading mb-1">Bookings</h1>
           <p className="text-sm admin-muted">
             {bookings.length} booking{bookings.length !== 1 ? "s" : ""} across all experiences
           </p>
         </div>
-        <div className="flex items-center gap-3">
+        <div className="flex flex-wrap items-center gap-2 sm:gap-3">
           {/* Column toggle — only for table view */}
           {view === "table" && (
             <ColumnToggle
@@ -276,8 +276,9 @@ export default function BookingsPage() {
           <p className="text-xs admin-faint mt-1">Run the migration first, then bookings will appear here</p>
         </div>
       ) : view === "table" ? (
-        /* ── Table view ── */
-        <div className="rounded-xl overflow-hidden" style={{ border: "1px solid var(--admin-border)" }}>
+        /* ── Table view ── (scrolls horizontally on narrow screens) */
+        <div className="overflow-x-auto -mx-4 px-4 sm:mx-0 sm:px-0">
+        <div className="rounded-xl overflow-hidden min-w-[760px]" style={{ border: "1px solid var(--admin-border)" }}>
           {/* Header */}
           <div
             className="grid gap-3 px-5 py-3 admin-surface"
@@ -381,6 +382,7 @@ export default function BookingsPage() {
               )}
             </div>
           ))}
+        </div>
         </div>
       ) : (
         /* ── Pipeline (Kanban) view ── */
