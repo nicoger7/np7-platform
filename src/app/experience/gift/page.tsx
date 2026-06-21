@@ -35,6 +35,29 @@ export default async function GiftPage() {
               <Link href="/account/login?next=/experience/gift" className="inline-block px-7 py-3.5 rounded-full text-[13.5px] font-bold text-white bg-[#00afdb]">Sign in / sign up →</Link>
             </div>
           )}
+
+          {/* How gifting works */}
+          <div className="mt-12">
+            <p className="text-[11px] font-bold tracking-[0.22em] text-[#f47b20] mb-5 text-center">HOW GIFTING WORKS</p>
+            <div className="grid sm:grid-cols-3 gap-4">
+              {[
+                { n: "1", t: "Choose their trip", d: "Pick the experience and package. Pay by bank transfer — the price is locked in the moment you buy." },
+                { n: "2", t: "We wrap it up", d: "Once your transfer lands we activate the voucher in your account. Print the PDF or hand over the code." },
+                { n: "3", t: "They make it real", d: "They register for the trip and enter the code on their payment plan — it covers what they've been invoiced." },
+              ].map((s) => (
+                <div key={s.n} className="bg-white rounded-2xl border border-[#f0e6d6] p-5">
+                  <span className="inline-grid place-items-center w-8 h-8 rounded-full text-[14px] font-black text-white mb-3" style={{ background: "linear-gradient(135deg,#ffc42e,#f47b20)" }}>{s.n}</span>
+                  <h3 className="text-[15px] font-extrabold text-[#00374a] mb-1">{s.t}</h3>
+                  <p className="text-[13px] text-[#6a7a80] leading-relaxed">{s.d}</p>
+                </div>
+              ))}
+            </div>
+            <div className="mt-5 flex flex-wrap justify-center gap-2.5">
+              {["Valid a full year", "Printable PDF voucher", "For any NP7 trip", "50% back if unused"].map((c) => (
+                <span key={c} className="px-3.5 py-1.5 rounded-full text-[12.5px] font-semibold text-[#00374a] bg-white border border-[#f0e6d6]">{c}</span>
+              ))}
+            </div>
+          </div>
         </div>
       </main>
     </>
