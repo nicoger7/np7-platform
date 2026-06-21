@@ -12,13 +12,30 @@ interface Analytics {
 interface Behaviour {
   available: boolean;
   range: { days: number; from: string | null };
-  totals: { pageviews: number; sessions: number; visitors: number; pagesPerSession: number };
+  totals: { pageviews: number; sessions: number; visitors: number; pagesPerSession: number; bounceRate: number; newPct: number };
+  live: { activeVisitors: number; viewsToday: number; sessionsToday: number };
+  members: { member: number; guest: number };
   series: { date: string; views: number }[];
   topPages: { path: string; views: number }[];
+  entryPages: { path: string; sessions: number }[];
+  exitPages: { path: string; sessions: number }[];
   topSources: { source: string; sessions: number }[];
+  countries: { country: string; sessions: number }[];
   devices: { device: string; sessions: number }[];
   funnel: { expViews: number; reserveStart: number; register: number };
 }
+
+/** ISO-2 country code → flag emoji. */
+function flag(cc: string) {
+  if (!/^[A-Za-z]{2}$/.test(cc)) return "🌐";
+  return String.fromCodePoint(...[...cc.toUpperCase()].map((c) => 127397 + c.charCodeAt(0)));
+}
+
+const COUNTRY_NAMES: Record<string, string> = {
+  DE: "Germany", AT: "Austria", CH: "Switzerland", NL: "Netherlands", GB: "United Kingdom",
+  US: "United States", FR: "France", ES: "Spain", IT: "Italy", BE: "Belgium", DK: "Denmark",
+  SE: "Sweden", NO: "Norway", PL: "Poland", TR: "Turkey",
+};
 
 function money(n: number | null | undefined) {
   return n != null ? `€${Number(n).toLocaleString("en-US")}` : "—";
@@ -188,11 +205,23 @@ function BehaviourTab() {
         </div>
       </div>
 
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+      {/* Live / today */}
+      <div className="rounded-xl p-4 mb-4 flex flex-wrap items-center gap-x-8 gap-y-2" style={{ backgroundColor: "var(--admin-surface)", border: "1px solid var(--admin-border)" }}>
+        <span className="inline-flex items-center gap-2 text-[13px] font-bold admin-heading">
+          <span className="w-2 h-2 rounded-full bg-green-500 animate-pulse" />
+          {d.live.activeVisitors} active now
+        </span>
+        <span className="text-[13px] admin-muted">{d.live.viewsToday.toLocaleString("en-US")} views today</span>
+        <span className="text-[13px] admin-muted">{d.live.sessionsToday.toLocaleString("en-US")} sessions today</span>
+      </div>
+
+      <div className="grid grid-cols-2 lg:grid-cols-6 gap-4 mb-6">
         <Metric label="Visitors" value={d.totals.visitors.toLocaleString("en-US")} accent />
         <Metric label="Sessions" value={d.totals.sessions.toLocaleString("en-US")} />
         <Metric label="Pageviews" value={d.totals.pageviews.toLocaleString("en-US")} />
         <Metric label="Pages / session" value={String(d.totals.pagesPerSession)} />
+        <Metric label="New visitors" value={`${d.totals.newPct}%`} />
+        <Metric label="Bounce rate" value={`${d.totals.bounceRate}%`} />
       </div>
 
       {/* Daily views */}
@@ -283,6 +312,71 @@ function BehaviourTab() {
                 <div key={s.source} className="flex items-center justify-between gap-3 text-xs">
                   <span className="admin-muted truncate">{s.source}</span>
                   <span className="admin-heading font-bold shrink-0">{s.sessions}</span>
+                </div>
+              ))}
+            </div>
+          )}
+        </Card>
+
+        {/* Countries */}
+        <Card title="Countries" sub="Sessions by visitor location (coarse, no IP stored).">
+          {d.countries.length === 0 ? <p className="text-xs admin-faint">No data yet.</p> : (
+            <div className="space-y-2">
+              {d.countries.map((c) => (
+                <div key={c.country} className="flex items-center justify-between gap-3 text-xs">
+                  <span className="admin-muted truncate">{flag(c.country)} {COUNTRY_NAMES[c.country] || c.country}</span>
+                  <span className="admin-heading font-bold shrink-0">{c.sessions}</span>
+                </div>
+              ))}
+            </div>
+          )}
+        </Card>
+
+        {/* Member vs guest */}
+        <Card title="Members vs guests" sub="Aggregate only — no individual is identified.">
+          {d.members.member + d.members.guest === 0 ? <p className="text-xs admin-faint">No data yet.</p> : (
+            <div className="space-y-3">
+              {([["Signed-in members", d.members.member], ["Guests", d.members.guest]] as const).map(([label, n]) => {
+                const total = Math.max(1, d.members.member + d.members.guest);
+                const pct = Math.round((n / total) * 100);
+                return (
+                  <div key={label}>
+                    <div className="flex items-center justify-between text-xs mb-1">
+                      <span className="admin-muted font-medium">{label}</span>
+                      <span className="admin-heading font-bold">{n} <span className="admin-faint font-normal">· {pct}%</span></span>
+                    </div>
+                    <div className="h-2.5 rounded-full overflow-hidden" style={{ backgroundColor: "var(--admin-bg)" }}>
+                      <div className="h-full rounded-full" style={{ width: `${pct}%`, backgroundColor: "#0aa3c7" }} />
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </Card>
+
+        {/* Entry pages */}
+        <Card title="Entry pages" sub="Where sessions begin.">
+          {d.entryPages.length === 0 ? <p className="text-xs admin-faint">No data yet.</p> : (
+            <div className="space-y-2">
+              {d.entryPages.map((p) => (
+                <div key={p.path} className="flex items-center justify-between gap-3 text-xs">
+                  <span className="admin-muted font-mono truncate">{p.path}</span>
+                  <span className="admin-heading font-bold shrink-0">{p.sessions}</span>
+                </div>
+              ))}
+            </div>
+          )}
+        </Card>
+
+        {/* Exit pages */}
+        <Card title="Exit pages" sub="Where sessions end — high-exit pages may be losing people.">
+          {d.exitPages.length === 0 ? <p className="text-xs admin-faint">No data yet.</p> : (
+            <div className="space-y-2">
+              {d.exitPages.map((p) => (
+                <div key={p.path} className="flex items-center justify-between gap-3 text-xs">
+                  <span className="admin-muted font-mono truncate">{p.path}</span>
+                  <span className="admin-heading font-bold shrink-0">{p.sessions}</span>
                 </div>
               ))}
             </div>

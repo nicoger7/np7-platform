@@ -22,6 +22,8 @@ create table if not exists analytics_events (
   utm_campaign    text,
   device          text,                          -- 'mobile' | 'tablet' | 'desktop'
   experience_slug text,                          -- funnel context when on an experience page
+  country         text,                          -- coarse geo (Vercel edge header) — NO IP stored
+  authed          boolean not null default false, -- was the visitor signed in? (member vs guest; NO identity)
   meta            jsonb not null default '{}'::jsonb
 );
 

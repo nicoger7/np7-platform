@@ -38,6 +38,16 @@ function sessionId(): string {
   }
 }
 
+/** Member vs guest, WITHOUT any identity — just whether a Supabase auth cookie
+ *  is present. Used for an aggregate member/guest split only. */
+function isAuthed(): boolean {
+  try {
+    return /sb-[^=]*-auth-token/.test(document.cookie);
+  } catch {
+    return false;
+  }
+}
+
 function device(): "mobile" | "tablet" | "desktop" {
   const w = typeof window !== "undefined" ? window.innerWidth : 1280;
   if (w < 768) return "mobile";
@@ -80,6 +90,7 @@ export function track(event: string, meta?: Record<string, unknown>): void {
       utmCampaign: params.get("utm_campaign") || undefined,
       device: device(),
       experienceSlug: experienceSlug(path),
+      authed: isAuthed(),
       meta: meta || undefined,
     };
     const blob = new Blob([JSON.stringify(payload)], { type: "application/json" });

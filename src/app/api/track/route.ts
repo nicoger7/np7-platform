@@ -39,6 +39,12 @@ export async function POST(req: Request) {
     return NextResponse.json({ ok: true }); // ignore malformed beacons
   }
 
+  // Coarse country from the edge (Vercel/Cloudflare) — never the IP. Absent locally.
+  const country =
+    req.headers.get("x-vercel-ip-country") ||
+    req.headers.get("cf-ipcountry") ||
+    null;
+
   // A batch of events, or a single event.
   const raw = Array.isArray(body.events) ? body.events : [body];
   const rows = raw.slice(0, EVENTS_MAX).map((e) => {
@@ -64,6 +70,8 @@ export async function POST(req: Request) {
       utm_campaign: clip(ev.utmCampaign, 120),
       device: device && DEVICES.has(device) ? device : null,
       experience_slug: clip(ev.experienceSlug, 120),
+      country: country ? country.slice(0, 2).toUpperCase() : null,
+      authed: ev.authed === true,
       meta,
     };
   });

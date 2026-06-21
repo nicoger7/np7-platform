@@ -411,7 +411,7 @@ export default async function ExperienceDetailPage({ params }: Props) {
                   Fully booked · join the waitlist
                 </Link>
               ) : (
-                <Link href="#packages" className="px-7 py-4 rounded-full text-[14px] font-bold text-[#00374a] bg-white hover:-translate-y-0.5 transition-all">
+                <Link href="#packages" data-track="reserve_cta" data-track-label="hero" className="px-7 py-4 rounded-full text-[14px] font-bold text-[#00374a] bg-white hover:-translate-y-0.5 transition-all">
                   {money(fromPrice, experience.currency) ? `Reserve your spot · from ${money(fromPrice, experience.currency)}` : "Reserve your spot"}
                 </Link>
               )}
@@ -714,7 +714,7 @@ export default async function ExperienceDetailPage({ params }: Props) {
               <h2 className="text-3xl sm:text-5xl font-black tracking-[-0.03em] mb-5 leading-[1.05]">Your dream week is real.<br />Make it yours.</h2>
               <p className="text-[17px] text-white/55 mb-9">Reserve with a €300 deposit — just your name and contact details. After payment, we&apos;ll reach out personally to sort every detail.</p>
               <div className="flex flex-wrap items-center justify-center gap-3">
-                <Link href="#packages" className="px-8 py-4 rounded-full text-[14px] font-bold text-[#00374a] bg-white hover:-translate-y-0.5 transition-all">Reserve my spot · €300</Link>
+                <Link href="#packages" data-track="reserve_cta" data-track-label="final" className="px-8 py-4 rounded-full text-[14px] font-bold text-[#00374a] bg-white hover:-translate-y-0.5 transition-all">Reserve my spot · €300</Link>
                 <Link href={`mailto:experience@np-seven.com?subject=Question: ${experience.title}`} className="px-8 py-4 rounded-full text-[14px] font-bold text-white border-[1.5px] border-white/40 hover:bg-white/10 transition-all">Ask us anything</Link>
               </div>
             </>

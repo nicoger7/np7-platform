@@ -2,6 +2,7 @@
 
 import { useMemo, useState } from "react";
 import { ReserveModal, DEPOSIT_EUR, type ReserveContext } from "./reserve-modal";
+import { track } from "@/lib/analytics-client";
 
 export type RealPackage = {
   id: string;
@@ -95,6 +96,7 @@ export function PackagePicker({ packages, currency = "EUR", reserve }: Props) {
 
   const onLevel = (lv: string) => {
     setLevel(lv);
+    track("package_select", { level: lv });
     const first = packages
       .filter((p) => p.level === lv)
       .sort((a, b) => a.price - b.price)[0];
