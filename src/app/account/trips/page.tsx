@@ -20,7 +20,7 @@ export default async function MyTrips() {
 
   return (
     <>
-      <PortalChrome />
+      <PortalChrome section="experience" />
       <main className="min-h-[100svh] bg-[#fff7ec]">
         <div className="max-w-[1000px] mx-auto px-5 sm:px-8 py-10 sm:py-14">
           <Link href="/account" className="text-[13px] font-semibold text-[#6a7a80] hover:text-[#00374a]">← Home</Link>

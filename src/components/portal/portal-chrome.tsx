@@ -1,4 +1,4 @@
-import { headers } from "next/headers";
+import { cookies, headers } from "next/headers";
 import Link from "next/link";
 import { OceanHeader } from "@/components/experience/ocean-header";
 import { HardwareHeader } from "@/components/hardware/hardware-header";
@@ -24,8 +24,11 @@ import { PortalSubnav } from "./portal-subnav";
  * shop. The few hardware-member surfaces (My Gear / Cart) pass `section="hardware"`
  * explicitly. Gear/Cart subnav stays flag-gated.
  */
-export async function PortalChrome({ section = "experience" }: { section?: "experience" | "hardware" } = {}) {
-  const head = await headers();
+export async function PortalChrome({ section }: { section?: "experience" | "hardware" } = {}) {
+  const [head, store] = await Promise.all([headers(), cookies()]);
+  // A page can force its theme (trips→experience, gear→hardware); neutral pages
+  // pass nothing and follow the current section context.
+  const resolved: "experience" | "hardware" = section ?? (store.get("np7_section")?.value === "hardware" ? "hardware" : "experience");
 
   const host = (head.get("host") || "").split(":")[0].toLowerCase();
   const onLiveDomain = /(^|\.)np-seven\.com$/.test(host);
@@ -35,9 +38,9 @@ export async function PortalChrome({ section = "experience" }: { section?: "expe
   return (
     <>
       {siteLive ? (
-        section === "hardware" ? <HardwareHeader variant="docked" /> : <OceanHeader variant="docked" />
+        resolved === "hardware" ? <HardwareHeader variant="docked" /> : <OceanHeader variant="docked" />
       ) : (
-        <header className={`sticky top-0 z-50 ${section === "hardware" ? "bg-black" : "bg-[#00374a]"} border-b border-white/10`}>
+        <header className={`sticky top-0 z-50 ${resolved === "hardware" ? "bg-black" : "bg-[#00374a]"} border-b border-white/10`}>
           <div className="max-w-[1000px] mx-auto px-5 sm:px-8 h-16 flex items-center">
             <Link href="/account" aria-label="NP7 home" className="shrink-0">
               {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -46,7 +49,7 @@ export async function PortalChrome({ section = "experience" }: { section?: "expe
           </div>
         </header>
       )}
-      <PortalSubnav tone={section === "hardware" ? "hardware" : "ocean"} showGear={flags.showGear} showCart={flags.showCart} />
+      <PortalSubnav tone={resolved === "hardware" ? "hardware" : "ocean"} showGear={flags.showGear} showCart={flags.showCart} />
     </>
   );
 }

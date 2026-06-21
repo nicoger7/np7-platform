@@ -1,9 +1,9 @@
 import Link from "next/link";
 
 /**
- * Minimal home-dashboard card: a progress ring (toward the next tier) around the
- * member's avatar/initials, their level, and a forward nudge. Links to the full
- * profile. Shows a "set your level" state before they've engaged.
+ * Home-dashboard card: a bigger avatar inside a progress ring (toward the next
+ * level), with the rider's name + handle, then a level chip and a forward nudge.
+ * Links to the Progress tab. Shows a "set your level" state before they engage.
  */
 export function LevelHomeCard({
   avatarUrl, initials, displayName, username, level, verified, nextTier, toNext, pct,
@@ -12,32 +12,35 @@ export function LevelHomeCard({
   level: string | null; verified: boolean; nextTier: string | null; toNext: number; pct: number;
 }) {
   const ring = Math.max(0, Math.min(100, Math.round(pct)));
+  const circ = 103.67; // 2πr for r=16.5
   return (
-    <Link href="/account/level" className="group flex items-center gap-3 bg-white rounded-2xl border border-[#f0e6d6] px-4 py-3 hover:-translate-y-0.5 hover:shadow-[0_12px_30px_rgba(0,55,74,0.07)] transition-all">
-      <div className="relative w-[52px] h-[52px] shrink-0">
-        <svg viewBox="0 0 36 36" className="w-[52px] h-[52px] -rotate-90" aria-hidden="true">
-          <circle cx="18" cy="18" r="16" fill="none" stroke="#eef3f4" strokeWidth="3" />
-          <circle cx="18" cy="18" r="16" fill="none" stroke={verified ? "#1aa851" : "#00afdb"} strokeWidth="3" strokeLinecap="round" strokeDasharray="100" strokeDashoffset={100 - ring} />
+    <Link href="/account/level" className="group flex items-center gap-4 bg-white rounded-2xl border border-[#f0e6d6] px-4 py-4 hover:-translate-y-0.5 hover:shadow-[0_12px_30px_rgba(0,55,74,0.07)] transition-all">
+      <div className="relative w-16 h-16 shrink-0">
+        <svg viewBox="0 0 36 36" className="w-16 h-16 -rotate-90" aria-hidden="true">
+          <circle cx="18" cy="18" r="16.5" fill="none" stroke="#eef3f4" strokeWidth="2.5" />
+          <circle cx="18" cy="18" r="16.5" fill="none" stroke={verified ? "#1aa851" : "#00afdb"} strokeWidth="2.5" strokeLinecap="round" strokeDasharray={circ} strokeDashoffset={circ * (1 - ring / 100)} />
         </svg>
-        <span className="absolute inset-[3px] rounded-full grid place-items-center overflow-hidden">
+        <span className="absolute inset-[4px] rounded-full overflow-hidden grid place-items-center">
           {avatarUrl ? (
             <span className="w-full h-full rounded-full bg-cover bg-center" style={{ backgroundImage: `url('${avatarUrl}')` }} />
           ) : (
-            <span className="w-full h-full rounded-full grid place-items-center bg-[#e8f6fb] text-[#00748f] text-[13px] font-bold">{initials}</span>
+            <span className="w-full h-full rounded-full grid place-items-center bg-[#e8f6fb] text-[#00748f] text-[17px] font-bold">{initials}</span>
           )}
         </span>
       </div>
 
       <div className="min-w-0 flex-1">
-        <p className="text-[14px] font-bold text-[#00374a] truncate">{displayName}{username && <span className="text-[12px] font-normal text-[#9aa6ac]"> @{username}</span>}</p>
+        <p className="text-[15.5px] font-extrabold tracking-[-0.01em] text-[#00374a] truncate leading-tight">{displayName}</p>
+        {username && <p className="text-[12px] text-[#9aa6ac] truncate">@{username}</p>}
         {level ? (
-          <p className="text-[12.5px] text-[#6a7a80] mt-0.5 truncate">
-            {verified && <span className="text-[#0f6e56] font-semibold">✓ </span>}
-            <span className="font-semibold text-[#00374a]">{level}</span>
-            {nextTier ? <span> · {toNext} {toNext === 1 ? "skill" : "skills"} to {nextTier}</span> : <span className="text-[#0f6e56]"> · top level 🎉</span>}
-          </p>
+          <div className="flex items-center gap-2 mt-1.5">
+            <span className={`shrink-0 inline-flex items-center gap-0.5 text-[11px] font-bold px-2 py-0.5 rounded-full ${verified ? "bg-[#e1f5ee] text-[#0f6e56]" : "bg-[#eef3f4] text-[#5a6b72]"}`}>
+              {verified && <span aria-hidden="true">✓</span>}{level}
+            </span>
+            <span className="text-[12px] text-[#6a7a80] truncate">{nextTier ? `${toNext} ${toNext === 1 ? "skill" : "skills"} to ${nextTier}` : "top level 🎉"}</span>
+          </div>
         ) : (
-          <p className="text-[12.5px] text-[#00afdb] font-semibold mt-0.5">Set your level →</p>
+          <p className="text-[12.5px] text-[#00afdb] font-semibold mt-1">Set your level →</p>
         )}
       </div>
 

@@ -26,7 +26,7 @@ export default async function CrewPage({ params }: Props) {
 
   return (
     <>
-      <PortalChrome />
+      <PortalChrome section="experience" />
       <main className="min-h-[100svh] bg-[#fff7ec]">
         <div className="max-w-[1000px] mx-auto px-5 sm:px-8 py-8 sm:py-12">
           <Link href={`/account/bookings/${b.id}`} className="text-[13px] font-semibold text-[#6a7a80] hover:text-[#00374a]">← Back to trip</Link>

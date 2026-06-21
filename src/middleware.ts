@@ -112,6 +112,20 @@ export async function middleware(request: NextRequest) {
     return redirect("/account");
   }
 
+  // ── Member-portal theming context ──
+  // Trip-side pages (trips, progress, a trip) live in the Experience world; the
+  // shop pages (gear, cart) in Hardware. Visiting one updates the persistent
+  // section so the neutral pages (home, profile, vouchers, account) follow.
+  if (isAccount && !isAccountAuth) {
+    const section =
+      path.startsWith("/account/gear") || path.startsWith("/account/cart") ? "hardware"
+      : path.startsWith("/account/trips") || path.startsWith("/account/level") || path.startsWith("/account/bookings") ? "experience"
+      : null;
+    if (section && request.cookies.get("np7_section")?.value !== section) {
+      supabaseResponse.cookies.set("np7_section", section, { path: "/", maxAge: 60 * 60 * 24 * 30, sameSite: "lax" });
+    }
+  }
+
   return supabaseResponse;
 }
 
