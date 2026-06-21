@@ -435,12 +435,16 @@ export function asFeatures(v: unknown): Feature[] {
     .map((x) => ({ title: asText((x as Feature)?.title), description: asText((x as Feature)?.description) }))
     .filter((f) => f.title || f.description);
 }
-export type Step = { title: string; description: string };
+export type Step = { title: string; description: string; image?: string };
 export function asSteps(v: unknown): Step[] {
   if (!Array.isArray(v)) return [];
   return v
-    .map((x) => ({ title: asText((x as Step)?.title), description: asText((x as Step)?.description) }))
-    .filter((s) => s.title || s.description);
+    .map((x) => ({
+      title: asText((x as Step)?.title),
+      description: asText((x as Step)?.description),
+      image: asText((x as Step)?.image),
+    }))
+    .filter((s) => s.title || s.description || s.image);
 }
 export type ProsCons = { pros: string[]; cons: string[] };
 export function asProsCons(v: unknown): ProsCons {

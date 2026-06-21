@@ -192,7 +192,7 @@ function Block({ field, theme, data, slug, notesBySpot }: { field: TemplateField
       return (
         <section>
           <SectionHeading accent={accent}>{field.label}</SectionHeading>
-          <ol className="space-y-4">
+          <ol className="space-y-6">
             {steps.map((s, i) => (
               <li key={i} className="flex gap-4">
                 <span
@@ -201,9 +201,15 @@ function Block({ field, theme, data, slug, notesBySpot }: { field: TemplateField
                 >
                   {i + 1}
                 </span>
-                <div className="pt-1">
+                <div className="pt-1 min-w-0 flex-1">
                   {s.title && <h3 className="text-[17px] font-extrabold text-[#00374a] mb-1">{s.title}</h3>}
                   {s.description && <p className="text-[15.5px] text-[#5a6b72] leading-relaxed whitespace-pre-line">{s.description}</p>}
+                  {s.image && (
+                    <figure className="mt-3">
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img src={s.image} alt={s.title || `Step ${i + 1}`} className="w-full rounded-xl border border-[#ece3d3]" loading="lazy" />
+                    </figure>
+                  )}
                 </div>
               </li>
             ))}

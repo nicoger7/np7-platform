@@ -195,6 +195,7 @@ function FieldEditor({ field, value, set }: { field: TemplateField; value: unkno
             descPlaceholder="What to do…"
             addLabel="Add step"
             numbered
+            withImage
           />
         </div>
       );
@@ -512,6 +513,8 @@ function PairsEditor({ pairs, onChange }: { pairs: { label: string; value: strin
   );
 }
 
+type ObjRow = { title: string; description: string; image?: string };
+
 function ObjRowsEditor({
   rows,
   onChange,
@@ -519,13 +522,15 @@ function ObjRowsEditor({
   descPlaceholder,
   addLabel,
   numbered,
+  withImage,
 }: {
-  rows: { title: string; description: string }[];
-  onChange: (v: { title: string; description: string }[]) => void;
+  rows: ObjRow[];
+  onChange: (v: ObjRow[]) => void;
   titlePlaceholder: string;
   descPlaceholder: string;
   addLabel: string;
   numbered?: boolean;
+  withImage?: boolean;
 }) {
   return (
     <div className="space-y-3">
@@ -537,6 +542,15 @@ function ObjRowsEditor({
             <RowButtons onUp={() => onChange(move(rows, i, -1))} onDown={() => onChange(move(rows, i, 1))} onRemove={() => onChange(rows.filter((_, j) => j !== i))} />
           </div>
           <textarea value={r.description} onChange={(e) => onChange(rows.map((x, j) => (j === i ? { ...x, description: e.target.value } : x)))} rows={2} placeholder={descPlaceholder} className={`${input} resize-y`} />
+          {withImage && (
+            <div className="mt-2.5">
+              <ImageField
+                field={{ key: "image", label: "Photo (optional)", kind: "image", slot: "body" }}
+                value={r.image}
+                set={(v) => onChange(rows.map((x, j) => (j === i ? { ...x, image: asText(v) } : x)))}
+              />
+            </div>
+          )}
         </div>
       ))}
       <AddButton label={addLabel} onClick={() => onChange([...rows, { title: "", description: "" }])} />
