@@ -24,7 +24,8 @@ html {
 }
 
 /* Admin theme utilities — driven by CSS vars set in admin-shell.tsx */
-.admin-heading { color: var(--admin-text); }
+.admin-root { --admin-radius: 12px; }
+.admin-heading { color: var(--admin-text); letter-spacing: -0.01em; }
 .admin-muted { color: var(--admin-text-muted); }
 .admin-faint { color: var(--admin-text-faint); }
 .admin-surface { background-color: var(--admin-surface); }
@@ -33,8 +34,62 @@ html {
   background-color: var(--admin-input-bg);
   border-color: var(--admin-input-border);
   color: var(--admin-text);
+  transition: border-color .15s ease, box-shadow .15s ease;
 }
 .admin-input::placeholder { color: var(--admin-text-faint); }
+.admin-input:focus,
+.admin-input:focus-visible {
+  outline: none;
+  border-color: var(--admin-accent);
+  box-shadow: 0 0 0 3px var(--admin-accent-weak);
+}
+
+/* ── Admin design-system helpers (opt-in; used by the refreshed pages) ── */
+.admin-card {
+  background-color: var(--admin-surface);
+  border: 1px solid var(--admin-border);
+  border-radius: var(--admin-radius);
+}
+.admin-card-hover { transition: border-color .15s ease, background-color .15s ease; }
+.admin-card-hover:hover { border-color: var(--admin-border-strong); background-color: var(--admin-surface-hover); }
+
+.admin-btn {
+  display: inline-flex; align-items: center; justify-content: center; gap: .4rem;
+  font-weight: 600; font-size: 13px; line-height: 1; white-space: nowrap;
+  border-radius: 10px; padding: .55rem .9rem; cursor: pointer;
+  border: 1px solid transparent;
+  transition: background-color .15s ease, border-color .15s ease, transform .04s ease;
+}
+.admin-btn:active { transform: translateY(1px); }
+.admin-btn:disabled { opacity: .5; cursor: default; }
+.admin-btn-primary { background-color: var(--admin-accent); color: #fff; }
+.admin-btn-primary:hover:not(:disabled) { background-color: #0bb6dd; }
+.admin-btn-ghost { background-color: var(--admin-surface); border-color: var(--admin-border); color: var(--admin-text); }
+.admin-btn-ghost:hover:not(:disabled) { background-color: var(--admin-surface-hover); border-color: var(--admin-border-strong); }
+
+.admin-badge {
+  display: inline-flex; align-items: center; gap: .3rem;
+  font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: .04em;
+  padding: .15rem .45rem; border-radius: 6px;
+  background-color: var(--admin-active); color: var(--admin-text-muted);
+}
+
+/* Subtle, modern scrollbars inside the admin */
+.admin-root ::-webkit-scrollbar { width: 10px; height: 10px; }
+.admin-root ::-webkit-scrollbar-thumb {
+  background: var(--admin-border-strong); border-radius: 999px;
+  border: 3px solid transparent; background-clip: padding-box;
+}
+.admin-root ::-webkit-scrollbar-thumb:hover { background: var(--admin-text-faint); background-clip: padding-box; }
+.admin-root ::-webkit-scrollbar-track { background: transparent; }
+
+/* Clear keyboard focus on admin links & buttons */
+.admin-root a:focus-visible,
+.admin-root button:focus-visible {
+  outline: 2px solid var(--admin-accent);
+  outline-offset: 2px;
+  border-radius: 6px;
+}
 
 body {
   font-family: var(--font-sans);
