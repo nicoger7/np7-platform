@@ -19,6 +19,8 @@ interface BookingDetail {
   traveling_with: string | null;
   wa_group: boolean;
   agreed_price: number | null;
+  deposit_invoice_sent: boolean;
+  deposit_received: boolean;
   downpayment_invoice_sent: boolean;
   downpayment_received: boolean;
   final_invoice_sent: boolean;
@@ -233,6 +235,8 @@ export default function BookingDetailPage({
         traveling_with: booking.traveling_with,
         wa_group: booking.wa_group,
         agreed_price: booking.agreed_price,
+        deposit_invoice_sent: booking.deposit_invoice_sent,
+        deposit_received: booking.deposit_received,
         downpayment_invoice_sent: booking.downpayment_invoice_sent,
         downpayment_received: booking.downpayment_received,
         final_invoice_sent: booking.final_invoice_sent,
@@ -556,6 +560,14 @@ export default function BookingDetailPage({
               <label className={checkboxClass}>
                 <input type="checkbox" checked={booking.wa_group} onChange={(e) => update("wa_group", e.target.checked)} className="accent-[#0aa3c7]" />
                 Added to WhatsApp group
+              </label>
+              <label className={checkboxClass}>
+                <input type="checkbox" checked={!!booking.deposit_invoice_sent} onChange={(e) => update("deposit_invoice_sent", e.target.checked)} className="accent-[#0aa3c7]" />
+                Deposit invoice sent
+              </label>
+              <label className={checkboxClass}>
+                <input type="checkbox" checked={!!booking.deposit_received} onChange={(e) => update("deposit_received", e.target.checked)} className="accent-[#0aa3c7]" />
+                Deposit received (secures the spot)
               </label>
               <label className={checkboxClass}>
                 <input type="checkbox" checked={booking.downpayment_invoice_sent} onChange={(e) => update("downpayment_invoice_sent", e.target.checked)} className="accent-[#0aa3c7]" />
