@@ -26,7 +26,8 @@ export type BlogTemplateId =
   | "gear_guide"
   | "comparison"
   | "spotguide"
-  | "technique_guide";
+  | "technique_guide"
+  | "masterclass";
 
 /** How a field is edited (admin) and rendered (public). */
 export type FieldKind =
@@ -46,7 +47,8 @@ export type FieldKind =
   | "frequency" // ConditionsAvail — per condition-type frequency (often/sometimes/never)
   | "spots" // Spot[] — a destination's spots, each with its own facts (see SPOT_FIELDS)
   | "options" // Option[] — compared options, each with pros/cons (see OPTION_FIELDS)
-  | "matrix"; // ComparisonMatrix — attributes compared across columns
+  | "matrix" // ComparisonMatrix — attributes compared across columns
+  | "chapters"; // Chapter[] — long-form masterclass: chapters w/ intro, image & points + a TOC
 
 /** Where the field appears in the fixed, consistent post frame. */
 export type FieldSlot = "hero" | "facts" | "body";
@@ -356,6 +358,25 @@ const TECHNIQUE_GUIDE: BlogTemplate = {
   ],
 };
 
+const MASTERCLASS: BlogTemplate = {
+  id: "masterclass",
+  label: "Masterclass",
+  shortLabel: "Masterclass",
+  world: "technique",
+  icon: "academy",
+  tagline: "A long-form, chaptered guide — a table of contents, chapters with their own intro, photo & points.",
+  cta: { defaultLabel: "Level up on a trip" },
+  fields: [
+    { key: "skill", label: "Subject", kind: "text", slot: "hero", placeholder: "Freeride mastery" },
+    { key: "outcome", label: "What you'll master", kind: "text", slot: "hero", hint: "The outcome, shown under the title.", placeholder: "More speed, better tuning, and a fully planing power jibe." },
+    { key: "discipline", label: "Discipline", kind: "select", slot: "facts", factIcon: "sail", options: ["Windsurf", "Wingfoil", "Foil"] },
+    { key: "difficulty", label: "Level", kind: "select", slot: "facts", factIcon: "gauge", options: ["Beginner", "Intermediate", "Advanced", "All levels"] },
+    { key: "chapters", label: "Chapters", kind: "chapters", slot: "body", hint: "Each chapter gets a title, an intro, an optional photo and a list of points. A jump-to table of contents is built automatically." },
+    { key: "ctaUrl", label: "CTA link (URL)", kind: "text", slot: "body", placeholder: "/experience#experiences" },
+    { key: "ctaLabel", label: "CTA button text", kind: "text", slot: "body", placeholder: "Level up on a trip" },
+  ],
+};
+
 export const BLOG_TEMPLATES: Record<BlogTemplateId, BlogTemplate> = {
   standard: STANDARD,
   equipment_review: EQUIPMENT_REVIEW,
@@ -364,6 +385,7 @@ export const BLOG_TEMPLATES: Record<BlogTemplateId, BlogTemplate> = {
   comparison: COMPARISON,
   spotguide: SPOTGUIDE,
   technique_guide: TECHNIQUE_GUIDE,
+  masterclass: MASTERCLASS,
 };
 
 /** Templates an editor can pick, in display order (Article last). */
@@ -374,6 +396,7 @@ export const TEMPLATE_ORDER: BlogTemplateId[] = [
   "comparison",
   "spotguide",
   "technique_guide",
+  "masterclass",
   "standard",
 ];
 
@@ -489,6 +512,24 @@ export function asSpots(v: unknown): Spot[] {
     .filter((s) => s.name || s.conditions || s.image);
 }
 
+/** A chapter in a long-form Masterclass: heading + intro + photo + points. */
+export type ChapterPoint = { title: string; description: string };
+export type Chapter = { title: string; intro: string; image: string; points: ChapterPoint[] };
+export function asChapters(v: unknown): Chapter[] {
+  if (!Array.isArray(v)) return [];
+  return v
+    .map((x) => {
+      const o = (x && typeof x === "object" ? x : {}) as Record<string, unknown>;
+      const pts = Array.isArray(o.points)
+        ? (o.points as unknown[])
+            .map((p) => ({ title: asText((p as ChapterPoint)?.title), description: asText((p as ChapterPoint)?.description) }))
+            .filter((p) => p.title || p.description)
+        : [];
+      return { title: asText(o.title), intro: asText(o.intro), image: asText(o.image), points: pts };
+    })
+    .filter((c) => c.title || c.intro || c.image || c.points.length);
+}
+
 /** True if a field actually has content worth rendering. */
 export function fieldHasValue(field: TemplateField, data: TemplateData): boolean {
   const v = data[field.key];
@@ -509,6 +550,8 @@ export function fieldHasValue(field: TemplateField, data: TemplateData): boolean
       return asOptions(v).length > 0;
     case "matrix":
       return matrixHasValue(asMatrix(v));
+    case "chapters":
+      return asChapters(v).length > 0;
     case "windrose":
       return windWindowHasValue(asWindWindow(v));
     case "frequency":

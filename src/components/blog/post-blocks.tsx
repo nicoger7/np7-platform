@@ -14,9 +14,11 @@ import {
   asSpots,
   asOptions,
   asMatrix,
+  asChapters,
   matrixHasValue,
   type Option,
   type ComparisonMatrix,
+  type Chapter,
 } from "@/lib/blog-templates";
 import { SpotsAccordion, type SpotNote } from "./spots-accordion";
 import { SpotsMap } from "./spots-map";
@@ -290,6 +292,12 @@ function Block({ field, theme, data, slug, notesBySpot }: { field: TemplateField
       );
     }
 
+    case "chapters": {
+      const chapters = asChapters(v);
+      if (chapters.length === 0) return null;
+      return <Chapters chapters={chapters} theme={theme} />;
+    }
+
     default:
       return null;
   }
@@ -350,6 +358,56 @@ function ComparisonTable({ matrix, accent }: { matrix: ComparisonMatrix; accent:
         </tbody>
       </table>
     </div>
+  );
+}
+
+function Chapters({ chapters, theme }: { chapters: Chapter[]; theme: WorldTheme }) {
+  const accent = theme.accent;
+  return (
+    <section>
+      {/* table of contents — jump to any chapter */}
+      <nav className="rounded-2xl border border-[#ece3d3] bg-[#fdfaf3] p-5 sm:p-6">
+        <div className="text-[11px] font-bold uppercase tracking-[0.14em] text-[#9aa6ac] mb-3">In this guide</div>
+        <ol className="space-y-1">
+          {chapters.map((c, i) => (
+            <li key={i}>
+              <a href={`#chapter-${i + 1}`} className="group flex items-baseline gap-3 py-1 text-[15px] sm:text-[16px] text-[#00374a] font-semibold">
+                <span className="shrink-0 grid place-items-center w-6 h-6 rounded-full text-[12px] font-black" style={{ backgroundColor: `${accent}1a`, color: accent }}>{i + 1}</span>
+                <span className="group-hover:underline underline-offset-2" style={{ textDecorationColor: accent }}>{c.title || `Chapter ${i + 1}`}</span>
+              </a>
+            </li>
+          ))}
+        </ol>
+      </nav>
+
+      <div className="space-y-14 mt-12">
+        {chapters.map((c, i) => (
+          <section key={i} id={`chapter-${i + 1}`} className="scroll-mt-24">
+            <div className="flex items-center gap-3 mb-4">
+              <span className="shrink-0 grid place-items-center w-10 h-10 rounded-full text-[17px] font-black" style={{ backgroundColor: accent, color: theme.accentInk }}>{i + 1}</span>
+              <h2 className="text-2xl sm:text-[30px] font-black tracking-[-0.02em] text-[#00374a] leading-tight">{c.title || `Chapter ${i + 1}`}</h2>
+            </div>
+            {c.image && (
+              <figure className="mb-5">
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img src={c.image} alt={c.title || `Chapter ${i + 1}`} className="w-full rounded-2xl" loading="lazy" />
+              </figure>
+            )}
+            {c.intro && <p className="text-[16px] sm:text-[17px] text-[#5a6b72] leading-relaxed whitespace-pre-line">{c.intro}</p>}
+            {c.points.length > 0 && (
+              <div className="mt-5 space-y-3.5">
+                {c.points.map((p, j) => (
+                  <div key={j} className="rounded-2xl border border-[#ece3d3] bg-white p-5">
+                    {p.title && <h3 className="text-[16.5px] font-extrabold text-[#00374a] mb-1">{p.title}</h3>}
+                    {p.description && <p className="text-[15px] text-[#5a6b72] leading-relaxed whitespace-pre-line">{p.description}</p>}
+                  </div>
+                ))}
+              </div>
+            )}
+          </section>
+        ))}
+      </div>
+    </section>
   );
 }
 

@@ -7,6 +7,7 @@ import {
   type TemplateData,
   type Spot,
   type Option,
+  type Chapter,
   SPOT_FIELDS,
   OPTION_FIELDS,
   WIND_DIRECTIONS,
@@ -22,6 +23,7 @@ import {
   asFeatures,
   asSteps,
   asProsCons,
+  asChapters,
   fieldsForSlot,
 } from "@/lib/blog-templates";
 import ImagePickerModal from "@/components/image-picker-modal";
@@ -243,6 +245,14 @@ function FieldEditor({ field, value, set }: { field: TemplateField; value: unkno
         </div>
       );
 
+    case "chapters":
+      return (
+        <div>
+          <FieldLabel field={field} />
+          <ChaptersEditor chapters={asChapters(value)} onChange={set} />
+        </div>
+      );
+
     default:
       return null;
   }
@@ -404,6 +414,46 @@ function OptionsEditor({ options, onChange }: { options: Option[]; onChange: (v:
         </div>
       ))}
       <AddButton label="Add option" onClick={() => onChange([...options, blank])} />
+    </div>
+  );
+}
+
+function ChaptersEditor({ chapters, onChange }: { chapters: Chapter[]; onChange: (v: Chapter[]) => void }) {
+  const blank: Chapter = { title: "", intro: "", image: "", points: [] };
+  const update = (i: number, key: string, val: unknown) =>
+    onChange(chapters.map((c, j) => (j === i ? { ...c, [key]: val } : c)));
+  return (
+    <div className="space-y-4">
+      {chapters.map((ch, i) => (
+        <div key={i} className="admin-surface admin-border border rounded-xl p-4">
+          <div className="flex items-center justify-between mb-3">
+            <span className="text-[12px] font-bold admin-faint">Chapter {i + 1}{ch.title ? ` · ${ch.title}` : ""}</span>
+            <RowButtons
+              onUp={() => onChange(move(chapters, i, -1))}
+              onDown={() => onChange(move(chapters, i, 1))}
+              onRemove={() => onChange(chapters.filter((_, j) => j !== i))}
+            />
+          </div>
+          <input value={ch.title} onChange={(e) => update(i, "title", e.target.value)} placeholder="Chapter title (e.g. Speed)" className={`${input} mb-2`} />
+          <textarea value={ch.intro} onChange={(e) => update(i, "intro", e.target.value)} rows={3} placeholder="Chapter intro (optional)" className={`${input} resize-y mb-2`} />
+          <div className="mb-3">
+            <ImageField
+              field={{ key: "image", label: "Chapter photo (optional)", kind: "image", slot: "body" }}
+              value={ch.image}
+              set={(v) => update(i, "image", asText(v))}
+            />
+          </div>
+          <div className="text-[12px] font-bold admin-heading mb-1.5">Points</div>
+          <ObjRowsEditor
+            rows={ch.points}
+            onChange={(pts) => update(i, "points", pts)}
+            titlePlaceholder="Point title"
+            descPlaceholder="What to do / know…"
+            addLabel="Add point"
+          />
+        </div>
+      ))}
+      <AddButton label="Add chapter" onClick={() => onChange([...chapters, blank])} />
     </div>
   );
 }
