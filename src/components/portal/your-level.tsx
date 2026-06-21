@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { LEVELS, tierProgress } from "@/lib/member-level";
+import { LEVELS } from "@/lib/member-level";
 import type { MemberLevelDetail } from "@/lib/portal-data";
 
 /**
@@ -17,13 +17,12 @@ export function YourLevel({ detail }: { detail: MemberLevelDetail }) {
   const [busy, setBusy] = useState(false);
   const [saved, setSaved] = useState(false);
   const [err, setErr] = useState("");
+  const [showAllHistory, setShowAllHistory] = useState(false);
 
   const coachLevel = detail.coach_level;
   const pending = status === "suggested" && !!coachLevel;
   const verified = status === "verified" && !!coachLevel;
   const shown = verified ? coachLevel : selfLevel || null;
-  const achievedIds = new Set(detail.milestones.filter((m) => m.achieved).map((m) => m.id));
-  const progress = tierProgress(detail.milestones, achievedIds);
   const hasCatalog = detail.milestones.length > 0;
 
   async function call(payload: Record<string, unknown>) {
@@ -85,22 +84,33 @@ export function YourLevel({ detail }: { detail: MemberLevelDetail }) {
         <span className="text-[13px] text-[#6a7a80] leading-relaxed">Let my coach set &amp; verify my level — I trust their call, no need to confirm each change.</span>
       </label>
 
-      {/* milestone progress */}
+      {/* milestone progress — the actual skills, grouped by tier */}
       {hasCatalog && (
         <div className="mt-6 pt-5 border-t border-[#f3ede2]">
           <p className="text-[13px] font-bold text-[#00374a] mb-3">Your progress</p>
-          <div className="space-y-2.5">
-            {progress.map((t) => (
-              <div key={t.tier} className="flex items-center gap-3">
-                <span className="w-24 text-[13px] text-[#5a6b72] shrink-0">{t.tier}</span>
-                <div className="flex-1 h-2 rounded-full bg-[#eef3f4] overflow-hidden">
-                  <div className="h-full rounded-full bg-[#00afdb]" style={{ width: `${t.total ? (t.done / t.total) * 100 : 0}%` }} />
+          <div className="space-y-3.5">
+            {LEVELS.map((tier) => {
+              const inTier = detail.milestones.filter((m) => m.tier === tier);
+              if (inTier.length === 0) return null;
+              const done = inTier.filter((m) => m.achieved).length;
+              return (
+                <div key={tier}>
+                  <div className="flex items-center justify-between mb-1.5">
+                    <span className="text-[13px] font-semibold text-[#00374a]">{tier}</span>
+                    <span className="text-[12px] text-[#9aa6ac] tabular-nums">{done}/{inTier.length}</span>
+                  </div>
+                  <div className="flex flex-wrap gap-1.5">
+                    {inTier.map((m) => (
+                      <span key={m.id} className={`text-[12px] px-2.5 py-1 rounded-full border ${m.achieved ? "border-[#9fe1cb] bg-[#e1f5ee] text-[#0f6e56]" : "border-[#e6eef0] text-[#9aa6ac]"}`}>
+                        {m.achieved ? "✓ " : ""}{m.label}
+                      </span>
+                    ))}
+                  </div>
                 </div>
-                <span className="text-[12px] text-[#9aa6ac] tabular-nums w-12 text-right">{t.done}/{t.total}</span>
-              </div>
-            ))}
+              );
+            })}
           </div>
-          <p className="text-[12px] text-[#9aa6ac] mt-2.5">Your coach ticks these off as you progress — completing a tier suggests your next level.</p>
+          <p className="text-[12px] text-[#9aa6ac] mt-3">Your coach ticks these off as you progress — completing a tier suggests your next level.</p>
         </div>
       )}
 
@@ -109,7 +119,7 @@ export function YourLevel({ detail }: { detail: MemberLevelDetail }) {
         <div className="mt-6 pt-5 border-t border-[#f3ede2]">
           <p className="text-[13px] font-bold text-[#00374a] mb-3">History</p>
           <ul className="space-y-1.5">
-            {detail.history.slice(0, 8).map((h, i) => (
+            {(showAllHistory ? detail.history : detail.history.slice(0, 4)).map((h, i) => (
               <li key={i} className="flex items-center gap-2 text-[12.5px] text-[#6a7a80]">
                 <span className="font-semibold text-[#00374a]">{h.level ?? "—"}</span>
                 <span className="text-[#9aa6ac]">· {h.status}{h.source ? ` · ${h.source}` : ""}</span>
@@ -117,6 +127,11 @@ export function YourLevel({ detail }: { detail: MemberLevelDetail }) {
               </li>
             ))}
           </ul>
+          {detail.history.length > 4 && (
+            <button type="button" onClick={() => setShowAllHistory((s) => !s)} className="mt-2.5 text-[12.5px] font-bold text-[#00afdb] hover:underline">
+              {showAllHistory ? "Show less" : `Show all ${detail.history.length}`}
+            </button>
+          )}
         </div>
       )}
     </section>
