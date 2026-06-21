@@ -1,18 +1,20 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { AuthModal } from "./auth-modal";
 
+type Me = { loggedIn: boolean; firstName?: string; lastName?: string; avatarUrl?: string | null };
+
 /**
- * Shared "My account" icon button — identical on both sub-sites, rendered next
- * to each header's primary CTA (Book a trip / Shop gear). Tone tints the hover
- * accent to match the section.
+ * Shared account control — rendered in the far-right corner of each header,
+ * after the primary CTA (the universal "account lives top-right" pattern).
  *
- * Logged-in members go straight to the portal; everyone else gets the auth
- * popup (login-first). Clicking also records which brand you came from so the
- * portal keeps that section's header. The href is /account so it still works
- * with JS off (middleware redirects to the /account/login fallback page).
+ * Logged-out: a neutral person glyph that opens the auth popup (login-first).
+ * Logged-in: the member's photo, or their initials in a frosted chip — so the
+ * header reflects *you*, the way Airbnb / GitHub / Notion do. Tapping it always
+ * goes straight to the portal, and records which brand you came from so the
+ * portal keeps that section's header.
  */
 export function MemberButton({
   section,
@@ -23,8 +25,22 @@ export function MemberButton({
 }) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
-  const base = tone === "onLight" ? "border-[#00374a]/15 text-[#00374a]/70" : "border-white/20 text-white/80";
-  const accent = section === "hardware" ? "hover:text-[#c2ff38] hover:border-[#c2ff38]/50" : "hover:text-[#00afdb] hover:border-[#00afdb]/60";
+  const [me, setMe] = useState<Me | null>(null);
+
+  useEffect(() => {
+    let alive = true;
+    fetch("/api/portal/me")
+      .then((r) => r.json())
+      .then((d) => { if (alive) setMe(d); })
+      .catch(() => { if (alive) setMe({ loggedIn: false }); });
+    return () => { alive = false; };
+  }, []);
+
+  const onLight = tone === "onLight";
+  const ringIdle = onLight ? "ring-[#00374a]/15" : "ring-white/25";
+  const ringHover = section === "hardware" ? "hover:ring-[#c2ff38]/70" : "hover:ring-[#00afdb]/70";
+  const glyphBase = onLight ? "border-[#00374a]/15 text-[#00374a]/70" : "border-white/20 text-white/80";
+  const glyphHover = section === "hardware" ? "hover:text-[#c2ff38] hover:border-[#c2ff38]/50" : "hover:text-[#00afdb] hover:border-[#00afdb]/60";
 
   function rememberSection() {
     document.cookie = `np7_section=${section}; path=/; max-age=${60 * 60 * 24 * 30}; samesite=lax`;
@@ -33,11 +49,16 @@ export function MemberButton({
   async function handleClick(e: React.MouseEvent) {
     e.preventDefault();
     rememberSection();
-    // already signed in? go straight to the portal. otherwise open the popup.
-    const me = await fetch("/api/portal/me").then((r) => r.json()).catch(() => null);
-    if (me?.loggedIn) { router.push("/account"); return; }
+    // use what we already know; if state is still loading, re-check on the spot
+    const state = me ?? (await fetch("/api/portal/me").then((r) => r.json()).catch(() => ({ loggedIn: false })));
+    if (state?.loggedIn) { router.push("/account"); return; }
     setOpen(true);
   }
+
+  const initials =
+    me?.loggedIn
+      ? [me.firstName, me.lastName].filter(Boolean).map((s) => s![0]?.toUpperCase()).join("").slice(0, 2) || "•"
+      : "";
 
   return (
     <>
@@ -45,14 +66,31 @@ export function MemberButton({
           no-JS fallback. A plain <a> reliably honours preventDefault. */}
       <a
         href="/account"
-        aria-label="My account"
+        aria-label={me?.loggedIn ? "My account" : "Sign in"}
         onClick={handleClick}
-        className={`shrink-0 grid place-items-center w-9 h-9 rounded-full border transition-colors cursor-pointer ${base} ${accent}`}
+        className="shrink-0 cursor-pointer"
       >
-        <svg className="w-[18px] h-[18px]" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-          <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
-          <circle cx="12" cy="7" r="4" />
-        </svg>
+        {me?.loggedIn ? (
+          me.avatarUrl ? (
+            <span
+              className={`block w-8 h-8 sm:w-9 sm:h-9 rounded-full bg-cover bg-center ring-2 transition-all ${ringIdle} ${ringHover}`}
+              style={{ backgroundImage: `url('${me.avatarUrl}')` }}
+            />
+          ) : (
+            <span
+              className={`grid place-items-center w-8 h-8 sm:w-9 sm:h-9 rounded-full text-[12.5px] font-extrabold tracking-tight ${onLight ? "bg-[#00374a]/8 text-[#00374a]" : "bg-white/12 text-white"} ring-2 transition-all ${ringIdle} ${ringHover}`}
+            >
+              {initials}
+            </span>
+          )
+        ) : (
+          <span className={`grid place-items-center w-8 h-8 sm:w-9 sm:h-9 rounded-full border transition-colors ${glyphBase} ${glyphHover}`}>
+            <svg className="w-[18px] h-[18px]" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+              <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
+              <circle cx="12" cy="7" r="4" />
+            </svg>
+          </span>
+        )}
       </a>
       {open && <AuthModal onClose={() => setOpen(false)} />}
     </>

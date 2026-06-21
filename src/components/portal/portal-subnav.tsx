@@ -53,35 +53,37 @@ export function PortalSubnav({ tone, showGear = false }: { tone: Tone; showGear?
     router.refresh();
   }
 
-  const bg = tone === "hardware" ? "bg-black" : "bg-[#00374a]";
-  const accentText = tone === "hardware" ? "text-[#c2ff38]" : "text-[#37c9ef]";
-  const accentBar = tone === "hardware" ? "bg-[#c2ff38]" : "bg-[#00afdb]";
-  const accent = tone === "hardware" ? "#c2ff38" : "#00afdb";
+  const accent = tone === "hardware" ? "#c2ff38" : "#00afdb"; // mobile bottom-bar + sheet active
   const badge = tone === "hardware" ? "bg-[#c2ff38] text-black" : "bg-[#00afdb] text-white";
+  // Desktop = a light section tab bar that sits on the cream content, distinct
+  // from the dark global header above. Active tab uses a tone accent that reads
+  // on light (cyan for Experience, black ink for Hardware) + an underline.
+  const deskActive = tone === "hardware" ? "text-[#0a0a0a]" : "text-[#00374a]";
+  const deskBar = tone === "hardware" ? "bg-[#0a0a0a]" : "bg-[#00afdb]";
   const moreActive = MORE.some((t) => isActive(t));
   // Cart: Hardware only, and only once something's in it.
   const showCartIcon = tone === "hardware" && cartCount > 0;
 
   return (
     <>
-      {/* ── desktop: horizontal nav ── */}
-      <nav className={`hidden sm:block sticky top-16 z-40 ${bg} border-t border-white/10`}>
+      {/* ── desktop: light section tab bar (sits on the cream content, distinct from the dark global header above) ── */}
+      <nav className="hidden sm:block sticky top-16 z-40 bg-[#fff7ec] border-b border-[#ece2d2]">
         <div className="max-w-[1000px] mx-auto px-5 sm:px-8 h-12 flex items-center gap-1 overflow-x-auto">
           {DESKTOP_TABS.filter(showTab).map((t) => (
             <Link key={t.href} href={t.href}
-              className={`relative shrink-0 inline-flex items-center gap-1.5 px-3 h-12 text-[13px] font-bold tracking-wide transition-colors ${isActive(t) ? accentText : "text-white/60 hover:text-white"}`}>
+              className={`relative shrink-0 inline-flex items-center gap-1.5 px-3 h-12 text-[13px] font-bold tracking-wide transition-colors ${isActive(t) ? deskActive : "text-[#6a7a80] hover:text-[#00374a]"}`}>
               {t.label}
-              {isActive(t) && <span className={`absolute left-3 right-3 bottom-0 h-0.5 rounded-full ${accentBar}`} />}
+              {isActive(t) && <span className={`absolute left-3 right-3 bottom-0 h-0.5 rounded-full ${deskBar}`} />}
             </Link>
           ))}
           <div className="ml-auto flex items-center gap-4 pl-3">
             {showCartIcon && (
-              <Link href="/account/cart" className="relative shrink-0 text-white/70 hover:text-white transition-colors" aria-label={`Cart, ${cartCount} item${cartCount === 1 ? "" : "s"}`}>
+              <Link href="/account/cart" className="relative shrink-0 text-[#6a7a80] hover:text-[#00374a] transition-colors" aria-label={`Cart, ${cartCount} item${cartCount === 1 ? "" : "s"}`}>
                 <Icon name="cart" />
                 <span className={`absolute -top-1.5 -right-2 grid place-items-center min-w-[16px] h-[16px] px-1 rounded-full text-[9px] font-black ${badge}`}>{cartCount}</span>
               </Link>
             )}
-            <button onClick={logout} className="shrink-0 text-[13px] font-semibold text-white/55 hover:text-white transition-colors">Log out</button>
+            <button onClick={logout} className="shrink-0 text-[13px] font-semibold text-[#9aa6ac] hover:text-[#00374a] transition-colors">Log out</button>
           </div>
         </div>
       </nav>

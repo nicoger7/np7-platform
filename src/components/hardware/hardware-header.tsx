@@ -49,7 +49,7 @@ export function HardwareHeader({ variant = "overlay" }: { variant?: "overlay" | 
     <header
       className={
         docked
-          ? "sticky top-0 z-50 bg-black border-b border-white/10"
+          ? "sticky top-0 z-50 bg-black"
           : `fixed top-0 inset-x-0 z-50 transition-all duration-300 ${
               scrolled ? "bg-black/80 backdrop-blur-lg border-b border-white/10" : "bg-transparent"
             }`
@@ -72,19 +72,20 @@ export function HardwareHeader({ variant = "overlay" }: { variant?: "overlay" | 
         </div>
 
         {/* RIGHT — secondary nav + account + CTA */}
-        <div className="flex items-center gap-5">
+        <div className="flex items-center gap-2.5 sm:gap-5">
           <nav className="hidden lg:flex items-center gap-7">
             {rightNav.map((n, i) => (
               <Link key={i} href={n.href} className={navLink}>{n.label}</Link>
             ))}
           </nav>
-          <MemberButton section="hardware" />
           <Link
             href="#products"
             className="hidden min-[400px]:inline-block shrink-0 px-5 py-2.5 rounded-full text-[12.5px] font-bold text-black bg-[#c2ff38] shadow-[0_0_24px_rgba(194,255,56,0.45)] hover:bg-[#d4ff66] hover:-translate-y-0.5 transition-all"
           >
             Shop gear
           </Link>
+          {/* account lives in the far-right corner, after the CTA */}
+          <MemberButton section="hardware" />
           {/* mobile menu toggle — the nav links are desktop-only otherwise */}
           <button
             type="button"

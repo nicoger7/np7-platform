@@ -63,7 +63,7 @@ export function OceanHeader({
     <header
       className={
         docked
-          ? "sticky top-0 z-50 bg-[#00374a] border-b border-white/10"
+          ? "sticky top-0 z-50 bg-[#00374a]"
           : `fixed top-0 inset-x-0 z-50 transition-all duration-300 ${
               scrolled ? "bg-[#00374a]/80 backdrop-blur-lg" : "bg-transparent"
             }`
@@ -86,19 +86,20 @@ export function OceanHeader({
         </div>
 
         {/* RIGHT — secondary nav + account + CTA */}
-        <div className="flex items-center gap-3 sm:gap-5">
+        <div className="flex items-center gap-2.5 sm:gap-5">
           <nav className="hidden lg:flex items-center gap-7">
             {rightNav.map((n) => (
               <Link key={n.href} href={n.href} className={navLink}>{n.label}</Link>
             ))}
           </nav>
-          <MemberButton section="experience" />
           <Link
             href={bookHref}
             className="hidden min-[400px]:inline-block shrink-0 px-5 py-2.5 rounded-full text-[12.5px] font-bold text-white bg-[#00afdb] shadow-[0_4px_18px_rgba(0,175,219,0.4)] hover:bg-[#15c0ec] hover:-translate-y-0.5 transition-all"
           >
             Book a trip
           </Link>
+          {/* account lives in the far-right corner, after the CTA */}
+          <MemberButton section="experience" />
           {/* mobile menu toggle — the nav links are desktop-only otherwise */}
           <button
             type="button"
