@@ -7,10 +7,10 @@ import { paidSpotsByEdition, spotsLeftFrom } from "@/lib/availability";
 /**
  * Public reservation endpoint.
  *
- * Creates a contact + booking (status "payment_pending") and, when Stripe is
- * configured, a Stripe Checkout session for the €300 deposit. The thanks page
- * verifies the session and flips the booking to "downpayment_paid" — matching
- * the statuses already used by the admin bookings pipeline.
+ * Creates a contact + booking (status "reserved") and, when Stripe is
+ * configured, a Stripe Checkout session for the €300 hold-deposit. The thanks
+ * page verifies the session and flips the booking to "confirmed" — the spot is
+ * then secured in the admin pipeline.
  *
  * Without STRIPE_SECRET_KEY the reservation is still saved and the team
  * follows up with a payment link personally (graceful fallback).
@@ -121,7 +121,7 @@ export async function POST(request: NextRequest) {
     }
   }
 
-  // Booking — lands in the admin pipeline as "payment_pending".
+  // Booking — lands in the admin pipeline as "reserved" (awaiting the deposit).
   const { data: booking, error: bErr } = await db
     .from("exp_bookings")
     .insert({
@@ -130,7 +130,7 @@ export async function POST(request: NextRequest) {
       experience_id: exp.id,
       edition_id: editionId ?? null,
       package_id: pkg.id,
-      status: "payment_pending",
+      status: "reserved",
       agreed_price: pkg.price,
       notes: `Website reservation · package: ${pkg.name} · phone: ${phone} · deposit €${DEPOSIT_EUR} via Stripe`,
     })

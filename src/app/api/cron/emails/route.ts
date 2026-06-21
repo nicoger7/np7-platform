@@ -73,7 +73,9 @@ export async function GET(req: NextRequest) {
     const deposit = b.exp_editions?.deposit ?? 300;
     const balanceNum = b.agreed_price != null ? b.agreed_price - deposit : null;
     const status = (b.status ?? "").toLowerCase();
-    const depositPaid = b.downpayment_received || ["downpayment_paid", "paid", "confirmed", "attended"].includes(status);
+    // Tolerant of both the lean pipeline (reserved/confirmed) and any legacy rows.
+    const awaitingDeposit = ["reserved", "payment_pending"].includes(status);
+    const depositPaid = b.downpayment_received || ["confirmed", "downpayment_paid", "paid", "attended"].includes(status);
     const balancePaid = !!b.final_payment_received || ["paid", "attended"].includes(status);
 
     // Cutoff: trip-relative mails need the trip on/after go-live; lead nudges
@@ -94,7 +96,7 @@ export async function GET(req: NextRequest) {
       sendEmail({ to: email, templateKey, vars, bookingId: b.id, dedupeKey });
 
     // 1 · deposit still pending — up to two gentle nudges (+2d, +5d), stop once paid
-    if (leadLive && !depositPaid && status === "payment_pending" && (daysToStart == null || daysToStart > 3)) {
+    if (leadLive && !depositPaid && awaitingDeposit && (daysToStart == null || daysToStart > 3)) {
       if (ageDays >= 2) bump("nudge", await send("payment_pending_nudge", `payment_pending_nudge:d2:${b.id}`));
       if (ageDays >= 5) bump("nudge", await send("payment_pending_nudge", `payment_pending_nudge:d5:${b.id}`));
     }

@@ -2,10 +2,9 @@ import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase";
 import { ensureMemberAccount } from "@/lib/members";
 import { sendEmail } from "@/lib/email/send";
+import { isAttending } from "@/lib/types";
 
 // (Auth enforced by middleware: /api/admin/* requires an active team member.)
-
-const SECURED = new Set(["downpayment_paid", "paid", "confirmed", "attended"]);
 
 export async function GET() {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -28,7 +27,7 @@ export async function GET() {
     const exp = b.exp_experiences;
     if (exp?.id) {
       const m = (expsByContact[cid] ||= new Map());
-      const secured = SECURED.has((b.status || "").toLowerCase());
+      const secured = isAttending(b.status);
       const prev = m.get(exp.id);
       m.set(exp.id, { id: exp.id, title: exp.title, secured: secured || !!prev?.secured });
     }

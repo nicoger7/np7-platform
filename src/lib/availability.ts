@@ -1,15 +1,14 @@
 import { createAdminClient } from "@/lib/supabase";
+import { isAttending } from "@/lib/types";
 
 /**
- * Spot availability for the redesigned funnel: only a paid downpayment takes a
- * spot. Registrations / leads / payment_pending do NOT fill a trip — so "spots
- * left" must count SECURED bookings, not registrations.
+ * Spot availability for the lean funnel: only a paid hold-deposit takes a spot.
+ * Leads / reserved bookings do NOT fill a trip — so "spots left" counts the
+ * confirmed/attending bookings (status confirmed onward, or a deposit on file).
  *
  * Uses the service-role client (the public pages read via the anon client, which
  * can't see team-only bookings) — only the per-edition count is ever returned.
  */
-const SECURED = new Set(["downpayment_paid", "paid", "confirmed", "attended"]);
-
 export async function paidSpotsByEdition(editionIds: (string | null | undefined)[]): Promise<Record<string, number>> {
   const ids = [...new Set(editionIds.filter(Boolean))] as string[];
   if (!ids.length) return {};
@@ -21,7 +20,7 @@ export async function paidSpotsByEdition(editionIds: (string | null | undefined)
     .in("edition_id", ids);
   const out: Record<string, number> = {};
   for (const b of (data || []) as { edition_id: string | null; status: string | null; downpayment_received: boolean | null; final_payment_received: boolean | null }[]) {
-    const secured = b.downpayment_received || b.final_payment_received || SECURED.has((b.status || "").toLowerCase());
+    const secured = b.downpayment_received || b.final_payment_received || isAttending(b.status);
     if (secured && b.edition_id) out[b.edition_id] = (out[b.edition_id] || 0) + 1;
   }
   return out;

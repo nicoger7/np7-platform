@@ -8,7 +8,7 @@ import { getPortalUser } from "@/lib/auth";
  * Free, low-friction registration (the redesigned funnel).
  *
  * Name + email only — no phone, no payment. Creates a contact (with GDPR
- * marketing consent if opted in) and a booking in the "registered" lead state.
+ * marketing consent if opted in) and a booking in the "lead" state.
  * Sends the welcome / how-it-works email. The downpayment that actually SECURES
  * the spot happens later from the member account (Phase 2).
  *
@@ -103,7 +103,7 @@ export async function POST(request: NextRequest) {
     await db.from("contacts").update({ marketing_opt_in: true }).eq("id", contactId).then(() => {}, () => {});
   }
 
-  // Booking — lands as a "registered" lead (no payment, no spot held).
+  // Booking — lands as a "lead" (free signup, no payment, no spot held).
   const bookingPayload = {
     name: fullName,
     contact_id: contactId,
@@ -113,15 +113,8 @@ export async function POST(request: NextRequest) {
     agreed_price: pkg.price,
     notes: `Website registration · package: ${pkg.name}`,
   };
-  let { data: booking, error: bErr } = await db
-    .from("exp_bookings").insert({ ...bookingPayload, status: "registered" }).select("id").single();
-  // Pre-migration-037 fallback: if the old status CHECK rejects "registered",
-  // create it as a "lead" so registration still works (apply 037 to keep it
-  // showing as 'registered').
-  if (bErr && /status_check/i.test(bErr.message || "")) {
-    ({ data: booking, error: bErr } = await db
-      .from("exp_bookings").insert({ ...bookingPayload, status: "lead" }).select("id").single());
-  }
+  const { data: booking, error: bErr } = await db
+    .from("exp_bookings").insert({ ...bookingPayload, status: "lead" }).select("id").single();
   if (bErr) return bad("Could not complete your registration. Please try again.", 500);
 
   const origin = request.headers.get("origin") ?? `https://${request.headers.get("host")}`;

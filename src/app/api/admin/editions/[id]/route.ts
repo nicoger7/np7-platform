@@ -13,8 +13,9 @@ export async function GET(
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const adminClient = client as any;
 
-  // Confirmed = money-down & beyond — this is the real "spots taken".
-  const CONFIRMED = ["downpayment_paid", "create_invoice", "paid", "confirmed", "attended"];
+  // Confirmed = hold-deposit in & beyond — the real "spots taken". Lists both the
+  // lean (confirmed/paid/attended) and legacy values so the count is right pre-migration.
+  const CONFIRMED = ["confirmed", "paid", "attended", "downpayment_paid", "create_invoice"];
 
   const [edition, bookingCount, confirmedCount, packageCount, costCount, roomCount] =
     await Promise.all([

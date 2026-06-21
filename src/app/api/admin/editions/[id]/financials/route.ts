@@ -1,16 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase";
+import { isAttending } from "@/lib/types";
 
-// Pipeline statuses that count as a "confirmed" head:
-// fully committed (paid / confirmed / attended) + anyone who has paid the
-// downpayment (downpayment_paid → create_invoice are post-deposit stages).
-const CONFIRMED_STATUSES = [
-  "downpayment_paid",
-  "create_invoice",
-  "paid",
-  "confirmed",
-  "attended",
-];
+// A "confirmed head" = anyone whose spot is secured: status confirmed onward
+// (hold-deposit paid), tolerant of legacy rows via isAttending().
 
 // GET /api/admin/editions/:id/financials
 // Estimated business case for an edition, derived from package component
@@ -112,7 +105,7 @@ export async function GET(
     .eq("edition_id", id);
   const bookings: { id: string; status: string; package_id: string | null }[] =
     bookingRows || [];
-  const confirmed = bookings.filter((b) => CONFIRMED_STATUSES.includes(b.status));
+  const confirmed = bookings.filter((b) => isAttending(b.status));
 
   let confRevenue = 0;
   let confCost = 0;
@@ -200,7 +193,7 @@ export async function GET(
 
   return NextResponse.json({
     currency,
-    confirmed_statuses: CONFIRMED_STATUSES,
+    confirmed_statuses: ["confirmed", "paid", "attended"],
     confirmed: confirmedCase,
     actual: actualCase,
     capacity: capacityCase,

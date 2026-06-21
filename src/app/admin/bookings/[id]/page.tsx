@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { ContactPicker } from "@/components/contact-picker";
 import { type DocumentType, formatMoney } from "@/lib/invoices/types";
+import { normalizeBookingStatus } from "@/lib/types";
 import { effectiveAddonStatus } from "@/lib/addons";
 
 interface BookingDetail {
@@ -100,17 +101,10 @@ interface AvailablePackage {
 }
 
 const STATUSES = [
-  { value: "registered", label: "Registered (lead)", color: "bg-sky-400" },
   { value: "lead", label: "Lead", color: "bg-gray-500" },
-  { value: "interested", label: "Interested", color: "bg-yellow-500" },
-  { value: "enquiring", label: "Enquiring", color: "bg-blue-400" },
-  { value: "ready_to_book", label: "Ready to Book", color: "bg-orange-500" },
-  { value: "payment_pending", label: "Payment Pending", color: "bg-amber-600" },
-  { value: "downpayment_paid", label: "Downpayment Paid", color: "bg-green-500" },
-  { value: "create_invoice", label: "Create Invoice", color: "bg-orange-400" },
-  { value: "paid", label: "Paid", color: "bg-green-600" },
-  { value: "contact_by_phone", label: "Contact by Phone", color: "bg-pink-500" },
-  { value: "confirmed", label: "Confirmed", color: "bg-blue-600" },
+  { value: "reserved", label: "Reserved", color: "bg-amber-500" },
+  { value: "confirmed", label: "Confirmed", color: "bg-blue-500" },
+  { value: "paid", label: "Fully paid", color: "bg-green-600" },
   { value: "attended", label: "Attended", color: "bg-gray-400" },
   { value: "lost", label: "Lost", color: "bg-red-500" },
 ];
@@ -337,7 +331,7 @@ export default function BookingDetailPage({
 
   const totalPaid = booking.payments.reduce((sum, p) => sum + Number(p.amount), 0);
   const outstanding = booking.agreed_price ? Math.max(0, Number(booking.agreed_price) - totalPaid) : 0;
-  const statusInfo = STATUSES.find((s) => s.value === booking.status);
+  const statusInfo = STATUSES.find((s) => s.value === normalizeBookingStatus(booking.status));
 
   const inputClass =
     "w-full px-4 py-2.5 admin-input border rounded-lg text-sm focus:outline-none focus:border-[var(--admin-accent)] focus:ring-1 focus:ring-[var(--admin-accent)] transition-colors";
@@ -424,11 +418,11 @@ export default function BookingDetailPage({
                   key={s.value}
                   onClick={() => update("status", s.value)}
                   className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${
-                    booking.status === s.value
+                    normalizeBookingStatus(booking.status) === s.value
                       ? "bg-[var(--admin-accent)]/20 text-[#0aa3c7] border border-[var(--admin-accent)]/30"
                       : "admin-surface admin-faint border"
                   }`}
-                  style={{ borderColor: booking.status !== s.value ? "var(--admin-border)" : undefined }}
+                  style={{ borderColor: normalizeBookingStatus(booking.status) !== s.value ? "var(--admin-border)" : undefined }}
                 >
                   <span className="flex items-center gap-1.5">
                     <span className={`w-1.5 h-1.5 rounded-full ${s.color}`} />

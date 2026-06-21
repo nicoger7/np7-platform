@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { SortableHeader } from "@/components/sortable-header";
 import { ColumnToggle, ColumnDef, buildGridTemplate, loadVisibleColumns } from "@/components/column-toggle";
 import { NewBookingModal } from "@/components/new-booking-modal";
+import { normalizeBookingStatus } from "@/lib/types";
 
 interface Booking {
   id: string;
@@ -30,18 +31,13 @@ interface Booking {
   created_at: string;
 }
 
+// Lean self-serve pipeline. Payment progress (Stripe deposit → downpayment →
+// full) lives on the booking + Payments page, not as columns here.
 const STATUSES = [
-  { value: "registered", label: "Registered (lead)", color: "bg-sky-400" },
   { value: "lead", label: "Lead", color: "bg-gray-500" },
-  { value: "interested", label: "Interested", color: "bg-yellow-500" },
-  { value: "enquiring", label: "Enquiring", color: "bg-blue-400" },
-  { value: "ready_to_book", label: "Ready to Book", color: "bg-orange-500" },
-  { value: "payment_pending", label: "Payment Pending", color: "bg-amber-600" },
-  { value: "downpayment_paid", label: "Downpayment Paid", color: "bg-green-500" },
-  { value: "create_invoice", label: "Create Invoice", color: "bg-orange-400" },
-  { value: "paid", label: "Paid", color: "bg-green-600" },
-  { value: "contact_by_phone", label: "Contact by Phone", color: "bg-pink-500" },
-  { value: "confirmed", label: "Confirmed", color: "bg-blue-600" },
+  { value: "reserved", label: "Reserved", color: "bg-amber-500" },
+  { value: "confirmed", label: "Confirmed", color: "bg-blue-500" },
+  { value: "paid", label: "Fully paid", color: "bg-green-600" },
   { value: "attended", label: "Attended", color: "bg-gray-400" },
   { value: "lost", label: "Lost", color: "bg-red-500" },
 ];
@@ -75,7 +71,7 @@ const COLUMNS: ColumnDef[] = [
 const STORAGE_KEY = "np7-bookings-columns";
 
 function StatusBadge({ status }: { status: string }) {
-  const s = STATUSES.find((x) => x.value === status);
+  const s = STATUSES.find((x) => x.value === normalizeBookingStatus(status));
   return (
     <span className="inline-flex items-center gap-1.5 text-xs">
       <span className={`w-2 h-2 rounded-full ${s?.color || "bg-gray-500"}`} />
@@ -147,7 +143,7 @@ export default function BookingsPage() {
   );
 
   const filtered = bookings.filter((b) => {
-    if (filterStatus && b.status !== filterStatus) return false;
+    if (filterStatus && normalizeBookingStatus(b.status) !== filterStatus) return false;
     if (filterExperience && b.experience?.id !== filterExperience) return false;
     return true;
   });
@@ -181,7 +177,7 @@ export default function BookingsPage() {
     (s) => !["attended", "lost"].includes(s.value)
   ).map((s) => ({
     ...s,
-    bookings: filtered.filter((b) => b.status === s.value),
+    bookings: filtered.filter((b) => normalizeBookingStatus(b.status) === s.value),
   }));
 
   const gridTemplate = buildGridTemplate(COLUMNS, visibleColumns);

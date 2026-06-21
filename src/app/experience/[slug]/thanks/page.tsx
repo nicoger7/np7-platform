@@ -18,7 +18,7 @@ async function onDepositPaid(bookingId: string) {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const db = createAdminClient() as any;
   await db.from("exp_bookings")
-    .update({ status: "downpayment_paid", downpayment_received: true, updated_at: new Date().toISOString() })
+    .update({ status: "confirmed", downpayment_received: true, updated_at: new Date().toISOString() })
     .eq("id", bookingId);
 
   const { data: booking } = await db.from("exp_bookings")
@@ -56,8 +56,8 @@ type Props = {
 
 /**
  * Post-checkout landing. Verifies the Stripe session server-side (no webhook
- * needed) and marks the booking "downpayment_paid" — the status the admin
- * pipeline already uses. Also serves the no-payment fallback (?reserved=1).
+ * needed) and marks the booking "confirmed" — the hold-deposit is in, so the
+ * spot is secured. Also serves the no-payment fallback (?reserved=1).
  */
 export default async function ThanksPage({ params, searchParams }: Props) {
   const { slug } = await params;

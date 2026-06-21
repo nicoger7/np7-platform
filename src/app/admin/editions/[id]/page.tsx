@@ -4,6 +4,7 @@ import { useState, useEffect, useRef, use } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import BusinessCaseCard from "@/components/business-case-card";
+import { normalizeBookingStatus } from "@/lib/types";
 import { PackageComponentsEditor } from "@/components/package-components-editor";
 import { EditionMemoriesUploader } from "@/components/edition-memories-uploader";
 import { ContactPicker, ContactLite } from "@/components/contact-picker";
@@ -110,14 +111,9 @@ interface Room {
 
 const BOOKING_STATUSES: Record<string, { label: string; color: string }> = {
   lead: { label: "Lead", color: "bg-gray-500" },
-  interested: { label: "Interested", color: "bg-yellow-500" },
-  enquiring: { label: "Enquiring", color: "bg-blue-400" },
-  ready_to_book: { label: "Ready to Book", color: "bg-orange-500" },
-  payment_pending: { label: "Payment Pending", color: "bg-amber-600" },
-  downpayment_paid: { label: "Downpayment Paid", color: "bg-green-500" },
-  create_invoice: { label: "Create Invoice", color: "bg-orange-400" },
-  paid: { label: "Paid", color: "bg-green-600" },
-  confirmed: { label: "Confirmed", color: "bg-blue-600" },
+  reserved: { label: "Reserved", color: "bg-amber-500" },
+  confirmed: { label: "Confirmed", color: "bg-blue-500" },
+  paid: { label: "Fully paid", color: "bg-green-600" },
   attended: { label: "Attended", color: "bg-gray-400" },
   lost: { label: "Lost", color: "bg-red-500" },
 };
@@ -126,10 +122,10 @@ const HOTELS = ["Sorobon", "Wanapa", "Playa Surf", "Hotel Paradiso", "Alacati", 
 const COST_STATUSES = ["estimate", "confirmed", "cancelled", "unlisted"];
 const ROOM_STATUSES = ["available", "assigned", "held"];
 const PKG_CATEGORIES = ["", "pro", "beginner", "mixed"];
-const ADD_BOOKING_STATUSES = ["lead", "interested", "enquiring", "ready_to_book", "payment_pending", "downpayment_paid", "create_invoice", "paid", "confirmed", "attended", "lost"];
+const ADD_BOOKING_STATUSES = ["lead", "reserved", "confirmed", "paid", "attended", "lost"];
 
 function BookingStatusBadge({ status }: { status: string }) {
-  const s = BOOKING_STATUSES[status];
+  const s = BOOKING_STATUSES[normalizeBookingStatus(status)];
   return (
     <span className="inline-flex items-center gap-1.5 text-xs">
       <span className={`w-2 h-2 rounded-full ${s?.color || "bg-gray-500"}`} />

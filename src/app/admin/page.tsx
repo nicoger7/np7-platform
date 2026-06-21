@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import Link from "next/link";
+import { BOOKING_STATUS_LABELS, normalizeBookingStatus } from "@/lib/types";
 
 interface DashboardData {
   counts: { experiences: number; bookings: number; contacts: number; upcomingEditions: number };
@@ -50,8 +51,7 @@ function Panel({ title, href, children }: { title: string; href?: string; childr
 
 const STATUS_COLOR: Record<string, string> = {
   paid: "text-green-400", attended: "text-green-400", confirmed: "text-blue-400",
-  downpayment_paid: "text-blue-400", create_invoice: "text-amber-400",
-  payment_pending: "text-amber-400", lost: "admin-faint", cancelled: "admin-faint",
+  reserved: "text-amber-400", lead: "admin-muted", lost: "admin-faint",
 };
 
 export default function AdminDashboard() {
@@ -110,7 +110,7 @@ export default function AdminDashboard() {
                 <Link key={b.id} href={`/admin/bookings/${b.id}`} className="flex items-center gap-3 text-xs py-1.5 px-2 -mx-2 rounded-lg hover:bg-[var(--admin-surface-hover)]">
                   <span className="flex-1 admin-heading truncate">{b.name || "Untitled"}</span>
                   <span className="admin-faint truncate hidden sm:block max-w-[120px]">{b.exp_experiences?.title || ""}</span>
-                  <span className={`${STATUS_COLOR[b.status || ""] || "admin-muted"} w-24 text-right`}>{(b.status || "—").replace(/_/g, " ")}</span>
+                  <span className={`${STATUS_COLOR[normalizeBookingStatus(b.status)] || "admin-muted"} w-24 text-right`}>{BOOKING_STATUS_LABELS[normalizeBookingStatus(b.status)]}</span>
                   <span className="admin-muted w-16 text-right">{money(b.agreed_price)}</span>
                 </Link>
               ))}

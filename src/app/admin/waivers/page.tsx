@@ -46,7 +46,9 @@ export default async function AdminWaiversPage() {
     .from("exp_bookings")
     .select("id, name, status, contacts(name), exp_experiences(title), exp_editions!inner(label, year, date_start)")
     .gte("exp_editions.date_start", today)
-    .not("status", "in", '("lead","registered","cancelled","lost")');
+    // Only secured bookings (confirmed onward) need a waiver — exclude every
+    // pre-deposit + dead status, across both the lean and legacy pipelines.
+    .not("status", "in", '("lead","reserved","registered","interested","enquiring","contact_by_phone","ready_to_book","payment_pending","cancelled","lost")');
   const pending = ((upcomingRaw ?? []) as Pending[]).filter((b) => !signedBookingIds.has(b.id));
 
   const who = (c: { name: string | null } | null, fallback: string | null) => c?.name || fallback || "—";

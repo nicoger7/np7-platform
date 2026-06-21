@@ -1,25 +1,25 @@
 import type { MemberBooking } from "@/lib/portal-data";
+import { normalizeBookingStatus } from "@/lib/types";
 
 export type StatusChip = { label: string; tone: "amber" | "blue" | "green" | "gray" };
 
-/** Friendly booking status for the member portal. */
+/** Friendly booking status for the member portal. The pipeline status gives the
+ *  stage; the payment flags split a confirmed booking into deposit-paid vs fully-paid. */
 export function bookingStatus(b: Pick<MemberBooking, "status" | "downpayment_received" | "final_payment_received">): StatusChip {
-  const s = (b.status ?? "").toLowerCase();
-  if (b.final_payment_received || s === "paid") return { label: "Fully paid", tone: "green" };
-  if (b.downpayment_received || s === "downpayment_paid") return { label: "Deposit paid · balance open", tone: "blue" };
-  if (s === "confirmed") return { label: "Confirmed", tone: "blue" };
+  const s = normalizeBookingStatus(b.status);
   if (s === "attended") return { label: "Completed", tone: "gray" };
+  if (b.final_payment_received || s === "paid") return { label: "Fully paid", tone: "green" };
+  if (b.downpayment_received || s === "confirmed") return { label: "Deposit paid · balance open", tone: "blue" };
   if (s === "lost") return { label: "Cancelled", tone: "gray" };
-  if (s === "registered") return { label: "Spot not secured yet", tone: "amber" };
-  if (s === "payment_pending") return { label: "Deposit pending", tone: "amber" };
-  return { label: "Reserved", tone: "amber" };
+  if (s === "reserved") return { label: "Deposit pending", tone: "amber" };
+  return { label: "Spot not secured yet", tone: "amber" }; // lead
 }
 
 /** A booking whose spot isn't secured yet → show the "Secure your spot" CTA. */
 export function needsDownpayment(b: Pick<MemberBooking, "status" | "downpayment_received" | "final_payment_received">): boolean {
   if (b.downpayment_received || b.final_payment_received) return false;
-  const s = (b.status ?? "").toLowerCase();
-  return !["paid", "confirmed", "attended", "lost", "cancelled"].includes(s);
+  const s = normalizeBookingStatus(b.status);
+  return s === "lead" || s === "reserved";
 }
 
 export const CHIP_CLASS: Record<StatusChip["tone"], string> = {

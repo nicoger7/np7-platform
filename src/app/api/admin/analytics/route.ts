@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase";
+import { isAttending, isFullyPaid, isLostStatus } from "@/lib/types";
 
 export const dynamic = "force-dynamic";
 
@@ -37,21 +38,16 @@ export async function GET() {
     receivedTotal += amt;
   }
 
-  const DEAD = new Set(["lost", "cancelled"]);
-  const depositStatuses = new Set(["downpayment_paid", "paid", "confirmed", "attended"]);
-  const balanceStatuses = new Set(["paid", "attended"]);
-
   let active = 0, leads = 0, depositOnly = 0, balancePaid = 0, lost = 0, expected = 0;
   const byEdition: Record<string, { booked: number; received: number; count: number }> = {};
 
   for (const b of bookings) {
-    const status = (b.status || "").toLowerCase();
-    if (DEAD.has(status)) { lost++; continue; }
+    if (isLostStatus(b.status)) { lost++; continue; }
     active++;
     const price = Number(b.agreed_price) || 0;
     expected += price;
-    const dep = b.downpayment_received === true || depositStatuses.has(status);
-    const bal = b.final_payment_received === true || balanceStatuses.has(status);
+    const dep = b.downpayment_received === true || isAttending(b.status);
+    const bal = b.final_payment_received === true || isFullyPaid(b.status);
     if (bal) balancePaid++; else if (dep) depositOnly++; else leads++;
     if (b.edition_id) {
       const e = (byEdition[b.edition_id] ||= { booked: 0, received: 0, count: 0 });

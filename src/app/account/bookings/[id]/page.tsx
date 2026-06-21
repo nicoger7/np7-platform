@@ -4,6 +4,7 @@ import type { Metadata } from "next";
 import { getPortalUser } from "@/lib/auth";
 import { getMemberBooking, getMemoryPhotosForBooking, getBookingPaid, getBookingHotel, getEditionCoaches, getMemoryDownloadsRemaining, getConfirmedAddonsTotal, getBookingFlights, getExperienceArrivalInfo, getCrewProfiles } from "@/lib/portal-data";
 import { bookingStatus, CHIP_CLASS, fmtDates, money } from "@/lib/portal-status";
+import { isAttending } from "@/lib/types";
 import { PortalChrome } from "@/components/portal/portal-chrome";
 import { ExtraNightsButton } from "@/components/portal/extra-nights-button";
 import { MemberDocuments } from "@/components/portal/member-documents";
@@ -78,7 +79,7 @@ export default async function BookingDetail({ params }: Props) {
   const depositPaid =
     (depositMilestone ? depositMilestone.status === "paid" : paid > 0) ||
     b.downpayment_received ||
-    ["downpayment_paid", "paid", "confirmed"].includes((b.status ?? "").toLowerCase());
+    isAttending(b.status);
 
   // Once the trip is over, photos are what the member wants first — so the
   // memories card jumps to the top of the column (otherwise it sits at the end).

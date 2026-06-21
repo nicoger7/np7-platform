@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase";
 import { softDelete } from "@/lib/archive";
+import { isAttending } from "@/lib/types";
 
 // GET /api/admin/experiences/:id — get experience with editions
 export async function GET(
@@ -57,12 +58,11 @@ export async function GET(
     editionPackages = pkgs || [];
   }
 
-  // Spots "taken" = confirmed bookings per edition (money-down & beyond),
+  // Spots "taken" = confirmed bookings per edition (hold-deposit in & beyond),
   // not the stored spots_taken field.
-  const CONFIRMED = ["downpayment_paid", "create_invoice", "paid", "confirmed", "attended"];
   const confirmedByEdition: Record<string, number> = {};
   for (const b of (bookings.data || []) as unknown as { edition_id: string | null; status: string }[]) {
-    if (b.edition_id && CONFIRMED.includes(b.status)) {
+    if (b.edition_id && isAttending(b.status)) {
       confirmedByEdition[b.edition_id] = (confirmedByEdition[b.edition_id] || 0) + 1;
     }
   }

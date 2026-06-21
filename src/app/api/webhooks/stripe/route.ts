@@ -5,7 +5,7 @@
  * If STRIPE_WEBHOOK_SECRET is not configured → no-op 200 (safe in dev/pre-config).
  *
  * On checkout.session.completed (deposit):
- *  - Marks the booking downpayment_received + status='downpayment_paid' (idempotent).
+ *  - Marks the booking downpayment_received + status='confirmed' (idempotent).
  *  - Runs the shared onDepositPaid side effects (member account + confirmation email).
  *  - Auto-generates deposit_invoice + booking_confirmation (best-effort, never fails the webhook).
  */
@@ -61,11 +61,12 @@ async function onDepositPaid(bookingId: string, origin: string): Promise<void> {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const db = createAdminClient() as any;
 
-  // Mark booking as paid (idempotent — update is safe to re-run)
+  // Hold-deposit paid → the spot is secured and they're confirmed/attending
+  // (idempotent — update is safe to re-run).
   await db
     .from("exp_bookings")
     .update({
-      status: "downpayment_paid",
+      status: "confirmed",
       downpayment_received: true,
       updated_at: new Date().toISOString(),
     })

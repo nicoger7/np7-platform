@@ -47,7 +47,7 @@ export function NewBookingModal({ onClose }: { onClose: () => void }) {
         edition_id: edId || null,
         contact_id: contact.id,
         name: autoName || contact.name,
-        status: "enquiring",
+        status: "lead",
       }),
     });
     setCreating(false);
