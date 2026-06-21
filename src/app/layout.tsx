@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { Inter } from "next/font/google";
 import "./globals.css";
 import { CookieConsent } from "@/components/shared/cookie-consent";
@@ -20,6 +20,11 @@ export const metadata: Metadata = {
   },
   description: "Premium watersports travel experiences and custom board engineering by Nico Prien (GER-7).",
   applicationName: "NP7",
+  // Member/public PWA: installs to /account. The /admin route group overrides
+  // this with its own manifest + icons so the team gets a separate home-screen app.
+  manifest: "/manifest.webmanifest",
+  appleWebApp: { capable: true, title: "NP7", statusBarStyle: "black-translucent" },
+  icons: { icon: "/favicon.ico", apple: "/icons/apple-touch-icon.png" },
   openGraph: {
     type: "website",
     siteName: "NP7",
@@ -32,6 +37,10 @@ export const metadata: Metadata = {
     title: "NP7 — Nico Prien | GER-7",
     description: "Premium watersports travel experiences and custom board engineering by Nico Prien (GER-7).",
   },
+};
+
+export const viewport: Viewport = {
+  themeColor: "#012b3a",
 };
 
 export default function RootLayout({

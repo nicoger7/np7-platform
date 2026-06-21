@@ -6,6 +6,7 @@ import { useState, useEffect, useRef } from "react";
 import { createClient } from "@/lib/supabase/client";
 import type { User } from "@supabase/supabase-js";
 import { canAccess, type AccessLevel } from "@/lib/access";
+import { AdminInstallPrompt } from "@/components/pwa/admin-install-prompt";
 
 // ─── Environments ────────────────────────────────────────────────────────────
 
@@ -692,6 +693,9 @@ export default function AdminShell({
 
       {/* Main content */}
       <main className="flex-1 min-w-0 p-4 sm:p-6 lg:p-8 overflow-auto">{children}</main>
+
+      {/* "Add NP7 Admin to your home screen" — only for logged-in team members */}
+      <AdminInstallPrompt />
     </div>
   );
 }

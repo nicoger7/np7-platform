@@ -5,6 +5,7 @@ import { HardwareHeader } from "@/components/hardware/hardware-header";
 import { NP7_LOGO } from "@/components/shared/brand";
 import { flags } from "@/lib/flags";
 import { PortalSubnav } from "./portal-subnav";
+import { MemberInstallPrompt } from "@/components/pwa/member-install-prompt";
 
 /**
  * Portal chrome — adapts to whether the public site is live yet.
@@ -50,6 +51,7 @@ export async function PortalChrome({ section }: { section?: "experience" | "hard
         </header>
       )}
       <PortalSubnav tone={resolved === "hardware" ? "hardware" : "ocean"} showGear={flags.showGear} showCart={flags.showCart} />
+      <MemberInstallPrompt env={resolved} />
     </>
   );
 }
