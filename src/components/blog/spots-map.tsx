@@ -3,6 +3,7 @@
 import { useEffect, useRef } from "react";
 import type { Map as LeafletMap } from "leaflet";
 import "leaflet/dist/leaflet.css";
+import "leaflet.markercluster/dist/MarkerCluster.css";
 import { type Spot, parseCoords } from "@/lib/blog-templates";
 
 /**
@@ -27,6 +28,7 @@ export function SpotsMap({ spots, accent, accentInk }: { spots: Spot[]; accent: 
     let cancelled = false;
     (async () => {
       const L = (await import("leaflet")).default;
+      await import("leaflet.markercluster"); // augments L with markerClusterGroup
       if (cancelled || !elRef.current || mapRef.current) return;
       const map = L.map(elRef.current, { scrollWheelZoom: false });
       mapRef.current = map;
@@ -34,18 +36,26 @@ export function SpotsMap({ spots, accent, accentInk }: { spots: Spot[]; accent: 
         attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
         maxZoom: 18,
       }).addTo(map);
-      const markers = points.map((p) => {
-        const icon = L.divIcon({
-          className: "",
-          html: `<div style="width:28px;height:28px;border-radius:50%;background:${accent};color:${accentInk};display:flex;align-items:center;justify-content:center;font-weight:800;font-size:13px;border:2px solid #fff;box-shadow:0 1px 5px rgba(0,0,0,.45)">${p.n}</div>`,
-          iconSize: [28, 28],
-          iconAnchor: [14, 14],
-        });
-        return L.marker([p.lat, p.lng], { icon }).bindPopup(`<strong>${p.name}</strong>`);
+
+      const pin = (bg: string, fg: string, size: number, fontSize: number, label: string | number) =>
+        `<div style="width:${size}px;height:${size}px;border-radius:50%;background:${bg};color:${fg};display:flex;align-items:center;justify-content:center;font-weight:800;font-size:${fontSize}px;border:2px solid #fff;box-shadow:0 1px 6px rgba(0,0,0,.45)">${label}</div>`;
+
+      // Cluster overlapping pins into a count badge; zoom in (or click) to split.
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const clusterGroup = (L as any).markerClusterGroup({
+        showCoverageOnHover: false,
+        maxClusterRadius: 40, // only merge pins that are close enough to overlap
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        iconCreateFunction: (cluster: any) =>
+          L.divIcon({ className: "", html: pin(accent, accentInk, 36, 14, cluster.getChildCount()), iconSize: [36, 36], iconAnchor: [18, 18] }),
       });
-      const group = L.featureGroup(markers).addTo(map);
+      points.forEach((p) => {
+        const icon = L.divIcon({ className: "", html: pin(accent, accentInk, 28, 13, p.n), iconSize: [28, 28], iconAnchor: [14, 14] });
+        clusterGroup.addLayer(L.marker([p.lat, p.lng], { icon }).bindPopup(`<strong>${p.name}</strong>`));
+      });
+      map.addLayer(clusterGroup);
       // fit all spots just inside the frame (snug, with a little breathing room)
-      map.fitBounds(group.getBounds().pad(0.12), { maxZoom: 12 });
+      map.fitBounds(clusterGroup.getBounds().pad(0.12), { maxZoom: 12 });
       if (points.length === 1) map.setZoom(11);
     })();
     return () => {
