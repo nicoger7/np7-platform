@@ -61,7 +61,9 @@ export function HeroFindYourFit({ src, poster, children }: { src: string; poster
   const [mode, setMode] = useState<"video" | "static">("video");
 
   useEffect(() => {
-    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) { setMode("static"); return; }
+    // Phones get the clean stacked version — the pinned, video-scrubbed scroll
+    // (with overlapping absolute layers) only behaves on a wide viewport.
+    if (window.matchMedia("(max-width: 640px)").matches || window.matchMedia("(prefers-reduced-motion: reduce)").matches) { setMode("static"); return; }
     const wrap = wrapRef.current, video = videoRef.current;
     if (!wrap || !video) return;
     let duration = 0, ready = false, current = 0;
