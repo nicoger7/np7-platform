@@ -259,6 +259,62 @@ export async function getMemberLevelDetail(contactId: string): Promise<MemberLev
   return { self_level, coach_level, level_status, coach_can_manage_level, suggested, milestones, history };
 }
 
+export type CatalogMilestone = { id: string; key: string; label: string; tier: string; sort_order: number };
+export type EditionCrewMember = {
+  contactId: string; name: string; self_level: string | null; coach_level: string | null;
+  level_status: string | null; suggested: string | null; reviewed: boolean; achievedIds: string[];
+};
+export type EditionCrewLevels = {
+  catalog: CatalogMilestone[]; members: EditionCrewMember[]; reviewed: number; total: number;
+};
+
+/**
+ * The whole cohort of an edition with their level state + milestone ticks — the
+ * data behind the admin per-trip batch review. Service-role; tolerant of
+ * migration 036 (level fields/catalog absent → sensible defaults). "reviewed"
+ * means the level is verified. Caller must be a team member.
+ */
+export async function getEditionCrewLevels(editionId: string): Promise<EditionCrewLevels> {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const db = createAdminClient() as any;
+  const { data: bookings } = await db.from("exp_bookings").select("contact_id,status").eq("edition_id", editionId);
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const contactIds = [...new Set((bookings ?? []).filter((b: any) => !/cancel|lost/i.test(b.status ?? "") && b.contact_id).map((b: any) => b.contact_id))] as string[];
+  if (contactIds.length === 0) return { catalog: [], members: [], reviewed: 0, total: 0 };
+
+  const { data: base } = await db.from("contacts").select("id,name,level").in("id", contactIds);
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const baseBy = new Map((base ?? []).map((c: any) => [c.id, c]));
+  const lvl = await db.from("contacts").select("id,self_level,level_status").in("id", contactIds); // 036 tolerant
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const lvlBy = new Map((lvl.data ?? []).map((c: any) => [c.id, c]));
+
+  let catalog: CatalogMilestone[] = [];
+  const cat = await db.from("level_milestones").select("id,key,label,tier,sort_order").eq("active", true).order("sort_order");
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  if (!cat.error && cat.data) catalog = (cat.data as any[]).map((m) => ({ id: m.id, key: m.key, label: m.label, tier: m.tier, sort_order: m.sort_order }));
+
+  const ach = await db.from("contact_milestones").select("contact_id,milestone_id").in("contact_id", contactIds);
+  const achBy = new Map<string, string[]>();
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  for (const r of (ach.data ?? []) as any[]) achBy.set(r.contact_id, [...(achBy.get(r.contact_id) ?? []), r.milestone_id]);
+
+  const members: EditionCrewMember[] = contactIds.map((cid) => {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const b: any = baseBy.get(cid) ?? {};
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const l: any = lvlBy.get(cid) ?? {};
+    const achievedIds = achBy.get(cid) ?? [];
+    const suggested = deriveSuggestedLevel(catalog, new Set(achievedIds));
+    return {
+      contactId: cid, name: b.name ?? "—", self_level: l.self_level ?? null, coach_level: b.level ?? null,
+      level_status: l.level_status ?? null, suggested, reviewed: l.level_status === "verified", achievedIds,
+    };
+  }).sort((a, b) => a.name.localeCompare(b.name));
+
+  return { catalog, members, reviewed: members.filter((m) => m.reviewed).length, total: members.length };
+}
+
 /** The experience's gallery images (exp_content.gallery, falling back to the
     experience's own gallery) — offered to members as photos for their review. */
 export async function getTripGallery(experienceId: string): Promise<string[]> {

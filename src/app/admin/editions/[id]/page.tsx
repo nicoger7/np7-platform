@@ -7,6 +7,7 @@ import BusinessCaseCard from "@/components/business-case-card";
 import { PackageComponentsEditor } from "@/components/package-components-editor";
 import { EditionMemoriesUploader } from "@/components/edition-memories-uploader";
 import { ContactPicker, ContactLite } from "@/components/contact-picker";
+import { EditionCrewLevels } from "@/components/admin/edition-crew-levels";
 
 interface Edition {
   id: string;
@@ -139,7 +140,7 @@ export default function EditionDetailPage({
 }) {
   const { id } = use(params);
   const router = useRouter();
-  const [tab, setTab] = useState<"details" | "bookings" | "packages" | "memories" | "costs" | "rooms" | "notes">("details");
+  const [tab, setTab] = useState<"details" | "bookings" | "levels" | "packages" | "memories" | "costs" | "rooms" | "notes">("details");
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
@@ -531,7 +532,7 @@ export default function EditionDetailPage({
 
       {/* Tabs */}
       <div className="flex gap-1 mb-6" style={{ borderBottom: "1px solid var(--admin-border)" }}>
-        {(["details", "bookings", "packages", "memories", "costs", "rooms", "notes"] as const).map((t) => {
+        {(["details", "bookings", "levels", "packages", "memories", "costs", "rooms", "notes"] as const).map((t) => {
           const count = edition._counts?.[t as keyof typeof edition._counts];
           return (
             <button
@@ -854,6 +855,14 @@ export default function EditionDetailPage({
               ))}
             </div>
           )}
+        </div>
+      )}
+
+      {/* ── Levels tab ── */}
+      {tab === "levels" && (
+        <div>
+          <p className="text-xs admin-faint mb-4">Review each rider&apos;s level after the trip — approve their self-rating in one click, suggest or verify a level, or tick the skills they nailed. Use the bulk row for skills the whole group got.</p>
+          <EditionCrewLevels editionId={id} />
         </div>
       )}
 

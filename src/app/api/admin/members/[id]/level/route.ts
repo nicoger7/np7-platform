@@ -39,6 +39,17 @@ export async function POST(req: NextRequest, { params }: Ctx) {
     return NextResponse.json({ ok: true });
   }
 
+  if (body.action === "approve_self") {
+    // one-click: verify the rider at the level they rated themselves
+    const { data: c } = await db.from("contacts").select("self_level").eq("id", id).maybeSingle();
+    const lv = normalizeLevel(c?.self_level);
+    if (lv === "") return NextResponse.json({ error: "They haven't self-rated a level yet." }, { status: 400 });
+    const { error } = await db.from("contacts").update({ level: lv, level_status: "verified", level_verified_at: now, updated_at: now }).eq("id", id);
+    if (error) return NextResponse.json({ ok: true, levelUnavailable: true });
+    await db.from("contact_level_history").insert({ contact_id: id, level: lv, status: "verified", source: "coach", created_by: by });
+    return NextResponse.json({ ok: true });
+  }
+
   if (body.action === "set_level") {
     const lv = normalizeLevel(body.level);
     if (lv === "") return NextResponse.json({ error: "Invalid level." }, { status: 400 });
