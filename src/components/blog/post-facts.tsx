@@ -43,7 +43,7 @@ export function PostFacts({
                 {f.kind === "rating" ? (
                   <Stars value={asNumber(data[f.key])} accent={theme.accent} />
                 ) : (
-                  <div className="text-[15px] font-extrabold text-[#00374a] leading-tight mt-0.5 truncate">
+                  <div className="text-[14.5px] font-extrabold text-[#00374a] leading-snug mt-0.5 break-words">
                     {asText(data[f.key])}
                   </div>
                 )}

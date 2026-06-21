@@ -33,6 +33,8 @@ export type FieldKind =
   | "callout" // multi-line, shown as an accented quote
   | "youtube" // url → embed
   | "image" // single image url (picker)
+  | "windrose" // WindWindow — per-direction quality (best/good/no)
+  | "frequency" // ConditionsAvail — per condition-type frequency (often/sometimes/never)
   | "spots"; // Spot[] — a destination's spots, each with its own facts (see SPOT_FIELDS)
 
 /** Where the field appears in the fixed, consistent post frame. */
@@ -157,12 +159,74 @@ const SPOTGUIDE: BlogTemplate = {
 export const SPOT_FIELDS: TemplateField[] = [
   { key: "name", label: "Spot name", kind: "text", slot: "body", placeholder: "Sotavento" },
   { key: "image", label: "Photo", kind: "image", slot: "body" },
+  { key: "coords", label: "Map coordinates", kind: "text", slot: "body", hint: "Paste \"lat, lng\" from Google Maps (right-click the spot → copy the numbers).", placeholder: "28.0456, -14.3261" },
   { key: "level", label: "Level", kind: "select", slot: "body", options: ["Beginner", "Intermediate", "Advanced", "All levels"] },
-  { key: "windDirection", label: "Best wind", kind: "text", slot: "body", placeholder: "Side-onshore N" },
-  { key: "waterType", label: "Water", kind: "select", slot: "body", options: ["Flat water", "Choppy", "Waves", "Mixed"] },
-  { key: "conditions", label: "Conditions", kind: "textarea", slot: "body", placeholder: "What it's like on the water here…" },
+  { key: "waterType", label: "Water (headline)", kind: "select", slot: "body", options: ["Flat water", "Choppy", "Waves", "Mixed"] },
+  { key: "windWindow", label: "Wind window", kind: "windrose", slot: "body", hint: "Rate each wind direction for this spot." },
+  { key: "conditionsAvail", label: "Conditions available", kind: "frequency", slot: "body", hint: "How often each condition shows up." },
+  { key: "conditions", label: "Notes / conditions", kind: "textarea", slot: "body", placeholder: "What it's like on the water here…" },
   { key: "infrastructure", label: "Infrastructure", kind: "list", slot: "body", listStyle: "bullet", hint: "Tags: school, rental, bar, parking…" },
 ];
+
+/* ----------------------------- spot sub-data ----------------------------- */
+
+export const WIND_DIRECTIONS = ["N", "NE", "E", "SE", "S", "SW", "W", "NW"] as const;
+export type WindDir = (typeof WIND_DIRECTIONS)[number];
+export type WindQuality = "best" | "good" | "no" | "";
+export type WindWindow = Partial<Record<WindDir, WindQuality>>;
+
+export const WIND_QUALITY_META: { id: Exclude<WindQuality, "">; label: string; color: string }[] = [
+  { id: "best", label: "Best", color: "#1f9e57" },
+  { id: "good", label: "Works", color: "#e0922a" },
+  { id: "no", label: "No-go", color: "#cdd4d8" },
+];
+
+export function asWindWindow(v: unknown): WindWindow {
+  const o = (v && typeof v === "object" ? v : {}) as Record<string, unknown>;
+  const out: WindWindow = {};
+  for (const d of WIND_DIRECTIONS) {
+    const q = o[d];
+    if (q === "best" || q === "good" || q === "no") out[d] = q;
+  }
+  return out;
+}
+export function windWindowHasValue(w: WindWindow): boolean {
+  return WIND_DIRECTIONS.some((d) => w[d]);
+}
+export function bestWinds(w: WindWindow): WindDir[] {
+  return WIND_DIRECTIONS.filter((d) => w[d] === "best");
+}
+
+export const CONDITION_TYPES = [
+  { key: "flat", label: "Flat water" },
+  { key: "chop", label: "Chop" },
+  { key: "waves", label: "Waves" },
+] as const;
+export type CondFreq = "often" | "sometimes" | "never" | "";
+export type ConditionsAvail = Record<string, CondFreq>;
+
+export function asConditionsAvail(v: unknown): ConditionsAvail {
+  const o = (v && typeof v === "object" ? v : {}) as Record<string, unknown>;
+  const out: ConditionsAvail = {};
+  for (const c of CONDITION_TYPES) {
+    const f = o[c.key];
+    if (f === "often" || f === "sometimes" || f === "never") out[c.key] = f;
+  }
+  return out;
+}
+export function conditionsAvailHasValue(c: ConditionsAvail): boolean {
+  return CONDITION_TYPES.some((t) => c[t.key]);
+}
+
+/** Parse "lat, lng" (e.g. pasted from Google Maps) into numbers. */
+export function parseCoords(v: string): { lat: number; lng: number } | null {
+  const m = v.match(/(-?\d+(?:\.\d+)?)\s*,\s*(-?\d+(?:\.\d+)?)/);
+  if (!m) return null;
+  const lat = parseFloat(m[1]);
+  const lng = parseFloat(m[2]);
+  if (!Number.isFinite(lat) || !Number.isFinite(lng) || Math.abs(lat) > 90 || Math.abs(lng) > 180) return null;
+  return { lat, lng };
+}
 
 const TECHNIQUE_GUIDE: BlogTemplate = {
   id: "technique_guide",
@@ -283,9 +347,11 @@ export function asProsCons(v: unknown): ProsCons {
 export type Spot = {
   name: string;
   image: string;
+  coords: string;
   level: string;
-  windDirection: string;
   waterType: string;
+  windWindow: WindWindow;
+  conditionsAvail: ConditionsAvail;
   conditions: string;
   infrastructure: string[];
 };
@@ -297,9 +363,11 @@ export function asSpots(v: unknown): Spot[] {
       return {
         name: asText(o.name),
         image: asText(o.image),
+        coords: asText(o.coords),
         level: asText(o.level),
-        windDirection: asText(o.windDirection),
         waterType: asText(o.waterType),
+        windWindow: asWindWindow(o.windWindow),
+        conditionsAvail: asConditionsAvail(o.conditionsAvail),
         conditions: asText(o.conditions),
         infrastructure: asList(o.infrastructure),
       };
@@ -323,6 +391,10 @@ export function fieldHasValue(field: TemplateField, data: TemplateData): boolean
       return asSteps(v).length > 0;
     case "spots":
       return asSpots(v).length > 0;
+    case "windrose":
+      return windWindowHasValue(asWindWindow(v));
+    case "frequency":
+      return conditionsAvailHasValue(asConditionsAvail(v));
     case "proscons": {
       const pc = asProsCons(v);
       return pc.pros.length > 0 || pc.cons.length > 0;

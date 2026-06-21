@@ -7,6 +7,11 @@ import {
   type TemplateData,
   type Spot,
   SPOT_FIELDS,
+  WIND_DIRECTIONS,
+  WIND_QUALITY_META,
+  CONDITION_TYPES,
+  asWindWindow,
+  asConditionsAvail,
   asText,
   asNumber,
   asList,
@@ -194,6 +199,22 @@ function FieldEditor({ field, value, set }: { field: TemplateField; value: unkno
     case "image":
       return <ImageField field={field} value={value} set={set} />;
 
+    case "windrose":
+      return (
+        <div>
+          <FieldLabel field={field} />
+          <WindRoseEditor value={value} set={set} />
+        </div>
+      );
+
+    case "frequency":
+      return (
+        <div>
+          <FieldLabel field={field} />
+          <FrequencyEditor value={value} set={set} />
+        </div>
+      );
+
     case "spots":
       return (
         <div>
@@ -235,8 +256,73 @@ function ImageField({ field, value, set }: { field: TemplateField; value: unknow
   );
 }
 
+function WindRoseEditor({ value, set }: { value: unknown; set: (v: unknown) => void }) {
+  const w = asWindWindow(value);
+  const setDir = (d: string, q: string) => set({ ...w, [d]: w[d as keyof typeof w] === q ? "" : q });
+  return (
+    <div className="grid sm:grid-cols-2 gap-x-5 gap-y-1.5">
+      {WIND_DIRECTIONS.map((d) => (
+        <div key={d} className="flex items-center gap-2">
+          <span className="w-7 text-[12px] font-bold admin-heading">{d}</span>
+          <div className="flex gap-1">
+            {WIND_QUALITY_META.map((q) => {
+              const active = w[d] === q.id;
+              return (
+                <button
+                  key={q.id}
+                  type="button"
+                  onClick={() => setDir(d, q.id)}
+                  className={`px-2.5 py-1 rounded-md text-[11px] font-semibold border transition-colors ${active ? "text-white border-transparent" : "admin-border admin-muted hover:admin-heading"}`}
+                  style={active ? { backgroundColor: q.color } : undefined}
+                >
+                  {q.label}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+const FREQS = [
+  { id: "often", label: "Often" },
+  { id: "sometimes", label: "Sometimes" },
+  { id: "never", label: "Never" },
+];
+
+function FrequencyEditor({ value, set }: { value: unknown; set: (v: unknown) => void }) {
+  const c = asConditionsAvail(value);
+  const setFreq = (k: string, f: string) => set({ ...c, [k]: c[k] === f ? "" : f });
+  return (
+    <div className="space-y-1.5">
+      {CONDITION_TYPES.map((t) => (
+        <div key={t.key} className="flex items-center gap-2">
+          <span className="w-24 text-[12px] font-bold admin-heading">{t.label}</span>
+          <div className="flex gap-1">
+            {FREQS.map((f) => {
+              const active = c[t.key] === f.id;
+              return (
+                <button
+                  key={f.id}
+                  type="button"
+                  onClick={() => setFreq(t.key, f.id)}
+                  className={`px-2.5 py-1 rounded-md text-[11px] font-semibold border transition-colors ${active ? "bg-[#0aa3c7] text-white border-[#0aa3c7]" : "admin-border admin-muted hover:admin-heading"}`}
+                >
+                  {f.label}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
 function SpotsEditor({ spots, onChange }: { spots: Spot[]; onChange: (v: Spot[]) => void }) {
-  const blank: Spot = { name: "", image: "", level: "", windDirection: "", waterType: "", conditions: "", infrastructure: [] };
+  const blank: Spot = { name: "", image: "", coords: "", level: "", waterType: "", windWindow: {}, conditionsAvail: {}, conditions: "", infrastructure: [] };
   const update = (i: number, key: string, val: unknown) =>
     onChange(spots.map((s, j) => (j === i ? { ...s, [key]: val } : s)));
 
@@ -254,7 +340,7 @@ function SpotsEditor({ spots, onChange }: { spots: Spot[]; onChange: (v: Spot[])
           </div>
           <div className="grid sm:grid-cols-2 gap-4">
             {SPOT_FIELDS.map((f) => {
-              const full = f.kind === "textarea" || f.kind === "list" || f.kind === "image";
+              const full = f.kind === "textarea" || f.kind === "list" || f.kind === "image" || f.kind === "windrose" || f.kind === "frequency";
               return (
                 <div key={f.key} className={full ? "sm:col-span-2" : ""}>
                   <FieldEditor field={f} value={(spot as Record<string, unknown>)[f.key]} set={(v) => update(i, f.key, v)} />
