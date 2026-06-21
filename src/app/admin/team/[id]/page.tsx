@@ -150,7 +150,7 @@ export default function TeamDetailPage({ params }: { params: Promise<{ id: strin
           {hours.length === 0 ? (
             <p className="text-sm admin-faint py-4">No hours logged</p>
           ) : (
-            <div className="rounded-xl overflow-hidden" style={{ border: "1px solid var(--admin-border)" }}>
+            <div className="rounded-xl admin-tablecard" style={{ border: "1px solid var(--admin-border)" }}>
               <div className="grid grid-cols-[80px_50px_100px_1fr] gap-3 px-4 py-2.5 admin-surface" style={{ borderBottom: "1px solid var(--admin-border)" }}>
                 <span className="text-[10px] font-bold tracking-[0.1em] admin-faint uppercase">Date</span>
                 <span className="text-[10px] font-bold tracking-[0.1em] admin-faint uppercase">Hrs</span>

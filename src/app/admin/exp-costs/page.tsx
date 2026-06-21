@@ -216,7 +216,7 @@ export default function ExpCostsPage() {
       ) : costs.length === 0 ? (
         <div className="py-16 text-center"><p className="text-sm admin-faint">No costs yet</p></div>
       ) : (
-        <div className="rounded-xl overflow-hidden" style={{ border: "1px solid var(--admin-border)" }}>
+        <div className="rounded-xl admin-tablecard" style={{ border: "1px solid var(--admin-border)" }}>
           {/* Header */}
           <div className="grid gap-3 px-5 py-3 admin-surface" style={{ gridTemplateColumns: gridTemplate, borderBottom: "1px solid var(--admin-border)" }}>
             {COLUMNS.filter((c) => c.required || visibleColumns.has(c.key)).map((col) =>

@@ -254,7 +254,7 @@ export default function PipelineRulesPage() {
                 <h2 className="text-sm font-bold admin-heading">{g.trigger}</h2>
                 <span className="text-[11px] admin-faint">{g.items.length} rule{g.items.length !== 1 ? "s" : ""}</span>
               </div>
-              <div className="rounded-xl overflow-hidden" style={{ border: "1px solid var(--admin-border)" }}>
+              <div className="rounded-xl admin-tablecard" style={{ border: "1px solid var(--admin-border)" }}>
                 {g.items.map((r) => (
                   <div
                     key={r.id}
@@ -275,7 +275,7 @@ export default function PipelineRulesPage() {
           ))}
         </div>
       ) : (
-        <div className="rounded-xl overflow-hidden" style={{ border: "1px solid var(--admin-border)" }}>
+        <div className="rounded-xl admin-tablecard" style={{ border: "1px solid var(--admin-border)" }}>
           {/* Header */}
           <div className="grid gap-3 px-5 py-3 admin-surface" style={{ gridTemplateColumns: gridTemplate, borderBottom: "1px solid var(--admin-border)" }}>
             {COLUMNS.filter((c) => c.required || visibleColumns.has(c.key)).map((col) =>

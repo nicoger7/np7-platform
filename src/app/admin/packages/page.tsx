@@ -342,7 +342,7 @@ export default function PackagesPage() {
                   </Link>
                 )}
               </div>
-              <div className="rounded-xl overflow-hidden" style={{ border: "1px solid var(--admin-border)" }}>
+              <div className="rounded-xl admin-tablecard" style={{ border: "1px solid var(--admin-border)" }}>
                 <div
                   className="grid grid-cols-[24px_1fr_90px_80px_80px_90px_55px_70px_80px_70px] gap-3 px-5 py-3 admin-surface"
                   style={{ borderBottom: "1px solid var(--admin-border)" }}

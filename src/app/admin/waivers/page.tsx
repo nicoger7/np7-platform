@@ -64,7 +64,7 @@ export default async function AdminWaiversPage() {
         {pending.length === 0 ? (
           <div className="rounded-xl p-5 text-sm admin-faint" style={{ border: "1px solid var(--admin-border)" }}>Everyone with an upcoming trip has signed. 🎉</div>
         ) : (
-          <div className="rounded-xl overflow-hidden" style={{ border: "1px solid var(--admin-border)" }}>
+          <div className="rounded-xl admin-tablecard" style={{ border: "1px solid var(--admin-border)" }}>
             {pending.map((b, i) => (
               <Link key={b.id} href={`/admin/bookings/${b.id}`} className="flex items-center gap-3 px-4 py-3 hover:bg-[var(--admin-surface-hover)] transition-colors" style={i ? { borderTop: "1px solid var(--admin-border)" } : undefined}>
                 <span className="w-2 h-2 rounded-full bg-amber-400 shrink-0" />
@@ -83,7 +83,7 @@ export default async function AdminWaiversPage() {
         {sigs.length === 0 ? (
           <div className="rounded-xl p-5 text-sm admin-faint" style={{ border: "1px solid var(--admin-border)" }}>No waivers signed yet.</div>
         ) : (
-          <div className="rounded-xl overflow-hidden" style={{ border: "1px solid var(--admin-border)" }}>
+          <div className="rounded-xl admin-tablecard" style={{ border: "1px solid var(--admin-border)" }}>
             {sigs.map((s, i) => (
               <Link key={s.booking_id} href={`/admin/bookings/${s.booking_id}`} className="flex items-center gap-3 px-4 py-3 hover:bg-[var(--admin-surface-hover)] transition-colors" style={i ? { borderTop: "1px solid var(--admin-border)" } : undefined}>
                 <span className="w-5 h-5 rounded-full bg-green-500/15 text-green-500 grid place-items-center text-[11px] font-bold shrink-0">✓</span>

@@ -855,7 +855,7 @@ export default function EditionDetailPage({
               <p className="text-sm admin-faint">No bookings for this edition</p>
             </div>
           ) : (
-            <div className="rounded-xl overflow-hidden" style={{ border: "1px solid var(--admin-border)" }}>
+            <div className="rounded-xl admin-tablecard" style={{ border: "1px solid var(--admin-border)" }}>
               <div className="grid grid-cols-[1fr_130px_90px_90px_60px_40px] gap-4 px-5 py-3 admin-surface" style={{ borderBottom: "1px solid var(--admin-border)" }}>
                 <span className="text-[10px] font-bold tracking-[0.1em] admin-faint uppercase">Name</span>
                 <span className="text-[10px] font-bold tracking-[0.1em] admin-faint uppercase">Status</span>
@@ -940,7 +940,7 @@ export default function EditionDetailPage({
               <p className="text-sm admin-faint">No packages for this edition</p>
             </div>
           ) : (
-            <div className="rounded-xl overflow-hidden" style={{ border: "1px solid var(--admin-border)" }}>
+            <div className="rounded-xl admin-tablecard" style={{ border: "1px solid var(--admin-border)" }}>
               <div className="grid grid-cols-[24px_1fr_100px_100px_70px_80px_70px] gap-4 px-5 py-3 admin-surface" style={{ borderBottom: "1px solid var(--admin-border)" }}>
                 <span></span>
                 <span className="text-[10px] font-bold tracking-[0.1em] admin-faint uppercase">Name</span>
@@ -1035,7 +1035,7 @@ export default function EditionDetailPage({
               <p className="text-sm admin-faint">No costs for this edition</p>
             </div>
           ) : (
-            <div className="rounded-xl overflow-hidden" style={{ border: "1px solid var(--admin-border)" }}>
+            <div className="rounded-xl admin-tablecard" style={{ border: "1px solid var(--admin-border)" }}>
               <div className="grid grid-cols-[1fr_110px_110px_90px_90px_40px] gap-4 px-5 py-3 admin-surface" style={{ borderBottom: "1px solid var(--admin-border)" }}>
                 <span className="text-[10px] font-bold tracking-[0.1em] admin-faint uppercase">Item</span>
                 <span className="text-[10px] font-bold tracking-[0.1em] admin-faint uppercase">Estimated</span>
@@ -1110,7 +1110,7 @@ export default function EditionDetailPage({
               <p className="text-sm admin-faint">No hotel rooms for this edition</p>
             </div>
           ) : (
-            <div className="rounded-xl overflow-hidden" style={{ border: "1px solid var(--admin-border)" }}>
+            <div className="rounded-xl admin-tablecard" style={{ border: "1px solid var(--admin-border)" }}>
               <div className="grid grid-cols-[1fr_120px_110px_80px_110px_40px] gap-4 px-5 py-3 admin-surface" style={{ borderBottom: "1px solid var(--admin-border)" }}>
                 <span className="text-[10px] font-bold tracking-[0.1em] admin-faint uppercase">Room</span>
                 <span className="text-[10px] font-bold tracking-[0.1em] admin-faint uppercase">Type</span>

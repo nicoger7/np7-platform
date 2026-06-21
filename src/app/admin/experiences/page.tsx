@@ -249,7 +249,7 @@ export default function ExperiencesPage() {
           {statusGroups.map((group) => (
             <div key={group.status}>
               <GroupHeading status={group.status} count={group.items.length} />
-              <div className="rounded-xl overflow-hidden" style={{ border: "1px solid var(--admin-border)" }}>
+              <div className="rounded-xl admin-tablecard" style={{ border: "1px solid var(--admin-border)" }}>
                 <div
                   className="grid gap-4 px-5 py-3 admin-surface"
                   style={{ gridTemplateColumns: gridTemplate, borderBottom: "1px solid var(--admin-border)" }}

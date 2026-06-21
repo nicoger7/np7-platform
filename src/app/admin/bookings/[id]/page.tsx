@@ -675,7 +675,7 @@ export default function BookingDetailPage({
           {booking.payments.length === 0 ? (
             <div className="py-12 text-center text-sm admin-faint">No payments recorded</div>
           ) : (
-            <div className="rounded-xl overflow-hidden" style={{ border: "1px solid var(--admin-border)" }}>
+            <div className="rounded-xl admin-tablecard" style={{ border: "1px solid var(--admin-border)" }}>
               <div className="grid grid-cols-[100px_90px_80px_80px_90px_1fr_80px] gap-3 px-5 py-3 admin-surface" style={{ borderBottom: "1px solid var(--admin-border)" }}>
                 <span className="text-[10px] font-bold tracking-[0.1em] admin-faint uppercase">Amount</span>
                 <span className="text-[10px] font-bold tracking-[0.1em] admin-faint uppercase">Type</span>
@@ -768,7 +768,7 @@ export default function BookingDetailPage({
           {booking.addons.length === 0 ? (
             <div className="py-12 text-center text-sm admin-faint">No add-ons</div>
           ) : (
-            <div className="rounded-xl overflow-hidden" style={{ border: "1px solid var(--admin-border)" }}>
+            <div className="rounded-xl admin-tablecard" style={{ border: "1px solid var(--admin-border)" }}>
               <div className="grid grid-cols-[1fr_120px_100px_60px] gap-3 px-5 py-3 admin-surface" style={{ borderBottom: "1px solid var(--admin-border)" }}>
                 <span className="text-[10px] font-bold tracking-[0.1em] admin-faint uppercase">Item</span>
                 <span className="text-[10px] font-bold tracking-[0.1em] admin-faint uppercase">Category</span>
@@ -817,7 +817,7 @@ export default function BookingDetailPage({
               <p className="text-xs admin-faint mt-1">Assign rooms from the Hotel Rooms page</p>
             </div>
           ) : (
-            <div className="rounded-xl overflow-hidden" style={{ border: "1px solid var(--admin-border)" }}>
+            <div className="rounded-xl admin-tablecard" style={{ border: "1px solid var(--admin-border)" }}>
               {booking.hotel_rooms.map((room) => (
                 <div key={room.id} className="px-5 py-3 flex items-center gap-4" style={{ borderBottom: "1px solid var(--admin-border)" }}>
                   <div className="flex-1 min-w-0">
@@ -878,7 +878,7 @@ export default function BookingDetailPage({
           ) : documents.length === 0 ? (
             <div className="py-12 text-center text-sm admin-faint">No documents yet</div>
           ) : (
-            <div className="rounded-xl overflow-hidden" style={{ border: "1px solid var(--admin-border)" }}>
+            <div className="rounded-xl admin-tablecard" style={{ border: "1px solid var(--admin-border)" }}>
               <div
                 className="grid gap-3 px-5 py-3 admin-surface"
                 style={{ gridTemplateColumns: "130px 1fr 100px 90px 70px 70px 70px", borderBottom: "1px solid var(--admin-border)" }}

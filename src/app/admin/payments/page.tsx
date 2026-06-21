@@ -211,7 +211,7 @@ export default function PaymentsPage() {
       ) : filtered.length === 0 ? (
         <div className="py-16 text-center text-sm admin-faint">No payments match.</div>
       ) : (
-        <div className="rounded-xl overflow-hidden" style={{ border: "1px solid var(--admin-border)" }}>
+        <div className="rounded-xl admin-tablecard" style={{ border: "1px solid var(--admin-border)" }}>
           <div className="grid grid-cols-[100px_110px_80px_90px_110px_1fr_90px_40px] gap-3 px-5 py-3 admin-surface" style={{ borderBottom: "1px solid var(--admin-border)" }}>
             {["Date", "Amount", "Dir", "Type", "Reference", "Linked to", "Status", ""].map((h, i) => (
               <span key={i} className="text-[10px] font-bold tracking-[0.1em] admin-faint uppercase">{h}</span>

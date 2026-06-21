@@ -352,7 +352,7 @@ export default function ContactDetailPage({
         {bookings.length > 0 && (
           <div className="pt-4" style={{ borderTop: "1px solid var(--admin-border)" }}>
             <h3 className="text-xs font-bold tracking-[0.1em] admin-faint uppercase mb-3">Bookings ({bookings.length})</h3>
-            <div className="rounded-xl overflow-hidden" style={{ border: "1px solid var(--admin-border)" }}>
+            <div className="rounded-xl admin-tablecard" style={{ border: "1px solid var(--admin-border)" }}>
               <div className="grid grid-cols-[1fr_120px_100px_100px] gap-3 px-4 py-2.5 admin-surface" style={{ borderBottom: "1px solid var(--admin-border)" }}>
                 <span className="text-[10px] font-bold tracking-[0.1em] admin-faint uppercase">Booking</span>
                 <span className="text-[10px] font-bold tracking-[0.1em] admin-faint uppercase">Experience</span>
@@ -382,7 +382,7 @@ export default function ContactDetailPage({
         {contactDocs.length > 0 && (
           <div className="pt-4" style={{ borderTop: "1px solid var(--admin-border)" }}>
             <h3 className="text-xs font-bold tracking-[0.1em] admin-faint uppercase mb-3">Documents ({contactDocs.length})</h3>
-            <div className="rounded-xl overflow-hidden" style={{ border: "1px solid var(--admin-border)" }}>
+            <div className="rounded-xl admin-tablecard" style={{ border: "1px solid var(--admin-border)" }}>
               <div
                 className="grid gap-3 px-4 py-2.5 admin-surface"
                 style={{ gridTemplateColumns: "130px 1fr 110px 90px 70px 60px", borderBottom: "1px solid var(--admin-border)" }}

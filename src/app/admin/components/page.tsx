@@ -381,7 +381,7 @@ export default function ComponentsPage() {
           <p className="text-xs admin-faint mt-1">Create components to build packages</p>
         </div>
       ) : (
-        <div className="rounded-xl overflow-hidden" style={{ border: "1px solid var(--admin-border)" }}>
+        <div className="rounded-xl admin-tablecard" style={{ border: "1px solid var(--admin-border)" }}>
           {/* Header */}
           <div className="grid gap-3 px-5 py-3 admin-surface" style={{ gridTemplateColumns: gridTemplate, borderBottom: "1px solid var(--admin-border)" }}>
             {COLUMNS.filter((c) => c.required || visibleColumns.has(c.key)).map((col) =>

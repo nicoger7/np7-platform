@@ -74,6 +74,16 @@ html {
   background-color: var(--admin-active); color: var(--admin-text-muted);
 }
 
+/* Dense data tables: clip + round on desktop; on mobile, let the grid rows keep
+   their column widths and scroll the card sideways instead of breaking the page.
+   Only grid rows (inline grid-template-columns) get the min-width, so non-table
+   cards sharing this class are untouched. */
+.admin-tablecard { overflow: hidden; }
+@media (max-width: 1023px) {
+  .admin-tablecard { overflow-x: auto; }
+  .admin-tablecard > [style*="grid-template-columns"] { min-width: 720px; }
+}
+
 /* Subtle, modern scrollbars inside the admin */
 .admin-root ::-webkit-scrollbar { width: 10px; height: 10px; }
 .admin-root ::-webkit-scrollbar-thumb {
