@@ -41,10 +41,8 @@ export default async function BookingDetail({ params }: Props) {
     b.edition?.id ? getCrewProfiles(b.edition.id, user.contactId).catch(() => ({ going: 0, sharing: 0, profiles: [] })) : Promise.resolve({ going: 0, sharing: 0, profiles: [] }),
   ]);
 
-  const deposit = b.edition?.deposit ?? 300;
   const baseTotal = b.agreed_price ?? null;
   const total = baseTotal != null ? baseTotal + addonsTotal : addonsTotal > 0 ? addonsTotal : null;
-  const depositPaid = paid >= deposit || b.downpayment_received || ["downpayment_paid", "paid", "confirmed"].includes((b.status ?? "").toLowerCase());
   const tripEnded = b.edition?.date_end ? new Date(b.edition.date_end) < new Date() : false;
   // waiver signature status (table from migration 031)
   const waiverSig = await (createAdminClient() as unknown as { from: (t: string) => { select: (s: string) => { eq: (c: string, v: string) => { maybeSingle: () => Promise<{ data: { signed_name: string; signed_at: string } | null }> } } } })
@@ -52,10 +50,35 @@ export default async function BookingDetail({ params }: Props) {
     .then((r) => r.data).catch(() => null);
   const cancellation = b.experience?.cancellation_policy ||
     "You can cancel any time before the trip. Your deposit is refundable for 14 days after payment; after that it's kept as the cancellation fee. Once you've paid the 50% downpayment or the full balance, that amount becomes the fee — with a goodwill credit voucher toward a future trip. Use ‘Cancel this trip’ above to start, or see our Terms for the full scale.";
+  // Pull the package's payment config so the member's plan matches the invoices
+  // exactly: package deposit (which can be 0 → a clean 2-stage plan), down-payment
+  // %, and final-payment timing. An edition-level deposit, if set, overrides the
+  // package's. Tolerant: pre-migration / missing → falls back to defaults.
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const payCfg: any = await (createAdminClient() as any)
+    .from("exp_bookings")
+    .select("exp_packages(deposit,downpayment_percent,final_days_before,deposit_refund_days)")
+    .eq("id", id)
+    .maybeSingle()
+    .then((r: { data: { exp_packages: unknown } | null }) => r.data?.exp_packages ?? null)
+    .catch(() => null);
   const plan = computePaymentPlan(
-    { deposit: b.edition?.deposit ?? null },
+    {
+      deposit: b.edition?.deposit ?? payCfg?.deposit ?? null,
+      downpayment_percent: payCfg?.downpayment_percent ?? null,
+      final_days_before: payCfg?.final_days_before ?? null,
+      deposit_refund_days: payCfg?.deposit_refund_days ?? null,
+    },
     { total: total ?? 0, paidAmount: paid, editionStart: b.edition?.date_start ?? null }
   );
+
+  // "Secured" = the first real payment milestone is paid (the deposit, or — when
+  // the package has no deposit — the down-payment), which unlocks trip add-ons.
+  const depositMilestone = plan.find((m) => m.kind === "deposit");
+  const depositPaid =
+    (depositMilestone ? depositMilestone.status === "paid" : paid > 0) ||
+    b.downpayment_received ||
+    ["downpayment_paid", "paid", "confirmed"].includes((b.status ?? "").toLowerCase());
 
   // Once the trip is over, photos are what the member wants first — so the
   // memories card jumps to the top of the column (otherwise it sits at the end).
