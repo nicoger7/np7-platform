@@ -1,6 +1,7 @@
 import { supabase } from "@/lib/supabase";
 import { GUIDE_NOTE_SCOPE } from "@/lib/blog-templates";
 import { getCommunityAuthors, type AuthorBadge } from "@/lib/portal-data";
+import { LevelBadge } from "@/components/shared/level-badge";
 import { SpotNoteForm } from "./spot-note-form";
 
 type GuideNote = { author_name: string | null; body: string; contact_id: string | null };
@@ -43,20 +44,17 @@ export async function GuideNotes({ blogPostId, slug, accent }: { blogPostId: str
             return (
               <li key={i} className="flex gap-2.5 text-[14.5px] text-[#5a6b72] leading-relaxed">
                 {a?.avatarUrl ? (
-                  <span className="shrink-0 w-7 h-7 rounded-full bg-cover bg-center mt-0.5" style={{ backgroundImage: `url('${a.avatarUrl}')` }} aria-hidden="true" />
+                  <span className="shrink-0 w-9 h-9 rounded-full bg-cover bg-center mt-0.5" style={{ backgroundImage: `url('${a.avatarUrl}')` }} aria-hidden="true" />
                 ) : (
-                  <span className="shrink-0 w-7 h-7 rounded-full grid place-items-center text-[11px] font-bold mt-0.5" style={{ backgroundColor: `${accent}1a`, color: accent }} aria-hidden="true">
+                  <span className="shrink-0 w-9 h-9 rounded-full grid place-items-center text-[12.5px] font-bold mt-0.5" style={{ backgroundColor: `${accent}1a`, color: accent }} aria-hidden="true">
                     {(a?.initials || who[0]).toUpperCase()}
                   </span>
                 )}
                 <span>
                   <span className="font-bold text-[#00374a]">{who}</span>
                   {a?.level && (
-                    <span
-                      title={a.skills.length ? `Coach-verified skills: ${a.skills.join(", ")}` : a.levelVerified ? "Coach-verified" : undefined}
-                      className={`ml-1.5 inline-flex items-center gap-0.5 align-middle text-[10px] font-bold px-1.5 py-0.5 rounded-md bg-[#e1f5ee] text-[#0f6e56] ${a.skills.length ? "cursor-help" : ""}`}
-                    >
-                      {a.levelVerified && <span aria-hidden="true">✓</span>}{a.level}
+                    <span className="ml-1.5 align-middle">
+                      <LevelBadge level={a.level} verified={!!a.levelVerified} skills={a.skills ?? []} align="left" />
                     </span>
                   )}
                   <span className="font-bold text-[#00374a]">:</span> {n.body}

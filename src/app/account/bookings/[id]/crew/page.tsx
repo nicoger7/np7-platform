@@ -5,6 +5,7 @@ import { getPortalUser } from "@/lib/auth";
 import { getMemberBooking, getCrewProfiles } from "@/lib/portal-data";
 import { fmtDates } from "@/lib/portal-status";
 import { PortalChrome } from "@/components/portal/portal-chrome";
+import { LevelBadge } from "@/components/shared/level-badge";
 import type { PublicProfile } from "@/lib/member-profile";
 
 export const metadata: Metadata = { title: "Your crew — NP7" };
@@ -90,12 +91,9 @@ function CrewMember({ p, isYou }: { p: PublicProfile; isYou: boolean }) {
       {p.username && <p className="text-[11.5px] text-[#9aa6ac] truncate">@{p.username}</p>}
       {meta && <p className="text-[12px] text-[#6a7a80] mt-1">{meta}</p>}
       {p.level && (
-        <span
-          title={p.skills.length ? `Coach-verified skills: ${p.skills.join(", ")}` : p.levelVerified ? "Coach-verified" : undefined}
-          className={`mt-2 inline-flex items-center gap-1 text-[11px] font-bold bg-[#e1f5ee] text-[#0f6e56] px-2.5 py-0.5 rounded-md ${p.skills.length ? "cursor-help" : ""}`}
-        >
-          {p.levelVerified && <span>✓</span>}{p.level}{p.skills.length > 0 && <span className="text-[#5aa991] font-semibold"> · {p.skills.length} skills</span>}
-        </span>
+        <div className="mt-2 flex justify-center">
+          <LevelBadge level={p.level} verified={p.levelVerified} skills={p.skills} />
+        </div>
       )}
     </div>
   );

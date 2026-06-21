@@ -13,6 +13,7 @@ import {
   conditionsAvailHasValue,
 } from "@/lib/blog-templates";
 import { BlogIcon } from "./blog-icons";
+import { LevelBadge } from "@/components/shared/level-badge";
 import { SpotNoteForm } from "./spot-note-form";
 
 export type SpotNote = {
@@ -153,18 +154,15 @@ export function SpotsAccordion({
                               return (
                                 <li key={k} className="flex gap-2.5 text-[14.5px] text-[#5a6b72] leading-relaxed">
                                   {note.avatarUrl ? (
-                                    <span className="shrink-0 w-7 h-7 rounded-full bg-cover bg-center mt-0.5" style={{ backgroundImage: `url('${note.avatarUrl}')` }} aria-hidden="true" />
+                                    <span className="shrink-0 w-9 h-9 rounded-full bg-cover bg-center mt-0.5" style={{ backgroundImage: `url('${note.avatarUrl}')` }} aria-hidden="true" />
                                   ) : note.displayName ? (
-                                    <span className="shrink-0 w-7 h-7 rounded-full grid place-items-center bg-[#eef3f4] text-[#6a7a80] text-[11px] font-bold mt-0.5" aria-hidden="true">{note.initials || who[0]}</span>
+                                    <span className="shrink-0 w-9 h-9 rounded-full grid place-items-center bg-[#eef3f4] text-[#6a7a80] text-[12.5px] font-bold mt-0.5" aria-hidden="true">{note.initials || who[0]}</span>
                                   ) : null}
                                   <span>
                                     <span className="font-bold text-[#00374a]">{who}</span>
                                     {note.level && (
-                                      <span
-                                        title={note.skills && note.skills.length ? `Coach-verified skills: ${note.skills.join(", ")}` : note.levelVerified ? "Coach-verified" : undefined}
-                                        className={`ml-1.5 inline-flex items-center gap-0.5 align-middle text-[10px] font-bold px-1.5 py-0.5 rounded-md bg-[#e1f5ee] text-[#0f6e56] ${note.skills && note.skills.length ? "cursor-help" : ""}`}
-                                      >
-                                        {note.levelVerified && <span aria-hidden>✓</span>}{note.level}
+                                      <span className="ml-1.5 align-middle">
+                                        <LevelBadge level={note.level} verified={!!note.levelVerified} skills={note.skills ?? []} align="left" />
                                       </span>
                                     )}
                                     <span className="font-bold text-[#00374a]">:</span> {note.body}

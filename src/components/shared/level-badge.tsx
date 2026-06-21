@@ -1,0 +1,63 @@
+/**
+ * A rider's level chip with a hover-card that reveals the coach-verified skills
+ * behind it. Replaces the old native `title` tooltip (delayed, OS-styled, easy
+ * to miss) with a real popover. CSS-only hover: no JS, escapes its card via
+ * absolute + z-50 (the crew grid / byline rows don't clip overflow).
+ *
+ * Shared across the crew roster and the magazine bylines.
+ */
+export function LevelBadge({
+  level,
+  verified,
+  skills,
+  align = "center",
+}: {
+  level: string | null;
+  verified: boolean;
+  skills: string[];
+  align?: "center" | "left";
+}) {
+  if (!level) return null;
+  const hasSkills = skills.length > 0;
+
+  return (
+    <span className="relative inline-flex group/lvl align-middle">
+      <span
+        className={`inline-flex items-center gap-1 text-[11px] font-bold px-2.5 py-0.5 rounded-md ${
+          verified ? "bg-[#e1f5ee] text-[#0f6e56]" : "bg-[#eef3f4] text-[#5a6b72]"
+        } ${hasSkills ? "cursor-help" : ""}`}
+      >
+        {verified && <span aria-hidden="true">✓</span>}
+        {level}
+        {hasSkills && <span className="text-[#5aa991] font-semibold"> · {skills.length}</span>}
+      </span>
+
+      {hasSkills && (
+        <span
+          className={`pointer-events-none absolute z-50 bottom-full mb-2 hidden group-hover/lvl:block ${
+            align === "left" ? "left-0" : "left-1/2 -translate-x-1/2"
+          }`}
+        >
+          <span className="block w-[222px] rounded-xl bg-white shadow-[0_14px_34px_rgba(0,55,74,0.18)] border border-[#eee4d4] p-3 text-left">
+            <span className="flex items-center gap-1 text-[10.5px] font-extrabold uppercase tracking-wide text-[#0f6e56] mb-2">
+              <span aria-hidden="true">✓</span> Coach-verified · {skills.length} {skills.length === 1 ? "skill" : "skills"}
+            </span>
+            <span className="flex flex-wrap gap-1">
+              {skills.map((s) => (
+                <span key={s} className="text-[10.5px] font-semibold bg-[#f3ede2] text-[#5a6b72] px-1.5 py-0.5 rounded">
+                  {s}
+                </span>
+              ))}
+            </span>
+          </span>
+          {/* little arrow */}
+          <span
+            className={`absolute top-full ${
+              align === "left" ? "left-4" : "left-1/2 -translate-x-1/2"
+            } -mt-1 w-2 h-2 rotate-45 bg-white border-r border-b border-[#eee4d4]`}
+          />
+        </span>
+      )}
+    </span>
+  );
+}
