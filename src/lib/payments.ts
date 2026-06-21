@@ -84,9 +84,9 @@ function fmtDue(dueDate: string): string {
 }
 
 /**
- * Build the deposit → downpayment → final plan for a booking. Milestones with a
- * zero amount (e.g. deposit already covers a small trip) are dropped, except the
- * deposit itself which always shows.
+ * Build the deposit → downpayment → final plan for a booking. Any zero-amount
+ * milestone is dropped — so a package with deposit = 0 collapses to a clean
+ * 2-stage plan (downpayment → final) with no empty "€0 deposit" step.
  */
 export function computePaymentPlan(cfg: PackagePaymentConfig, state: BookingPaymentState): Milestone[] {
   const total = round(Math.max(0, state.total || 0));
@@ -129,8 +129,14 @@ export function computePaymentPlan(cfg: PackagePaymentConfig, state: BookingPaym
       cumulative: downpaymentTarget,
       dueDate: downpaymentDue,
       // Concrete date once the deposit is paid (deposit + refund window);
-      // before that it's anchored to whenever the deposit lands.
-      dueLabel: downpaymentDue ? fmtDue(downpaymentDue) : `Due within ${refundDays} days of your deposit`,
+      // before that it's anchored to whenever the deposit lands. With no deposit
+      // (deposit = 0) the downpayment IS the securing payment, so don't reference
+      // a deposit that doesn't exist.
+      dueLabel: downpaymentDue
+        ? fmtDue(downpaymentDue)
+        : depositAmt > 0
+          ? `Due within ${refundDays} days of your deposit`
+          : "Pay to secure your spot",
       status: downPaid ? "paid" : depositPaid ? "due" : "upcoming",
     },
     {
@@ -145,7 +151,9 @@ export function computePaymentPlan(cfg: PackagePaymentConfig, state: BookingPaym
     },
   ];
 
-  return all.filter((m) => m.kind === "deposit" || m.amount > 0);
+  // Drop any zero-amount milestone — so a package with deposit = 0 collapses to
+  // a clean 2-stage plan (downpayment → final) with no empty "€0 deposit" step.
+  return all.filter((m) => m.amount > 0);
 }
 
 /** Amount already paid, derived from which milestones are marked received. */
