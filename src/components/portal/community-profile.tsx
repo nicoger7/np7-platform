@@ -52,6 +52,14 @@ export function CommunityProfile(p: Props) {
     return bits.join(", ");
   }, [fields.city, fields.country, city, p.country]);
 
+  // fields the member switched on but hasn't filled in — so the preview can
+  // explain the silence instead of just omitting them
+  const onButEmpty: string[] = [];
+  if (fields.country && !(p.country ?? "").trim()) onButEmpty.push("Country");
+  if (fields.city && !city.trim()) onButEmpty.push("City");
+  if (fields.age && (age == null || age < MINOR_AGE)) onButEmpty.push("Age");
+  if (fields.level && !p.shownLevel) onButEmpty.push("Level");
+
   async function save() {
     setSaving(true); setSaved(false); setErr("");
     const res = await fetch("/api/portal/profile", {
@@ -175,6 +183,11 @@ export function CommunityProfile(p: Props) {
           )}
           {fields.level && p.shownLevel && <span className="mt-2 inline-block text-[11px] font-bold bg-[#e1f5ee] text-[#0f6e56] px-2.5 py-0.5 rounded-md">{p.shownLevel}</span>}
         </div>
+        {onButEmpty.length > 0 && (
+          <p className="text-[12px] text-[#b8702a] mt-2.5 leading-relaxed">
+            {onButEmpty.join(", ")} {onButEmpty.length === 1 ? "is" : "are"} switched on but still empty — add your country &amp; date of birth under <span className="font-semibold">Your details</span>, and your level in <span className="font-semibold">Your level</span>, and they&apos;ll show here.
+          </p>
+        )}
         {isMinor && <p className="text-[12px] text-[#c4621a] mt-2">Under-18 riders are never listed in a trip crew, and your age is never shown.</p>}
       </div>
 
