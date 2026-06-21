@@ -61,3 +61,33 @@ export function tierProgress(catalog: Milestone[], achievedIds: Set<string>): { 
     return { tier, done: inTier.filter((m) => achievedIds.has(m.id)).length, total: inTier.length };
   });
 }
+
+export type TierStat = { tier: Level; done: number; total: number };
+/** Progression summary from a list of (tier, achieved) milestones — shared by the
+    "Your level" card and the home dashboard. `nextTier` is the first incomplete
+    tier; `toNext` the skills remaining in it. */
+export function levelProgress(milestones: { tier: string; achieved: boolean }[]): {
+  tiers: TierStat[]; nextTier: Level | null; toNext: number; earned: number; total: number;
+} {
+  const tiers: TierStat[] = LEVELS.map((tier) => {
+    const inTier = milestones.filter((m) => m.tier === tier);
+    return { tier, done: inTier.filter((m) => m.achieved).length, total: inTier.length };
+  });
+  const next = tiers.find((t) => t.total > 0 && t.done < t.total) ?? null;
+  return {
+    tiers, nextTier: next ? next.tier : null, toNext: next ? next.total - next.done : 0,
+    earned: tiers.reduce((s, t) => s + t.done, 0), total: tiers.reduce((s, t) => s + t.total, 0),
+  };
+}
+
+/** The forward pull for the hero/home card: the tier ABOVE the member's current
+    level (Beginner if they have none, null if they're already Pro). Avoids the
+    "Pro · 6 skills to Beginner" nonsense when a level was set ahead of the ticks. */
+export function nextTierFrom(level: string | null, tiers: TierStat[]): { nextTier: Level | null; toNext: number; pct: number } {
+  const idx = level ? LEVELS.indexOf(level as Level) : -1;
+  const next = idx === -1 ? LEVELS[0] : idx < LEVELS.length - 1 ? LEVELS[idx + 1] : null;
+  if (!next) return { nextTier: null, toNext: 0, pct: level ? 100 : 0 };
+  const stat = tiers.find((t) => t.tier === next);
+  const total = stat?.total ?? 0, done = stat?.done ?? 0;
+  return { nextTier: next, toNext: total - done, pct: total ? (done / total) * 100 : 0 };
+}

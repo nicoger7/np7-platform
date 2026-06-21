@@ -3,10 +3,13 @@ import { redirect } from "next/navigation";
 import type { Metadata } from "next";
 import { getPortalUser } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
-import { getMemberBookings, getMemberBannerImages } from "@/lib/portal-data";
+import { getMemberBookings, getMemberBannerImages, getMemberProfile, getMemberLevelDetail } from "@/lib/portal-data";
 import { fmtDates, needsDownpayment } from "@/lib/portal-status";
+import { displayLevel, levelProgress, nextTierFrom } from "@/lib/member-level";
+import { firstNameInitial, initialsFrom } from "@/lib/member-profile";
 import { PortalChrome } from "@/components/portal/portal-chrome";
 import { MemberHomeBanner } from "@/components/portal/member-home-banner";
+import { LevelHomeCard } from "@/components/portal/level-home-card";
 import { flags } from "@/lib/flags";
 
 export const metadata: Metadata = { title: "My account — NP7" };
@@ -21,11 +24,23 @@ export default async function AccountHome() {
     await supabase.auth.signOut();
     redirect("/account/login");
   }
-  const [bookings, bannerImages] = await Promise.all([
+  const [bookings, bannerImages, profile, levelDetail] = await Promise.all([
     getMemberBookings(user.contactId),
     getMemberBannerImages(user.contactId).catch(() => []),
+    getMemberProfile(user.contactId).catch(() => null),
+    getMemberLevelDetail(user.contactId).catch(() => null),
   ]);
   const first = user.name?.split(" ")[0] ?? "there";
+
+  // level progress for the home dashboard card
+  const lvl = levelDetail
+    ? (() => {
+        const shown = displayLevel({ self_level: levelDetail.self_level, level: levelDetail.coach_level, level_status: levelDetail.level_status });
+        const prog = levelProgress(levelDetail.milestones);
+        const nx = nextTierFrom(shown.level, prog.tiers);
+        return { level: shown.level, verified: shown.verified, nextTier: nx.nextTier, toNext: nx.toNext, pct: nx.pct };
+      })()
+    : null;
 
   const today = new Date().toISOString().slice(0, 10);
   const upcoming = bookings
@@ -44,6 +59,22 @@ export default async function AccountHome() {
             name={first}
             subtitle="Welcome to your NP7 home — your trips, your gear and everything in between."
           />
+
+          {lvl && profile && (
+            <div className="mt-5 max-w-[420px]">
+              <LevelHomeCard
+                avatarUrl={profile.avatar_url}
+                initials={initialsFrom(profile.name)}
+                displayName={firstNameInitial(profile.name)}
+                username={profile.username}
+                level={lvl.level}
+                verified={lvl.verified}
+                nextTier={lvl.nextTier}
+                toNext={lvl.toNext}
+                pct={lvl.pct}
+              />
+            </div>
+          )}
 
           {/* secure-your-spot — unsecured registrations */}
           {unsecured.length > 0 && (
