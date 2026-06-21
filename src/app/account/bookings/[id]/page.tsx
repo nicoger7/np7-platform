@@ -11,6 +11,7 @@ import { MemberGallery } from "@/components/portal/member-gallery";
 import { TripAddons } from "@/components/portal/trip-addons";
 import { PaymentPlan } from "@/components/portal/payment-plan";
 import { CancelTrip } from "@/components/portal/cancel-trip";
+import { RedeemVoucher } from "@/components/portal/redeem-voucher";
 import { CrewCard } from "@/components/portal/crew-card";
 import { computePaymentPlan } from "@/lib/payments";
 import { createAdminClient } from "@/lib/supabase";
@@ -125,6 +126,11 @@ export default async function BookingDetail({ params }: Props) {
                     paid={paid}
                   />
                 </div>
+                {!tripEnded && paid < (total ?? 0) && (
+                  <div className="mt-4 pt-3 border-t border-[#f3ede2]">
+                    <RedeemVoucher bookingId={b.id} />
+                  </div>
+                )}
                 {!tripEnded && (
                   <div className="mt-4 pt-3 border-t border-[#f3ede2] flex items-center justify-between gap-3">
                     <span className="text-[12px] text-[#9aa6ac] leading-snug">Plans changed?</span>

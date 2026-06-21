@@ -92,9 +92,16 @@ export default async function VouchersPage() {
                     )}
 
                     {v.status === "active" && (
-                      <div className="mt-4 flex flex-wrap gap-2.5">
-                        <Link href={`/account/vouchers/${v.id}/print`} className="px-4 py-2 rounded-full text-[12.5px] font-bold text-white bg-[#00afdb] hover:bg-[#15c0ec] transition-colors">Print voucher</Link>
-                        <span className="px-4 py-2 rounded-full text-[12.5px] font-semibold text-[#8a9aa0] bg-[#f1f5f6]">Redeem at booking with code {v.code}</span>
+                      <div className="mt-4">
+                        <div className="flex flex-wrap gap-2.5">
+                          <Link href={`/account/vouchers/${v.id}/print`} className="px-4 py-2 rounded-full text-[12.5px] font-bold text-white bg-[#00afdb] hover:bg-[#15c0ec] transition-colors">Print voucher</Link>
+                          {v.exp_experiences && (
+                            <Link href={`/experience`} className="px-4 py-2 rounded-full text-[12.5px] font-bold text-[#00374a] bg-[#f1f5f6] hover:bg-[#e7eef0] transition-colors">Book this trip</Link>
+                          )}
+                        </div>
+                        <p className="text-[12.5px] text-[#8a9aa0] mt-2.5 leading-relaxed">
+                          To use it: register for the trip (it&apos;s free), then open your trip&apos;s <strong>payment plan</strong> and enter code <strong className="font-mono text-[#00374a]">{v.code}</strong> — the voucher covers what you&apos;ve been invoiced.
+                        </p>
                       </div>
                     )}
                   </div>
