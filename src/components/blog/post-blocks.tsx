@@ -13,7 +13,7 @@ import {
   asProsCons,
   asSpots,
 } from "@/lib/blog-templates";
-import { SpotsAccordion } from "./spots-accordion";
+import { SpotsAccordion, type SpotNote } from "./spots-accordion";
 import { SpotsMap } from "./spots-map";
 
 /** Keys handled by the dedicated CTA band, not the generic block loop. */
@@ -28,10 +28,14 @@ export function PostBlocks({
   template,
   theme,
   data,
+  slug,
+  notesBySpot,
 }: {
   template: BlogTemplate;
   theme: WorldTheme;
   data: TemplateData;
+  slug?: string;
+  notesBySpot?: Record<string, SpotNote[]>;
 }) {
   const blocks = fieldsForSlot(template, "body").filter(
     (f) => !CTA_KEYS.has(f.key) && fieldHasValue(f, data)
@@ -40,7 +44,7 @@ export function PostBlocks({
   return (
     <div className="space-y-10">
       {blocks.map((f) => (
-        <Block key={f.key} field={f} theme={theme} data={data} />
+        <Block key={f.key} field={f} theme={theme} data={data} slug={slug} notesBySpot={notesBySpot} />
       ))}
     </div>
   );
@@ -55,7 +59,7 @@ function SectionHeading({ children, accent }: { children: React.ReactNode; accen
   );
 }
 
-function Block({ field, theme, data }: { field: TemplateField; theme: WorldTheme; data: TemplateData }) {
+function Block({ field, theme, data, slug, notesBySpot }: { field: TemplateField; theme: WorldTheme; data: TemplateData; slug?: string; notesBySpot?: Record<string, SpotNote[]> }) {
   const accent = theme.accent;
   const v = data[field.key];
 
@@ -246,7 +250,7 @@ function Block({ field, theme, data }: { field: TemplateField; theme: WorldTheme
           <div className="mb-5">
             <SpotsMap spots={spots} accent={accent} accentInk={theme.accentInk} />
           </div>
-          <SpotsAccordion spots={spots} accent={accent} />
+          <SpotsAccordion spots={spots} accent={accent} slug={slug} notesBySpot={notesBySpot} />
         </section>
       );
     }

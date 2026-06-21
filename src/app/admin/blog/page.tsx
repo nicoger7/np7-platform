@@ -83,13 +83,21 @@ export default function BlogAdminPage() {
             Drafts stay private until published.
           </p>
         </div>
-        <button
-          onClick={() => setPicking(true)}
-          disabled={creating}
-          className="shrink-0 px-5 py-2.5 rounded-lg text-[13px] font-bold bg-[#0aa3c7] text-white hover:bg-[#0aa3c7]/90 disabled:opacity-50 transition-colors"
-        >
-          {creating ? "Creating…" : "+ New post"}
-        </button>
+        <div className="shrink-0 flex items-center gap-2.5">
+          <Link
+            href="/admin/blog/notes"
+            className="px-4 py-2.5 rounded-lg text-[13px] font-bold admin-border border admin-muted hover:admin-heading transition-colors"
+          >
+            Member notes
+          </Link>
+          <button
+            onClick={() => setPicking(true)}
+            disabled={creating}
+            className="px-5 py-2.5 rounded-lg text-[13px] font-bold bg-[#0aa3c7] text-white hover:bg-[#0aa3c7]/90 disabled:opacity-50 transition-colors"
+          >
+            {creating ? "Creating…" : "+ New post"}
+          </button>
+        </div>
       </div>
 
       <input

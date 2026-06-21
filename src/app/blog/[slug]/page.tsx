@@ -98,6 +98,19 @@ export default async function BlogPostPage({ params }: Props) {
 
   const teaserSplit = splitForTeaser(post.content ?? "", 2);
 
+  // approved member notes for this post, grouped by spot name
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { data: noteRows } = await (supabase as any)
+    .from("exp_blog_spot_notes")
+    .select("spot_name, author_name, body")
+    .eq("blog_post_id", post.id)
+    .eq("status", "approved")
+    .order("created_at", { ascending: true });
+  const notesBySpot: Record<string, { author_name: string | null; body: string }[]> = {};
+  for (const n of (noteRows ?? []) as { spot_name: string; author_name: string | null; body: string }[]) {
+    (notesBySpot[n.spot_name] ??= []).push({ author_name: n.author_name, body: n.body });
+  }
+
   return (
     <>
       <SectionHeader />
@@ -161,7 +174,7 @@ export default async function BlogPostPage({ params }: Props) {
           ) : (
             <div className="space-y-12 pb-16">
               {post.content && <PostBody content={post.content} />}
-              <PostBlocks template={template} theme={theme} data={data} />
+              <PostBlocks template={template} theme={theme} data={data} slug={slug} notesBySpot={notesBySpot} />
 
               {ctaUrl && (
                 <div className="rounded-3xl p-8 sm:p-10 text-center text-white" style={{ background: `linear-gradient(160deg, ${theme.accent}, ${theme.deep})` }}>

@@ -13,14 +13,30 @@ import {
   conditionsAvailHasValue,
 } from "@/lib/blog-templates";
 import { BlogIcon } from "./blog-icons";
+import { SpotNoteForm } from "./spot-note-form";
+
+export type SpotNote = { author_name: string | null; body: string };
 
 /**
  * Foldable spot list. Each spot collapses to a scannable header (name + level /
  * water / best-wind chips); expanding reveals the photo, a wind rose, the
- * conditions-availability bars, notes and on-site infrastructure. Keeps a
- * destination with many spots tidy. All collapsed by default — tap to open.
+ * conditions-availability bars, member notes and on-site infrastructure. Keeps
+ * a destination with many spots tidy. All collapsed by default — tap to open.
+ *
+ * When `slug` is set, each spot also shows approved member notes + an
+ * "add a local tip" form.
  */
-export function SpotsAccordion({ spots, accent }: { spots: Spot[]; accent: string }) {
+export function SpotsAccordion({
+  spots,
+  accent,
+  slug,
+  notesBySpot,
+}: {
+  spots: Spot[];
+  accent: string;
+  slug?: string;
+  notesBySpot?: Record<string, SpotNote[]>;
+}) {
   const [open, setOpen] = useState<number[]>([]);
   const toggle = (i: number) => setOpen((o) => (o.includes(i) ? o.filter((x) => x !== i) : [...o, i]));
 
@@ -115,6 +131,27 @@ export function SpotsAccordion({ spots, accent }: { spots: Spot[]; accent: strin
                     {spot.infrastructure.map((t, j) => (
                       <span key={j} className="text-[12px] font-semibold text-[#5a6b72] bg-[#f3ede0] rounded-full px-2.5 py-1">{t}</span>
                     ))}
+                  </div>
+                )}
+
+                {slug && (
+                  <div className="mt-5 pt-4 border-t border-[#f0e9da]">
+                    {(() => {
+                      const notes = notesBySpot?.[spot.name] ?? [];
+                      return notes.length > 0 ? (
+                        <>
+                          <div className="text-[11px] font-bold uppercase tracking-[0.1em] text-[#9aa6ac] mb-2.5">Local notes</div>
+                          <ul className="space-y-3">
+                            {notes.map((note, k) => (
+                              <li key={k} className="text-[14.5px] text-[#5a6b72] leading-relaxed">
+                                <span className="font-bold text-[#00374a]">{note.author_name || "Member"}:</span> {note.body}
+                              </li>
+                            ))}
+                          </ul>
+                        </>
+                      ) : null;
+                    })()}
+                    <SpotNoteForm slug={slug} spotName={spot.name} accent={accent} />
                   </div>
                 )}
               </div>
