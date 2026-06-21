@@ -37,6 +37,7 @@ export function EditionBooking({
   const ed = editions.find((e) => e.id === sel) ?? editions[0];
   const packages = ed ? packagesByEdition[ed.id] ?? [] : [];
   const multi = editions.length > 1;
+  const selectedFull = ed?.spotsLeft != null && ed.spotsLeft <= 0;
 
   const symbol = currency === "EUR" || !currency ? "€" : `${currency} `;
   const fmt = (n: number) => `${symbol}${n.toLocaleString("en-US")}`;
@@ -96,7 +97,21 @@ export function EditionBooking({
       )}
 
       {/* key forces a fresh picker (resets level/accommodation) when the week changes */}
-      {packages.length > 0 ? (
+      {selectedFull ? (
+        <div className="max-w-[560px] mx-auto text-center rounded-2xl border border-[#f0e6d6] bg-white p-8">
+          <span className="inline-block px-3 py-1 rounded-full text-[12px] font-bold text-white bg-[#f47b20] mb-4">Fully booked</span>
+          <h3 className="text-[20px] font-black text-[#00374a] mb-2">{multi ? "This week is fully booked" : "This trip is fully booked"}</h3>
+          <p className="text-[14px] text-[#5a6b72] leading-relaxed mb-6">
+            {multi ? "Pick another week above, or join the waitlist" : "Every spot is taken"} — plans change and places free up. Join the waitlist and we&apos;ll reach out the moment one opens.
+          </p>
+          <a
+            href={`mailto:experience@np-seven.com?subject=Waitlist: ${experienceTitle}${multi && ed?.label ? " · " + ed.label : ""}`}
+            className="inline-block px-7 py-3.5 rounded-full text-[13.5px] font-bold text-white bg-[#00afdb] hover:bg-[#15c0ec] transition-colors"
+          >
+            Join the waitlist
+          </a>
+        </div>
+      ) : packages.length > 0 ? (
         <PackagePicker
           key={ed?.id}
           packages={packages}
