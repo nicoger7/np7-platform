@@ -3,7 +3,8 @@ import type { Metadata } from "next";
 import { cookies } from "next/headers";
 import { supabase } from "@/lib/supabase";
 import { flags } from "@/lib/flags";
-import { getTemplate, worldTheme } from "@/lib/blog-templates";
+import { getTemplate, worldTheme, asSpots, parseCoords } from "@/lib/blog-templates";
+import { AllSpotsMap, type SpotPoint } from "@/components/blog/all-spots-map";
 import { resolveSection, SECTION_CHROME } from "@/lib/blog-section";
 import { SectionHeader } from "@/components/shared/section-header";
 import { BlogFooter } from "@/components/blog/blog-footer";
@@ -53,6 +54,29 @@ export default async function BlogIndexPage({ searchParams }: Props) {
   const posts = (data ?? []) as unknown as CardPost[];
   const [featured, ...rest] = posts;
 
+  // Every spot from every spotguide → the "Where we ride" map (All + Travel tabs).
+  const showMap = activeWorld === "" || activeWorld === "experience";
+  let spotPoints: SpotPoint[] = [];
+  if (showMap) {
+    const { data: sg } = await supabase
+      .from("exp_blog_posts")
+      .select("slug,title,template_data")
+      .eq("status", "published")
+      .eq("template", "spotguide");
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    spotPoints = ((sg ?? []) as any[]).flatMap((p) => {
+      const td = (p.template_data && typeof p.template_data === "object" ? p.template_data : {}) as Record<string, unknown>;
+      const region = typeof td.region === "string" ? td.region : undefined;
+      const dest = typeof td.destinationName === "string" && td.destinationName ? td.destinationName : p.title;
+      return asSpots(td.spots)
+        .map((s): SpotPoint | null => {
+          const c = parseCoords(s.coords);
+          return c ? { lat: c.lat, lng: c.lng, spot: s.name || dest, title: dest, slug: p.slug, region } : null;
+        })
+        .filter((x): x is SpotPoint => x !== null);
+    });
+  }
+
   return (
     <>
       <SectionHeader />
@@ -90,6 +114,18 @@ export default async function BlogIndexPage({ searchParams }: Props) {
       {/* ---------------------------------------------------------------- POSTS */}
       <section className="bg-[#fff7ec] pt-12 sm:pt-14 pb-24 min-h-[40vh]">
         <div className="max-w-[1200px] mx-auto px-6 sm:px-8">
+          {showMap && spotPoints.length > 0 && (
+            <div className="mb-12">
+              <div className="flex items-end justify-between gap-4 mb-4">
+                <div>
+                  <p className="text-[11px] font-bold tracking-[0.22em] text-[#f47b20]">WHERE WE RIDE</p>
+                  <h2 className="text-2xl sm:text-3xl font-black tracking-[-0.03em] text-[#00374a]">Every spot in the magazine</h2>
+                </div>
+                <span className="text-[13px] font-semibold text-[#8a9aa0] shrink-0">{spotPoints.length} spot{spotPoints.length === 1 ? "" : "s"}</span>
+              </div>
+              <AllSpotsMap points={spotPoints} />
+            </div>
+          )}
           {posts.length === 0 ? (
             <p className="text-center text-[#5a6b72] py-20">No stories here yet — check back soon.</p>
           ) : (
