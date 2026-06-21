@@ -337,3 +337,9 @@ _Dump ideas here; we triage into the sections above._
   Experience + Content sub-navs converted to real section TABS (were scroll anchors). **Pending:**
   migration 022 (destinations). Deferred: finance role-gate (§8), pipeline dedup audit, public
   destination pages, edition-duplicate live test.
+- 2026-06-21 — Member community profiles + trip "crew" → `docs/CREW-PROFILES-PLAN.md`. Built on
+  `dev`, **not shipped**: opt-in site-wide profile (avatar from gallery, @username, level/country/
+  city/age, per-surface + per-field toggles), service-role "privacy by projection" (never loosens
+  contacts RLS), crew teaser merged into the trip page + `/account/bookings/[id]/crew` roster,
+  spot-note bylines enriched. Migration 035 **pending**; code tolerant of it being unapplied.
+  Deferred: avatar upload, public `/u/[username]` pages, review-card avatars (curation-owned).

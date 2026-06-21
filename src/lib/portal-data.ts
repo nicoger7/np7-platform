@@ -1,6 +1,10 @@
 import { createAdminClient } from "@/lib/supabase";
 import { effectiveAddonStatus } from "@/lib/addons";
 import { parseFlightNote, type FlightInfo } from "@/lib/flights";
+import {
+  EMPTY_VISIBILITY, ageFrom, MINOR_AGE, parseVisibility, publicProfileFor,
+  type ContactProfileRow, type ProfileSurface, type PublicProfile, type Visibility,
+} from "@/lib/member-profile";
 
 /* Server-only data access for the member portal. Always scoped to the
    member's own contactId (the caller verifies the session first). */
@@ -86,6 +90,9 @@ export type MemberProfile = {
   name: string; email: string | null; phone: string | null; country: string | null;
   tshirt_size: string | null; diet_allergies: string | null; date_of_birth: string | null;
   level: string | null; marketing_opt_in: boolean | null;
+  // community-profile fields (migration 035) — null/empty until applied
+  username: string | null; avatar_url: string | null; display_city: string | null;
+  visibility: Visibility;
 };
 
 export async function getMemberProfile(contactId: string): Promise<MemberProfile | null> {
@@ -94,7 +101,93 @@ export async function getMemberProfile(contactId: string): Promise<MemberProfile
   const { data } = await db.from("contacts")
     .select("name,email,phone,country,tshirt_size,diet_allergies,date_of_birth,level,marketing_opt_in")
     .eq("id", contactId).maybeSingle();
-  return data ?? null;
+  if (!data) return null;
+  // community-profile columns live in a separate, tolerant read so the portal
+  // keeps working before migration 035 is applied (unknown columns → error → defaults).
+  let username: string | null = null, avatar_url: string | null = null, display_city: string | null = null;
+  let visibility: Visibility = EMPTY_VISIBILITY;
+  const extra = await db.from("contacts")
+    .select("username,avatar_url,display_city,profile_visibility").eq("id", contactId).maybeSingle();
+  if (extra.data) {
+    username = extra.data.username ?? null;
+    avatar_url = extra.data.avatar_url ?? null;
+    display_city = extra.data.display_city ?? null;
+    visibility = parseVisibility(extra.data.profile_visibility);
+  }
+  return { ...data, username, avatar_url, display_city, visibility };
+}
+
+/** The member's own trip photos (their personal + the week's shared photos),
+    de-duped across all bookings — used as the avatar picker source. */
+export async function getProfilePhotoChoices(contactId: string): Promise<string[]> {
+  const bookings = await getMemberBookings(contactId);
+  const lists = await Promise.all(
+    bookings.map((b) => (b.edition?.id ? getMemoryPhotosForBooking(b.edition.id, b.id).catch(() => []) : Promise.resolve([])))
+  );
+  return [...new Set(lists.flat().filter(Boolean))].slice(0, 60);
+}
+
+export type CrewRoster = { going: number; sharing: number; profiles: PublicProfile[] };
+
+/**
+ * The opted-in crew for an edition, projected to public fields. This is the ONLY
+ * path by which one member sees another on a trip — it runs as service role and
+ * returns only what each owner chose to share (`surfaces.crew`). Minors (known
+ * DOB under 18) are excluded entirely. `going` counts active participants; the
+ * caller must already have verified the viewer is one of them.
+ */
+export async function getCrewProfiles(editionId: string, viewerContactId: string): Promise<CrewRoster> {
+  const empty: CrewRoster = { going: 0, sharing: 0, profiles: [] };
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const db = createAdminClient() as any;
+  const { data: bookings } = await db.from("exp_bookings")
+    .select("contact_id,status")
+    .eq("edition_id", editionId);
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const active = (bookings ?? []).filter((b: any) => !/cancel/i.test(b.status ?? "") && b.contact_id);
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const contactIds = [...new Set(active.map((b: any) => b.contact_id))] as string[];
+  if (!contactIds.includes(viewerContactId)) return empty; // viewer isn't on this edition
+  const going = contactIds.length;
+
+  // Tolerant read of the profile columns — absent before migration 035 → no one shares.
+  const sel = "id,name,username,avatar_url,country,display_city,level,date_of_birth,profile_visibility";
+  const { data: rows, error } = await db.from("contacts").select(sel).in("id", contactIds);
+  if (error || !rows) return { going, sharing: 0, profiles: [] };
+
+  const profiles: PublicProfile[] = [];
+  for (const row of rows as ContactProfileRow[]) {
+    const age = ageFrom(row.date_of_birth);
+    if (age != null && age < MINOR_AGE) continue; // never list a minor
+    const p = publicProfileFor(row, "crew");
+    if (p) profiles.push(p);
+  }
+  profiles.sort((a, b) => a.displayName.localeCompare(b.displayName));
+  return { going, sharing: profiles.length, profiles };
+}
+
+export type AuthorBadge = { displayName: string; avatarUrl: string | null; username: string | null; initials: string };
+
+/**
+ * Public author badges for a set of contacts, for a given community surface
+ * (reviews / spot_notes). Returns an entry ONLY for contacts who opted into that
+ * surface — others fall back to the frozen author_name at the render site. Runs
+ * as service role; tolerant of the unapplied migration (no columns → empty map).
+ */
+export async function getCommunityAuthors(contactIds: (string | null | undefined)[], surface: ProfileSurface): Promise<Record<string, AuthorBadge>> {
+  const ids = [...new Set(contactIds.filter(Boolean))] as string[];
+  if (!ids.length) return {};
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const db = createAdminClient() as any;
+  const sel = "id,name,username,avatar_url,country,display_city,level,date_of_birth,profile_visibility";
+  const { data: rows, error } = await db.from("contacts").select(sel).in("id", ids);
+  if (error || !rows) return {};
+  const out: Record<string, AuthorBadge> = {};
+  for (const row of rows as ContactProfileRow[]) {
+    const p = publicProfileFor(row, surface);
+    if (p) out[row.id] = { displayName: p.displayName, avatarUrl: p.avatarUrl, username: p.username, initials: p.initials };
+  }
+  return out;
 }
 
 /** The experience's gallery images (exp_content.gallery, falling back to the

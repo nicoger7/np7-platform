@@ -4,6 +4,7 @@ import type { Metadata } from "next";
 import { cookies } from "next/headers";
 import { supabase } from "@/lib/supabase";
 import { getPortalUser } from "@/lib/auth";
+import { getCommunityAuthors, type AuthorBadge } from "@/lib/portal-data";
 import { flags } from "@/lib/flags";
 import { resolveSection } from "@/lib/blog-section";
 import {
@@ -19,6 +20,7 @@ import { BlogFooter } from "@/components/blog/blog-footer";
 import { BlogCard, type CardPost, fmtDate, readTime } from "@/components/blog/blog-card";
 import { PostFacts } from "@/components/blog/post-facts";
 import { PostBlocks } from "@/components/blog/post-blocks";
+import { type SpotNote } from "@/components/blog/spots-accordion";
 import { PostBody, splitForTeaser } from "@/components/blog/post-body";
 import { SignupGate } from "@/components/blog/signup-gate";
 
@@ -102,13 +104,21 @@ export default async function BlogPostPage({ params }: Props) {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const { data: noteRows } = await (supabase as any)
     .from("exp_blog_spot_notes")
-    .select("spot_name, author_name, body")
+    .select("spot_name, author_name, body, contact_id")
     .eq("blog_post_id", post.id)
     .eq("status", "approved")
     .order("created_at", { ascending: true });
-  const notesBySpot: Record<string, { author_name: string | null; body: string }[]> = {};
-  for (const n of (noteRows ?? []) as { spot_name: string; author_name: string | null; body: string }[]) {
-    (notesBySpot[n.spot_name] ??= []).push({ author_name: n.author_name, body: n.body });
+  type NoteRow = { spot_name: string; author_name: string | null; body: string; contact_id: string | null };
+  const rows = (noteRows ?? []) as NoteRow[];
+  // enrich with the author's opted-in community profile (service-role projection)
+  const authors: Record<string, AuthorBadge> = await getCommunityAuthors(rows.map((n) => n.contact_id), "spot_notes").catch(() => ({}));
+  const notesBySpot: Record<string, SpotNote[]> = {};
+  for (const n of rows) {
+    const a = n.contact_id ? authors[n.contact_id] : undefined;
+    (notesBySpot[n.spot_name] ??= []).push({
+      author_name: n.author_name, body: n.body,
+      displayName: a?.displayName ?? null, avatarUrl: a?.avatarUrl ?? null, initials: a?.initials ?? null,
+    });
   }
 
   return (

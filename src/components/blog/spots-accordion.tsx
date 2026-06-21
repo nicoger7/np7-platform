@@ -15,7 +15,11 @@ import {
 import { BlogIcon } from "./blog-icons";
 import { SpotNoteForm } from "./spot-note-form";
 
-export type SpotNote = { author_name: string | null; body: string };
+export type SpotNote = {
+  author_name: string | null; body: string;
+  // attached when the author opted into a public profile (migration 035)
+  displayName?: string | null; avatarUrl?: string | null; initials?: string | null;
+};
 
 /**
  * Foldable spot list. Each spot collapses to a scannable header (name + level /
@@ -142,11 +146,19 @@ export function SpotsAccordion({
                         <>
                           <div className="text-[11px] font-bold uppercase tracking-[0.1em] text-[#9aa6ac] mb-2.5">Local notes</div>
                           <ul className="space-y-3">
-                            {notes.map((note, k) => (
-                              <li key={k} className="text-[14.5px] text-[#5a6b72] leading-relaxed">
-                                <span className="font-bold text-[#00374a]">{note.author_name || "Member"}:</span> {note.body}
-                              </li>
-                            ))}
+                            {notes.map((note, k) => {
+                              const who = note.displayName || note.author_name || "Member";
+                              return (
+                                <li key={k} className="flex gap-2.5 text-[14.5px] text-[#5a6b72] leading-relaxed">
+                                  {note.avatarUrl ? (
+                                    <span className="shrink-0 w-7 h-7 rounded-full bg-cover bg-center mt-0.5" style={{ backgroundImage: `url('${note.avatarUrl}')` }} aria-hidden="true" />
+                                  ) : note.displayName ? (
+                                    <span className="shrink-0 w-7 h-7 rounded-full grid place-items-center bg-[#eef3f4] text-[#6a7a80] text-[11px] font-bold mt-0.5" aria-hidden="true">{note.initials || who[0]}</span>
+                                  ) : null}
+                                  <span><span className="font-bold text-[#00374a]">{who}:</span> {note.body}</span>
+                                </li>
+                              );
+                            })}
                           </ul>
                         </>
                       ) : null;
