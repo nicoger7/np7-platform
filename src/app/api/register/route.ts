@@ -104,20 +104,24 @@ export async function POST(request: NextRequest) {
   }
 
   // Booking — lands as a "registered" lead (no payment, no spot held).
-  const { data: booking, error: bErr } = await db
-    .from("exp_bookings")
-    .insert({
-      name: fullName,
-      contact_id: contactId,
-      experience_id: exp.id,
-      edition_id: editionId ?? null,
-      package_id: pkg.id,
-      status: "registered",
-      agreed_price: pkg.price,
-      notes: `Website registration · package: ${pkg.name}`,
-    })
-    .select("id")
-    .single();
+  const bookingPayload = {
+    name: fullName,
+    contact_id: contactId,
+    experience_id: exp.id,
+    edition_id: editionId ?? null,
+    package_id: pkg.id,
+    agreed_price: pkg.price,
+    notes: `Website registration · package: ${pkg.name}`,
+  };
+  let { data: booking, error: bErr } = await db
+    .from("exp_bookings").insert({ ...bookingPayload, status: "registered" }).select("id").single();
+  // Pre-migration-037 fallback: if the old status CHECK rejects "registered",
+  // create it as a "lead" so registration still works (apply 037 to keep it
+  // showing as 'registered').
+  if (bErr && /status_check/i.test(bErr.message || "")) {
+    ({ data: booking, error: bErr } = await db
+      .from("exp_bookings").insert({ ...bookingPayload, status: "lead" }).select("id").single());
+  }
   if (bErr) return bad("Could not complete your registration. Please try again.", 500);
 
   const origin = request.headers.get("origin") ?? `https://${request.headers.get("host")}`;
