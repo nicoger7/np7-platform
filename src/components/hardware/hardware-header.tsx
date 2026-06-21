@@ -29,6 +29,7 @@ const navLink = "text-[12px] font-bold uppercase tracking-[0.12em] text-white/55
 export function HardwareHeader({ variant = "overlay" }: { variant?: "overlay" | "docked" }) {
   const docked = variant === "docked";
   const [scrolled, setScrolled] = useState(false);
+  const [menuOpen, setMenuOpen] = useState(false);
 
   useEffect(() => {
     if (docked) return;
@@ -37,6 +38,12 @@ export function HardwareHeader({ variant = "overlay" }: { variant?: "overlay" | 
     window.addEventListener("scroll", onScroll, { passive: true });
     return () => window.removeEventListener("scroll", onScroll);
   }, [docked]);
+
+  useEffect(() => {
+    const onResize = () => { if (window.innerWidth >= 1024) setMenuOpen(false); };
+    window.addEventListener("resize", onResize);
+    return () => window.removeEventListener("resize", onResize);
+  }, []);
 
   return (
     <header
@@ -78,8 +85,38 @@ export function HardwareHeader({ variant = "overlay" }: { variant?: "overlay" | 
           >
             Shop gear
           </Link>
+          {/* mobile menu toggle — the nav links are desktop-only otherwise */}
+          <button
+            type="button"
+            onClick={() => setMenuOpen((o) => !o)}
+            aria-label={menuOpen ? "Close menu" : "Open menu"}
+            aria-expanded={menuOpen}
+            className="lg:hidden shrink-0 -mr-1 w-9 h-9 grid place-items-center text-white"
+          >
+            {menuOpen ? (
+              <svg className="w-6 h-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M18 6L6 18M6 6l12 12" /></svg>
+            ) : (
+              <svg className="w-6 h-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M3 6h18M3 12h18M3 18h18" /></svg>
+            )}
+          </button>
         </div>
       </div>
+
+      {/* MOBILE menu panel */}
+      {menuOpen && (
+        <div className="lg:hidden border-t border-white/10 bg-black">
+          <nav className="max-w-[1200px] mx-auto px-5 py-2 flex flex-col">
+            {NAV.map((n, i) => (
+              <Link key={i} href={n.href} onClick={() => setMenuOpen(false)} className="py-3.5 text-[13px] font-bold uppercase tracking-[0.12em] font-mono text-white/70 hover:text-[#c2ff38] border-b border-white/5">
+                {n.label}
+              </Link>
+            ))}
+            <Link href="#products" onClick={() => setMenuOpen(false)} className="mt-3 mb-1 inline-flex justify-center px-5 py-3 rounded-full text-[14px] font-bold text-black bg-[#c2ff38] shadow-[0_0_24px_rgba(194,255,56,0.45)]">
+              Shop gear
+            </Link>
+          </nav>
+        </div>
+      )}
     </header>
   );
 }

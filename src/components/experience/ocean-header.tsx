@@ -42,6 +42,7 @@ export function OceanHeader({
 }) {
   const docked = variant === "docked";
   const [scrolled, setScrolled] = useState(false);
+  const [menuOpen, setMenuOpen] = useState(false);
 
   useEffect(() => {
     if (docked) return;
@@ -50,6 +51,13 @@ export function OceanHeader({
     window.addEventListener("scroll", onScroll, { passive: true });
     return () => window.removeEventListener("scroll", onScroll);
   }, [docked]);
+
+  // close the mobile menu once the viewport reaches the desktop nav breakpoint
+  useEffect(() => {
+    const onResize = () => { if (window.innerWidth >= 1024) setMenuOpen(false); };
+    window.addEventListener("resize", onResize);
+    return () => window.removeEventListener("resize", onResize);
+  }, []);
 
   return (
     <header
@@ -91,8 +99,38 @@ export function OceanHeader({
           >
             Book a trip
           </Link>
+          {/* mobile menu toggle — the nav links are desktop-only otherwise */}
+          <button
+            type="button"
+            onClick={() => setMenuOpen((o) => !o)}
+            aria-label={menuOpen ? "Close menu" : "Open menu"}
+            aria-expanded={menuOpen}
+            className="lg:hidden shrink-0 -mr-1 w-9 h-9 grid place-items-center text-white"
+          >
+            {menuOpen ? (
+              <svg className="w-6 h-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M18 6L6 18M6 6l12 12" /></svg>
+            ) : (
+              <svg className="w-6 h-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M3 6h18M3 12h18M3 18h18" /></svg>
+            )}
+          </button>
         </div>
       </div>
+
+      {/* MOBILE menu panel */}
+      {menuOpen && (
+        <div className="lg:hidden border-t border-white/10 bg-[#00374a]">
+          <nav className="max-w-[1200px] mx-auto px-5 py-2 flex flex-col">
+            {NAV.map((n) => (
+              <Link key={n.href} href={n.href} onClick={() => setMenuOpen(false)} className="py-3.5 text-[15px] font-semibold text-white/85 hover:text-white border-b border-white/5">
+                {n.label}
+              </Link>
+            ))}
+            <Link href={bookHref} onClick={() => setMenuOpen(false)} className="mt-3 mb-1 inline-flex justify-center px-5 py-3 rounded-full text-[14px] font-bold text-white bg-[#00afdb] shadow-[0_4px_18px_rgba(0,175,219,0.4)]">
+              Book a trip
+            </Link>
+          </nav>
+        </div>
+      )}
     </header>
   );
 }
