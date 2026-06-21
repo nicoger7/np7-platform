@@ -152,10 +152,10 @@ export function HeroFindYourFit({ src, poster, children }: { src: string; poster
   const fitDetails = SEGMENTS.map((s, i) => {
     const on = i === active;
     return (
-      <div key={s.id} aria-hidden={!on} className="fyf-card fyf-copy absolute inset-0 flex flex-col items-center justify-center text-center" style={{ opacity: on ? 1 : 0, transform: on ? "none" : "translateY(20px)", pointerEvents: on ? "auto" : "none" }}>
-        <h3 className="text-3xl sm:text-5xl font-black tracking-[-0.02em] text-white leading-[1.04] mb-3 sm:mb-4">{s.title}</h3>
-        <p className="text-[15.5px] sm:text-[19px] text-white/90 leading-relaxed mb-5 sm:mb-6 max-w-[620px] mx-auto">{s.body}</p>
-        <div className="flex flex-wrap justify-center gap-x-5 gap-y-2 mb-6 sm:mb-7 max-w-[680px] mx-auto">
+      <div key={s.id} aria-hidden={!on} className="fyf-card fyf-copy absolute inset-0 flex flex-col items-center justify-start sm:justify-center text-center" style={{ opacity: on ? 1 : 0, transform: on ? "none" : "translateY(20px)", pointerEvents: on ? "auto" : "none" }}>
+        <h3 className="text-[26px] sm:text-5xl font-black tracking-[-0.02em] text-white leading-[1.06] mb-2.5 sm:mb-4">{s.title}</h3>
+        <p className="text-[14.5px] sm:text-[19px] text-white/90 leading-relaxed mb-4 sm:mb-6 max-w-[620px] mx-auto">{s.body}</p>
+        <div className="flex flex-wrap justify-center gap-x-5 gap-y-1.5 sm:gap-y-2 mb-5 sm:mb-7 max-w-[680px] mx-auto">
           {s.points.map((p) => (
             <span key={p} className="inline-flex items-center gap-2 text-[13px] sm:text-[14.5px] text-white/85 font-medium">
               <span className="shrink-0 w-4 h-4 rounded-full bg-[#8fe6f2]/25 text-[#8fe6f2] grid place-items-center">
@@ -229,13 +229,13 @@ export function HeroFindYourFit({ src, poster, children }: { src: string; poster
 
           {/* ── MOBILE: cards + active detail centred together as one group, so it
                  sits in the true vertical middle on any phone height (no overlap) ── */}
-          <div className="sm:hidden absolute inset-0 z-10 flex flex-col items-center justify-center gap-7 px-5 pt-[64px] pb-6">
-            <div className="w-full flex flex-col items-center">
+          <div className="sm:hidden absolute inset-0 z-10 flex flex-col items-center justify-center gap-5 px-5 pt-[60px] pb-5">
+            <div className="w-full flex flex-col items-center shrink-0">
               <p className="text-[12px] font-bold tracking-[0.3em] text-[#8fe6f2] mb-1.5 fyf-copy">FIND YOUR FIT</p>
-              <h2 className="text-xl font-black tracking-[-0.02em] text-white text-center mb-4 fyf-copy">Whatever brings you to the water</h2>
+              <h2 className="text-xl font-black tracking-[-0.02em] text-white text-center mb-3 fyf-copy">Whatever brings you to the water</h2>
               <div className="grid grid-cols-2 gap-2 w-full">{fitCards}</div>
             </div>
-            <div className="relative w-full min-h-[300px]">{fitDetails}</div>
+            <div className="relative w-full flex-1 min-h-[320px]">{fitDetails}</div>
           </div>
 
           {/* ── DESKTOP: overview cards pinned top, detail centred (unchanged) ── */}
