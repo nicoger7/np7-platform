@@ -101,7 +101,7 @@ export function YourLevel({ detail }: { detail: MemberLevelDetail }) {
                   </div>
                   <div className="flex flex-wrap gap-1.5">
                     {inTier.map((m) => (
-                      <span key={m.id} className={`text-[12px] px-2.5 py-1 rounded-full border ${m.achieved ? "border-[#9fe1cb] bg-[#e1f5ee] text-[#0f6e56]" : "border-[#e6eef0] text-[#9aa6ac]"}`}>
+                      <span key={m.id} title={m.description ?? m.label} className={`text-[12px] px-2.5 py-1 rounded-full border ${m.achieved ? "border-[#9fe1cb] bg-[#e1f5ee] text-[#0f6e56]" : "border-[#e6eef0] text-[#9aa6ac]"}`}>
                         {m.achieved ? "✓ " : ""}{m.label}
                       </span>
                     ))}

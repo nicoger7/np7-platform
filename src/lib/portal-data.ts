@@ -180,6 +180,25 @@ export async function getCrewProfiles(editionId: string, viewerContactId: string
     const p = publicProfileFor(row, "crew");
     if (p) profiles.push(p);
   }
+
+  // Hover skills: attach each verified member's achieved skill labels (shown only
+  // because they already share their level). Tolerant of 039 (no catalog → none).
+  const verifiedIds = profiles.filter((p) => p.levelVerified).map((p) => p.contactId);
+  if (verifiedIds.length) {
+    const catalog = await readActiveCatalog(db);
+    if (catalog.length) {
+      const labelById = new Map(catalog.map((m) => [m.id, m.label]));
+      const ms = await db.from("contact_milestones").select("contact_id,milestone_id").in("contact_id", verifiedIds);
+      const byContact = new Map<string, string[]>();
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      for (const r of (ms.data ?? []) as any[]) {
+        const lbl = labelById.get(r.milestone_id);
+        if (lbl) byContact.set(r.contact_id, [...(byContact.get(r.contact_id) ?? []), lbl]);
+      }
+      for (const p of profiles) p.skills = byContact.get(p.contactId) ?? [];
+    }
+  }
+
   profiles.sort((a, b) => a.displayName.localeCompare(b.displayName));
   return { going, sharing: profiles.length, profiles };
 }
@@ -208,13 +227,24 @@ export async function getCommunityAuthors(contactIds: (string | null | undefined
   return out;
 }
 
-export type LevelMilestone = { id: string; key: string; label: string; tier: string; sort_order: number; achieved: boolean };
+export type LevelMilestone = { id: string; key: string; label: string; description: string | null; tier: string; sort_order: number; achieved: boolean };
 export type LevelHistoryEntry = { level: string | null; status: string | null; source: string | null; note: string | null; created_at: string };
 export type MemberLevelDetail = {
   self_level: string | null; coach_level: string | null; level_status: string | null;
   coach_can_manage_level: boolean; suggested: string | null;
   milestones: LevelMilestone[]; history: LevelHistoryEntry[];
 };
+
+/** Active milestone catalog (short `label` + full `description`). Tolerant:
+    reads `description` (migration 039) and falls back when it's absent. */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+async function readActiveCatalog(db: any): Promise<CatalogMilestone[]> {
+  let r = await db.from("level_milestones").select("id,key,label,description,tier,sort_order").eq("active", true).order("sort_order");
+  if (r.error) r = await db.from("level_milestones").select("id,key,label,tier,sort_order").eq("active", true).order("sort_order");
+  if (r.error || !r.data) return [];
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  return (r.data as any[]).map((m) => ({ id: m.id, key: m.key, label: m.label, description: m.description ?? null, tier: m.tier, sort_order: m.sort_order }));
+}
 
 /**
  * Everything the level UIs (member "Your level" + admin "Level & skills") need:
@@ -236,14 +266,13 @@ export async function getMemberLevelDetail(contactId: string): Promise<MemberLev
     coach_can_manage_level = !!c036.data.coach_can_manage_level;
   }
 
+  const catalog = await readActiveCatalog(db);
   let milestones: LevelMilestone[] = [];
-  const cat = await db.from("level_milestones").select("id,key,label,tier,sort_order").eq("active", true).order("sort_order");
-  if (!cat.error && cat.data) {
+  if (catalog.length) {
     const ach = await db.from("contact_milestones").select("milestone_id").eq("contact_id", contactId);
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const achieved = new Set((ach.data ?? []).map((r: any) => r.milestone_id));
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    milestones = (cat.data as any[]).map((m) => ({ id: m.id, key: m.key, label: m.label, tier: m.tier, sort_order: m.sort_order, achieved: achieved.has(m.id) }));
+    milestones = catalog.map((m) => ({ ...m, achieved: achieved.has(m.id) }));
   }
 
   let history: LevelHistoryEntry[] = [];
@@ -259,7 +288,7 @@ export async function getMemberLevelDetail(contactId: string): Promise<MemberLev
   return { self_level, coach_level, level_status, coach_can_manage_level, suggested, milestones, history };
 }
 
-export type CatalogMilestone = { id: string; key: string; label: string; tier: string; sort_order: number };
+export type CatalogMilestone = { id: string; key: string; label: string; description: string | null; tier: string; sort_order: number };
 export type EditionCrewMember = {
   contactId: string; name: string; self_level: string | null; coach_level: string | null;
   level_status: string | null; suggested: string | null; reviewed: boolean; achievedIds: string[];
@@ -289,10 +318,7 @@ export async function getEditionCrewLevels(editionId: string): Promise<EditionCr
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const lvlBy = new Map((lvl.data ?? []).map((c: any) => [c.id, c]));
 
-  let catalog: CatalogMilestone[] = [];
-  const cat = await db.from("level_milestones").select("id,key,label,tier,sort_order").eq("active", true).order("sort_order");
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  if (!cat.error && cat.data) catalog = (cat.data as any[]).map((m) => ({ id: m.id, key: m.key, label: m.label, tier: m.tier, sort_order: m.sort_order }));
+  const catalog = await readActiveCatalog(db);
 
   const ach = await db.from("contact_milestones").select("contact_id,milestone_id").in("contact_id", contactIds);
   const achBy = new Map<string, string[]>();
@@ -313,6 +339,31 @@ export async function getEditionCrewLevels(editionId: string): Promise<EditionCr
   }).sort((a, b) => a.name.localeCompare(b.name));
 
   return { catalog, members, reviewed: members.filter((m) => m.reviewed).length, total: members.length };
+}
+
+/**
+ * Recompute a member's level from their ticked milestones and, if a tier just
+ * completed (or un-completed) into a different level, set it as coach-verified
+ * and log it. The milestone-basis auto-set: ticking skills moves the level.
+ * Returns the derived level (or null). Tolerant of migration 036/039 unapplied.
+ */
+export async function recomputeDerivedLevel(contactId: string, byTeamMemberId: string | null): Promise<string | null> {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const db = createAdminClient() as any;
+  const catalog = await readActiveCatalog(db);
+  if (!catalog.length) return null;
+  const ach = await db.from("contact_milestones").select("milestone_id").eq("contact_id", contactId);
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const achieved = new Set<string>((ach.data ?? []).map((r: any) => r.milestone_id as string));
+  const derived = deriveSuggestedLevel(catalog, achieved);
+  if (!derived) return null; // no full tier yet → leave the level as-is
+  const { data: c } = await db.from("contacts").select("level,level_status").eq("id", contactId).maybeSingle();
+  if (c?.level === derived && c?.level_status === "verified") return derived; // already there
+  const now = new Date().toISOString();
+  const { error } = await db.from("contacts").update({ level: derived, level_status: "verified", level_verified_at: now, updated_at: now }).eq("id", contactId);
+  if (error) return null;
+  await db.from("contact_level_history").insert({ contact_id: contactId, level: derived, status: "verified", source: "milestone", created_by: byTeamMemberId });
+  return derived;
 }
 
 /** The experience's gallery images (exp_content.gallery, falling back to the

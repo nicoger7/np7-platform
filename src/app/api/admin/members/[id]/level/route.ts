@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireTeamApi } from "@/lib/auth";
 import { createAdminClient } from "@/lib/supabase";
-import { getMemberLevelDetail } from "@/lib/portal-data";
+import { getMemberLevelDetail, recomputeDerivedLevel } from "@/lib/portal-data";
 import { normalizeLevel } from "@/lib/member-level";
 
 type Ctx = { params: Promise<{ id: string }> };
@@ -36,7 +36,9 @@ export async function POST(req: NextRequest, { params }: Ctx) {
       : db.from("contact_milestones").delete().eq("contact_id", id).eq("milestone_id", body.milestone_id);
     const { error } = await q;
     if (error) return NextResponse.json({ ok: true, levelUnavailable: true });
-    return NextResponse.json({ ok: true });
+    // milestone basis: a completed tier auto-sets the verified level
+    const derived = await recomputeDerivedLevel(id, by);
+    return NextResponse.json({ ok: true, derived });
   }
 
   if (body.action === "approve_self") {

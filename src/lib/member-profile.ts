@@ -96,6 +96,7 @@ export type PublicProfile = {
   initials: string;
   level: string | null;
   levelVerified: boolean;
+  skills: string[]; // verified skill labels, shown on hover (enriched by the caller)
   country: string | null;
   city: string | null;
   age: number | null;
@@ -118,6 +119,7 @@ export function publicProfileFor(contact: ContactProfileRow, surface: ProfileSur
     username: contact.username ?? null,
     avatarUrl: contact.avatar_url ?? null,
     initials: initialsFrom(contact.name),
+    skills: [], // enriched server-side (getCrewProfiles) for verified members
     level: vis.fields.level ? dl.level : null,
     levelVerified: vis.fields.level ? dl.verified : false,
     country: vis.fields.country ? contact.country ?? null : null,

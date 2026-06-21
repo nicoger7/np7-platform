@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireTeamApi } from "@/lib/auth";
 import { createAdminClient } from "@/lib/supabase";
-import { getEditionCrewLevels } from "@/lib/portal-data";
+import { getEditionCrewLevels, recomputeDerivedLevel } from "@/lib/portal-data";
 
 type Ctx = { params: Promise<{ id: string }> };
 
@@ -33,6 +33,8 @@ export async function POST(req: NextRequest, { params }: Ctx) {
       : db.from("contact_milestones").delete().eq("milestone_id", body.milestone_id).in("contact_id", ids);
     const { error } = await q;
     if (error) return NextResponse.json({ ok: true, levelUnavailable: true });
+    // milestone basis: re-derive each affected rider's verified level
+    await Promise.all(ids.map((cid) => recomputeDerivedLevel(cid, auth.member.teamMemberId)));
     return NextResponse.json({ ok: true, updated: ids.length });
   }
 
