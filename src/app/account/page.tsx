@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import type { Metadata } from "next";
-import { getPortalUser } from "@/lib/auth";
+import { getPortalUser, getTeamMember } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 import { getMemberBookings, getMemberBannerImages, getMemberProfile, getMemberLevelDetail } from "@/lib/portal-data";
 import { fmtDates, needsDownpayment } from "@/lib/portal-status";
@@ -18,8 +18,12 @@ export const dynamic = "force-dynamic";
 export default async function AccountHome() {
   const user = await getPortalUser();
   if (!user) {
-    // Sign out so the middleware doesn't bounce us straight back here
-    // (would loop if a Supabase session exists but no linked contact)
+    // Authenticated, but no linked member contact. If this is a team member
+    // (admin) peeking at the member area, DON'T sign them out — that would kill
+    // the shared session and log them out of admin too. Send them to admin
+    // instead. Only a true orphan session (neither member nor team) is signed
+    // out, to avoid a redirect loop with the login page.
+    if (await getTeamMember()) redirect("/admin");
     const supabase = await createClient();
     await supabase.auth.signOut();
     redirect("/account/login");

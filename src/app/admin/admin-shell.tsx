@@ -120,16 +120,13 @@ const sharedNavTop: NavGroup = {
   label: "HOME",
   items: [
     { label: "Dashboard", href: "/admin", icon: "grid" },
-    { label: "Archive", href: "/admin/archive", icon: "archive" },
   ],
 };
 
-const sharedNavBottom: NavGroup = {
-  label: "GENERAL",
-  items: [
-    { label: "File Storage", href: "/admin/images", icon: "image" },
-  ],
-};
+// Always-last items. Archive sits at the very bottom of the menu; File Storage
+// joins it only for envs that don't already list it under WEBSITE (experience does).
+const archiveItem: NavItem = { label: "Archive", href: "/admin/archive", icon: "archive" };
+const fileStorageItem: NavItem = { label: "File Storage", href: "/admin/images", icon: "image" };
 
 // ─── Icons ───────────────────────────────────────────────────────────────────
 
@@ -446,11 +443,13 @@ export default function AdminShell({
     "--admin-active": hexA(accent, theme === "dark" ? 0.18 : 0.1),
   };
   const vars = { ...themes[theme], ...accentVars };
-  // File Storage lives under WEBSITE for the experience env; keep the shared
-  // bottom section only for envs that don't include it.
-  const allSections = env === "experience"
-    ? [sharedNavTop, ...navByEnv[env]]
-    : [sharedNavTop, ...navByEnv[env], sharedNavBottom];
+  // Archive always sits last; File Storage joins it except on experience (which
+  // already lists it under WEBSITE).
+  const bottomGroup: NavGroup = {
+    label: "GENERAL",
+    items: env === "experience" ? [archiveItem] : [fileStorageItem, archiveItem],
+  };
+  const allSections = [sharedNavTop, ...navByEnv[env], bottomGroup];
   // Hide nav the member's access level can't reach (middleware enforces it too).
   const sections = allSections
     .map((g) => ({ ...g, items: g.items.filter((i) => canAccess(accessLevel, i.href)) }))
