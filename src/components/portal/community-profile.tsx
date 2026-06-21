@@ -45,6 +45,9 @@ export function CommunityProfile(p: Props) {
   const initials = initialsFrom(p.name);
   const age = ageFrom(p.dateOfBirth);
   const isMinor = age != null && age < MINOR_AGE;
+  // A photo avatar is EARNED by attending a trip — until then you ride with your
+  // initials. Your trip photos are the only source (no free uploads).
+  const earned = p.photoChoices.length > 0;
 
   const previewAge = fields.age && age != null && age >= MINOR_AGE ? age : null;
   const previewPlace = useMemo(() => {
@@ -93,12 +96,18 @@ export function CommunityProfile(p: Props) {
           ) : (
             <div className="w-20 h-20 rounded-full grid place-items-center bg-[#e8f6fb] text-[#00748f] text-[22px] font-bold">{initials}</div>
           )}
-          <div className="flex gap-2">
-            <button type="button" onClick={() => setPickerOpen((o) => !o)} className="text-[12px] font-bold text-[#00afdb] hover:underline">
-              {avatar ? "Change" : "Add photo"}
-            </button>
-            {avatar && <button type="button" onClick={() => setAvatar(null)} className="text-[12px] font-semibold text-[#9aa6ac] hover:text-[#c4621a]">Remove</button>}
-          </div>
+          {earned ? (
+            <div className="flex gap-2">
+              <button type="button" onClick={() => setPickerOpen((o) => !o)} className="text-[12px] font-bold text-[#00afdb] hover:underline">
+                {avatar ? "Change" : "Add photo"}
+              </button>
+              {avatar && <button type="button" onClick={() => setAvatar(null)} className="text-[12px] font-semibold text-[#9aa6ac] hover:text-[#c4621a]">Remove</button>}
+            </div>
+          ) : avatar ? (
+            <button type="button" onClick={() => setAvatar(null)} className="text-[12px] font-semibold text-[#9aa6ac] hover:text-[#c4621a]">Remove</button>
+          ) : (
+            <span className="text-[11px] font-bold text-[#b8702a] text-center leading-tight">🔒 Earn a photo<br />on your first trip</span>
+          )}
         </div>
 
         <div className="flex-1 min-w-[220px] space-y-3">
