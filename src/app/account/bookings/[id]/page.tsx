@@ -11,6 +11,7 @@ import { MemberGallery } from "@/components/portal/member-gallery";
 import { TripAddons } from "@/components/portal/trip-addons";
 import { PaymentPlan } from "@/components/portal/payment-plan";
 import { computePaymentPlan } from "@/lib/payments";
+import { createAdminClient } from "@/lib/supabase";
 
 export const metadata: Metadata = { title: "My trip — NP7" };
 export const dynamic = "force-dynamic";
@@ -41,6 +42,10 @@ export default async function BookingDetail({ params }: Props) {
   const total = baseTotal != null ? baseTotal + addonsTotal : addonsTotal > 0 ? addonsTotal : null;
   const depositPaid = paid >= deposit || b.downpayment_received || ["downpayment_paid", "paid", "confirmed"].includes((b.status ?? "").toLowerCase());
   const tripEnded = b.edition?.date_end ? new Date(b.edition.date_end) < new Date() : false;
+  // waiver signature status (table from migration 031)
+  const waiverSig = await (createAdminClient() as unknown as { from: (t: string) => { select: (s: string) => { eq: (c: string, v: string) => { maybeSingle: () => Promise<{ data: { signed_name: string; signed_at: string } | null }> } } } })
+    .from("exp_waiver_signatures").select("signed_name, signed_at").eq("booking_id", id).maybeSingle()
+    .then((r) => r.data).catch(() => null);
   const cancellation = b.experience?.cancellation_policy ||
     "Cancellations are handled case by case in line with our package travel terms. The deposit secures your spot; please contact us as early as possible if your plans change. Full terms are provided with your booking confirmation.";
 
@@ -90,6 +95,25 @@ export default async function BookingDetail({ params }: Props) {
                     paid={paid}
                   />
                 </div>
+              </Card>
+
+              {/* waiver */}
+              <Card title="Participation waiver">
+                {waiverSig ? (
+                  <div className="flex items-center gap-2.5">
+                    <span className="shrink-0 w-7 h-7 rounded-full bg-green-500 text-white grid place-items-center text-[14px] font-bold">✓</span>
+                    <div>
+                      <p className="text-[14px] font-bold text-[#00374a]">Signed</p>
+                      <p className="text-[12.5px] text-[#8a9aa0]">by {waiverSig.signed_name} · {new Date(waiverSig.signed_at).toLocaleDateString("en-GB", { day: "numeric", month: "long", year: "numeric" })}</p>
+                    </div>
+                    <Link href={`/account/bookings/${b.id}/waiver`} className="ml-auto text-[13px] font-semibold text-[#00afdb] hover:underline">View</Link>
+                  </div>
+                ) : (
+                  <div>
+                    <p className="text-[13.5px] text-[#5a6b72] leading-relaxed mb-3">Every participant signs a short waiver &amp; health declaration before the trip — it takes a minute, right here in your account.</p>
+                    <Link href={`/account/bookings/${b.id}/waiver`} className="inline-flex items-center gap-1.5 px-5 py-2.5 rounded-full text-[13px] font-bold text-white bg-[#00afdb] hover:bg-[#15c0ec] transition-colors">Sign your waiver →</Link>
+                  </div>
+                )}
               </Card>
 
               {/* your stay */}
