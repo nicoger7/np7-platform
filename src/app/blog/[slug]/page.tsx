@@ -20,6 +20,7 @@ import { BlogFooter } from "@/components/blog/blog-footer";
 import { BlogCard, type CardPost, fmtDate, readTime } from "@/components/blog/blog-card";
 import { PostFacts } from "@/components/blog/post-facts";
 import { PostBlocks } from "@/components/blog/post-blocks";
+import { GuideNotes } from "@/components/blog/guide-notes";
 import { type SpotNote } from "@/components/blog/spots-accordion";
 import { PostBody, splitForTeaser } from "@/components/blog/post-body";
 import { SignupGate } from "@/components/blog/signup-gate";
@@ -185,6 +186,8 @@ export default async function BlogPostPage({ params }: Props) {
             <div className="space-y-12 pb-16">
               {post.content && <PostBody content={post.content} />}
               <PostBlocks template={template} theme={theme} data={data} slug={slug} notesBySpot={notesBySpot} />
+
+              <GuideNotes blogPostId={post.id} slug={slug} accent={theme.accent} />
 
               {ctaUrl && (
                 <div className="rounded-3xl p-8 sm:p-10 text-center text-white" style={{ background: `linear-gradient(160deg, ${theme.accent}, ${theme.deep})` }}>
