@@ -27,8 +27,9 @@ export function YourLevel({ detail }: { detail: MemberLevelDetail }) {
   const shown = displayLevel({ self_level: selfLevel || null, level: coachLevel, level_status: status }).level;
 
   const { tiers, earned, total } = levelProgress(detail.milestones);
-  const { nextTier, toNext } = nextTierFrom(shown, tiers); // tier above current level
+  const { nextTier, toNext, pct } = nextTierFrom(shown, tiers); // tier above current level
   const hasCatalog = total > 0;
+  const ringColor = verified ? "#1aa851" : "#00afdb";
   const earnedSkills = detail.milestones.filter((m) => m.achieved);
   const nextSkills = detail.milestones.filter((m) => !m.achieved); // catalog order = Beginner→Pro
   const earnedShown = showAllEarned ? earnedSkills : earnedSkills.slice(0, 12);
@@ -48,49 +49,50 @@ export function YourLevel({ detail }: { detail: MemberLevelDetail }) {
 
   return (
     <section className="bg-white rounded-2xl border border-[#f0e6d6] p-6">
-      {/* ── hero ── */}
-      <div className="flex items-start justify-between gap-3 flex-wrap">
-        <div>
-          <p className="text-[11px] font-bold tracking-[0.2em] uppercase text-[#00afdb]">Your level</p>
-          <div className="flex items-center gap-2.5 mt-1.5">
-            <span className="text-[26px] leading-none font-black tracking-[-0.02em] text-[#00374a]">{shown ?? "Just getting started"}</span>
-            {verified && (
-              <span className="inline-flex items-center gap-1 text-[11px] font-bold bg-[#e1f5ee] text-[#0f6e56] px-2.5 py-1 rounded-full">
-                <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="currentColor"><path d="M12 1l2.6 1.9 3.2-.2 1 3 2.6 1.8-1 3 1 3-2.6 1.8-1 3-3.2-.2L12 23l-2.6-1.9-3.2.2-1-3L2.6 16.5l1-3-1-3 2.6-1.8 1-3 3.2.2z" /><path d="M10.5 13.5l-2-2-1.4 1.4 3.4 3.4 6-6-1.4-1.4z" fill="#fff" /></svg>
-                coach-verified
-              </span>
-            )}
+      {/* ── hero: a ring toward the next level + the headline ── */}
+      <div className="rounded-2xl bg-gradient-to-br from-[#eef9fc] via-white to-[#fff7ec] border border-[#e9f0f2] p-5 flex items-center gap-5">
+        <Ring pct={pct} size={128} stroke={11} color={ringColor}>
+          <div className="text-center px-2">
+            <p className="text-[19px] leading-none font-black tracking-[-0.02em] text-[#00374a]">{shown ?? "—"}</p>
+            {verified ? (
+              <p className="text-[9.5px] font-bold text-[#0f6e56] mt-1 inline-flex items-center gap-0.5"><svg className="w-2.5 h-2.5" viewBox="0 0 24 24" fill="currentColor"><path d="M12 1l2.6 1.9 3.2-.2 1 3 2.6 1.8-1 3 1 3-2.6 1.8-1 3-3.2-.2L12 23l-2.6-1.9-3.2.2-1-3L2.6 16.5l1-3-1-3 2.6-1.8 1-3 3.2.2z" /><path d="M10.5 13.5l-2-2-1.4 1.4 3.4 3.4 6-6-1.4-1.4z" fill="#fff" /></svg>verified</p>
+            ) : shown ? <p className="text-[9.5px] font-semibold text-[#9aa6ac] mt-1">self-rated</p> : null}
           </div>
-        </div>
-        {hasCatalog && (
-          <div className="text-right">
-            {nextTier ? (
+        </Ring>
+        <div className="min-w-0">
+          <p className="text-[11px] font-bold tracking-[0.2em] uppercase text-[#00afdb]">Your level</p>
+          {hasCatalog ? (
+            nextTier ? (
               <>
-                <p className="text-[13.5px] text-[#5a6b72]"><span className="font-bold text-[#00374a]">{toNext}</span> {toNext === 1 ? "skill" : "skills"} to <span className="font-bold text-[#00374a]">{nextTier}</span></p>
-                <p className="text-[11.5px] text-[#9aa6ac]">{earned} of {total} skills</p>
+                <p className="text-[18px] font-black tracking-[-0.01em] text-[#00374a] mt-1 leading-tight">{toNext} {toNext === 1 ? "skill" : "skills"} to {nextTier}</p>
+                <p className="text-[12.5px] text-[#6a7a80] mt-0.5">{earned} of {total} skills · {Math.round(pct)}% through {nextTier}</p>
               </>
             ) : earned === total && total > 0 ? (
-              <p className="text-[13px] font-bold text-[#0f6e56]">Every skill ticked 🎉</p>
+              <p className="text-[18px] font-black text-[#0f6e56] mt-1">Every skill ticked 🎉</p>
             ) : (
-              <p className="text-[11.5px] text-[#9aa6ac]">{earned} of {total} skills</p>
-            )}
-          </div>
-        )}
+              <p className="text-[16px] font-black text-[#00374a] mt-1">{earned} of {total} skills earned</p>
+            )
+          ) : (
+            <p className="text-[14px] text-[#6a7a80] mt-1 leading-relaxed">Set your level below — or your coach will tick it off on your next trip.</p>
+          )}
+        </div>
       </div>
 
-      {/* ── tier track ── */}
+      {/* ── tier journey: a ring per stage ── */}
       {hasCatalog && (
-        <div className="flex gap-1.5 mt-4">
+        <div className="flex justify-between gap-1 mt-5">
           {tiers.map((t) => {
             const full = t.total > 0 && t.done === t.total;
-            const pct = t.total ? (t.done / t.total) * 100 : 0;
+            const tpct = t.total ? (t.done / t.total) * 100 : 0;
             const isNext = t.tier === nextTier;
             return (
-              <div key={t.tier} className="flex-1">
-                <div className="h-1.5 rounded-full bg-[#eef3f4] overflow-hidden">
-                  <div className="h-full rounded-full" style={{ width: `${pct}%`, background: full ? "#1aa851" : "#00afdb" }} />
-                </div>
-                <p className={`text-[10.5px] mt-1 ${isNext || full ? "text-[#00374a] font-semibold" : "text-[#9aa6ac]"}`}>{t.tier} <span className="text-[#9aa6ac] font-normal tabular-nums">{t.done}/{t.total}</span></p>
+              <div key={t.tier} className="flex flex-col items-center gap-1.5 flex-1">
+                <Ring pct={tpct} size={50} stroke={5} color={full ? "#1aa851" : "#00afdb"}>
+                  {full
+                    ? <svg className="w-4 h-4 text-[#1aa851]" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3.5" strokeLinecap="round" strokeLinejoin="round"><path d="M20 6L9 17l-5-5" /></svg>
+                    : <span className="text-[11px] font-bold tabular-nums text-[#5a6b72]">{t.done}/{t.total}</span>}
+                </Ring>
+                <span className={`text-[10.5px] ${isNext || full ? "text-[#00374a] font-semibold" : "text-[#9aa6ac]"}`}>{t.tier}</span>
               </div>
             );
           })}
@@ -188,5 +190,21 @@ export function YourLevel({ detail }: { detail: MemberLevelDetail }) {
         </div>
       )}
     </section>
+  );
+}
+
+/** A circular progress ring with centered content. */
+function Ring({ pct, size, stroke, color, children }: { pct: number; size: number; stroke: number; color: string; children?: React.ReactNode }) {
+  const r = (size - stroke) / 2;
+  const circ = 2 * Math.PI * r;
+  const off = circ * (1 - Math.max(0, Math.min(1, pct / 100)));
+  return (
+    <div className="relative shrink-0" style={{ width: size, height: size }}>
+      <svg width={size} height={size} className="-rotate-90" aria-hidden>
+        <circle cx={size / 2} cy={size / 2} r={r} fill="none" stroke="#eef3f4" strokeWidth={stroke} />
+        <circle cx={size / 2} cy={size / 2} r={r} fill="none" stroke={color} strokeWidth={stroke} strokeLinecap="round" strokeDasharray={circ} strokeDashoffset={off} style={{ transition: "stroke-dashoffset .6s ease" }} />
+      </svg>
+      <div className="absolute inset-0 grid place-items-center">{children}</div>
+    </div>
   );
 }
