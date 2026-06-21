@@ -54,8 +54,8 @@ export default async function BlogIndexPage({ searchParams }: Props) {
   const posts = (data ?? []) as unknown as CardPost[];
   const [featured, ...rest] = posts;
 
-  // Every spot from every spotguide → the "Where we ride" map (All + Travel tabs).
-  const showMap = activeWorld === "" || activeWorld === "experience";
+  // Every spot from every spotguide → the "Where we ride" map (Travel tab only).
+  const showMap = activeWorld === "experience";
   let spotPoints: SpotPoint[] = [];
   if (showMap) {
     const { data: sg } = await supabase
