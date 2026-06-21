@@ -30,6 +30,7 @@ export default function MemberDetailPage({ params }: { params: Promise<{ id: str
   const { id } = use(params);
   const [d, setD] = useState<MemberData | null>(null);
   const [loading, setLoading] = useState(true);
+  const [tab, setTab] = useState<"overview" | "level">("overview");
 
   useEffect(() => {
     fetch(`/api/admin/members/${id}`).then((r) => r.json()).then((x) => { setD(x.error ? null : x); setLoading(false); });
@@ -51,13 +52,26 @@ export default function MemberDetailPage({ params }: { params: Promise<{ id: str
         <Link href={`/admin/contacts/${c.id}`} className="text-xs text-[#0aa3c7] hover:underline">Edit contact →</Link>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-        <div className="lg:col-span-2">
-          <Panel title="Level & skills">
-            <AdminMemberLevel contactId={c.id} />
-          </Panel>
-        </div>
+      <div className="flex items-center gap-1 mb-5 border-b" style={{ borderColor: "var(--admin-border)" }}>
+        {([["overview", "Overview"], ["level", "Level & skills"]] as const).map(([key, label]) => (
+          <button
+            key={key}
+            onClick={() => setTab(key)}
+            className="relative px-3 py-2 text-sm font-semibold transition-colors"
+            style={{ color: tab === key ? "var(--admin-text)" : "var(--admin-text-muted)" }}
+          >
+            {label}
+            {tab === key && <span className="absolute inset-x-2 -bottom-px h-0.5 rounded-full" style={{ backgroundColor: "var(--admin-accent)" }} />}
+          </button>
+        ))}
+      </div>
 
+      {tab === "level" ? (
+        <Panel title="Level & skills">
+          <AdminMemberLevel contactId={c.id} />
+        </Panel>
+      ) : (
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
         <Panel title="Bookings" count={d.bookings.length}>
           {d.bookings.length === 0 ? <p className="text-xs admin-faint">No bookings.</p> : (
             <div className="space-y-1.5">
@@ -148,6 +162,7 @@ export default function MemberDetailPage({ params }: { params: Promise<{ id: str
           <p className="text-xs admin-faint">A unified timeline of logins, emails, payments and changes is coming.</p>
         </div>
       </div>
+      )}
     </div>
   );
 }
