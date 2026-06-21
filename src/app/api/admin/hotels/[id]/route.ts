@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase";
+import { softDelete } from "@/lib/archive";
 
 const ALLOWED = ["name", "prefix", "location", "image_url", "images", "description", "website"];
 // Columns added in migration 023 — strip & retry if not applied yet.
@@ -36,7 +37,7 @@ export async function DELETE(
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const client = createAdminClient() as any;
   const { id } = await params;
-  const { error } = await client.from("hotels").delete().eq("id", id);
-  if (error) return NextResponse.json({ error: error.message }, { status: 400 });
+  const { ok, error } = await softDelete(client, "hotels", id);
+  if (!ok) return NextResponse.json({ error }, { status: 400 });
   return NextResponse.json({ success: true });
 }

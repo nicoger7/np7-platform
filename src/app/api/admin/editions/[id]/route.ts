@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase";
+import { softDelete } from "@/lib/archive";
 
 // GET /api/admin/editions/:id — single edition with related counts
 export async function GET(
@@ -116,13 +117,10 @@ export async function DELETE(
   const { id } = await params;
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const { error } = await (client as any)
-    .from("exp_editions")
-    .delete()
-    .eq("id", id);
+  const { ok, error } = await softDelete(client as any, "exp_editions", id);
 
-  if (error) {
-    return NextResponse.json({ error: error.message }, { status: 400 });
+  if (!ok) {
+    return NextResponse.json({ error }, { status: 400 });
   }
 
   return NextResponse.json({ success: true });

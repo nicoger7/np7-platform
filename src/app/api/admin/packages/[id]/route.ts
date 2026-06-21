@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase";
+import { softDelete } from "@/lib/archive";
 
 // GET /api/admin/packages/:id — get package with its components
 export async function GET(
@@ -67,10 +68,10 @@ export async function DELETE(
   const client = createAdminClient();
   const { id } = await params;
 
-  const { error } = await client.from("exp_packages").delete().eq("id", id);
+  const { ok, error } = await softDelete(client, "exp_packages", id);
 
-  if (error) {
-    return NextResponse.json({ error: error.message }, { status: 400 });
+  if (!ok) {
+    return NextResponse.json({ error }, { status: 400 });
   }
 
   return NextResponse.json({ success: true });

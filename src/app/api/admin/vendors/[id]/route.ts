@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase";
+import { softDelete } from "@/lib/archive";
 
 export async function GET(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const client = createAdminClient();
@@ -24,7 +25,7 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
 export async function DELETE(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const client = createAdminClient();
   const { id } = await params;
-  const { error } = await client.from("vendors").delete().eq("id", id);
-  if (error) return NextResponse.json({ error: error.message }, { status: 400 });
+  const { ok, error } = await softDelete(client, "vendors", id);
+  if (!ok) return NextResponse.json({ error }, { status: 400 });
   return NextResponse.json({ success: true });
 }

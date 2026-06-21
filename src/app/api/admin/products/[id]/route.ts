@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase";
+import { softDelete } from "@/lib/archive";
 
 function coerceNumeric(val: unknown): number | null {
   if (val === null || val === undefined || val === "") return null;
@@ -72,7 +73,7 @@ export async function DELETE(
   const client = createAdminClient() as any;
   const { id } = await params;
 
-  const { error } = await client.from("hw_products").delete().eq("id", id);
-  if (error) return NextResponse.json({ error: error.message }, { status: 400 });
+  const { ok, error } = await softDelete(client, "hw_products", id);
+  if (!ok) return NextResponse.json({ error }, { status: 400 });
   return NextResponse.json({ success: true });
 }
