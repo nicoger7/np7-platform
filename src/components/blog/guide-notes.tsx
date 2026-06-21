@@ -1,27 +1,29 @@
 import { supabase } from "@/lib/supabase";
 import { GUIDE_NOTE_SCOPE } from "@/lib/blog-templates";
+import { getCommunityAuthors, type AuthorBadge } from "@/lib/portal-data";
 import { SpotNoteForm } from "./spot-note-form";
 
-type GuideNote = { author_name: string | null; body: string };
+type GuideNote = { author_name: string | null; body: string; contact_id: string | null };
 
 /**
  * "Community tips" — a guide-level community notes section shown at the foot of
  * EVERY guide (technique, gear, spotguide). Lists approved member tips and an
  * add-a-tip form, reusing the spot-notes pipeline: guide-level notes are stored
  * with spot_name = GUIDE_NOTE_SCOPE, submitted via /api/portal/spot-notes, and
- * moderated at /admin/blog/notes. Degrades gracefully (just the form) if the
- * notes table isn't reachable.
+ * moderated at /admin/blog/notes. Bylines are enriched with the member's public
+ * profile (avatar, level + verified skills on hover) when they opted in.
  */
 export async function GuideNotes({ blogPostId, slug, accent }: { blogPostId: string; slug: string; accent: string }) {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const { data } = await (supabase as any)
     .from("exp_blog_spot_notes")
-    .select("author_name, body")
+    .select("author_name, body, contact_id")
     .eq("blog_post_id", blogPostId)
     .eq("spot_name", GUIDE_NOTE_SCOPE)
     .eq("status", "approved")
     .order("created_at", { ascending: true });
   const notes = (data ?? []) as GuideNote[];
+  const authors: Record<string, AuthorBadge> = await getCommunityAuthors(notes.map((n) => n.contact_id), "spot_notes").catch(() => ({}));
 
   return (
     <section className="rounded-2xl border border-[#ece3d3] bg-[#fdfaf3] p-6 sm:p-7">
@@ -36,17 +38,29 @@ export async function GuideNotes({ blogPostId, slug, accent }: { blogPostId: str
       {notes.length > 0 && (
         <ul className="space-y-3.5">
           {notes.map((n, i) => {
-            const who = n.author_name || "Member";
+            const a = n.contact_id ? authors[n.contact_id] : undefined;
+            const who = a?.displayName || n.author_name || "Member";
             return (
               <li key={i} className="flex gap-2.5 text-[14.5px] text-[#5a6b72] leading-relaxed">
-                <span
-                  className="shrink-0 w-7 h-7 rounded-full grid place-items-center text-[11px] font-bold mt-0.5"
-                  style={{ backgroundColor: `${accent}1a`, color: accent }}
-                  aria-hidden="true"
-                >
-                  {who[0].toUpperCase()}
+                {a?.avatarUrl ? (
+                  <span className="shrink-0 w-7 h-7 rounded-full bg-cover bg-center mt-0.5" style={{ backgroundImage: `url('${a.avatarUrl}')` }} aria-hidden="true" />
+                ) : (
+                  <span className="shrink-0 w-7 h-7 rounded-full grid place-items-center text-[11px] font-bold mt-0.5" style={{ backgroundColor: `${accent}1a`, color: accent }} aria-hidden="true">
+                    {(a?.initials || who[0]).toUpperCase()}
+                  </span>
+                )}
+                <span>
+                  <span className="font-bold text-[#00374a]">{who}</span>
+                  {a?.level && (
+                    <span
+                      title={a.skills.length ? `Coach-verified skills: ${a.skills.join(", ")}` : a.levelVerified ? "Coach-verified" : undefined}
+                      className={`ml-1.5 inline-flex items-center gap-0.5 align-middle text-[10px] font-bold px-1.5 py-0.5 rounded-md bg-[#e1f5ee] text-[#0f6e56] ${a.skills.length ? "cursor-help" : ""}`}
+                    >
+                      {a.levelVerified && <span aria-hidden="true">✓</span>}{a.level}
+                    </span>
+                  )}
+                  <span className="font-bold text-[#00374a]">:</span> {n.body}
                 </span>
-                <span><span className="font-bold text-[#00374a]">{who}:</span> {n.body}</span>
               </li>
             );
           })}
