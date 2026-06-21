@@ -49,6 +49,29 @@ export default async function BookingDetail({ params }: Props) {
   const cancellation = b.experience?.cancellation_policy ||
     "Cancellations are handled case by case in line with our package travel terms. The deposit secures your spot; please contact us as early as possible if your plans change. Full terms are provided with your booking confirmation.";
 
+  // Once the trip is over, photos are what the member wants first — so the
+  // memories card jumps to the top of the column (otherwise it sits at the end).
+  const memoriesCard = (
+    <Card title="Your memories">
+      {photos.length === 0 && !b.edition?.memories_video_url ? (
+        <p className="text-[13.5px] text-[#9aa6ac]">Your photos &amp; video will appear here after the week.</p>
+      ) : (
+        <>
+          {photos.length > 0 && (
+            <div className="mb-3">
+              <MemberGallery photos={photos} bookingId={b.id} downloadsRemaining={downloadsRemaining} />
+            </div>
+          )}
+          {b.edition?.memories_video_url && (
+            <a href={b.edition.memories_video_url} target="_blank" className="inline-flex items-center gap-2 text-[14px] font-bold text-[#00afdb] hover:underline">
+              <svg className="w-4 h-4" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z" /></svg>
+              Watch your week&apos;s video</a>
+          )}
+        </>
+      )}
+    </Card>
+  );
+
   return (
     <>
       <PortalChrome />
@@ -79,6 +102,9 @@ export default async function BookingDetail({ params }: Props) {
                   </Link>
                 </section>
               )}
+
+              {/* after the trip, photos come first */}
+              {tripEnded && memoriesCard}
 
               {/* payment plan — deposit → downpayment → final */}
               <Card title="Payment plan">
@@ -138,25 +164,8 @@ export default async function BookingDetail({ params }: Props) {
                 </div>
               </Card>
 
-              {/* memories */}
-              <Card title="Your memories">
-                {photos.length === 0 && !b.edition?.memories_video_url ? (
-                  <p className="text-[13.5px] text-[#9aa6ac]">Your photos &amp; video will appear here after the week.</p>
-                ) : (
-                  <>
-                    {photos.length > 0 && (
-                      <div className="mb-3">
-                        <MemberGallery photos={photos} bookingId={b.id} downloadsRemaining={downloadsRemaining} />
-                      </div>
-                    )}
-                    {b.edition?.memories_video_url && (
-                      <a href={b.edition.memories_video_url} target="_blank" className="inline-flex items-center gap-2 text-[14px] font-bold text-[#00afdb] hover:underline">
-                        <svg className="w-4 h-4" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z" /></svg>
-                        Watch your week&apos;s video</a>
-                    )}
-                  </>
-                )}
-              </Card>
+              {/* before the trip, memories sit at the end */}
+              {!tripEnded && memoriesCard}
             </div>
 
             {/* right column */}

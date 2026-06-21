@@ -77,12 +77,10 @@ export function addDays(iso: string, days: number): string {
 
 const todayISO = () => new Date().toISOString().slice(0, 10);
 
-function dueLabel(dueDate: string | null, blockedReason: string | null): string {
-  if (blockedReason) return blockedReason;
-  if (!dueDate) return "Pay to secure your spot";
+function fmtDue(dueDate: string): string {
   if (dueDate <= todayISO()) return "Due now";
   const d = new Date(dueDate + "T00:00:00Z");
-  return `by ${d.toLocaleDateString("en-GB", { day: "numeric", month: "long", year: "numeric", timeZone: "UTC" })}`;
+  return `Due by ${d.toLocaleDateString("en-GB", { day: "numeric", month: "long", year: "numeric", timeZone: "UTC" })}`;
 }
 
 /**
@@ -120,7 +118,7 @@ export function computePaymentPlan(cfg: PackagePaymentConfig, state: BookingPaym
       amount: depositAmt,
       cumulative: depositAmt,
       dueDate: null,
-      dueLabel: dueLabel(null, null),
+      dueLabel: "Pay to secure your spot",
       status: depositPaid ? "paid" : "due",
       refundableUntil,
     },
@@ -130,7 +128,9 @@ export function computePaymentPlan(cfg: PackagePaymentConfig, state: BookingPaym
       amount: downpaymentAmt,
       cumulative: downpaymentTarget,
       dueDate: downpaymentDue,
-      dueLabel: dueLabel(downpaymentDue, depositPaid ? null : "After your deposit"),
+      // Concrete date once the deposit is paid (deposit + refund window);
+      // before that it's anchored to whenever the deposit lands.
+      dueLabel: downpaymentDue ? fmtDue(downpaymentDue) : `Due within ${refundDays} days of your deposit`,
       status: downPaid ? "paid" : depositPaid ? "due" : "upcoming",
     },
     {
@@ -139,7 +139,8 @@ export function computePaymentPlan(cfg: PackagePaymentConfig, state: BookingPaym
       amount: finalAmt,
       cumulative: total,
       dueDate: finalDue,
-      dueLabel: dueLabel(finalDue, downPaid ? null : "After your downpayment"),
+      // The final balance has a real deadline: finalDaysBefore days before the trip.
+      dueLabel: finalDue ? fmtDue(finalDue) : "After your downpayment",
       status: finalPaid ? "paid" : downPaid ? "due" : "upcoming",
     },
   ];

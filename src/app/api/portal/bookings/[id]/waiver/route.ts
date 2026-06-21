@@ -21,16 +21,17 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const db = createAdminClient() as any;
-  const { data: booking } = await db.from("exp_bookings").select("id, contact_id, experience_id").eq("id", id).maybeSingle();
+  const { data: booking } = await db.from("exp_bookings").select("id, contact_id").eq("id", id).maybeSingle();
   if (!booking || booking.contact_id !== user.contactId) return NextResponse.json({ error: "Not found." }, { status: 404 });
 
   const ip = req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ?? null;
   const ua = req.headers.get("user-agent") ?? null;
 
+  // NB: experience_id is intentionally omitted — it's derivable from booking_id
+  // and isn't present on every applied schema version. booking_id is the key.
   const { error } = await db.from("exp_waiver_signatures").upsert({
     booking_id: id,
     contact_id: booking.contact_id,
-    experience_id: booking.experience_id,
     version: WAIVER_VERSION,
     signed_name: name,
     signature_image: typeof body.signature === "string" ? body.signature : null,

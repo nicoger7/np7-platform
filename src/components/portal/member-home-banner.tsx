@@ -9,11 +9,14 @@ export function MemberHomeBanner({
   images,
   name,
   subtitle,
+  title,
   variant = "experience",
 }: {
   images: string[];
-  name: string;
+  name?: string;
   subtitle: string;
+  /** Overrides the default "Hey {name}" heading (e.g. "My trips"). */
+  title?: string;
   variant?: "experience" | "hardware";
 }) {
   const overlay =
@@ -27,7 +30,7 @@ export function MemberHomeBanner({
       {images.length > 0 ? <Slideshow images={images} interval={6000} /> : <div className={`absolute inset-0 ${fallback}`} />}
       <div className={`absolute inset-0 ${overlay}`} />
       <div className="relative p-6 sm:p-9 text-white">
-        <h1 className="text-3xl sm:text-4xl font-black tracking-[-0.03em] drop-shadow-sm">Hey {name}</h1>
+        <h1 className="text-3xl sm:text-4xl font-black tracking-[-0.03em] drop-shadow-sm">{title ?? `Hey ${name ?? "there"}`}</h1>
         <p className="text-[15px] text-white/85 mt-1.5 max-w-[560px]">{subtitle}</p>
       </div>
     </div>

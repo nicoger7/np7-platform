@@ -2,9 +2,10 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import type { Metadata } from "next";
 import { getPortalUser } from "@/lib/auth";
-import { getMemberBookings } from "@/lib/portal-data";
+import { getMemberBookings, getMemberBannerImages } from "@/lib/portal-data";
 import { bookingStatus, CHIP_CLASS, fmtDates, money } from "@/lib/portal-status";
 import { PortalChrome } from "@/components/portal/portal-chrome";
+import { MemberHomeBanner } from "@/components/portal/member-home-banner";
 
 export const metadata: Metadata = { title: "My trips — NP7" };
 export const dynamic = "force-dynamic";
@@ -12,7 +13,10 @@ export const dynamic = "force-dynamic";
 export default async function MyTrips() {
   const user = await getPortalUser();
   if (!user) redirect("/account/login");
-  const bookings = await getMemberBookings(user.contactId);
+  const [bookings, bannerImages] = await Promise.all([
+    getMemberBookings(user.contactId),
+    getMemberBannerImages(user.contactId).catch(() => []),
+  ]);
 
   return (
     <>
@@ -20,10 +24,13 @@ export default async function MyTrips() {
       <main className="min-h-[100svh] bg-[#fff7ec]">
         <div className="max-w-[1000px] mx-auto px-5 sm:px-8 py-10 sm:py-14">
           <Link href="/account" className="text-[13px] font-semibold text-[#6a7a80] hover:text-[#00374a]">← Home</Link>
-          <h1 className="text-3xl sm:text-4xl font-black tracking-[-0.03em] text-[#00374a] mt-2 mb-1.5">My trips</h1>
-          <p className="text-[15px] text-[#6a7a80] mb-8">
-            {bookings.length ? "Tap a trip to manage everything — payment, prep, photos and more." : "Your booked trips will show up here."}
-          </p>
+          <div className="mt-2">
+            <MemberHomeBanner
+              images={bannerImages}
+              title="My trips"
+              subtitle={bookings.length ? "Tap a trip to manage everything — payment, prep, photos and more." : "Your booked trips will show up here."}
+            />
+          </div>
 
           {bookings.length === 0 ? (
             <div className="bg-white rounded-2xl border border-[#f0e6d6] p-8 text-center">
