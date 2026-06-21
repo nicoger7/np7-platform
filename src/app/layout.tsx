@@ -8,9 +8,28 @@ const inter = Inter({
   variable: "--font-inter",
 });
 
+const SITE_URL = "https://www.np-seven.com";
+
 export const metadata: Metadata = {
-  title: "NP7 — Nico Prien | GER-7",
-  description: "Premium watersports travel experiences and custom board engineering by Nico Prien.",
+  metadataBase: new URL(SITE_URL),
+  title: {
+    default: "NP7 — Nico Prien | GER-7",
+    template: "%s · NP7",
+  },
+  description: "Premium watersports travel experiences and custom board engineering by Nico Prien (GER-7).",
+  applicationName: "NP7",
+  openGraph: {
+    type: "website",
+    siteName: "NP7",
+    url: SITE_URL,
+    title: "NP7 — Nico Prien | GER-7",
+    description: "Premium watersports travel experiences and custom board engineering by Nico Prien (GER-7).",
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "NP7 — Nico Prien | GER-7",
+    description: "Premium watersports travel experiences and custom board engineering by Nico Prien (GER-7).",
+  },
 };
 
 export default function RootLayout({
