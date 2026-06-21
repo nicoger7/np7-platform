@@ -19,7 +19,7 @@ export function YourLevel({ detail }: { detail: MemberLevelDetail }) {
   const [err, setErr] = useState("");
   const [showNext, setShowNext] = useState(false);
   const [showAllEarned, setShowAllEarned] = useState(false);
-  const [showAllHistory, setShowAllHistory] = useState(false);
+  const [showHistory, setShowHistory] = useState(false);
 
   const coachLevel = detail.coach_level;
   const pending = status === "suggested" && !!coachLevel;
@@ -167,23 +167,23 @@ export function YourLevel({ detail }: { detail: MemberLevelDetail }) {
         </label>
       </div>
 
-      {/* ── history ── */}
+      {/* ── history (folded by default) ── */}
       {detail.history.length > 0 && (
         <div className="mt-5 pt-5 border-t border-[#f3ede2]">
-          <p className="text-[13px] font-bold text-[#00374a] mb-3">History</p>
-          <ul className="space-y-1.5">
-            {(showAllHistory ? detail.history : detail.history.slice(0, 4)).map((h, i) => (
-              <li key={i} className="flex items-center gap-2 text-[12.5px] text-[#6a7a80]">
-                <span className="font-semibold text-[#00374a]">{h.level ?? "—"}</span>
-                <span className="text-[#9aa6ac]">· {h.status}{h.source ? ` · ${h.source}` : ""}</span>
-                <span className="ml-auto text-[#9aa6ac]">{new Date(h.created_at).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" })}</span>
-              </li>
-            ))}
-          </ul>
-          {detail.history.length > 4 && (
-            <button type="button" onClick={() => setShowAllHistory((s) => !s)} className="mt-2.5 text-[12.5px] font-bold text-[#00afdb] hover:underline">
-              {showAllHistory ? "Show less" : `Show all ${detail.history.length}`}
-            </button>
+          <button type="button" onClick={() => setShowHistory((s) => !s)} className="flex items-center gap-1.5 text-[13px] font-bold text-[#00374a]">
+            <svg className={`w-4 h-4 text-[#00afdb] transition-transform ${showHistory ? "rotate-90" : ""}`} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M9 18l6-6-6-6" /></svg>
+            History <span className="font-normal text-[#9aa6ac]">· {detail.history.length}</span>
+          </button>
+          {showHistory && (
+            <ul className="space-y-1.5 mt-3">
+              {detail.history.map((h, i) => (
+                <li key={i} className="flex items-center gap-2 text-[12.5px] text-[#6a7a80]">
+                  <span className="font-semibold text-[#00374a]">{h.level ?? "—"}</span>
+                  <span className="text-[#9aa6ac]">· {h.status}{h.source ? ` · ${h.source}` : ""}</span>
+                  <span className="ml-auto text-[#9aa6ac]">{new Date(h.created_at).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" })}</span>
+                </li>
+              ))}
+            </ul>
           )}
         </div>
       )}
