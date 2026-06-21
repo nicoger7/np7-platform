@@ -107,7 +107,7 @@ export default async function BookingDetail({ params }: Props) {
   return (
     <>
       <PortalChrome section="experience" />
-      <main className="min-h-[100svh] bg-[#fff7ec]">
+      <main className="min-h-[100svh] bg-[#fff7ec] overflow-x-clip">
         <div className="max-w-[1000px] mx-auto px-5 sm:px-8 py-8 sm:py-12">
           <Link href="/account/trips" className="text-[13px] font-semibold text-[#6a7a80] hover:text-[#00374a]">← My trips</Link>
 
@@ -120,8 +120,9 @@ export default async function BookingDetail({ params }: Props) {
           </div>
 
           <div className="grid lg:grid-cols-[1.4fr_1fr] gap-5">
-            {/* left column */}
-            <div className="space-y-5">
+            {/* left column — min-w-0 so a wide child (add-ons, flight inputs…)
+                can't blow the grid column out past the viewport on mobile */}
+            <div className="space-y-5 min-w-0">
               {/* review nudge — once the week is over */}
               {tripEnded && (
                 <section className="bg-gradient-to-br from-[#00afdb] to-[#0782a0] rounded-2xl p-6 text-white">
@@ -209,7 +210,7 @@ export default async function BookingDetail({ params }: Props) {
             </div>
 
             {/* right column */}
-            <div className="space-y-5">
+            <div className="space-y-5 min-w-0">
               {coaches.length > 0 && (
                 <Card title="Your team">
                   <div className="space-y-4">

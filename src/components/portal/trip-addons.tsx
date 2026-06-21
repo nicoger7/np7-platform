@@ -110,7 +110,7 @@ export function TripAddons({ bookingId, depositPaid, initialFlights, arrival, ed
     <div className="space-y-2">
       {offer.map((a) => (
         <div key={a.id} className="flex items-center justify-between gap-3 bg-[#f8fbfc] rounded-xl px-4 py-3">
-          <div className="min-w-0">
+          <div className="min-w-0 flex-1">
             <p className="text-[14px] font-semibold text-[#00374a] truncate">{a.name}{a.sell_price ? ` · ${money(a.sell_price)}` : ""}</p>
             {a.description && <p className="text-[12.5px] text-[#8a9aa0] truncate">{a.description}</p>}
           </div>
@@ -224,7 +224,7 @@ export function TripAddons({ bookingId, depositPaid, initialFlights, arrival, ed
                       const confirmed = effectiveAddonStatus(m) === "confirmed";
                       return (
                         <div key={m.id} className="flex items-center justify-between gap-3 text-[13.5px]">
-                          <span className="font-semibold text-[#00374a]">{m.label}{m.price ? ` · ${money(m.price)}` : ""}</span>
+                          <span className="font-semibold text-[#00374a] truncate min-w-0">{m.label}{m.price ? ` · ${money(m.price)}` : ""}</span>
                           <span className={`shrink-0 px-2.5 py-1 rounded-full text-[11px] font-bold ${confirmed ? "bg-green-100 text-green-700" : "bg-amber-100 text-amber-700"}`}>{confirmed ? "Confirmed ✓" : "Requested"}</span>
                         </div>
                       );
@@ -252,7 +252,9 @@ function FlightSummary({ label, date, time, no }: { label: string; date?: string
 }
 
 function FlightFields({ legend, form, setFF, keys }: { legend: string; form: FlightInfo; setFF: (k: keyof FlightInfo, v: string) => void; keys: [keyof FlightInfo, keyof FlightInfo, keyof FlightInfo] }) {
-  const input = "px-3 py-2 rounded-lg border border-[#dde6e9] text-[14px] text-[#00374a] outline-none focus:border-[#00afdb]";
+  // w-full + min-w-0 so the native date/time pickers (which have a large
+  // intrinsic min-width on iOS) shrink with the grid instead of overflowing.
+  const input = "w-full min-w-0 px-3 py-2 rounded-lg border border-[#dde6e9] text-[14px] text-[#00374a] outline-none focus:border-[#00afdb]";
   return (
     <div>
       <p className="text-[11px] font-bold tracking-[0.12em] uppercase text-[#9aa6ac] mb-1.5">{legend}</p>
