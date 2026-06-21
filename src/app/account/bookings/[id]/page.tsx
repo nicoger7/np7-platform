@@ -48,7 +48,7 @@ export default async function BookingDetail({ params }: Props) {
     .from("exp_waiver_signatures").select("signed_name, signed_at").eq("booking_id", id).maybeSingle()
     .then((r) => r.data).catch(() => null);
   const cancellation = b.experience?.cancellation_policy ||
-    "Cancellations are handled case by case in line with our package travel terms. The deposit secures your spot; please contact us as early as possible if your plans change. Full terms are provided with your booking confirmation.";
+    "You can cancel any time before the trip. Your deposit is refundable for 14 days after payment; after that it's kept as the cancellation fee. Once you've paid the 50% downpayment or the full balance, that amount becomes the fee — with a goodwill credit voucher toward a future trip. Use ‘Cancel this trip’ above to start, or see our Terms for the full scale.";
   const plan = computePaymentPlan(
     { deposit: b.edition?.deposit ?? null },
     { total: total ?? 0, paidAmount: paid, editionStart: b.edition?.date_start ?? null }

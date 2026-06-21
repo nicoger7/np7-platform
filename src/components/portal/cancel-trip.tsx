@@ -28,6 +28,9 @@ export function CancelTrip({ bookingId, milestones, paid, currency = "EUR" }: {
   const depositRefundable = !!deposit?.refundableUntil && new Date(deposit.refundableUntil) >= new Date();
   const beyondDeposit = milestones.some((m) => m.kind !== "deposit" && m.status === "paid");
 
+  // Our cancellation-fee scale = the milestones: free until the deposit's refund
+  // window closes, then the fee is whatever you've paid (deposit → 50% → 100%),
+  // with a goodwill credit voucher toward a future experience.
   let tone: "ok" | "warn" = "ok";
   let headline = "";
   let detail = "";
@@ -39,12 +42,12 @@ export function CancelTrip({ bookingId, milestones, paid, currency = "EUR" }: {
     detail = `You're within the deposit's refund window${deposit?.refundableUntil ? ` (until ${new Date(deposit.refundableUntil).toLocaleDateString("en-GB", { day: "numeric", month: "long", year: "numeric" })})` : ""}, so you'd get your ${money(paid, currency)} back in full.`;
   } else if (beyondDeposit) {
     tone = "warn";
-    headline = "This is past the refund point";
-    detail = `The ${money(paid, currency)} you've paid is non-refundable. As a goodwill gesture we'd offer you a credit voucher toward a future NP7 experience instead.`;
+    headline = "Past the refund point";
+    detail = `The ${money(paid, currency)} you've paid is the cancellation fee at this stage, so it isn't refundable — but we'd offer you a goodwill credit voucher toward a future NP7 experience.`;
   } else {
     tone = "warn";
-    headline = "Your deposit is non-refundable now";
-    detail = `Your ${money(paid, currency)} deposit is past its refund window and can't be refunded. Nothing further is owed.`;
+    headline = "Your deposit is the cancellation fee now";
+    detail = `Your ${money(paid, currency)} deposit is past its refund window, so it's kept as the cancellation fee and nothing more is owed. We'll be in touch about a goodwill credit voucher toward a future trip.`;
   }
 
   async function request() {
