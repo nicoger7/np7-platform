@@ -30,9 +30,18 @@ function bad(msg: string, status = 400) {
 }
 
 export async function POST(request: NextRequest) {
-  // Invisible bot check (Vercel BotID). Auto-bypasses in dev; enforces on Vercel.
-  const verdict = await checkBotId();
-  if ("isBot" in verdict && verdict.isBot) return bad("Couldn't verify your request. Please try again.", 403);
+  // Invisible bot check (Vercel BotID). Registration is FREE and holds no spot,
+  // so a verification hiccup must never block a real person — only block a
+  // confirmed bot on the live production deployment, and fail OPEN on any error
+  // or when BotID isn't fully enabled (e.g. preview deploys).
+  if (process.env.VERCEL_ENV === "production") {
+    try {
+      const verdict = await checkBotId();
+      if ("isBot" in verdict && verdict.isBot) return bad("Couldn't verify your request. Please try again.", 403);
+    } catch {
+      /* verification unavailable → allow through */
+    }
+  }
 
   let body: Body;
   try {
