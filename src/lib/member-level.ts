@@ -21,6 +21,23 @@ export function normalizeStatus(raw: unknown): LevelStatus {
 
 export type Milestone = { id: string; key: string; label: string; tier: string; sort_order: number };
 
+/** A verified skill with its tier — lets every surface batch skills by category
+    (Beginner→Pro) instead of showing one flat, seemingly-random list. */
+export type SkillTag = { label: string; tier: string };
+
+/** Sort key for a tier name (unknown tiers sort last). */
+export function tierRank(tier: string): number {
+  const i = (LEVELS as readonly string[]).indexOf(tier);
+  return i === -1 ? LEVELS.length : i;
+}
+
+/** Group skill tags into tier buckets in canonical order, dropping empty tiers. */
+export function groupSkillsByTier(skills: SkillTag[]): { tier: Level; items: SkillTag[] }[] {
+  const by = new Map<string, SkillTag[]>();
+  for (const s of skills) by.set(s.tier, [...(by.get(s.tier) ?? []), s]);
+  return LEVELS.filter((t) => by.has(t)).map((t) => ({ tier: t, items: by.get(t)! }));
+}
+
 /**
  * The highest tier whose milestones — and every lower tier's — are fully ticked.
  * Conservative + transparent (stops at the first incomplete tier); the coach can

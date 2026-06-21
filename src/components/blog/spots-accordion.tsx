@@ -15,13 +15,14 @@ import {
 import { BlogIcon } from "./blog-icons";
 import { LevelBadge } from "@/components/shared/level-badge";
 import { SpotNoteForm } from "./spot-note-form";
+import type { SkillTag } from "@/lib/member-level";
 
 export type SpotNote = {
   author_name: string | null; body: string;
   // attached when the author opted into a public profile (migration 035)
   displayName?: string | null; username?: string | null; avatarUrl?: string | null; initials?: string | null;
   // their level + verified skills (shown on hover), when they share their level
-  level?: string | null; levelVerified?: boolean; skills?: string[];
+  level?: string | null; levelVerified?: boolean; skills?: SkillTag[];
 };
 
 /**

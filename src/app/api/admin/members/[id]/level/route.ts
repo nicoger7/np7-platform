@@ -41,6 +41,19 @@ export async function POST(req: NextRequest, { params }: Ctx) {
     return NextResponse.json({ ok: true, derived });
   }
 
+  if (body.action === "set_milestones") {
+    // Bulk tick/untick (e.g. "Select all" for a whole tier) — one round-trip.
+    const ids: string[] = Array.isArray(body.milestone_ids) ? body.milestone_ids.filter((x: unknown) => typeof x === "string") : [];
+    if (ids.length === 0) return NextResponse.json({ error: "milestone_ids required" }, { status: 400 });
+    const q = body.achieved
+      ? db.from("contact_milestones").upsert(ids.map((mid) => ({ contact_id: id, milestone_id: mid, set_by: by, achieved_at: now })), { onConflict: "contact_id,milestone_id" })
+      : db.from("contact_milestones").delete().eq("contact_id", id).in("milestone_id", ids);
+    const { error } = await q;
+    if (error) return NextResponse.json({ ok: true, levelUnavailable: true });
+    const derived = await recomputeDerivedLevel(id, by);
+    return NextResponse.json({ ok: true, derived });
+  }
+
   if (body.action === "approve_self") {
     // one-click: verify the rider at the level they rated themselves
     const { data: c } = await db.from("contacts").select("self_level").eq("id", id).maybeSingle();

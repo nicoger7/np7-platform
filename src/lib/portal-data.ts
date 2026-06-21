@@ -5,7 +5,7 @@ import {
   EMPTY_VISIBILITY, ageFrom, MINOR_AGE, parseVisibility, publicProfileFor,
   type ContactProfileRow, type ProfileSurface, type PublicProfile, type Visibility,
 } from "@/lib/member-profile";
-import { deriveSuggestedLevel } from "@/lib/member-level";
+import { deriveSuggestedLevel, type SkillTag } from "@/lib/member-level";
 
 /* Server-only data access for the member portal. Always scoped to the
    member's own contactId (the caller verifies the session first). */
@@ -187,15 +187,20 @@ export async function getCrewProfiles(editionId: string, viewerContactId: string
   if (verifiedIds.length) {
     const catalog = await readActiveCatalog(db);
     if (catalog.length) {
-      const labelById = new Map(catalog.map((m) => [m.id, m.label]));
       const ms = await db.from("contact_milestones").select("contact_id,milestone_id").in("contact_id", verifiedIds);
-      const byContact = new Map<string, string[]>();
+      const achievedByContact = new Map<string, Set<string>>();
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       for (const r of (ms.data ?? []) as any[]) {
-        const lbl = labelById.get(r.milestone_id);
-        if (lbl) byContact.set(r.contact_id, [...(byContact.get(r.contact_id) ?? []), lbl]);
+        const set = achievedByContact.get(r.contact_id) ?? new Set<string>();
+        set.add(r.milestone_id);
+        achievedByContact.set(r.contact_id, set);
       }
-      for (const p of profiles) p.skills = byContact.get(p.contactId) ?? [];
+      // Walk the catalog in canonical (tier → sort_order) order so skills come out
+      // grouped Beginner→Pro rather than in random row order.
+      for (const p of profiles) {
+        const ach = achievedByContact.get(p.contactId);
+        p.skills = ach ? catalog.filter((m) => ach.has(m.id)).map((m) => ({ label: m.label, tier: m.tier })) : [];
+      }
     }
   }
 
@@ -203,7 +208,7 @@ export async function getCrewProfiles(editionId: string, viewerContactId: string
   return { going, sharing: profiles.length, profiles };
 }
 
-export type AuthorBadge = { displayName: string; avatarUrl: string | null; username: string | null; initials: string; level: string | null; levelVerified: boolean; skills: string[] };
+export type AuthorBadge = { displayName: string; avatarUrl: string | null; username: string | null; initials: string; level: string | null; levelVerified: boolean; skills: SkillTag[] };
 
 /**
  * Public author badges for a set of contacts, for a given community surface
@@ -236,10 +241,19 @@ export async function getCommunityAuthors(contactIds: (string | null | undefined
   if (verifiedIds.length) {
     const catalog = await readActiveCatalog(db);
     if (catalog.length) {
-      const labelById = new Map(catalog.map((m) => [m.id, m.label]));
       const ms = await db.from("contact_milestones").select("contact_id,milestone_id").in("contact_id", verifiedIds);
+      const achievedByContact = new Map<string, Set<string>>();
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      for (const r of (ms.data ?? []) as any[]) { const lbl = labelById.get(r.milestone_id); if (lbl && out[r.contact_id]) out[r.contact_id].skills.push(lbl); }
+      for (const r of (ms.data ?? []) as any[]) {
+        const set = achievedByContact.get(r.contact_id) ?? new Set<string>();
+        set.add(r.milestone_id);
+        achievedByContact.set(r.contact_id, set);
+      }
+      // Canonical (tier → sort_order) order so the byline tooltip groups cleanly.
+      for (const id of verifiedIds) {
+        const ach = achievedByContact.get(id);
+        if (ach && out[id]) out[id].skills = catalog.filter((m) => ach.has(m.id)).map((m) => ({ label: m.label, tier: m.tier }));
+      }
     }
   }
   return out;

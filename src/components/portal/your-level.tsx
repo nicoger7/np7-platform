@@ -18,7 +18,6 @@ export function YourLevel({ detail }: { detail: MemberLevelDetail }) {
   const [saved, setSaved] = useState(false);
   const [err, setErr] = useState("");
   const [showNext, setShowNext] = useState(false);
-  const [showAllEarned, setShowAllEarned] = useState(false);
   const [showHistory, setShowHistory] = useState(false);
 
   const coachLevel = detail.coach_level;
@@ -32,7 +31,9 @@ export function YourLevel({ detail }: { detail: MemberLevelDetail }) {
   const ringColor = verified ? "#1aa851" : "#00afdb";
   const earnedSkills = detail.milestones.filter((m) => m.achieved);
   const nextSkills = detail.milestones.filter((m) => !m.achieved); // catalog order = Beginner→Pro
-  const earnedShown = showAllEarned ? earnedSkills : earnedSkills.slice(0, 12);
+  // Batch earned skills into their tier (Beginner→Pro) so the list reads as a
+  // progression, mirroring the admin panel and the byline tooltip.
+  const earnedByTier = LEVELS.map((t) => ({ tier: t, items: earnedSkills.filter((m) => m.tier === t) })).filter((g) => g.items.length > 0);
 
   async function call(payload: Record<string, unknown>) {
     setBusy(true); setErr(""); setSaved(false);
@@ -106,17 +107,19 @@ export function YourLevel({ detail }: { detail: MemberLevelDetail }) {
           {earned === 0 ? (
             <p className="text-[13px] text-[#9aa6ac]">No skills logged yet — your coach ticks these off on trips. Here&apos;s the path:</p>
           ) : (
-            <div className="flex flex-wrap gap-1.5">
-              {earnedShown.map((m) => (
-                <span key={m.id} title={m.description ?? m.label} className={chipEarned}>
-                  <svg className="w-3 h-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><path d="M20 6L9 17l-5-5" /></svg>{m.label}
-                </span>
+            <div className="space-y-3">
+              {earnedByTier.map((g) => (
+                <div key={g.tier}>
+                  <p className="text-[10px] font-bold uppercase tracking-[0.08em] text-[#9aa6ac] mb-1.5">{g.tier} <span className="text-[#c4cdd1] font-semibold">· {g.items.length}</span></p>
+                  <div className="flex flex-wrap gap-1.5">
+                    {g.items.map((m) => (
+                      <span key={m.id} title={m.description ?? m.label} className={chipEarned}>
+                        <svg className="w-3 h-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><path d="M20 6L9 17l-5-5" /></svg>{m.label}
+                      </span>
+                    ))}
+                  </div>
+                </div>
               ))}
-              {earnedSkills.length > 12 && (
-                <button type="button" onClick={() => setShowAllEarned((s) => !s)} className="text-[12px] font-semibold text-[#00afdb] px-2.5 py-1">
-                  {showAllEarned ? "Show less" : `+${earnedSkills.length - 12} more`}
-                </button>
-              )}
             </div>
           )}
         </div>

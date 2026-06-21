@@ -5,7 +5,7 @@
    way a contact becomes visible to someone else, and it returns null unless the
    owner opted into that specific surface. */
 
-import { displayLevel } from "@/lib/member-level";
+import { displayLevel, type SkillTag } from "@/lib/member-level";
 
 export type ProfileSurface = "crew" | "reviews" | "spot_notes";
 export type ProfileField = "age" | "country" | "city" | "level";
@@ -96,7 +96,7 @@ export type PublicProfile = {
   initials: string;
   level: string | null;
   levelVerified: boolean;
-  skills: string[]; // verified skill labels, shown on hover (enriched by the caller)
+  skills: SkillTag[]; // verified skills (label + tier), shown on hover (enriched by the caller)
   country: string | null;
   city: string | null;
   age: number | null;

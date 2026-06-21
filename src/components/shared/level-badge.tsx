@@ -1,10 +1,13 @@
+import { groupSkillsByTier, type SkillTag } from "@/lib/member-level";
+
 /**
  * A rider's level chip with a hover-card that reveals the coach-verified skills
  * behind it. Replaces the old native `title` tooltip (delayed, OS-styled, easy
  * to miss) with a real popover. CSS-only hover: no JS, escapes its card via
  * absolute + z-50 (the crew grid / byline rows don't clip overflow).
  *
- * Shared across the crew roster and the magazine bylines.
+ * Skills are batched by tier (Beginner→Pro) so the list reads as a progression
+ * rather than a random scatter. Shared across the crew roster + magazine bylines.
  */
 export function LevelBadge({
   level,
@@ -14,11 +17,12 @@ export function LevelBadge({
 }: {
   level: string | null;
   verified: boolean;
-  skills: string[];
+  skills: SkillTag[];
   align?: "center" | "left";
 }) {
   if (!level) return null;
   const hasSkills = skills.length > 0;
+  const groups = groupSkillsByTier(skills);
 
   return (
     <span className="relative inline-flex group/lvl align-middle">
@@ -38,14 +42,21 @@ export function LevelBadge({
             align === "left" ? "left-0" : "left-1/2 -translate-x-1/2"
           }`}
         >
-          <span className="block w-[222px] rounded-xl bg-white shadow-[0_14px_34px_rgba(0,55,74,0.18)] border border-[#eee4d4] p-3 text-left">
+          <span className="block w-[230px] rounded-xl bg-white shadow-[0_14px_34px_rgba(0,55,74,0.18)] border border-[#eee4d4] p-3 text-left">
             <span className="flex items-center gap-1 text-[10.5px] font-extrabold uppercase tracking-wide text-[#0f6e56] mb-2">
               <span aria-hidden="true">✓</span> Coach-verified · {skills.length} {skills.length === 1 ? "skill" : "skills"}
             </span>
-            <span className="flex flex-wrap gap-1">
-              {skills.map((s) => (
-                <span key={s} className="text-[10.5px] font-semibold bg-[#f3ede2] text-[#5a6b72] px-1.5 py-0.5 rounded">
-                  {s}
+            <span className="block space-y-2">
+              {groups.map((g) => (
+                <span key={g.tier} className="block">
+                  <span className="block text-[9px] font-bold uppercase tracking-[0.08em] text-[#9aa6ac] mb-1">{g.tier}</span>
+                  <span className="flex flex-wrap gap-1">
+                    {g.items.map((s) => (
+                      <span key={s.label} className="text-[10.5px] font-semibold bg-[#f3ede2] text-[#5a6b72] px-1.5 py-0.5 rounded">
+                        {s.label}
+                      </span>
+                    ))}
+                  </span>
                 </span>
               ))}
             </span>
