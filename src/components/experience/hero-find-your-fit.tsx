@@ -152,7 +152,7 @@ export function HeroFindYourFit({ src, poster, children }: { src: string; poster
   const fitDetails = SEGMENTS.map((s, i) => {
     const on = i === active;
     return (
-      <div key={s.id} aria-hidden={!on} className="fyf-card fyf-copy absolute inset-0 flex flex-col items-center justify-start sm:justify-center text-center" style={{ opacity: on ? 1 : 0, transform: on ? "none" : "translateY(20px)", pointerEvents: on ? "auto" : "none" }}>
+      <div key={s.id} aria-hidden={!on} className="fyf-card fyf-copy col-start-1 row-start-1 flex flex-col items-center justify-center text-center" style={{ opacity: on ? 1 : 0, transform: on ? "none" : "translateY(20px)", pointerEvents: on ? "auto" : "none" }}>
         <h3 className="text-[26px] sm:text-5xl font-black tracking-[-0.02em] text-white leading-[1.06] mb-2.5 sm:mb-4">{s.title}</h3>
         <p className="text-[14.5px] sm:text-[19px] text-white/90 leading-relaxed mb-4 sm:mb-6 max-w-[620px] mx-auto">{s.body}</p>
         <div className="flex flex-wrap justify-center gap-x-5 gap-y-1.5 sm:gap-y-2 mb-5 sm:mb-7 max-w-[680px] mx-auto">
@@ -235,7 +235,7 @@ export function HeroFindYourFit({ src, poster, children }: { src: string; poster
               <h2 className="text-xl font-black tracking-[-0.02em] text-white text-center mb-3 fyf-copy">Whatever brings you to the water</h2>
               <div className="grid grid-cols-2 gap-2 w-full">{fitCards}</div>
             </div>
-            <div className="relative w-full flex-1 min-h-[320px]">{fitDetails}</div>
+            <div className="grid w-full">{fitDetails}</div>
           </div>
 
           {/* ── DESKTOP: overview cards pinned top, detail centred (unchanged) ── */}
@@ -245,7 +245,7 @@ export function HeroFindYourFit({ src, poster, children }: { src: string; poster
             <div className="flex flex-wrap justify-center gap-3.5 max-w-[920px]">{fitCards}</div>
           </div>
           <div className="hidden sm:flex absolute inset-0 px-6 items-center justify-center z-10 pt-[112px] pb-16">
-            <div className="relative w-full max-w-[760px] min-h-[280px]">{fitDetails}</div>
+            <div className="grid w-full max-w-[760px] min-h-[280px]">{fitDetails}</div>
           </div>
         </div>
       </div>
