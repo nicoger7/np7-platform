@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
+import { GUIDE_NOTE_SCOPE } from "@/lib/blog-templates";
 
 type Note = {
   id: string;
@@ -57,10 +58,11 @@ export default function SpotNotesAdminPage() {
   return (
     <div className="p-6 sm:p-8 max-w-[860px] mx-auto">
       <Link href="/admin/blog" className="text-xs admin-faint hover:admin-heading">← Magazine</Link>
-      <h1 className="text-2xl font-bold admin-heading mt-1">Member spot notes</h1>
+      <h1 className="text-2xl font-bold admin-heading mt-1">Member notes</h1>
       <p className="text-sm admin-muted mt-1">
-        Notes members submitted on spotguide spots. Approve to publish them (shown as attributed local notes), or reject.
-        To fold a tip into the official guide, edit the spot in the post and reject the note.
+        Tips members submitted on guides — either on a specific spotguide spot, or as a guide-wide
+        “Community tip” (shown as “Whole guide”). Approve to publish them (shown attributed), or reject.
+        To fold a tip into the official guide, edit the post and reject the note.
       </p>
 
       <div className="flex gap-1.5 mt-5 mb-6">
@@ -88,7 +90,7 @@ export default function SpotNotesAdminPage() {
               <div className="flex items-center gap-2 mb-1.5 text-xs admin-faint">
                 <span className="font-bold admin-muted">{n.author_name || "Member"}</span>
                 <span>·</span>
-                <span>{n.spot_name}</span>
+                <span>{n.spot_name === GUIDE_NOTE_SCOPE ? "Whole guide" : n.spot_name}</span>
                 <span>·</span>
                 <span>{n.exp_blog_posts?.title ?? "—"}</span>
                 <span>·</span>

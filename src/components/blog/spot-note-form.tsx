@@ -2,13 +2,16 @@
 
 import { useEffect, useState } from "react";
 import { AuthModal } from "@/components/shared/auth-modal";
+import { GUIDE_NOTE_SCOPE } from "@/lib/blog-templates";
 
 /**
- * "Add a local tip" affordance under a spot. Logged-in members get a small
- * note form (submits to /api/portal/spot-notes, lands as pending for review);
- * logged-out visitors get a prompt that opens the free signup popup.
+ * "Add a tip" affordance. Under a spot (spotName = the spot) or at guide level
+ * (spotName = GUIDE_NOTE_SCOPE). Logged-in members get a small note form
+ * (submits to /api/portal/spot-notes, lands as pending for review); logged-out
+ * visitors get a prompt that opens the free signup popup.
  */
 export function SpotNoteForm({ slug, spotName, accent }: { slug: string; spotName: string; accent: string }) {
+  const isGuide = spotName === GUIDE_NOTE_SCOPE;
   const [loggedIn, setLoggedIn] = useState<boolean | null>(null);
   const [openForm, setOpenForm] = useState(false);
   const [authOpen, setAuthOpen] = useState(false);
@@ -50,12 +53,12 @@ export function SpotNoteForm({ slug, spotName, accent }: { slug: string; spotNam
     return (
       <>
         <button onClick={() => setAuthOpen(true)} className="mt-4 text-[13px] font-bold transition-opacity hover:opacity-70" style={{ color: accent }}>
-          + Been here? Log in to add a local tip
+          {isGuide ? "+ Log in to share a tip" : "+ Been here? Log in to add a local tip"}
         </button>
         {authOpen && (
           <AuthModal
             initialMode="register"
-            title="Add your local knowledge"
+            title={isGuide ? "Share your tip" : "Add your local knowledge"}
             subtitle="Log in or join (free) to share a tip"
             onClose={() => setAuthOpen(false)}
             onLoggedIn={() => { setAuthOpen(false); setLoggedIn(true); setOpenForm(true); }}
@@ -68,7 +71,7 @@ export function SpotNoteForm({ slug, spotName, accent }: { slug: string; spotNam
   if (!openForm) {
     return (
       <button onClick={() => setOpenForm(true)} className="mt-4 text-[13px] font-bold transition-opacity hover:opacity-70" style={{ color: accent }}>
-        + Add a local tip
+        {isGuide ? "+ Add a tip" : "+ Add a local tip"}
       </button>
     );
   }
@@ -80,7 +83,7 @@ export function SpotNoteForm({ slug, spotName, accent }: { slug: string; spotNam
         onChange={(e) => setText(e.target.value)}
         rows={3}
         maxLength={1200}
-        placeholder="Share a tip about this spot — best wind, hazards, where to launch…"
+        placeholder={isGuide ? "Share a tip about this guide — what worked for you, a gotcha, a related drill…" : "Share a tip about this spot — best wind, hazards, where to launch…"}
         className="w-full px-3.5 py-2.5 rounded-lg border border-[#dde6e9] text-[14px] text-[#00374a] outline-none focus:border-[#9aa6ac]"
       />
       {error && <p className="text-[12px] text-red-500 mt-1">{error}</p>}

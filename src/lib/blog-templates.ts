@@ -12,6 +12,13 @@
 
 export type World = "experience" | "hardware" | "technique" | "both";
 
+/**
+ * Sentinel `spot_name` marking a guide-level (whole-post) community note, as
+ * opposed to a per-spot note. Lets guide-wide tips reuse the spot-notes table
+ * and moderation pipeline without a new migration.
+ */
+export const GUIDE_NOTE_SCOPE = "__guide__";
+
 export type BlogTemplateId =
   | "standard"
   | "equipment_review"
