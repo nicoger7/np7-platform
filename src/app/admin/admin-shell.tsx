@@ -348,7 +348,11 @@ export default function AdminShell({
   const [env, setEnv] = useState<Environment>("experience");
   const [envMenuOpen, setEnvMenuOpen] = useState(false);
   const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
+  const [mobileNavOpen, setMobileNavOpen] = useState(false);
   const envMenuRef = useRef<HTMLDivElement>(null);
+
+  // Close the mobile nav drawer whenever the route changes (a link was tapped).
+  useEffect(() => { setMobileNavOpen(false); }, [pathname]);
 
   useEffect(() => {
     const savedTheme = localStorage.getItem("np7-admin-theme") as Theme | null;
@@ -417,18 +421,40 @@ export default function AdminShell({
 
   return (
     <div
-      className="min-h-screen flex"
+      className="admin-root min-h-screen lg:flex"
       style={{
         ...Object.fromEntries(Object.entries(vars)),
         backgroundColor: "var(--admin-bg)",
         color: "var(--admin-text)",
-        // Bigger default so the team doesn't have to zoom in every session.
-        zoom: 1.1,
       }}
     >
-      {/* Sidebar */}
+      {/* Desktop gets a gentle zoom so the team doesn't squint; never on mobile,
+          where it would overflow the viewport. */}
+      <style>{`@media (min-width:1024px){.admin-root{zoom:1.1}}`}</style>
+
+      {/* ── Mobile top app bar ── */}
+      <header
+        className="lg:hidden sticky top-0 z-40 flex items-center gap-2.5 px-4 h-14"
+        style={{ backgroundColor: "var(--admin-sidebar)", borderBottom: "1px solid var(--admin-border)" }}
+      >
+        <button onClick={() => setMobileNavOpen(true)} aria-label="Open menu" className="w-9 h-9 -ml-1.5 grid place-items-center rounded-lg" style={{ color: "var(--admin-text)" }}>
+          <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M3 6h18M3 12h18M3 18h18" /></svg>
+        </button>
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img src="https://qfdqigumjadvrocxjolx.supabase.co/storage/v1/object/public/assets/logos/np7-logo.png" alt="NP7" className="h-4 w-auto" style={{ filter: "var(--admin-logo-filter)" }} />
+        <span className="text-[9px] font-bold tracking-[0.2em]" style={{ color: "var(--admin-text-faint)" }}>ADMIN</span>
+        <span className="ml-auto inline-flex items-center gap-1.5 text-[11px] font-semibold" style={{ color: "var(--admin-text-muted)" }}>
+          <span className="w-2 h-2 rounded-full" style={{ backgroundColor: activeEnvConfig.color }} />
+          {activeEnvConfig.shortLabel}
+        </span>
+      </header>
+
+      {/* ── Scrim behind the mobile drawer ── */}
+      {mobileNavOpen && <div className="lg:hidden fixed inset-0 z-40 bg-black/50" onClick={() => setMobileNavOpen(false)} aria-hidden />}
+
+      {/* ── Sidebar — off-canvas drawer on mobile, static on desktop ── */}
       <aside
-        className="w-56 flex flex-col"
+        className={`fixed inset-y-0 left-0 z-50 w-64 lg:static lg:z-auto lg:w-56 flex flex-col transition-transform duration-200 lg:transition-none ${mobileNavOpen ? "translate-x-0" : "-translate-x-full lg:translate-x-0"}`}
         style={{
           backgroundColor: "var(--admin-sidebar)",
           borderRight: "1px solid var(--admin-border)",
@@ -447,6 +473,9 @@ export default function AdminShell({
             <span className="text-[10px] font-bold tracking-[0.2em]" style={{ color: "var(--admin-text-faint)" }}>
               ADMIN
             </span>
+            <button onClick={() => setMobileNavOpen(false)} aria-label="Close menu" className="lg:hidden ml-auto w-8 h-8 -mr-1 grid place-items-center rounded-lg" style={{ color: "var(--admin-text-muted)" }}>
+              <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M18 6L6 18M6 6l12 12" /></svg>
+            </button>
           </div>
 
           {/* Environment dropdown */}
@@ -533,7 +562,7 @@ export default function AdminShell({
           </div>
         </div>
 
-        <nav className="flex-1 p-3 space-y-4">
+        <nav className="flex-1 p-3 space-y-4 overflow-y-auto">
           {sections.map((section) => {
             const collapsible = section.items.length > 1;
             const isCollapsed = collapsible && collapsed.has(section.label);
@@ -626,7 +655,7 @@ export default function AdminShell({
       </aside>
 
       {/* Main content */}
-      <main className="flex-1 p-8 overflow-auto">{children}</main>
+      <main className="flex-1 min-w-0 p-4 sm:p-6 lg:p-8 overflow-auto">{children}</main>
     </div>
   );
 }
