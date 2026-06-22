@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase";
 import { createClient } from "@/lib/supabase/server";
-import { normalizeLevel, type AccessLevel } from "@/lib/access";
+import { normalizeLevel, normalizeAccess, mergeAccess, type AccessLevel, type EffectiveAccess } from "@/lib/access";
 
 /**
  * Resolve the active team member behind an auth user and their access level.
@@ -12,7 +12,7 @@ import { normalizeLevel, type AccessLevel } from "@/lib/access";
  */
 export async function getActiveTeamMember(
   user: { id: string; email?: string | null }
-): Promise<{ id: string; accessLevel: AccessLevel } | null> {
+): Promise<{ id: string; accessLevel: AccessLevel; roleIds: string[] } | null> {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const client = createAdminClient() as any;
   let { data } = await client.from("team_members").select("*").eq("auth_user_id", user.id).limit(1).maybeSingle();
@@ -24,7 +24,25 @@ export async function getActiveTeamMember(
     }
   }
   if (!data || data.active === false) return null;
-  return { id: data.id as string, accessLevel: normalizeLevel(data.access_level) };
+  return { id: data.id as string, accessLevel: normalizeLevel(data.access_level), roleIds: Array.isArray(data.role_ids) ? data.role_ids : [] };
+}
+
+/**
+ * Resolve a member's *effective* access. With no custom roles they keep the
+ * owner/manager tier; one or more roles override it (merged — union of worlds,
+ * most-permissive section level, any-grants-it for fields). Falls back to the
+ * tier if the roles can't be loaded (never harden into a lockout by accident).
+ */
+export async function getEffectiveAccess(
+  member: { accessLevel: AccessLevel; roleIds: string[] }
+): Promise<EffectiveAccess> {
+  if (!member.roleIds || member.roleIds.length === 0) return { kind: "tier", level: member.accessLevel };
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const client = createAdminClient() as any;
+  const { data } = await client.from("team_roles").select("access").in("id", member.roleIds);
+  const accesses = (data ?? []).map((r: { access: unknown }) => normalizeAccess(r.access));
+  if (accesses.length === 0) return { kind: "tier", level: member.accessLevel };
+  return { kind: "role", access: mergeAccess(accesses) };
 }
 
 /**

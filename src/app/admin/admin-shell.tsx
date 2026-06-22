@@ -5,7 +5,7 @@ import { usePathname, useRouter } from "next/navigation";
 import { useState, useEffect, useRef } from "react";
 import { createClient } from "@/lib/supabase/client";
 import type { User } from "@supabase/supabase-js";
-import { canAccess, type AccessLevel } from "@/lib/access";
+import { effectiveCanAccess, effectiveCanEnterWorld, type EffectiveAccess, type WorldId } from "@/lib/access";
 import { AdminInstallPrompt } from "@/components/pwa/admin-install-prompt";
 
 // ─── Environments ────────────────────────────────────────────────────────────
@@ -365,18 +365,20 @@ type Theme = keyof typeof themes;
 
 export default function AdminShell({
   user,
-  accessLevel = "owner",
+  access = { kind: "tier", level: "owner" },
   children,
 }: {
   user: User;
-  accessLevel?: AccessLevel;
+  access?: EffectiveAccess;
   children: React.ReactNode;
 }) {
   const pathname = usePathname();
   const router = useRouter();
   const supabase = createClient();
   const [theme, setTheme] = useState<Theme>("dark");
-  const [env, setEnv] = useState<Environment>("experience");
+  // Worlds this member may enter (restricted roles see fewer); default to the first.
+  const allowedEnvs = environments.filter((e) => effectiveCanEnterWorld(access, e.id as WorldId));
+  const [env, setEnv] = useState<Environment>(() => (allowedEnvs[0]?.id ?? "experience") as Environment);
   const [envMenuOpen, setEnvMenuOpen] = useState(false);
   const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
@@ -389,9 +391,8 @@ export default function AdminShell({
     const savedTheme = localStorage.getItem("np7-admin-theme") as Theme | null;
     if (savedTheme && themes[savedTheme]) setTheme(savedTheme);
     const savedEnv = localStorage.getItem("np7-admin-env") as Environment | null;
-    if (savedEnv && navByEnv[savedEnv]) {
-      const cfg = environments.find((x) => x.id === savedEnv);
-      if (!cfg?.ownerOnly || accessLevel === "owner") setEnv(savedEnv);
+    if (savedEnv && navByEnv[savedEnv] && effectiveCanEnterWorld(access, savedEnv as WorldId)) {
+      setEnv(savedEnv);
     }
     try {
       const savedCollapsed = JSON.parse(localStorage.getItem("np7-admin-collapsed") || "[]");
@@ -456,9 +457,9 @@ export default function AdminShell({
     items: env === "experience" ? [archiveItem] : [fileStorageItem, archiveItem],
   };
   const allSections = [sharedNavTop, ...navByEnv[env], bottomGroup];
-  // Hide nav the member's access level can't reach (middleware enforces it too).
+  // Hide nav the member's role can't reach (middleware enforces it server-side too).
   const sections = allSections
-    .map((g) => ({ ...g, items: g.items.filter((i) => canAccess(accessLevel, i.href)) }))
+    .map((g) => ({ ...g, items: g.items.filter((i) => effectiveCanAccess(access, i.href)) }))
     .filter((g) => g.items.length > 0);
 
   return (
@@ -561,7 +562,7 @@ export default function AdminShell({
                   border: "1px solid var(--admin-border)",
                 }}
               >
-                {environments.filter((e) => !e.ownerOnly || accessLevel === "owner").map((e) => (
+                {environments.filter((e) => effectiveCanEnterWorld(access, e.id as WorldId)).map((e) => (
                   <button
                     key={e.id}
                     onClick={() => switchEnv(e.id)}

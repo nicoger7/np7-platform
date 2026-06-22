@@ -1,21 +1,35 @@
 import { createServerClient } from "@supabase/ssr";
-import { createClient } from "@supabase/supabase-js";
+import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import { NextResponse, type NextRequest } from "next/server";
-import { canAccess, normalizeLevel } from "@/lib/access";
+import { normalizeLevel, normalizeAccess, mergeAccess, effectiveCanAccess, type EffectiveAccess } from "@/lib/access";
 
-/** Active team member behind a session email + their access level (service role). */
-async function teamMemberFor(email: string | undefined): Promise<{ active: boolean; level: ReturnType<typeof normalizeLevel> } | null> {
-  if (!email) return null;
-  const admin = createClient(
+function svc(): SupabaseClient {
+  return createClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.SUPABASE_SERVICE_ROLE_KEY!,
     { auth: { persistSession: false } }
   );
-  // select("*") so a not-yet-migrated access_level column can't error the query.
-  const { data } = await admin.from("team_members").select("*").ilike("email", email).maybeSingle();
+}
+
+/** Active team member behind a session email + their access level + role ids. */
+async function teamMemberFor(email: string | undefined): Promise<{ active: boolean; level: ReturnType<typeof normalizeLevel>; roleIds: string[] } | null> {
+  if (!email) return null;
+  // select("*") so a not-yet-migrated access_level/role_ids column can't error the query.
+  const { data } = await svc().from("team_members").select("*").ilike("email", email).maybeSingle();
   if (!data) return null;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  return { active: (data as any).active !== false, level: normalizeLevel((data as any).access_level) };
+  const d = data as any;
+  return { active: d.active !== false, level: normalizeLevel(d.access_level), roleIds: Array.isArray(d.role_ids) ? d.role_ids : [] };
+}
+
+/** Effective access: custom roles (merged) override the owner/manager tier. */
+async function effectiveAccessFor(member: { level: ReturnType<typeof normalizeLevel>; roleIds: string[] }): Promise<EffectiveAccess> {
+  if (member.roleIds.length === 0) return { kind: "tier", level: member.level };
+  const { data } = await svc().from("team_roles").select("access").in("id", member.roleIds);
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const accesses = (data ?? []).map((r: any) => normalizeAccess(r.access));
+  if (accesses.length === 0) return { kind: "tier", level: member.level };
+  return { kind: "role", access: mergeAccess(accesses) };
 }
 
 export async function middleware(request: NextRequest) {
@@ -91,8 +105,10 @@ export async function middleware(request: NextRequest) {
         ? NextResponse.json({ error: "Forbidden" }, { status: 403 })
         : redirect("/admin/login");
     }
-    // Owner-only sections (finance, settings, team/payroll) → managers bounce home.
-    if (!canAccess(member.level, path)) {
+    // Section access: a custom role gates by world + section; otherwise the
+    // owner/manager tier applies (owner-only finance/settings/team).
+    const eff = await effectiveAccessFor(member);
+    if (!effectiveCanAccess(eff, path)) {
       return isAdminApi
         ? NextResponse.json({ error: "Forbidden" }, { status: 403 })
         : redirect("/admin");

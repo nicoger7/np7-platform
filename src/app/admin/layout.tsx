@@ -1,6 +1,6 @@
 import type { Viewport } from "next";
 import { createClient } from "@/lib/supabase/server";
-import { getActiveTeamMember } from "@/lib/admin-auth";
+import { getActiveTeamMember, getEffectiveAccess } from "@/lib/admin-auth";
 import AdminShell from "./admin-shell";
 
 export const metadata = {
@@ -33,6 +33,7 @@ export default async function AdminLayout({
   if (!member) {
     return <>{children}</>;
   }
+  const access = await getEffectiveAccess(member);
 
-  return <AdminShell user={user!} accessLevel={member.accessLevel}>{children}</AdminShell>;
+  return <AdminShell user={user!} access={access}>{children}</AdminShell>;
 }
