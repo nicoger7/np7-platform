@@ -54,6 +54,9 @@ function MembersInner() {
     const sp = new URLSearchParams(params.toString());
     sp.set("id", id);
     router.push(`/admin/members?${sp.toString()}`, { scroll: false });
+    // Start the split at the top — otherwise selecting from a scrolled-down
+    // list leaves the sticky rail mid-scroll (the "empty card" glitch).
+    if (typeof window !== "undefined") window.scrollTo({ top: 0 });
   }
   function clearSelection() {
     const sp = new URLSearchParams(params.toString());
@@ -138,13 +141,13 @@ function MembersInner() {
       <div
         key={m.id}
         onClick={() => select(m.id)}
-        className={`cursor-pointer rounded-xl border transition-colors ${compact ? "px-3.5 py-3" : "px-5 py-4 hover:border-[var(--admin-border-strong)]"}`}
+        className={`cursor-pointer rounded-xl border transition-colors ${compact ? "shrink-0 px-3.5 py-3" : "px-5 py-4 hover:border-[var(--admin-border-strong)]"}`}
         style={active
           ? { backgroundColor: "var(--admin-accent-weak)", borderColor: "var(--admin-accent)" }
           : { backgroundColor: "var(--admin-surface)", borderColor: "var(--admin-border)" }}
       >
         <div className="flex items-center gap-2 flex-wrap">
-          <span className="font-semibold admin-heading truncate">{m.name}</span>
+          <span className="font-semibold admin-heading truncate">{m.name || "Unnamed"}</span>
           {badges}
         </div>
         <p className="text-xs admin-faint truncate mt-0.5">
