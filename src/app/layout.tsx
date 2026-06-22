@@ -24,11 +24,15 @@ export const metadata: Metadata = {
   // this with its own manifest + icons so the team gets a separate home-screen app.
   manifest: "/manifest.webmanifest",
   appleWebApp: { capable: true, title: "NP7", statusBarStyle: "black-translucent" },
-  // Favicon = the NP7 logo (the same teal NP7 mark as the PWA icon).
+  // Favicon = the NP7 wordmark filling the frame (dedicated tab icons, logo trimmed
+  // tight so it reads at 16px). The padded PWA/home-screen icons stay in the
+  // manifests untouched (they need safe-zone breathing room for masking).
   icons: {
     icon: [
-      { url: "/icons/icon-192.png", type: "image/png", sizes: "192x192" },
-      { url: "/icons/icon-512.png", type: "image/png", sizes: "512x512" },
+      { url: "/icons/favicon-16.png", type: "image/png", sizes: "16x16" },
+      { url: "/icons/favicon-32.png", type: "image/png", sizes: "32x32" },
+      { url: "/icons/favicon-48.png", type: "image/png", sizes: "48x48" },
+      { url: "/icons/favicon-96.png", type: "image/png", sizes: "96x96" },
     ],
     apple: "/icons/apple-touch-icon.png",
   },
