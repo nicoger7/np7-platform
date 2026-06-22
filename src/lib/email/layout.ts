@@ -7,7 +7,7 @@ export type Division = "experience" | "hardware";
  *  editor so it's always clear what the blank "default" will render. At send
  *  time an experience's own hero photo can override this per division. */
 export const DEFAULT_HEADER_IMAGE: Record<Division, string | null> = {
-  experience: `${STORAGE}/photos/hero-bg.jpg`,
+  experience: `${STORAGE}/hero/windsurf-hero-poster.jpg`,
   hardware: null,
 };
 
@@ -26,7 +26,7 @@ const THEMES: Record<Division, {
     logo: `${LOGOS}/np7-experience-logo.png`, logoLight: `${LOGOS}/np7-experience-logo.png`, logoAlt: "NP7 Experience", logoW: 168,
     accent: "#00afdb", accentText: "#ffffff",
     gradient: "linear-gradient(90deg,#ffc42e 0%,#f47b20 48%,#00afdb 100%)",
-    hero: `${STORAGE}/photos/hero-bg.jpg`,
+    hero: `${STORAGE}/hero/windsurf-hero-poster.jpg`,
     headerBg: "#00374a", headerFade: "rgba(0,40,58,0.82)",
     footerBg: "#00374a", footerText: "#9fb3bb", footerStrong: "#cfe0e5",
     tagline: "Premium watersports travel with Nico Prien (GER-7).",

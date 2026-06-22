@@ -39,7 +39,7 @@ export function LaunchLanding() {
   return (
     <main className="relative min-h-screen flex items-center justify-center overflow-hidden">
       {/* Background photo */}
-      <div className="absolute inset-0 bg-cover bg-center bg-[#0b1e2e]" style={{ backgroundImage: `url('${STORAGE}/photos/hero-bg.jpg')` }} />
+      <div className="absolute inset-0 bg-cover bg-center bg-[#0b1e2e]" style={{ backgroundImage: `url('${STORAGE}/hero/windsurf-hero-poster.jpg')` }} />
       {/* Fade: transparent top → black bottom */}
       <div className="absolute inset-0" style={{ background: "linear-gradient(to bottom, rgba(0,0,0,0) 0%, rgba(0,0,0,0) 10%, rgba(0,0,0,0.4) 40%, rgba(0,0,0,0.8) 70%, rgba(0,0,0,1) 100%)" }} />
 

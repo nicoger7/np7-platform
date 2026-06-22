@@ -48,6 +48,20 @@ export function RichTextEditor({
     const url = window.prompt("Link to (https://… or a {{variable}})");
     if (url) cmd("createLink", url);
   }
+  function insertButton() {
+    const label = window.prompt("Button text", "View my trip");
+    if (!label) return;
+    const url = window.prompt("Button links to (https://… or a {{variable}})", "{{bookingLink}}");
+    if (!url) return;
+    ref.current?.focus();
+    // A pill-style CTA — inline styles so it survives email clients as-is.
+    document.execCommand(
+      "insertHTML",
+      false,
+      `<p style="margin:20px 0;"><a href="${url}" style="display:inline-block;background:#00afdb;color:#ffffff;font-weight:700;text-decoration:none;border-radius:999px;padding:13px 28px;">${label.replace(/</g, "&lt;")}</a></p><p>&nbsp;</p>`
+    );
+    emit();
+  }
   function insertVar(token: string) {
     ref.current?.focus();
     document.execCommand("insertText", false, `{{${token}}}`);
@@ -60,6 +74,13 @@ export function RichTextEditor({
   return (
     <div className="rounded-lg overflow-hidden" style={{ border: "1px solid var(--admin-border)" }}>
       <div className="flex flex-wrap items-center gap-0.5 px-2 py-1.5" style={{ borderBottom: "1px solid var(--admin-border)", background: "var(--admin-surface)" }}>
+        <button type="button" className={btn} onMouseDown={(e) => e.preventDefault()} onClick={() => cmd("undo")} title="Undo" aria-label="Undo">
+          <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M9 14 4 9l5-5" /><path d="M4 9h11a5 5 0 0 1 0 10h-1" /></svg>
+        </button>
+        <button type="button" className={btn} onMouseDown={(e) => e.preventDefault()} onClick={() => cmd("redo")} title="Redo" aria-label="Redo">
+          <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m15 14 5-5-5-5" /><path d="M20 9H9a5 5 0 0 0 0 10h1" /></svg>
+        </button>
+        {sep}
         <button type="button" className={`${btn} font-bold`} onMouseDown={(e) => e.preventDefault()} onClick={() => cmd("bold")} title="Bold">B</button>
         <button type="button" className={`${btn} italic`} onMouseDown={(e) => e.preventDefault()} onClick={() => cmd("italic")} title="Italic">I</button>
         <button type="button" className={btn} onMouseDown={(e) => e.preventDefault()} onClick={addLink} title="Add link" aria-label="Add link">
@@ -71,6 +92,9 @@ export function RichTextEditor({
           <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01" /></svg>
         </button>
         <button type="button" className={btn} onMouseDown={(e) => e.preventDefault()} onClick={() => cmd("insertOrderedList")} title="Numbered list">1.</button>
+        {sep}
+        <button type="button" onMouseDown={(e) => e.preventDefault()} onClick={insertButton} title="Insert a call-to-action button"
+          className="h-7 px-2 rounded-md text-[11px] font-bold admin-muted hover:text-[var(--admin-accent)] hover:bg-[var(--admin-surface-hover)] transition-colors">+ Button</button>
         {vars.length > 0 && sep}
         {vars.map(([token, label]) => (
           <button key={token} type="button" onMouseDown={(e) => e.preventDefault()} onClick={() => insertVar(token)} title={`Insert {{${token}}}`}
