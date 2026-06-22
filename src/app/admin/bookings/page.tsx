@@ -1,11 +1,12 @@
 "use client";
 
-import { useState, useEffect } from "react";
-import { useRouter } from "next/navigation";
+import { Suspense, useState, useEffect } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import { SortableHeader } from "@/components/sortable-header";
 import { ColumnToggle, ColumnDef, buildGridTemplate, loadVisibleColumns } from "@/components/column-toggle";
 import { NewBookingModal } from "@/components/new-booking-modal";
 import { normalizeBookingStatus } from "@/lib/types";
+import { BookingDetailPane } from "./[id]/page";
 
 interface Booking {
   id: string;
@@ -102,8 +103,16 @@ function compareValues(a: unknown, b: unknown, dir: "asc" | "desc"): number {
   return dir === "asc" ? cmp : -cmp;
 }
 
-export default function BookingsPage() {
+function BookingsInner() {
   const router = useRouter();
+  const params = useSearchParams();
+  const selectedId = params.get("id");
+  const select = (bid: string) => router.push(`/admin/bookings?id=${bid}`, { scroll: false });
+  const clearSelection = () => {
+    const sp = new URLSearchParams(params.toString());
+    sp.delete("id");
+    router.push(`/admin/bookings${sp.toString() ? `?${sp}` : ""}`, { scroll: false });
+  };
   const [bookings, setBookings] = useState<Booking[]>([]);
   const [loading, setLoading] = useState(true);
   const [view, setView] = useState<ViewMode>("table");
@@ -266,6 +275,28 @@ export default function BookingsPage() {
 
       {loading ? (
         <div className="py-12 text-center text-sm admin-faint">Loading...</div>
+      ) : selectedId ? (
+        /* ── A booking is selected → columns: compact rail + detail ── */
+        <div className="lg:flex lg:gap-6 lg:items-start">
+          <aside className="hidden lg:flex flex-col gap-1.5 lg:w-[320px] lg:shrink-0 lg:sticky lg:top-0 lg:max-h-[calc(100vh-11rem)] lg:overflow-y-auto lg:-mr-1 lg:pr-1">
+            {sorted.map((b) => {
+              const active = b.id === selectedId;
+              return (
+                <div key={b.id} onClick={() => select(b.id)} className="cursor-pointer rounded-xl border px-3.5 py-3 transition-colors"
+                  style={active ? { backgroundColor: "var(--admin-accent-weak)", borderColor: "var(--admin-accent)" } : { backgroundColor: "var(--admin-surface)", borderColor: "var(--admin-border)" }}>
+                  <div className="flex items-center gap-2">
+                    <span className="text-sm font-medium admin-heading truncate flex-1">{b.contact?.name || b.name}</span>
+                    <StatusBadge status={b.status} />
+                  </div>
+                  <p className="text-xs admin-faint truncate mt-0.5">{b.experience?.title || "—"}{b.edition ? ` · ${b.edition.label || b.edition.year}` : ""}</p>
+                </div>
+              );
+            })}
+          </aside>
+          <section className="flex-1 min-w-0">
+            <BookingDetailPane bookingId={selectedId} onBack={clearSelection} />
+          </section>
+        </div>
       ) : bookings.length === 0 ? (
         <div className="py-16 text-center">
           <p className="text-sm admin-faint">No bookings yet</p>
@@ -298,7 +329,7 @@ export default function BookingsPage() {
               key={b.id}
               className="grid gap-3 px-5 py-3 transition-colors cursor-pointer"
               style={{ gridTemplateColumns: gridTemplate, borderBottom: "1px solid var(--admin-border)" }}
-              onClick={() => router.push(`/admin/bookings/${b.id}`)}
+              onClick={() => select(b.id)}
               onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = "var(--admin-surface-hover)")}
               onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = "transparent")}
             >
@@ -404,7 +435,7 @@ export default function BookingsPage() {
                       key={b.id}
                       className="p-3 rounded-lg admin-surface cursor-pointer transition-colors"
                       style={{ border: "1px solid var(--admin-border)" }}
-                      onClick={() => router.push(`/admin/bookings/${b.id}`)}
+                      onClick={() => select(b.id)}
                       onMouseEnter={(e) => (e.currentTarget.style.borderColor = "var(--admin-text-faint)")}
                       onMouseLeave={(e) => (e.currentTarget.style.borderColor = "var(--admin-border)")}
                     >
@@ -430,5 +461,13 @@ export default function BookingsPage() {
       )}
       {showNew && <NewBookingModal onClose={() => setShowNew(false)} />}
     </div>
+  );
+}
+
+export default function BookingsPage() {
+  return (
+    <Suspense fallback={<div className="py-12 text-center text-sm admin-faint">Loading…</div>}>
+      <BookingsInner />
+    </Suspense>
   );
 }

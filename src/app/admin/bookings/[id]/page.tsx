@@ -114,12 +114,8 @@ function formatDate(d: string | null) {
   return new Date(d).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
 }
 
-export default function BookingDetailPage({
-  params,
-}: {
-  params: Promise<{ id: string }>;
-}) {
-  const { id } = use(params);
+export function BookingDetailPane({ bookingId, onBack }: { bookingId: string; onBack?: () => void }) {
+  const id = bookingId;
   const router = useRouter();
   const [booking, setBooking] = useState<BookingDetail | null>(null);
   const [loading, setLoading] = useState(true);
@@ -354,7 +350,7 @@ export default function BookingDetailPage({
       {/* Header */}
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between mb-6">
         <div className="flex items-center gap-3">
-          <button onClick={() => router.push(backHref)} className="admin-faint transition-colors">
+          <button onClick={() => (onBack ? onBack() : router.push(backHref))} className="admin-faint transition-colors" aria-label="Back">
             <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
               <path d="M19 12H5M12 19l-7-7 7-7" />
             </svg>
@@ -950,4 +946,11 @@ export default function BookingDetailPage({
       )}
     </div>
   );
+}
+
+// The /admin/bookings/[id] route — renders the pane full-page for deep links.
+// The Bookings list renders the same pane inline (split view) via ?id=.
+export default function BookingDetailPage({ params }: { params: Promise<{ id: string }> }) {
+  const { id } = use(params);
+  return <BookingDetailPane bookingId={id} />;
 }
