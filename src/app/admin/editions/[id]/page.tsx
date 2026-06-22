@@ -190,7 +190,6 @@ export default function EditionDetailPage({
   const [pkgForm, setPkgForm] = useState(emptyPkg);
   const [pkgEditId, setPkgEditId] = useState<string | null>(null);
   const [pkgShow, setPkgShow] = useState(false);
-  const [pkgExpandedId, setPkgExpandedId] = useState<string | null>(null);
 
   const emptyCost = { item: "", estimated_amount: "", actual_amount: "", date: "", status: "estimate" };
   const [costForm, setCostForm] = useState(emptyCost);
@@ -926,9 +925,60 @@ export default function EditionDetailPage({
         </div>
       )}
 
-      {/* ── Packages tab ── */}
+      {/* ── Packages tab (inline split: rail + package editor + components) ── */}
       {tab === "packages" && (
         <div>
+          {(pkgShow || pkgEditId) ? (
+          <div className="flex flex-col md:flex-row gap-4">
+            <div className="md:w-56 shrink-0 flex md:flex-col gap-1.5 md:max-h-[72vh] md:overflow-y-auto md:pr-1">
+              <button onClick={() => { setPkgShow(false); setPkgEditId(null); setPkgForm(emptyPkg); }} className="shrink-0 mb-1 flex items-center gap-1.5 text-xs font-semibold admin-muted hover:text-[var(--admin-accent)] transition-colors">
+                <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m15 18-6-6 6-6" /></svg>
+                All packages
+              </button>
+              {packages.map((pkg) => {
+                const active = pkg.id === pkgEditId;
+                return (
+                  <button key={pkg.id} onClick={() => { setPkgEditId(pkg.id); setPkgShow(false); setPkgForm({ name: pkg.name, price: pkg.price?.toString() || "", cost_per_person: pkg.cost_per_person?.toString() || "", deposit: pkg.deposit?.toString() || "", max_spots: pkg.max_spots?.toString() || "", category: pkg.category || "", status: pkg.status }); }} className="shrink-0 text-left px-3 py-2 rounded-lg transition-colors" style={{ background: active ? "var(--admin-accent)" : "var(--admin-surface)", border: "1px solid var(--admin-border)" }}>
+                    <span className={`block text-xs font-semibold truncate ${active ? "text-[var(--admin-accent-contrast)]" : "admin-heading"}`}>{pkg.name}</span>
+                    <span className={`block text-[10px] mt-0.5 truncate ${active ? "text-[var(--admin-accent-contrast)]/80" : "admin-faint"}`}>{pkg.price ? `€${Number(pkg.price).toLocaleString()}` : "—"} · {pkg.status}</span>
+                  </button>
+                );
+              })}
+            </div>
+            <div className="flex-1 min-w-0 space-y-4">
+              <div className="p-5 rounded-xl" style={{ border: "1px solid var(--admin-border)", backgroundColor: "var(--admin-surface)" }}>
+                <h3 className="text-base font-bold admin-heading mb-4">{pkgEditId ? "Edit package" : "New package"}</h3>
+                <div className="mb-3"><label className={labelClass}>Name *</label><input className={inputClass} value={pkgForm.name} onChange={(e) => setPkgForm({ ...pkgForm, name: e.target.value })} /></div>
+                <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 mb-3">
+                  <div><label className={labelClass}>Sell price ({currency})</label><input type="number" className={inputClass} value={pkgForm.price} onChange={(e) => setPkgForm({ ...pkgForm, price: e.target.value })} /></div>
+                  <div><label className={labelClass}>Cost / person</label><input type="number" className={inputClass} value={pkgForm.cost_per_person} onChange={(e) => setPkgForm({ ...pkgForm, cost_per_person: e.target.value })} placeholder="auto" /></div>
+                  <div><label className={labelClass}>Deposit</label><input type="number" className={inputClass} value={pkgForm.deposit} onChange={(e) => setPkgForm({ ...pkgForm, deposit: e.target.value })} /></div>
+                  <div><label className={labelClass}>Spots</label><input type="number" className={inputClass} value={pkgForm.max_spots} onChange={(e) => setPkgForm({ ...pkgForm, max_spots: e.target.value })} /></div>
+                  <div className="col-span-2 sm:col-span-1"><label className={labelClass}>Category</label><select className={inputClass} value={pkgForm.category} onChange={(e) => setPkgForm({ ...pkgForm, category: e.target.value })}>{PKG_CATEGORIES.map((c) => <option key={c} value={c}>{c ? c[0].toUpperCase() + c.slice(1) : "None"}</option>)}</select></div>
+                </div>
+                <div className="flex items-center gap-2">
+                  <button onClick={savePackage} disabled={!pkgForm.name} className="px-4 py-2 bg-[var(--admin-accent)] hover:bg-[var(--admin-accent)]/90 disabled:opacity-40 text-[var(--admin-accent-contrast)] text-sm font-bold rounded-lg transition-colors">{pkgEditId ? "Update" : "Create"}</button>
+                  <button onClick={() => { setPkgShow(false); setPkgEditId(null); setPkgForm(emptyPkg); }} className="px-4 py-2 admin-muted text-sm rounded-lg transition-colors">Cancel</button>
+                </div>
+              </div>
+              {pkgEditId && (() => {
+                const pkg = packages.find((p) => p.id === pkgEditId);
+                return (
+                  <div className="p-5 rounded-xl" style={{ border: "1px solid var(--admin-border)", backgroundColor: "var(--admin-surface)" }}>
+                    <h3 className="text-base font-bold admin-heading mb-4">What&apos;s included</h3>
+                    <PackageComponentsEditor
+                      packageId={pkgEditId}
+                      experienceId={expId}
+                      namePrefix={edition.exp_experiences?.code ? `${edition.exp_experiences.code} - ` : undefined}
+                      sellPrice={pkg?.price}
+                      onChanged={loadPackages}
+                    />
+                  </div>
+                );
+              })()}
+            </div>
+          </div>
+          ) : (<>
           <div className="flex justify-between items-center mb-4">
             <p className="text-xs admin-faint">{packages.length} package{packages.length !== 1 ? "s" : ""} for this edition</p>
             <div className="flex items-center gap-3">
@@ -937,33 +987,13 @@ export default function EditionDetailPage({
             </div>
           </div>
 
-          {(pkgShow || pkgEditId) && (
-            <div className="mb-4 p-4 rounded-xl" style={{ border: "1px solid var(--admin-border)", backgroundColor: "var(--admin-surface)" }}>
-              <h3 className="text-sm font-bold admin-heading mb-3">{pkgEditId ? "Edit Package" : "New Package"}</h3>
-              <div className="grid grid-cols-[1fr_100px_100px_100px_80px_120px] gap-3 mb-3">
-                <div><label className={labelClass}>Name *</label><input className={inputClass} value={pkgForm.name} onChange={(e) => setPkgForm({ ...pkgForm, name: e.target.value })} /></div>
-                <div><label className={labelClass}>Sell ({currency})</label><input type="number" className={inputClass} value={pkgForm.price} onChange={(e) => setPkgForm({ ...pkgForm, price: e.target.value })} /></div>
-                <div><label className={labelClass}>Cost / person</label><input type="number" className={inputClass} value={pkgForm.cost_per_person} onChange={(e) => setPkgForm({ ...pkgForm, cost_per_person: e.target.value })} placeholder="auto" /></div>
-                <div><label className={labelClass}>Deposit</label><input type="number" className={inputClass} value={pkgForm.deposit} onChange={(e) => setPkgForm({ ...pkgForm, deposit: e.target.value })} /></div>
-                <div><label className={labelClass}>Spots</label><input type="number" className={inputClass} value={pkgForm.max_spots} onChange={(e) => setPkgForm({ ...pkgForm, max_spots: e.target.value })} /></div>
-                <div><label className={labelClass}>Category</label><select className={inputClass} value={pkgForm.category} onChange={(e) => setPkgForm({ ...pkgForm, category: e.target.value })}>{PKG_CATEGORIES.map((c) => <option key={c} value={c}>{c ? c[0].toUpperCase() + c.slice(1) : "None"}</option>)}</select></div>
-              </div>
-              <div className="flex items-center gap-2">
-                <button onClick={savePackage} disabled={!pkgForm.name} className="px-4 py-2 bg-[var(--admin-accent)] hover:bg-[var(--admin-accent)]/90 disabled:opacity-40 text-[var(--admin-accent-contrast)] text-sm font-bold rounded-lg transition-colors">{pkgEditId ? "Update" : "Create"}</button>
-                <button onClick={() => { setPkgShow(false); setPkgEditId(null); setPkgForm(emptyPkg); }} className="px-4 py-2 admin-muted text-sm rounded-lg transition-colors">Cancel</button>
-                <span className="text-xs admin-faint ml-2">Edit components from the <Link href={`/admin/packages?edition_id=${id}`} className="text-[#0aa3c7]">packages page</Link>.</span>
-              </div>
-            </div>
-          )}
-
           {packages.length === 0 ? (
             <div className="text-center py-16">
               <p className="text-sm admin-faint">No packages for this edition</p>
             </div>
           ) : (
             <div className="rounded-xl admin-tablecard" style={{ border: "1px solid var(--admin-border)" }}>
-              <div className="grid grid-cols-[24px_1fr_100px_100px_70px_80px_70px] gap-4 px-5 py-3 admin-surface" style={{ borderBottom: "1px solid var(--admin-border)" }}>
-                <span></span>
+              <div className="grid grid-cols-[1fr_100px_100px_70px_80px_70px] gap-4 px-5 py-3 admin-surface" style={{ borderBottom: "1px solid var(--admin-border)" }}>
                 <span className="text-[10px] font-bold tracking-[0.1em] admin-faint uppercase">Name</span>
                 <span className="text-[10px] font-bold tracking-[0.1em] admin-faint uppercase">Price</span>
                 <span className="text-[10px] font-bold tracking-[0.1em] admin-faint uppercase">Deposit</span>
@@ -972,49 +1002,36 @@ export default function EditionDetailPage({
                 <span></span>
               </div>
               {packages.map((pkg) => (
-                <div key={pkg.id} style={{ borderBottom: "1px solid var(--admin-border)" }}>
-                  <div
-                    className="grid grid-cols-[24px_1fr_100px_100px_70px_80px_70px] gap-4 px-5 py-3.5 transition-colors group"
-                    onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = "var(--admin-surface-hover)")}
-                    onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = "transparent")}
-                  >
-                    <button onClick={() => setPkgExpandedId(pkgExpandedId === pkg.id ? null : pkg.id)} className="admin-faint self-center" title="Components">
-                      <svg className={`w-3.5 h-3.5 transition-transform ${pkgExpandedId === pkg.id ? "rotate-90" : ""}`} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M9 18l6-6-6-6" /></svg>
-                    </button>
-                    <div className="min-w-0 self-center cursor-pointer" onClick={() => { setPkgEditId(pkg.id); setPkgShow(false); setPkgForm({ name: pkg.name, price: pkg.price?.toString() || "", cost_per_person: pkg.cost_per_person?.toString() || "", deposit: pkg.deposit?.toString() || "", max_spots: pkg.max_spots?.toString() || "", category: pkg.category || "", status: pkg.status }); }}>
-                      <div className="text-sm font-medium admin-heading truncate">{pkg.name}</div>
-                      {pkg.category && <div className="text-xs admin-faint capitalize">{pkg.category}</div>}
-                    </div>
-                    <span className="text-xs admin-muted self-center">{pkg.price ? `€${Number(pkg.price).toLocaleString()}` : "—"}</span>
-                    <span className="text-xs admin-muted self-center">{pkg.deposit ? `€${Number(pkg.deposit).toLocaleString()}` : "—"}</span>
-                    <span className="text-xs admin-muted self-center">{pkg.max_spots ?? "—"}</span>
-                    <span className="self-center">
-                      <span className={`inline-block px-2 py-0.5 rounded text-[10px] font-bold uppercase ${pkg.status === "active" ? "bg-green-500/15 text-green-400" : "bg-gray-500/15 text-gray-400"}`}>{pkg.status}</span>
-                    </span>
-                    <span className="flex items-center gap-2 self-center justify-end opacity-0 group-hover:opacity-100 transition-opacity">
-                      <button onClick={() => duplicatePackage(pkg.id)} className="admin-faint hover:text-[#0aa3c7] transition-colors" title="Duplicate">
-                        <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="9" y="9" width="13" height="13" rx="2" /><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1" /></svg>
-                      </button>
-                      <button onClick={() => deletePackage(pkg.id)} className="admin-faint hover:text-red-400 transition-colors" title="Delete">
-                        <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M3 6h18M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a2 2 0 012-2h4a2 2 0 012 2v2" /></svg>
-                      </button>
-                    </span>
+                <div
+                  key={pkg.id}
+                  className="grid grid-cols-[1fr_100px_100px_70px_80px_70px] gap-4 px-5 py-3.5 transition-colors group"
+                  style={{ borderBottom: "1px solid var(--admin-border)" }}
+                  onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = "var(--admin-surface-hover)")}
+                  onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = "transparent")}
+                >
+                  <div className="min-w-0 self-center cursor-pointer" onClick={() => { setPkgEditId(pkg.id); setPkgShow(false); setPkgForm({ name: pkg.name, price: pkg.price?.toString() || "", cost_per_person: pkg.cost_per_person?.toString() || "", deposit: pkg.deposit?.toString() || "", max_spots: pkg.max_spots?.toString() || "", category: pkg.category || "", status: pkg.status }); }}>
+                    <div className="text-sm font-medium admin-heading truncate">{pkg.name}</div>
+                    {pkg.category && <div className="text-xs admin-faint capitalize">{pkg.category}</div>}
                   </div>
-                  {pkgExpandedId === pkg.id && (
-                    <div className="px-5 pb-4">
-                      <PackageComponentsEditor
-                        packageId={pkg.id}
-                        experienceId={expId}
-                        namePrefix={edition.exp_experiences?.code ? `${edition.exp_experiences.code} - ` : undefined}
-                        sellPrice={pkg.price}
-                        onChanged={loadPackages}
-                      />
-                    </div>
-                  )}
+                  <span className="text-xs admin-muted self-center">{pkg.price ? `€${Number(pkg.price).toLocaleString()}` : "—"}</span>
+                  <span className="text-xs admin-muted self-center">{pkg.deposit ? `€${Number(pkg.deposit).toLocaleString()}` : "—"}</span>
+                  <span className="text-xs admin-muted self-center">{pkg.max_spots ?? "—"}</span>
+                  <span className="self-center">
+                    <span className={`inline-block px-2 py-0.5 rounded text-[10px] font-bold uppercase ${pkg.status === "active" ? "bg-green-500/15 text-green-400" : "bg-gray-500/15 text-gray-400"}`}>{pkg.status}</span>
+                  </span>
+                  <span className="flex items-center gap-2 self-center justify-end opacity-0 group-hover:opacity-100 transition-opacity">
+                    <button onClick={() => duplicatePackage(pkg.id)} className="admin-faint hover:text-[#0aa3c7] transition-colors" title="Duplicate">
+                      <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="9" y="9" width="13" height="13" rx="2" /><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1" /></svg>
+                    </button>
+                    <button onClick={() => deletePackage(pkg.id)} className="admin-faint hover:text-red-400 transition-colors" title="Delete">
+                      <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M3 6h18M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a2 2 0 012-2h4a2 2 0 012 2v2" /></svg>
+                    </button>
+                  </span>
                 </div>
               ))}
             </div>
           )}
+          </>)}
         </div>
       )}
 
@@ -1095,9 +1112,48 @@ export default function EditionDetailPage({
         </div>
       )}
 
-      {/* ── Rooms tab ── */}
+      {/* ── Rooms tab (inline split: rail + room editor) ── */}
       {tab === "rooms" && (
         <div>
+          {(roomShow || roomEditId) ? (
+          <div className="flex flex-col md:flex-row gap-4">
+            <div className="md:w-56 shrink-0 flex md:flex-col gap-1.5 md:max-h-[72vh] md:overflow-y-auto md:pr-1">
+              <button onClick={() => { setRoomShow(false); setRoomEditId(null); setRoomForm(emptyRoom); }} className="shrink-0 mb-1 flex items-center gap-1.5 text-xs font-semibold admin-muted hover:text-[var(--admin-accent)] transition-colors">
+                <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m15 18-6-6 6-6" /></svg>
+                All rooms
+              </button>
+              {rooms.map((room) => {
+                const active = room.id === roomEditId;
+                return (
+                  <button key={room.id} onClick={() => { setRoomEditId(room.id); setRoomShow(false); setRoomForm({ name: room.name, hotel: room.hotel || "", room_type: room.room_type || "", room_number: room.room_number || "", status: room.status, booking_id: room.booking_id || "" }); }} className="shrink-0 text-left px-3 py-2 rounded-lg transition-colors" style={{ background: active ? "var(--admin-accent)" : "var(--admin-surface)", border: "1px solid var(--admin-border)" }}>
+                    <span className={`block text-xs font-semibold truncate ${active ? "text-[var(--admin-accent-contrast)]" : "admin-heading"}`}>{room.name}</span>
+                    <span className={`block text-[10px] mt-0.5 truncate ${active ? "text-[var(--admin-accent-contrast)]/80" : "admin-faint"}`}>{room.status}{room.booking?.name ? ` · ${room.booking.name}` : ""}</span>
+                  </button>
+                );
+              })}
+            </div>
+            <div className="flex-1 min-w-0">
+              <div className="p-5 rounded-xl" style={{ border: "1px solid var(--admin-border)", backgroundColor: "var(--admin-surface)" }}>
+                <h3 className="text-base font-bold admin-heading mb-4">{roomEditId ? "Edit room" : "New room"}</h3>
+                <div className="mb-3"><label className={labelClass}>Name *</label><input className={inputClass} value={roomForm.name} onChange={(e) => setRoomForm({ ...roomForm, name: e.target.value })} /></div>
+                <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 mb-3">
+                  <div><label className={labelClass}>Hotel</label><select className={inputClass} value={roomForm.hotel} onChange={(e) => setRoomForm({ ...roomForm, hotel: e.target.value })}><option value="">—</option>{HOTELS.map((h) => <option key={h} value={h}>{h}</option>)}</select></div>
+                  <div><label className={labelClass}>Room #</label><input className={inputClass} value={roomForm.room_number} onChange={(e) => setRoomForm({ ...roomForm, room_number: e.target.value })} /></div>
+                  <div><label className={labelClass}>Status</label><select className={inputClass} value={roomForm.status} onChange={(e) => setRoomForm({ ...roomForm, status: e.target.value })}>{ROOM_STATUSES.map((s) => <option key={s} value={s}>{s[0].toUpperCase() + s.slice(1)}</option>)}</select></div>
+                </div>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-4">
+                  <div><label className={labelClass}>Room type</label><input className={inputClass} value={roomForm.room_type} onChange={(e) => setRoomForm({ ...roomForm, room_type: e.target.value })} placeholder="e.g. BON-WAN-Double Deluxe Balcony" /></div>
+                  <div><label className={labelClass}>Guest (booking)</label><select className={inputClass} value={roomForm.booking_id} onChange={(e) => setRoomForm({ ...roomForm, booking_id: e.target.value })}><option value="">Unassigned</option>{bookings.map((b) => <option key={b.id} value={b.id}>{b.name}</option>)}</select></div>
+                </div>
+                <div className="flex gap-2">
+                  <button onClick={saveRoom} disabled={!roomForm.name} className="px-4 py-2 bg-[var(--admin-accent)] hover:bg-[var(--admin-accent)]/90 disabled:opacity-40 text-[var(--admin-accent-contrast)] text-sm font-bold rounded-lg transition-colors">{roomEditId ? "Update" : "Create"}</button>
+                  <button onClick={() => { setRoomShow(false); setRoomEditId(null); setRoomForm(emptyRoom); }} className="px-4 py-2 admin-muted text-sm rounded-lg transition-colors">Cancel</button>
+                  {roomEditId && <button onClick={() => { deleteRoom(roomEditId); setRoomEditId(null); setRoomForm(emptyRoom); }} className="ml-auto px-3 py-2 text-sm text-red-400 hover:bg-red-500/10 rounded-lg transition-colors">Delete</button>}
+                </div>
+              </div>
+            </div>
+          </div>
+          ) : (<>
           <div className="flex justify-between items-center mb-4">
             <p className="text-xs admin-faint">{rooms.length} room{rooms.length !== 1 ? "s" : ""} for this edition</p>
             <div className="flex items-center gap-3">
@@ -1105,26 +1161,6 @@ export default function EditionDetailPage({
               <button onClick={() => { setRoomEditId(null); setRoomForm(emptyRoom); setRoomShow(true); }} className="px-3 py-1.5 bg-[var(--admin-accent)] hover:bg-[var(--admin-accent)]/90 text-[var(--admin-accent-contrast)] text-xs font-bold rounded-lg transition-colors">New Room</button>
             </div>
           </div>
-
-          {(roomShow || roomEditId) && (
-            <div className="mb-4 p-4 rounded-xl" style={{ border: "1px solid var(--admin-border)", backgroundColor: "var(--admin-surface)" }}>
-              <h3 className="text-sm font-bold admin-heading mb-3">{roomEditId ? "Edit Room" : "New Room"}</h3>
-              <div className="grid grid-cols-[1fr_140px_90px_120px] gap-3 mb-3">
-                <div><label className={labelClass}>Name *</label><input className={inputClass} value={roomForm.name} onChange={(e) => setRoomForm({ ...roomForm, name: e.target.value })} /></div>
-                <div><label className={labelClass}>Hotel</label><select className={inputClass} value={roomForm.hotel} onChange={(e) => setRoomForm({ ...roomForm, hotel: e.target.value })}><option value="">—</option>{HOTELS.map((h) => <option key={h} value={h}>{h}</option>)}</select></div>
-                <div><label className={labelClass}>Room #</label><input className={inputClass} value={roomForm.room_number} onChange={(e) => setRoomForm({ ...roomForm, room_number: e.target.value })} /></div>
-                <div><label className={labelClass}>Status</label><select className={inputClass} value={roomForm.status} onChange={(e) => setRoomForm({ ...roomForm, status: e.target.value })}>{ROOM_STATUSES.map((s) => <option key={s} value={s}>{s[0].toUpperCase() + s.slice(1)}</option>)}</select></div>
-              </div>
-              <div className="grid grid-cols-[1fr_1fr] gap-3 mb-3">
-                <div><label className={labelClass}>Room type</label><input className={inputClass} value={roomForm.room_type} onChange={(e) => setRoomForm({ ...roomForm, room_type: e.target.value })} placeholder="e.g. BON-WAN-Double Deluxe Balcony" /></div>
-                <div><label className={labelClass}>Guest (booking)</label><select className={inputClass} value={roomForm.booking_id} onChange={(e) => setRoomForm({ ...roomForm, booking_id: e.target.value })}><option value="">Unassigned</option>{bookings.map((b) => <option key={b.id} value={b.id}>{b.name}</option>)}</select></div>
-              </div>
-              <div className="flex gap-2">
-                <button onClick={saveRoom} disabled={!roomForm.name} className="px-4 py-2 bg-[var(--admin-accent)] hover:bg-[var(--admin-accent)]/90 disabled:opacity-40 text-[var(--admin-accent-contrast)] text-sm font-bold rounded-lg transition-colors">{roomEditId ? "Update" : "Create"}</button>
-                <button onClick={() => { setRoomShow(false); setRoomEditId(null); setRoomForm(emptyRoom); }} className="px-4 py-2 admin-muted text-sm rounded-lg transition-colors">Cancel</button>
-              </div>
-            </div>
-          )}
 
           {rooms.length === 0 ? (
             <div className="text-center py-16">
@@ -1166,6 +1202,7 @@ export default function EditionDetailPage({
               ))}
             </div>
           )}
+          </>)}
         </div>
       )}
 
