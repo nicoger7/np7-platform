@@ -26,6 +26,8 @@ type Body = {
   email?: string;
   marketingOptIn?: boolean;
   inviteToken?: string;
+  /** "reserve" (ready to book) or "info" (just wants the details first). */
+  intent?: string;
 };
 
 function bad(msg: string, status = 400) {
@@ -114,7 +116,7 @@ export async function POST(request: NextRequest) {
     edition_id: editionId ?? null,
     package_id: pkg.id,
     agreed_price: pkg.price,
-    notes: `Website registration · package: ${pkg.name}`,
+    notes: `Website registration · package: ${pkg.name}${body.inviteToken ? (body.intent === "info" ? " · friend invite (info request)" : " · friend invite") : ""}`,
   };
   const { data: booking, error: bErr } = await db
     .from("exp_bookings").insert({ ...bookingPayload, status: "lead" }).select("id").single();

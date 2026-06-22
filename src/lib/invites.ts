@@ -134,8 +134,19 @@ export type InviteLanding = {
   inviterName: string | null;
   experience: { id: string; title: string; slug: string | null; currency: string | null; hero_image: string | null; description: string | null } | null;
   edition: { id: string; label: string | null; date_start: string | null; date_end: string | null; location: string | null; hero_image: string | null } | null;
-  package: { id: string; name: string | null; price: number | null } | null;
+  package: { id: string; name: string | null; price: number | null; includes: string[] } | null;
+  /** A few gallery shots from the experience page, to sell the trip. */
+  images: string[];
 };
+
+/** Coerce the jsonb `exp_packages.includes` into clean display strings. */
+function parseIncludes(raw: unknown): string[] {
+  if (!Array.isArray(raw)) return [];
+  return raw
+    .map((it) => (typeof it === "string" ? it : it && typeof it === "object" ? String((it as Record<string, unknown>).name ?? (it as Record<string, unknown>).label ?? (it as Record<string, unknown>).text ?? "") : ""))
+    .map((s) => s.trim())
+    .filter(Boolean);
+}
 
 /** Everything the public /join page needs. Marks the invite "opened" (best-effort). */
 export async function getInviteLanding(token: string): Promise<InviteLanding | null> {
@@ -147,21 +158,26 @@ export async function getInviteLanding(token: string): Promise<InviteLanding | n
     await db.from("trip_invites").update({ status: "opened", opened_at: new Date().toISOString() }).eq("id", invite.id).then(() => {}, () => {});
   }
 
-  const [inviter, exp, ed, pkg] = await Promise.all([
+  const [inviter, exp, ed, pkg, content] = await Promise.all([
     invite.inviter_contact_id ? db.from("contacts").select("name").eq("id", invite.inviter_contact_id).maybeSingle() : Promise.resolve({ data: null }),
-    invite.experience_id ? db.from("exp_experiences").select("id,title,slug,currency,hero_image,description").eq("id", invite.experience_id).maybeSingle() : Promise.resolve({ data: null }),
+    invite.experience_id ? db.from("exp_experiences").select("id,title,slug,currency,hero_image,description,gallery").eq("id", invite.experience_id).maybeSingle() : Promise.resolve({ data: null }),
     invite.edition_id ? db.from("exp_editions").select("*").eq("id", invite.edition_id).maybeSingle() : Promise.resolve({ data: null }),
-    invite.package_id ? db.from("exp_packages").select("id,name,price").eq("id", invite.package_id).maybeSingle() : Promise.resolve({ data: null }),
+    invite.package_id ? db.from("exp_packages").select("id,name,price,includes").eq("id", invite.package_id).maybeSingle() : Promise.resolve({ data: null }),
+    invite.experience_id ? db.from("exp_content").select("gallery").eq("experience_id", invite.experience_id).maybeSingle() : Promise.resolve({ data: null }),
   ]);
 
   const firstName = String((inviter.data?.name ?? "")).trim().split(/\s+/)[0] || null;
   const e = ed.data;
+  // Gallery: the event-page gallery first, else the experience's own; capped.
+  const gallery = (content.data?.gallery?.length ? content.data.gallery : exp.data?.gallery) ?? [];
+  const images = (gallery as unknown[]).filter((x): x is string => typeof x === "string" && !!x).slice(0, 6);
   return {
     invite: invite as TripInvite,
     inviterName: firstName,
-    experience: exp.data ?? null,
+    experience: exp.data ? { id: exp.data.id, title: exp.data.title, slug: exp.data.slug ?? null, currency: exp.data.currency ?? null, hero_image: exp.data.hero_image ?? null, description: exp.data.description ?? null } : null,
     edition: e ? { id: e.id, label: e.label ?? null, date_start: e.date_start ?? null, date_end: e.date_end ?? null, location: e.location ?? null, hero_image: e.hero_image ?? null } : null,
-    package: pkg.data ?? null,
+    package: pkg.data ? { id: pkg.data.id, name: pkg.data.name ?? null, price: pkg.data.price ?? null, includes: parseIncludes(pkg.data.includes) } : null,
+    images,
   };
 }
 

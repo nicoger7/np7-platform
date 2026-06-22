@@ -49,7 +49,7 @@ export default async function JoinPage({ params }: Props) {
     );
   }
 
-  const { invite, inviterName, experience, edition, package: pkg } = landing;
+  const { invite, inviterName, experience, edition, package: pkg, images } = landing;
   const hero = edition?.hero_image || experience.hero_image || null;
   const currency = experience.currency || "EUR";
   const dates = fmtRange(edition?.date_start ?? null, edition?.date_end ?? null);
@@ -61,6 +61,8 @@ export default async function JoinPage({ params }: Props) {
     if (!d) return "A week of windsurfing, coaching and good people — flights aside, everything's arranged so you just show up and ride.";
     return d.length <= 180 ? d : d.slice(0, 180).replace(/\s+\S*$/, "") + "…";
   })();
+  // Real "what's included" from the package, falling back to the on-brand basics.
+  const included = (pkg?.includes.length ? pkg.includes : HIGHLIGHTS).slice(0, 5);
 
   return (
     <Shell>
@@ -95,13 +97,28 @@ export default async function JoinPage({ params }: Props) {
 
           {/* Short sell — what this trip is */}
           <p className="text-[14px] text-[#3d4f56] leading-relaxed mt-3">{blurb}</p>
-          <div className="mt-3 flex flex-wrap gap-1.5">
-            {HIGHLIGHTS.map((h) => (
-              <span key={h} className="inline-flex items-center gap-1 text-[12px] font-semibold text-[#0f6e56] bg-[#eef7f3] rounded-full px-2.5 py-1">
-                <svg className="w-3 h-3 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><path d="M20 6 9 17l-5-5" /></svg>
-                {h}
-              </span>
-            ))}
+
+          {/* A few shots from the experience */}
+          {images.length > 0 && (
+            <div className="mt-3 -mx-1 flex gap-2 overflow-x-auto px-1 pb-1">
+              {images.map((src, i) => (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img key={i} src={src} alt="" className="h-24 w-32 shrink-0 rounded-xl object-cover" />
+              ))}
+            </div>
+          )}
+
+          {/* What's included — a clean checklist, not loose pills */}
+          <div className="mt-4 rounded-xl bg-[#f6faf8] border border-[#e4f0ea] p-3.5">
+            <p className="text-[11px] font-bold uppercase tracking-[0.08em] text-[#0f6e56] mb-2">What&apos;s included</p>
+            <ul className="space-y-1.5">
+              {included.map((item, i) => (
+                <li key={i} className="flex items-start gap-2 text-[13.5px] text-[#3d4f56]">
+                  <svg className="w-4 h-4 mt-[1px] shrink-0 text-[#1d9e75]" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><path d="M20 6 9 17l-5-5" /></svg>
+                  <span>{item}</span>
+                </li>
+              ))}
+            </ul>
           </div>
 
           {/* Reward + price */}
