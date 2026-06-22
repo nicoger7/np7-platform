@@ -28,7 +28,7 @@ export default function LandingPage() {
   // SHOW_HARDWARE is on, the new internal landing below takes over.
   if (!flags.showExperience && !flags.showHardware) return <LaunchLanding />;
   return (
-    <main className="relative w-full min-h-[100svh] flex flex-col md:h-[100svh] md:flex-row md:overflow-hidden bg-black">
+    <main className="relative w-full h-[100svh] flex flex-col overflow-hidden md:flex-row bg-black">
       {/* ---------------------------------------------------------------- */}
       {/* EXPERIENCE — ocean                                                */}
       {/* ---------------------------------------------------------------- */}
@@ -90,7 +90,6 @@ export default function LandingPage() {
       <div className="absolute top-6 left-1/2 -translate-x-1/2 z-30 hidden md:flex flex-col items-center pointer-events-none">
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img src={NP7_LOGO} alt="NP7" className="h-6 w-auto invert drop-shadow-[0_2px_10px_rgba(0,0,0,0.5)]" />
-        <span className="mt-1.5 text-[9px] font-bold tracking-[0.3em] text-white/60">NICO PRIEN · GER-7</span>
       </div>
 
       <div className="absolute bottom-5 left-1/2 -translate-x-1/2 z-30 flex items-center gap-5 text-[11px] text-white/40">
