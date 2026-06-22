@@ -76,11 +76,19 @@ export async function sendEmail(args: SendArgs): Promise<SendResult> {
   // then the division default (handled inside emailLayout).
   let headerImage: string | undefined;
   let expId = experienceId || undefined;
-  if (!expId && bookingId) {
-    const { data: bk } = await db.from("exp_bookings").select("experience_id").eq("id", bookingId).maybeSingle();
-    expId = bk?.experience_id || undefined;
+  let editionId: string | undefined;
+  if (bookingId) {
+    const { data: bk } = await db.from("exp_bookings").select("experience_id, edition_id").eq("id", bookingId).maybeSingle();
+    if (!expId) expId = bk?.experience_id || undefined;
+    editionId = bk?.edition_id || undefined;
   }
-  if (expId) {
+  // Per-edition hero override (migration 047) wins when the edition opts into emails.
+  // select("*") so the not-yet-migrated hero_image column can't error the query.
+  if (editionId) {
+    const { data: ed } = await db.from("exp_editions").select("*").eq("id", editionId).maybeSingle();
+    if (ed?.hero_image && ed.hero_in_emails !== false) headerImage = ed.hero_image;
+  }
+  if (!headerImage && expId) {
     const { data: content } = await db.from("exp_content").select("hero_image").eq("experience_id", expId).maybeSingle();
     headerImage = content?.hero_image || undefined;
     if (!headerImage) {

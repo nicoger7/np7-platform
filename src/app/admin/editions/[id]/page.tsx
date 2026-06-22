@@ -11,14 +11,15 @@ import { ContactPicker, ContactLite } from "@/components/contact-picker";
 import { EditionCrewLevels } from "@/components/admin/edition-crew-levels";
 import { BookingDetailPane } from "../../bookings/[id]/page";
 import { composeBookingName } from "@/lib/booking-name";
+import ImagePickerModal from "@/components/image-picker-modal";
 
 // Edition detail sub-tabs. The order is reorderable by drag-and-drop and saved
 // per admin in localStorage (each team member keeps their own preferred order).
-const DEFAULT_TABS = ["details", "bookings", "levels", "packages", "memories", "costs", "rooms", "notes"] as const;
+const DEFAULT_TABS = ["details", "branding", "bookings", "levels", "packages", "memories", "costs", "rooms", "notes"] as const;
 type EditionTab = (typeof DEFAULT_TABS)[number];
 const TAB_ORDER_KEY = "np7_edition_tab_order";
 const TAB_LABEL: Record<EditionTab, string> = {
-  details: "Details", bookings: "Bookings", levels: "Levels", packages: "Packages",
+  details: "Details", branding: "Branding", bookings: "Bookings", levels: "Levels", packages: "Packages",
   memories: "Memories", costs: "Costs", rooms: "Hotel Rooms", notes: "Notes",
 };
 
@@ -52,6 +53,8 @@ interface Edition {
   active: boolean;
   notion_id: string | null;
   memories_video_url: string | null;
+  hero_image?: string | null;
+  hero_in_emails?: boolean;
   site_live?: boolean;
   public_visible?: boolean;
   exp_experiences: {
@@ -208,6 +211,29 @@ export default function EditionDetailPage({
   const [packages, setPackages] = useState<Package[]>([]);
   const [costs, setCosts] = useState<Cost[]>([]);
   const [rooms, setRooms] = useState<Room[]>([]);
+  // ── Branding tab (per-edition hero) ──
+  const [pickingHero, setPickingHero] = useState(false);
+  const [brandImg, setBrandImg] = useState("");
+  const [brandScope, setBrandScope] = useState<"edition" | "all">("edition");
+  const [brandInEmails, setBrandInEmails] = useState(true);
+  const [brandSaving, setBrandSaving] = useState(false);
+  const [brandSaved, setBrandSaved] = useState(false);
+  async function saveBranding() {
+    if (!edition) return;
+    setBrandSaving(true);
+    const H = { "Content-Type": "application/json" };
+    if (brandScope === "all" && edition.experience_id) {
+      // Share the photo across the whole experience (website + all editions), and
+      // clear this edition's override so it inherits the new shared hero.
+      await fetch(`/api/admin/experiences/${edition.experience_id}`, { method: "PATCH", headers: H, body: JSON.stringify({ hero_image: brandImg || null }) }).catch(() => {});
+      await fetch(`/api/admin/editions/${id}`, { method: "PATCH", headers: H, body: JSON.stringify({ hero_image: null, hero_in_emails: brandInEmails }) }).catch(() => {});
+    } else {
+      await fetch(`/api/admin/editions/${id}`, { method: "PATCH", headers: H, body: JSON.stringify({ hero_image: brandImg || null, hero_in_emails: brandInEmails }) }).catch(() => {});
+    }
+    const d = await fetch(`/api/admin/editions/${id}`).then((r) => r.json()).catch(() => null);
+    if (d && !d.error) { setEdition(d); setBrandImg(d.hero_image || ""); setBrandInEmails(d.hero_in_emails !== false); setBrandScope("edition"); }
+    setBrandSaving(false); setBrandSaved(true); setTimeout(() => setBrandSaved(false), 2000);
+  }
 
   // ── Inline CRUD form state ──
   const emptyPkg = { name: "", price: "", cost_per_person: "", deposit: "", max_spots: "", category: "", status: "active", website_visible: true };
@@ -290,6 +316,8 @@ export default function EditionDetailPage({
       .then((r) => r.json())
       .then((d) => {
         setEdition(d);
+        setBrandImg(d.hero_image || "");
+        setBrandInEmails(d.hero_in_emails !== false);
         setLoading(false);
       });
   }, [id]);
@@ -910,6 +938,62 @@ export default function EditionDetailPage({
         </div>
       )}
 
+      {/* ── Branding tab — per-edition hero image ── */}
+      {tab === "branding" && (() => {
+        const inherited = edition.exp_experiences?.hero_image || null;
+        const shown = brandImg || inherited;
+        return (
+          <div className="max-w-[640px]">
+            <h3 className="text-base font-bold admin-heading mb-1">Edition branding</h3>
+            <p className="text-xs admin-faint mb-4">The hero photo for this edition — shown on the website and used in this edition&apos;s emails. By default it inherits {edition.exp_experiences?.title || "the experience"}&apos;s hero.</p>
+            <div className="p-5 rounded-xl" style={{ border: "1px solid var(--admin-border)", backgroundColor: "var(--admin-surface)" }}>
+              <label className={labelClass}>Hero image</label>
+              <div className="flex items-start gap-4">
+                {shown ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img src={shown} alt="" className="h-24 w-40 object-cover rounded-lg shrink-0" style={{ border: "1px solid var(--admin-border)" }} />
+                ) : (
+                  <div className="h-24 w-40 rounded-lg grid place-items-center text-[10px] admin-faint shrink-0" style={{ border: "1px dashed var(--admin-border)" }}>No hero image</div>
+                )}
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <button onClick={() => setPickingHero(true)} className="px-3 py-1.5 text-xs font-bold rounded-lg admin-surface admin-muted" style={{ border: "1px solid var(--admin-border)" }}>{shown ? "Change image" : "Choose image"}</button>
+                    {brandImg && <button onClick={() => setBrandImg("")} className="text-xs admin-faint hover:text-red-400 transition-colors">Clear override</button>}
+                  </div>
+                  <p className="text-[11px] admin-faint mt-1.5">{brandImg ? "Using this edition's own image." : inherited ? `Inheriting ${edition.exp_experiences?.title || "the experience"}'s hero.` : "No image — emails fall back to the division default."}</p>
+                </div>
+              </div>
+
+              <div className="mt-4">
+                <p className={labelClass}>When I save, apply to</p>
+                <div className="space-y-1.5">
+                  <label className="flex items-center gap-2 text-sm admin-muted cursor-pointer">
+                    <input type="radio" checked={brandScope === "edition"} onChange={() => setBrandScope("edition")} className="accent-[#0aa3c7]" />
+                    This edition only
+                  </label>
+                  <label className="flex items-center gap-2 text-sm admin-muted cursor-pointer">
+                    <input type="radio" checked={brandScope === "all"} onChange={() => setBrandScope("all")} className="accent-[#0aa3c7]" />
+                    All editions of {edition.exp_experiences?.title || "this experience"} <span className="admin-faint text-xs">— sets the shared hero (also changes the website)</span>
+                  </label>
+                </div>
+              </div>
+
+              <label className="flex items-start gap-2.5 mt-4 p-3 rounded-lg cursor-pointer" style={{ border: "1px solid var(--admin-border)" }}>
+                <input type="checkbox" checked={brandInEmails} onChange={(e) => setBrandInEmails(e.target.checked)} className="w-4 h-4 mt-0.5 accent-[#0aa3c7] shrink-0" />
+                <span>
+                  <span className="block text-sm font-medium admin-heading">Use it in this edition&apos;s emails too</span>
+                  <span className="block text-xs admin-faint mt-0.5">When off, this edition&apos;s emails use {edition.exp_experiences?.title || "the experience"}&apos;s hero instead.</span>
+                </span>
+              </label>
+
+              <div className="flex gap-2 mt-4">
+                <button onClick={saveBranding} disabled={brandSaving} className="px-4 py-2 bg-[var(--admin-accent)] hover:bg-[var(--admin-accent)]/90 disabled:opacity-50 text-[var(--admin-accent-contrast)] text-sm font-bold rounded-lg transition-colors">{brandSaving ? "Saving…" : brandSaved ? "Saved!" : "Save"}</button>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
+
       {/* ── Bookings tab (inline split: rail + booking detail pane) ── */}
       {tab === "bookings" && (
         <div>
@@ -1370,6 +1454,14 @@ export default function EditionDetailPage({
             </div>
           )}
         </div>
+      )}
+
+      {pickingHero && (
+        <ImagePickerModal
+          defaultFolder="experiences"
+          onSelect={(url) => { setBrandImg(url); setPickingHero(false); }}
+          onClose={() => setPickingHero(false)}
+        />
       )}
 
       {dupOpen && (

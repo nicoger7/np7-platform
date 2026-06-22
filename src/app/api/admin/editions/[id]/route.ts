@@ -96,13 +96,20 @@ export async function PUT(
   const { id } = await params;
   const body = await request.json();
 
+  // hero_image / hero_in_emails arrive with migration 047 — strip & retry if the
+  // columns aren't there yet so the rest of an edition save still works.
+  const PENDING_OPTIONAL = ["hero_image", "hero_in_emails"];
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const { data, error } = await (client as any)
+  const run = (payload: Record<string, unknown>) => (client as any)
     .from("exp_editions")
-    .update({ ...body, updated_at: new Date().toISOString() })
+    .update({ ...payload, updated_at: new Date().toISOString() })
     .eq("id", id)
     .select(`*, exp_experiences(id, title, slug, location)`)
     .single();
+  let { data, error } = await run(body);
+  if (error && PENDING_OPTIONAL.some((k) => k in body) && /column .* does not exist|schema cache|could not find/i.test(error.message)) {
+    ({ data, error } = await run(Object.fromEntries(Object.entries(body).filter(([k]) => !PENDING_OPTIONAL.includes(k)))));
+  }
 
   if (error) {
     return NextResponse.json({ error: error.message }, { status: 400 });
