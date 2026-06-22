@@ -16,6 +16,9 @@ interface EmailTemplate {
   subject_line: string | null;
   body: string | null;
   header_image: string | null;
+  header_image_hardware: string | null;
+  header_position: number | null;
+  header_position_hardware: number | null;
   type: string | null;
   trigger_stage: string | null;
   status: string | null;
@@ -52,7 +55,7 @@ const COLUMNS: ColumnDef[] = [
 
 const STORAGE_KEY = "np7-email-templates-columns";
 
-const EMPTY_FORM = { name: "", template_key: "", subject_line: "", body: "", header_image: "", type: "", trigger_stage: "", status: "", language: "en", active: true, experience_id: "", notes: "" };
+const EMPTY_FORM = { name: "", template_key: "", subject_line: "", body: "", header_image: "", header_image_hardware: "", header_position: 50, header_position_hardware: 50, type: "", trigger_stage: "", status: "", language: "en", active: true, experience_id: "", notes: "" };
 
 function compareValues(a: unknown, b: unknown, dir: "asc" | "desc"): number {
   if (a == null && b == null) return 0;
@@ -81,6 +84,7 @@ export default function EmailTemplatesPage() {
   const [showAdvanced, setShowAdvanced] = useState(false);
   const [pickingImage, setPickingImage] = useState(false);
   const autoOpenedRef = useRef(false);
+  const heroDrag = useRef<{ y: number; pos: number; h: number } | null>(null);
 
   // Deep-link: /admin/email-templates?edit=<template_key> opens that template's
   // editor straight away (used by the Emails hub "click to edit").
@@ -97,11 +101,12 @@ export default function EmailTemplatesPage() {
   useEffect(() => {
     if (!showNew && !editId) return;
     const ctrl = new AbortController();
+    const hw = previewDivision === "hardware";
     const t = setTimeout(() => {
       fetch("/api/admin/email/preview", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ body: form.body, subject: form.subject_line, division: previewDivision, headerImage: form.header_image, templateKey: form.template_key }),
+        body: JSON.stringify({ body: form.body, subject: form.subject_line, division: previewDivision, headerImage: hw ? form.header_image_hardware : form.header_image, headerPosition: hw ? form.header_position_hardware : form.header_position, templateKey: form.template_key }),
         signal: ctrl.signal,
       })
         .then((r) => r.json())
@@ -109,7 +114,7 @@ export default function EmailTemplatesPage() {
         .catch(() => {});
     }, 300);
     return () => { clearTimeout(t); ctrl.abort(); };
-  }, [form.body, form.subject_line, form.header_image, form.template_key, previewDivision, showNew, editId]);
+  }, [form.body, form.subject_line, form.header_image, form.header_image_hardware, form.header_position, form.header_position_hardware, form.template_key, previewDivision, showNew, editId]);
 
   function fetchData() {
     Promise.all([
@@ -155,7 +160,7 @@ export default function EmailTemplatesPage() {
     setEditId(t.id);
     setShowAdvanced(false);
     const key = t.template_key || "";
-    setForm({ name: t.name, template_key: key, subject_line: t.subject_line || DEFAULT_SUBJECTS[key] || "", body: t.body || DEFAULT_BODIES[key] || "", header_image: t.header_image || "", type: t.type || "", trigger_stage: t.trigger_stage || "", status: t.status || "", language: t.language || "en", active: t.active !== false, experience_id: t.experience_id || "", notes: t.notes || "" });
+    setForm({ name: t.name, template_key: key, subject_line: t.subject_line || DEFAULT_SUBJECTS[key] || "", body: t.body || DEFAULT_BODIES[key] || "", header_image: t.header_image || "", header_image_hardware: t.header_image_hardware || "", header_position: t.header_position ?? 50, header_position_hardware: t.header_position_hardware ?? 50, type: t.type || "", trigger_stage: t.trigger_stage || "", status: t.status || "", language: t.language || "en", active: t.active !== false, experience_id: t.experience_id || "", notes: t.notes || "" });
     setShowNew(false);
   }
 
@@ -168,12 +173,23 @@ export default function EmailTemplatesPage() {
 
 
   async function handleSave() {
-    // Only include header_image when set — so copy edits save even before the
-    // header_image column migration (029) has run.
     const payload: Record<string, unknown> = { name: form.name, subject_line: form.subject_line || null, body: form.body || null, type: form.type || null, trigger_stage: form.trigger_stage || null, status: form.status || null, language: form.language, active: form.active, experience_id: form.experience_id || null, notes: form.notes || null };
     if (form.header_image) payload.header_image = form.header_image;
+    // Per-division header (migration 046) — included always, but stripped + retried
+    // if the columns aren't there yet so saves still work pre-migration.
+    payload.header_image_hardware = form.header_image_hardware || null;
+    payload.header_position = form.header_position;
+    payload.header_position_hardware = form.header_position_hardware;
+    const PENDING_046 = ["header_image_hardware", "header_position", "header_position_hardware"];
     const url = editId ? `/api/admin/email-templates/${editId}` : "/api/admin/email-templates";
-    const res = await fetch(url, { method: editId ? "PATCH" : "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
+    const send = (body: Record<string, unknown>) => fetch(url, { method: editId ? "PATCH" : "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+    let res = await send(payload);
+    if (!res.ok) {
+      const j = await res.clone().json().catch(() => ({}));
+      if (PENDING_046.some((k) => (j.error || "").includes(k))) {
+        res = await send(Object.fromEntries(Object.entries(payload).filter(([k]) => !PENDING_046.includes(k))));
+      }
+    }
     if (!res.ok) {
       const j = await res.json().catch(() => ({}));
       alert(j.error?.includes("header_image") ? "Couldn't save — apply migration 029 (adds the header image column) first." : (j.error || "Couldn't save."));
@@ -197,12 +213,32 @@ export default function EmailTemplatesPage() {
   const labelClass = "block text-xs font-medium admin-muted mb-1";
   const gridTemplate = buildGridTemplate(COLUMNS, visibleColumns);
 
+  // Per-division header image + vertical focal point (Experience vs Hardware).
+  const hw = previewDivision === "hardware";
+  const curImg = hw ? form.header_image_hardware : form.header_image;
+  const curPos = hw ? form.header_position_hardware : form.header_position;
+  const setCurImg = (url: string) => setForm((f) => (hw ? { ...f, header_image_hardware: url } : { ...f, header_image: url }));
+  const setCurPos = (n: number) => setForm((f) => (hw ? { ...f, header_position_hardware: n } : { ...f, header_position: n }));
+  // Drag the hero photo up/down to set its focal point (background-position-y %).
+  function heroDown(e: React.PointerEvent) {
+    const rect = e.currentTarget.getBoundingClientRect();
+    heroDrag.current = { y: e.clientY, pos: curPos, h: rect.height || 200 };
+    (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
+  }
+  function heroMove(e: React.PointerEvent) {
+    if (!heroDrag.current) return;
+    const { y, pos, h } = heroDrag.current;
+    const next = Math.min(100, Math.max(0, Math.round(pos - ((e.clientY - y) / h) * 100)));
+    setCurPos(next);
+  }
+  function heroUp() { heroDrag.current = null; }
+
   return (
     <div>
       {pickingImage && (
         <ImagePickerModal
           defaultFolder="email"
-          onSelect={(url) => { setForm((f) => ({ ...f, header_image: url })); setPickingImage(false); }}
+          onSelect={(url) => { setCurImg(url); setPickingImage(false); }}
           onClose={() => setPickingImage(false)}
         />
       )}
@@ -228,13 +264,30 @@ export default function EmailTemplatesPage() {
             <div className="col-span-2"><label className={labelClass}>Subject line</label><input className={inputClass} value={form.subject_line} onChange={(e) => setForm({ ...form, subject_line: e.target.value })} placeholder="What the recipient sees in their inbox" /></div>
           </div>
 
-          {/* Header image */}
+          {/* Division toggle + header image (per division) */}
+          <div className="flex items-center justify-between mb-3 flex-wrap gap-2">
+            <div className="flex items-center gap-2">
+              <label className={labelClass + " mb-0"}>Editing the <span className="admin-heading font-bold capitalize">{previewDivision}</span> email</label>
+              {form.template_key && DEFAULT_BODIES[form.template_key] && (
+                <button type="button" onClick={resetToDefault} className="text-[10px] admin-faint hover:text-[#0aa3c7] transition-colors">↺ Back to default</button>
+              )}
+            </div>
+            <div className="inline-flex rounded-md overflow-hidden" style={{ border: "1px solid var(--admin-border)" }}>
+              {(["experience", "hardware"] as const).map((dv) => (
+                <button key={dv} type="button" onClick={() => setPreviewDivision(dv)}
+                  className={`px-2.5 py-1 text-[11px] font-semibold capitalize transition-colors ${previewDivision === dv ? "bg-[var(--admin-accent)] text-[var(--admin-accent-contrast)]" : "admin-muted"}`}>
+                  {dv}
+                </button>
+              ))}
+            </div>
+          </div>
+
           <div className="mb-4">
-            <label className={labelClass}>Header image <span className="admin-faint font-normal">— the photo behind the logo at the top</span></label>
+            <label className={labelClass}>Header image <span className="admin-faint font-normal">— the {previewDivision} photo behind the logo (separate per world)</span></label>
             <div className="flex items-center gap-3">
-              {form.header_image ? (
+              {curImg ? (
                 // eslint-disable-next-line @next/next/no-img-element
-                <img src={form.header_image} alt="" className="h-12 w-24 object-cover rounded-md" style={{ border: "1px solid var(--admin-border)" }} />
+                <img src={curImg} alt="" className="h-12 w-24 object-cover rounded-md" style={{ border: "1px solid var(--admin-border)", objectPosition: `center ${curPos}%` }} />
               ) : DEFAULT_HEADER_IMAGE[previewDivision] ? (
                 <div className="relative h-12 w-24 rounded-md overflow-hidden" style={{ border: "1px dashed var(--admin-border)" }}>
                   {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -245,67 +298,59 @@ export default function EmailTemplatesPage() {
                 <div className="h-12 w-24 rounded-md grid place-items-center text-[10px] admin-faint text-center px-1" style={{ border: "1px dashed var(--admin-border)" }}>No header photo (default)</div>
               )}
               <div>
-                <button type="button" onClick={() => setPickingImage(true)} className="px-3 py-1.5 text-xs font-bold rounded-lg admin-surface admin-muted" style={{ border: "1px solid var(--admin-border)" }}>{form.header_image ? "Change image" : "Choose image"}</button>
-                {form.header_image
-                  ? <button type="button" onClick={() => setForm({ ...form, header_image: "" })} className="ml-2 text-xs admin-faint hover:text-red-400 transition-colors">Use default</button>
+                <button type="button" onClick={() => setPickingImage(true)} className="px-3 py-1.5 text-xs font-bold rounded-lg admin-surface admin-muted" style={{ border: "1px solid var(--admin-border)" }}>{curImg ? "Change image" : "Choose image"}</button>
+                {curImg
+                  ? <button type="button" onClick={() => setCurImg("")} className="ml-2 text-xs admin-faint hover:text-red-400 transition-colors">Use default</button>
                   : <p className="text-[11px] admin-faint mt-1">Blank uses the {previewDivision === "experience" ? "NP7 hero photo" : "no-photo header"} — or the experience’s own photo when one is set.</p>}
+                {curImg && <p className="text-[11px] admin-faint mt-1">Drag the photo up/down in the preview to position it.</p>}
               </div>
             </div>
           </div>
 
-          {/* Body — edit directly inside the branded email */}
+          {/* Body — edit directly inside the branded email; toolbar sits above it */}
           <div className="mb-4">
-            <div className="flex items-center justify-between mb-2 flex-wrap gap-2">
-              <div className="flex items-center gap-2">
-                <label className={labelClass + " mb-0"}>Email body — type right in the email</label>
-                {form.template_key && DEFAULT_BODIES[form.template_key] && (
-                  <button type="button" onClick={resetToDefault} className="text-[10px] admin-faint hover:text-[#0aa3c7] transition-colors">↺ Back to default</button>
-                )}
-              </div>
-              <div className="inline-flex rounded-md overflow-hidden" style={{ border: "1px solid var(--admin-border)" }}>
-                {(["experience", "hardware"] as const).map((dv) => (
-                  <button key={dv} type="button" onClick={() => setPreviewDivision(dv)}
-                    className={`px-2.5 py-1 text-[11px] font-semibold capitalize transition-colors ${previewDivision === dv ? "bg-[var(--admin-accent)] text-[var(--admin-accent-contrast)]" : "admin-muted"}`}>
-                    {dv}
-                  </button>
-                ))}
-              </div>
-            </div>
-
             {previewSubject && <p className="text-center text-[11px] admin-muted mb-2"><span className="admin-faint">Inbox subject:</span> {previewSubject}</p>}
 
-            {(() => {
-              const chrome = emailChrome(previewDivision, form.header_image || undefined);
-              return (
-                <div className="mx-auto max-w-[600px] rounded-2xl overflow-hidden" style={{ border: "1px solid var(--admin-border)", boxShadow: "0 10px 34px rgba(0,55,74,0.12)", background: "#fff" }}>
-                  {/* Header — faded hero + logo (or logo-on-white) */}
-                  {chrome.hero ? (
-                    <div style={{ backgroundImage: `url('${chrome.hero}')`, backgroundSize: "cover", backgroundPosition: "center", backgroundColor: chrome.headerBg }}>
-                      <div className="px-6 pt-14 pb-7 text-center" style={{ background: `linear-gradient(180deg,rgba(0,28,40,0.04) 0%,rgba(0,28,40,0.40) 52%,${chrome.headerFade} 100%)` }}>
-                        {/* eslint-disable-next-line @next/next/no-img-element */}
-                        <img src={chrome.logo} alt={chrome.logoAlt} style={{ width: chrome.logoW, maxWidth: "64%", height: "auto", margin: "0 auto", filter: "drop-shadow(0 2px 10px rgba(0,0,0,0.45))" }} />
+            <RichTextEditor
+              seamless
+              minHeight={260}
+              value={form.body}
+              onChange={(html) => setForm((f) => ({ ...f, body: html }))}
+              vars={VARS}
+              placeholder="Write your message — the branded frame, logo, colours and footer are added automatically."
+              frame={(body) => {
+                const chrome = emailChrome(previewDivision, curImg || undefined);
+                return (
+                  <div className="mx-auto max-w-[600px] rounded-2xl overflow-hidden" style={{ border: "1px solid var(--admin-border)", boxShadow: "0 10px 34px rgba(0,55,74,0.12)", background: "#fff" }}>
+                    {chrome.hero ? (
+                      <div
+                        onPointerDown={heroDown} onPointerMove={heroMove} onPointerUp={heroUp} onPointerCancel={heroUp}
+                        title="Drag up/down to position the photo"
+                        style={{ backgroundImage: `url('${chrome.hero}')`, backgroundSize: "cover", backgroundPosition: `center ${curPos}%`, backgroundColor: chrome.headerBg, cursor: "ns-resize", touchAction: "none" }}
+                      >
+                        <div className="px-6 pt-14 pb-7 text-center pointer-events-none" style={{ background: `linear-gradient(180deg,rgba(0,28,40,0.04) 0%,rgba(0,28,40,0.40) 52%,${chrome.headerFade} 100%)` }}>
+                          {/* eslint-disable-next-line @next/next/no-img-element */}
+                          <img src={chrome.logo} alt={chrome.logoAlt} style={{ width: chrome.logoW, maxWidth: "64%", height: "auto", margin: "0 auto", filter: "drop-shadow(0 2px 10px rgba(0,0,0,0.45))" }} />
+                        </div>
                       </div>
+                    ) : (
+                      <div className="px-6 pt-7 pb-2 text-center" style={{ background: "#fff" }}>
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                        <img src={chrome.logo} alt={chrome.logoAlt} style={{ width: chrome.logoW, maxWidth: "60%", height: "auto", margin: "0 auto" }} />
+                      </div>
+                    )}
+                    <div style={{ height: 4, background: chrome.accent, backgroundImage: chrome.gradient }} />
+                    {body}
+                    <div className="px-8 py-5 text-[12px] leading-relaxed" style={{ background: chrome.footerBg, color: chrome.footerText }}>
+                      <strong style={{ color: chrome.footerStrong }}>NP7 GmbH</strong> · Germany · {chrome.contactEmail}<br />
+                      {chrome.tagline}
                     </div>
-                  ) : (
-                    <div className="px-6 pt-7 pb-2 text-center" style={{ background: "#fff" }}>
-                      {/* eslint-disable-next-line @next/next/no-img-element */}
-                      <img src={chrome.logo} alt={chrome.logoAlt} style={{ width: chrome.logoW, maxWidth: "60%", height: "auto", margin: "0 auto" }} />
-                    </div>
-                  )}
-                  {/* Brand colour stripe */}
-                  <div style={{ height: 4, background: chrome.accent, backgroundImage: chrome.gradient }} />
-                  {/* Editable body — the toolbar sticks to the top while you scroll */}
-                  <RichTextEditor seamless minHeight={260} value={form.body} onChange={(html) => setForm((f) => ({ ...f, body: html }))} vars={VARS} placeholder="Write your message — the branded frame, logo, colours and footer are added automatically." />
-                  {/* Footer */}
-                  <div className="px-8 py-5 text-[12px] leading-relaxed" style={{ background: chrome.footerBg, color: chrome.footerText }}>
-                    <strong style={{ color: chrome.footerStrong }}>NP7 GmbH</strong> · Germany · {chrome.contactEmail}<br />
-                    {chrome.tagline}
                   </div>
-                </div>
-              );
-            })()}
+                );
+              }}
+            />
 
-            <p className="mt-2 text-center text-[11px] admin-faint">Format with the toolbar and drop in fields like “{`{{firstName}}`}”. Header, logo, colours and footer are added automatically. <button type="button" onClick={() => setExactOpen((v) => !v)} className="hover:text-[#0aa3c7] transition-colors underline">{exactOpen ? "Hide exact render" : "See exact render"}</button></p>
+            <p className="mt-2 text-center text-[11px] admin-faint">The toolbar above formats the body; the header, logo, colours and footer are added automatically. <button type="button" onClick={() => setExactOpen((v) => !v)} className="hover:text-[#0aa3c7] transition-colors underline">{exactOpen ? "Hide exact render" : "See exact render"}</button></p>
 
             {exactOpen && (
               <div className="mx-auto max-w-[600px] mt-2 rounded-lg overflow-hidden bg-white" style={{ border: "1px solid var(--admin-border)", height: 420 }}>

@@ -17,7 +17,7 @@ export type EmailVars = {
 };
 
 type Built = { subject: string; html: string };
-type LayoutOpts = { division?: Division; headerImage?: string | null };
+type LayoutOpts = { division?: Division; headerImage?: string | null; headerPosition?: number | null };
 
 const p = (s: string) => `<p style="margin:0 0 14px;">${s}</p>`;
 const greet = (v: EmailVars) => p(`Hey ${esc(v.firstName || "there")} 🤙`);
@@ -186,13 +186,14 @@ export function renderTemplate(
   vars: EmailVars,
   dbOverride?: { subject_line?: string | null; body?: string | null } | null,
   division: Division = "experience",
-  headerImage?: string | null
+  headerImage?: string | null,
+  headerPosition?: number | null
 ): Built {
   if (dbOverride?.body) {
     const subject = dbOverride.subject_line ? interpolate(dbOverride.subject_line, vars) : (TEMPLATES[key]?.(vars).subject ?? "NP7 Experience");
-    return { subject, html: emailLayout({ division, headerImage, bodyHtml: interpolate(dbOverride.body, vars) }) };
+    return { subject, html: emailLayout({ division, headerImage, headerPosition, bodyHtml: interpolate(dbOverride.body, vars) }) };
   }
   const fn = TEMPLATES[key];
   if (!fn) throw new Error(`Unknown email template: ${key}. Known: ${FALLBACK_KEYS.join(", ")}`);
-  return fn(vars, { division, headerImage });
+  return fn(vars, { division, headerImage, headerPosition });
 }

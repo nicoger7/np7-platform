@@ -88,12 +88,16 @@ export async function sendEmail(args: SendArgs): Promise<SendResult> {
       headerImage = exp?.hero_image || undefined;
     }
   }
-  if (!headerImage) headerImage = useOverride?.header_image || undefined;
+  // Per-division header override (migration 046): Hardware uses its own image +
+  // focal point; Experience uses header_image / header_position.
+  const ovImage = division === "hardware" ? useOverride?.header_image_hardware : useOverride?.header_image;
+  const headerPosition: number | undefined = (division === "hardware" ? useOverride?.header_position_hardware : useOverride?.header_position) ?? undefined;
+  if (!headerImage) headerImage = ovImage || undefined;
 
   let subject = "";
   let html = "";
   try {
-    const built = renderTemplate(templateKey, vars, useOverride, division, headerImage);
+    const built = renderTemplate(templateKey, vars, useOverride, division, headerImage, headerPosition);
     subject = built.subject;
     html = built.html;
   } catch (e) {

@@ -15,6 +15,7 @@ export function RichTextEditor({
   placeholder = "Write your message…",
   seamless = false,
   minHeight = 300,
+  frame,
 }: {
   value: string;
   onChange: (html: string) => void;
@@ -24,6 +25,9 @@ export function RichTextEditor({
   seamless?: boolean;
   /** Min height of the editable area in px. */
   minHeight?: number;
+  /** Wrap the editable body in a frame (e.g. the email hero + footer). The toolbar
+   *  then renders as its own bar ABOVE the frame, clearly separated. */
+  frame?: (body: React.ReactNode) => React.ReactNode;
 }) {
   const ref = useRef<HTMLDivElement>(null);
   const last = useRef<string>("");
@@ -113,9 +117,32 @@ export function RichTextEditor({
   const btn = "h-7 min-w-7 px-1.5 grid place-items-center rounded-md text-[13px] admin-muted hover:text-[var(--admin-accent)] hover:bg-[var(--admin-surface-hover)] transition-colors";
   const sep = <span className="mx-1 w-px h-4 self-center shrink-0" style={{ background: "var(--admin-border)" }} />;
 
+  const bodyEl = source ? (
+    <textarea
+      value={value}
+      onChange={(e) => { last.current = e.target.value; onChange(e.target.value); }}
+      className={`block w-full resize-y p-4 font-mono text-xs outline-none ${seamless ? "" : "max-h-[460px]"}`}
+      style={{ background: "#fff", color: "#33434a", minHeight }}
+    />
+  ) : (
+    <div
+      ref={ref}
+      contentEditable
+      suppressContentEditableWarning
+      onInput={emit}
+      onBlur={emit}
+      data-placeholder={placeholder}
+      className={`rte overflow-y-auto text-sm leading-relaxed outline-none ${seamless ? "px-8 py-7" : "p-4 max-h-[460px]"}`}
+      style={{ background: "#fff", color: "#33434a", minHeight }}
+    />
+  );
+
   return (
-    <div className={seamless ? "overflow-hidden" : "rounded-lg overflow-hidden"} style={seamless ? undefined : { border: "1px solid var(--admin-border)" }}>
-      <div className="flex flex-wrap items-center gap-0.5 px-2 py-1.5 sticky top-0 z-10" style={{ borderBottom: "1px solid var(--admin-border)", background: "var(--admin-surface)" }}>
+    <div className={frame ? "" : seamless ? "overflow-hidden" : "rounded-lg overflow-hidden"} style={frame || seamless ? undefined : { border: "1px solid var(--admin-border)" }}>
+      <div
+        className={frame ? "flex flex-wrap items-center gap-0.5 px-2 py-1.5 rounded-lg mb-3" : "flex flex-wrap items-center gap-0.5 px-2 py-1.5 sticky top-0 z-10"}
+        style={frame ? { border: "1px solid var(--admin-border)", background: "var(--admin-surface)" } : { borderBottom: "1px solid var(--admin-border)", background: "var(--admin-surface)" }}
+      >
         <button type="button" className={btn} onMouseDown={(e) => e.preventDefault()} onClick={undo} title="Undo" aria-label="Undo">
           <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M9 14 4 9l5-5" /><path d="M4 9h11a5 5 0 0 1 0 10h-1" /></svg>
         </button>
@@ -147,25 +174,7 @@ export function RichTextEditor({
         </button>
       </div>
 
-      {source ? (
-        <textarea
-          value={value}
-          onChange={(e) => { last.current = e.target.value; onChange(e.target.value); }}
-          className={`block w-full resize-y p-4 font-mono text-xs outline-none ${seamless ? "" : "max-h-[460px]"}`}
-          style={{ background: "#fff", color: "#33434a", minHeight }}
-        />
-      ) : (
-        <div
-          ref={ref}
-          contentEditable
-          suppressContentEditableWarning
-          onInput={emit}
-          onBlur={emit}
-          data-placeholder={placeholder}
-          className={`rte overflow-y-auto text-sm leading-relaxed outline-none ${seamless ? "px-8 py-7" : "p-4 max-h-[460px]"}`}
-          style={{ background: "#fff", color: "#33434a", minHeight }}
-        />
-      )}
+      {frame ? frame(bodyEl) : bodyEl}
       <style>{`
         .rte p { margin: 0 0 12px; }
         .rte a { color: #00afdb; text-decoration: underline; }

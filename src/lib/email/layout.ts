@@ -64,10 +64,11 @@ export const SENDERS: Record<Division, { from: string; replyTo: string }> = {
  * division default) + the brand colour-fade bar + the logo. Footer carries the
  * division contact address. Pass `headerImage: null` to drop the photo.
  */
-export function emailLayout(opts: { division?: Division; preheader?: string; headerImage?: string | null; bodyHtml: string }): string {
-  const { division = "experience", preheader = "", headerImage, bodyHtml: rawBody } = opts;
+export function emailLayout(opts: { division?: Division; preheader?: string; headerImage?: string | null; headerPosition?: number | null; bodyHtml: string }): string {
+  const { division = "experience", preheader = "", headerImage, headerPosition, bodyHtml: rawBody } = opts;
   const t = THEMES[division];
   const hero = headerImage === undefined ? t.hero : headerImage;
+  const posY = Math.min(100, Math.max(0, headerPosition ?? 50)); // vertical focal point %
   const bodyHtml = normalizeEmailBody(rawBody, division);
   return `<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="color-scheme" content="light"></head>
 <body style="margin:0;padding:0;background:#eef3f4;font-family:-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;">
@@ -75,7 +76,7 @@ export function emailLayout(opts: { division?: Division; preheader?: string; hea
 <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#eef3f4;"><tr><td align="center" style="padding:28px 16px;">
 <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:560px;background:#ffffff;border-radius:18px;overflow:hidden;box-shadow:0 8px 30px rgba(0,55,74,0.08);">
   ${hero ? `
-  <tr><td background="${hero}" bgcolor="${t.headerBg}" style="background-image:url('${hero}');background-size:cover;background-position:center;">
+  <tr><td background="${hero}" bgcolor="${t.headerBg}" style="background-image:url('${hero}');background-size:cover;background-position:center ${posY}%;">
     <table role="presentation" width="100%" cellpadding="0" cellspacing="0"><tr><td align="center" style="padding:56px 24px 30px;background:linear-gradient(180deg,rgba(0,28,40,0.04) 0%,rgba(0,28,40,0.40) 52%,${t.headerFade} 100%);">
       <img src="${t.logoLight}" alt="${esc(t.logoAlt)}" width="${t.logoW}" style="display:block;width:${t.logoW}px;max-width:64%;height:auto;margin:0 auto;filter:drop-shadow(0 2px 10px rgba(0,0,0,0.45));">
     </td></tr></table>

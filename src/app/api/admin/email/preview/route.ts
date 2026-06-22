@@ -31,7 +31,7 @@ function interpolate(s: string): string {
 }
 
 export async function POST(req: NextRequest) {
-  let payload: { body?: string; subject?: string; division?: string; templateKey?: string; headerImage?: string | null } = {};
+  let payload: { body?: string; subject?: string; division?: string; templateKey?: string; headerImage?: string | null; headerPosition?: number | null } = {};
   try {
     payload = await req.json();
   } catch {
@@ -43,13 +43,14 @@ export async function POST(req: NextRequest) {
   const subject = typeof payload.subject === "string" ? payload.subject : "";
   const templateKey = typeof payload.templateKey === "string" ? payload.templateKey : "";
   const headerImage = typeof payload.headerImage === "string" && payload.headerImage ? payload.headerImage : undefined;
+  const headerPosition = typeof payload.headerPosition === "number" ? payload.headerPosition : undefined;
 
   let html: string;
   let subjectOut = subject ? interpolate(subject) : "";
 
   if (body.trim()) {
     // Editing a custom body → wrap it in the live division-themed shell.
-    html = emailLayout({ division, headerImage, bodyHtml: interpolate(body) });
+    html = emailLayout({ division, headerImage, headerPosition, bodyHtml: interpolate(body) });
   } else if (templateKey && TEMPLATES[templateKey]) {
     // No custom body yet → preview the built-in code default for this template.
     const built = renderTemplate(templateKey, SAMPLE, null, division, headerImage);
@@ -59,6 +60,7 @@ export async function POST(req: NextRequest) {
     html = emailLayout({
       division,
       headerImage,
+      headerPosition,
       bodyHtml: `<p style="margin:0;color:#90a0a8;">Start typing the email body to see a live preview…</p>`,
     });
   }
