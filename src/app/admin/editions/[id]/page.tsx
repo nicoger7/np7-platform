@@ -230,6 +230,13 @@ export default function EditionDetailPage({
   const [bookingContact, setBookingContact] = useState<ContactLite | null>(null);
   const [bookingShow, setBookingShow] = useState(false);
   const [selBooking, setSelBooking] = useState<string | null>(null);
+  const [copyPkgOpen, setCopyPkgOpen] = useState(false);
+  const [copyPkgBusy, setCopyPkgBusy] = useState(false);
+  async function copyPackagesFrom(fromEditionId: string) {
+    setCopyPkgBusy(true);
+    await fetch(`/api/admin/editions/${id}/copy-packages`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ fromEditionId }) }).catch(() => {});
+    setCopyPkgBusy(false); setCopyPkgOpen(false); loadPackages();
+  }
 
   // Details-tab section show/hide (consistent with list-page column toggles)
   const SECTION_KEY = "np7-edition-sections";
@@ -1083,6 +1090,24 @@ export default function EditionDetailPage({
             <p className="text-xs admin-faint">{packages.length} package{packages.length !== 1 ? "s" : ""} for this edition</p>
             <div className="flex items-center gap-3">
               <Link href={`/admin/packages?edition_id=${id}`} className="text-xs text-[#0aa3c7] hover:text-[#0aa3c7]/80 transition-colors">View all →</Link>
+              <div className="relative">
+                <button onClick={() => setCopyPkgOpen((v) => !v)} className="px-3 py-1.5 admin-surface admin-muted hover:admin-heading text-xs font-semibold rounded-lg transition-colors" style={{ border: "1px solid var(--admin-border)" }}>Copy from edition…</button>
+                {copyPkgOpen && (
+                  <>
+                    <div className="fixed inset-0 z-40" onClick={() => setCopyPkgOpen(false)} />
+                    <div className="absolute right-0 top-full mt-1.5 z-50 w-[300px] max-h-[320px] overflow-y-auto rounded-xl py-1" style={{ border: "1px solid var(--admin-border)", background: "var(--admin-bg)", boxShadow: "0 8px 24px rgba(0,0,0,0.25)" }}>
+                      <div className="px-3 pb-1.5 mb-1 text-[10px] font-bold tracking-[0.1em] admin-faint uppercase" style={{ borderBottom: "1px solid var(--admin-border)" }}>Copy all packages from</div>
+                      {allEditions.filter((e) => e.id !== id).length === 0 ? (
+                        <p className="px-3 py-3 text-xs admin-faint">No other editions.</p>
+                      ) : allEditions.filter((e) => e.id !== id).map((e) => (
+                        <button key={e.id} disabled={copyPkgBusy} onClick={() => copyPackagesFrom(e.id)} className="w-full text-left px-3 py-2 text-sm admin-muted hover:admin-heading hover:bg-[var(--admin-surface-hover)] transition-colors disabled:opacity-50">
+                          <span className="block truncate">{e.exp_experiences?.title || "Edition"} — {e.label || e.year}</span>
+                        </button>
+                      ))}
+                    </div>
+                  </>
+                )}
+              </div>
               <button onClick={() => { setPkgEditId(null); setPkgForm(emptyPkg); setPkgShow(true); }} className="px-3 py-1.5 bg-[var(--admin-accent)] hover:bg-[var(--admin-accent)]/90 text-[var(--admin-accent-contrast)] text-xs font-bold rounded-lg transition-colors">New Package</button>
             </div>
           </div>
