@@ -15,11 +15,13 @@ type Environment = "experience" | "hardware" | "product-dev" | "analytics";
 // `color` doubles as the admin accent for that world, mirroring the public site:
 // Experience = ocean cyan, Hardware = neon lime (black text on it). `accentContrast`
 // is the readable text color when the accent is a button/badge background.
-const environments: { id: Environment; label: string; shortLabel: string; color: string; accentContrast: string; ownerOnly?: boolean }[] = [
-  { id: "experience", label: "NP7 Experience", shortLabel: "Experience", color: "#0aa3c7", accentContrast: "#ffffff" },
-  { id: "hardware", label: "NP7 Hardware", shortLabel: "Hardware", color: "#c2ff38", accentContrast: "#0a0a0a" },
-  { id: "product-dev", label: "Product Development", shortLabel: "Product Dev", color: "#8b5cf6", accentContrast: "#ffffff" },
-  { id: "analytics", label: "Analytics", shortLabel: "Analytics", color: "#10b981", accentContrast: "#06281d", ownerOnly: true },
+const environments: { id: Environment; label: string; shortLabel: string; color: string; accentContrast: string; gradient: string; ownerOnly?: boolean }[] = [
+  // gradient = the logo's "sun → sea" warmth (Experience) and each world's own sweep,
+  // used for small brand accents in the chrome.
+  { id: "experience", label: "NP7 Experience", shortLabel: "Experience", color: "#0aa3c7", accentContrast: "#ffffff", gradient: "linear-gradient(180deg,#ffc42e 0%,#f47b20 50%,#00afdb 100%)" },
+  { id: "hardware", label: "NP7 Hardware", shortLabel: "Hardware", color: "#c2ff38", accentContrast: "#0a0a0a", gradient: "linear-gradient(180deg,#c2ff38 0%,#7bdb1e 50%,#ff2e88 100%)" },
+  { id: "product-dev", label: "Product Development", shortLabel: "Product Dev", color: "#8b5cf6", accentContrast: "#ffffff", gradient: "linear-gradient(180deg,#a78bfa 0%,#8b5cf6 50%,#6d28d9 100%)" },
+  { id: "analytics", label: "Analytics", shortLabel: "Analytics", color: "#10b981", accentContrast: "#06281d", gradient: "linear-gradient(180deg,#34d399 0%,#10b981 50%,#059669 100%)", ownerOnly: true },
 ];
 
 /** hex (#rgb or #rrggbb) → rgba() with the given alpha. */
@@ -448,6 +450,7 @@ export default function AdminShell({
     "--admin-accent-contrast": activeEnvConfig.accentContrast,
     "--admin-accent-weak": hexA(accent, 0.16),
     "--admin-active": hexA(accent, theme === "dark" ? 0.18 : 0.1),
+    "--admin-gradient": activeEnvConfig.gradient,
   };
   const vars = { ...themes[theme], ...accentVars };
   // Archive always sits last; File Storage joins it except on experience (which
@@ -532,8 +535,8 @@ export default function AdminShell({
               }}
             >
               <span
-                className="w-2 h-2 rounded-full flex-shrink-0"
-                style={{ backgroundColor: activeEnvConfig.color }}
+                className="w-2.5 h-2.5 rounded-full flex-shrink-0"
+                style={{ background: activeEnvConfig.gradient }}
               />
               <span className="text-xs font-medium flex-1 truncate" style={{ color: "var(--admin-text)" }}>
                 {activeEnvConfig.label}
@@ -630,13 +633,15 @@ export default function AdminShell({
                     <Link
                       key={item.href}
                       href={item.href}
-                      className="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm transition-colors"
+                      className="relative flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm transition-colors"
                       style={{
                         backgroundColor: active ? "var(--admin-active)" : "transparent",
                         color: active ? "var(--admin-text)" : "var(--admin-text-muted)",
                         fontWeight: active ? 500 : 400,
                       }}
                     >
+                      {/* Active marker — the world's "sun → sea" gradient sliver */}
+                      {active && <span className="absolute left-0 top-1.5 bottom-1.5 w-[3px] rounded-full" style={{ background: "var(--admin-gradient)" }} />}
                       {icons[item.icon]}
                       <span className="flex-1">{item.label}</span>
                       {item.wip && (
