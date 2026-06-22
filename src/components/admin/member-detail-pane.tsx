@@ -57,7 +57,7 @@ export function MemberDetailPane({ contactId, initialTab = "overview", onBack }:
     <div>
       <div className="mb-6">
         {onBack && (
-          <button onClick={onBack} className="lg:hidden text-xs admin-faint hover:admin-heading mb-1">← Member Management</button>
+          <button onClick={onBack} className="inline-flex items-center gap-1 text-xs admin-faint hover:admin-heading mb-1.5">← All members</button>
         )}
         <div className="flex items-center gap-3 mt-1">
           <h1 className="text-2xl font-bold admin-heading">{c.name}</h1>
