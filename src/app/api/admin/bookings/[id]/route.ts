@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase";
+import { getRequestAccess } from "@/lib/admin-auth";
+import { effectiveCanSeeField } from "@/lib/access";
 
 // GET /api/admin/bookings/:id — get booking with all related data
 export async function GET(
@@ -38,13 +40,32 @@ export async function GET(
     );
   }
 
-  return NextResponse.json({
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  let out: Record<string, any> = {
     ...booking.data,
     payments: payments.data || [],
     addons: addons.data || [],
     tasks: tasks.data || [],
     hotel_rooms: hotelRooms.data || [],
-  });
+  };
+
+  // Field redaction by role: money (prices/payments), costs (component costs),
+  // contact PII (email/phone). Owner/manager tiers see everything.
+  const access = await getRequestAccess();
+  if (access) {
+    if (!effectiveCanSeeField(access, "money")) {
+      out = { ...out, agreed_price: null, deposit: null, exp_packages: out.exp_packages ? { ...out.exp_packages, price: null } : out.exp_packages, payments: [], money_redacted: true };
+    }
+    if (!effectiveCanSeeField(access, "costs")) {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      out.addons = (out.addons || []).map((a: any) => ({ ...a, exp_components: a.exp_components ? { ...a.exp_components, unit_cost: null } : a.exp_components }));
+    }
+    if (!effectiveCanSeeField(access, "contact_pii")) {
+      out.contacts = out.contacts ? { ...out.contacts, email: null, phone: null, diet_allergies: null } : out.contacts;
+    }
+  }
+
+  return NextResponse.json(out);
 }
 
 // PATCH /api/admin/bookings/:id — update booking (status change, etc.)

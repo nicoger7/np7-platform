@@ -1,5 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase";
+import { getRequestAccess } from "@/lib/admin-auth";
+import { effectiveCanSeeField } from "@/lib/access";
+
+/** Null out the money fields on a booking for roles that can't see prices/payments. */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function redactMoney<T extends Record<string, any>>(b: T): T {
+  return { ...b, agreed_price: null, deposit: null, total_paid: null, outstanding: null, package: b.package ? { ...b.package, price: null } : b.package, money_redacted: true };
+}
 
 // GET /api/admin/bookings — list bookings with related data
 export async function GET(request: NextRequest) {
@@ -62,13 +70,17 @@ export async function GET(request: NextRequest) {
     }
   }
 
-  const bookings = (data || []).map((b) => ({
+  let bookings = (data || []).map((b) => ({
     ...b,
     total_paid: payments[b.id] || 0,
     outstanding: b.agreed_price
       ? Math.max(0, Number(b.agreed_price) - (payments[b.id] || 0))
       : 0,
   }));
+
+  // Field redaction: roles without "money" don't get prices/payments at all.
+  const access = await getRequestAccess();
+  if (access && !effectiveCanSeeField(access, "money")) bookings = bookings.map(redactMoney);
 
   return NextResponse.json({ bookings });
 }

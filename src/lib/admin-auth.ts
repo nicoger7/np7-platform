@@ -45,6 +45,17 @@ export async function getEffectiveAccess(
   return { kind: "role", access: mergeAccess(accesses) };
 }
 
+/** The effective access for the current request's team member (or null). Use in
+ *  API routes to redact sensitive fields the member's role can't see. */
+export async function getRequestAccess(): Promise<EffectiveAccess | null> {
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return null;
+  const member = await getActiveTeamMember(user);
+  if (!member) return null;
+  return getEffectiveAccess(member);
+}
+
 /**
  * Server-side mirror of the is_team_member() SQL helper (migration 009):
  * the user must have an active team_members row linked via auth_user_id.
