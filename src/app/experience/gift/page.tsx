@@ -67,12 +67,14 @@ export default async function GiftPage() {
 async function GiftFormLoader() {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const sb = supabase as any;
-  const [{ data: exps }, { data: pkgs }] = await Promise.all([
-    sb.from("exp_experiences").select("id, title, currency").eq("status", "published").order("title"),
-    sb.from("exp_packages").select("id, name, price, experience_id").eq("status", "active").order("price"),
-  ]);
+  // Tolerant: website_visible arrives in migration 044 — fall back to the old
+  // shape so the gift form still loads before the migration is applied.
+  let pkgRes = await sb.from("exp_packages").select("id, name, price, experience_id, website_visible").eq("status", "active").order("price");
+  if (!pkgRes.data) pkgRes = await sb.from("exp_packages").select("id, name, price, experience_id").eq("status", "active").order("price");
+  const { data: exps } = await sb.from("exp_experiences").select("id, title, currency").eq("status", "published").order("title");
   const experiences = (exps ?? []) as { id: string; title: string; currency: string | null }[];
-  const packages = (pkgs ?? []) as { id: string; name: string; price: number | null; experience_id: string }[];
+  const packages = ((pkgRes.data ?? []) as { id: string; name: string; price: number | null; experience_id: string; website_visible?: boolean }[])
+    .filter((p) => p.website_visible !== false); // off-website packages aren't giftable from the public page
 
   if (experiences.length === 0) {
     return <div className="bg-white rounded-2xl border border-[#f0e6d6] p-8 text-center text-[#6a7a80]">No experiences available to gift right now — check back soon.</div>;

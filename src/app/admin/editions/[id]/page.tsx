@@ -90,6 +90,7 @@ interface Package {
   max_spots: number | null;
   status: string;
   category: string | null;
+  website_visible?: boolean | null;
 }
 
 interface Cost {
@@ -208,7 +209,7 @@ export default function EditionDetailPage({
   const [rooms, setRooms] = useState<Room[]>([]);
 
   // ── Inline CRUD form state ──
-  const emptyPkg = { name: "", price: "", cost_per_person: "", deposit: "", max_spots: "", category: "", status: "active" };
+  const emptyPkg = { name: "", price: "", cost_per_person: "", deposit: "", max_spots: "", category: "", status: "active", website_visible: true };
   const [pkgForm, setPkgForm] = useState(emptyPkg);
   const [pkgEditId, setPkgEditId] = useState<string | null>(null);
   const [pkgShow, setPkgShow] = useState(false);
@@ -306,6 +307,7 @@ export default function EditionDetailPage({
       max_spots: pkgForm.max_spots ? Number(pkgForm.max_spots) : null,
       category: pkgForm.category || null,
       status: pkgForm.status,
+      website_visible: pkgForm.website_visible,
       edition_id: id,
       experience_id: expId,
     };
@@ -1024,9 +1026,9 @@ export default function EditionDetailPage({
               {packages.map((pkg) => {
                 const active = pkg.id === pkgEditId;
                 return (
-                  <button key={pkg.id} onClick={() => { setPkgEditId(pkg.id); setPkgShow(false); setPkgForm({ name: pkg.name, price: pkg.price?.toString() || "", cost_per_person: pkg.cost_per_person?.toString() || "", deposit: pkg.deposit?.toString() || "", max_spots: pkg.max_spots?.toString() || "", category: pkg.category || "", status: pkg.status }); }} className="shrink-0 text-left px-3 py-2 rounded-lg transition-colors" style={{ background: active ? "var(--admin-accent)" : "var(--admin-surface)", border: "1px solid var(--admin-border)" }}>
+                  <button key={pkg.id} onClick={() => { setPkgEditId(pkg.id); setPkgShow(false); setPkgForm({ name: pkg.name, price: pkg.price?.toString() || "", cost_per_person: pkg.cost_per_person?.toString() || "", deposit: pkg.deposit?.toString() || "", max_spots: pkg.max_spots?.toString() || "", category: pkg.category || "", status: pkg.status, website_visible: pkg.website_visible !== false }); }} className="shrink-0 text-left px-3 py-2 rounded-lg transition-colors" style={{ background: active ? "var(--admin-accent)" : "var(--admin-surface)", border: "1px solid var(--admin-border)" }}>
                     <span className={`block text-xs font-semibold truncate ${active ? "text-[var(--admin-accent-contrast)]" : "admin-heading"}`}>{pkg.name}</span>
-                    <span className={`block text-[10px] mt-0.5 truncate ${active ? "text-[var(--admin-accent-contrast)]/80" : "admin-faint"}`}>{pkg.price ? `€${Number(pkg.price).toLocaleString()}` : "—"} · {pkg.status}</span>
+                    <span className={`block text-[10px] mt-0.5 truncate ${active ? "text-[var(--admin-accent-contrast)]/80" : "admin-faint"}`}>{pkg.price ? `€${Number(pkg.price).toLocaleString()}` : "—"} · {pkg.status}{pkg.website_visible === false ? " · private" : ""}</span>
                   </button>
                 );
               })}
@@ -1042,6 +1044,13 @@ export default function EditionDetailPage({
                   <div><label className={labelClass}>Spots</label><input type="number" className={inputClass} value={pkgForm.max_spots} onChange={(e) => setPkgForm({ ...pkgForm, max_spots: e.target.value })} /></div>
                   <div className="col-span-2 sm:col-span-1"><label className={labelClass}>Category</label><select className={inputClass} value={pkgForm.category} onChange={(e) => setPkgForm({ ...pkgForm, category: e.target.value })}>{PKG_CATEGORIES.map((c) => <option key={c} value={c}>{c ? c[0].toUpperCase() + c.slice(1) : "None"}</option>)}</select></div>
                 </div>
+                <label className="flex items-start gap-2.5 mb-4 p-3 rounded-lg cursor-pointer" style={{ border: "1px solid var(--admin-border)" }}>
+                  <input type="checkbox" checked={pkgForm.website_visible} onChange={(e) => setPkgForm({ ...pkgForm, website_visible: e.target.checked })} className="w-4 h-4 mt-0.5 accent-[#0aa3c7] shrink-0" />
+                  <span>
+                    <span className="block text-sm font-medium admin-heading">Show on website</span>
+                    <span className="block text-xs admin-faint mt-0.5">Uncheck to sell this package privately — still bookable here, but hidden from the public experience page and gift options.</span>
+                  </span>
+                </label>
                 <div className="flex items-center gap-2">
                   <button onClick={savePackage} disabled={!pkgForm.name} className="px-4 py-2 bg-[var(--admin-accent)] hover:bg-[var(--admin-accent)]/90 disabled:opacity-40 text-[var(--admin-accent-contrast)] text-sm font-bold rounded-lg transition-colors">{pkgEditId ? "Update" : "Create"}</button>
                   <button onClick={() => { setPkgShow(false); setPkgEditId(null); setPkgForm(emptyPkg); }} className="px-4 py-2 admin-muted text-sm rounded-lg transition-colors">Cancel</button>
@@ -1095,8 +1104,11 @@ export default function EditionDetailPage({
                   onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = "var(--admin-surface-hover)")}
                   onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = "transparent")}
                 >
-                  <div className="min-w-0 self-center cursor-pointer" onClick={() => { setPkgEditId(pkg.id); setPkgShow(false); setPkgForm({ name: pkg.name, price: pkg.price?.toString() || "", cost_per_person: pkg.cost_per_person?.toString() || "", deposit: pkg.deposit?.toString() || "", max_spots: pkg.max_spots?.toString() || "", category: pkg.category || "", status: pkg.status }); }}>
-                    <div className="text-sm font-medium admin-heading truncate">{pkg.name}</div>
+                  <div className="min-w-0 self-center cursor-pointer" onClick={() => { setPkgEditId(pkg.id); setPkgShow(false); setPkgForm({ name: pkg.name, price: pkg.price?.toString() || "", cost_per_person: pkg.cost_per_person?.toString() || "", deposit: pkg.deposit?.toString() || "", max_spots: pkg.max_spots?.toString() || "", category: pkg.category || "", status: pkg.status, website_visible: pkg.website_visible !== false }); }}>
+                    <div className="text-sm font-medium admin-heading truncate flex items-center gap-1.5">
+                      {pkg.name}
+                      {pkg.website_visible === false && <span className="shrink-0 inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[9px] font-bold uppercase tracking-[0.05em] bg-purple-500/15 text-purple-400" title="Private — not shown on the website">Private</span>}
+                    </div>
                     {pkg.category && <div className="text-xs admin-faint capitalize">{pkg.category}</div>}
                   </div>
                   <span className="text-xs admin-muted self-center">{pkg.price ? `€${Number(pkg.price).toLocaleString()}` : "—"}</span>

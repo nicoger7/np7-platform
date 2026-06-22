@@ -42,8 +42,8 @@ export async function PATCH(
   const { id } = await params;
   const body = await request.json();
 
-  // hotel_id (migration 023) may not exist yet — strip & retry if rejected.
-  const PENDING_OPTIONAL = ["hotel_id"];
+  // hotel_id (023) / website_visible (044) may not exist yet — strip & retry if rejected.
+  const PENDING_OPTIONAL = ["hotel_id", "website_visible"];
   const doUpdate = (payload: Record<string, unknown>) =>
     client.from("exp_packages").update({ ...payload, updated_at: new Date().toISOString() }).eq("id", id).select().single();
 

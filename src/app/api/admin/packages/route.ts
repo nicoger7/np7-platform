@@ -73,8 +73,9 @@ export async function GET(request: NextRequest) {
   return NextResponse.json(enriched);
 }
 
-// Columns from migration 023 that may not be applied yet.
-const PENDING_OPTIONAL = ["hotel_id"];
+// Columns from later migrations that may not be applied yet (023 hotel_id,
+// 044 website_visible) — stripped + retried if the column is missing.
+const PENDING_OPTIONAL = ["hotel_id", "website_visible"];
 
 // POST /api/admin/packages — create a package
 export async function POST(request: NextRequest) {

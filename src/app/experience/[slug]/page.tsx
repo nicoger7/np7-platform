@@ -214,10 +214,19 @@ export default async function ExperienceDetailPage({ params }: Props) {
     const { data } = await sb.from("hotels").select("id,name,image_url,images,description");
     if (Array.isArray(data)) hotelsList = data as HotelLite[];
   }
+  // Private packages (sold off-website) are excluded from the public listing.
+  // Tolerant: the website_visible column arrives in migration 044, so if it's not
+  // there yet the query just falls back to showing everything.
   const pkgHotelId: Record<string, string> = {};
+  const privatePkgIds = new Set<string>();
   if (activePackages.length) {
-    const { data } = await sb.from("exp_packages").select("id,hotel_id").in("id", activePackages.map((p) => p.id));
-    if (Array.isArray(data)) for (const r of data as { id: string; hotel_id: string | null }[]) if (r.hotel_id) pkgHotelId[r.id] = r.hotel_id;
+    const ids = activePackages.map((p) => p.id);
+    let { data } = await sb.from("exp_packages").select("id,hotel_id,website_visible").in("id", ids);
+    if (!data) ({ data } = await sb.from("exp_packages").select("id,hotel_id").in("id", ids)); // pre-migration fallback
+    if (Array.isArray(data)) for (const r of data as { id: string; hotel_id: string | null; website_visible?: boolean }[]) {
+      if (r.hotel_id) pkgHotelId[r.id] = r.hotel_id;
+      if (r.website_visible === false) privatePkgIds.add(r.id);
+    }
   }
   const hotelById = new Map(hotelsList.map((h) => [h.id, h]));
   const resolveHotel = (pkgId: string, name: string, accommodation: string): HotelLite | null => {
@@ -230,6 +239,7 @@ export default async function ExperienceDetailPage({ params }: Props) {
   const packagesByEdition: Record<string, RealPackage[]> = {};
   for (const ed of allEditions) packagesByEdition[ed.id] = [];
   for (const p of activePackages) {
+    if (privatePkgIds.has(p.id)) continue; // off-website package — sold privately only
     const x = parsePackageName(p.name);
     const h = resolveHotel(p.id, p.name, x.accommodation);
     const rp: RealPackage = {
