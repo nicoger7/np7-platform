@@ -14,6 +14,7 @@ interface TeamMember {
   active: boolean;
   notes: string | null;
   access_level: string | null;
+  role_id?: string | null;
 }
 
 interface HoursEntry {
@@ -35,12 +36,14 @@ export default function TeamDetailPage({ params }: { params: Promise<{ id: strin
   const [saved, setSaved] = useState(false);
   const [inviting, setInviting] = useState(false);
   const [invited, setInvited] = useState(false);
+  const [roles, setRoles] = useState<{ id: string; name: string }[]>([]);
 
   useEffect(() => {
     Promise.all([
       fetch(`/api/admin/team/${id}`).then((r) => r.json()),
       fetch(`/api/admin/hours-log?employee_id=${id}`).then((r) => r.json()),
     ]).then(([m, h]) => { setMember(m); setHours(h || []); setLoading(false); });
+    fetch(`/api/admin/roles`).then((r) => r.json()).then((d) => setRoles(d.roles ?? [])).catch(() => {});
   }, [id]);
 
   async function handleSave() {
@@ -138,6 +141,14 @@ export default function TeamDetailPage({ params }: { params: Promise<{ id: strin
               </button>
               <p className="text-[11px] admin-faint mt-1.5">Emails a one-time login link{member.email ? ` to ${member.email}` : " (add an email first)"}.</p>
             </div>
+          </div>
+          <div className="mt-4">
+            <label className={labelClass}>Custom role (advanced)</label>
+            <select className={inputClass} value={member.role_id || ""} onChange={(e) => update("role_id", e.target.value || null)}>
+              <option value="">— Use access level above —</option>
+              {roles.map((r) => <option key={r.id} value={r.id}>{r.name}</option>)}
+            </select>
+            <p className="text-[11px] admin-faint mt-1.5">A custom role <strong>overrides</strong> the access level: it sets exactly which worlds, sections and sensitive figures this person sees. Define roles under <strong>Team › Roles</strong>.</p>
           </div>
         </div>
 
