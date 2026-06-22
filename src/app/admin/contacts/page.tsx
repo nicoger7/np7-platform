@@ -1,9 +1,10 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
-import Link from "next/link";
+import { Suspense, useState, useEffect, useCallback } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import { SortableHeader } from "@/components/sortable-header";
 import { ColumnToggle, ColumnDef, buildGridTemplate, loadVisibleColumns } from "@/components/column-toggle";
+import { ContactDetailPane } from "./[id]/page";
 
 interface Contact {
   id: string;
@@ -62,7 +63,16 @@ const COLUMNS: ColumnDef[] = [
 
 const STORAGE_KEY = "np7-contacts-columns";
 
-export default function ContactsPage() {
+function ContactsInner() {
+  const router = useRouter();
+  const params = useSearchParams();
+  const selectedId = params.get("id");
+  const select = (cid: string) => router.push(`/admin/contacts?id=${cid}`, { scroll: false });
+  const clearSelection = () => {
+    const sp = new URLSearchParams(params.toString());
+    sp.delete("id");
+    router.push(`/admin/contacts${sp.toString() ? `?${sp}` : ""}`, { scroll: false });
+  };
   const [contacts, setContacts] = useState<Contact[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
@@ -278,6 +288,25 @@ export default function ContactsPage() {
 
       {loading ? (
         <div className="py-12 text-center text-sm admin-faint">Loading...</div>
+      ) : selectedId ? (
+        /* ── A contact is selected → columns: compact rail + detail ── */
+        <div className="lg:flex lg:gap-6 lg:items-start">
+          <aside className="hidden lg:flex flex-col gap-1.5 lg:w-[320px] lg:shrink-0 lg:sticky lg:top-0 lg:max-h-[calc(100vh-11rem)] lg:overflow-y-auto lg:-mr-1 lg:pr-1">
+            {contacts.map((c) => {
+              const active = c.id === selectedId;
+              return (
+                <div key={c.id} onClick={() => select(c.id)} className="cursor-pointer rounded-xl border px-3.5 py-3 transition-colors"
+                  style={active ? { backgroundColor: "var(--admin-accent-weak)", borderColor: "var(--admin-accent)" } : { backgroundColor: "var(--admin-surface)", borderColor: "var(--admin-border)" }}>
+                  <span className="block text-sm font-medium admin-heading truncate">{c.name}</span>
+                  <span className="block text-xs admin-faint truncate mt-0.5">{c.email || "—"}</span>
+                </div>
+              );
+            })}
+          </aside>
+          <section className="flex-1 min-w-0">
+            <ContactDetailPane contactId={selectedId} onBack={clearSelection} />
+          </section>
+        </div>
       ) : contacts.length === 0 ? (
         <div className="py-16 text-center">
           <p className="text-sm admin-faint">No contacts found</p>
@@ -316,9 +345,9 @@ export default function ContactsPage() {
                 onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = "transparent")}
               >
                 {/* name — required */}
-                <Link href={`/admin/contacts/${c.id}`} className="text-sm font-medium admin-heading truncate hover:text-[#0aa3c7] transition-colors">
+                <button onClick={() => select(c.id)} className="text-left text-sm font-medium admin-heading truncate hover:text-[#0aa3c7] transition-colors">
                   {c.name}
-                </Link>
+                </button>
                 {visibleColumns.has("email") && (
                   <span className="text-xs admin-muted self-center truncate">{c.email || "—"}</span>
                 )}
@@ -421,5 +450,13 @@ export default function ContactsPage() {
         </>
       )}
     </div>
+  );
+}
+
+export default function ContactsPage() {
+  return (
+    <Suspense fallback={<div className="py-12 text-center text-sm admin-faint">Loading…</div>}>
+      <ContactsInner />
+    </Suspense>
   );
 }
