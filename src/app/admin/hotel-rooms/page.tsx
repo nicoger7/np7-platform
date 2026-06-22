@@ -66,9 +66,14 @@ function compareValues(a: unknown, b: unknown, dir: "asc" | "desc"): number {
   return dir === "asc" ? cmp : -cmp;
 }
 
+const STATUSES = ["available", "assigned", "held"];
+const emptyRoom = { name: "", hotel: "", room_type: "", room_number: "", status: "available", experience_id: "", edition_id: "", booking_id: "", check_in: "", check_out: "", transfer_need: false, partner_tag_along: "", comments: "" };
+
 export default function HotelRoomsPage() {
   const [rooms, setRooms] = useState<HotelRoom[]>([]);
   const [experiences, setExperiences] = useState<Experience[]>([]);
+  const [editions, setEditions] = useState<{ id: string; label: string | null; year: number; experience_id: string }[]>([]);
+  const [editionBookings, setEditionBookings] = useState<{ id: string; name: string }[]>([]);
   const [loading, setLoading] = useState(true);
   const [filterHotel, setFilterHotel] = useState("");
   const [filterExperience, setFilterExperience] = useState("");
@@ -78,17 +83,71 @@ export default function HotelRoomsPage() {
   const [visibleColumns, setVisibleColumns] = useState<Set<string>>(
     () => loadVisibleColumns(STORAGE_KEY, COLUMNS)
   );
+  // CRUD / split state
+  const [selId, setSelId] = useState<string | "new" | null>(null);
+  const [form, setForm] = useState(emptyRoom);
+  const [saving, setSaving] = useState(false);
 
+  function load() {
+    return fetch("/api/admin/hotel-rooms").then((r) => r.json()).then((d) => setRooms(d.rooms || []));
+  }
   useEffect(() => {
     Promise.all([
       fetch("/api/admin/hotel-rooms").then((r) => r.json()),
       fetch("/api/admin/experiences").then((r) => r.json()),
-    ]).then(([roomsData, expData]) => {
+      fetch("/api/admin/editions").then((r) => r.json()).catch(() => []),
+    ]).then(([roomsData, expData, edData]) => {
       setRooms(roomsData.rooms || []);
       setExperiences(expData.experiences || []);
+      setEditions(Array.isArray(edData) ? edData : (edData.editions || []));
       setLoading(false);
     });
   }, []);
+
+  // Bookings for the picked edition (for guest assignment).
+  useEffect(() => {
+    if (!form.edition_id) { setEditionBookings([]); return; }
+    fetch(`/api/admin/bookings?edition_id=${form.edition_id}`).then((r) => r.json())
+      .then((d) => setEditionBookings((d.bookings || []).map((b: { id: string; name: string }) => ({ id: b.id, name: b.name }))))
+      .catch(() => setEditionBookings([]));
+  }, [form.edition_id]);
+
+  function startNew() {
+    setSelId("new");
+    setForm({ ...emptyRoom, hotel: filterHotel || "", experience_id: filterExperience || "" });
+  }
+  function startEdit(r: HotelRoom) {
+    setSelId(r.id);
+    setForm({
+      name: r.name, hotel: r.hotel || "", room_type: r.room_type || "", room_number: r.room_number || "",
+      status: r.status, experience_id: r.experience_id || "", edition_id: r.edition?.year ? "" : "",
+      booking_id: r.booking?.id || "", check_in: r.check_in || "", check_out: r.check_out || "",
+      transfer_need: !!r.transfer_need, partner_tag_along: r.partner_tag_along || "", comments: r.comments || "",
+    });
+    // edition_id isn't on the list row; fetch the full room to fill it.
+    fetch(`/api/admin/hotel-rooms/${r.id}`).then((x) => x.json()).then((full) => {
+      if (full && full.id) setForm((f) => ({ ...f, edition_id: full.edition_id || "", experience_id: full.experience_id || f.experience_id, booking_id: full.booking_id || f.booking_id, check_in: full.check_in || f.check_in, check_out: full.check_out || f.check_out, partner_tag_along: full.partner_tag_along ?? f.partner_tag_along, comments: full.comments ?? f.comments, transfer_need: full.transfer_need ?? f.transfer_need }));
+    }).catch(() => {});
+  }
+  function closeEditor() { setSelId(null); setForm(emptyRoom); }
+  async function save() {
+    if (!form.name) return;
+    setSaving(true);
+    const body = {
+      name: form.name, hotel: form.hotel || null, room_type: form.room_type || null, room_number: form.room_number || null,
+      status: form.status, experience_id: form.experience_id || null, edition_id: form.edition_id || null,
+      booking_id: form.booking_id || null, check_in: form.check_in || null, check_out: form.check_out || null,
+      transfer_need: form.transfer_need, partner_tag_along: form.partner_tag_along || null, comments: form.comments || null,
+    };
+    if (selId === "new") await fetch("/api/admin/hotel-rooms", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+    else await fetch(`/api/admin/hotel-rooms/${selId}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+    setSaving(false); closeEditor(); load();
+  }
+  async function remove(id: string) {
+    if (!confirm("Delete this room?")) return;
+    await fetch(`/api/admin/hotel-rooms/${id}`, { method: "DELETE" });
+    closeEditor(); load();
+  }
 
   function handleSort(key: string) {
     if (sortKey === key) {
@@ -133,6 +192,9 @@ export default function HotelRoomsPage() {
   }, {});
 
   const gridTemplate = buildGridTemplate(COLUMNS, visibleColumns);
+  const inputClass = "w-full px-3 py-2 admin-input border rounded-lg text-sm focus:outline-none focus:border-[var(--admin-accent)] focus:ring-1 focus:ring-[var(--admin-accent)] transition-colors";
+  const labelClass = "block text-xs font-medium admin-muted mb-1";
+  const formEditions = editions.filter((e) => !form.experience_id || e.experience_id === form.experience_id);
 
   return (
     <div>
@@ -143,8 +205,65 @@ export default function HotelRoomsPage() {
             {rooms.length} room{rooms.length !== 1 ? "s" : ""} across {Object.keys(groupedByHotel).length} hotel{Object.keys(groupedByHotel).length !== 1 ? "s" : ""}
           </p>
         </div>
-        <ColumnToggle columns={COLUMNS} visible={visibleColumns} onChange={setVisibleColumns} storageKey={STORAGE_KEY} />
+        <div className="flex items-center gap-3">
+          {!selId && <ColumnToggle columns={COLUMNS} visible={visibleColumns} onChange={setVisibleColumns} storageKey={STORAGE_KEY} />}
+          <button onClick={startNew} className="px-4 py-2 bg-[var(--admin-accent)] hover:bg-[var(--admin-accent)]/90 text-[var(--admin-accent-contrast)] text-sm font-bold rounded-lg transition-colors">New Room</button>
+        </div>
       </div>
+
+      {selId ? (
+        <div className="flex flex-col lg:flex-row gap-4">
+          {/* rail */}
+          <div className="lg:w-60 shrink-0 flex lg:flex-col gap-1.5 lg:max-h-[80vh] lg:overflow-y-auto lg:pr-1">
+            <button onClick={closeEditor} className="shrink-0 mb-1 flex items-center gap-1.5 text-xs font-semibold admin-muted hover:text-[var(--admin-accent)] transition-colors">
+              <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m15 18-6-6 6-6" /></svg>
+              All rooms
+            </button>
+            {sorted.map((r) => {
+              const active = r.id === selId;
+              return (
+                <button key={r.id} onClick={() => startEdit(r)} className="shrink-0 text-left px-3 py-2 rounded-lg transition-colors" style={{ background: active ? "var(--admin-accent)" : "var(--admin-surface)", border: "1px solid var(--admin-border)" }}>
+                  <span className={`block text-xs font-semibold truncate ${active ? "text-[var(--admin-accent-contrast)]" : "admin-heading"}`}>{r.name}</span>
+                  <span className={`block text-[10px] mt-0.5 truncate ${active ? "text-[var(--admin-accent-contrast)]/80" : "admin-faint"}`}>{r.hotel} · {r.status}{r.booking?.name ? ` · ${r.booking.name.split(" — ")[0]}` : ""}</span>
+                </button>
+              );
+            })}
+          </div>
+          {/* editor */}
+          <div className="flex-1 min-w-0">
+            <div className="p-5 rounded-xl" style={{ border: "1px solid var(--admin-border)", backgroundColor: "var(--admin-surface)" }}>
+              <h3 className="text-base font-bold admin-heading mb-4">{selId === "new" ? "New room" : "Edit room"}</h3>
+              <div className="mb-3"><label className={labelClass}>Name *</label><input className={inputClass} value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} /></div>
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-3">
+                <div><label className={labelClass}>Hotel</label><select className={inputClass} value={form.hotel} onChange={(e) => setForm({ ...form, hotel: e.target.value })}><option value="">—</option>{HOTELS.map((h) => <option key={h} value={h}>{h}</option>)}</select></div>
+                <div><label className={labelClass}>Room #</label><input className={inputClass} value={form.room_number} onChange={(e) => setForm({ ...form, room_number: e.target.value })} /></div>
+                <div><label className={labelClass}>Status</label><select className={inputClass} value={form.status} onChange={(e) => setForm({ ...form, status: e.target.value })}>{STATUSES.map((s) => <option key={s} value={s}>{s[0].toUpperCase() + s.slice(1)}</option>)}</select></div>
+                <div className="flex items-end pb-2"><label className="flex items-center gap-2 text-sm admin-muted cursor-pointer"><input type="checkbox" checked={form.transfer_need} onChange={(e) => setForm({ ...form, transfer_need: e.target.checked })} className="w-4 h-4 accent-[#0aa3c7]" />Transfer</label></div>
+              </div>
+              <div className="mb-3"><label className={labelClass}>Room type</label><input className={inputClass} value={form.room_type} onChange={(e) => setForm({ ...form, room_type: e.target.value })} placeholder="e.g. Double Deluxe Balcony" /></div>
+              <div className="grid grid-cols-2 gap-3 mb-3">
+                <div><label className={labelClass}>Experience</label><select className={inputClass} value={form.experience_id} onChange={(e) => setForm({ ...form, experience_id: e.target.value, edition_id: "", booking_id: "" })}><option value="">—</option>{experiences.map((ex) => <option key={ex.id} value={ex.id}>{ex.title}</option>)}</select></div>
+                <div><label className={labelClass}>Edition</label><select className={inputClass} value={form.edition_id} onChange={(e) => setForm({ ...form, edition_id: e.target.value, booking_id: "" })} disabled={!form.experience_id}><option value="">All / none</option>{formEditions.map((ed) => <option key={ed.id} value={ed.id}>{ed.label || ed.year}</option>)}</select></div>
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-3">
+                <div><label className={labelClass}>Guest (booking)</label><select className={inputClass} value={form.booking_id} onChange={(e) => setForm({ ...form, booking_id: e.target.value })} disabled={!form.edition_id}><option value="">Unassigned</option>{editionBookings.map((b) => <option key={b.id} value={b.id}>{b.name}</option>)}</select></div>
+                <div><label className={labelClass}>Check-in</label><input type="date" className={inputClass} value={form.check_in} onChange={(e) => setForm({ ...form, check_in: e.target.value })} /></div>
+                <div><label className={labelClass}>Check-out</label><input type="date" className={inputClass} value={form.check_out} onChange={(e) => setForm({ ...form, check_out: e.target.value })} /></div>
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-4">
+                <div><label className={labelClass}>Partner tagging along</label><input className={inputClass} value={form.partner_tag_along} onChange={(e) => setForm({ ...form, partner_tag_along: e.target.value })} /></div>
+                <div><label className={labelClass}>Notes</label><input className={inputClass} value={form.comments} onChange={(e) => setForm({ ...form, comments: e.target.value })} /></div>
+              </div>
+              <div className="flex gap-2">
+                <button onClick={save} disabled={!form.name || saving} className="px-4 py-2 bg-[var(--admin-accent)] hover:bg-[var(--admin-accent)]/90 disabled:opacity-40 text-[var(--admin-accent-contrast)] text-sm font-bold rounded-lg transition-colors">{saving ? "Saving…" : selId === "new" ? "Create" : "Update"}</button>
+                <button onClick={closeEditor} className="px-4 py-2 admin-muted text-sm rounded-lg transition-colors">Cancel</button>
+                {selId !== "new" && <button onClick={() => remove(selId)} className="ml-auto px-3 py-2 text-sm text-red-400 hover:bg-red-500/10 rounded-lg transition-colors">Delete</button>}
+              </div>
+            </div>
+          </div>
+        </div>
+      ) : (
+      <>
 
       {/* Filters */}
       <div className="flex items-center gap-3 mb-5">
@@ -200,8 +319,11 @@ export default function HotelRoomsPage() {
                 {hotelRooms.map((room) => (
                   <div
                     key={room.id}
-                    className="grid gap-3 px-5 py-3"
+                    className="grid gap-3 px-5 py-3 cursor-pointer transition-colors"
                     style={{ gridTemplateColumns: gridTemplate, borderBottom: "1px solid var(--admin-border)" }}
+                    onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = "var(--admin-surface-hover)")}
+                    onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = "transparent")}
+                    onClick={() => startEdit(room)}
                   >
                     {/* name — required */}
                     <div className="min-w-0">
@@ -268,6 +390,8 @@ export default function HotelRoomsPage() {
             </div>
           ))}
         </div>
+      )}
+      </>
       )}
     </div>
   );

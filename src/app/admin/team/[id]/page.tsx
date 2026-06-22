@@ -126,13 +126,15 @@ export default function TeamDetailPage({ params }: { params: Promise<{ id: strin
         <div className="pt-4" style={{ borderTop: "1px solid var(--admin-border)" }}>
           <h3 className="text-xs font-bold tracking-[0.1em] admin-faint uppercase mb-3">Access &amp; login</h3>
           <div className="grid grid-cols-2 gap-4 items-start">
+            {(() => { const hasRoles = (member.role_ids?.length ?? 0) > 0; return (
             <div>
-              <label className={labelClass}>Access level</label>
-              <select className={inputClass} value={normalizeLevel(member.access_level)} onChange={(e) => update("access_level", e.target.value)}>
+              <label className={labelClass}>Access level <span className="admin-faint font-normal">(simple)</span></label>
+              <select className={inputClass} disabled={hasRoles} style={hasRoles ? { opacity: 0.5 } : undefined} value={normalizeLevel(member.access_level)} onChange={(e) => update("access_level", e.target.value)}>
                 {ACCESS_LEVELS.map((lvl) => <option key={lvl} value={lvl}>{ACCESS_LABELS[lvl]}</option>)}
               </select>
-              <p className="text-[11px] admin-faint mt-1.5">Remember to <strong>Save</strong> after changing.</p>
+              <p className="text-[11px] admin-faint mt-1.5">{hasRoles ? <>Overridden by the custom role(s) below — remove them to use this tier. <strong>Save</strong> after changing.</> : <>Owner = everything; Manager = all but Finance/Settings/Team. Use custom roles below for finer control. <strong>Save</strong> after changing.</>}</p>
             </div>
+            ); })()}
             <div>
               <label className={labelClass}>Login</label>
               <button onClick={handleInvite} disabled={inviting || !member.email}
