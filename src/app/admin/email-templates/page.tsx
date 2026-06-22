@@ -6,6 +6,7 @@ import { ColumnToggle, ColumnDef, buildGridTemplate, loadVisibleColumns } from "
 import { RowActions } from "@/components/row-actions";
 import ImagePickerModal from "@/components/image-picker-modal";
 import { DEFAULT_BODIES, DEFAULT_SUBJECTS } from "@/lib/email/default-bodies";
+import { DEFAULT_HEADER_IMAGE } from "@/lib/email/layout";
 
 interface EmailTemplate {
   id: string;
@@ -238,16 +239,26 @@ export default function EmailTemplatesPage() {
 
           {/* Header image */}
           <div className="mb-4">
-            <label className={labelClass}>Header image <span className="admin-faint font-normal">— the photo at the top; leave blank for the default</span></label>
+            <label className={labelClass}>Header image <span className="admin-faint font-normal">— the photo behind the logo at the top</span></label>
             <div className="flex items-center gap-3">
               {form.header_image ? (
                 // eslint-disable-next-line @next/next/no-img-element
                 <img src={form.header_image} alt="" className="h-12 w-24 object-cover rounded-md" style={{ border: "1px solid var(--admin-border)" }} />
+              ) : DEFAULT_HEADER_IMAGE[previewDivision] ? (
+                <div className="relative h-12 w-24 rounded-md overflow-hidden" style={{ border: "1px dashed var(--admin-border)" }}>
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img src={DEFAULT_HEADER_IMAGE[previewDivision]!} alt="" className="h-full w-full object-cover opacity-80" />
+                  <span className="absolute inset-x-0 bottom-0 bg-black/55 text-white text-[8px] font-bold text-center py-0.5">DEFAULT</span>
+                </div>
               ) : (
-                <div className="h-12 w-24 rounded-md grid place-items-center text-[10px] admin-faint" style={{ border: "1px dashed var(--admin-border)" }}>default</div>
+                <div className="h-12 w-24 rounded-md grid place-items-center text-[10px] admin-faint text-center px-1" style={{ border: "1px dashed var(--admin-border)" }}>No header photo (default)</div>
               )}
-              <button type="button" onClick={() => setPickingImage(true)} className="px-3 py-1.5 text-xs font-bold rounded-lg admin-surface admin-muted" style={{ border: "1px solid var(--admin-border)" }}>{form.header_image ? "Change image" : "Choose image"}</button>
-              {form.header_image && <button type="button" onClick={() => setForm({ ...form, header_image: "" })} className="text-xs admin-faint hover:text-red-400 transition-colors">Remove</button>}
+              <div>
+                <button type="button" onClick={() => setPickingImage(true)} className="px-3 py-1.5 text-xs font-bold rounded-lg admin-surface admin-muted" style={{ border: "1px solid var(--admin-border)" }}>{form.header_image ? "Change image" : "Choose image"}</button>
+                {form.header_image
+                  ? <button type="button" onClick={() => setForm({ ...form, header_image: "" })} className="ml-2 text-xs admin-faint hover:text-red-400 transition-colors">Use default</button>
+                  : <p className="text-[11px] admin-faint mt-1">Blank uses the {previewDivision === "experience" ? "NP7 hero photo" : "no-photo header"} — or the experience’s own photo when one is set.</p>}
+              </div>
             </div>
           </div>
 
