@@ -228,62 +228,8 @@ export function PackageComponentsEditor({
         </p>
       )}
 
-      {links.length === 0 ? (
-        <p className="text-xs admin-faint mb-2">No components linked yet.</p>
-      ) : (
-        <div className="mb-3">
-          {/* Column header */}
-          <div
-            className="grid items-center gap-2 px-2 pb-2 text-[10px] font-bold uppercase tracking-[0.08em] admin-faint"
-            style={{ gridTemplateColumns: COMP_GRID }}
-          >
-            <span>Component</span>
-            <span className="text-right">Cost</span>
-            <span className="text-right">Sell</span>
-            <span className="text-right">Margin</span>
-            <span className="text-center">Qty</span>
-            <span />
-          </div>
-          <div className="space-y-0.5">
-            {links.map((l) => {
-              const cost = Number(l.exp_components?.unit_cost) || 0;
-              const sell = Number(l.exp_components?.sell_price) || 0;
-              const margin = sell - cost;
-              return (
-                <div
-                  key={l.id}
-                  className="grid items-center gap-2 px-2 py-2 text-sm rounded-lg transition-colors"
-                  style={{ gridTemplateColumns: COMP_GRID }}
-                  onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = "var(--admin-surface-hover)")}
-                  onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = "transparent")}
-                >
-                  <span className="admin-heading font-medium truncate" title={l.exp_components?.name || ""}>{l.exp_components?.name || "?"}</span>
-                  <span className="admin-muted text-right tabular-nums whitespace-nowrap">{money(l.exp_components?.unit_cost)}</span>
-                  <span className="admin-muted text-right tabular-nums whitespace-nowrap">{money(l.exp_components?.sell_price)}</span>
-                  <span className={`text-right tabular-nums whitespace-nowrap font-medium ${margin < 0 ? "text-red-400" : "text-green-500"}`}>{money(margin)}</span>
-                  <input
-                    type="number"
-                    min={1}
-                    defaultValue={l.quantity}
-                    onBlur={(e) => {
-                      const q = Number(e.target.value) || 1;
-                      if (q !== l.quantity) setQty(l.component_id, q);
-                    }}
-                    className="w-full h-9 px-2 admin-input border rounded-lg text-sm font-semibold text-center tabular-nums focus:outline-none focus:border-[#0aa3c7] focus:ring-1 focus:ring-[#0aa3c7]"
-                    title="Quantity"
-                  />
-                  <button onClick={() => detach(l.component_id)} className="admin-faint hover:text-red-400 transition-colors justify-self-center" title="Remove">
-                    <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M18 6L6 18M6 6l12 12" /></svg>
-                  </button>
-                </div>
-              );
-            })}
-          </div>
-        </div>
-      )}
-
-      {/* Add a component — searchable picker (replaces the old dropdown) */}
-      <div className="flex items-stretch gap-2">
+      {/* Add a component — searchable picker, on top of the list */}
+      <div className="flex items-stretch gap-2 mb-3">
         <div ref={pickerRef} className="relative flex-1">
           <div className="relative">
             <svg className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 admin-faint pointer-events-none" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="11" cy="11" r="8" /><path d="m21 21-4.3-4.3" /></svg>
@@ -343,7 +289,7 @@ export function PackageComponentsEditor({
 
       {/* Create & attach new component */}
       {showNewComp && (
-        <div className="mt-2 flex items-center gap-2">
+        <div className="mb-3 flex items-center gap-2">
           <input className={`${inputClass} flex-1`} placeholder="Component name" value={newComp.name} onChange={(e) => setNewComp({ ...newComp, name: e.target.value })} />
           <select className={inputClass} value={newComp.category} onChange={(e) => setNewComp({ ...newComp, category: e.target.value })}>
             {NEW_COMPONENT_CATEGORIES.map((c) => <option key={c} value={c}>{c}</option>)}
@@ -353,6 +299,61 @@ export function PackageComponentsEditor({
           <button onClick={createAndAttach} disabled={!newComp.name} className="px-3 py-1.5 bg-[#0aa3c7] hover:bg-[#0aa3c7]/90 disabled:opacity-40 text-white text-xs font-bold rounded-lg transition-colors">Create</button>
         </div>
       )}
+
+      {links.length === 0 ? (
+        <p className="text-xs admin-faint mb-2">No components linked yet.</p>
+      ) : (
+        <div className="mb-3">
+          {/* Column header */}
+          <div
+            className="grid items-center gap-2 px-2 pb-2 text-[10px] font-bold uppercase tracking-[0.08em] admin-faint"
+            style={{ gridTemplateColumns: COMP_GRID }}
+          >
+            <span>Component</span>
+            <span className="text-right">Cost</span>
+            <span className="text-right">Sell</span>
+            <span className="text-right">Margin</span>
+            <span className="text-center">Qty</span>
+            <span />
+          </div>
+          <div className="space-y-0.5">
+            {links.map((l) => {
+              const cost = Number(l.exp_components?.unit_cost) || 0;
+              const sell = Number(l.exp_components?.sell_price) || 0;
+              const margin = sell - cost;
+              return (
+                <div
+                  key={l.id}
+                  className="grid items-center gap-2 px-2 py-2 text-sm rounded-lg transition-colors"
+                  style={{ gridTemplateColumns: COMP_GRID }}
+                  onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = "var(--admin-surface-hover)")}
+                  onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = "transparent")}
+                >
+                  <span className="admin-heading font-medium truncate" title={l.exp_components?.name || ""}>{l.exp_components?.name || "?"}</span>
+                  <span className="admin-muted text-right tabular-nums whitespace-nowrap">{money(l.exp_components?.unit_cost)}</span>
+                  <span className="admin-muted text-right tabular-nums whitespace-nowrap">{money(l.exp_components?.sell_price)}</span>
+                  <span className={`text-right tabular-nums whitespace-nowrap font-medium ${margin < 0 ? "text-red-400" : "text-green-500"}`}>{money(margin)}</span>
+                  <input
+                    type="number"
+                    min={1}
+                    defaultValue={l.quantity}
+                    onBlur={(e) => {
+                      const q = Number(e.target.value) || 1;
+                      if (q !== l.quantity) setQty(l.component_id, q);
+                    }}
+                    className="w-full h-9 px-2 admin-input border rounded-lg text-sm font-semibold text-center tabular-nums focus:outline-none focus:border-[#0aa3c7] focus:ring-1 focus:ring-[#0aa3c7]"
+                    title="Quantity"
+                  />
+                  <button onClick={() => detach(l.component_id)} className="admin-faint hover:text-red-400 transition-colors justify-self-center" title="Remove">
+                    <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M18 6L6 18M6 6l12 12" /></svg>
+                  </button>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
     </div>
   );
 }
