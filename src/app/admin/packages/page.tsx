@@ -97,7 +97,6 @@ export default function PackagesPage() {
   const [filterEditionId, setFilterEditionId] = useState("");
   const [showNew, setShowNew] = useState(false);
   const [editId, setEditId] = useState<string | null>(null);
-  const [expandedId, setExpandedId] = useState<string | null>(null);
   const [form, setForm] = useState(emptyForm);
 
   const load = useCallback(() => {
@@ -229,39 +228,29 @@ export default function PackagesPage() {
         </button>
       </div>
 
-      {/* Cascading filters: experience → edition */}
-      <div className="flex items-center gap-3 mb-5">
-        <select
-          className={`${inputClass} max-w-[240px]`}
-          value={filterExperienceId}
-          onChange={(e) => { setFilterExperienceId(e.target.value); setFilterEditionId(""); }}
-        >
-          <option value="">All Experiences</option>
-          {experiences.map((exp) => (
-            <option key={exp.id} value={exp.id}>{exp.title}</option>
-          ))}
-        </select>
-        <select
-          className={`${inputClass} max-w-[220px]`}
-          value={filterEditionId}
-          onChange={(e) => setFilterEditionId(e.target.value)}
-        >
-          <option value="">All Editions</option>
-          {editionOptions.map((ed) => (
-            <option key={ed.id} value={ed.id}>{ed.label || ed.year}{filterExperienceId ? "" : ` — ${ed.exp_experiences?.title || ""}`}</option>
-          ))}
-        </select>
-        {(filterExperienceId || filterEditionId) && (
-          <button onClick={() => { setFilterExperienceId(""); setFilterEditionId(""); }} className="text-xs admin-faint hover:admin-muted transition-colors">
-            Clear
+      {(showNew || editId) ? (
+      <div className="flex flex-col lg:flex-row gap-4">
+        {/* rail */}
+        <div className="lg:w-64 shrink-0 flex lg:flex-col gap-1.5 lg:max-h-[80vh] lg:overflow-y-auto lg:pr-1">
+          <button onClick={() => { setShowNew(false); setEditId(null); }} className="shrink-0 mb-1 flex items-center gap-1.5 text-xs font-semibold admin-muted hover:text-[var(--admin-accent)] transition-colors">
+            <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m15 18-6-6 6-6" /></svg>
+            All packages
           </button>
-        )}
-      </div>
-
-      {/* Create / edit form */}
-      {(showNew || editId) && (
-        <div className="mb-6 p-5 rounded-xl" style={{ border: "1px solid var(--admin-border)", backgroundColor: "var(--admin-surface)" }}>
-          <h3 className="text-sm font-bold admin-heading mb-4">{editId ? "Edit Package" : "New Package"}</h3>
+          {filtered.map((pkg) => {
+            const active = pkg.id === editId;
+            const ed = editions.find((e) => e.id === pkg.edition_id);
+            return (
+              <button key={pkg.id} onClick={() => startEdit(pkg)} className="shrink-0 text-left px-3 py-2 rounded-lg transition-colors" style={{ background: active ? "var(--admin-accent)" : "var(--admin-surface)", border: "1px solid var(--admin-border)" }}>
+                <span className={`block text-xs font-semibold truncate ${active ? "text-[var(--admin-accent-contrast)]" : "admin-heading"}`}>{pkg.name}</span>
+                <span className={`block text-[10px] mt-0.5 truncate ${active ? "text-[var(--admin-accent-contrast)]/80" : "admin-faint"}`}>{ed ? `${ed.label || ed.year} · ` : ""}{money(pkg.price)} · {pkg.status}</span>
+              </button>
+            );
+          })}
+        </div>
+        {/* detail: edit form + component selector */}
+        <div className="flex-1 min-w-0 space-y-4">
+        <div className="p-5 rounded-xl" style={{ border: "1px solid var(--admin-border)", backgroundColor: "var(--admin-surface)" }}>
+          <h3 className="text-base font-bold admin-heading mb-4">{editId ? "Edit package" : "New package"}</h3>
           <div className="grid grid-cols-[1fr_180px_180px] gap-4 mb-4">
             <div><label className={labelClass}>Name *</label><input className={inputClass} value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} /></div>
             <div><label className={labelClass}>Experience</label>
@@ -321,10 +310,53 @@ export default function PackagesPage() {
           <div className="flex gap-2">
             <button onClick={save} disabled={!form.name} className="px-4 py-2 bg-[var(--admin-accent)] hover:bg-[var(--admin-accent)]/90 disabled:opacity-40 text-[var(--admin-accent-contrast)] text-sm font-bold rounded-lg transition-colors">{editId ? "Update" : "Create"}</button>
             <button onClick={() => { setShowNew(false); setEditId(null); }} className="px-4 py-2 admin-muted text-sm rounded-lg transition-colors">Cancel</button>
-            {editId && <span className="text-xs admin-faint self-center ml-2">Components are edited below — expand the package row.</span>}
           </div>
         </div>
-      )}
+        {editId && (
+          <div className="p-5 rounded-xl" style={{ border: "1px solid var(--admin-border)", backgroundColor: "var(--admin-surface)" }}>
+            <h3 className="text-base font-bold admin-heading mb-4">What&apos;s included</h3>
+            <PackageComponentsEditor
+              packageId={editId}
+              experienceId={form.experience_id || null}
+              editionId={form.edition_id || null}
+              namePrefix={form.experience_id && expCodeById.get(form.experience_id) ? `${expCodeById.get(form.experience_id)} - ` : undefined}
+              sellPrice={form.price ? Number(form.price) : null}
+              onChanged={load}
+            />
+          </div>
+        )}
+        </div>
+      </div>
+      ) : (
+      <>
+      {/* Cascading filters: experience → edition */}
+      <div className="flex items-center gap-3 mb-5">
+        <select
+          className={`${inputClass} max-w-[240px]`}
+          value={filterExperienceId}
+          onChange={(e) => { setFilterExperienceId(e.target.value); setFilterEditionId(""); }}
+        >
+          <option value="">All Experiences</option>
+          {experiences.map((exp) => (
+            <option key={exp.id} value={exp.id}>{exp.title}</option>
+          ))}
+        </select>
+        <select
+          className={`${inputClass} max-w-[220px]`}
+          value={filterEditionId}
+          onChange={(e) => setFilterEditionId(e.target.value)}
+        >
+          <option value="">All Editions</option>
+          {editionOptions.map((ed) => (
+            <option key={ed.id} value={ed.id}>{ed.label || ed.year}{filterExperienceId ? "" : ` — ${ed.exp_experiences?.title || ""}`}</option>
+          ))}
+        </select>
+        {(filterExperienceId || filterEditionId) && (
+          <button onClick={() => { setFilterExperienceId(""); setFilterEditionId(""); }} className="text-xs admin-faint hover:admin-muted transition-colors">
+            Clear
+          </button>
+        )}
+      </div>
 
       {loading ? (
         <div className="py-12 text-center text-sm admin-faint">Loading...</div>
@@ -344,10 +376,9 @@ export default function PackagesPage() {
               </div>
               <div className="rounded-xl admin-tablecard" style={{ border: "1px solid var(--admin-border)" }}>
                 <div
-                  className="grid grid-cols-[24px_1fr_90px_80px_80px_90px_55px_70px_80px_70px] gap-3 px-5 py-3 admin-surface"
+                  className="grid grid-cols-[1fr_90px_80px_80px_90px_55px_70px_80px_70px] gap-3 px-5 py-3 admin-surface"
                   style={{ borderBottom: "1px solid var(--admin-border)" }}
                 >
-                  <span></span>
                   <span className="text-[10px] font-bold tracking-[0.1em] admin-faint uppercase">Name</span>
                   <span className="text-[10px] font-bold tracking-[0.1em] admin-faint uppercase">Category</span>
                   <span className="text-[10px] font-bold tracking-[0.1em] admin-faint uppercase">Sell</span>
@@ -359,18 +390,13 @@ export default function PackagesPage() {
                   <span></span>
                 </div>
                 {group.pkgs.map((pkg) => {
-                  const expanded = expandedId === pkg.id;
-                  const code = pkg.experience_id ? expCodeById.get(pkg.experience_id) : null;
                   return (
                     <div key={pkg.id} style={{ borderBottom: "1px solid var(--admin-border)" }}>
                       <div
-                        className="grid grid-cols-[24px_1fr_90px_80px_80px_90px_55px_70px_80px_70px] gap-3 px-5 py-3 transition-colors"
+                        className="grid grid-cols-[1fr_90px_80px_80px_90px_55px_70px_80px_70px] gap-3 px-5 py-3 transition-colors"
                         onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = "var(--admin-surface-hover)")}
                         onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = "transparent")}
                       >
-                        <button onClick={() => setExpandedId(expanded ? null : pkg.id)} className="admin-faint self-center" title="Components">
-                          <svg className={`w-3.5 h-3.5 transition-transform ${expanded ? "rotate-90" : ""}`} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M9 18l6-6-6-6" /></svg>
-                        </button>
                         <span className="text-sm font-medium admin-heading truncate cursor-pointer self-center" onClick={() => startEdit(pkg)}>{pkg.name}</span>
                         <span className="text-xs admin-muted self-center capitalize">{pkg.category || "—"}</span>
                         <span className="text-xs admin-muted self-center">{money(pkg.price)}</span>
@@ -393,11 +419,6 @@ export default function PackagesPage() {
                           </button>
                         </span>
                       </div>
-                      {expanded && (
-                        <div className="px-5 pb-4">
-                          <PackageComponentsEditor packageId={pkg.id} experienceId={pkg.experience_id} editionId={pkg.edition_id} namePrefix={code ? `${code} - ` : undefined} sellPrice={pkg.price} onChanged={load} />
-                        </div>
-                      )}
                     </div>
                   );
                 })}
@@ -405,6 +426,8 @@ export default function PackagesPage() {
             </div>
           ))}
         </div>
+      )}
+      </>
       )}
     </div>
   );
