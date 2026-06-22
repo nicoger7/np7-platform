@@ -32,9 +32,12 @@ create table if not exists team_roles (
 comment on table team_roles is
   'Named, reusable admin access roles: worlds + per-section level + field-group visibility (see src/lib/access.ts).';
 
--- Assign a role to a team member (nullable → falls back to access_level tiers).
+-- Assign one OR MORE roles to a team member (empty → falls back to access_level
+-- tiers). Multiple roles let someone hold a different role per world — e.g. an
+-- "Experience Photographer" role plus a "Hardware Viewer" role; their effective
+-- access is the union (see mergeAccess() in src/lib/access.ts).
 alter table team_members
-  add column if not exists role_id uuid references team_roles(id) on delete set null;
+  add column if not exists role_ids uuid[] not null default '{}';
 
 -- team_roles is team-only data; the admin reads/writes it via the service-role
 -- client (which bypasses RLS), same as the rest of the admin tables. Enable RLS

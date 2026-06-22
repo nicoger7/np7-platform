@@ -136,6 +136,26 @@ export function normalizeAccess(raw: unknown): RoleAccess {
   };
 }
 
+/** Union several roles into one effective access — so a member can hold a
+ *  different role per world. Worlds union; the most permissive section level
+ *  wins (edit > view > none); a field is visible if any role grants it. */
+export function mergeAccess(list: RoleAccess[]): RoleAccess {
+  const rank: Record<SectionLevel, number> = { none: 0, view: 1, edit: 2 };
+  const out: RoleAccess = { worlds: [], sections: {}, fields: {} };
+  const worlds = new Set<WorldId>();
+  for (const a of list) {
+    for (const w of a.worlds) worlds.add(w);
+    for (const [k, v] of Object.entries(a.sections)) {
+      if (rank[v] > rank[out.sections[k] ?? "none"]) out.sections[k] = v;
+    }
+    for (const [k, v] of Object.entries(a.fields)) {
+      if (v) (out.fields as Record<string, boolean>)[k] = true;
+    }
+  }
+  out.worlds = [...worlds];
+  return out;
+}
+
 /** The section that owns a path (longest-prefix wins), or undefined for shared
  *  paths (Dashboard, Archive) that every team member may reach. */
 export function sectionForPath(path: string): Section | undefined {

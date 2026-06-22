@@ -14,7 +14,7 @@ interface TeamMember {
   active: boolean;
   notes: string | null;
   access_level: string | null;
-  role_id?: string | null;
+  role_ids?: string[] | null;
 }
 
 interface HoursEntry {
@@ -143,12 +143,22 @@ export default function TeamDetailPage({ params }: { params: Promise<{ id: strin
             </div>
           </div>
           <div className="mt-4">
-            <label className={labelClass}>Custom role (advanced)</label>
-            <select className={inputClass} value={member.role_id || ""} onChange={(e) => update("role_id", e.target.value || null)}>
-              <option value="">— Use access level above —</option>
-              {roles.map((r) => <option key={r.id} value={r.id}>{r.name}</option>)}
-            </select>
-            <p className="text-[11px] admin-faint mt-1.5">A custom role <strong>overrides</strong> the access level: it sets exactly which worlds, sections and sensitive figures this person sees. Define roles under <strong>Team › Roles</strong>.</p>
+            <label className={labelClass}>Custom roles (advanced)</label>
+            {roles.length === 0 ? (
+              <p className="text-[11px] admin-faint">No roles defined yet — create them under <strong>Team › Roles</strong>.</p>
+            ) : (
+              <div className="flex flex-wrap gap-2">
+                {roles.map((r) => {
+                  const on = (member.role_ids ?? []).includes(r.id);
+                  return (
+                    <button key={r.id} type="button" onClick={() => { const cur = member.role_ids ?? []; update("role_ids", on ? cur.filter((x) => x !== r.id) : [...cur, r.id]); }} className="px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors" style={on ? { background: "var(--admin-accent)", color: "var(--admin-accent-contrast)", border: "1px solid transparent" } : { border: "1px solid var(--admin-border)" }}>
+                      {on ? "✓ " : ""}{r.name}
+                    </button>
+                  );
+                })}
+              </div>
+            )}
+            <p className="text-[11px] admin-faint mt-1.5">Custom roles <strong>override</strong> the access level. Assign more than one to give someone a different role per world (their access is the union). Define roles under <strong>Team › Roles</strong>.</p>
           </div>
         </div>
 

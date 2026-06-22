@@ -9,9 +9,9 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
   return NextResponse.json(data);
 }
 
-// role_id arrives with migration 045 — strip & retry if the column isn't there
+// role_ids arrives with migration 045 — strip & retry if the column isn't there
 // yet, so saving the rest of a team member still works pre-migration.
-const PENDING_OPTIONAL = ["role_id"];
+const PENDING_OPTIONAL = ["role_ids"];
 
 export async function PATCH(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const client = createAdminClient();
