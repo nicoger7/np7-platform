@@ -203,7 +203,7 @@ function MembersInner() {
           <p className="text-sm admin-muted mt-1">Customer accounts for the trip portal. Pick anyone to open their full details.</p>
         </div>
         <div className="flex items-center gap-2 shrink-0">
-          {!selectedId && <ColumnToggle columns={CARD_PROPS} visible={visibleProps} onChange={setVisibleProps} storageKey={PROPS_KEY} />}
+          {!selectedId && <ColumnToggle columns={CARD_PROPS} visible={visibleProps} onChange={setVisibleProps} storageKey={PROPS_KEY} label="Properties" />}
           <button
             onClick={toggleLevelView}
             className={`px-4 py-2 rounded-lg text-[13px] font-bold transition-colors ${levelView ? "bg-[var(--admin-accent)] text-[var(--admin-accent-contrast)]" : "admin-muted"}`}

@@ -15,11 +15,18 @@ interface ColumnToggleProps {
   visible: Set<string>;
   onChange: (visible: Set<string>) => void;
   storageKey: string;
+  /** What the toggle controls, e.g. "Columns" (default) or "Properties". */
+  label?: string;
 }
 
-export function ColumnToggle({ columns, visible, onChange, storageKey }: ColumnToggleProps) {
+export function ColumnToggle({ columns, visible, onChange, storageKey, label = "Columns" }: ColumnToggleProps) {
   const [open, setOpen] = useState(false);
+  // `visible` is derived from localStorage by callers, so it differs between the
+  // server render (defaults) and the client. Only show the count once mounted to
+  // keep the first client render matching the server (no hydration mismatch).
+  const [mounted, setMounted] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
+  useEffect(() => setMounted(true), []);
 
   useEffect(() => {
     function handleClick(e: MouseEvent) {
@@ -45,35 +52,32 @@ export function ColumnToggle({ columns, visible, onChange, storageKey }: ColumnT
   }
 
   const toggleable = columns.filter((c) => !c.required);
+  const shown = toggleable.filter((c) => visible.has(c.key)).length;
 
   return (
     <div ref={ref} className="relative">
       <button
         onClick={() => setOpen((o) => !o)}
-        className={`p-2 rounded-lg transition-colors ${
-          open ? "bg-[#0aa3c7]/15 text-[#0aa3c7]" : "admin-faint"
+        className={`inline-flex items-center gap-1.5 h-8 pl-2.5 pr-2 rounded-lg text-xs font-semibold transition-colors ${
+          open
+            ? "bg-[var(--admin-accent)] text-[var(--admin-accent-contrast)]"
+            : "admin-muted hover:admin-heading hover:bg-[var(--admin-surface-hover)]"
         }`}
-        style={{ border: "1px solid var(--admin-border)" }}
-        title="Show/hide columns"
+        style={open ? { border: "1px solid transparent" } : { border: "1px solid var(--admin-border)" }}
+        title={`Show/hide ${label.toLowerCase()}`}
       >
-        {/* Gear / settings icon */}
-        <svg
-          className="w-4 h-4"
-          viewBox="0 0 24 24"
-          fill="none"
-          stroke="currentColor"
-          strokeWidth="2"
-          strokeLinecap="round"
-          strokeLinejoin="round"
-        >
-          <circle cx="12" cy="12" r="3" />
-          <path d="M19.07 4.93l-1.41 1.41M4.93 4.93l1.41 1.41M4.93 19.07l1.41-1.41M19.07 19.07l-1.41-1.41M12 2v2M12 20v2M2 12h2M20 12h2" />
+        {/* Sliders icon — distinct from a generic settings gear */}
+        <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+          <line x1="4" y1="6" x2="20" y2="6" /><line x1="4" y1="12" x2="20" y2="12" /><line x1="4" y1="18" x2="20" y2="18" />
+          <circle cx="9" cy="6" r="2" fill="var(--admin-bg)" /><circle cx="15" cy="12" r="2" fill="var(--admin-bg)" /><circle cx="8" cy="18" r="2" fill="var(--admin-bg)" />
         </svg>
+        <span>{label}</span>
+        {mounted && <span className={`ml-0.5 px-1.5 h-4 grid place-items-center rounded text-[10px] font-bold tabular-nums ${open ? "bg-[var(--admin-accent-contrast)]/20" : "bg-[var(--admin-surface)] admin-faint"}`}>{shown}/{toggleable.length}</span>}
       </button>
 
       {open && (
         <div
-          className="absolute right-0 top-full mt-1 z-50 py-1.5 rounded-xl min-w-[160px]"
+          className="absolute right-0 top-full mt-1.5 z-50 py-1.5 rounded-xl min-w-[180px]"
           style={{
             border: "1px solid var(--admin-border)",
             backgroundColor: "var(--admin-bg)",
@@ -81,7 +85,7 @@ export function ColumnToggle({ columns, visible, onChange, storageKey }: ColumnT
           }}
         >
           <div className="px-3 pb-1.5 mb-1 text-[10px] font-bold tracking-[0.1em] admin-faint uppercase" style={{ borderBottom: "1px solid var(--admin-border)" }}>
-            Columns
+            {label}
           </div>
           {toggleable.map((col) => (
             <label

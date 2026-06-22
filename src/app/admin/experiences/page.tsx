@@ -189,6 +189,7 @@ export default function ExperiencesPage() {
             visible={visibleColumns}
             onChange={setVisibleColumns}
             storageKey={STORAGE_KEY}
+            label="Properties"
           />
 
           {/* View toggle */}
