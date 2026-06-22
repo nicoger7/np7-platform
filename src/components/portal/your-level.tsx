@@ -17,7 +17,6 @@ export function YourLevel({ detail }: { detail: MemberLevelDetail }) {
   const [busy, setBusy] = useState(false);
   const [saved, setSaved] = useState(false);
   const [err, setErr] = useState("");
-  const [showNext, setShowNext] = useState(false);
   const [showHistory, setShowHistory] = useState(false);
 
   const coachLevel = detail.coach_level;
@@ -29,11 +28,6 @@ export function YourLevel({ detail }: { detail: MemberLevelDetail }) {
   const { nextTier, toNext, pct } = nextTierFrom(shown, tiers); // tier above current level
   const hasCatalog = total > 0;
   const ringColor = verified ? "#1aa851" : "#00afdb";
-  const earnedSkills = detail.milestones.filter((m) => m.achieved);
-  const nextSkills = detail.milestones.filter((m) => !m.achieved); // catalog order = Beginner→Pro
-  // Batch earned skills into their tier (Beginner→Pro) so the list reads as a
-  // progression, mirroring the admin panel and the byline tooltip.
-  const earnedByTier = LEVELS.map((t) => ({ tier: t, items: earnedSkills.filter((m) => m.tier === t) })).filter((g) => g.items.length > 0);
 
   async function call(payload: Record<string, unknown>) {
     setBusy(true); setErr(""); setSaved(false);
@@ -100,45 +94,41 @@ export function YourLevel({ detail }: { detail: MemberLevelDetail }) {
         </div>
       )}
 
-      {/* ── earned skills ── */}
+      {/* ── skills by level: what you've earned + what each level still needs ── */}
       {hasCatalog && (
         <div className="mt-5">
-          <p className="text-[13px] font-bold text-[#00374a] mb-2.5">Skills you&apos;ve earned {earned > 0 && <span className="text-[#9aa6ac] font-normal">· {earned}</span>}</p>
-          {earned === 0 ? (
-            <p className="text-[13px] text-[#9aa6ac]">No skills logged yet — your coach ticks these off on trips. Here&apos;s the path:</p>
-          ) : (
-            <div className="space-y-3">
-              {earnedByTier.map((g) => (
-                <div key={g.tier}>
-                  <p className="text-[10px] font-bold uppercase tracking-[0.08em] text-[#9aa6ac] mb-1.5">{g.tier} <span className="text-[#c4cdd1] font-semibold">· {g.items.length}</span></p>
+          <div className="flex items-baseline justify-between gap-2 mb-2.5">
+            <p className="text-[13px] font-bold text-[#00374a]">Skills by level</p>
+            <p className="text-[11px] text-[#9aa6ac]">{earned} of {total} earned</p>
+          </div>
+          <div className="space-y-4">
+            {LEVELS.map((t) => {
+              const items = detail.milestones.filter((m) => m.tier === t);
+              if (items.length === 0) return null;
+              const done = items.filter((m) => m.achieved).length;
+              const complete = done === items.length;
+              const isNext = t === nextTier;
+              return (
+                <div key={t} className={isNext ? "rounded-xl border border-[#bfe6f2] bg-[#f6fcfe] -mx-2 px-3 py-2.5" : ""}>
+                  <div className="flex items-center gap-2 mb-2">
+                    <p className="text-[11px] font-bold uppercase tracking-[0.08em] text-[#00374a]">{t}</p>
+                    <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-full ${complete ? "bg-[#e1f5ee] text-[#0f6e56]" : "bg-[#eef3f4] text-[#9aa6ac]"}`}>{done}/{items.length}{complete ? " ✓" : ""}</span>
+                    {isNext && !complete && <span className="text-[10px] font-bold text-[#00afdb]">← next up</span>}
+                  </div>
                   <div className="flex flex-wrap gap-1.5">
-                    {g.items.map((m) => (
+                    {items.map((m) => m.achieved ? (
                       <span key={m.id} title={m.description ?? m.label} className={chipEarned}>
                         <svg className="w-3 h-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><path d="M20 6L9 17l-5-5" /></svg>{m.label}
                       </span>
+                    ) : (
+                      <span key={m.id} title={m.description ?? m.label} className={chipLocked}>{m.label}</span>
                     ))}
                   </div>
                 </div>
-              ))}
-            </div>
-          )}
-        </div>
-      )}
-
-      {/* ── what's next — one row by default, rest unfolds ── */}
-      {hasCatalog && nextSkills.length > 0 && (
-        <div className="mt-4 pt-4 border-t border-[#f3ede2]">
-          <p className="text-[13px] font-semibold text-[#00374a] mb-2.5">What&apos;s next <span className="text-[#9aa6ac] font-normal">— {nextSkills.length} to unlock{nextTier ? `, next: ${nextTier}` : ""}</span></p>
-          <div className="flex flex-wrap gap-1.5">
-            {(showNext ? nextSkills : nextSkills.slice(0, 6)).map((m) => (
-              <span key={m.id} title={m.description ?? m.label} className={chipLocked}>{m.label}</span>
-            ))}
-            {nextSkills.length > 6 && (
-              <button type="button" onClick={() => setShowNext((s) => !s)} className="text-[12px] font-semibold text-[#00afdb] px-2.5 py-1">
-                {showNext ? "Show less" : `+${nextSkills.length - 6} more`}
-              </button>
-            )}
+              );
+            })}
           </div>
+          <p className="text-[11px] text-[#9aa6ac] mt-3.5 leading-relaxed">The <span className="inline-flex items-center gap-1 text-[#0f6e56]"><svg className="w-2.5 h-2.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3.5" strokeLinecap="round"><path d="M20 6L9 17l-5-5" /></svg>ticked</span> skills are yours; the <span className="border border-dashed border-[#dde6e9] text-[#9aa6ac] px-1.5 rounded">dashed</span> ones are what&apos;s left — your coach ticks them off on trips. Finish every skill in a level to reach the next.</p>
         </div>
       )}
 
