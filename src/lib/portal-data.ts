@@ -59,8 +59,9 @@ export async function getMemberBooking(contactId: string, bookingId: string): Pr
 }
 
 /** Images for the member-home banner slideshow: the member's own trip photos
-    across all bookings; if they have none yet, the hero images of the experiences
-    they've booked. De-duped and capped. */
+    across all bookings; if they have none, the hero images of the experiences
+    they've booked; and if they've booked nothing at all, the hero images of the
+    NEXT upcoming trips (general inspiration, not theirs). De-duped and capped. */
 export async function getMemberBannerImages(contactId: string): Promise<string[]> {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const db = createAdminClient() as any;
@@ -84,7 +85,43 @@ export async function getMemberBannerImages(contactId: string): Promise<string[]
       imgs = expIds.map((id) => byContent.get(id) || byExp.get(id)).filter(Boolean) as string[];
     }
   }
+
+  if (imgs.length === 0) {
+    imgs = await getUpcomingTripImages(db);
+  }
+
   return [...new Set(imgs)].slice(0, 15);
+}
+
+/** Hero images of the next published, future editions (soonest first) — the
+    general "next trips coming up" used to dress an empty member home. Prefers the
+    edition's own hero (migration 047), then the experience hero. Tolerant of
+    pre-migration columns. */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+async function getUpcomingTripImages(db: any): Promise<string[]> {
+  const today = new Date().toISOString().slice(0, 10);
+  // hero_image on editions arrives with migration 047 — fall back if absent.
+  let edRes = await db.from("exp_editions").select("experience_id,hero_image,date_start,status").eq("status", "published").gte("date_start", today).order("date_start", { ascending: true }).limit(8);
+  if (edRes.error) edRes = await db.from("exp_editions").select("experience_id,date_start,status").eq("status", "published").gte("date_start", today).order("date_start", { ascending: true }).limit(8);
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const eds = (edRes.data ?? []) as any[];
+  const expIds = [...new Set(eds.map((e) => e.experience_id).filter(Boolean))] as string[];
+  if (!expIds.length) return [];
+  const [{ data: content }, { data: exps }] = await Promise.all([
+    db.from("exp_content").select("experience_id,hero_image").in("experience_id", expIds),
+    db.from("exp_experiences").select("id,hero_image,status").in("id", expIds),
+  ]);
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const byContent = new Map((content ?? []).map((c: any) => [c.experience_id, c.hero_image]));
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const byExp = new Map((exps ?? []).map((e: any) => [e.id, e.hero_image]));
+  // Only surface editions whose experience is itself published.
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const publishedExp = new Set((exps ?? []).filter((e: any) => e.status === "published").map((e: any) => e.id));
+  return eds
+    .filter((e) => publishedExp.has(e.experience_id))
+    .map((e) => e.hero_image || byContent.get(e.experience_id) || byExp.get(e.experience_id))
+    .filter(Boolean) as string[];
 }
 
 export type MemberProfile = {

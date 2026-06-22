@@ -2,8 +2,10 @@
 
 import { useEffect, useMemo, useState } from "react";
 import {
-  WORLDS, SECTIONS, FIELDS, accessLeaks, type WorldId, type SectionLevel, type RoleAccess, normalizeAccess,
+  WORLDS, SECTIONS, FIELDS, accessLeaks, worldFields, type WorldId, type SectionLevel, type RoleAccess, normalizeAccess,
 } from "@/lib/access";
+
+type FieldsByWorld = Record<string, Record<string, boolean>>;
 
 type Role = { id: string; name: string; description: string | null; access: RoleAccess; is_system?: boolean };
 
@@ -13,7 +15,7 @@ const LEVELS: { key: SectionLevel; label: string }[] = [
   { key: "edit", label: "Edit" },
 ];
 
-const emptyForm = () => ({ name: "", description: "", worlds: new Set<WorldId>(), sections: {} as Record<string, SectionLevel>, fields: {} as Record<string, boolean> });
+const emptyForm = () => ({ name: "", description: "", worlds: new Set<WorldId>(), sections: {} as Record<string, SectionLevel>, fields: {} as FieldsByWorld });
 
 export default function RolesPage() {
   const [roles, setRoles] = useState<Role[]>([]);
@@ -43,7 +45,7 @@ export default function RolesPage() {
       name: r.name, description: r.description ?? "",
       worlds: new Set(a.worlds),
       sections: { ...a.sections },
-      fields: { ...a.fields } as Record<string, boolean>,
+      fields: Object.fromEntries(Object.entries(a.fields).map(([w, fv]) => [w, { ...fv }])) as FieldsByWorld,
     });
   }
   function close() { setSelId(null); setErr(""); }
@@ -58,8 +60,12 @@ export default function RolesPage() {
   function setSection(key: string, lvl: SectionLevel) {
     setForm((f) => ({ ...f, sections: { ...f.sections, [key]: lvl } }));
   }
-  function toggleField(key: string) {
-    setForm((f) => ({ ...f, fields: { ...f.fields, [key]: !f.fields[key] } }));
+  function toggleField(world: string, key: string) {
+    setForm((f) => {
+      const w = { ...(f.fields[world] || {}) };
+      w[key] = !w[key];
+      return { ...f, fields: { ...f.fields, [world]: w } };
+    });
   }
 
   async function save() {
@@ -68,7 +74,13 @@ export default function RolesPage() {
     // Only persist section levels for worlds that are enabled.
     const sections: Record<string, SectionLevel> = {};
     for (const s of SECTIONS) if (form.worlds.has(s.world) && form.sections[s.key] && form.sections[s.key] !== "none") sections[s.key] = form.sections[s.key];
-    const access: RoleAccess = { worlds: [...form.worlds], sections, fields: form.fields };
+    // Persist sensitive-field visibility only for enabled worlds, keeping just the granted groups.
+    const fields: Record<string, Record<string, boolean>> = {};
+    for (const w of form.worlds) {
+      const granted = Object.entries(form.fields[w] || {}).filter(([, v]) => v);
+      if (granted.length) fields[w] = Object.fromEntries(granted);
+    }
+    const access: RoleAccess = { worlds: [...form.worlds], sections, fields };
     const payload = { name: form.name.trim(), description: form.description.trim() || null, access };
     const res = selId === "new"
       ? await fetch("/api/admin/roles", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) })
@@ -197,43 +209,45 @@ export default function RolesPage() {
                     </div>
                   ))}
                 </div>
+
+                {/* Per-world sensitive data — only the field groups this world can expose */}
+                {worldFields(w.id).length > 0 && (
+                  <div className="mt-5 pt-4" style={{ borderTop: "1px solid var(--admin-border)" }}>
+                    <p className="text-[10px] font-bold uppercase tracking-[0.1em] admin-faint mb-1">Sensitive data</p>
+                    <p className="text-xs admin-faint mb-2.5">Which sensitive figures this role sees <strong>in {w.label}</strong>. Unchecked = hidden in this world.</p>
+                    <div className="space-y-2">
+                      {FIELDS.filter((fl) => worldFields(w.id).includes(fl.key)).map((fl) => (
+                        <label key={fl.key} className="flex items-start gap-2.5 p-2.5 rounded-lg cursor-pointer" style={{ border: "1px solid var(--admin-border)" }}>
+                          <input type="checkbox" checked={!!form.fields[w.id]?.[fl.key]} onChange={() => toggleField(w.id, fl.key)} className="w-4 h-4 mt-0.5 accent-[#0aa3c7] shrink-0" />
+                          <span>
+                            <span className="block text-sm font-medium admin-heading">{fl.label}</span>
+                            <span className="block text-xs admin-faint mt-0.5">{fl.description}</span>
+                          </span>
+                        </label>
+                      ))}
+                    </div>
+                  </div>
+                )}
               </div>
             ))}
 
-            {/* Field redaction */}
-            <div className="p-5 rounded-xl" style={{ border: "1px solid var(--admin-border)", backgroundColor: "var(--admin-surface)" }}>
-              <h3 className="text-sm font-bold admin-heading mb-1">Sensitive data</h3>
-              <p className="text-xs admin-faint mb-3">Within the sections above, which sensitive figures this role may see. Unchecked = hidden everywhere.</p>
-              <div className="space-y-2">
-                {FIELDS.map((fl) => (
-                  <label key={fl.key} className="flex items-start gap-2.5 p-2.5 rounded-lg cursor-pointer" style={{ border: "1px solid var(--admin-border)" }}>
-                    <input type="checkbox" checked={!!form.fields[fl.key]} onChange={() => toggleField(fl.key)} className="w-4 h-4 mt-0.5 accent-[#0aa3c7] shrink-0" />
-                    <span>
-                      <span className="block text-sm font-medium admin-heading">{fl.label}</span>
-                      <span className="block text-xs admin-faint mt-0.5">{fl.description}</span>
-                    </span>
-                  </label>
-                ))}
-              </div>
-
-              {/* Honesty warning: sections this role can reach that still show a hidden field group */}
-              {(() => {
-                const enabled: Record<string, SectionLevel> = {};
-                for (const s of SECTIONS) if (form.worlds.has(s.world) && form.sections[s.key] && form.sections[s.key] !== "none") enabled[s.key] = form.sections[s.key];
-                const leaks = accessLeaks({ worlds: [...form.worlds], sections: enabled, fields: form.fields });
-                if (!leaks.length) return null;
-                const fieldLabel = (k: string) => (FIELDS.find((f) => f.key === k)?.label || k).toLowerCase();
-                return (
-                  <div className="mt-3 p-3 rounded-lg text-xs" style={{ border: "1px solid rgba(245,158,11,0.45)", background: "rgba(245,158,11,0.08)", color: "#f59e0b" }}>
-                    <p className="font-semibold mb-1.5">⚠ Heads up — these sections can still show data you’ve hidden (redaction isn’t wired there yet):</p>
-                    <ul className="space-y-0.5">
-                      {leaks.map((l) => <li key={l.key}>• <strong>{l.label}</strong> may still show {l.fields.map(fieldLabel).join(", ")}</li>)}
-                    </ul>
-                    <p className="mt-1.5 opacity-80">Bookings are fully redacted. To be safe, set those sections to <strong>None</strong> for this role.</p>
-                  </div>
-                );
-              })()}
-            </div>
+            {/* Honesty warning: sections this role can reach that still show a hidden field group */}
+            {(() => {
+              const enabled: Record<string, SectionLevel> = {};
+              for (const s of SECTIONS) if (form.worlds.has(s.world) && form.sections[s.key] && form.sections[s.key] !== "none") enabled[s.key] = form.sections[s.key];
+              const leaks = accessLeaks({ worlds: [...form.worlds], sections: enabled, fields: form.fields });
+              if (!leaks.length) return null;
+              const fieldLabel = (k: string) => (FIELDS.find((f) => f.key === k)?.label || k).toLowerCase();
+              return (
+                <div className="p-3 rounded-lg text-xs" style={{ border: "1px solid rgba(245,158,11,0.45)", background: "rgba(245,158,11,0.08)", color: "#f59e0b" }}>
+                  <p className="font-semibold mb-1.5">⚠ Heads up — these sections can still show data you’ve hidden (redaction isn’t wired there yet):</p>
+                  <ul className="space-y-0.5">
+                    {leaks.map((l) => <li key={l.key}>• <strong>{l.label}</strong> may still show {l.fields.map(fieldLabel).join(", ")}</li>)}
+                  </ul>
+                  <p className="mt-1.5 opacity-80">Bookings are fully redacted. To be safe, set those sections to <strong>None</strong> for this role.</p>
+                </div>
+              );
+            })()}
 
             {err && <p className="text-xs text-red-400">{err}</p>}
             <div className="flex items-center gap-2">

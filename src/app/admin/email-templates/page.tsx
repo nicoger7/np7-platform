@@ -266,8 +266,11 @@ export default function EmailTemplatesPage() {
             const active = t.id === editId;
             return (
               <button key={t.id} onClick={() => startEdit(t)} className="shrink-0 text-left px-3 py-2 rounded-lg transition-colors" style={{ background: active ? "var(--admin-accent)" : "var(--admin-surface)", border: "1px solid var(--admin-border)" }}>
-                <span className={`block text-xs font-semibold truncate ${active ? "text-[var(--admin-accent-contrast)]" : "admin-heading"}`}>{t.name}</span>
-                <span className={`block text-[10px] mt-0.5 truncate ${active ? "text-[var(--admin-accent-contrast)]/80" : "admin-faint"}`}>{t.subject_line || t.trigger_stage || "—"}</span>
+                <span className="flex items-center gap-1.5 min-w-0">
+                  <span className="shrink-0 w-1.5 h-1.5 rounded-full" title={t.active !== false ? "Active — this email sends" : "Off — won’t send"} style={{ background: t.active !== false ? "#22c55e" : (active ? "var(--admin-accent-contrast)" : "var(--admin-border)"), opacity: t.active !== false ? 1 : 0.5 }} />
+                  <span className={`block text-xs font-semibold truncate ${active ? "text-[var(--admin-accent-contrast)]" : "admin-heading"}`}>{t.name}</span>
+                </span>
+                <span className={`block text-[10px] mt-0.5 truncate ${active ? "text-[var(--admin-accent-contrast)]/80" : "admin-faint"}`}>{t.active === false ? "Off · " : ""}{t.subject_line || t.trigger_stage || "—"}</span>
               </button>
             );
           })}

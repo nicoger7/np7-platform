@@ -116,12 +116,25 @@ export const FIELDS: { key: FieldKey; label: string; description: string }[] = [
   { key: "contact_pii", label: "Contact personal data", description: "Email, phone, billing address and date of birth." },
 ];
 
+/** Per-world visibility of the sensitive field groups (absent/false = redacted). */
+export type FieldVis = Partial<Record<FieldKey, boolean>>;
+
 export type RoleAccess = {
   worlds: WorldId[];
   sections: Record<string, SectionLevel>;
-  /** group → can-see (absent/false = redacted). */
-  fields: Partial<Record<FieldKey, boolean>>;
+  /** world → (group → can-see). A field is visible only in the worlds that grant it. */
+  fields: Partial<Record<WorldId, FieldVis>>;
 };
+
+/** The sensitive field groups a world can ever expose (union of its sections). */
+export function worldFields(world: WorldId): FieldKey[] {
+  const set = new Set<FieldKey>();
+  for (const s of SECTIONS) {
+    if (s.world !== world) continue;
+    for (const f of SECTION_EXPOSES[s.key] || []) set.add(f);
+  }
+  return FIELDS.map((f) => f.key).filter((k) => set.has(k));
+}
 
 /** Which sensitive field groups a section's data can contain. */
 export const SECTION_EXPOSES: Record<string, FieldKey[]> = {
@@ -153,7 +166,8 @@ export function accessLeaks(access: RoleAccess): { key: string; label: string; f
     if ((access.sections[sec.key] ?? "none") === "none") continue;
     const exposes = SECTION_EXPOSES[sec.key] || [];
     const covered = REDACTION_COVERAGE[sec.key] || [];
-    const leaked = exposes.filter((f) => access.fields[f] !== true && !covered.includes(f));
+    const seen = access.fields[sec.world] || {};
+    const leaked = exposes.filter((f) => seen[f] !== true && !covered.includes(f));
     if (leaked.length) out.push({ key: sec.key, label: sec.label, fields: leaked });
   }
   return out;
@@ -161,14 +175,36 @@ export function accessLeaks(access: RoleAccess): { key: string; label: string; f
 
 export const EMPTY_ACCESS: RoleAccess = { worlds: [], sections: {}, fields: {} };
 
-/** Coerce an arbitrary jsonb blob into a safe RoleAccess. */
+/** Coerce an arbitrary jsonb blob into a safe RoleAccess. Tolerates the legacy
+ *  flat `fields` shape ({money:true,…}) by expanding it onto the role's worlds. */
 export function normalizeAccess(raw: unknown): RoleAccess {
   const a = (raw ?? {}) as Partial<RoleAccess>;
   const worldIds = WORLDS.map((w) => w.id) as string[];
+  const fieldKeys = FIELDS.map((f) => f.key) as string[];
+  const worlds = Array.isArray(a.worlds) ? (a.worlds.filter((w) => worldIds.includes(w as string)) as WorldId[]) : [];
+
+  const rawFields = (a.fields ?? {}) as Record<string, unknown>;
+  const fields: Partial<Record<WorldId, FieldVis>> = {};
+  // Legacy flat shape: top-level keys are field groups → apply to every granted world.
+  if (Object.keys(rawFields).some((k) => fieldKeys.includes(k))) {
+    const flat: FieldVis = {};
+    for (const k of fieldKeys) if (rawFields[k] === true) (flat as Record<string, boolean>)[k] = true;
+    for (const w of worlds) fields[w] = { ...flat };
+  } else {
+    for (const w of worldIds) {
+      const wv = rawFields[w];
+      if (wv && typeof wv === "object") {
+        const fv: FieldVis = {};
+        for (const k of fieldKeys) if ((wv as Record<string, unknown>)[k] === true) (fv as Record<string, boolean>)[k] = true;
+        fields[w as WorldId] = fv;
+      }
+    }
+  }
+
   return {
-    worlds: Array.isArray(a.worlds) ? (a.worlds.filter((w) => worldIds.includes(w as string)) as WorldId[]) : [],
+    worlds,
     sections: a.sections && typeof a.sections === "object" ? (a.sections as Record<string, SectionLevel>) : {},
-    fields: a.fields && typeof a.fields === "object" ? (a.fields as Partial<Record<FieldKey, boolean>>) : {},
+    fields,
   };
 }
 
@@ -184,8 +220,9 @@ export function mergeAccess(list: RoleAccess[]): RoleAccess {
     for (const [k, v] of Object.entries(a.sections)) {
       if (rank[v] > rank[out.sections[k] ?? "none"]) out.sections[k] = v;
     }
-    for (const [k, v] of Object.entries(a.fields)) {
-      if (v) (out.fields as Record<string, boolean>)[k] = true;
+    for (const [w, fv] of Object.entries(a.fields)) {
+      const tgt = (out.fields[w as WorldId] ??= {}) as Record<string, boolean>;
+      for (const [k, v] of Object.entries(fv ?? {})) if (v) tgt[k] = true;
     }
   }
   out.worlds = [...worlds];
@@ -204,14 +241,18 @@ export const BUILTIN_ROLES: { key: "owner" | "manager"; name: string; descriptio
 ];
 
 export function builtinAccess(systemKey: string): RoleAccess {
-  const fields = { money: true, costs: true, contact_pii: true };
+  const allFields: FieldVis = { money: true, costs: true, contact_pii: true };
+  const fieldsFor = (worlds: WorldId[]): Partial<Record<WorldId, FieldVis>> =>
+    Object.fromEntries(worlds.map((w) => [w, { ...allFields }]));
   const sections: Record<string, SectionLevel> = {};
   if (systemKey === "manager") {
+    const worlds = WORLDS.map((w) => w.id).filter((w) => w !== "analytics") as WorldId[];
     for (const s of SECTIONS) if (!OWNER_ONLY_SECTIONS.includes(s.key)) sections[s.key] = "edit";
-    return { worlds: WORLDS.map((w) => w.id).filter((w) => w !== "analytics") as WorldId[], sections, fields };
+    return { worlds, sections, fields: fieldsFor(worlds) };
   }
+  const worlds = WORLDS.map((w) => w.id) as WorldId[];
   for (const s of SECTIONS) sections[s.key] = "edit"; // owner (+ any unknown system key) = everything
-  return { worlds: WORLDS.map((w) => w.id) as WorldId[], sections, fields };
+  return { worlds, sections, fields: fieldsFor(worlds) };
 }
 
 /** The section that owns a path (longest-prefix wins), or undefined for shared
@@ -259,8 +300,9 @@ export function effectiveCanEnterWorld(eff: EffectiveAccess, world: WorldId): bo
   return eff.access.worlds.includes(world);
 }
 
-/** May this member see a sensitive field group? Legacy tiers see everything. */
-export function effectiveCanSeeField(eff: EffectiveAccess, field: FieldKey): boolean {
+/** May this member see a sensitive field group within a world? Legacy tiers see
+ *  everything. World defaults to Experience (where all redaction is wired today). */
+export function effectiveCanSeeField(eff: EffectiveAccess, field: FieldKey, world: WorldId = "experience"): boolean {
   if (eff.kind === "tier") return true;
-  return eff.access.fields[field] === true;
+  return eff.access.fields[world]?.[field] === true;
 }
