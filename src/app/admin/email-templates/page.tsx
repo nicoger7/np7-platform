@@ -6,7 +6,7 @@ import { ColumnToggle, ColumnDef, buildGridTemplate, loadVisibleColumns } from "
 import { RowActions } from "@/components/row-actions";
 import ImagePickerModal from "@/components/image-picker-modal";
 import { DEFAULT_BODIES, DEFAULT_SUBJECTS } from "@/lib/email/default-bodies";
-import { DEFAULT_HEADER_IMAGE } from "@/lib/email/layout";
+import { DEFAULT_HEADER_IMAGE, emailChrome } from "@/lib/email/layout";
 import { RichTextEditor } from "@/components/admin/rich-text-editor";
 
 interface EmailTemplate {
@@ -77,6 +77,7 @@ export default function EmailTemplatesPage() {
   const [previewHtml, setPreviewHtml] = useState("");
   const [previewSubject, setPreviewSubject] = useState("");
   const [previewDivision, setPreviewDivision] = useState<"experience" | "hardware">("experience");
+  const [exactOpen, setExactOpen] = useState(false);
   const [showAdvanced, setShowAdvanced] = useState(false);
   const [pickingImage, setPickingImage] = useState(false);
   const autoOpenedRef = useRef(false);
@@ -252,35 +253,65 @@ export default function EmailTemplatesPage() {
             </div>
           </div>
 
-          {/* Body + live preview */}
-          <div className="grid grid-cols-2 gap-4 mb-4">
-            <div>
-              <div className="flex items-center gap-2 mb-1.5">
-                <label className={labelClass + " mb-0"}>Body</label>
+          {/* Body — edit directly inside the branded email */}
+          <div className="mb-4">
+            <div className="flex items-center justify-between mb-2 flex-wrap gap-2">
+              <div className="flex items-center gap-2">
+                <label className={labelClass + " mb-0"}>Email body — type right in the email</label>
                 {form.template_key && DEFAULT_BODIES[form.template_key] && (
                   <button type="button" onClick={resetToDefault} className="text-[10px] admin-faint hover:text-[#0aa3c7] transition-colors">↺ Back to default</button>
                 )}
               </div>
-              <RichTextEditor value={form.body} onChange={(html) => setForm((f) => ({ ...f, body: html }))} vars={VARS} placeholder="Write your message — the branded frame, logo, colours and footer are added automatically." />
-              <p className="mt-1.5 text-[11px] admin-faint">Format with the toolbar; drop in personalised fields like “{`{{firstName}}`}”. No HTML needed — switch to “Source” only if you want to.</p>
+              <div className="inline-flex rounded-md overflow-hidden" style={{ border: "1px solid var(--admin-border)" }}>
+                {(["experience", "hardware"] as const).map((dv) => (
+                  <button key={dv} type="button" onClick={() => setPreviewDivision(dv)}
+                    className={`px-2.5 py-1 text-[11px] font-semibold capitalize transition-colors ${previewDivision === dv ? "bg-[var(--admin-accent)] text-[var(--admin-accent-contrast)]" : "admin-muted"}`}>
+                    {dv}
+                  </button>
+                ))}
+              </div>
             </div>
-            <div>
-              <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between mb-1">
-                <label className={labelClass + " mb-0"}>Live preview</label>
-                <div className="inline-flex rounded-md overflow-hidden" style={{ border: "1px solid var(--admin-border)" }}>
-                  {(["experience", "hardware"] as const).map((dv) => (
-                    <button key={dv} type="button" onClick={() => setPreviewDivision(dv)}
-                      className={`px-2.5 py-1 text-[11px] font-semibold capitalize transition-colors ${previewDivision === dv ? "bg-[var(--admin-accent)] text-[var(--admin-accent-contrast)]" : "admin-muted"}`}>
-                      {dv}
-                    </button>
-                  ))}
+
+            {previewSubject && <p className="text-center text-[11px] admin-muted mb-2"><span className="admin-faint">Inbox subject:</span> {previewSubject}</p>}
+
+            {(() => {
+              const chrome = emailChrome(previewDivision, form.header_image || undefined);
+              return (
+                <div className="mx-auto max-w-[600px] rounded-2xl overflow-hidden" style={{ border: "1px solid var(--admin-border)", boxShadow: "0 10px 34px rgba(0,55,74,0.12)", background: "#fff" }}>
+                  {/* Header — faded hero + logo (or logo-on-white) */}
+                  {chrome.hero ? (
+                    <div style={{ backgroundImage: `url('${chrome.hero}')`, backgroundSize: "cover", backgroundPosition: "center", backgroundColor: chrome.headerBg }}>
+                      <div className="px-6 pt-14 pb-7 text-center" style={{ background: `linear-gradient(180deg,rgba(0,28,40,0.04) 0%,rgba(0,28,40,0.40) 52%,${chrome.headerFade} 100%)` }}>
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                        <img src={chrome.logo} alt={chrome.logoAlt} style={{ width: chrome.logoW, maxWidth: "64%", height: "auto", margin: "0 auto", filter: "drop-shadow(0 2px 10px rgba(0,0,0,0.45))" }} />
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="px-6 pt-7 pb-2 text-center" style={{ background: "#fff" }}>
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img src={chrome.logo} alt={chrome.logoAlt} style={{ width: chrome.logoW, maxWidth: "60%", height: "auto", margin: "0 auto" }} />
+                    </div>
+                  )}
+                  {/* Brand colour stripe */}
+                  <div style={{ height: 4, background: chrome.accent, backgroundImage: chrome.gradient }} />
+                  {/* Editable body — the toolbar sticks to the top while you scroll */}
+                  <RichTextEditor seamless minHeight={260} value={form.body} onChange={(html) => setForm((f) => ({ ...f, body: html }))} vars={VARS} placeholder="Write your message — the branded frame, logo, colours and footer are added automatically." />
+                  {/* Footer */}
+                  <div className="px-8 py-5 text-[12px] leading-relaxed" style={{ background: chrome.footerBg, color: chrome.footerText }}>
+                    <strong style={{ color: chrome.footerStrong }}>NP7 GmbH</strong> · Germany · {chrome.contactEmail}<br />
+                    {chrome.tagline}
+                  </div>
                 </div>
+              );
+            })()}
+
+            <p className="mt-2 text-center text-[11px] admin-faint">Format with the toolbar and drop in fields like “{`{{firstName}}`}”. Header, logo, colours and footer are added automatically. <button type="button" onClick={() => setExactOpen((v) => !v)} className="hover:text-[#0aa3c7] transition-colors underline">{exactOpen ? "Hide exact render" : "See exact render"}</button></p>
+
+            {exactOpen && (
+              <div className="mx-auto max-w-[600px] mt-2 rounded-lg overflow-hidden bg-white" style={{ border: "1px solid var(--admin-border)", height: 420 }}>
+                <iframe title="Exact email render" srcDoc={previewHtml} sandbox="" className="w-full h-full" />
               </div>
-              {previewSubject && <div className="text-[11px] admin-muted mb-1 truncate"><span className="admin-faint">Subject:</span> {previewSubject}</div>}
-              <div className="rounded-lg overflow-hidden bg-white" style={{ border: "1px solid var(--admin-border)", height: 360 }}>
-                <iframe title="Email preview" srcDoc={previewHtml} sandbox="" className="w-full h-full" />
-              </div>
-            </div>
+            )}
           </div>
 
           {/* Advanced (collapsed) */}

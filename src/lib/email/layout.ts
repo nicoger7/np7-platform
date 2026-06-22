@@ -95,6 +95,20 @@ export function emailLayout(opts: { division?: Division; preheader?: string; hea
 </td></tr></table></body></html>`;
 }
 
+/** The resolved header/footer "chrome" for a division — so the admin can render
+ *  the branded frame around an editable body (edit-in-place), matching the real
+ *  email. `headerImage` undefined → the division default; null → no hero. */
+export function emailChrome(division: Division = "experience", headerImage?: string | null) {
+  const t = THEMES[division];
+  const hero = headerImage === undefined ? t.hero : (headerImage || null);
+  return {
+    hero, logo: t.logoLight, logoAlt: t.logoAlt, logoW: t.logoW,
+    accent: t.accent, gradient: t.gradient, headerBg: t.headerBg, headerFade: t.headerFade,
+    footerBg: t.footerBg, footerText: t.footerText, footerStrong: t.footerStrong,
+    tagline: t.tagline, contactEmail: t.contactEmail,
+  };
+}
+
 /** A table-based button that survives Outlook etc., themed per division. */
 export function emailButton(label: string, href: string, division: Division = "experience"): string {
   const t = THEMES[division];

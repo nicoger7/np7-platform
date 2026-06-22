@@ -13,11 +13,17 @@ export function RichTextEditor({
   onChange,
   vars = [],
   placeholder = "Write your message…",
+  seamless = false,
+  minHeight = 300,
 }: {
   value: string;
   onChange: (html: string) => void;
   vars?: [string, string][];
   placeholder?: string;
+  /** Drop the outer border/radius so it blends into a surrounding frame (e.g. the email canvas). */
+  seamless?: boolean;
+  /** Min height of the editable area in px. */
+  minHeight?: number;
 }) {
   const ref = useRef<HTMLDivElement>(null);
   const last = useRef<string>("");
@@ -108,8 +114,8 @@ export function RichTextEditor({
   const sep = <span className="mx-1 w-px h-4 self-center shrink-0" style={{ background: "var(--admin-border)" }} />;
 
   return (
-    <div className="rounded-lg overflow-hidden" style={{ border: "1px solid var(--admin-border)" }}>
-      <div className="flex flex-wrap items-center gap-0.5 px-2 py-1.5" style={{ borderBottom: "1px solid var(--admin-border)", background: "var(--admin-surface)" }}>
+    <div className={seamless ? "overflow-hidden" : "rounded-lg overflow-hidden"} style={seamless ? undefined : { border: "1px solid var(--admin-border)" }}>
+      <div className="flex flex-wrap items-center gap-0.5 px-2 py-1.5 sticky top-0 z-10" style={{ borderBottom: "1px solid var(--admin-border)", background: "var(--admin-surface)" }}>
         <button type="button" className={btn} onMouseDown={(e) => e.preventDefault()} onClick={undo} title="Undo" aria-label="Undo">
           <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M9 14 4 9l5-5" /><path d="M4 9h11a5 5 0 0 1 0 10h-1" /></svg>
         </button>
@@ -145,8 +151,8 @@ export function RichTextEditor({
         <textarea
           value={value}
           onChange={(e) => { last.current = e.target.value; onChange(e.target.value); }}
-          className="block w-full min-h-[300px] max-h-[460px] resize-y p-4 font-mono text-xs outline-none"
-          style={{ background: "#fff", color: "#33434a" }}
+          className={`block w-full resize-y p-4 font-mono text-xs outline-none ${seamless ? "" : "max-h-[460px]"}`}
+          style={{ background: "#fff", color: "#33434a", minHeight }}
         />
       ) : (
         <div
@@ -156,8 +162,8 @@ export function RichTextEditor({
           onInput={emit}
           onBlur={emit}
           data-placeholder={placeholder}
-          className="rte min-h-[300px] max-h-[460px] overflow-y-auto p-4 text-sm leading-relaxed outline-none"
-          style={{ background: "#fff", color: "#33434a" }}
+          className={`rte overflow-y-auto text-sm leading-relaxed outline-none ${seamless ? "px-8 py-7" : "p-4 max-h-[460px]"}`}
+          style={{ background: "#fff", color: "#33434a", minHeight }}
         />
       )}
       <style>{`
