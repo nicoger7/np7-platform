@@ -3,6 +3,7 @@ import { checkBotId } from "botid/server";
 import { createAdminClient } from "@/lib/supabase";
 import { sendEmail } from "@/lib/email/send";
 import { getPortalUser } from "@/lib/auth";
+import { composeBookingName } from "@/lib/booking-name";
 
 /**
  * Free, low-friction registration (the redesigned funnel).
@@ -79,7 +80,7 @@ export async function POST(request: NextRequest) {
     db.from("exp_experiences").select("id,title,slug").eq("id", experienceId).maybeSingle(),
     db.from("exp_packages").select("id,name,price,experience_id,status").eq("id", packageId).maybeSingle(),
     editionId
-      ? db.from("exp_editions").select("id,label,experience_id").eq("id", editionId).maybeSingle()
+      ? db.from("exp_editions").select("id,label,experience_id,date_start").eq("id", editionId).maybeSingle()
       : Promise.resolve({ data: null }),
   ]);
   if (!exp || !pkg || pkg.experience_id !== exp.id || pkg.status !== "active") return bad("This package is no longer available.", 409);
@@ -105,7 +106,7 @@ export async function POST(request: NextRequest) {
 
   // Booking — lands as a "lead" (free signup, no payment, no spot held).
   const bookingPayload = {
-    name: fullName,
+    name: composeBookingName({ contactName: fullName, experienceTitle: exp.title, editionLabel: edition?.label, year: edition?.date_start ? new Date(edition.date_start).getFullYear() : null }),
     contact_id: contactId,
     experience_id: exp.id,
     edition_id: editionId ?? null,

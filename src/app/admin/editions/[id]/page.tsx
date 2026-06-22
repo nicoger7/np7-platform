@@ -10,6 +10,7 @@ import { EditionMemoriesUploader } from "@/components/edition-memories-uploader"
 import { ContactPicker, ContactLite } from "@/components/contact-picker";
 import { EditionCrewLevels } from "@/components/admin/edition-crew-levels";
 import { BookingDetailPane } from "../../bookings/[id]/page";
+import { composeBookingName } from "@/lib/booking-name";
 
 // Edition detail sub-tabs. The order is reorderable by drag-and-drop and saved
 // per admin in localStorage (each team member keeps their own preferred order).
@@ -380,9 +381,12 @@ export default function EditionDetailPage({
   // Auto booking name: "{experience code} {year} — {participant}"
   function autoBookingName(contact: ContactLite | null) {
     if (!contact) return "";
-    const code = edition?.experience_code || edition?.exp_experiences?.code || edition?.exp_experiences?.title || "";
-    const yr = edition?.label || edition?.year || "";
-    return `${code}${yr ? ` ${yr}` : ""} — ${contact.name}`.trim();
+    return composeBookingName({
+      contactName: contact.name,
+      experienceTitle: edition?.exp_experiences?.title || edition?.exp_experiences?.code || null,
+      editionLabel: edition?.label,
+      year: edition?.year,
+    });
   }
 
   // Bookings (add inline; edit on detail page)

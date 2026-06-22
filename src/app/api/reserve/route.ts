@@ -3,6 +3,7 @@ import { createAdminClient } from "@/lib/supabase";
 import { sendEmail } from "@/lib/email/send";
 import { getPortalUser } from "@/lib/auth";
 import { paidSpotsByEdition, spotsLeftFrom } from "@/lib/availability";
+import { composeBookingName } from "@/lib/booking-name";
 
 /**
  * Public reservation endpoint.
@@ -125,7 +126,7 @@ export async function POST(request: NextRequest) {
   const { data: booking, error: bErr } = await db
     .from("exp_bookings")
     .insert({
-      name: fullName,
+      name: composeBookingName({ contactName: fullName, experienceTitle: exp.title, editionLabel: edition?.label, year: edition?.date_start ? new Date(edition.date_start).getFullYear() : null }),
       contact_id: contactId,
       experience_id: exp.id,
       edition_id: editionId ?? null,
