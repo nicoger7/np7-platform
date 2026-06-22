@@ -60,7 +60,7 @@ function editionName(ed: { year: number; label: string | null } | null) {
 type SortDir = "asc" | "desc" | null;
 
 const COLUMNS: ColumnDef[] = [
-  { key: "name", label: "Name", width: "1fr", required: true },
+  { key: "name", label: "Name", width: "minmax(220px,1.4fr)", required: true },
   { key: "category", label: "Category", width: "120px" },
   { key: "unit_cost", label: "Buy", width: "90px" },
   { key: "sell_price", label: "Sell", width: "90px" },
@@ -402,7 +402,7 @@ export default function ComponentsPage() {
           <p className="text-xs admin-faint mt-1">Create components to build packages</p>
         </div>
       ) : (
-        <div className="rounded-xl admin-tablecard" style={{ border: "1px solid var(--admin-border)" }}>
+        <div className="rounded-xl admin-tablecard" style={{ border: "1px solid var(--admin-border)", overflowX: "auto" }}>
           {/* Header */}
           <div className="grid gap-3 px-5 py-3 admin-surface" style={{ gridTemplateColumns: gridTemplate, borderBottom: "1px solid var(--admin-border)" }}>
             {COLUMNS.filter((c) => c.required || visibleColumns.has(c.key)).map((col) =>
