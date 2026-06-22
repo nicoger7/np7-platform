@@ -26,7 +26,7 @@ interface ComponentOption {
 const NEW_COMPONENT_CATEGORIES = ["coaching", "accommodation", "meals", "transport", "gear", "activity", "other"];
 
 /** Shared grid: name | cost | sell | margin | qty | remove */
-const COMP_GRID = "minmax(0,1fr) 68px 68px 68px 48px 20px";
+const COMP_GRID = "minmax(0,1fr) 92px 92px 92px 80px 28px";
 
 function money(n: number | null | undefined) {
   return n != null ? `€${Number(n).toLocaleString()}` : "—";
@@ -165,9 +165,9 @@ export function PackageComponentsEditor({
           Components ({links.length})
         </span>
         <div className="flex items-center gap-3">
-          <span className="text-[10px] admin-muted font-mono">
-            buy {money(computedBuy)} · sell {money(computedSell)} · margin{" "}
-            <span className={computedMargin < 0 ? "text-red-400" : "text-green-400"}>{money(computedMargin)}</span>
+          <span className="text-xs admin-muted tabular-nums">
+            buy <span className="admin-heading font-semibold">{money(computedBuy)}</span> · sell <span className="admin-heading font-semibold">{money(computedSell)}</span> · margin{" "}
+            <span className={`font-semibold ${computedMargin < 0 ? "text-red-400" : "text-green-500"}`}>{money(computedMargin)}</span>
           </span>
           {links.length > 0 && (priceMatches ? (
             <span className="text-[10px] font-semibold text-green-400/90 whitespace-nowrap">price = components ✓</span>
@@ -194,7 +194,7 @@ export function PackageComponentsEditor({
         <div className="mb-3">
           {/* Column header */}
           <div
-            className="grid items-center gap-2 px-1 pb-1.5 text-[10px] font-bold uppercase tracking-[0.08em] admin-faint"
+            className="grid items-center gap-2 px-2 pb-2 text-[10px] font-bold uppercase tracking-[0.08em] admin-faint"
             style={{ gridTemplateColumns: COMP_GRID }}
           >
             <span>Component</span>
@@ -204,7 +204,7 @@ export function PackageComponentsEditor({
             <span className="text-center">Qty</span>
             <span />
           </div>
-          <div className="space-y-px">
+          <div className="space-y-0.5">
             {links.map((l) => {
               const cost = Number(l.exp_components?.unit_cost) || 0;
               const sell = Number(l.exp_components?.sell_price) || 0;
@@ -212,15 +212,15 @@ export function PackageComponentsEditor({
               return (
                 <div
                   key={l.id}
-                  className="grid items-center gap-2 px-1 py-1 text-xs rounded-md transition-colors"
+                  className="grid items-center gap-2 px-2 py-2 text-sm rounded-lg transition-colors"
                   style={{ gridTemplateColumns: COMP_GRID }}
                   onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = "var(--admin-surface-hover)")}
                   onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = "transparent")}
                 >
-                  <span className="admin-muted truncate" title={l.exp_components?.name || ""}>{l.exp_components?.name || "?"}</span>
-                  <span className="admin-faint font-mono text-right tabular-nums whitespace-nowrap">{money(l.exp_components?.unit_cost)}</span>
-                  <span className="admin-faint font-mono text-right tabular-nums whitespace-nowrap">{money(l.exp_components?.sell_price)}</span>
-                  <span className={`font-mono text-right tabular-nums whitespace-nowrap ${margin < 0 ? "text-red-400" : "text-green-400/80"}`}>{money(margin)}</span>
+                  <span className="admin-heading font-medium truncate" title={l.exp_components?.name || ""}>{l.exp_components?.name || "?"}</span>
+                  <span className="admin-muted text-right tabular-nums whitespace-nowrap">{money(l.exp_components?.unit_cost)}</span>
+                  <span className="admin-muted text-right tabular-nums whitespace-nowrap">{money(l.exp_components?.sell_price)}</span>
+                  <span className={`text-right tabular-nums whitespace-nowrap font-medium ${margin < 0 ? "text-red-400" : "text-green-500"}`}>{money(margin)}</span>
                   <input
                     type="number"
                     min={1}
@@ -229,11 +229,11 @@ export function PackageComponentsEditor({
                       const q = Number(e.target.value) || 1;
                       if (q !== l.quantity) setQty(l.component_id, q);
                     }}
-                    className={`${inputClass} w-12 text-center`}
+                    className="w-full h-9 px-2 admin-input border rounded-lg text-sm font-semibold text-center tabular-nums focus:outline-none focus:border-[#0aa3c7] focus:ring-1 focus:ring-[#0aa3c7]"
                     title="Quantity"
                   />
                   <button onClick={() => detach(l.component_id)} className="admin-faint hover:text-red-400 transition-colors justify-self-center" title="Remove">
-                    <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M18 6L6 18M6 6l12 12" /></svg>
+                    <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M18 6L6 18M6 6l12 12" /></svg>
                   </button>
                 </div>
               );
