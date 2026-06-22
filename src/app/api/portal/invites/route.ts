@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getPortalUser } from "@/lib/auth";
 import { createAdminClient } from "@/lib/supabase";
-import { createInvite, getInvitesForBooking } from "@/lib/invites";
+import { createInvite, getInvitesForBooking, sendInviteEmail } from "@/lib/invites";
 
 /**
  * Member-side "invite a friend to this trip".
@@ -43,13 +43,18 @@ export async function POST(request: NextRequest) {
   const user = await getPortalUser();
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-  let body: { bookingId?: string; inviteeName?: string; inviteeEmail?: string; note?: string };
+  let body: { bookingId?: string; inviteeName?: string; inviteeEmail?: string; note?: string; send?: boolean };
   try {
     body = await request.json();
   } catch {
     return NextResponse.json({ error: "Invalid request" }, { status: 400 });
   }
   if (!body.bookingId) return NextResponse.json({ error: "Missing bookingId" }, { status: 400 });
+
+  const email = body.inviteeEmail?.trim() || null;
+  if (body.send && (!email || !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email))) {
+    return NextResponse.json({ error: "Enter a valid email to send the invite." }, { status: 400 });
+  }
 
   const booking = await ownedBooking(body.bookingId, user.contactId);
   if (!booking) return NextResponse.json({ error: "Not found" }, { status: 404 });
@@ -62,10 +67,21 @@ export async function POST(request: NextRequest) {
     packageId: booking.package_id ?? null,
     inviterFirstName: String(user.name || "").trim().split(/\s+/)[0],
     inviteeName: body.inviteeName?.trim() || null,
-    inviteeEmail: body.inviteeEmail?.trim() || null,
+    inviteeEmail: email,
     note: body.note?.trim() || null,
   });
   if (!invite) return NextResponse.json({ error: "Could not create the invite. Apply migration 050 if it's missing." }, { status: 500 });
 
-  return NextResponse.json({ invite });
+  // Email the branded invite (with the join link) when asked. Best-effort — a
+  // mail hiccup shouldn't lose the invite; the member can still copy the link.
+  let emailed = false;
+  if (body.send && email) {
+    const origin = request.headers.get("origin") ?? `https://${request.headers.get("host")}`;
+    try {
+      const status = await sendInviteEmail(invite.id, `${origin}/join/${invite.token}`);
+      emailed = status === "sent";
+    } catch { /* keep the invite; report not-emailed */ }
+  }
+
+  return NextResponse.json({ invite, emailed });
 }

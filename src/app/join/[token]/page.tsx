@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import Link from "next/link";
 import { getInviteLanding } from "@/lib/invites";
 import { JoinSignup } from "@/components/join/join-signup";
 
@@ -39,7 +40,7 @@ export default async function JoinPage({ params }: Props) {
         <div className="rounded-2xl bg-white border border-[#f0e6d6] p-7 text-center">
           <h1 className="text-[20px] font-black text-[#00374a]">This invite isn&apos;t available</h1>
           <p className="text-[14px] text-[#5a6b72] mt-2 leading-relaxed">The link may have expired or been mistyped. Ask your friend to resend it — or explore our trips directly.</p>
-          <a href="/experience" className="inline-block mt-4 rounded-lg bg-[#00374a] text-white text-[14px] font-semibold px-5 py-2.5">Explore trips</a>
+          <Link href="/experience" className="inline-block mt-4 rounded-lg bg-[#00374a] text-white text-[14px] font-semibold px-5 py-2.5">Explore trips</Link>
         </div>
       </Shell>
     );
@@ -102,6 +103,8 @@ export default async function JoinPage({ params }: Props) {
               editionId={edition?.id ?? null}
               packageId={pkg?.id ?? null}
               inviteToken={invite.token}
+              defaultName={invite.invitee_name ?? ""}
+              defaultEmail={invite.invitee_email ?? ""}
             />
           </div>
         </div>

@@ -23,6 +23,7 @@ export type Automation = {
 export const AUTOMATIONS: Automation[] = [
   { key: "account_magic_link", name: "Login / sign-up link", stage: "Account", trigger: "When someone signs up or requests a login link", division: "experience", kind: "transactional" },
   { key: "reservation_received", name: "Welcome / how it works", stage: "Register", trigger: "Right after someone registers (free)", division: "experience", kind: "transactional" },
+  { key: "trip_invite", name: "Invite a friend", stage: "Referral", trigger: "When a member emails a friend an invite to their trip", division: "experience", kind: "transactional" },
   { key: "deposit_confirmation", name: "Deposit confirmed", stage: "Deposit", trigger: "When the deposit is paid — activates their trip account", division: "experience", kind: "lifecycle" },
   { key: "payment_pending_nudge", name: "Deposit reminder", stage: "Deposit", trigger: "2 and 5 days after reserving, if the deposit isn't paid yet", division: "experience", kind: "lifecycle" },
   { key: "balance_invoice_reminder", name: "Balance invoice & reminder", stage: "Balance", trigger: "~45 and ~30 days before the trip", division: "experience", kind: "lifecycle" },

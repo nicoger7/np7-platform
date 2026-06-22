@@ -1,5 +1,6 @@
 import { createAdminClient } from "@/lib/supabase";
 import { generateVoucherCode, redeemByFrom } from "@/lib/vouchers";
+import { sendEmail } from "@/lib/email/send";
 
 /**
  * "Invite a friend to a trip" — a two-sided-reward referral tied to a specific
@@ -14,8 +15,8 @@ import { generateVoucherCode, redeemByFrom } from "@/lib/vouchers";
 
 /** Default reward each side gets, in the experience's currency. Overridable
  *  per edition via exp_editions.invite_reward_{friend,inviter}. */
-export const DEFAULT_INVITE_REWARD_FRIEND = 100;
-export const DEFAULT_INVITE_REWARD_INVITER = 100;
+export const DEFAULT_INVITE_REWARD_FRIEND = 50;
+export const DEFAULT_INVITE_REWARD_INVITER = 50;
 
 export type InviteStatus = "sent" | "opened" | "booked" | "expired" | "cancelled";
 export type InviteRewardStatus = "pending" | "granted" | "void";
@@ -184,6 +185,54 @@ export async function attachBookingToInvite(token: string, invitedContactId: str
   } catch {
     /* attribution is best-effort */
   }
+}
+
+function fmtRange(start: string | null, end: string | null): string {
+  if (!start) return "";
+  const s = new Date(start);
+  const e = end ? new Date(end) : null;
+  const mon = (d: Date) => d.toLocaleDateString("en-GB", { month: "short" });
+  if (e && s.getMonth() === e.getMonth() && s.getFullYear() === e.getFullYear()) return `${s.getDate()}–${e.getDate()} ${mon(e)} ${e.getFullYear()}`;
+  if (e) return `${s.getDate()} ${mon(s)} – ${e.getDate()} ${mon(e)} ${e.getFullYear()}`;
+  return s.toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" });
+}
+function fmtMoney(n: number | null | undefined, currency = "EUR"): string {
+  if (n == null) return "";
+  return new Intl.NumberFormat("en-IE", { style: "currency", currency, maximumFractionDigits: 0 }).format(n);
+}
+
+/** Email a branded invite (with the join link) to invitee_email. Member-triggered
+ *  and transactional — allowed during the soft launch. `joinUrl` is built by the
+ *  caller from the request origin. Returns the send status string. */
+export async function sendInviteEmail(inviteId: string, joinUrl: string): Promise<"sent" | "skipped" | "failed"> {
+  const db = createAdminClient() as DB;
+  const { data: invite } = await db.from("trip_invites").select("*").eq("id", inviteId).maybeSingle();
+  if (!invite?.invitee_email) return "skipped";
+
+  const [exp, ed, inviter] = await Promise.all([
+    invite.experience_id ? db.from("exp_experiences").select("title,currency").eq("id", invite.experience_id).maybeSingle() : Promise.resolve({ data: null }),
+    invite.edition_id ? db.from("exp_editions").select("date_start,date_end").eq("id", invite.edition_id).maybeSingle() : Promise.resolve({ data: null }),
+    invite.inviter_contact_id ? db.from("contacts").select("name").eq("id", invite.inviter_contact_id).maybeSingle() : Promise.resolve({ data: null }),
+  ]);
+  const currency = exp.data?.currency || "EUR";
+  const inviterName = String(inviter.data?.name ?? "").trim().split(/\s+/)[0] || "A friend";
+
+  const res = await sendEmail({
+    to: invite.invitee_email,
+    templateKey: "trip_invite",
+    vars: {
+      firstName: String(invite.invitee_name ?? "").trim().split(/\s+/)[0] || "there",
+      inviterName,
+      experienceTitle: exp.data?.title || "an NP7 trip",
+      dates: fmtRange(ed.data?.date_start ?? null, ed.data?.date_end ?? null),
+      rewardFriend: fmtMoney(invite.reward_friend_amount, currency),
+      personalNote: invite.note || "",
+      joinLink: joinUrl,
+    },
+    experienceId: invite.experience_id,
+    dedupeKey: `trip_invite:${invite.id}`,
+  });
+  return res.status;
 }
 
 /** Admin: grant the two-sided reward — issue an experience-scoped credit voucher

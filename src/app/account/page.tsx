@@ -10,6 +10,7 @@ import { firstNameInitial, initialsFrom } from "@/lib/member-profile";
 import { PortalChrome } from "@/components/portal/portal-chrome";
 import { MemberHomeBanner } from "@/components/portal/member-home-banner";
 import { LevelHomeCard } from "@/components/portal/level-home-card";
+import { SetPasswordPrompt } from "@/components/portal/set-password-prompt";
 import { flags } from "@/lib/flags";
 
 export const metadata: Metadata = { title: "My account — NP7" };
@@ -35,6 +36,14 @@ export default async function AccountHome() {
     getMemberLevelDetail(user.contactId).catch(() => null),
   ]);
   const first = user.name?.split(" ")[0] ?? "there";
+
+  // Suggest setting a password if the member has only ever used magic links.
+  const hasPassword = await (async () => {
+    try {
+      const { data: { user: authUser } } = await (await createClient()).auth.getUser();
+      return !!authUser?.user_metadata?.has_password;
+    } catch { return true; } // on any hiccup, don't nag
+  })();
 
   // level progress for the home dashboard card
   const lvl = levelDetail
@@ -68,6 +77,10 @@ export default async function AccountHome() {
             name={first}
             subtitle="Welcome to your NP7 home — your trips, your gear and everything in between."
           />
+
+          <div className="mt-6">
+            <SetPasswordPrompt show={!hasPassword} />
+          </div>
 
           {/* main + level sidebar — one column on mobile, two on desktop */}
           <div className="mt-6 grid lg:grid-cols-[1.6fr_1fr] gap-5 items-start">

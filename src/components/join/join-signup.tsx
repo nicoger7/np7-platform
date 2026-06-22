@@ -13,16 +13,21 @@ export function JoinSignup({
   editionId,
   packageId,
   inviteToken,
+  defaultName = "",
+  defaultEmail = "",
   ctaLabel = "Reserve my spot",
 }: {
   experienceId: string;
   editionId: string | null;
   packageId: string | null;
   inviteToken: string;
+  /** Pre-filled from the invite (the member already gave us these) — one-tap join. */
+  defaultName?: string;
+  defaultEmail?: string;
   ctaLabel?: string;
 }) {
-  const [name, setName] = useState("");
-  const [email, setEmail] = useState("");
+  const [name, setName] = useState(defaultName);
+  const [email, setEmail] = useState(defaultEmail);
   const [optIn, setOptIn] = useState(true);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState("");

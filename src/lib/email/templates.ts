@@ -13,6 +13,10 @@ export type EmailVars = {
   bookingLink?: string;
   whatsappLink?: string;
   reviewLink?: string;
+  joinLink?: string;
+  inviterName?: string;
+  rewardFriend?: string;
+  personalNote?: string;
   [k: string]: string | undefined;
 };
 
@@ -65,6 +69,21 @@ export const TEMPLATES: Record<string, (v: EmailVars, opts?: LayoutOpts) => Buil
         p(`Here's your secure login link for your NP7 trip account. It expires shortly, so use it soon:`) +
         (v.activationLink ? emailButton("Log in to my account", v.activationLink) : "") +
         p(`If you didn't request this, you can safely ignore this email.`),
+    }),
+  }),
+
+  trip_invite: (v, opts) => ({
+    subject: `${v.inviterName ?? "A friend"} invited you to ${v.experienceTitle ?? "an NP7 trip"} 🌊`,
+    html: emailLayout({
+      ...opts,
+      preheader: `Join ${v.inviterName ?? "a friend"} on this windsurf trip${v.rewardFriend ? ` — ${v.rewardFriend} off your spot` : ""}.`,
+      bodyHtml:
+        p(`Hey ${esc(v.firstName || "there")} 🤙`) +
+        p(`<strong>${esc(v.inviterName || "A friend")}</strong> wants you along on <strong>${esc(v.experienceTitle || "an NP7 trip")}</strong>${v.dates ? " (" + esc(v.dates) + ")" : ""} — an NP7 windsurf adventure.`) +
+        (v.personalNote ? p(`<em>“${esc(v.personalNote)}”</em>`) : "") +
+        (v.rewardFriend ? p(`${v.inviterName ? `As <strong>${esc(v.inviterName)}</strong>’s guest you` : "You"} get <strong>${esc(v.rewardFriend)} off</strong> your spot.`) : "") +
+        (v.joinLink ? emailButton("See the trip & join", v.joinLink) : "") +
+        p(`Signing up is free and holds no payment — your spot is fully refundable for 14 days. Hope to see you on the water!<br>— Nico & the NP7 team`),
     }),
   }),
 

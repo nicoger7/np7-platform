@@ -12,6 +12,7 @@ export const DEFAULT_SUBJECTS: Record<string, string> = {
   reservation_received: "You're registered — {{experienceTitle}} 🤙",
   deposit_confirmation: "You're in! 🤙 {{experienceTitle}} is booked",
   account_magic_link: "Your NP7 login link",
+  trip_invite: "{{inviterName}} invited you to {{experienceTitle}} 🌊",
   payment_pending_nudge: "Your spot is waiting — {{experienceTitle}}",
   balance_invoice_reminder: "Balance for {{experienceTitle}} — invoice",
   pre_trip_info: "Getting ready for {{experienceTitle}} 🌊",
@@ -30,6 +31,14 @@ export const DEFAULT_BODIES: Record<string, string> = {
     P("<strong>3. Pay the balance later</strong> by bank transfer, in good time before the trip.") +
     BTN("Secure my spot", "bookingLink") +
     P("Any questions, just reply." + SIGN),
+
+  trip_invite:
+    P("Hey {{firstName}} 🤙") +
+    P("<strong>{{inviterName}}</strong> wants you along on <strong>{{experienceTitle}}</strong> ({{dates}}) — an NP7 windsurf adventure.") +
+    P("<em>“{{personalNote}}”</em>") +
+    P("As their guest you get <strong>{{rewardFriend}} off</strong> your spot.") +
+    BTN("See the trip & join", "joinLink") +
+    P("Signing up is free and holds no payment — your spot is fully refundable for 14 days. Hope to see you on the water!" + SIGN),
 
   deposit_confirmation:
     P("Hey {{firstName}} 🤙") +
