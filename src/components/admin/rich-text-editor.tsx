@@ -22,22 +22,58 @@ export function RichTextEditor({
   const ref = useRef<HTMLDivElement>(null);
   const last = useRef<string>("");
   const [source, setSource] = useState(false);
+  // Our own undo/redo history (snapshots of the HTML). execCommand("undo") is
+  // unreliable and can bubble to the browser (reopening tabs), so we never use it.
+  const hist = useRef<string[]>([]);
+  const ptr = useRef<number>(-1);
 
-  // Sync external value into the editable area without clobbering the caret.
+  // Seed the undo baseline once on mount (covers a brand-new, empty editor).
+  useEffect(() => {
+    if (hist.current.length === 0) { hist.current = [value || ""]; ptr.current = 0; }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Sync external value into the editable area without clobbering the caret. An
+  // external change (e.g. loading a template) resets the undo history to it.
   useEffect(() => {
     if (source) return;
     const el = ref.current;
     if (el && value !== last.current && value !== el.innerHTML) {
       el.innerHTML = value || "";
       last.current = value;
+      hist.current = [value || ""];
+      ptr.current = 0;
     }
   }, [value, source]);
 
+  function record(html: string) {
+    if (hist.current[ptr.current] === html) return;
+    hist.current.splice(ptr.current + 1); // drop any redo branch
+    hist.current.push(html);
+    ptr.current = hist.current.length - 1;
+  }
   function emit() {
     const el = ref.current;
     if (!el) return;
     last.current = el.innerHTML;
+    record(el.innerHTML);
     onChange(el.innerHTML);
+  }
+  function applyHistory(html: string) {
+    const el = ref.current;
+    if (el) el.innerHTML = html;
+    last.current = html;
+    onChange(html);
+  }
+  function undo() {
+    if (ptr.current <= 0) return;
+    ptr.current -= 1;
+    applyHistory(hist.current[ptr.current]);
+  }
+  function redo() {
+    if (ptr.current >= hist.current.length - 1) return;
+    ptr.current += 1;
+    applyHistory(hist.current[ptr.current]);
   }
   function cmd(command: string, arg?: string) {
     ref.current?.focus();
@@ -74,10 +110,10 @@ export function RichTextEditor({
   return (
     <div className="rounded-lg overflow-hidden" style={{ border: "1px solid var(--admin-border)" }}>
       <div className="flex flex-wrap items-center gap-0.5 px-2 py-1.5" style={{ borderBottom: "1px solid var(--admin-border)", background: "var(--admin-surface)" }}>
-        <button type="button" className={btn} onMouseDown={(e) => e.preventDefault()} onClick={() => cmd("undo")} title="Undo" aria-label="Undo">
+        <button type="button" className={btn} onMouseDown={(e) => e.preventDefault()} onClick={undo} title="Undo" aria-label="Undo">
           <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M9 14 4 9l5-5" /><path d="M4 9h11a5 5 0 0 1 0 10h-1" /></svg>
         </button>
-        <button type="button" className={btn} onMouseDown={(e) => e.preventDefault()} onClick={() => cmd("redo")} title="Redo" aria-label="Redo">
+        <button type="button" className={btn} onMouseDown={(e) => e.preventDefault()} onClick={redo} title="Redo" aria-label="Redo">
           <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m15 14 5-5-5-5" /><path d="M20 9H9a5 5 0 0 0 0 10h1" /></svg>
         </button>
         {sep}
