@@ -490,7 +490,7 @@ export default function AdminShell({
 
       {/* ── Sidebar — off-canvas drawer on mobile, static on desktop ── */}
       <aside
-        className={`fixed inset-y-0 left-0 z-50 w-64 lg:sticky lg:top-0 lg:self-start lg:h-screen lg:z-auto lg:w-56 flex flex-col transition-transform duration-200 lg:transition-none ${mobileNavOpen ? "translate-x-0" : "-translate-x-full lg:translate-x-0"}`}
+        className={`fixed inset-y-0 left-0 z-50 w-64 lg:sticky lg:top-0 lg:self-start lg:h-[calc(100svh/1.1)] lg:z-auto lg:w-56 flex flex-col transition-transform duration-200 lg:transition-none ${mobileNavOpen ? "translate-x-0" : "-translate-x-full lg:translate-x-0"}`}
         style={{
           backgroundColor: "var(--admin-sidebar)",
           borderRight: "1px solid var(--admin-border)",
