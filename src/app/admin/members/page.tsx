@@ -3,6 +3,19 @@
 import { Suspense, useEffect, useState, useCallback, useMemo } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { MemberDetailPane } from "@/components/admin/member-detail-pane";
+import { ColumnToggle, type ColumnDef, loadVisibleColumns } from "@/components/column-toggle";
+
+// Properties shown on each card in the full-list grid. Toggle them on/off; the
+// more you show, the fewer columns the grid uses so everything stays readable.
+const CARD_PROPS: ColumnDef[] = [
+  { key: "account", label: "Account status", width: "" },
+  { key: "level", label: "Level", width: "" },
+  { key: "email", label: "Email", width: "" },
+  { key: "bookings", label: "Bookings", width: "" },
+  { key: "experiences", label: "Experiences", width: "", defaultHidden: true },
+  { key: "lastLogin", label: "Last login", width: "", defaultHidden: true },
+];
+const PROPS_KEY = "np7-members-card-props";
 
 type Exp = { id: string; title: string; secured: boolean };
 type Member = {
@@ -42,6 +55,7 @@ function MembersInner() {
   const [segment, setSegment] = useState<Segment>("all");
   const [expId, setExpId] = useState("");
   const [levelView, setLevelView] = useState(false);
+  const [visibleProps, setVisibleProps] = useState<Set<string>>(() => loadVisibleColumns(PROPS_KEY, CARD_PROPS));
 
   const load = useCallback(() => {
     fetch("/api/admin/members").then((r) => r.json()).then((d) => {
@@ -105,20 +119,28 @@ function MembersInner() {
   const inputCls = "px-3 py-2 admin-input border rounded-lg text-sm focus:outline-none focus:border-[var(--admin-accent)] focus:ring-1 focus:ring-[var(--admin-accent)] transition-colors";
 
   // One row renderer for both the full grid (compact=false) and the rail (compact=true).
+  // In the full grid, which properties show is driven by `visibleProps`; the rail
+  // (compact) always shows its lean fixed set.
   function row(m: Member, compact: boolean) {
     const active = selectedId === m.id;
+    const show = (k: string) => compact || visibleProps.has(k);
     const badges = (
       <>
-        {!m.hasAccount && <span className="text-[10px] font-bold uppercase px-1.5 py-0.5 rounded bg-slate-500/15 text-slate-400">No account</span>}
-        {m.banned && <span className="text-[10px] font-bold uppercase px-1.5 py-0.5 rounded bg-red-500/15 text-red-400">Deactivated</span>}
-        {m.marketing && <span className="text-[10px] font-bold uppercase px-1.5 py-0.5 rounded bg-green-500/15 text-green-500">Newsletter</span>}
-        {(m.level || m.selfLevel) && (
+        {show("account") && !m.hasAccount && <span className="text-[10px] font-bold uppercase px-1.5 py-0.5 rounded bg-slate-500/15 text-slate-400">No account</span>}
+        {show("account") && m.banned && <span className="text-[10px] font-bold uppercase px-1.5 py-0.5 rounded bg-red-500/15 text-red-400">Deactivated</span>}
+        {show("account") && m.marketing && <span className="text-[10px] font-bold uppercase px-1.5 py-0.5 rounded bg-green-500/15 text-green-500">Newsletter</span>}
+        {show("level") && (m.level || m.selfLevel) && (
           <span className={`text-[10px] font-bold uppercase px-1.5 py-0.5 rounded ${levelTone(m.levelStatus)}`}>
             {m.level ?? m.selfLevel}{m.levelStatus && m.levelStatus !== "verified" ? ` · ${m.levelStatus}` : ""}
           </span>
         )}
       </>
     );
+    const subParts: string[] = [];
+    if (show("email")) subParts.push(m.email || "—");
+    if (show("bookings")) subParts.push(`${m.bookings} booking${m.bookings === 1 ? "" : "s"}`);
+    if (!compact && show("experiences") && m.experiences.length > 0) subParts.push(m.experiences.map((e) => e.title).join(", "));
+    if (!compact && show("lastLogin") && m.hasAccount) subParts.push(`last login ${fmtDate(m.lastSignIn)}`);
     const actions = (
       <div className="flex items-center gap-3" onClick={(e) => e.stopPropagation()}>
         {m.hasAccount ? (
@@ -150,11 +172,7 @@ function MembersInner() {
           <span className="font-semibold admin-heading truncate">{m.name || "Unnamed"}</span>
           {badges}
         </div>
-        <p className="text-xs admin-faint truncate mt-0.5">
-          {m.email || "—"} · {m.bookings} booking{m.bookings === 1 ? "" : "s"}
-          {!compact && m.experiences.length > 0 && <> · {m.experiences.map((e) => e.title).join(", ")}</>}
-          {!compact && m.hasAccount && <> · last login {fmtDate(m.lastSignIn)}</>}
-        </p>
+        {subParts.length > 0 && <p className="text-xs admin-faint truncate mt-0.5">{subParts.join(" · ")}</p>}
         <div className="mt-1.5">{actions}</div>
       </div>
     );
@@ -184,13 +202,16 @@ function MembersInner() {
           <h1 className="text-2xl font-bold admin-heading">Member Management</h1>
           <p className="text-sm admin-muted mt-1">Customer accounts for the trip portal. Pick anyone to open their full details.</p>
         </div>
-        <button
-          onClick={toggleLevelView}
-          className={`shrink-0 px-4 py-2 rounded-lg text-[13px] font-bold transition-colors ${levelView ? "bg-[var(--admin-accent)] text-[var(--admin-accent-contrast)]" : "admin-muted"}`}
-          style={levelView ? undefined : { border: "1px solid var(--admin-border)" }}
-        >
-          {levelView ? "✓ Level view" : "Level view"}
-        </button>
+        <div className="flex items-center gap-2 shrink-0">
+          {!selectedId && <ColumnToggle columns={CARD_PROPS} visible={visibleProps} onChange={setVisibleProps} storageKey={PROPS_KEY} />}
+          <button
+            onClick={toggleLevelView}
+            className={`px-4 py-2 rounded-lg text-[13px] font-bold transition-colors ${levelView ? "bg-[var(--admin-accent)] text-[var(--admin-accent-contrast)]" : "admin-muted"}`}
+            style={levelView ? undefined : { border: "1px solid var(--admin-border)" }}
+          >
+            {levelView ? "✓ Level view" : "Level view"}
+          </button>
+        </div>
       </div>
 
       {toast && <div className="mb-3 text-[13px] font-semibold text-[#0aa3c7]">{toast}</div>}
@@ -198,8 +219,14 @@ function MembersInner() {
       {filterBar}
 
       {!selectedId ? (
-        /* ── No selection → the full members list (full width, all details) ── */
-        <div className="grid gap-2.5 sm:grid-cols-2 2xl:grid-cols-3">
+        /* ── No selection → the full members list. Columns thin out as the
+              wide (text) properties are shown, so every property stays readable. ── */
+        <div className={`grid gap-2.5 ${
+          (() => {
+            const heavy = ["email", "experiences", "lastLogin"].filter((k) => visibleProps.has(k)).length;
+            return heavy >= 3 ? "grid-cols-1" : heavy === 2 ? "sm:grid-cols-2" : "sm:grid-cols-2 2xl:grid-cols-3";
+          })()
+        }`}>
           {!loading && rows.length === 0 && <p className="text-sm admin-faint">No one matches these filters.</p>}
           {rows.map((m) => row(m, false))}
         </div>
