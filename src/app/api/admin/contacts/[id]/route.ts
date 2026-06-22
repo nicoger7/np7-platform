@@ -1,6 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase";
 import { softDelete } from "@/lib/archive";
+import { getRequestAccess } from "@/lib/admin-auth";
+import { effectiveCanSeeField } from "@/lib/access";
+import { redactContactPii } from "../route";
 
 // GET /api/admin/contacts/:id — get a single contact
 export async function GET(
@@ -20,7 +23,9 @@ export async function GET(
     return NextResponse.json({ error: error.message }, { status: 404 });
   }
 
-  return NextResponse.json(data);
+  const access = await getRequestAccess();
+  const out = access && !effectiveCanSeeField(access, "contact_pii") ? redactContactPii(data) : data;
+  return NextResponse.json(out);
 }
 
 // PATCH /api/admin/contacts/:id — update a contact

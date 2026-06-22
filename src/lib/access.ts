@@ -123,6 +123,41 @@ export type RoleAccess = {
   fields: Partial<Record<FieldKey, boolean>>;
 };
 
+/** Which sensitive field groups a section's data can contain. */
+export const SECTION_EXPOSES: Record<string, FieldKey[]> = {
+  bookings: ["money", "costs", "contact_pii"],
+  contacts: ["contact_pii"],
+  members: ["contact_pii"],
+  payments: ["money"],
+  exp_costs: ["money", "costs"],
+  vendors: ["costs"],
+  documents: ["money"],
+  packages: ["money", "costs"],
+  components: ["costs"],
+};
+
+/** Which of those exposures are actually enforced (redacted) server-side today.
+ *  Anything a section EXPOSES but doesn't appear here will still leak through. */
+export const REDACTION_COVERAGE: Record<string, FieldKey[]> = {
+  bookings: ["money", "costs", "contact_pii"],
+  contacts: ["contact_pii"],
+};
+
+/** Sections a role can reach that may still SHOW a hidden field group (because
+ *  redaction isn't wired there yet) — surfaced as a warning in the role editor. */
+export function accessLeaks(access: RoleAccess): { key: string; label: string; fields: FieldKey[] }[] {
+  const out: { key: string; label: string; fields: FieldKey[] }[] = [];
+  for (const sec of SECTIONS) {
+    if (!access.worlds.includes(sec.world)) continue;
+    if ((access.sections[sec.key] ?? "none") === "none") continue;
+    const exposes = SECTION_EXPOSES[sec.key] || [];
+    const covered = REDACTION_COVERAGE[sec.key] || [];
+    const leaked = exposes.filter((f) => access.fields[f] !== true && !covered.includes(f));
+    if (leaked.length) out.push({ key: sec.key, label: sec.label, fields: leaked });
+  }
+  return out;
+}
+
 export const EMPTY_ACCESS: RoleAccess = { worlds: [], sections: {}, fields: {} };
 
 /** Coerce an arbitrary jsonb blob into a safe RoleAccess. */

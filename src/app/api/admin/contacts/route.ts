@@ -1,6 +1,14 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase";
 import { missingArchivedCol } from "@/lib/archive";
+import { getRequestAccess } from "@/lib/admin-auth";
+import { effectiveCanSeeField } from "@/lib/access";
+
+/** Null out a contact's personal data for roles without "contact_pii". */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export function redactContactPii<T extends Record<string, any>>(c: T): T {
+  return { ...c, email: null, phone: null, date_of_birth: null, diet_allergies: null, billing_address: null, billing_postal_code: null, billing_city: null, billing_country: null, pii_redacted: true };
+}
 
 // GET /api/admin/contacts — list all contacts
 export async function GET(request: NextRequest) {
@@ -39,6 +47,11 @@ export async function GET(request: NextRequest) {
 
   if (error) {
     return NextResponse.json({ error: error.message }, { status: 500 });
+  }
+
+  const access = await getRequestAccess();
+  if (access && !effectiveCanSeeField(access, "contact_pii")) {
+    data = (data || []).map(redactContactPii);
   }
 
   return NextResponse.json({ data, count, page, limit });

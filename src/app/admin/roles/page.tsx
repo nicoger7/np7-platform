@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import {
-  WORLDS, SECTIONS, FIELDS, type WorldId, type SectionLevel, type RoleAccess, normalizeAccess,
+  WORLDS, SECTIONS, FIELDS, accessLeaks, type WorldId, type SectionLevel, type RoleAccess, normalizeAccess,
 } from "@/lib/access";
 
 type Role = { id: string; name: string; description: string | null; access: RoleAccess; is_system?: boolean };
@@ -215,6 +215,24 @@ export default function RolesPage() {
                   </label>
                 ))}
               </div>
+
+              {/* Honesty warning: sections this role can reach that still show a hidden field group */}
+              {(() => {
+                const enabled: Record<string, SectionLevel> = {};
+                for (const s of SECTIONS) if (form.worlds.has(s.world) && form.sections[s.key] && form.sections[s.key] !== "none") enabled[s.key] = form.sections[s.key];
+                const leaks = accessLeaks({ worlds: [...form.worlds], sections: enabled, fields: form.fields });
+                if (!leaks.length) return null;
+                const fieldLabel = (k: string) => (FIELDS.find((f) => f.key === k)?.label || k).toLowerCase();
+                return (
+                  <div className="mt-3 p-3 rounded-lg text-xs" style={{ border: "1px solid rgba(245,158,11,0.45)", background: "rgba(245,158,11,0.08)", color: "#f59e0b" }}>
+                    <p className="font-semibold mb-1.5">⚠ Heads up — these sections can still show data you’ve hidden (redaction isn’t wired there yet):</p>
+                    <ul className="space-y-0.5">
+                      {leaks.map((l) => <li key={l.key}>• <strong>{l.label}</strong> may still show {l.fields.map(fieldLabel).join(", ")}</li>)}
+                    </ul>
+                    <p className="mt-1.5 opacity-80">Bookings are fully redacted. To be safe, set those sections to <strong>None</strong> for this role.</p>
+                  </div>
+                );
+              })()}
             </div>
 
             {err && <p className="text-xs text-red-400">{err}</p>}
