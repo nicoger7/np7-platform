@@ -92,9 +92,9 @@ export default function ExperiencesPage() {
   const [loading, setLoading] = useState(true);
   const [view, setView] = useState<ViewMode>(() => {
     if (typeof window !== "undefined") {
-      return (localStorage.getItem("np7-exp-view") as ViewMode) || "list";
+      return (localStorage.getItem("np7-exp-view") as ViewMode) || "tile";
     }
-    return "list";
+    return "tile";
   });
   const [sortKey, setSortKey] = useState<string | null>(null);
   const [sortDir, setSortDir] = useState<SortDir>(null);
