@@ -1068,6 +1068,7 @@ export default function EditionDetailPage({
                     <PackageComponentsEditor
                       packageId={pkgEditId}
                       experienceId={expId}
+                      editionId={id}
                       namePrefix={edition.exp_experiences?.code ? `${edition.exp_experiences.code} - ` : undefined}
                       sellPrice={pkg?.price}
                       onChanged={loadPackages}

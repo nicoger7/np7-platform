@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 
 interface LinkedComponent {
   id: string;
@@ -40,6 +40,7 @@ function money(n: number | null | undefined) {
 export function PackageComponentsEditor({
   packageId,
   experienceId,
+  editionId,
   namePrefix,
   sellPrice,
   onChanged,
@@ -47,6 +48,8 @@ export function PackageComponentsEditor({
   packageId: string;
   /** Restrict the picker to this experience's components (+ global + unscoped) */
   experienceId?: string | null;
+  /** Narrow further to this edition's components (+ experience-wide + global) */
+  editionId?: string | null;
   /** e.g. "BON - " — prefilled when creating a new component */
   namePrefix?: string;
   /** The package's current (manual) sell price — to show override status + a one-click sync. */
@@ -56,15 +59,21 @@ export function PackageComponentsEditor({
   const [links, setLinks] = useState<LinkedComponent[]>([]);
   const [options, setOptions] = useState<ComponentOption[]>([]);
   const [loading, setLoading] = useState(true);
-  const [addId, setAddId] = useState("");
-  const [addQty, setAddQty] = useState("1");
+  const [search, setSearch] = useState("");
+  const [pickerOpen, setPickerOpen] = useState(false);
   const [showNewComp, setShowNewComp] = useState(false);
   const [newComp, setNewComp] = useState({ name: namePrefix || "", category: "other", unit_cost: "", sell_price: "" });
+  const pickerRef = useRef<HTMLDivElement>(null);
+  // "Copy from another package" (duplicate a whole component set)
+  const [copyOpen, setCopyOpen] = useState(false);
+  const [copyPkgs, setCopyPkgs] = useState<{ id: string; name: string; edition?: { label: string | null; year: number | null } | null }[]>([]);
+  const [copyBusy, setCopyBusy] = useState(false);
 
   const load = useCallback(() => {
-    const compsUrl = experienceId
-      ? `/api/admin/components?experience_id=${experienceId}`
-      : `/api/admin/components`;
+    const params = new URLSearchParams();
+    if (experienceId) params.set("experience_id", experienceId);
+    if (editionId) params.set("edition_id", editionId);
+    const compsUrl = `/api/admin/components${params.toString() ? `?${params}` : ""}`;
     Promise.all([
       fetch(`/api/admin/packages/${packageId}/components`).then((r) => r.json()),
       fetch(compsUrl).then((r) => r.json()),
@@ -73,18 +82,48 @@ export function PackageComponentsEditor({
       setOptions(Array.isArray(c) ? c : []);
       setLoading(false);
     });
-  }, [packageId, experienceId]);
+  }, [packageId, experienceId, editionId]);
 
   useEffect(() => { load(); }, [load]);
 
-  async function attach() {
-    if (!addId) return;
+  // close the picker dropdown on outside click
+  useEffect(() => {
+    function onDoc(e: MouseEvent) { if (pickerRef.current && !pickerRef.current.contains(e.target as Node)) setPickerOpen(false); }
+    if (pickerOpen) document.addEventListener("mousedown", onDoc);
+    return () => document.removeEventListener("mousedown", onDoc);
+  }, [pickerOpen]);
+
+  async function attachOne(componentId: string) {
     await fetch(`/api/admin/packages/${packageId}/components`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ component_id: addId, quantity: Number(addQty) || 1 }),
+      body: JSON.stringify({ component_id: componentId, quantity: 1 }),
     });
-    setAddId(""); setAddQty("1"); load(); onChanged?.();
+    setSearch(""); setPickerOpen(false); load(); onChanged?.();
+  }
+
+  /** Pull the candidate packages to copy a component set from (same experience). */
+  async function openCopy() {
+    setCopyOpen((v) => !v);
+    if (copyPkgs.length === 0 && experienceId) {
+      const r = await fetch(`/api/admin/packages?experience_id=${experienceId}`).then((x) => x.json()).catch(() => []);
+      setCopyPkgs((Array.isArray(r) ? r : []).filter((p: { id: string }) => p.id !== packageId));
+    }
+  }
+
+  /** Copy every component (with quantities) from another package into this one. */
+  async function copyFrom(srcId: string) {
+    setCopyBusy(true);
+    const src = await fetch(`/api/admin/packages/${srcId}/components`).then((r) => r.json()).catch(() => []);
+    const linkedIds = new Set(links.map((l) => l.component_id));
+    for (const l of (Array.isArray(src) ? src : [])) {
+      if (linkedIds.has(l.component_id)) continue; // don't double-add
+      await fetch(`/api/admin/packages/${packageId}/components`, {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ component_id: l.component_id, quantity: l.quantity || 1 }),
+      });
+    }
+    setCopyBusy(false); setCopyOpen(false); load(); onChanged?.();
   }
 
   async function detach(componentId: string) {
@@ -113,6 +152,7 @@ export function PackageComponentsEditor({
         sell_price: newComp.sell_price ? Number(newComp.sell_price) : null,
         is_global: false,
         experience_id: experienceId || null,
+        edition_id: editionId || null,
       }),
     });
     if (res.ok) {
@@ -242,21 +282,63 @@ export function PackageComponentsEditor({
         </div>
       )}
 
-      {/* Attach existing */}
-      <div className="flex items-center gap-2">
-        <select value={addId} onChange={(e) => setAddId(e.target.value)} className={`${inputClass} flex-1`}>
-          <option value="">Add existing component…</option>
-          {options.filter((o) => !linkedIds.has(o.id)).map((o) => (
-            <option key={o.id} value={o.id}>
-              {o.name} ({money(o.unit_cost)}/{money(o.sell_price)})
-            </option>
-          ))}
-        </select>
-        <input type="number" min={1} value={addQty} onChange={(e) => setAddQty(e.target.value)} className={`${inputClass} w-14 text-center`} title="Qty" />
-        <button onClick={attach} disabled={!addId} className="px-3 py-1.5 bg-[#0aa3c7] hover:bg-[#0aa3c7]/90 disabled:opacity-40 text-white text-xs font-bold rounded-lg transition-colors">Add</button>
-        <button onClick={() => setShowNewComp((v) => !v)} className="px-3 py-1.5 admin-surface admin-muted text-xs rounded-lg transition-colors" style={{ border: "1px solid var(--admin-border)" }}>
+      {/* Add a component — searchable picker (replaces the old dropdown) */}
+      <div className="flex items-stretch gap-2">
+        <div ref={pickerRef} className="relative flex-1">
+          <div className="relative">
+            <svg className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 admin-faint pointer-events-none" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="11" cy="11" r="8" /><path d="m21 21-4.3-4.3" /></svg>
+            <input
+              value={search}
+              onChange={(e) => { setSearch(e.target.value); setPickerOpen(true); }}
+              onFocus={() => setPickerOpen(true)}
+              placeholder="Search components to add…"
+              className="w-full h-9 pl-9 pr-3 admin-input border rounded-lg text-sm focus:outline-none focus:border-[#0aa3c7] focus:ring-1 focus:ring-[#0aa3c7]"
+            />
+          </div>
+          {pickerOpen && (() => {
+            const q = search.trim().toLowerCase();
+            const avail = options.filter((o) => !linkedIds.has(o.id) && (!q || `${o.name} ${o.category ?? ""}`.toLowerCase().includes(q)));
+            return (
+              <div className="absolute left-0 right-0 top-full mt-1.5 z-50 max-h-[280px] overflow-y-auto rounded-xl py-1" style={{ border: "1px solid var(--admin-border)", background: "var(--admin-bg)", boxShadow: "0 8px 24px rgba(0,0,0,0.25)" }}>
+                {avail.length === 0 ? (
+                  <p className="px-3 py-3 text-xs admin-faint">{options.length === 0 ? "No components for this experience yet." : "No matches — try “+ New” to create one."}</p>
+                ) : avail.map((o) => (
+                  <button key={o.id} onClick={() => attachOne(o.id)} className="w-full flex items-center justify-between gap-3 px-3 py-2 text-left hover:bg-[var(--admin-surface-hover)] transition-colors">
+                    <span className="min-w-0">
+                      <span className="block text-sm admin-heading font-medium truncate">{o.name}</span>
+                      {o.category && <span className="block text-[11px] admin-faint capitalize">{o.category}</span>}
+                    </span>
+                    <span className="shrink-0 text-xs admin-muted tabular-nums">{money(o.unit_cost)} / {money(o.sell_price)}</span>
+                  </button>
+                ))}
+              </div>
+            );
+          })()}
+        </div>
+        <button onClick={() => setShowNewComp((v) => !v)} className="px-3 h-9 admin-surface admin-muted text-xs font-semibold rounded-lg transition-colors hover:admin-heading" style={{ border: "1px solid var(--admin-border)" }}>
           + New
         </button>
+        <div className="relative">
+          <button onClick={openCopy} className="px-3 h-9 admin-surface admin-muted text-xs font-semibold rounded-lg transition-colors hover:admin-heading whitespace-nowrap" style={{ border: "1px solid var(--admin-border)" }} title="Copy the component set from another package">
+            Copy from…
+          </button>
+          {copyOpen && (
+            <>
+              <div className="fixed inset-0 z-40" onClick={() => setCopyOpen(false)} />
+              <div className="absolute right-0 top-full mt-1.5 z-50 w-[300px] max-h-[300px] overflow-y-auto rounded-xl py-1" style={{ border: "1px solid var(--admin-border)", background: "var(--admin-bg)", boxShadow: "0 8px 24px rgba(0,0,0,0.25)" }}>
+                <div className="px-3 pb-1.5 mb-1 text-[10px] font-bold tracking-[0.1em] admin-faint uppercase" style={{ borderBottom: "1px solid var(--admin-border)" }}>Copy components from</div>
+                {copyPkgs.length === 0 ? (
+                  <p className="px-3 py-3 text-xs admin-faint">No other packages in this experience.</p>
+                ) : copyPkgs.map((p) => (
+                  <button key={p.id} disabled={copyBusy} onClick={() => copyFrom(p.id)} className="w-full text-left px-3 py-2 text-sm admin-muted hover:admin-heading hover:bg-[var(--admin-surface-hover)] transition-colors disabled:opacity-50">
+                    <span className="block truncate">{p.name}</span>
+                    {p.edition && <span className="block text-[11px] admin-faint">{[p.edition.year, p.edition.label].filter(Boolean).join(" · ")}</span>}
+                  </button>
+                ))}
+              </div>
+            </>
+          )}
+        </div>
       </div>
 
       {/* Create & attach new component */}

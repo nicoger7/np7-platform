@@ -7,6 +7,7 @@ export async function GET(request: NextRequest) {
   const client = createAdminClient();
   const { searchParams } = new URL(request.url);
   const experienceId = searchParams.get("experience_id");
+  const editionId = searchParams.get("edition_id");
   const category = searchParams.get("category");
   const globalOnly = searchParams.get("global");
 
@@ -19,8 +20,15 @@ export async function GET(request: NextRequest) {
         : "*, exp_experiences(id, title)")
       .order("category")
       .order("name");
-    // Relevant to an experience = global, scoped to it, or not yet scoped (null fallback)
-    if (experienceId) q = q.or(`is_global.eq.true,experience_id.eq.${experienceId},experience_id.is.null`);
+    // Relevant set for a package's "what's included" picker:
+    //  • always global components, plus
+    //  • this experience's components — and when an edition is given, only those
+    //    scoped to that edition or not edition-scoped at all (experience-wide).
+    if (experienceId && editionId && withEdition) {
+      q = q.or(`is_global.eq.true,and(experience_id.eq.${experienceId},or(edition_id.eq.${editionId},edition_id.is.null)),and(experience_id.is.null,edition_id.is.null)`);
+    } else if (experienceId) {
+      q = q.or(`is_global.eq.true,experience_id.eq.${experienceId},experience_id.is.null`);
+    }
     if (globalOnly === "true") q = q.eq("is_global", true);
     if (category) q = q.eq("category", category);
     return q;
