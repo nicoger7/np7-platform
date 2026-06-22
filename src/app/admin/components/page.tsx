@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import { SortableHeader } from "@/components/sortable-header";
 import { ColumnToggle, ColumnDef, buildGridTemplate, loadVisibleColumns } from "@/components/column-toggle";
+import { SearchableSelect } from "@/components/admin/searchable-select";
 
 interface Experience {
   id: string;
@@ -287,25 +288,29 @@ export default function ComponentsPage() {
       <div className="grid grid-cols-2 gap-4 mb-4 max-w-xl">
         <div>
           <label className={labelClass}>Available for</label>
-          <select
-            className={inputClass}
+          <SearchableSelect
+            ariaLabel="Available for"
             value={form.is_global ? "__global__" : (form.experience_id || "")}
-            onChange={(e) => {
-              const v = e.target.value;
-              if (v === "__global__") setForm({ ...form, is_global: true, experience_id: "", edition_id: "" });
-              else pickExperience(v);
-            }}
-          >
-            <option value="__global__">🌐 Global — all experiences</option>
-            {experiences.map((exp) => (<option key={exp.id} value={exp.id}>{exp.title}{exp.code ? ` (${exp.code})` : ""}</option>))}
-          </select>
+            onChange={(v) => { if (v === "__global__") setForm({ ...form, is_global: true, experience_id: "", edition_id: "" }); else pickExperience(v); }}
+            options={[
+              { value: "__global__", label: "🌐 Global — all experiences" },
+              ...experiences.map((exp) => ({ value: exp.id, label: exp.title, sublabel: exp.code || undefined })),
+            ]}
+          />
         </div>
         <div>
           <label className={labelClass}>Edition <span className="admin-faint">(optional)</span></label>
-          <select className={inputClass} value={form.edition_id} onChange={(e) => setForm({ ...form, edition_id: e.target.value })} disabled={form.is_global || !form.experience_id}>
-            <option value="">All editions</option>
-            {formEditions.map((ed) => <option key={ed.id} value={ed.id}>{ed.label || ed.year}</option>)}
-          </select>
+          <SearchableSelect
+            ariaLabel="Edition"
+            disabled={form.is_global || !form.experience_id}
+            value={form.edition_id}
+            onChange={(v) => setForm({ ...form, edition_id: v })}
+            placeholder="All editions"
+            options={[
+              { value: "", label: "All editions" },
+              ...formEditions.map((ed) => ({ value: ed.id, label: ed.label || String(ed.year) })),
+            ]}
+          />
         </div>
       </div>
       <div className="flex gap-2">
