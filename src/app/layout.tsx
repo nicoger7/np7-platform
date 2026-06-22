@@ -24,7 +24,14 @@ export const metadata: Metadata = {
   // this with its own manifest + icons so the team gets a separate home-screen app.
   manifest: "/manifest.webmanifest",
   appleWebApp: { capable: true, title: "NP7", statusBarStyle: "black-translucent" },
-  icons: { icon: "/favicon.ico", apple: "/icons/apple-touch-icon.png" },
+  // Favicon = the NP7 logo (the same teal NP7 mark as the PWA icon).
+  icons: {
+    icon: [
+      { url: "/icons/icon-192.png", type: "image/png", sizes: "192x192" },
+      { url: "/icons/icon-512.png", type: "image/png", sizes: "512x512" },
+    ],
+    apple: "/icons/apple-touch-icon.png",
+  },
   openGraph: {
     type: "website",
     siteName: "NP7",

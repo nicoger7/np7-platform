@@ -249,13 +249,32 @@ export default function EmailTemplatesPage() {
           <p className="text-sm admin-muted">{templates.length} template{templates.length !== 1 ? "s" : ""}</p>
         </div>
         <div className="flex items-center gap-3">
-          <ColumnToggle columns={COLUMNS} visible={visibleColumns} onChange={setVisibleColumns} storageKey={STORAGE_KEY} />
+          {!(showNew || editId) && <ColumnToggle columns={COLUMNS} visible={visibleColumns} onChange={setVisibleColumns} storageKey={STORAGE_KEY} />}
           <button onClick={openNew} className="px-4 py-2 bg-[var(--admin-accent)] hover:bg-[var(--admin-accent)]/90 text-[var(--admin-accent-contrast)] text-sm font-bold rounded-lg transition-colors">New Template</button>
         </div>
       </div>
 
-      {(showNew || editId) && (
-        <div className="mb-6 p-5 rounded-xl" style={{ border: "1px solid var(--admin-border)", backgroundColor: "var(--admin-surface)" }}>
+      {(showNew || editId) ? (
+      <div className="flex flex-col lg:flex-row gap-4">
+        {/* rail — small list of templates */}
+        <div className="lg:w-60 shrink-0 flex lg:flex-col gap-1.5 lg:max-h-[82vh] lg:overflow-y-auto lg:pr-1">
+          <button onClick={() => { setShowNew(false); setEditId(null); }} className="shrink-0 mb-1 flex items-center gap-1.5 text-xs font-semibold admin-muted hover:text-[var(--admin-accent)] transition-colors">
+            <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m15 18-6-6 6-6" /></svg>
+            All templates
+          </button>
+          {sorted.map((t) => {
+            const active = t.id === editId;
+            return (
+              <button key={t.id} onClick={() => startEdit(t)} className="shrink-0 text-left px-3 py-2 rounded-lg transition-colors" style={{ background: active ? "var(--admin-accent)" : "var(--admin-surface)", border: "1px solid var(--admin-border)" }}>
+                <span className={`block text-xs font-semibold truncate ${active ? "text-[var(--admin-accent-contrast)]" : "admin-heading"}`}>{t.name}</span>
+                <span className={`block text-[10px] mt-0.5 truncate ${active ? "text-[var(--admin-accent-contrast)]/80" : "admin-faint"}`}>{t.subject_line || t.trigger_stage || "—"}</span>
+              </button>
+            );
+          })}
+        </div>
+        {/* detail — the editor */}
+        <div className="flex-1 min-w-0">
+        <div className="p-5 rounded-xl" style={{ border: "1px solid var(--admin-border)", backgroundColor: "var(--admin-surface)" }}>
           <h3 className="text-sm font-bold admin-heading mb-4">{editId ? "Edit email" : "New email"}</h3>
 
           {/* Name + subject */}
@@ -284,6 +303,10 @@ export default function EmailTemplatesPage() {
 
           <div className="mb-4">
             <label className={labelClass}>Header image <span className="admin-faint font-normal">— the {previewDivision} photo behind the logo (separate per world)</span></label>
+            <div className="mb-2 p-2.5 rounded-lg text-[11px] leading-relaxed flex gap-2" style={{ border: "1px solid var(--admin-border)", background: "var(--admin-surface)" }}>
+              <svg className="w-3.5 h-3.5 shrink-0 mt-0.5 admin-faint" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10" /><path d="M12 16v-4M12 8h.01" /></svg>
+              <span className="admin-muted">Which image actually sends: an email <strong>about a specific experience</strong> uses <strong>that experience&apos;s own hero photo</strong> (set on the experience page). The image here is the fallback for <strong>general</strong> emails (no experience), then the {previewDivision} default.</span>
+            </div>
             <div className="flex items-center gap-3">
               {curImg ? (
                 // eslint-disable-next-line @next/next/no-img-element
@@ -394,8 +417,10 @@ export default function EmailTemplatesPage() {
             <button onClick={() => { setShowNew(false); setEditId(null); }} className="px-4 py-2 admin-muted text-sm rounded-lg">Cancel</button>
           </div>
         </div>
-      )}
-
+        </div>
+      </div>
+      ) : (
+      <>
       {loading ? (
         <div className="py-12 text-center text-sm admin-faint">Loading...</div>
       ) : templates.length === 0 ? (
@@ -433,6 +458,8 @@ export default function EmailTemplatesPage() {
             </div>
           ))}
         </div>
+      )}
+      </>
       )}
     </div>
   );
