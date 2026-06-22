@@ -9,6 +9,7 @@ import { PackageComponentsEditor } from "@/components/package-components-editor"
 import { EditionMemoriesUploader } from "@/components/edition-memories-uploader";
 import { ContactPicker, ContactLite } from "@/components/contact-picker";
 import { EditionCrewLevels } from "@/components/admin/edition-crew-levels";
+import { BookingDetailPane } from "../../bookings/[id]/page";
 
 // Edition detail sub-tabs. The order is reorderable by drag-and-drop and saved
 // per admin in localStorage (each team member keeps their own preferred order).
@@ -205,6 +206,7 @@ export default function EditionDetailPage({
   const [bookingForm, setBookingForm] = useState(emptyBooking);
   const [bookingContact, setBookingContact] = useState<ContactLite | null>(null);
   const [bookingShow, setBookingShow] = useState(false);
+  const [selBooking, setSelBooking] = useState<string | null>(null);
 
   // Details-tab section show/hide (consistent with list-page column toggles)
   const SECTION_KEY = "np7-edition-sections";
@@ -810,9 +812,31 @@ export default function EditionDetailPage({
         </div>
       )}
 
-      {/* ── Bookings tab ── */}
+      {/* ── Bookings tab (inline split: rail + booking detail pane) ── */}
       {tab === "bookings" && (
         <div>
+          {selBooking ? (
+          <div className="flex flex-col md:flex-row gap-4">
+            <div className="md:w-56 shrink-0 flex md:flex-col gap-1.5 md:max-h-[72vh] md:overflow-y-auto md:pr-1">
+              <button onClick={() => setSelBooking(null)} className="shrink-0 mb-1 flex items-center gap-1.5 text-xs font-semibold admin-muted hover:text-[var(--admin-accent)] transition-colors">
+                <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m15 18-6-6 6-6" /></svg>
+                All bookings
+              </button>
+              {bookings.map((b) => {
+                const active = b.id === selBooking;
+                return (
+                  <button key={b.id} onClick={() => setSelBooking(b.id)} className="shrink-0 text-left px-3 py-2 rounded-lg transition-colors" style={{ background: active ? "var(--admin-accent)" : "var(--admin-surface)", border: "1px solid var(--admin-border)" }}>
+                    <span className={`block text-xs font-semibold truncate ${active ? "text-[var(--admin-accent-contrast)]" : "admin-heading"}`}>{b.name}</span>
+                    <span className={`block text-[10px] mt-0.5 truncate ${active ? "text-[var(--admin-accent-contrast)]/80" : "admin-faint"}`}>{BOOKING_STATUSES[normalizeBookingStatus(b.status)]?.label || b.status}</span>
+                  </button>
+                );
+              })}
+            </div>
+            <div className="flex-1 min-w-0">
+              <BookingDetailPane bookingId={selBooking} onBack={() => { setSelBooking(null); loadBookings(); }} />
+            </div>
+          </div>
+          ) : (<>
           <div className="flex justify-between items-center mb-4">
             <p className="text-xs admin-faint">{bookings.length} booking{bookings.length !== 1 ? "s" : ""} for this edition</p>
             <div className="flex items-center gap-3">
@@ -868,8 +892,8 @@ export default function EditionDetailPage({
                   onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = "var(--admin-surface-hover)")}
                   onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = "transparent")}
                 >
-                  <span className="text-sm font-medium admin-heading truncate self-center cursor-pointer" onClick={() => router.push(`/admin/bookings/${b.id}`)}>{b.name}</span>
-                  <span className="self-center cursor-pointer" onClick={() => router.push(`/admin/bookings/${b.id}`)}><BookingStatusBadge status={b.status} /></span>
+                  <span className="text-sm font-medium admin-heading truncate self-center cursor-pointer" onClick={() => setSelBooking(b.id)}>{b.name}</span>
+                  <span className="self-center cursor-pointer" onClick={() => setSelBooking(b.id)}><BookingStatusBadge status={b.status} /></span>
                   <span className="text-xs admin-muted self-center">{formatDate(b.fly_in)}</span>
                   <span className="text-xs admin-muted self-center">
                     {b.agreed_price ? `€${Number(b.agreed_price).toLocaleString()}` : "—"}
@@ -890,6 +914,7 @@ export default function EditionDetailPage({
               ))}
             </div>
           )}
+          </>)}
         </div>
       )}
 
