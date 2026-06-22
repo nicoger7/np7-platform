@@ -5,7 +5,6 @@ import Link from "next/link";
 import { SortableHeader } from "@/components/sortable-header";
 import { ColumnToggle, ColumnDef, buildGridTemplate, loadVisibleColumns } from "@/components/column-toggle";
 import { RowActions } from "@/components/row-actions";
-import { ACCESS_LEVELS, ACCESS_LABELS } from "@/lib/access";
 
 interface TeamMember {
   id: string;
@@ -57,13 +56,24 @@ export default function TeamPage() {
   const [visibleColumns, setVisibleColumns] = useState<Set<string>>(
     () => loadVisibleColumns(STORAGE_KEY, COLUMNS)
   );
-  const [form, setForm] = useState({ name: "", email: "", role: "", phone: "", rate_per_hour: "", notes: "", access_level: "manager" });
+  const [form, setForm] = useState({ name: "", email: "", role: "", phone: "", rate_per_hour: "", notes: "", role_ids: [] as string[] });
+  const [roles, setRoles] = useState<{ id: string; name: string; system_key?: string | null }[]>([]);
 
   function fetchData() {
     fetch("/api/admin/team").then((r) => r.json()).then((d) => { setMembers(d || []); setLoading(false); });
   }
 
-  useEffect(() => { fetchData(); }, []);
+  useEffect(() => {
+    fetchData();
+    fetch("/api/admin/roles").then((r) => r.json()).then((d) => setRoles(d.roles ?? [])).catch(() => {});
+  }, []);
+
+  // New members default to the Manager built-in role.
+  function openNew() {
+    const mgr = roles.find((r) => r.system_key === "manager");
+    setForm((f) => ({ ...f, role_ids: mgr ? [mgr.id] : [] }));
+    setShowNew(true);
+  }
 
   function handleSort(key: string) {
     if (sortKey === key) {
@@ -86,7 +96,7 @@ export default function TeamPage() {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ ...form, rate_per_hour: form.rate_per_hour ? Number(form.rate_per_hour) : null }),
     });
-    if (res.ok) { setShowNew(false); setForm({ name: "", email: "", role: "", phone: "", rate_per_hour: "", notes: "", access_level: "manager" }); fetchData(); }
+    if (res.ok) { setShowNew(false); setForm({ name: "", email: "", role: "", phone: "", rate_per_hour: "", notes: "", role_ids: [] }); fetchData(); }
   }
 
   async function handleDelete(id: string) {
@@ -113,7 +123,7 @@ export default function TeamPage() {
         </div>
         <div className="flex items-center gap-3">
           <ColumnToggle columns={COLUMNS} visible={visibleColumns} onChange={setVisibleColumns} storageKey={STORAGE_KEY} />
-          <button onClick={() => setShowNew(!showNew)} className="px-4 py-2 bg-[var(--admin-accent)] hover:bg-[var(--admin-accent)]/90 text-[var(--admin-accent-contrast)] text-sm font-bold rounded-lg transition-colors">New Member</button>
+          <button onClick={() => (showNew ? setShowNew(false) : openNew())} className="px-4 py-2 bg-[var(--admin-accent)] hover:bg-[var(--admin-accent)]/90 text-[var(--admin-accent-contrast)] text-sm font-bold rounded-lg transition-colors">New Member</button>
         </div>
       </div>
 
@@ -126,14 +136,25 @@ export default function TeamPage() {
             <div><label className={labelClass}>Phone</label><input className={inputClass} value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })} /></div>
             <div><label className={labelClass}>Role <span className="admin-faint font-normal">(job title)</span></label><input className={inputClass} value={form.role} onChange={(e) => setForm({ ...form, role: e.target.value })} /></div>
             <div><label className={labelClass}>Hourly Rate (€)</label><input className={inputClass} type="number" step="0.01" value={form.rate_per_hour} onChange={(e) => setForm({ ...form, rate_per_hour: e.target.value })} /></div>
-            <div><label className={labelClass}>Access level</label>
-              <select className={inputClass} value={form.access_level} onChange={(e) => setForm({ ...form, access_level: e.target.value })}>
-                {ACCESS_LEVELS.map((lvl) => <option key={lvl} value={lvl}>{ACCESS_LABELS[lvl]}</option>)}
-              </select>
+            <div className="col-span-3"><label className={labelClass}>Access — role(s)</label>
+              {roles.length === 0 ? (
+                <p className="text-[11px] admin-faint">Roles load from Team › Roles…</p>
+              ) : (
+                <div className="flex flex-wrap gap-2">
+                  {roles.map((r) => {
+                    const on = form.role_ids.includes(r.id);
+                    return (
+                      <button key={r.id} type="button" onClick={() => setForm((f) => ({ ...f, role_ids: on ? f.role_ids.filter((x) => x !== r.id) : [...f.role_ids, r.id] }))} className="px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors" style={on ? { background: "var(--admin-accent)", color: "var(--admin-accent-contrast)", border: "1px solid transparent" } : { border: "1px solid var(--admin-border)" }}>
+                        {on ? "✓ " : ""}{r.name}{r.system_key ? "" : ""}
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
             </div>
-            <div className="col-span-2"><label className={labelClass}>Notes</label><input className={inputClass} value={form.notes} onChange={(e) => setForm({ ...form, notes: e.target.value })} /></div>
+            <div className="col-span-3"><label className={labelClass}>Notes</label><input className={inputClass} value={form.notes} onChange={(e) => setForm({ ...form, notes: e.target.value })} /></div>
           </div>
-          <p className="text-[11px] admin-faint mb-4 -mt-2">Access controls what they can open. <strong>Role</strong> above is just a job-title label. After creating, open the member to send their login invite.</p>
+          <p className="text-[11px] admin-faint mb-4 -mt-2">Pick the access role(s) — <strong>Owner</strong> / <strong>Manager</strong> are built-in; define more under <strong>Team › Roles</strong>. <strong>Role</strong> above is just a job-title label. After creating, open the member to send their login invite.</p>
           <div className="flex gap-2">
             <button onClick={handleCreate} disabled={!form.name} className="px-4 py-2 bg-[var(--admin-accent)] hover:bg-[var(--admin-accent)]/90 disabled:opacity-40 text-[var(--admin-accent-contrast)] text-sm font-bold rounded-lg">Create</button>
             <button onClick={() => setShowNew(false)} className="px-4 py-2 admin-muted text-sm rounded-lg">Cancel</button>

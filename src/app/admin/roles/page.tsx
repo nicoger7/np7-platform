@@ -132,7 +132,7 @@ export default function RolesPage() {
               <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m15 18-6-6 6-6" /></svg>
               All roles
             </button>
-            {roles.map((r) => {
+            {roles.filter((r) => !r.is_system).map((r) => {
               const active = r.id === selId;
               return (
                 <button key={r.id} onClick={() => openRole(r)} className="shrink-0 text-left px-3 py-2 rounded-lg transition-colors" style={{ background: active ? "var(--admin-accent)" : "var(--admin-surface)", border: "1px solid var(--admin-border)" }}>
@@ -249,16 +249,24 @@ export default function RolesPage() {
         </div>
       ) : (
         <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-3">
-          {roles.map((r) => (
-            <button key={r.id} onClick={() => openRole(r)} className="text-left p-4 rounded-xl transition-colors hover:border-[var(--admin-accent)]" style={{ border: "1px solid var(--admin-border)", backgroundColor: "var(--admin-surface)" }}>
-              <div className="flex items-center gap-2">
-                <span className="text-sm font-bold admin-heading">{r.name}</span>
-                {r.is_system && <span className="px-1.5 py-0.5 rounded text-[9px] font-bold uppercase admin-surface admin-faint">Built-in</span>}
-              </div>
-              {r.description && <p className="text-xs admin-muted mt-1 line-clamp-2">{r.description}</p>}
-              <p className="text-[11px] admin-faint mt-2">{summarize(r)}</p>
-            </button>
-          ))}
+          {roles.map((r) => {
+            const card = (
+              <>
+                <div className="flex items-center gap-2">
+                  <span className="text-sm font-bold admin-heading">{r.name}</span>
+                  {r.is_system && <span className="px-1.5 py-0.5 rounded text-[9px] font-bold uppercase admin-surface admin-faint">Built-in</span>}
+                </div>
+                {r.description && <p className="text-xs admin-muted mt-1 line-clamp-2">{r.description}</p>}
+                <p className="text-[11px] admin-faint mt-2">{r.is_system ? "Fixed access — assign on the Employees page" : summarize(r)}</p>
+              </>
+            );
+            // Built-in roles (Owner/Manager) have computed access — informational, not editable.
+            return r.is_system ? (
+              <div key={r.id} className="p-4 rounded-xl" style={{ border: "1px solid var(--admin-border)", backgroundColor: "var(--admin-surface)" }}>{card}</div>
+            ) : (
+              <button key={r.id} onClick={() => openRole(r)} className="text-left p-4 rounded-xl transition-colors hover:border-[var(--admin-accent)]" style={{ border: "1px solid var(--admin-border)", backgroundColor: "var(--admin-surface)" }}>{card}</button>
+            );
+          })}
         </div>
       )}
     </div>

@@ -2,7 +2,6 @@
 
 import { useState, useEffect, use } from "react";
 import { useRouter } from "next/navigation";
-import { ACCESS_LEVELS, ACCESS_LABELS, normalizeLevel } from "@/lib/access";
 
 interface TeamMember {
   id: string;
@@ -125,16 +124,25 @@ export default function TeamDetailPage({ params }: { params: Promise<{ id: strin
         {/* Access & login */}
         <div className="pt-4" style={{ borderTop: "1px solid var(--admin-border)" }}>
           <h3 className="text-xs font-bold tracking-[0.1em] admin-faint uppercase mb-3">Access &amp; login</h3>
-          <div className="grid grid-cols-2 gap-4 items-start">
-            {(() => { const hasRoles = (member.role_ids?.length ?? 0) > 0; return (
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 items-start">
             <div>
-              <label className={labelClass}>Access level <span className="admin-faint font-normal">(simple)</span></label>
-              <select className={inputClass} disabled={hasRoles} style={hasRoles ? { opacity: 0.5 } : undefined} value={normalizeLevel(member.access_level)} onChange={(e) => update("access_level", e.target.value)}>
-                {ACCESS_LEVELS.map((lvl) => <option key={lvl} value={lvl}>{ACCESS_LABELS[lvl]}</option>)}
-              </select>
-              <p className="text-[11px] admin-faint mt-1.5">{hasRoles ? <>Overridden by the custom role(s) below — remove them to use this tier. <strong>Save</strong> after changing.</> : <>Owner = everything; Manager = all but Finance/Settings/Team. Use custom roles below for finer control. <strong>Save</strong> after changing.</>}</p>
+              <label className={labelClass}>Access — role(s)</label>
+              {roles.length === 0 ? (
+                <p className="text-[11px] admin-faint">Roles load from <strong>Team › Roles</strong>…</p>
+              ) : (
+                <div className="flex flex-wrap gap-2">
+                  {roles.map((r) => {
+                    const on = (member.role_ids ?? []).includes(r.id);
+                    return (
+                      <button key={r.id} type="button" onClick={() => { const cur = member.role_ids ?? []; update("role_ids", on ? cur.filter((x) => x !== r.id) : [...cur, r.id]); }} className="px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors" style={on ? { background: "var(--admin-accent)", color: "var(--admin-accent-contrast)", border: "1px solid transparent" } : { border: "1px solid var(--admin-border)" }}>
+                        {on ? "✓ " : ""}{r.name}
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
+              <p className="text-[11px] admin-faint mt-1.5"><strong>Owner</strong> / <strong>Manager</strong> are built-in; define more under <strong>Team › Roles</strong>. Assign several to combine (e.g. a different role per world — access is the union). <strong>Save</strong> after changing.</p>
             </div>
-            ); })()}
             <div>
               <label className={labelClass}>Login</label>
               <button onClick={handleInvite} disabled={inviting || !member.email}
@@ -143,24 +151,6 @@ export default function TeamDetailPage({ params }: { params: Promise<{ id: strin
               </button>
               <p className="text-[11px] admin-faint mt-1.5">Emails a one-time login link{member.email ? ` to ${member.email}` : " (add an email first)"}.</p>
             </div>
-          </div>
-          <div className="mt-4">
-            <label className={labelClass}>Custom roles (advanced)</label>
-            {roles.length === 0 ? (
-              <p className="text-[11px] admin-faint">No roles defined yet — create them under <strong>Team › Roles</strong>.</p>
-            ) : (
-              <div className="flex flex-wrap gap-2">
-                {roles.map((r) => {
-                  const on = (member.role_ids ?? []).includes(r.id);
-                  return (
-                    <button key={r.id} type="button" onClick={() => { const cur = member.role_ids ?? []; update("role_ids", on ? cur.filter((x) => x !== r.id) : [...cur, r.id]); }} className="px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors" style={on ? { background: "var(--admin-accent)", color: "var(--admin-accent-contrast)", border: "1px solid transparent" } : { border: "1px solid var(--admin-border)" }}>
-                      {on ? "✓ " : ""}{r.name}
-                    </button>
-                  );
-                })}
-              </div>
-            )}
-            <p className="text-[11px] admin-faint mt-1.5">Custom roles <strong>override</strong> the access level. Assign more than one to give someone a different role per world (their access is the union). Define roles under <strong>Team › Roles</strong>.</p>
           </div>
         </div>
 

@@ -192,6 +192,28 @@ export function mergeAccess(list: RoleAccess[]): RoleAccess {
   return out;
 }
 
+/** Sections only an Owner reaches (Finance, Company Settings, Team admin, Analytics) —
+ *  the same set as the legacy owner-only paths, expressed as section keys. */
+export const OWNER_ONLY_SECTIONS = ["payments", "exp_costs", "vendors", "documents", "settings", "team", "hours_log", "analytics"];
+
+/** Built-in roles. Their access is computed live from the catalog (so Owner always
+ *  covers new sections); stored in team_roles with a system_key (migration 049). */
+export const BUILTIN_ROLES: { key: "owner" | "manager"; name: string; description: string }[] = [
+  { key: "owner", name: "Owner", description: "Full access to everything." },
+  { key: "manager", name: "Manager", description: "Everything except Finance, Company Settings and Team admin." },
+];
+
+export function builtinAccess(systemKey: string): RoleAccess {
+  const fields = { money: true, costs: true, contact_pii: true };
+  const sections: Record<string, SectionLevel> = {};
+  if (systemKey === "manager") {
+    for (const s of SECTIONS) if (!OWNER_ONLY_SECTIONS.includes(s.key)) sections[s.key] = "edit";
+    return { worlds: WORLDS.map((w) => w.id).filter((w) => w !== "analytics") as WorldId[], sections, fields };
+  }
+  for (const s of SECTIONS) sections[s.key] = "edit"; // owner (+ any unknown system key) = everything
+  return { worlds: WORLDS.map((w) => w.id) as WorldId[], sections, fields };
+}
+
 /** The section that owns a path (longest-prefix wins), or undefined for shared
  *  paths (Dashboard, Archive) that every team member may reach. */
 export function sectionForPath(path: string): Section | undefined {

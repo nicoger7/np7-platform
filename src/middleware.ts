@@ -1,7 +1,7 @@
 import { createServerClient } from "@supabase/ssr";
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import { NextResponse, type NextRequest } from "next/server";
-import { normalizeLevel, normalizeAccess, mergeAccess, effectiveCanAccess, type EffectiveAccess } from "@/lib/access";
+import { normalizeLevel, normalizeAccess, mergeAccess, builtinAccess, effectiveCanAccess, type EffectiveAccess } from "@/lib/access";
 
 function svc(): SupabaseClient {
   return createClient(
@@ -25,9 +25,9 @@ async function teamMemberFor(email: string | undefined): Promise<{ active: boole
 /** Effective access: custom roles (merged) override the owner/manager tier. */
 async function effectiveAccessFor(member: { level: ReturnType<typeof normalizeLevel>; roleIds: string[] }): Promise<EffectiveAccess> {
   if (member.roleIds.length === 0) return { kind: "tier", level: member.level };
-  const { data } = await svc().from("team_roles").select("access").in("id", member.roleIds);
+  const { data } = await svc().from("team_roles").select("*").in("id", member.roleIds);
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const accesses = (data ?? []).map((r: any) => normalizeAccess(r.access));
+  const accesses = (data ?? []).map((r: any) => (r.system_key ? builtinAccess(r.system_key) : normalizeAccess(r.access)));
   if (accesses.length === 0) return { kind: "tier", level: member.level };
   return { kind: "role", access: mergeAccess(accesses) };
 }

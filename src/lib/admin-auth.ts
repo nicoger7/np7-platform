@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase";
 import { createClient } from "@/lib/supabase/server";
-import { normalizeLevel, normalizeAccess, mergeAccess, type AccessLevel, type EffectiveAccess } from "@/lib/access";
+import { normalizeLevel, normalizeAccess, mergeAccess, builtinAccess, type AccessLevel, type EffectiveAccess } from "@/lib/access";
 
 /**
  * Resolve the active team member behind an auth user and their access level.
@@ -39,8 +39,9 @@ export async function getEffectiveAccess(
   if (!member.roleIds || member.roleIds.length === 0) return { kind: "tier", level: member.accessLevel };
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const client = createAdminClient() as any;
-  const { data } = await client.from("team_roles").select("access").in("id", member.roleIds);
-  const accesses = (data ?? []).map((r: { access: unknown }) => normalizeAccess(r.access));
+  const { data } = await client.from("team_roles").select("*").in("id", member.roleIds);
+  // Built-in roles (Owner/Manager) get their access computed live; custom roles use their stored jsonb.
+  const accesses = (data ?? []).map((r: { access: unknown; system_key?: string | null }) => (r.system_key ? builtinAccess(r.system_key) : normalizeAccess(r.access)));
   if (accesses.length === 0) return { kind: "tier", level: member.accessLevel };
   return { kind: "role", access: mergeAccess(accesses) };
 }
