@@ -1,6 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase";
 import { getMemoryPhotos } from "@/lib/portal-data";
+import { getRequestAccess } from "@/lib/admin-auth";
+import { effectiveCanSeeField } from "@/lib/access";
+import { redactContactPii } from "../../contacts/route";
 
 // GET /api/admin/members/:id — aggregate everything for one member (id = contact id).
 export async function GET(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
@@ -34,12 +37,22 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
   const editionIds = Array.from(new Set(bookings.map((b: { edition_id: string | null }) => b.edition_id).filter(Boolean))) as string[];
   const gallery = (await Promise.all(editionIds.map((e) => getMemoryPhotos(e).catch(() => [])))).flat();
 
+  // Field redaction by role: money (booking prices / payments / invoice amounts)
+  // and contact PII. Owner/manager tiers see everything.
+  const access = await getRequestAccess();
+  const showMoney = !access || effectiveCanSeeField(access, "money");
+  const showPii = !access || effectiveCanSeeField(access, "contact_pii");
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const bookingsOut = showMoney ? bookings : bookings.map((b: any) => ({ ...b, agreed_price: null }));
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const docsOut = showMoney ? (documents.data ?? []) : (documents.data ?? []).map((d: any) => ({ ...d, amount: null }));
+
   return NextResponse.json({
-    contact,
-    bookings,
-    payments: payments.data ?? [],
+    contact: showPii ? contact : redactContactPii(contact),
+    bookings: bookingsOut,
+    payments: showMoney ? (payments.data ?? []) : [],
     emails: emails.data ?? [],
-    documents: documents.data ?? [],
+    documents: docsOut,
     reviews,
     gallery,
   });

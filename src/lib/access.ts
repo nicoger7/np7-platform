@@ -127,7 +127,7 @@ export type RoleAccess = {
 export const SECTION_EXPOSES: Record<string, FieldKey[]> = {
   bookings: ["money", "costs", "contact_pii"],
   contacts: ["contact_pii"],
-  members: ["contact_pii"],
+  members: ["contact_pii", "money"],
   payments: ["money"],
   exp_costs: ["money", "costs"],
   vendors: ["costs"],
@@ -141,6 +141,7 @@ export const SECTION_EXPOSES: Record<string, FieldKey[]> = {
 export const REDACTION_COVERAGE: Record<string, FieldKey[]> = {
   bookings: ["money", "costs", "contact_pii"],
   contacts: ["contact_pii"],
+  members: ["contact_pii", "money"],
 };
 
 /** Sections a role can reach that may still SHOW a hidden field group (because

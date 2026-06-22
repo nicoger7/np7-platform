@@ -3,6 +3,8 @@ import { createAdminClient } from "@/lib/supabase";
 import { ensureMemberAccount } from "@/lib/members";
 import { sendEmail } from "@/lib/email/send";
 import { isAttending } from "@/lib/types";
+import { getRequestAccess } from "@/lib/admin-auth";
+import { effectiveCanSeeField } from "@/lib/access";
 
 // (Auth enforced by middleware: /api/admin/* requires an active team member.)
 
@@ -68,9 +70,14 @@ export async function GET() {
   const expFilter = new Map<string, string>();
   for (const r of rows) for (const e of r.experiences) expFilter.set(e.id, e.title);
 
+  // Field redaction: roles without "contact_pii" don't get emails.
+  const access = await getRequestAccess();
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const out = access && !effectiveCanSeeField(access, "contact_pii") ? rows.map((r: any) => ({ ...r, email: null, pii_redacted: true })) : rows;
+
   return NextResponse.json({
-    members: rows.filter((r: { hasAccount: boolean }) => r.hasAccount),
-    guests: rows.filter((r: { hasAccount: boolean; bookings: number }) => !r.hasAccount && r.bookings > 0),
+    members: out.filter((r: { hasAccount: boolean }) => r.hasAccount),
+    guests: out.filter((r: { hasAccount: boolean; bookings: number }) => !r.hasAccount && r.bookings > 0),
     experiences: [...expFilter.entries()].map(([id, title]) => ({ id, title })).sort((a, b) => a.title.localeCompare(b.title)),
   });
 }

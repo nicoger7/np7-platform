@@ -140,7 +140,7 @@ export default function ComponentsPage() {
   function pickExperience(experience_id: string) {
     const code = expCodeById.get(experience_id);
     setForm((f) => {
-      const next = { ...f, experience_id, edition_id: "" };
+      const next = { ...f, is_global: false, experience_id, edition_id: "" };
       if (code && (!f.name.trim() || /^[A-Z0-9]{2,6}\s-\s?$/.test(f.name))) {
         next.name = `${code} - `;
       }
@@ -207,7 +207,11 @@ export default function ComponentsPage() {
 
   function startNew() {
     setEditId(null);
-    setForm(emptyForm);
+    // Pre-scope a new component to whatever the list is filtered to — so adding
+    // a component while viewing one experience/edition lands it there by default.
+    setForm(filterExperience
+      ? { ...emptyForm, is_global: false, experience_id: filterExperience, edition_id: filterEdition || "" }
+      : emptyForm);
     setShowNew(true);
   }
 
@@ -279,39 +283,31 @@ export default function ComponentsPage() {
           </label>
         </div>
       </div>
-      <div className="grid grid-cols-2 gap-4 mb-4">
+      {/* One control for scope: Global, or a specific experience (+ optional edition). */}
+      <div className="grid grid-cols-2 gap-4 mb-4 max-w-xl">
         <div>
-          <label className={labelClass}>Scope</label>
-          <div className="flex items-center gap-4 mt-1">
-            <label className="flex items-center gap-2 text-sm admin-muted cursor-pointer">
-              <input type="radio" checked={form.is_global} onChange={() => setForm({ ...form, is_global: true, experience_id: "" })} className="accent-[#0aa3c7]" />
-              Global
-            </label>
-            <label className="flex items-center gap-2 text-sm admin-muted cursor-pointer">
-              <input type="radio" checked={!form.is_global} onChange={() => setForm({ ...form, is_global: false })} className="accent-[#0aa3c7]" />
-              Experience-specific
-            </label>
-          </div>
+          <label className={labelClass}>Available for</label>
+          <select
+            className={inputClass}
+            value={form.is_global ? "__global__" : (form.experience_id || "")}
+            onChange={(e) => {
+              const v = e.target.value;
+              if (v === "__global__") setForm({ ...form, is_global: true, experience_id: "", edition_id: "" });
+              else pickExperience(v);
+            }}
+          >
+            <option value="__global__">🌐 Global — all experiences</option>
+            {experiences.map((exp) => (<option key={exp.id} value={exp.id}>{exp.title}{exp.code ? ` (${exp.code})` : ""}</option>))}
+          </select>
+        </div>
+        <div>
+          <label className={labelClass}>Edition <span className="admin-faint">(optional)</span></label>
+          <select className={inputClass} value={form.edition_id} onChange={(e) => setForm({ ...form, edition_id: e.target.value })} disabled={form.is_global || !form.experience_id}>
+            <option value="">All editions</option>
+            {formEditions.map((ed) => <option key={ed.id} value={ed.id}>{ed.label || ed.year}</option>)}
+          </select>
         </div>
       </div>
-      {!form.is_global && (
-        <div className="grid grid-cols-2 gap-4 mb-4 max-w-xl">
-          <div>
-            <label className={labelClass}>Experience</label>
-            <select className={inputClass} value={form.experience_id} onChange={(e) => pickExperience(e.target.value)}>
-              <option value="">Select experience...</option>
-              {experiences.map((exp) => (<option key={exp.id} value={exp.id}>{exp.title}{exp.code ? ` (${exp.code})` : ""}</option>))}
-            </select>
-          </div>
-          <div>
-            <label className={labelClass}>Edition <span className="admin-faint">(optional)</span></label>
-            <select className={inputClass} value={form.edition_id} onChange={(e) => setForm({ ...form, edition_id: e.target.value })} disabled={!form.experience_id}>
-              <option value="">All editions</option>
-              {formEditions.map((ed) => <option key={ed.id} value={ed.id}>{ed.label || ed.year}</option>)}
-            </select>
-          </div>
-        </div>
-      )}
       <div className="flex gap-2">
         <button onClick={handleSave} disabled={!form.name} className="px-4 py-2 bg-[var(--admin-accent)] hover:bg-[var(--admin-accent)]/90 disabled:opacity-40 text-[var(--admin-accent-contrast)] text-sm font-bold rounded-lg transition-colors">
           {editId ? "Update" : "Create"}
