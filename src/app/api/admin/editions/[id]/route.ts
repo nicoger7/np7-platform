@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase";
 import { softDelete } from "@/lib/archive";
+import { flags } from "@/lib/flags";
 
 // GET /api/admin/editions/:id — single edition with related counts
 export async function GET(
@@ -21,7 +22,7 @@ export async function GET(
     await Promise.all([
       adminClient
         .from("exp_editions")
-        .select(`*, exp_experiences(id, title, slug, location, hero_image, currency, code)`)
+        .select(`*, exp_experiences(id, title, slug, location, hero_image, currency, code, status)`)
         .eq("id", id)
         .single(),
       adminClient
@@ -63,8 +64,17 @@ export async function GET(
     )
     .map((p: { price: number }) => Number(p.price));
 
+  // Would this edition actually be visible to the public right now? It must be
+  // published, its experience published, and the public Experience section
+  // revealed (SHOW_EXPERIENCE) — which stays off in production until launch.
+  const expStatus = edition.data?.exp_experiences?.status ?? null;
+  const siteLive = flags.showExperience;
+  const publicVisible = siteLive && edition.data?.status === "published" && expStatus === "published";
+
   return NextResponse.json({
     ...edition.data,
+    site_live: siteLive,
+    public_visible: publicVisible,
     computed_price_from: prices.length ? Math.min(...prices) : null,
     computed_price_to: prices.length ? Math.max(...prices) : null,
     confirmed_count: confirmedCount.count ?? 0,

@@ -51,6 +51,8 @@ interface Edition {
   active: boolean;
   notion_id: string | null;
   memories_video_url: string | null;
+  site_live?: boolean;
+  public_visible?: boolean;
   exp_experiences: {
     id: string;
     title: string;
@@ -150,6 +152,26 @@ export default function EditionDetailPage({
   const [tab, setTab] = useState<EditionTab>("details");
   const [tabOrder, setTabOrder] = useState<EditionTab[]>([...DEFAULT_TABS]);
   const dragTab = useRef<number | null>(null);
+
+  // Restore the active tab from the URL on load, and reflect tab changes back into
+  // the URL — so the quick-switcher can drop you onto the same tab of another edition.
+  useEffect(() => {
+    const t = new URLSearchParams(window.location.search).get("tab");
+    if (t && (DEFAULT_TABS as readonly string[]).includes(t)) setTab(t as EditionTab);
+  }, []);
+  function selectTab(t: EditionTab) {
+    setTab(t);
+    const url = new URL(window.location.href);
+    url.searchParams.set("tab", t);
+    window.history.replaceState(null, "", url.toString());
+  }
+
+  // Quick-switcher: jump between the upcoming editions without leaving the tab.
+  const [allEditions, setAllEditions] = useState<{ id: string; label: string | null; year: number; date_start: string | null; status: string; exp_experiences: { title: string | null } | null }[]>([]);
+  const [switcherOpen, setSwitcherOpen] = useState(false);
+  useEffect(() => {
+    fetch("/api/admin/editions").then((r) => r.json()).then((d) => { if (Array.isArray(d)) setAllEditions(d); }).catch(() => {});
+  }, []);
 
   // load the saved order (per-admin, localStorage); ignore anything that isn't a
   // valid permutation of the current tab set (so adding/removing tabs is safe).
@@ -471,6 +493,51 @@ export default function EditionDetailPage({
 
   return (
     <div>
+      {/* Quick-switcher — jump between upcoming editions, keeping the current tab */}
+      {(() => {
+        const today = new Date().toISOString().slice(0, 10);
+        const upcoming = allEditions
+          .filter((e) => e.id !== id && e.date_start && e.date_start >= today)
+          .sort((a, b) => ((a.date_start ?? "") < (b.date_start ?? "") ? -1 : 1));
+        if (upcoming.length === 0) return null;
+        return (
+          <div className="relative mb-4">
+            <button
+              onClick={() => setSwitcherOpen((v) => !v)}
+              className="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-semibold admin-muted hover:admin-heading transition-colors"
+              style={{ border: "1px solid var(--admin-border)", backgroundColor: "var(--admin-surface)" }}
+            >
+              <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M8 3 4 7l4 4" /><path d="M4 7h16" /><path d="m16 21 4-4-4-4" /><path d="M20 17H4" /></svg>
+              Switch edition
+              <span className="admin-faint font-normal">· {upcoming.length} upcoming</span>
+              <svg className={`w-3 h-3 transition-transform ${switcherOpen ? "rotate-180" : ""}`} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m6 9 6 6 6-6" /></svg>
+            </button>
+            {switcherOpen && (
+              <>
+                <div className="fixed inset-0 z-40" onClick={() => setSwitcherOpen(false)} />
+                <div className="absolute left-0 top-full mt-1.5 z-50 py-1.5 rounded-xl min-w-[300px] max-h-[60vh] overflow-y-auto" style={{ border: "1px solid var(--admin-border)", backgroundColor: "var(--admin-bg)", boxShadow: "0 8px 24px rgba(0,0,0,0.3)" }}>
+                  <div className="px-3 pb-1.5 mb-1 text-[10px] font-bold tracking-[0.1em] admin-faint uppercase" style={{ borderBottom: "1px solid var(--admin-border)" }}>Upcoming editions</div>
+                  {upcoming.map((e) => (
+                    <Link
+                      key={e.id}
+                      href={`/admin/editions/${e.id}?tab=${tab}`}
+                      onClick={() => setSwitcherOpen(false)}
+                      className="flex items-center justify-between gap-3 px-3 py-2 text-sm admin-muted hover:admin-heading hover:bg-[var(--admin-surface-hover)] transition-colors"
+                    >
+                      <span className="min-w-0">
+                        <span className="block font-medium truncate">{e.exp_experiences?.title || "Edition"} — {e.label || e.year}</span>
+                        <span className="block text-[11px] admin-faint">{formatDate(e.date_start)}</span>
+                      </span>
+                      <span className={`shrink-0 px-1.5 py-0.5 rounded text-[10px] font-bold uppercase ${e.status === "published" ? "bg-green-500/15 text-green-400" : "admin-surface admin-faint"}`}>{e.status}</span>
+                    </Link>
+                  ))}
+                </div>
+              </>
+            )}
+          </div>
+        );
+      })()}
+
       {/* Header */}
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between mb-6">
         <div className="flex items-center gap-3">
@@ -501,6 +568,25 @@ export default function EditionDetailPage({
                 }`}
               >
                 {edition.status}
+              </span>
+              {/* Real public visibility — published edition + published experience + the
+                  public Experience section revealed (SHOW_EXPERIENCE). */}
+              <span
+                className={`inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-[0.05em] ${
+                  edition.public_visible ? "bg-green-500/15 text-green-400" : "admin-surface admin-faint"
+                }`}
+                title={
+                  edition.public_visible
+                    ? "Live — visible to the public on the website."
+                    : edition.site_live === false
+                    ? "Not live yet: the public Experience section is still hidden (SHOW_EXPERIENCE off)."
+                    : edition.status !== "published"
+                    ? "Hidden: this edition is not published."
+                    : "Hidden: the parent experience is not published."
+                }
+              >
+                <span className={`w-1.5 h-1.5 rounded-full ${edition.public_visible ? "bg-green-400" : "bg-current opacity-50"}`} />
+                {edition.public_visible ? "On website" : "Off website"}
               </span>
             </div>
             <p className="text-sm admin-muted">
@@ -572,7 +658,7 @@ export default function EditionDetailPage({
               onDragOver={(e) => e.preventDefault()}
               onDrop={() => { if (dragTab.current != null && dragTab.current !== i) reorderTabs(dragTab.current, i); dragTab.current = null; }}
               onDragEnd={() => { dragTab.current = null; }}
-              onClick={() => setTab(t)}
+              onClick={() => selectTab(t)}
               title="Drag to reorder"
               className={`px-4 py-2.5 text-sm font-medium transition-colors border-b-2 -mb-[1px] cursor-grab active:cursor-grabbing ${
                 tab === t
