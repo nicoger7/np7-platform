@@ -65,9 +65,10 @@ export const SENDERS: Record<Division, { from: string; replyTo: string }> = {
  * division contact address. Pass `headerImage: null` to drop the photo.
  */
 export function emailLayout(opts: { division?: Division; preheader?: string; headerImage?: string | null; bodyHtml: string }): string {
-  const { division = "experience", preheader = "", headerImage, bodyHtml } = opts;
+  const { division = "experience", preheader = "", headerImage, bodyHtml: rawBody } = opts;
   const t = THEMES[division];
   const hero = headerImage === undefined ? t.hero : headerImage;
+  const bodyHtml = normalizeEmailBody(rawBody, division);
   return `<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="color-scheme" content="light"></head>
 <body style="margin:0;padding:0;background:#eef3f4;font-family:-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;">
 <span style="display:none!important;opacity:0;color:#eef3f4;height:0;width:0;overflow:hidden;">${esc(preheader)}</span>
@@ -105,4 +106,30 @@ export function emailButton(label: string, href: string, division: Division = "e
 
 export function esc(s: string): string {
   return String(s).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]!));
+}
+
+/**
+ * Make body HTML email-client-safe by inlining styles on the common tags the
+ * WYSIWYG editor produces (p, a, ul/ol/li, strong/b, h2/h3). Idempotent: tags
+ * that already carry a `style=` are left alone, so the existing inline-styled
+ * default bodies pass through unchanged.
+ */
+export function normalizeEmailBody(html: string, division: Division = "experience"): string {
+  const link = division === "hardware" ? "#0a8f00" : "#00afdb";
+  const styles: Record<string, string> = {
+    p: "margin:0 0 14px;",
+    a: `color:${link};text-decoration:underline;`,
+    ul: "margin:0 0 14px;padding-left:22px;",
+    ol: "margin:0 0 14px;padding-left:22px;",
+    li: "margin:0 0 6px;",
+    h2: "margin:18px 0 10px;font-size:19px;line-height:1.3;color:#00374a;font-weight:800;",
+    h3: "margin:16px 0 8px;font-size:16px;line-height:1.3;color:#00374a;font-weight:700;",
+    blockquote: "margin:0 0 14px;padding:8px 16px;border-left:3px solid #d7e3e7;color:#5a6b72;",
+  };
+  let out = html;
+  for (const [tag, style] of Object.entries(styles)) {
+    // add the style only to opening tags that don't already have one
+    out = out.replace(new RegExp(`<${tag}(?![a-z0-9])((?:\\s+(?!style=)[a-z-]+="[^"]*")*)\\s*>`, "gi"), `<${tag}$1 style="${style}">`);
+  }
+  return out;
 }

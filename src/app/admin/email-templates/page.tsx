@@ -7,6 +7,7 @@ import { RowActions } from "@/components/row-actions";
 import ImagePickerModal from "@/components/image-picker-modal";
 import { DEFAULT_BODIES, DEFAULT_SUBJECTS } from "@/lib/email/default-bodies";
 import { DEFAULT_HEADER_IMAGE } from "@/lib/email/layout";
+import { RichTextEditor } from "@/components/admin/rich-text-editor";
 
 interface EmailTemplate {
   id: string;
@@ -78,7 +79,6 @@ export default function EmailTemplatesPage() {
   const [previewDivision, setPreviewDivision] = useState<"experience" | "hardware">("experience");
   const [showAdvanced, setShowAdvanced] = useState(false);
   const [pickingImage, setPickingImage] = useState(false);
-  const bodyRef = useRef<HTMLTextAreaElement>(null);
   const autoOpenedRef = useRef(false);
 
   // Deep-link: /admin/email-templates?edit=<template_key> opens that template's
@@ -165,16 +165,6 @@ export default function EmailTemplatesPage() {
     setForm((f) => ({ ...f, body: DEFAULT_BODIES[key], subject_line: DEFAULT_SUBJECTS[key] ?? f.subject_line }));
   }
 
-  function insertVar(token: string) {
-    const text = `{{${token}}}`;
-    const ta = bodyRef.current;
-    if (!ta) { setForm((f) => ({ ...f, body: f.body + text })); return; }
-    const start = ta.selectionStart ?? ta.value.length;
-    const end = ta.selectionEnd ?? ta.value.length;
-    const next = form.body.slice(0, start) + text + form.body.slice(end);
-    setForm((f) => ({ ...f, body: next }));
-    requestAnimationFrame(() => { ta.focus(); const pos = start + text.length; ta.setSelectionRange(pos, pos); });
-  }
 
   async function handleSave() {
     // Only include header_image when set — so copy edits save even before the
@@ -265,21 +255,14 @@ export default function EmailTemplatesPage() {
           {/* Body + live preview */}
           <div className="grid grid-cols-2 gap-4 mb-4">
             <div>
-              <div className="flex items-center justify-between mb-1.5 gap-2">
-                <div className="flex items-center gap-2">
-                  <label className={labelClass + " mb-0"}>Body</label>
-                  {form.template_key && DEFAULT_BODIES[form.template_key] && (
-                    <button type="button" onClick={resetToDefault} className="text-[10px] admin-faint hover:text-[#0aa3c7] transition-colors">↺ Back to default</button>
-                  )}
-                </div>
-                <div className="flex flex-wrap gap-1.5 justify-end">
-                  {VARS.map(([token, label]) => (
-                    <button key={token} type="button" onClick={() => insertVar(token)} title={`Insert {{${token}}}`} className="px-2 py-0.5 text-[11px] rounded-md admin-surface admin-muted hover:text-[#0aa3c7] transition-colors" style={{ border: "1px solid var(--admin-border)" }}>+ {label}</button>
-                  ))}
-                </div>
+              <div className="flex items-center gap-2 mb-1.5">
+                <label className={labelClass + " mb-0"}>Body</label>
+                {form.template_key && DEFAULT_BODIES[form.template_key] && (
+                  <button type="button" onClick={resetToDefault} className="text-[10px] admin-faint hover:text-[#0aa3c7] transition-colors">↺ Back to default</button>
+                )}
               </div>
-              <textarea ref={bodyRef} className={`${inputClass} min-h-[360px] resize-y font-mono text-xs`} value={form.body} onChange={(e) => setForm({ ...form, body: e.target.value })} placeholder="Leave blank to use the built-in wording, or write your own. Tip: click a variable button above to drop it in." />
-              <p className="mt-1.5 text-[11px] admin-faint">The branded frame, logo, colours and footer are added automatically — just write the message.</p>
+              <RichTextEditor value={form.body} onChange={(html) => setForm((f) => ({ ...f, body: html }))} vars={VARS} placeholder="Write your message — the branded frame, logo, colours and footer are added automatically." />
+              <p className="mt-1.5 text-[11px] admin-faint">Format with the toolbar; drop in personalised fields like “{`{{firstName}}`}”. No HTML needed — switch to “Source” only if you want to.</p>
             </div>
             <div>
               <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between mb-1">
