@@ -65,6 +65,7 @@ const navByEnv: Record<Environment, NavGroup[]> = {
       label: "TEAM",
       items: [
         { label: "Employees", href: "/admin/team", icon: "person" },
+        { label: "Roles", href: "/admin/roles", icon: "shield" },
         { label: "Hours Log", href: "/admin/hours-log", icon: "clock" },
       ],
     },
@@ -253,6 +254,11 @@ const icons: Record<string, React.ReactNode> = {
     <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
       <circle cx="12" cy="12" r="10" />
       <polyline points="12 6 12 12 16 14" />
+    </svg>
+  ),
+  shield: (
+    <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
     </svg>
   ),
   chartline: (

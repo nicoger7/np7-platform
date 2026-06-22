@@ -20,9 +20,9 @@ export const ACCESS_LABELS: Record<AccessLevel, string> = {
 /** Sections only an Owner may open — pages AND their APIs. */
 const OWNER_ONLY = [
   "/admin/payments", "/admin/exp-costs", "/admin/vendors", "/admin/documents",
-  "/admin/settings", "/admin/team", "/admin/hours-log", "/admin/analytics",
+  "/admin/settings", "/admin/team", "/admin/roles", "/admin/hours-log", "/admin/analytics",
   "/api/admin/payments", "/api/admin/exp-costs", "/api/admin/vendors", "/api/admin/documents",
-  "/api/admin/company-settings", "/api/admin/team", "/api/admin/hours-log", "/api/admin/analytics",
+  "/api/admin/company-settings", "/api/admin/team", "/api/admin/roles", "/api/admin/hours-log", "/api/admin/analytics",
   // Permanent delete from the archive is owner-only (archive + restore are not).
   "/api/admin/archive/purge",
 ];
@@ -43,4 +43,146 @@ export function isOwnerOnlyPath(path: string): boolean {
 export function canAccess(level: AccessLevel, path: string): boolean {
   if (level === "owner") return true;
   return !isOwnerOnlyPath(path);
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Granular custom roles (migration 045). A role grants WORLDS + per-SECTION level
+// + FIELD-group visibility. Members without a role keep the owner/manager tiers
+// above; members with one are governed entirely by their role's `RoleAccess`.
+// This module is pure so middleware, server code and the client shell share it.
+// ─────────────────────────────────────────────────────────────────────────────
+
+export const WORLDS = [
+  { id: "experience", label: "NP7 Experience" },
+  { id: "hardware", label: "NP7 Hardware" },
+  { id: "product-dev", label: "Product Development" },
+  { id: "analytics", label: "Analytics" },
+] as const;
+export type WorldId = (typeof WORLDS)[number]["id"];
+
+export type SectionLevel = "none" | "view" | "edit";
+
+export type Section = {
+  key: string;
+  label: string;
+  world: WorldId;
+  group: string;
+  /** /admin + /api/admin path prefixes this section owns. */
+  paths: string[];
+};
+
+/** The admin sections a role can be granted, mirroring the sidebar nav. */
+export const SECTIONS: Section[] = [
+  // Experience · Operations
+  { key: "experiences", label: "Experiences & editions", world: "experience", group: "Operations", paths: ["/admin/experiences", "/admin/editions", "/api/admin/experiences", "/api/admin/editions"] },
+  { key: "bookings", label: "Bookings", world: "experience", group: "Operations", paths: ["/admin/bookings", "/api/admin/bookings"] },
+  { key: "contacts", label: "Contacts", world: "experience", group: "Operations", paths: ["/admin/contacts", "/api/admin/contacts"] },
+  { key: "hotel_rooms", label: "Hotel rooms", world: "experience", group: "Operations", paths: ["/admin/hotel-rooms", "/api/admin/hotel-rooms"] },
+  { key: "hotels", label: "Hotels", world: "experience", group: "Operations", paths: ["/admin/hotels", "/api/admin/hotels"] },
+  { key: "packages", label: "Packages", world: "experience", group: "Operations", paths: ["/admin/packages", "/api/admin/packages"] },
+  { key: "components", label: "Components", world: "experience", group: "Operations", paths: ["/admin/components", "/api/admin/components"] },
+  // Experience · Website
+  { key: "file_storage", label: "File storage", world: "experience", group: "Website", paths: ["/admin/images", "/api/admin/images"] },
+  { key: "event_content", label: "Event content", world: "experience", group: "Website", paths: ["/admin/content", "/api/admin/content"] },
+  { key: "members", label: "Member management", world: "experience", group: "Website", paths: ["/admin/members", "/api/admin/members"] },
+  { key: "magazine", label: "Magazine", world: "experience", group: "Website", paths: ["/admin/blog", "/api/admin/blog"] },
+  { key: "destinations", label: "Destinations", world: "experience", group: "Website", paths: ["/admin/destinations", "/api/admin/destinations"] },
+  { key: "guest_reviews", label: "Guest reviews", world: "experience", group: "Website", paths: ["/admin/guest-reviews", "/api/admin/guest-reviews"] },
+  { key: "waivers", label: "Waivers", world: "experience", group: "Website", paths: ["/admin/waivers", "/api/admin/waivers"] },
+  // Experience · Team
+  { key: "team", label: "Employees & roles", world: "experience", group: "Team", paths: ["/admin/team", "/admin/roles", "/api/admin/team", "/api/admin/roles"] },
+  { key: "hours_log", label: "Hours log", world: "experience", group: "Team", paths: ["/admin/hours-log", "/api/admin/hours-log"] },
+  // Experience · Finance
+  { key: "payments", label: "Payments", world: "experience", group: "Finance", paths: ["/admin/payments", "/api/admin/payments"] },
+  { key: "vouchers", label: "Gift vouchers", world: "experience", group: "Finance", paths: ["/admin/vouchers", "/api/admin/vouchers"] },
+  { key: "exp_costs", label: "Experience costs", world: "experience", group: "Finance", paths: ["/admin/exp-costs", "/api/admin/exp-costs"] },
+  { key: "vendors", label: "Vendors", world: "experience", group: "Finance", paths: ["/admin/vendors", "/api/admin/vendors"] },
+  { key: "documents", label: "Documents", world: "experience", group: "Finance", paths: ["/admin/documents", "/api/admin/documents"] },
+  { key: "settings", label: "Company settings", world: "experience", group: "Finance", paths: ["/admin/settings", "/api/admin/company-settings"] },
+  // Experience · Automation
+  { key: "emails", label: "Emails & templates", world: "experience", group: "Automation", paths: ["/admin/emails", "/admin/email-templates", "/admin/email-log", "/api/admin/emails", "/api/admin/email-templates", "/api/admin/email-log"] },
+  // Hardware
+  { key: "products", label: "Products", world: "hardware", group: "Hardware", paths: ["/admin/products", "/api/admin/products"] },
+  { key: "orders", label: "Orders", world: "hardware", group: "Hardware", paths: ["/admin/orders", "/api/admin/orders"] },
+  // Analytics
+  { key: "analytics", label: "Business analytics", world: "analytics", group: "Analytics", paths: ["/admin/analytics", "/api/admin/analytics"] },
+];
+
+/** Sensitive field groups a role can be allowed to see (redacted otherwise). */
+export type FieldKey = "money" | "costs" | "contact_pii";
+export const FIELDS: { key: FieldKey; label: string; description: string }[] = [
+  { key: "money", label: "Prices & payments", description: "Agreed prices, payments, invoices and revenue figures." },
+  { key: "costs", label: "Internal costs & margins", description: "Component costs, package margins, vendor and edition costs." },
+  { key: "contact_pii", label: "Contact personal data", description: "Email, phone, billing address and date of birth." },
+];
+
+export type RoleAccess = {
+  worlds: WorldId[];
+  sections: Record<string, SectionLevel>;
+  /** group → can-see (absent/false = redacted). */
+  fields: Partial<Record<FieldKey, boolean>>;
+};
+
+export const EMPTY_ACCESS: RoleAccess = { worlds: [], sections: {}, fields: {} };
+
+/** Coerce an arbitrary jsonb blob into a safe RoleAccess. */
+export function normalizeAccess(raw: unknown): RoleAccess {
+  const a = (raw ?? {}) as Partial<RoleAccess>;
+  const worldIds = WORLDS.map((w) => w.id) as string[];
+  return {
+    worlds: Array.isArray(a.worlds) ? (a.worlds.filter((w) => worldIds.includes(w as string)) as WorldId[]) : [],
+    sections: a.sections && typeof a.sections === "object" ? (a.sections as Record<string, SectionLevel>) : {},
+    fields: a.fields && typeof a.fields === "object" ? (a.fields as Partial<Record<FieldKey, boolean>>) : {},
+  };
+}
+
+/** The section that owns a path (longest-prefix wins), or undefined for shared
+ *  paths (Dashboard, Archive) that every team member may reach. */
+export function sectionForPath(path: string): Section | undefined {
+  let best: Section | undefined;
+  let bestLen = -1;
+  for (const s of SECTIONS) {
+    for (const p of s.paths) {
+      if (underPrefix(p, path) && p.length > bestLen) { best = s; bestLen = p.length; }
+    }
+  }
+  return best;
+}
+
+/** Effective access of a member: either a granular role, or a legacy tier. */
+export type EffectiveAccess =
+  | { kind: "role"; access: RoleAccess }
+  | { kind: "tier"; level: AccessLevel };
+
+export function roleSectionLevel(access: RoleAccess, sectionKey: string): SectionLevel {
+  return access.sections[sectionKey] ?? "none";
+}
+
+/** Can this member reach `path`? Shared (section-less) paths are always allowed. */
+export function effectiveCanAccess(eff: EffectiveAccess, path: string): boolean {
+  if (eff.kind === "tier") return canAccess(eff.level, path);
+  const sec = sectionForPath(path);
+  if (!sec) return true;
+  if (!eff.access.worlds.includes(sec.world)) return false;
+  return roleSectionLevel(eff.access, sec.key) !== "none";
+}
+
+/** Can this member edit (not just view) within `path`'s section? */
+export function effectiveCanEdit(eff: EffectiveAccess, path: string): boolean {
+  if (eff.kind === "tier") return canAccess(eff.level, path);
+  const sec = sectionForPath(path);
+  if (!sec) return true;
+  return eff.access.worlds.includes(sec.world) && roleSectionLevel(eff.access, sec.key) === "edit";
+}
+
+/** Can this member enter a world (used to show/hide the world switcher)? */
+export function effectiveCanEnterWorld(eff: EffectiveAccess, world: WorldId): boolean {
+  if (eff.kind === "tier") return world === "analytics" ? eff.level === "owner" : true;
+  return eff.access.worlds.includes(world);
+}
+
+/** May this member see a sensitive field group? Legacy tiers see everything. */
+export function effectiveCanSeeField(eff: EffectiveAccess, field: FieldKey): boolean {
+  if (eff.kind === "tier") return true;
+  return eff.access.fields[field] === true;
 }
