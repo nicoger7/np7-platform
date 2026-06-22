@@ -132,7 +132,7 @@ export async function getInvitesForBooking(bookingId: string): Promise<TripInvit
 export type InviteLanding = {
   invite: TripInvite;
   inviterName: string | null;
-  experience: { id: string; title: string; slug: string | null; currency: string | null; hero_image: string | null } | null;
+  experience: { id: string; title: string; slug: string | null; currency: string | null; hero_image: string | null; description: string | null } | null;
   edition: { id: string; label: string | null; date_start: string | null; date_end: string | null; location: string | null; hero_image: string | null } | null;
   package: { id: string; name: string | null; price: number | null } | null;
 };
@@ -149,7 +149,7 @@ export async function getInviteLanding(token: string): Promise<InviteLanding | n
 
   const [inviter, exp, ed, pkg] = await Promise.all([
     invite.inviter_contact_id ? db.from("contacts").select("name").eq("id", invite.inviter_contact_id).maybeSingle() : Promise.resolve({ data: null }),
-    invite.experience_id ? db.from("exp_experiences").select("id,title,slug,currency,hero_image").eq("id", invite.experience_id).maybeSingle() : Promise.resolve({ data: null }),
+    invite.experience_id ? db.from("exp_experiences").select("id,title,slug,currency,hero_image,description").eq("id", invite.experience_id).maybeSingle() : Promise.resolve({ data: null }),
     invite.edition_id ? db.from("exp_editions").select("*").eq("id", invite.edition_id).maybeSingle() : Promise.resolve({ data: null }),
     invite.package_id ? db.from("exp_packages").select("id,name,price").eq("id", invite.package_id).maybeSingle() : Promise.resolve({ data: null }),
   ]);

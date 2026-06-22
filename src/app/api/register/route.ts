@@ -120,10 +120,12 @@ export async function POST(request: NextRequest) {
     .from("exp_bookings").insert({ ...bookingPayload, status: "lead" }).select("id").single();
   if (bErr) return bad("Could not complete your registration. Please try again.", 500);
 
-  // Referral attribution: if the friend arrived via an invite link, link the
-  // booking back to it and mark the invite "booked" (best-effort, never blocks).
-  if (body.inviteToken && contactId) {
-    await attachBookingToInvite(body.inviteToken, contactId, booking.id);
+  // Referral attribution: the friend may have arrived via an invite link (token
+  // in the body) OR browsed the site first (token stickied in the np7_invite
+  // cookie). Either way, link the booking back to the invite (best-effort).
+  const inviteToken = body.inviteToken || request.cookies.get("np7_invite")?.value;
+  if (inviteToken && contactId) {
+    await attachBookingToInvite(inviteToken, contactId, booking.id);
   }
 
   const origin = request.headers.get("origin") ?? `https://${request.headers.get("host")}`;

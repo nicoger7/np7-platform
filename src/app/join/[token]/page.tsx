@@ -2,6 +2,9 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { getInviteLanding } from "@/lib/invites";
 import { JoinSignup } from "@/components/join/join-signup";
+import { flags } from "@/lib/flags";
+
+const HIGHLIGHTS = ["Pro coaching every day", "Small, hand-picked crew", "Hotel, transfers & gear sorted"];
 
 export const dynamic = "force-dynamic";
 export const metadata: Metadata = { title: "You're invited — NP7 Experience" };
@@ -51,6 +54,13 @@ export default async function JoinPage({ params }: Props) {
   const currency = experience.currency || "EUR";
   const dates = fmtRange(edition?.date_start ?? null, edition?.date_end ?? null);
   const friendReward = invite.reward_friend_amount;
+  // Short selling blurb: the experience's own description, trimmed to a sentence
+  // or two; a warm fallback if it has none.
+  const blurb = (() => {
+    const d = (experience.description || "").trim();
+    if (!d) return "A week of windsurfing, coaching and good people — flights aside, everything's arranged so you just show up and ride.";
+    return d.length <= 180 ? d : d.slice(0, 180).replace(/\s+\S*$/, "") + "…";
+  })();
 
   return (
     <Shell>
@@ -83,6 +93,17 @@ export default async function JoinPage({ params }: Props) {
             {!dates && !edition?.location && edition?.label && <span>{edition.label}</span>}
           </p>
 
+          {/* Short sell — what this trip is */}
+          <p className="text-[14px] text-[#3d4f56] leading-relaxed mt-3">{blurb}</p>
+          <div className="mt-3 flex flex-wrap gap-1.5">
+            {HIGHLIGHTS.map((h) => (
+              <span key={h} className="inline-flex items-center gap-1 text-[12px] font-semibold text-[#0f6e56] bg-[#eef7f3] rounded-full px-2.5 py-1">
+                <svg className="w-3 h-3 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><path d="M20 6 9 17l-5-5" /></svg>
+                {h}
+              </span>
+            ))}
+          </div>
+
           {/* Reward + price */}
           <div className="mt-4 flex items-end justify-between gap-3">
             <div>
@@ -107,6 +128,15 @@ export default async function JoinPage({ params }: Props) {
               defaultEmail={invite.invitee_email ?? ""}
             />
           </div>
+
+          {/* Browse-first path — appears once the public Experience site is live.
+              The invite token is stickied in a cookie (set by JoinSignup), so a
+              friend who explores first and signs up later is still attributed. */}
+          {flags.showExperience && experience.slug && (
+            <Link href={`/experience/${experience.slug}`} className="mt-3 block text-center text-[13px] font-semibold text-[#00afdb]">
+              See the full trip &amp; everything that&apos;s included →
+            </Link>
+          )}
         </div>
       </div>
       <p className="text-center text-[12px] text-[#a99] mt-4">NP7 GmbH · Premium watersports travel</p>

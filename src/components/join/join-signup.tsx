@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 
 /**
  * Friend-side signup on the public /join/[token] page. Posts to the existing
@@ -32,6 +32,13 @@ export function JoinSignup({
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState("");
   const [done, setDone] = useState(false);
+
+  // Stick the invite token in a cookie so it survives the friend browsing the
+  // public site first — /api/register falls back to it, crediting the inviter
+  // wherever they eventually sign up.
+  useEffect(() => {
+    try { document.cookie = `np7_invite=${encodeURIComponent(inviteToken)}; path=/; max-age=${60 * 60 * 24 * 30}; samesite=lax`; } catch { /* ignore */ }
+  }, [inviteToken]);
 
   async function submit() {
     setErr("");
