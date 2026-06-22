@@ -331,13 +331,36 @@ export default function ComponentsPage() {
           <p className="text-sm admin-muted">Building blocks for packages — coaching, meals, transport, etc.</p>
         </div>
         <div className="flex items-center gap-3">
-          <ColumnToggle columns={COLUMNS} visible={visibleColumns} onChange={setVisibleColumns} storageKey={STORAGE_KEY} />
+          {!(showNew || editId) && <ColumnToggle columns={COLUMNS} visible={visibleColumns} onChange={setVisibleColumns} storageKey={STORAGE_KEY} />}
           <button onClick={startNew} className="px-4 py-2 bg-[var(--admin-accent)] hover:bg-[var(--admin-accent)]/90 text-[var(--admin-accent-contrast)] text-sm font-bold rounded-lg transition-colors">
             New Component
           </button>
         </div>
       </div>
 
+      {(showNew || editId) ? (
+      <div className="flex flex-col lg:flex-row gap-4">
+        {/* rail */}
+        <div className="lg:w-64 shrink-0 flex lg:flex-col gap-1.5 lg:max-h-[80vh] lg:overflow-y-auto lg:pr-1">
+          <button onClick={() => { setShowNew(false); setEditId(null); }} className="shrink-0 mb-1 flex items-center gap-1.5 text-xs font-semibold admin-muted hover:text-[var(--admin-accent)] transition-colors">
+            <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m15 18-6-6 6-6" /></svg>
+            All components
+          </button>
+          {filtered.map((c) => {
+            const active = c.id === editId;
+            return (
+              <button key={c.id} onClick={() => startEdit(c)} className="shrink-0 text-left px-3 py-2 rounded-lg transition-colors" style={{ background: active ? "var(--admin-accent)" : "var(--admin-surface)", border: "1px solid var(--admin-border)" }}>
+                <span className={`block text-xs font-semibold truncate ${active ? "text-[var(--admin-accent-contrast)]" : "admin-heading"}`}>{c.name}</span>
+                <span className={`block text-[10px] mt-0.5 truncate capitalize ${active ? "text-[var(--admin-accent-contrast)]/80" : "admin-faint"}`}>{c.category || "uncategorised"}{c.is_global ? " · global" : ""}</span>
+              </button>
+            );
+          })}
+        </div>
+        {/* detail: component editor */}
+        <div className="flex-1 min-w-0">{formPanel}</div>
+      </div>
+      ) : (
+      <>
       {/* Filters */}
       <div className="flex flex-wrap items-center gap-2 mb-3">
         <select
@@ -370,8 +393,6 @@ export default function ComponentsPage() {
           </button>
         ))}
       </div>
-
-      {formPanel}
 
       {loading ? (
         <div className="py-12 text-center text-sm admin-faint">Loading...</div>
@@ -475,6 +496,8 @@ export default function ComponentsPage() {
             );
           })}
         </div>
+      )}
+      </>
       )}
     </div>
   );
