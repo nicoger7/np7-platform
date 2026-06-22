@@ -14,6 +14,8 @@ import { PaymentPlan } from "@/components/portal/payment-plan";
 import { CancelTrip } from "@/components/portal/cancel-trip";
 import { RedeemVoucher } from "@/components/portal/redeem-voucher";
 import { CrewCard } from "@/components/portal/crew-card";
+import { InvitePanel } from "@/components/portal/invite-panel";
+import { getInvitesForBooking, resolveRewards } from "@/lib/invites";
 import { computePaymentPlan } from "@/lib/payments";
 import { createAdminClient } from "@/lib/supabase";
 
@@ -49,6 +51,24 @@ export default async function BookingDetail({ params }: Props) {
   const waiverSig = await (createAdminClient() as unknown as { from: (t: string) => { select: (s: string) => { eq: (c: string, v: string) => { maybeSingle: () => Promise<{ data: { signed_name: string; signed_at: string } | null }> } } } })
     .from("exp_waiver_signatures").select("signed_name, signed_at").eq("booking_id", id).maybeSingle()
     .then((r) => r.data).catch(() => null);
+  // Invite-a-friend: the member's existing invites for this booking + the reward
+  // amounts (per-edition override, else default). Tolerant of migration 050.
+  const inviteData = await (async () => {
+    const fallback = { invites: [] as Awaited<ReturnType<typeof getInvitesForBooking>>, friend: 100, inviter: 100, currency: b.experience?.currency || "EUR" };
+    try {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const db = createAdminClient() as any;
+      const [invites, edRes] = await Promise.all([
+        getInvitesForBooking(b.id),
+        b.edition?.id ? db.from("exp_editions").select("invite_reward_friend,invite_reward_inviter").eq("id", b.edition.id).maybeSingle() : Promise.resolve({ data: null }),
+      ]);
+      const r = resolveRewards(edRes?.data ?? null);
+      return { invites, friend: r.friend, inviter: r.inviter, currency: b.experience?.currency || "EUR" };
+    } catch {
+      return fallback;
+    }
+  })();
+
   const cancellation = b.experience?.cancellation_policy ||
     "You can cancel any time before the trip. Your deposit is refundable for 14 days after payment; after that it's kept as the cancellation fee. Once you've paid the 50% downpayment or the full balance, that amount becomes the fee — with a goodwill credit voucher toward a future trip. Use ‘Cancel this trip’ above to start, or see our Terms for the full scale.";
   // Pull the package's payment config so the member's plan matches the invoices
@@ -242,6 +262,12 @@ export default async function BookingDetail({ params }: Props) {
                   profiles={crew.profiles}
                   whatsappLink={b.edition?.whatsapp_group_link ?? null}
                 />
+              )}
+
+              {!tripEnded && (
+                <Card title="Invite a friend">
+                  <InvitePanel bookingId={b.id} rewardFriend={inviteData.friend} rewardInviter={inviteData.inviter} currency={inviteData.currency} initialInvites={inviteData.invites} />
+                </Card>
               )}
 
               <Card title="Travel documents">

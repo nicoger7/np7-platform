@@ -4,6 +4,7 @@ import { createAdminClient } from "@/lib/supabase";
 import { sendEmail } from "@/lib/email/send";
 import { getPortalUser } from "@/lib/auth";
 import { composeBookingName } from "@/lib/booking-name";
+import { attachBookingToInvite } from "@/lib/invites";
 
 /**
  * Free, low-friction registration (the redesigned funnel).
@@ -24,6 +25,7 @@ type Body = {
   lastName?: string;
   email?: string;
   marketingOptIn?: boolean;
+  inviteToken?: string;
 };
 
 function bad(msg: string, status = 400) {
@@ -117,6 +119,12 @@ export async function POST(request: NextRequest) {
   const { data: booking, error: bErr } = await db
     .from("exp_bookings").insert({ ...bookingPayload, status: "lead" }).select("id").single();
   if (bErr) return bad("Could not complete your registration. Please try again.", 500);
+
+  // Referral attribution: if the friend arrived via an invite link, link the
+  // booking back to it and mark the invite "booked" (best-effort, never blocks).
+  if (body.inviteToken && contactId) {
+    await attachBookingToInvite(body.inviteToken, contactId, booking.id);
+  }
 
   const origin = request.headers.get("origin") ?? `https://${request.headers.get("host")}`;
   await sendEmail({

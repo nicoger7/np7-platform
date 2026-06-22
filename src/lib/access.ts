@@ -77,6 +77,7 @@ export const SECTIONS: Section[] = [
   { key: "experiences", label: "Experiences & editions", world: "experience", group: "Operations", paths: ["/admin/experiences", "/admin/editions", "/api/admin/experiences", "/api/admin/editions"] },
   { key: "bookings", label: "Bookings", world: "experience", group: "Operations", paths: ["/admin/bookings", "/api/admin/bookings"] },
   { key: "contacts", label: "Contacts", world: "experience", group: "Operations", paths: ["/admin/contacts", "/api/admin/contacts"] },
+  { key: "invites", label: "Trip invites", world: "experience", group: "Operations", paths: ["/admin/invites", "/api/admin/invites"] },
   { key: "hotel_rooms", label: "Hotel rooms", world: "experience", group: "Operations", paths: ["/admin/hotel-rooms", "/api/admin/hotel-rooms"] },
   { key: "hotels", label: "Hotels", world: "experience", group: "Operations", paths: ["/admin/hotels", "/api/admin/hotels"] },
   { key: "packages", label: "Packages", world: "experience", group: "Operations", paths: ["/admin/packages", "/api/admin/packages"] },
