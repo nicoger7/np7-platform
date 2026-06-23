@@ -68,20 +68,26 @@ export default async function GiftPage() {
           </div>
         </section>
 
-        {/* Photo band — a taste of the trips on offer (every published experience's hero) */}
+        {/* Photo band — a taste of the trips on offer (every published experience's hero).
+            Edge-faded so the crop reads as intentional; soft teal foot for cohesion. */}
         {heroes.length > 0 && (
-          <div className="-mt-px bg-[#00374a]">
-            <div className="flex gap-2 overflow-x-auto px-3 pb-3 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+          <div className="-mt-px bg-[#00374a] pb-14">
+            <div className="flex gap-3 overflow-x-auto px-5 sm:px-8 pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden [mask-image:linear-gradient(to_right,transparent,#000_4%,#000_96%,transparent)]">
               {heroes.map((src, i) => (
-                // eslint-disable-next-line @next/next/no-img-element
-                <img key={i} src={src} alt="" className="h-40 sm:h-52 w-64 sm:w-80 shrink-0 rounded-xl object-cover" />
+                <div key={i} className="relative h-44 sm:h-56 w-72 sm:w-[21rem] shrink-0 rounded-2xl overflow-hidden ring-1 ring-white/10">
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img src={src} alt="" className="absolute inset-0 w-full h-full object-cover" />
+                  <div className="absolute inset-0" style={{ background: "linear-gradient(180deg, rgba(0,55,74,0) 52%, rgba(0,55,74,0.5))" }} aria-hidden />
+                </div>
               ))}
             </div>
           </div>
         )}
 
-        <div className="max-w-[760px] mx-auto px-6 sm:px-8 py-10 sm:py-14">
-          <GiftBuyForm experiences={experiences} packages={packages} />
+        {/* Cream panel rises over the teal with a soft curve */}
+        <div className="relative -mt-7 rounded-t-[2.25rem] bg-[#fff7ec]">
+          <div className="max-w-[760px] mx-auto px-6 sm:px-8 pt-10 pb-14 sm:pt-12 sm:pb-16">
+            <GiftBuyForm experiences={experiences} packages={packages} />
 
           {/* How gifting works */}
           <div className="mt-12">
@@ -104,6 +110,7 @@ export default async function GiftPage() {
                 <span key={c} className="px-3.5 py-1.5 rounded-full text-[12.5px] font-semibold text-[#00374a] bg-white border border-[#f0e6d6]">{c}</span>
               ))}
             </div>
+          </div>
           </div>
         </div>
       </main>
