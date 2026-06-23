@@ -103,7 +103,8 @@ export async function POST(req: Request) {
     type: "partial",
     method: "voucher",
     reference: code,
-    direction: "in",
+    direction: "revenue",
+    status: "paid",
     received_at: new Date().toISOString(),
     notes: forfeited > 0
       ? `Gift voucher ${code} redeemed (${fmtMoney(amount, voucher.currency)} voucher; ${fmtMoney(applied, voucher.currency)} applied, ${fmtMoney(forfeited, voucher.currency)} surplus not carried over)`

@@ -478,10 +478,12 @@ export async function getMemoryPhotosForBooking(editionId: string, bookingId: st
 export async function getBookingPaid(bookingId: string): Promise<number> {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const db = createAdminClient() as any;
-  const { data } = await db.from("exp_payments").select("amount,direction").eq("booking_id", bookingId);
+  const { data } = await db.from("exp_payments").select("amount,direction,type").eq("booking_id", bookingId);
+  // Count money in (revenue / legacy-null), minus refunds; exclude cost rows.
   return (data ?? [])
-    .filter((p: { direction: string | null }) => p.direction !== "out")
-    .reduce((s: number, p: { amount: number | null }) => s + (Number(p.amount) || 0), 0);
+    .filter((p: { direction: string | null }) => p.direction !== "cost")
+    .reduce((s: number, p: { amount: number | null; type: string | null }) =>
+      s + (p.type === "refund" ? -1 : 1) * (Number(p.amount) || 0), 0);
 }
 
 /** Members can download the full photo package a limited number of times. */
