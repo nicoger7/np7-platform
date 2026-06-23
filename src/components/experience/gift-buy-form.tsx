@@ -4,7 +4,7 @@ import { useState } from "react";
 import { fmtVoucherMoney } from "@/lib/vouchers";
 import { track } from "@/lib/analytics-client";
 
-type Exp = { id: string; title: string; currency: string | null };
+type Exp = { id: string; title: string; currency: string | null; price?: number | null };
 
 // €200 steps up to €5,000, then €1,000 steps to €10,000.
 const AMOUNTS = [
@@ -15,7 +15,6 @@ const DEFAULT_IDX = AMOUNTS.indexOf(1000);
 
 export function GiftBuyForm({ experiences }: { experiences: Exp[] }) {
   const [idx, setIdx] = useState(DEFAULT_IDX);
-  const amount = AMOUNTS[idx];
   const [expId, setExpId] = useState(""); // "" = any NP7 Experience (value voucher)
   const [buyerName, setBuyerName] = useState("");
   const [buyerEmail, setBuyerEmail] = useState("");
@@ -30,7 +29,13 @@ export function GiftBuyForm({ experiences }: { experiences: Exp[] }) {
   type Pay = { iban: string; bic: string | null; bank_name: string | null; legal_name: string | null } | null;
   const [done, setDone] = useState<null | { code: string; amount: number | null; currency: string | null; pay: Pay }>(null);
 
-  const currency = experiences.find((e) => e.id === expId)?.currency ?? experiences[0]?.currency ?? "EUR";
+  // A specific experience gifts the WHOLE trip → its value is the experience's
+  // price (no amount to choose). "Any NP7 Experience" → a value voucher (slider).
+  const selectedExp = experiences.find((e) => e.id === expId) || null;
+  const expPrice = selectedExp?.price ?? null;
+  const isFullExp = !!expId && expPrice != null && expPrice > 0;
+  const amount = isFullExp ? (expPrice as number) : AMOUNTS[idx];
+  const currency = selectedExp?.currency ?? experiences[0]?.currency ?? "EUR";
   const over5k = amount > 5000;
 
   async function submit() {
@@ -91,20 +96,9 @@ export function GiftBuyForm({ experiences }: { experiences: Exp[] }) {
 
   return (
     <div className="bg-white rounded-2xl border border-[#f0e6d6] p-6 sm:p-8 space-y-6">
-      {/* Amount */}
+      {/* What are you gifting? */}
       <div>
-        <label className={label}>Voucher amount</label>
-        <div className="flex items-baseline justify-between mb-2">
-          <span className="text-[34px] font-black text-[#00374a]">{fmtVoucherMoney(amount, currency)}</span>
-          <span className="text-[12px] text-[#9aa6ac]">€200 – €10,000</span>
-        </div>
-        <input type="range" min={0} max={AMOUNTS.length - 1} step={1} value={idx} onChange={(e) => setIdx(Number(e.target.value))} className="w-full accent-[#00afdb] cursor-pointer" />
-        <p className="text-[12px] text-[#9aa6ac] mt-1.5">{over5k ? "Over €5,000 — valid for 2 years." : "Valid for 1 year. €200 steps (then €1,000 over €5,000)."}</p>
-      </div>
-
-      {/* Towards which experience */}
-      <div className="border-t border-[#f3ede2] pt-5">
-        <label className={label}>Towards</label>
+        <label className={label}>Gift</label>
         <div className="flex flex-wrap gap-2">
           {[{ id: "", title: "Any NP7 Experience" }, ...experiences].map((e) => {
             const on = expId === e.id;
@@ -116,7 +110,28 @@ export function GiftBuyForm({ experiences }: { experiences: Exp[] }) {
             );
           })}
         </div>
-        <p className="text-[12px] text-[#9aa6ac] mt-2">{expId ? "Earmarked for this trip — they pick the week & package when they book." : "A value voucher — usable on any available NP7 Experience."}</p>
+      </div>
+
+      {/* Value — the whole experience, or a chosen amount */}
+      <div className="border-t border-[#f3ede2] pt-5">
+        {isFullExp ? (
+          <>
+            <label className={label}>Your gift</label>
+            <div className="text-[34px] font-black text-[#00374a] leading-none mb-1.5">{fmtVoucherMoney(amount, currency)}</div>
+            <p className="text-[13px] text-[#5a6b72]">The complete <strong>{selectedExp?.title}</strong> experience — they pick the week &amp; package when they book.</p>
+            <p className="text-[12px] text-[#9aa6ac] mt-1.5">{over5k ? "Valid for 2 years." : "Valid for 1 year."}</p>
+          </>
+        ) : (
+          <>
+            <label className={label}>Voucher amount</label>
+            <div className="flex items-baseline justify-between mb-2">
+              <span className="text-[34px] font-black text-[#00374a]">{fmtVoucherMoney(amount, currency)}</span>
+              <span className="text-[12px] text-[#9aa6ac]">€200 – €10,000</span>
+            </div>
+            <input type="range" min={0} max={AMOUNTS.length - 1} step={1} value={idx} onChange={(e) => setIdx(Number(e.target.value))} className="w-full accent-[#00afdb] cursor-pointer" />
+            <p className="text-[12px] text-[#9aa6ac] mt-1.5">{over5k ? "Valid for 2 years." : "Valid for 1 year."} A value voucher — usable on any available NP7 Experience.</p>
+          </>
+        )}
       </div>
 
       {/* Buyer */}

@@ -6,12 +6,12 @@ import { GiftBuyForm } from "@/components/experience/gift-buy-form";
 export const metadata: Metadata = { title: "Gift a trip — NP7 Experience" };
 export const dynamic = "force-dynamic";
 
-type Exp = { id: string; title: string; currency: string | null };
+type Exp = { id: string; title: string; currency: string | null; price: number | null };
 
 async function loadGiftData(): Promise<{ experiences: Exp[]; heroes: string[] }> {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const sb = supabase as any;
-  const { data: exps } = await sb.from("exp_experiences").select("id, title, currency, hero_image").eq("status", "published").order("title");
+  const { data: exps } = await sb.from("exp_experiences").select("id, title, currency, price, hero_image").eq("status", "published").order("title");
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const rows = (exps ?? []) as any[];
   const ids = rows.map((e) => e.id);
@@ -19,7 +19,7 @@ async function loadGiftData(): Promise<{ experiences: Exp[]; heroes: string[] }>
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const byExp = new Map((content ?? []).map((c: any) => [c.experience_id, c.hero_image]));
   const heroes = [...new Set(rows.map((e) => byExp.get(e.id) || e.hero_image).filter(Boolean))] as string[];
-  const experiences = rows.map((e) => ({ id: e.id, title: e.title, currency: e.currency }));
+  const experiences = rows.map((e) => ({ id: e.id, title: e.title, currency: e.currency, price: e.price ?? null }));
   return { experiences, heroes };
 }
 
@@ -60,7 +60,7 @@ export default async function GiftPage() {
             <p className="text-[11px] font-bold tracking-[0.22em] text-[#f47b20] mb-5 text-center">HOW GIFTING WORKS</p>
             <div className="grid sm:grid-cols-3 gap-4">
               {[
-                { n: "1", t: "Choose an amount", d: "Pick a value and, if you like, a specific trip. Pay by bank transfer — no account needed." },
+                { n: "1", t: "Pick your gift", d: "A whole experience, or a value toward any trip. Pay by bank transfer — no account needed." },
                 { n: "2", t: "We wrap it up", d: "Once your transfer lands we email a printable PDF voucher — and call the recipient with the news, if you asked us to." },
                 { n: "3", t: "They make it real", d: "They register for a trip and enter the code on their payment plan — it covers what they've been invoiced." },
               ].map((s) => (

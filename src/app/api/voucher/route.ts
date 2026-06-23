@@ -21,7 +21,7 @@ function validAmount(n: number): boolean {
 export async function POST(req: Request) {
   const body = await req.json().catch(() => ({}));
   const experienceId = typeof body.experienceId === "string" && body.experienceId ? body.experienceId : null;
-  const amount = Math.round(Number(body.amount));
+  let amount = Math.round(Number(body.amount));
   const buyerName = typeof body.buyerName === "string" ? body.buyerName.trim().slice(0, 120) : "";
   const buyerEmail = typeof body.buyerEmail === "string" ? body.buyerEmail.trim().slice(0, 160).toLowerCase() : "";
   const recipientName = typeof body.recipientName === "string" ? body.recipientName.trim().slice(0, 120) : "";
@@ -31,7 +31,6 @@ export async function POST(req: Request) {
   const recipientPhone = typeof body.recipientPhone === "string" ? body.recipientPhone.trim().slice(0, 40) : "";
   const callDate = typeof body.callDate === "string" ? body.callDate.trim().slice(0, 40) : "";
 
-  if (!validAmount(amount)) return NextResponse.json({ error: "Please choose a voucher amount between €200 and €10,000." }, { status: 400 });
   if (!buyerName) return NextResponse.json({ error: "Please enter your name." }, { status: 400 });
   if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(buyerEmail)) return NextResponse.json({ error: "Please enter a valid email address." }, { status: 400 });
   if (nicoCall && !recipientPhone) return NextResponse.json({ error: "Add the recipient's phone number so Nico can call them." }, { status: 400 });
@@ -40,11 +39,21 @@ export async function POST(req: Request) {
   const db = createAdminClient() as any;
 
   const [expRes, csRes] = await Promise.all([
-    experienceId ? db.from("exp_experiences").select("id, title, currency, status").eq("id", experienceId).maybeSingle() : Promise.resolve({ data: null }),
+    experienceId ? db.from("exp_experiences").select("id, title, currency, status, price").eq("id", experienceId).maybeSingle() : Promise.resolve({ data: null }),
     db.from("company_settings").select("iban, bic, bank_name, legal_name, currency").eq("division", "experience").maybeSingle().catch(() => ({ data: null })),
   ]);
   const exp = expRes?.data ?? null;
   if (experienceId && (!exp || exp.status !== "published")) return NextResponse.json({ error: "That experience isn't available." }, { status: 404 });
+
+  // A specific experience gifts the WHOLE trip → value = the experience's price
+  // (server-authoritative). "Any experience" → a chosen value (slider amount).
+  const expPrice = exp?.price != null ? Math.round(Number(exp.price)) : null;
+  if (experienceId && expPrice && expPrice > 0) {
+    amount = expPrice;
+  } else if (!validAmount(amount)) {
+    return NextResponse.json({ error: "Please choose a voucher amount between €200 and €10,000." }, { status: 400 });
+  }
+
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const cs = (csRes as any)?.data ?? null;
   const currency = exp?.currency || cs?.currency || "EUR";
