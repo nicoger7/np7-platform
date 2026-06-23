@@ -50,7 +50,7 @@ export function HardwareHeader({ variant = "overlay" }: { variant?: "overlay" | 
       className={
         docked
           ? "sticky top-0 z-50 bg-black"
-          : `fixed top-0 inset-x-0 z-50 transition-all duration-300 ${
+          : `fixed top-0 inset-x-0 z-50 transition-colors duration-300 ${
               scrolled ? "bg-black/80 backdrop-blur-lg border-b border-white/10" : "bg-transparent"
             }`
       }

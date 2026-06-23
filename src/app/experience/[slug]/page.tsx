@@ -74,7 +74,7 @@ const FAQ: AccordionItem[] = [
   { title: "What level do I need to be?", content: "Anything from total beginner to semi-pro. We group by level so you're always with the right people." },
   { title: "Is gear included?", content: "Yes — pro windsurf gear rental is included in every package. Bring your own harness if you like." },
   { title: "Can I arrive earlier or leave later?", content: "Yes — you can add extra hotel nights with us at any time after booking. Just tell us your flight dates and we'll arrange it." },
-  { title: "How does booking work?", content: "Reserve your spot with a €300 deposit — just your name and contact details, nothing more. After payment we contact you personally to sort every detail, and the remaining balance is due later." },
+  { title: "How does booking work?", content: "Reserve your spot in seconds — just your name and contact details, nothing more. We then contact you personally to sort every detail, and you pay by invoice: a down-payment to secure your place, with the balance due before the trip." },
 ];
 
 /* ------------------------------- helpers ------------------------------- */
@@ -201,6 +201,15 @@ export default async function ExperienceDetailPage({ params }: Props) {
   // "primary" edition = soonest upcoming (drives hero defaults)
   const edition = allEditions.find((e) => e.date_start && e.date_start >= today) ?? allEditions[0];
   const securedByEd = await paidSpotsByEdition(allEditions.map((e) => e.id)); // spots left = paid only
+
+  // Securing payment: deposit is explicit 0 across the board for now (no Stripe yet)
+  // → there's no upfront deposit; the spot is reserved free and confirmed by the
+  // down-payment invoice. Show the deposit only when one is actually set.
+  const depositAmt = edition?.deposit ?? null;
+  const hasDeposit = depositAmt != null && depositAmt > 0;
+  const depositPretty = hasDeposit
+    ? `${(experience.currency ?? "EUR") === "EUR" ? "€" : (experience.currency ?? "") + " "}${Number(depositAmt).toLocaleString("en-US")}`
+    : null;
 
   // group active packages by edition so each week only shows its own (no dupes)
   const activePackages = (experience.exp_packages ?? []).filter((p) => p.status === "active" && p.price != null);
@@ -600,7 +609,11 @@ export default async function ExperienceDetailPage({ params }: Props) {
             <p className="text-[11px] font-bold tracking-[0.25em] text-[#00afdb] mb-3">PACKAGES</p>
             <h2 className="text-3xl sm:text-5xl font-black tracking-[-0.03em] text-[#00374a] mb-4">Build your week</h2>
             <p className="text-[16px] text-[#6a7a80]">{multi ? "Choose your week, then pick your coaching level and accommodation — your price updates instantly." : "Pick your coaching level and accommodation — your price updates instantly."}</p>
-            <p className="text-[14px] font-semibold text-[#00374a] mt-3">Reserve with a <span className="text-[#00afdb] font-extrabold">€300 deposit</span> — the rest is due later.</p>
+            {hasDeposit ? (
+              <p className="text-[14px] font-semibold text-[#00374a] mt-3">Reserve with a <span className="text-[#00afdb] font-extrabold">{depositPretty} deposit</span> — the rest is due later.</p>
+            ) : (
+              <p className="text-[14px] font-semibold text-[#00374a] mt-3">Reserve your spot now — <span className="text-[#00afdb] font-extrabold">no payment yet</span>. We&apos;ll send your down-payment invoice to confirm it.</p>
+            )}
           </Reveal>
           {editionsLite.length > 0 ? (
             <Reveal>
@@ -722,9 +735,9 @@ export default async function ExperienceDetailPage({ params }: Props) {
                 <span className="inline-flex items-center gap-1.5 text-[12px] font-semibold text-[#5fd0e8] bg-[#00afdb]/15 border border-[#00afdb]/30 px-3 py-1 rounded-full mb-6"><span className="w-1.5 h-1.5 rounded-full bg-[#5fd0e8] animate-pulse" />Only {spotsLeft} spots left</span>
               )}
               <h2 className="text-3xl sm:text-5xl font-black tracking-[-0.03em] mb-5 leading-[1.05]">Your dream week is real.<br />Make it yours.</h2>
-              <p className="text-[17px] text-white/55 mb-9">Reserve with a €300 deposit — just your name and contact details. After payment, we&apos;ll reach out personally to sort every detail.</p>
+              <p className="text-[17px] text-white/55 mb-9">{hasDeposit ? `Reserve with a ${depositPretty} deposit — just your name and contact details. After payment, we'll reach out personally to sort every detail.` : "Reserve your spot in seconds — just your name and contact details, no payment yet. We'll then reach out personally to sort every detail."}</p>
               <div className="flex flex-wrap items-center justify-center gap-3">
-                <Link href="#packages" data-track="reserve_cta" data-track-label="final" className="px-8 py-4 rounded-full text-[14px] font-bold text-[#00374a] bg-white hover:-translate-y-0.5 transition-all">Reserve my spot · €300</Link>
+                <Link href="#packages" data-track="reserve_cta" data-track-label="final" className="px-8 py-4 rounded-full text-[14px] font-bold text-[#00374a] bg-white hover:-translate-y-0.5 transition-all">{hasDeposit ? `Reserve my spot · ${depositPretty}` : "Reserve my spot"}</Link>
                 <Link href={`mailto:experience@np-seven.com?subject=Question: ${experience.title}`} className="px-8 py-4 rounded-full text-[14px] font-bold text-white border-[1.5px] border-white/40 hover:bg-white/10 transition-all">Ask us anything</Link>
               </div>
             </>
