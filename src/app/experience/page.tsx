@@ -120,6 +120,10 @@ export default async function ExperienceOverviewPage() {
     ).sort(),
   }));
 
+  // The gift card's backdrop = the hero of the next experience coming up
+  // (experiences are already sorted soonest-first).
+  const giftHero = experiences.find((e) => e.hero_image)?.hero_image ?? null;
+
   // Destinations: prefer real destination records (clickable → /destinations/:slug);
   // fall back to location-derived cards (non-clickable) until they're generated in admin.
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -199,9 +203,19 @@ export default async function ExperienceOverviewPage() {
             {/* Gift — a premium, restrained invitation */}
             <Reveal className="mt-16">
               <Link href="/experience/gift" className="group relative block overflow-hidden rounded-[28px]">
+                {/* base wash (fallback when no hero) */}
                 <div className="absolute inset-0 bg-gradient-to-b from-[#012734] to-[#013143]" aria-hidden />
-                <div className="absolute -top-24 left-1/2 -translate-x-1/2 h-72 w-72 rounded-full opacity-25 blur-[110px]" style={{ background: "radial-gradient(circle,#e6b873,transparent 70%)" }} aria-hidden />
-                <div className="absolute inset-0 rounded-[28px] ring-1 ring-inset ring-[#e6b873]/20" aria-hidden />
+                {/* hero of the next experience, gently zooming on hover */}
+                {giftHero && (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img src={giftHero} alt="" className="absolute inset-0 w-full h-full object-cover scale-105 transition-transform duration-[1200ms] ease-out group-hover:scale-110" />
+                )}
+                {/* CI colour fade — deep teal body so text stays crisp, warm sun glow up top, sea-blue kiss at the foot */}
+                <div className="absolute inset-0 bg-gradient-to-b from-[#00374a]/82 via-[#012b39]/90 to-[#012734]/96" aria-hidden />
+                <div className="absolute inset-0" style={{ background: "radial-gradient(120% 75% at 50% -10%, rgba(255,196,46,0.20), rgba(244,123,32,0.10) 38%, transparent 60%)" }} aria-hidden />
+                <div className="absolute inset-x-0 bottom-0 h-1/3" style={{ background: "linear-gradient(180deg, transparent, rgba(0,175,219,0.16))" }} aria-hidden />
+                <div className="absolute -top-24 left-1/2 -translate-x-1/2 h-72 w-72 rounded-full opacity-30 blur-[110px]" style={{ background: "radial-gradient(circle,#e6b873,transparent 70%)" }} aria-hidden />
+                <div className="absolute inset-0 rounded-[28px] ring-1 ring-inset ring-[#e6b873]/25" aria-hidden />
                 <div className="absolute inset-x-10 top-0 h-px" style={{ background: "linear-gradient(90deg,transparent,rgba(230,184,115,0.7),transparent)" }} aria-hidden />
                 <div className="relative flex flex-col items-center gap-5 px-8 py-14 sm:py-16 text-center">
                   <p className="text-[11px] font-semibold tracking-[0.34em] text-[#e6b873]">THE GIFT OF NP7</p>
