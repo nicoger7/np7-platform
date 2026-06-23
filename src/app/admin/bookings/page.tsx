@@ -13,7 +13,7 @@ interface Booking {
   name: string;
   status: string;
   experience: { id: string; title: string; location: string } | null;
-  edition: { id: string; year: number; label: string | null } | null;
+  edition: { id: string; year: number; label: string | null; date_end: string | null } | null;
   package: { id: string; name: string } | null;
   contact: { id: string; name: string; email: string; phone: string } | null;
   agreed_price: number | null;
@@ -41,7 +41,24 @@ const STATUSES = [
   { value: "paid", label: "Fully paid", color: "bg-green-600" },
   { value: "attended", label: "Attended", color: "bg-gray-400" },
   { value: "lost", label: "Lost", color: "bg-red-500" },
+  // Derived (not a DB value): a 'lead' whose edition has already ended — the
+  // inquiry quietly expired. Kept out of the active funnel; see effStatus().
+  { value: "expired", label: "Expired", color: "bg-gray-500/60" },
 ];
+
+// Pipeline ordering — most-advanced first; dead/expired sink to the bottom.
+const STATUS_RANK: Record<string, number> = { attended: 5, paid: 4, confirmed: 3, reserved: 2, lead: 1, expired: 0, lost: -1 };
+
+// A lead whose trip is already over → treat as "expired" in the view only
+// (the row stays status='lead' in the DB).
+function isExpiredLead(b: Booking): boolean {
+  if (normalizeBookingStatus(b.status) !== "lead") return false;
+  const end = b.edition?.date_end;
+  return !!end && new Date(end) < new Date();
+}
+function effStatus(b: Booking): string {
+  return isExpiredLead(b) ? "expired" : normalizeBookingStatus(b.status);
+}
 
 type ViewMode = "table" | "pipeline";
 type SortDir = "asc" | "desc" | null;
@@ -72,7 +89,8 @@ const COLUMNS: ColumnDef[] = [
 const STORAGE_KEY = "np7-bookings-columns";
 
 function StatusBadge({ status }: { status: string }) {
-  const s = STATUSES.find((x) => x.value === normalizeBookingStatus(status));
+  // Accept either a derived value (e.g. "expired") or a raw DB status.
+  const s = STATUSES.find((x) => x.value === status) ?? STATUSES.find((x) => x.value === normalizeBookingStatus(status));
   return (
     <span className="inline-flex items-center gap-1.5 text-xs">
       <span className={`w-2 h-2 rounded-full ${s?.color || "bg-gray-500"}`} />
@@ -152,13 +170,18 @@ function BookingsInner() {
   );
 
   const filtered = bookings.filter((b) => {
-    if (filterStatus && normalizeBookingStatus(b.status) !== filterStatus) return false;
+    if (filterStatus && effStatus(b) !== filterStatus) return false;
     if (filterExperience && b.experience?.id !== filterExperience) return false;
     return true;
   });
 
+  const rank = (b: Booking) => STATUS_RANK[effStatus(b)] ?? 0;
   const sorted = sortKey && sortDir
     ? [...filtered].sort((a, b) => {
+        if (sortKey === "status") {
+          const d = rank(a) - rank(b);
+          return sortDir === "asc" ? d : -d;
+        }
         let aVal: unknown;
         let bVal: unknown;
         if (sortKey === "experience") {
@@ -179,14 +202,15 @@ function BookingsInner() {
         }
         return compareValues(aVal, bVal, sortDir);
       })
-    : filtered;
+    // Default order: highest pipeline status up, then most-recently created.
+    : [...filtered].sort((a, b) => rank(b) - rank(a) || (b.created_at || "").localeCompare(a.created_at || ""));
 
   // Pipeline view groups
   const pipelineGroups = STATUSES.filter(
-    (s) => !["attended", "lost"].includes(s.value)
+    (s) => !["attended", "lost", "expired"].includes(s.value)
   ).map((s) => ({
     ...s,
-    bookings: filtered.filter((b) => normalizeBookingStatus(b.status) === s.value),
+    bookings: filtered.filter((b) => effStatus(b) === s.value),
   }));
 
   const gridTemplate = buildGridTemplate(COLUMNS, visibleColumns);
@@ -276,8 +300,13 @@ function BookingsInner() {
       {loading ? (
         <div className="py-12 text-center text-sm admin-faint">Loading...</div>
       ) : selectedId ? (
-        /* ── A booking is selected → columns: compact rail + detail ── */
-        <div className="lg:flex lg:gap-6 lg:items-start">
+        /* ── A booking is selected → back button + compact rail + detail ── */
+        <>
+          <button onClick={clearSelection} className="mb-4 inline-flex items-center gap-1.5 text-sm admin-faint hover:admin-muted transition-colors">
+            <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M19 12H5M11 18l-6-6 6-6" /></svg>
+            All bookings
+          </button>
+          <div className="lg:flex lg:gap-6 lg:items-start">
           <aside className="hidden lg:flex flex-col gap-1.5 lg:w-[320px] lg:shrink-0 lg:sticky lg:top-0 lg:max-h-[calc(100vh-11rem)] lg:overflow-y-auto lg:-mr-1 lg:pr-1">
             {sorted.map((b) => {
               const active = b.id === selectedId;
@@ -286,7 +315,7 @@ function BookingsInner() {
                   style={active ? { backgroundColor: "var(--admin-accent-weak)", borderColor: "var(--admin-accent)" } : { backgroundColor: "var(--admin-surface)", borderColor: "var(--admin-border)" }}>
                   <div className="flex items-center gap-2">
                     <span className="text-sm font-medium admin-heading truncate flex-1">{b.contact?.name || b.name}</span>
-                    <StatusBadge status={b.status} />
+                    <StatusBadge status={effStatus(b)} />
                   </div>
                   <p className="text-xs admin-faint truncate mt-0.5">{b.experience?.title || "—"}{b.edition ? ` · ${b.edition.label || b.edition.year}` : ""}</p>
                 </div>
@@ -296,7 +325,8 @@ function BookingsInner() {
           <section className="flex-1 min-w-0">
             <BookingDetailPane bookingId={selectedId} onBack={clearSelection} />
           </section>
-        </div>
+          </div>
+        </>
       ) : bookings.length === 0 ? (
         <div className="py-16 text-center">
           <p className="text-sm admin-faint">No bookings yet</p>
@@ -353,7 +383,7 @@ function BookingsInner() {
                 <span className="text-xs admin-muted truncate self-center">{b.package?.name || "—"}</span>
               )}
               {visibleColumns.has("status") && (
-                <span className="self-center"><StatusBadge status={b.status} /></span>
+                <span className="self-center"><StatusBadge status={effStatus(b)} /></span>
               )}
               {visibleColumns.has("fly_in") && (
                 <span className="text-xs admin-muted self-center">{formatDate(b.fly_in)}</span>
