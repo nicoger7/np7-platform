@@ -216,6 +216,7 @@ export default function EditionDetailPage({
   const [brandImg, setBrandImg] = useState("");
   const [brandScope, setBrandScope] = useState<"edition" | "all">("edition");
   const [brandInEmails, setBrandInEmails] = useState(true);
+  const [brandNote, setBrandNote] = useState("");
   const [brandSaving, setBrandSaving] = useState(false);
   const [brandSaved, setBrandSaved] = useState(false);
   async function saveBranding() {
@@ -226,12 +227,12 @@ export default function EditionDetailPage({
       // Share the photo across the whole experience (website + all editions), and
       // clear this edition's override so it inherits the new shared hero.
       await fetch(`/api/admin/experiences/${edition.experience_id}`, { method: "PATCH", headers: H, body: JSON.stringify({ hero_image: brandImg || null }) }).catch(() => {});
-      await fetch(`/api/admin/editions/${id}`, { method: "PATCH", headers: H, body: JSON.stringify({ hero_image: null, hero_in_emails: brandInEmails }) }).catch(() => {});
+      await fetch(`/api/admin/editions/${id}`, { method: "PATCH", headers: H, body: JSON.stringify({ hero_image: null, hero_in_emails: brandInEmails, pre_trip_note: brandNote || null }) }).catch(() => {});
     } else {
-      await fetch(`/api/admin/editions/${id}`, { method: "PATCH", headers: H, body: JSON.stringify({ hero_image: brandImg || null, hero_in_emails: brandInEmails }) }).catch(() => {});
+      await fetch(`/api/admin/editions/${id}`, { method: "PATCH", headers: H, body: JSON.stringify({ hero_image: brandImg || null, hero_in_emails: brandInEmails, pre_trip_note: brandNote || null }) }).catch(() => {});
     }
     const d = await fetch(`/api/admin/editions/${id}`).then((r) => r.json()).catch(() => null);
-    if (d && !d.error) { setEdition(d); setBrandImg(d.hero_image || ""); setBrandInEmails(d.hero_in_emails !== false); setBrandScope("edition"); }
+    if (d && !d.error) { setEdition(d); setBrandImg(d.hero_image || ""); setBrandInEmails(d.hero_in_emails !== false); setBrandNote(d.pre_trip_note ?? ""); setBrandScope("edition"); }
     setBrandSaving(false); setBrandSaved(true); setTimeout(() => setBrandSaved(false), 2000);
   }
 
@@ -318,6 +319,7 @@ export default function EditionDetailPage({
         setEdition(d);
         setBrandImg(d.hero_image || "");
         setBrandInEmails(d.hero_in_emails !== false);
+        setBrandNote(d.pre_trip_note ?? "");
         setLoading(false);
       });
   }, [id]);
@@ -985,6 +987,13 @@ export default function EditionDetailPage({
                   <span className="block text-xs admin-faint mt-0.5">When off, this edition&apos;s emails use {edition.exp_experiences?.title || "the experience"}&apos;s hero instead.</span>
                 </span>
               </label>
+
+              <div className="mt-4">
+                <label className="block text-xs font-medium admin-muted mb-1.5">Pre-trip note for this week <span className="admin-faint font-normal">(optional)</span></label>
+                <textarea value={brandNote} onChange={(e) => setBrandNote(e.target.value)} rows={4}
+                  placeholder="A personal message just for this week — weather, who's coming, an insider tip. Overrides the experience-level note in the pre-trip emails. Leave blank to use the experience note."
+                  className="admin-input w-full px-3 py-2 rounded-lg border text-sm outline-none resize-y" />
+              </div>
 
               <div className="flex gap-2 mt-4">
                 <button onClick={saveBranding} disabled={brandSaving} className="px-4 py-2 bg-[var(--admin-accent)] hover:bg-[var(--admin-accent)]/90 disabled:opacity-50 text-[var(--admin-accent-contrast)] text-sm font-bold rounded-lg transition-colors">{brandSaving ? "Saving…" : brandSaved ? "Saved!" : "Save"}</button>

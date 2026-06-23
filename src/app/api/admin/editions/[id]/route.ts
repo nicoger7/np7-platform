@@ -96,9 +96,9 @@ export async function PUT(
   const { id } = await params;
   const body = await request.json();
 
-  // hero_image / hero_in_emails arrive with migration 047 — strip & retry if the
-  // columns aren't there yet so the rest of an edition save still works.
-  const PENDING_OPTIONAL = ["hero_image", "hero_in_emails"];
+  // hero_image / hero_in_emails (047) + pre_trip_note (051) are optional columns —
+  // strip & retry if they aren't there yet so the rest of an edition save still works.
+  const PENDING_OPTIONAL = ["hero_image", "hero_in_emails", "pre_trip_note"];
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const run = (payload: Record<string, unknown>) => (client as any)
     .from("exp_editions")
