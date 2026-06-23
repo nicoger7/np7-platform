@@ -70,6 +70,8 @@ export default function ExpCostsPage() {
   const [editions, setEditions] = useState<{ id: string; experience_id: string; year: number | null; label: string | null }[]>([]);
   const [loading, setLoading] = useState(true);
   const [filterExp, setFilterExp] = useState("");
+  const [filterEdition, setFilterEdition] = useState("");
+  const [filterStatus, setFilterStatus] = useState("");
   const [showNew, setShowNew] = useState(false);
   const [editId, setEditId] = useState<string | null>(null);
   const [sortKey, setSortKey] = useState<string | null>(null);
@@ -107,8 +109,12 @@ export default function ExpCostsPage() {
     }
   }
 
+  const filtered = costs.filter((c) =>
+    (!filterEdition || c.edition_id === filterEdition) &&
+    (!filterStatus || c.status === filterStatus)
+  );
   const sorted = sortKey && sortDir
-    ? [...costs].sort((a, b) => {
+    ? [...filtered].sort((a, b) => {
         let aVal: unknown;
         let bVal: unknown;
         if (sortKey === "experience") {
@@ -120,7 +126,12 @@ export default function ExpCostsPage() {
         }
         return compareValues(aVal, bVal, sortDir);
       })
-    : costs;
+    : filtered;
+
+  // Selecting a cost opens a master-detail (rail + detail); deselect → wide table.
+  const selected = !!editId || showNew;
+  const deselect = () => { setShowNew(false); setEditId(null); };
+  const eur = (n: number | null) => (n != null ? `€${Number(n).toLocaleString()}` : "—");
 
   function startEdit(c: ExpCost) {
     setEditId(c.id);
@@ -169,95 +180,133 @@ export default function ExpCostsPage() {
         </div>
       </div>
 
-      <div className="flex gap-3 mb-5">
-        <select value={filterExp} onChange={(e) => setFilterExp(e.target.value)} className="admin-input text-sm px-3 py-1.5 rounded-lg">
+      <div className="flex flex-wrap gap-3 mb-5">
+        <select value={filterExp} onChange={(e) => { setFilterExp(e.target.value); setFilterEdition(""); }} className="admin-input text-sm px-3 py-1.5 rounded-lg">
           <option value="">All Experiences</option>
           {experiences.map((e) => <option key={e.id} value={e.id}>{e.title}</option>)}
         </select>
-        {filterExp && <button onClick={() => setFilterExp("")} className="text-xs admin-faint hover:admin-muted">Clear</button>}
+        <select value={filterEdition} onChange={(e) => setFilterEdition(e.target.value)} className="admin-input text-sm px-3 py-1.5 rounded-lg">
+          <option value="">All editions</option>
+          {editions.filter((ed) => !filterExp || ed.experience_id === filterExp).map((ed) => <option key={ed.id} value={ed.id}>{ed.label || ed.year}</option>)}
+        </select>
+        <select value={filterStatus} onChange={(e) => setFilterStatus(e.target.value)} className="admin-input text-sm px-3 py-1.5 rounded-lg">
+          <option value="">All statuses</option>
+          {STATUSES.map((s) => <option key={s} value={s} className="capitalize">{s}</option>)}
+        </select>
+        {(filterExp || filterEdition || filterStatus) && <button onClick={() => { setFilterExp(""); setFilterEdition(""); setFilterStatus(""); }} className="text-xs admin-faint hover:admin-muted">Clear</button>}
+        <span className="text-xs admin-faint ml-auto self-center">{sorted.length} shown</span>
       </div>
 
-      {(showNew || editId) && (
-        <div className="mb-6 p-5 rounded-xl" style={{ border: "1px solid var(--admin-border)", backgroundColor: "var(--admin-surface)" }}>
-          <h3 className="text-sm font-bold admin-heading mb-4">{editId ? "Edit Cost" : "New Cost"}</h3>
-          <div className="grid grid-cols-3 gap-4 mb-4">
-            <div><label className={labelClass}>Item *</label><input className={inputClass} value={form.item} onChange={(e) => setForm({ ...form, item: e.target.value })} /></div>
-            <div><label className={labelClass}>Experience</label>
-              <select className={inputClass} value={form.experience_id} onChange={(e) => setForm({ ...form, experience_id: e.target.value, edition_id: "" })}>
-                <option value="">—</option>
-                {experiences.map((e) => <option key={e.id} value={e.id}>{e.title}</option>)}
-              </select>
+      {(() => {
+        const formPane = (
+          <div className="flex-1 min-w-0 p-5 rounded-xl" style={{ border: "1px solid var(--admin-border)", backgroundColor: "var(--admin-surface)" }}>
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-sm font-bold admin-heading">{editId ? "Edit Cost" : "New Cost"}</h3>
+              {editId && <button onClick={() => { handleDelete(editId); deselect(); }} className="text-xs text-red-400/70 hover:text-red-400 transition-colors">Delete</button>}
             </div>
-            <div><label className={labelClass}>Edition <span className="admin-faint">(optional)</span></label>
-              <select className={inputClass} value={form.edition_id} onChange={(e) => setForm({ ...form, edition_id: e.target.value })} disabled={!form.experience_id}>
-                <option value="">— all / experience-wide</option>
-                {editions.filter((ed) => ed.experience_id === form.experience_id).map((ed) => <option key={ed.id} value={ed.id}>{ed.label || ed.year}</option>)}
-              </select>
-            </div>
-            <div><label className={labelClass}>Status</label>
-              <select className={inputClass} value={form.status} onChange={(e) => setForm({ ...form, status: e.target.value })}>
-                {STATUSES.map((s) => <option key={s} value={s} className="capitalize">{s}</option>)}
-              </select>
-            </div>
-            <div><label className={labelClass}>Estimated (€)</label><input className={inputClass} type="number" step="0.01" value={form.estimated_amount} onChange={(e) => setForm({ ...form, estimated_amount: e.target.value })} /></div>
-            <div><label className={labelClass}>Actual (€)</label><input className={inputClass} type="number" step="0.01" value={form.actual_amount} onChange={(e) => setForm({ ...form, actual_amount: e.target.value })} /></div>
-            <div><label className={labelClass}>Date</label><input className={inputClass} type="date" value={form.date} onChange={(e) => setForm({ ...form, date: e.target.value })} /></div>
-          </div>
-          <div className="mb-4"><label className={labelClass}>Notes</label><input className={inputClass} value={form.notes} onChange={(e) => setForm({ ...form, notes: e.target.value })} /></div>
-          <div className="flex gap-2">
-            <button onClick={handleSave} disabled={!form.item} className="px-4 py-2 bg-[var(--admin-accent)] hover:bg-[var(--admin-accent)]/90 disabled:opacity-40 text-[var(--admin-accent-contrast)] text-sm font-bold rounded-lg transition-colors">{editId ? "Update" : "Create"}</button>
-            <button onClick={() => { setShowNew(false); setEditId(null); }} className="px-4 py-2 admin-muted text-sm rounded-lg">Cancel</button>
-          </div>
-        </div>
-      )}
-
-      {loading ? (
-        <div className="py-12 text-center text-sm admin-faint">Loading...</div>
-      ) : costs.length === 0 ? (
-        <div className="py-16 text-center"><p className="text-sm admin-faint">No costs yet</p></div>
-      ) : (
-        <div className="rounded-xl admin-tablecard" style={{ border: "1px solid var(--admin-border)" }}>
-          {/* Header */}
-          <div className="grid gap-3 px-5 py-3 admin-surface" style={{ gridTemplateColumns: gridTemplate, borderBottom: "1px solid var(--admin-border)" }}>
-            {COLUMNS.filter((c) => c.required || visibleColumns.has(c.key)).map((col) =>
-              col.key === "_actions" ? <span key={col.key} /> : (
-                <SortableHeader key={col.key} label={col.label} sortKey={col.key} currentSort={sortKey} currentDir={sortDir} onSort={handleSort} />
-              )
-            )}
-          </div>
-
-          {/* Rows */}
-          {sorted.map((c) => (
-            <div key={c.id} className="grid gap-3 px-5 py-3 cursor-pointer transition-colors" style={{ gridTemplateColumns: gridTemplate, borderBottom: "1px solid var(--admin-border)" }}
-              onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = "var(--admin-surface-hover)")}
-              onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = "transparent")}
-              onClick={() => startEdit(c)}
-            >
-              {/* item — required */}
-              <div className="min-w-0">
-                <div className="text-sm font-medium admin-heading truncate">{c.item}</div>
-                {c.date && <div className="text-xs admin-faint">{formatDate(c.date)}</div>}
+            <div className="grid grid-cols-2 sm:grid-cols-3 gap-4 mb-4">
+              <div><label className={labelClass}>Item *</label><input className={inputClass} value={form.item} onChange={(e) => setForm({ ...form, item: e.target.value })} /></div>
+              <div><label className={labelClass}>Experience</label>
+                <select className={inputClass} value={form.experience_id} onChange={(e) => setForm({ ...form, experience_id: e.target.value, edition_id: "" })}>
+                  <option value="">—</option>
+                  {experiences.map((e) => <option key={e.id} value={e.id}>{e.title}</option>)}
+                </select>
               </div>
-              {visibleColumns.has("experience") && (
-                <span className="text-xs admin-muted self-center truncate">{c.exp_experiences?.title || "—"}</span>
-              )}
-              {visibleColumns.has("estimated_amount") && (
-                <span className="text-xs admin-muted self-center">{c.estimated_amount ? `€${Number(c.estimated_amount).toLocaleString()}` : "—"}</span>
-              )}
-              {visibleColumns.has("actual_amount") && (
-                <span className={`text-xs self-center font-medium ${c.actual_amount ? "text-green-400" : "admin-faint"}`}>{c.actual_amount ? `€${Number(c.actual_amount).toLocaleString()}` : "—"}</span>
-              )}
-              {visibleColumns.has("status") && (
-                <span className="self-center">
-                  <span className={`inline-block px-2 py-0.5 rounded text-[10px] font-bold uppercase ${statusColor(c.status)}`}>{c.status || "—"}</span>
-                </span>
-              )}
-              {/* _actions — required */}
-              <RowActions onDuplicate={() => handleDuplicate(c.id)} onDelete={() => handleDelete(c.id)} />
+              <div><label className={labelClass}>Edition <span className="admin-faint">(optional)</span></label>
+                <select className={inputClass} value={form.edition_id} onChange={(e) => setForm({ ...form, edition_id: e.target.value })} disabled={!form.experience_id}>
+                  <option value="">— all / experience-wide</option>
+                  {editions.filter((ed) => ed.experience_id === form.experience_id).map((ed) => <option key={ed.id} value={ed.id}>{ed.label || ed.year}</option>)}
+                </select>
+              </div>
+              <div><label className={labelClass}>Status</label>
+                <select className={inputClass} value={form.status} onChange={(e) => setForm({ ...form, status: e.target.value })}>
+                  {STATUSES.map((s) => <option key={s} value={s} className="capitalize">{s}</option>)}
+                </select>
+              </div>
+              <div><label className={labelClass}>Estimated (€)</label><input className={inputClass} type="number" step="0.01" value={form.estimated_amount} onChange={(e) => setForm({ ...form, estimated_amount: e.target.value })} /></div>
+              <div><label className={labelClass}>Actual (€)</label><input className={inputClass} type="number" step="0.01" value={form.actual_amount} onChange={(e) => setForm({ ...form, actual_amount: e.target.value })} /></div>
+              <div><label className={labelClass}>Date</label><input className={inputClass} type="date" value={form.date} onChange={(e) => setForm({ ...form, date: e.target.value })} /></div>
             </div>
-          ))}
-        </div>
-      )}
+            <div className="mb-4"><label className={labelClass}>Notes</label><input className={inputClass} value={form.notes} onChange={(e) => setForm({ ...form, notes: e.target.value })} /></div>
+            <div className="flex gap-2">
+              <button onClick={handleSave} disabled={!form.item} className="px-4 py-2 bg-[var(--admin-accent)] hover:bg-[var(--admin-accent)]/90 disabled:opacity-40 text-[var(--admin-accent-contrast)] text-sm font-bold rounded-lg transition-colors">{editId ? "Update" : "Create"}</button>
+              <button onClick={deselect} className="px-4 py-2 admin-muted text-sm rounded-lg">Cancel</button>
+            </div>
+          </div>
+        );
+
+        if (loading) return <div className="py-12 text-center text-sm admin-faint">Loading...</div>;
+
+        if (!selected) {
+          /* ── Wide table (default) ── */
+          return sorted.length === 0 ? (
+            <div className="py-16 text-center"><p className="text-sm admin-faint">No costs match</p></div>
+          ) : (
+            <div className="rounded-xl admin-tablecard" style={{ border: "1px solid var(--admin-border)" }}>
+              <div className="grid gap-3 px-5 py-3 admin-surface" style={{ gridTemplateColumns: gridTemplate, borderBottom: "1px solid var(--admin-border)" }}>
+                {COLUMNS.filter((c) => c.required || visibleColumns.has(c.key)).map((col) =>
+                  col.key === "_actions" ? <span key={col.key} /> : (
+                    <SortableHeader key={col.key} label={col.label} sortKey={col.key} currentSort={sortKey} currentDir={sortDir} onSort={handleSort} />
+                  )
+                )}
+              </div>
+              {sorted.map((c) => (
+                <div key={c.id} className="grid gap-3 px-5 py-3 cursor-pointer transition-colors" style={{ gridTemplateColumns: gridTemplate, borderBottom: "1px solid var(--admin-border)" }}
+                  onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = "var(--admin-surface-hover)")}
+                  onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = "transparent")}
+                  onClick={() => startEdit(c)}
+                >
+                  <div className="min-w-0">
+                    <div className="text-sm font-medium admin-heading truncate">{c.item}</div>
+                    {c.date && <div className="text-xs admin-faint">{formatDate(c.date)}</div>}
+                  </div>
+                  {visibleColumns.has("experience") && (
+                    <span className="text-xs admin-muted self-center truncate">{c.exp_experiences?.title || "—"}</span>
+                  )}
+                  {visibleColumns.has("estimated_amount") && (
+                    <span className="text-xs admin-muted self-center">{eur(c.estimated_amount)}</span>
+                  )}
+                  {visibleColumns.has("actual_amount") && (
+                    <span className={`text-xs self-center font-medium ${c.actual_amount ? "text-green-400" : "admin-faint"}`}>{eur(c.actual_amount)}</span>
+                  )}
+                  {visibleColumns.has("status") && (
+                    <span className="self-center">
+                      <span className={`inline-block px-2 py-0.5 rounded text-[10px] font-bold uppercase ${statusColor(c.status)}`}>{c.status || "—"}</span>
+                    </span>
+                  )}
+                  <div onClick={(e) => e.stopPropagation()}>
+                    <RowActions onDuplicate={() => handleDuplicate(c.id)} onDelete={() => handleDelete(c.id)} />
+                  </div>
+                </div>
+              ))}
+            </div>
+          );
+        }
+
+        /* ── Master-detail (rail + detail) — deselect returns to the wide table ── */
+        return (
+          <div className="flex flex-col lg:flex-row gap-4">
+            <div className="lg:w-[300px] shrink-0">
+              <button onClick={deselect} className="mb-2 inline-flex items-center gap-1.5 text-xs admin-faint hover:admin-muted transition-colors">
+                <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M19 12H5M11 18l-6-6 6-6" /></svg>
+                Back to wide view
+              </button>
+              <div className="rounded-xl admin-tablecard overflow-hidden max-h-[72vh] overflow-y-auto" style={{ border: "1px solid var(--admin-border)" }}>
+                {sorted.map((c) => (
+                  <button key={c.id} onClick={() => startEdit(c)} className="w-full text-left px-4 py-2.5 flex items-center justify-between gap-2 transition-colors" style={{ borderBottom: "1px solid var(--admin-border)", backgroundColor: editId === c.id ? "var(--admin-surface-hover)" : "transparent" }}>
+                    <span className="min-w-0">
+                      <span className="block text-sm font-medium admin-heading truncate">{c.item}</span>
+                      <span className="block text-[11px] admin-faint truncate">{c.exp_experiences?.title || "—"} · est {eur(c.estimated_amount)}{c.actual_amount != null ? ` · act ${eur(c.actual_amount)}` : ""}</span>
+                    </span>
+                    <span className={`shrink-0 text-[9px] px-1.5 py-0.5 rounded font-bold uppercase ${statusColor(c.status)}`}>{c.status || "—"}</span>
+                  </button>
+                ))}
+              </div>
+            </div>
+            {formPane}
+          </div>
+        );
+      })()}
     </div>
   );
 }
