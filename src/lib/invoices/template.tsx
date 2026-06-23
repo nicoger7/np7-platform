@@ -241,7 +241,7 @@ function VatNote({ vatMode, vatRate }: { vatMode: VatMode; vatRate: number | nul
   if (vatMode === "margin") {
     return (
       <Text style={s.vatNote}>
-        Margin scheme — travel services (§25 UStG). VAT is not shown separately.
+        VAT charged under the special scheme for travel agents (Articles 306–310 EU VAT Directive). VAT is not shown separately.
       </Text>
     );
   }
