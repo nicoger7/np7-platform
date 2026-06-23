@@ -26,8 +26,18 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
     }
   }
 
-  const costAmount = (c: { actual_amount: number | null; estimated_amount: number | null }) =>
-    c.actual_amount != null ? Number(c.actual_amount) : Number(c.estimated_amount) || 0;
+  // A cost's "real" spent: attached expense payments (Σ) if any, else the manual
+  // actual, else the estimate.
+  const attachedByCost = new Map<string, number>();
+  try {
+    const { data: cpa } = await db.from("exp_cost_payment_allocations").select("cost_id, amount");
+    for (const a of (cpa ?? [])) attachedByCost.set(a.cost_id, (attachedByCost.get(a.cost_id) || 0) + (Number(a.amount) || 0));
+  } catch { /* pre-migration-057 */ }
+  const costAmount = (c: { id: string; actual_amount: number | null; estimated_amount: number | null }) => {
+    const attached = attachedByCost.get(c.id) || 0;
+    if (attached > 0) return attached;
+    return c.actual_amount != null ? Number(c.actual_amount) : Number(c.estimated_amount) || 0;
+  };
 
   // ── Costs: which cost_ids have explicit allocations (those use the split,
   //    not their single edition_id) ──

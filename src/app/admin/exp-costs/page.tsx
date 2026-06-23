@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import { SortableHeader } from "@/components/sortable-header";
 import { ColumnToggle, ColumnDef, buildGridTemplate, loadVisibleColumns } from "@/components/column-toggle";
 import { RowActions } from "@/components/row-actions";
+import { CostLinksEditor } from "@/components/admin/cost-links-editor";
 
 interface ExpCost {
   id: string;
@@ -232,6 +233,7 @@ export default function ExpCostsPage() {
               <button onClick={handleSave} disabled={!form.item} className="px-4 py-2 bg-[var(--admin-accent)] hover:bg-[var(--admin-accent)]/90 disabled:opacity-40 text-[var(--admin-accent-contrast)] text-sm font-bold rounded-lg transition-colors">{editId ? "Update" : "Create"}</button>
               <button onClick={deselect} className="px-4 py-2 admin-muted text-sm rounded-lg">Cancel</button>
             </div>
+            {editId && <CostLinksEditor costId={editId} onChange={fetchData} />}
           </div>
         );
 
