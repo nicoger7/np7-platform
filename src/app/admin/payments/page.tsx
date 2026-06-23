@@ -134,6 +134,11 @@ export default function PaymentsPage() {
   const inputClass = "w-full px-3 py-2 admin-input border rounded-lg text-sm focus:outline-none focus:border-[var(--admin-accent)] focus:ring-1 focus:ring-[var(--admin-accent)] transition-colors";
   const labelClass = "block text-xs font-medium admin-muted mb-1";
 
+  // Selecting a payment opens a master-detail (rail + detail); deselecting
+  // returns to the wide full-width table.
+  const selected = !!editId || showNew;
+  const deselect = () => { setShowNew(false); setEditId(null); setForm(emptyForm); };
+
   return (
     <div>
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between mb-6">
@@ -183,72 +188,101 @@ export default function PaymentsPage() {
         <span className="text-xs admin-faint ml-auto">{filtered.length} shown</span>
       </div>
 
-      {/* Form */}
-      {(showNew || editId) && (
-        <div className="mb-6 p-5 rounded-xl" style={{ border: "1px solid var(--admin-border)", backgroundColor: "var(--admin-surface)" }}>
-          <h3 className="text-sm font-bold admin-heading mb-4">{editId ? "Edit Payment" : "New Payment"}</h3>
-          <div className="grid grid-cols-4 gap-4 mb-4">
-            <div><label className={labelClass}>Amount (€) *</label><input type="number" step="0.01" className={inputClass} value={form.amount} onChange={(e) => setForm({ ...form, amount: e.target.value })} /></div>
-            <div><label className={labelClass}>Direction</label><select className={inputClass} value={form.direction} onChange={(e) => setForm({ ...form, direction: e.target.value })}>{DIRECTIONS.map((d) => <option key={d} value={d}>{d}</option>)}</select></div>
-            <div><label className={labelClass}>Type</label><select className={inputClass} value={form.type} onChange={(e) => setForm({ ...form, type: e.target.value })}>{TYPES.map((t) => <option key={t} value={t}>{t}</option>)}</select></div>
-            <div><label className={labelClass}>Method</label><select className={inputClass} value={form.method} onChange={(e) => setForm({ ...form, method: e.target.value })}>{METHODS.map((m) => <option key={m} value={m}>{m}</option>)}</select></div>
-          </div>
-          <div className="grid grid-cols-4 gap-4 mb-4">
-            <div><label className={labelClass}>Status</label><select className={inputClass} value={form.status} onChange={(e) => setForm({ ...form, status: e.target.value })}>{STATUSES.map((s) => <option key={s} value={s}>{s}</option>)}</select></div>
-            <div><label className={labelClass}>Date</label><input type="date" className={inputClass} value={form.date} onChange={(e) => setForm({ ...form, date: e.target.value })} /></div>
-            <div><label className={labelClass}>Reference</label><input className={inputClass} value={form.reference} onChange={(e) => setForm({ ...form, reference: e.target.value })} placeholder="Invoice #" /></div>
-            <div><label className={labelClass}>Notes</label><input className={inputClass} value={form.notes} onChange={(e) => setForm({ ...form, notes: e.target.value })} /></div>
-          </div>
-          <div className="flex gap-2">
-            <button onClick={save} disabled={!form.amount} className="px-4 py-2 bg-[var(--admin-accent)] hover:bg-[var(--admin-accent)]/90 disabled:opacity-40 text-[var(--admin-accent-contrast)] text-sm font-bold rounded-lg transition-colors">{editId ? "Update" : "Create"}</button>
-            <button onClick={() => { setShowNew(false); setEditId(null); setForm(emptyForm); }} className="px-4 py-2 admin-muted text-sm rounded-lg transition-colors">Cancel</button>
-          </div>
-        </div>
-      )}
-
       {loading ? (
         <div className="py-12 text-center text-sm admin-faint">Loading…</div>
-      ) : filtered.length === 0 ? (
-        <div className="py-16 text-center text-sm admin-faint">No payments match.</div>
-      ) : (
-        <div className="rounded-xl admin-tablecard" style={{ border: "1px solid var(--admin-border)" }}>
-          <div className="grid grid-cols-[100px_110px_80px_90px_110px_1fr_90px_40px] gap-3 px-5 py-3 admin-surface" style={{ borderBottom: "1px solid var(--admin-border)" }}>
-            {["Date", "Amount", "Dir", "Type", "Reference", "Linked to", "Status", ""].map((h, i) => (
-              <span key={i} className="text-[10px] font-bold tracking-[0.1em] admin-faint uppercase">{h}</span>
+      ) : !selected ? (
+        /* ── Wide table (default) ── */
+        filtered.length === 0 ? (
+          <div className="py-16 text-center text-sm admin-faint">No payments match.</div>
+        ) : (
+          <div className="rounded-xl admin-tablecard" style={{ border: "1px solid var(--admin-border)" }}>
+            <div className="grid grid-cols-[100px_110px_80px_90px_110px_1fr_90px_40px] gap-3 px-5 py-3 admin-surface" style={{ borderBottom: "1px solid var(--admin-border)" }}>
+              {["Date", "Amount", "Dir", "Type", "Reference", "Linked to", "Status", ""].map((h, i) => (
+                <span key={i} className="text-[10px] font-bold tracking-[0.1em] admin-faint uppercase">{h}</span>
+              ))}
+            </div>
+            {filtered.map((p) => (
+              <div key={p.id} className="grid grid-cols-[100px_110px_80px_90px_110px_1fr_90px_40px] gap-3 px-5 py-3 transition-colors group items-center cursor-pointer" style={{ borderBottom: "1px solid var(--admin-border)" }}
+                onClick={() => startEdit(p)}
+                onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = "var(--admin-surface-hover)")}
+                onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = "transparent")}>
+                <span className="text-xs admin-muted">{fmtDate(p.date)}</span>
+                <span className={`text-sm font-medium ${p.direction === "cost" ? "text-red-400" : "text-green-400"}`}>
+                  {p.direction === "cost" ? "−" : "+"}{money(p.amount)}
+                </span>
+                <span className="text-[10px]">
+                  <span className={`px-1.5 py-0.5 rounded font-bold uppercase ${p.direction === "cost" ? "bg-red-500/15 text-red-400" : "bg-green-500/15 text-green-400"}`}>{p.direction === "cost" ? "Cost" : "Rev"}</span>
+                </span>
+                <span className="text-xs admin-muted truncate">{p.type ?? "—"}</span>
+                <span className="text-xs admin-muted truncate">{p.reference ?? "—"}</span>
+                <span className="text-xs admin-muted truncate">
+                  {p.booking_id && p.exp_bookings ? (
+                    <Link href={`/admin/bookings/${p.booking_id}`} onClick={(e) => e.stopPropagation()} className="text-[#0aa3c7] hover:underline">{p.exp_bookings.name}</Link>
+                  ) : (p.contacts?.name || p.vendors?.name || p.exp_experiences?.title || (
+                    p.unmatched ? <span className="text-amber-400">Unmatched</span> : "—"
+                  ))}
+                </span>
+                <span className="text-[10px]">
+                  <span className={`px-1.5 py-0.5 rounded font-bold uppercase ${
+                    p.status === "paid" ? "bg-green-500/15 text-green-400" :
+                    p.status === "pending" ? "bg-amber-500/15 text-amber-400" :
+                    p.status === "overdue" ? "bg-red-500/15 text-red-400" : "admin-surface admin-muted"
+                  }`}>{p.status ?? "—"}</span>
+                </span>
+                <button onClick={(e) => { e.stopPropagation(); remove(p.id); }} className="opacity-0 group-hover:opacity-100 admin-faint hover:text-red-400 transition-all" title="Delete">
+                  <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M3 6h18M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a2 2 0 012-2h4a2 2 0 012 2v2" /></svg>
+                </button>
+              </div>
             ))}
           </div>
-          {filtered.map((p) => (
-            <div key={p.id} className="grid grid-cols-[100px_110px_80px_90px_110px_1fr_90px_40px] gap-3 px-5 py-3 transition-colors group items-center" style={{ borderBottom: "1px solid var(--admin-border)" }}
-              onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = "var(--admin-surface-hover)")}
-              onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = "transparent")}>
-              <span className="text-xs admin-muted cursor-pointer" onClick={() => startEdit(p)}>{fmtDate(p.date)}</span>
-              <span className={`text-sm font-medium cursor-pointer ${p.direction === "cost" ? "text-red-400" : "text-green-400"}`} onClick={() => startEdit(p)}>
-                {p.direction === "cost" ? "−" : "+"}{money(p.amount)?.replace("€", "€")}
-              </span>
-              <span className="text-[10px]">
-                <span className={`px-1.5 py-0.5 rounded font-bold uppercase ${p.direction === "cost" ? "bg-red-500/15 text-red-400" : "bg-green-500/15 text-green-400"}`}>{p.direction === "cost" ? "Cost" : "Rev"}</span>
-              </span>
-              <span className="text-xs admin-muted truncate">{p.type ?? "—"}</span>
-              <span className="text-xs admin-muted truncate">{p.reference ?? "—"}</span>
-              <span className="text-xs admin-muted truncate">
-                {p.booking_id && p.exp_bookings ? (
-                  <Link href={`/admin/bookings/${p.booking_id}`} className="text-[#0aa3c7] hover:underline">{p.exp_bookings.name}</Link>
-                ) : (p.contacts?.name || p.vendors?.name || p.exp_experiences?.title || (
-                  p.unmatched ? <span className="text-amber-400">Unmatched</span> : "—"
-                ))}
-              </span>
-              <span className="text-[10px]">
-                <span className={`px-1.5 py-0.5 rounded font-bold uppercase ${
-                  p.status === "paid" ? "bg-green-500/15 text-green-400" :
-                  p.status === "pending" ? "bg-amber-500/15 text-amber-400" :
-                  p.status === "overdue" ? "bg-red-500/15 text-red-400" : "admin-surface admin-muted"
-                }`}>{p.status ?? "—"}</span>
-              </span>
-              <button onClick={() => remove(p.id)} className="opacity-0 group-hover:opacity-100 admin-faint hover:text-red-400 transition-all" title="Delete">
-                <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M3 6h18M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a2 2 0 012-2h4a2 2 0 012 2v2" /></svg>
-              </button>
+        )
+      ) : (
+        /* ── Master-detail (rail + detail) — deselect returns to the wide table ── */
+        <div className="flex flex-col lg:flex-row gap-4">
+          <div className="lg:w-[300px] shrink-0">
+            <button onClick={deselect} className="mb-2 inline-flex items-center gap-1.5 text-xs admin-faint hover:admin-muted transition-colors">
+              <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M19 12H5M11 18l-6-6 6-6" /></svg>
+              Back to wide view
+            </button>
+            <div className="rounded-xl admin-tablecard overflow-hidden max-h-[72vh] overflow-y-auto" style={{ border: "1px solid var(--admin-border)" }}>
+              {filtered.map((p) => (
+                <button key={p.id} onClick={() => startEdit(p)} className="w-full text-left px-4 py-2.5 flex items-center justify-between gap-2 transition-colors" style={{ borderBottom: "1px solid var(--admin-border)", backgroundColor: editId === p.id ? "var(--admin-surface-hover)" : "transparent" }}>
+                  <span className="min-w-0">
+                    <span className={`text-sm font-medium ${p.direction === "cost" ? "text-red-400" : "text-green-400"}`}>{p.direction === "cost" ? "−" : "+"}{money(p.amount)}</span>
+                    <span className="block text-[11px] admin-faint truncate">{fmtDate(p.date)} · {p.reference || p.exp_bookings?.name || p.contacts?.name || p.vendors?.name || "—"}</span>
+                  </span>
+                  <span className={`shrink-0 text-[9px] px-1.5 py-0.5 rounded font-bold uppercase ${
+                    p.status === "paid" ? "bg-green-500/15 text-green-400" :
+                    p.status === "pending" ? "bg-amber-500/15 text-amber-400" :
+                    p.status === "overdue" ? "bg-red-500/15 text-red-400" : "admin-surface admin-muted"
+                  }`}>{p.status ?? "—"}</span>
+                </button>
+              ))}
             </div>
-          ))}
+          </div>
+
+          <div className="flex-1 min-w-0 p-5 rounded-xl" style={{ border: "1px solid var(--admin-border)", backgroundColor: "var(--admin-surface)" }}>
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-sm font-bold admin-heading">{editId ? "Edit Payment" : "New Payment"}</h3>
+              {editId && <button onClick={() => remove(editId)} className="text-xs text-red-400/70 hover:text-red-400 transition-colors">Delete</button>}
+            </div>
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-4">
+              <div><label className={labelClass}>Amount (€) *</label><input type="number" step="0.01" className={inputClass} value={form.amount} onChange={(e) => setForm({ ...form, amount: e.target.value })} /></div>
+              <div><label className={labelClass}>Direction</label><select className={inputClass} value={form.direction} onChange={(e) => setForm({ ...form, direction: e.target.value })}>{DIRECTIONS.map((d) => <option key={d} value={d}>{d}</option>)}</select></div>
+              <div><label className={labelClass}>Type</label><select className={inputClass} value={form.type} onChange={(e) => setForm({ ...form, type: e.target.value })}>{TYPES.map((t) => <option key={t} value={t}>{t}</option>)}</select></div>
+              <div><label className={labelClass}>Method</label><select className={inputClass} value={form.method} onChange={(e) => setForm({ ...form, method: e.target.value })}>{METHODS.map((m) => <option key={m} value={m}>{m}</option>)}</select></div>
+            </div>
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-4">
+              <div><label className={labelClass}>Status</label><select className={inputClass} value={form.status} onChange={(e) => setForm({ ...form, status: e.target.value })}>{STATUSES.map((s) => <option key={s} value={s}>{s}</option>)}</select></div>
+              <div><label className={labelClass}>Date</label><input type="date" className={inputClass} value={form.date} onChange={(e) => setForm({ ...form, date: e.target.value })} /></div>
+              <div><label className={labelClass}>Reference</label><input className={inputClass} value={form.reference} onChange={(e) => setForm({ ...form, reference: e.target.value })} placeholder="Invoice #" /></div>
+              <div><label className={labelClass}>Notes</label><input className={inputClass} value={form.notes} onChange={(e) => setForm({ ...form, notes: e.target.value })} /></div>
+            </div>
+            <div className="flex gap-2">
+              <button onClick={save} disabled={!form.amount} className="px-4 py-2 bg-[var(--admin-accent)] hover:bg-[var(--admin-accent)]/90 disabled:opacity-40 text-[var(--admin-accent-contrast)] text-sm font-bold rounded-lg transition-colors">{editId ? "Update" : "Create"}</button>
+              <button onClick={deselect} className="px-4 py-2 admin-muted text-sm rounded-lg transition-colors">Cancel</button>
+            </div>
+          </div>
         </div>
       )}
     </div>
