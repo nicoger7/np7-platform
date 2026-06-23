@@ -56,9 +56,9 @@ export const DEFAULT_BODIES: Record<string, string> = {
 
   payment_pending_nudge:
     P("Hey {{firstName}} 🤙") +
-    P("Your reservation for <strong>{{experienceTitle}}</strong> is still held, but the deposit hasn't come through yet. Spots are limited — secure yours with the €{{deposit}} deposit:") +
-    BTN("Complete my reservation", "bookingLink") +
-    P("Questions? Just reply to this email — we're happy to help."),
+    P("Your place on <strong>{{experienceTitle}}</strong> is still open — but it isn't secured yet. Spots are limited, so lock yours in with the down-payment whenever you're ready. You'll find the amount and how to pay in your account:") +
+    BTN("Secure my spot", "bookingLink") +
+    P("It stays fully refundable for 14 days. Questions? Just reply — we're happy to help."),
 
   balance_invoice_reminder:
     P("Hey {{firstName}} 🤙") +

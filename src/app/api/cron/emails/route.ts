@@ -73,8 +73,10 @@ export async function GET(req: NextRequest) {
     const deposit = b.exp_editions?.deposit ?? 300;
     const balanceNum = b.agreed_price != null ? b.agreed_price - deposit : null;
     const status = (b.status ?? "").toLowerCase();
-    // Tolerant of both the lean pipeline (reserved/confirmed) and any legacy rows.
-    const awaitingDeposit = ["reserved", "payment_pending"].includes(status);
+    // Awaiting their first payment (down-payment OR deposit) — includes free-signup
+    // LEADS (the new funnel) so they're nudged to secure their spot, not just the
+    // older deposit-first "reserved" rows. Tolerant of legacy statuses.
+    const awaitingDeposit = ["lead", "reserved", "payment_pending"].includes(status);
     const depositPaid = b.downpayment_received || ["confirmed", "downpayment_paid", "paid", "attended"].includes(status);
     const balancePaid = !!b.final_payment_received || ["paid", "attended"].includes(status);
 

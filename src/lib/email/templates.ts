@@ -91,12 +91,12 @@ export const TEMPLATES: Record<string, (v: EmailVars, opts?: LayoutOpts) => Buil
     subject: `Your spot is waiting — ${v.experienceTitle ?? "NP7 Experience"}`,
     html: emailLayout({
       ...opts,
-      preheader: "Complete your deposit to lock in your spot.",
+      preheader: "Your spot isn't secured yet — lock it in from your account.",
       bodyHtml:
         greet(v) +
-        p(`Your reservation for <strong>${esc(v.experienceTitle || "")}</strong> is still held, but the deposit hasn't come through yet. Spots are limited — secure yours with the €${esc(v.deposit || "300")} deposit:`) +
-        (v.bookingLink ? emailButton("Complete my reservation", v.bookingLink) : "") +
-        p(`Questions? Just reply to this email — we're happy to help.`),
+        p(`Your place on <strong>${esc(v.experienceTitle || "")}</strong> is still open — but it isn't secured yet. Spots are limited, so lock yours in with the down-payment whenever you're ready. You'll find the amount and how to pay in your account:`) +
+        (v.bookingLink ? emailButton("Secure my spot", v.bookingLink) : "") +
+        p(`It stays fully refundable for 14 days. Questions? Just reply — we're happy to help.`),
     }),
   }),
 
