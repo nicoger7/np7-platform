@@ -17,6 +17,7 @@ import { CrewCard } from "@/components/portal/crew-card";
 import { InvitePanel } from "@/components/portal/invite-panel";
 import { getInvitesForBooking, resolveRewards } from "@/lib/invites";
 import { computePaymentPlan } from "@/lib/payments";
+import { describePrice } from "@/lib/pricing";
 import { createAdminClient } from "@/lib/supabase";
 
 export const metadata: Metadata = { title: "My trip — NP7" };
@@ -46,6 +47,9 @@ export default async function BookingDetail({ params }: Props) {
 
   const baseTotal = b.agreed_price ?? null;
   const total = baseTotal != null ? baseTotal + addonsTotal : addonsTotal > 0 ? addonsTotal : null;
+  // How the member's price compares to the package list (+ confirmed add-ons):
+  // a discount, an exact match, or a negotiated "as discussed" figure.
+  const priceLabel = describePrice({ agreedPrice: b.agreed_price, packagePrice: b.pkg?.price ?? null, addonsTotal });
   const tripEnded = b.edition?.date_end ? new Date(b.edition.date_end) < new Date() : false;
   // waiver signature status (table from migration 031)
   const waiverSig = await (createAdminClient() as unknown as { from: (t: string) => { select: (s: string) => { eq: (c: string, v: string) => { maybeSingle: () => Promise<{ data: { signed_name: string; signed_at: string } | null }> } } } })
@@ -161,6 +165,23 @@ export default async function BookingDetail({ params }: Props) {
     <>
       <Row label="Package" value={b.pkg?.name ?? "—"} />
       {addonsTotal > 0 && <Row label="Confirmed add-ons" value={`+ ${money(addonsTotal, cur)}`} />}
+      {priceLabel.kind === "discount" && (
+        <Row label="Your rate" value={
+          <>
+            <span className="line-through text-[#9aa6ac] font-semibold mr-2">{money(priceLabel.list, cur)}</span>
+            {money(priceLabel.total, cur)}
+            <span className="ml-2 inline-block px-2 py-0.5 rounded-full text-[11px] font-extrabold bg-green-100 text-green-700 align-middle">{priceLabel.percentOff}% off</span>
+          </>
+        } />
+      )}
+      {priceLabel.kind === "as_discussed" && (
+        <Row label="Your price" value={
+          <>
+            {money(priceLabel.total, cur)}
+            <span className="ml-2 text-[12px] font-medium text-[#9aa6ac] align-middle">as discussed</span>
+          </>
+        } />
+      )}
       <div className="mt-3.5">
         <PaymentPlan milestones={plan} currency={cur} total={total ?? 0} paid={paid} />
       </div>
@@ -385,7 +406,7 @@ function normalizeWa(v: string): string {
   return digits ? `https://wa.me/${digits}` : s;
 }
 
-function Row({ label, value, tone }: { label: string; value: string; tone?: "green" | "amber" }) {
+function Row({ label, value, tone }: { label: string; value: React.ReactNode; tone?: "green" | "amber" }) {
   return (
     <div className="flex items-center justify-between gap-4 py-2 border-b border-[#f7f1e7] last:border-0">
       <span className="text-[13.5px] text-[#6a7a80]">{label}</span>

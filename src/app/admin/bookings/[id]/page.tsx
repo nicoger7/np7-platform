@@ -7,6 +7,7 @@ import { ContactPicker } from "@/components/contact-picker";
 import { type DocumentType, formatMoney } from "@/lib/invoices/types";
 import { normalizeBookingStatus } from "@/lib/types";
 import { effectiveAddonStatus } from "@/lib/addons";
+import { describePrice } from "@/lib/pricing";
 
 interface BookingDetail {
   id: string;
@@ -345,6 +346,15 @@ export function BookingDetailPane({ bookingId, onBack }: { bookingId: string; on
 
   const totalPaid = booking.payments.reduce((sum, p) => sum + Number(p.amount), 0);
   const outstanding = booking.agreed_price ? Math.max(0, Number(booking.agreed_price) - totalPaid) : 0;
+  // Custom-price vs the package list (+ confirmed add-ons): discount / match / "as discussed".
+  const confirmedAddonsTotal = booking.addons
+    .filter((a) => effectiveAddonStatus(a) === "confirmed")
+    .reduce((s, a) => s + (Number(a.price) || 0), 0);
+  const priceLabel = describePrice({
+    agreedPrice: booking.agreed_price,
+    packagePrice: booking.exp_packages?.price ?? null,
+    addonsTotal: confirmedAddonsTotal,
+  });
   const statusInfo = STATUSES.find((s) => s.value === normalizeBookingStatus(booking.status));
 
   const inputClass =
@@ -378,7 +388,15 @@ export function BookingDetailPane({ bookingId, onBack }: { bookingId: string; on
         <div className="flex items-center gap-3">
           {/* Financial summary */}
           <div className="text-right mr-4">
-            <div className="text-xs admin-faint">Agreed: <span className="admin-muted font-medium">{booking.agreed_price ? `€${Number(booking.agreed_price).toLocaleString()}` : "—"}</span></div>
+            <div className="text-xs admin-faint">
+              Agreed: <span className="admin-muted font-medium">{booking.agreed_price ? `€${Number(booking.agreed_price).toLocaleString()}` : "—"}</span>
+              {priceLabel.kind === "discount" && (
+                <span className="ml-2 inline-block px-1.5 py-0.5 rounded text-[10px] font-bold bg-green-500/15 text-green-400 align-middle" title={`List €${priceLabel.list.toLocaleString()}`}>{priceLabel.percentOff}% off</span>
+              )}
+              {priceLabel.kind === "as_discussed" && (
+                <span className="ml-2 inline-block px-1.5 py-0.5 rounded text-[10px] font-bold bg-amber-500/15 text-amber-400 align-middle" title={`List €${priceLabel.list.toLocaleString()} — agreed is higher`}>as discussed</span>
+              )}
+            </div>
             <div className="text-xs admin-faint">
               Paid: <span className="text-green-400 font-medium">€{totalPaid.toLocaleString()}</span>
               {outstanding > 0 && (
