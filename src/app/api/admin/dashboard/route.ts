@@ -1,16 +1,21 @@
 import { NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase";
 import { createClient } from "@/lib/supabase/server";
-import { getActiveTeamMember } from "@/lib/admin-auth";
+import { getActiveTeamMember, getEffectiveAccess } from "@/lib/admin-auth";
+import { effectiveCanSeeField } from "@/lib/access";
 
 // GET /api/admin/dashboard — one aggregated payload for the ops dashboard.
 // Middleware already gates this to active team members.
 export async function GET() {
   // Finance figures are owner-only — don't even send them to managers.
+  // A role-based member additionally needs the `money` field grant to see ANY
+  // money (booking prices, add-on prices) — so a photographer sees no numbers.
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
   const member = user ? await getActiveTeamMember(user) : null;
   const isOwner = member?.accessLevel === "owner";
+  const access = member ? await getEffectiveAccess(member) : null;
+  const showMoney = !access || effectiveCanSeeField(access, "money");
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const db = createAdminClient() as any;
@@ -52,13 +57,14 @@ export async function GET() {
       contacts: contactCount.count ?? 0,
       upcomingEditions: upcomingEditionsCount.count ?? 0,
     },
-    latestBookings: latestBookings.data ?? [],
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    latestBookings: (latestBookings.data ?? []).map((b: any) => (showMoney ? b : { ...b, agreed_price: null })),
     upcomingEditions: upcomingEditions.data ?? [],
     recentEmails: recentEmails.data ?? [],
     overdueTodos: overdueTodos.count ?? 0,
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    pendingAddons: (pendingAddonRows.data ?? []).map((a: any) => ({ id: a.id, bookingId: a.booking_id, label: a.label, price: a.price, bookingName: a.exp_bookings?.name ?? "Booking" })),
-    finance: isOwner
+    pendingAddons: (pendingAddonRows.data ?? []).map((a: any) => ({ id: a.id, bookingId: a.booking_id, label: a.label, price: showMoney ? a.price : null, bookingName: a.exp_bookings?.name ?? "Booking" })),
+    finance: isOwner && showMoney
       ? { openRevenue: sum(openBookings.data), unmatchedPayments: unmatchedPayments.count ?? 0 }
       : null,
   });
