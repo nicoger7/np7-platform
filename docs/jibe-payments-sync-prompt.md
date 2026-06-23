@@ -111,7 +111,7 @@ Be conservative — a wrong match is worse than an unmatched row.
 | `type` | per mapping above |
 | `direction` | `revenue` |
 | `status` | `paid` |
-| `date` / `received_at` | the `betaaldatum` (parse Dutch dates too: "26 mei 2026") |
+| `date` / `received_at` | the `betaaldatum` (parse Dutch dates too: "26 mei 2026"). If the row has **no date**, default `date` to the import/run date so it never lands as undated. |
 | `method` | bank / wise / stripe / cash, from `How/Hoe` |
 | `reference` | invoice № (transfer) or the composite stripe key |
 | `notes` | the sheet `Comments` (+ "extra/additional service" tag where relevant) |
