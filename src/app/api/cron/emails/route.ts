@@ -52,12 +52,30 @@ export async function GET(req: NextRequest) {
 
   const { data: bookings } = await db
     .from("exp_bookings")
-    .select("id,status,agreed_price,downpayment_received,final_payment_received,created_at,contacts(name,email),exp_experiences(title,slug),exp_editions(date_start,date_end,deposit,whatsapp_group_link)")
+    .select("id,status,experience_id,edition_id,agreed_price,downpayment_received,final_payment_received,created_at,contacts(name,email),exp_experiences(title,slug),exp_editions(date_start,date_end,deposit,whatsapp_group_link)")
     .not("status", "in", "(lost)");
+
+  // Pre-trip content (packing list + personal note) per experience — written once
+  // in Event Content, pulled into the pre-trip emails. Fetched separately (and
+  // tolerant of migration 051) so a missing column can never break the main run.
+  const expIds = [...new Set((bookings ?? []).map((b: { experience_id?: string | null }) => b.experience_id).filter(Boolean))] as string[];
+  const edIds = [...new Set((bookings ?? []).map((b: { edition_id?: string | null }) => b.edition_id).filter(Boolean))] as string[];
+  const content = new Map<string, { packing_list?: string | null; pre_trip_note?: string | null }>();
+  const editionNotes = new Map<string, string>();
+  if (expIds.length) {
+    const { data: rows } = await db.from("exp_content").select("experience_id,packing_list,pre_trip_note").in("experience_id", expIds);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    for (const r of (rows ?? []) as any[]) content.set(r.experience_id, { packing_list: r.packing_list, pre_trip_note: r.pre_trip_note });
+  }
+  if (edIds.length) {
+    const { data: eds } = await db.from("exp_editions").select("id,pre_trip_note").in("id", edIds);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    for (const e of (eds ?? []) as any[]) if (e.pre_trip_note) editionNotes.set(e.id, e.pre_trip_note);
+  }
 
   const out = {
     evaluated: (bookings ?? []).length,
-    nudge: 0, balance: 0, balance_paid: 0, pretrip: 0, pretrip_final: 0, post_trip: 0,
+    nudge: 0, balance: 0, balance_paid: 0, pretrip: 0, excitement: 0, pretrip_final: 0, post_trip: 0,
   };
   const bump = (k: keyof typeof out, r: { status: string }) => { if (r.status === "sent") (out[k] as number)++; };
 
@@ -85,6 +103,7 @@ export async function GET(req: NextRequest) {
     const tripLive = onOrAfterCutoff(start);
     const leadLive = onOrAfterCutoff(b.created_at);
 
+    const c = content.get(b.experience_id ?? "") ?? {};
     const vars = {
       firstName, experienceTitle: b.exp_experiences?.title,
       deposit: String(deposit),
@@ -93,6 +112,9 @@ export async function GET(req: NextRequest) {
       whatsappLink: b.exp_editions?.whatsapp_group_link ?? undefined,
       reviewLink: `${origin}/account/bookings/${b.id}/review`,
       bookingLink: `${origin}/account`,
+      // pre-trip content: edition note overrides the experience note; packing list is per-experience
+      preTripNote: (editionNotes.get(b.edition_id ?? "") || c.pre_trip_note || "") || undefined,
+      packingList: (c.packing_list || "") || undefined,
     };
     const send = (templateKey: string, dedupeKey: string) =>
       sendEmail({ to: email, templateKey, vars, bookingId: b.id, dedupeKey });
@@ -115,9 +137,11 @@ export async function GET(req: NextRequest) {
       bump("balance_paid", await send("balance_paid_confirmation", `balance_paid_confirmation:${b.id}`));
     }
 
-    // 4 · pre-trip planning (~21d out) and final countdown (~3d out) — paid guests only
+    // 4 · pre-trip — planning + packing (~21d), an excitement beat (~10d), final
+    //     countdown (~3d). Paid guests only.
     if (tripLive && depositPaid && daysToStart != null) {
-      if (daysToStart <= 21 && daysToStart > 7) bump("pretrip", await send("pre_trip_info", `pre_trip_info:${b.id}`));
+      if (daysToStart <= 21 && daysToStart > 12) bump("pretrip", await send("pre_trip_info", `pre_trip_info:${b.id}`));
+      if (daysToStart <= 12 && daysToStart > 3) bump("excitement", await send("pre_trip_excitement", `pre_trip_excitement:${b.id}`));
       if (daysToStart <= 3 && daysToStart >= 0) bump("pretrip_final", await send("pre_trip_final", `pre_trip_final:${b.id}`));
     }
 

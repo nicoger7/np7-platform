@@ -43,6 +43,8 @@ export default function ContentEditorPage({ params }: { params: Promise<{ id: st
   const [program, setProgram] = useState<ProgramItem[]>([]);
   const [highlights, setHighlights] = useState<string[]>([]);
   const [faq, setFaq] = useState<FaqItem[]>([]);
+  const [packingList, setPackingList] = useState("");
+  const [preTripNote, setPreTripNote] = useState("");
 
   // certainty
   const [windProbability, setWindProbability] = useState("");
@@ -76,6 +78,8 @@ export default function ContentEditorPage({ params }: { params: Promise<{ id: st
         setWindProbability(c.wind_probability ?? "");
         setWindRange(c.wind_range ?? "");
         setNoWindProgram(c.no_wind_program ?? "");
+        setPackingList(c.packing_list ?? "");
+        setPreTripNote(c.pre_trip_note ?? "");
       })
       .finally(() => setLoading(false));
   }, [id]);
@@ -120,6 +124,8 @@ export default function ContentEditorPage({ params }: { params: Promise<{ id: st
         wind_probability: windProbability,
         wind_range: windRange,
         no_wind_program: noWindProgram,
+        packing_list: packingList,
+        pre_trip_note: preTripNote,
       }),
     });
     if (res.ok) {
@@ -157,7 +163,7 @@ export default function ContentEditorPage({ params }: { params: Promise<{ id: st
 
       {/* Section tabs */}
       <div className="flex flex-wrap items-center gap-1 mb-5" style={{ borderBottom: "1px solid var(--admin-border)" }}>
-        {[["media", "Media"], ["story", "Story"], ["program", "Program"], ["modules", "Per-edition"], ["reviews", "Reviews"], ["faq", "FAQ"]].map(([k, l]) => (
+        {[["media", "Media"], ["story", "Story"], ["program", "Program"], ["pretrip", "Pre-trip"], ["modules", "Per-edition"], ["reviews", "Reviews"], ["faq", "FAQ"]].map(([k, l]) => (
           <button key={k} onClick={() => setTab(k)} className={`px-3.5 py-2 text-sm font-medium transition-colors border-b-2 -mb-[1px] ${tab === k ? "admin-heading border-[var(--admin-accent)]" : "admin-muted border-transparent"}`}>{l}</button>
         ))}
       </div>
@@ -282,6 +288,18 @@ export default function ContentEditorPage({ params }: { params: Promise<{ id: st
             ))}
             <AddButton label="Add highlight" onClick={() => setHighlights([...highlights, ""])} />
           </div>
+        </Section>
+
+        <Section show={tab === "pretrip"} title="Packing list" hint="What to bring — one item per line. The pre-trip email turns this into a checklist. Specific to this experience (you write it once, every edition's emails use it).">
+          <textarea value={packingList} onChange={(e) => setPackingList(e.target.value)} rows={8}
+            placeholder={"Board & sail (or use ours — included)\nWetsuit / boardshorts\nReef booties\nSunscreen (reef-safe) & after-sun\nReusable water bottle\nTravel insurance documents"}
+            className="admin-input w-full px-3 py-2 rounded-md border text-sm outline-none resize-y" />
+        </Section>
+
+        <Section show={tab === "pretrip"} title="Personal pre-trip note" hint="A warm message / what-to-expect from you — appears in the pre-trip email. A specific week can override this on the edition (Notes).">
+          <textarea value={preTripNote} onChange={(e) => setPreTripNote(e.target.value)} rows={5}
+            placeholder="Stoked to have you! Here's what the week looks like, what the wind's been doing, and a couple of insider tips…"
+            className="admin-input w-full px-3 py-2 rounded-md border text-sm outline-none resize-y" />
         </Section>
 
         <Section show={tab === "modules"} title="Per-edition team" hint="Your team (head coach, coaches, co-coaches, trip assistant) can differ per week — pick an edition to manage it. (Reviews are managed once for the whole experience, in the Reviews tab.)">

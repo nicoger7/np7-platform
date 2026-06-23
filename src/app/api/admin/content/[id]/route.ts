@@ -22,6 +22,8 @@ const EMPTY = {
   no_wind_program: "",
   wind_probability: "",
   wind_range: "",
+  packing_list: "",
+  pre_trip_note: "",
 };
 
 // Coerce a hero-video timestamp to a non-negative integer second count (or null).
@@ -120,6 +122,8 @@ export async function PUT(
     no_wind_program: typeof body.no_wind_program === "string" ? body.no_wind_program : "",
     wind_probability: typeof body.wind_probability === "string" ? body.wind_probability : "",
     wind_range: typeof body.wind_range === "string" ? body.wind_range : "",
+    packing_list: typeof body.packing_list === "string" ? body.packing_list : "",
+    pre_trip_note: typeof body.pre_trip_note === "string" ? body.pre_trip_note : "",
     updated_at: new Date().toISOString(),
   };
 
@@ -128,6 +132,14 @@ export async function PUT(
     .upsert(row, { onConflict: "experience_id" })
     .select()
     .single();
+
+  // Pre-migration-051 fallback: if the pre-trip columns don't exist yet, retry
+  // without them so content still saves.
+  if (error && /(packing_list|pre_trip_note)/.test(error.message || "")) {
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    const { packing_list: _p, pre_trip_note: _n, ...rest } = row;
+    ({ data, error } = await db.from("exp_content").upsert(rest, { onConflict: "experience_id" }).select().single());
+  }
 
   // Pre-migration-018 fallback: if the timestamp columns don't exist yet,
   // retry without them so content still saves.

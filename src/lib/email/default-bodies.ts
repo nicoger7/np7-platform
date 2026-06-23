@@ -16,6 +16,7 @@ export const DEFAULT_SUBJECTS: Record<string, string> = {
   payment_pending_nudge: "Your spot is waiting — {{experienceTitle}}",
   balance_invoice_reminder: "Balance for {{experienceTitle}} — invoice",
   pre_trip_info: "Getting ready for {{experienceTitle}} 🌊",
+  pre_trip_excitement: "Almost time 🌊 {{experienceTitle}} is around the corner",
   balance_paid_confirmation: "All paid up — you're set for {{experienceTitle}} 🎉",
   pre_trip_final: "Almost time — final details for {{experienceTitle}} 🌊",
   post_trip_thank_you: "What a week 🤙 thank you — {{experienceTitle}}",
@@ -69,9 +70,16 @@ export const DEFAULT_BODIES: Record<string, string> = {
 
   pre_trip_info:
     P("Hey {{firstName}} 🤙") +
-    P("Not long now until <strong>{{experienceTitle}}</strong> ({{dates}})! Here's everything you need to get ready — packing list, arrival info and your group chat are all in your trip account:") +
+    P("Not long now until <strong>{{experienceTitle}}</strong> ({{dates}})! Time to start getting ready — your packing list, the note from Nico, arrival info and group chat are all set in your trip account:") +
     BTN("Open my trip details", "bookingLink") +
     P("Can't wait to ride with you." + SIGN),
+
+  pre_trip_excitement:
+    P("Hey {{firstName}} 🤙") +
+    P("The countdown is on — <strong>{{experienceTitle}}</strong> ({{dates}}) is almost here. 🤩") +
+    P("Picture it: warm water, steady wind, good people, and a coach right there with you all week. This is going to be a good one.") +
+    BTN("Open my trip", "bookingLink") +
+    P("See you on the water soon." + SIGN),
 
   balance_paid_confirmation:
     P("Hey {{firstName}} 🤙") +

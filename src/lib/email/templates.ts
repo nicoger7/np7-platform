@@ -14,6 +14,10 @@ export type EmailVars = {
   whatsappLink?: string;
   reviewLink?: string;
   joinLink?: string;
+  /** Newline-separated packing list (rendered as a checklist). */
+  packingList?: string;
+  /** Personal pre-trip note from the host. */
+  preTripNote?: string;
   inviterName?: string;
   rewardFriend?: string;
   personalNote?: string;
@@ -25,6 +29,14 @@ type LayoutOpts = { division?: Division; headerImage?: string | null; headerPosi
 
 const p = (s: string) => `<p style="margin:0 0 14px;">${s}</p>`;
 const greet = (v: EmailVars) => p(`Hey ${esc(v.firstName || "there")} 🤙`);
+/** A personal note from the host, rendered as a quote block (if set). */
+const note = (text?: string) => (text && text.trim() ? `<p style="margin:0 0 14px;padding:12px 14px;background:#f4f9fb;border-left:3px solid #00afdb;border-radius:4px;font-style:italic;color:#41566a;white-space:pre-line;">${esc(text.trim())}</p>` : "");
+/** A newline-separated list rendered as a tidy checklist (if set). */
+const checklist = (text?: string) => {
+  const items = (text || "").split(/\r?\n/).map((s) => s.trim()).filter(Boolean);
+  if (!items.length) return "";
+  return `<ul style="margin:0 0 14px;padding-left:0;list-style:none;">${items.map((i) => `<li style="margin:0 0 7px;padding-left:22px;position:relative;"><span style="position:absolute;left:0;color:#1d9e75;font-weight:700;">✓</span>${esc(i)}</li>`).join("")}</ul>`;
+};
 
 /** Code-default templates, keyed by template_key. */
 export const TEMPLATES: Record<string, (v: EmailVars, opts?: LayoutOpts) => Built> = {
@@ -118,12 +130,31 @@ export const TEMPLATES: Record<string, (v: EmailVars, opts?: LayoutOpts) => Buil
     subject: `Getting ready for ${v.experienceTitle ?? "your NP7 trip"} 🌊`,
     html: emailLayout({
       ...opts,
-      preheader: "Everything you need before you fly out.",
+      preheader: "What to pack and how to get ready.",
       bodyHtml:
         greet(v) +
-        p(`Not long now until <strong>${esc(v.experienceTitle || "")}${v.dates ? " (" + esc(v.dates) + ")" : ""}</strong>! Here's everything you need to get ready — packing list, arrival info and your group chat are all in your trip account:`) +
+        p(`Not long now until <strong>${esc(v.experienceTitle || "")}${v.dates ? " (" + esc(v.dates) + ")" : ""}</strong>! Time to start getting ready.`) +
+        note(v.preTripNote) +
+        (v.packingList ? p(`<strong>What to bring:</strong>`) + checklist(v.packingList) : "") +
+        p(`Your arrival info and group chat are in your trip account too:`) +
         (v.bookingLink ? emailButton("Open my trip details", v.bookingLink) : "") +
         p(`Can't wait to ride with you.<br>— Nico & the NP7 team`),
+    }),
+  }),
+
+  pre_trip_excitement: (v, opts) => ({
+    subject: `Almost time 🌊 ${v.experienceTitle ?? "your NP7 trip"} is around the corner`,
+    html: emailLayout({
+      ...opts,
+      preheader: "The countdown is on — here's what to look forward to.",
+      bodyHtml:
+        greet(v) +
+        p(`The countdown is on — <strong>${esc(v.experienceTitle || "your trip")}</strong>${v.dates ? " (" + esc(v.dates) + ")" : ""} is almost here. 🤩`) +
+        note(v.preTripNote) +
+        p(`Picture it: warm water, steady wind, good people, and a coach right there with you all week. Get the boards waxed in your mind — this is going to be a good one.`) +
+        p(`Your crew, your coaches and all the details are waiting in your trip account:`) +
+        (v.bookingLink ? emailButton("Open my trip", v.bookingLink) : "") +
+        p(`See you on the water soon.<br>— Nico & the NP7 team`),
     }),
   }),
 
