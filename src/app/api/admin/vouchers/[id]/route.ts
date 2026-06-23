@@ -29,7 +29,7 @@ export async function PATCH(request: NextRequest, { params }: RouteContext) {
     // Confirm the bank transfer and start the 1-year validity clock.
     const { data: existing } = await db
       .from("gift_vouchers")
-      .select("paid_at, status, amount")
+      .select("paid_at, status, amount, experience_id")
       .eq("id", id)
       .maybeSingle();
     if (existing && !["pending", "active"].includes(existing.status)) {
@@ -38,8 +38,9 @@ export async function PATCH(request: NextRequest, { params }: RouteContext) {
         { status: 409 }
       );
     }
-    // Validity: 1 year, or 2 years for high-value vouchers (> €5,000).
-    const months = Number(existing?.amount) > 5000 ? 24 : 12;
+    // Validity: 1 year. Value vouchers (not tied to a specific experience) over
+    // €5,000 get 2 years — a trip-specific voucher is always 1 year.
+    const months = Number(existing?.amount) > 5000 && !existing?.experience_id ? 24 : 12;
     const rb = new Date(now);
     rb.setMonth(rb.getMonth() + months);
     updates = {

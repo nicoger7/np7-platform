@@ -72,7 +72,7 @@ export default async function GiftPage() {
               ))}
             </div>
             <div className="mt-5 flex flex-wrap justify-center gap-2.5">
-              {["Valid 1 year (2 years over €5,000)", "Printable PDF voucher", "Any trip or a specific one", "Optional: a call from Nico"].map((c) => (
+              {["Valid 1 year — 2 years for value gifts over €5,000", "Printable PDF voucher", "Any trip or a specific one", "Optional: a call from Nico"].map((c) => (
                 <span key={c} className="px-3.5 py-1.5 rounded-full text-[12.5px] font-semibold text-[#00374a] bg-white border border-[#f0e6d6]">{c}</span>
               ))}
             </div>

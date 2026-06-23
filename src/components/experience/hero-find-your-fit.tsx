@@ -217,8 +217,8 @@ export function HeroFindYourFit({ src, poster, children }: { src: string; poster
 
         {/* FIND YOUR FIT stage (scenes 1..N) — cards on top, detail centred at the foot */}
         <div ref={fitRef} className="absolute inset-0 z-20" style={{ opacity: 0 }}>
-          {/* progress rail (far left) */}
-          <div className="absolute left-4 sm:left-7 top-1/2 -translate-y-1/2 h-[34vh] w-[2px] rounded-full bg-white/20 z-10">
+          {/* progress rail (far left) — desktop only; too cramped on mobile */}
+          <div className="hidden sm:block absolute left-4 sm:left-7 top-1/2 -translate-y-1/2 h-[34vh] w-[2px] rounded-full bg-white/20 z-10">
             <div ref={railRef} className="w-full rounded-full bg-[#8fe6f2]" style={{ height: "0%" }} />
             {SEGMENTS.map((_, i) => (
               <button key={i} aria-label={`Go to ${SEGMENTS[i].tag}`} onClick={() => goTo(i)} className="absolute -left-[8px] w-[18px] h-[18px] grid place-items-center" style={{ top: `calc(${(i / (N - 1)) * 100}% - 9px)` }}>

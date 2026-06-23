@@ -196,16 +196,25 @@ export default async function ExperienceOverviewPage() {
               <UpcomingExperiences experiences={expCards} />
             )}
 
-            {/* Gift CTA */}
-            <Reveal className="mt-12">
-              <Link href="/experience/gift" className="group block rounded-2xl overflow-hidden border border-white/15 bg-gradient-to-br from-[#ffc42e]/15 via-[#f47b20]/10 to-[#00afdb]/15 hover:border-white/30 transition-colors">
-                <div className="flex flex-col sm:flex-row items-center gap-5 p-6 sm:p-8">
-                  <div className="text-4xl" aria-hidden>🎁</div>
-                  <div className="flex-1 text-center sm:text-left">
-                    <h3 className="text-xl sm:text-2xl font-black text-white">Gift an NP7 Experience</h3>
-                    <p className="text-[14.5px] text-white/70 mt-1.5 max-w-[520px]">Give someone the best week of their year — a windsurf, wing &amp; foil adventure as a voucher. Any trip or a set value, with an optional call from Nico to share the news.</p>
-                  </div>
-                  <span className="inline-flex items-center gap-2 px-6 py-3 rounded-full text-[13.5px] font-bold text-[#00374a] bg-white shrink-0 group-hover:gap-3 transition-all">Gift a trip →</span>
+            {/* Gift — a premium, restrained invitation */}
+            <Reveal className="mt-16">
+              <Link href="/experience/gift" className="group relative block overflow-hidden rounded-[28px]">
+                <div className="absolute inset-0 bg-gradient-to-b from-[#012734] to-[#013143]" aria-hidden />
+                <div className="absolute -top-24 left-1/2 -translate-x-1/2 h-72 w-72 rounded-full opacity-25 blur-[110px]" style={{ background: "radial-gradient(circle,#e6b873,transparent 70%)" }} aria-hidden />
+                <div className="absolute inset-0 rounded-[28px] ring-1 ring-inset ring-[#e6b873]/20" aria-hidden />
+                <div className="absolute inset-x-10 top-0 h-px" style={{ background: "linear-gradient(90deg,transparent,rgba(230,184,115,0.7),transparent)" }} aria-hidden />
+                <div className="relative flex flex-col items-center gap-5 px-8 py-14 sm:py-16 text-center">
+                  <p className="text-[11px] font-semibold tracking-[0.34em] text-[#e6b873]">THE GIFT OF NP7</p>
+                  <h3 className="text-[27px] sm:text-[34px] font-light tracking-[-0.01em] leading-[1.12] text-white max-w-[620px]">
+                    Give someone the best week<br className="hidden sm:block" /> of their year
+                  </h3>
+                  <p className="text-[14.5px] text-white/55 max-w-[440px] leading-relaxed">
+                    A windsurf, wing &amp; foil adventure — world-class coaching, a crew and every detail arranged, presented as a voucher. For a chosen trip, or any experience.
+                  </p>
+                  <span className="mt-2 inline-flex items-center gap-2 rounded-full border border-[#e6b873]/60 px-7 py-3 text-[13px] font-medium tracking-wide text-[#e6b873] transition-colors group-hover:bg-[#e6b873] group-hover:text-[#012734]">
+                    Explore gifting
+                    <svg className="w-3.5 h-3.5 transition-transform group-hover:translate-x-0.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M5 12h14M13 6l6 6-6 6" /></svg>
+                  </span>
                 </div>
               </Link>
             </Reveal>

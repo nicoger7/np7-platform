@@ -119,7 +119,7 @@ export function GiftBuyForm({ experiences }: { experiences: Exp[] }) {
             <label className={label}>Your gift</label>
             <div className="text-[34px] font-black text-[#00374a] leading-none mb-1.5">{fmtVoucherMoney(amount, currency)}</div>
             <p className="text-[13px] text-[#5a6b72]">The complete <strong>{selectedExp?.title}</strong> experience — they pick the week &amp; package when they book.</p>
-            <p className="text-[12px] text-[#9aa6ac] mt-1.5">{over5k ? "Valid for 2 years." : "Valid for 1 year."}</p>
+            <p className="text-[12px] text-[#9aa6ac] mt-1.5">Valid for 1 year.</p>
           </>
         ) : (
           <>
