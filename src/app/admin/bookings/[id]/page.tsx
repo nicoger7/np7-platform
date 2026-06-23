@@ -9,6 +9,7 @@ import { normalizeBookingStatus } from "@/lib/types";
 import { effectiveAddonStatus } from "@/lib/addons";
 import { describePrice } from "@/lib/pricing";
 import { reconcileBooking, suggestInvoices, type ReconInvoice, type ReconPayment } from "@/lib/reconcile";
+import { computePaymentPlan, type MilestoneKind } from "@/lib/payments";
 
 interface BookingDetail {
   id: string;
@@ -33,7 +34,8 @@ interface BookingDetail {
   created_at: string;
   contacts: { name: string; email: string; phone: string; country: string; level: string; tshirt_size: string; diet_allergies: string } | null;
   exp_experiences: { title: string; slug: string; date_start: string; date_end: string } | null;
-  exp_packages: { name: string; price: number } | null;
+  exp_editions: { year: number | null; date_start: string | null; date_end: string | null; deposit: number | null } | null;
+  exp_packages: { name: string; price: number; deposit: number | null; downpayment_percent: number | null; final_days_before: number | null; deposit_refund_days: number | null } | null;
   payments: Payment[];
   addons: Addon[];
   hotel_rooms: HotelRoom[];
@@ -389,6 +391,32 @@ export function BookingDetailPane({ bookingId, onBack }: { bookingId: string; on
     return d?.invoice_number || (d?.type || "").replace(/_/g, " ") || null;
   };
 
+  // ── Derived payment status (replaces the manual checkboxes) ──
+  // The plan tells us which milestones exist (deposit collapses to nothing when
+  // there's no deposit) and whether each is covered, by the SAME logic the member
+  // sees. We then blend in invoices (issued/sent) and the legacy flags so old
+  // bookings that were only ticked don't suddenly read as unpaid.
+  const paymentPlan = computePaymentPlan(
+    {
+      deposit: booking.exp_editions?.deposit ?? booking.exp_packages?.deposit ?? null,
+      downpayment_percent: booking.exp_packages?.downpayment_percent ?? null,
+      final_days_before: booking.exp_packages?.final_days_before ?? null,
+      deposit_refund_days: booking.exp_packages?.deposit_refund_days ?? null,
+    },
+    { total: bookingTotal, paidAmount: recon.paidTotal, editionStart: booking.exp_editions?.date_start ?? null },
+  );
+  const DOC_FOR: Record<MilestoneKind, string> = { deposit: "deposit_invoice", downpayment: "downpayment_invoice", final: "final_invoice" };
+  const LEGACY_SENT: Record<MilestoneKind, boolean> = { deposit: !!booking.deposit_invoice_sent, downpayment: !!booking.downpayment_invoice_sent, final: !!booking.final_invoice_sent };
+  const LEGACY_PAID: Record<MilestoneKind, boolean> = { deposit: !!booking.deposit_received, downpayment: !!booking.downpayment_received, final: !!booking.final_payment_received };
+  const paymentStages = paymentPlan.map((m) => {
+    const ir = recon.invoices.find((i) => (i.invoice.type || "") === DOC_FOR[m.kind]);
+    const paid = m.status === "paid" || LEGACY_PAID[m.kind] || ir?.state === "paid";
+    const invoiceSent = !!ir?.sent || LEGACY_SENT[m.kind];
+    const invoiceIssued = !!ir;
+    const partialLeft = ir && ir.state === "partial" ? ir.remaining : 0;
+    return { kind: m.kind, label: m.label, amount: m.amount, paid, invoiceIssued, invoiceSent, partialLeft };
+  });
+
   const inputClass =
     "w-full px-4 py-2.5 admin-input border rounded-lg text-sm focus:outline-none focus:border-[var(--admin-accent)] focus:ring-1 focus:ring-[var(--admin-accent)] transition-colors";
   const labelClass = "block text-xs font-medium admin-muted mb-1.5";
@@ -616,39 +644,35 @@ export function BookingDetailPane({ bookingId, onBack }: { bookingId: string; on
             <input className={inputClass} value={booking.traveling_with || ""} onChange={(e) => update("traveling_with", e.target.value || null)} placeholder="Partner, friend, etc." />
           </div>
 
-          {/* Payment tracking */}
+          {/* Payment status — derived from invoices + payments (no manual ticks) */}
           <div>
-            <label className={labelClass}>Payment tracking</label>
-            <div className="space-y-2 mt-1">
-              <label className={checkboxClass}>
-                <input type="checkbox" checked={booking.wa_group} onChange={(e) => update("wa_group", e.target.checked)} className="accent-[#0aa3c7]" />
-                Added to WhatsApp group
-              </label>
-              <label className={checkboxClass}>
-                <input type="checkbox" checked={!!booking.deposit_invoice_sent} onChange={(e) => update("deposit_invoice_sent", e.target.checked)} className="accent-[#0aa3c7]" />
-                Deposit invoice sent
-              </label>
-              <label className={checkboxClass}>
-                <input type="checkbox" checked={!!booking.deposit_received} onChange={(e) => update("deposit_received", e.target.checked)} className="accent-[#0aa3c7]" />
-                Deposit received (secures the spot)
-              </label>
-              <label className={checkboxClass}>
-                <input type="checkbox" checked={booking.downpayment_invoice_sent} onChange={(e) => update("downpayment_invoice_sent", e.target.checked)} className="accent-[#0aa3c7]" />
-                Downpayment invoice sent
-              </label>
-              <label className={checkboxClass}>
-                <input type="checkbox" checked={booking.downpayment_received} onChange={(e) => update("downpayment_received", e.target.checked)} className="accent-[#0aa3c7]" />
-                Downpayment received
-              </label>
-              <label className={checkboxClass}>
-                <input type="checkbox" checked={booking.final_invoice_sent} onChange={(e) => update("final_invoice_sent", e.target.checked)} className="accent-[#0aa3c7]" />
-                Final invoice sent
-              </label>
-              <label className={checkboxClass}>
-                <input type="checkbox" checked={booking.final_payment_received} onChange={(e) => update("final_payment_received", e.target.checked)} className="accent-[#0aa3c7]" />
-                Final payment received
-              </label>
+            <label className={labelClass}>Payment status</label>
+            <div className="rounded-xl admin-tablecard mt-1 overflow-hidden" style={{ border: "1px solid var(--admin-border)" }}>
+              {paymentStages.length === 0 ? (
+                <div className="px-4 py-3 text-xs admin-faint">No payment plan yet — set the agreed price.</div>
+              ) : (
+                paymentStages.map((s, i) => {
+                  const tone = s.paid ? "bg-green-500/15 text-green-400" : s.partialLeft > 0 ? "bg-amber-500/15 text-amber-400" : s.invoiceSent ? "bg-blue-500/15 text-blue-400" : "bg-gray-500/15 text-gray-400";
+                  const statusText = s.paid ? "Paid" : s.partialLeft > 0 ? `Part-paid · €${s.partialLeft.toLocaleString()} left` : s.invoiceSent ? "Invoice sent" : s.invoiceIssued ? "Invoice ready" : "Not invoiced";
+                  return (
+                    <div key={s.kind} className="flex items-center gap-3 px-4 py-2.5 text-sm" style={i < paymentStages.length - 1 ? { borderBottom: "1px solid var(--admin-border)" } : undefined}>
+                      <span className="admin-heading flex-1 truncate">{s.label}</span>
+                      <span className="text-xs admin-faint">€{s.amount.toLocaleString()}</span>
+                      <span className={`inline-block px-1.5 py-0.5 rounded text-[10px] font-bold uppercase ${tone}`}>{statusText}</span>
+                    </div>
+                  );
+                })
+              )}
             </div>
+            <p className="text-[11px] admin-faint mt-1.5">Derived from invoices &amp; payments — record a payment (Payments tab) to update it. Deposit confirms automatically once Stripe is connected.</p>
+          </div>
+
+          {/* WhatsApp — the one manual flag */}
+          <div>
+            <label className={checkboxClass}>
+              <input type="checkbox" checked={booking.wa_group} onChange={(e) => update("wa_group", e.target.checked)} className="accent-[#0aa3c7]" />
+              Added to WhatsApp group
+            </label>
           </div>
 
           <div>
