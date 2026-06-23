@@ -8,6 +8,7 @@ import { type DocumentType, formatMoney } from "@/lib/invoices/types";
 import { normalizeBookingStatus } from "@/lib/types";
 import { effectiveAddonStatus } from "@/lib/addons";
 import { describePrice } from "@/lib/pricing";
+import { reconcileBooking, suggestInvoices, type ReconInvoice, type ReconPayment } from "@/lib/reconcile";
 
 interface BookingDetail {
   id: string;
@@ -48,6 +49,7 @@ interface Payment {
   reference: string | null;
   received_at: string | null;
   notes: string | null;
+  document_id: string | null;
 }
 
 interface Addon {
@@ -80,6 +82,9 @@ interface BookingDocument {
   currency: string;
   status: "issued" | "void";
   issued_at: string;
+  sent_at: string | null;
+  paid_at: string | null;
+  due_date: string | null;
   signedUrl: string | null;
 }
 
@@ -152,7 +157,7 @@ export function BookingDetailPane({ bookingId, onBack }: { bookingId: string; on
 
   // New payment form
   const [showPaymentForm, setShowPaymentForm] = useState(false);
-  const [paymentForm, setPaymentForm] = useState({ amount: "", type: "downpayment", direction: "revenue", status: "pending", method: "", reference: "", notes: "" });
+  const [paymentForm, setPaymentForm] = useState({ amount: "", type: "downpayment", direction: "revenue", status: "paid", method: "", reference: "", notes: "", document_id: "" });
 
   useEffect(() => {
     Promise.all([
@@ -161,6 +166,7 @@ export function BookingDetailPane({ bookingId, onBack }: { bookingId: string; on
       fetch("/api/admin/components").then((r) => r.json()),
     ]).then(([b, exps, comps]) => {
       setBooking(b);
+      fetchDocuments(); // also needed by the Payments tab to reconcile
       const expList = exps.experiences || exps || [];
       setExperiences(expList.map((e: Record<string, string>) => ({ id: e.id, title: e.title })));
       setComponents(comps || []);
@@ -172,6 +178,7 @@ export function BookingDetailPane({ bookingId, onBack }: { bookingId: string; on
       }
       setLoading(false);
     });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id]);
 
   function update(field: string, value: unknown) {
@@ -316,11 +323,12 @@ export function BookingDetailPane({ bookingId, onBack }: { bookingId: string; on
       amount: Number(paymentForm.amount),
       type: paymentForm.type,
       direction: paymentForm.direction || "revenue",
-      status: paymentForm.status || "pending",
+      status: paymentForm.status || "paid",
       method: paymentForm.method || null,
       reference: paymentForm.reference || null,
       received_at: new Date().toISOString(),
       notes: paymentForm.notes || null,
+      document_id: paymentForm.document_id || null,
     };
     const res = await fetch(`/api/admin/bookings/${id}/payments`, {
       method: "POST",
@@ -328,10 +336,10 @@ export function BookingDetailPane({ bookingId, onBack }: { bookingId: string; on
       body: JSON.stringify(body),
     });
     if (res.ok) {
-      const payment = await res.json();
+      const { payment } = await res.json();
       setBooking((prev) => prev ? { ...prev, payments: [...prev.payments, payment] } : prev);
       setShowPaymentForm(false);
-      setPaymentForm({ amount: "", type: "downpayment", direction: "revenue", status: "pending", method: "", reference: "", notes: "" });
+      setPaymentForm({ amount: "", type: "downpayment", direction: "revenue", status: "paid", method: "", reference: "", notes: "", document_id: "" });
     }
   }
 
@@ -356,6 +364,30 @@ export function BookingDetailPane({ bookingId, onBack }: { bookingId: string; on
     addonsTotal: confirmedAddonsTotal,
   });
   const statusInfo = STATUSES.find((s) => s.value === normalizeBookingStatus(booking.status));
+
+  // ── Reconciliation: tie payments to invoices, derive balances ──
+  const bookingTotal = (Number(booking.agreed_price) || 0) + confirmedAddonsTotal;
+  const reconInvoices: ReconInvoice[] = documents
+    .filter((d) => (d.type || "").includes("invoice"))
+    .map((d) => ({
+      id: d.id, type: d.type, invoice_number: d.invoice_number, amount: d.amount,
+      currency: d.currency, status: d.status, sent_at: d.sent_at, due_date: d.due_date, issued_at: d.issued_at,
+    }));
+  const reconPayments: ReconPayment[] = booking.payments.map((p) => ({
+    id: p.id, amount: p.amount, type: p.type, direction: p.direction, status: p.status,
+    reference: p.reference, method: p.method, received_at: p.received_at, document_id: p.document_id,
+  }));
+  const recon = reconcileBooking({ total: bookingTotal, invoices: reconInvoices, payments: reconPayments });
+  // Open invoices ranked for the amount/reference currently in the payment form.
+  const matchSuggestions = suggestInvoices(
+    { amount: Number(paymentForm.amount) || 0, reference: paymentForm.reference },
+    recon.invoices,
+  );
+  const invoiceLabel = (docId: string | null) => {
+    if (!docId) return null;
+    const d = documents.find((x) => x.id === docId);
+    return d?.invoice_number || (d?.type || "").replace(/_/g, " ") || null;
+  };
 
   const inputClass =
     "w-full px-4 py-2.5 admin-input border rounded-lg text-sm focus:outline-none focus:border-[var(--admin-accent)] focus:ring-1 focus:ring-[var(--admin-accent)] transition-colors";
@@ -640,11 +672,51 @@ export function BookingDetailPane({ bookingId, onBack }: { bookingId: string; on
       {/* ─── Payments Tab ─── */}
       {tab === "payments" && (
         <div className="max-w-[800px]">
-          <div className="flex justify-between items-center mb-4">
-            <div className="text-xs admin-faint">
-              Total paid: <span className="text-green-400 font-medium">€{totalPaid.toLocaleString()}</span>
-              {outstanding > 0 && <span className="text-amber-400 ml-3">Outstanding: €{outstanding.toLocaleString()}</span>}
+          {/* Balance summary — derived from invoices + payments */}
+          <div className="rounded-xl admin-surface mb-4 p-4 grid grid-cols-2 sm:grid-cols-4 gap-3" style={{ border: "1px solid var(--admin-border)" }}>
+            <div>
+              <div className="text-[10px] font-bold tracking-[0.1em] admin-faint uppercase mb-1">Trip total</div>
+              <div className="text-base font-semibold admin-heading">€{recon.total.toLocaleString()}</div>
+              {confirmedAddonsTotal > 0 && <div className="text-[10px] admin-faint">incl. €{confirmedAddonsTotal.toLocaleString()} add-ons</div>}
             </div>
+            <div>
+              <div className="text-[10px] font-bold tracking-[0.1em] admin-faint uppercase mb-1">Received</div>
+              <div className="text-base font-semibold text-green-400">€{recon.paidTotal.toLocaleString()}</div>
+              {recon.unallocatedTotal > 0.01 && <div className="text-[10px] text-amber-400">€{recon.unallocatedTotal.toLocaleString()} unassigned</div>}
+            </div>
+            <div>
+              <div className="text-[10px] font-bold tracking-[0.1em] admin-faint uppercase mb-1">Balance</div>
+              <div className={`text-base font-semibold ${recon.balance > 0.01 ? "text-amber-400" : "text-green-400"}`}>
+                {recon.balance > 0.01 ? `€${recon.balance.toLocaleString()}` : "✓ Settled"}
+              </div>
+            </div>
+            <div>
+              <div className="text-[10px] font-bold tracking-[0.1em] admin-faint uppercase mb-1">Next due</div>
+              <div className="text-sm font-medium admin-heading capitalize">{recon.nextDue ? `${(recon.nextDue.invoice.type || "").replace(/_/g, " ").replace(" invoice", "")} · €${recon.nextDue.remaining.toLocaleString()}` : "—"}</div>
+            </div>
+          </div>
+
+          {/* Invoices with their reconciliation state */}
+          {recon.invoices.length > 0 && (
+            <div className="rounded-xl admin-tablecard mb-4" style={{ border: "1px solid var(--admin-border)" }}>
+              <div className="px-5 py-2.5 admin-surface text-[10px] font-bold tracking-[0.1em] admin-faint uppercase" style={{ borderBottom: "1px solid var(--admin-border)" }}>Invoices</div>
+              {recon.invoices.map((ir) => {
+                const tone = ir.state === "paid" ? "bg-green-500/15 text-green-400" : ir.state === "partial" ? "bg-amber-500/15 text-amber-400" : ir.state === "overpaid" ? "bg-blue-500/15 text-blue-400" : "bg-gray-500/15 text-gray-400";
+                return (
+                  <div key={ir.invoice.id} className="flex items-center gap-3 px-5 py-2.5 text-sm" style={{ borderBottom: "1px solid var(--admin-border)" }}>
+                    <span className="font-mono text-xs admin-heading shrink-0">{ir.invoice.invoice_number || "—"}</span>
+                    <span className="text-xs admin-muted capitalize flex-1 truncate">{(ir.invoice.type || "").replace(/_/g, " ")}{ir.sent ? "" : " · not sent"}</span>
+                    <span className="text-xs admin-faint">€{ir.paid.toLocaleString()} / €{ir.invoiced.toLocaleString()}</span>
+                    {ir.remaining > 0.01 && <span className="text-xs text-amber-400">€{ir.remaining.toLocaleString()} left</span>}
+                    <span className={`inline-block px-1.5 py-0.5 rounded text-[10px] font-bold uppercase ${tone}`}>{ir.state}</span>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+
+          <div className="flex justify-between items-center mb-4">
+            <div className="text-xs admin-faint">Record a bank transfer, card payment or refund — and tie it to an invoice.</div>
             <button
               onClick={() => setShowPaymentForm(!showPaymentForm)}
               className="px-3 py-1.5 bg-[var(--admin-accent)] hover:bg-[var(--admin-accent)]/90 text-[var(--admin-accent-contrast)] text-xs font-bold rounded-lg transition-colors"
@@ -694,6 +766,25 @@ export function BookingDetailPane({ bookingId, onBack }: { bookingId: string; on
                   <input className={inputClass} value={paymentForm.reference} onChange={(e) => setPaymentForm({ ...paymentForm, reference: e.target.value })} placeholder="Invoice #" />
                 </div>
               </div>
+              {recon.invoices.length > 0 && (
+                <div className="mb-3">
+                  <label className={labelClass}>Apply to invoice</label>
+                  <select className={inputClass} value={paymentForm.document_id} onChange={(e) => setPaymentForm({ ...paymentForm, document_id: e.target.value })}>
+                    <option value="">— Not assigned —</option>
+                    {recon.invoices.filter((i) => i.state !== "void").map((i) => (
+                      <option key={i.invoice.id} value={i.invoice.id}>
+                        {(i.invoice.invoice_number || (i.invoice.type || "").replace(/_/g, " "))} — €{i.remaining.toLocaleString()} left{i.state === "paid" ? " (paid)" : ""}
+                      </option>
+                    ))}
+                  </select>
+                  {matchSuggestions[0] && paymentForm.document_id !== matchSuggestions[0].invoice.id && (
+                    <button type="button" onClick={() => setPaymentForm({ ...paymentForm, document_id: matchSuggestions[0].invoice.id })}
+                      className="mt-1.5 text-[11px] text-[var(--admin-accent)] hover:underline">
+                      Suggested: {matchSuggestions[0].invoice.invoice_number || (matchSuggestions[0].invoice.type || "").replace(/_/g, " ")} · {matchSuggestions[0].reason} — apply
+                    </button>
+                  )}
+                </div>
+              )}
               <div className="flex gap-2">
                 <button onClick={addPayment} disabled={!paymentForm.amount} className="px-3 py-1.5 bg-[var(--admin-accent)] hover:bg-[var(--admin-accent)]/90 disabled:opacity-40 text-[var(--admin-accent-contrast)] text-xs font-bold rounded-lg">
                   Add
@@ -707,22 +798,21 @@ export function BookingDetailPane({ bookingId, onBack }: { bookingId: string; on
             <div className="py-12 text-center text-sm admin-faint">No payments recorded</div>
           ) : (
             <div className="rounded-xl admin-tablecard" style={{ border: "1px solid var(--admin-border)" }}>
-              <div className="grid grid-cols-[100px_90px_80px_80px_90px_1fr_80px] gap-3 px-5 py-3 admin-surface" style={{ borderBottom: "1px solid var(--admin-border)" }}>
+              <div className="grid grid-cols-[100px_84px_80px_120px_84px_1fr_80px] gap-3 px-5 py-3 admin-surface" style={{ borderBottom: "1px solid var(--admin-border)" }}>
                 <span className="text-[10px] font-bold tracking-[0.1em] admin-faint uppercase">Amount</span>
                 <span className="text-[10px] font-bold tracking-[0.1em] admin-faint uppercase">Type</span>
-                <span className="text-[10px] font-bold tracking-[0.1em] admin-faint uppercase">Direction</span>
                 <span className="text-[10px] font-bold tracking-[0.1em] admin-faint uppercase">Status</span>
+                <span className="text-[10px] font-bold tracking-[0.1em] admin-faint uppercase">Invoice</span>
                 <span className="text-[10px] font-bold tracking-[0.1em] admin-faint uppercase">Method</span>
                 <span className="text-[10px] font-bold tracking-[0.1em] admin-faint uppercase">Reference</span>
                 <span className="text-[10px] font-bold tracking-[0.1em] admin-faint uppercase">Date</span>
               </div>
               {booking.payments.map((p) => (
-                <div key={p.id} className="grid grid-cols-[100px_90px_80px_80px_90px_1fr_80px] gap-3 px-5 py-3" style={{ borderBottom: "1px solid var(--admin-border)" }}>
+                <div key={p.id} className="grid grid-cols-[100px_84px_80px_120px_84px_1fr_80px] gap-3 px-5 py-3" style={{ borderBottom: "1px solid var(--admin-border)" }}>
                   <span className={`text-sm font-medium self-center ${p.type === "refund" || p.direction === "cost" ? "text-red-400" : "text-green-400"}`}>
                     {p.type === "refund" || p.direction === "cost" ? "-" : "+"}€{Number(p.amount).toLocaleString()}
                   </span>
                   <span className="text-xs admin-muted self-center capitalize">{p.type}</span>
-                  <span className="text-xs admin-muted self-center capitalize">{p.direction || "—"}</span>
                   <span className="self-center">
                     <span className={`inline-block px-1.5 py-0.5 rounded text-[10px] font-bold uppercase ${
                       p.status === "paid" ? "bg-green-500/15 text-green-400" :
@@ -730,6 +820,11 @@ export function BookingDetailPane({ bookingId, onBack }: { bookingId: string; on
                       p.status === "cancelled" ? "bg-gray-500/15 text-gray-400" :
                       "bg-amber-500/15 text-amber-400"
                     }`}>{p.status || "pending"}</span>
+                  </span>
+                  <span className="text-xs self-center truncate font-mono" title={invoiceLabel(p.document_id) || ""}>
+                    {invoiceLabel(p.document_id)
+                      ? <span className="text-[var(--admin-accent)]">{invoiceLabel(p.document_id)}</span>
+                      : <span className="admin-faint">—</span>}
                   </span>
                   <span className="text-xs admin-muted self-center">{p.method || "—"}</span>
                   <span className="text-xs admin-muted self-center">{p.reference || "—"}</span>

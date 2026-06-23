@@ -56,11 +56,22 @@ export async function POST(
   const body = await request.json();
   const admin = getServiceClient();
 
-  const { data, error } = await admin
+  let { data, error } = await admin
     .from("exp_payments")
     .insert({ ...body, booking_id: id })
     .select()
     .single();
+
+  // Pre-migration-054 fallback: drop the invoice link if the column is missing.
+  if (error && /document_id/.test(error.message || "")) {
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    const { document_id: _docId, ...rest } = body;
+    ({ data, error } = await admin
+      .from("exp_payments")
+      .insert({ ...rest, booking_id: id })
+      .select()
+      .single());
+  }
 
   if (error) return Response.json({ error: error.message }, { status: 500 });
   return Response.json({ payment: data });
