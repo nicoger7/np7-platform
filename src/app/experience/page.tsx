@@ -195,6 +195,20 @@ export default async function ExperienceOverviewPage() {
             ) : (
               <UpcomingExperiences experiences={expCards} />
             )}
+
+            {/* Gift CTA */}
+            <Reveal className="mt-12">
+              <Link href="/experience/gift" className="group block rounded-2xl overflow-hidden border border-white/15 bg-gradient-to-br from-[#ffc42e]/15 via-[#f47b20]/10 to-[#00afdb]/15 hover:border-white/30 transition-colors">
+                <div className="flex flex-col sm:flex-row items-center gap-5 p-6 sm:p-8">
+                  <div className="text-4xl" aria-hidden>🎁</div>
+                  <div className="flex-1 text-center sm:text-left">
+                    <h3 className="text-xl sm:text-2xl font-black text-white">Gift an NP7 Experience</h3>
+                    <p className="text-[14.5px] text-white/70 mt-1.5 max-w-[520px]">Give someone the best week of their year — a windsurf, wing &amp; foil adventure as a voucher. Any trip or a set value, with an optional call from Nico to share the news.</p>
+                  </div>
+                  <span className="inline-flex items-center gap-2 px-6 py-3 rounded-full text-[13.5px] font-bold text-[#00374a] bg-white shrink-0 group-hover:gap-3 transition-all">Gift a trip →</span>
+                </div>
+              </Link>
+            </Reveal>
           </div>
         </section>
 

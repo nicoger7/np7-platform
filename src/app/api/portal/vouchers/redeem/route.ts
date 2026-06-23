@@ -1,6 +1,11 @@
 import { NextResponse } from "next/server";
 import { getPortalUser } from "@/lib/auth";
 import { createAdminClient } from "@/lib/supabase";
+import { getBookingPaid, getConfirmedAddonsTotal } from "@/lib/portal-data";
+import { fmtVoucherMoney } from "@/lib/vouchers";
+
+const round = (n: number) => Math.round((n + Number.EPSILON) * 100) / 100;
+const fmtMoney = (n: number, currency: string | null) => fmtVoucherMoney(n, currency || "EUR");
 
 /**
  * Redeem a gift voucher against one of the member's own bookings. The code is a
@@ -26,7 +31,7 @@ export async function POST(req: Request) {
   // The booking must belong to this member.
   const { data: booking } = await db
     .from("exp_bookings")
-    .select("id, contact_id, experience_id")
+    .select("id, contact_id, experience_id, agreed_price")
     .eq("id", bookingId)
     .maybeSingle();
   if (!booking || booking.contact_id !== user.contactId) {
@@ -71,17 +76,38 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "This voucher has no value to apply." }, { status: 409 });
   }
 
+  // Cap the credit at what's still owed: the voucher's value can't exceed the
+  // booking's outstanding balance. Any surplus "falls through" — it isn't kept as
+  // a residual credit; the voucher is simply marked fully redeemed.
+  const [addonsTotal, paid] = await Promise.all([
+    getConfirmedAddonsTotal(bookingId).catch(() => 0),
+    getBookingPaid(bookingId).catch(() => 0),
+  ]);
+  const total = round((Number(booking.agreed_price) || 0) + addonsTotal);
+  const outstanding = total > 0 ? round(Math.max(0, total - paid)) : null;
+  if (outstanding != null && outstanding <= 0) {
+    return NextResponse.json(
+      { error: "This trip is already fully paid — there's nothing left for the voucher to cover." },
+      { status: 409 }
+    );
+  }
+  // Unknown total (no agreed price yet) → apply the full value; otherwise cap it.
+  const applied = outstanding == null ? amount : round(Math.min(amount, outstanding));
+  const forfeited = round(Math.max(0, amount - applied));
+
   // Credit the booking. 'partial' is an always-allowed payment type, so this
   // works without a migration; method/reference record that it came from a voucher.
   const { error: payErr } = await db.from("exp_payments").insert({
     booking_id: bookingId,
-    amount,
+    amount: applied,
     type: "partial",
     method: "voucher",
     reference: code,
     direction: "in",
     received_at: new Date().toISOString(),
-    notes: `Gift voucher ${code} redeemed`,
+    notes: forfeited > 0
+      ? `Gift voucher ${code} redeemed (${fmtMoney(amount, voucher.currency)} voucher; ${fmtMoney(applied, voucher.currency)} applied, ${fmtMoney(forfeited, voucher.currency)} surplus not carried over)`
+      : `Gift voucher ${code} redeemed`,
   });
   if (payErr) return NextResponse.json({ error: payErr.message }, { status: 400 });
 
@@ -98,5 +124,5 @@ export async function POST(req: Request) {
     .eq("status", "active"); // guard against a double redeem race
   if (vErr) return NextResponse.json({ error: vErr.message }, { status: 400 });
 
-  return NextResponse.json({ ok: true, amount, currency: voucher.currency || "EUR" });
+  return NextResponse.json({ ok: true, amount: applied, voucherValue: amount, forfeited, currency: voucher.currency || "EUR" });
 }

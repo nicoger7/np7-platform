@@ -6,7 +6,26 @@ import { GiftBuyForm } from "@/components/experience/gift-buy-form";
 export const metadata: Metadata = { title: "Gift a trip — NP7 Experience" };
 export const dynamic = "force-dynamic";
 
+type Exp = { id: string; title: string; currency: string | null };
+
+async function loadGiftData(): Promise<{ experiences: Exp[]; heroes: string[] }> {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const sb = supabase as any;
+  const { data: exps } = await sb.from("exp_experiences").select("id, title, currency, hero_image").eq("status", "published").order("title");
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const rows = (exps ?? []) as any[];
+  const ids = rows.map((e) => e.id);
+  const { data: content } = ids.length ? await sb.from("exp_content").select("experience_id, hero_image").in("experience_id", ids) : { data: [] };
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const byExp = new Map((content ?? []).map((c: any) => [c.experience_id, c.hero_image]));
+  const heroes = [...new Set(rows.map((e) => byExp.get(e.id) || e.hero_image).filter(Boolean))] as string[];
+  const experiences = rows.map((e) => ({ id: e.id, title: e.title, currency: e.currency }));
+  return { experiences, heroes };
+}
+
 export default async function GiftPage() {
+  const { experiences, heroes } = await loadGiftData();
+
   return (
     <>
       <OceanHeader variant="docked" />
@@ -16,13 +35,25 @@ export default async function GiftPage() {
           <div className="relative max-w-[760px] mx-auto px-6 sm:px-8 py-14 sm:py-16">
             <p className="text-[11px] font-bold tracking-[0.28em] text-[#ffc42e] mb-3">GIVE THE BEST WEEK OF THEIR YEAR</p>
             <h1 className="text-4xl sm:text-5xl font-black tracking-[-0.035em] leading-[1.02]">Gift an NP7 trip</h1>
-            <p className="mt-4 text-[16px] sm:text-[17px] text-white/80 max-w-[560px]">A windsurf, wing &amp; foil adventure with coaching, a crew and everything arranged — wrapped up as a voucher for someone you love.</p>
+            <p className="mt-4 text-[16px] sm:text-[17px] text-white/80 max-w-[560px]">A windsurf, wing &amp; foil adventure with coaching, a crew and everything arranged — wrapped up as a voucher for someone you love. Add a personal call from Nico to deliver the news.</p>
             <div className="h-[3px] w-14 rounded-full mt-6" style={{ background: "linear-gradient(90deg,#ffc42e,#f47b20,#00afdb)" }} />
           </div>
         </section>
 
+        {/* Photo band — a taste of the trips on offer (every published experience's hero) */}
+        {heroes.length > 0 && (
+          <div className="-mt-px bg-[#00374a]">
+            <div className="flex gap-2 overflow-x-auto px-3 pb-3 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+              {heroes.map((src, i) => (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img key={i} src={src} alt="" className="h-40 sm:h-52 w-64 sm:w-80 shrink-0 rounded-xl object-cover" />
+              ))}
+            </div>
+          </div>
+        )}
+
         <div className="max-w-[760px] mx-auto px-6 sm:px-8 py-10 sm:py-14">
-          <GiftFormLoader />
+          <GiftBuyForm experiences={experiences} />
 
           {/* How gifting works */}
           <div className="mt-12">
@@ -50,14 +81,4 @@ export default async function GiftPage() {
       </main>
     </>
   );
-}
-
-async function GiftFormLoader() {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const sb = supabase as any;
-  // Published experiences for the "Towards" picker. A value voucher ("Any NP7
-  // Experience") works even with none, so we never block the form.
-  const { data: exps } = await sb.from("exp_experiences").select("id, title, currency").eq("status", "published").order("title");
-  const experiences = (exps ?? []) as { id: string; title: string; currency: string | null }[];
-  return <GiftBuyForm experiences={experiences} />;
 }

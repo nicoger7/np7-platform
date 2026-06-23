@@ -14,7 +14,7 @@ export function RedeemVoucher({ bookingId }: { bookingId: string }) {
   const [code, setCode] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [done, setDone] = useState(false);
+  const [done, setDone] = useState<null | { forfeited: number; currency: string }>(null);
 
   async function submit() {
     const trimmed = code.trim();
@@ -29,7 +29,7 @@ export function RedeemVoucher({ bookingId }: { bookingId: string }) {
     setBusy(false);
     const data = await res.json().catch(() => ({}));
     if (res.ok) {
-      setDone(true);
+      setDone({ forfeited: Number(data.forfeited) || 0, currency: data.currency || "EUR" });
       router.refresh();
     } else {
       setError(data.error || "We couldn't apply that voucher.");
@@ -37,10 +37,18 @@ export function RedeemVoucher({ bookingId }: { bookingId: string }) {
   }
 
   if (done) {
+    const surplus = done.forfeited > 0
+      ? new Intl.NumberFormat("en-GB", { style: "currency", currency: done.currency, maximumFractionDigits: 0 }).format(done.forfeited)
+      : null;
     return (
-      <p className="text-[12.5px] font-semibold text-green-600">
+      <div className="text-[12.5px] font-semibold text-green-600">
         ✓ Voucher applied — your payment plan has been updated.
-      </p>
+        {surplus && (
+          <span className="block font-normal text-[#8a9aa0] mt-0.5">
+            It covered the full balance; the remaining {surplus} isn&apos;t carried over.
+          </span>
+        )}
+      </div>
     );
   }
 

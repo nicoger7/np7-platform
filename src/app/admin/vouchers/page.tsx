@@ -24,6 +24,9 @@ interface VoucherRow {
   redeem_by: string | null;
   redeemed_booking_id: string | null;
   created_at: string;
+  nico_call?: boolean | null;
+  recipient_phone?: string | null;
+  call_preferred_date?: string | null;
   buyer?: Joined;
   recipient?: Joined;
   exp_experiences?: { id: string; title: string } | null;
@@ -155,6 +158,12 @@ export default function VouchersPage() {
                     {v.buyer?.name || v.buyer?.email || "—"}
                   </div>
                   <div className="text-xs admin-faint truncate">→ {recipient}</div>
+                  {v.nico_call && (
+                    <div className="text-[11px] font-semibold text-[#0aa3c7] truncate mt-0.5">
+                      📞 Call {v.recipient_phone || "(no number)"}
+                      {v.call_preferred_date ? ` · ${fmtDate(v.call_preferred_date)}` : ""}
+                    </div>
+                  )}
                 </div>
                 <span className="text-sm font-medium admin-heading self-center">
                   {fmtVoucherMoney(v.amount, v.currency || "EUR") || "—"}
