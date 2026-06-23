@@ -1,170 +1,159 @@
-# Prompt for jibe — retarget the payments sync from Notion to the NP7 admin (Supabase)
+# Prompt for jibe — pull payments from the accountant's Google Sheet into the NP7 admin
 
-> Hand this whole file to jibe. It is self-contained: jibe does **not** need any
-> prior context from this chat. Nico will supply the two secrets in the
-> "Access" section.
+> Hand this whole file to jibe. It is self-contained. Nico supplies the Supabase
+> secrets (see "Access").
+>
+> **⚠️ This is a TEMPORARY bridge.** We will replace it with our own system + a
+> direct bank API later. Goal for now: get the current payment reality into the
+> admin so member views and the pipeline are roughly right. Best-effort + flag the
+> messy cases for a human; do **not** over-engineer.
 
-## Background
+## What you do
 
-You (jibe) already run a sync that reads our **Excel accounting sheet** and writes
-payment rows into **Notion**. We have replaced Notion with our own admin panel,
-backed by a **Supabase** database. Your job: keep reading the same Excel sheet, but
-write the payments into **Supabase** instead of (or in addition to) Notion.
+You (jibe) **read** the accountant's Google Sheet (you do NOT edit it — Henny &
+Maite maintain it by hand) and **write** the payments into our Supabase admin.
 
-Everything about how you read/parse the Excel sheet stays the same. Only the
-**destination** changes. This document fully specifies the new destination.
+- Source (read-only): Google Sheet **"Invoices Surfcenter Experience"**
+  `https://docs.google.com/spreadsheets/d/1psQIbNR0bfExaJ9fOOWsqHgEx9NB_X1brnyOADfbApI/edit`
+- Destination (write): Supabase table `exp_payments` (+ a couple of booking flags).
 
-## Objective
+The sheet mixes **NP7** trips with **non-NP7** activities (Femke, Defi, Ladies Day,
+admin) and mixes **income** with **costs**. You must pull only **NP7 income**.
 
-For every payment line in the accounting sheet:
-1. Insert/update a row in the Supabase table `exp_payments`.
-2. Match it to the right **booking** (a customer's trip) when you confidently can;
-   otherwise mark it **unmatched** so a human resolves it in the admin UI.
-3. Keep each booking's payment-milestone flags in sync.
-4. Be **idempotent** — re-running the sync must never create duplicates.
+## The sheet has 4 tabs
 
-## Access
+| Tab | What it is | You |
+|---|---|---|
+| `Clients (income) transfer` | bank/Wise invoices, one row per invoice (rich) | **pull** |
+| `Client (income) Stripe` | Stripe card payments (simpler) | **pull** |
+| `Suppliers (outcome)` | costs/expenses paid to suppliers | **ignore** |
+| `PO numbers` | master list: PO code → trip + dates | **the lookup key** |
 
-Server-to-server via the Supabase REST API (PostgREST). Nico will give you:
+### `PO numbers` tab = your source of truth (read it FIRST, every run)
 
-- `SUPABASE_URL` — e.g. `https://<project>.supabase.co`
-- `SUPABASE_SERVICE_ROLE_KEY` — the **service role** key (bypasses row-level security; keep it secret, server-side only)
+Build a map from it: `PO code → { trip, dates }`. **NP7 rows are the ones whose code
+starts with `NP7`** (e.g. `NP7 TEN 001`, `NP7 TUR 001`, `NP7 GAR 001`, `NP7 MAD 001`,
+`NP7 BON 001/002/003`). Everything else (`FEM*`, `DEFI*`/`DEF`, `LAD NL`, `GEN`) is
+**non-NP7 → skip**. Do not hard-code this list — re-read the tab each run, because
+codes get added. Use the dates column to resolve which **edition** a PO is (e.g. the
+three `NP7 BON` codes map to the three Bonaire weeks by their date ranges; confirm
+against our editions' `date_start`).
 
-Call pattern (every request needs both headers):
+> Map each PO code to one of our experiences/editions in Supabase by matching the
+> trip name + dates from the PO tab against `exp_experiences` / `exp_editions`. If a
+> PO can't be mapped confidently, treat its rows as **unmatched** (below).
 
-```
-GET/POST/PATCH  {SUPABASE_URL}/rest/v1/<table>...
-  apikey: {SUPABASE_SERVICE_ROLE_KEY}
-  Authorization: Bearer {SUPABASE_SERVICE_ROLE_KEY}
-  Content-Type: application/json
-```
+### `Clients (income) transfer` columns
 
-(Alternatively use any Supabase client library with the service role key.)
+`Invoice Name` · `Client Name` · **`Invoice Number`** (stable per-row id; `NNN/credit`
+rows are credit notes = negative/refunds) · `Sending date` (invoice date) ·
+`Coaching` (= destination) · `Amount` · **`Payment`** (type: `downpayment` /
+`Final Payment` / `Additional Service` / `Downpayment`) · **`Paid/Betaald`** (paid
+amount; green=paid, red=open) · `Not Paid/Open` · `How/Hoe` (bank / wise / Stripe /
+`nvt`) · **`betaaldatum`** (payment date) · **`PO nr.`** · `Comments`.
 
-## Target table: `exp_payments`
+### `Client (income) Stripe` columns
 
-| column          | type         | what to write                                                                 |
-|-----------------|--------------|-------------------------------------------------------------------------------|
-| `id`            | uuid         | leave unset on insert (DB generates)                                           |
-| `booking_id`    | uuid \| null | the matched booking (see Matching). `null` when unmatched.                     |
-| `contact_id`    | uuid \| null | the matched person, even if the booking is uncertain (helps later matching).   |
-| `experience_id` | uuid \| null | optional; the experience the payment is for, if known.                         |
-| `amount`        | numeric      | payment amount, **positive**. Use a `refund` type for money paid back.         |
-| `type`          | text         | one of `downpayment` \| `final` \| `partial` \| `refund` (`deposit` is unused). |
-| `direction`     | text         | `revenue` for money in; `expense` for money out (refunds use type=refund, direction=revenue with negative effect handled by type). Default `revenue`. |
-| `status`        | text         | `paid` (these are real, received transactions).                               |
-| `date`          | date         | the value/booking date from the sheet (`YYYY-MM-DD`).                          |
-| `received_at`   | timestamptz  | same date as a timestamp, if you have time-of-day; otherwise midnight UTC.     |
-| `method`        | text \| null | `bank_transfer`, `stripe`, `cash`, etc., if the sheet says.                    |
-| `reference`     | text         | **the stable accounting-line identifier** (bank tx id / sheet row id). This is your idempotency key — see below. |
-| `notes`         | text \| null | free text from the sheet (e.g. `"Bonaire 14-20 /12"`).                         |
-| `unmatched`     | boolean      | `true` when you could NOT confidently match a booking; else `false`.           |
-| `notion_id`     | text \| null | if you still also write to Notion, store the Notion page id here for back-reference (optional). |
+`Client Name` · **`betaaldatum`** (paid date) · **`PO nr.`** (abbreviated, e.g. `TEN`,
+`BON 2`, `DEF`) · `Amount` · `Paid/Betaald` · `Total per month` · `Stripe fees` ·
+`% fees`. **No invoice number** here, and no payment-type column.
 
-## Idempotency (critical)
+## What to pull
 
-Use `reference` as the natural key. Before inserting, check if a row with that
-`reference` already exists:
+A payment exists when money was actually received:
+- Transfer tab: a row with a **`Paid/Betaald` amount > 0** (green) and a `betaaldatum`.
+- Stripe tab: any row with a paid amount + `betaaldatum`.
 
-```
-GET {SUPABASE_URL}/rest/v1/exp_payments?reference=eq.<REF>&select=id,amount,date
-```
+Skip rows whose PO is non-NP7, and skip unpaid/open-only rows (no payment yet — they
+just show a `Not Paid/Open` balance).
 
-- If it exists and the amount/date are unchanged → skip.
-- If it exists but values changed → `PATCH` that row.
-- If it does not exist → `POST` a new row.
+## Map each pulled row → a booking
 
-If the accounting sheet has no stable per-line id, construct a deterministic one,
-e.g. `reference = "<sheet_name>:<row_number>"` or a hash of
-`(date, amount, payer, bank_ref)`, and use that consistently every run.
+1. Resolve the **experience/edition** from the row's **PO nr.** via the PO-tab map.
+2. Find the booking: match **client name** to the booking's contact, scoped to that
+   experience/edition (`exp_bookings` joined to `contacts`). Names in the sheet match
+   our contact names.
+3. No confident match → write the payment with `booking_id = null`, `unmatched = true`
+   (set `contact_id` if the person is clear). A human resolves these at
+   `/admin/payments` ("Unmatched payments" filter + dashboard counter).
 
-**Never** delete rows you didn't create, and never wipe-and-reload the table.
+Be conservative — a wrong match is worse than an unmatched row.
 
-## Matching a payment to a booking
+## Payment `type` mapping
 
-Bookings live in `exp_bookings`. Fetch candidates and match:
+- `downpayment` / `Downpayment` → `downpayment`
+- `Final Payment` → `final`
+- `Additional Service` → `partial` **and tag it as an extra** in `notes` (these are
+  add-ons: extra nights, flights, etc.). ⚠️ Reality is messy: extras sometimes come as
+  their *own* booking/invoice, sometimes get merged into the last invoice. If the extra
+  clearly belongs to a participant you matched, attach it; if unsure, leave it
+  `unmatched` for a human. Don't try to be clever.
+- Stripe rows (no type): infer from the running total like the transfer rows, else
+  `partial`.
+- Credit note (`NNN/credit`, negative, struck-through, or a "refund …" note) → `type = refund`.
 
-```
-GET {SUPABASE_URL}/rest/v1/exp_bookings?select=id,name,contact_id,experience_id,edition_id,agreed_price,status&order=created_at.desc
-```
+## Idempotency (so re-runs don't duplicate)
 
-Booking `name` usually looks like `"Firstname Lastname — <Place> 2026 - Week II"`.
-Contacts (`contacts` table: `id,name,email`) can also help:
+- **Transfer tab:** key on the **Invoice Number** (store it in `exp_payments.reference`).
+  Before insert, look up `reference=eq.<invoiceNo>`; skip if unchanged, PATCH if changed.
+- **Stripe tab (no invoice №):** build a deterministic key, e.g.
+  `reference = "stripe:" + <name> + ":" + <paid date> + ":" + <amount>`, and dedupe on it.
+- Never wipe-and-reload; never delete rows you didn't create.
 
-```
-GET {SUPABASE_URL}/rest/v1/contacts?select=id,name,email&name=ilike.*<lastname>*
-```
+## Write to `exp_payments`
 
-Matching rules, in order of confidence:
-1. **Exact contact + single booking** for that contact → match.
-2. **Name match + experience/week** in the payment note (e.g. note says "Week II")
-   → match the booking whose edition/label matches.
-3. **Name match + amount plausibility** — the cumulative payments for that booking
-   should not exceed its `agreed_price` by a wild margin. Use this to disambiguate
-   when a contact has multiple bookings.
-4. **No confident match** → insert with `booking_id = null`, `unmatched = true`
-   (still set `contact_id` if the person is clear). A human resolves these at
-   `/admin/payments` (there is an "Unmatched payments" filter and a dashboard counter).
+| column | value |
+|---|---|
+| `booking_id` | matched booking, else `null` |
+| `contact_id` | matched person if known |
+| `experience_id` | the PO-mapped experience (optional but helpful) |
+| `amount` | the paid amount (positive; refunds use `type=refund`) |
+| `type` | per mapping above |
+| `direction` | `revenue` |
+| `status` | `paid` |
+| `date` / `received_at` | the `betaaldatum` (parse Dutch dates too: "26 mei 2026") |
+| `method` | bank / wise / stripe / cash, from `How/Hoe` |
+| `reference` | invoice № (transfer) or the composite stripe key |
+| `notes` | the sheet `Comments` (+ "extra/additional service" tag where relevant) |
+| `unmatched` | `true` when no confident booking match |
 
-Be conservative: a wrong match is worse than an unmatched row. When in doubt, leave
-it unmatched.
+Then, for each matched booking, recompute `paid = Σ revenue payments − refunds` and
+PATCH `exp_bookings`: `downpayment_received = paid ≥ 0.5×agreed_price`,
+`final_payment_received = paid ≥ agreed_price`. **Do not change `exp_bookings.status`.**
 
-## Classifying the payment `type`
+## Naming — do NOT rewrite it
 
-If the sheet already labels the payment, map it. Otherwise infer from the running
-total for that booking (sum existing `exp_payments.amount` where `status='paid'`
-and `direction='revenue'`, minus refunds):
+Never rename packages, components, or trips. The sheet's names/PO codes are human
+keys — match against them, don't normalize or "tidy" them.
 
-- Brings cumulative to **≈50%** of `agreed_price` (and it's the first payment) → `downpayment`
-- Brings cumulative to **≈100%** (settles the balance) → `final`
-- Anything else (instalment, top-up) → `partial`
-- Money returned to the customer → `type='refund'`
+## Watch out for (this sheet is hand-maintained)
 
-Exact percentages don't have to be perfect — the admin can reclassify. Default to
-`partial` if genuinely unsure.
-
-## Keep booking milestone flags in sync
-
-After upserting payments for a booking, recompute and `PATCH` the booking
-(`exp_bookings`) so the pipeline + member view reflect reality:
-
-```
-paid = sum of exp_payments.amount for this booking where status='paid' and direction='revenue' (minus refunds)
-```
-
-- `downpayment_received` = `paid >= 0.5 * agreed_price`
-- `final_payment_received` = `paid >= agreed_price` (and agreed_price > 0)
-
-PATCH example:
-```
-PATCH {SUPABASE_URL}/rest/v1/exp_bookings?id=eq.<BOOKING_ID>
-  body: {"downpayment_received": true, "final_payment_received": false}
-```
-
-**Do NOT change `exp_bookings.status`** (the lead→reserved→confirmed→paid→attended/lost
-pipeline). That's curated by the team; you only touch the two payment flags above.
-(If Nico later wants auto-advance to `paid` on full payment, that's a separate ask.)
+- **Dutch dates** ("26 mei 2026", "23 juni 2026") and the occasional typo'd year
+  ("22/08/2028"). Parse defensively; if a date is unparseable, still import the
+  payment but flag it.
+- The transfer tab is maintained by **Henny**, the Stripe tab by **Maite** — different
+  formats, as above.
+- Stripe rows are mostly **Defi (non-NP7)** — the PO filter removes them.
+- `nvt` = not applicable (Dutch). Test/credit rows ("Mistake - was a test").
 
 ## Run safely
 
-1. First run in **dry-run** mode: log every intended insert/update/skip + the match
-   decision and confidence, but write nothing. Send Nico the summary
-   (counts: would-insert / would-update / unmatched, plus the unmatched list).
-2. After Nico approves, run for real.
-3. On every subsequent run, only diffs are applied (idempotent).
+1. First run **dry-run**: log every intended insert/update/skip + match decision +
+   confidence; write nothing. Send Nico the counts (would-insert / update / unmatched)
+   and the unmatched list.
+2. After Nico approves, run for real. Subsequent runs apply only diffs (idempotent).
 
-## Acceptance criteria
+## Acceptance
 
-- Re-running the sync twice in a row produces **zero** new rows the second time.
-- Every sheet line is either matched to a booking or present with `unmatched=true`.
-- For each matched booking, `paid` total equals the sum on the sheet, and the two
-  milestone flags are correct.
-- No existing rows are deleted; no booking `status` is changed.
-- The "Unmatched payments" count in the admin reflects exactly the lines you
-  couldn't match.
+- Re-running twice produces **zero** new rows the second time.
+- Only NP7 income is imported; FEM/DEFI/LAD/GEN and all supplier costs are absent.
+- Every imported NP7 paid row is either matched to a booking or present with
+  `unmatched=true`; the admin "Unmatched payments" count equals exactly those.
+- No supplier/cost rows, no booking `status` changes, no deletions.
 
-## Questions to confirm with Nico before the first real run
+## Confirm with Nico before the first real run
 
-- Which column in the Excel sheet is the **stable line id** to use as `reference`?
-- Does the sheet distinguish payment **type** (downpayment/final), or should you infer it?
-- Should you **also** keep writing to Notion during a transition period, or cut over fully to Supabase?
+- Is "NP7-prefixed PO code" the right NP7 filter, and do `NP7 BON 001/002/003` map to
+  Bonaire Weeks I/II/III? (He wasn't 100% sure — verify against the PO-tab dates.)
+- For Stripe rows with no invoice №, is name+date+amount an acceptable dedupe key, or
+  is there a Stripe payment id available somewhere?
