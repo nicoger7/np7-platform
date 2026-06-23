@@ -110,32 +110,22 @@ async function onDepositPaid(bookingId: string, origin: string): Promise<void> {
     dates = e ? `${d(s)} – ${d(e)} ${e.getFullYear()}` : `${d(s)} ${s.getFullYear()}`;
   }
 
-  // Generate deposit invoice + booking confirmation PDFs (best-effort)
-  let invoicePdfBuffer: Buffer | null = null;
+  // Generate + FILE the deposit invoice and booking confirmation PDFs (best-effort).
+  // They live in the member's portal — we no longer attach them to the email
+  // (portal-only, per the team's preference).
   try {
-    const invoiceDoc = await generateDocument({ bookingId, type: "deposit_invoice" });
-    // Try to fetch the PDF buffer for email attachment
-    if (invoiceDoc.file_path) {
-      const admin = createAdminClient() as any;
-      const { data: fileData } = await admin.storage
-        .from("documents")
-        .download(invoiceDoc.file_path);
-      if (fileData) {
-        const arrBuf = await fileData.arrayBuffer();
-        invoicePdfBuffer = Buffer.from(arrBuf);
-      }
-    }
+    await generateDocument({ bookingId, type: "deposit_invoice" });
   } catch (err) {
     console.warn("[webhook] deposit_invoice generation failed (non-fatal):", err);
   }
-
   try {
     await generateDocument({ bookingId, type: "booking_confirmation" });
   } catch (err) {
     console.warn("[webhook] booking_confirmation generation failed (non-fatal):", err);
   }
 
-  // Send the deposit confirmation email (with optional PDF attachment)
+  // Send the deposit confirmation email — it points the member to their account,
+  // where the invoice and confirmation are filed.
   const activationLink =
     acct && "link" in acct ? acct.link : `${origin}/account/login`;
 
@@ -151,16 +141,6 @@ async function onDepositPaid(bookingId: string, origin: string): Promise<void> {
     bookingId,
     contactId: booking.contact_id,
     dedupeKey: `deposit_confirmation:${bookingId}`,
-    ...(invoicePdfBuffer
-      ? {
-          attachments: [
-            {
-              filename: `deposit-invoice-${bookingId.slice(0, 8)}.pdf`,
-              content: invoicePdfBuffer,
-            },
-          ],
-        }
-      : {}),
   }).catch(() => {});
 }
 
