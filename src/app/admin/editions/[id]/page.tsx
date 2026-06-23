@@ -32,6 +32,7 @@ const TAB_PATH: Record<EditionTab, string> = {
   memories: "/admin/editions", notes: "/admin/editions",
   bookings: "/admin/bookings", packages: "/admin/packages", costs: "/admin/exp-costs", rooms: "/admin/hotel-rooms",
 };
+const eur = (n: number | null | undefined, cur?: string | null) => `${cur === "EUR" || !cur ? "€" : cur + " "}${Number(n || 0).toLocaleString("en-US", { maximumFractionDigits: 0 })}`;
 
 interface Edition {
   id: string;
@@ -257,6 +258,7 @@ export default function EditionDetailPage({
   const [costForm, setCostForm] = useState(emptyCost);
   const [costEditId, setCostEditId] = useState<string | null>(null);
   const [costShow, setCostShow] = useState(false);
+  const [pnl, setPnl] = useState<{ received: number; expected: number; costs: number; net: number; bookings: number } | null>(null);
 
   const emptyRoom = { name: "", hotel: "", room_type: "", room_number: "", status: "available", booking_id: "" };
   const [roomForm, setRoomForm] = useState(emptyRoom);
@@ -320,6 +322,8 @@ export default function EditionDetailPage({
     fetch(`/api/admin/packages?edition_id=${id}`).then((r) => r.json()).then((d) => setPackages(d || []));
   const loadCosts = () =>
     fetch(`/api/admin/exp-costs?edition_id=${id}`).then((r) => r.json()).then((d) => setCosts(d || []));
+  const loadPnl = () =>
+    fetch(`/api/admin/editions/${id}/pnl`).then((r) => r.json()).then((d) => setPnl(d)).catch(() => {});
   const loadRooms = () =>
     fetch(`/api/admin/hotel-rooms?edition_id=${id}`).then((r) => r.json()).then((d) => setRooms(d.rooms || []));
 
@@ -338,7 +342,7 @@ export default function EditionDetailPage({
   useEffect(() => {
     if (tab === "bookings") { loadBookings(); loadPackages(); }
     if (tab === "packages") { loadPackages(); loadBookings(); }
-    if (tab === "costs") loadCosts();
+    if (tab === "costs") { loadCosts(); loadPnl(); }
     if (tab === "rooms") { loadRooms(); loadBookings(); }
     if (tab === "notes") loadNotes();
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -1276,6 +1280,32 @@ export default function EditionDetailPage({
       {/* ── Costs tab ── */}
       {tab === "costs" && (
         <div>
+          {/* Real P&L: received payments − allocated costs for THIS edition */}
+          {pnl && (
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-5">
+              <div className="rounded-xl p-4" style={{ border: "1px solid var(--admin-border)", backgroundColor: "var(--admin-surface)" }}>
+                <div className="text-[10px] font-bold tracking-[0.1em] admin-faint uppercase mb-1">Received</div>
+                <div className="text-xl font-bold text-green-400">{eur(pnl.received, currency)}</div>
+                {pnl.expected !== pnl.received && <div className="text-[10px] admin-faint mt-0.5">{eur(pnl.expected, currency)} incl. unpaid</div>}
+              </div>
+              <div className="rounded-xl p-4" style={{ border: "1px solid var(--admin-border)", backgroundColor: "var(--admin-surface)" }}>
+                <div className="text-[10px] font-bold tracking-[0.1em] admin-faint uppercase mb-1">Costs</div>
+                <div className="text-xl font-bold text-red-400">{eur(pnl.costs, currency)}</div>
+                <div className="text-[10px] admin-faint mt-0.5">incl. allocated splits</div>
+              </div>
+              <div className="rounded-xl p-4" style={{ border: "1px solid var(--admin-border)", backgroundColor: "var(--admin-surface)" }}>
+                <div className="text-[10px] font-bold tracking-[0.1em] admin-faint uppercase mb-1">Net (real)</div>
+                <div className={`text-xl font-bold ${pnl.net < 0 ? "text-red-400" : "text-green-400"}`}>{eur(pnl.net, currency)}</div>
+                {pnl.received > 0 && <div className="text-[10px] admin-faint mt-0.5">{Math.round((pnl.net / pnl.received) * 100)}% margin</div>}
+              </div>
+              <div className="rounded-xl p-4" style={{ border: "1px solid var(--admin-border)", backgroundColor: "var(--admin-surface)" }}>
+                <div className="text-[10px] font-bold tracking-[0.1em] admin-faint uppercase mb-1">Bookings</div>
+                <div className="text-xl font-bold admin-heading">{pnl.bookings}</div>
+                <div className="text-[10px] admin-faint mt-0.5">with payments counted</div>
+              </div>
+            </div>
+          )}
+
           <div className="flex justify-between items-center mb-4">
             <p className="text-xs admin-faint">{costs.length} cost item{costs.length !== 1 ? "s" : ""} for this edition</p>
             <div className="flex items-center gap-3">
