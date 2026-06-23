@@ -18,6 +18,8 @@ export type EmailVars = {
   packingList?: string;
   /** Personal pre-trip note from the host. */
   preTripNote?: string;
+  waiverLink?: string;
+  tripLink?: string;
   inviterName?: string;
   rewardFriend?: string;
   personalNote?: string;
@@ -169,6 +171,32 @@ export const TEMPLATES: Record<string, (v: EmailVars, opts?: LayoutOpts) => Buil
         p(`Closer to departure we'll send your final pre-trip details — packing list, arrival info and your group chat. It's all in your trip account too:`) +
         (v.bookingLink ? emailButton("Open my trip", v.bookingLink) : "") +
         p(`See you on the water.<br>— Nico & the NP7 team`),
+    }),
+  }),
+
+  waiver_reminder: (v, opts) => ({
+    subject: `Quick one before ${v.experienceTitle ?? "your NP7 trip"} — sign your waiver`,
+    html: emailLayout({
+      ...opts,
+      preheader: "A 1-minute waiver everyone signs before the trip.",
+      bodyHtml:
+        greet(v) +
+        p(`Quick bit of admin before <strong>${esc(v.experienceTitle || "your trip")}</strong>${v.dates ? " (" + esc(v.dates) + ")" : ""}: every participant signs a short waiver &amp; health declaration. It takes about a minute, right in your account.`) +
+        (v.waiverLink ? emailButton("Sign my waiver", v.waiverLink) : "") +
+        p(`Already done it? You're all set — ignore this. 🤙`),
+    }),
+  }),
+
+  photos_ready: (v, opts) => ({
+    subject: `📸 Your photos from ${v.experienceTitle ?? "your NP7 trip"} are here`,
+    html: emailLayout({
+      ...opts,
+      preheader: "Relive the week — your gallery is live.",
+      bodyHtml:
+        greet(v) +
+        p(`Good news — the photos from <strong>${esc(v.experienceTitle || "your trip")}</strong> are in your gallery. Relive the week, and download your favourites.`) +
+        (v.tripLink ? emailButton("See my photos", v.tripLink) : "") +
+        p(`Hope the stoke lasts.<br>— Nico & the NP7 team`),
     }),
   }),
 

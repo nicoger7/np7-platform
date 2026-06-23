@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase";
 import { sendEmail } from "@/lib/email/send";
+import { getMemoryPhotosForBooking } from "@/lib/portal-data";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
@@ -73,9 +74,18 @@ export async function GET(req: NextRequest) {
     for (const e of (eds ?? []) as any[]) if (e.pre_trip_note) editionNotes.set(e.id, e.pre_trip_note);
   }
 
+  // Which bookings already have a signed waiver (so we only remind the rest).
+  const bookingIds = (bookings ?? []).map((b: { id: string }) => b.id);
+  const signedWaivers = new Set<string>();
+  if (bookingIds.length) {
+    const { data: sigs } = await db.from("exp_waiver_signatures").select("booking_id").in("booking_id", bookingIds);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    for (const s of (sigs ?? []) as any[]) if (s.booking_id) signedWaivers.add(s.booking_id);
+  }
+
   const out = {
     evaluated: (bookings ?? []).length,
-    nudge: 0, balance: 0, balance_paid: 0, pretrip: 0, excitement: 0, pretrip_final: 0, post_trip: 0,
+    nudge: 0, balance: 0, balance_paid: 0, pretrip: 0, excitement: 0, pretrip_final: 0, post_trip: 0, waiver: 0, photos: 0,
   };
   const bump = (k: keyof typeof out, r: { status: string }) => { if (r.status === "sent") (out[k] as number)++; };
 
@@ -112,6 +122,8 @@ export async function GET(req: NextRequest) {
       whatsappLink: b.exp_editions?.whatsapp_group_link ?? undefined,
       reviewLink: `${origin}/account/bookings/${b.id}/review`,
       bookingLink: `${origin}/account`,
+      waiverLink: `${origin}/account/bookings/${b.id}/waiver`,
+      tripLink: `${origin}/account/bookings/${b.id}`,
       // pre-trip content: edition note overrides the experience note; packing list is per-experience
       preTripNote: (editionNotes.get(b.edition_id ?? "") || c.pre_trip_note || "") || undefined,
       packingList: (c.packing_list || "") || undefined,
@@ -145,9 +157,22 @@ export async function GET(req: NextRequest) {
       if (daysToStart <= 3 && daysToStart >= 0) bump("pretrip_final", await send("pre_trip_final", `pre_trip_final:${b.id}`));
     }
 
-    // 5 · post-trip thank-you + review/photos (~3d after the week ends)
+    // 5 · waiver reminder — paid guests who haven't signed yet, ~14d → ~2d out
+    if (tripLive && depositPaid && !signedWaivers.has(b.id) && daysToStart != null && daysToStart <= 14 && daysToStart > 2) {
+      bump("waiver", await send("waiver_reminder", `waiver_reminder:${b.id}`));
+    }
+
+    // 6 · post-trip thank-you + review/photos (~3d after the week ends)
     if (tripLive && depositPaid && daysSinceEnd != null && daysSinceEnd >= 3 && daysSinceEnd <= 14) {
       bump("post_trip", await send("post_trip_thank_you", `post_trip_thank_you:${b.id}`));
+    }
+
+    // 7 · new photos in the gallery — once the trip has started and photos exist,
+    //     a one-time "your photos are ready" (dedupe → sends only when they appear).
+    const started = daysToStart != null && daysToStart <= 0;
+    if (tripLive && depositPaid && started && b.edition_id && (daysSinceEnd == null || daysSinceEnd <= 60)) {
+      const pics = await getMemoryPhotosForBooking(b.edition_id, b.id).catch(() => []);
+      if (pics.length > 0) bump("photos", await send("photos_ready", `memories_ready:${b.id}`));
     }
   }
 

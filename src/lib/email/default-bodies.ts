@@ -19,7 +19,9 @@ export const DEFAULT_SUBJECTS: Record<string, string> = {
   pre_trip_excitement: "Almost time 🌊 {{experienceTitle}} is around the corner",
   balance_paid_confirmation: "All paid up — you're set for {{experienceTitle}} 🎉",
   pre_trip_final: "Almost time — final details for {{experienceTitle}} 🌊",
+  waiver_reminder: "Quick one before {{experienceTitle}} — sign your waiver",
   post_trip_thank_you: "What a week 🤙 thank you — {{experienceTitle}}",
+  photos_ready: "📸 Your photos from {{experienceTitle}} are here",
   addon_confirmed: "Confirmed: {{addonLabel}} — {{experienceTitle}}",
 };
 
@@ -103,6 +105,18 @@ export const DEFAULT_BODIES: Record<string, string> = {
     P("If you had a great time, a short review means the world to us and helps other riders find their next trip:") +
     BTN("Leave a review", "reviewLink") +
     P("Until the next session." + SIGN),
+
+  waiver_reminder:
+    P("Hey {{firstName}} 🤙") +
+    P("Quick bit of admin before <strong>{{experienceTitle}}</strong> ({{dates}}): every participant signs a short waiver &amp; health declaration. It takes about a minute, right in your account.") +
+    BTN("Sign my waiver", "waiverLink") +
+    P("Already done it? You're all set — ignore this. 🤙"),
+
+  photos_ready:
+    P("Hey {{firstName}} 🤙") +
+    P("Good news — the photos from <strong>{{experienceTitle}}</strong> are in your gallery. Relive the week, and download your favourites.") +
+    BTN("See my photos", "tripLink") +
+    P("Hope the stoke lasts." + SIGN),
 
   addon_confirmed:
     P("Hey {{firstName}} 🤙") +
