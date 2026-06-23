@@ -168,3 +168,11 @@ body:has(.hardware-root) {
     transition: none !important;
   }
 }
+
+/* Accordion (<details>) chevron — flips when the section is open. */
+.acc-chevron {
+  transition: transform 0.2s ease;
+}
+details[open] > summary .acc-chevron {
+  transform: rotate(180deg);
+}
