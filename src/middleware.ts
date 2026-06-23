@@ -47,7 +47,11 @@ export async function middleware(request: NextRequest) {
       : path.startsWith("/experience") ? "experience"
       : (path.startsWith("/blog") || path.startsWith("/about")) && (from === "hardware" || from === "experience") ? from
       : null;
-    const res = NextResponse.next({ request });
+    // Expose the path to RSC layouts (so the Experience layout can keep
+    // /experience/gift open while the rest of the site is hidden).
+    const requestHeaders = new Headers(request.headers);
+    requestHeaders.set("x-np7-pathname", path);
+    const res = NextResponse.next({ request: { headers: requestHeaders } });
     if (section && request.cookies.get("np7_section")?.value !== section) {
       res.cookies.set("np7_section", section, { path: "/", maxAge: 60 * 60 * 24 * 30, sameSite: "lax" });
     }
