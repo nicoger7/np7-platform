@@ -75,7 +75,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
   const component_id = body.component_id;
   if (!component_id) return NextResponse.json({ error: "Missing component" }, { status: 400 });
 
-  const { data: comp } = await db.from("exp_components").select("id,name,sell_price,addon_available").eq("id", component_id).maybeSingle();
+  const { data: comp } = await db.from("exp_components").select("id,name,category,sell_price,addon_available").eq("id", component_id).maybeSingle();
   if (!comp || !comp.addon_available) return NextResponse.json({ error: "Not available" }, { status: 400 });
 
   // avoid duplicate active requests for the same component
@@ -85,11 +85,34 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     return NextResponse.json({ error: "Already requested" }, { status: 409 });
   }
 
+  // Extra hotel nights (accommodation) need the actual dates: which nights they
+  // want around the trip week. We compute nights before/after the edition and
+  // price = nights × per-night rate (server-authoritative). { checkIn, checkOut }.
+  let label = comp.name;
+  let price: number | null = comp.sell_price ?? null;
+  let meta: Record<string, unknown> = {};
+  if (comp.category === "accommodation" && (body.checkIn || body.checkOut)) {
+    const { data: bk } = await db.from("exp_bookings").select("exp_editions(date_start, date_end)").eq("id", id).maybeSingle();
+    const edStart: string | null = bk?.exp_editions?.date_start ?? null;
+    const edEnd: string | null = bk?.exp_editions?.date_end ?? null;
+    const checkIn: string | null = typeof body.checkIn === "string" ? body.checkIn : null;
+    const checkOut: string | null = typeof body.checkOut === "string" ? body.checkOut : null;
+    const nights = (a: string | null, b: string | null) => (a && b ? Math.round((Date.parse(b) - Date.parse(a)) / 86400000) : 0);
+    const nightsBefore = Math.max(0, nights(checkIn, edStart));
+    const nightsAfter = Math.max(0, nights(edEnd, checkOut));
+    const total = nightsBefore + nightsAfter;
+    meta = { checkIn, checkOut, nightsBefore, nightsAfter, nights: total };
+    if (total > 0) {
+      label = `${comp.name} (${total} night${total !== 1 ? "s" : ""})`;
+      if (comp.sell_price != null) price = Math.round(Number(comp.sell_price) * total * 100) / 100;
+    }
+  }
+
   const note = noteForStatus("requested");
   const error = await insertAddon(
     db,
-    { booking_id: id, component_id, label: comp.name, price: comp.sell_price ?? null, status: "requested", source: "member", requested_at: new Date().toISOString(), notes: note },
-    { booking_id: id, component_id, label: comp.name, price: comp.sell_price ?? null, notes: note },
+    { booking_id: id, component_id, label, price, status: "requested", source: "member", requested_at: new Date().toISOString(), notes: note, meta },
+    { booking_id: id, component_id, label, price, notes: note },
   );
   if (error) return NextResponse.json({ error: error.message }, { status: 400 });
   return NextResponse.json({ ok: true });

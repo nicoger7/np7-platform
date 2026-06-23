@@ -62,6 +62,7 @@ interface Addon {
   component_id: string | null;
   status: string | null;
   source: string | null;
+  meta?: { checkIn?: string | null; checkOut?: string | null; nightsBefore?: number; nightsAfter?: number; nights?: number } | null;
   exp_components: { id: string; name: string; category: string; unit_cost: number } | null;
 }
 
@@ -979,6 +980,9 @@ export function BookingDetailPane({ bookingId, onBack }: { bookingId: string; on
                       {eff === "confirmed" && isMember && <span className="shrink-0 text-[9px] font-bold uppercase tracking-wide px-1.5 py-0.5 rounded bg-green-500/15 text-green-500">Confirmed</span>}
                     </div>
                     {a.notes && <div className="text-xs admin-faint truncate">{a.notes}</div>}
+                    {(a.meta?.checkIn || a.meta?.checkOut) && (
+                      <div className="text-xs text-[#0aa3c7] font-medium truncate">🛏 {formatDate(a.meta.checkIn ?? null)} → {formatDate(a.meta.checkOut ?? null)}{a.meta.nights ? ` · ${a.meta.nights} night${a.meta.nights !== 1 ? "s" : ""}` : ""}</div>
+                    )}
                   </div>
                   <span className="text-xs admin-muted self-center capitalize">{a.exp_components?.category || "custom"}</span>
                   <span className="text-xs admin-muted self-center">{a.price ? `€${Number(a.price).toLocaleString()}` : "—"}</span>

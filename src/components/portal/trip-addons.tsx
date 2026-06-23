@@ -5,8 +5,12 @@ import { effectiveAddonStatus } from "@/lib/addons";
 import { hasFlightDetails, type FlightInfo } from "@/lib/flights";
 import type { ArrivalInfo } from "@/lib/portal-data";
 
-type Available = { id: string; name: string; description: string | null; sell_price: number | null };
-type Mine = { id: string; component_id: string | null; label: string; price: number | null; status?: string | null; notes?: string | null };
+type Available = { id: string; name: string; category: string | null; description: string | null; sell_price: number | null };
+type AddonMeta = { checkIn?: string | null; checkOut?: string | null; nightsBefore?: number; nightsAfter?: number; nights?: number };
+type Mine = { id: string; component_id: string | null; label: string; price: number | null; status?: string | null; notes?: string | null; meta?: AddonMeta | null };
+
+const nightsBetween = (a?: string | null, b?: string | null) => (a && b ? Math.round((Date.parse(b) - Date.parse(a)) / 86400000) : 0);
+const fmtDay = (d?: string | null) => (d ? new Date(d + "T00:00:00Z").toLocaleDateString("en-GB", { day: "numeric", month: "short", timeZone: "UTC" }) : "");
 
 const STEPS = [
   { t: "Pay your deposit", d: "Secures your spot — done if you're here." },
@@ -75,13 +79,26 @@ export function TripAddons({ bookingId, depositPaid, initialFlights, arrival, ed
   }, [bookingId]);
   useEffect(() => { load(); }, [load]);
 
-  async function request(componentId: string) {
+  // Extra-night picker state (one accommodation offer being configured at a time).
+  const [nightsFor, setNightsFor] = useState<string | null>(null);
+  const [nightForm, setNightForm] = useState<{ checkIn: string; checkOut: string }>({ checkIn: "", checkOut: "" });
+
+  function openNights(componentId: string) {
+    setNightForm({
+      checkIn: flights?.arrivalDate ?? editionStart ?? "",
+      checkOut: flights?.departureDate ?? editionEnd ?? "",
+    });
+    setNightsFor(componentId);
+  }
+
+  async function request(componentId: string, extra?: { checkIn: string; checkOut: string }) {
     setBusy(componentId);
     await fetch(`/api/portal/bookings/${bookingId}/addons`, {
       method: "POST", headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ component_id: componentId }),
+      body: JSON.stringify({ component_id: componentId, ...(extra ?? {}) }),
     });
     setBusy(null);
+    setNightsFor(null);
     setShowOffers(false);
     load();
   }
@@ -106,20 +123,69 @@ export function TripAddons({ bookingId, depositPaid, initialFlights, arrival, ed
   const requestedIds = new Set(active.map((m) => m.component_id).filter(Boolean));
   const offer = available.filter((a) => !requestedIds.has(a.id));
 
+  const dateInput = "w-full min-w-0 px-3 py-2 rounded-lg border border-[#dde6e9] text-[14px] text-[#00374a] outline-none focus:border-[#00afdb]";
   const Offers = () => (
     <div className="space-y-2">
-      {offer.map((a) => (
-        <div key={a.id} className="flex items-center justify-between gap-3 bg-[#f8fbfc] rounded-xl px-4 py-3">
-          <div className="min-w-0 flex-1">
-            <p className="text-[14px] font-semibold text-[#00374a] truncate">{a.name}{a.sell_price ? ` · ${money(a.sell_price)}` : ""}</p>
-            {a.description && <p className="text-[12.5px] text-[#8a9aa0] truncate">{a.description}</p>}
+      {offer.map((a) => {
+        // Extra hotel nights need the dates — capture arrive/leave (pre-filled from
+        // flights) and bill anything outside the trip week.
+        if (a.category === "accommodation") {
+          const open = nightsFor === a.id;
+          const before = Math.max(0, nightsBetween(nightForm.checkIn, editionStart));
+          const after = Math.max(0, nightsBetween(editionEnd, nightForm.checkOut));
+          const total = before + after;
+          const price = a.sell_price != null ? a.sell_price * total : null;
+          return (
+            <div key={a.id} className="bg-[#f8fbfc] rounded-xl px-4 py-3">
+              <div className="flex items-center justify-between gap-3">
+                <div className="min-w-0 flex-1">
+                  <p className="text-[14px] font-semibold text-[#00374a] truncate">{a.name}{a.sell_price ? ` · ${money(a.sell_price)}/night` : ""}</p>
+                  {a.description && <p className="text-[12.5px] text-[#8a9aa0] truncate">{a.description}</p>}
+                </div>
+                {!open && (
+                  <button onClick={() => openNights(a.id)}
+                    className="shrink-0 px-4 py-2 rounded-full text-[12.5px] font-bold text-white bg-[#00afdb] hover:bg-[#15c0ec] transition-colors">Add nights</button>
+                )}
+              </div>
+              {open && (
+                <div className="mt-3 pt-3 border-t border-[#e3eef1] space-y-3">
+                  <p className="text-[12.5px] text-[#5a6b72] leading-snug">Which nights? Pick when you arrive &amp; leave — any night outside the trip week ({fmtDay(editionStart)} – {fmtDay(editionEnd)}) is an extra night.</p>
+                  <div className="grid grid-cols-2 gap-2">
+                    <label className="block"><span className="block text-[11px] font-bold uppercase tracking-wide text-[#9aa6ac] mb-1">Arrive</span>
+                      <input type="date" value={nightForm.checkIn} onChange={(e) => setNightForm((f) => ({ ...f, checkIn: e.target.value }))} className={dateInput} /></label>
+                    <label className="block"><span className="block text-[11px] font-bold uppercase tracking-wide text-[#9aa6ac] mb-1">Leave</span>
+                      <input type="date" value={nightForm.checkOut} onChange={(e) => setNightForm((f) => ({ ...f, checkOut: e.target.value }))} className={dateInput} /></label>
+                  </div>
+                  <p className="text-[13px] text-[#00374a]">
+                    {total > 0 ? (
+                      <><strong>{[before > 0 ? `${before} night${before !== 1 ? "s" : ""} before` : "", after > 0 ? `${after} night${after !== 1 ? "s" : ""} after` : ""].filter(Boolean).join(" + ")}</strong> = {total} extra night{total !== 1 ? "s" : ""}{price != null ? ` · ${money(price)}` : ""}</>
+                    ) : (
+                      <span className="text-[#8a9aa0]">Those dates are within the trip week — no extra nights yet.</span>
+                    )}
+                  </p>
+                  <div className="flex gap-2">
+                    <button onClick={() => request(a.id, nightForm)} disabled={busy === a.id || total < 1}
+                      className="px-4 py-2 rounded-full text-[12.5px] font-bold text-white bg-[#00afdb] hover:bg-[#15c0ec] disabled:opacity-50 transition-colors">{busy === a.id ? "…" : "Request these nights"}</button>
+                    <button onClick={() => setNightsFor(null)} className="px-4 py-2 rounded-full text-[12.5px] font-semibold text-[#6a7a80] bg-[#f1f5f6]">Cancel</button>
+                  </div>
+                </div>
+              )}
+            </div>
+          );
+        }
+        return (
+          <div key={a.id} className="flex items-center justify-between gap-3 bg-[#f8fbfc] rounded-xl px-4 py-3">
+            <div className="min-w-0 flex-1">
+              <p className="text-[14px] font-semibold text-[#00374a] truncate">{a.name}{a.sell_price ? ` · ${money(a.sell_price)}` : ""}</p>
+              {a.description && <p className="text-[12.5px] text-[#8a9aa0] truncate">{a.description}</p>}
+            </div>
+            <button onClick={() => request(a.id)} disabled={busy === a.id}
+              className="shrink-0 px-4 py-2 rounded-full text-[12.5px] font-bold text-white bg-[#00afdb] hover:bg-[#15c0ec] disabled:opacity-60 transition-colors">
+              {busy === a.id ? "…" : "Request"}
+            </button>
           </div>
-          <button onClick={() => request(a.id)} disabled={busy === a.id}
-            className="shrink-0 px-4 py-2 rounded-full text-[12.5px] font-bold text-white bg-[#00afdb] hover:bg-[#15c0ec] disabled:opacity-60 transition-colors">
-            {busy === a.id ? "…" : "Request"}
-          </button>
-        </div>
-      ))}
+        );
+      })}
       <p className="text-[12px] text-[#9aa6ac] mt-1">Requests aren&apos;t charged automatically — we confirm availability first, then add it to your balance.</p>
     </div>
   );
@@ -223,8 +289,13 @@ export function TripAddons({ bookingId, depositPaid, initialFlights, arrival, ed
                     {active.map((m) => {
                       const confirmed = effectiveAddonStatus(m) === "confirmed";
                       return (
-                        <div key={m.id} className="flex items-center justify-between gap-3 text-[13.5px]">
-                          <span className="font-semibold text-[#00374a] truncate min-w-0">{m.label}{m.price ? ` · ${money(m.price)}` : ""}</span>
+                        <div key={m.id} className="flex items-start justify-between gap-3 text-[13.5px]">
+                          <div className="min-w-0">
+                            <span className="font-semibold text-[#00374a] truncate block">{m.label}{m.price ? ` · ${money(m.price)}` : ""}</span>
+                            {(m.meta?.checkIn || m.meta?.checkOut) && (
+                              <span className="text-[12px] text-[#8a9aa0]">{fmtDay(m.meta.checkIn)} → {fmtDay(m.meta.checkOut)}</span>
+                            )}
+                          </div>
                           <span className={`shrink-0 px-2.5 py-1 rounded-full text-[11px] font-bold ${confirmed ? "bg-green-100 text-green-700" : "bg-amber-100 text-amber-700"}`}>{confirmed ? "Confirmed ✓" : "Requested"}</span>
                         </div>
                       );
