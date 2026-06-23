@@ -66,6 +66,9 @@ export async function PATCH(
   const status: AddonStatus = body.status === "declined" ? "declined" : "confirmed";
   const patch: Record<string, unknown> = { status };
   if (status === "confirmed") patch.confirmed_at = new Date().toISOString();
+  // "Confirm, no charge": include the add-on but don't bill for it (price → 0),
+  // so the agreed price / balance is unchanged. Default confirm charges extra.
+  if (status === "confirmed" && body.complimentary === true) patch.price = 0;
 
   let { data, error } = await client
     .from("exp_booking_addons").update(patch).eq("id", body.addon_id).eq("booking_id", id)

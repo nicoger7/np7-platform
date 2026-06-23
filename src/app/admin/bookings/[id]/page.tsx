@@ -310,14 +310,42 @@ export function BookingDetailPane({ bookingId, onBack }: { bookingId: string; on
     setBooking((prev) => prev ? { ...prev, addons: prev.addons.filter((a) => a.id !== addonId) } : prev);
   }
 
-  async function confirmAddon(addonId: string) {
+  async function confirmAddon(addonId: string, complimentary = false) {
     const res = await fetch(`/api/admin/bookings/${id}/addons`, {
       method: "PATCH", headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ addon_id: addonId, status: "confirmed" }),
+      body: JSON.stringify({ addon_id: addonId, status: "confirmed", complimentary }),
     });
     if (res.ok) {
-      setBooking((prev) => prev ? { ...prev, addons: prev.addons.map((a) => a.id === addonId ? { ...a, status: "confirmed" } : a) } : prev);
+      setBooking((prev) => prev ? { ...prev, addons: prev.addons.map((a) => a.id === addonId ? { ...a, status: "confirmed", price: complimentary ? 0 : a.price } : a) } : prev);
     }
+  }
+
+  async function sendInvoice(docId: string) {
+    setGenError(null);
+    const res = await fetch(`/api/admin/documents/${docId}/send`, { method: "POST" });
+    if (res.ok) { await fetchDocuments(); }
+    else { const e = await res.json().catch(() => ({})); setGenError(e.error || "Couldn't send the invoice."); }
+  }
+
+  async function sendShortfallReminder() {
+    const res = await fetch(`/api/admin/bookings/${id}/settle`, {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ action: "remind_shortfall" }),
+    });
+    const d = await res.json().catch(() => ({}));
+    alert(res.ok ? "Reminder emailed to the customer." : (d.error || "Couldn't send the reminder."));
+  }
+
+  async function acceptShort() {
+    const note = window.prompt("Accept what's been paid as the full price?\n\nThe agreed price drops to the amount received and the booking reads as settled. Add a short note for the record:");
+    if (note === null) return;
+    const res = await fetch(`/api/admin/bookings/${id}/settle`, {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ action: "accept_short", note }),
+    });
+    const d = await res.json().catch(() => ({}));
+    if (res.ok) { setBooking((prev) => prev ? { ...prev, agreed_price: d.agreed_price } : prev); }
+    else alert(d.error || "Couldn't accept the short payment.");
   }
 
   async function addPayment() {
@@ -720,6 +748,18 @@ export function BookingDetailPane({ bookingId, onBack }: { bookingId: string; on
             </div>
           </div>
 
+          {/* Shortfall actions — only when something's still owed */}
+          {recon.balance > 0.01 && (
+            <div className="flex flex-wrap gap-2 mb-4">
+              <button onClick={sendShortfallReminder} className="px-3 py-1.5 text-xs font-bold rounded-lg admin-surface hover:opacity-80 transition-opacity" style={{ border: "1px solid var(--admin-border)" }}>
+                Send reminder · €{recon.balance.toLocaleString()} left
+              </button>
+              <button onClick={acceptShort} title="Accept what's been paid as the full price" className="px-3 py-1.5 text-xs font-bold rounded-lg admin-surface hover:opacity-80 transition-opacity" style={{ border: "1px solid var(--admin-border)" }}>
+                Accept as settled
+              </button>
+            </div>
+          )}
+
           {/* Invoices with their reconciliation state */}
           {recon.invoices.length > 0 && (
             <div className="rounded-xl admin-tablecard mb-4" style={{ border: "1px solid var(--admin-border)" }}>
@@ -944,7 +984,10 @@ export function BookingDetailPane({ bookingId, onBack }: { bookingId: string; on
                   <span className="text-xs admin-muted self-center">{a.price ? `€${Number(a.price).toLocaleString()}` : "—"}</span>
                   <div className="flex items-center justify-end gap-2 self-center">
                     {requested && (
-                      <button onClick={() => confirmAddon(a.id)} className="text-[11px] font-bold px-2.5 py-1 rounded-md bg-[var(--admin-accent)] text-[var(--admin-accent-contrast)] hover:bg-[var(--admin-accent)]/90 transition-colors">Confirm</button>
+                      <>
+                        <button onClick={() => confirmAddon(a.id, false)} title="Adds the price to what they owe" className="text-[11px] font-bold px-2.5 py-1 rounded-md bg-[var(--admin-accent)] text-[var(--admin-accent-contrast)] hover:bg-[var(--admin-accent)]/90 transition-colors">Confirm &amp; charge</button>
+                        <button onClick={() => confirmAddon(a.id, true)} title="Include it at no extra charge (price → €0)" className="text-[11px] font-medium px-2.5 py-1 rounded-md admin-surface hover:opacity-80 transition-opacity" style={{ border: "1px solid var(--admin-border)" }}>No charge</button>
+                      </>
                     )}
                     <button onClick={() => removeAddon(a.id)} className="text-xs admin-faint hover:text-red-400 transition-colors">
                       <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M18 6L6 18M6 6l12 12" /></svg>
@@ -1031,7 +1074,7 @@ export function BookingDetailPane({ bookingId, onBack }: { bookingId: string; on
             <div className="rounded-xl admin-tablecard" style={{ border: "1px solid var(--admin-border)" }}>
               <div
                 className="grid gap-3 px-5 py-3 admin-surface"
-                style={{ gridTemplateColumns: "130px 1fr 100px 90px 70px 70px 70px", borderBottom: "1px solid var(--admin-border)" }}
+                style={{ gridTemplateColumns: "130px 1fr 100px 90px 64px 64px 130px", borderBottom: "1px solid var(--admin-border)" }}
               >
                 {["Invoice #", "Title", "Type", "Amount", "Date", "Status", ""].map((h) => (
                   <span key={h} className="text-[10px] font-bold tracking-[0.1em] admin-faint uppercase">{h}</span>
@@ -1041,7 +1084,7 @@ export function BookingDetailPane({ bookingId, onBack }: { bookingId: string; on
                 <div
                   key={doc.id}
                   className="grid gap-3 px-5 py-3 transition-colors"
-                  style={{ gridTemplateColumns: "130px 1fr 100px 90px 70px 70px 70px", borderBottom: "1px solid var(--admin-border)" }}
+                  style={{ gridTemplateColumns: "130px 1fr 100px 90px 64px 64px 130px", borderBottom: "1px solid var(--admin-border)" }}
                   onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = "var(--admin-surface-hover)")}
                   onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = "transparent")}
                 >
@@ -1077,6 +1120,15 @@ export function BookingDetailPane({ bookingId, onBack }: { bookingId: string; on
                       >
                         PDF
                       </a>
+                    )}
+                    {doc.status !== "void" && doc.type !== "booking_confirmation" && (
+                      <button
+                        onClick={() => sendInvoice(doc.id)}
+                        title={doc.sent_at ? `Sent ${new Date(doc.sent_at).toLocaleDateString("en-GB")}` : "Email this invoice to the customer"}
+                        className="text-xs text-[#0aa3c7] hover:text-[#0aa3c7]/80 transition-colors"
+                      >
+                        {doc.sent_at ? "Resend" : "Send"}
+                      </button>
                     )}
                     {doc.status !== "void" && (
                       <button

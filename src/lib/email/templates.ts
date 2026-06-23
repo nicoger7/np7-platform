@@ -24,6 +24,8 @@ export type EmailVars = {
   recipientName?: string;
   fromName?: string;
   amount?: string;
+  /** Payment reference to quote on a bank transfer (the invoice number). */
+  reference?: string;
   inviterName?: string;
   rewardFriend?: string;
   personalNote?: string;
@@ -129,6 +131,34 @@ export const TEMPLATES: Record<string, (v: EmailVars, opts?: LayoutOpts) => Buil
         p(`You'll find your invoice and bank details in your trip account:`) +
         (v.bookingLink ? emailButton("View my booking & invoice", v.bookingLink) : "") +
         p(`Thanks — almost time to ride!<br>— Nico & the NP7 team`),
+    }),
+  }),
+
+  invoice_sent: (v, opts) => ({
+    subject: `Your invoice for ${v.experienceTitle ?? "your NP7 trip"}${v.amount ? " — " + v.amount : ""}`,
+    html: emailLayout({
+      ...opts,
+      preheader: "Your invoice is attached — payable by bank transfer.",
+      bodyHtml:
+        greet(v) +
+        p(`Here's your invoice for <strong>${esc(v.experienceTitle || "your NP7 trip")}</strong>${v.amount ? `, <strong>${esc(v.amount)}</strong>` : ""} — attached as a PDF.`) +
+        p(`Please pay by <strong>bank transfer</strong>${v.reference ? ` and quote the reference <strong>${esc(v.reference)}</strong>` : ""} so we can match it to your booking straight away.`) +
+        (v.bookingLink ? emailButton("View my booking", v.bookingLink) : "") +
+        p(`Any questions, just reply — happy to help.<br>— Nico &amp; the NP7 team`),
+    }),
+  }),
+
+  payment_shortfall_reminder: (v, opts) => ({
+    subject: `Almost there — a little left on ${v.experienceTitle ?? "your NP7 trip"} 🌊`,
+    html: emailLayout({
+      ...opts,
+      preheader: "We're excited for your trip — just a small balance to settle.",
+      bodyHtml:
+        greet(v) +
+        p(`We're getting really excited for <strong>${esc(v.experienceTitle || "your trip")}</strong>${v.dates ? " (" + esc(v.dates) + ")" : ""} — it's going to be a great one. 🤩`) +
+        p(`There's just <strong>${esc(v.balance || "a little")}</strong> left to fully settle your balance. A quick bank transfer${v.reference ? ` quoting <strong>${esc(v.reference)}</strong>` : ""} and you're all set.`) +
+        (v.bookingLink ? emailButton("View my booking & pay", v.bookingLink) : "") +
+        p(`Thanks so much — can't wait to ride with you.<br>— Nico &amp; the NP7 team`),
     }),
   }),
 

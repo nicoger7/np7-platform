@@ -77,6 +77,10 @@ const s = StyleSheet.create({
   bankRow: { flexDirection: "row", marginBottom: 2 },
   bankLabel: { width: 60, color: GREY, fontSize: 8 },
   bankValue: { flex: 1, fontSize: 8 },
+  // Highlighted payment reference (so the customer quotes it on the transfer)
+  bankRefBox: { marginTop: 8, padding: 8, backgroundColor: "#fff3da", borderRadius: 3, borderLeftWidth: 3, borderLeftColor: "#e6b873" },
+  bankRefLabel: { fontSize: 7, color: GREY, marginBottom: 2, fontFamily: "Helvetica-Bold" },
+  bankRefValue: { fontSize: 12, fontFamily: "Helvetica-Bold", color: BRAND_DARK, letterSpacing: 1 },
   // Footer
   footer: { position: "absolute", bottom: 28, left: 48, right: 48, borderTopWidth: 1, borderTopColor: LIGHT_GREY, paddingTop: 8, flexDirection: "row", justifyContent: "space-between" },
   footerText: { fontSize: 7, color: GREY },
@@ -255,11 +259,17 @@ function VatNote({ vatMode, vatRate }: { vatMode: VatMode; vatRate: number | nul
   return null;
 }
 
-function BankDetails({ company, currency }: { company: CompanySettings; currency: string }) {
+function BankDetails({ company, currency, reference }: { company: CompanySettings; currency: string; reference?: string | null }) {
   if (!company.iban && !company.bic) return null;
   return (
     <View style={s.bankBox}>
       <Text style={s.bankTitle}>Bank Transfer Details</Text>
+      {reference && (
+        <View style={s.bankRefBox}>
+          <Text style={s.bankRefLabel}>PLEASE QUOTE THIS PAYMENT REFERENCE</Text>
+          <Text style={s.bankRefValue}>{reference}</Text>
+        </View>
+      )}
       {company.bank_name && (
         <View style={s.bankRow}>
           <Text style={s.bankLabel}>Bank:</Text>
@@ -642,7 +652,7 @@ export function buildInvoiceDocument(data: InvoiceData): React.ReactElement {
 
         {/* Bank details for invoices */}
         {!isConfirmation && (
-          <BankDetails company={company} currency={currency} />
+          <BankDetails company={company} currency={currency} reference={invoiceNumber} />
         )}
 
         {/* Sicherungsschein */}
