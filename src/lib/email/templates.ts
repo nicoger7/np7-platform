@@ -20,6 +20,10 @@ export type EmailVars = {
   preTripNote?: string;
   waiverLink?: string;
   tripLink?: string;
+  voucherCode?: string;
+  recipientName?: string;
+  fromName?: string;
+  amount?: string;
   inviterName?: string;
   rewardFriend?: string;
   personalNote?: string;
@@ -170,6 +174,33 @@ export const TEMPLATES: Record<string, (v: EmailVars, opts?: LayoutOpts) => Buil
         p(`Your balance is paid in full — everything's sorted for <strong>${esc(v.experienceTitle || "")}${v.dates ? " (" + esc(v.dates) + ")" : ""}</strong>. Nothing left to do but count down the days. 🌊`) +
         p(`Closer to departure we'll send your final pre-trip details — packing list, arrival info and your group chat. It's all in your trip account too:`) +
         (v.bookingLink ? emailButton("Open my trip", v.bookingLink) : "") +
+        p(`See you on the water.<br>— Nico & the NP7 team`),
+    }),
+  }),
+
+  voucher_purchased: (v, opts) => ({
+    subject: `Your NP7 gift voucher is ready 🎁`,
+    html: emailLayout({
+      ...opts,
+      preheader: "Your printable gift voucher is attached.",
+      bodyHtml:
+        greet(v) +
+        p(`Thank you — your <strong>${esc(v.amount || "")}</strong> gift voucher towards <strong>${esc(v.experienceTitle || "an NP7 trip")}</strong> is confirmed and ready. 🎁`) +
+        p(`We've attached it as a <strong>printable PDF</strong>${v.recipientName ? ` — hand or send it to <strong>${esc(v.recipientName)}</strong>` : ""}. The code is <strong>${esc(v.voucherCode || "")}</strong>; it can be redeemed any time in the account at np-seven.com.`) +
+        p(`Thanks for giving the gift of riding.<br>— Nico & the NP7 team`),
+    }),
+  }),
+
+  voucher_gift: (v, opts) => ({
+    subject: `🎁 You've been gifted an NP7 windsurf trip${v.fromName ? ` by ${v.fromName}` : ""}`,
+    html: emailLayout({
+      ...opts,
+      preheader: "A gift voucher towards an NP7 Experience — open to redeem.",
+      bodyHtml:
+        p(`Hey ${esc(v.firstName || "there")} 🤙`) +
+        p(`${v.fromName ? `<strong>${esc(v.fromName)}</strong> has` : "You've"} gifted you a <strong>${esc(v.amount || "")}</strong> voucher towards <strong>${esc(v.experienceTitle || "an NP7 trip")}</strong> — a coached windsurf, wing &amp; foil adventure. 🌊`) +
+        p(`Your voucher (code <strong>${esc(v.voucherCode || "")}</strong>) is attached as a printable PDF. To use it, explore the trips and we'll apply it to your booking:`) +
+        (v.joinLink ? emailButton("Explore the trips", v.joinLink) : "") +
         p(`See you on the water.<br>— Nico & the NP7 team`),
     }),
   }),

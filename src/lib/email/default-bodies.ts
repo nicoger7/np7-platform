@@ -13,6 +13,8 @@ export const DEFAULT_SUBJECTS: Record<string, string> = {
   deposit_confirmation: "You're in! 🤙 {{experienceTitle}} is booked",
   account_magic_link: "Your NP7 login link",
   trip_invite: "{{inviterName}} invited you to {{experienceTitle}} 🌊",
+  voucher_purchased: "Your NP7 gift voucher is ready 🎁",
+  voucher_gift: "🎁 You've been gifted an NP7 windsurf trip",
   payment_pending_nudge: "Your spot is waiting — {{experienceTitle}}",
   balance_invoice_reminder: "Balance for {{experienceTitle}} — invoice",
   pre_trip_info: "Getting ready for {{experienceTitle}} 🌊",

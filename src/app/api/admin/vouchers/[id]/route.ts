@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase";
 import { redeemByFrom } from "@/lib/vouchers";
+import { sendVoucherIssued } from "@/lib/vouchers/notify";
 
 // Admin routes are gated by middleware; no per-route auth check needed.
 
@@ -65,6 +66,13 @@ export async function PATCH(request: NextRequest, { params }: RouteContext) {
       return NextResponse.json({ error: "Run migration 036 first (gift_vouchers table missing)." }, { status: 503 });
     }
     return NextResponse.json({ error: error.message }, { status: 400 });
+  }
+
+  // On payment confirmation, email the printable PDF voucher to the buyer (and the
+  // recipient if given). Best-effort + idempotent — never blocks the activation.
+  if (action === "activate") {
+    const origin = request.headers.get("origin") ?? `https://${request.headers.get("host")}`;
+    await sendVoucherIssued(id, origin).catch(() => {});
   }
 
   return NextResponse.json({ ok: true, voucher: data });
