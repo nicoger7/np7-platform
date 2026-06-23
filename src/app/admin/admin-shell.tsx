@@ -6,6 +6,7 @@ import { useState, useEffect, useRef } from "react";
 import { createClient } from "@/lib/supabase/client";
 import type { User } from "@supabase/supabase-js";
 import { effectiveCanAccess, effectiveCanEnterWorld, type EffectiveAccess, type WorldId } from "@/lib/access";
+import { AccountSwitcher } from "@/components/admin/account-switcher";
 import { AdminInstallPrompt } from "@/components/pwa/admin-install-prompt";
 
 // ─── Environments ────────────────────────────────────────────────────────────
@@ -437,7 +438,10 @@ export default function AdminShell({
   }
 
   async function handleLogout() {
-    await supabase.auth.signOut();
+    // Local scope only: clears THIS session but keeps the account's refresh token
+    // valid + cached, so logging into another account lets you switch back
+    // (the account-switcher's "Forget all" does a full clear).
+    await supabase.auth.signOut({ scope: "local" });
     router.push("/admin/login");
     router.refresh();
   }
@@ -665,9 +669,7 @@ export default function AdminShell({
 
         <div className="p-4" style={{ borderTop: "1px solid var(--admin-border)" }}>
           <div className="flex items-center justify-between mb-2">
-            <span className="text-xs truncate" style={{ color: "var(--admin-text-faint)" }}>
-              {user.email}
-            </span>
+            <AccountSwitcher currentEmail={user.email ?? ""} currentUserId={user.id} />
             <button
               onClick={toggleTheme}
               className="w-7 h-7 flex items-center justify-center rounded-lg transition-colors"
