@@ -15,6 +15,7 @@ export const DEFAULT_SUBJECTS: Record<string, string> = {
   trip_invite: "{{inviterName}} invited you to {{experienceTitle}} 🌊",
   voucher_purchased: "Your NP7 gift voucher is ready 🎁",
   voucher_gift: "🎁 You've been gifted an NP7 windsurf trip",
+  cancellation_confirmed: "Your cancellation — {{experienceTitle}}",
   payment_pending_nudge: "Your spot is waiting — {{experienceTitle}}",
   balance_invoice_reminder: "Balance for {{experienceTitle}} — invoice",
   pre_trip_info: "Getting ready for {{experienceTitle}} 🌊",
@@ -119,6 +120,12 @@ export const DEFAULT_BODIES: Record<string, string> = {
     P("Good news — the photos from <strong>{{experienceTitle}}</strong> are in your gallery. Relive the week, and download your favourites.") +
     BTN("See my photos", "tripLink") +
     P("Hope the stoke lasts." + SIGN),
+
+  cancellation_confirmed:
+    P("Hey {{firstName}} 🤙") +
+    P("This confirms we've cancelled your booking for <strong>{{experienceTitle}}</strong> ({{dates}}), as requested.") +
+    P("Anything owed back to you — a refund or a goodwill credit toward a future trip — we'll sort personally and be in touch shortly. If anything's unclear, just reply to this email.") +
+    P("We hope to ride with you another time. 🌊" + SIGN),
 
   addon_confirmed:
     P("Hey {{firstName}} 🤙") +

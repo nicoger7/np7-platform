@@ -205,6 +205,19 @@ export const TEMPLATES: Record<string, (v: EmailVars, opts?: LayoutOpts) => Buil
     }),
   }),
 
+  cancellation_confirmed: (v, opts) => ({
+    subject: `Your cancellation — ${v.experienceTitle ?? "NP7 trip"}`,
+    html: emailLayout({
+      ...opts,
+      preheader: "Your booking has been cancelled.",
+      bodyHtml:
+        greet(v) +
+        p(`This confirms we've cancelled your booking for <strong>${esc(v.experienceTitle || "your NP7 trip")}</strong>${v.dates ? " (" + esc(v.dates) + ")" : ""}, as requested.`) +
+        p(`Anything owed back to you — a refund or a goodwill credit toward a future trip — we'll sort personally and be in touch shortly. If anything's unclear, just reply to this email.`) +
+        p(`We hope to ride with you another time. 🌊<br>— Nico & the NP7 team`),
+    }),
+  }),
+
   waiver_reminder: (v, opts) => ({
     subject: `Quick one before ${v.experienceTitle ?? "your NP7 trip"} — sign your waiver`,
     html: emailLayout({

@@ -257,6 +257,13 @@ export function BookingDetailPane({ bookingId, onBack }: { bookingId: string; on
     router.push("/admin/bookings");
   }
 
+  async function handleConfirmCancellation() {
+    if (!confirm("Confirm this cancellation? The booking is set to Lost and the member gets a cancellation email. (Refunds/credits are handled separately.)")) return;
+    const res = await fetch(`/api/admin/bookings/${id}/cancel`, { method: "POST" });
+    if (res.ok) { setBooking((prev) => (prev ? { ...prev, status: "lost" } : prev)); alert("Cancellation confirmed — the member has been emailed."); }
+    else { const j = await res.json().catch(() => ({})); alert(j.error || "Could not confirm the cancellation."); }
+  }
+
   async function handleExperienceChange(expId: string) {
     update("experience_id", expId || null);
     update("package_id", null);
@@ -379,6 +386,11 @@ export function BookingDetailPane({ bookingId, onBack }: { bookingId: string; on
               )}
             </div>
           </div>
+          {booking.status !== "lost" && (
+            <button onClick={handleConfirmCancellation} className="px-3 py-2 text-xs text-amber-500/80 hover:text-amber-400 transition-colors">
+              Confirm cancellation
+            </button>
+          )}
           <button onClick={handleDelete} className="px-3 py-2 text-xs text-red-400/60 hover:text-red-400 transition-colors">
             Delete
           </button>
