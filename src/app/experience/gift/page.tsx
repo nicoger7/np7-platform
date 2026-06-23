@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import Link from "next/link";
 import { supabase } from "@/lib/supabase";
 import { OceanHeader } from "@/components/experience/ocean-header";
 import { GiftBuyForm } from "@/components/experience/gift-buy-form";
@@ -7,8 +8,9 @@ export const metadata: Metadata = { title: "Gift a trip — NP7 Experience" };
 export const dynamic = "force-dynamic";
 
 type Exp = { id: string; title: string; currency: string | null; price: number | null };
+type Pkg = { id: string; name: string; price: number | null; experience_id: string };
 
-async function loadGiftData(): Promise<{ experiences: Exp[]; heroes: string[] }> {
+async function loadGiftData(): Promise<{ experiences: Exp[]; heroes: string[]; packages: Pkg[] }> {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const sb = supabase as any;
   const { data: exps } = await sb.from("exp_experiences").select("id, title, currency, price, hero_image").eq("status", "published").order("title");
@@ -20,11 +22,33 @@ async function loadGiftData(): Promise<{ experiences: Exp[]; heroes: string[] }>
   const byExp = new Map((content ?? []).map((c: any) => [c.experience_id, c.hero_image]));
   const heroes = [...new Set(rows.map((e) => byExp.get(e.id) || e.hero_image).filter(Boolean))] as string[];
   const experiences = rows.map((e) => ({ id: e.id, title: e.title, currency: e.currency, price: e.price ?? null }));
-  return { experiences, heroes };
+
+  // Public packages, so gifting a specific experience can pick a tier.
+  let packages: Pkg[] = [];
+  if (ids.length) {
+    const { data: pkgRows } = await sb.from("exp_packages").select("id, name, price, experience_id, sort_order, status, website_visible").in("experience_id", ids).order("sort_order");
+    // Packages are edition-bound and code-prefixed ("BON001 - Beginner – No Hotel").
+    // Strip the edition code so the same tier across weeks collapses to ONE pill,
+    // keeping the lowest "from" price — a clean tier picker for gifting.
+    const tierName = (n: unknown) => String(n || "").replace(/^[A-Za-z]{2,5}\s*\d+\s*[-–—]\s*/, "").trim();
+    const byKey = new Map<string, Pkg>();
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    for (const p of ((pkgRows ?? []) as any[])) {
+      if (p.status === "archived" || p.website_visible === false || p.price == null) continue;
+      const name = tierName(p.name) || p.name;
+      const key = `${p.experience_id}|${name.toLowerCase()}`;
+      const cur = byKey.get(key);
+      if (!cur || Number(p.price) < Number(cur.price ?? Infinity)) {
+        byKey.set(key, { id: p.id, name, price: p.price, experience_id: p.experience_id });
+      }
+    }
+    packages = [...byKey.values()];
+  }
+  return { experiences, heroes, packages };
 }
 
 export default async function GiftPage() {
-  const { experiences, heroes } = await loadGiftData();
+  const { experiences, heroes, packages } = await loadGiftData();
 
   return (
     <>
@@ -33,6 +57,10 @@ export default async function GiftPage() {
         <section className="relative bg-[#00374a] text-white overflow-hidden">
           <div className="absolute -top-32 left-1/2 -translate-x-1/2 w-[600px] h-[600px] rounded-full opacity-25 blur-[120px]" style={{ background: "radial-gradient(circle,#f47b20,transparent 70%)" }} aria-hidden />
           <div className="relative max-w-[760px] mx-auto px-6 sm:px-8 py-14 sm:py-16">
+            <Link href="/experience#experiences" className="inline-flex items-center gap-1.5 text-[13px] font-semibold text-white/70 hover:text-white transition-colors mb-5">
+              <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M19 12H5M11 18l-6-6 6-6" /></svg>
+              Back to experiences
+            </Link>
             <p className="text-[11px] font-bold tracking-[0.28em] text-[#ffc42e] mb-3">GIVE THE BEST WEEK OF THEIR YEAR</p>
             <h1 className="text-4xl sm:text-5xl font-black tracking-[-0.035em] leading-[1.02]">Gift an NP7 trip</h1>
             <p className="mt-4 text-[16px] sm:text-[17px] text-white/80 max-w-[560px]">A windsurf, wing &amp; foil adventure with coaching, a crew and everything arranged — wrapped up as a voucher for someone you love. Add a personal call from Nico to deliver the news.</p>
@@ -53,7 +81,7 @@ export default async function GiftPage() {
         )}
 
         <div className="max-w-[760px] mx-auto px-6 sm:px-8 py-10 sm:py-14">
-          <GiftBuyForm experiences={experiences} />
+          <GiftBuyForm experiences={experiences} packages={packages} />
 
           {/* How gifting works */}
           <div className="mt-12">

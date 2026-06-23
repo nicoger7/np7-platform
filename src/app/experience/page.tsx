@@ -210,22 +210,23 @@ export default async function ExperienceOverviewPage() {
                   // eslint-disable-next-line @next/next/no-img-element
                   <img src={giftHero} alt="" className="absolute inset-0 w-full h-full object-cover scale-105 transition-transform duration-[1200ms] ease-out group-hover:scale-110" />
                 )}
-                {/* CI colour fade — deep teal body so text stays crisp, warm sun glow up top, sea-blue kiss at the foot */}
-                <div className="absolute inset-0 bg-gradient-to-b from-[#00374a]/82 via-[#012b39]/90 to-[#012734]/96" aria-hidden />
-                <div className="absolute inset-0" style={{ background: "radial-gradient(120% 75% at 50% -10%, rgba(255,196,46,0.20), rgba(244,123,32,0.10) 38%, transparent 60%)" }} aria-hidden />
-                <div className="absolute inset-x-0 bottom-0 h-1/3" style={{ background: "linear-gradient(180deg, transparent, rgba(0,175,219,0.16))" }} aria-hidden />
-                <div className="absolute -top-24 left-1/2 -translate-x-1/2 h-72 w-72 rounded-full opacity-30 blur-[110px]" style={{ background: "radial-gradient(circle,#e6b873,transparent 70%)" }} aria-hidden />
-                <div className="absolute inset-0 rounded-[28px] ring-1 ring-inset ring-[#e6b873]/25" aria-hidden />
-                <div className="absolute inset-x-10 top-0 h-px" style={{ background: "linear-gradient(90deg,transparent,rgba(230,184,115,0.7),transparent)" }} aria-hidden />
+                {/* Warm "sun to sea" CI wash — teal body keeps text crisp, a big sun→coral glow up top, sea-blue at the foot */}
+                <div className="absolute inset-0" style={{ background: "linear-gradient(180deg, rgba(0,55,74,0.58) 0%, rgba(6,48,58,0.82) 52%, rgba(8,46,55,0.94) 100%)" }} aria-hidden />
+                <div className="absolute inset-0" style={{ background: "radial-gradient(130% 90% at 50% -8%, rgba(244,123,32,0.46), rgba(255,196,46,0.22) 40%, transparent 66%)" }} aria-hidden />
+                <div className="absolute inset-0 mix-blend-overlay opacity-50" style={{ background: "linear-gradient(135deg, #f47b20 0%, transparent 55%)" }} aria-hidden />
+                <div className="absolute inset-x-0 bottom-0 h-1/3" style={{ background: "linear-gradient(180deg, transparent, rgba(0,175,219,0.18))" }} aria-hidden />
+                <div className="absolute -top-24 left-1/2 -translate-x-1/2 h-72 w-72 rounded-full opacity-45 blur-[110px]" style={{ background: "radial-gradient(circle,#ffb04a,transparent 70%)" }} aria-hidden />
+                <div className="absolute inset-0 rounded-[28px] ring-1 ring-inset ring-[#ffc42e]/25" aria-hidden />
+                <div className="absolute inset-x-10 top-0 h-px" style={{ background: "linear-gradient(90deg,transparent,#ffc42e,#f47b20,transparent)" }} aria-hidden />
                 <div className="relative flex flex-col items-center gap-5 px-8 py-14 sm:py-16 text-center">
-                  <p className="text-[11px] font-semibold tracking-[0.34em] text-[#e6b873]">THE GIFT OF NP7</p>
-                  <h3 className="text-[27px] sm:text-[34px] font-light tracking-[-0.01em] leading-[1.12] text-white max-w-[620px]">
+                  <p className="text-[11px] font-bold tracking-[0.34em] text-[#ffc42e]">THE GIFT OF NP7</p>
+                  <h3 className="text-[27px] sm:text-[34px] font-black tracking-[-0.02em] leading-[1.08] text-white max-w-[620px] drop-shadow-[0_2px_18px_rgba(0,0,0,0.35)]">
                     Give someone the best week<br className="hidden sm:block" /> of their year
                   </h3>
-                  <p className="text-[14.5px] text-white/55 max-w-[440px] leading-relaxed">
+                  <p className="text-[14.5px] text-white/75 max-w-[440px] leading-relaxed">
                     A windsurf, wing &amp; foil adventure — world-class coaching, a crew and every detail arranged, presented as a voucher. For a chosen trip, or any experience.
                   </p>
-                  <span className="mt-2 inline-flex items-center gap-2 rounded-full border border-[#e6b873]/60 px-7 py-3 text-[13px] font-medium tracking-wide text-[#e6b873] transition-colors group-hover:bg-[#e6b873] group-hover:text-[#012734]">
+                  <span className="mt-2 inline-flex items-center gap-2 rounded-full px-7 py-3.5 text-[14px] font-bold text-[#00374a] bg-[#ffc42e] shadow-[0_6px_22px_rgba(255,196,46,0.32)] group-hover:bg-[#ffce52] group-hover:-translate-y-0.5 transition-all">
                     Explore gifting
                     <svg className="w-3.5 h-3.5 transition-transform group-hover:translate-x-0.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M5 12h14M13 6l6 6-6 6" /></svg>
                   </span>

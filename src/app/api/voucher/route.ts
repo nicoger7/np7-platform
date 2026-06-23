@@ -21,6 +21,7 @@ function validAmount(n: number): boolean {
 export async function POST(req: Request) {
   const body = await req.json().catch(() => ({}));
   const experienceId = typeof body.experienceId === "string" && body.experienceId ? body.experienceId : null;
+  const packageId = typeof body.packageId === "string" && body.packageId ? body.packageId : null;
   let amount = Math.round(Number(body.amount));
   const buyerName = typeof body.buyerName === "string" ? body.buyerName.trim().slice(0, 120) : "";
   const buyerEmail = typeof body.buyerEmail === "string" ? body.buyerEmail.trim().slice(0, 160).toLowerCase() : "";
@@ -38,17 +39,24 @@ export async function POST(req: Request) {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const db = createAdminClient() as any;
 
-  const [expRes, csRes] = await Promise.all([
+  const [expRes, pkgRes, csRes] = await Promise.all([
     experienceId ? db.from("exp_experiences").select("id, title, currency, status, price").eq("id", experienceId).maybeSingle() : Promise.resolve({ data: null }),
+    packageId ? db.from("exp_packages").select("id, price, experience_id, status").eq("id", packageId).maybeSingle() : Promise.resolve({ data: null }),
     db.from("company_settings").select("iban, bic, bank_name, legal_name, currency").eq("division", "experience").maybeSingle().catch(() => ({ data: null })),
   ]);
   const exp = expRes?.data ?? null;
   if (experienceId && (!exp || exp.status !== "published")) return NextResponse.json({ error: "That experience isn't available." }, { status: 404 });
+  const pkg = pkgRes?.data ?? null;
+  if (packageId && (!pkg || pkg.status === "archived")) return NextResponse.json({ error: "That package isn't available." }, { status: 404 });
+  if (pkg && experienceId && pkg.experience_id !== experienceId) return NextResponse.json({ error: "That package doesn't belong to the chosen experience." }, { status: 400 });
 
-  // A specific experience gifts the WHOLE trip → value = the experience's price
-  // (server-authoritative). "Any experience" → a chosen value (slider amount).
+  // Value is server-authoritative: a chosen package's price, else the experience
+  // price, else a free amount ("any experience" value voucher).
+  const pkgPrice = pkg?.price != null ? Math.round(Number(pkg.price)) : null;
   const expPrice = exp?.price != null ? Math.round(Number(exp.price)) : null;
-  if (experienceId && expPrice && expPrice > 0) {
+  if (pkgPrice && pkgPrice > 0) {
+    amount = pkgPrice;
+  } else if (experienceId && expPrice && expPrice > 0) {
     amount = expPrice;
   } else if (!validAmount(amount)) {
     return NextResponse.json({ error: "Please choose a voucher amount between €200 and €10,000." }, { status: 400 });
@@ -86,7 +94,7 @@ export async function POST(req: Request) {
     recipient_email: recipientEmail || null,
     message: message || null,
     experience_id: experienceId,
-    package_id: null,
+    package_id: packageId,
     amount,
     currency,
     status: "pending",

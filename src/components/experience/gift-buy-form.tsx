@@ -5,6 +5,7 @@ import { fmtVoucherMoney } from "@/lib/vouchers";
 import { track } from "@/lib/analytics-client";
 
 type Exp = { id: string; title: string; currency: string | null; price?: number | null };
+type Pkg = { id: string; name: string; price: number | null; experience_id: string };
 
 // €200 steps up to €5,000, then €1,000 steps to €10,000.
 const AMOUNTS = [
@@ -13,9 +14,10 @@ const AMOUNTS = [
 ];
 const DEFAULT_IDX = AMOUNTS.indexOf(1000);
 
-export function GiftBuyForm({ experiences }: { experiences: Exp[] }) {
+export function GiftBuyForm({ experiences, packages = [] }: { experiences: Exp[]; packages?: Pkg[] }) {
   const [idx, setIdx] = useState(DEFAULT_IDX);
   const [expId, setExpId] = useState(""); // "" = any NP7 Experience (value voucher)
+  const [pkgId, setPkgId] = useState("");
   const [buyerName, setBuyerName] = useState("");
   const [buyerEmail, setBuyerEmail] = useState("");
   const [recipientName, setRecipientName] = useState("");
@@ -29,14 +31,21 @@ export function GiftBuyForm({ experiences }: { experiences: Exp[] }) {
   type Pay = { iban: string; bic: string | null; bank_name: string | null; legal_name: string | null } | null;
   const [done, setDone] = useState<null | { code: string; amount: number | null; currency: string | null; pay: Pay }>(null);
 
-  // A specific experience gifts the WHOLE trip → its value is the experience's
-  // price (no amount to choose). "Any NP7 Experience" → a value voucher (slider).
+  // "Any NP7 Experience" → a value voucher (slider). A specific experience → pick a
+  // package; the voucher value is that package's price. Falls back to the experience
+  // price if it has no packages to choose from.
+  const isAny = !expId;
   const selectedExp = experiences.find((e) => e.id === expId) || null;
+  const expPkgs = packages
+    .filter((p) => p.experience_id === expId && p.price != null && p.price > 0)
+    .sort((a, b) => (a.price as number) - (b.price as number));
+  const selectedPkg = expPkgs.find((p) => p.id === pkgId) || expPkgs[0] || null;
   const expPrice = selectedExp?.price ?? null;
-  const isFullExp = !!expId && expPrice != null && expPrice > 0;
-  const amount = isFullExp ? (expPrice as number) : AMOUNTS[idx];
+  const amount = isAny ? AMOUNTS[idx] : (selectedPkg?.price ?? expPrice ?? AMOUNTS[idx]);
   const currency = selectedExp?.currency ?? experiences[0]?.currency ?? "EUR";
   const over5k = amount > 5000;
+
+  function pickExperience(eId: string) { setExpId(eId); setPkgId(""); }
 
   async function submit() {
     setError("");
@@ -46,7 +55,7 @@ export function GiftBuyForm({ experiences }: { experiences: Exp[] }) {
     setBusy(true);
     const res = await fetch("/api/voucher", {
       method: "POST", headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ experienceId: expId || null, amount, buyerName, buyerEmail, recipientName, recipientEmail, message, nicoCall, recipientPhone, callDate }),
+      body: JSON.stringify({ experienceId: expId || null, packageId: selectedPkg?.id || null, amount, buyerName, buyerEmail, recipientName, recipientEmail, message, nicoCall, recipientPhone, callDate }),
     });
     setBusy(false);
     const j = await res.json().catch(() => ({}));
@@ -103,7 +112,7 @@ export function GiftBuyForm({ experiences }: { experiences: Exp[] }) {
           {[{ id: "", title: "Any NP7 Experience" }, ...experiences].map((e) => {
             const on = expId === e.id;
             return (
-              <button key={e.id || "any"} type="button" onClick={() => setExpId(e.id)}
+              <button key={e.id || "any"} type="button" onClick={() => pickExperience(e.id)}
                 className={`px-3.5 py-2 rounded-full text-[13px] font-semibold transition-colors border ${on ? "bg-[#00afdb] text-white border-[#00afdb]" : "bg-white text-[#00374a] border-[#dde6e9] hover:border-[#00afdb]"}`}>
                 {e.title}
               </button>
@@ -112,16 +121,9 @@ export function GiftBuyForm({ experiences }: { experiences: Exp[] }) {
         </div>
       </div>
 
-      {/* Value — the whole experience, or a chosen amount */}
+      {/* Value — pick a package (specific experience) or a chosen amount (any) */}
       <div className="border-t border-[#f3ede2] pt-5">
-        {isFullExp ? (
-          <>
-            <label className={label}>Your gift</label>
-            <div className="text-[34px] font-black text-[#00374a] leading-none mb-1.5">{fmtVoucherMoney(amount, currency)}</div>
-            <p className="text-[13px] text-[#5a6b72]">The complete <strong>{selectedExp?.title}</strong> experience — they pick the week &amp; package when they book.</p>
-            <p className="text-[12px] text-[#9aa6ac] mt-1.5">Valid for 1 year.</p>
-          </>
-        ) : (
+        {isAny ? (
           <>
             <label className={label}>Voucher amount</label>
             <div className="flex items-baseline justify-between mb-2">
@@ -130,6 +132,32 @@ export function GiftBuyForm({ experiences }: { experiences: Exp[] }) {
             </div>
             <input type="range" min={0} max={AMOUNTS.length - 1} step={1} value={idx} onChange={(e) => setIdx(Number(e.target.value))} className="w-full accent-[#00afdb] cursor-pointer" />
             <p className="text-[12px] text-[#9aa6ac] mt-1.5">{over5k ? "Valid for 2 years." : "Valid for 1 year."} A value voucher — usable on any available NP7 Experience.</p>
+          </>
+        ) : expPkgs.length > 0 ? (
+          <>
+            <label className={label}>Choose a package</label>
+            <div className="flex flex-wrap gap-2">
+              {expPkgs.map((pk) => {
+                const on = selectedPkg?.id === pk.id;
+                return (
+                  <button key={pk.id} type="button" onClick={() => setPkgId(pk.id)}
+                    className={`px-3.5 py-2 rounded-xl text-[13px] font-semibold transition-colors border text-left ${on ? "bg-[#f47b20] text-white border-[#f47b20]" : "bg-white text-[#00374a] border-[#dde6e9] hover:border-[#f47b20]"}`}>
+                    <span className="block">{pk.name}</span>
+                    <span className={`block text-[12px] font-bold ${on ? "text-white/90" : "text-[#f47b20]"}`}>{fmtVoucherMoney(pk.price, currency)}</span>
+                  </button>
+                );
+              })}
+            </div>
+            <div className="text-[34px] font-black text-[#00374a] leading-none mt-4 mb-1.5">{fmtVoucherMoney(amount, currency)}</div>
+            <p className="text-[13px] text-[#5a6b72]">The <strong>{selectedPkg?.name}</strong> package for <strong>{selectedExp?.title}</strong> — they pick the week when they book.</p>
+            <p className="text-[12px] text-[#9aa6ac] mt-1.5">Valid for 1 year.</p>
+          </>
+        ) : (
+          <>
+            <label className={label}>Your gift</label>
+            <div className="text-[34px] font-black text-[#00374a] leading-none mb-1.5">{fmtVoucherMoney(amount, currency)}</div>
+            <p className="text-[13px] text-[#5a6b72]">The complete <strong>{selectedExp?.title}</strong> experience — they pick the week &amp; package when they book.</p>
+            <p className="text-[12px] text-[#9aa6ac] mt-1.5">Valid for 1 year.</p>
           </>
         )}
       </div>
