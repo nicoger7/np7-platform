@@ -72,7 +72,7 @@ export default async function GiftPage() {
             Edge-faded so the crop reads as intentional; soft teal foot for cohesion. */}
         {heroes.length > 0 && (
           <div className="-mt-px bg-[#00374a] pb-14">
-            <div className="flex gap-3 overflow-x-auto px-5 sm:px-8 pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden [mask-image:linear-gradient(to_right,transparent,#000_4%,#000_96%,transparent)]">
+            <div className="flex gap-3 overflow-x-auto px-5 sm:px-8 pb-1 [justify-content:safe_center] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden [mask-image:linear-gradient(to_right,transparent,#000_4%,#000_96%,transparent)]">
               {heroes.map((src, i) => (
                 <div key={i} className="relative h-44 sm:h-56 w-72 sm:w-[21rem] shrink-0 rounded-2xl overflow-hidden ring-1 ring-white/10">
                   {/* eslint-disable-next-line @next/next/no-img-element */}
