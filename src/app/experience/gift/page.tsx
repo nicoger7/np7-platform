@@ -1,7 +1,5 @@
-import Link from "next/link";
 import type { Metadata } from "next";
 import { supabase } from "@/lib/supabase";
-import { getPortalUser } from "@/lib/auth";
 import { OceanHeader } from "@/components/experience/ocean-header";
 import { GiftBuyForm } from "@/components/experience/gift-buy-form";
 
@@ -9,8 +7,6 @@ export const metadata: Metadata = { title: "Gift a trip — NP7 Experience" };
 export const dynamic = "force-dynamic";
 
 export default async function GiftPage() {
-  const user = await getPortalUser().catch(() => null);
-
   return (
     <>
       <OceanHeader variant="docked" />
@@ -26,24 +22,16 @@ export default async function GiftPage() {
         </section>
 
         <div className="max-w-[760px] mx-auto px-6 sm:px-8 py-10 sm:py-14">
-          {user ? (
-            <GiftFormLoader />
-          ) : (
-            <div className="bg-white rounded-2xl border border-[#f0e6d6] p-8 text-center">
-              <h2 className="text-2xl font-black text-[#00374a] mb-2">Sign in to gift a trip</h2>
-              <p className="text-[14.5px] text-[#5a6b72] leading-relaxed mb-6 max-w-[440px] mx-auto">Your voucher lives in your NP7 account — so you can print it, gift it, or use it yourself. Sign in or create a free account to continue.</p>
-              <Link href="/account/login?next=/experience/gift" className="inline-block px-7 py-3.5 rounded-full text-[13.5px] font-bold text-white bg-[#00afdb]">Sign in / sign up →</Link>
-            </div>
-          )}
+          <GiftFormLoader />
 
           {/* How gifting works */}
           <div className="mt-12">
             <p className="text-[11px] font-bold tracking-[0.22em] text-[#f47b20] mb-5 text-center">HOW GIFTING WORKS</p>
             <div className="grid sm:grid-cols-3 gap-4">
               {[
-                { n: "1", t: "Choose their trip", d: "Pick the experience and package. Pay by bank transfer — the price is locked in the moment you buy." },
-                { n: "2", t: "We wrap it up", d: "Once your transfer lands we activate the voucher in your account. Print the PDF or hand over the code." },
-                { n: "3", t: "They make it real", d: "They register for the trip and enter the code on their payment plan — it covers what they've been invoiced." },
+                { n: "1", t: "Choose an amount", d: "Pick a value and, if you like, a specific trip. Pay by bank transfer — no account needed." },
+                { n: "2", t: "We wrap it up", d: "Once your transfer lands we email a printable PDF voucher — and call the recipient with the news, if you asked us to." },
+                { n: "3", t: "They make it real", d: "They register for a trip and enter the code on their payment plan — it covers what they've been invoiced." },
               ].map((s) => (
                 <div key={s.n} className="bg-white rounded-2xl border border-[#f0e6d6] p-5">
                   <span className="inline-grid place-items-center w-8 h-8 rounded-full text-[14px] font-black text-white mb-3" style={{ background: "linear-gradient(135deg,#ffc42e,#f47b20)" }}>{s.n}</span>
@@ -53,7 +41,7 @@ export default async function GiftPage() {
               ))}
             </div>
             <div className="mt-5 flex flex-wrap justify-center gap-2.5">
-              {["Valid a full year", "Printable PDF voucher", "For any NP7 trip", "50% back if unused"].map((c) => (
+              {["Valid 1 year (2 years over €5,000)", "Printable PDF voucher", "Any trip or a specific one", "Optional: a call from Nico"].map((c) => (
                 <span key={c} className="px-3.5 py-1.5 rounded-full text-[12.5px] font-semibold text-[#00374a] bg-white border border-[#f0e6d6]">{c}</span>
               ))}
             </div>
@@ -67,17 +55,9 @@ export default async function GiftPage() {
 async function GiftFormLoader() {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const sb = supabase as any;
-  // Tolerant: website_visible arrives in migration 044 — fall back to the old
-  // shape so the gift form still loads before the migration is applied.
-  let pkgRes = await sb.from("exp_packages").select("id, name, price, experience_id, website_visible").eq("status", "active").order("price");
-  if (!pkgRes.data) pkgRes = await sb.from("exp_packages").select("id, name, price, experience_id").eq("status", "active").order("price");
+  // Published experiences for the "Towards" picker. A value voucher ("Any NP7
+  // Experience") works even with none, so we never block the form.
   const { data: exps } = await sb.from("exp_experiences").select("id, title, currency").eq("status", "published").order("title");
   const experiences = (exps ?? []) as { id: string; title: string; currency: string | null }[];
-  const packages = ((pkgRes.data ?? []) as { id: string; name: string; price: number | null; experience_id: string; website_visible?: boolean }[])
-    .filter((p) => p.website_visible !== false); // off-website packages aren't giftable from the public page
-
-  if (experiences.length === 0) {
-    return <div className="bg-white rounded-2xl border border-[#f0e6d6] p-8 text-center text-[#6a7a80]">No experiences available to gift right now — check back soon.</div>;
-  }
-  return <GiftBuyForm experiences={experiences} packages={packages} />;
+  return <GiftBuyForm experiences={experiences} />;
 }

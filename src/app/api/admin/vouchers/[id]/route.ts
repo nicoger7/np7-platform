@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase";
-import { redeemByFrom } from "@/lib/vouchers";
 import { sendVoucherIssued } from "@/lib/vouchers/notify";
 
 // Admin routes are gated by middleware; no per-route auth check needed.
@@ -30,7 +29,7 @@ export async function PATCH(request: NextRequest, { params }: RouteContext) {
     // Confirm the bank transfer and start the 1-year validity clock.
     const { data: existing } = await db
       .from("gift_vouchers")
-      .select("paid_at, status")
+      .select("paid_at, status, amount")
       .eq("id", id)
       .maybeSingle();
     if (existing && !["pending", "active"].includes(existing.status)) {
@@ -39,11 +38,15 @@ export async function PATCH(request: NextRequest, { params }: RouteContext) {
         { status: 409 }
       );
     }
+    // Validity: 1 year, or 2 years for high-value vouchers (> €5,000).
+    const months = Number(existing?.amount) > 5000 ? 24 : 12;
+    const rb = new Date(now);
+    rb.setMonth(rb.getMonth() + months);
     updates = {
       status: "active",
       paid_at: existing?.paid_at ?? now,
       issued_at: now,
-      redeem_by: redeemByFrom(now),
+      redeem_by: rb.toISOString().slice(0, 10),
     };
   } else if (action === "cancel") {
     updates = { status: "cancelled" };
