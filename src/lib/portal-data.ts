@@ -464,13 +464,54 @@ export async function getMemoryPhotos(editionId: string): Promise<string[]> {
 }
 
 /** A participant's gallery = their personal photos (assets/memories/{editionId}/p/{bookingId}/)
-    plus the week's shared "everyone" photos. Each client only ever sees their own + shared. */
+    plus the week's shared "everyone" photos. Each client only ever sees their own + shared.
+    Used for the member's OWN-only surfaces (home banner, avatar picker) — never pulls the
+    group pool. The trip gallery itself uses getTripGalleryForBooking() below. */
 export async function getMemoryPhotosForBooking(editionId: string, bookingId: string): Promise<string[]> {
   const [mine, everyone] = await Promise.all([
     listAssetFolder(`memories/${editionId}/p/${bookingId}`),
     listAssetFolder(`memories/${editionId}`),
   ]);
   return [...mine, ...everyone];
+}
+
+/** Is this booking sharing its personal photos with the rest of the trip? Tolerant:
+    pre-migration (column absent) → treated as shared (the default). */
+export async function getBookingPhotoSharing(bookingId: string): Promise<boolean> {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const db = createAdminClient() as any;
+  const { data, error } = await db.from("exp_bookings").select("photos_shared").eq("id", bookingId).maybeSingle();
+  if (error || !data || data.photos_shared == null) return true;
+  return data.photos_shared !== false;
+}
+
+/** The full trip gallery as seen by ONE participant (viewerBookingId), in display order:
+    1) the viewer's OWN personal photos (always on top),
+    2) the week's shared "Everyone" photos,
+    3) the personal photos of the OTHER participants on the same edition who left sharing ON.
+    De-duped (the viewer's own never repeat). Non-sharing participants are never exposed. */
+export async function getTripGalleryForBooking(editionId: string, viewerBookingId: string): Promise<string[]> {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const db = createAdminClient() as any;
+
+  // Other bookings on this edition that share their photos. Tolerant: if the
+  // photos_shared column isn't there yet, fall back to ids-only (default = shared).
+  let others: string[] = [];
+  let withFlag = await db.from("exp_bookings").select("id, photos_shared").eq("edition_id", editionId);
+  if (withFlag.error) withFlag = await db.from("exp_bookings").select("id").eq("edition_id", editionId);
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  others = ((withFlag.data ?? []) as any[])
+    .filter((r) => r.id !== viewerBookingId && r.photos_shared !== false)
+    .map((r) => r.id as string);
+
+  const [mine, everyone, ...otherLists] = await Promise.all([
+    listAssetFolder(`memories/${editionId}/p/${viewerBookingId}`),
+    listAssetFolder(`memories/${editionId}`),
+    ...others.map((bid) => listAssetFolder(`memories/${editionId}/p/${bid}`)),
+  ]);
+
+  // Order = own first, then shared, then everyone else's; de-dupe keeping first.
+  return [...new Set([...mine, ...everyone, ...otherLists.flat()])];
 }
 
 /** Sum of incoming (customer→us) payments logged for a booking, from exp_payments.

@@ -315,77 +315,52 @@ export default function HotelRoomsPage() {
                   ))}
                 </div>
 
-                {/* Rows */}
-                {hotelRooms.map((room) => (
-                  <div
-                    key={room.id}
-                    className="grid gap-3 px-5 py-3 cursor-pointer transition-colors"
-                    style={{ gridTemplateColumns: gridTemplate, borderBottom: "1px solid var(--admin-border)" }}
-                    onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = "var(--admin-surface-hover)")}
-                    onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = "transparent")}
-                    onClick={() => startEdit(room)}
-                  >
-                    {/* name — required */}
-                    <div className="min-w-0">
-                      <div className="text-sm font-medium admin-heading truncate">{room.name}</div>
-                      {room.room_number && <div className="text-xs admin-faint">#{room.room_number}</div>}
-                    </div>
-                    {visibleColumns.has("room_number") && (
-                      <span className="text-xs admin-muted self-center">{room.room_number || "—"}</span>
-                    )}
-                    {visibleColumns.has("room_type") && (
-                      <span className="text-xs admin-muted self-center truncate">{room.room_type}</span>
-                    )}
-                    {visibleColumns.has("edition") && (
-                      <span className="text-xs admin-muted self-center truncate">{room.edition ? (room.edition.label ? `${room.edition.label} · ${room.edition.year}` : room.edition.year) : "—"}</span>
-                    )}
-                    {visibleColumns.has("transfer_need") && (
-                      <span className="self-center">
-                        {room.transfer_need ? (
-                          <span className="inline-block px-2 py-0.5 rounded text-[10px] font-bold uppercase bg-amber-500/15 text-amber-400">Yes</span>
-                        ) : (
-                          <span className="text-xs admin-faint">—</span>
-                        )}
-                      </span>
-                    )}
-                    {visibleColumns.has("status") && (
-                      <span className="self-center">
-                        <span className={`inline-block px-2 py-0.5 rounded text-[10px] font-bold uppercase ${
-                          room.status === "assigned" ? "bg-blue-500/15 text-blue-400" :
-                          room.status === "held" ? "bg-amber-500/15 text-amber-400" :
-                          "bg-green-500/15 text-green-400"
-                        }`}>
-                          {room.status}
-                        </span>
-                      </span>
-                    )}
-                    {visibleColumns.has("guest") && (
-                      <div className="self-center min-w-0">
-                        {room.booking ? (
-                          <Link href={`/admin/bookings/${room.booking.id}`} className="text-xs text-[#0aa3c7] hover:underline truncate block" onClick={(e) => e.stopPropagation()}>
-                            {room.booking.name?.split(" — ")[0]?.split(" - ")[0] || room.booking.name}
-                          </Link>
-                        ) : (
-                          <span className="text-xs admin-faint">—</span>
-                        )}
-                        {room.partner_tag_along && (
-                          <span className="text-[10px] admin-faint truncate block">+ {room.partner_tag_along}</span>
-                        )}
+                {/* Rows — ONE per physical room (grouped by name); each week is a
+                    chip showing who's in it that edition. The DB still has a row
+                    per room×week; this only collapses the display. */}
+                {Object.values(
+                  hotelRooms.reduce<Record<string, HotelRoom[]>>((acc, r) => { (acc[r.name] = acc[r.name] || []).push(r); return acc; }, {})
+                ).map((instances) => {
+                  const rep = instances[0];
+                  const weeks = [...instances].sort((a, b) => (a.edition?.year ?? 0) - (b.edition?.year ?? 0) || String(a.edition?.label ?? "").localeCompare(String(b.edition?.label ?? "")));
+                  const booked = weeks.filter((w) => w.booking).length;
+                  return (
+                    <div
+                      key={rep.hotel + rep.name}
+                      className="grid gap-3 px-5 py-3 transition-colors"
+                      style={{ gridTemplateColumns: gridTemplate, borderBottom: "1px solid var(--admin-border)" }}
+                    >
+                      {/* name + a chip per week (who's in it) */}
+                      <div className="min-w-0">
+                        <div className="text-sm font-medium admin-heading truncate">{rep.name}</div>
+                        <div className="flex flex-wrap gap-1 mt-1">
+                          {weeks.map((w) => {
+                            const g = w.booking?.name ? (w.booking.name.split(" — ")[0].split(" - ")[0]) : null;
+                            const lbl = w.edition ? (w.edition.label || w.edition.year) : "—";
+                            const color = w.status === "assigned" ? "bg-blue-500/15 text-blue-400" : w.status === "held" ? "bg-amber-500/15 text-amber-400" : "bg-green-500/15 text-green-400";
+                            return (
+                              <button key={w.id} onClick={() => startEdit(w)} title={`${lbl}: ${g || "free"}${w.partner_tag_along ? " (+" + w.partner_tag_along + ")" : ""}`}
+                                className={`px-1.5 py-0.5 rounded text-[10px] ${color} hover:opacity-80 transition-opacity`}>
+                                <b>{lbl}</b>: {g || "free"}{w.partner_tag_along ? ` (+${w.partner_tag_along.split(" ")[0]})` : ""}
+                              </button>
+                            );
+                          })}
+                        </div>
                       </div>
-                    )}
-                    {visibleColumns.has("partner_tag_along") && (
-                      <span className="text-xs admin-muted self-center truncate">{room.partner_tag_along || "—"}</span>
-                    )}
-                    {visibleColumns.has("check_in") && (
-                      <span className="text-xs admin-muted self-center">
-                        {room.check_in ? `${formatDate(room.check_in)} → ${formatDate(room.check_out)}` : "—"}
-                      </span>
-                    )}
-                    {visibleColumns.has("comments") && (
-                      <span className="text-xs admin-faint self-center truncate" title={room.comments || ""}>{room.comments || "—"}</span>
-                    )}
-                  </div>
-                ))}
+                      {visibleColumns.has("room_number") && <span className="text-xs admin-muted self-center">{rep.room_number || "—"}</span>}
+                      {visibleColumns.has("room_type") && <span className="text-xs admin-muted self-center truncate">{rep.room_type}</span>}
+                      {visibleColumns.has("edition") && <span className="text-xs admin-muted self-center">{weeks.length} week{weeks.length !== 1 ? "s" : ""}</span>}
+                      {visibleColumns.has("transfer_need") && (
+                        <span className="self-center">{weeks.some((w) => w.transfer_need) ? <span className="inline-block px-2 py-0.5 rounded text-[10px] font-bold uppercase bg-amber-500/15 text-amber-400">Yes</span> : <span className="text-xs admin-faint">—</span>}</span>
+                      )}
+                      {visibleColumns.has("status") && <span className="self-center text-xs admin-muted">{booked}/{weeks.length} booked</span>}
+                      {visibleColumns.has("guest") && <span className="self-center text-xs admin-faint">see weeks ↑</span>}
+                      {visibleColumns.has("partner_tag_along") && <span className="text-xs admin-muted self-center truncate">{weeks.map((w) => w.partner_tag_along).filter(Boolean).join(", ") || "—"}</span>}
+                      {visibleColumns.has("check_in") && <span className="text-xs admin-muted self-center">—</span>}
+                      {visibleColumns.has("comments") && <span className="text-xs admin-faint self-center truncate" title={rep.comments || ""}>{rep.comments || "—"}</span>}
+                    </div>
+                  );
+                })}
               </div>
             </div>
           ))}

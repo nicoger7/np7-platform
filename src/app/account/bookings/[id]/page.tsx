@@ -2,13 +2,14 @@ import Link from "next/link";
 import { redirect, notFound } from "next/navigation";
 import type { Metadata } from "next";
 import { getPortalUser } from "@/lib/auth";
-import { getMemberBooking, getMemoryPhotosForBooking, getBookingPaid, getBookingHotel, getEditionCoaches, getMemoryDownloadsRemaining, getConfirmedAddonsTotal, getBookingFlights, getExperienceArrivalInfo, getCrewProfiles } from "@/lib/portal-data";
+import { getMemberBooking, getTripGalleryForBooking, getBookingPhotoSharing, getBookingPaid, getBookingHotel, getEditionCoaches, getMemoryDownloadsRemaining, getConfirmedAddonsTotal, getBookingFlights, getExperienceArrivalInfo, getCrewProfiles } from "@/lib/portal-data";
 import { bookingStatus, CHIP_CLASS, fmtDates, money } from "@/lib/portal-status";
 import { isAttending } from "@/lib/types";
 import { PortalChrome } from "@/components/portal/portal-chrome";
 import { ExtraNightsButton } from "@/components/portal/extra-nights-button";
 import { MemberDocuments } from "@/components/portal/member-documents";
 import { MemberGallery } from "@/components/portal/member-gallery";
+import { PhotoSharingToggle } from "@/components/portal/photo-sharing-toggle";
 import { TripAddons } from "@/components/portal/trip-addons";
 import { PaymentPlan } from "@/components/portal/payment-plan";
 import { CancelTrip } from "@/components/portal/cancel-trip";
@@ -33,8 +34,8 @@ export default async function BookingDetail({ params }: Props) {
   if (!b) notFound();
 
   const chip = bookingStatus(b);
-  const [photos, paid, hotel, coaches, downloadsRemaining, addonsTotal, flights, arrival, crew] = await Promise.all([
-    b.edition?.id ? getMemoryPhotosForBooking(b.edition.id, b.id).catch(() => []) : Promise.resolve([]),
+  const [photos, paid, hotel, coaches, downloadsRemaining, addonsTotal, flights, arrival, crew, photosShared] = await Promise.all([
+    b.edition?.id ? getTripGalleryForBooking(b.edition.id, b.id).catch(() => []) : Promise.resolve([]),
     getBookingPaid(b.id).catch(() => 0),
     getBookingHotel(b.id).catch(() => null),
     b.edition?.id ? getEditionCoaches(b.edition.id).catch(() => []) : Promise.resolve([]),
@@ -43,6 +44,7 @@ export default async function BookingDetail({ params }: Props) {
     getBookingFlights(b.id).catch(() => null),
     b.experience_id ? getExperienceArrivalInfo(b.experience_id).catch(() => null) : Promise.resolve(null),
     b.edition?.id ? getCrewProfiles(b.edition.id, user.contactId).catch(() => ({ going: 0, sharing: 0, profiles: [] })) : Promise.resolve({ going: 0, sharing: 0, profiles: [] }),
+    getBookingPhotoSharing(b.id).catch(() => true),
   ]);
 
   const baseTotal = b.agreed_price ?? null;
@@ -112,6 +114,9 @@ export default async function BookingDetail({ params }: Props) {
       {photos.length > 0 && (
         <div className="mb-3">
           <MemberGallery photos={photos} bookingId={b.id} downloadsRemaining={downloadsRemaining} />
+          <div className="mt-3">
+            <PhotoSharingToggle bookingId={b.id} initialShared={photosShared} />
+          </div>
         </div>
       )}
       {b.edition?.memories_video_url && (
