@@ -99,12 +99,13 @@ export default function HotelRoomsPage() {
     });
   }, []);
 
-  // bookings for the edition picked in the week editor (for guest assignment)
+  // bookings for the edition picked in the week editor (for guest assignment).
+  // No edition → skip (the guest select is disabled, so stale data never shows).
   useEffect(() => {
-    if (!weekForm.edition_id) { setEditionBookings([]); return; }
+    if (!weekForm.edition_id) return;
     fetch(`/api/admin/bookings?edition_id=${weekForm.edition_id}`).then((r) => r.json())
       .then((d) => setEditionBookings((d.bookings || []).map((b: { id: string; name: string }) => ({ id: b.id, name: b.name }))))
-      .catch(() => setEditionBookings([]));
+      .catch(() => {});
   }, [weekForm.edition_id]);
 
   // ── group occupancy under its physical room ──────────────────────────────────
