@@ -122,7 +122,7 @@ export function ReviewForm({ bookingId, gallery }: { bookingId: string; gallery:
       {/* photo picker */}
       {gallery.length > 0 && (
         <div>
-          <span className={label}>Add a photo from the trip <span className="text-[#9aa6ac] font-medium normal-case tracking-normal">(optional)</span></span>
+          <span className={label}>Add one of your trip photos <span className="text-[#9aa6ac] font-medium normal-case tracking-normal">(optional)</span></span>
           <div className="grid grid-cols-3 sm:grid-cols-4 gap-2">
             {gallery.map((src) => {
               const selected = photoUrl === src;

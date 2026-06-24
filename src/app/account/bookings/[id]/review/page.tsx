@@ -2,7 +2,7 @@ import Link from "next/link";
 import { redirect, notFound } from "next/navigation";
 import type { Metadata } from "next";
 import { getPortalUser } from "@/lib/auth";
-import { getMemberBooking, getTripGallery } from "@/lib/portal-data";
+import { getMemberBooking, getMemoryPhotosForBooking } from "@/lib/portal-data";
 import { fmtDates } from "@/lib/portal-status";
 import { PortalChrome } from "@/components/portal/portal-chrome";
 import { ReviewForm } from "@/components/portal/review-form";
@@ -19,7 +19,9 @@ export default async function ReviewPage({ params }: Props) {
   const b = await getMemberBooking(user.contactId, id);
   if (!b) notFound();
 
-  const gallery = b.experience_id ? await getTripGallery(b.experience_id).catch(() => []) : [];
+  // Their OWN trip photos (personal shots + the week's shared "everyone" gallery) —
+  // so the review can come with a real photo from their experience.
+  const gallery = b.edition?.id ? await getMemoryPhotosForBooking(b.edition.id, b.id).catch(() => []) : [];
 
   return (
     <>
