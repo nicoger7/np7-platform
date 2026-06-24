@@ -37,6 +37,10 @@ export function AuthForm({ onLoggedIn, compact = false, initialMode = "login" }:
       if (mode === "login") {
         const { error } = await supabase.auth.signInWithPassword({ email, password });
         if (error) { setError("Wrong email or password."); setBusy(false); return; }
+        // They clearly have a password — make sure the account flag reflects that
+        // so we stop nudging them to "set a password" (it's only set when the
+        // password was created via the in-app prompt). Best-effort, non-blocking.
+        supabase.auth.updateUser({ data: { has_password: true } }).catch(() => {});
         done();
         return;
       }
