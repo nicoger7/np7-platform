@@ -15,7 +15,10 @@ export async function GET(request: NextRequest) {
     .select(
       "*, exp_bookings(name, status), contacts(name), vendors(name), exp_experiences(title)"
     )
-    .order("date", { ascending: false });
+    // Newest first; undated rows sink to the bottom (they otherwise default to
+    // their import date — see the backfill — but stay robust if any are null).
+    .order("date", { ascending: false, nullsFirst: false })
+    .order("created_at", { ascending: false });
 
   if (bookingId) query = query.eq("booking_id", bookingId);
   if (experienceId) query = query.eq("experience_id", experienceId);

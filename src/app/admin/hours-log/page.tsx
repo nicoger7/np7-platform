@@ -83,6 +83,29 @@ export default function HoursLogPage() {
     () => loadVisibleColumns(STORAGE_KEY, COLUMNS)
   );
   const [form, setForm] = useState({ date: "", hours: "", category: "", entry: "", employee_id: "", experience_id: "", edition_id: "", notes: "", is_general: false, processed_at: "" });
+  // Current user: hours auto-attach to them; non-managers can't pick anyone else.
+  const [me, setMe] = useState<{ id: string; name: string; canManageHours: boolean } | null>(null);
+  useEffect(() => {
+    fetch("/api/admin/me").then((r) => r.json()).then((d) => { if (d?.member) setMe({ id: d.member.id, name: d.member.name, canManageHours: !!d.canManageHours }); }).catch(() => {});
+  }, []);
+  const blankForm = () => ({ date: "", hours: "", category: "", entry: "", employee_id: me?.id ?? "", experience_id: "", edition_id: "", notes: "", is_general: false, processed_at: "" });
+
+  // Auto-tracked active time the member hasn't logged yet (suggestion, never auto-logged).
+  const [pending, setPending] = useState<{ date: string; active_seconds: number }[]>([]);
+  const [fromSuggestion, setFromSuggestion] = useState<string | null>(null);
+  const roundQ = (sec: number) => Math.round((sec / 3600) * 4) / 4;
+  function fetchPending() {
+    fetch("/api/admin/active-time").then((r) => r.json()).then((d) => setPending(Array.isArray(d?.pending) ? d.pending : [])).catch(() => {});
+  }
+  useEffect(() => { fetchPending(); }, []);
+  function logSuggestion(p: { date: string; active_seconds: number }) {
+    setEditId(null); setShowNew(true); setFromSuggestion(p.date);
+    setForm({ ...blankForm(), date: p.date, hours: String(roundQ(p.active_seconds)) });
+  }
+  async function dismissSuggestion(date: string) {
+    await fetch("/api/admin/active-time", { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ date }) }).catch(() => {});
+    fetchPending();
+  }
 
   function fetchData() {
     const params = new URLSearchParams();
@@ -144,6 +167,10 @@ export default function HoursLogPage() {
       await fetch("/api/admin/hours-log", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
     }
     setShowNew(false); setEditId(null); fetchData();
+    if (fromSuggestion && !editId) {
+      await fetch("/api/admin/active-time", { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ date: fromSuggestion }) }).catch(() => {});
+      setFromSuggestion(null); fetchPending();
+    }
   }
 
   async function handleDelete(id: string) {
@@ -166,17 +193,40 @@ export default function HoursLogPage() {
         </div>
         <div className="flex items-center gap-3">
           <ColumnToggle columns={COLUMNS} visible={visibleColumns} onChange={setVisibleColumns} storageKey={STORAGE_KEY} />
-          <button onClick={() => { setShowNew(!showNew); setEditId(null); setForm({ date: "", hours: "", category: "", entry: "", employee_id: "", experience_id: "", edition_id: "", notes: "", is_general: false, processed_at: "" }); }} className="px-4 py-2 bg-[var(--admin-accent)] hover:bg-[var(--admin-accent)]/90 text-[var(--admin-accent-contrast)] text-sm font-bold rounded-lg transition-colors">
+          <button onClick={() => { setShowNew(!showNew); setEditId(null); setForm(blankForm()); }} className="px-4 py-2 bg-[var(--admin-accent)] hover:bg-[var(--admin-accent)]/90 text-[var(--admin-accent-contrast)] text-sm font-bold rounded-lg transition-colors">
             Log Hours
           </button>
         </div>
       </div>
 
+      {pending.length > 0 && (
+        <div className="mb-5 rounded-xl p-4" style={{ border: "1px solid var(--admin-border)", backgroundColor: "var(--admin-surface)" }}>
+          <p className="text-xs admin-muted mb-2">⏱ Active time tracked in the admin that you haven&apos;t logged yet — review, attribute &amp; confirm (nothing is logged until you do):</p>
+          <div className="flex flex-col gap-1.5">
+            {pending.map((p) => {
+              const now = new Date();
+              const localToday = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
+              return (
+                <div key={p.date} className="flex items-center justify-between gap-3">
+                  <span className="text-sm admin-heading">{p.date === localToday ? "Today" : formatDate(p.date)} · <b>{roundQ(p.active_seconds).toFixed(2)} h</b> active</span>
+                  <span className="flex gap-2">
+                    <button onClick={() => logSuggestion(p)} className="px-3 py-1.5 text-xs font-bold rounded-lg bg-[var(--admin-accent)] text-[var(--admin-accent-contrast)] hover:opacity-90 transition-opacity">Log it</button>
+                    <button onClick={() => dismissSuggestion(p.date)} className="px-3 py-1.5 text-xs admin-faint hover:admin-muted transition-colors">Dismiss</button>
+                  </span>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
       <div className="flex gap-3 mb-5">
-        <select value={filterEmployee} onChange={(e) => setFilterEmployee(e.target.value)} className="admin-input text-sm px-3 py-1.5 rounded-lg">
-          <option value="">All Team Members</option>
-          {team.map((m) => <option key={m.id} value={m.id}>{m.name}</option>)}
-        </select>
+        {me?.canManageHours && (
+          <select value={filterEmployee} onChange={(e) => setFilterEmployee(e.target.value)} className="admin-input text-sm px-3 py-1.5 rounded-lg">
+            <option value="">All Team Members</option>
+            {team.map((m) => <option key={m.id} value={m.id}>{m.name}</option>)}
+          </select>
+        )}
         <select value={filterExp} onChange={(e) => setFilterExp(e.target.value)} className="admin-input text-sm px-3 py-1.5 rounded-lg">
           <option value="">All Experiences</option>
           {experiences.map((e) => <option key={e.id} value={e.id}>{e.title}</option>)}
@@ -197,10 +247,14 @@ export default function HoursLogPage() {
               </select>
             </div>
             <div><label className={labelClass}>Team Member</label>
-              <select className={inputClass} value={form.employee_id} onChange={(e) => setForm({ ...form, employee_id: e.target.value })}>
-                <option value="">—</option>
-                {team.map((m) => <option key={m.id} value={m.id}>{m.name}</option>)}
-              </select>
+              {me?.canManageHours ? (
+                <select className={inputClass} value={form.employee_id} onChange={(e) => setForm({ ...form, employee_id: e.target.value })}>
+                  <option value="">—</option>
+                  {team.map((m) => <option key={m.id} value={m.id}>{m.name}</option>)}
+                </select>
+              ) : (
+                <input className={`${inputClass} opacity-70`} value={me?.name ?? "You"} disabled title="Hours log automatically to your account" />
+              )}
             </div>
             <div><label className={labelClass}>Experience</label>
               <select className={inputClass} value={form.experience_id} onChange={(e) => setForm({ ...form, experience_id: e.target.value, edition_id: "" })}>

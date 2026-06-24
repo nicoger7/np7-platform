@@ -121,6 +121,34 @@ Then, for each matched booking, recompute `paid = Σ revenue payments − refund
 PATCH `exp_bookings`: `downpayment_received = paid ≥ 0.5×agreed_price`,
 `final_payment_received = paid ≥ agreed_price`. **Do not change `exp_bookings.status`.**
 
+## Covered partners / group payers — ALLOCATE proportionally
+
+One person can pay for several participants (e.g. a partner on a "No Hotel"
+package, or a group booker). Each participant is their **own booking** with their
+**own agreed price (= their package)**. The payer's sheet payment covers the whole
+**group**, so **split each such payment across the group's bookings in proportion to
+their agreed prices** — every member ends at the **same % paid**.
+
+> Example: Mathias (€5,750) + Silvia (€1,250) = €7,000 combined. Payer pays €3,500
+> (50%) → Mathias €2,875 (50% of 5,750), Silvia €625 (50% of 1,250). Both 50%.
+> If he's only 50% paid on the combined bill, **her package is 50% paid too.**
+
+Rules:
+- Find the group via the **structured link** (`payer_contact_id` /
+  `booking_group_id` / `covered_by_booking_id`) — **never** infer it from free-text
+  `traveling_with`. If a payer clearly covers others but has **no structured link
+  yet**, do NOT guess and do NOT dump it all on the payer — **flag it** for the team.
+- For each payment the sheet attributes to the payer, write **one payment row per
+  group booking**, amount = `payment × (booking.agreed / combinedAgreed)`, all
+  sharing the **source invoice reference** (idempotent + traceable).
+- On re-run, keep it in sync: each booking's paid = (sum of the payer's sheet
+  payments) × its share.
+
+*Interim (before the structured link exists):* the team hand-splits via
+`alloc:`-reference rows. **Never** overwrite/delete a payment whose `reference`
+starts `alloc:`, and don't "correct" a payer's deliberately-reduced total back to
+the sheet amount.
+
 ## Naming — do NOT rewrite it
 
 Never rename packages, components, or trips. The sheet's names/PO codes are human

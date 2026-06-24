@@ -8,6 +8,7 @@ import type { User } from "@supabase/supabase-js";
 import { effectiveCanAccess, effectiveCanEnterWorld, type EffectiveAccess, type WorldId } from "@/lib/access";
 import { AccountSwitcher } from "@/components/admin/account-switcher";
 import { AdminInstallPrompt } from "@/components/pwa/admin-install-prompt";
+import { ActiveTimeHeartbeat } from "@/components/admin/active-time-heartbeat";
 
 // ─── Environments ────────────────────────────────────────────────────────────
 
@@ -710,6 +711,8 @@ export default function AdminShell({
 
       {/* "Add NP7 Admin to your home screen" — only for logged-in team members */}
       <AdminInstallPrompt />
+      {/* Track active time so Hours Log can suggest logged hours (no-op pre-migration) */}
+      <ActiveTimeHeartbeat />
     </div>
   );
 }
