@@ -4,6 +4,8 @@ import type { Metadata } from "next";
 import { getPortalUser } from "@/lib/auth";
 import { createAdminClient } from "@/lib/supabase";
 import { PortalChrome } from "@/components/portal/portal-chrome";
+import { GiftBuyForm } from "@/components/experience/gift-buy-form";
+import { loadGiftData } from "@/lib/gift-data";
 import { STATUS_LABEL, STATUS_TONE, fmtVoucherMoney, type Voucher } from "@/lib/vouchers";
 
 export const metadata: Metadata = { title: "Gift vouchers — NP7" };
@@ -39,27 +41,23 @@ export default async function VouchersPage() {
     bank = cs ?? null;
   } catch { /* table not migrated yet → empty state */ }
 
+  const { experiences, packages } = await loadGiftData();
+
   return (
     <>
       <PortalChrome />
       <main className="min-h-[100svh] bg-[#fff7ec]">
         <div className="max-w-[1000px] mx-auto px-5 sm:px-8 py-10 sm:py-14">
           <Link href="/account" className="text-[13px] font-semibold text-[#6a7a80] hover:text-[#00374a]">← Home</Link>
-          <div className="flex flex-wrap items-end justify-between gap-3 mt-2 mb-8">
-            <div>
-              <h1 className="text-3xl sm:text-4xl font-black tracking-[-0.03em] text-[#00374a]">Gift vouchers</h1>
-              <p className="text-[15px] text-[#6a7a80] mt-1.5">Vouchers you&apos;ve bought or been given. Print one, gift it, or use it on a booking.</p>
-            </div>
-            <Link href="/account/vouchers/buy" className="px-5 py-2.5 rounded-full text-[13px] font-bold text-white bg-[#00afdb] hover:bg-[#15c0ec] transition-colors">Gift a trip →</Link>
+          <div className="mt-2 mb-8">
+            <h1 className="text-3xl sm:text-4xl font-black tracking-[-0.03em] text-[#00374a]">Gift vouchers</h1>
+            <p className="text-[15px] text-[#6a7a80] mt-1.5">Gift a windsurf, wing &amp; foil trip — or print &amp; use one you&apos;ve been given.</p>
           </div>
 
-          {rows.length === 0 ? (
-            <div className="bg-white rounded-2xl border border-[#f0e6d6] p-10 text-center">
-              <p className="text-[15px] text-[#6a7a80] mb-5">No gift vouchers yet.</p>
-              <Link href="/account/vouchers/buy" className="inline-block px-7 py-3.5 rounded-full text-[13.5px] font-bold text-white bg-[#00afdb]">Gift an NP7 trip</Link>
-            </div>
-          ) : (
-            <div className="space-y-4">
+          {rows.length > 0 && (
+            <div className="mb-12">
+              <h2 className="text-[12px] font-bold uppercase tracking-[0.12em] text-[#9aa6ac] mb-3">Your vouchers</h2>
+              <div className="space-y-4">
               {rows.map((v) => {
                 const mine = v.buyer_contact_id === user.contactId;
                 return (
@@ -107,8 +105,16 @@ export default async function VouchersPage() {
                   </div>
                 );
               })}
+              </div>
             </div>
           )}
+
+          {/* The options — gift a trip, right here (no detour to the public site) */}
+          <div className="max-w-[760px]">
+            <h2 className="text-2xl sm:text-[28px] font-black tracking-[-0.02em] text-[#00374a] mb-1.5">{rows.length > 0 ? "Gift another trip" : "Gift a trip"}</h2>
+            <p className="text-[14px] text-[#6a7a80] mb-6">A windsurf, wing &amp; foil adventure wrapped as a voucher. Pay by bank transfer — we email a printable voucher once it lands, and call the recipient if you like.</p>
+            <GiftBuyForm experiences={experiences} packages={packages} />
+          </div>
         </div>
       </main>
     </>
