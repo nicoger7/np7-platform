@@ -141,7 +141,7 @@ export function EditionMemoriesUploader({ editionId, initialVideoUrl }: { editio
             {photos.map((p) => (
               <div key={p.path} className="relative group aspect-square rounded-lg overflow-hidden" style={{ border: "1px solid var(--admin-border)" }}>
                 {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img src={p.url} alt="" className="w-full h-full object-cover" />
+                <img src={p.url} alt="" loading="lazy" decoding="async" className="w-full h-full object-cover" />
                 <button onClick={() => remove(p.path)} className="absolute top-1 right-1 w-6 h-6 rounded bg-black/60 text-white text-sm grid place-items-center opacity-0 group-hover:opacity-100 transition-opacity" title="Remove">×</button>
               </div>
             ))}
