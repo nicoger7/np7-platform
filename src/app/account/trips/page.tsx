@@ -44,14 +44,17 @@ export default async function MyTrips() {
                 return (
                   <Link key={b.id} href={`/account/bookings/${b.id}`}
                     className="group block bg-white rounded-2xl border border-[#f0e6d6] overflow-hidden hover:-translate-y-0.5 hover:shadow-[0_16px_40px_rgba(0,55,74,0.08)] transition-all">
-                    {/* hero on top — same tile shape as the experience overview */}
+                    {/* hero on top — prefer the EDITION's own tile (frozen per week)
+                        so a past trip keeps its image even if the experience hero changes. */}
+                    {(() => { const tile = b.edition?.hero_image ?? b.experience?.hero_image; return (
                     <div className="relative aspect-[16/9] grid place-items-center bg-cover bg-center bg-[#e8f1f3]"
-                      style={b.experience?.hero_image ? { backgroundImage: `url('${b.experience.hero_image}')` } : undefined}>
-                      {!b.experience?.hero_image && (
+                      style={tile ? { backgroundImage: `url('${tile}')` } : undefined}>
+                      {!tile && (
                         <svg className="w-10 h-10 text-[#b9cdd3]" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="3" width="18" height="18" rx="2" /><circle cx="8.5" cy="8.5" r="1.5" /><path d="m21 15-5-5L5 21" /></svg>
                       )}
                       <span className={`absolute top-3 right-3 inline-block px-3 py-1.5 rounded-full text-[11px] font-bold shadow-sm ${CHIP_CLASS[chip.tone]}`}>{chip.label}</span>
                     </div>
+                    ); })()}
                     <div className="p-5">
                       <h2 className="text-xl font-extrabold tracking-[-0.01em] text-[#00374a] group-hover:text-[#00afdb] transition-colors">
                         {b.experience?.title ?? "Your trip"}

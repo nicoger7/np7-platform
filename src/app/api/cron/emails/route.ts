@@ -43,6 +43,28 @@ export async function GET(req: NextRequest) {
   const now = Date.now();
   const DAY = 86400000;
 
+  // ── Edition tile snapshot ───────────────────────────────────────────────────
+  // Freeze a past edition's hero so its tile (member "My trips") stays put even if
+  // the experience hero is later swapped for new marketing. Only editions whose
+  // trip has ENDED and that still inherit (no own hero) get the current experience
+  // hero copied in. Idempotent — once set, it's skipped. Best-effort.
+  try {
+    const today = new Date().toISOString().slice(0, 10);
+    const { data: doneEds } = await db.from("exp_editions").select("id,experience_id,hero_image,date_end").lt("date_end", today);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const toFreeze = ((doneEds ?? []) as any[]).filter((e) => !e.hero_image && e.experience_id);
+    if (toFreeze.length) {
+      const expIds = [...new Set(toFreeze.map((e) => e.experience_id))];
+      const { data: exps } = await db.from("exp_experiences").select("id,hero_image").in("id", expIds);
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const heroBy = new Map(((exps ?? []) as any[]).map((e) => [e.id, e.hero_image]));
+      for (const e of toFreeze) {
+        const hero = heroBy.get(e.experience_id);
+        if (hero) await db.from("exp_editions").update({ hero_image: hero }).eq("id", e.id);
+      }
+    }
+  } catch { /* hero column / table not ready — skip */ }
+
   // Go-live cutoff: never email "backwards". Set EMAIL_PIPELINE_LIVE_FROM (ISO
   // date) when Resend is connected — bookings whose trip (or, for lead nudges,
   // whose reservation) predates it are skipped entirely, so turning the engine
