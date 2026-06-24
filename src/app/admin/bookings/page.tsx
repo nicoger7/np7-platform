@@ -36,7 +36,11 @@ interface Booking {
 // full) lives on the booking + Payments page, not as columns here.
 const STATUSES = [
   { value: "lead", label: "Lead", color: "bg-gray-500" },
+  // Derived: a lead that's gone quiet (no movement for FOLLOW_UP_DAYS) — chase it.
+  { value: "follow_up", label: "Follow-up", color: "bg-amber-400" },
   { value: "reserved", label: "Reserved", color: "bg-amber-500" },
+  // Derived: reserved but the down-payment is past its DOWNPAYMENT_DAYS window, unpaid.
+  { value: "payment_due", label: "Payment due", color: "bg-orange-500" },
   { value: "confirmed", label: "Confirmed", color: "bg-blue-500" },
   { value: "paid", label: "Fully paid", color: "bg-green-600" },
   { value: "attended", label: "Attended", color: "bg-gray-400" },
@@ -46,8 +50,13 @@ const STATUSES = [
   { value: "expired", label: "Expired", color: "bg-gray-500/60" },
 ];
 
+// A lead idle this long → "follow-up"; a reserved spot unpaid this long → "payment due".
+const FOLLOW_UP_DAYS = 14;
+const DOWNPAYMENT_DAYS = 14;
+const daysSince = (iso: string | null) => (iso ? (Date.now() - Date.parse(iso)) / 86_400_000 : 0);
+
 // Pipeline ordering — most-advanced first; dead/expired sink to the bottom.
-const STATUS_RANK: Record<string, number> = { attended: 5, paid: 4, confirmed: 3, reserved: 2, lead: 1, expired: 0, lost: -1 };
+const STATUS_RANK: Record<string, number> = { attended: 5, paid: 4, confirmed: 3, payment_due: 2, reserved: 2, lead: 1, follow_up: 1, expired: 0, lost: -1 };
 
 // A lead whose trip is already over → treat as "expired" in the view only
 // (the row stays status='lead' in the DB).
@@ -56,8 +65,19 @@ function isExpiredLead(b: Booking): boolean {
   const end = b.edition?.date_end;
   return !!end && new Date(end) < new Date();
 }
+// View-only overlays on the real DB status (no migration): a stale lead →
+// "follow-up", a reserved spot whose down-payment is overdue → "payment due".
 function effStatus(b: Booking): string {
-  return isExpiredLead(b) ? "expired" : normalizeBookingStatus(b.status);
+  const s = normalizeBookingStatus(b.status);
+  if (s === "lead") {
+    if (isExpiredLead(b)) return "expired";
+    if (daysSince(b.created_at) > FOLLOW_UP_DAYS) return "follow_up";
+    return "lead";
+  }
+  if (s === "reserved" && !b.downpayment_received && daysSince(b.created_at) > DOWNPAYMENT_DAYS) {
+    return "payment_due";
+  }
+  return s;
 }
 
 type ViewMode = "table" | "pipeline";
