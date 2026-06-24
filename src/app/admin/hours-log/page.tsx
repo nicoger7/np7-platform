@@ -117,8 +117,8 @@ export default function HoursLogPage() {
       fetch("/api/admin/team").then((r) => r.json()),
       fetch("/api/admin/experiences").then((r) => r.json()),
     ]).then(([h, t, e]) => {
-      setEntries(h || []);
-      setTeam(t || []);
+      setEntries(Array.isArray(h) ? h : []);
+      setTeam(Array.isArray(t) ? t : []); // non-managers can't read /api/admin/team → keep it an array
       setExperiences((e.experiences || e || []).map((x: Record<string, string>) => ({ id: x.id, title: x.title })));
       setLoading(false);
     });

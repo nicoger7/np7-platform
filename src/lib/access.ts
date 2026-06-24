@@ -39,8 +39,16 @@ export function isOwnerOnlyPath(path: string): boolean {
   return OWNER_ONLY.some((p) => underPrefix(p, path));
 }
 
+// Personal tools every active team member can always reach, regardless of role —
+// e.g. logging your OWN hours. (The APIs still restrict you to your own data.)
+const ALWAYS_AVAILABLE = ["/admin/hours-log", "/api/admin/hours-log", "/api/admin/active-time"];
+export function isPersonalPath(path: string): boolean {
+  return ALWAYS_AVAILABLE.some((p) => underPrefix(p, path));
+}
+
 /** Whether a member at `level` may access `path` (an /admin or /api/admin path). */
 export function canAccess(level: AccessLevel, path: string): boolean {
+  if (isPersonalPath(path)) return true;
   if (level === "owner") return true;
   return !isOwnerOnlyPath(path);
 }
@@ -280,6 +288,7 @@ export function roleSectionLevel(access: RoleAccess, sectionKey: string): Sectio
 
 /** Can this member reach `path`? Shared (section-less) paths are always allowed. */
 export function effectiveCanAccess(eff: EffectiveAccess, path: string): boolean {
+  if (isPersonalPath(path)) return true; // hours log etc. — always available to any member
   if (eff.kind === "tier") return canAccess(eff.level, path);
   const sec = sectionForPath(path);
   if (!sec) return true;
@@ -289,6 +298,7 @@ export function effectiveCanAccess(eff: EffectiveAccess, path: string): boolean 
 
 /** Can this member edit (not just view) within `path`'s section? */
 export function effectiveCanEdit(eff: EffectiveAccess, path: string): boolean {
+  if (isPersonalPath(path)) return true; // you can always log your own hours
   if (eff.kind === "tier") return canAccess(eff.level, path);
   const sec = sectionForPath(path);
   if (!sec) return true;
