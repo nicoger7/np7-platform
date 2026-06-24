@@ -36,7 +36,39 @@ export function MemberGallery({
   }, [groups]);
 
   const downloadable = !!bookingId && downloadsRemaining != null;
+  const minePhotos = groups.find((g) => g.kind === "mine")?.photos ?? [];
+  const hasOthers = flat.length > minePhotos.length;
 
+  async function zipAndSave(urls: string[], filename: string) {
+    const { default: JSZip } = await import("jszip");
+    const zip = new JSZip();
+    await Promise.all(
+      urls.map(async (url, i) => {
+        const blob = await fetch(url).then((r) => r.blob());
+        const ext = (url.split(".").pop() || "jpg").split("?")[0].slice(0, 4);
+        zip.file(`photo-${String(i + 1).padStart(2, "0")}.${ext}`, blob);
+      })
+    );
+    const out = await zip.generateAsync({ type: "blob" });
+    const href = URL.createObjectURL(out);
+    const a = document.createElement("a");
+    a.href = href;
+    a.download = filename;
+    a.click();
+    URL.revokeObjectURL(href);
+  }
+
+  // "My photos" = the member's own shots — their own, so no download cap.
+  async function downloadMine() {
+    if (!minePhotos.length) return;
+    setErr("");
+    setZipping(true);
+    try { await zipAndSave(minePhotos, "my-photos.zip"); }
+    catch { setErr("Couldn't build the download. Please try again."); }
+    finally { setZipping(false); }
+  }
+
+  // "All photos" = the whole gallery (incl. shared) — capped per booking.
   async function downloadAll() {
     if (!bookingId) return;
     setErr("");
@@ -50,22 +82,7 @@ export function MemberGallery({
         return;
       }
       const { remaining: rem } = await res.json();
-      const { default: JSZip } = await import("jszip");
-      const zip = new JSZip();
-      await Promise.all(
-        flat.map(async (url, i) => {
-          const blob = await fetch(url).then((r) => r.blob());
-          const ext = (url.split(".").pop() || "jpg").split("?")[0].slice(0, 4);
-          zip.file(`photo-${String(i + 1).padStart(2, "0")}.${ext}`, blob);
-        })
-      );
-      const out = await zip.generateAsync({ type: "blob" });
-      const href = URL.createObjectURL(out);
-      const a = document.createElement("a");
-      a.href = href;
-      a.download = "trip-photos.zip";
-      a.click();
-      URL.revokeObjectURL(href);
+      await zipAndSave(flat, "trip-photos.zip");
       setRemaining(typeof rem === "number" ? rem : Math.max(0, remaining - 1));
     } catch {
       setErr("Couldn't build the download. Please try again.");
@@ -181,19 +198,34 @@ export function MemberGallery({
       </div>
 
       {downloadable && (
-        <div className="flex items-center gap-3 mt-4">
-          <button
-            type="button"
-            onClick={downloadAll}
-            disabled={zipping || remaining <= 0}
-            className="inline-flex items-center gap-2 px-5 py-2.5 rounded-full text-[13.5px] font-bold text-white bg-[#00afdb] hover:bg-[#15c0ec] disabled:opacity-50 transition-colors"
-          >
-            <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3" /></svg>
-            {zipping ? "Preparing…" : "Download all photos"}
-          </button>
-          <span className="text-[12.5px] text-[#8a9aa0]">
-            {remaining > 0 ? `${remaining} download${remaining === 1 ? "" : "s"} left` : "No downloads left"}
-          </span>
+        <div className="flex flex-wrap items-center gap-2.5 mt-4">
+          {minePhotos.length > 0 && (
+            <button
+              type="button"
+              onClick={downloadMine}
+              disabled={zipping}
+              className="inline-flex items-center gap-2 px-5 py-2.5 rounded-full text-[13.5px] font-bold text-[#00374a] bg-white border border-[#dde6e9] hover:border-[#00afdb] disabled:opacity-50 transition-colors"
+            >
+              <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3" /></svg>
+              Download my photos
+            </button>
+          )}
+          {hasOthers && (
+            <button
+              type="button"
+              onClick={downloadAll}
+              disabled={zipping || remaining <= 0}
+              className="inline-flex items-center gap-2 px-5 py-2.5 rounded-full text-[13.5px] font-bold text-white bg-[#00afdb] hover:bg-[#15c0ec] disabled:opacity-50 transition-colors"
+            >
+              <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3" /></svg>
+              {zipping ? "Preparing…" : "Download all photos"}
+            </button>
+          )}
+          {hasOthers && (
+            <span className="text-[12.5px] text-[#8a9aa0]">
+              {remaining > 0 ? `${remaining} full download${remaining === 1 ? "" : "s"} left` : "No full downloads left"}
+            </span>
+          )}
         </div>
       )}
       {err && <p className="text-[12.5px] text-[#c4621a] mt-2">{err}</p>}

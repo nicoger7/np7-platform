@@ -1,4 +1,5 @@
 import { createAdminClient } from "@/lib/supabase";
+import { isAttending, normalizeBookingStatus } from "@/lib/types";
 import { effectiveAddonStatus } from "@/lib/addons";
 import { parseFlightNote, type FlightInfo } from "@/lib/flights";
 import {
@@ -189,14 +190,30 @@ export async function getCrewProfiles(editionId: string, viewerContactId: string
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const db = createAdminClient() as any;
   const { data: bookings } = await db.from("exp_bookings")
-    .select("contact_id,status")
+    .select("contact_id,status,downpayment_received,deposit_received,created_at")
     .eq("edition_id", editionId);
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const active = (bookings ?? []).filter((b: any) => !/cancel/i.test(b.status ?? "") && b.contact_id);
+  const onEdition = (bookings ?? []).filter((b: any) => b.contact_id);
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const contactIds = [...new Set(active.map((b: any) => b.contact_id))] as string[];
-  if (!contactIds.includes(viewerContactId)) return empty; // viewer isn't on this edition
+  if (!onEdition.some((b: any) => b.contact_id === viewerContactId)) return empty; // viewer isn't on this edition
+
+  // Crew = people actually coming: downpayment (or deposit) paid, OR just signed up
+  // (reserved) and still within the 14-day window to pay it. Past that window unpaid
+  // — or leads / cancelled — they drop off the roster until they pay.
+  const GRACE_DAYS = 14;
+  const now = Date.now();
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const coming = onEdition.filter((b: any) => {
+    if (b.downpayment_received === true || b.deposit_received === true || isAttending(b.status)) return true;
+    if (normalizeBookingStatus(b.status) === "reserved" && b.created_at) {
+      return (now - new Date(b.created_at).getTime()) / 86400000 <= GRACE_DAYS;
+    }
+    return false;
+  });
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const contactIds = [...new Set(coming.map((b: any) => b.contact_id))] as string[];
   const going = contactIds.length;
+  if (going === 0) return empty;
 
   // Tolerant read of the profile columns — absent before migration 035 → no one shares.
   const sel = "id,name,username,avatar_url,country,display_city,level,date_of_birth,profile_visibility";
