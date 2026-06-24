@@ -220,6 +220,9 @@ export default function HoursLogPage() {
         </div>
       )}
 
+      {/* List filters — hidden while the Log Hours form is open (the form has its
+          own Experience field; showing both at once looked like a duplicate). */}
+      {!(showNew || editId) && (
       <div className="flex gap-3 mb-5">
         {me?.canManageHours && (
           <select value={filterEmployee} onChange={(e) => setFilterEmployee(e.target.value)} className="admin-input text-sm px-3 py-1.5 rounded-lg">
@@ -233,6 +236,7 @@ export default function HoursLogPage() {
         </select>
         {(filterEmployee || filterExp) && <button onClick={() => { setFilterEmployee(""); setFilterExp(""); }} className="text-xs admin-faint hover:admin-muted">Clear</button>}
       </div>
+      )}
 
       {(showNew || editId) && (
         <div className="mb-6 p-5 rounded-xl" style={{ border: "1px solid var(--admin-border)", backgroundColor: "var(--admin-surface)" }}>
