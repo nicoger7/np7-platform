@@ -2,7 +2,7 @@ import Link from "next/link";
 import { redirect, notFound } from "next/navigation";
 import type { Metadata } from "next";
 import { getPortalUser } from "@/lib/auth";
-import { getMemberBooking, getTripGalleryForBooking, getBookingPhotoSharing, getBookingPaid, getBookingHotel, getEditionCoaches, getMemoryDownloadsRemaining, getConfirmedAddonsTotal, getBookingFlights, getExperienceArrivalInfo, getCrewProfiles } from "@/lib/portal-data";
+import { getMemberBooking, getTripGalleryGroupsForBooking, getBookingPhotoSharing, getBookingPaid, getBookingHotel, getEditionCoaches, getMemoryDownloadsRemaining, getConfirmedAddonsTotal, getBookingFlights, getExperienceArrivalInfo, getCrewProfiles } from "@/lib/portal-data";
 import { bookingStatus, CHIP_CLASS, fmtDates, money } from "@/lib/portal-status";
 import { isAttending } from "@/lib/types";
 import { PortalChrome } from "@/components/portal/portal-chrome";
@@ -34,8 +34,8 @@ export default async function BookingDetail({ params }: Props) {
   if (!b) notFound();
 
   const chip = bookingStatus(b);
-  const [photos, paid, hotel, coaches, downloadsRemaining, addonsTotal, flights, arrival, crew, photosShared] = await Promise.all([
-    b.edition?.id ? getTripGalleryForBooking(b.edition.id, b.id).catch(() => []) : Promise.resolve([]),
+  const [galleryGroups, paid, hotel, coaches, downloadsRemaining, addonsTotal, flights, arrival, crew, photosShared] = await Promise.all([
+    b.edition?.id ? getTripGalleryGroupsForBooking(b.edition.id, b.id).catch(() => []) : Promise.resolve([]),
     getBookingPaid(b.id).catch(() => 0),
     getBookingHotel(b.id).catch(() => null),
     b.edition?.id ? getEditionCoaches(b.edition.id).catch(() => []) : Promise.resolve([]),
@@ -107,13 +107,14 @@ export default async function BookingDetail({ params }: Props) {
     b.downpayment_received ||
     isAttending(b.status);
 
-  const memoriesContent = (photos.length === 0 && !b.edition?.memories_video_url) ? (
+  const photoCount = galleryGroups.reduce((n, g) => n + g.photos.length, 0);
+  const memoriesContent = (photoCount === 0 && !b.edition?.memories_video_url) ? (
     <p className="text-[13.5px] text-[#9aa6ac]">Your photos &amp; video will appear here after the week.</p>
   ) : (
     <>
-      {photos.length > 0 && (
+      {photoCount > 0 && (
         <div className="mb-3">
-          <MemberGallery photos={photos} bookingId={b.id} downloadsRemaining={downloadsRemaining} />
+          <MemberGallery groups={galleryGroups} bookingId={b.id} downloadsRemaining={downloadsRemaining} />
           <div className="mt-3">
             <PhotoSharingToggle bookingId={b.id} initialShared={photosShared} />
           </div>

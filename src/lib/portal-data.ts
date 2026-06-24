@@ -514,6 +514,65 @@ export async function getTripGalleryForBooking(editionId: string, viewerBookingI
   return [...new Set([...mine, ...everyone, ...otherLists.flat()])];
 }
 
+export type GalleryGroup = { key: string; label: string; kind: "mine" | "everyone" | "participant"; photos: string[] };
+
+/** Strip the " — Place Year" suffix from a booking name → just the person. */
+function personName(n: string | null | undefined): string {
+  return String(n || "").split(" — ")[0].split(" – ")[0].trim();
+}
+
+/** The trip gallery split into foldable groups for ONE viewer, in order:
+    1) "Your photos" (the viewer's personal folder),
+    2) "Week memories" (the shared Everyone folder),
+    3) one group per OTHER participant who shares (labelled with their name).
+    Non-sharing participants are never included. */
+export async function getTripGalleryGroupsForBooking(editionId: string, viewerBookingId: string): Promise<GalleryGroup[]> {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const db = createAdminClient() as any;
+  let rows = await db.from("exp_bookings").select("id, name, photos_shared, contacts(name)").eq("edition_id", editionId);
+  if (rows.error) rows = await db.from("exp_bookings").select("id, name").eq("edition_id", editionId);
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const others = ((rows.data ?? []) as any[]).filter((r) => r.id !== viewerBookingId && r.photos_shared !== false);
+
+  const [mine, everyone, ...otherLists] = await Promise.all([
+    listAssetFolder(`memories/${editionId}/p/${viewerBookingId}`),
+    listAssetFolder(`memories/${editionId}`),
+    ...others.map((o) => listAssetFolder(`memories/${editionId}/p/${o.id}`)),
+  ]);
+
+  const groups: GalleryGroup[] = [];
+  if (mine.length) groups.push({ key: "mine", label: "Your photos", kind: "mine", photos: mine });
+  if (everyone.length) groups.push({ key: "everyone", label: "Week memories", kind: "everyone", photos: everyone });
+  others.forEach((o, i) => {
+    const photos = otherLists[i] ?? [];
+    if (!photos.length) return;
+    const nm = personName(o.contacts?.name || o.name) || "A fellow rider";
+    groups.push({ key: `p:${o.id}`, label: nm, kind: "participant", photos });
+  });
+  return groups;
+}
+
+export type TripMemories = { bookingId: string; title: string; dateLabel: string | null; groups: GalleryGroup[]; total: number };
+
+/** Every trip the member has photos for, each split into the same groups — for the
+    cross-trip "My memories" view on the home area (view-only, no download). */
+export async function getAllMemberMemories(contactId: string): Promise<TripMemories[]> {
+  const bookings = await getMemberBookings(contactId);
+  const out = await Promise.all(
+    bookings.map(async (b): Promise<TripMemories | null> => {
+      if (!b.edition?.id) return null;
+      const groups = await getTripGalleryGroupsForBooking(b.edition.id, b.id).catch(() => [] as GalleryGroup[]);
+      const total = groups.reduce((n, g) => n + g.photos.length, 0);
+      if (!total) return null;
+      const dl = b.edition.date_start
+        ? new Date(b.edition.date_start).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" })
+        : null;
+      return { bookingId: b.id, title: b.experience?.title ?? "Your trip", dateLabel: dl, groups, total };
+    })
+  );
+  return out.filter((x): x is TripMemories => x != null);
+}
+
 /** Sum of incoming (customer→us) payments logged for a booking, from exp_payments.
     Lets the member see what's actually been received (deposit + any bank transfer). */
 export async function getBookingPaid(bookingId: string): Promise<number> {
