@@ -12,6 +12,9 @@ interface DashboardData {
   overdueTodos: number;
   finance: { openRevenue: number; unmatchedPayments: number } | null;
   pendingAddons: { id: string; bookingId: string; label: string; price: number | null; bookingName: string }[];
+  slim?: boolean;
+  photoTasks?: { editionId: string; label: string; total: number; missing: { id: string; name: string }[] }[];
+  contentGaps?: { experienceId: string; title: string; missing: string[] }[];
 }
 
 function money(n: number | null | undefined) {
@@ -66,6 +69,46 @@ export default function AdminDashboard() {
     return <div className="flex items-center justify-center h-64"><p className="text-sm admin-faint">Loading dashboard…</p></div>;
   }
 
+  const photoTasks = d.photoTasks ?? [];
+  const contentGaps = d.contentGaps ?? [];
+  const slim = !!d.slim;
+
+  const photoPanels = (
+    <>
+      {(photoTasks.length > 0 || slim) && (
+        <Panel title={`Participant photos to upload${photoTasks.length ? ` (${photoTasks.length})` : ""}`} href="/admin/images">
+          {photoTasks.length === 0 ? <p className="text-xs admin-faint">Every started trip has participant photos. 🎉</p> : (
+            <div className="space-y-3">
+              {photoTasks.map((t) => (
+                <Link key={t.editionId} href="/admin/images" className="block py-1.5 px-2 -mx-2 rounded-lg hover:bg-[var(--admin-surface-hover)]">
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="text-xs font-semibold admin-heading truncate">{t.label}</span>
+                    <span className="shrink-0 text-[9px] font-bold uppercase px-1.5 py-0.5 rounded bg-amber-500/15 text-amber-500">{t.total} missing</span>
+                  </div>
+                  <p className="text-[11px] admin-faint mt-1 leading-relaxed">{t.missing.map((m) => m.name).join(", ")}{t.total > t.missing.length ? ` +${t.total - t.missing.length} more` : ""}</p>
+                </Link>
+              ))}
+            </div>
+          )}
+        </Panel>
+      )}
+      {(contentGaps.length > 0 || slim) && (
+        <Panel title={`Website photos missing${contentGaps.length ? ` (${contentGaps.length})` : ""}`} href="/admin/content">
+          {contentGaps.length === 0 ? <p className="text-xs admin-faint">Every on-website experience has a hero &amp; gallery. 🎉</p> : (
+            <div className="space-y-1.5">
+              {contentGaps.map((c) => (
+                <Link key={c.experienceId} href={`/admin/content/${c.experienceId}`} className="flex items-center gap-3 text-xs py-1.5 px-2 -mx-2 rounded-lg hover:bg-[var(--admin-surface-hover)]">
+                  <span className="flex-1 admin-heading truncate">{c.title}</span>
+                  <span className="shrink-0 admin-faint">missing {c.missing.join(" + ")}</span>
+                </Link>
+              ))}
+            </div>
+          )}
+        </Panel>
+      )}
+    </>
+  );
+
   return (
     <div>
       <h1 className="text-2xl font-bold admin-heading mb-6">Dashboard</h1>
@@ -78,16 +121,22 @@ export default function AdminDashboard() {
         <StatCard label="Upcoming editions" value={d.counts.upcomingEditions} accent />
       </div>
 
-      {/* Finance cards are owner-only (the API omits them for managers). */}
-      <div className="grid grid-cols-2 lg:grid-cols-3 gap-4 mb-6">
-        {d.finance && <StatCard label="Open revenue" value={money(d.finance.openRevenue)} href="/admin/payments" accent />}
-        {d.finance && <StatCard label="Unmatched payments" value={d.finance.unmatchedPayments} href="/admin/payments" />}
-        <StatCard label="Overdue to-dos" value={d.overdueTodos} href="/admin/todos" />
-        <StatCard label="Pending add-ons" value={d.pendingAddons.length} accent={d.pendingAddons.length > 0} />
-      </div>
+      {/* Finance + ops cards — hidden for restricted (no-money) roles. */}
+      {!slim && (
+        <div className="grid grid-cols-2 lg:grid-cols-3 gap-4 mb-6">
+          {d.finance && <StatCard label="Open revenue" value={money(d.finance.openRevenue)} href="/admin/payments" accent />}
+          {d.finance && <StatCard label="Unmatched payments" value={d.finance.unmatchedPayments} href="/admin/payments" />}
+          <StatCard label="Overdue to-dos" value={d.overdueTodos} href="/admin/todos" />
+          <StatCard label="Pending add-ons" value={d.pendingAddons.length} accent={d.pendingAddons.length > 0} />
+        </div>
+      )}
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+        {/* Photo tasks — shown first for restricted roles (their main job). */}
+        {slim && photoPanels}
+
         {/* Pending add-ons to confirm */}
+        {!slim && (
         <Panel title={`Pending add-ons${d.pendingAddons.length ? ` (${d.pendingAddons.length})` : ""}`}>
           {d.pendingAddons.length === 0 ? <p className="text-xs admin-faint">No add-on requests waiting.</p> : (
             <div className="space-y-1.5">
@@ -101,8 +150,9 @@ export default function AdminDashboard() {
             </div>
           )}
         </Panel>
+        )}
 
-        {/* Latest bookings */}
+        {/* Latest bookings — names + status (prices already redacted for restricted roles) */}
         <Panel title="Latest bookings" href="/admin/bookings">
           {d.latestBookings.length === 0 ? <p className="text-xs admin-faint">No bookings yet.</p> : (
             <div className="space-y-1.5">
@@ -136,7 +186,11 @@ export default function AdminDashboard() {
           )}
         </Panel>
 
-        {/* Recent emails */}
+        {/* Photo tasks for full-access roles too (when there's outstanding work). */}
+        {!slim && photoPanels}
+
+        {/* Recent emails — hidden for restricted roles (recipient addresses). */}
+        {!slim && (
         <Panel title="Recent emails" href="/admin/email-log">
           {d.recentEmails.length === 0 ? <p className="text-xs admin-faint">No emails sent.</p> : (
             <div className="space-y-1.5">
@@ -151,8 +205,10 @@ export default function AdminDashboard() {
             </div>
           )}
         </Panel>
+        )}
 
-        {/* Quick links / activity placeholder */}
+        {/* Quick links — full-access roles only (most targets are gated). */}
+        {!slim && (
         <Panel title="Quick actions">
           <div className="grid grid-cols-2 gap-2">
             {[
@@ -169,6 +225,7 @@ export default function AdminDashboard() {
             ))}
           </div>
         </Panel>
+        )}
       </div>
     </div>
   );

@@ -9,8 +9,14 @@ export async function loadGiftData(): Promise<{ experiences: GiftExp[]; heroes: 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const sb = supabase as any;
   const { data: exps } = await sb.from("exp_experiences").select("id, title, currency, price, hero_image").eq("status", "published").order("title");
+  // Exclude active-but-off-website experiences from public gifting. Separate query
+  // so a not-yet-migrated website_visible column can't break the gift form (errors
+  // → empty set → nothing hidden).
+  const { data: visRows } = await sb.from("exp_experiences").select("id, website_visible").eq("status", "published");
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const rows = (exps ?? []) as any[];
+  const hiddenIds = new Set(((visRows ?? []) as any[]).filter((e) => e.website_visible === false).map((e) => e.id));
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const rows = ((exps ?? []) as any[]).filter((e) => !hiddenIds.has(e.id));
   const ids = rows.map((e) => e.id);
   const { data: content } = ids.length ? await sb.from("exp_content").select("experience_id, hero_image").in("experience_id", ids) : { data: [] };
   // eslint-disable-next-line @typescript-eslint/no-explicit-any

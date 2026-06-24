@@ -14,7 +14,11 @@ interface Experience {
   status: string;
   hero_image: string;
   hotel: string | null;
+  website_visible?: boolean | null;
 }
+
+// "published" is the stored value for an operationally-active experience.
+const STATUS_LABEL: Record<string, string> = { published: "Active", draft: "Draft", archived: "Archived" };
 
 interface Edition {
   experience_id: string;
@@ -46,7 +50,17 @@ function StatusBadge({ status }: { status: string }) {
           : "admin-surface admin-muted"
       }`}
     >
-      {status}
+      {STATUS_LABEL[status] ?? status}
+    </span>
+  );
+}
+
+/** Shown when an active experience is intentionally kept off the public site. */
+function OffWebsiteBadge() {
+  return (
+    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-[0.05em] bg-amber-500/15 text-amber-500" title="Active, but not shown on the public website">
+      <svg className="w-2.5 h-2.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><path d="M17.94 17.94A10.07 10.07 0 0112 20c-7 0-11-8-11-8a18.45 18.45 0 015.06-5.94M9.9 4.24A9.12 9.12 0 0112 4c7 0 11 8 11 8a18.5 18.5 0 01-2.16 3.19m-6.72-1.07a3 3 0 11-4.24-4.24" /><line x1="1" y1="1" x2="23" y2="23" /></svg>
+      Off website
     </span>
   );
 }
@@ -152,7 +166,7 @@ export default function ExperiencesPage() {
   function GroupHeading({ status, count }: { status: string; count: number }) {
     return (
       <div className="flex items-center gap-2 mb-2 mt-6 first:mt-0">
-        <h2 className="text-xs font-bold tracking-[0.1em] admin-faint uppercase">{status}</h2>
+        <h2 className="text-xs font-bold tracking-[0.1em] admin-faint uppercase">{STATUS_LABEL[status] ?? status}</h2>
         <span className="text-[10px] admin-faint">({count})</span>
       </div>
     );
@@ -171,7 +185,7 @@ export default function ExperiencesPage() {
         {visibleColumns.has("location") && <span className="text-xs admin-muted truncate self-center">{exp.location}</span>}
         {visibleColumns.has("hotel") && <span className="text-xs admin-faint truncate self-center">{exp.hotel || "—"}</span>}
         {visibleColumns.has("editions") && <span className="self-center"><EditionPills editions={editionsFor(exp.id)} /></span>}
-        {visibleColumns.has("status") && <span className="self-center"><StatusBadge status={exp.status} /></span>}
+        {visibleColumns.has("status") && <span className="self-center flex items-center gap-1.5"><StatusBadge status={exp.status} />{exp.status === "published" && exp.website_visible === false && <OffWebsiteBadge />}</span>}
       </button>
     );
   }
@@ -306,7 +320,10 @@ export default function ExperiencesPage() {
                 <div className="p-4">
                   <div className="flex items-start justify-between gap-2 mb-2">
                     <h3 className="text-sm font-semibold admin-heading leading-tight">{exp.title}</h3>
-                    <StatusBadge status={exp.status} />
+                    <span className="flex flex-col items-end gap-1 shrink-0">
+                      <StatusBadge status={exp.status} />
+                      {exp.status === "published" && exp.website_visible === false && <OffWebsiteBadge />}
+                    </span>
                   </div>
 
                   <div className="flex items-center gap-1.5 mb-3">

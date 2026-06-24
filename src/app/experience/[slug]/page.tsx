@@ -186,6 +186,10 @@ export default async function ExperienceDetailPage({ params }: Props) {
   // (or has no row), fall back to evergreen content.
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const sb = supabase as any;
+  // Active-but-off-website (invite-only) experiences aren't publicly reachable.
+  // Tolerant: the website_visible column errors pre-migration → treated as visible.
+  const { data: visRow } = await sb.from("exp_experiences").select("website_visible").eq("id", experience.id).maybeSingle();
+  if (visRow?.website_visible === false) notFound();
   // Split the fetch so the newer media columns (added in migration 013) can't
   // break the existing text content if they haven't been applied yet.
   const [{ data: baseRaw }, { data: mediaRaw }] = await Promise.all([

@@ -88,7 +88,14 @@ export default async function ExperienceOverviewPage() {
     )
     .eq("status", "published");
 
-  const withEd = ((data as RawExperience[] | null) ?? []).map((exp) => ({ ...exp, ed: nextEdition(exp.exp_editions) }));
+  // Active-but-off-website experiences (website_visible=false) stay out of the
+  // public listing. Tolerant: pre-migration the column errors → nothing hidden.
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { data: visRows } = await (supabase as any).from("exp_experiences").select("id,website_visible").eq("status", "published");
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const hiddenIds = new Set(((visRows ?? []) as any[]).filter((e) => e.website_visible === false).map((e) => e.id as string));
+
+  const withEd = ((data as RawExperience[] | null) ?? []).filter((exp) => !hiddenIds.has(exp.id)).map((exp) => ({ ...exp, ed: nextEdition(exp.exp_editions) }));
   const securedByEd = await paidSpotsByEdition(withEd.map((x) => x.ed?.id)); // spots left = paid only
   const experiences = withEd
     .map((exp) => ({ ...exp, spotsLeft: exp.ed ? spotsLeftFrom(exp.ed.max_spots, securedByEd[exp.ed.id] ?? 0) : null }))
