@@ -76,6 +76,8 @@ interface Edition {
     hero_image: string | null;
     currency: string | null;
     code: string | null;
+    status?: string | null;
+    website_visible?: boolean | null;
   } | null;
   _counts?: {
     bookings: number;
@@ -142,6 +144,10 @@ const COST_STATUSES = ["estimate", "confirmed", "cancelled", "unlisted"];
 const ROOM_STATUSES = ["available", "assigned", "held"];
 const PKG_CATEGORIES = ["", "pro", "beginner", "mixed"];
 const ADD_BOOKING_STATUSES = ["lead", "reserved", "confirmed", "paid", "attended", "lost"];
+
+// "published" is the stored value for a live/running edition — shown as "Active"
+// (whether it's on the public website is a separate, experience-level setting).
+const EDITION_STATUS_LABEL: Record<string, string> = { published: "Active", draft: "Draft", archived: "Archived", private: "Private" };
 
 function BookingStatusBadge({ status }: { status: string }) {
   const s = BOOKING_STATUSES[normalizeBookingStatus(status)];
@@ -586,7 +592,7 @@ export default function EditionDetailPage({
                         <span className="block font-medium truncate">{e.exp_experiences?.title || "Edition"} — {e.label || e.year}</span>
                         <span className="block text-[11px] admin-faint">{formatDate(e.date_start)}</span>
                       </span>
-                      <span className={`shrink-0 px-1.5 py-0.5 rounded text-[10px] font-bold uppercase ${e.status === "published" ? "bg-green-500/15 text-green-400" : "admin-surface admin-faint"}`}>{e.status}</span>
+                      <span className={`shrink-0 px-1.5 py-0.5 rounded text-[10px] font-bold uppercase ${e.status === "published" ? "bg-green-500/15 text-green-400" : "admin-surface admin-faint"}`}>{EDITION_STATUS_LABEL[e.status] ?? e.status}</span>
                     </Link>
                   ))}
                 </div>
@@ -625,7 +631,7 @@ export default function EditionDetailPage({
                     : "admin-surface admin-muted"
                 }`}
               >
-                {edition.status}
+                {EDITION_STATUS_LABEL[edition.status] ?? edition.status}
               </span>
               {/* Real public visibility — published edition + published experience + the
                   public Experience section revealed (SHOW_EXPERIENCE). */}
@@ -636,11 +642,13 @@ export default function EditionDetailPage({
                 title={
                   edition.public_visible
                     ? "Live — visible to the public on the website."
+                    : edition.exp_experiences?.website_visible === false
+                    ? "Off the public website by choice — toggle it on the experience's Details page (Public website)."
                     : edition.site_live === false
                     ? "Not live yet: the public Experience section is still hidden (SHOW_EXPERIENCE off)."
                     : edition.status !== "published"
-                    ? "Hidden: this edition is not published."
-                    : "Hidden: the parent experience is not published."
+                    ? "Hidden: this edition isn't Active yet."
+                    : "Hidden: the parent experience isn't Active."
                 }
               >
                 <span className={`w-1.5 h-1.5 rounded-full ${edition.public_visible ? "bg-green-400" : "bg-current opacity-50"}`} />
@@ -767,7 +775,7 @@ export default function EditionDetailPage({
                 onChange={(e) => update("status", e.target.value)}
               >
                 <option value="draft">Draft</option>
-                <option value="published">Published</option>
+                <option value="published">Active</option>
                 <option value="archived">Archived</option>
                 <option value="private">Private</option>
               </select>
@@ -963,7 +971,7 @@ export default function EditionDetailPage({
         return (
           <div className="max-w-[640px]">
             <h3 className="text-base font-bold admin-heading mb-1">Edition branding</h3>
-            <p className="text-xs admin-faint mb-4">The hero photo for this edition — shown on the website and used in this edition&apos;s emails. By default it inherits {edition.exp_experiences?.title || "the experience"}&apos;s hero.</p>
+            <p className="text-xs admin-faint mb-4">The top image for <strong>this edition</strong> on the website + in this edition&apos;s emails. It&apos;s an optional <strong>override</strong> of the experience&apos;s Main image (set in Website Content → Media) — leave it to inherit {edition.exp_experiences?.title || "the experience"}&apos;s Main image.</p>
             <div className="p-5 rounded-xl" style={{ border: "1px solid var(--admin-border)", backgroundColor: "var(--admin-surface)" }}>
               <label className={labelClass}>Hero image</label>
               <div className="flex items-start gap-4">

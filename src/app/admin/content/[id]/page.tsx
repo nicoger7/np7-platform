@@ -170,7 +170,7 @@ export default function ContentEditorPage({ params }: { params: Promise<{ id: st
 
       <div className="space-y-7">
         {/* IMAGES */}
-        <Section show={tab === "media"} title="Main image (hero + card)" hint="The single source for this experience's imagery — used as the listing card on the overview page and as the public hero fallback.">
+        <Section show={tab === "media"} title="Main image (card + hero)" hint="The experience's one main image: the card/tile on the overview grid AND the default page hero. A single week can override just its hero on the edition's Branding tab.">
           <ImageField url={tileImage} onPick={() => setPicker({ kind: "tile" })} onClear={() => setTileImage("")} ratio="aspect-[4/3]" />
         </Section>
 

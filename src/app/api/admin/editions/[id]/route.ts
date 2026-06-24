@@ -22,7 +22,7 @@ export async function GET(
     await Promise.all([
       adminClient
         .from("exp_editions")
-        .select(`*, exp_experiences(id, title, slug, location, hero_image, currency, code, status)`)
+        .select(`*, exp_experiences(id, title, slug, location, hero_image, currency, code, status, website_visible)`)
         .eq("id", id)
         .single(),
       adminClient
@@ -68,8 +68,11 @@ export async function GET(
   // published, its experience published, and the public Experience section
   // revealed (SHOW_EXPERIENCE) — which stays off in production until launch.
   const expStatus = edition.data?.exp_experiences?.status ?? null;
+  // An experience can be Active (published) yet intentionally OFF the public site
+  // (website_visible=false) — those editions are never public even once SHOW_EXPERIENCE is on.
+  const expOnWebsite = edition.data?.exp_experiences?.website_visible !== false;
   const siteLive = flags.showExperience;
-  const publicVisible = siteLive && edition.data?.status === "published" && expStatus === "published";
+  const publicVisible = siteLive && edition.data?.status === "published" && expStatus === "published" && expOnWebsite;
 
   return NextResponse.json({
     ...edition.data,
