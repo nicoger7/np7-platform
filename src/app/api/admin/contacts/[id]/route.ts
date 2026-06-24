@@ -37,6 +37,16 @@ export async function PATCH(
   const { id } = await params;
   const body = await request.json();
 
+  // Never let a PII-redacted view overwrite PII with blanked-out values, and
+  // never persist the synthetic redaction flag.
+  delete body.pii_redacted;
+  const access = await getRequestAccess();
+  if (access && !effectiveCanSeeField(access, "contact_pii")) {
+    for (const f of ["email", "phone", "date_of_birth", "diet_allergies", "billing_address", "billing_postal_code", "billing_city", "billing_country"]) {
+      delete body[f];
+    }
+  }
+
   const { data, error } = await client
     .from("contacts")
     .update({ ...body, updated_at: new Date().toISOString() })

@@ -13,6 +13,7 @@ interface Contact {
   phone: string | null;
   country: string | null;
   discipline: string | null;
+  disciplines: string[] | null;
   level: string | null;
   level_notes: string | null;
   source: string | null;
@@ -21,13 +22,18 @@ interface Contact {
   notes: string | null;
   date_of_birth: string | null;
   accepts_marketing: boolean;
+  marketing_opt_in: boolean | null;
+  marketing_opt_in_at: string | null;
   experience_locations: string[] | null;
   interested_products: string[] | null;
   ai_summary: string | null;
   chatwoot_contact_id: string | null;
+  pii_redacted?: boolean;
   created_at: string;
   updated_at: string;
 }
+
+const DISCIPLINES = ["Windsurf", "Wingfoil", "Kitesurf", "Surf", "SUP"];
 
 interface ContactBooking {
   id: string;
@@ -59,30 +65,32 @@ export function ContactDetailPane({ contactId, onBack }: { contactId: string; on
   const [contact, setContact] = useState<Contact | null>(null);
   const [bookings, setBookings] = useState<ContactBooking[]>([]);
   const [contactDocs, setContactDocs] = useState<ContactDocument[]>([]);
+  const [experiences, setExperiences] = useState<{ id: string; title: string }[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
-  const [locationInput, setLocationInput] = useState("");
+  const [saveError, setSaveError] = useState<string | null>(null);
+  const [locationSel, setLocationSel] = useState("");
   const [productInput, setProductInput] = useState("");
   // Back target — honour ?from= (e.g. opened from a member) so "back" returns there.
-  const [backHref, setBackHref] = useState("/admin/contacts");
-  useEffect(() => {
-    const from = new URLSearchParams(window.location.search).get("from");
-    if (from) setBackHref(from);
-  }, []);
+  const [backHref] = useState(() =>
+    (typeof window !== "undefined" && new URLSearchParams(window.location.search).get("from")) || "/admin/contacts"
+  );
 
   useEffect(() => {
     Promise.all([
       fetch(`/api/admin/contacts/${id}`).then((r) => r.json()),
       fetch(`/api/admin/bookings?contact_id=${id}`).then((r) => r.json()),
       fetch(`/api/admin/documents`).then((r) => r.json()),
-    ]).then(([d, b, allDocs]) => {
+      fetch(`/api/admin/experiences`).then((r) => r.json()).catch(() => ({ experiences: [] })),
+    ]).then(([d, b, allDocs, exp]) => {
       setContact(d);
       setBookings(b.bookings || []);
       const docs: ContactDocument[] = (allDocs.documents || []).filter(
         (doc: ContactDocument) => doc.contact_id === id
       );
       setContactDocs(docs);
+      setExperiences((exp.experiences || []).map((e: { id: string; title: string }) => ({ id: e.id, title: e.title })));
       setLoading(false);
     });
   }, [id]);
@@ -90,13 +98,50 @@ export function ContactDetailPane({ contactId, onBack }: { contactId: string; on
   async function handleSave() {
     if (!contact) return;
     setSaving(true);
-    const { id: _id, created_at: _c, updated_at: _u, ...fields } = contact;
-    await fetch(`/api/admin/contacts/${id}`, {
+    setSaveError(null);
+    // Only send fields the form actually edits — never the whole row (which would
+    // push back system columns and, when the contact was loaded PII-redacted,
+    // overwrite email/phone/DOB with nulls). PII fields are omitted entirely if
+    // this view is redacted (the server also guards this).
+    const optIn = contact.marketing_opt_in ?? contact.accepts_marketing ?? false;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const fields: Record<string, any> = {
+      name: contact.name,
+      email2: contact.email2,
+      country: contact.country,
+      discipline: (contact.disciplines && contact.disciplines[0]) || null, // back-compat for list view
+      disciplines: contact.disciplines || [],
+      level: contact.level,
+      level_notes: contact.level_notes,
+      source: contact.source,
+      tshirt_size: contact.tshirt_size,
+      notes: contact.notes,
+      experience_locations: contact.experience_locations || [],
+      interested_products: contact.interested_products || [],
+      // canonical opt-in (matches the member portal) + legacy mirror for the list
+      marketing_opt_in: optIn,
+      marketing_opt_in_at: optIn ? (contact.marketing_opt_in_at || new Date().toISOString()) : null,
+      accepts_marketing: optIn,
+    };
+    if (!contact.pii_redacted) {
+      fields.email = contact.email;
+      fields.phone = contact.phone;
+      fields.date_of_birth = contact.date_of_birth;
+      fields.diet_allergies = contact.diet_allergies;
+    }
+    const res = await fetch(`/api/admin/contacts/${id}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(fields),
     });
     setSaving(false);
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      setSaveError(err.error || `Save failed (${res.status})${res.status === 403 ? " — your role can't edit contacts" : ""}`);
+      return;
+    }
+    const fresh = await res.json().catch(() => null);
+    if (fresh && fresh.id) setContact(fresh);
     setSaved(true);
     setTimeout(() => setSaved(false), 2000);
   }
@@ -147,6 +192,7 @@ export function ContactDetailPane({ contactId, onBack }: { contactId: string; on
           </div>
         </div>
         <div className="flex items-center gap-3">
+          {saveError && <span className="text-xs text-red-400 max-w-[260px] text-right">{saveError}</span>}
           <button onClick={handleDelete} className="px-3 py-2 text-xs text-red-400/60 hover:text-red-400 transition-colors">
             Delete
           </button>
@@ -191,18 +237,29 @@ export function ContactDetailPane({ contactId, onBack }: { contactId: string; on
           </div>
         </div>
 
-        {/* Discipline & Level */}
+        {/* Disciplines (multi) & Level */}
         <div className="grid grid-cols-2 gap-4">
           <div>
-            <label className={labelClass}>Discipline</label>
-            <select className={inputClass} value={contact.discipline || ""} onChange={(e) => update("discipline", e.target.value || null)}>
-              <option value="">—</option>
-              <option>Windsurf</option>
-              <option>Wingfoil</option>
-              <option>Kitesurf</option>
-              <option>Surf</option>
-              <option>SUP</option>
-            </select>
+            <label className={labelClass}>Disciplines</label>
+            <div className="flex flex-wrap gap-1.5">
+              {DISCIPLINES.map((d) => {
+                const sel = (contact.disciplines || []).includes(d);
+                return (
+                  <button
+                    key={d}
+                    type="button"
+                    onClick={() => {
+                      const cur = contact.disciplines || [];
+                      update("disciplines", sel ? cur.filter((x) => x !== d) : [...cur, d]);
+                    }}
+                    className={`px-3 py-1.5 rounded-lg text-xs font-medium border transition-colors ${sel ? "border-[var(--admin-accent)] bg-[var(--admin-accent)]/10 admin-heading" : "admin-surface admin-muted"}`}
+                    style={{ borderColor: sel ? undefined : "var(--admin-border)" }}
+                  >
+                    {d}
+                  </button>
+                );
+              })}
+            </div>
           </div>
           <div>
             <label className={labelClass}>Level</label>
@@ -276,36 +333,40 @@ export function ContactDetailPane({ contactId, onBack }: { contactId: string; on
             <label className="flex items-center gap-3 cursor-pointer">
               <input
                 type="checkbox"
-                checked={contact.accepts_marketing || false}
-                onChange={(e) => update("accepts_marketing", e.target.checked)}
+                checked={(contact.marketing_opt_in ?? contact.accepts_marketing) || false}
+                onChange={(e) => update("marketing_opt_in", e.target.checked)}
                 className="w-4 h-4 accent-[#0aa3c7]"
               />
-              <span className="text-sm admin-muted">Accepts marketing</span>
+              <span className="text-sm admin-muted">Accepts marketing{contact.marketing_opt_in_at ? <span className="admin-faint"> · since {new Date(contact.marketing_opt_in_at).toLocaleDateString("en-GB")}</span> : ""}</span>
             </label>
           </div>
         </div>
 
-        {/* Experience Locations */}
+        {/* Experience Locations — experiences they've signed up for / shown interest in */}
         <div>
-          <label className={labelClass}>Experience Locations</label>
+          <label className={labelClass}>Experience Locations <span className="admin-faint">(interested / previously signed up)</span></label>
           <div className="flex flex-wrap gap-1.5 mb-2">
-            {(contact.experience_locations || []).map((loc) => (
-              <span key={loc} className="flex items-center gap-1 px-2.5 py-1 rounded-full text-xs admin-muted" style={{ backgroundColor: "var(--admin-surface)", border: "1px solid var(--admin-border)" }}>
-                {loc}
-                <button onClick={() => removeTag("experience_locations", loc)} className="admin-faint hover:text-red-400 ml-1">×</button>
-              </span>
+            {(contact.experience_locations || []).map((loc) => {
+              const exp = experiences.find((e) => e.title === loc);
+              return (
+                <span key={loc} className="flex items-center gap-1 px-2.5 py-1 rounded-full text-xs admin-muted" style={{ backgroundColor: "var(--admin-surface)", border: "1px solid var(--admin-border)" }}>
+                  {exp ? <Link href={`/admin/experiences/${exp.id}`} className="hover:text-[#0aa3c7]">{loc}</Link> : loc}
+                  <button onClick={() => removeTag("experience_locations", loc)} className="admin-faint hover:text-red-400 ml-1">×</button>
+                </span>
+              );
+            })}
+            {(contact.experience_locations || []).length === 0 && <span className="text-xs admin-faint">None yet</span>}
+          </div>
+          <select
+            className={inputClass}
+            value={locationSel}
+            onChange={(e) => { if (e.target.value) { addTag("experience_locations", e.target.value); setLocationSel(""); } }}
+          >
+            <option value="">+ Add experience…</option>
+            {experiences.filter((e) => !(contact.experience_locations || []).includes(e.title)).map((e) => (
+              <option key={e.id} value={e.title}>{e.title}</option>
             ))}
-          </div>
-          <div className="flex gap-2">
-            <input
-              className={inputClass}
-              placeholder="Add location..."
-              value={locationInput}
-              onChange={(e) => setLocationInput(e.target.value)}
-              onKeyDown={(e) => { if (e.key === "Enter" && locationInput.trim()) { addTag("experience_locations", locationInput); setLocationInput(""); } }}
-            />
-            <button onClick={() => { addTag("experience_locations", locationInput); setLocationInput(""); }} className="px-3 py-2 admin-surface admin-muted text-sm rounded-lg" style={{ border: "1px solid var(--admin-border)" }}>Add</button>
-          </div>
+          </select>
         </div>
 
         {/* Interested Products */}
