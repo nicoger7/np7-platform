@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { cookies, headers } from "next/headers";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase";
 
@@ -11,8 +12,33 @@ import { createAdminClient } from "@/lib/supabase";
  * a `contacts` row.
  */
 
+/** Admin "view as member" read-only preview cookie (set by the Member view tab). */
+export const VIEW_AS_COOKIE = "np7_view_as";
+
 export type TeamMember = { userId: string; email: string; teamMemberId: string; role: string | null };
-export type PortalUser = { userId: string; email: string; contactId: string; name: string };
+export type PortalUser = { userId: string; email: string; contactId: string; name: string; preview?: boolean };
+
+/**
+ * Admin "view as member" preview — resolves the previewed contact, but ONLY when
+ * it's safe: an active team member, a `np7_view_as` cookie, AND the request is a
+ * top-level/iframe navigation (Sec-Fetch-Dest = document|iframe). API fetches
+ * (Sec-Fetch-Dest = empty) are NEVER honoured, so no portal write can ever run as
+ * the previewed member — page renders show their view read-only, full stop. Never
+ * links or writes anything (so it can't hijack the member's account).
+ */
+async function viewAsPreviewUser(realUserId: string): Promise<PortalUser | null> {
+  const store = await cookies();
+  const viewAs = store.get(VIEW_AS_COOKIE)?.value;
+  if (!viewAs) return null;
+  const dest = (await headers()).get("sec-fetch-dest");
+  if (dest !== "document" && dest !== "iframe") return null; // never on fetch/XHR
+  if (!(await getTeamMember())) return null; // only active team members may preview
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const admin = createAdminClient() as any;
+  const { data: c } = await admin.from("contacts").select("id, name, email").eq("id", viewAs).maybeSingle();
+  if (!c) return null;
+  return { userId: realUserId, email: c.email ?? "", contactId: c.id, name: c.name, preview: true };
+}
 
 export async function getTeamMember(): Promise<TeamMember | null> {
   const supabase = await createClient();
@@ -39,6 +65,12 @@ export async function getPortalUser(): Promise<PortalUser | null> {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return null;
+
+  // Admin previewing a member's portal (read-only). Resolved before the normal
+  // contact lookup; safe because it only triggers on page/iframe navigations.
+  const preview = await viewAsPreviewUser(user.id).catch(() => null);
+  if (preview) return preview;
+
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const admin = createAdminClient() as any;
 

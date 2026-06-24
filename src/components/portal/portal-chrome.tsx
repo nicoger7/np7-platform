@@ -30,6 +30,8 @@ export async function PortalChrome({ section }: { section?: "experience" | "hard
   // A page can force its theme (trips→experience, gear→hardware); neutral pages
   // pass nothing and follow the current section context.
   const resolved: "experience" | "hardware" = section ?? (store.get("np7_section")?.value === "hardware" ? "hardware" : "experience");
+  // Admin "view as member" read-only preview (Member view tab) → a clear banner.
+  const isPreview = store.get("np7_preview")?.value === "1";
 
   const host = (head.get("host") || "").split(":")[0].toLowerCase();
   const onLiveDomain = /(^|\.)np-seven\.com$/.test(host);
@@ -38,6 +40,11 @@ export async function PortalChrome({ section }: { section?: "experience" | "hard
 
   return (
     <>
+      {isPreview && (
+        <div className="sticky top-0 z-[60] bg-[#b97608] text-white text-center text-[12.5px] font-semibold py-1.5 px-4">
+          Admin preview · read-only — this is the member’s own view. Actions are disabled.
+        </div>
+      )}
       {siteLive ? (
         resolved === "hardware" ? <HardwareHeader variant="docked" /> : <OceanHeader variant="docked" />
       ) : (
