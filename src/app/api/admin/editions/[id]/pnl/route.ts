@@ -13,7 +13,7 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
   const db = createAdminClient() as any;
 
   // ── Revenue: payments on this edition's bookings ──
-  const { data: bookings } = await db.from("exp_bookings").select("id, status, package_id").eq("edition_id", id);
+  const { data: bookings } = await db.from("exp_bookings").select("id, status, package_id, downpayment_received, deposit_received").eq("edition_id", id);
   const bookingIds = (bookings ?? []).map((b: { id: string }) => b.id);
   let received = 0, expected = 0;
   if (bookingIds.length) {
@@ -71,10 +71,13 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
   const costs = Math.round((directHere + allocatedHere) * 100) / 100;
 
   // ── Projected component (per-participant) costs from the signed-up packages ──
-  // For everyone who's committed (reserved → attended, not lost/lead), roll up
-  // their package's components × cost price × quantity, aggregated per component.
+  // "Coming" = the securing payment is in: status confirmed/paid/attended (confirmed
+  // IS deposit-or-downpayment-paid), or a row whose deposit/down-payment is flagged
+  // received. Not-yet-paid reservations, leads and lost are excluded.
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const attending = (bookings ?? []).filter((b: any) => b.package_id && !["lost", "lead"].includes(String(b.status || "").toLowerCase()));
+  const attending = (bookings ?? []).filter((b: any) =>
+    b.package_id && (["confirmed", "paid", "attended"].includes(String(b.status || "").toLowerCase()) || b.downpayment_received === true || b.deposit_received === true)
+  );
   const pkgIds = [...new Set(attending.map((b: { package_id: string }) => b.package_id))];
   const pkgLines = new Map<string, { component_id: string; name: string; unit_cost: number; quantity: number }[]>();
   if (pkgIds.length) {
