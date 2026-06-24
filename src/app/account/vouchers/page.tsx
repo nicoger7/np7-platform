@@ -50,13 +50,13 @@ export default async function VouchersPage() {
               <h1 className="text-3xl sm:text-4xl font-black tracking-[-0.03em] text-[#00374a]">Gift vouchers</h1>
               <p className="text-[15px] text-[#6a7a80] mt-1.5">Vouchers you&apos;ve bought or been given. Print one, gift it, or use it on a booking.</p>
             </div>
-            <Link href="/experience/gift" className="px-5 py-2.5 rounded-full text-[13px] font-bold text-white bg-[#00afdb] hover:bg-[#15c0ec] transition-colors">Gift a trip →</Link>
+            <Link href="/account/vouchers/buy" className="px-5 py-2.5 rounded-full text-[13px] font-bold text-white bg-[#00afdb] hover:bg-[#15c0ec] transition-colors">Gift a trip →</Link>
           </div>
 
           {rows.length === 0 ? (
             <div className="bg-white rounded-2xl border border-[#f0e6d6] p-10 text-center">
               <p className="text-[15px] text-[#6a7a80] mb-5">No gift vouchers yet.</p>
-              <Link href="/experience/gift" className="inline-block px-7 py-3.5 rounded-full text-[13.5px] font-bold text-white bg-[#00afdb]">Gift an NP7 trip</Link>
+              <Link href="/account/vouchers/buy" className="inline-block px-7 py-3.5 rounded-full text-[13.5px] font-bold text-white bg-[#00afdb]">Gift an NP7 trip</Link>
             </div>
           ) : (
             <div className="space-y-4">

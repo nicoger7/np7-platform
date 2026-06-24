@@ -1,51 +1,11 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { supabase } from "@/lib/supabase";
 import { OceanHeader } from "@/components/experience/ocean-header";
 import { GiftBuyForm } from "@/components/experience/gift-buy-form";
+import { loadGiftData } from "@/lib/gift-data";
 
 export const metadata: Metadata = { title: "Gift a trip — NP7 Experience" };
 export const dynamic = "force-dynamic";
-
-type Exp = { id: string; title: string; currency: string | null; price: number | null };
-type Pkg = { id: string; name: string; price: number | null; experience_id: string };
-
-async function loadGiftData(): Promise<{ experiences: Exp[]; heroes: string[]; packages: Pkg[] }> {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const sb = supabase as any;
-  const { data: exps } = await sb.from("exp_experiences").select("id, title, currency, price, hero_image").eq("status", "published").order("title");
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const rows = (exps ?? []) as any[];
-  const ids = rows.map((e) => e.id);
-  const { data: content } = ids.length ? await sb.from("exp_content").select("experience_id, hero_image").in("experience_id", ids) : { data: [] };
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const byExp = new Map((content ?? []).map((c: any) => [c.experience_id, c.hero_image]));
-  const heroes = [...new Set(rows.map((e) => byExp.get(e.id) || e.hero_image).filter(Boolean))] as string[];
-  const experiences = rows.map((e) => ({ id: e.id, title: e.title, currency: e.currency, price: e.price ?? null }));
-
-  // Public packages, so gifting a specific experience can pick a tier.
-  let packages: Pkg[] = [];
-  if (ids.length) {
-    const { data: pkgRows } = await sb.from("exp_packages").select("id, name, price, experience_id, sort_order, status, website_visible").in("experience_id", ids).order("sort_order");
-    // Packages are edition-bound and code-prefixed ("BON001 - Beginner – No Hotel").
-    // Strip the edition code so the same tier across weeks collapses to ONE pill,
-    // keeping the lowest "from" price — a clean tier picker for gifting.
-    const tierName = (n: unknown) => String(n || "").replace(/^[A-Za-z]{2,5}\s*\d+\s*[-–—]\s*/, "").trim();
-    const byKey = new Map<string, Pkg>();
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    for (const p of ((pkgRows ?? []) as any[])) {
-      if (p.status === "archived" || p.website_visible === false || p.price == null) continue;
-      const name = tierName(p.name) || p.name;
-      const key = `${p.experience_id}|${name.toLowerCase()}`;
-      const cur = byKey.get(key);
-      if (!cur || Number(p.price) < Number(cur.price ?? Infinity)) {
-        byKey.set(key, { id: p.id, name, price: p.price, experience_id: p.experience_id });
-      }
-    }
-    packages = [...byKey.values()];
-  }
-  return { experiences, heroes, packages };
-}
 
 export default async function GiftPage() {
   const { experiences, heroes, packages } = await loadGiftData();
