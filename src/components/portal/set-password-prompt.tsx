@@ -1,31 +1,16 @@
 "use client";
 
-import { useState, useSyncExternalStore } from "react";
-
-const DISMISS_KEY = "np7_pw_prompt_dismissed";
-
-// Read the persisted dismissal without a mount effect: the server snapshot is
-// "dismissed" (renders nothing during SSR/hydration), the client snapshot reads
-// localStorage. Avoids both a hydration mismatch and set-state-in-effect.
-function subscribe(cb: () => void) {
-  window.addEventListener("storage", cb);
-  return () => window.removeEventListener("storage", cb);
-}
-function useDismissed(): boolean {
-  return useSyncExternalStore(
-    subscribe,
-    () => { try { return !!localStorage.getItem(DISMISS_KEY); } catch { return false; } },
-    () => true,
-  );
-}
+import { useState } from "react";
+import { createClient } from "@/lib/supabase/client";
 
 /**
  * After a first magic-link login, gently suggest setting a password for faster
- * sign-in next time. Shown only when the account has no password yet (server
- * passes `show`) and the member hasn't dismissed it before (localStorage).
+ * sign-in next time. The server decides whether to show it (`show`): only when
+ * the account has no password and the member hasn't dismissed it in the last 30
+ * days. Dismissal is stamped into account metadata (cross-device) — so after the
+ * cooldown it surfaces once more, until they set a password.
  */
 export function SetPasswordPrompt({ show }: { show: boolean }) {
-  const persistedDismissed = useDismissed();
   const [closed, setClosed] = useState(false);
   const [open, setOpen] = useState(false);
   const [password, setPassword] = useState("");
@@ -33,10 +18,12 @@ export function SetPasswordPrompt({ show }: { show: boolean }) {
   const [err, setErr] = useState("");
   const [done, setDone] = useState(false);
 
-  if (!show || closed || persistedDismissed) return null;
+  if (!show || closed) return null;
 
   function dismiss() {
-    try { localStorage.setItem(DISMISS_KEY, "1"); } catch { /* ignore */ }
+    // Persist the dismissal on the account so it sticks across devices/tabs; the
+    // server re-shows it after the cooldown. Best-effort, non-blocking.
+    createClient().auth.updateUser({ data: { pw_prompt_dismissed_at: new Date().toISOString() } }).catch(() => {});
     setClosed(true);
   }
 
@@ -51,10 +38,10 @@ export function SetPasswordPrompt({ show }: { show: boolean }) {
     });
     setBusy(false);
     if (!res.ok) { const j = await res.json().catch(() => ({})); setErr(j.error || "Could not set your password."); return; }
-    // Show the confirmation first; persist the dismissal as we close (writing it
-    // now would flip persistedDismissed and skip the confirmation).
+    // The set-password route flags has_password=true, so the server won't show
+    // this again — just confirm, then close.
     setDone(true);
-    setTimeout(() => { try { localStorage.setItem(DISMISS_KEY, "1"); } catch { /* ignore */ } setClosed(true); }, 2200);
+    setTimeout(() => setClosed(true), 2200);
   }
 
   if (done) {

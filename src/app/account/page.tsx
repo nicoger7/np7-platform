@@ -37,12 +37,20 @@ export default async function AccountHome() {
   ]);
   const first = user.name?.split(" ")[0] ?? "there";
 
-  // Suggest setting a password if the member has only ever used magic links.
-  const hasPassword = await (async () => {
+  // Suggest setting a password if the member has only ever used magic links — but
+  // not if they have one already, and not if they dismissed the nudge within the
+  // last 30 days (the dismissal lives in account metadata, so it's cross-device;
+  // after the cooldown we surface it once more).
+  const PW_PROMPT_COOLDOWN_DAYS = 30;
+  const showPwPrompt = await (async () => {
     try {
       const { data: { user: authUser } } = await (await createClient()).auth.getUser();
-      return !!authUser?.user_metadata?.has_password;
-    } catch { return true; } // on any hiccup, don't nag
+      const meta = (authUser?.user_metadata ?? {}) as { has_password?: boolean; pw_prompt_dismissed_at?: string };
+      if (meta.has_password) return false;
+      const dismissedAt = typeof meta.pw_prompt_dismissed_at === "string" ? new Date(meta.pw_prompt_dismissed_at).getTime() : 0;
+      const cooledDown = !dismissedAt || Date.now() - dismissedAt >= PW_PROMPT_COOLDOWN_DAYS * 86400000;
+      return cooledDown;
+    } catch { return false; } // on any hiccup, don't nag
   })();
 
   // level progress for the home dashboard card
@@ -79,7 +87,7 @@ export default async function AccountHome() {
           />
 
           <div className="mt-6">
-            <SetPasswordPrompt show={!hasPassword} />
+            <SetPasswordPrompt show={showPwPrompt} />
           </div>
 
           {/* main + level sidebar — one column on mobile, two on desktop */}
