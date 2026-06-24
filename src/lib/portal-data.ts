@@ -480,6 +480,13 @@ export async function getMemoryPhotos(editionId: string): Promise<string[]> {
   return listAssetFolder(`memories/${editionId}`);
 }
 
+/** ONLY the member's own personal shots (assets/memories/{editionId}/p/{bookingId}/) —
+    no week-shared "everyone" photos. Used for the review photo picker so a rider
+    attaches a photo that's genuinely theirs. */
+export async function getOwnTripPhotos(editionId: string, bookingId: string): Promise<string[]> {
+  return listAssetFolder(`memories/${editionId}/p/${bookingId}`);
+}
+
 /** A participant's gallery = their personal photos (assets/memories/{editionId}/p/{bookingId}/)
     plus the week's shared "everyone" photos. Each client only ever sees their own + shared.
     Used for the member's OWN-only surfaces (home banner, avatar picker) — never pulls the
