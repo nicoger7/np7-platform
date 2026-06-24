@@ -142,7 +142,7 @@ export default async function BookingDetail({ params }: Props) {
   type Tone = "coral" | "amber" | "green" | "cyan";
   let hero: { eyebrow: string; title: string; body: string; ctaLabel?: string; ctaHref?: string; tone: Tone };
   if (tripEnded) {
-    hero = { eyebrow: "Your week", title: "Relive it 🌊", body: "Your photos and video from the trip are ready below.", ctaLabel: "See my photos", ctaHref: "#photos", tone: "cyan" };
+    hero = { eyebrow: "Your week", title: "Relive it 🌊", body: "Your photos and video from the trip are ready below.", tone: "cyan" };
   } else if (tripStarted) {
     hero = { eyebrow: "Happening now", title: "You're on the water 🌊", body: "Have an epic week — your crew, photos and trip details are all here.", ctaLabel: "See your crew", ctaHref: "#crew", tone: "cyan" };
   } else if (fullyPaid) {
@@ -241,10 +241,7 @@ export default async function BookingDetail({ params }: Props) {
           <QuickChips items={chips} />
 
           <div className="mt-5 space-y-4">
-            {/* once the trip has started, photos lead */}
-            {tripStarted && <Card id="photos" title="Your memories">{memoriesContent}</Card>}
-
-            {/* review nudge — once the week is over */}
+            {/* once the week is over, the review nudge leads; then photos */}
             {tripEnded && (
               <section className="bg-gradient-to-br from-[#00afdb] to-[#0782a0] rounded-2xl p-6 text-white">
                 <h2 className="text-[11px] font-bold tracking-[0.2em] uppercase text-white/80 mb-2">How was it?</h2>
@@ -253,6 +250,9 @@ export default async function BookingDetail({ params }: Props) {
                 <Link href={`/account/bookings/${b.id}/review`} className="inline-flex items-center gap-2 px-6 py-3 rounded-full text-[13.5px] font-bold text-[#00374a] bg-white hover:-translate-y-0.5 transition-transform">Leave a review</Link>
               </section>
             )}
+
+            {/* once the trip has started, photos lead (below the review nudge if ended) */}
+            {tripStarted && <Card id="photos" title="Your memories">{memoriesContent}</Card>}
 
             {/* payment — open & prominent before the trip; folded once it's underway */}
             {!tripStarted ? (
