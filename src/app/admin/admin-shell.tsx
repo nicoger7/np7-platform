@@ -371,10 +371,12 @@ type Theme = keyof typeof themes;
 export default function AdminShell({
   user,
   access = { kind: "tier", level: "owner" },
+  roleLabel,
   children,
 }: {
   user: User;
   access?: EffectiveAccess;
+  roleLabel?: string;
   children: React.ReactNode;
 }) {
   const pathname = usePathname();
@@ -669,6 +671,12 @@ export default function AdminShell({
         </nav>
 
         <div className="p-4" style={{ borderTop: "1px solid var(--admin-border)" }}>
+          {roleLabel && (
+            <div className="mb-2 flex items-center gap-1.5" title="Your access role. Change it under Team › Employees.">
+              <span className="text-[9px] font-bold uppercase tracking-[0.12em]" style={{ color: "var(--admin-text-faint)" }}>Viewing as</span>
+              <span className="text-[10px] font-bold px-1.5 py-0.5 rounded" style={{ backgroundColor: "var(--admin-surface)", color: "var(--admin-text-muted)", border: "1px solid var(--admin-border)" }}>{roleLabel}</span>
+            </div>
+          )}
           <div className="flex items-center justify-between mb-2">
             <AccountSwitcher currentEmail={user.email ?? ""} currentUserId={user.id} />
             <button

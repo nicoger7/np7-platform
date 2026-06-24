@@ -2,6 +2,17 @@
 
 import { useState, useEffect, use } from "react";
 import { useRouter } from "next/navigation";
+import { builtinAccess, normalizeAccess, mergeAccess, effectiveCanSeeField, WORLDS, type RoleAccess } from "@/lib/access";
+
+type RoleRow = { id: string; name: string; system_key?: string | null; is_system?: boolean; access?: unknown };
+
+/** Resolve the access a set of selected roles grants — built-ins computed live,
+ *  custom roles from their stored jsonb — merged (union / most-permissive). */
+function effectiveFor(roleIds: string[], roles: RoleRow[]): RoleAccess | null {
+  const picked = roles.filter((r) => roleIds.includes(r.id));
+  if (picked.length === 0) return null;
+  return mergeAccess(picked.map((r) => (r.system_key ? builtinAccess(r.system_key) : normalizeAccess(r.access))));
+}
 
 interface TeamMember {
   id: string;
@@ -35,7 +46,7 @@ export default function TeamDetailPage({ params }: { params: Promise<{ id: strin
   const [saved, setSaved] = useState(false);
   const [inviting, setInviting] = useState(false);
   const [invited, setInvited] = useState(false);
-  const [roles, setRoles] = useState<{ id: string; name: string }[]>([]);
+  const [roles, setRoles] = useState<RoleRow[]>([]);
 
   useEffect(() => {
     Promise.all([
@@ -141,7 +152,33 @@ export default function TeamDetailPage({ params }: { params: Promise<{ id: strin
                   })}
                 </div>
               )}
-              <p className="text-[11px] admin-faint mt-1.5"><strong>Owner</strong> / <strong>Manager</strong> are built-in; define more under <strong>Team › Roles</strong>. Assign several to combine (e.g. a different role per world — access is the union). <strong>Save</strong> after changing.</p>
+              <p className="text-[11px] admin-faint mt-1.5"><strong>Owner</strong> / <strong>Manager</strong> / <strong>Photographer</strong> are built-in; define more under <strong>Team › Roles</strong>. Assign several to combine (e.g. a different role per world — access is the union). <strong>Save</strong> after changing.</p>
+              {(() => {
+                const ids = member.role_ids ?? [];
+                const eff = effectiveFor(ids, roles);
+                if (!eff) return <p className="mt-2 text-[11px] admin-faint">No role assigned — this person falls back to the <strong>Owner</strong> tier (full access).</p>;
+                const ownerLike = roles.some((r) => ids.includes(r.id) && r.system_key === "owner");
+                const seesMoney = effectiveCanSeeField({ kind: "role", access: eff }, "money");
+                const worldLabels = eff.worlds.map((w) => WORLDS.find((x) => x.id === w)?.label || w);
+                const hiddenGroups = (["money", "costs", "contact_pii"] as const).filter((f) => !effectiveCanSeeField({ kind: "role", access: eff }, f));
+                const hiddenLabel = { money: "prices", costs: "costs", contact_pii: "personal data" } as const;
+                return (
+                  <div className="mt-2.5 space-y-1.5">
+                    <p className="text-[11px] admin-muted">
+                      <strong>Effective access:</strong> {worldLabels.length ? worldLabels.join(", ") : "no worlds"}
+                      {hiddenGroups.length > 0 && <> · hides {hiddenGroups.map((g) => hiddenLabel[g]).join(", ")}</>}
+                    </p>
+                    {ownerLike && ids.length > 1 && (
+                      <p className="text-[11px] px-2.5 py-1.5 rounded-lg" style={{ border: "1px solid rgba(245,158,11,0.45)", background: "rgba(245,158,11,0.08)", color: "#f59e0b" }}>
+                        ⚠ <strong>Owner</strong> is attached — it grants everything and overrides the other roles. Remove Owner to actually limit this person.
+                      </p>
+                    )}
+                    {seesMoney && !ownerLike && (
+                      <p className="text-[11px] admin-faint">Sees prices &amp; payments. Untick <strong>Prices &amp; payments</strong> on the role (Team › Roles) to hide finance.</p>
+                    )}
+                  </div>
+                );
+              })()}
             </div>
             <div>
               <label className={labelClass}>Login</label>

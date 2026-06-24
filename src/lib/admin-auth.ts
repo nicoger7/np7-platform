@@ -46,6 +46,25 @@ export async function getEffectiveAccess(
   return { kind: "role", access: mergeAccess(accesses) };
 }
 
+/** Human label for the role(s) a member holds — for a "viewing as" chip in the
+ *  shell. No custom roles → the owner/manager tier name. Tolerant of team_roles
+ *  not existing yet (→ tier name). */
+export async function getMemberRoleLabel(
+  member: { accessLevel: AccessLevel; roleIds: string[] }
+): Promise<string> {
+  const tierName = member.accessLevel === "manager" ? "Manager" : "Owner";
+  if (!member.roleIds || member.roleIds.length === 0) return tierName;
+  try {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const client = createAdminClient() as any;
+    const { data } = await client.from("team_roles").select("name").in("id", member.roleIds);
+    const names = (data ?? []).map((r: { name: string }) => r.name).filter(Boolean);
+    return names.length ? names.join(" + ") : tierName;
+  } catch {
+    return tierName;
+  }
+}
+
 /** The effective access for the current request's team member (or null). Use in
  *  API routes to redact sensitive fields the member's role can't see. */
 export async function getRequestAccess(): Promise<EffectiveAccess | null> {

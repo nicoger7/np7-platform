@@ -32,11 +32,12 @@ export function EditionMemoriesUploader({ editionId, initialVideoUrl }: { editio
     [editionId]
   );
 
-  // participant list for this week
+  // participant list for this week — names-only endpoint so photographers (who
+  // don't have the bookings section) can still see who to upload photos for.
   useEffect(() => {
-    fetch(`/api/admin/bookings?edition_id=${editionId}`)
+    fetch(`/api/admin/editions/${editionId}/participants`)
       .then((r) => r.json())
-      .then((d) => setBookings(Array.isArray(d?.bookings) ? d.bookings : []));
+      .then((d) => setBookings(Array.isArray(d?.participants) ? d.participants : []));
   }, [editionId]);
 
   const listFolder = useCallback(async (folder: string) => {

@@ -243,10 +243,12 @@ export function mergeAccess(list: RoleAccess[]): RoleAccess {
 export const OWNER_ONLY_SECTIONS = ["payments", "exp_costs", "vendors", "documents", "settings", "team", "hours_log", "analytics"];
 
 /** Built-in roles. Their access is computed live from the catalog (so Owner always
- *  covers new sections); stored in team_roles with a system_key (migration 049). */
-export const BUILTIN_ROLES: { key: "owner" | "manager"; name: string; description: string }[] = [
+ *  covers new sections); stored in team_roles with a system_key (migrations 049/059). */
+export type BuiltinRoleKey = "owner" | "manager" | "photographer";
+export const BUILTIN_ROLES: { key: BuiltinRoleKey; name: string; description: string }[] = [
   { key: "owner", name: "Owner", description: "Full access to everything." },
   { key: "manager", name: "Manager", description: "Everything except Finance, Company Settings and Team admin." },
+  { key: "photographer", name: "Photographer", description: "Experience photos & website content only — no prices, costs or personal data." },
 ];
 
 export function builtinAccess(systemKey: string): RoleAccess {
@@ -254,6 +256,18 @@ export function builtinAccess(systemKey: string): RoleAccess {
   const fieldsFor = (worlds: WorldId[]): Partial<Record<WorldId, FieldVis>> =>
     Object.fromEntries(worlds.map((w) => [w, { ...allFields }]));
   const sections: Record<string, SectionLevel> = {};
+  if (systemKey === "photographer") {
+    // Photo & website-content work in the Experience world only. Can find who's on
+    // a trip (to match photos to people) and manage galleries/website content, but
+    // sees NO money, costs or contact PII (names/levels still show — those aren't
+    // in the redacted field groups). Bookings are fully redacted, so view is safe.
+    const grants: Record<string, SectionLevel> = {
+      experiences: "view", bookings: "view", members: "view",
+      event_content: "edit", file_storage: "edit",
+    };
+    for (const [k, v] of Object.entries(grants)) sections[k] = v;
+    return { worlds: ["experience"], sections, fields: {} }; // fields:{} → all sensitive groups hidden
+  }
   if (systemKey === "manager") {
     const worlds = WORLDS.map((w) => w.id).filter((w) => w !== "analytics") as WorldId[];
     for (const s of SECTIONS) if (!OWNER_ONLY_SECTIONS.includes(s.key)) sections[s.key] = "edit";
