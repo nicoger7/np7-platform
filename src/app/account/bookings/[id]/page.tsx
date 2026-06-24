@@ -234,8 +234,9 @@ export default async function BookingDetail({ params }: Props) {
             <span className={`inline-block px-3.5 py-1.5 rounded-full text-[12px] font-bold ${CHIP_CLASS[chip.tone]}`}>{chip.label}</span>
           </div>
 
-          {/* Next step — the one thing to focus on right now */}
-          <NextStepHero {...hero} />
+          {/* Next step — the one thing to focus on right now. Once the trip is over
+              there's no "next step", so we drop the hero (the review card leads). */}
+          {!tripEnded && <NextStepHero {...hero} />}
 
           {/* Quick jump — an overview, and a hint there's more below */}
           <QuickChips items={chips} />

@@ -144,16 +144,25 @@ export function MemberGallery({
                 <div className="px-4 pb-4">
                   {!mineExpanded && hasMore ? (
                     <>
+                      {/* Exactly one row at each breakpoint: 3 on mobile (hide the
+                          4th), 4 on sm+ — so there's no orphan thumbnail. */}
                       <div className="grid grid-cols-3 sm:grid-cols-4 gap-2">
-                        {g.photos.slice(0, PREVIEW).map((src, i) => thumb(src, offsets[gi] + i))}
+                        {g.photos.slice(0, 4).map((src, i) => {
+                          const idx = offsets[gi] + i;
+                          return (
+                            <button key={idx} type="button" onClick={() => setOpen(idx)} aria-label={`Open photo ${idx + 1}`}
+                              className={`aspect-square rounded-lg bg-cover bg-center hover:opacity-90 hover:scale-[1.02] transition-all ${i === 3 ? "hidden sm:block" : ""}`}
+                              style={{ backgroundImage: `url('${src}')` }} />
+                          );
+                        })}
                       </div>
                       <button type="button" onClick={() => setMineExpanded(true)} className="relative block w-full mt-2" aria-label={`Show all ${g.photos.length} photos`}>
-                        <div className="grid grid-cols-3 sm:grid-cols-4 gap-2 max-h-[70px] overflow-hidden blur-[3px] opacity-80 pointer-events-none" aria-hidden>
-                          {g.photos.slice(PREVIEW, PREVIEW + 4).map((src, i) => (
+                        <div className="grid grid-cols-3 sm:grid-cols-4 gap-2 max-h-[56px] sm:max-h-[64px] overflow-hidden blur-[3px] opacity-80 pointer-events-none" aria-hidden>
+                          {g.photos.slice(3, 3 + 4).map((src, i) => (
                             <div key={i} className="aspect-square rounded-lg bg-cover bg-center" style={{ backgroundImage: `url('${src}')` }} />
                           ))}
                         </div>
-                        <span className="absolute inset-0 bg-gradient-to-t from-[#fffdf9] via-[#fffdf9]/85 to-[#fffdf9]/10" aria-hidden />
+                        <span className="absolute inset-0 bg-gradient-to-t from-[#fffdf9] via-[#fffdf9]/80 to-[#fffdf9]/10" aria-hidden />
                         <span className="absolute inset-0 grid place-items-center">
                           <span className="inline-flex items-center gap-1.5 px-4 py-2 rounded-full text-[13px] font-bold text-[#00374a] bg-white border border-[#f0e6d6] shadow-[0_4px_14px_rgba(0,55,74,0.1)]">
                             Show all {g.photos.length} photos
@@ -180,9 +189,10 @@ export function MemberGallery({
             );
           }
 
-          // Week memories + each participant — collapsed by default.
+          // Week memories + each participant — collapsed by default. Shared `name`
+          // makes them an exclusive accordion: opening one folds the others.
           return (
-            <details key={g.key} className="rounded-xl border border-[#f0e6d6] bg-[#fffdf9] overflow-hidden [&_summary::-webkit-details-marker]:hidden">
+            <details key={g.key} name="trip-gallery-group" className="rounded-xl border border-[#f0e6d6] bg-[#fffdf9] overflow-hidden [&_summary::-webkit-details-marker]:hidden">
               <summary className="flex items-center gap-2.5 px-4 py-3 cursor-pointer list-none select-none">
                 {header(g)}
                 <svg className="w-4 h-4 text-[#c0ccd0] acc-chevron shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M6 9l6 6 6-6" /></svg>
