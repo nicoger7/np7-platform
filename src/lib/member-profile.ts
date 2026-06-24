@@ -22,12 +22,23 @@ export function parseVisibility(raw: unknown): Visibility {
   const v = (raw && typeof raw === "object" ? raw : {}) as Record<string, unknown>;
   const s = (v.surfaces && typeof v.surfaces === "object" ? v.surfaces : {}) as Record<string, unknown>;
   const f = (v.fields && typeof v.fields === "object" ? v.fields : {}) as Record<string, unknown>;
-  const pick = <K extends string>(o: Record<string, unknown>, keys: K[]) =>
+  const pickTrue = <K extends string>(o: Record<string, unknown>, keys: K[]) =>
     Object.fromEntries(keys.filter((k) => o[k] === true).map((k) => [k, true])) as Partial<Record<K, boolean>>;
+  // Surfaces keep an explicit `false` too: `crew` is shared by DEFAULT (it's the
+  // people you're travelling with), so storing `crew:false` is the only way to opt
+  // out (see crewShared/publicProfileFor). Reviews & spot notes stay opt-in.
+  const pickBool = <K extends string>(o: Record<string, unknown>, keys: K[]) =>
+    Object.fromEntries(keys.filter((k) => typeof o[k] === "boolean").map((k) => [k, o[k] === true])) as Partial<Record<K, boolean>>;
   return {
-    surfaces: pick(s, ["crew", "reviews", "spot_notes"] as ProfileSurface[]),
-    fields: pick(f, ["age", "country", "city", "level"] as ProfileField[]),
+    surfaces: pickBool(s, ["crew", "reviews", "spot_notes"] as ProfileSurface[]),
+    fields: pickTrue(f, ["age", "country", "city", "level"] as ProfileField[]),
   };
+}
+
+/** Is the member shown to their fellow trip participants? Default ON — only an
+    explicit `crew:false` opts out. */
+export function crewShared(vis: Visibility): boolean {
+  return vis.surfaces.crew !== false;
 }
 
 /** "Nico Prien" → "Nico P."; "Nico" → "Nico"; empty → "Member". */
@@ -109,7 +120,10 @@ export type PublicProfile = {
  */
 export function publicProfileFor(contact: ContactProfileRow, surface: ProfileSurface): PublicProfile | null {
   const vis = parseVisibility(contact.profile_visibility);
-  if (!vis.surfaces[surface]) return null;
+  // Crew defaults ON (you're sharing with the people on your trip); reviews & spot
+  // notes are opt-in.
+  const shared = surface === "crew" ? crewShared(vis) : vis.surfaces[surface] === true;
+  if (!shared) return null;
   const age = vis.fields.age ? ageFrom(contact.date_of_birth) : null;
   // verified → coach value (+ badge); else self-declared; else legacy `level`
   const dl = displayLevel(contact);

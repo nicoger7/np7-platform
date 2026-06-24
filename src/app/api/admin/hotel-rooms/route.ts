@@ -57,6 +57,29 @@ export async function GET(request: NextRequest) {
   return Response.json({ rooms: notArchived(data) });
 }
 
+// Find (or create) the physical room (exp_rooms) for an occupancy row so every
+// room×week links to a single physical room. Tolerant: if exp_rooms doesn't
+// exist yet (pre-migration 060) it returns undefined and the caller just inserts
+// the occupancy as before.
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+async function resolveRoomId(admin: any, body: any): Promise<string | undefined> {
+  if (!body?.name) return undefined;
+  const { experience_id = null, hotel = null, name, room_type = null, room_number = null } = body;
+  let sel = admin.from("exp_rooms").select("id").eq("name", name).limit(1);
+  sel = hotel == null ? sel.is("hotel", null) : sel.eq("hotel", hotel);
+  sel = experience_id == null ? sel.is("experience_id", null) : sel.eq("experience_id", experience_id);
+  const { data: existing, error: selErr } = await sel;
+  if (selErr) return undefined; // table missing → pre-migration, stay as-is
+  if (existing && existing.length) return existing[0].id;
+  const { data: created, error: insErr } = await admin
+    .from("exp_rooms")
+    .insert({ experience_id, hotel, name, room_type, room_number })
+    .select("id")
+    .single();
+  if (insErr) return undefined;
+  return created?.id;
+}
+
 export async function POST(request: NextRequest) {
   try {
     await requireAuth();
@@ -66,6 +89,11 @@ export async function POST(request: NextRequest) {
 
   const body = await request.json();
   const admin = getServiceClient();
+
+  if (!body.room_id) {
+    const rid = await resolveRoomId(admin, body);
+    if (rid) body.room_id = rid; // only set when we actually have one (pre-migration safe)
+  }
 
   const { data, error } = await admin
     .from("exp_hotel_rooms")

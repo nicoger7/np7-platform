@@ -34,7 +34,8 @@ export function CommunityProfile(p: Props) {
   const [username, setUsername] = useState(p.username ?? "");
   const [city, setCity] = useState(p.displayCity ?? "");
   const [avatar, setAvatar] = useState<string | null>(p.avatarUrl);
-  const [surfaces, setSurfaces] = useState<Record<string, boolean>>({ ...p.visibility.surfaces });
+  // Crew sharing is ON by default (only an explicit false opts out); reviews & spot notes off.
+  const [surfaces, setSurfaces] = useState<Record<string, boolean>>({ crew: true, ...p.visibility.surfaces });
   const [fields, setFields] = useState<Record<string, boolean>>({ ...p.visibility.fields });
   const [pickerOpen, setPickerOpen] = useState(false);
   const [saving, setSaving] = useState(false);

@@ -2,11 +2,12 @@ import Link from "next/link";
 import { redirect, notFound } from "next/navigation";
 import type { Metadata } from "next";
 import { getPortalUser } from "@/lib/auth";
-import { getMemberBooking, getCrewProfiles } from "@/lib/portal-data";
+import { getMemberBooking, getCrewProfiles, getMemberProfile } from "@/lib/portal-data";
 import { fmtDates } from "@/lib/portal-status";
 import { PortalChrome } from "@/components/portal/portal-chrome";
 import { LevelBadge } from "@/components/shared/level-badge";
-import type { PublicProfile } from "@/lib/member-profile";
+import { CrewVisibilityToggle } from "@/components/portal/crew-visibility-toggle";
+import { EMPTY_VISIBILITY, type PublicProfile } from "@/lib/member-profile";
 
 export const metadata: Metadata = { title: "Your crew — NP7" };
 export const dynamic = "force-dynamic";
@@ -20,9 +21,11 @@ export default async function CrewPage({ params }: Props) {
   const b = await getMemberBooking(user.contactId, id);
   if (!b) notFound();
 
-  const roster = b.edition?.id
-    ? await getCrewProfiles(b.edition.id, user.contactId)
-    : { going: 0, sharing: 0, profiles: [] };
+  const [roster, myProfile] = await Promise.all([
+    b.edition?.id ? getCrewProfiles(b.edition.id, user.contactId) : Promise.resolve({ going: 0, sharing: 0, profiles: [] }),
+    getMemberProfile(user.contactId).catch(() => null),
+  ]);
+  const myVisibility = myProfile?.visibility ?? EMPTY_VISIBILITY;
   const notSharing = Math.max(0, roster.going - roster.sharing);
 
   return (
@@ -39,6 +42,10 @@ export default async function CrewPage({ params }: Props) {
               {b.edition?.date_start ? ` · ${fmtDates(b.edition.date_start, b.edition.date_end)}` : ""}
               {" · "}{roster.going} {roster.going === 1 ? "rider" : "riders"} going
             </p>
+          </div>
+
+          <div className="mb-6">
+            <CrewVisibilityToggle visibility={myVisibility} />
           </div>
 
           {b.edition?.whatsapp_group_link && (
@@ -69,7 +76,7 @@ export default async function CrewPage({ params }: Props) {
           )}
 
           <p className="text-[12.5px] text-[#9aa6ac] mt-8 leading-relaxed max-w-[640px]">
-            You&apos;re shown here only if you&apos;ve turned on your community profile for trips. Change what you share anytime in <Link href="/account/profile" className="font-semibold text-[#00afdb] hover:underline">your profile</Link>.
+            You&apos;re shown to your crew by default — use the toggle above to hide yourself. Choose exactly which details (city, level, age) appear in <Link href="/account/profile" className="font-semibold text-[#00afdb] hover:underline">your profile</Link>.
           </p>
         </div>
       </main>
