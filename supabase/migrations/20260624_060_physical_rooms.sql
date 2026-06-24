@@ -42,11 +42,15 @@ comment on column exp_hotel_rooms.room_id is
 -- 3) backfill (re-runnable: 3a guarded by NOT EXISTS, 3b by room_id is null) ────
 -- 3a) one physical room per distinct (experience_id, hotel, name), from the
 --     earliest-created ACTIVE occupancy row (carries its room_type/number/notes).
+--     Only EXPERIENCE-LINKED rows become physical rooms; unlinked rooming-list
+--     rows (experience_id null — real Bonaire notes that still need linking) are
+--     left as-is so they don't spawn phantom "no-experience" rooms.
 insert into exp_rooms (experience_id, hotel, name, room_type, room_number, comments, notion_id)
 select distinct on (o.experience_id, o.hotel, o.name)
        o.experience_id, o.hotel, o.name, o.room_type, o.room_number, o.comments, o.notion_id
 from exp_hotel_rooms o
 where o.archived_at is null
+  and o.experience_id is not null
   and not exists (
     select 1 from exp_rooms r
     where r.name = o.name
