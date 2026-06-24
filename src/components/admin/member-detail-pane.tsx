@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import Link from "next/link";
 import { AdminMemberLevel } from "@/components/admin/admin-member-level";
+import { MemberPortalPreview } from "@/components/admin/member-portal-preview";
 
 interface MemberData {
   contact: { id: string; name: string; email: string | null; phone: string | null; country: string | null; level: string | null; auth_user_id?: string | null };
@@ -34,7 +35,7 @@ function Panel({ title, count, children }: { title: string; count?: number; chil
 export function MemberDetailPane({ contactId, initialTab = "overview", onBack }: { contactId: string; initialTab?: "overview" | "level"; onBack?: () => void }) {
   const [d, setD] = useState<MemberData | null>(null);
   const [loading, setLoading] = useState(true);
-  const [tab, setTab] = useState<"overview" | "level">(initialTab);
+  const [tab, setTab] = useState<"overview" | "level" | "preview">(initialTab);
 
   // Refetch when the selected member changes (split view swaps contactId in place).
   useEffect(() => {
@@ -68,7 +69,7 @@ export function MemberDetailPane({ contactId, initialTab = "overview", onBack }:
       </div>
 
       <div className="flex items-center gap-1 mb-5 border-b" style={{ borderColor: "var(--admin-border)" }}>
-        {([["overview", "Overview"], ["level", "Level & skills"]] as const).map(([key, label]) => (
+        {([["overview", "Overview"], ["level", "Level & skills"], ["preview", "Member view"]] as const).map(([key, label]) => (
           <button
             key={key}
             onClick={() => setTab(key)}
@@ -81,7 +82,9 @@ export function MemberDetailPane({ contactId, initialTab = "overview", onBack }:
         ))}
       </div>
 
-      {tab === "level" ? (
+      {tab === "preview" ? (
+        <MemberPortalPreview contactId={c.id} />
+      ) : tab === "level" ? (
         <Panel title="Level & skills">
           <AdminMemberLevel contactId={c.id} />
         </Panel>
