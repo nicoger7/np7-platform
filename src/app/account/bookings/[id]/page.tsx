@@ -75,8 +75,6 @@ export default async function BookingDetail({ params }: Props) {
     }
   })();
 
-  const cancellation = b.experience?.cancellation_policy ||
-    "You can cancel any time before the trip. Your deposit is refundable for 14 days after payment; after that it's kept as the cancellation fee. Once you've paid the 50% downpayment or the full balance, that amount becomes the fee — with a goodwill credit voucher toward a future trip. Use ‘Cancel this trip’ above to start, or see our Terms for the full scale.";
   // Pull the package's payment config so the member's plan matches the invoices
   // exactly: package deposit (which can be 0 → a clean 2-stage plan), down-payment
   // %, and final-payment timing. An edition-level deposit, if set, overrides the
@@ -106,6 +104,12 @@ export default async function BookingDetail({ params }: Props) {
     (depositMilestone ? depositMilestone.status === "paid" : paid > 0) ||
     b.downpayment_received ||
     isAttending(b.status);
+
+  // Cancellation copy — deposit-aware: many trips have no deposit (the 50%
+  // downpayment is the first, 14-day-refundable payment), so don't mention one.
+  const cancellation = b.experience?.cancellation_policy || (depositMilestone
+    ? "You can cancel any time before the trip. Your deposit is refundable for 14 days after you pay it; after that it's kept as the cancellation fee. Once you've paid the 50% downpayment or the full balance, that amount becomes the fee — with a goodwill credit voucher toward a future trip. Use ‘Cancel this trip’ above to start, or see our Terms for the full scale."
+    : "You can cancel any time before the trip. Your 50% downpayment is refundable for 14 days after you pay it; after that it's kept as the cancellation fee. Once you've paid the full balance, that becomes the fee instead — with a goodwill credit voucher toward a future trip. Use ‘Cancel this trip’ above to start, or see our Terms for the full scale.");
 
   const photoCount = galleryGroups.reduce((n, g) => n + g.photos.length, 0);
   const memoriesContent = (photoCount === 0 && !b.edition?.memories_video_url) ? (
