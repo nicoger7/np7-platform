@@ -258,7 +258,7 @@ export default function EditionDetailPage({
   const [costForm, setCostForm] = useState(emptyCost);
   const [costEditId, setCostEditId] = useState<string | null>(null);
   const [costShow, setCostShow] = useState(false);
-  const [pnl, setPnl] = useState<{ received: number; expected: number; costs: number; net: number; bookings: number } | null>(null);
+  const [pnl, setPnl] = useState<{ received: number; expected: number; costs: number; net: number; bookings: number; componentEstimate?: { total: number; bookings: number; breakdown: { name: string; qty: number; unitCost: number; total: number }[] } } | null>(null);
 
   const emptyRoom = { name: "", hotel: "", room_type: "", room_number: "", status: "available", booking_id: "" };
   const [roomForm, setRoomForm] = useState(emptyRoom);
@@ -1303,6 +1303,23 @@ export default function EditionDetailPage({
                 <div className="text-xl font-bold admin-heading">{pnl.bookings}</div>
                 <div className="text-[10px] admin-faint mt-0.5">with payments counted</div>
               </div>
+            </div>
+          )}
+
+          {/* Projected per-participant cost — auto-rolled from signed-up packages' components × cost price */}
+          {pnl?.componentEstimate && pnl.componentEstimate.total > 0 && (
+            <div className="rounded-xl admin-tablecard mb-5" style={{ border: "1px solid var(--admin-border)" }}>
+              <div className="flex items-center justify-between px-5 py-3 admin-surface" style={{ borderBottom: "1px solid var(--admin-border)" }}>
+                <span className="text-[11px] font-bold tracking-[0.1em] admin-faint uppercase">Projected component cost · {pnl.componentEstimate.bookings} signed up</span>
+                <span className="text-sm font-bold text-amber-400">{eur(pnl.componentEstimate.total, currency)}</span>
+              </div>
+              {pnl.componentEstimate.breakdown.map((c) => (
+                <div key={c.name} className="flex items-center justify-between gap-3 px-5 py-2 text-[13px]" style={{ borderBottom: "1px solid var(--admin-border)" }}>
+                  <span className="admin-heading truncate">{c.name}</span>
+                  <span className="admin-faint shrink-0">{c.qty} × {eur(c.unitCost, currency)} = <span className="admin-muted font-medium">{eur(c.total, currency)}</span></span>
+                </div>
+              ))}
+              <p className="px-5 py-2 text-[11px] admin-faint">Auto-rolled from each signed-up package&apos;s components × cost price. Add fixed costs (venue, transfers…) as cost lines below.</p>
             </div>
           )}
 
