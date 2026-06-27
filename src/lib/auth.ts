@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { cookies } from "next/headers";
+import { cookies, headers } from "next/headers";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase";
 
@@ -23,12 +23,18 @@ export type PortalUser = { userId: string; email: string; contactId: string; nam
  * active team member with a `np7_view_as` cookie. Honoured on READ paths (page
  * renders + GET data) so the portal shows the member's view; every WRITE path
  * passes { allowPreview: false } so a mutation never runs as the previewed member.
- * Never links or writes anything (so it can't hijack the member's account).
+ *
+ * Scoped to the preview iframe: a TOP-LEVEL navigation (Sec-Fetch-Dest=document) —
+ * i.e. the admin opening their OWN /account in a normal tab — is NOT honoured, so
+ * the cookie can't bleed into their own browsing. The iframe (and in-iframe nav)
+ * is never `document`, so it stays in preview. Never links/writes anything (so it
+ * can't hijack the member's account).
  */
 async function viewAsPreviewUser(realUserId: string): Promise<PortalUser | null> {
   const store = await cookies();
   const viewAs = store.get(VIEW_AS_COOKIE)?.value;
   if (!viewAs) return null;
+  if ((await headers()).get("sec-fetch-dest") === "document") return null; // admin's own top-level tab
   if (!(await getTeamMember())) return null; // only active team members may preview
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const admin = createAdminClient() as any;

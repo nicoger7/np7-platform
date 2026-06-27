@@ -1,4 +1,5 @@
--- 060 · Physical rooms (exp_rooms) + per-week occupancy link
+-- 061 · Physical rooms (exp_rooms) + per-week occupancy link
+-- (renumbered from a duplicate 060 — already applied to the DB; idempotent/re-runnable)
 --
 -- ADDITIVE normalization of hotel rooms. Until now exp_hotel_rooms held ONE ROW
 -- PER ROOM × WEEK, so a physical Bonaire/Sorobon/Wanapa room appeared 3× (one per
