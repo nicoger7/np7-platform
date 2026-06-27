@@ -55,5 +55,8 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
     documents: docsOut,
     reviews,
     gallery,
+    // Let the UI hide the finance panels entirely (not just empty them) for roles
+    // without the money grant — e.g. a photographer/media role.
+    canSeeMoney: showMoney,
   });
 }

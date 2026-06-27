@@ -13,6 +13,7 @@ interface MemberData {
   documents: { id: string; type: string; invoice_number: string | null; amount: number | null; currency: string; issued_at: string; status: string }[];
   reviews: { id: string; rating: number | null; quote: string | null; status: string; photo_url: string | null }[];
   gallery: string[];
+  canSeeMoney?: boolean;
 }
 
 const money = (n: number | null | undefined) => (n != null ? `€${Number(n).toLocaleString("en-US")}` : "—");
@@ -104,6 +105,7 @@ export function MemberDetailPane({ contactId, initialTab = "overview", onBack }:
           )}
         </Panel>
 
+        {d.canSeeMoney !== false && (<>
         <Panel title="Payments" count={d.payments.length}>
           {d.payments.length === 0 ? <p className="text-xs admin-faint">No payments.</p> : (
             <div className="space-y-1">
@@ -132,6 +134,7 @@ export function MemberDetailPane({ contactId, initialTab = "overview", onBack }:
             </div>
           )}
         </Panel>
+        </>)}
 
         <Panel title="Emails" count={d.emails.length}>
           {d.emails.length === 0 ? <p className="text-xs admin-faint">No emails.</p> : (

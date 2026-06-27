@@ -25,7 +25,14 @@ export function EditionMemoriesUploader({ editionId, initialVideoUrl }: { editio
   const [counts, setCounts] = useState<Record<string, number>>({}); // scope key -> photo count
   const [videoUrl, setVideoUrl] = useState(initialVideoUrl ?? "");
   const [videoSaved, setVideoSaved] = useState(false);
+  const [selected, setSelected] = useState<Set<string>>(new Set()); // photo paths picked for "assign"
+  const [assigning, setAssigning] = useState(false);
   const fileInput = useRef<HTMLInputElement>(null);
+
+  // Selection is per-scope; drop it whenever you switch who you're viewing.
+  useEffect(() => { setSelected(new Set()); }, [scope]);
+  const toggleSelect = (path: string) =>
+    setSelected((s) => { const n = new Set(s); n.has(path) ? n.delete(path) : n.add(path); return n; });
 
   const folderFor = useCallback(
     (s: string) => (s ? `memories/${editionId}/p/${s}` : `memories/${editionId}`),
@@ -81,6 +88,23 @@ export function EditionMemoriesUploader({ editionId, initialVideoUrl }: { editio
     load(); refreshCounts();
   }
 
+  // Move the selected "Everyone" photos into one participant's private folder.
+  async function assignTo(bookingId: string) {
+    if (!bookingId || selected.size === 0) return;
+    setAssigning(true);
+    const dest = folderFor(bookingId);
+    for (const from of selected) {
+      const name = from.split("/").pop();
+      await fetch("/api/admin/images", {
+        method: "PATCH", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ from, to: `${dest}/${name}` }),
+      }).catch(() => {});
+    }
+    setSelected(new Set());
+    setAssigning(false);
+    load(); refreshCounts();
+  }
+
   async function remove(path: string) {
     if (!confirm("Remove this photo from the gallery?")) return;
     await fetch("/api/admin/images", { method: "DELETE", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ paths: [path] }) });
@@ -113,8 +137,9 @@ export function EditionMemoriesUploader({ editionId, initialVideoUrl }: { editio
       <div className="rounded-xl p-4" style={{ border: "1px solid var(--admin-border)", backgroundColor: "var(--admin-surface)" }}>
         <h3 className="text-sm font-bold admin-heading">Participant photos</h3>
         <p className="text-xs admin-faint mt-0.5 mb-3">
-          Pick who the photos are for, then upload. <span className="admin-muted">Everyone</span> = shared with all
-          participants this week; a name = <span className="admin-muted">only that client sees them</span> in their member area.
+          <span className="admin-muted">Everyone</span> = shared with all participants this week; a name =
+          <span className="admin-muted"> only that client sees them</span> in their member area. Easiest flow:
+          <span className="admin-muted"> dump everything into Everyone, then select shots and assign them to individual riders.</span>
           (Private trip photos — separate from the public marketing gallery in Event Content.)
         </p>
 
@@ -137,15 +162,48 @@ export function EditionMemoriesUploader({ editionId, initialVideoUrl }: { editio
         ) : photos.length === 0 ? (
           <p className="text-xs admin-faint">No photos for {scopeLabel} yet.</p>
         ) : (
-          <div className="grid grid-cols-3 sm:grid-cols-5 gap-2">
-            {photos.map((p) => (
-              <div key={p.path} className="relative group aspect-square rounded-lg overflow-hidden" style={{ border: "1px solid var(--admin-border)" }}>
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img src={p.url} alt="" loading="lazy" decoding="async" className="w-full h-full object-cover" />
-                <button onClick={() => remove(p.path)} className="absolute top-1 right-1 w-6 h-6 rounded bg-black/60 text-white text-sm grid place-items-center opacity-0 group-hover:opacity-100 transition-opacity" title="Remove">×</button>
+          <>
+            {/* Assign bar — only in the Everyone pool: pick shots, send to a rider. */}
+            {scope === "" && (
+              <div className="flex flex-wrap items-center gap-2 mb-3 text-xs min-h-[28px]">
+                {selected.size === 0 ? (
+                  <span className="admin-faint">Tip: click photos to select, then assign them to a rider&apos;s private gallery.</span>
+                ) : (
+                  <>
+                    <span className="font-bold admin-heading">{selected.size} selected</span>
+                    <span className="admin-faint">→ assign to</span>
+                    <select defaultValue="" disabled={assigning}
+                      onChange={(e) => { const v = e.target.value; e.target.value = ""; assignTo(v); }}
+                      className="admin-input border rounded-lg px-2 py-1 text-xs">
+                      <option value="" disabled>{assigning ? "Assigning…" : "Choose a rider…"}</option>
+                      {bookings.map((b) => <option key={b.id} value={b.id}>{b.contact?.name || b.name || "Participant"}</option>)}
+                    </select>
+                    <button type="button" onClick={() => setSelected(new Set())} className="admin-faint hover:admin-muted underline">Clear</button>
+                  </>
+                )}
               </div>
-            ))}
-          </div>
+            )}
+            <div className="grid grid-cols-3 sm:grid-cols-5 gap-2">
+              {photos.map((p) => {
+                const sel = selected.has(p.path);
+                const selectable = scope === "";
+                return (
+                  <div key={p.path} onClick={selectable ? () => toggleSelect(p.path) : undefined}
+                    className={`relative group aspect-square rounded-lg overflow-hidden ${selectable ? "cursor-pointer" : ""} ${sel ? "ring-2 ring-[#0aa3c7] ring-offset-1" : ""}`}
+                    style={{ border: "1px solid var(--admin-border)" }}>
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img src={p.url} alt="" loading="lazy" decoding="async" className={`w-full h-full object-cover ${sel ? "opacity-80" : ""}`} />
+                    {selectable && sel && (
+                      <span className="absolute top-1 left-1 w-5 h-5 rounded-full bg-[#0aa3c7] text-white grid place-items-center">
+                        <svg className="w-3 h-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3.5" strokeLinecap="round" strokeLinejoin="round"><path d="M20 6L9 17l-5-5" /></svg>
+                      </span>
+                    )}
+                    <button onClick={(e) => { e.stopPropagation(); remove(p.path); }} className="absolute top-1 right-1 w-6 h-6 rounded bg-black/60 text-white text-sm grid place-items-center opacity-0 group-hover:opacity-100 transition-opacity" title="Remove">×</button>
+                  </div>
+                );
+              })}
+            </div>
+          </>
         )}
       </div>
 
