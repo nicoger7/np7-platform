@@ -21,10 +21,20 @@ export async function GET() {
   return NextResponse.json(enriched);
 }
 
+// role_ids arrives with migration 045 — strip & retry if the column isn't there
+// yet, so creating a team member still works pre-migration (mirrors PATCH).
+const PENDING_OPTIONAL = ["role_ids"];
+
 export async function POST(request: NextRequest) {
   const client = createAdminClient();
   const body = await request.json();
-  const { data, error } = await client.from("team_members").insert(body).select().single();
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const run = (payload: Record<string, unknown>) => (client as any).from("team_members").insert(payload).select().single();
+  let { data, error } = await run(body);
+  if (error && PENDING_OPTIONAL.some((k) => k in body) && /column .* does not exist|schema cache|could not find/i.test(error.message)) {
+    const stripped = Object.fromEntries(Object.entries(body).filter(([k]) => !PENDING_OPTIONAL.includes(k)));
+    ({ data, error } = await run(stripped));
+  }
   if (error) return NextResponse.json({ error: error.message }, { status: 400 });
   return NextResponse.json(data, { status: 201 });
 }

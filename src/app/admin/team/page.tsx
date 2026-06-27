@@ -58,6 +58,8 @@ export default function TeamPage() {
   );
   const [form, setForm] = useState({ name: "", email: "", role: "", phone: "", rate_per_hour: "", notes: "", role_ids: [] as string[] });
   const [roles, setRoles] = useState<{ id: string; name: string; system_key?: string | null }[]>([]);
+  const [createError, setCreateError] = useState<string | null>(null);
+  const [creating, setCreating] = useState(false);
 
   function fetchData() {
     fetch("/api/admin/team").then((r) => r.json()).then((d) => { setMembers(d || []); setLoading(false); });
@@ -91,12 +93,27 @@ export default function TeamPage() {
     : members;
 
   async function handleCreate() {
-    const res = await fetch("/api/admin/team", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ ...form, rate_per_hour: form.rate_per_hour ? Number(form.rate_per_hour) : null }),
-    });
-    if (res.ok) { setShowNew(false); setForm({ name: "", email: "", role: "", phone: "", rate_per_hour: "", notes: "", role_ids: [] }); fetchData(); }
+    setCreateError(null);
+    setCreating(true);
+    try {
+      const res = await fetch("/api/admin/team", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ...form, rate_per_hour: form.rate_per_hour ? Number(form.rate_per_hour) : null }),
+      });
+      if (res.ok) {
+        setShowNew(false);
+        setForm({ name: "", email: "", role: "", phone: "", rate_per_hour: "", notes: "", role_ids: [] });
+        fetchData();
+      } else {
+        const d = await res.json().catch(() => ({}));
+        setCreateError(d?.error || `Couldn't create member (${res.status}).`);
+      }
+    } catch {
+      setCreateError("Network error — couldn't reach the server.");
+    } finally {
+      setCreating(false);
+    }
   }
 
   async function handleDelete(id: string) {
@@ -155,9 +172,12 @@ export default function TeamPage() {
             <div className="col-span-3"><label className={labelClass}>Notes</label><input className={inputClass} value={form.notes} onChange={(e) => setForm({ ...form, notes: e.target.value })} /></div>
           </div>
           <p className="text-[11px] admin-faint mb-4 -mt-2">Pick the access role(s) — <strong>Owner</strong> / <strong>Manager</strong> are built-in; define more under <strong>Team › Roles</strong>. <strong>Role</strong> above is just a job-title label. After creating, open the member to send their login invite.</p>
+          {createError && (
+            <p className="text-xs text-red-500 mb-3 -mt-1">{createError}</p>
+          )}
           <div className="flex gap-2">
-            <button onClick={handleCreate} disabled={!form.name} className="px-4 py-2 bg-[var(--admin-accent)] hover:bg-[var(--admin-accent)]/90 disabled:opacity-40 text-[var(--admin-accent-contrast)] text-sm font-bold rounded-lg">Create</button>
-            <button onClick={() => setShowNew(false)} className="px-4 py-2 admin-muted text-sm rounded-lg">Cancel</button>
+            <button onClick={handleCreate} disabled={!form.name || creating} className="px-4 py-2 bg-[var(--admin-accent)] hover:bg-[var(--admin-accent)]/90 disabled:opacity-40 text-[var(--admin-accent-contrast)] text-sm font-bold rounded-lg">{creating ? "Creating…" : "Create"}</button>
+            <button onClick={() => { setShowNew(false); setCreateError(null); }} className="px-4 py-2 admin-muted text-sm rounded-lg">Cancel</button>
           </div>
         </div>
       )}
