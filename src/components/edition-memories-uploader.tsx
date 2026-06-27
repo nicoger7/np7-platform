@@ -18,7 +18,7 @@ type Booking = { id: string; name: string | null; contact: { name: string | null
 export function EditionMemoriesUploader({ editionId, initialVideoUrl }: { editionId: string; initialVideoUrl: string | null }) {
   const [bookings, setBookings] = useState<Booking[]>([]);
   const [scope, setScope] = useState<string>(""); // "" = everyone, else bookingId
-  const [photos, setPhotos] = useState<{ name: string; path: string; url: string }[]>([]);
+  const [photos, setPhotos] = useState<{ name: string; path: string; url: string; thumbUrl?: string | null }[]>([]);
   const [loading, setLoading] = useState(true);
   const [uploading, setUploading] = useState(false);
   const [progress, setProgress] = useState<{ done: number; total: number } | null>(null);
@@ -192,7 +192,7 @@ export function EditionMemoriesUploader({ editionId, initialVideoUrl }: { editio
                     className={`relative group aspect-square rounded-lg overflow-hidden ${selectable ? "cursor-pointer" : ""} ${sel ? "ring-2 ring-[#0aa3c7] ring-offset-1" : ""}`}
                     style={{ border: "1px solid var(--admin-border)" }}>
                     {/* eslint-disable-next-line @next/next/no-img-element */}
-                    <img src={p.url} alt="" loading="lazy" decoding="async" className={`w-full h-full object-cover ${sel ? "opacity-80" : ""}`} />
+                    <img src={p.thumbUrl || p.url} alt="" loading="lazy" decoding="async" className={`w-full h-full object-cover ${sel ? "opacity-80" : ""}`} />
                     {selectable && sel && (
                       <span className="absolute top-1 left-1 w-5 h-5 rounded-full bg-[#0aa3c7] text-white grid place-items-center">
                         <svg className="w-3 h-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3.5" strokeLinecap="round" strokeLinejoin="round"><path d="M20 6L9 17l-5-5" /></svg>

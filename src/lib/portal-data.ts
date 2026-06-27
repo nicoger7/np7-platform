@@ -471,7 +471,9 @@ async function listAssetFolder(folder: string): Promise<string[]> {
   const { data } = await admin.storage.from("assets").list(folder, { limit: 200 });
   return (data ?? [])
     .filter((f) => f.id && f.name !== ".emptyFolderPlaceholder")
-    .map((f) => `${base}/${folder}/${f.name}`);
+    // Encode the filename — trip photos often have spaces ("NP7 Experience-1.jpg"),
+    // which break <img>/CSS url() loading otherwise.
+    .map((f) => `${base}/${folder}/${encodeURIComponent(f.name)}`);
 }
 
 /** Whole-week "everyone" photos, from storage assets/memories/{editionId}/.

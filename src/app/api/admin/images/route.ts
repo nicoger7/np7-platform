@@ -22,7 +22,7 @@ async function requireAuth() {
 }
 
 type ListedFile = {
-  name: string; path: string; isFolder: boolean; url: string | null;
+  name: string; path: string; isFolder: boolean; url: string | null; thumbUrl: string | null;
   size: number; type: string | null; updatedAt: string | null;
 };
 
@@ -41,6 +41,12 @@ export async function GET(request: NextRequest) {
   const recursive = sp.get("recursive") === "1";
   const admin = getServiceClient();
   const baseUrl = `${process.env.NEXT_PUBLIC_SUPABASE_URL}/storage/v1/object/public/${BUCKET}`;
+  const renderBase = `${process.env.NEXT_PUBLIC_SUPABASE_URL}/storage/v1/render/image/public/${BUCKET}`;
+  // Encode each path segment — filenames can contain spaces etc., which otherwise
+  // break <img>/CSS loading. thumb() serves a small transform (fast grids vs MBs).
+  const enc = (p: string) => p.split("/").map(encodeURIComponent).join("/");
+  const pubUrl = (p: string) => `${baseUrl}/${enc(p)}`;
+  const thumb = (p: string) => `${renderBase}/${enc(p)}?width=400&height=400&resize=cover&quality=70`;
 
   // ── Recursive mode: walk the whole tree so EVERY image surfaces in one
   // searchable, newest-first view (the library's default). Bounded so a huge
@@ -64,7 +70,7 @@ export async function GET(request: NextRequest) {
           queue.push(path);
         } else if ((item.metadata?.mimetype || "").startsWith("image/")) {
           images.push({
-            name: item.name, path, isFolder: false, url: `${baseUrl}/${path}`,
+            name: item.name, path, isFolder: false, url: pubUrl(path), thumbUrl: thumb(path),
             size: item.metadata?.size || 0, type: item.metadata?.mimetype || null,
             updatedAt: item.updated_at,
           });
@@ -93,7 +99,8 @@ export async function GET(request: NextRequest) {
         name: item.name,
         path,
         isFolder,
-        url: isFolder ? null : `${baseUrl}/${path}`,
+        url: isFolder ? null : pubUrl(path),
+        thumbUrl: isFolder ? null : thumb(path),
         size: item.metadata?.size || 0,
         type: item.metadata?.mimetype || null,
         updatedAt: item.updated_at,
