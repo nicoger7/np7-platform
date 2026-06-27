@@ -39,19 +39,21 @@ export function groupSkillsByTier(skills: SkillTag[]): { tier: Level; items: Ski
 }
 
 /**
- * The highest tier whose milestones — and every lower tier's — are fully ticked.
- * Conservative + transparent (stops at the first incomplete tier); the coach can
- * always override up or down. Returns null when nothing is complete.
+ * The level you're AT = the tier you're currently working on: the first tier whose
+ * milestones aren't all ticked (you graduate a tier by completing it, e.g. all
+ * Beginner skills done → you're Intermediate, working on Intermediate). When every
+ * tier is complete you're at the top tier; null only when there's no catalog.
+ * The coach can always override up or down.
  */
 export function deriveSuggestedLevel(catalog: Milestone[], achievedIds: Set<string>): Level | null {
-  let result: Level | null = null;
+  let lastComplete: Level | null = null;
   for (const tier of LEVELS) {
     const inTier = catalog.filter((m) => m.tier === tier);
     if (inTier.length === 0) continue;
-    if (inTier.every((m) => achievedIds.has(m.id))) result = tier;
-    else break;
+    if (inTier.every((m) => achievedIds.has(m.id))) { lastComplete = tier; continue; }
+    return tier; // first tier not fully ticked — the one you're earning now
   }
-  return result;
+  return lastComplete; // everything ticked → top tier
 }
 
 /**

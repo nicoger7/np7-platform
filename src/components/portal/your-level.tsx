@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { LEVELS, displayLevel, levelProgress, nextTierFrom } from "@/lib/member-level";
+import { LEVELS, displayLevel, levelProgress } from "@/lib/member-level";
 import type { MemberLevelDetail } from "@/lib/portal-data";
 
 /**
@@ -24,8 +24,14 @@ export function YourLevel({ detail }: { detail: MemberLevelDetail }) {
   const verified = status === "verified" && !!coachLevel;
   const shown = displayLevel({ self_level: selfLevel || null, level: coachLevel, level_status: status }).level;
 
-  const { tiers, earned, total } = levelProgress(detail.milestones);
-  const { nextTier, toNext, pct } = nextTierFrom(shown, tiers); // tier above current level
+  // The tier they're EARNING now (first not-fully-ticked) drives the ring + pull —
+  // so a half-done Intermediate reads "X to Advanced · 71% through Intermediate",
+  // not "0% through Advanced". reachTier = the level finishing it unlocks.
+  const { tiers, nextTier: workingTier, toNext, earned, total } = levelProgress(detail.milestones);
+  const wIdx = workingTier ? LEVELS.indexOf(workingTier) : -1;
+  const reachTier = workingTier && wIdx < LEVELS.length - 1 ? LEVELS[wIdx + 1] : null;
+  const wStat = tiers.find((t) => t.tier === workingTier);
+  const pct = wStat && wStat.total ? (wStat.done / wStat.total) * 100 : (workingTier ? 0 : 100);
   const hasCatalog = total > 0;
   const ringColor = verified ? "#1aa851" : "#00afdb";
 
@@ -48,7 +54,7 @@ export function YourLevel({ detail }: { detail: MemberLevelDetail }) {
       <div className="rounded-2xl bg-gradient-to-br from-[#eef9fc] via-white to-[#fff7ec] border border-[#e9f0f2] p-5 flex items-center gap-5">
         <Ring pct={pct} size={128} stroke={11} color={ringColor}>
           <div className="text-center px-2">
-            <p className="text-[19px] leading-none font-black tracking-[-0.02em] text-[#00374a]">{shown ?? "—"}</p>
+            <p className="leading-none font-black tracking-[-0.02em] text-[#00374a]" style={{ fontSize: (shown?.length ?? 0) >= 11 ? "13px" : (shown?.length ?? 0) >= 8 ? "16px" : "19px" }}>{shown ?? "—"}</p>
             {verified ? (
               <p className="text-[9.5px] font-bold text-[#0f6e56] mt-1 inline-flex items-center gap-0.5"><svg className="w-2.5 h-2.5" viewBox="0 0 24 24" fill="currentColor"><path d="M12 1l2.6 1.9 3.2-.2 1 3 2.6 1.8-1 3 1 3-2.6 1.8-1 3-3.2-.2L12 23l-2.6-1.9-3.2.2-1-3L2.6 16.5l1-3-1-3 2.6-1.8 1-3 3.2.2z" /><path d="M10.5 13.5l-2-2-1.4 1.4 3.4 3.4 6-6-1.4-1.4z" fill="#fff" /></svg>verified</p>
             ) : shown ? <p className="text-[9.5px] font-semibold text-[#9aa6ac] mt-1">self-rated</p> : null}
@@ -57,15 +63,13 @@ export function YourLevel({ detail }: { detail: MemberLevelDetail }) {
         <div className="min-w-0">
           <p className="text-[11px] font-bold tracking-[0.2em] uppercase text-[#00afdb]">Your level</p>
           {hasCatalog ? (
-            nextTier ? (
+            workingTier ? (
               <>
-                <p className="text-[18px] font-black tracking-[-0.01em] text-[#00374a] mt-1 leading-tight">{toNext} {toNext === 1 ? "skill" : "skills"} to {nextTier}</p>
-                <p className="text-[12.5px] text-[#6a7a80] mt-0.5">{earned} of {total} skills · {Math.round(pct)}% through {nextTier}</p>
+                <p className="text-[18px] font-black tracking-[-0.01em] text-[#00374a] mt-1 leading-tight">{toNext} {toNext === 1 ? "skill" : "skills"} to {reachTier ?? "mastery"}</p>
+                <p className="text-[12.5px] text-[#6a7a80] mt-0.5">{wStat ? `${wStat.done} of ${wStat.total}` : `${earned} of ${total}`} skills · {Math.round(pct)}% through {workingTier}</p>
               </>
-            ) : earned === total && total > 0 ? (
-              <p className="text-[18px] font-black text-[#0f6e56] mt-1">Every skill ticked 🎉</p>
             ) : (
-              <p className="text-[16px] font-black text-[#00374a] mt-1">{earned} of {total} skills earned</p>
+              <p className="text-[18px] font-black text-[#0f6e56] mt-1">Every skill ticked 🎉</p>
             )
           ) : (
             <p className="text-[14px] text-[#6a7a80] mt-1 leading-relaxed">Set your level below — or your coach will tick it off on your next trip.</p>
@@ -79,7 +83,7 @@ export function YourLevel({ detail }: { detail: MemberLevelDetail }) {
           {tiers.map((t) => {
             const full = t.total > 0 && t.done === t.total;
             const tpct = t.total ? (t.done / t.total) * 100 : 0;
-            const isNext = t.tier === nextTier;
+            const isNext = t.tier === workingTier;
             return (
               <div key={t.tier} className="flex flex-col items-center gap-1.5 flex-1">
                 <Ring pct={tpct} size={50} stroke={5} color={full ? "#1aa851" : "#00afdb"}>
@@ -107,7 +111,7 @@ export function YourLevel({ detail }: { detail: MemberLevelDetail }) {
               if (items.length === 0) return null;
               const done = items.filter((m) => m.achieved).length;
               const complete = done === items.length;
-              const isNext = t === nextTier;
+              const isNext = t === workingTier;
               return (
                 <div key={t} className={isNext ? "rounded-xl border border-[#bfe6f2] bg-[#f6fcfe] -mx-2 px-3 py-2.5" : ""}>
                   <div className="flex items-center gap-2 mb-2">

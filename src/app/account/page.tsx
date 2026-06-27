@@ -5,7 +5,7 @@ import { getPortalUser, getTeamMember } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 import { getMemberBookings, getMemberBannerImages, getMemberProfile, getMemberLevelDetail } from "@/lib/portal-data";
 import { fmtDates, needsDownpayment } from "@/lib/portal-status";
-import { displayLevel, levelProgress, nextTierFrom } from "@/lib/member-level";
+import { LEVELS, displayLevel, levelProgress } from "@/lib/member-level";
 import { firstNameInitial, initialsFrom } from "@/lib/member-profile";
 import { PortalChrome } from "@/components/portal/portal-chrome";
 import { MemberHomeBanner } from "@/components/portal/member-home-banner";
@@ -58,8 +58,13 @@ export default async function AccountHome() {
     ? (() => {
         const shown = displayLevel({ self_level: levelDetail.self_level, level: levelDetail.coach_level, level_status: levelDetail.level_status });
         const prog = levelProgress(levelDetail.milestones);
-        const nx = nextTierFrom(shown.level, prog.tiers);
-        return { level: shown.level, verified: shown.verified, nextTier: nx.nextTier, toNext: nx.toNext, pct: nx.pct };
+        // The tier they're EARNING now drives the ring; finishing it reaches reachTier.
+        const workingTier = prog.nextTier;
+        const wIdx = workingTier ? LEVELS.indexOf(workingTier) : -1;
+        const reachTier = workingTier && wIdx < LEVELS.length - 1 ? LEVELS[wIdx + 1] : null;
+        const wStat = prog.tiers.find((t) => t.tier === workingTier);
+        const pct = wStat && wStat.total ? (wStat.done / wStat.total) * 100 : (workingTier ? 0 : 100);
+        return { level: shown.level, verified: shown.verified, nextTier: reachTier, toNext: prog.toNext, pct };
       })()
     : null;
 
