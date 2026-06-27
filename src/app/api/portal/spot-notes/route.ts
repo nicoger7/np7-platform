@@ -7,7 +7,7 @@ import { createAdminClient } from "@/lib/supabase";
  * Lands as a "pending" note for the team to moderate (see /admin/blog/notes).
  */
 export async function POST(request: NextRequest) {
-  const user = await getPortalUser().catch(() => null);
+  const user = await getPortalUser({ allowPreview: false }).catch(() => null);
   if (!user) return NextResponse.json({ error: "Please log in to add a note." }, { status: 401 });
 
   let body: { slug?: string; spotName?: string; body?: string };

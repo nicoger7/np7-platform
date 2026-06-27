@@ -8,7 +8,7 @@ import { createAdminClient } from "@/lib/supabase";
  * Body: { booking_id, rating (1-5), quote, author_name?, author_country?, photo_url? }
  */
 export async function POST(request: NextRequest) {
-  const user = await getPortalUser();
+  const user = await getPortalUser({ allowPreview: false });
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   const body = await request.json();

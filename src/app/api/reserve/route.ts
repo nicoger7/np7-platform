@@ -50,7 +50,7 @@ export async function POST(request: NextRequest) {
 
   // Logged-in member? Their verified contact is the source of truth — client-sent
   // name/email is ignored (a member only ever sees a confirm screen, no form).
-  const member = await getPortalUser().catch(() => null);
+  const member = await getPortalUser({ allowPreview: false }).catch(() => null);
 
   let firstName: string, lastName: string, email: string, phone: string;
   let contactId = member?.contactId as string | undefined;

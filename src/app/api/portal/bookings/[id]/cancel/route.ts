@@ -10,7 +10,7 @@ import { createAdminClient } from "@/lib/supabase";
  */
 export async function POST(req: Request, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
-  const user = await getPortalUser().catch(() => null);
+  const user = await getPortalUser({ allowPreview: false }).catch(() => null);
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   const body = await req.json().catch(() => ({}));

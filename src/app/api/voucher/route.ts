@@ -67,7 +67,7 @@ export async function POST(req: Request) {
   const currency = exp?.currency || cs?.currency || "EUR";
 
   // Buyer contact: their account if signed in, else reuse by email, else create one.
-  const user = await getPortalUser().catch(() => null);
+  const user = await getPortalUser({ allowPreview: false }).catch(() => null);
   let buyerContactId: string | undefined = user?.contactId;
   if (!buyerContactId) {
     const { data: existing } = await db.from("contacts").select("id").eq("email", buyerEmail).maybeSingle();

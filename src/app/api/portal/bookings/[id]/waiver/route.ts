@@ -10,7 +10,7 @@ import { WAIVER_VERSION } from "@/lib/waiver";
  */
 export async function POST(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
-  const user = await getPortalUser().catch(() => null);
+  const user = await getPortalUser({ allowPreview: false }).catch(() => null);
   if (!user) return NextResponse.json({ error: "Not signed in." }, { status: 401 });
 
   let body: { name?: string; signature?: string | null; agree?: boolean };

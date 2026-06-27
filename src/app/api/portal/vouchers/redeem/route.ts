@@ -16,7 +16,7 @@ const fmtMoney = (n: number, currency: string | null) => fmtVoucherMoney(n, curr
  * and claimed by the redeeming member.
  */
 export async function POST(req: Request) {
-  const user = await getPortalUser().catch(() => null);
+  const user = await getPortalUser({ allowPreview: false }).catch(() => null);
   if (!user) return NextResponse.json({ error: "Please sign in to redeem a voucher." }, { status: 401 });
 
   const body = await req.json().catch(() => ({}));

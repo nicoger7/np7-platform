@@ -60,7 +60,7 @@ export async function POST(request: NextRequest) {
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const db = createAdminClient() as any;
-  const member = await getPortalUser().catch(() => null);
+  const member = await getPortalUser({ allowPreview: false }).catch(() => null);
 
   let firstName = "", lastName = "", email = "";
   let contactId = member?.contactId as string | undefined;

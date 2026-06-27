@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { cookies, headers } from "next/headers";
+import { cookies } from "next/headers";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase";
 
@@ -19,19 +19,16 @@ export type TeamMember = { userId: string; email: string; teamMemberId: string; 
 export type PortalUser = { userId: string; email: string; contactId: string; name: string; preview?: boolean };
 
 /**
- * Admin "view as member" preview — resolves the previewed contact, but ONLY when
- * it's safe: an active team member, a `np7_view_as` cookie, AND the request is a
- * top-level/iframe navigation (Sec-Fetch-Dest = document|iframe). API fetches
- * (Sec-Fetch-Dest = empty) are NEVER honoured, so no portal write can ever run as
- * the previewed member — page renders show their view read-only, full stop. Never
- * links or writes anything (so it can't hijack the member's account).
+ * Admin "view as member" preview — resolves the previewed contact, but ONLY for an
+ * active team member with a `np7_view_as` cookie. Honoured on READ paths (page
+ * renders + GET data) so the portal shows the member's view; every WRITE path
+ * passes { allowPreview: false } so a mutation never runs as the previewed member.
+ * Never links or writes anything (so it can't hijack the member's account).
  */
 async function viewAsPreviewUser(realUserId: string): Promise<PortalUser | null> {
   const store = await cookies();
   const viewAs = store.get(VIEW_AS_COOKIE)?.value;
   if (!viewAs) return null;
-  const dest = (await headers()).get("sec-fetch-dest");
-  if (dest !== "document" && dest !== "iframe") return null; // never on fetch/XHR
   if (!(await getTeamMember())) return null; // only active team members may preview
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const admin = createAdminClient() as any;
@@ -61,15 +58,18 @@ export async function requireTeamApi():
   return { ok: true, member };
 }
 
-export async function getPortalUser(): Promise<PortalUser | null> {
+export async function getPortalUser(opts: { allowPreview?: boolean } = {}): Promise<PortalUser | null> {
+  const { allowPreview = true } = opts;
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return null;
 
-  // Admin previewing a member's portal (read-only). Resolved before the normal
-  // contact lookup; safe because it only triggers on page/iframe navigations.
-  const preview = await viewAsPreviewUser(user.id).catch(() => null);
-  if (preview) return preview;
+  // Admin previewing a member's portal (read-only). Reads honour it; writes pass
+  // allowPreview:false so a mutation never runs as the previewed member.
+  if (allowPreview) {
+    const preview = await viewAsPreviewUser(user.id).catch(() => null);
+    if (preview) return preview;
+  }
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const admin = createAdminClient() as any;
@@ -92,7 +92,8 @@ export async function getPortalUser(): Promise<PortalUser | null> {
 
 export async function requirePortalApi():
   Promise<{ ok: true; user: PortalUser } | { ok: false; res: NextResponse }> {
-  const user = await getPortalUser();
+  // Never impersonate on the shared API guard — writes act as the real user.
+  const user = await getPortalUser({ allowPreview: false });
   if (!user) return { ok: false, res: NextResponse.json({ error: "Unauthorized" }, { status: 401 }) };
   return { ok: true, user };
 }
