@@ -28,6 +28,10 @@ const PENDING_OPTIONAL = ["role_ids"];
 export async function POST(request: NextRequest) {
   const client = createAdminClient();
   const body = await request.json();
+  // The "Role (job title)" is an optional free-text label. Empty → null so it
+  // doesn't trip the legacy team_members_role_check enum constraint (which allows
+  // null but not ""). Free-text titles still need that constraint dropped (042).
+  if (typeof body.role === "string" && body.role.trim() === "") body.role = null;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const run = (payload: Record<string, unknown>) => (client as any).from("team_members").insert(payload).select().single();
   let { data, error } = await run(body);
