@@ -81,16 +81,20 @@ export async function GET(request: NextRequest) {
     return Response.json({ files: images, recursive: true });
   }
 
-  // ── Single-folder mode (folder browsing)
-  const { data, error } = await admin.storage
-    .from(BUCKET)
-    .list(folder, { limit: 1000, sortBy: { column: "name", order: "asc" } });
-
-  if (error) {
-    return Response.json({ error: error.message }, { status: 500 });
+  // ── Single-folder mode (folder browsing). Page through so >1000 photos aren't
+  // truncated; sort naturally by filename ("…-2" before "…-10").
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const all: any[] = [];
+  const PAGE = 1000;
+  for (let offset = 0; ; offset += PAGE) {
+    const { data, error } = await admin.storage.from(BUCKET).list(folder, { limit: PAGE, offset });
+    if (error) return Response.json({ error: error.message }, { status: 500 });
+    all.push(...(data || []));
+    if (!data || data.length < PAGE) break;
   }
+  all.sort((a, b) => String(a.name).localeCompare(String(b.name), undefined, { numeric: true, sensitivity: "base" }));
 
-  const files: ListedFile[] = (data || [])
+  const files: ListedFile[] = all
     .filter((item) => item.name !== ".emptyFolderPlaceholder")
     .map((item) => {
       const path = folder ? `${folder}/${item.name}` : item.name;

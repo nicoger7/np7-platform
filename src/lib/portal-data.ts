@@ -482,12 +482,19 @@ export async function getTripGallery(experienceId: string): Promise<string[]> {
 async function listAssetFolder(folder: string): Promise<string[]> {
   const admin = createAdminClient();
   const base = `${process.env.NEXT_PUBLIC_SUPABASE_URL}/storage/v1/object/public/assets`;
-  const { data } = await admin.storage.from("assets").list(folder, { limit: 200 });
-  return (data ?? [])
-    .filter((f) => f.id && f.name !== ".emptyFolderPlaceholder")
-    // Encode the filename — trip photos often have spaces ("NP7 Experience-1.jpg"),
-    // which break <img>/CSS url() loading otherwise.
-    .map((f) => `${base}/${folder}/${encodeURIComponent(f.name)}`);
+  // Page through so trips with >1000 photos aren't truncated (was capped at 200).
+  const names: string[] = [];
+  const PAGE = 1000;
+  for (let offset = 0; ; offset += PAGE) {
+    const { data } = await admin.storage.from("assets").list(folder, { limit: PAGE, offset });
+    for (const f of data ?? []) if (f.id && f.name !== ".emptyFolderPlaceholder") names.push(f.name);
+    if (!data || data.length < PAGE) break;
+  }
+  // Natural alphabetical by filename (so "…-2" comes before "…-10").
+  names.sort((a, b) => a.localeCompare(b, undefined, { numeric: true, sensitivity: "base" }));
+  // Encode the filename — trip photos often have spaces ("NP7 Experience-1.jpg"),
+  // which break <img>/CSS url() loading otherwise.
+  return names.map((n) => `${base}/${folder}/${encodeURIComponent(n)}`);
 }
 
 /** Whole-week "everyone" photos, from storage assets/memories/{editionId}/.
