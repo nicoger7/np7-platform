@@ -145,17 +145,25 @@ export function YourLevel({ detail }: { detail: MemberLevelDetail }) {
 
       {/* ── self-rate + consent (compact footer) ── */}
       <div className="mt-5 pt-5 border-t border-[#f3ede2]">
-        <div className="flex flex-wrap items-center gap-2.5">
-          <span className="text-[12px] font-bold tracking-[0.06em] uppercase text-[#9aa6ac]">Rate yourself</span>
-          <select className="px-3 py-2 rounded-lg border border-[#dde6e9] text-[14px] text-[#00374a] outline-none focus:border-[#00afdb]" value={selfLevel} onChange={(e) => setSelfLevel(e.target.value)} disabled={verified && consent}>
-            <option value="">Select…</option>
-            {LEVELS.map((l) => <option key={l} value={l}>{l}</option>)}
-          </select>
-          <button disabled={busy} onClick={async () => { if (await call({ self_level: selfLevel })) setStatus("self"); }} className="px-4 py-2 rounded-full text-[13px] font-bold text-white bg-[#00afdb] hover:bg-[#15c0ec] disabled:opacity-60">Save</button>
-          {saved && <span className="text-[13px] font-semibold text-green-700">Saved ✓</span>}
-          {err && <span className="text-[13px] font-semibold text-[#c4621a]">{err}</span>}
-        </div>
-        <label className="flex items-start gap-2.5 mt-3 cursor-pointer">
+        {/* Self-rating is only for riders who haven't been on a trip yet; after the
+            first experience the level is set & verified by coaches. */}
+        {detail.hasAttended ? (
+          <p className="text-[13px] text-[#6a7a80] leading-relaxed mb-3">
+            Now that you&apos;ve been on a trip, your level is <span className="font-semibold text-[#00374a]">set &amp; verified by your coaches</span> — no more self-rating.
+          </p>
+        ) : (
+          <div className="flex flex-wrap items-center gap-2.5 mb-3">
+            <span className="text-[12px] font-bold tracking-[0.06em] uppercase text-[#9aa6ac]">Rate yourself</span>
+            <select className="px-3 py-2 rounded-lg border border-[#dde6e9] text-[14px] text-[#00374a] outline-none focus:border-[#00afdb]" value={selfLevel} onChange={(e) => setSelfLevel(e.target.value)} disabled={verified && consent}>
+              <option value="">Select…</option>
+              {LEVELS.map((l) => <option key={l} value={l}>{l}</option>)}
+            </select>
+            <button disabled={busy} onClick={async () => { if (await call({ self_level: selfLevel })) setStatus("self"); }} className="px-4 py-2 rounded-full text-[13px] font-bold text-white bg-[#00afdb] hover:bg-[#15c0ec] disabled:opacity-60">Save</button>
+            {saved && <span className="text-[13px] font-semibold text-green-700">Saved ✓</span>}
+            {err && <span className="text-[13px] font-semibold text-[#c4621a]">{err}</span>}
+          </div>
+        )}
+        <label className="flex items-start gap-2.5 cursor-pointer">
           <input type="checkbox" checked={consent} className="mt-0.5 w-4 h-4 accent-[#00afdb]"
             onChange={(e) => { setConsent(e.target.checked); call({ coach_can_manage_level: e.target.checked }).then((ok) => { if (ok && e.target.checked && coachLevel) setStatus("verified"); }); }} />
           <span className="text-[13px] text-[#6a7a80] leading-relaxed">Let my coach set &amp; verify my level — I trust their call, no need to confirm each change.</span>

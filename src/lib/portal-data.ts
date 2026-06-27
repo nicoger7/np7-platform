@@ -319,6 +319,8 @@ export type MemberLevelDetail = {
   self_level: string | null; coach_level: string | null; level_status: string | null;
   coach_can_manage_level: boolean; suggested: string | null;
   milestones: LevelMilestone[]; history: LevelHistoryEntry[];
+  /** True once they've been on a trip — after that the level is coach-set only. */
+  hasAttended: boolean;
 };
 
 /** Active milestone catalog (short `label` + full `description`). Tolerant:
@@ -371,7 +373,19 @@ export async function getMemberLevelDetail(contactId: string): Promise<MemberLev
     new Set(milestones.filter((m) => m.achieved).map((m) => m.id))
   );
 
-  return { self_level, coach_level, level_status, coach_can_manage_level, suggested, milestones, history };
+  // Has the rider been on a trip yet? "attended" status, or a committed booking
+  // whose trip has ended. After the first, self-rating is off (coach-set only).
+  const today = new Date().toISOString().slice(0, 10);
+  const bk = await db.from("exp_bookings").select("status, exp_editions(date_end)").eq("contact_id", contactId);
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const hasAttended = ((bk.data ?? []) as any[]).some((b) => {
+    const st = String(b.status || "").toLowerCase();
+    if (st.includes("attend")) return true;
+    const end = b.exp_editions?.date_end as string | null;
+    return !!end && end < today && !/lost|cancel|lead/.test(st);
+  });
+
+  return { self_level, coach_level, level_status, coach_can_manage_level, suggested, milestones, history, hasAttended };
 }
 
 export type CatalogMilestone = { id: string; key: string; label: string; description: string | null; tier: string; sort_order: number };

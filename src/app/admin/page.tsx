@@ -60,6 +60,15 @@ const STATUS_COLOR: Record<string, string> = {
 export default function AdminDashboard() {
   const [d, setD] = useState<DashboardData | null>(null);
   const [loading, setLoading] = useState(true);
+  // Privacy toggle (like a banking app) — mask the € figures. Persisted per-browser.
+  // Safe lazy init: window guard for SSR, and money only renders after the loading gate.
+  const [hideMoney, setHideMoney] = useState<boolean>(() => {
+    if (typeof window === "undefined") return false;
+    try { return localStorage.getItem("np7-admin-hide-money") === "1"; } catch { return false; }
+  });
+  function toggleHideMoney() {
+    setHideMoney((v) => { const n = !v; try { localStorage.setItem("np7-admin-hide-money", n ? "1" : "0"); } catch { /* ignore */ } return n; });
+  }
 
   useEffect(() => {
     fetch("/api/admin/dashboard").then((r) => r.json()).then((data) => { setD(data); setLoading(false); });
@@ -68,6 +77,9 @@ export default function AdminDashboard() {
   if (loading || !d) {
     return <div className="flex items-center justify-center h-64"><p className="text-sm admin-faint">Loading dashboard…</p></div>;
   }
+
+  // Mask money everywhere on the dashboard when the eye is toggled off.
+  const amt = (n: number | null | undefined) => (hideMoney ? "€ ••••" : money(n));
 
   const photoTasks = d.photoTasks ?? [];
   const contentGaps = d.contentGaps ?? [];
@@ -111,7 +123,23 @@ export default function AdminDashboard() {
 
   return (
     <div>
-      <h1 className="text-2xl font-bold admin-heading mb-6">Dashboard</h1>
+      <div className="flex items-center justify-between mb-6">
+        <h1 className="text-2xl font-bold admin-heading">Dashboard</h1>
+        <button
+          onClick={toggleHideMoney}
+          title={hideMoney ? "Show amounts" : "Hide amounts"}
+          aria-pressed={hideMoney}
+          className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors admin-muted"
+          style={{ border: "1px solid var(--admin-border)" }}
+        >
+          {hideMoney ? (
+            <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M9.88 9.88a3 3 0 1 0 4.24 4.24M10.73 5.08A10.43 10.43 0 0 1 12 5c7 0 10 7 10 7a13.16 13.16 0 0 1-1.67 2.68M6.61 6.61A13.5 13.5 0 0 0 2 12s3 7 10 7a9.74 9.74 0 0 0 5.39-1.61M2 2l20 20" /></svg>
+          ) : (
+            <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7z" /><circle cx="12" cy="12" r="3" /></svg>
+          )}
+          {hideMoney ? "Show €" : "Hide €"}
+        </button>
+      </div>
 
       {/* Counters */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-4">
@@ -124,7 +152,7 @@ export default function AdminDashboard() {
       {/* Finance + ops cards — hidden for restricted (no-money) roles. */}
       {!slim && (
         <div className="grid grid-cols-2 lg:grid-cols-3 gap-4 mb-6">
-          {d.finance && <StatCard label="Open revenue" value={money(d.finance.openRevenue)} href="/admin/payments" accent />}
+          {d.finance && <StatCard label="Open revenue" value={amt(d.finance.openRevenue)} href="/admin/payments" accent />}
           {d.finance && <StatCard label="Unmatched payments" value={d.finance.unmatchedPayments} href="/admin/payments" />}
           <StatCard label="Overdue to-dos" value={d.overdueTodos} href="/admin/todos" />
           <StatCard label="Pending add-ons" value={d.pendingAddons.length} accent={d.pendingAddons.length > 0} />
@@ -144,7 +172,7 @@ export default function AdminDashboard() {
                 <Link key={a.id} href={`/admin/bookings/${a.bookingId}?tab=addons`} className="flex items-center gap-3 text-xs py-1.5 px-2 -mx-2 rounded-lg hover:bg-[var(--admin-surface-hover)]">
                   <span className="flex-1 admin-heading truncate">{a.bookingName} <span className="admin-faint">· {a.label}</span></span>
                   <span className="shrink-0 text-[9px] font-bold uppercase px-1.5 py-0.5 rounded bg-amber-500/15 text-amber-500">Requested</span>
-                  <span className="admin-muted w-16 text-right">{money(a.price)}</span>
+                  <span className="admin-muted w-16 text-right">{amt(a.price)}</span>
                 </Link>
               ))}
             </div>
@@ -161,7 +189,7 @@ export default function AdminDashboard() {
                   <span className="flex-1 admin-heading truncate">{b.name || "Untitled"}</span>
                   <span className="admin-faint truncate hidden sm:block max-w-[120px]">{b.exp_experiences?.title || ""}</span>
                   <span className={`${STATUS_COLOR[normalizeBookingStatus(b.status)] || "admin-muted"} w-24 text-right`}>{BOOKING_STATUS_LABELS[normalizeBookingStatus(b.status)]}</span>
-                  <span className="admin-muted w-16 text-right">{money(b.agreed_price)}</span>
+                  <span className="admin-muted w-16 text-right">{amt(b.agreed_price)}</span>
                 </Link>
               ))}
             </div>
