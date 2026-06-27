@@ -148,7 +148,7 @@ function MembersInner() {
             <button onClick={() => act("invite", m.id, "Login link sent")} disabled={!!busy} className="text-[11px] font-semibold text-[#0aa3c7] hover:underline disabled:opacity-50">Resend link</button>
             {m.banned
               ? <button onClick={() => act("reactivate", m.id, "Reactivated")} disabled={!!busy} className="text-[11px] font-semibold text-green-500 hover:underline disabled:opacity-50">Reactivate</button>
-              : <button onClick={() => act("deactivate", m.id, "Deactivated")} disabled={!!busy} className="text-[11px] font-semibold text-red-400 hover:underline disabled:opacity-50">Deactivate</button>}
+              : <button onClick={() => { if (confirm(`Deactivate ${m.name || "this member"}'s account?\n\nThey'll be signed out and lose access to the trip portal until you reactivate them.`)) act("deactivate", m.id, "Deactivated"); }} disabled={!!busy} className="text-[11px] font-semibold text-red-400 hover:underline disabled:opacity-50">Deactivate</button>}
           </>
         ) : (
           <button onClick={() => act("invite", m.id, "Invite sent")} disabled={!!busy || !m.email}
