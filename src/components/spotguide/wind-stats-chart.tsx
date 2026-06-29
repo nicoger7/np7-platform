@@ -1,21 +1,41 @@
+"use client";
+
+import { useState } from "react";
 import { BFT_META, MONTH_LABELS, type WindStats } from "@/lib/wind-stats";
 
+/** Longest contiguous run of windy months on the 12-month circle → "Jun–Sep". */
+function seasonLabel(windy: number[]): string | null {
+  if (windy.length === 0) return null;
+  if (windy.length >= 11) return "Year-round";
+  const set = new Set(windy);
+  let bestStart = windy[0], bestLen = 0;
+  for (const s of windy) {
+    if (set.has((s - 2 + 12) % 12 + 1)) continue; // not a run start
+    let len = 0, cur = s;
+    while (set.has(cur)) { len++; cur = (cur % 12) + 1; }
+    if (len > bestLen) { bestLen = len; bestStart = s; }
+  }
+  const end = ((bestStart - 1 + bestLen - 1) % 12) + 1;
+  return bestLen === 1 ? MONTH_LABELS[bestStart - 1] : `${MONTH_LABELS[bestStart - 1]}–${MONTH_LABELS[end - 1]}`;
+}
+
 /**
- * Windguru-style monthly wind statistics. Each month is a stacked bar; from the
- * bottom up the bands are the strongest-wind share first (7+ Bft) to lightest
- * (3+ Bft), so the coloured boundaries read as cumulative "% of daytime hours
- * with at least this much wind". The total bar height = % of hours ≥ 3 Bft.
+ * Wind statistics, the NP7 way — a cleaner take on Windguru's monthly bars.
+ * Stacked cumulative Beaufort bands (strongest at the bottom), a real % axis,
+ * a hover read-out per month, and a plain-English "best wind / warmest" summary
+ * the raw Windguru chart never gives you.
  */
-export function WindStatsChart({ stats, compact = false }: { stats: WindStats; compact?: boolean }) {
-  const H = compact ? 130 : 168;
-  // Band boundaries from bottom: 7+ (p7), 6+ (p6) … 3+ (p3). Heights = differences.
+export function WindStatsChart({ stats, compact = false, accent = "#00afdb" }: { stats: WindStats; compact?: boolean; accent?: string }) {
+  const [hi, setHi] = useState<number | null>(null);
+  const H = compact ? 130 : 176;
+  const season = seasonLabel(stats.summary?.windyMonths ?? []);
+  const warm = stats.summary?.warmestMonth;
+
   const bands = (m: WindStats["months"][number]) => {
     const p = (b: number) => m.pct[String(b)] ?? 0;
-    const order = [7, 6, 5, 4, 3]; // bottom → top
     let base = 0;
-    return order.map((b) => {
-      const cum = p(b);                 // cumulative % ≥ this Bft
-      const seg = Math.max(cum - base, 0);
+    return [7, 6, 5, 4, 3].map((b) => {
+      const cum = p(b), seg = Math.max(cum - base, 0);
       const band = { bft: b, bottom: base, height: seg, cum, color: BFT_META.find((x) => x.bft === b)!.color };
       base = cum;
       return band;
@@ -24,30 +44,85 @@ export function WindStatsChart({ stats, compact = false }: { stats: WindStats; c
 
   return (
     <div>
-      <div className="flex items-end gap-1 sm:gap-1.5">
+      {/* smart summary */}
+      {!compact && (season || warm) && (
+        <div className="flex flex-wrap gap-2 mb-3">
+          {season && (
+            <span className="inline-flex items-center gap-1.5 text-[12.5px] font-bold text-[#00374a] bg-white border border-[#ece3d3] rounded-full px-3 py-1">
+              <span className="w-2 h-2 rounded-full" style={{ background: accent }} />Best wind · {season}
+            </span>
+          )}
+          {warm != null && stats.summary?.warmestTemp != null && (
+            <span className="inline-flex items-center gap-1.5 text-[12.5px] font-bold text-[#00374a] bg-white border border-[#ece3d3] rounded-full px-3 py-1">
+              ☀ Warmest · {MONTH_LABELS[warm - 1]} {stats.summary.warmestTemp}°
+            </span>
+          )}
+        </div>
+      )}
+
+      <div className="flex gap-2">
+        {/* y-axis */}
+        <div className="relative shrink-0 w-6" style={{ height: H }}>
+          {[100, 75, 50, 25, 0].map((v) => (
+            <span key={v} className="absolute right-0 -translate-y-1/2 text-[9px] font-semibold text-[#b3a994]" style={{ top: `${100 - v}%` }}>{v}</span>
+          ))}
+        </div>
+
+        {/* plot */}
+        <div className="relative flex-1 min-w-0" style={{ height: H }}>
+          {[0, 25, 50, 75, 100].map((v) => (
+            <div key={v} className="absolute left-0 right-0 border-t border-dashed border-[#ece3d3]" style={{ top: `${100 - v}%` }} />
+          ))}
+          <div className="absolute inset-0 flex items-end gap-[3px] sm:gap-1.5">
+            {stats.months.map((m) => {
+              const on = hi === m.m;
+              return (
+                <button key={m.m} type="button" onMouseEnter={() => setHi(m.m)} onMouseLeave={() => setHi(null)} onFocus={() => setHi(m.m)} onClick={() => setHi(on ? null : m.m)}
+                  className="relative flex-1 h-full rounded-t-md overflow-hidden bg-[#f1f4f5] transition-[filter] cursor-default" style={{ filter: on ? "saturate(1.2)" : hi ? "saturate(0.7) opacity(0.75)" : "none" }}>
+                  {bands(m).map((b) => b.height > 0 && (
+                    <span key={b.bft} className="absolute left-0 right-0" style={{ bottom: `${b.bottom}%`, height: `${b.height}%`, backgroundColor: b.color, boxShadow: "inset 0 1px 0 rgba(255,255,255,0.55)" }} />
+                  ))}
+                </button>
+              );
+            })}
+          </div>
+
+          {/* hover read-out */}
+          {hi != null && (() => {
+            const m = stats.months[hi - 1];
+            return (
+              <div className="absolute -top-1 left-1/2 -translate-x-1/2 -translate-y-full z-10 w-[150px] rounded-lg bg-[#00374a] text-white p-2.5 shadow-lg pointer-events-none">
+                <div className="flex items-center justify-between text-[11px] font-bold mb-1.5"><span>{MONTH_LABELS[hi - 1]}</span><span className="text-white/70">{m.avgWind} kn avg{m.airTemp != null ? ` · ${m.airTemp}°` : ""}</span></div>
+                {[3, 4, 5, 6, 7].map((b) => (
+                  <div key={b} className="flex items-center gap-1.5 text-[10.5px] leading-[1.5]">
+                    <span className="w-2 h-2 rounded-[2px]" style={{ backgroundColor: BFT_META.find((x) => x.bft === b)!.color }} />
+                    <span className="text-white/70">{b}+ Bft</span><span className="ml-auto font-semibold">{m.pct[String(b)] ?? 0}%</span>
+                  </div>
+                ))}
+              </div>
+            );
+          })()}
+        </div>
+      </div>
+
+      {/* month labels */}
+      <div className="flex gap-[3px] sm:gap-1.5 mt-1.5 pl-8">
         {stats.months.map((m) => (
-          <div key={m.m} className="flex-1 min-w-0">
-            <div className="relative w-full" style={{ height: H }}>
-              {bands(m).map((b) => (
-                b.height > 0 && (
-                  <div key={b.bft} className="absolute left-0 right-0 rounded-[2px]"
-                    style={{ bottom: `${b.bottom}%`, height: `${b.height}%`, backgroundColor: b.color }}
-                    title={`${b.cum}% ≥ ${b.bft} Bft`} />
-                )
-              ))}
-            </div>
-            <div className="text-center text-[10px] sm:text-[11px] font-bold text-[#6a7a80] mt-1">{MONTH_LABELS[m.m - 1]}</div>
-            {!compact && m.airTemp != null && <div className="text-center text-[10px] text-[#b0a890]">{m.airTemp}°</div>}
+          <div key={m.m} className="flex-1 text-center">
+            <div className={`text-[9.5px] sm:text-[10.5px] font-bold ${hi === m.m ? "text-[#00374a]" : "text-[#9aa6ac]"}`}>{MONTH_LABELS[m.m - 1][0]}</div>
+            {!compact && m.airTemp != null && <div className="text-[9px] text-[#c3b9a6]">{m.airTemp}°</div>}
           </div>
         ))}
       </div>
+
+      {/* legend */}
       <div className="flex flex-wrap items-center gap-x-3 gap-y-1 mt-3">
         {BFT_META.map((b) => (
           <span key={b.bft} className="inline-flex items-center gap-1.5 text-[11px] font-semibold text-[#5a6b72]">
             <span className="w-3 h-3 rounded-[3px]" style={{ backgroundColor: b.color }} />{b.label}
           </span>
         ))}
-        <span className="text-[11px] text-[#9aa6ac] ml-auto">% of daytime hours · {stats.source}</span>
+        <span className="text-[10.5px] text-[#9aa6ac] ml-auto">% of sailing hours (09–18) · {stats.source}</span>
       </div>
     </div>
   );

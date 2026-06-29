@@ -35,28 +35,51 @@ export type WindStats = {
   source: string; unit: "kn"; window: string;
   period: { start: string; end: string };
   months: WindStatsMonth[];
+  /** Smart readout the bar chart shows above itself. */
+  summary: { windyMonths: number[]; warmestMonth: number | null; warmestTemp: number | null };
   fetchedAt: string;
 };
 
-/** Compute monthly wind climatology for a coordinate. ~10 years, 09–18 local. */
-export async function fetchWindStats(lat: number, lng: number): Promise<WindStats> {
-  const end = new Date();
-  end.setDate(1); end.setDate(0); // last day of previous month
-  const endStr = end.toISOString().slice(0, 10);
-  const startStr = `${end.getFullYear() - 10}-01-01`;
+type Hourly = { time: string[]; wind: (number | null)[]; temp: (number | null)[] };
 
-  const url =
-    `https://archive-api.open-meteo.com/v1/archive?latitude=${lat}&longitude=${lng}` +
-    `&start_date=${startStr}&end_date=${endStr}` +
-    `&hourly=wind_speed_10m,temperature_2m&wind_speed_unit=kn&timezone=auto`;
-
+async function fetchHourly(url: string): Promise<Hourly | null> {
   const res = await fetch(url, { headers: { accept: "application/json" } });
-  if (!res.ok) throw new Error(`Open-Meteo ${res.status}`);
+  if (!res.ok) return null;
   const j = (await res.json()) as { hourly?: { time?: string[]; wind_speed_10m?: (number | null)[]; temperature_2m?: (number | null)[] } };
   const time = j.hourly?.time ?? [];
-  const wind = j.hourly?.wind_speed_10m ?? [];
-  const temp = j.hourly?.temperature_2m ?? [];
-  if (time.length === 0) throw new Error("No data for this location");
+  if (time.length === 0) return null;
+  return { time, wind: j.hourly?.wind_speed_10m ?? [], temp: j.hourly?.temperature_2m ?? [] };
+}
+
+const HOURLY = "hourly=wind_speed_10m,temperature_2m&wind_speed_unit=kn&timezone=auto";
+
+/**
+ * Monthly wind climatology for a coordinate. Prefers Open-Meteo's archived
+ * HIGH-RESOLUTION forecast (best-match model per location — the same family of
+ * models a windsurfer reads, so it tracks a spot far better than coarse
+ * reanalysis), ~3.5 years; falls back to the 10-year ERA5 archive if that's
+ * unavailable. Counts the daytime sailing window (09–18 local).
+ */
+export async function fetchWindStats(lat: number, lng: number): Promise<WindStats> {
+  const end = new Date();
+  end.setDate(0); // last day of previous month
+  const endStr = end.toISOString().slice(0, 10);
+  const coord = `latitude=${lat}&longitude=${lng}`;
+
+  // 1) High-res historical forecast (best match), recent multi-year window.
+  const hiStart = `${end.getFullYear() - 3}-01-01`;
+  let data = await fetchHourly(`https://historical-forecast-api.open-meteo.com/v1/forecast?${coord}&start_date=${hiStart}&end_date=${endStr}&${HOURLY}&models=best_match`).catch(() => null);
+  let source = "Open-Meteo · high-res (best match)";
+  let startStr = hiStart;
+
+  // 2) Fallback: 10-year ERA5 reanalysis.
+  if (!data || data.time.length < 24 * 120) {
+    startStr = `${end.getFullYear() - 10}-01-01`;
+    data = await fetchHourly(`https://archive-api.open-meteo.com/v1/archive?${coord}&start_date=${startStr}&end_date=${endStr}&${HOURLY}`);
+    source = "Open-Meteo · ERA5 (10-yr)";
+  }
+  if (!data) throw new Error("No wind data for this location");
+  const { time, wind, temp } = data;
 
   const acc = Array.from({ length: 12 }, () => ({ total: 0, ge: { 3: 0, 4: 0, 5: 0, 6: 0, 7: 0 } as Record<number, number>, windSum: 0, tempSum: 0, tempN: 0 }));
   for (let k = 0; k < time.length; k++) {
@@ -79,5 +102,13 @@ export async function fetchWindStats(lat: number, lng: number): Promise<WindStat
     airTemp: a.tempN ? Math.round(a.tempSum / a.tempN) : null,
   }));
 
-  return { source: "Open-Meteo · ERA5", unit: "kn", window: "09–18 local", period: { start: startStr, end: endStr }, months, fetchedAt: new Date().toISOString() };
+  // The "season": months where planing wind (4+ Bft) shows ≥ 60% of sailing hours.
+  const windyMonths = months.filter((m) => (m.pct["4"] ?? 0) >= 60).map((m) => m.m);
+  let warmestMonth: number | null = null, warmestTemp: number | null = null;
+  for (const m of months) if (m.airTemp != null && (warmestTemp == null || m.airTemp > warmestTemp)) { warmestTemp = m.airTemp; warmestMonth = m.m; }
+
+  return {
+    source, unit: "kn", window: "09–18 local", period: { start: startStr, end: endStr },
+    months, summary: { windyMonths, warmestMonth, warmestTemp }, fetchedAt: new Date().toISOString(),
+  };
 }
