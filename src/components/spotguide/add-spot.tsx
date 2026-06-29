@@ -1,0 +1,81 @@
+"use client";
+
+import { useState } from "react";
+import { useSpotguide } from "./spotguide-provider";
+import { LEVELS, CONDITIONS, INFRASTRUCTURE_TAGS } from "@/lib/spotguide";
+
+/** Member "add a spot" form. Submits within our structure → lands pending,
+    goes public once 3 members confirm (or NP7 verifies). */
+export function AddSpot({ destId, destName, accent = "#00afdb" }: { destId: string; destName: string; accent?: string }) {
+  const sg = useSpotguide();
+  const [open, setOpen] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [done, setDone] = useState(false);
+  const [error, setError] = useState("");
+  const [f, setF] = useState({ name: "", summary: "", description: "", level: "", coords: "", conditions: [] as string[], infrastructure: [] as string[] });
+
+  function toggle(list: "conditions" | "infrastructure", v: string) {
+    setF((p) => ({ ...p, [list]: p[list].includes(v) ? p[list].filter((x) => x !== v) : [...p[list], v] }));
+  }
+
+  async function submit() {
+    if (f.name.trim().length < 2) { setError("Give the spot a name."); return; }
+    setBusy(true); setError("");
+    const res = await fetch("/api/portal/spotguide/spots", {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ destination_id: destId, ...f }),
+    });
+    setBusy(false);
+    if (res.ok) { setDone(true); setOpen(false); }
+    else { const j = await res.json().catch(() => ({})); setError(j.error ?? "Could not submit."); }
+  }
+
+  if (done) return <div className="rounded-2xl border border-[#cdeede] bg-[#f0faf4] p-5 text-[14px] text-[#1f7a4d] font-semibold">Thanks — your spot is in for verification. Once a few members confirm it, it goes live for everyone. 🤙</div>;
+
+  if (!open) {
+    return (
+      <button onClick={() => (sg.loggedIn ? setOpen(true) : sg.needAuth())}
+        className="w-full rounded-2xl border-2 border-dashed p-5 text-left transition-colors hover:bg-white"
+        style={{ borderColor: "#e2d8c6" }}>
+        <span className="text-[15px] font-extrabold text-[#00374a]">Know a spot in {destName} we&apos;re missing?</span>
+        <span className="block text-[13px] text-[#6a7a80] mt-0.5">{sg.loggedIn ? "Add it — other members verify it before it goes public." : "Sign up (seconds) to add a spot — members verify it before it goes public."}</span>
+      </button>
+    );
+  }
+
+  const input = "w-full px-3.5 py-2.5 rounded-lg border border-[#e2d8c6] text-[14px] text-[#00374a] outline-none focus:border-[#9aa6ac] bg-white";
+  const chip = (on: boolean) => `px-3 py-1.5 rounded-full text-[12.5px] font-semibold transition-colors ${on ? "text-white" : "text-[#5a6b72] border border-[#e2d8c6]"}`;
+
+  return (
+    <div className="rounded-2xl border border-[#ece3d3] bg-white p-5 space-y-3">
+      <p className="text-[15px] font-extrabold text-[#00374a]">Add a spot in {destName}</p>
+      <input className={input} placeholder="Spot name *" value={f.name} onChange={(e) => setF({ ...f, name: e.target.value })} autoFocus />
+      <input className={input} placeholder="One-line summary" value={f.summary} onChange={(e) => setF({ ...f, summary: e.target.value })} />
+      <textarea className={`${input} min-h-[80px] resize-y`} placeholder="What's it like here — wind, water, launch, hazards…" value={f.description} onChange={(e) => setF({ ...f, description: e.target.value })} />
+      <div className="grid grid-cols-2 gap-3">
+        <select className={input} value={f.level} onChange={(e) => setF({ ...f, level: e.target.value })}>
+          <option value="">Level…</option>{LEVELS.map((l) => <option key={l} value={l}>{l}</option>)}
+        </select>
+        <input className={input} placeholder="Coords (lat, lng)" value={f.coords} onChange={(e) => setF({ ...f, coords: e.target.value })} />
+      </div>
+      <div>
+        <p className="text-[11px] font-bold uppercase tracking-wide text-[#9aa6ac] mb-1.5">Conditions</p>
+        <div className="flex flex-wrap gap-1.5">
+          {CONDITIONS.map((c) => <button key={c.key} onClick={() => toggle("conditions", c.key)} className={chip(f.conditions.includes(c.key))} style={f.conditions.includes(c.key) ? { backgroundColor: accent } : undefined}>{c.label}</button>)}
+        </div>
+      </div>
+      <div>
+        <p className="text-[11px] font-bold uppercase tracking-wide text-[#9aa6ac] mb-1.5">On site</p>
+        <div className="flex flex-wrap gap-1.5">
+          {INFRASTRUCTURE_TAGS.map((t) => <button key={t} onClick={() => toggle("infrastructure", t)} className={chip(f.infrastructure.includes(t))} style={f.infrastructure.includes(t) ? { backgroundColor: accent } : undefined}>{t}</button>)}
+        </div>
+      </div>
+      {error && <p className="text-[12.5px] text-red-500">{error}</p>}
+      <div className="flex items-center gap-3 pt-1">
+        <button onClick={submit} disabled={busy} className="px-5 py-2.5 rounded-full text-[13.5px] font-bold text-white disabled:opacity-50" style={{ backgroundColor: accent }}>{busy ? "Submitting…" : "Submit spot"}</button>
+        <button onClick={() => setOpen(false)} className="text-[13px] font-semibold text-[#6a7a80]">Cancel</button>
+        <span className="ml-auto text-[11px] text-[#9aa6ac]">Verified by members before it&apos;s public</span>
+      </div>
+    </div>
+  );
+}

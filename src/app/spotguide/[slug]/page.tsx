@@ -13,6 +13,8 @@ import { SpotsList } from "@/components/spotguide/spots-list";
 import { SpotguideProvider } from "@/components/spotguide/spotguide-provider";
 import { CriteriaRater } from "@/components/spotguide/raters";
 import { MeteredContent } from "@/components/spotguide/metered-content";
+import { AddSpot } from "@/components/spotguide/add-spot";
+import { VerifySpots } from "@/components/spotguide/verify-spots";
 import { flags } from "@/lib/flags";
 
 type Props = { params: Promise<{ slug: string }> };
@@ -97,6 +99,13 @@ export default async function SpotguideDestinationPage({ params }: Props) {
                   <SpotsList spots={d.spots} accent={chrome.accent} />
                 </MeteredContent>
               )}
+            </section>
+
+            {/* Community: verify pending member spots, then add your own */}
+            <VerifySpots destId={d.id} accent={chrome.accent} />
+            <section>
+              <h2 className="text-[13px] font-black uppercase tracking-[0.14em] text-[#9aa6ac] mb-3">Contribute</h2>
+              <AddSpot destId={d.id} destName={d.name} accent={chrome.accent} />
             </section>
           </div>
         </SpotguideProvider>
