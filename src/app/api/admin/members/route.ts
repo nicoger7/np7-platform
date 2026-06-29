@@ -12,7 +12,7 @@ export async function GET() {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const admin = createAdminClient() as any;
   const [{ data: contacts }, { data: bookings }, usersRes] = await Promise.all([
-    admin.from("contacts").select("id,name,email,auth_user_id,created_at,marketing_opt_in").order("name"),
+    admin.from("contacts").select("id,name,email,auth_user_id,created_at,marketing_opt_in").is("archived_at", null).order("name"),
     admin.from("exp_bookings").select("contact_id, status, experience_id, exp_experiences(id,title)"),
     admin.auth.admin.listUsers({ perPage: 1000 }),
   ]);
