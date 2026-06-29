@@ -10,6 +10,7 @@ import { WindRose, WindRoseLegend } from "./wind-rose";
 import { RatingHeadline, RatingBreakdown } from "./rating-panel";
 import { ForecastPanel } from "./forecast-panel";
 import { CriteriaRater, ForecastVoter } from "./raters";
+import { WindStatsChart } from "./wind-stats-chart";
 
 /** Foldable list of a destination's spots. Collapsed = name + key chips +
     score; expanded = photo, wind rose, ratings, forecast, infrastructure. */
@@ -64,6 +65,13 @@ export function SpotsList({ spots, accent = "#00afdb" }: { spots: PublicSpot[]; 
                       <div className="text-[11px] font-bold uppercase tracking-[0.1em] text-[#9aa6ac] mb-2">Wind window</div>
                       <div className="flex items-center gap-4"><WindRose window={spot.wind_window} /><WindRoseLegend /></div>
                     </div>
+                  </div>
+                )}
+
+                {spot.wind_stats && (
+                  <div className="rounded-xl bg-white border border-[#f0e9da] p-4">
+                    <div className="text-[11px] font-bold uppercase tracking-[0.1em] text-[#9aa6ac] mb-3">Wind statistics</div>
+                    <WindStatsChart stats={spot.wind_stats} />
                   </div>
                 )}
 

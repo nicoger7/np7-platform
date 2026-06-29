@@ -12,6 +12,7 @@ import {
   SPOT_CRITERIA_KEYS, DESTINATION_CRITERIA_KEYS,
   type RatingSummary, type ForecastTally,
 } from "@/lib/spotguide";
+import type { WindStats } from "@/lib/wind-stats";
 
 export type SpotguideDestinationCard = {
   id: string; name: string; slug: string | null; region: string | null; country: string | null;
@@ -26,6 +27,7 @@ export type PublicSpot = {
   infrastructure: string[]; np7_forecast_models: string[];
   hero_image: string | null; gallery: string[]; summary: string | null; description: string | null;
   np7_ratings: Record<string, number>; verification: string;
+  wind_stats: WindStats | null;
   np7: number; member: RatingSummary; forecast: ForecastTally[];
 };
 
@@ -111,6 +113,7 @@ export async function getSpotguideDestination(slug: string): Promise<SpotguideDe
     hero_image: (s.hero_image as string) ?? null, gallery: (s.gallery as string[]) ?? [],
     summary: (s.summary as string) ?? null, description: (s.description as string) ?? null,
     np7_ratings: (s.np7_ratings as Record<string, number>) ?? {}, verification: s.verification as string,
+    wind_stats: (s.wind_stats as WindStats) ?? null,
     np7: np7Overall(s.np7_ratings, SPOT_CRITERIA_KEYS),
     member: summariseRatings(ratingsBySpot.get(s.id as string) ?? [], SPOT_CRITERIA_KEYS),
     forecast: tallyForecastVotes(votesBySpot.get(s.id as string) ?? []),

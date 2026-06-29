@@ -12,6 +12,8 @@ import {
   VERIFICATION_META, type Verification,
   type RatingSummary, type ForecastTally,
 } from "@/lib/spotguide";
+import { WindStatsChart } from "@/components/spotguide/wind-stats-chart";
+import type { WindStats } from "@/lib/wind-stats";
 
 interface Spot {
   id: string; destination_id: string; name: string; slug: string | null;
@@ -22,6 +24,7 @@ interface Spot {
   summary: string | null; description: string | null;
   np7_ratings: Record<string, number> | null; source: string;
   status: string; verification: string;
+  wind_stats: WindStats | null; wind_stats_at: string | null;
 }
 interface Dest { id: string; name: string; slug: string | null }
 
@@ -37,6 +40,8 @@ export default function SpotEditor({ params }: { params: Promise<{ id: string }>
   const [loading, setLoading] = useState(true);
   const [saved, setSaved] = useState(false);
   const [picker, setPicker] = useState<null | "hero" | "gallery">(null);
+  const [computing, setComputing] = useState(false);
+  const [statsError, setStatsError] = useState("");
 
   useEffect(() => {
     fetch(`/api/admin/spots/${id}`).then((r) => r.json()).then((x) => {
@@ -67,6 +72,15 @@ export default function SpotEditor({ params }: { params: Promise<{ id: string }>
     if (!confirm("Delete this spot? This removes its ratings, votes and verifications too.")) return;
     await fetch(`/api/admin/spots/${id}`, { method: "DELETE" });
     router.push(dest ? `/admin/destinations/${dest.id}` : "/admin/destinations");
+  }
+
+  async function computeStats() {
+    setComputing(true); setStatsError("");
+    const res = await fetch(`/api/admin/spots/${id}/wind-stats`, { method: "POST" });
+    setComputing(false);
+    const j = await res.json().catch(() => ({}));
+    if (res.ok) setS((p) => (p ? { ...p, wind_stats: j.wind_stats, wind_stats_at: j.wind_stats_at } : p));
+    else setStatsError(j.error ?? "Could not compute.");
   }
 
   if (loading) return <div className="flex items-center justify-center h-64"><p className="text-sm admin-faint">Loading…</p></div>;
@@ -171,6 +185,25 @@ export default function SpotEditor({ params }: { params: Promise<{ id: string }>
         <div>
           <label className={labelClass}>Wind window <span className="admin-faint font-normal">(which directions work — click to cycle)</span></label>
           <Windrose value={s.wind_window ?? {}} onChange={(w) => set("wind_window", w)} />
+        </div>
+
+        {/* Wind statistics (Open-Meteo) */}
+        <div>
+          <div className="flex items-center justify-between mb-1">
+            <label className={labelClass}>Wind statistics <span className="admin-faint font-normal">(auto, from coordinates)</span></label>
+            <button onClick={computeStats} disabled={computing} className="text-xs font-bold text-[#0aa3c7] hover:underline disabled:opacity-50">
+              {computing ? "Computing… (~10s)" : s.wind_stats ? "Refresh" : "Compute from coordinates"}
+            </button>
+          </div>
+          {statsError && <p className="text-[11px] text-red-400 mb-1">{statsError}</p>}
+          {s.wind_stats ? (
+            <div className="rounded-xl p-4" style={{ border: "1px solid var(--admin-border)", backgroundColor: "var(--admin-surface)" }}>
+              <WindStatsChart stats={s.wind_stats} />
+              <p className="text-[10px] admin-faint mt-2">Updated {s.wind_stats_at ? new Date(s.wind_stats_at).toLocaleDateString() : "—"} · 10-yr ERA5, {s.wind_stats.window}</p>
+            </div>
+          ) : (
+            <p className="text-[11px] admin-faint">Set coordinates above, save, then compute — pulls ~10 years of wind from Open-Meteo (free).</p>
+          )}
         </div>
 
         {/* Forecast models */}
