@@ -5,6 +5,8 @@ const COLS = [
   "name", "slug", "region", "country", "hero_image", "tagline", "intro",
   "wind_probability", "wind_season", "wind_speed", "best_season", "conditions",
   "skill_levels", "gallery", "partners", "status", "sort_order",
+  // Spotguide (migration 062): rating track, level range, separate visibility, coords
+  "np7_ratings", "level_min", "level_max", "spotguide_status", "lat", "lng",
 ];
 
 // GET /api/admin/destinations/:id — destination + the trips that point to it
@@ -19,7 +21,14 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
     .select("id, title, slug, status")
     .eq("destination_id", id)
     .order("title");
-  return NextResponse.json({ destination, trips: trips ?? [] });
+  // Spotguide spots under this destination (tolerant — empty before migration 062).
+  const { data: spots } = await db
+    .from("spots")
+    .select("id, name, slug, status, verification, level, hero_image, source")
+    .eq("destination_id", id)
+    .order("sort_order")
+    .order("name");
+  return NextResponse.json({ destination, trips: trips ?? [], spots: spots ?? [] });
 }
 
 // PATCH /api/admin/destinations/:id

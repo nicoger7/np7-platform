@@ -1,0 +1,83 @@
+import Link from "next/link";
+import type { Metadata } from "next";
+import { cookies } from "next/headers";
+import { notFound } from "next/navigation";
+import { getSpotguideDestination } from "@/lib/spotguide-data";
+import { levelRangeLabel, DESTINATION_CRITERIA } from "@/lib/spotguide";
+import { resolveSection, SECTION_CHROME } from "@/lib/blog-section";
+import { SectionHeader } from "@/components/shared/section-header";
+import { BlogFooter } from "@/components/blog/blog-footer";
+import { RatingHeadline, RatingBreakdown } from "@/components/spotguide/rating-panel";
+import { SpotsList } from "@/components/spotguide/spots-list";
+import { flags } from "@/lib/flags";
+
+type Props = { params: Promise<{ slug: string }> };
+
+export async function generateMetadata({ params }: Props): Promise<Metadata> {
+  const { slug } = await params;
+  const d = await getSpotguideDestination(slug);
+  if (!d) return { title: "Spotguide — NP7" };
+  return {
+    title: `${d.name} spotguide — NP7`,
+    description: d.tagline ?? `Windsurf spots in ${d.name}, rated by NP7 and the crew — conditions, wind windows and the forecast that works.`,
+  };
+}
+
+export const revalidate = 60;
+
+export default async function SpotguideDestinationPage({ params }: Props) {
+  const { slug } = await params;
+  const d = await getSpotguideDestination(slug);
+  if (!d) notFound();
+
+  const section = resolveSection((await cookies()).get("np7_section")?.value);
+  const chrome = SECTION_CHROME[section];
+  const lvl = levelRangeLabel(d.level_min, d.level_max);
+
+  return (
+    <>
+      <SectionHeader />
+      <main className="bg-[#fff7ec] min-h-[100svh]">
+        {/* hero */}
+        <header className="relative overflow-hidden" style={{ background: chrome.heroBackground }}>
+          <div className="h-1" style={{ background: chrome.stripe }} />
+          {d.hero_image && (
+            <div className="absolute inset-0 bg-cover bg-center opacity-25" style={{ backgroundImage: `url('${d.hero_image}')` }} />
+          )}
+          <div className="relative max-w-[1000px] mx-auto px-6 sm:px-8 pt-12 pb-14 sm:pt-16 sm:pb-16">
+            <Link href="/spotguide" className="text-[12px] font-bold text-white/70 hover:text-white transition-colors">← Spotguide</Link>
+            <h1 className="text-white text-4xl sm:text-6xl font-black tracking-[-0.03em] mt-3">{d.name}</h1>
+            <p className="text-white/75 text-[15px] font-semibold mt-2">{[d.region, d.country].filter(Boolean).join(", ")}{lvl ? `  ·  ${lvl}` : ""}</p>
+            {d.tagline && <p className="text-white/80 text-[17px] mt-4 max-w-[620px] leading-relaxed">{d.tagline}</p>}
+            <div className="mt-5 inline-flex rounded-xl bg-white/10 backdrop-blur px-4 py-3"><RatingHeadline np7={d.np7} member={d.member} accent={chrome.eyebrow} /></div>
+          </div>
+        </header>
+
+        <div className="max-w-[1000px] mx-auto px-6 sm:px-8 py-10 sm:py-14 space-y-10">
+          {d.intro && <p className="text-[16.5px] text-[#3f5158] leading-relaxed max-w-[680px] whitespace-pre-line">{d.intro}</p>}
+
+          {/* Destination rating breakdown */}
+          {(d.np7 > 0 || d.member.count > 0) && (
+            <section>
+              <h2 className="text-[13px] font-black uppercase tracking-[0.14em] text-[#9aa6ac] mb-3">The destination</h2>
+              <div className="rounded-2xl border border-[#ece3d3] bg-white p-5">
+                <RatingBreakdown criteria={DESTINATION_CRITERIA} np7Ratings={d.np7_ratings} member={d.member} />
+              </div>
+            </section>
+          )}
+
+          {/* Spots */}
+          <section>
+            <h2 className="text-[13px] font-black uppercase tracking-[0.14em] text-[#9aa6ac] mb-3">The spots <span className="text-[#c3b9a6]">({d.spots.length})</span></h2>
+            {d.spots.length === 0 ? (
+              <p className="text-[14px] text-[#6a7a80]">Spots for {d.name} are coming soon.</p>
+            ) : (
+              <SpotsList spots={d.spots} accent={chrome.accent} />
+            )}
+          </section>
+        </div>
+      </main>
+      <BlogFooter section={section} showExperience={flags.showExperience} showHardware={flags.showHardware} />
+    </>
+  );
+}

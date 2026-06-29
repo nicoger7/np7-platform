@@ -4,6 +4,7 @@ import { useState, useEffect, use } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import ImagePickerModal from "@/components/image-picker-modal";
+import { LEVELS, DESTINATION_CRITERIA, VERIFICATION_META, type Verification } from "@/lib/spotguide";
 
 type Partner = { name: string; description: string; url: string; image?: string };
 interface Dest {
@@ -12,26 +13,45 @@ interface Dest {
   wind_probability: string | null; wind_season: string | null; wind_speed: string | null;
   best_season: string | null; conditions: string | null; skill_levels: string | null;
   gallery: string[] | null; partners: Partner[] | null; status: string;
+  // Spotguide (migration 062)
+  np7_ratings: Record<string, number> | null; level_min: string | null; level_max: string | null;
+  spotguide_status: string | null;
 }
 interface Trip { id: string; title: string; slug: string; status: string }
+interface SpotRow { id: string; name: string; slug: string | null; status: string; verification: string; level: string | null; hero_image: string | null; source: string }
 
 export default function DestinationEditor({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
   const router = useRouter();
   const [d, setD] = useState<Dest | null>(null);
   const [trips, setTrips] = useState<Trip[]>([]);
+  const [spots, setSpots] = useState<SpotRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [saved, setSaved] = useState(false);
+  const [addingSpot, setAddingSpot] = useState(false);
   const [picker, setPicker] = useState<{ kind: "hero" } | { kind: "gallery" } | { kind: "partner"; index: number } | null>(null);
 
   useEffect(() => {
     fetch(`/api/admin/destinations/${id}`).then((r) => r.json()).then((x) => {
-      if (x.destination) { setD({ ...x.destination, gallery: x.destination.gallery ?? [], partners: x.destination.partners ?? [] }); setTrips(x.trips ?? []); }
+      if (x.destination) { setD({ ...x.destination, gallery: x.destination.gallery ?? [], partners: x.destination.partners ?? [], np7_ratings: x.destination.np7_ratings ?? {} }); setTrips(x.trips ?? []); setSpots(x.spots ?? []); }
       setLoading(false);
     });
   }, [id]);
 
   function set<K extends keyof Dest>(k: K, v: Dest[K]) { setD((p) => (p ? { ...p, [k]: v } : p)); }
+
+  async function addSpot() {
+    const name = prompt("New spot name (e.g. Sotavento)");
+    if (!name?.trim()) return;
+    setAddingSpot(true);
+    const res = await fetch("/api/admin/spots", {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ destination_id: id, name: name.trim() }),
+    });
+    setAddingSpot(false);
+    if (res.ok) { const sp = await res.json(); router.push(`/admin/spots/${sp.id}`); }
+    else { const j = await res.json().catch(() => ({})); alert(j.error || "Couldn't add spot."); }
+  }
 
   async function save() {
     if (!d) return;
@@ -141,6 +161,79 @@ export default function DestinationEditor({ params }: { params: Promise<{ id: st
               </div>
             ))}
             <button onClick={() => set("partners", [...partners, { name: "", description: "", url: "", image: "" }])} className="text-xs text-[#0aa3c7] hover:underline">+ Add partner</button>
+          </div>
+        </div>
+
+        {/* ── Spotguide ──────────────────────────────────────────────── */}
+        <div className="rounded-xl p-4 space-y-5" style={{ border: "1px solid var(--admin-border)", backgroundColor: "var(--admin-surface)" }}>
+          <div className="flex items-center justify-between gap-3">
+            <div>
+              <h3 className="text-sm font-bold admin-heading">Spotguide</h3>
+              <p className="text-[11px] admin-faint">The member-interactive guide — rate the destination, set its level range, manage its spots. Published independently of the marketing page.</p>
+            </div>
+            <select className={`${inputClass} max-w-[150px]`} value={d.spotguide_status ?? "draft"} onChange={(e) => set("spotguide_status", e.target.value)}>
+              <option value="draft">Spotguide: draft</option>
+              <option value="published">Spotguide: live</option>
+            </select>
+          </div>
+
+          {/* Level range */}
+          <div className="grid grid-cols-2 gap-4 max-w-[360px]">
+            <div><label className={labelClass}>Level from</label>
+              <select className={inputClass} value={d.level_min ?? ""} onChange={(e) => set("level_min", e.target.value || null)}>
+                <option value="">—</option>{LEVELS.map((l) => <option key={l} value={l}>{l}</option>)}
+              </select>
+            </div>
+            <div><label className={labelClass}>Level to</label>
+              <select className={inputClass} value={d.level_max ?? ""} onChange={(e) => set("level_max", e.target.value || null)}>
+                <option value="">—</option>{LEVELS.map((l) => <option key={l} value={l}>{l}</option>)}
+              </select>
+            </div>
+          </div>
+
+          {/* NP7 destination rating */}
+          <div>
+            <p className="text-xs font-bold admin-heading mb-2">NP7 rating <span className="admin-faint font-normal">(the whole-trip experience)</span></p>
+            <div className="grid sm:grid-cols-2 gap-x-6 gap-y-1">
+              {DESTINATION_CRITERIA.map((c) => (
+                <div key={c.key} className="flex items-center justify-between gap-3 py-1" title={c.hint}>
+                  <span className="text-xs admin-muted">{c.label}</span>
+                  <div className="flex items-center gap-0.5">
+                    {[1, 2, 3, 4, 5].map((n) => {
+                      const cur = (d.np7_ratings ?? {})[c.key] ?? 0;
+                      return <button key={n} onClick={() => set("np7_ratings", { ...(d.np7_ratings ?? {}), [c.key]: n === cur ? 0 : n })} className="text-lg leading-none" style={{ color: n <= cur ? "#f5a623" : "var(--admin-border)" }}>★</button>;
+                    })}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* Spots */}
+          <div>
+            <div className="flex items-center justify-between mb-2">
+              <p className="text-xs font-bold admin-heading">Spots <span className="admin-faint font-normal">({spots.length})</span></p>
+              <button onClick={addSpot} disabled={addingSpot} className="text-xs font-bold text-[#0aa3c7] hover:underline disabled:opacity-50">{addingSpot ? "Adding…" : "+ Add spot"}</button>
+            </div>
+            {spots.length === 0 ? (
+              <p className="text-xs admin-faint">No spots yet. Add the launches people sail at here.</p>
+            ) : (
+              <div className="space-y-1.5">
+                {spots.map((sp) => {
+                  const vm = VERIFICATION_META[(sp.verification as Verification)] ?? VERIFICATION_META.np7;
+                  return (
+                    <Link key={sp.id} href={`/admin/spots/${sp.id}`} className="flex items-center gap-3 p-2 rounded-lg transition-colors hover:bg-black/5" style={{ border: "1px solid var(--admin-border)" }}>
+                      <div className="w-12 h-9 rounded bg-cover bg-center shrink-0 admin-surface" style={{ backgroundImage: sp.hero_image ? `url('${sp.hero_image}')` : undefined }} />
+                      <div className="flex-1 min-w-0">
+                        <p className="text-xs font-bold admin-heading truncate">{sp.name}</p>
+                        <p className="text-[11px] admin-faint">{[sp.level, sp.status, sp.source === "member" ? "member" : null].filter(Boolean).join(" · ")}</p>
+                      </div>
+                      <span className="px-2 py-0.5 rounded text-[10px] font-bold uppercase shrink-0" style={{ backgroundColor: `${vm.color}1f`, color: vm.color }}>{vm.short}</span>
+                    </Link>
+                  );
+                })}
+              </div>
+            )}
           </div>
         </div>
 
