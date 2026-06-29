@@ -47,6 +47,23 @@ export async function PATCH(
     }
   }
 
+  // Keep the Supabase Auth LOGIN email in sync with the contact email. The portal
+  // signs in against auth.users.email (password + magic link), NOT contacts.email
+  // — so changing only the contact row silently breaks the member's login. Do the
+  // auth update first: if it conflicts (address already used by another login),
+  // fail the whole PATCH so the two can never drift apart.
+  if (typeof body.email === "string") {
+    const next = body.email.trim().toLowerCase();
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { data: cur } = await (client as any).from("contacts").select("email, auth_user_id").eq("id", id).maybeSingle();
+    if (cur?.auth_user_id && next && next !== (cur.email ?? "").trim().toLowerCase()) {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const { error: aErr } = await (client as any).auth.admin.updateUserById(cur.auth_user_id, { email: next, email_confirm: true });
+      if (aErr) return NextResponse.json({ error: `Couldn't update the login email: ${aErr.message}` }, { status: 400 });
+    }
+    body.email = next; // store the normalized address so contact + login always match
+  }
+
   const { data, error } = await client
     .from("contacts")
     .update({ ...body, updated_at: new Date().toISOString() })
