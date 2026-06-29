@@ -9,6 +9,7 @@ import {
 import { WindRose, WindRoseLegend } from "./wind-rose";
 import { RatingHeadline, RatingBreakdown } from "./rating-panel";
 import { ForecastPanel } from "./forecast-panel";
+import { CriteriaRater, ForecastVoter } from "./raters";
 
 /** Foldable list of a destination's spots. Collapsed = name + key chips +
     score; expanded = photo, wind rose, ratings, forecast, infrastructure. */
@@ -43,8 +44,11 @@ export function SpotsList({ spots, accent = "#00afdb" }: { spots: PublicSpot[]; 
               <svg className={`shrink-0 w-5 h-5 text-[#9aa6ac] transition-transform ${isOpen ? "rotate-180" : ""}`} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M6 9l6 6 6-6" /></svg>
             </button>
 
-            {isOpen && (
-              <div className="px-5 pb-6 pt-1 space-y-4">
+            {/* Always rendered (not conditionally mounted) so every spot's
+                detail is in the server HTML for search engines; the accordion
+                just shows/hides it. */}
+            <div className={isOpen ? "px-5 pb-6 pt-1 space-y-4" : "hidden"}>
+              <div className="space-y-4">
                 <div className="sm:hidden"><RatingHeadline np7={spot.np7} member={spot.member} accent={accent} /></div>
                 {spot.hero_image && (
                   <div className="relative h-44 sm:h-56 rounded-xl overflow-hidden bg-[#e9eef0]">
@@ -63,7 +67,10 @@ export function SpotsList({ spots, accent = "#00afdb" }: { spots: PublicSpot[]; 
                   </div>
                 )}
 
-                <ForecastPanel np7Models={spot.np7_forecast_models} tally={spot.forecast} accent={accent} />
+                <div>
+                  <ForecastPanel np7Models={spot.np7_forecast_models} tally={spot.forecast} accent={accent} />
+                  <ForecastVoter spotId={spot.id} accent={accent} />
+                </div>
 
                 {(spot.np7 > 0 || spot.member.count > 0) && (
                   <div className="rounded-xl border border-[#f0e9da] p-4">
@@ -72,6 +79,8 @@ export function SpotsList({ spots, accent = "#00afdb" }: { spots: PublicSpot[]; 
                   </div>
                 )}
 
+                <CriteriaRater target="spot" id={spot.id} criteria={SPOT_CRITERIA} accent={accent} />
+
                 {spot.infrastructure.length > 0 && (
                   <div className="flex flex-wrap items-center gap-1.5">
                     <span className="text-[11px] font-bold uppercase tracking-[0.1em] text-[#9aa6ac] mr-1">On site</span>
@@ -79,7 +88,7 @@ export function SpotsList({ spots, accent = "#00afdb" }: { spots: PublicSpot[]; 
                   </div>
                 )}
               </div>
-            )}
+            </div>
           </div>
         );
       })}
