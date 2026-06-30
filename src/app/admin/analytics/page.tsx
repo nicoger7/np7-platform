@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
+import { deriveInsights, type Insight } from "@/lib/analytics-insights";
 
 interface Analytics {
   funnel: { reserved: number; depositPaid: number; balancePaid: number };
@@ -29,6 +30,7 @@ interface Behaviour {
     topDead: { target: string; path: string; count: number }[];
     topRage: { target: string; path: string; count: number }[];
   };
+  experiences?: { slug: string; views: number; reserves: number; rate: number }[];
 }
 
 /** ISO-2 country code → flag emoji. */
@@ -85,6 +87,30 @@ function TargetCard({ title, sub, rows, empty }: { title: string; sub: string; r
         </div>
       )}
     </Card>
+  );
+}
+
+const SEV_COLOR: Record<Insight["severity"], string> = { high: "#e5484d", medium: "#f5a623", low: "#0aa3c7" };
+const AREA_BADGE: Record<Insight["area"], { background: string; color: string }> = {
+  Website: { background: "rgba(10,163,199,0.12)", color: "#0aa3c7" },
+  Experiences: { background: "rgba(16,110,86,0.14)", color: "#0f6e56" },
+  Products: { background: "rgba(120,120,120,0.16)", color: "var(--admin-text)" },
+};
+
+/** One actionable insight row: severity dot · title · area badge · metric · action. */
+function InsightRow({ it }: { it: Insight }) {
+  return (
+    <div className="flex items-start gap-3 p-3 rounded-lg" style={{ backgroundColor: "var(--admin-bg)" }}>
+      <span className="mt-1.5 w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: SEV_COLOR[it.severity] }} />
+      <div className="min-w-0 flex-1">
+        <div className="flex items-center gap-2 flex-wrap">
+          <span className="text-[13px] font-bold admin-heading">{it.title}</span>
+          <span className="text-[10px] font-bold uppercase tracking-wide px-1.5 py-0.5 rounded" style={AREA_BADGE[it.area]}>{it.area}</span>
+          <span className="text-[11px] admin-faint">· {it.metric}</span>
+        </div>
+        <p className="text-xs admin-muted mt-1 leading-relaxed">{it.action}</p>
+      </div>
+    </div>
   );
 }
 
@@ -231,6 +257,21 @@ function BehaviourTab() {
           ))}
         </div>
       </div>
+
+      {/* What to improve — the actionable layer, first thing you see. */}
+      {(() => {
+        const insights = deriveInsights(d);
+        if (!insights.length) return null;
+        return (
+          <div className="rounded-xl p-5 mb-4" style={{ backgroundColor: "var(--admin-surface)", border: "1px solid var(--admin-border)" }}>
+            <h2 className="text-sm font-bold admin-heading mb-1">What to improve</h2>
+            <p className="text-xs admin-faint mb-4">Plain-English actions from the behaviour data, highest impact first — tagged by Website · Experiences · Products.</p>
+            <div className="space-y-2.5">
+              {insights.map((it) => <InsightRow key={it.id} it={it} />)}
+            </div>
+          </div>
+        );
+      })()}
 
       {/* Live / today */}
       <div className="rounded-xl p-4 mb-4 flex flex-wrap items-center gap-x-8 gap-y-2" style={{ backgroundColor: "var(--admin-surface)", border: "1px solid var(--admin-border)" }}>

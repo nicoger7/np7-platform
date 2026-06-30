@@ -46,6 +46,7 @@ const empty = {
     topDead: [] as TargetStat[],
     topRage: [] as TargetStat[],
   },
+  experiences: [] as { slug: string; views: number; reserves: number; rate: number }[],
 };
 
 export async function GET(req: NextRequest) {
@@ -162,6 +163,22 @@ export async function GET(req: NextRequest) {
   }
   const topTargets = (m: Record<string, TargetStat>, n = 8) => Object.values(m).sort((a, b) => b.count - a.count).slice(0, n);
 
+  // Per-experience view→reserve (the "Experiences" insights — which trips convert).
+  const expViewSess: Record<string, Set<string>> = {};
+  const expResSess: Record<string, Set<string>> = {};
+  for (const e of events) {
+    if (!e.experience_slug) continue;
+    if (e.event === "pageview") (expViewSess[e.experience_slug] ||= new Set()).add(e.session_id);
+    else if (e.event === "reserve_start") (expResSess[e.experience_slug] ||= new Set()).add(e.session_id);
+  }
+  const experiences = Object.keys(expViewSess)
+    .map((slug) => {
+      const views = expViewSess[slug].size;
+      const reserves = expResSess[slug]?.size ?? 0;
+      return { slug, views, reserves, rate: views ? Math.round((reserves / views) * 100) : 0 };
+    })
+    .sort((a, b) => b.views - a.views);
+
   return NextResponse.json({
     behaviour: {
       clicks, deadClicks, rageClicks,
@@ -169,6 +186,7 @@ export async function GET(req: NextRequest) {
       topDead: topTargets(deadM),
       topRage: topTargets(rageM),
     },
+    experiences,
     available: true,
     range: { days, from: fromISO },
     totals: {
