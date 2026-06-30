@@ -21,7 +21,10 @@ type Ev = {
   experience_slug: string | null;
   country: string | null;
   authed: boolean | null;
+  meta: Record<string, unknown> | null;
 };
+
+type TargetStat = { target: string; path: string; count: number };
 
 const empty = {
   available: false,
@@ -37,6 +40,12 @@ const empty = {
   countries: [] as { country: string; sessions: number }[],
   devices: [] as { device: string; sessions: number }[],
   funnel: { expViews: 0, reserveStart: 0, register: 0 },
+  behaviour: {
+    clicks: 0, deadClicks: 0, rageClicks: 0,
+    topClicked: [] as TargetStat[],
+    topDead: [] as TargetStat[],
+    topRage: [] as TargetStat[],
+  },
 };
 
 export async function GET(req: NextRequest) {
@@ -49,7 +58,7 @@ export async function GET(req: NextRequest) {
   try {
     const { data, error } = await db
       .from("analytics_events")
-      .select("ts, session_id, visitor_id, event, path, referrer_host, device, experience_slug, country, authed")
+      .select("ts, session_id, visitor_id, event, path, referrer_host, device, experience_slug, country, authed, meta")
       .gte("ts", fromISO)
       .order("ts", { ascending: true })
       .limit(100000);
@@ -133,7 +142,33 @@ export async function GET(req: NextRequest) {
 
   const sortTop = (m: Record<string, number>, n = 10) => Object.entries(m).sort((a, b) => b[1] - a[1]).slice(0, n);
 
+  // Interaction / frustration signals (Phase 1 behaviour layer).
+  const deadM: Record<string, TargetStat> = {};
+  const rageM: Record<string, TargetStat> = {};
+  const clickM: Record<string, TargetStat> = {};
+  const bump = (m: Record<string, TargetStat>, target: string, path: string) => {
+    const key = `${target}${path}`;
+    (m[key] ||= { target, path, count: 0 }).count++;
+  };
+  let clicks = 0, deadClicks = 0, rageClicks = 0;
+  for (const e of events) {
+    if (e.event !== "click" && e.event !== "dead_click" && e.event !== "rage_click") continue;
+    const meta = (e.meta || {}) as Record<string, unknown>;
+    const target = typeof meta.target === "string" ? meta.target : "(unknown)";
+    const path = e.path || "(unknown)";
+    if (e.event === "click") { clicks++; bump(clickM, target, path); }
+    else if (e.event === "dead_click") { deadClicks++; bump(deadM, target, path); }
+    else { rageClicks++; bump(rageM, target, path); }
+  }
+  const topTargets = (m: Record<string, TargetStat>, n = 8) => Object.values(m).sort((a, b) => b.count - a.count).slice(0, n);
+
   return NextResponse.json({
+    behaviour: {
+      clicks, deadClicks, rageClicks,
+      topClicked: topTargets(clickM),
+      topDead: topTargets(deadM),
+      topRage: topTargets(rageM),
+    },
     available: true,
     range: { days, from: fromISO },
     totals: {

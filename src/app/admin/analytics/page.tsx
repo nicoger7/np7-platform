@@ -23,6 +23,12 @@ interface Behaviour {
   countries: { country: string; sessions: number }[];
   devices: { device: string; sessions: number }[];
   funnel: { expViews: number; reserveStart: number; register: number };
+  behaviour?: {
+    clicks: number; deadClicks: number; rageClicks: number;
+    topClicked: { target: string; path: string; count: number }[];
+    topDead: { target: string; path: string; count: number }[];
+    topRage: { target: string; path: string; count: number }[];
+  };
 }
 
 /** ISO-2 country code → flag emoji. */
@@ -60,6 +66,27 @@ const Card = ({ title, sub, children }: { title: string; sub?: string; children:
     {children}
   </div>
 );
+
+/** A ranked list of element targets (label + page + count) — the frustration/click reports. */
+function TargetCard({ title, sub, rows, empty }: { title: string; sub: string; rows: { target: string; path: string; count: number }[]; empty: string }) {
+  return (
+    <Card title={title} sub={sub}>
+      {rows.length === 0 ? <p className="text-xs admin-faint">{empty}</p> : (
+        <div className="space-y-2.5">
+          {rows.map((r, i) => (
+            <div key={i} className="flex items-start justify-between gap-3 text-xs">
+              <div className="min-w-0">
+                <p className="admin-heading font-semibold truncate">{r.target}</p>
+                <p className="admin-faint font-mono truncate">{r.path}</p>
+              </div>
+              <span className="admin-heading font-bold shrink-0">{r.count}</span>
+            </div>
+          ))}
+        </div>
+      )}
+    </Card>
+  );
+}
 
 export default function AnalyticsPage() {
   const [tab, setTab] = useState<"business" | "behaviour">("business");
@@ -383,6 +410,24 @@ function BehaviourTab() {
           )}
         </Card>
       </div>
+
+      {/* Behaviour & frustration — what works, what doesn't, and where people get stuck. */}
+      {d.behaviour && (d.behaviour.clicks + d.behaviour.deadClicks + d.behaviour.rageClicks > 0) && (
+        <div className="mt-8">
+          <h2 className="text-lg font-bold admin-heading mb-1">Behaviour &amp; frustration</h2>
+          <p className="text-xs admin-faint mb-4">What visitors click — and where they click but nothing happens. First-party &amp; consent-gated, no third-party tools.</p>
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-4">
+            <Metric label="Clicks tracked" value={d.behaviour.clicks.toLocaleString("en-US")} />
+            <Metric label="Dead clicks" value={d.behaviour.deadClicks.toLocaleString("en-US")} accent />
+            <Metric label="Rage clicks" value={d.behaviour.rageClicks.toLocaleString("en-US")} accent />
+          </div>
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+            <TargetCard title="Clicked but nothing happened" sub="Dead clicks — looked clickable, did nothing. Prime UX fixes." rows={d.behaviour.topDead} empty="No dead clicks recorded 🎉" />
+            <TargetCard title="Rage clicks" sub="Frantic repeat-clicking — friction or a broken control." rows={d.behaviour.topRage} empty="No rage clicks recorded 🎉" />
+            <TargetCard title="Most-clicked elements" sub="What visitors actually click." rows={d.behaviour.topClicked} empty="No clicks tracked yet." />
+          </div>
+        </div>
+      )}
     </>
   );
 }
