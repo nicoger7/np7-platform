@@ -47,6 +47,13 @@ export default async function SpotguideIndex() {
             <p className="text-white/70 text-[16px] sm:text-[18px] mt-4 max-w-[560px] mx-auto leading-relaxed">
               Honest spot guides — rated by NP7 and the crew. Real conditions, the forecast that actually works, and the spots worth your time.
             </p>
+            {/* jump to the other magazine sections */}
+            <nav className="mt-7 flex flex-wrap items-center justify-center gap-2 text-[13px] font-bold">
+              <span className="rounded-full px-3.5 py-1.5 text-[#00374a]" style={{ backgroundColor: chrome.eyebrow }}>Spotguide</span>
+              <Link href="/blog?world=hardware" className="rounded-full px-3.5 py-1.5 text-white/80 hover:text-white bg-white/10 hover:bg-white/20 transition-colors">Gear</Link>
+              <Link href="/blog?world=technique" className="rounded-full px-3.5 py-1.5 text-white/80 hover:text-white bg-white/10 hover:bg-white/20 transition-colors">Technique</Link>
+              <Link href="/blog" className="rounded-full px-3.5 py-1.5 text-white/80 hover:text-white bg-white/10 hover:bg-white/20 transition-colors">All stories</Link>
+            </nav>
           </div>
         </header>
 
