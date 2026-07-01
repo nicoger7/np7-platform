@@ -10,7 +10,7 @@ interface PendingSpot {
   verification: string; confirms: number; flags: number;
 }
 interface PendingPhoto { id: string; spot_id: string; url: string; caption: string | null }
-interface PendingEdit { id: string; spotId: string; spotName: string; proposer: string; field: string; fieldLabel: string; from: string; to: string; note: string | null }
+interface PendingEdit { id: string; spotId: string; spotName: string; proposer: string; field: string; fieldLabel: string; from: string; to: string; note: string | null; status: string }
 interface Grant { id: string; contactName: string; contactEmail: string | null; role: string; destinationName: string | null }
 
 export default function SpotguideModeration() {
@@ -28,11 +28,13 @@ export default function SpotguideModeration() {
   }, []);
   useEffect(() => { load(); }, [load]);
 
-  async function moderateEdit(id: string, action: "approve" | "reject") {
+  async function moderateEdit(id: string, action: "approve" | "reject" | "merged") {
     setBusy(id);
-    await fetch(`/api/admin/spotguide/edits/${id}`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action }) });
+    const j = await fetch(`/api/admin/spotguide/edits/${id}`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action }) }).then((r) => r.json()).catch(() => ({}));
     setBusy(null);
-    setEdits((list) => list.filter((e) => e.id !== id));
+    // Accepting an info suggestion keeps it in the list (now awaiting merge); everything else clears.
+    if (action === "approve" && j.status === "approved") setEdits((list) => list.map((e) => e.id === id ? { ...e, status: "approved" } : e));
+    else setEdits((list) => list.filter((e) => e.id !== id));
   }
 
   async function revokeTrust(id: string) {
@@ -94,22 +96,37 @@ export default function SpotguideModeration() {
       {!loading && edits.length > 0 && (
         <div className="mb-8">
           <h2 className="text-sm font-bold admin-heading mb-2">Pending corrections <span className="admin-faint font-normal">({edits.length})</span></h2>
-          <p className="text-xs admin-faint mb-2">Member-suggested fixes to existing spots. Approve applies it now; reject dismisses it. (These also go live on their own once enough members — or a trusted local — confirm.)</p>
+          <p className="text-xs admin-faint mb-2">Name/pin fixes apply on approve. Info suggestions are collected (members confirm them too) and, once accepted, wait to be folded into the description — AI will do this later; for now open the spot and edit it, then mark merged.</p>
           <div className="space-y-2">
-            {edits.map((e) => (
+            {edits.map((e) => {
+              const isInfo = e.field === "info";
+              const awaitingMerge = isInfo && e.status === "approved";
+              return (
               <div key={e.id} className="flex items-start justify-between gap-3 rounded-xl p-3" style={{ border: "1px solid var(--admin-border)", backgroundColor: "var(--admin-surface)" }}>
                 <div className="min-w-0">
-                  <p className="text-sm font-bold admin-heading"><Link href={`/admin/spots/${e.spotId}`} className="hover:text-[#0aa3c7]">{e.spotName}</Link> <span className="admin-faint font-normal">· {e.fieldLabel}</span></p>
-                  <p className="text-xs admin-muted mt-1"><span className="line-through admin-faint">{e.from}</span> <span className="admin-faint">→</span> <b className="admin-heading">{e.to}</b></p>
+                  <p className="text-sm font-bold admin-heading">
+                    <Link href={`/admin/spots/${e.spotId}`} className="hover:text-[#0aa3c7]">{e.spotName}</Link> <span className="admin-faint font-normal">· {e.fieldLabel}</span>
+                    {awaitingMerge && <span className="ml-2 px-1.5 py-0.5 rounded text-[10px] font-bold uppercase bg-green-500/15 text-green-500">accepted · awaiting merge</span>}
+                  </p>
+                  {isInfo ? (
+                    <p className="text-xs admin-muted mt-1">“{e.to}”</p>
+                  ) : (
+                    <p className="text-xs admin-muted mt-1"><span className="line-through admin-faint">{e.from}</span> <span className="admin-faint">→</span> <b className="admin-heading">{e.to}</b></p>
+                  )}
                   {e.note && <p className="text-[11px] admin-faint italic mt-0.5">“{e.note}”</p>}
                   <p className="text-[11px] admin-faint mt-1">by {e.proposer}</p>
                 </div>
                 <div className="flex gap-2 shrink-0">
-                  <button onClick={() => moderateEdit(e.id, "approve")} disabled={busy === e.id} className="px-3 py-1.5 rounded-lg text-xs font-bold bg-[var(--admin-accent)] text-[var(--admin-accent-contrast)] disabled:opacity-50">Approve</button>
+                  {awaitingMerge ? (
+                    <button onClick={() => moderateEdit(e.id, "merged")} disabled={busy === e.id} className="px-3 py-1.5 rounded-lg text-xs font-bold bg-[var(--admin-accent)] text-[var(--admin-accent-contrast)] disabled:opacity-50">Mark merged</button>
+                  ) : (
+                    <button onClick={() => moderateEdit(e.id, "approve")} disabled={busy === e.id} className="px-3 py-1.5 rounded-lg text-xs font-bold bg-[var(--admin-accent)] text-[var(--admin-accent-contrast)] disabled:opacity-50">{isInfo ? "Accept" : "Approve"}</button>
+                  )}
                   <button onClick={() => moderateEdit(e.id, "reject")} disabled={busy === e.id} className="px-3 py-1.5 rounded-lg text-xs font-semibold text-red-400/70 hover:text-red-400 disabled:opacity-50" style={{ border: "1px solid var(--admin-border)" }}>Reject</button>
                 </div>
               </div>
-            ))}
+              );
+            })}
           </div>
         </div>
       )}

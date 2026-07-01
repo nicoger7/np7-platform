@@ -2,27 +2,26 @@
 
 import { useState } from "react";
 import { useSpotguide } from "./spotguide-provider";
-import { LevelPicker } from "./level-picker";
 import { PinPicker } from "./pin-picker";
-import { CONDITIONS } from "@/lib/spotguide";
 
-type Current = { name: string; summary: string | null; description: string | null; level: string | null; conditions: string[]; lat: number | null; lng: number | null };
-type Field = "name" | "summary" | "description" | "pin" | "level" | "conditions";
+type Current = { name: string; lat: number | null; lng: number | null };
+type Field = "info" | "name" | "pin";
 const FIELDS: { key: Field; label: string }[] = [
-  { key: "name", label: "Spot name" }, { key: "summary", label: "Summary" },
-  { key: "description", label: "Description" }, { key: "pin", label: "Pin location" },
-  { key: "level", label: "Level" }, { key: "conditions", label: "Conditions" },
+  { key: "info", label: "Add / correct info" },
+  { key: "name", label: "Spot name" },
+  { key: "pin", label: "Pin location" },
 ];
 
-/** Member "suggest a correction" — propose a change to one editorial field of an
-    existing spot. Lands as a pending edit that resolves by the proposer's
-    standing (moderator applies at once; local specialist needs 1 confirm; else 3). */
+/** Member "suggest a correction". Two kinds: a canonical fix (name / pin) that
+    auto-applies once approved, or free-text info that's collected and folded into
+    the description by AI/NP7 once enough members confirm it — members never
+    overwrite our prose. (Level & conditions aren't here; those aggregate from
+    votes in the contribute block.) */
 export function SuggestEdit({ spotId, current, accent = "#00afdb" }: { spotId: string; current: Current; accent?: string }) {
   const sg = useSpotguide();
   const [open, setOpen] = useState(false);
-  const [field, setField] = useState<Field>("description");
+  const [field, setField] = useState<Field>("info");
   const [text, setText] = useState("");
-  const [conds, setConds] = useState<string[]>(current.conditions ?? []);
   const [pin, setPin] = useState<{ lat: number; lng: number } | null>(current.lat != null && current.lng != null ? { lat: current.lat, lng: current.lng } : null);
   const [note, setNote] = useState("");
   const [busy, setBusy] = useState(false);
@@ -31,25 +30,20 @@ export function SuggestEdit({ spotId, current, accent = "#00afdb" }: { spotId: s
 
   function pickField(f: Field) {
     setField(f); setError(""); setResult(null);
-    if (f === "name") setText(current.name ?? "");
-    else if (f === "summary") setText(current.summary ?? "");
-    else if (f === "description") setText(current.description ?? "");
-    else if (f === "level") setText(current.level ?? "");
-    else if (f === "conditions") setConds(current.conditions ?? []);
+    setText(f === "name" ? current.name ?? "" : "");
   }
 
   async function submit() {
     if (!sg.loggedIn) { sg.needAuth(); return; }
     let value: unknown;
     if (field === "pin") { if (!pin) { setError("Drop the corrected pin on the map."); return; } value = pin; }
-    else if (field === "conditions") value = conds;
-    else if (field === "level") { if (!text) { setError("Pick a level."); return; } value = text; }
-    else { if (text.trim().length < (field === "name" ? 2 : 1)) { setError("Add the corrected text."); return; } value = text.trim(); }
+    else if (field === "name") { if (text.trim().length < 2) { setError("Add the corrected name."); return; } value = text.trim(); }
+    else { if (text.trim().length < 3) { setError("Add a little detail."); return; } value = text.trim(); }
 
     setBusy(true); setError("");
     const res = await fetch("/api/portal/spotguide/edits", {
       method: "POST", headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ spotId, field, value, note: note.trim() || undefined }),
+      body: JSON.stringify({ spotId, field, value, note: field === "info" ? undefined : note.trim() || undefined }),
     });
     setBusy(false);
     if (res.ok) { const j = await res.json(); setResult(j.applied ? "applied" : "pending"); }
@@ -59,7 +53,7 @@ export function SuggestEdit({ spotId, current, accent = "#00afdb" }: { spotId: s
   if (result) {
     return (
       <div className="mt-2 rounded-xl border border-[#cdeede] bg-[#f0faf4] p-3.5 text-[13px] font-semibold text-[#1f7a4d]">
-        {result === "applied" ? "Fixed — thanks, that's live now. 🤙" : "Suggested — other members will confirm it before it goes live. 🙏"}
+        {result === "applied" ? "Fixed — thanks, that's live now. 🤙" : "Thanks — the crew will review it and fold it in. 🙏"}
       </div>
     );
   }
@@ -68,7 +62,7 @@ export function SuggestEdit({ spotId, current, accent = "#00afdb" }: { spotId: s
     return (
       <button type="button" onClick={() => (sg.loggedIn ? setOpen(true) : sg.needAuth())}
         className="mt-2 text-[12.5px] font-semibold text-[#9aa6ac] hover:text-[#5a6b72] transition-colors">
-        Something off here? <span style={{ color: accent }}>Suggest a correction →</span>
+        Something off, or extra intel? <span style={{ color: accent }}>Add a correction →</span>
       </button>
     );
   }
@@ -79,7 +73,7 @@ export function SuggestEdit({ spotId, current, accent = "#00afdb" }: { spotId: s
   return (
     <div className="mt-2 rounded-xl border border-[#ece3d3] bg-[#fdfaf3] p-4 space-y-3">
       <div className="flex items-center justify-between">
-        <p className="text-[13.5px] font-extrabold text-[#00374a]">Suggest a correction</p>
+        <p className="text-[13.5px] font-extrabold text-[#00374a]">Add a correction</p>
         <button type="button" onClick={() => setOpen(false)} className="text-[12px] font-semibold text-[#9aa6ac]">Cancel</button>
       </div>
       <div className="flex flex-wrap gap-1.5">
@@ -88,21 +82,20 @@ export function SuggestEdit({ spotId, current, accent = "#00afdb" }: { spotId: s
         ))}
       </div>
 
-      {field === "name" && <input className={input} value={text} onChange={(e) => setText(e.target.value)} placeholder="Corrected spot name" autoFocus />}
-      {field === "summary" && <input className={input} value={text} onChange={(e) => setText(e.target.value)} placeholder="Corrected one-line summary" autoFocus />}
-      {field === "description" && <textarea className={`${input} min-h-[96px] resize-y`} value={text} onChange={(e) => setText(e.target.value)} placeholder="Corrected description" autoFocus />}
-      {field === "level" && <LevelPicker value={text} onChange={setText} accent={accent} />}
-      {field === "conditions" && (
-        <div className="flex flex-wrap gap-1.5">
-          {CONDITIONS.map((c) => <button key={c.key} type="button" onClick={() => setConds((p) => p.includes(c.key) ? p.filter((x) => x !== c.key) : [...p, c.key])} className={chip(conds.includes(c.key))} style={conds.includes(c.key) ? { backgroundColor: accent } : undefined}>{c.label}</button>)}
-        </div>
+      {field === "info" && (
+        <>
+          <textarea className={`${input} min-h-[96px] resize-y`} value={text} onChange={(e) => setText(e.target.value)} autoFocus
+            placeholder="What should we add or fix? e.g. “there's also a snack bar by the launch”, “the inside is shallower than it says at low tide”." />
+          <p className="text-[11px] text-[#9aa6ac]">You&apos;re not rewriting the text — just tell us what to add or correct. Once enough members confirm it, we fold it into the description.</p>
+        </>
       )}
+      {field === "name" && <input className={input} value={text} onChange={(e) => setText(e.target.value)} placeholder="Corrected spot name" autoFocus />}
       {field === "pin" && <PinPicker value={pin} onChange={setPin} height={200} />}
 
-      <input className={input} value={note} onChange={(e) => setNote(e.target.value)} placeholder="Why? (optional — helps others confirm)" />
+      {field !== "info" && <input className={input} value={note} onChange={(e) => setNote(e.target.value)} placeholder="Why? (optional — helps others confirm)" />}
       {error && <p className="text-[12.5px] text-red-500">{error}</p>}
       <div className="flex items-center gap-3">
-        <button onClick={submit} disabled={busy} className="px-4 py-2 rounded-full text-[13px] font-bold text-white disabled:opacity-50" style={{ backgroundColor: accent }}>{busy ? "Submitting…" : "Submit correction"}</button>
+        <button onClick={submit} disabled={busy} className="px-4 py-2 rounded-full text-[13px] font-bold text-white disabled:opacity-50" style={{ backgroundColor: accent }}>{busy ? "Submitting…" : "Submit"}</button>
         <span className="text-[11px] text-[#9aa6ac]">Reviewed before it goes live</span>
       </div>
     </div>

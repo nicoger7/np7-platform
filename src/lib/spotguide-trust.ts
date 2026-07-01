@@ -19,12 +19,19 @@ import { slugifySpot, conditionLabel } from "./spotguide";
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type DB = any;
 
-export const EDITABLE_FIELDS = ["name", "summary", "description", "pin", "level", "conditions"] as const;
+// What a member may suggest changing.
+//   • CANONICAL fields (name, pin) have one right answer → a proposed value that
+//     auto-applies to the spot on approval.
+//   • "info" is a free-text SUGGESTION (add/correct information) — it never
+//     overwrites the prose; approved ones are queued for AI (or NP7) to merge
+//     into the description. Level & conditions are NOT here: those aggregate
+//     from member votes in the contribute block, they aren't "edited".
+export const EDITABLE_FIELDS = ["name", "pin", "info"] as const;
 export type EditableField = (typeof EDITABLE_FIELDS)[number];
+export const CANONICAL_FIELDS = new Set<string>(["name", "pin"]);
 
 export const EDIT_FIELD_LABEL: Record<EditableField, string> = {
-  name: "Spot name", summary: "Summary", description: "Description",
-  pin: "Pin location", level: "Level", conditions: "Conditions",
+  name: "Spot name", pin: "Pin location", info: "Info / correction",
 };
 
 /** Render a stored field value for display in review UIs. */
@@ -79,27 +86,24 @@ async function earnedSpecialist(db: DB, contactId: string, destId: string): Prom
   return distinctConfirms >= SPECIALIST_MIN_CONFIRMS;
 }
 
-type SpotRow = { id: string; destination_id: string; wind_stats: { source?: string } | null };
+type SpotRow = { id: string; destination_id: string; wind_stats: { source?: string } | null; wind_profile?: string | null };
 
-/** Write an approved edit's value onto the spot. Moving the pin re-computes the
-    wind climatology unless a manual "NP7 · local knowledge" override protects it. */
+/** Write an approved CANONICAL edit (name / pin) onto the spot. Moving the pin
+    re-computes the wind climatology (respecting the spot's profile) unless a
+    legacy manual "NP7 · local knowledge" override protects it. */
 export async function applyEditToSpot(db: DB, spot: SpotRow, field: string, newValue: unknown): Promise<void> {
   const patch: Record<string, unknown> = { updated_at: new Date().toISOString() };
   if (field === "name") { patch.name = String(newValue).slice(0, 120); patch.slug = slugifySpot(String(newValue)); }
-  else if (field === "summary") patch.summary = String(newValue).slice(0, 240);
-  else if (field === "description") patch.description = String(newValue).slice(0, 4000);
-  else if (field === "level") patch.level = newValue;
-  else if (field === "conditions") patch.conditions = Array.isArray(newValue) ? newValue : [];
   else if (field === "pin") {
     const v = newValue as { lat?: unknown; lng?: unknown };
     const lat = Number(v?.lat), lng = Number(v?.lng);
     if (Number.isFinite(lat) && Number.isFinite(lng)) { patch.lat = lat; patch.lng = lng; }
-  }
+  } else return; // non-canonical (info) never overwrites the spot
   await db.from("spots").update(patch).eq("id", spot.id);
 
   if (field === "pin" && patch.lat != null && !String(spot.wind_stats?.source ?? "").startsWith("NP7")) {
     try {
-      const stats = await fetchWindStats(patch.lat as number, patch.lng as number);
+      const stats = await fetchWindStats(patch.lat as number, patch.lng as number, { accelerated: spot.wind_profile === "accelerated" });
       await db.from("spots").update({ wind_stats: stats, wind_stats_at: new Date().toISOString() }).eq("id", spot.id);
     } catch { /* the wind-stats cron will retry */ }
   }
@@ -113,7 +117,7 @@ export type EditResolution = { status: string; applied: boolean; confirms: numbe
 export async function resolveEdit(db: DB, editId: string): Promise<EditResolution> {
   const { data: edit } = await db.from("spot_edits").select("*").eq("id", editId).maybeSingle();
   if (!edit || edit.status !== "pending") return { status: edit?.status ?? "gone", applied: false, confirms: 0, required: 0 };
-  const { data: spot } = await db.from("spots").select("id, destination_id, wind_stats").eq("id", edit.spot_id).maybeSingle();
+  const { data: spot } = await db.from("spots").select("id, destination_id, wind_stats, wind_profile").eq("id", edit.spot_id).maybeSingle();
   if (!spot) return { status: "gone", applied: false, confirms: 0, required: 0 };
 
   const { data: confirmRows } = await db.from("spot_edit_confirms").select("contact_id, kind").eq("edit_id", editId);
@@ -133,10 +137,17 @@ export async function resolveEdit(db: DB, editId: string): Promise<EditResolutio
   }
   if (!apply) return { status: "pending", applied: false, confirms: confirmers.length, required };
 
-  await applyEditToSpot(db, spot, edit.field, edit.new_value);
-  await db.from("spot_edits").update({ status: "applied", applied_at: new Date().toISOString() }).eq("id", editId);
-  // other pending edits to the same field are now stale
-  await db.from("spot_edits").update({ status: "superseded", updated_at: new Date().toISOString() })
-    .eq("spot_id", edit.spot_id).eq("field", edit.field).eq("status", "pending").neq("id", editId);
-  return { status: "applied", applied: true, confirms: confirmers.length, required };
+  const now = new Date().toISOString();
+  if (CANONICAL_FIELDS.has(edit.field)) {
+    // name / pin — one right answer → apply straight to the spot.
+    await applyEditToSpot(db, spot, edit.field, edit.new_value);
+    await db.from("spot_edits").update({ status: "applied", applied_at: now }).eq("id", editId);
+    await db.from("spot_edits").update({ status: "superseded", updated_at: now })
+      .eq("spot_id", edit.spot_id).eq("field", edit.field).eq("status", "pending").neq("id", editId);
+    return { status: "applied", applied: true, confirms: confirmers.length, required };
+  }
+  // info suggestion — accepted by the crew, queued for AI/NP7 to merge into the
+  // description. Never overwrites prose, so we don't supersede other suggestions.
+  await db.from("spot_edits").update({ status: "approved", applied_at: now }).eq("id", editId);
+  return { status: "approved", applied: false, confirms: confirmers.length, required };
 }

@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getPortalUser } from "@/lib/auth";
 import { createAdminClient } from "@/lib/supabase";
-import { LEVELS, CONDITIONS } from "@/lib/spotguide";
 import { EDITABLE_FIELDS, EDIT_CONFIRMS_REQUIRED, EDIT_FIELD_LABEL, humanEditValue, getStanding, resolveEdit, type EditableField } from "@/lib/spotguide-trust";
 
 /**
@@ -13,10 +12,7 @@ import { EDITABLE_FIELDS, EDIT_CONFIRMS_REQUIRED, EDIT_FIELD_LABEL, humanEditVal
 // Validate + normalise a proposed value for a field. Returns undefined if invalid.
 function cleanValue(field: EditableField, raw: unknown): unknown | undefined {
   if (field === "name") { const v = String(raw ?? "").trim(); return v.length >= 2 ? v.slice(0, 120) : undefined; }
-  if (field === "summary") return String(raw ?? "").trim().slice(0, 240);
-  if (field === "description") return String(raw ?? "").trim().slice(0, 4000);
-  if (field === "level") return (LEVELS as readonly string[]).includes(String(raw)) ? raw : undefined;
-  if (field === "conditions") return Array.isArray(raw) ? raw.filter((c) => CONDITIONS.some((x) => x.key === c)) : undefined;
+  if (field === "info") { const v = String(raw ?? "").trim(); return v.length >= 3 ? v.slice(0, 2000) : undefined; }
   if (field === "pin") {
     const v = raw as { lat?: unknown; lng?: unknown };
     const lat = Number(v?.lat), lng = Number(v?.lng);
@@ -82,12 +78,12 @@ export async function POST(request: NextRequest) {
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const db = createAdminClient() as any;
-  const { data: spot } = await db.from("spots").select("id, name, summary, description, level, conditions, lat, lng").eq("id", spotId).maybeSingle();
+  const { data: spot } = await db.from("spots").select("id, name, lat, lng").eq("id", spotId).maybeSingle();
   if (!spot) return NextResponse.json({ error: "Spot not found." }, { status: 404 });
 
   const oldValue = field === "pin" ? { lat: spot.lat, lng: spot.lng }
-    : field === "conditions" ? (spot.conditions ?? [])
-    : spot[field] ?? null;
+    : field === "name" ? spot.name ?? null
+    : null; // info is a suggestion — no prior value to diff against
 
   const { data: inserted, error } = await db.from("spot_edits").insert({
     spot_id: spotId, contact_id: user.contactId, field, old_value: oldValue, new_value: value, note,

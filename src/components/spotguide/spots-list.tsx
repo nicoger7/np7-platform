@@ -117,7 +117,7 @@ export function SpotsList({ spots, accent = "#00afdb" }: { spots: PublicSpot[]; 
                 {/* Contribute — the one clearly-separated input zone */}
                 <SpotContribute spotId={spot.id} accent={accent} />
                 <SuggestEdit spotId={spot.id} accent={accent}
-                  current={{ name: spot.name, summary: spot.summary, description: spot.description, level: spot.level, conditions: spot.conditions ?? [], lat: spot.lat, lng: spot.lng }} />
+                  current={{ name: spot.name, lat: spot.lat, lng: spot.lng }} />
               </div>
             </div>
           </div>

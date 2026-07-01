@@ -44,11 +44,12 @@ export async function GET() {
     .not("submitted_by", "is", null)
     .eq("spotguide_status", "draft");
 
-  // Member-suggested edits awaiting NP7 review (or community confirmation).
+  // Member-suggested edits: pending (name/pin awaiting apply, info awaiting
+  // confirms) + approved info notes awaiting a merge into the description.
   const { data: rawEdits } = await db
     .from("spot_edits")
-    .select("id, spot_id, contact_id, field, old_value, new_value, note, created_at")
-    .eq("status", "pending").order("created_at", { ascending: false });
+    .select("id, spot_id, contact_id, field, old_value, new_value, note, status, created_at")
+    .in("status", ["pending", "approved"]).order("created_at", { ascending: false });
   let edits: Record<string, unknown>[] = [];
   if (rawEdits && rawEdits.length) {
     const eSpotIds = [...new Set(rawEdits.map((e: { spot_id: string }) => e.spot_id))];
@@ -62,7 +63,7 @@ export async function GET() {
     edits = rawEdits.map((e: Record<string, unknown>) => ({
       id: e.id, spotId: e.spot_id, spotName: spotName.get(e.spot_id as string) ?? "—",
       proposer: who.get(e.contact_id as string) ?? "A member",
-      field: e.field, fieldLabel: EDIT_FIELD_LABEL[e.field as EditableField] ?? e.field,
+      field: e.field, fieldLabel: EDIT_FIELD_LABEL[e.field as EditableField] ?? e.field, status: e.status,
       from: humanEditValue(e.field as string, e.old_value), to: humanEditValue(e.field as string, e.new_value),
       note: e.note ?? null, created_at: e.created_at,
     }));
