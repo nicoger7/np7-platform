@@ -19,6 +19,8 @@ export function AdminMemberLevel({ contactId }: { contactId: string }) {
   const [busy, setBusy] = useState(false);   // only the level select/verify buttons
   const [saving, setSaving] = useState(false); // background milestone writes in flight
   const [msg, setMsg] = useState("");
+  const [justVerified, setJustVerified] = useState<string | null>(null);
+  const [congratsSent, setCongratsSent] = useState(false);
   const inFlight = useRef(0);
 
   useEffect(() => {
@@ -63,9 +65,24 @@ export function AdminMemberLevel({ contactId }: { contactId: string }) {
     const r = await fetch(`/api/admin/members/${contactId}/level`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
     const x = await r.json().catch(() => ({}));
     setBusy(false);
-    if (x.levelUnavailable) setMsg("Apply migration 036 to enable the full level system.");
-    else if (x.error) setMsg(x.error);
+    if (x.levelUnavailable) { setMsg("Apply migration 036 to enable the full level system."); }
+    else if (x.error) { setMsg(x.error); }
+    else if (payload.verify && typeof payload.level === "string") {
+      setMsg(`✓ Verified as ${payload.level}`);
+      setJustVerified(payload.level); setCongratsSent(false);
+    } else if (payload.action === "set_level") {
+      setMsg(`✓ Suggested ${payload.level} to member`);
+    } else setMsg("✓ Saved");
     await reconcileHeader();
+  }
+
+  async function sendCongrats() {
+    if (!justVerified) return;
+    setBusy(true);
+    const r = await fetch(`/api/admin/members/${contactId}/congrats`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ level: justVerified }) });
+    setBusy(false);
+    setCongratsSent(true);
+    setMsg(r.ok ? "🎉 Congrats email sent" : "Couldn't send the email.");
   }
 
   function applyLocal(ids: Set<string>, achieved: boolean) {
@@ -106,8 +123,17 @@ export function AdminMemberLevel({ contactId }: { contactId: string }) {
           {LEVELS.map((l) => <option key={l} value={l}>{l}</option>)}
         </select>
         <button disabled={busy || !pick} onClick={() => post({ action: "set_level", level: pick })} className={ctl} style={formEl}>Suggest to member</button>
-        <button disabled={busy || !pick} onClick={() => post({ action: "set_level", level: pick, verify: true })} className={`${ctl} font-bold`} style={{ backgroundColor: "#0aa3c7", color: "#fff" }}>Set verified</button>
+        <button disabled={busy || !pick} onClick={() => post({ action: "set_level", level: pick, verify: true })} className={`${ctl} font-bold`} style={{ backgroundColor: "#0aa3c7", color: "#fff" }}>{busy ? "Saving…" : "Set verified"}</button>
+        {msg && <span className="text-xs font-semibold" style={{ color: msg.startsWith("✓") || msg.startsWith("🎉") ? "#22c55e" : "#f59e0b" }}>{msg}</span>}
       </div>
+
+      {justVerified && !congratsSent && (
+        <div className="flex items-center gap-2 rounded-lg px-3 py-2 text-xs" style={{ border: "1px solid var(--admin-border)", backgroundColor: "var(--admin-surface)" }}>
+          <span className="admin-muted">🎉 Verified <b className="admin-heading">{justVerified}</b> — send a congrats email?</span>
+          <button disabled={busy} onClick={sendCongrats} className="ml-auto px-2.5 py-1 rounded font-bold bg-[var(--admin-accent)] text-[var(--admin-accent-contrast)] disabled:opacity-50">Send email</button>
+          <button onClick={() => setJustVerified(null)} className="px-2 py-1 admin-faint hover:admin-heading">Not now</button>
+        </div>
+      )}
 
       <div className="space-y-2 pt-1">
         {LEVELS.map((t) => {
