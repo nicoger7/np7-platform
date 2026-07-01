@@ -12,7 +12,7 @@ export type MapSpot = { lat: number; lng: number; name: string; destSlug: string
  * the spot's destination. Vanilla Leaflet on CartoDB tiles (free, no key),
  * mirroring the magazine map.
  */
-export function SpotMap({ spots, cluster = false, height = 420 }: { spots: MapSpot[]; cluster?: boolean; height?: number }) {
+export function SpotMap({ spots, cluster = false, height = 420, linkLabel = "View spot →" }: { spots: MapSpot[]; cluster?: boolean; height?: number; linkLabel?: string }) {
   const elRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<LeafletMap | null>(null);
 
@@ -42,7 +42,7 @@ export function SpotMap({ spots, cluster = false, height = 420 }: { spots: MapSp
         return L.marker([s.lat, s.lng], { icon }).bindPopup(
           `<div style="font-family:inherit;min-width:150px"><strong style="color:#00374a;font-size:13.5px">${s.name}</strong>` +
             (s.destName ? `<div style="color:#6a7a80;font-size:12px;margin-top:2px">${s.destName}</div>` : "") +
-            `<a href="/spotguide/${s.destSlug}" style="color:#00afdb;font-weight:700;font-size:12.5px;display:inline-block;margin-top:6px;text-decoration:none">View spot →</a></div>`
+            `<a href="/spotguide/${s.destSlug}" style="color:#00afdb;font-weight:700;font-size:12.5px;display:inline-block;margin-top:6px;text-decoration:none">${linkLabel}</a></div>`
         );
       });
 

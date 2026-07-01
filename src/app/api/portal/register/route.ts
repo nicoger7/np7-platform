@@ -11,9 +11,9 @@ import { sendEmail } from "@/lib/email/send";
  * Always answers generically (never reveals whether an account already existed).
  */
 export async function POST(request: NextRequest) {
-  let email = "", name = "";
+  let email = "", name = "", nextRaw: unknown = "";
   try {
-    ({ email, name } = await request.json());
+    ({ email, name, next: nextRaw } = await request.json());
   } catch {
     return NextResponse.json({ error: "Invalid request" }, { status: 400 });
   }
@@ -22,6 +22,7 @@ export async function POST(request: NextRequest) {
   if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) {
     return NextResponse.json({ error: "Please enter a valid email." }, { status: 400 });
   }
+  const next = typeof nextRaw === "string" && /^\/(?!\/)/.test(nextRaw) ? nextRaw : undefined;
 
   const origin = request.headers.get("origin") ?? `https://${request.headers.get("host")}`;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -40,7 +41,7 @@ export async function POST(request: NextRequest) {
     }
     if (!contactId) return NextResponse.json({ ok: true }); // generic
 
-    const res = await ensureMemberAccount({ contactId, email, origin });
+    const res = await ensureMemberAccount({ contactId, email, origin, next });
     if ("link" in res) {
       const firstName = (name || existing?.name || "").split(" ")[0] || undefined;
       await sendEmail({

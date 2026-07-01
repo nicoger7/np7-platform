@@ -22,6 +22,18 @@ export default async function SpotguideIndex() {
   const chrome = SECTION_CHROME[section];
   const [dests, points] = await Promise.all([getSpotguideDestinations(), getAllSpotguidePoints()]);
 
+  // One pin per DESTINATION (centroid of its spots) so nearby spots don't overlap
+  // when zoomed out — the destination page shows the individual spots.
+  const byDest = new Map<string, { latSum: number; lngSum: number; n: number; name: string }>();
+  for (const p of points) {
+    const d = byDest.get(p.destSlug) ?? { latSum: 0, lngSum: 0, n: 0, name: p.destName };
+    d.latSum += p.lat; d.lngSum += p.lng; d.n += 1;
+    byDest.set(p.destSlug, d);
+  }
+  const destPins = [...byDest.entries()].map(([destSlug, d]) => ({
+    lat: d.latSum / d.n, lng: d.lngSum / d.n, name: d.name, destName: `${d.n} spot${d.n === 1 ? "" : "s"}`, destSlug, verification: "np7",
+  }));
+
   return (
     <>
       <SectionHeader />
@@ -46,10 +58,10 @@ export default async function SpotguideIndex() {
             </div>
           ) : (
             <>
-              {points.length > 0 && (
+              {destPins.length > 0 && (
                 <div className="mb-10">
-                  <h2 className="text-[13px] font-black uppercase tracking-[0.14em] text-[#9aa6ac] mb-3">Where we ride <span className="text-[#c3b9a6]">({points.length} spots)</span></h2>
-                  <SpotMap spots={points} cluster height={460} />
+                  <h2 className="text-[13px] font-black uppercase tracking-[0.14em] text-[#9aa6ac] mb-3">Where we ride <span className="text-[#c3b9a6]">({destPins.length} destination{destPins.length === 1 ? "" : "s"} · {points.length} spots)</span></h2>
+                  <SpotMap spots={destPins} height={460} linkLabel="Explore the spots →" />
                 </div>
               )}
               <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-5">
