@@ -43,7 +43,7 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
 
   // Snapshot the pin + stats source so we can detect a moved pin and avoid
   // clobbering a manual "NP7 · local knowledge" override.
-  const { data: before } = await db.from("spots").select("lat, lng, wind_stats").eq("id", id).maybeSingle();
+  const { data: before } = await db.from("spots").select("lat, lng, wind_stats, wind_profile").eq("id", id).maybeSingle();
 
   const patch: Record<string, unknown> = { updated_at: new Date().toISOString() };
   for (const k of COLS) if (k in body) patch[k] = body[k];
@@ -56,11 +56,12 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
   const isManual = String(before?.wind_stats?.source ?? "").startsWith("NP7");
   if (moved && !isManual && data.lat != null && data.lng != null) {
     const { lat, lng } = data;
+    const accelerated = (data.wind_profile ?? before?.wind_profile) === "accelerated";
     after(async () => {
       try {
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const bg = createAdminClient() as any;
-        const stats = await fetchWindStats(lat, lng);
+        const stats = await fetchWindStats(lat, lng, { accelerated });
         await bg.from("spots").update({ wind_stats: stats, wind_stats_at: new Date().toISOString() }).eq("id", id);
       } catch { /* the wind-stats cron will retry */ }
     });

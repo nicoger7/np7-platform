@@ -66,3 +66,10 @@ create index if not exists spotguide_trust_dest_idx    on spotguide_trust (desti
 -- one moderator row per contact; one specialist row per (contact, destination)
 create unique index if not exists spotguide_trust_mod_uq  on spotguide_trust (contact_id) where role = 'moderator';
 create unique index if not exists spotguide_trust_spec_uq on spotguide_trust (contact_id, destination_id) where role = 'specialist';
+
+-- 4 · Wind profile ────────────────────────────────────────────────────────
+-- How a spot's Open-Meteo climatology is sampled. 'accelerated' spots (Canaries,
+-- Tarifa…) read wrong at the coastal pin (terrain shadow) but true a few km
+-- offshore, so the engine samples a ring and uses the windiest point. Replaces
+-- the old hand-entered "% planing days" override — no manual numbers needed.
+alter table spots add column if not exists wind_profile text not null default 'standard';  -- standard | accelerated

@@ -16,14 +16,6 @@ import { WindStatsChart } from "@/components/spotguide/wind-stats-chart";
 import { PinPicker } from "@/components/spotguide/pin-picker";
 import type { WindStats } from "@/lib/wind-stats";
 
-/** Pull 12 monthly "% planing (4+ Bft)" values out of existing stats (for the
-    manual editor to pre-fill). */
-function monthlyFrom(ws: WindStats | null): number[] {
-  const out = Array(12).fill(0);
-  for (const m of ws?.months ?? []) if (m.m >= 1 && m.m <= 12) out[m.m - 1] = m.pct?.["4"] ?? 0;
-  return out;
-}
-
 interface Spot {
   id: string; destination_id: string; name: string; slug: string | null;
   lat: number | null; lng: number | null; level: string | null;
@@ -33,7 +25,7 @@ interface Spot {
   summary: string | null; description: string | null;
   np7_ratings: Record<string, number> | null; source: string;
   status: string; verification: string;
-  wind_stats: WindStats | null; wind_stats_at: string | null;
+  wind_stats: WindStats | null; wind_stats_at: string | null; wind_profile: string | null;
 }
 interface Dest { id: string; name: string; slug: string | null }
 
@@ -51,8 +43,6 @@ export default function SpotEditor({ params }: { params: Promise<{ id: string }>
   const [picker, setPicker] = useState<null | "hero" | "gallery">(null);
   const [computing, setComputing] = useState(false);
   const [statsError, setStatsError] = useState("");
-  const [manualMode, setManualMode] = useState(false);
-  const [manual, setManual] = useState<number[]>(Array(12).fill(0));
 
   useEffect(() => {
     fetch(`/api/admin/spots/${id}`).then((r) => r.json()).then((x) => {
@@ -90,7 +80,7 @@ export default function SpotEditor({ params }: { params: Promise<{ id: string }>
     const res = await fetch(`/api/admin/spots/${id}/wind-stats`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
     setComputing(false);
     const j = await res.json().catch(() => ({}));
-    if (res.ok) { setS((p) => (p ? { ...p, wind_stats: j.wind_stats, wind_stats_at: j.wind_stats_at } : p)); setManualMode(false); }
+    if (res.ok) { setS((p) => (p ? { ...p, wind_stats: j.wind_stats, wind_stats_at: j.wind_stats_at, wind_profile: j.wind_profile ?? p.wind_profile } : p)); }
     else setStatsError(j.error ?? "Could not save.");
   }
 
@@ -205,45 +195,35 @@ export default function SpotEditor({ params }: { params: Promise<{ id: string }>
           <Windrose value={s.wind_window ?? {}} onChange={(w) => set("wind_window", w)} />
         </div>
 
-        {/* Wind statistics — auto (Open-Meteo) OR manual (acceleration spots) */}
+        {/* Wind statistics — auto from Open-Meteo; two sampling profiles */}
         <div>
           <div className="flex items-center justify-between mb-1.5">
             <label className={labelClass}>Wind statistics</label>
-            <div className="flex items-center gap-2.5 text-xs font-bold">
-              <button onClick={() => setStats({})} disabled={computing} className="text-[#0aa3c7] hover:underline disabled:opacity-50">{computing ? "…" : "Compute (auto)"}</button>
-              <span className="admin-faint">·</span>
-              <button onClick={() => { setManualMode((m) => !m); setManual(monthlyFrom(s.wind_stats)); }} className="text-[#0aa3c7] hover:underline">Manual</button>
-              <span className="admin-faint">·</span>
-              <button onClick={() => setStats({ mode: "off" })} disabled={computing} className="text-red-400/70 hover:text-red-400 disabled:opacity-50">Off</button>
-            </div>
+            <button onClick={() => setStats({ mode: "off" })} disabled={computing} className="text-xs font-bold text-red-400/70 hover:text-red-400 disabled:opacity-50">Off</button>
           </div>
           {statsError && <p className="text-[11px] text-red-400 mb-1">{statsError}</p>}
 
-          {manualMode ? (
-            <div className="rounded-xl p-4 space-y-2" style={{ border: "1px solid var(--admin-border)", backgroundColor: "var(--admin-surface)" }}>
-              <p className="text-[11px] admin-muted">Enter % of days with <b>planing wind (Force 4+)</b> per month — use this for acceleration spots (Canaries, Tarifa…) where the models under-read.</p>
-              <div className="grid grid-cols-6 sm:grid-cols-12 gap-1.5">
-                {["J","F","M","A","M","J","J","A","S","O","N","D"].map((mo, i) => (
-                  <div key={i} className="text-center">
-                    <div className="text-[9px] admin-faint mb-0.5">{mo}</div>
-                    <input type="number" min={0} max={100} value={manual[i] || ""} onChange={(e) => setManual((a) => a.map((v, j) => j === i ? Math.max(0, Math.min(100, +e.target.value || 0)) : v))}
-                      className="w-full px-1 py-1 admin-input border rounded text-center text-[12px] focus:outline-none focus:border-[var(--admin-accent)]" />
+          {(() => {
+            const profile = s.wind_profile === "accelerated" ? "accelerated" : "standard";
+            const pill = (active: boolean) => `px-3 py-1.5 rounded-lg text-xs font-bold disabled:opacity-50 transition-colors ${active ? "bg-[var(--admin-accent)] text-[var(--admin-accent-contrast)]" : "admin-muted"}`;
+            return (
+              <>
+                <div className="flex items-center gap-2 mb-2">
+                  <button onClick={() => setStats({ profile: "standard" })} disabled={computing} className={pill(profile === "standard")} style={profile === "standard" ? undefined : { border: "1px solid var(--admin-border)" }}>{computing ? "…" : "Standard"}</button>
+                  <button onClick={() => setStats({ profile: "accelerated" })} disabled={computing} className={pill(profile === "accelerated")} style={profile === "accelerated" ? undefined : { border: "1px solid var(--admin-border)" }}>{computing ? "…" : "Accelerated"}</button>
+                  <span className="text-[11px] admin-faint">Accelerated = sample offshore (venturi/thermal spots the model shadows at the coast, e.g. El Médano)</span>
+                </div>
+                {s.wind_stats ? (
+                  <div className="rounded-xl p-4" style={{ border: "1px solid var(--admin-border)", backgroundColor: "var(--admin-surface)" }}>
+                    <WindStatsChart stats={s.wind_stats} />
+                    <p className="text-[10px] admin-faint mt-2">Updated {s.wind_stats_at ? new Date(s.wind_stats_at).toLocaleDateString() : "—"} · {s.wind_stats.source}</p>
                   </div>
-                ))}
-              </div>
-              <div className="flex gap-2 pt-1">
-                <button onClick={() => setStats({ mode: "manual", monthly: manual })} disabled={computing} className="px-3 py-1.5 rounded-lg text-xs font-bold bg-[var(--admin-accent)] text-[var(--admin-accent-contrast)] disabled:opacity-50">Save manual stats</button>
-                <button onClick={() => setManualMode(false)} className="px-3 py-1.5 text-xs admin-muted">Cancel</button>
-              </div>
-            </div>
-          ) : s.wind_stats ? (
-            <div className="rounded-xl p-4" style={{ border: "1px solid var(--admin-border)", backgroundColor: "var(--admin-surface)" }}>
-              <WindStatsChart stats={s.wind_stats} />
-              <p className="text-[10px] admin-faint mt-2">Updated {s.wind_stats_at ? new Date(s.wind_stats_at).toLocaleDateString() : "—"} · {s.wind_stats.source}</p>
-            </div>
-          ) : (
-            <p className="text-[11px] admin-faint">Set coordinates + save, then <b>Compute</b> (Open-Meteo, free) — or enter <b>Manual</b> numbers for acceleration spots the models miss.</p>
-          )}
+                ) : (
+                  <p className="text-[11px] admin-faint">Set coordinates + save, then pick <b>Standard</b> (Open-Meteo, free). For acceleration spots the model reads too light, switch to <b>Accelerated</b>.</p>
+                )}
+              </>
+            );
+          })()}
         </div>
 
         {/* Forecast models */}
