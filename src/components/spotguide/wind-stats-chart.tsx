@@ -134,8 +134,15 @@ export function WindStatsChart({ stats, compact = false, accent = "#00afdb" }: {
             <span className="w-3 h-3 rounded-[3px]" style={{ backgroundColor: b.color }} />{b.label}
           </span>
         ))}
-        <span className="text-[10.5px] text-[#9aa6ac] ml-auto">% of sailing hours (09–18) · Source: {stats.source} climatology</span>
+        <span className="text-[10.5px] text-[#9aa6ac] ml-auto">
+          {stats.source.startsWith("NP7")
+            ? <>% planing days · {stats.source}</>
+            : <>% of sailing hours (09–18) · {stats.source} · modeled</>}
+        </span>
       </div>
+      {!stats.source.startsWith("NP7") && (
+        <p className="text-[10px] text-[#b3a994] mt-1 leading-snug">Modeled estimate — coarse models can under-read wind-acceleration spots (Canaries, Tarifa…).</p>
+      )}
     </div>
   );
 }

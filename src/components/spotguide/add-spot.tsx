@@ -16,9 +16,16 @@ export function AddSpot({ destId, destName, accent = "#00afdb" }: { destId: stri
   const [error, setError] = useState("");
   const [f, setF] = useState({ name: "", summary: "", description: "", level: "", conditions: [] as string[], infrastructure: [] as string[] });
   const [pin, setPin] = useState<{ lat: number; lng: number } | null>(null);
+  const [customTag, setCustomTag] = useState("");
 
   function toggle(list: "conditions" | "infrastructure", v: string) {
     setF((p) => ({ ...p, [list]: p[list].includes(v) ? p[list].filter((x) => x !== v) : [...p[list], v] }));
+  }
+  function addCustomTag() {
+    const t = customTag.trim().slice(0, 40);
+    if (!t) return;
+    setF((p) => ({ ...p, infrastructure: p.infrastructure.includes(t) ? p.infrastructure : [...p.infrastructure, t] }));
+    setCustomTag("");
   }
 
   async function submit() {
@@ -71,9 +78,17 @@ export function AddSpot({ destId, destName, accent = "#00afdb" }: { destId: stri
         </div>
       </div>
       <div>
-        <p className="text-[11px] font-bold uppercase tracking-wide text-[#9aa6ac] mb-1.5">On site</p>
+        <p className="text-[11px] font-bold uppercase tracking-wide text-[#9aa6ac] mb-1.5">On site &amp; local knowledge</p>
         <div className="flex flex-wrap gap-1.5">
-          {INFRASTRUCTURE_TAGS.map((t) => <button key={t} onClick={() => toggle("infrastructure", t)} className={chip(f.infrastructure.includes(t))} style={f.infrastructure.includes(t) ? { backgroundColor: accent } : undefined}>{t}</button>)}
+          {INFRASTRUCTURE_TAGS.map((t) => <button key={t} type="button" onClick={() => toggle("infrastructure", t)} className={chip(f.infrastructure.includes(t))} style={f.infrastructure.includes(t) ? { backgroundColor: accent } : undefined}>{t}</button>)}
+          {f.infrastructure.filter((t) => !INFRASTRUCTURE_TAGS.includes(t as typeof INFRASTRUCTURE_TAGS[number])).map((t) => (
+            <button key={t} type="button" onClick={() => toggle("infrastructure", t)} className={chip(true)} style={{ backgroundColor: accent }}>{t} ✕</button>
+          ))}
+        </div>
+        <div className="flex items-center gap-2 mt-2">
+          <input value={customTag} onChange={(e) => setCustomTag(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); addCustomTag(); } }}
+            placeholder="Add your own — e.g. shallow reef, expert-only, no-kite zone…" className={`${input} text-[13px]`} />
+          <button type="button" onClick={addCustomTag} className="shrink-0 px-3 py-2 rounded-lg text-[13px] font-bold" style={{ border: `1px solid ${accent}`, color: accent }}>Add</button>
         </div>
       </div>
       {error && <p className="text-[12.5px] text-red-500">{error}</p>}

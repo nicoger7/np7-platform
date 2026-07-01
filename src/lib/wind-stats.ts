@@ -40,6 +40,23 @@ export type WindStats = {
   fetchedAt: string;
 };
 
+/** Build a MANUAL climatology from 12 monthly "% planing days (4+ Bft)" values —
+    for acceleration spots (Canaries, Tarifa…) where coarse models under-read the
+    real wind. Renders as a solid monthly bar; source flags it as NP7 local. */
+export function manualWindStats(monthlyPlaningPct: number[]): WindStats {
+  const months: WindStatsMonth[] = Array.from({ length: 12 }, (_, i) => {
+    const v = Math.max(0, Math.min(100, Math.round(monthlyPlaningPct[i] ?? 0)));
+    // 3+ and 4+ both = v so the stacked chart shows one clean band up to v.
+    return { m: i + 1, pct: { "3": v, "4": v, "5": 0, "6": 0, "7": 0 }, avgWind: 0, airTemp: null };
+  });
+  const windyMonths = months.filter((m) => (m.pct["4"] ?? 0) >= 60).map((m) => m.m);
+  return {
+    source: "NP7 · local knowledge", unit: "kn", window: "planing days",
+    period: { start: "", end: "" }, months,
+    summary: { windyMonths, warmestMonth: null, warmestTemp: null }, fetchedAt: new Date().toISOString(),
+  };
+}
+
 type Hourly = { time: string[]; wind: (number | null)[]; temp: (number | null)[] };
 
 async function fetchHourly(url: string): Promise<Hourly | null> {
