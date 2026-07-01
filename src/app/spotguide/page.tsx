@@ -97,7 +97,8 @@ export default async function SpotguideIndex() {
               </div>
 
               <div className="mt-10">
-                <h2 className="text-[13px] font-black uppercase tracking-[0.14em] text-[#9aa6ac] mb-3">Contribute</h2>
+                <h2 className="text-[13px] font-black uppercase tracking-[0.14em] text-[#9aa6ac] mb-1">Contribute</h2>
+                <p className="text-[13.5px] text-[#6a7a80] mb-3">Missing a spot — or a whole destination we don&apos;t cover yet? Add it. Members verify it before it goes public.</p>
                 <ContributeSpot destinations={dests.map((d) => ({ id: d.id, name: d.name }))} accent={chrome.accent} />
               </div>
             </>

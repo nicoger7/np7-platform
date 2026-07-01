@@ -79,7 +79,7 @@ export function AddSpot({ destId, destName, destinations, accent = "#00afdb" }: 
           <select className={input} value={destChoice} onChange={(e) => setDestChoice(e.target.value)}>
             <option value="">Pick a destination…</option>
             {destinations!.map((d) => <option key={d.id} value={d.id}>{d.name}</option>)}
-            <option value="__new__">➕ A new area (not listed)</option>
+            <option value="__new__">➕ A new destination (not listed)</option>
           </select>
           {destChoice === "__new__" && (
             <input className={`${input} mt-2`} placeholder="Name the area / town (e.g. Prasonisi, Rhodes) *" value={newArea} onChange={(e) => setNewArea(e.target.value)} />
