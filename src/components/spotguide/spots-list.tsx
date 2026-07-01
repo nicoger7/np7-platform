@@ -12,6 +12,7 @@ import { ForecastPanel } from "./forecast-panel";
 import { WindStatsChart } from "./wind-stats-chart";
 import { SpotPhotos } from "./spot-photos";
 import { SpotContribute } from "./spot-contribute";
+import { SuggestEdit } from "./suggest-edit";
 
 /** Foldable list of a destination's spots. Collapsed = name + key chips +
     score; expanded = photo, wind rose, ratings, forecast, infrastructure. */
@@ -115,6 +116,8 @@ export function SpotsList({ spots, accent = "#00afdb" }: { spots: PublicSpot[]; 
 
                 {/* Contribute — the one clearly-separated input zone */}
                 <SpotContribute spotId={spot.id} accent={accent} />
+                <SuggestEdit spotId={spot.id} accent={accent}
+                  current={{ name: spot.name, summary: spot.summary, description: spot.description, level: spot.level, conditions: spot.conditions ?? [], lat: spot.lat, lng: spot.lng }} />
               </div>
             </div>
           </div>
