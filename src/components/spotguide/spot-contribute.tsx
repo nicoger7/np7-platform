@@ -16,11 +16,11 @@ export function SpotContribute({ spotId, accent = "#00afdb" }: { spotId: string;
       <button type="button" onClick={() => setOpen((o) => !o)} aria-expanded={open}
         className="w-full flex items-center justify-between gap-3 px-5 py-4 text-left hover:bg-[#fdf8ee] transition-colors">
         <span className="min-w-0">
-          <span className="block text-[14.5px] font-extrabold text-[#00374a]">Been here? Add your knowledge</span>
-          <span className="block text-[12.5px] text-[#6a7a80]">Rate it, vote the forecast, add a photo — help the next rider.</span>
+          <span className="block text-[14.5px] font-extrabold text-[#00374a]">★ Rate this spot &amp; add what you know</span>
+          <span className="block text-[12.5px] text-[#6a7a80]">Give it stars, set level & conditions, vote the forecast, add a photo.</span>
         </span>
-        <span className="shrink-0 inline-flex items-center gap-1.5 text-[13px] font-bold" style={{ color: accent }}>
-          {open ? "Close" : "Contribute"}
+        <span className="shrink-0 inline-flex items-center gap-1.5 text-[13px] font-bold text-white rounded-full px-4 py-2" style={{ backgroundColor: accent }}>
+          {open ? "Close" : "Rate it"}
           <svg className={`w-4 h-4 transition-transform ${open ? "rotate-180" : ""}`} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="m6 9 6 6 6-6" /></svg>
         </span>
       </button>
