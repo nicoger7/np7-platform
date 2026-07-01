@@ -126,7 +126,7 @@ export function MemberGallery({
   );
   const thumb = (src: string, idx: number) => (
     <button key={idx} type="button" onClick={() => setOpen(idx)} aria-label={`Open photo ${idx + 1}`}
-      className="aspect-square rounded-lg bg-cover bg-center hover:opacity-90 hover:scale-[1.02] transition-all"
+      className="aspect-[4/3] rounded-lg bg-cover bg-center hover:opacity-90 hover:scale-[1.02] transition-all"
       style={{ backgroundImage: `url('${cdnImage(src, { width: 500 })}')` }} />
   );
 

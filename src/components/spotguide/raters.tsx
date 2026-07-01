@@ -3,9 +3,10 @@
 import { useEffect, useState } from "react";
 import { useSpotguide } from "./spotguide-provider";
 import { WindroseInput } from "./windrose-input";
+import { LevelPicker } from "./level-picker";
 import {
   type Criterion, FORECAST_MODELS, FORECAST_TIER_LABEL, type ForecastTier,
-  SPOT_CRITERIA, LEVELS, CONDITIONS, windWindowHasValue, asWindWindow,
+  SPOT_CRITERIA, CONDITIONS, windWindowHasValue, asWindWindow,
 } from "@/lib/spotguide";
 
 /** Clickable 0–5 stars. */
@@ -113,9 +114,7 @@ export function SpotVisitRater({ spotId, accent = "#00afdb" }: { spotId: string;
       <div className="grid sm:grid-cols-2 gap-4">
         <div>
           <p className="text-[11px] font-bold uppercase tracking-wide text-[#9aa6ac] mb-1.5">Level it suits</p>
-          <select value={level} onChange={(e) => setLevel(e.target.value)} className="w-full px-3 py-2 rounded-lg border border-[#e2d8c6] text-[14px] text-[#00374a] bg-white outline-none focus:border-[#9aa6ac]">
-            <option value="">—</option>{LEVELS.map((l) => <option key={l} value={l}>{l}</option>)}
-          </select>
+          <LevelPicker value={level} onChange={setLevel} accent={accent} />
         </div>
         <div>
           <p className="text-[11px] font-bold uppercase tracking-wide text-[#9aa6ac] mb-1.5">Conditions you saw</p>

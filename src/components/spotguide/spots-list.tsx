@@ -65,10 +65,10 @@ export function SpotsList({ spots, accent = "#00afdb" }: { spots: PublicSpot[]; 
                     <div className="text-[11px] font-bold uppercase tracking-[0.1em] text-[#9aa6ac] mb-2">Wind window</div>
                     <div className="flex flex-wrap items-start gap-x-6 gap-y-3">
                       {windWindowHasValue(spot.wind_window) && (
-                        <div className="text-center"><WindRose window={spot.wind_window} size={112} /><div className="text-[11px] font-black tracking-wide mt-0.5" style={{ color: accent }}>NP7</div></div>
+                        <div className="text-center"><WindRose window={spot.wind_window} size={112} /><span className="inline-block mt-1.5 text-[10px] font-black uppercase tracking-[0.1em] px-2 py-0.5 rounded-full" style={{ backgroundColor: `${accent}1a`, color: accent }}>NP7</span></div>
                       )}
                       {spot.crowdWindow.raters > 0 && (
-                        <div className="text-center"><WindRose window={spot.crowdWindow.window} size={112} /><div className="text-[11px] font-black tracking-wide mt-0.5 text-[#1f9e57]">Members ({spot.crowdWindow.raters})</div></div>
+                        <div className="text-center"><WindRose window={spot.crowdWindow.window} size={112} /><span className="inline-block mt-1.5 text-[10px] font-black uppercase tracking-[0.1em] px-2 py-0.5 rounded-full bg-[#1f9e57]/12 text-[#1f9e57]">Members · {spot.crowdWindow.raters}</span></div>
                       )}
                       <WindRoseLegend />
                     </div>

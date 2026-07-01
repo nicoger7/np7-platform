@@ -2,8 +2,9 @@
 
 import { useState } from "react";
 import { useSpotguide } from "./spotguide-provider";
-import { LEVELS, CONDITIONS, INFRASTRUCTURE_TAGS } from "@/lib/spotguide";
+import { CONDITIONS, INFRASTRUCTURE_TAGS } from "@/lib/spotguide";
 import { PinPicker } from "./pin-picker";
+import { LevelPicker } from "./level-picker";
 
 /** Member "add a spot" form. Submits within our structure → lands pending,
     goes public once 3 members confirm (or NP7 verifies). */
@@ -55,9 +56,10 @@ export function AddSpot({ destId, destName, accent = "#00afdb" }: { destId: stri
       <input className={input} placeholder="Spot name *" value={f.name} onChange={(e) => setF({ ...f, name: e.target.value })} autoFocus />
       <input className={input} placeholder="One-line summary" value={f.summary} onChange={(e) => setF({ ...f, summary: e.target.value })} />
       <textarea className={`${input} min-h-[80px] resize-y`} placeholder="What's it like here — wind, water, launch, hazards…" value={f.description} onChange={(e) => setF({ ...f, description: e.target.value })} />
-      <select className={input} value={f.level} onChange={(e) => setF({ ...f, level: e.target.value })}>
-        <option value="">Level…</option>{LEVELS.map((l) => <option key={l} value={l}>{l}</option>)}
-      </select>
+      <div>
+        <p className="text-[11px] font-bold uppercase tracking-wide text-[#9aa6ac] mb-1.5">Level it suits</p>
+        <LevelPicker value={f.level} onChange={(v) => setF({ ...f, level: v })} accent={accent} />
+      </div>
       <div>
         <p className="text-[11px] font-bold uppercase tracking-wide text-[#9aa6ac] mb-1.5">Where is it? *</p>
         <PinPicker value={pin} onChange={setPin} />
