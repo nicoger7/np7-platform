@@ -420,7 +420,7 @@ export type WorldTheme = {
 };
 
 export const WORLD_THEME: Record<World, WorldTheme> = {
-  experience: { name: "Travel", accent: "#00afdb", accentInk: "#00374a", deep: "#00374a" },
+  experience: { name: "Spotguide", accent: "#00afdb", accentInk: "#00374a", deep: "#00374a" },
   hardware: { name: "Gear", accent: "#1f9e57", accentInk: "#06241a", deep: "#14241d" },
   technique: { name: "Technique", accent: "#f47b20", accentInk: "#3a1d05", deep: "#00374a" },
   both: { name: "NP7", accent: "#0aa3c7", accentInk: "#06283a", deep: "#10212b" },

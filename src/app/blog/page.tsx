@@ -22,7 +22,7 @@ type Props = { searchParams: Promise<{ world?: string; from?: string }> };
 
 const TABS = [
   { key: "", label: "All" },
-  { key: "experience", label: "Travel" },
+  { key: "experience", label: "Spotguide" },
   { key: "hardware", label: "Gear" },
   { key: "technique", label: "Technique" },
 ];
