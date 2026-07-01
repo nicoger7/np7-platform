@@ -28,22 +28,30 @@ export async function GET(request: NextRequest) {
     .eq("destination_id", dest).eq("source", "member").eq("verification", "pending").eq("status", "published")
     .order("created_at", { ascending: false });
   const ids = (spots ?? []).map((s: { id: string }) => s.id);
-  const { data: verifs } = ids.length
-    ? await db.from("spot_verifications").select("spot_id, contact_id, kind").in("spot_id", ids)
-    : { data: [] };
+  const [{ data: verifs }, fieldRes] = await Promise.all([
+    ids.length ? db.from("spot_verifications").select("spot_id, contact_id, kind").in("spot_id", ids) : Promise.resolve({ data: [] }),
+    ids.length ? db.from("spot_field_verifications").select("spot_id, contact_id, field, kind").in("spot_id", ids) : Promise.resolve({ data: [] }),
+  ]);
+  const fieldVerify = !(fieldRes && fieldRes.error); // false until migration 066 adds the table
+  const fieldVerifs = fieldRes?.data ?? []; // empty (and harmless) before migration 066
+
+  // Build a { confirms, flags, mine } tally for one category from a set of rows.
+  const tally = (rows: { contact_id: string; kind: string }[]) => ({
+    confirms: new Set(rows.filter((r) => r.kind === "confirm").map((r) => r.contact_id)).size,
+    flags: new Set(rows.filter((r) => r.kind === "flag").map((r) => r.contact_id)).size,
+    mine: (rows.find((r) => r.contact_id === user.contactId)?.kind ?? null) as "confirm" | "flag" | null,
+  });
 
   const out = (spots ?? []).map((s: Record<string, unknown>) => {
-    const vs = (verifs ?? []).filter((v: { spot_id: string }) => v.spot_id === s.id);
+    const loc = (verifs ?? []).filter((v: { spot_id: string }) => v.spot_id === s.id);
+    const fv = (field: string) => (fieldVerifs as { spot_id: string; field: string; contact_id: string; kind: string }[]).filter((v) => v.spot_id === s.id && v.field === field);
     return {
       id: s.id, name: s.name, level: s.level, conditions: s.conditions ?? [], description: s.description,
       isOwn: s.submitted_by === user.contactId,
-      confirms: vs.filter((v: { kind: string }) => v.kind === "confirm").length,
-      flags: vs.filter((v: { kind: string }) => v.kind === "flag").length,
-      iConfirmed: vs.some((v: { contact_id: string; kind: string }) => v.contact_id === user.contactId && v.kind === "confirm"),
-      iFlagged: vs.some((v: { contact_id: string; kind: string }) => v.contact_id === user.contactId && v.kind === "flag"),
+      cats: { location: tally(loc), level: tally(fv("level")), conditions: tally(fv("conditions")) },
     };
   });
-  return NextResponse.json({ loggedIn: true, spots: out });
+  return NextResponse.json({ loggedIn: true, spots: out, fieldVerify });
 }
 
 // POST /api/portal/spotguide/spots — a member adds a spot (our structured fields)

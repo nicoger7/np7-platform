@@ -73,3 +73,20 @@ create unique index if not exists spotguide_trust_spec_uq on spotguide_trust (co
 -- offshore, so the engine samples a ring and uses the windiest point. Replaces
 -- the old hand-entered "% planing days" override — no manual numbers needed.
 alter table spots add column if not exists wind_profile text not null default 'standard';  -- standard | accelerated
+
+-- 5 · Per-field verification of a pending spot ─────────────────────────────
+-- The existing spot_verifications gates a spot's EXISTENCE / location (3 confirms
+-- → public, 3 flags → hidden). This adds advisory per-field confirm/flag for the
+-- individual facts (level, conditions) so a verifier can say "the spot's real,
+-- but the level is wrong" — the submitter/NP7 sees exactly what to fix. Additive;
+-- does not change publishing (only the location vote does that).
+create table if not exists spot_field_verifications (
+  id          uuid primary key default gen_random_uuid(),
+  spot_id     uuid not null references spots(id) on delete cascade,
+  contact_id  uuid not null references contacts(id) on delete cascade,
+  field       text not null,                    -- level | conditions
+  kind        text not null default 'confirm',  -- confirm | flag
+  created_at  timestamptz not null default now(),
+  unique (spot_id, contact_id, field)
+);
+create index if not exists spot_field_verifications_spot_idx on spot_field_verifications (spot_id);
