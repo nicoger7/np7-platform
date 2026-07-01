@@ -7,6 +7,7 @@ import { getPortalUser } from "@/lib/auth";
 import { getCommunityAuthors, type AuthorBadge } from "@/lib/portal-data";
 import { flags } from "@/lib/flags";
 import { resolveSection } from "@/lib/blog-section";
+import { cdnImage } from "@/lib/img";
 import {
   getTemplate,
   worldTheme,
@@ -130,7 +131,7 @@ export default async function BlogPostPage({ params }: Props) {
       {/* ---------------------------------------------------------------- HERO */}
       <section className="relative text-white overflow-hidden" style={{ backgroundColor: theme.deep }}>
         {post.cover_image && (
-          <div className="absolute inset-0 bg-cover bg-center" style={{ backgroundImage: `url('${post.cover_image}')` }} />
+          <div className="absolute inset-0 bg-cover bg-center" style={{ backgroundImage: `url('${cdnImage(post.cover_image, { width: 1600 })}')` }} />
         )}
         <div
           className="absolute inset-0"

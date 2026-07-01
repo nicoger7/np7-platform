@@ -26,15 +26,16 @@ function formatSize(bytes: number) {
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 }
 
-/** Resize large images client-side (canvas → JPEG) so uploads stay well under the
-    serverless ~4.5 MB body limit and load fast. SVG/GIF and already-small files pass through. */
-async function downscaleImage(file: File, maxDim = 2560, quality = 0.85): Promise<File> {
+/** Resize large images client-side (canvas → WebP) so uploads stay well under the
+    serverless ~4.5 MB body limit and load fast. WebP is ~30–40% smaller than JPEG at
+    the same quality. SVG/GIF and already-small files (<500 KB) pass through. */
+async function downscaleImage(file: File, maxDim = 2000, quality = 0.82): Promise<File> {
   if (!file.type.startsWith("image/") || /svg|gif/i.test(file.type)) return file;
   try {
     const bitmap = await createImageBitmap(file);
     const longest = Math.max(bitmap.width, bitmap.height);
     const scale = Math.min(1, maxDim / longest);
-    if (scale >= 1 && file.size < 3_500_000) { bitmap.close?.(); return file; }
+    if (scale >= 1 && file.size < 500_000) { bitmap.close?.(); return file; }
     const w = Math.round(bitmap.width * scale);
     const h = Math.round(bitmap.height * scale);
     const canvas = document.createElement("canvas");
@@ -43,9 +44,9 @@ async function downscaleImage(file: File, maxDim = 2560, quality = 0.85): Promis
     if (!ctx) { bitmap.close?.(); return file; }
     ctx.drawImage(bitmap, 0, 0, w, h);
     bitmap.close?.();
-    const blob = await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, "image/jpeg", quality));
+    const blob = await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, "image/webp", quality));
     if (!blob) return file;
-    return new File([blob], file.name.replace(/\.[^.]+$/, "") + ".jpg", { type: "image/jpeg" });
+    return new File([blob], file.name.replace(/\.[^.]+$/, "") + ".webp", { type: "image/webp" });
   } catch {
     return file;
   }

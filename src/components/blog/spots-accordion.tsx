@@ -15,6 +15,7 @@ import {
 import { BlogIcon } from "./blog-icons";
 import { LevelBadge } from "@/components/shared/level-badge";
 import { SpotNoteForm } from "./spot-note-form";
+import { cdnImage } from "@/lib/img";
 import type { SkillTag } from "@/lib/member-level";
 
 export type SpotNote = {
@@ -90,7 +91,7 @@ export function SpotsAccordion({
                 {spot.image && (
                   <div className="relative h-44 sm:h-56 rounded-xl overflow-hidden bg-[#e9eef0] mb-4">
                     {/* eslint-disable-next-line @next/next/no-img-element */}
-                    <img src={spot.image} alt={spot.name} className="absolute inset-0 w-full h-full object-cover" loading="lazy" />
+                    <img src={cdnImage(spot.image, { width: 900 })} alt={spot.name} className="absolute inset-0 w-full h-full object-cover" loading="lazy" />
                   </div>
                 )}
                 {/* mobile chips (header hides them under sm) */}
