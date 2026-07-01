@@ -7,7 +7,7 @@
  * with a one-line action you can do something with.
  */
 
-export type InsightArea = "Website" | "Experiences" | "Products";
+export type InsightArea = "Website" | "Experiences" | "Products" | "Portal";
 export type InsightSeverity = "high" | "medium" | "low";
 export type Insight = {
   id: string;
@@ -34,6 +34,7 @@ export type InsightsInput = {
 };
 
 function areaForPath(path: string): InsightArea {
+  if (path.startsWith("/account")) return "Portal";
   if (path.startsWith("/experience")) return "Experiences";
   if (path.startsWith("/hardware")) return "Products";
   return "Website";

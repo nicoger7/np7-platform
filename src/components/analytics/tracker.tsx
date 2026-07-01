@@ -41,14 +41,16 @@ function looksClickable(el: HTMLElement): boolean {
 export function AnalyticsTracker() {
   const pathname = usePathname();
 
-  // Pageview on navigation.
+  // Pageview on navigation. Staff /admin is internal tooling, not customer
+  // behaviour, so it's excluded; the public site AND the member portal count.
   useEffect(() => {
+    if (/^\/admin/.test(pathname)) return;
     trackPageview();
   }, [pathname]);
 
   // Capture the page when consent is granted mid-visit.
   useEffect(() => {
-    const onConsent = () => trackPageview();
+    const onConsent = () => { if (!/^\/admin/.test(window.location.pathname)) trackPageview(); };
     window.addEventListener("np7-consent", onConsent);
     return () => window.removeEventListener("np7-consent", onConsent);
   }, []);
@@ -56,7 +58,7 @@ export function AnalyticsTracker() {
   // Scroll depth — fire 50% and 90% once each, reset on route change. Skipped on
   // internal areas (admin/account) where scroll engagement isn't meaningful.
   useEffect(() => {
-    if (/^\/(admin|account)/.test(pathname)) return;
+    if (/^\/admin/.test(pathname)) return;
     const fired = new Set<number>();
     const onScroll = () => {
       const doc = document.documentElement;
@@ -98,7 +100,7 @@ export function AnalyticsTracker() {
   // click but nothing happens (dead clicks). Skipped on internal areas; capped per
   // page so it can never flood. Targets are coarse labels — no PII.
   useEffect(() => {
-    if (/^\/(admin|account)/.test(pathname)) return;
+    if (/^\/admin/.test(pathname)) return;
     let clicks = 0, deads = 0, rages = 0;
     let recent: { t: number; x: number; y: number }[] = [];
     let lastRage = 0;
@@ -156,7 +158,7 @@ export function AnalyticsTracker() {
   useEffect(() => {
     const prev = stayRef.current;
     const now = Date.now();
-    if (prev.path && prev.path !== pathname && !prev.sent && !/^\/(admin|account)/.test(prev.path)) {
+    if (prev.path && prev.path !== pathname && !prev.sent && !/^\/admin/.test(prev.path)) {
       const secs = Math.round((now - prev.t) / 1000);
       if (secs >= 2 && secs <= 1800) track("page_time", { seconds: secs, p: prev.path });
     }
@@ -165,7 +167,7 @@ export function AnalyticsTracker() {
   useEffect(() => {
     const flush = () => {
       const cur = stayRef.current;
-      if (cur.sent || !cur.path || /^\/(admin|account)/.test(cur.path)) return;
+      if (cur.sent || !cur.path || /^\/admin/.test(cur.path)) return;
       const secs = Math.round((Date.now() - cur.t) / 1000);
       if (secs >= 2 && secs <= 1800) { track("page_time", { seconds: secs, p: cur.path }); cur.sent = true; }
     };

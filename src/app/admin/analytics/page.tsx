@@ -97,6 +97,7 @@ const AREA_BADGE: Record<Insight["area"], { background: string; color: string }>
   Website: { background: "rgba(10,163,199,0.12)", color: "#0aa3c7" },
   Experiences: { background: "rgba(16,110,86,0.14)", color: "#0f6e56" },
   Products: { background: "rgba(120,120,120,0.16)", color: "var(--admin-text)" },
+  Portal: { background: "rgba(139,92,246,0.14)", color: "#8b5cf6" },
 };
 
 /** One actionable insight row: severity dot · title · area badge · metric · action. */
@@ -213,15 +214,22 @@ function BusinessTab() {
   );
 }
 
+const AREA_SEGMENTS: { id: "site" | "portal" | "all"; label: string }[] = [
+  { id: "site", label: "Public site" },
+  { id: "portal", label: "Member portal" },
+  { id: "all", label: "All" },
+];
+
 function BehaviourTab() {
   const [days, setDays] = useState(30);
+  const [area, setArea] = useState<"site" | "portal" | "all">("site");
   const [d, setD] = useState<Behaviour | null>(null);
   const [loading, setLoading] = useState(true);
 
   const load = useCallback(() => {
     setLoading(true);
-    fetch(`/api/admin/analytics/behaviour?days=${days}`).then((r) => r.json()).then((data) => { setD(data); setLoading(false); });
-  }, [days]);
+    fetch(`/api/admin/analytics/behaviour?days=${days}&area=${area}`).then((r) => r.json()).then((data) => { setD(data); setLoading(false); });
+  }, [days, area]);
   useEffect(() => { load(); }, [load]);
 
   if (loading || !d) {
@@ -250,7 +258,13 @@ function BehaviourTab() {
   return (
     <>
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between mb-4">
-        <p className="text-xs admin-faint">Consent-gated, first-party — only visitors who accept analytics are counted.</p>
+        <div className="flex items-center gap-1">
+          {AREA_SEGMENTS.map((s) => (
+            <button key={s.id} onClick={() => setArea(s.id)} className={`px-3 py-1.5 rounded-lg text-[12px] font-bold transition-colors ${area === s.id ? "text-[var(--admin-accent-contrast)] bg-[var(--admin-accent)]" : "admin-muted"}`} style={area === s.id ? undefined : { border: "1px solid var(--admin-border)" }}>
+              {s.label}
+            </button>
+          ))}
+        </div>
         <div className="flex items-center gap-1">
           {[7, 30, 90].map((n) => (
             <button key={n} onClick={() => setDays(n)} className={`px-3 py-1.5 rounded-lg text-[12px] font-bold transition-colors ${days === n ? "text-[var(--admin-accent-contrast)] bg-[var(--admin-accent)]" : "admin-muted"}`} style={days === n ? undefined : { border: "1px solid var(--admin-border)" }}>
