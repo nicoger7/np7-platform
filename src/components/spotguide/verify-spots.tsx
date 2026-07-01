@@ -19,6 +19,7 @@ export function VerifySpots({ destId, accent = "#00afdb" }: { destId: string; ac
   const [spots, setSpots] = useState<Pending[]>([]);
   const [fieldVerify, setFieldVerify] = useState(false); // per-field level/conditions votes (migration 066)
   const [busy, setBusy] = useState<string | null>(null);
+  const [open, setOpen] = useState(false); // folded by default so the page stays short
 
   useEffect(() => {
     if (!sg.loggedIn) return;
@@ -42,10 +43,17 @@ export function VerifySpots({ destId, accent = "#00afdb" }: { destId: string; ac
   if (!sg.loggedIn || spots.length === 0) return null;
 
   return (
-    <section>
-      <h2 className="text-[13px] font-black uppercase tracking-[0.14em] text-[#9aa6ac] mb-1">Help verify</h2>
-      <p className="text-[13px] text-[#6a7a80] mb-3">Members added these spots. Been to one? Confirm what&apos;s right and flag what&apos;s off — {COMMUNITY_VERIFY_THRESHOLD} location confirmations make it public.</p>
-      <div className="space-y-2.5">
+    <section className="rounded-2xl border border-[#ece3d3] bg-white/60 overflow-hidden">
+      <button type="button" onClick={() => setOpen((o) => !o)} aria-expanded={open}
+        className="w-full flex items-center justify-between gap-3 px-4 sm:px-5 py-3.5 text-left hover:bg-[#fdf8ee] transition-colors">
+        <span className="min-w-0">
+          <span className="block text-[13px] font-black uppercase tracking-[0.14em] text-[#9aa6ac]">Help verify <span style={{ color: accent }}>({spots.length})</span></span>
+          <span className="block text-[12.5px] text-[#6a7a80]">Members added these — been to one? Confirm what&apos;s right, flag what&apos;s off.</span>
+        </span>
+        <svg className={`w-5 h-5 shrink-0 text-[#9aa6ac] transition-transform ${open ? "rotate-180" : ""}`} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="m6 9 6 6 6-6" /></svg>
+      </button>
+      {open && (
+      <div className="px-4 sm:px-5 pb-4 pt-1 space-y-2.5 border-t border-[#f0e9da]">
         {spots.map((s) => {
           const rows: { key: "location" | "level" | "conditions"; label: string; value: string | null; gate?: boolean }[] = [
             { key: "location", label: "Real spot, correctly placed?", value: null, gate: true },
@@ -98,6 +106,7 @@ export function VerifySpots({ destId, accent = "#00afdb" }: { destId: string; ac
           );
         })}
       </div>
+      )}
     </section>
   );
 }
