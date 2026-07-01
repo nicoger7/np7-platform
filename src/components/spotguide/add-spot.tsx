@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useSpotguide } from "./spotguide-provider";
 import { LEVELS, CONDITIONS, INFRASTRUCTURE_TAGS } from "@/lib/spotguide";
+import { PinPicker } from "./pin-picker";
 
 /** Member "add a spot" form. Submits within our structure → lands pending,
     goes public once 3 members confirm (or NP7 verifies). */
@@ -12,7 +13,8 @@ export function AddSpot({ destId, destName, accent = "#00afdb" }: { destId: stri
   const [busy, setBusy] = useState(false);
   const [done, setDone] = useState(false);
   const [error, setError] = useState("");
-  const [f, setF] = useState({ name: "", summary: "", description: "", level: "", coords: "", conditions: [] as string[], infrastructure: [] as string[] });
+  const [f, setF] = useState({ name: "", summary: "", description: "", level: "", conditions: [] as string[], infrastructure: [] as string[] });
+  const [pin, setPin] = useState<{ lat: number; lng: number } | null>(null);
 
   function toggle(list: "conditions" | "infrastructure", v: string) {
     setF((p) => ({ ...p, [list]: p[list].includes(v) ? p[list].filter((x) => x !== v) : [...p[list], v] }));
@@ -20,10 +22,11 @@ export function AddSpot({ destId, destName, accent = "#00afdb" }: { destId: stri
 
   async function submit() {
     if (f.name.trim().length < 2) { setError("Give the spot a name."); return; }
+    if (!pin) { setError("Drop a pin on the map so we know exactly where it is."); return; }
     setBusy(true); setError("");
     const res = await fetch("/api/portal/spotguide/spots", {
       method: "POST", headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ destination_id: destId, ...f }),
+      body: JSON.stringify({ destination_id: destId, ...f, coords: `${pin.lat}, ${pin.lng}` }),
     });
     setBusy(false);
     if (res.ok) { setDone(true); setOpen(false); }
@@ -52,11 +55,12 @@ export function AddSpot({ destId, destName, accent = "#00afdb" }: { destId: stri
       <input className={input} placeholder="Spot name *" value={f.name} onChange={(e) => setF({ ...f, name: e.target.value })} autoFocus />
       <input className={input} placeholder="One-line summary" value={f.summary} onChange={(e) => setF({ ...f, summary: e.target.value })} />
       <textarea className={`${input} min-h-[80px] resize-y`} placeholder="What's it like here — wind, water, launch, hazards…" value={f.description} onChange={(e) => setF({ ...f, description: e.target.value })} />
-      <div className="grid grid-cols-2 gap-3">
-        <select className={input} value={f.level} onChange={(e) => setF({ ...f, level: e.target.value })}>
-          <option value="">Level…</option>{LEVELS.map((l) => <option key={l} value={l}>{l}</option>)}
-        </select>
-        <input className={input} placeholder="Coords (lat, lng)" value={f.coords} onChange={(e) => setF({ ...f, coords: e.target.value })} />
+      <select className={input} value={f.level} onChange={(e) => setF({ ...f, level: e.target.value })}>
+        <option value="">Level…</option>{LEVELS.map((l) => <option key={l} value={l}>{l}</option>)}
+      </select>
+      <div>
+        <p className="text-[11px] font-bold uppercase tracking-wide text-[#9aa6ac] mb-1.5">Where is it? *</p>
+        <PinPicker value={pin} onChange={setPin} />
       </div>
       <div>
         <p className="text-[11px] font-bold uppercase tracking-wide text-[#9aa6ac] mb-1.5">Conditions</p>

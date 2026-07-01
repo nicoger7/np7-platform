@@ -11,6 +11,7 @@ import { RatingHeadline, RatingBreakdown } from "./rating-panel";
 import { ForecastPanel } from "./forecast-panel";
 import { CriteriaRater, ForecastVoter } from "./raters";
 import { WindStatsChart } from "./wind-stats-chart";
+import { SpotPhotos } from "./spot-photos";
 
 /** Foldable list of a destination's spots. Collapsed = name + key chips +
     score; expanded = photo, wind rose, ratings, forecast, infrastructure. */
@@ -86,6 +87,11 @@ export function SpotsList({ spots, accent = "#00afdb" }: { spots: PublicSpot[]; 
                     <RatingBreakdown criteria={SPOT_CRITERIA} np7Ratings={spot.np7_ratings} member={spot.member} />
                   </div>
                 )}
+
+                <div>
+                  <div className="text-[11px] font-bold uppercase tracking-[0.1em] text-[#9aa6ac] mb-2">Photos</div>
+                  <SpotPhotos spotId={spot.id} photos={[...spot.gallery, ...spot.photos.map((p) => p.url)]} accent={accent} />
+                </div>
 
                 <CriteriaRater target="spot" id={spot.id} criteria={SPOT_CRITERIA} accent={accent} />
 
