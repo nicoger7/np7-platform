@@ -1,19 +1,14 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getPortalUser } from "@/lib/auth";
 import { createAdminClient } from "@/lib/supabase";
-import { LEVELS, CONDITIONS, conditionLabel } from "@/lib/spotguide";
-import { EDITABLE_FIELDS, EDIT_CONFIRMS_REQUIRED, getStanding, resolveEdit, type EditableField } from "@/lib/spotguide-trust";
+import { LEVELS, CONDITIONS } from "@/lib/spotguide";
+import { EDITABLE_FIELDS, EDIT_CONFIRMS_REQUIRED, EDIT_FIELD_LABEL, humanEditValue, getStanding, resolveEdit, type EditableField } from "@/lib/spotguide-trust";
 
 /**
  * Member-suggested edits to an existing spot's editorial fields. A proposal
  * lands pending and resolves per the proposer's standing (moderator applies at
  * once; local specialist needs 1 confirm; everyone else 3) — see spotguide-trust.
  */
-
-const FIELD_LABEL: Record<EditableField, string> = {
-  name: "Spot name", summary: "Summary", description: "Description",
-  pin: "Pin location", level: "Level", conditions: "Conditions",
-};
 
 // Validate + normalise a proposed value for a field. Returns undefined if invalid.
 function cleanValue(field: EditableField, raw: unknown): unknown | undefined {
@@ -28,12 +23,6 @@ function cleanValue(field: EditableField, raw: unknown): unknown | undefined {
     return Number.isFinite(lat) && Number.isFinite(lng) ? { lat: Math.round(lat * 1e5) / 1e5, lng: Math.round(lng * 1e5) / 1e5 } : undefined;
   }
   return undefined;
-}
-
-function humanValue(field: string, v: unknown): string {
-  if (field === "pin") { const p = v as { lat?: number; lng?: number }; return p?.lat != null ? `${p.lat}, ${p.lng}` : "—"; }
-  if (field === "conditions") return Array.isArray(v) ? v.map((c) => conditionLabel(String(c))).join(" · ") : "—";
-  return v == null || v === "" ? "—" : String(v);
 }
 
 // GET /api/portal/spotguide/edits?dest=<id> — pending edits on a destination's
@@ -67,8 +56,8 @@ export async function GET(request: NextRequest) {
     const required = author.moderator ? EDIT_CONFIRMS_REQUIRED.moderator : author.specialist ? EDIT_CONFIRMS_REQUIRED.specialist : EDIT_CONFIRMS_REQUIRED.member;
     return {
       id: e.id, spotName: nameById.get(e.spot_id as string) ?? "a spot",
-      field: e.field, fieldLabel: FIELD_LABEL[e.field as EditableField] ?? e.field,
-      from: humanValue(e.field as string, e.old_value), to: humanValue(e.field as string, e.new_value),
+      field: e.field, fieldLabel: EDIT_FIELD_LABEL[e.field as EditableField] ?? e.field,
+      from: humanEditValue(e.field as string, e.old_value), to: humanEditValue(e.field as string, e.new_value),
       note: e.note ?? null,
       isOwn: e.contact_id === user.contactId,
       confirms: cs.filter((c: { kind: string }) => c.kind === "confirm").length, required,

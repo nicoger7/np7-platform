@@ -1,5 +1,5 @@
 import { fetchWindStats } from "./wind-stats";
-import { slugifySpot } from "./spotguide";
+import { slugifySpot, conditionLabel } from "./spotguide";
 
 /**
  * Spotguide contributor trust + the member "suggest an edit" resolution engine.
@@ -21,6 +21,18 @@ type DB = any;
 
 export const EDITABLE_FIELDS = ["name", "summary", "description", "pin", "level", "conditions"] as const;
 export type EditableField = (typeof EDITABLE_FIELDS)[number];
+
+export const EDIT_FIELD_LABEL: Record<EditableField, string> = {
+  name: "Spot name", summary: "Summary", description: "Description",
+  pin: "Pin location", level: "Level", conditions: "Conditions",
+};
+
+/** Render a stored field value for display in review UIs. */
+export function humanEditValue(field: string, v: unknown): string {
+  if (field === "pin") { const p = v as { lat?: number; lng?: number }; return p?.lat != null ? `${p.lat}, ${p.lng}` : "—"; }
+  if (field === "conditions") return Array.isArray(v) ? v.map((c) => conditionLabel(String(c))).join(" · ") || "—" : "—";
+  return v == null || v === "" ? "—" : String(v);
+}
 
 // Tunable criteria. Earned local-specialist standing at a destination requires
 // demonstrated local knowledge: rated enough distinct spots there AND at least
