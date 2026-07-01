@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import type { GalleryGroup } from "@/lib/portal-data";
+import { cdnImage } from "@/lib/img";
 
 /**
  * The participant's trip-photo gallery, split into foldable groups:
@@ -126,7 +127,7 @@ export function MemberGallery({
   const thumb = (src: string, idx: number) => (
     <button key={idx} type="button" onClick={() => setOpen(idx)} aria-label={`Open photo ${idx + 1}`}
       className="aspect-square rounded-lg bg-cover bg-center hover:opacity-90 hover:scale-[1.02] transition-all"
-      style={{ backgroundImage: `url('${src}')` }} />
+      style={{ backgroundImage: `url('${cdnImage(src, { width: 500 })}')` }} />
   );
 
   const PREVIEW = 4; // ≈ one row before the blurred peek
@@ -152,14 +153,14 @@ export function MemberGallery({
                           return (
                             <button key={idx} type="button" onClick={() => setOpen(idx)} aria-label={`Open photo ${idx + 1}`}
                               className={`aspect-square rounded-lg bg-cover bg-center hover:opacity-90 hover:scale-[1.02] transition-all ${i === 3 ? "hidden sm:block" : ""}`}
-                              style={{ backgroundImage: `url('${src}')` }} />
+                              style={{ backgroundImage: `url('${cdnImage(src, { width: 500 })}')` }} />
                           );
                         })}
                       </div>
                       <button type="button" onClick={() => setMineExpanded(true)} className="relative block w-full mt-2" aria-label={`Show all ${g.photos.length} photos`}>
                         <div className="grid grid-cols-3 sm:grid-cols-4 gap-2 max-h-[56px] sm:max-h-[64px] overflow-hidden blur-[3px] opacity-80 pointer-events-none" aria-hidden>
                           {g.photos.slice(3, 3 + 4).map((src, i) => (
-                            <div key={i} className="aspect-square rounded-lg bg-cover bg-center" style={{ backgroundImage: `url('${src}')` }} />
+                            <div key={i} className="aspect-square rounded-lg bg-cover bg-center" style={{ backgroundImage: `url('${cdnImage(src, { width: 500 })}')` }} />
                           ))}
                         </div>
                         <span className="absolute inset-0 bg-gradient-to-t from-[#fffdf9] via-[#fffdf9]/80 to-[#fffdf9]/10" aria-hidden />
@@ -249,7 +250,7 @@ export function MemberGallery({
             <svg className="w-6 h-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M15 18l-6-6 6-6" /></svg>
           </button>
           {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src={flat[open]} alt="" className="max-h-[86vh] max-w-[90vw] rounded-xl object-contain shadow-2xl" onClick={(e) => e.stopPropagation()} />
+          <img src={cdnImage(flat[open], { width: 1600 })} alt="" className="max-h-[86vh] max-w-[90vw] rounded-xl object-contain shadow-2xl" onClick={(e) => e.stopPropagation()} />
           <button aria-label="Next" className="absolute right-3 sm:right-6 w-12 h-12 rounded-full bg-white/10 hover:bg-white/20 text-white grid place-items-center" onClick={(e) => { e.stopPropagation(); setOpen((i) => (i === null ? i : (i + 1) % flat.length)); }}>
             <svg className="w-6 h-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M9 18l6-6-6-6" /></svg>
           </button>
