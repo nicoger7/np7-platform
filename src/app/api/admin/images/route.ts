@@ -178,21 +178,30 @@ export async function PATCH(request: NextRequest) {
     return Response.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  const { from, to } = await request.json();
+  const body = await request.json();
+  // Accept a single { from, to } OR a bulk { moves: [{from,to}, …] } so the
+  // client can assign many photos in ONE request (moved concurrently) instead of
+  // one slow round-trip per photo.
+  const moves: { from: string; to: string }[] = Array.isArray(body.moves)
+    ? body.moves.filter((m: { from?: string; to?: string }) => m?.from && m?.to)
+    : body.from && body.to ? [{ from: body.from, to: body.to }] : [];
 
-  if (!from || !to) {
+  if (moves.length === 0) {
     return Response.json({ error: "Missing from/to paths" }, { status: 400 });
   }
 
   const admin = getServiceClient();
-
-  const { error } = await admin.storage.from(BUCKET).move(from, to);
-
-  if (error) {
-    return Response.json({ error: error.message }, { status: 500 });
+  const results = await Promise.all(
+    moves.map(async (m) => {
+      const { error } = await admin.storage.from(BUCKET).move(m.from, m.to);
+      return { from: m.from, to: m.to, ok: !error, error: error?.message };
+    })
+  );
+  const failed = results.filter((r) => !r.ok);
+  if (failed.length === moves.length) {
+    return Response.json({ error: failed[0].error || "Move failed" }, { status: 500 });
   }
-
-  return Response.json({ from, to });
+  return Response.json({ moved: moves.length - failed.length, failed });
 }
 
 export async function DELETE(request: NextRequest) {

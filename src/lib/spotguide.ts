@@ -73,13 +73,18 @@ export const DESTINATION_CRITERIA_KEYS = DESTINATION_CRITERIA.map((c) => c.key);
 export const CONDITIONS = [
   { key: "flat", label: "Flat water" },
   { key: "chop", label: "Choppy" },
-  { key: "waves", label: "Waves" },
-  { key: "mixed", label: "Mixed" },
+  { key: "small_waves", label: "Small waves (0.5–1 m)" },
+  { key: "medium_waves", label: "Medium waves (1–2 m)" },
+  { key: "big_waves", label: "Big waves (2 m+)" },
+  { key: "shallow", label: "Shallow" },
+  { key: "deep", label: "Deep water" },
 ] as const;
 export type ConditionKey = (typeof CONDITIONS)[number]["key"];
 
+// Older data used coarse keys; keep them readable if they still appear.
+const LEGACY_CONDITIONS: Record<string, string> = { waves: "Waves", mixed: "Mixed" };
 export function conditionLabel(key: string): string {
-  return CONDITIONS.find((c) => c.key === key)?.label ?? key;
+  return CONDITIONS.find((c) => c.key === key)?.label ?? LEGACY_CONDITIONS[key] ?? key;
 }
 
 /* ------------------------------------------------------------------ */

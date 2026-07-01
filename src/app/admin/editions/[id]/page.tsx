@@ -190,7 +190,7 @@ export default function EditionDetailPage({
   }
 
   // Quick-switcher: jump between the upcoming editions without leaving the tab.
-  const [allEditions, setAllEditions] = useState<{ id: string; label: string | null; year: number; date_start: string | null; status: string; exp_experiences: { title: string | null } | null }[]>([]);
+  const [allEditions, setAllEditions] = useState<{ id: string; label: string | null; year: number; date_start: string | null; date_end: string | null; status: string; exp_experiences: { title: string | null } | null }[]>([]);
   const [switcherOpen, setSwitcherOpen] = useState(false);
   useEffect(() => {
     fetch("/api/admin/editions").then((r) => r.json()).then((d) => { if (Array.isArray(d)) setAllEditions(d); }).catch(() => {});
@@ -560,9 +560,11 @@ export default function EditionDetailPage({
       {/* Quick-switcher — jump between upcoming editions, keeping the current tab */}
       {(() => {
         const today = new Date().toISOString().slice(0, 10);
+        // Current (still running — not yet ended) + upcoming, soonest first, max 5.
         const upcoming = allEditions
-          .filter((e) => e.id !== id && e.date_start && e.date_start >= today)
-          .sort((a, b) => ((a.date_start ?? "") < (b.date_start ?? "") ? -1 : 1));
+          .filter((e) => e.id !== id && (e.date_end ?? e.date_start) && (e.date_end ?? e.date_start)! >= today)
+          .sort((a, b) => ((a.date_start ?? "") < (b.date_start ?? "") ? -1 : 1))
+          .slice(0, 5);
         if (upcoming.length === 0) return null;
         return (
           <div className="relative mb-4">
@@ -573,7 +575,7 @@ export default function EditionDetailPage({
             >
               <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M8 3 4 7l4 4" /><path d="M4 7h16" /><path d="m16 21 4-4-4-4" /><path d="M20 17H4" /></svg>
               Switch edition
-              <span className="admin-faint font-normal">· {upcoming.length} upcoming</span>
+              <span className="admin-faint font-normal">· {upcoming.length} current & upcoming</span>
               <svg className={`w-3 h-3 transition-transform ${switcherOpen ? "rotate-180" : ""}`} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m6 9 6 6 6-6" /></svg>
             </button>
             {switcherOpen && (

@@ -93,13 +93,13 @@ export function EditionMemoriesUploader({ editionId, initialVideoUrl }: { editio
     if (!bookingId || selected.size === 0) return;
     setAssigning(true);
     const dest = folderFor(bookingId);
-    for (const from of selected) {
-      const name = from.split("/").pop();
-      await fetch("/api/admin/images", {
-        method: "PATCH", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ from, to: `${dest}/${name}` }),
-      }).catch(() => {});
-    }
+    // One bulk request — the server moves them all concurrently (was one slow
+    // round-trip per photo, ~49× the latency).
+    const moves = [...selected].map((from) => ({ from, to: `${dest}/${from.split("/").pop()}` }));
+    await fetch("/api/admin/images", {
+      method: "PATCH", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ moves }),
+    }).catch(() => {});
     setSelected(new Set());
     setAssigning(false);
     load(); refreshCounts();
