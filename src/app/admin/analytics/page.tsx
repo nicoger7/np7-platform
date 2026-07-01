@@ -31,6 +31,8 @@ interface Behaviour {
     topRage: { target: string; path: string; count: number }[];
   };
   experiences?: { slug: string; views: number; reserves: number; rate: number }[];
+  interest?: { kind: string; key: string; views: number; avgSeconds: number; scrollPct: number; reserves: number; frustration: number }[];
+  dropoffs?: { path: string; sessions: number; avgSeconds: number; scrollPct: number; frustration: number }[];
 }
 
 /** ISO-2 country code → flag emoji. */
@@ -314,6 +316,41 @@ function BehaviourTab() {
           )}
         </Card>
       </div>
+
+      {/* Interest — what people are drawn to (views + engagement) */}
+      {d.interest && d.interest.length > 0 && (
+        <div className="mb-4">
+          <Card title="Interest — what draws attention" sub="Experiences, destinations & products ranked by views + how long people engage.">
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="text-[11px] uppercase tracking-wide admin-faint text-left">
+                    <th className="font-semibold pb-2">Page</th>
+                    <th className="font-semibold pb-2 text-right">Views</th>
+                    <th className="font-semibold pb-2 text-right">Avg time</th>
+                    <th className="font-semibold pb-2 text-right">Scroll deep</th>
+                    <th className="font-semibold pb-2 text-right">Reserves</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {d.interest.map((it) => (
+                    <tr key={`${it.kind}:${it.key}`} style={{ borderTop: "1px solid var(--admin-border)" }}>
+                      <td className="py-2 pr-2">
+                        <span className="text-[10px] font-bold uppercase tracking-wide px-1.5 py-0.5 rounded mr-2" style={AREA_BADGE[it.kind === "Product" ? "Products" : "Experiences"]}>{it.kind}</span>
+                        <span className="font-medium admin-heading">{it.key}</span>
+                      </td>
+                      <td className="py-2 text-right admin-muted">{it.views.toLocaleString("en-US")}</td>
+                      <td className="py-2 text-right admin-muted">{it.avgSeconds ? `${it.avgSeconds}s` : "—"}</td>
+                      <td className="py-2 text-right admin-muted">{it.scrollPct}%</td>
+                      <td className="py-2 text-right admin-muted">{it.kind === "Experience" ? it.reserves : "—"}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </Card>
+        </div>
+      )}
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
         {/* Funnel */}

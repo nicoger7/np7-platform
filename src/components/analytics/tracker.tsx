@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
 import { usePathname } from "next/navigation";
 import { trackPageview, track } from "@/lib/analytics-client";
 
@@ -146,6 +146,32 @@ export function AnalyticsTracker() {
     document.addEventListener("click", onClick, { capture: true });
     return () => document.removeEventListener("click", onClick, { capture: true });
   }, [pathname]);
+
+  // Time on page — how long visitors actually stay (the interest signal). Emitted
+  // for the page you LEAVE (on route change + when the tab is hidden/closed),
+  // attributed to that page via meta.p. Guarded so each visit is counted once.
+  const stayRef = useRef<{ path: string; t: number; sent: boolean }>({ path: "", t: 0, sent: false });
+  useEffect(() => {
+    const prev = stayRef.current;
+    const now = Date.now();
+    if (prev.path && prev.path !== pathname && !prev.sent && !/^\/(admin|account)/.test(prev.path)) {
+      const secs = Math.round((now - prev.t) / 1000);
+      if (secs >= 2 && secs <= 1800) track("page_time", { seconds: secs, p: prev.path });
+    }
+    stayRef.current = { path: pathname, t: now, sent: false };
+  }, [pathname]);
+  useEffect(() => {
+    const flush = () => {
+      const cur = stayRef.current;
+      if (cur.sent || !cur.path || /^\/(admin|account)/.test(cur.path)) return;
+      const secs = Math.round((Date.now() - cur.t) / 1000);
+      if (secs >= 2 && secs <= 1800) { track("page_time", { seconds: secs, p: cur.path }); cur.sent = true; }
+    };
+    const onVis = () => { if (document.visibilityState === "hidden") flush(); };
+    document.addEventListener("visibilitychange", onVis);
+    window.addEventListener("pagehide", flush);
+    return () => { document.removeEventListener("visibilitychange", onVis); window.removeEventListener("pagehide", flush); };
+  }, []);
 
   return null;
 }
