@@ -8,6 +8,7 @@ import { resolveSection, SECTION_CHROME } from "@/lib/blog-section";
 import { SectionHeader } from "@/components/shared/section-header";
 import { BlogFooter } from "@/components/blog/blog-footer";
 import { RatingHeadline } from "@/components/spotguide/rating-panel";
+import { ContributeSpot } from "@/components/spotguide/contribute-spot";
 import { flags } from "@/lib/flags";
 
 export const metadata: Metadata = {
@@ -74,6 +75,11 @@ export default async function SpotguideIndex() {
                   </Link>
                 );
               })}
+              </div>
+
+              <div className="mt-10">
+                <h2 className="text-[13px] font-black uppercase tracking-[0.14em] text-[#9aa6ac] mb-3">Contribute</h2>
+                <ContributeSpot destinations={dests.map((d) => ({ id: d.id, name: d.name }))} accent={chrome.accent} />
               </div>
             </>
           )}

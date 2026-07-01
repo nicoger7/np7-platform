@@ -14,13 +14,21 @@ interface PendingPhoto { id: string; spot_id: string; url: string; caption: stri
 export default function SpotguideModeration() {
   const [spots, setSpots] = useState<PendingSpot[]>([]);
   const [photos, setPhotos] = useState<PendingPhoto[]>([]);
+  const [proposedDests, setProposedDests] = useState<{ id: string; name: string; region: string | null }[]>([]);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState<string | null>(null);
 
   const load = useCallback(() => {
-    fetch("/api/admin/spotguide/pending").then((r) => r.json()).then((d) => { setSpots(d.spots ?? []); setPhotos(d.photos ?? []); setLoading(false); });
+    fetch("/api/admin/spotguide/pending").then((r) => r.json()).then((d) => { setSpots(d.spots ?? []); setPhotos(d.photos ?? []); setProposedDests(d.proposedDests ?? []); setLoading(false); });
   }, []);
   useEffect(() => { load(); }, [load]);
+
+  async function publishDest(id: string) {
+    setBusy(id);
+    await fetch(`/api/admin/destinations/${id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ spotguide_status: "published" }) });
+    setBusy(null);
+    setProposedDests((list) => list.filter((d) => d.id !== id));
+  }
 
   async function moderatePhoto(id: string, status: "approved" | "rejected") {
     setBusy(id);
@@ -43,6 +51,27 @@ export default function SpotguideModeration() {
         <p className="text-sm admin-muted">Member-submitted spots awaiting review. Community-verify needs 3 member confirmations; you can NP7-verify (gold) any time.</p>
       </div>
 
+      {!loading && proposedDests.length > 0 && (
+        <div className="mb-8">
+          <h2 className="text-sm font-bold admin-heading mb-2">Proposed areas <span className="admin-faint font-normal">({proposedDests.length})</span></h2>
+          <p className="text-xs admin-faint mb-2">New destinations a member named while adding a spot. Publish to make the area live in the guide, or open it to edit first.</p>
+          <div className="space-y-2">
+            {proposedDests.map((d) => (
+              <div key={d.id} className="flex items-center justify-between gap-3 rounded-xl p-3" style={{ border: "1px solid var(--admin-border)", backgroundColor: "var(--admin-surface)" }}>
+                <div className="min-w-0">
+                  <Link href={`/admin/destinations/${d.id}`} className="text-sm font-bold admin-heading hover:text-[#0aa3c7]">{d.name}</Link>
+                  {d.region && <span className="text-[11px] admin-faint ml-2">{d.region}</span>}
+                </div>
+                <div className="flex items-center gap-2 shrink-0">
+                  <button onClick={() => publishDest(d.id)} disabled={busy === d.id} className="px-3 py-1.5 rounded-lg text-xs font-bold bg-[var(--admin-accent)] text-[var(--admin-accent-contrast)] disabled:opacity-50">Publish area</button>
+                  <Link href={`/admin/destinations/${d.id}`} className="px-3 py-1.5 rounded-lg text-xs font-semibold admin-muted" style={{ border: "1px solid var(--admin-border)" }}>Open</Link>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
       {!loading && photos.length > 0 && (
         <div className="mb-8">
           <h2 className="text-sm font-bold admin-heading mb-2">Pending photos <span className="admin-faint font-normal">({photos.length})</span></h2>
@@ -63,7 +92,7 @@ export default function SpotguideModeration() {
       {loading ? (
         <div className="py-12 text-center text-sm admin-faint">Loading…</div>
       ) : spots.length === 0 ? (
-        photos.length === 0 ? <div className="py-16 text-center"><p className="text-sm admin-faint">Nothing awaiting review</p><p className="text-xs admin-faint mt-1">Member-submitted spots &amp; photos will appear here.</p></div> : null
+        photos.length === 0 && proposedDests.length === 0 ? <div className="py-16 text-center"><p className="text-sm admin-faint">Nothing awaiting review</p><p className="text-xs admin-faint mt-1">Member-submitted spots, photos &amp; areas will appear here.</p></div> : null
       ) : (
         <div className="space-y-3">
           {spots.map((s) => {

@@ -7,9 +7,12 @@ import { PinPicker } from "./pin-picker";
 import { LevelPicker } from "./level-picker";
 
 /** Member "add a spot" form. Submits within our structure → lands pending,
-    goes public once 3 members confirm (or NP7 verifies). */
-export function AddSpot({ destId, destName, accent = "#00afdb" }: { destId: string; destName: string; accent?: string }) {
+    goes public once 3 members confirm (or NP7 verifies). On a destination page
+    it's fixed to that destination; on the index it shows a destination picker
+    (existing area, or name a NEW area → creates a pending destination). */
+export function AddSpot({ destId, destName, destinations, accent = "#00afdb" }: { destId?: string; destName?: string; destinations?: { id: string; name: string }[]; accent?: string }) {
   const sg = useSpotguide();
+  const chooseDest = !destId && !!destinations;
   const [open, setOpen] = useState(false);
   const [busy, setBusy] = useState(false);
   const [done, setDone] = useState(false);
@@ -17,6 +20,8 @@ export function AddSpot({ destId, destName, accent = "#00afdb" }: { destId: stri
   const [f, setF] = useState({ name: "", summary: "", description: "", level: "", conditions: [] as string[], infrastructure: [] as string[] });
   const [pin, setPin] = useState<{ lat: number; lng: number } | null>(null);
   const [customTag, setCustomTag] = useState("");
+  const [destChoice, setDestChoice] = useState(""); // "" | destId | "__new__"
+  const [newArea, setNewArea] = useState("");
 
   function toggle(list: "conditions" | "infrastructure", v: string) {
     setF((p) => ({ ...p, [list]: p[list].includes(v) ? p[list].filter((x) => x !== v) : [...p[list], v] }));
@@ -31,10 +36,18 @@ export function AddSpot({ destId, destName, accent = "#00afdb" }: { destId: stri
   async function submit() {
     if (f.name.trim().length < 2) { setError("Give the spot a name."); return; }
     if (!pin) { setError("Drop a pin on the map so we know exactly where it is."); return; }
+    let dest: Record<string, string> = { destination_id: destId ?? "" };
+    if (chooseDest) {
+      if (destChoice === "__new__") {
+        if (newArea.trim().length < 2) { setError("Name the new area."); return; }
+        dest = { new_destination: newArea.trim() };
+      } else if (destChoice) dest = { destination_id: destChoice };
+      else { setError("Pick a destination or name a new area."); return; }
+    }
     setBusy(true); setError("");
     const res = await fetch("/api/portal/spotguide/spots", {
       method: "POST", headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ destination_id: destId, ...f, coords: `${pin.lat}, ${pin.lng}` }),
+      body: JSON.stringify({ ...dest, ...f, coords: `${pin.lat}, ${pin.lng}` }),
     });
     setBusy(false);
     if (res.ok) { setDone(true); setOpen(false); }
@@ -48,8 +61,8 @@ export function AddSpot({ destId, destName, accent = "#00afdb" }: { destId: stri
       <button onClick={() => (sg.loggedIn ? setOpen(true) : sg.needAuth())}
         className="w-full rounded-2xl border-2 border-dashed p-5 text-left transition-colors hover:bg-white"
         style={{ borderColor: "#e2d8c6" }}>
-        <span className="text-[15px] font-extrabold text-[#00374a]">Know a spot in {destName} we&apos;re missing?</span>
-        <span className="block text-[13px] text-[#6a7a80] mt-0.5">{sg.loggedIn ? "Add it — other members verify it before it goes public." : "Sign up (seconds) to add a spot — members verify it before it goes public."}</span>
+        <span className="text-[15px] font-extrabold text-[#00374a]">{destName ? `Know a spot in ${destName} we're missing?` : "Know a spot we're missing? Add it"}</span>
+        <span className="block text-[13px] text-[#6a7a80] mt-0.5">{sg.loggedIn ? (chooseDest ? "Add it to any destination — or name a whole new area. Members verify it before it's public." : "Add it — other members verify it before it goes public.") : "Sign up (seconds) to add a spot — members verify it before it goes public."}</span>
       </button>
     );
   }
@@ -59,7 +72,20 @@ export function AddSpot({ destId, destName, accent = "#00afdb" }: { destId: stri
 
   return (
     <div className="rounded-2xl border border-[#ece3d3] bg-white p-5 space-y-3">
-      <p className="text-[15px] font-extrabold text-[#00374a]">Add a spot in {destName}</p>
+      <p className="text-[15px] font-extrabold text-[#00374a]">{destName ? `Add a spot in ${destName}` : "Add a spot"}</p>
+      {chooseDest && (
+        <div>
+          <p className="text-[11px] font-bold uppercase tracking-wide text-[#9aa6ac] mb-1.5">Where is it?</p>
+          <select className={input} value={destChoice} onChange={(e) => setDestChoice(e.target.value)}>
+            <option value="">Pick a destination…</option>
+            {destinations!.map((d) => <option key={d.id} value={d.id}>{d.name}</option>)}
+            <option value="__new__">➕ A new area (not listed)</option>
+          </select>
+          {destChoice === "__new__" && (
+            <input className={`${input} mt-2`} placeholder="Name the area / town (e.g. Prasonisi, Rhodes) *" value={newArea} onChange={(e) => setNewArea(e.target.value)} />
+          )}
+        </div>
+      )}
       <input className={input} placeholder="Spot name *" value={f.name} onChange={(e) => setF({ ...f, name: e.target.value })} autoFocus />
       <input className={input} placeholder="One-line summary" value={f.summary} onChange={(e) => setF({ ...f, summary: e.target.value })} />
       <textarea className={`${input} min-h-[80px] resize-y`} placeholder="What's it like here — wind, water, launch, hazards…" value={f.description} onChange={(e) => setF({ ...f, description: e.target.value })} />

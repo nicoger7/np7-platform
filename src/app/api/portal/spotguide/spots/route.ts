@@ -48,20 +48,38 @@ export async function POST(request: NextRequest) {
   if (!user) return NextResponse.json({ error: "Please sign in to add a spot." }, { status: 401 });
 
   const body = await request.json().catch(() => ({}));
-  const destinationId = (body.destination_id ?? "").trim();
   const name = (body.name ?? "").trim();
-  if (!destinationId) return NextResponse.json({ error: "Missing destination." }, { status: 400 });
   if (name.length < 2) return NextResponse.json({ error: "Give the spot a name." }, { status: 400 });
+  const coords = typeof body.coords === "string" ? parseCoords(body.coords) : null;
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const db = createAdminClient() as any;
+
+  // Either attach to an existing destination, or the member is proposing a NEW
+  // area → create a pending destination (draft + submitted_by) for NP7 to review.
+  let destinationId = (body.destination_id ?? "").trim();
+  const newArea = typeof body.new_destination === "string" ? body.new_destination.trim().slice(0, 80) : "";
+  if (!destinationId && newArea.length >= 2) {
+    const slug = slugifySpot(newArea) + "-" + Math.random().toString(36).slice(2, 6);
+    const { data: nd, error: dErr } = await db.from("destinations").insert({
+      name: newArea, slug,
+      region: typeof body.new_region === "string" ? body.new_region.trim().slice(0, 120) : null,
+      lat: coords?.lat ?? null, lng: coords?.lng ?? null,
+      status: "draft", spotguide_status: "draft", submitted_by: user.contactId,
+    }).select("id").single();
+    if (dErr) {
+      if (/does not exist|schema cache/i.test(dErr.message)) return NextResponse.json({ error: "Spotguide isn't live yet." }, { status: 503 });
+      return NextResponse.json({ error: "Could not create the area." }, { status: 500 });
+    }
+    destinationId = nd.id;
+  }
+  if (!destinationId) return NextResponse.json({ error: "Pick a destination or name a new area." }, { status: 400 });
   const { data: dest } = await db.from("destinations").select("id").eq("id", destinationId).maybeSingle();
   if (!dest) return NextResponse.json({ error: "Destination not found." }, { status: 404 });
 
   const level = LEVELS.includes(body.level) ? body.level : null;
   const conditions = Array.isArray(body.conditions) ? body.conditions.filter((c: string) => CONDITIONS.some((x) => x.key === c)) : [];
   const infrastructure = Array.isArray(body.infrastructure) ? body.infrastructure.map((t: unknown) => String(t).slice(0, 40)).slice(0, 20) : [];
-  const coords = typeof body.coords === "string" ? parseCoords(body.coords) : null;
   const description = typeof body.description === "string" ? body.description.trim().slice(0, 4000) : null;
   const summary = typeof body.summary === "string" ? body.summary.trim().slice(0, 240) : null;
 

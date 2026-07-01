@@ -36,5 +36,12 @@ export async function GET() {
       flags: vs.filter((v: { kind: string }) => v.kind === "flag").length,
     };
   });
-  return NextResponse.json({ spots: out, photos: photos ?? [] });
+  // Member-proposed new areas (destinations) awaiting NP7 publish.
+  const { data: proposedDests } = await db
+    .from("destinations")
+    .select("id, name, region, slug")
+    .not("submitted_by", "is", null)
+    .eq("spotguide_status", "draft");
+
+  return NextResponse.json({ spots: out, photos: photos ?? [], proposedDests: proposedDests ?? [] });
 }
