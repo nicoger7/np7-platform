@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getPortalUser } from "@/lib/auth";
 import { createAdminClient } from "@/lib/supabase";
 import { COMMUNITY_VERIFY_THRESHOLD } from "@/lib/spotguide";
+import { getStanding } from "@/lib/spotguide-trust";
 
 /**
  * POST /api/portal/spotguide/verify — cross-member verification of a pending,
@@ -21,7 +22,7 @@ export async function POST(request: NextRequest) {
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const db = createAdminClient() as any;
-  const { data: spot } = await db.from("spots").select("id, submitted_by, verification, source").eq("id", spotId).maybeSingle();
+  const { data: spot } = await db.from("spots").select("id, destination_id, submitted_by, verification, source").eq("id", spotId).maybeSingle();
   if (!spot) return NextResponse.json({ error: "Spot not found." }, { status: 404 });
   if (spot.submitted_by === user.contactId) return NextResponse.json({ error: "You can't verify your own spot." }, { status: 403 });
 
@@ -34,13 +35,17 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "Could not record that." }, { status: 500 });
   }
 
-  // Recount; auto-promote a still-pending spot once it clears the threshold.
+  // Recount; auto-promote a still-pending spot once it clears the threshold —
+  // OR immediately if THIS confirm comes from a trusted local specialist/moderator.
   const { data: confirmRows } = await db.from("spot_verifications").select("contact_id").eq("spot_id", spotId).eq("kind", "confirm");
   const confirms = new Set((confirmRows ?? []).map((r: { contact_id: string }) => r.contact_id)).size;
   let verification = spot.verification;
-  if (kind === "confirm" && spot.verification === "pending" && confirms >= COMMUNITY_VERIFY_THRESHOLD) {
-    await db.from("spots").update({ verification: "community", updated_at: new Date().toISOString() }).eq("id", spotId);
-    verification = "community";
+  if (kind === "confirm" && spot.verification === "pending") {
+    const st = await getStanding(db, user.contactId, spot.destination_id);
+    if (confirms >= COMMUNITY_VERIFY_THRESHOLD || st.moderator || st.specialist) {
+      await db.from("spots").update({ verification: "community", updated_at: new Date().toISOString() }).eq("id", spotId);
+      verification = "community";
+    }
   }
   return NextResponse.json({ ok: true, confirms, verification });
 }

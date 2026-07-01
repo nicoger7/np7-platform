@@ -3,6 +3,7 @@ import { getPortalUser } from "@/lib/auth";
 import { createAdminClient } from "@/lib/supabase";
 import { slugifySpot, asWindWindow, CONDITIONS, LEVELS } from "@/lib/spotguide";
 import { fetchWindStats } from "@/lib/wind-stats";
+import { getStanding } from "@/lib/spotguide-trust";
 import { parseCoords } from "@/lib/blog-templates";
 
 /**
@@ -84,12 +85,17 @@ export async function POST(request: NextRequest) {
   const description = typeof body.description === "string" ? body.description.trim().slice(0, 4000) : null;
   const summary = typeof body.summary === "string" ? body.summary.trim().slice(0, 240) : null;
 
+  // A trusted local specialist / moderator's spot goes live immediately;
+  // everyone else's lands pending for cross-member verification.
+  const standing = await getStanding(db, user.contactId, destinationId);
+  const verification = standing.moderator || standing.specialist ? "community" : "pending";
+
   const { data, error } = await db.from("spots").insert({
     destination_id: destinationId, name, slug: slugifySpot(name),
     level, conditions, infrastructure, wind_window: asWindWindow(body.wind_window),
     lat: coords?.lat ?? null, lng: coords?.lng ?? null, description, summary,
     source: "member", submitted_by: user.contactId,
-    status: "published", verification: "pending",
+    status: "published", verification,
   }).select("id").single();
   if (error) {
     if (/does not exist|schema cache/i.test(error.message)) return NextResponse.json({ error: "Spotguide isn't live yet." }, { status: 503 });
