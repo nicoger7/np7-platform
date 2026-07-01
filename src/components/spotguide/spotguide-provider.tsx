@@ -4,7 +4,8 @@ import { createContext, useContext, useEffect, useState, useCallback } from "rea
 import { AuthModal } from "@/components/shared/auth-modal";
 import type { RatingSummary, ForecastTally } from "@/lib/spotguide";
 
-type SpotMine = { ratings?: Record<string, number>; model?: string };
+export type SpotFacts = { ratings: Record<string, number>; level: string | null; conditions: string[]; wind_window: Record<string, string> };
+type SpotMine = { ratings?: Record<string, number>; model?: string; level?: string | null; conditions?: string[]; wind_window?: Record<string, string> };
 
 type Ctx = {
   loggedIn: boolean;
@@ -12,7 +13,7 @@ type Ctx = {
   mineSpot: (spotId: string) => SpotMine | undefined;
   /** Open the free-signup modal; resolves the member into a logged-in state. */
   needAuth: () => void;
-  saveSpot: (spotId: string, ratings: Record<string, number>) => Promise<RatingSummary | null>;
+  saveSpot: (spotId: string, facts: SpotFacts) => Promise<boolean>;
   voteForecast: (spotId: string, model: string) => Promise<ForecastTally[] | null>;
   saveDest: (ratings: Record<string, number>) => Promise<RatingSummary | null>;
 };
@@ -47,11 +48,11 @@ export function SpotguideProvider({ destId, initialLoggedIn = false, children }:
     return r.json();
   }
 
-  const saveSpot = async (spotId: string, ratings: Record<string, number>) => {
-    const j = await post("/api/portal/spotguide/rate", { target: "spot", id: spotId, ratings });
-    if (!j) return null;
-    setMineSpots((m) => ({ ...m, [spotId]: { ...m[spotId], ratings: j.mine } }));
-    return j.summary as RatingSummary;
+  const saveSpot = async (spotId: string, facts: SpotFacts) => {
+    const j = await post("/api/portal/spotguide/rate", { target: "spot", id: spotId, ...facts });
+    if (!j) return false;
+    setMineSpots((m) => ({ ...m, [spotId]: { ...m[spotId], ratings: j.mine.ratings, level: j.mine.level, conditions: j.mine.conditions, wind_window: j.mine.wind_window } }));
+    return true;
   };
   const voteForecast = async (spotId: string, model: string) => {
     const j = await post("/api/portal/spotguide/forecast", { spotId, model });

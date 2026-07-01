@@ -11,7 +11,7 @@ import { BlogFooter } from "@/components/blog/blog-footer";
 import { RatingHeadline, RatingBreakdown } from "@/components/spotguide/rating-panel";
 import { SpotsList } from "@/components/spotguide/spots-list";
 import { SpotguideProvider } from "@/components/spotguide/spotguide-provider";
-import { CriteriaRater } from "@/components/spotguide/raters";
+import { DestinationRater } from "@/components/spotguide/raters";
 import { MeteredContent } from "@/components/spotguide/metered-content";
 import { AddSpot } from "@/components/spotguide/add-spot";
 import { VerifySpots } from "@/components/spotguide/verify-spots";
@@ -86,7 +86,7 @@ export default async function SpotguideDestinationPage({ params }: Props) {
                     <RatingBreakdown criteria={DESTINATION_CRITERIA} np7Ratings={d.np7_ratings} member={d.member} />
                   </div>
                 )}
-                <CriteriaRater target="destination" id={d.id} criteria={DESTINATION_CRITERIA} accent={chrome.accent} />
+                <DestinationRater criteria={DESTINATION_CRITERIA} accent={chrome.accent} />
               </div>
             </section>
 
