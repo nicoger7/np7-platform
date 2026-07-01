@@ -72,6 +72,7 @@ function experienceSlug(path: string): string | undefined {
 export function track(event: string, meta?: Record<string, unknown>): void {
   try {
     if (typeof window === "undefined") return;
+    if (window.top !== window.self) return; // never track inside an iframe (e.g. the admin heatmap preview)
     // Forward conversions to Meta — self-gated on its OWN marketing consent, so
     // it stays independent of first-party analytics consent (and is inert until
     // a Pixel id + marketing consent both exist).

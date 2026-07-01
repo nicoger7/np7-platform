@@ -109,6 +109,8 @@ export function AnalyticsTracker() {
       if (!el || !el.tagName) return;
       const xpct = pct(e.clientX, window.innerWidth);
       const ypct = pct(e.clientY, window.innerHeight);
+      // page-relative Y (includes scroll) so heatmaps can place clicks on the full page
+      const yd = Math.round(((window.scrollY + e.clientY) / Math.max(1, document.documentElement.scrollHeight)) * 100);
 
       // rage: 3+ clicks within 800ms inside a ~40px radius
       const now = Date.now();
@@ -116,7 +118,7 @@ export function AnalyticsTracker() {
       recent = recent.filter((r) => now - r.t < 800);
       if (recent.length >= 3 && now - lastRage > 1500 && rages < 15) {
         const near = recent.filter((r) => Math.hypot(r.x - e.clientX, r.y - e.clientY) < 40);
-        if (near.length >= 3) { lastRage = now; rages++; recent = []; track("rage_click", { target: describe(el), xpct, ypct }); }
+        if (near.length >= 3) { lastRage = now; rages++; recent = []; track("rage_click", { target: describe(el), xpct, ypct, yd }); }
       }
 
       const interactive = el.closest(INTERACTIVE) as HTMLElement | null;
@@ -124,7 +126,7 @@ export function AnalyticsTracker() {
         // a real interaction — record WHAT they clicked (skip already-tagged CTAs to avoid double-count)
         if (!interactive.closest("[data-track]") && clicks < 80) {
           clicks++;
-          track("click", { target: describe(interactive), xpct, ypct });
+          track("click", { target: describe(interactive), xpct, ypct, yd });
         }
         return;
       }
@@ -139,7 +141,7 @@ export function AnalyticsTracker() {
       window.setTimeout(() => {
         mo.disconnect();
         const changed = location.href !== url || mutated || Math.abs(window.scrollY - sy) > 4 || document.documentElement.scrollHeight !== h;
-        if (!changed) { deads++; track("dead_click", { target: describe(el), xpct, ypct }); }
+        if (!changed) { deads++; track("dead_click", { target: describe(el), xpct, ypct, yd }); }
       }, 700);
     };
 
