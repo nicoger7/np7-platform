@@ -25,7 +25,7 @@ export async function GET(request: NextRequest) {
   const { data: spots } = await db
     .from("spots")
     .select("id, name, level, conditions, description, submitted_by, created_at")
-    .eq("destination_id", dest).eq("source", "member").eq("verification", "pending")
+    .eq("destination_id", dest).eq("source", "member").eq("verification", "pending").eq("status", "published")
     .order("created_at", { ascending: false });
   const ids = (spots ?? []).map((s: { id: string }) => s.id);
   const { data: verifs } = ids.length
@@ -38,7 +38,9 @@ export async function GET(request: NextRequest) {
       id: s.id, name: s.name, level: s.level, conditions: s.conditions ?? [], description: s.description,
       isOwn: s.submitted_by === user.contactId,
       confirms: vs.filter((v: { kind: string }) => v.kind === "confirm").length,
+      flags: vs.filter((v: { kind: string }) => v.kind === "flag").length,
       iConfirmed: vs.some((v: { contact_id: string; kind: string }) => v.contact_id === user.contactId && v.kind === "confirm"),
+      iFlagged: vs.some((v: { contact_id: string; kind: string }) => v.contact_id === user.contactId && v.kind === "flag"),
     };
   });
   return NextResponse.json({ loggedIn: true, spots: out });

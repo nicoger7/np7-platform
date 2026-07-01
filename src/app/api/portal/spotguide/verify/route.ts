@@ -35,17 +35,28 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "Could not record that." }, { status: 500 });
   }
 
-  // Recount; auto-promote a still-pending spot once it clears the threshold —
-  // OR immediately if THIS confirm comes from a trusted local specialist/moderator.
-  const { data: confirmRows } = await db.from("spot_verifications").select("contact_id").eq("spot_id", spotId).eq("kind", "confirm");
-  const confirms = new Set((confirmRows ?? []).map((r: { contact_id: string }) => r.contact_id)).size;
+  // Recount both sides.
+  const { data: rows } = await db.from("spot_verifications").select("contact_id, kind").eq("spot_id", spotId);
+  const confirms = new Set((rows ?? []).filter((r: { kind: string }) => r.kind === "confirm").map((r: { contact_id: string }) => r.contact_id)).size;
+  const flags = new Set((rows ?? []).filter((r: { kind: string }) => r.kind === "flag").map((r: { contact_id: string }) => r.contact_id)).size;
   let verification = spot.verification;
+  let hidden = false;
+
   if (kind === "confirm" && spot.verification === "pending") {
+    // Auto-promote once it clears the threshold — or instantly if THIS confirm is
+    // from a trusted local specialist/moderator.
     const st = await getStanding(db, user.contactId, spot.destination_id);
     if (confirms >= COMMUNITY_VERIFY_THRESHOLD || st.moderator || st.specialist) {
       await db.from("spots").update({ verification: "community", updated_at: new Date().toISOString() }).eq("id", spotId);
       verification = "community";
     }
+  } else if (kind === "flag" && spot.verification === "pending") {
+    // Enough members say it's wrong → pull it from the public queue for NP7 review
+    // (mirrors photo moderation). It's not deleted — admin decides.
+    if (flags >= COMMUNITY_VERIFY_THRESHOLD) {
+      await db.from("spots").update({ status: "hidden", updated_at: new Date().toISOString() }).eq("id", spotId);
+      hidden = true;
+    }
   }
-  return NextResponse.json({ ok: true, confirms, verification });
+  return NextResponse.json({ ok: true, confirms, flags, verification, hidden });
 }

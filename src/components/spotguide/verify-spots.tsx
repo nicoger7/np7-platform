@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { useSpotguide } from "./spotguide-provider";
 import { COMMUNITY_VERIFY_THRESHOLD, conditionLabel } from "@/lib/spotguide";
 
-type Pending = { id: string; name: string; level: string | null; conditions: string[]; description: string | null; isOwn: boolean; confirms: number; iConfirmed: boolean; justLive?: boolean };
+type Pending = { id: string; name: string; level: string | null; conditions: string[]; description: string | null; isOwn: boolean; confirms: number; iConfirmed: boolean; iFlagged?: boolean; justLive?: boolean; justHidden?: boolean };
 
 /** "Help verify" — member-submitted spots awaiting community confirmation.
     Shown to logged-in members only; confirming pushes a spot to public at the
@@ -28,6 +28,15 @@ export function VerifySpots({ destId, accent = "#00afdb" }: { destId: string; ac
     setSpots((list) => list.map((s) => s.id === id ? { ...s, confirms: j.confirms, iConfirmed: true, justLive: j.verification === "community" } : s));
   }
 
+  async function flag(id: string) {
+    setBusy(id);
+    const r = await fetch("/api/portal/spotguide/verify", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ spotId: id, kind: "flag" }) });
+    setBusy(null);
+    if (!r.ok) return;
+    const j = await r.json();
+    setSpots((list) => list.map((s) => s.id === id ? { ...s, iFlagged: true, justHidden: j.hidden } : s));
+  }
+
   if (!sg.loggedIn || spots.length === 0) return null;
 
   return (
@@ -45,17 +54,26 @@ export function VerifySpots({ destId, accent = "#00afdb" }: { destId: string; ac
               </div>
               <span className="shrink-0 text-[12px] font-bold" style={{ color: accent }}>{s.confirms}/{COMMUNITY_VERIFY_THRESHOLD}</span>
             </div>
-            <div className="mt-3">
-              {s.justLive ? (
+            <div className="mt-3 flex items-center gap-2 flex-wrap">
+              {s.justHidden ? (
+                <span className="text-[13px] font-bold text-[#b4522f]">Flagged — we&apos;ll review it. Thanks!</span>
+              ) : s.justLive ? (
                 <span className="text-[13px] font-bold text-[#1f9e57]">Now live for everyone — thanks! 🎉</span>
               ) : s.isOwn ? (
                 <span className="text-[12.5px] text-[#9aa6ac]">Your submission · awaiting other members</span>
               ) : s.iConfirmed ? (
                 <span className="text-[12.5px] font-semibold" style={{ color: accent }}>✓ You confirmed this</span>
+              ) : s.iFlagged ? (
+                <span className="text-[12.5px] font-semibold text-[#b4522f]">⚑ You flagged this as wrong</span>
               ) : (
-                <button onClick={() => confirm(s.id)} disabled={busy === s.id} className="px-4 py-2 rounded-full text-[13px] font-bold text-white disabled:opacity-50" style={{ backgroundColor: accent }}>
-                  {busy === s.id ? "…" : "I've sailed here — accurate"}
-                </button>
+                <>
+                  <button onClick={() => confirm(s.id)} disabled={busy === s.id} className="px-4 py-2 rounded-full text-[13px] font-bold text-white disabled:opacity-50" style={{ backgroundColor: accent }}>
+                    {busy === s.id ? "…" : "I've sailed here — accurate"}
+                  </button>
+                  <button onClick={() => flag(s.id)} disabled={busy === s.id} className="px-4 py-2 rounded-full text-[13px] font-semibold text-[#8a6d5f] hover:text-[#b4522f] disabled:opacity-50" style={{ border: "1px solid #e2d8c6" }}>
+                    Not accurate
+                  </button>
+                </>
               )}
             </div>
           </div>
