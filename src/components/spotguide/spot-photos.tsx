@@ -16,6 +16,8 @@ export function SpotPhotos({ spotId, photos, accent = "#00afdb", mode = "both" }
   const [busy, setBusy] = useState(false);
   const [done, setDone] = useState(false);
   const [error, setError] = useState("");
+  const [arming, setArming] = useState(false); // showing the ownership attestation
+  const [attest, setAttest] = useState(false);
   const [pv, setPv] = useState<Record<string, { score: number; my: number; hidden?: boolean }>>({});
 
   const scoreOf = (p: GalleryPhoto) => (p.id && pv[p.id] ? pv[p.id].score : p.score ?? 0);
@@ -41,10 +43,11 @@ export function SpotPhotos({ spotId, photos, accent = "#00afdb", mode = "both" }
     setBusy(true); setError("");
     const fd = new FormData();
     fd.append("file", file); fd.append("spotId", spotId);
+    fd.append("owner_attested", "1"); // member confirmed they own / may share it
     const r = await fetch("/api/portal/spotguide/photo", { method: "POST", body: fd });
     setBusy(false);
     if (r.status === 401) { sg.needAuth(); return; }
-    if (r.ok) setDone(true);
+    if (r.ok) { setDone(true); setArming(false); setAttest(false); }
     else { const j = await r.json().catch(() => ({})); setError(j.error ?? "Upload failed."); }
   }
 
@@ -73,11 +76,26 @@ export function SpotPhotos({ spotId, photos, accent = "#00afdb", mode = "both" }
       {showUpload && (
         <div>
           <input ref={fileRef} type="file" accept="image/*" hidden onChange={onFile} />
-          <button onClick={() => (sg.loggedIn ? fileRef.current?.click() : sg.needAuth())} disabled={busy}
-            className="text-[13px] font-bold transition-opacity hover:opacity-70 disabled:opacity-50" style={{ color: accent }}>
-            {busy ? "Uploading…" : done ? "Add another photo" : "+ Add a photo"}
-          </button>
-          {done && <span className="ml-2 text-[12px]" style={{ color: "#1f9e57" }}>Posted 📸</span>}
+          {arming ? (
+            <div className="rounded-xl border border-[#e2d8c6] bg-white p-3 space-y-2.5">
+              <label className="flex items-start gap-2 text-[12.5px] text-[#5a6b72] cursor-pointer">
+                <input type="checkbox" checked={attest} onChange={(e) => setAttest(e.target.checked)} className="mt-0.5 shrink-0 accent-[#00afdb]" />
+                <span>I took this photo, or I have the right to share it — it&apos;s not grabbed from the web or someone else&apos;s.</span>
+              </label>
+              <div className="flex items-center gap-3">
+                <button onClick={() => fileRef.current?.click()} disabled={!attest || busy} className="px-3.5 py-2 rounded-full text-[13px] font-bold text-white disabled:opacity-40" style={{ backgroundColor: accent }}>
+                  {busy ? "Uploading…" : "Choose photo"}
+                </button>
+                <button onClick={() => { setArming(false); setAttest(false); }} className="text-[12.5px] font-semibold text-[#9aa6ac]">Cancel</button>
+              </div>
+            </div>
+          ) : (
+            <button onClick={() => (sg.loggedIn ? setArming(true) : sg.needAuth())} disabled={busy}
+              className="text-[13px] font-bold transition-opacity hover:opacity-70 disabled:opacity-50" style={{ color: accent }}>
+              {done ? "Add another photo" : "+ Add a photo"}
+            </button>
+          )}
+          {done && !arming && <span className="ml-2 text-[12px]" style={{ color: "#1f9e57" }}>Posted 📸</span>}
           {error && <p className="text-[12px] text-red-500 mt-1">{error}</p>}
         </div>
       )}
