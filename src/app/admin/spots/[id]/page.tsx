@@ -13,6 +13,7 @@ import {
   type RatingSummary, type ForecastTally,
 } from "@/lib/spotguide";
 import { WindStatsChart } from "@/components/spotguide/wind-stats-chart";
+import { PinPicker } from "@/components/spotguide/pin-picker";
 import type { WindStats } from "@/lib/wind-stats";
 
 /** Pull 12 monthly "% planing (4+ Bft)" values out of existing stats (for the
@@ -133,7 +134,14 @@ export default function SpotEditor({ params }: { params: Promise<{ id: string }>
           <div>
             <label className={labelClass}>Map coordinates</label>
             <input className={inputClass} value={coordsRaw} onChange={(e) => setCoordsRaw(e.target.value)} placeholder="28.0456, -14.3261" />
-            <p className="text-[11px] admin-faint mt-1">Paste “lat, lng” from Google Maps (right-click the spot → copy the numbers).</p>
+            <p className="text-[11px] admin-faint mt-1">Paste “lat, lng” from Google Maps, or drop the pin below. Moving it re-computes the wind stats (unless a manual override is set).</p>
+            <div className="mt-2">
+              <PinPicker
+                value={parseCoords(coordsRaw)}
+                onChange={(c) => setCoordsRaw(`${c.lat}, ${c.lng}`)}
+                height={200}
+              />
+            </div>
           </div>
           <div>
             <label className={labelClass}>Level</label>

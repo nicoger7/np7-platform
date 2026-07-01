@@ -1,7 +1,8 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest, NextResponse, after } from "next/server";
 import { getPortalUser } from "@/lib/auth";
 import { createAdminClient } from "@/lib/supabase";
 import { slugifySpot, asWindWindow, CONDITIONS, LEVELS } from "@/lib/spotguide";
+import { fetchWindStats } from "@/lib/wind-stats";
 import { parseCoords } from "@/lib/blog-templates";
 
 /**
@@ -93,6 +94,21 @@ export async function POST(request: NextRequest) {
   if (error) {
     if (/does not exist|schema cache/i.test(error.message)) return NextResponse.json({ error: "Spotguide isn't live yet." }, { status: 503 });
     return NextResponse.json({ error: "Could not save the spot." }, { status: 500 });
+  }
+
+  // Fill in the wind climatology immediately (in the background) so a new spot
+  // shows its wind stats right away instead of waiting for the weekly cron.
+  if (coords) {
+    const spotId = data.id as string;
+    const { lat, lng } = coords;
+    after(async () => {
+      try {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const bg = createAdminClient() as any;
+        const stats = await fetchWindStats(lat, lng);
+        await bg.from("spots").update({ wind_stats: stats, wind_stats_at: new Date().toISOString() }).eq("id", spotId);
+      } catch { /* the wind-stats cron will retry */ }
+    });
   }
   return NextResponse.json({ ok: true, id: data.id }, { status: 201 });
 }
