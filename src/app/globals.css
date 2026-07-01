@@ -176,3 +176,13 @@ body:has(.hardware-root) {
 details[open] > summary .acc-chevron {
   transform: rotate(180deg);
 }
+
+/* Tailwind v4's preflight no longer sets a pointer cursor on buttons — restore it
+   so every clickable button/role=button (and non-disabled) shows the finger. */
+button:not(:disabled),
+[role="button"]:not([aria-disabled="true"]),
+label[for],
+summary {
+  cursor: pointer;
+}
+button:disabled { cursor: not-allowed; }

@@ -75,7 +75,7 @@ export function DestinationRater({ criteria, accent = "#00afdb" }: { criteria: C
 /** Spot "your visit" — the facts a member actually knows (level it suits, the
     conditions they saw, the wind directions that worked) plus season-independent
     stars. Wind is NOT rated here (that's the objective climatology chart). */
-export function SpotVisitRater({ spotId, accent = "#00afdb" }: { spotId: string; accent?: string }) {
+export function SpotVisitRater({ spotId, accent = "#00afdb", onSaved }: { spotId: string; accent?: string; onSaved?: () => void }) {
   const sg = useSpotguide();
   const mine = sg.mineSpot(spotId);
   const [ratings, setRatings] = useState<Record<string, number>>({});
@@ -99,7 +99,7 @@ export function SpotVisitRater({ spotId, accent = "#00afdb" }: { spotId: string;
     setBusy(true);
     const ok = await sg.saveSpot(spotId, { ratings, level: level || null, conditions, wind_window: wind });
     setBusy(false);
-    if (ok) { setDone(true); setTimeout(() => setDone(false), 2400); }
+    if (ok) { setDone(true); setTimeout(() => { setDone(false); onSaved?.(); }, 1400); }
   }
 
   const chip = (on: boolean) => `px-3 py-1.5 rounded-full text-[12.5px] font-semibold transition-colors ${on ? "text-white" : "text-[#5a6b72] border border-[#e2d8c6]"}`;

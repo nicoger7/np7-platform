@@ -48,7 +48,7 @@ export type Criterion = { key: string; label: string; hint: string };
     level and wind-direction are collected as crowd FACTS instead (see below). */
 export const SPOT_CRITERIA: Criterion[] = [
   { key: "safety", label: "Safety", hint: "Onshore & safe vs offshore wind, rocks, currents, hazards." },
-  { key: "beauty", label: "Beauty", hint: "Scenery and the all-round vibe on the water." },
+  { key: "beauty", label: "View", hint: "Scenery / landscape and the all-round vibe on the water." },
   { key: "infrastructure", label: "Infrastructure", hint: "School, rental, repair, parking, beach bar — what's on the ground." },
   { key: "family", label: "Family-friendly", hint: "Shallow areas, easy launch, room for kids & non-sailors." },
 ];
@@ -92,8 +92,8 @@ export function conditionLabel(key: string): string {
 /* ------------------------------------------------------------------ */
 
 export const INFRASTRUCTURE_TAGS = [
-  "School", "Rental", "Repair", "Storage", "Parking", "Toilets",
-  "Showers", "Beach bar", "Restaurant", "Rescue / lifeguard", "Shop",
+  "Windsurf center", "School", "Rental", "Repair", "Storage", "Parking",
+  "Toilets", "Showers", "Beach bar", "Restaurant", "Rescue / lifeguard", "Shop",
 ] as const;
 
 /* ------------------------------------------------------------------ */
@@ -152,8 +152,8 @@ export const PHOTO_FLAG_THRESHOLD = 3;
 
 export const VERIFICATION_META: Record<Verification, { label: string; short: string; color: string }> = {
   pending: { label: "Awaiting verification", short: "Pending", color: "#9aa6ac" },
-  community: { label: "Community verified", short: "Community", color: "#1f9e57" },
-  np7: { label: "NP7 verified — we've been here", short: "NP7 verified", color: "#00afdb" },
+  community: { label: "Verified by members who've sailed here", short: "Community", color: "#1f9e57" },
+  np7: { label: "Tested by NP7 — we've been here", short: "✓ Verified", color: "#00afdb" },
 };
 
 export function isPublicVerification(v: string | null | undefined): boolean {
