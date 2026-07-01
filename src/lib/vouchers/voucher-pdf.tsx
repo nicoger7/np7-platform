@@ -10,7 +10,7 @@ const TEAL = "#00374a";
 const CYAN = "#0aa3c7";
 const GREY = "#6a7a80";
 const LIGHT = "#e3ecee";
-const NP7_EXPERIENCE_LOGO = "https://qfdqigumjadvrocxjolx.supabase.co/storage/v1/object/public/assets/logos/np7-experience-logo.png";
+const NP7_EXPERIENCE_LOGO = `${process.env.NEXT_PUBLIC_APP_URL ?? 'https://np-seven.com'}/cdn/assets/logos/np7-experience-logo.png`;
 
 const s = StyleSheet.create({
   page: { fontFamily: "Helvetica", color: TEAL, fontSize: 10 },

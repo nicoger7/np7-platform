@@ -496,7 +496,7 @@ export default function AdminShell({
           <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M3 6h18M3 12h18M3 18h18" /></svg>
         </button>
         {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img src="https://qfdqigumjadvrocxjolx.supabase.co/storage/v1/object/public/assets/logos/np7-logo.png" alt="NP7" className="h-4 w-auto" style={{ filter: "var(--admin-logo-filter)" }} />
+        <img src="/cdn/assets/logos/np7-logo.png" alt="NP7" className="h-4 w-auto" style={{ filter: "var(--admin-logo-filter)" }} />
         <span className="text-[9px] font-bold tracking-[0.2em]" style={{ color: "var(--admin-text-faint)" }}>ADMIN</span>
         <span className="ml-auto inline-flex items-center gap-1.5 text-[11px] font-semibold" style={{ color: "var(--admin-text-muted)" }}>
           <span className="w-2 h-2 rounded-full" style={{ backgroundColor: activeEnvConfig.color }} />
@@ -520,7 +520,7 @@ export default function AdminShell({
           <div className="flex items-center gap-2.5 mb-3">
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img
-              src="https://qfdqigumjadvrocxjolx.supabase.co/storage/v1/object/public/assets/logos/np7-logo.png"
+              src="/cdn/assets/logos/np7-logo.png"
               alt="NP7"
               className="h-5 w-auto"
               style={{ filter: "var(--admin-logo-filter)" }}

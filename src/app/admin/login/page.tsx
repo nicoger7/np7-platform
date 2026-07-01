@@ -38,7 +38,7 @@ export default function LoginPage() {
         <div className="text-center mb-10">
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img
-            src="https://qfdqigumjadvrocxjolx.supabase.co/storage/v1/object/public/assets/logos/np7-logo.png"
+            src="/cdn/assets/logos/np7-logo.png"
             alt="NP7"
             className="h-10 w-auto invert mx-auto mb-4"
           />
