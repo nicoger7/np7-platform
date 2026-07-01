@@ -17,7 +17,7 @@ import { TemplateFieldsEditor } from "@/components/blog/template-fields-editor";
 import { BlogIcon } from "@/components/blog/blog-icons";
 
 const WORLD_OPTIONS: { id: World; label: string }[] = [
-  { id: "experience", label: "Travel" },
+  { id: "experience", label: "Spotguide" },
   { id: "hardware", label: "Gear" },
   { id: "technique", label: "Technique" },
 ];
@@ -298,7 +298,7 @@ export default function BlogEditorPage({ params }: { params: Promise<{ id: strin
           />
         </Section>
 
-        <Section title="Visibility & section" hint="Members-only posts show a teaser + free-signup wall to logged-out visitors. World sets the accent colour and the Travel/Gear filter on the blog.">
+        <Section title="Visibility & section" hint="Members-only posts show a teaser + free-signup wall to logged-out visitors. World sets the accent colour and the Spotguide/Gear filter on the blog.">
           <button
             type="button"
             onClick={() => setMembersOnly((v) => !v)}

@@ -9,8 +9,10 @@ import "server-only";
 import { createAdminClient } from "@/lib/supabase";
 import {
   summariseRatings, np7Overall, tallyForecastVotes,
+  crowdWindow, levelConsensus, conditionsTally,
   SPOT_CRITERIA_KEYS, DESTINATION_CRITERIA_KEYS,
   type RatingSummary, type ForecastTally,
+  type CrowdWindow, type LevelConsensus, type ConditionShare,
 } from "@/lib/spotguide";
 import type { WindStats } from "@/lib/wind-stats";
 
@@ -28,15 +30,19 @@ export type PublicSpot = {
   hero_image: string | null; gallery: string[]; summary: string | null; description: string | null;
   np7_ratings: Record<string, number>; verification: string;
   wind_stats: WindStats | null;
+  photos: { url: string; caption: string | null }[];
   np7: number; member: RatingSummary; forecast: ForecastTally[];
+  // crowd-aggregated member facts
+  crowdWindow: CrowdWindow; memberLevel: LevelConsensus; memberConditions: { shares: ConditionShare[]; raters: number };
 };
 
+export type SpotguideTrip = { id: string; title: string; slug: string; hero_image: string | null; tagline: string | null };
 export type SpotguideDestination = {
   id: string; name: string; slug: string | null; region: string | null; country: string | null;
   hero_image: string | null; tagline: string | null; intro: string | null;
   level_min: string | null; level_max: string | null;
   np7_ratings: Record<string, number>; np7: number; member: RatingSummary;
-  spots: PublicSpot[];
+  spots: PublicSpot[]; trips: SpotguideTrip[];
 };
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -97,13 +103,18 @@ export async function getSpotguideDestination(slug: string): Promise<SpotguideDe
   const spots = spotRows ?? [];
   const spotIds = spots.map((s: { id: string }) => s.id);
 
-  const [{ data: sratings }, { data: svotes }, { data: dratings }] = await Promise.all([
-    spotIds.length ? sb.from("spot_ratings").select("spot_id, ratings").in("spot_id", spotIds) : Promise.resolve({ data: [] }),
+  const [{ data: sratings }, { data: svotes }, { data: dratings }, { data: trips }] = await Promise.all([
+    spotIds.length ? sb.from("spot_ratings").select("spot_id, ratings, level, conditions, wind_window").in("spot_id", spotIds) : Promise.resolve({ data: [] }),
     spotIds.length ? sb.from("spot_forecast_votes").select("spot_id, model").in("spot_id", spotIds) : Promise.resolve({ data: [] }),
     sb.from("destination_ratings").select("ratings").eq("destination_id", d.id),
+    sb.from("exp_experiences").select("id, title, slug, hero_image, tagline, status").eq("destination_id", d.id).eq("status", "published"),
   ]);
-  const ratingsBySpot = groupBy((sratings ?? []) as { spot_id: string; ratings: unknown }[], (r) => r.spot_id);
+  const { data: sphotos } = spotIds.length
+    ? await sb.from("spot_photos").select("spot_id, url, caption, sort_order").in("spot_id", spotIds).eq("status", "approved").order("sort_order")
+    : { data: [] };
+  const ratingsBySpot = groupBy((sratings ?? []) as { spot_id: string; ratings: unknown; level?: string | null; conditions?: string[] | null; wind_window?: unknown }[], (r) => r.spot_id);
   const votesBySpot = groupBy((svotes ?? []) as { spot_id: string; model: string }[], (r) => r.spot_id);
+  const photosBySpot = groupBy((sphotos ?? []) as { spot_id: string; url: string; caption: string | null }[], (r) => r.spot_id);
 
   const publicSpots: PublicSpot[] = spots.map((s: Record<string, unknown>) => ({
     id: s.id as string, name: s.name as string, slug: s.slug as string | null,
@@ -114,9 +125,13 @@ export async function getSpotguideDestination(slug: string): Promise<SpotguideDe
     summary: (s.summary as string) ?? null, description: (s.description as string) ?? null,
     np7_ratings: (s.np7_ratings as Record<string, number>) ?? {}, verification: s.verification as string,
     wind_stats: (s.wind_stats as WindStats) ?? null,
+    photos: (photosBySpot.get(s.id as string) ?? []).map((p) => ({ url: p.url, caption: p.caption })),
     np7: np7Overall(s.np7_ratings, SPOT_CRITERIA_KEYS),
     member: summariseRatings(ratingsBySpot.get(s.id as string) ?? [], SPOT_CRITERIA_KEYS),
     forecast: tallyForecastVotes(votesBySpot.get(s.id as string) ?? []),
+    crowdWindow: crowdWindow(ratingsBySpot.get(s.id as string) ?? []),
+    memberLevel: levelConsensus(ratingsBySpot.get(s.id as string) ?? []),
+    memberConditions: conditionsTally(ratingsBySpot.get(s.id as string) ?? []),
   }));
 
   return {
@@ -126,7 +141,34 @@ export async function getSpotguideDestination(slug: string): Promise<SpotguideDe
     np7: np7Overall(d.np7_ratings, DESTINATION_CRITERIA_KEYS),
     member: summariseRatings(dratings ?? [], DESTINATION_CRITERIA_KEYS),
     spots: publicSpots,
+    trips: (trips ?? []).map((t: Record<string, unknown>) => ({
+      id: t.id as string, title: t.title as string, slug: t.slug as string,
+      hero_image: (t.hero_image as string) ?? null, tagline: (t.tagline as string) ?? null,
+    })),
   };
+}
+
+export type SpotMapPoint = { lat: number; lng: number; name: string; destSlug: string; destName: string; verification: string };
+
+/** Every public spot with coordinates, across live destinations — for the map. */
+export async function getAllSpotguidePoints(): Promise<SpotMapPoint[]> {
+  const sb = db();
+  const { data: dests } = await sb.from("destinations").select("id, name, slug").eq("spotguide_status", "published");
+  if (!dests?.length) return [];
+  const byId = new Map((dests as { id: string; name: string; slug: string | null }[]).map((d) => [d.id, d]));
+  const { data: spots } = await sb
+    .from("spots")
+    .select("name, lat, lng, destination_id, verification")
+    .in("destination_id", [...byId.keys()])
+    .eq("status", "published").in("verification", ["community", "np7"])
+    .not("lat", "is", null);
+  return (spots ?? [])
+    .map((s: Record<string, unknown>) => {
+      const d = byId.get(s.destination_id as string);
+      if (!d?.slug) return null;
+      return { lat: s.lat as number, lng: s.lng as number, name: s.name as string, destSlug: d.slug, destName: d.name, verification: s.verification as string };
+    })
+    .filter(Boolean) as SpotMapPoint[];
 }
 
 /** Slugs for static generation / sitemap. */

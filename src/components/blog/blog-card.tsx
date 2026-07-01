@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { getTemplate, worldTheme } from "@/lib/blog-templates";
+import { cdnImage } from "@/lib/img";
 
 export type CardPost = {
   slug: string;
@@ -43,7 +44,7 @@ export function BlogCard({ post }: { post: CardPost }) {
     >
       <div
         className="relative h-[200px] bg-[#e9eef0] bg-cover bg-center overflow-hidden"
-        style={{ backgroundImage: post.cover_image ? `url('${post.cover_image}')` : `linear-gradient(160deg, ${theme.accent}, ${theme.deep})` }}
+        style={{ backgroundImage: post.cover_image ? `url('${cdnImage(post.cover_image, { width: 800 })}')` : `linear-gradient(160deg, ${theme.accent}, ${theme.deep})` }}
       >
         <div className="absolute inset-0 bg-gradient-to-t from-black/25 to-transparent" />
         <span

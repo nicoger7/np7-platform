@@ -1,8 +1,9 @@
 import Link from "next/link";
 import type { Metadata } from "next";
 import { cookies } from "next/headers";
-import { getSpotguideDestinations } from "@/lib/spotguide-data";
+import { getSpotguideDestinations, getAllSpotguidePoints } from "@/lib/spotguide-data";
 import { levelRangeLabel } from "@/lib/spotguide";
+import { SpotMap } from "@/components/spotguide/spot-map";
 import { resolveSection, SECTION_CHROME } from "@/lib/blog-section";
 import { SectionHeader } from "@/components/shared/section-header";
 import { BlogFooter } from "@/components/blog/blog-footer";
@@ -18,7 +19,7 @@ export const revalidate = 60;
 export default async function SpotguideIndex() {
   const section = resolveSection((await cookies()).get("np7_section")?.value);
   const chrome = SECTION_CHROME[section];
-  const dests = await getSpotguideDestinations();
+  const [dests, points] = await Promise.all([getSpotguideDestinations(), getAllSpotguidePoints()]);
 
   return (
     <>
@@ -43,7 +44,14 @@ export default async function SpotguideIndex() {
               <p className="text-[14px] text-[#6a7a80] mt-1">Check back soon — spots are on the way.</p>
             </div>
           ) : (
-            <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-5">
+            <>
+              {points.length > 0 && (
+                <div className="mb-10">
+                  <h2 className="text-[13px] font-black uppercase tracking-[0.14em] text-[#9aa6ac] mb-3">Where we ride <span className="text-[#c3b9a6]">({points.length} spots)</span></h2>
+                  <SpotMap spots={points} cluster height={460} />
+                </div>
+              )}
+              <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-5">
               {dests.map((d) => {
                 const lvl = levelRangeLabel(d.level_min, d.level_max);
                 return (
@@ -66,7 +74,8 @@ export default async function SpotguideIndex() {
                   </Link>
                 );
               })}
-            </div>
+              </div>
+            </>
           )}
         </div>
       </main>

@@ -9,8 +9,9 @@ import {
 import { WindRose, WindRoseLegend } from "./wind-rose";
 import { RatingHeadline, RatingBreakdown } from "./rating-panel";
 import { ForecastPanel } from "./forecast-panel";
-import { CriteriaRater, ForecastVoter } from "./raters";
+import { SpotVisitRater, ForecastVoter } from "./raters";
 import { WindStatsChart } from "./wind-stats-chart";
+import { SpotPhotos } from "./spot-photos";
 
 /** Foldable list of a destination's spots. Collapsed = name + key chips +
     score; expanded = photo, wind rose, ratings, forecast, infrastructure. */
@@ -59,12 +60,26 @@ export function SpotsList({ spots, accent = "#00afdb" }: { spots: PublicSpot[]; 
                 )}
                 {spot.description && <p className="text-[15.5px] text-[#5a6b72] leading-relaxed whitespace-pre-line">{spot.description}</p>}
 
-                {windWindowHasValue(spot.wind_window) && (
-                  <div className="flex items-center gap-4 p-4 rounded-xl bg-[#fdfaf3] border border-[#f0e9da]">
-                    <div>
-                      <div className="text-[11px] font-bold uppercase tracking-[0.1em] text-[#9aa6ac] mb-2">Wind window</div>
-                      <div className="flex items-center gap-4"><WindRose window={spot.wind_window} /><WindRoseLegend /></div>
+                {(windWindowHasValue(spot.wind_window) || spot.crowdWindow.raters > 0) && (
+                  <div className="p-4 rounded-xl bg-[#fdfaf3] border border-[#f0e9da]">
+                    <div className="text-[11px] font-bold uppercase tracking-[0.1em] text-[#9aa6ac] mb-2">Wind window</div>
+                    <div className="flex flex-wrap items-start gap-x-6 gap-y-3">
+                      {windWindowHasValue(spot.wind_window) && (
+                        <div className="text-center"><WindRose window={spot.wind_window} size={112} /><div className="text-[11px] font-black tracking-wide mt-0.5" style={{ color: accent }}>NP7</div></div>
+                      )}
+                      {spot.crowdWindow.raters > 0 && (
+                        <div className="text-center"><WindRose window={spot.crowdWindow.window} size={112} /><div className="text-[11px] font-black tracking-wide mt-0.5 text-[#1f9e57]">Members ({spot.crowdWindow.raters})</div></div>
+                      )}
+                      <WindRoseLegend />
                     </div>
+                  </div>
+                )}
+
+                {(spot.memberLevel.raters > 0 || spot.memberConditions.raters > 0) && (
+                  <div className="rounded-xl border border-[#f0e9da] p-4 space-y-1.5">
+                    <div className="text-[11px] font-bold uppercase tracking-[0.1em] text-[#9aa6ac]">Members say</div>
+                    {spot.memberLevel.label && <p className="text-[13.5px] text-[#5a6b72]"><span className="font-semibold">Level:</span> <span className="text-[#00374a] font-bold">{spot.memberLevel.label}</span> <span className="text-[#9aa6ac]">({spot.memberLevel.raters})</span></p>}
+                    {spot.memberConditions.shares.length > 0 && <p className="text-[13.5px] text-[#5a6b72]"><span className="font-semibold">Conditions:</span> {spot.memberConditions.shares.map((s) => `${s.pct}% ${s.label.toLowerCase()}`).join(" · ")}</p>}
                   </div>
                 )}
 
@@ -87,7 +102,12 @@ export function SpotsList({ spots, accent = "#00afdb" }: { spots: PublicSpot[]; 
                   </div>
                 )}
 
-                <CriteriaRater target="spot" id={spot.id} criteria={SPOT_CRITERIA} accent={accent} />
+                <div>
+                  <div className="text-[11px] font-bold uppercase tracking-[0.1em] text-[#9aa6ac] mb-2">Photos</div>
+                  <SpotPhotos spotId={spot.id} photos={[...spot.gallery, ...spot.photos.map((p) => p.url)]} accent={accent} />
+                </div>
+
+                <SpotVisitRater spotId={spot.id} accent={accent} />
 
                 {spot.infrastructure.length > 0 && (
                   <div className="flex flex-wrap items-center gap-1.5">

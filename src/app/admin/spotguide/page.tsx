@@ -9,16 +9,25 @@ interface PendingSpot {
   level: string | null; conditions: string[] | null; description: string | null;
   verification: string; confirms: number; flags: number;
 }
+interface PendingPhoto { id: string; spot_id: string; url: string; caption: string | null }
 
 export default function SpotguideModeration() {
   const [spots, setSpots] = useState<PendingSpot[]>([]);
+  const [photos, setPhotos] = useState<PendingPhoto[]>([]);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState<string | null>(null);
 
   const load = useCallback(() => {
-    fetch("/api/admin/spotguide/pending").then((r) => r.json()).then((d) => { setSpots(d.spots ?? []); setLoading(false); });
+    fetch("/api/admin/spotguide/pending").then((r) => r.json()).then((d) => { setSpots(d.spots ?? []); setPhotos(d.photos ?? []); setLoading(false); });
   }, []);
   useEffect(() => { load(); }, [load]);
+
+  async function moderatePhoto(id: string, status: "approved" | "rejected") {
+    setBusy(id);
+    await fetch(`/api/admin/spotguide/photos/${id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ status }) });
+    setBusy(null);
+    setPhotos((list) => list.filter((p) => p.id !== id));
+  }
 
   async function act(id: string, patch: Record<string, string>) {
     setBusy(id);
@@ -34,10 +43,27 @@ export default function SpotguideModeration() {
         <p className="text-sm admin-muted">Member-submitted spots awaiting review. Community-verify needs 3 member confirmations; you can NP7-verify (gold) any time.</p>
       </div>
 
+      {!loading && photos.length > 0 && (
+        <div className="mb-8">
+          <h2 className="text-sm font-bold admin-heading mb-2">Pending photos <span className="admin-faint font-normal">({photos.length})</span></h2>
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+            {photos.map((p) => (
+              <div key={p.id} className="rounded-xl overflow-hidden" style={{ border: "1px solid var(--admin-border)" }}>
+                <Link href={`/admin/spots/${p.spot_id}`} className="block aspect-[4/3] bg-cover bg-center" style={{ backgroundImage: `url('${p.url}')` }} />
+                <div className="flex">
+                  <button onClick={() => moderatePhoto(p.id, "approved")} disabled={busy === p.id} className="flex-1 py-1.5 text-xs font-bold text-green-500 hover:bg-green-500/10 disabled:opacity-50">Approve</button>
+                  <button onClick={() => moderatePhoto(p.id, "rejected")} disabled={busy === p.id} className="flex-1 py-1.5 text-xs font-bold text-red-400 hover:bg-red-500/10 disabled:opacity-50 border-l" style={{ borderColor: "var(--admin-border)" }}>Reject</button>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
       {loading ? (
         <div className="py-12 text-center text-sm admin-faint">Loading…</div>
       ) : spots.length === 0 ? (
-        <div className="py-16 text-center"><p className="text-sm admin-faint">Nothing awaiting review</p><p className="text-xs admin-faint mt-1">Member-submitted spots will appear here.</p></div>
+        photos.length === 0 ? <div className="py-16 text-center"><p className="text-sm admin-faint">Nothing awaiting review</p><p className="text-xs admin-faint mt-1">Member-submitted spots &amp; photos will appear here.</p></div> : null
       ) : (
         <div className="space-y-3">
           {spots.map((s) => {

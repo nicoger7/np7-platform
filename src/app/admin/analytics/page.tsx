@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
+import { deriveInsights, type Insight } from "@/lib/analytics-insights";
 
 interface Analytics {
   funnel: { reserved: number; depositPaid: number; balancePaid: number };
@@ -23,6 +24,15 @@ interface Behaviour {
   countries: { country: string; sessions: number }[];
   devices: { device: string; sessions: number }[];
   funnel: { expViews: number; reserveStart: number; register: number };
+  behaviour?: {
+    clicks: number; deadClicks: number; rageClicks: number;
+    topClicked: { target: string; path: string; count: number }[];
+    topDead: { target: string; path: string; count: number }[];
+    topRage: { target: string; path: string; count: number }[];
+  };
+  experiences?: { slug: string; views: number; reserves: number; rate: number }[];
+  interest?: { kind: string; key: string; views: number; avgSeconds: number; scrollPct: number; reserves: number; frustration: number }[];
+  dropoffs?: { path: string; sessions: number; avgSeconds: number; scrollPct: number; frustration: number }[];
 }
 
 /** ISO-2 country code → flag emoji. */
@@ -60,6 +70,51 @@ const Card = ({ title, sub, children }: { title: string; sub?: string; children:
     {children}
   </div>
 );
+
+/** A ranked list of element targets (label + page + count) — the frustration/click reports. */
+function TargetCard({ title, sub, rows, empty }: { title: string; sub: string; rows: { target: string; path: string; count: number }[]; empty: string }) {
+  return (
+    <Card title={title} sub={sub}>
+      {rows.length === 0 ? <p className="text-xs admin-faint">{empty}</p> : (
+        <div className="space-y-2.5">
+          {rows.map((r, i) => (
+            <div key={i} className="flex items-start justify-between gap-3 text-xs">
+              <div className="min-w-0">
+                <p className="admin-heading font-semibold truncate">{r.target}</p>
+                <p className="admin-faint font-mono truncate">{r.path}</p>
+              </div>
+              <span className="admin-heading font-bold shrink-0">{r.count}</span>
+            </div>
+          ))}
+        </div>
+      )}
+    </Card>
+  );
+}
+
+const SEV_COLOR: Record<Insight["severity"], string> = { high: "#e5484d", medium: "#f5a623", low: "#0aa3c7" };
+const AREA_BADGE: Record<Insight["area"], { background: string; color: string }> = {
+  Website: { background: "rgba(10,163,199,0.12)", color: "#0aa3c7" },
+  Experiences: { background: "rgba(16,110,86,0.14)", color: "#0f6e56" },
+  Products: { background: "rgba(120,120,120,0.16)", color: "var(--admin-text)" },
+};
+
+/** One actionable insight row: severity dot · title · area badge · metric · action. */
+function InsightRow({ it }: { it: Insight }) {
+  return (
+    <div className="flex items-start gap-3 p-3 rounded-lg" style={{ backgroundColor: "var(--admin-bg)" }}>
+      <span className="mt-1.5 w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: SEV_COLOR[it.severity] }} />
+      <div className="min-w-0 flex-1">
+        <div className="flex items-center gap-2 flex-wrap">
+          <span className="text-[13px] font-bold admin-heading">{it.title}</span>
+          <span className="text-[10px] font-bold uppercase tracking-wide px-1.5 py-0.5 rounded" style={AREA_BADGE[it.area]}>{it.area}</span>
+          <span className="text-[11px] admin-faint">· {it.metric}</span>
+        </div>
+        <p className="text-xs admin-muted mt-1 leading-relaxed">{it.action}</p>
+      </div>
+    </div>
+  );
+}
 
 export default function AnalyticsPage() {
   const [tab, setTab] = useState<"business" | "behaviour">("business");
@@ -205,6 +260,21 @@ function BehaviourTab() {
         </div>
       </div>
 
+      {/* What to improve — the actionable layer, first thing you see. */}
+      {(() => {
+        const insights = deriveInsights(d);
+        if (!insights.length) return null;
+        return (
+          <div className="rounded-xl p-5 mb-4" style={{ backgroundColor: "var(--admin-surface)", border: "1px solid var(--admin-border)" }}>
+            <h2 className="text-sm font-bold admin-heading mb-1">What to improve</h2>
+            <p className="text-xs admin-faint mb-4">Plain-English actions from the behaviour data, highest impact first — tagged by Website · Experiences · Products.</p>
+            <div className="space-y-2.5">
+              {insights.map((it) => <InsightRow key={it.id} it={it} />)}
+            </div>
+          </div>
+        );
+      })()}
+
       {/* Live / today */}
       <div className="rounded-xl p-4 mb-4 flex flex-wrap items-center gap-x-8 gap-y-2" style={{ backgroundColor: "var(--admin-surface)", border: "1px solid var(--admin-border)" }}>
         <span className="inline-flex items-center gap-2 text-[13px] font-bold admin-heading">
@@ -246,6 +316,41 @@ function BehaviourTab() {
           )}
         </Card>
       </div>
+
+      {/* Interest — what people are drawn to (views + engagement) */}
+      {d.interest && d.interest.length > 0 && (
+        <div className="mb-4">
+          <Card title="Interest — what draws attention" sub="Experiences, destinations & products ranked by views + how long people engage.">
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="text-[11px] uppercase tracking-wide admin-faint text-left">
+                    <th className="font-semibold pb-2">Page</th>
+                    <th className="font-semibold pb-2 text-right">Views</th>
+                    <th className="font-semibold pb-2 text-right">Avg time</th>
+                    <th className="font-semibold pb-2 text-right">Scroll deep</th>
+                    <th className="font-semibold pb-2 text-right">Reserves</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {d.interest.map((it) => (
+                    <tr key={`${it.kind}:${it.key}`} style={{ borderTop: "1px solid var(--admin-border)" }}>
+                      <td className="py-2 pr-2">
+                        <span className="text-[10px] font-bold uppercase tracking-wide px-1.5 py-0.5 rounded mr-2" style={AREA_BADGE[it.kind === "Product" ? "Products" : "Experiences"]}>{it.kind}</span>
+                        <span className="font-medium admin-heading">{it.key}</span>
+                      </td>
+                      <td className="py-2 text-right admin-muted">{it.views.toLocaleString("en-US")}</td>
+                      <td className="py-2 text-right admin-muted">{it.avgSeconds ? `${it.avgSeconds}s` : "—"}</td>
+                      <td className="py-2 text-right admin-muted">{it.scrollPct}%</td>
+                      <td className="py-2 text-right admin-muted">{it.kind === "Experience" ? it.reserves : "—"}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </Card>
+        </div>
+      )}
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
         {/* Funnel */}
@@ -383,6 +488,24 @@ function BehaviourTab() {
           )}
         </Card>
       </div>
+
+      {/* Behaviour & frustration — what works, what doesn't, and where people get stuck. */}
+      {d.behaviour && (d.behaviour.clicks + d.behaviour.deadClicks + d.behaviour.rageClicks > 0) && (
+        <div className="mt-8">
+          <h2 className="text-lg font-bold admin-heading mb-1">Behaviour &amp; frustration</h2>
+          <p className="text-xs admin-faint mb-4">What visitors click — and where they click but nothing happens. First-party &amp; consent-gated, no third-party tools.</p>
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-4">
+            <Metric label="Clicks tracked" value={d.behaviour.clicks.toLocaleString("en-US")} />
+            <Metric label="Dead clicks" value={d.behaviour.deadClicks.toLocaleString("en-US")} accent />
+            <Metric label="Rage clicks" value={d.behaviour.rageClicks.toLocaleString("en-US")} accent />
+          </div>
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+            <TargetCard title="Clicked but nothing happened" sub="Dead clicks — looked clickable, did nothing. Prime UX fixes." rows={d.behaviour.topDead} empty="No dead clicks recorded 🎉" />
+            <TargetCard title="Rage clicks" sub="Frantic repeat-clicking — friction or a broken control." rows={d.behaviour.topRage} empty="No rage clicks recorded 🎉" />
+            <TargetCard title="Most-clicked elements" sub="What visitors actually click." rows={d.behaviour.topClicked} empty="No clicks tracked yet." />
+          </div>
+        </div>
+      )}
     </>
   );
 }

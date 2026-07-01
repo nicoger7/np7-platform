@@ -21,7 +21,10 @@ type Ev = {
   experience_slug: string | null;
   country: string | null;
   authed: boolean | null;
+  meta: Record<string, unknown> | null;
 };
+
+type TargetStat = { target: string; path: string; count: number };
 
 const empty = {
   available: false,
@@ -37,6 +40,15 @@ const empty = {
   countries: [] as { country: string; sessions: number }[],
   devices: [] as { device: string; sessions: number }[],
   funnel: { expViews: 0, reserveStart: 0, register: 0 },
+  behaviour: {
+    clicks: 0, deadClicks: 0, rageClicks: 0,
+    topClicked: [] as TargetStat[],
+    topDead: [] as TargetStat[],
+    topRage: [] as TargetStat[],
+  },
+  experiences: [] as { slug: string; views: number; reserves: number; rate: number }[],
+  interest: [] as { kind: string; key: string; views: number; avgSeconds: number; scrollPct: number; reserves: number; frustration: number }[],
+  dropoffs: [] as { path: string; sessions: number; avgSeconds: number; scrollPct: number; frustration: number }[],
 };
 
 export async function GET(req: NextRequest) {
@@ -49,7 +61,7 @@ export async function GET(req: NextRequest) {
   try {
     const { data, error } = await db
       .from("analytics_events")
-      .select("ts, session_id, visitor_id, event, path, referrer_host, device, experience_slug, country, authed")
+      .select("ts, session_id, visitor_id, event, path, referrer_host, device, experience_slug, country, authed, meta")
       .gte("ts", fromISO)
       .order("ts", { ascending: true })
       .limit(100000);
@@ -133,7 +145,93 @@ export async function GET(req: NextRequest) {
 
   const sortTop = (m: Record<string, number>, n = 10) => Object.entries(m).sort((a, b) => b[1] - a[1]).slice(0, n);
 
+  // Interaction / frustration signals (Phase 1 behaviour layer).
+  const deadM: Record<string, TargetStat> = {};
+  const rageM: Record<string, TargetStat> = {};
+  const clickM: Record<string, TargetStat> = {};
+  const bump = (m: Record<string, TargetStat>, target: string, path: string) => {
+    const key = `${target}${path}`;
+    (m[key] ||= { target, path, count: 0 }).count++;
+  };
+  let clicks = 0, deadClicks = 0, rageClicks = 0;
+  for (const e of events) {
+    if (e.event !== "click" && e.event !== "dead_click" && e.event !== "rage_click") continue;
+    const meta = (e.meta || {}) as Record<string, unknown>;
+    const target = typeof meta.target === "string" ? meta.target : "(unknown)";
+    const path = e.path || "(unknown)";
+    if (e.event === "click") { clicks++; bump(clickM, target, path); }
+    else if (e.event === "dead_click") { deadClicks++; bump(deadM, target, path); }
+    else { rageClicks++; bump(rageM, target, path); }
+  }
+  const topTargets = (m: Record<string, TargetStat>, n = 8) => Object.values(m).sort((a, b) => b.count - a.count).slice(0, n);
+
+  // ---- Page engagement: dwell (page_time) + scroll + frustration per page ----
+  const pv: Record<string, { views: number; sess: Set<string>; scrollSess: Set<string>; secs: number[]; frustration: number }> = {};
+  const pget = (p: string) => (pv[p] ||= { views: 0, sess: new Set(), scrollSess: new Set(), secs: [], frustration: 0 });
+  for (const e of events) {
+    const m = (e.meta || {}) as Record<string, unknown>;
+    if (e.event === "pageview" && e.path) { const s = pget(e.path); s.views++; s.sess.add(e.session_id); }
+    else if (e.event === "scroll_depth" && e.path) pget(e.path).scrollSess.add(e.session_id);
+    else if (e.event === "page_time") { const p = typeof m.p === "string" ? m.p : e.path; const sec = Number(m.seconds); if (p && sec > 0 && sec <= 1800) pget(p).secs.push(sec); }
+    else if ((e.event === "dead_click" || e.event === "rage_click") && e.path) pget(e.path).frustration++;
+  }
+  const avgOf = (a: number[]) => (a.length ? Math.round(a.reduce((x, y) => x + y, 0) / a.length) : 0);
+
+  // Interest by dimension — which experiences / destinations / products draw
+  // real attention (views + dwell + scroll), derived from the path.
+  const dimOf = (path: string): { kind: string; key: string } | null => {
+    let m = path.match(/^\/experience\/([^/?#]+)/); if (m && !["gift", "legal"].includes(m[1])) return { kind: "Experience", key: m[1] };
+    m = path.match(/^\/destinations\/([^/?#]+)/); if (m) return { kind: "Destination", key: m[1] };
+    m = path.match(/^\/hardware\/([^/?#]+)/); if (m) return { kind: "Product", key: m[1] };
+    return null;
+  };
+  const dimAcc: Record<string, { kind: string; key: string; views: number; sess: number; scroll: number; secs: number[]; frustration: number; reserveSess: Set<string> }> = {};
+  for (const [path, s] of Object.entries(pv)) {
+    const dim = dimOf(path); if (!dim) continue;
+    const a = (dimAcc[dim.kind + ":" + dim.key] ||= { kind: dim.kind, key: dim.key, views: 0, sess: 0, scroll: 0, secs: [], frustration: 0, reserveSess: new Set() });
+    a.views += s.views; a.sess += s.sess.size; a.scroll += s.scrollSess.size; a.secs.push(...s.secs); a.frustration += s.frustration;
+  }
+  for (const e of events) {
+    if (e.event === "reserve_start" && e.experience_slug && dimAcc["Experience:" + e.experience_slug]) dimAcc["Experience:" + e.experience_slug].reserveSess.add(e.session_id);
+  }
+  const interest = Object.values(dimAcc)
+    .map((a) => ({ kind: a.kind, key: a.key, views: a.views, avgSeconds: avgOf(a.secs), scrollPct: a.sess ? Math.round((a.scroll / a.sess) * 100) : 0, reserves: a.reserveSess.size, frustration: a.frustration }))
+    .sort((x, y) => y.views - x.views)
+    .slice(0, 12);
+
+  // Per-experience view→reserve (the "Experiences" insights — which trips convert).
+  const expViewSess: Record<string, Set<string>> = {};
+  const expResSess: Record<string, Set<string>> = {};
+  for (const e of events) {
+    if (!e.experience_slug) continue;
+    if (e.event === "pageview") (expViewSess[e.experience_slug] ||= new Set()).add(e.session_id);
+    else if (e.event === "reserve_start") (expResSess[e.experience_slug] ||= new Set()).add(e.session_id);
+  }
+  const experiences = Object.keys(expViewSess)
+    .map((slug) => {
+      const views = expViewSess[slug].size;
+      const reserves = expResSess[slug]?.size ?? 0;
+      return { slug, views, reserves, rate: views ? Math.round((reserves / views) * 100) : 0 };
+    })
+    .sort((a, b) => b.views - a.views);
+
+  // Drop-off "why" — the top exit pages enriched with how long people stayed,
+  // how far they scrolled, and whether anything was broken (frustration).
+  const dropoffs = sortTop(exitC, 6).map(([path, sessions]) => {
+    const s = pv[path];
+    return { path, sessions, avgSeconds: s ? avgOf(s.secs) : 0, scrollPct: s && s.sess.size ? Math.round((s.scrollSess.size / s.sess.size) * 100) : 0, frustration: s ? s.frustration : 0 };
+  });
+
   return NextResponse.json({
+    behaviour: {
+      clicks, deadClicks, rageClicks,
+      topClicked: topTargets(clickM),
+      topDead: topTargets(deadM),
+      topRage: topTargets(rageM),
+    },
+    experiences,
+    interest,
+    dropoffs,
     available: true,
     range: { days, from: fromISO },
     totals: {

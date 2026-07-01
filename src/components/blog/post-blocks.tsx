@@ -22,6 +22,7 @@ import {
 } from "@/lib/blog-templates";
 import { SpotsAccordion, type SpotNote } from "./spots-accordion";
 import { SpotsMap } from "./spots-map";
+import { cdnImage } from "@/lib/img";
 
 /** Keys handled by the dedicated CTA band, not the generic block loop. */
 const CTA_KEYS = new Set(["ctaUrl", "ctaLabel"]);
@@ -209,7 +210,7 @@ function Block({ field, theme, data, slug, notesBySpot }: { field: TemplateField
                   {s.image && (
                     <figure className="mt-3">
                       {/* eslint-disable-next-line @next/next/no-img-element */}
-                      <img src={s.image} alt={s.title || `Step ${i + 1}`} className="w-full rounded-xl border border-[#ece3d3]" loading="lazy" />
+                      <img src={cdnImage(s.image, { width: 1100 })} alt={s.title || `Step ${i + 1}`} className="w-full rounded-xl border border-[#ece3d3]" loading="lazy" />
                     </figure>
                   )}
                 </div>
@@ -246,7 +247,7 @@ function Block({ field, theme, data, slug, notesBySpot }: { field: TemplateField
       return (
         <figure className="py-1">
           {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src={src} alt={field.label} className="w-full rounded-2xl" loading="lazy" />
+          <img src={cdnImage(src, { width: 1100 })} alt={field.label} className="w-full rounded-2xl" loading="lazy" />
         </figure>
       );
     }
@@ -309,7 +310,7 @@ function OptionCard({ option }: { option: Option }) {
       {option.image && (
         <div className="relative h-36 bg-[#e9eef0]">
           {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src={option.image} alt={option.name} className="absolute inset-0 w-full h-full object-cover" loading="lazy" />
+          <img src={cdnImage(option.image, { width: 700 })} alt={option.name} className="absolute inset-0 w-full h-full object-cover" loading="lazy" />
         </div>
       )}
       <div className="p-5 flex-1">
@@ -390,7 +391,7 @@ function Chapters({ chapters, theme }: { chapters: Chapter[]; theme: WorldTheme 
             {c.image && (
               <figure className="mb-5">
                 {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img src={c.image} alt={c.title || `Chapter ${i + 1}`} className="w-full rounded-2xl" loading="lazy" />
+                <img src={cdnImage(c.image, { width: 1200 })} alt={c.title || `Chapter ${i + 1}`} className="w-full rounded-2xl" loading="lazy" />
               </figure>
             )}
             {c.intro && <p className="text-[16px] sm:text-[17px] text-[#5a6b72] leading-relaxed whitespace-pre-line">{c.intro}</p>}

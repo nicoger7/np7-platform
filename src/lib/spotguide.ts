@@ -43,19 +43,19 @@ export type { Level };
 
 export type Criterion = { key: string; label: string; hint: string };
 
-/** SPOT = the on-the-water experience at a single launch. */
+/** SPOT star criteria — season-independent opinions only. Wind is NOT rated
+    (the Open-Meteo climatology chart is the objective wind signal); conditions,
+    level and wind-direction are collected as crowd FACTS instead (see below). */
 export const SPOT_CRITERIA: Criterion[] = [
-  { key: "wind", label: "Wind", hint: "How reliably it actually delivers windsurfable wind." },
-  { key: "conditions", label: "Conditions", hint: "Quality of the water state for what this spot is known for." },
   { key: "safety", label: "Safety", hint: "Onshore & safe vs offshore wind, rocks, currents, hazards." },
   { key: "beauty", label: "Beauty", hint: "Scenery and the all-round vibe on the water." },
   { key: "infrastructure", label: "Infrastructure", hint: "School, rental, repair, parking, beach bar — what's on the ground." },
   { key: "family", label: "Family-friendly", hint: "Shallow areas, easy launch, room for kids & non-sailors." },
 ];
 
-/** DESTINATION = the whole-trip experience (separate from any single spot). */
+/** DESTINATION star criteria (whole-trip). Wind is not rated — it's the spots'
+    objective climatology aggregated. */
 export const DESTINATION_CRITERIA: Criterion[] = [
-  { key: "wind", label: "Wind", hint: "Overall wind reliability across the destination." },
   { key: "stay_food", label: "Stay & food", hint: "Accommodation and eating — where you sleep and dine." },
   { key: "no_wind_days", label: "No-wind days", hint: "What there is to do when the wind doesn't show." },
   { key: "family", label: "Family-friendly", hint: "How well it works for families and non-sailing partners." },
@@ -229,6 +229,67 @@ export function tallyForecastVotes(rows: { model: string }[]): ForecastTally[] {
 
 function round1(n: number): number {
   return Math.round(n * 10) / 10;
+}
+
+/* ------------------------------------------------------------------ */
+/* Crowd-aggregated member facts (level / conditions / wind window).  */
+/* ------------------------------------------------------------------ */
+
+export type CrowdWindow = { window: WindWindow; counts: Partial<Record<WindDir, number>>; raters: number };
+/** Consensus windrose from members' wind_window rows (best=2/good=1/no=0 avg). */
+export function crowdWindow(rows: { wind_window?: unknown }[]): CrowdWindow {
+  const V: Record<string, number> = { best: 2, good: 1, no: 0 };
+  const score: Partial<Record<WindDir, number>> = {};
+  const counts: Partial<Record<WindDir, number>> = {};
+  let raters = 0;
+  for (const r of rows) {
+    const w = asWindWindow(r.wind_window);
+    if (!windWindowHasValue(w)) continue;
+    raters++;
+    for (const d of WIND_DIRECTIONS) {
+      const q = w[d];
+      if (q === "best" || q === "good" || q === "no") { score[d] = (score[d] ?? 0) + V[q]; counts[d] = (counts[d] ?? 0) + 1; }
+    }
+  }
+  const window: WindWindow = {};
+  for (const d of WIND_DIRECTIONS) {
+    const c = counts[d];
+    if (!c) continue;
+    const avg = (score[d] ?? 0) / c;
+    window[d] = avg >= 1.34 ? "best" : avg >= 0.5 ? "good" : "no";
+  }
+  return { window, counts, raters };
+}
+
+export type LevelConsensus = { modal: string | null; label: string | null; counts: Record<string, number>; raters: number };
+/** Members' consensus on the level a spot suits. */
+export function levelConsensus(rows: { level?: string | null }[]): LevelConsensus {
+  const counts: Record<string, number> = {};
+  let raters = 0;
+  for (const r of rows) {
+    const l = r.level;
+    if (l && (LEVELS as readonly string[]).includes(l)) { counts[l] = (counts[l] ?? 0) + 1; raters++; }
+  }
+  let modal: string | null = null, best = 0;
+  for (const l of LEVELS) if ((counts[l] ?? 0) > best) { best = counts[l]!; modal = l; }
+  return { modal, label: modal ? `mostly ${modal}` : null, counts, raters };
+}
+
+export type ConditionShare = { key: string; label: string; count: number; pct: number };
+/** Share of members reporting each water-state at a spot. */
+export function conditionsTally(rows: { conditions?: string[] | null }[]): { shares: ConditionShare[]; raters: number } {
+  const counts: Record<string, number> = {};
+  let raters = 0;
+  for (const r of rows) {
+    const cs = Array.isArray(r.conditions) ? r.conditions : [];
+    if (cs.length === 0) continue;
+    raters++;
+    for (const c of cs) counts[c] = (counts[c] ?? 0) + 1;
+  }
+  const shares = CONDITIONS
+    .map((c) => ({ key: c.key, label: c.label, count: counts[c.key] ?? 0, pct: raters ? Math.round(((counts[c.key] ?? 0) / raters) * 100) : 0 }))
+    .filter((s) => s.count > 0).sort((a, b) => b.count - a.count);
+  return { shares, raters };
 }
 
 /** Level-range label for a destination, e.g. "Beginner–Advanced" or "All levels". */

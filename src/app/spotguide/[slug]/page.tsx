@@ -11,10 +11,11 @@ import { BlogFooter } from "@/components/blog/blog-footer";
 import { RatingHeadline, RatingBreakdown } from "@/components/spotguide/rating-panel";
 import { SpotsList } from "@/components/spotguide/spots-list";
 import { SpotguideProvider } from "@/components/spotguide/spotguide-provider";
-import { CriteriaRater } from "@/components/spotguide/raters";
+import { DestinationRater } from "@/components/spotguide/raters";
 import { MeteredContent } from "@/components/spotguide/metered-content";
 import { AddSpot } from "@/components/spotguide/add-spot";
 import { VerifySpots } from "@/components/spotguide/verify-spots";
+import { SpotMap } from "@/components/spotguide/spot-map";
 import { flags } from "@/lib/flags";
 
 type Props = { params: Promise<{ slug: string }> };
@@ -85,9 +86,30 @@ export default async function SpotguideDestinationPage({ params }: Props) {
                     <RatingBreakdown criteria={DESTINATION_CRITERIA} np7Ratings={d.np7_ratings} member={d.member} />
                   </div>
                 )}
-                <CriteriaRater target="destination" id={d.id} criteria={DESTINATION_CRITERIA} accent={chrome.accent} />
+                <DestinationRater criteria={DESTINATION_CRITERIA} accent={chrome.accent} />
               </div>
             </section>
+
+            {/* Ride it with NP7 — where a trip exists for this destination */}
+            {flags.showExperience && d.trips.length > 0 && (
+              <section>
+                <div className="rounded-2xl overflow-hidden text-white" style={{ background: "linear-gradient(135deg,#f47b20,#00afdb)" }}>
+                  <div className="p-6 sm:p-7">
+                    <p className="text-[11px] font-black uppercase tracking-[0.18em] text-white/80">Ride it with us</p>
+                    <h3 className="text-2xl font-black tracking-[-0.02em] mt-1">Sail {d.name} on an NP7 trip</h3>
+                    <p className="text-white/85 text-[14px] mt-1.5 max-w-[560px]">Guided by Nico Prien (GER-7) and the crew — coaching, the best spots, and everything handled.</p>
+                    <div className="flex flex-wrap gap-2.5 mt-4">
+                      {d.trips.map((t) => (
+                        <Link key={t.id} href={`/experience/${t.slug}`} className="inline-flex items-center gap-1.5 bg-white text-[#00374a] font-bold text-[13.5px] rounded-full px-4 py-2.5 hover:-translate-y-0.5 transition-transform">
+                          {t.title}
+                          <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M5 12h14M13 6l6 6-6 6" /></svg>
+                        </Link>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              </section>
+            )}
 
             {/* The spots — metered for anonymous visitors, full for members */}
             <section>
@@ -95,9 +117,16 @@ export default async function SpotguideDestinationPage({ params }: Props) {
               {d.spots.length === 0 ? (
                 <p className="text-[14px] text-[#6a7a80]">Spots for {d.name} are coming soon.</p>
               ) : (
-                <MeteredContent gated={!loggedIn} accent={chrome.accent}>
-                  <SpotsList spots={d.spots} accent={chrome.accent} />
-                </MeteredContent>
+                <>
+                  {(() => {
+                    const pts = d.spots.filter((s) => s.lat != null && s.lng != null)
+                      .map((s) => ({ lat: s.lat as number, lng: s.lng as number, name: s.name, destSlug: d.slug ?? "", verification: s.verification }));
+                    return pts.length > 0 ? <div className="mb-5"><SpotMap spots={pts} height={340} /></div> : null;
+                  })()}
+                  <MeteredContent gated={!loggedIn} accent={chrome.accent}>
+                    <SpotsList spots={d.spots} accent={chrome.accent} />
+                  </MeteredContent>
+                </>
               )}
             </section>
 
