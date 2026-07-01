@@ -211,7 +211,7 @@ export default function SpotEditor({ params }: { params: Promise<{ id: string }>
           <label className={labelClass}>Best forecast model(s) <span className="admin-faint font-normal">— NP7 recommendation</span></label>
           <p className="text-[11px] admin-faint mb-2">Which forecast actually nails this spot. (In most wind apps you can pick the model to display.) Members vote their own favourite too — the tally shows below.</p>
           <div className="space-y-2">
-            {(["global", "highres", "app"] as ForecastTier[]).map((tier) => (
+            {(["global", "highres"] as ForecastTier[]).map((tier) => (
               <div key={tier}>
                 <p className="text-[10px] uppercase tracking-wide admin-faint mb-1">{FORECAST_TIER_LABEL[tier]}</p>
                 <div className="flex flex-wrap gap-1.5">

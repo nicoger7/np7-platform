@@ -163,9 +163,10 @@ export function ForecastVoter({ spotId, accent = "#00afdb" }: { spotId: string; 
 
   return (
     <div className="mt-3 pt-3 border-t border-[#f0e9da]">
-      <p className="text-[12px] font-semibold text-[#5a6b72] mb-2">Which forecast nails it here? <span className="text-[#9aa6ac] font-normal">Vote the model you trust.</span></p>
+      <p className="text-[12px] font-semibold text-[#5a6b72] mb-1">Which forecast nails it here? <span className="text-[#9aa6ac] font-normal">Vote the model you trust.</span></p>
+      <p className="text-[11px] text-[#9aa6ac] mb-2 leading-snug">It&apos;s the forecast <b>model</b> — in any wind app (Windguru, Windy…) you can pick which one to show. Not sure? <b>GFS</b> is the safe global default; the high-res ones (ICON-D2, AROME…) are sharper at coastal &amp; thermal spots.</p>
       <div className="space-y-2">
-        {(["global", "highres", "app"] as ForecastTier[]).map((tier) => (
+        {(["global", "highres"] as ForecastTier[]).map((tier) => (
           <div key={tier}>
             <p className="text-[10px] uppercase tracking-wide text-[#b3a994] mb-1">{FORECAST_TIER_LABEL[tier]}</p>
             <div className="flex flex-wrap gap-1.5">

@@ -30,6 +30,13 @@ export function WindStatsChart({ stats, compact = false, accent = "#00afdb" }: {
   const H = compact ? 130 : 176;
   const season = seasonLabel(stats.summary?.windyMonths ?? []);
   const warm = stats.summary?.warmestMonth;
+  // Single windiest month — most planing wind (4+ Bft, tie-break 3+). Derived
+  // live so it works even for stats cached before this was added.
+  const windiest = (() => {
+    let best = -1, m: number | null = null;
+    for (const x of stats.months) { const s = (x.pct["4"] ?? 0) * 100 + (x.pct["3"] ?? 0); if (s > best) { best = s; m = x.m; } }
+    return m;
+  })();
 
   const bands = (m: WindStats["months"][number]) => {
     const p = (b: number) => m.pct[String(b)] ?? 0;
@@ -45,11 +52,16 @@ export function WindStatsChart({ stats, compact = false, accent = "#00afdb" }: {
   return (
     <div>
       {/* smart summary */}
-      {!compact && (season || warm) && (
+      {!compact && (season || warm || windiest) && (
         <div className="flex flex-wrap gap-2 mb-3">
           {season && (
             <span className="inline-flex items-center gap-1.5 text-[12.5px] font-bold text-[#00374a] bg-white border border-[#ece3d3] rounded-full px-3 py-1">
               <span className="w-2 h-2 rounded-full" style={{ background: accent }} />Best wind · {season}
+            </span>
+          )}
+          {windiest != null && (
+            <span className="inline-flex items-center gap-1.5 text-[12.5px] font-bold text-[#00374a] bg-white border border-[#ece3d3] rounded-full px-3 py-1">
+              💨 Windiest · {MONTH_LABELS[windiest - 1]}
             </span>
           )}
           {warm != null && stats.summary?.warmestTemp != null && (
@@ -122,7 +134,7 @@ export function WindStatsChart({ stats, compact = false, accent = "#00afdb" }: {
             <span className="w-3 h-3 rounded-[3px]" style={{ backgroundColor: b.color }} />{b.label}
           </span>
         ))}
-        <span className="text-[10.5px] text-[#9aa6ac] ml-auto">% of sailing hours (09–18) · {stats.source}</span>
+        <span className="text-[10.5px] text-[#9aa6ac] ml-auto">% of sailing hours (09–18) · Source: {stats.source} climatology</span>
       </div>
     </div>
   );
