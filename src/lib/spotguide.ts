@@ -147,6 +147,8 @@ export function forecastLabel(id: string): string {
 export type Verification = "pending" | "community" | "np7";
 /** Distinct member confirmations that flip a pending spot to community. */
 export const COMMUNITY_VERIFY_THRESHOLD = 3;
+/** Distinct member flags that auto-hide a photo for NP7 review. */
+export const PHOTO_FLAG_THRESHOLD = 3;
 
 export const VERIFICATION_META: Record<Verification, { label: string; short: string; color: string }> = {
   pending: { label: "Awaiting verification", short: "Pending", color: "#9aa6ac" },

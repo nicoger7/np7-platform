@@ -102,7 +102,7 @@ export function SpotsList({ spots, accent = "#00afdb" }: { spots: PublicSpot[]; 
                 {(spot.gallery.length > 0 || spot.photos.length > 0) && (
                   <div>
                     <div className="text-[11px] font-bold uppercase tracking-[0.1em] text-[#9aa6ac] mb-2">Photos</div>
-                    <SpotPhotos spotId={spot.id} photos={[...spot.gallery, ...spot.photos.map((p) => p.url)]} accent={accent} mode="gallery" />
+                    <SpotPhotos spotId={spot.id} photos={[...spot.gallery.map((url) => ({ url })), ...spot.photos.map((p) => ({ url: p.url, id: p.id, score: p.score }))]} accent={accent} mode="gallery" />
                   </div>
                 )}
 

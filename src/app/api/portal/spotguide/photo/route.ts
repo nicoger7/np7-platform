@@ -34,8 +34,10 @@ export async function POST(request: NextRequest) {
   if (upErr) return NextResponse.json({ error: "Upload failed. Please try again." }, { status: 500 });
   const url = `${process.env.NEXT_PUBLIC_SUPABASE_URL}/storage/v1/object/public/${BUCKET}/${path}`;
 
+  // Member photos auto-show (status 'approved'); members up/down-vote them and a
+  // few flags will auto-hide one for NP7 review.
   const { error } = await db.from("spot_photos").insert({
-    spot_id: spotId, contact_id: user.contactId, url, caption, source: "member", status: "pending",
+    spot_id: spotId, contact_id: user.contactId, url, caption, source: "member", status: "approved",
   });
   if (error) return NextResponse.json({ error: "Could not save the photo." }, { status: 500 });
   return NextResponse.json({ ok: true });

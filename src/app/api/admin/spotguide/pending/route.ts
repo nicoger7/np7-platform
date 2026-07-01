@@ -23,7 +23,7 @@ export async function GET() {
   const [{ data: dests }, { data: verifs }, { data: photos }] = await Promise.all([
     destIds.length ? db.from("destinations").select("id, name, slug").in("id", destIds) : Promise.resolve({ data: [] }),
     spotIds.length ? db.from("spot_verifications").select("spot_id, kind").in("spot_id", spotIds) : Promise.resolve({ data: [] }),
-    db.from("spot_photos").select("id, spot_id, url, caption").eq("status", "pending"),
+    db.from("spot_photos").select("id, spot_id, url, caption, status").in("status", ["pending", "hidden"]),
   ]);
   const destName = new Map((dests ?? []).map((d: { id: string; name: string }) => [d.id, d.name]));
 
