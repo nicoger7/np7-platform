@@ -1,7 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getPortalUser } from "@/lib/auth";
 import { createAdminClient } from "@/lib/supabase";
+import { resizeForStorage } from "@/lib/image-resize";
 
+export const runtime = "nodejs"; // sharp (image resize) needs the Node runtime
 const BUCKET = "assets";
 const MAX = 10 * 1024 * 1024; // 10 MB
 
@@ -30,7 +32,9 @@ export async function POST(request: NextRequest) {
 
   const ext = (file.name.split(".").pop() || "jpg").toLowerCase().replace(/[^a-z0-9]/g, "").slice(0, 5) || "jpg";
   const path = `spots/${spotId}/member/${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${ext}`;
-  const { error: upErr } = await admin.storage.from(BUCKET).upload(path, file, { contentType: file.type, upsert: false });
+  // Downscale before storing so a phone shot doesn't sit at 10 MB and burn egress on every view.
+  const { body, contentType } = await resizeForStorage(file);
+  const { error: upErr } = await admin.storage.from(BUCKET).upload(path, body, { contentType, upsert: false });
   if (upErr) return NextResponse.json({ error: "Upload failed. Please try again." }, { status: 500 });
   const url = `${process.env.NEXT_PUBLIC_SUPABASE_URL}/storage/v1/object/public/${BUCKET}/${path}`;
 

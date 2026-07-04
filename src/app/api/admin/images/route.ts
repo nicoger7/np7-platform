@@ -2,7 +2,9 @@ import { createClient } from "@/lib/supabase/server";
 import { createClient as createServiceClient } from "@supabase/supabase-js";
 import { NextRequest } from "next/server";
 import { isActiveTeamMember } from "@/lib/admin-auth";
+import { resizeForStorage } from "@/lib/image-resize";
 
+export const runtime = "nodejs"; // sharp (image resize) needs the Node runtime
 const BUCKET = "assets";
 
 function getServiceClient() {
@@ -132,9 +134,12 @@ export async function POST(request: NextRequest) {
   const path = folder ? `${folder}/${file.name}` : file.name;
   const admin = getServiceClient();
 
+  // Downscale big originals (10–20 MB phone photos) before storing — the single
+  // biggest lever on Storage egress, since everything downstream derives from this.
+  const { body, contentType } = await resizeForStorage(file);
   const { error } = await admin.storage
     .from(BUCKET)
-    .upload(path, file, { upsert: true });
+    .upload(path, body, { upsert: true, contentType });
 
   if (error) {
     return Response.json({ error: error.message }, { status: 500 });
