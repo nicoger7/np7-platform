@@ -28,3 +28,20 @@ export async function resizeForStorage(file: File): Promise<{ body: Buffer | Fil
     return { body: file, contentType: file.type }; // decode failed — store as-is
   }
 }
+
+const THUMB_DIM = 640; // grid/card size — the lightbox uses the main file
+
+/** A small WebP thumbnail for gallery grids (stored on R2 under `_thumb/`).
+    Returns null for non-raster or on decode failure. */
+export async function makeThumb(file: File): Promise<{ body: Buffer; contentType: string } | null> {
+  if (!/\.(jpe?g|png|webp)$/i.test(file.name || "")) return null;
+  try {
+    const input = Buffer.from(await file.arrayBuffer());
+    const body = await sharp(input, { failOn: "none" }).rotate()
+      .resize({ width: THUMB_DIM, height: THUMB_DIM, fit: "inside", withoutEnlargement: true })
+      .webp({ quality: 78 }).toBuffer();
+    return { body, contentType: "image/webp" };
+  } catch {
+    return null;
+  }
+}

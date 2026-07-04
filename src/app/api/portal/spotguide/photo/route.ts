@@ -1,7 +1,8 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest, NextResponse, after } from "next/server";
 import { getPortalUser } from "@/lib/auth";
 import { createAdminClient } from "@/lib/supabase";
-import { resizeForStorage } from "@/lib/image-resize";
+import { resizeForStorage, makeThumb } from "@/lib/image-resize";
+import { r2Configured, r2Put } from "@/lib/r2";
 
 export const runtime = "nodejs"; // sharp (image resize) needs the Node runtime
 const BUCKET = "assets";
@@ -36,6 +37,16 @@ export async function POST(request: NextRequest) {
   const { body, contentType } = await resizeForStorage(file);
   const { error: upErr } = await admin.storage.from(BUCKET).upload(path, body, { contentType, upsert: false });
   if (upErr) return NextResponse.json({ error: "Upload failed. Please try again." }, { status: 500 });
+
+  // Mirror to R2 (main + thumbnail) for zero-egress serving.
+  if (r2Configured()) {
+    const mainBuf = Buffer.isBuffer(body) ? body : Buffer.from(await file.arrayBuffer());
+    const thumb = await makeThumb(file);
+    after(async () => {
+      try { await r2Put(path, mainBuf, contentType); } catch { /* copy script backfills */ }
+      if (thumb) { try { await r2Put(`_thumb/${path}`, thumb.body, thumb.contentType); } catch { /* ignore */ } }
+    });
+  }
   const url = `${process.env.NEXT_PUBLIC_SUPABASE_URL}/storage/v1/object/public/${BUCKET}/${path}`;
 
   // Member photos auto-show (status 'approved'); members up/down-vote them and a

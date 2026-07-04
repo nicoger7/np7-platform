@@ -1,8 +1,9 @@
 import { createClient } from "@/lib/supabase/server";
 import { createClient as createServiceClient } from "@supabase/supabase-js";
-import { NextRequest } from "next/server";
+import { NextRequest, after } from "next/server";
 import { isActiveTeamMember } from "@/lib/admin-auth";
-import { resizeForStorage } from "@/lib/image-resize";
+import { resizeForStorage, makeThumb } from "@/lib/image-resize";
+import { r2Configured, r2Put } from "@/lib/r2";
 
 export const runtime = "nodejs"; // sharp (image resize) needs the Node runtime
 const BUCKET = "assets";
@@ -44,11 +45,13 @@ export async function GET(request: NextRequest) {
   const admin = getServiceClient();
   const baseUrl = `${process.env.NEXT_PUBLIC_SUPABASE_URL}/storage/v1/object/public/${BUCKET}`;
   const renderBase = `${process.env.NEXT_PUBLIC_SUPABASE_URL}/storage/v1/render/image/public/${BUCKET}`;
+  const R2 = (process.env.NEXT_PUBLIC_R2_PUBLIC_URL || "").replace(/\/$/, "");
   // Encode each path segment — filenames can contain spaces etc., which otherwise
-  // break <img>/CSS loading. thumb() serves a small transform (fast grids vs MBs).
+  // break <img>/CSS loading. thumb() serves a small variant (fast grids vs MBs):
+  // R2's pre-generated `_thumb/`, or Supabase's on-the-fly transform.
   const enc = (p: string) => p.split("/").map(encodeURIComponent).join("/");
-  const pubUrl = (p: string) => `${baseUrl}/${enc(p)}`;
-  const thumb = (p: string) => `${renderBase}/${enc(p)}?width=400&height=400&resize=cover&quality=70`;
+  const pubUrl = (p: string) => (R2 ? `${R2}/${enc(p)}` : `${baseUrl}/${enc(p)}`);
+  const thumb = (p: string) => (R2 ? `${R2}/_thumb/${enc(p)}` : `${renderBase}/${enc(p)}?width=400&height=400&resize=cover&quality=70`);
 
   // ── Recursive mode: walk the whole tree so EVERY image surfaces in one
   // searchable, newest-first view (the library's default). Bounded so a huge
@@ -143,6 +146,17 @@ export async function POST(request: NextRequest) {
 
   if (error) {
     return Response.json({ error: error.message }, { status: 500 });
+  }
+
+  // Mirror to R2 (main + grid thumbnail) so it serves from the zero-egress CDN.
+  // Supabase keeps the file too, so folder listings still enumerate it.
+  if (r2Configured()) {
+    const mainBuf = Buffer.isBuffer(body) ? body : Buffer.from(await file.arrayBuffer());
+    const thumb = await makeThumb(file);
+    after(async () => {
+      try { await r2Put(path, mainBuf, contentType); } catch { /* copy script backfills */ }
+      if (thumb) { try { await r2Put(`_thumb/${path}`, thumb.body, thumb.contentType); } catch { /* ignore */ } }
+    });
   }
 
   const url = `${process.env.NEXT_PUBLIC_SUPABASE_URL}/storage/v1/object/public/${BUCKET}/${path}`;
