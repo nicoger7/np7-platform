@@ -30,7 +30,7 @@ export type PublicSpot = {
   hero_image: string | null; gallery: string[]; summary: string | null; description: string | null;
   np7_ratings: Record<string, number>; verification: string;
   wind_stats: WindStats | null;
-  photos: { url: string; caption: string | null }[];
+  photos: { id: string; url: string; caption: string | null; score: number; source: string }[];
   np7: number; member: RatingSummary; forecast: ForecastTally[];
   // crowd-aggregated member facts
   crowdWindow: CrowdWindow; memberLevel: LevelConsensus; memberConditions: { shares: ConditionShare[]; raters: number };
@@ -110,11 +110,18 @@ export async function getSpotguideDestination(slug: string): Promise<SpotguideDe
     sb.from("exp_experiences").select("id, title, slug, hero_image, tagline, status").eq("destination_id", d.id).eq("status", "published"),
   ]);
   const { data: sphotos } = spotIds.length
-    ? await sb.from("spot_photos").select("spot_id, url, caption, sort_order").in("spot_id", spotIds).eq("status", "approved").order("sort_order")
+    ? await sb.from("spot_photos").select("id, spot_id, url, caption, source, sort_order").in("spot_id", spotIds).eq("status", "approved").order("sort_order")
     : { data: [] };
+  const photoIds = (sphotos ?? []).map((p: { id: string }) => p.id);
+  const { data: pvotes } = photoIds.length
+    ? await sb.from("spot_photo_votes").select("photo_id, value").in("photo_id", photoIds)
+    : { data: [] };
+  const scoreByPhoto = new Map<string, number>();
+  for (const v of (pvotes ?? []) as { photo_id: string; value: number }[]) scoreByPhoto.set(v.photo_id, (scoreByPhoto.get(v.photo_id) ?? 0) + (v.value || 0));
+
   const ratingsBySpot = groupBy((sratings ?? []) as { spot_id: string; ratings: unknown; level?: string | null; conditions?: string[] | null; wind_window?: unknown }[], (r) => r.spot_id);
   const votesBySpot = groupBy((svotes ?? []) as { spot_id: string; model: string }[], (r) => r.spot_id);
-  const photosBySpot = groupBy((sphotos ?? []) as { spot_id: string; url: string; caption: string | null }[], (r) => r.spot_id);
+  const photosBySpot = groupBy((sphotos ?? []) as { id: string; spot_id: string; url: string; caption: string | null; source: string }[], (r) => r.spot_id);
 
   const publicSpots: PublicSpot[] = spots.map((s: Record<string, unknown>) => ({
     id: s.id as string, name: s.name as string, slug: s.slug as string | null,
@@ -125,7 +132,9 @@ export async function getSpotguideDestination(slug: string): Promise<SpotguideDe
     summary: (s.summary as string) ?? null, description: (s.description as string) ?? null,
     np7_ratings: (s.np7_ratings as Record<string, number>) ?? {}, verification: s.verification as string,
     wind_stats: (s.wind_stats as WindStats) ?? null,
-    photos: (photosBySpot.get(s.id as string) ?? []).map((p) => ({ url: p.url, caption: p.caption })),
+    photos: (photosBySpot.get(s.id as string) ?? [])
+      .map((p) => ({ id: p.id, url: p.url, caption: p.caption, source: p.source, score: scoreByPhoto.get(p.id) ?? 0 }))
+      .sort((a, b) => b.score - a.score),
     np7: np7Overall(s.np7_ratings, SPOT_CRITERIA_KEYS),
     member: summariseRatings(ratingsBySpot.get(s.id as string) ?? [], SPOT_CRITERIA_KEYS),
     forecast: tallyForecastVotes(votesBySpot.get(s.id as string) ?? []),

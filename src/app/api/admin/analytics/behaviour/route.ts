@@ -71,6 +71,12 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ ...empty, range: { days, from: fromISO } });
   }
 
+  // Segment: keep the public site and the member portal (/account) organised
+  // separately so neither muddies the other. Default = site (visitor analytics).
+  const area = (new URL(req.url).searchParams.get("area") || "site").toLowerCase(); // site | portal | all
+  const isPortal = (p: string | null) => !!p && p.startsWith("/account");
+  if (area !== "all") events = events.filter((e) => (area === "portal" ? isPortal(e.path) : !isPortal(e.path)));
+
   const views = events.filter((e) => e.event === "pageview");
 
   // Earliest event per visitor (for new-vs-returning within the window).

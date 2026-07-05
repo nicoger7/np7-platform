@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { notFound } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 import type { Metadata } from "next";
 import { cookies } from "next/headers";
 import { supabase } from "@/lib/supabase";
@@ -75,6 +75,14 @@ export default async function BlogPostPage({ params }: Props) {
   const theme = worldTheme(post.world);
   const section = resolveSection((await cookies()).get("np7_section")?.value);
   const data: TemplateData = (post.template_data && typeof post.template_data === "object" ? post.template_data : {}) as TemplateData;
+
+  // The old magazine spotguide template is superseded by the structured /spotguide
+  // section — send these to the real destination page so there's ONE spotguide.
+  if (post.template === "spotguide") {
+    const dn = asText(data.destinationName);
+    const slug = dn.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
+    redirect(slug ? `/spotguide/${slug}` : "/spotguide");
+  }
 
   const member = await getPortalUser().catch(() => null);
   const gated = post.members_only !== false && !member;

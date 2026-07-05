@@ -2,25 +2,41 @@ import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase";
 import { fetchWindStats } from "@/lib/wind-stats";
 
-// POST /api/admin/spots/:id/wind-stats — compute + cache wind climatology from
-// the spot's coordinates (Open-Meteo ERA5, free). ~10s for a 10-year fetch.
-export async function POST(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+/**
+ * POST /api/admin/spots/:id/wind-stats — (re)compute the spot's wind climatology
+ * from Open-Meteo (free, no key).
+ *   { profile:'standard' }    → sample at the pin (default)
+ *   { profile:'accelerated' } → sample a ring offshore & use the windiest point
+ *                               (venturi/thermal spots the model shadows at the coast)
+ *   { mode:'off' }            → clear the stats (rely on windrose/ratings)
+ * The chosen profile is stored on the spot so the weekly cron keeps using it.
+ */
+export async function POST(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const db = createAdminClient() as any;
   const { id } = await params;
-  const { data: spot } = await db.from("spots").select("id, lat, lng").eq("id", id).maybeSingle();
+  const body = await request.json().catch(() => ({}));
+  const now = new Date().toISOString();
+
+  if (body?.mode === "off") {
+    const { error } = await db.from("spots").update({ wind_stats: null, wind_stats_at: now, updated_at: now }).eq("id", id);
+    if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+    return NextResponse.json({ ok: true, wind_stats: null, wind_stats_at: now });
+  }
+
+  const { data: spot } = await db.from("spots").select("lat, lng").eq("id", id).maybeSingle();
   if (!spot) return NextResponse.json({ error: "Spot not found" }, { status: 404 });
   if (spot.lat == null || spot.lng == null) return NextResponse.json({ error: "Add map coordinates first." }, { status: 400 });
 
+  const profile = body?.profile === "accelerated" ? "accelerated" : "standard";
   let stats;
   try {
-    stats = await fetchWindStats(spot.lat, spot.lng);
+    stats = await fetchWindStats(spot.lat, spot.lng, { accelerated: profile === "accelerated" });
   } catch (e) {
     return NextResponse.json({ error: e instanceof Error ? e.message : "Could not fetch wind data." }, { status: 502 });
   }
 
-  const now = new Date().toISOString();
-  const { error } = await db.from("spots").update({ wind_stats: stats, wind_stats_at: now, updated_at: now }).eq("id", id);
+  const { error } = await db.from("spots").update({ wind_stats: stats, wind_stats_at: now, wind_profile: profile, updated_at: now }).eq("id", id);
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
-  return NextResponse.json({ ok: true, wind_stats: stats, wind_stats_at: now });
+  return NextResponse.json({ ok: true, wind_stats: stats, wind_stats_at: now, wind_profile: profile });
 }

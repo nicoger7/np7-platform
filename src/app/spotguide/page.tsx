@@ -8,6 +8,7 @@ import { resolveSection, SECTION_CHROME } from "@/lib/blog-section";
 import { SectionHeader } from "@/components/shared/section-header";
 import { BlogFooter } from "@/components/blog/blog-footer";
 import { RatingHeadline } from "@/components/spotguide/rating-panel";
+import { ContributeSpot } from "@/components/spotguide/contribute-spot";
 import { flags } from "@/lib/flags";
 
 export const metadata: Metadata = {
@@ -20,6 +21,18 @@ export default async function SpotguideIndex() {
   const section = resolveSection((await cookies()).get("np7_section")?.value);
   const chrome = SECTION_CHROME[section];
   const [dests, points] = await Promise.all([getSpotguideDestinations(), getAllSpotguidePoints()]);
+
+  // One pin per DESTINATION (centroid of its spots) so nearby spots don't overlap
+  // when zoomed out — the destination page shows the individual spots.
+  const byDest = new Map<string, { latSum: number; lngSum: number; n: number; name: string }>();
+  for (const p of points) {
+    const d = byDest.get(p.destSlug) ?? { latSum: 0, lngSum: 0, n: 0, name: p.destName };
+    d.latSum += p.lat; d.lngSum += p.lng; d.n += 1;
+    byDest.set(p.destSlug, d);
+  }
+  const destPins = [...byDest.entries()].map(([destSlug, d]) => ({
+    lat: d.latSum / d.n, lng: d.lngSum / d.n, name: d.name, destName: `${d.n} spot${d.n === 1 ? "" : "s"}`, destSlug, verification: "np7",
+  }));
 
   return (
     <>
@@ -34,6 +47,13 @@ export default async function SpotguideIndex() {
             <p className="text-white/70 text-[16px] sm:text-[18px] mt-4 max-w-[560px] mx-auto leading-relaxed">
               Honest spot guides — rated by NP7 and the crew. Real conditions, the forecast that actually works, and the spots worth your time.
             </p>
+            {/* jump to the other magazine sections */}
+            <nav className="mt-7 flex flex-wrap items-center justify-center gap-2 text-[13px] font-bold">
+              <span className="rounded-full px-3.5 py-1.5 text-[#00374a]" style={{ backgroundColor: chrome.eyebrow }}>Spotguide</span>
+              <Link href="/blog?world=hardware" className="rounded-full px-3.5 py-1.5 text-white/80 hover:text-white bg-white/10 hover:bg-white/20 transition-colors">Gear</Link>
+              <Link href="/blog?world=technique" className="rounded-full px-3.5 py-1.5 text-white/80 hover:text-white bg-white/10 hover:bg-white/20 transition-colors">Technique</Link>
+              <Link href="/blog" className="rounded-full px-3.5 py-1.5 text-white/80 hover:text-white bg-white/10 hover:bg-white/20 transition-colors">All stories</Link>
+            </nav>
           </div>
         </header>
 
@@ -45,10 +65,17 @@ export default async function SpotguideIndex() {
             </div>
           ) : (
             <>
-              {points.length > 0 && (
+              {/* Lead with contribution while the guide is young — it matters more than browsing right now. */}
+              <div className="mb-10">
+                <h2 className="text-[13px] font-black uppercase tracking-[0.14em] text-[#9aa6ac] mb-1">Help build the guide</h2>
+                <p className="text-[13.5px] text-[#6a7a80] mb-3">Know a spot — or a whole destination we don&apos;t cover yet? Add it. Members verify it before it goes public.</p>
+                <ContributeSpot destinations={dests.map((d) => ({ id: d.id, name: d.name }))} accent={chrome.accent} />
+              </div>
+
+              {destPins.length > 0 && (
                 <div className="mb-10">
-                  <h2 className="text-[13px] font-black uppercase tracking-[0.14em] text-[#9aa6ac] mb-3">Where we ride <span className="text-[#c3b9a6]">({points.length} spots)</span></h2>
-                  <SpotMap spots={points} cluster height={460} />
+                  <h2 className="text-[13px] font-black uppercase tracking-[0.14em] text-[#9aa6ac] mb-3">Where we ride <span className="text-[#c3b9a6]">({destPins.length} destination{destPins.length === 1 ? "" : "s"} · {points.length} spots)</span></h2>
+                  <SpotMap spots={destPins} height={460} linkLabel="Explore the spots →" />
                 </div>
               )}
               <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-5">

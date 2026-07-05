@@ -15,6 +15,7 @@ import { DestinationRater } from "@/components/spotguide/raters";
 import { MeteredContent } from "@/components/spotguide/metered-content";
 import { AddSpot } from "@/components/spotguide/add-spot";
 import { VerifySpots } from "@/components/spotguide/verify-spots";
+import { VerifyEdits } from "@/components/spotguide/verify-edits";
 import { SpotMap } from "@/components/spotguide/spot-map";
 import { flags } from "@/lib/flags";
 
@@ -123,15 +124,16 @@ export default async function SpotguideDestinationPage({ params }: Props) {
                       .map((s) => ({ lat: s.lat as number, lng: s.lng as number, name: s.name, destSlug: d.slug ?? "", verification: s.verification }));
                     return pts.length > 0 ? <div className="mb-5"><SpotMap spots={pts} height={340} /></div> : null;
                   })()}
-                  <MeteredContent gated={!loggedIn} accent={chrome.accent}>
+                  <MeteredContent accent={chrome.accent}>
                     <SpotsList spots={d.spots} accent={chrome.accent} />
                   </MeteredContent>
                 </>
               )}
             </section>
 
-            {/* Community: verify pending member spots, then add your own */}
+            {/* Community: verify pending member spots + corrections, then add your own */}
             <VerifySpots destId={d.id} accent={chrome.accent} />
+            <VerifyEdits destId={d.id} accent={chrome.accent} />
             <section>
               <h2 className="text-[13px] font-black uppercase tracking-[0.14em] text-[#9aa6ac] mb-3">Contribute</h2>
               <AddSpot destId={d.id} destName={d.name} accent={chrome.accent} />

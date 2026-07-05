@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import Link from "next/link";
 import { AdminMemberLevel } from "@/components/admin/admin-member-level";
+import { SpotguideTrust } from "@/components/admin/spotguide-trust";
 import { MemberPortalPreview } from "@/components/admin/member-portal-preview";
 
 interface MemberData {
@@ -86,9 +87,14 @@ export function MemberDetailPane({ contactId, initialTab = "overview", onBack }:
       {tab === "preview" ? (
         <MemberPortalPreview contactId={c.id} />
       ) : tab === "level" ? (
-        <Panel title="Level & skills">
-          <AdminMemberLevel contactId={c.id} />
-        </Panel>
+        <div className="space-y-4">
+          <Panel title="Level & skills">
+            <AdminMemberLevel contactId={c.id} />
+          </Panel>
+          <Panel title="Spotguide trust">
+            <SpotguideTrust contactId={c.id} />
+          </Panel>
+        </div>
       ) : (
       <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
         <Panel title="Bookings" count={d.bookings.length}>

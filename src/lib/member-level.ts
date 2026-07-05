@@ -6,6 +6,15 @@
 
 export const LEVELS = ["Beginner", "Intermediate", "Advanced", "Pro"] as const;
 export type Level = (typeof LEVELS)[number];
+
+/** One-line, plain-English definition of each level — shared everywhere a level
+    is shown or picked (member area + spotguide). */
+export const LEVEL_DESCRIPTIONS: Record<Level, string> = {
+  Beginner: "Uphauling, sailing both ways and basic steering — not yet planing.",
+  Intermediate: "Planing in the harness & footstraps; learning the carve gybe.",
+  Advanced: "Confident planing, waterstart & carve gybes; into waves or freestyle.",
+  Pro: "Masters most conditions — advanced waves, freestyle or racing.",
+};
 export type LevelStatus = "self" | "suggested" | "verified";
 
 export function isLevel(v: unknown): v is Level {

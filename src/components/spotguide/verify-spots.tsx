@@ -4,63 +4,109 @@ import { useEffect, useState } from "react";
 import { useSpotguide } from "./spotguide-provider";
 import { COMMUNITY_VERIFY_THRESHOLD, conditionLabel } from "@/lib/spotguide";
 
-type Pending = { id: string; name: string; level: string | null; conditions: string[]; description: string | null; isOwn: boolean; confirms: number; iConfirmed: boolean; justLive?: boolean };
+type Cat = { confirms: number; flags: number; mine: "confirm" | "flag" | null };
+type Pending = {
+  id: string; name: string; level: string | null; conditions: string[]; description: string | null;
+  isOwn: boolean; cats: { location: Cat; level: Cat; conditions: Cat }; justLive?: boolean; justHidden?: boolean;
+};
 
-/** "Help verify" — member-submitted spots awaiting community confirmation.
-    Shown to logged-in members only; confirming pushes a spot to public at the
-    threshold. A member can't confirm their own. */
+/** "Help verify" — pending member spots. Verifiers confirm/flag each fact
+    separately: LOCATION gates going public (3 confirms → live, 3 flags → pulled
+    for NP7), while LEVEL & CONDITIONS collect advisory votes so the submitter
+    sees exactly what's off. A member can't verify their own. */
 export function VerifySpots({ destId, accent = "#00afdb" }: { destId: string; accent?: string }) {
   const sg = useSpotguide();
   const [spots, setSpots] = useState<Pending[]>([]);
+  const [fieldVerify, setFieldVerify] = useState(false); // per-field level/conditions votes (migration 066)
   const [busy, setBusy] = useState<string | null>(null);
+  const [open, setOpen] = useState(false); // folded by default so the page stays short
 
   useEffect(() => {
     if (!sg.loggedIn) return;
-    fetch(`/api/portal/spotguide/spots?dest=${destId}`).then((r) => r.json()).then((d) => setSpots(d.spots ?? [])).catch(() => {});
+    fetch(`/api/portal/spotguide/spots?dest=${destId}`).then((r) => r.json()).then((d) => { setSpots(d.spots ?? []); setFieldVerify(!!d.fieldVerify); }).catch(() => {});
   }, [sg.loggedIn, destId]);
 
-  async function confirm(id: string) {
-    setBusy(id);
-    const r = await fetch("/api/portal/spotguide/verify", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ spotId: id, kind: "confirm" }) });
+  async function vote(id: string, category: "location" | "level" | "conditions", kind: "confirm" | "flag") {
+    const key = `${id}:${category}`;
+    setBusy(key);
+    const r = await fetch("/api/portal/spotguide/verify", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ spotId: id, category, kind }) });
     setBusy(null);
     if (!r.ok) return;
     const j = await r.json();
-    setSpots((list) => list.map((s) => s.id === id ? { ...s, confirms: j.confirms, iConfirmed: true, justLive: j.verification === "community" } : s));
+    setSpots((list) => list.map((s) => {
+      if (s.id !== id) return s;
+      const cats = { ...s.cats, [category]: { confirms: j.confirms, flags: j.flags, mine: kind } };
+      return { ...s, cats, justLive: s.justLive || (category === "location" && j.verification === "community"), justHidden: s.justHidden || (category === "location" && j.hidden) };
+    }));
   }
 
   if (!sg.loggedIn || spots.length === 0) return null;
 
   return (
-    <section>
-      <h2 className="text-[13px] font-black uppercase tracking-[0.14em] text-[#9aa6ac] mb-1">Help verify</h2>
-      <p className="text-[13px] text-[#6a7a80] mb-3">Members added these spots. Been to one? Confirm it&apos;s accurate — {COMMUNITY_VERIFY_THRESHOLD} confirmations make it public.</p>
-      <div className="space-y-2.5">
-        {spots.map((s) => (
-          <div key={s.id} className="rounded-2xl border border-[#ece3d3] bg-white p-4">
-            <div className="flex items-start justify-between gap-3">
-              <div className="min-w-0">
-                <p className="text-[15px] font-extrabold text-[#00374a]">{s.name}</p>
-                <p className="text-[12.5px] text-[#6a7a80]">{[s.level, s.conditions.map(conditionLabel).join(" · ")].filter(Boolean).join("  ·  ")}</p>
-                {s.description && <p className="text-[13.5px] text-[#5a6b72] mt-1.5 line-clamp-3">{s.description}</p>}
-              </div>
-              <span className="shrink-0 text-[12px] font-bold" style={{ color: accent }}>{s.confirms}/{COMMUNITY_VERIFY_THRESHOLD}</span>
-            </div>
-            <div className="mt-3">
+    <section className="rounded-2xl border border-[#ece3d3] bg-white/60 overflow-hidden">
+      <button type="button" onClick={() => setOpen((o) => !o)} aria-expanded={open}
+        className="w-full flex items-center justify-between gap-3 px-4 sm:px-5 py-3.5 text-left hover:bg-[#fdf8ee] transition-colors">
+        <span className="min-w-0">
+          <span className="block text-[13px] font-black uppercase tracking-[0.14em] text-[#9aa6ac]">Help verify <span style={{ color: accent }}>({spots.length})</span></span>
+          <span className="block text-[12.5px] text-[#6a7a80]">Members added these — been to one? Confirm what&apos;s right, flag what&apos;s off.</span>
+        </span>
+        <svg className={`w-5 h-5 shrink-0 text-[#9aa6ac] transition-transform ${open ? "rotate-180" : ""}`} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="m6 9 6 6 6-6" /></svg>
+      </button>
+      {open && (
+      <div className="px-4 sm:px-5 pb-4 pt-1 space-y-2.5 border-t border-[#f0e9da]">
+        {spots.map((s) => {
+          const rows: { key: "location" | "level" | "conditions"; label: string; value: string | null; gate?: boolean }[] = [
+            { key: "location", label: "Real spot, correctly placed?", value: null, gate: true },
+            ...(fieldVerify && s.level ? [{ key: "level" as const, label: "Level", value: s.level }] : []),
+            ...(fieldVerify && s.conditions.length ? [{ key: "conditions" as const, label: "Conditions", value: s.conditions.map(conditionLabel).join(" · ") }] : []),
+          ];
+          const done = s.justLive || s.justHidden;
+          return (
+            <div key={s.id} className="rounded-2xl border border-[#ece3d3] bg-white p-4">
+              <p className="text-[15px] font-extrabold text-[#00374a]">{s.name}</p>
+              {s.description && <p className="text-[13px] text-[#6a7a80] mt-1 line-clamp-2">{s.description}</p>}
+
               {s.justLive ? (
-                <span className="text-[13px] font-bold text-[#1f9e57]">Now live for everyone — thanks! 🎉</span>
+                <p className="mt-3 text-[13px] font-bold text-[#1f9e57]">Now live for everyone — thanks! 🎉</p>
+              ) : s.justHidden ? (
+                <p className="mt-3 text-[13px] font-bold text-[#b4522f]">Flagged — we&apos;ll review it. Thanks!</p>
               ) : s.isOwn ? (
-                <span className="text-[12.5px] text-[#9aa6ac]">Your submission · awaiting other members</span>
-              ) : s.iConfirmed ? (
-                <span className="text-[12.5px] font-semibold" style={{ color: accent }}>✓ You confirmed this</span>
+                <p className="mt-3 text-[12.5px] text-[#9aa6ac]">Your submission · awaiting other members</p>
               ) : (
-                <button onClick={() => confirm(s.id)} disabled={busy === s.id} className="px-4 py-2 rounded-full text-[13px] font-bold text-white disabled:opacity-50" style={{ backgroundColor: accent }}>
-                  {busy === s.id ? "…" : "I've sailed here — accurate"}
-                </button>
+                <div className="mt-3 divide-y divide-[#f2ece1]">
+                  {rows.map((row) => {
+                    const cat = s.cats[row.key];
+                    const k = `${s.id}:${row.key}`;
+                    const chip = (active: boolean, tone: "ok" | "no") =>
+                      `inline-flex items-center justify-center w-8 h-8 rounded-full text-[14px] font-bold transition-colors disabled:opacity-50 ${
+                        active ? "text-white" : tone === "ok" ? "text-[#1f9e57] border border-[#cdeede]" : "text-[#b4522f] border border-[#f0d9d0]"
+                      }`;
+                    return (
+                      <div key={row.key} className="flex items-center justify-between gap-3 py-2">
+                        <div className="min-w-0 text-[13.5px]">
+                          <span className="font-bold text-[#00374a]">{row.label}</span>
+                          {row.value && <span className="text-[#6a7a80]">: {row.value}</span>}
+                          {row.gate
+                            ? <span className="ml-2 text-[11px] font-bold" style={{ color: accent }}>{cat.confirms}/{COMMUNITY_VERIFY_THRESHOLD}</span>
+                            : (cat.confirms + cat.flags > 0) && <span className="ml-2 text-[11px] text-[#9aa6ac]">✓{cat.confirms} · ✗{cat.flags}</span>}
+                        </div>
+                        <div className="flex items-center gap-1.5 shrink-0">
+                          <button onClick={() => vote(s.id, row.key, "confirm")} disabled={busy === k} aria-label="Right" title={row.gate ? "I've been here — accurate" : "This is right"}
+                            className={chip(cat.mine === "confirm", "ok")} style={cat.mine === "confirm" ? { backgroundColor: "#1f9e57" } : undefined}>✓</button>
+                          <button onClick={() => vote(s.id, row.key, "flag")} disabled={busy === k} aria-label="Off" title={row.gate ? "Not accurate" : "This is wrong"}
+                            className={chip(cat.mine === "flag", "no")} style={cat.mine === "flag" ? { backgroundColor: "#c05a34" } : undefined}>✕</button>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
               )}
+              {!done && !s.isOwn && <p className="mt-2 text-[11px] text-[#b3a994]">✓ what&apos;s right · ✕ what&apos;s off — only the top row decides if it goes public.</p>}
             </div>
-          </div>
-        ))}
+          );
+        })}
       </div>
+      )}
     </section>
   );
 }

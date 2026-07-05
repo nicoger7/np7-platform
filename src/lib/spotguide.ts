@@ -48,7 +48,7 @@ export type Criterion = { key: string; label: string; hint: string };
     level and wind-direction are collected as crowd FACTS instead (see below). */
 export const SPOT_CRITERIA: Criterion[] = [
   { key: "safety", label: "Safety", hint: "Onshore & safe vs offshore wind, rocks, currents, hazards." },
-  { key: "beauty", label: "Beauty", hint: "Scenery and the all-round vibe on the water." },
+  { key: "beauty", label: "View", hint: "Scenery / landscape and the all-round vibe on the water." },
   { key: "infrastructure", label: "Infrastructure", hint: "School, rental, repair, parking, beach bar — what's on the ground." },
   { key: "family", label: "Family-friendly", hint: "Shallow areas, easy launch, room for kids & non-sailors." },
 ];
@@ -73,13 +73,18 @@ export const DESTINATION_CRITERIA_KEYS = DESTINATION_CRITERIA.map((c) => c.key);
 export const CONDITIONS = [
   { key: "flat", label: "Flat water" },
   { key: "chop", label: "Choppy" },
-  { key: "waves", label: "Waves" },
-  { key: "mixed", label: "Mixed" },
+  { key: "small_waves", label: "Small waves (0.5–1 m)" },
+  { key: "medium_waves", label: "Medium waves (1–2 m)" },
+  { key: "big_waves", label: "Big waves (2 m+)" },
+  { key: "shallow", label: "Shallow" },
+  { key: "deep", label: "Deep water" },
 ] as const;
 export type ConditionKey = (typeof CONDITIONS)[number]["key"];
 
+// Older data used coarse keys; keep them readable if they still appear.
+const LEGACY_CONDITIONS: Record<string, string> = { waves: "Waves", mixed: "Mixed" };
 export function conditionLabel(key: string): string {
-  return CONDITIONS.find((c) => c.key === key)?.label ?? key;
+  return CONDITIONS.find((c) => c.key === key)?.label ?? LEGACY_CONDITIONS[key] ?? key;
 }
 
 /* ------------------------------------------------------------------ */
@@ -87,8 +92,8 @@ export function conditionLabel(key: string): string {
 /* ------------------------------------------------------------------ */
 
 export const INFRASTRUCTURE_TAGS = [
-  "School", "Rental", "Repair", "Storage", "Parking", "Toilets",
-  "Showers", "Beach bar", "Restaurant", "Rescue / lifeguard", "Shop",
+  "Windsurf center", "School", "Rental", "Repair", "Storage", "Parking",
+  "Toilets", "Showers", "Beach bar", "Restaurant", "Rescue / lifeguard", "Shop",
 ] as const;
 
 /* ------------------------------------------------------------------ */
@@ -142,11 +147,13 @@ export function forecastLabel(id: string): string {
 export type Verification = "pending" | "community" | "np7";
 /** Distinct member confirmations that flip a pending spot to community. */
 export const COMMUNITY_VERIFY_THRESHOLD = 3;
+/** Distinct member flags that auto-hide a photo for NP7 review. */
+export const PHOTO_FLAG_THRESHOLD = 3;
 
 export const VERIFICATION_META: Record<Verification, { label: string; short: string; color: string }> = {
   pending: { label: "Awaiting verification", short: "Pending", color: "#9aa6ac" },
-  community: { label: "Community verified", short: "Community", color: "#1f9e57" },
-  np7: { label: "NP7 verified — we've been here", short: "NP7 verified", color: "#00afdb" },
+  community: { label: "Verified by members who've sailed here", short: "Community", color: "#1f9e57" },
+  np7: { label: "Tested by NP7 — we've been here", short: "✓ Verified", color: "#00afdb" },
 };
 
 export function isPublicVerification(v: string | null | undefined): boolean {

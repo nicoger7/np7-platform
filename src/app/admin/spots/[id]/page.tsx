@@ -13,6 +13,7 @@ import {
   type RatingSummary, type ForecastTally,
 } from "@/lib/spotguide";
 import { WindStatsChart } from "@/components/spotguide/wind-stats-chart";
+import { PinPicker } from "@/components/spotguide/pin-picker";
 import type { WindStats } from "@/lib/wind-stats";
 
 interface Spot {
@@ -24,7 +25,7 @@ interface Spot {
   summary: string | null; description: string | null;
   np7_ratings: Record<string, number> | null; source: string;
   status: string; verification: string;
-  wind_stats: WindStats | null; wind_stats_at: string | null;
+  wind_stats: WindStats | null; wind_stats_at: string | null; wind_profile: string | null;
 }
 interface Dest { id: string; name: string; slug: string | null }
 
@@ -74,13 +75,13 @@ export default function SpotEditor({ params }: { params: Promise<{ id: string }>
     router.push(dest ? `/admin/destinations/${dest.id}` : "/admin/destinations");
   }
 
-  async function computeStats() {
+  async function setStats(body: Record<string, unknown>) {
     setComputing(true); setStatsError("");
-    const res = await fetch(`/api/admin/spots/${id}/wind-stats`, { method: "POST" });
+    const res = await fetch(`/api/admin/spots/${id}/wind-stats`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
     setComputing(false);
     const j = await res.json().catch(() => ({}));
-    if (res.ok) setS((p) => (p ? { ...p, wind_stats: j.wind_stats, wind_stats_at: j.wind_stats_at } : p));
-    else setStatsError(j.error ?? "Could not compute.");
+    if (res.ok) { setS((p) => (p ? { ...p, wind_stats: j.wind_stats, wind_stats_at: j.wind_stats_at, wind_profile: j.wind_profile ?? p.wind_profile } : p)); }
+    else setStatsError(j.error ?? "Could not save.");
   }
 
   if (loading) return <div className="flex items-center justify-center h-64"><p className="text-sm admin-faint">Loading…</p></div>;
@@ -123,7 +124,14 @@ export default function SpotEditor({ params }: { params: Promise<{ id: string }>
           <div>
             <label className={labelClass}>Map coordinates</label>
             <input className={inputClass} value={coordsRaw} onChange={(e) => setCoordsRaw(e.target.value)} placeholder="28.0456, -14.3261" />
-            <p className="text-[11px] admin-faint mt-1">Paste “lat, lng” from Google Maps (right-click the spot → copy the numbers).</p>
+            <p className="text-[11px] admin-faint mt-1">Paste “lat, lng” from Google Maps, or drop the pin below. Moving it re-computes the wind stats (unless a manual override is set).</p>
+            <div className="mt-2">
+              <PinPicker
+                value={parseCoords(coordsRaw)}
+                onChange={(c) => setCoordsRaw(`${c.lat}, ${c.lng}`)}
+                height={200}
+              />
+            </div>
           </div>
           <div>
             <label className={labelClass}>Level</label>
@@ -187,23 +195,35 @@ export default function SpotEditor({ params }: { params: Promise<{ id: string }>
           <Windrose value={s.wind_window ?? {}} onChange={(w) => set("wind_window", w)} />
         </div>
 
-        {/* Wind statistics (Open-Meteo) */}
+        {/* Wind statistics — auto from Open-Meteo; two sampling profiles */}
         <div>
-          <div className="flex items-center justify-between mb-1">
-            <label className={labelClass}>Wind statistics <span className="admin-faint font-normal">(auto, from coordinates)</span></label>
-            <button onClick={computeStats} disabled={computing} className="text-xs font-bold text-[#0aa3c7] hover:underline disabled:opacity-50">
-              {computing ? "Computing… (~10s)" : s.wind_stats ? "Refresh" : "Compute from coordinates"}
-            </button>
+          <div className="flex items-center justify-between mb-1.5">
+            <label className={labelClass}>Wind statistics</label>
+            <button onClick={() => setStats({ mode: "off" })} disabled={computing} className="text-xs font-bold text-red-400/70 hover:text-red-400 disabled:opacity-50">Off</button>
           </div>
           {statsError && <p className="text-[11px] text-red-400 mb-1">{statsError}</p>}
-          {s.wind_stats ? (
-            <div className="rounded-xl p-4" style={{ border: "1px solid var(--admin-border)", backgroundColor: "var(--admin-surface)" }}>
-              <WindStatsChart stats={s.wind_stats} />
-              <p className="text-[10px] admin-faint mt-2">Updated {s.wind_stats_at ? new Date(s.wind_stats_at).toLocaleDateString() : "—"} · 10-yr ERA5, {s.wind_stats.window}</p>
-            </div>
-          ) : (
-            <p className="text-[11px] admin-faint">Set coordinates above, save, then compute — pulls ~10 years of wind from Open-Meteo (free).</p>
-          )}
+
+          {(() => {
+            const profile = s.wind_profile === "accelerated" ? "accelerated" : "standard";
+            const pill = (active: boolean) => `px-3 py-1.5 rounded-lg text-xs font-bold disabled:opacity-50 transition-colors ${active ? "bg-[var(--admin-accent)] text-[var(--admin-accent-contrast)]" : "admin-muted"}`;
+            return (
+              <>
+                <div className="flex items-center gap-2 mb-2">
+                  <button onClick={() => setStats({ profile: "standard" })} disabled={computing} className={pill(profile === "standard")} style={profile === "standard" ? undefined : { border: "1px solid var(--admin-border)" }}>{computing ? "…" : "Standard"}</button>
+                  <button onClick={() => setStats({ profile: "accelerated" })} disabled={computing} className={pill(profile === "accelerated")} style={profile === "accelerated" ? undefined : { border: "1px solid var(--admin-border)" }}>{computing ? "…" : "Accelerated"}</button>
+                  <span className="text-[11px] admin-faint">Accelerated = sample offshore (venturi/thermal spots the model shadows at the coast, e.g. El Médano)</span>
+                </div>
+                {s.wind_stats ? (
+                  <div className="rounded-xl p-4" style={{ border: "1px solid var(--admin-border)", backgroundColor: "var(--admin-surface)" }}>
+                    <WindStatsChart stats={s.wind_stats} />
+                    <p className="text-[10px] admin-faint mt-2">Updated {s.wind_stats_at ? new Date(s.wind_stats_at).toLocaleDateString() : "—"} · {s.wind_stats.source}</p>
+                  </div>
+                ) : (
+                  <p className="text-[11px] admin-faint">Set coordinates + save, then pick <b>Standard</b> (Open-Meteo, free). For acceleration spots the model reads too light, switch to <b>Accelerated</b>.</p>
+                )}
+              </>
+            );
+          })()}
         </div>
 
         {/* Forecast models */}
@@ -211,7 +231,7 @@ export default function SpotEditor({ params }: { params: Promise<{ id: string }>
           <label className={labelClass}>Best forecast model(s) <span className="admin-faint font-normal">— NP7 recommendation</span></label>
           <p className="text-[11px] admin-faint mb-2">Which forecast actually nails this spot. (In most wind apps you can pick the model to display.) Members vote their own favourite too — the tally shows below.</p>
           <div className="space-y-2">
-            {(["global", "highres", "app"] as ForecastTier[]).map((tier) => (
+            {(["global", "highres"] as ForecastTier[]).map((tier) => (
               <div key={tier}>
                 <p className="text-[10px] uppercase tracking-wide admin-faint mb-1">{FORECAST_TIER_LABEL[tier]}</p>
                 <div className="flex flex-wrap gap-1.5">

@@ -9,9 +9,10 @@ import {
 import { WindRose, WindRoseLegend } from "./wind-rose";
 import { RatingHeadline, RatingBreakdown } from "./rating-panel";
 import { ForecastPanel } from "./forecast-panel";
-import { SpotVisitRater, ForecastVoter } from "./raters";
 import { WindStatsChart } from "./wind-stats-chart";
 import { SpotPhotos } from "./spot-photos";
+import { SpotContribute } from "./spot-contribute";
+import { SuggestEdit } from "./suggest-edit";
 
 /** Foldable list of a destination's spots. Collapsed = name + key chips +
     score; expanded = photo, wind rose, ratings, forecast, infrastructure. */
@@ -65,10 +66,10 @@ export function SpotsList({ spots, accent = "#00afdb" }: { spots: PublicSpot[]; 
                     <div className="text-[11px] font-bold uppercase tracking-[0.1em] text-[#9aa6ac] mb-2">Wind window</div>
                     <div className="flex flex-wrap items-start gap-x-6 gap-y-3">
                       {windWindowHasValue(spot.wind_window) && (
-                        <div className="text-center"><WindRose window={spot.wind_window} size={112} /><div className="text-[11px] font-black tracking-wide mt-0.5" style={{ color: accent }}>NP7</div></div>
+                        <div className="text-center"><WindRose window={spot.wind_window} size={112} />{spot.crowdWindow.raters > 0 && <span className="inline-block mt-1.5 text-[10px] font-black uppercase tracking-[0.1em] px-2 py-0.5 rounded-full text-[#9aa6ac] bg-[#9aa6ac]/12">Spot</span>}</div>
                       )}
                       {spot.crowdWindow.raters > 0 && (
-                        <div className="text-center"><WindRose window={spot.crowdWindow.window} size={112} /><div className="text-[11px] font-black tracking-wide mt-0.5 text-[#1f9e57]">Members ({spot.crowdWindow.raters})</div></div>
+                        <div className="text-center"><WindRose window={spot.crowdWindow.window} size={112} /><span className="inline-block mt-1.5 text-[10px] font-black uppercase tracking-[0.1em] px-2 py-0.5 rounded-full bg-[#1f9e57]/12 text-[#1f9e57]">Members · {spot.crowdWindow.raters}</span></div>
                       )}
                       <WindRoseLegend />
                     </div>
@@ -90,10 +91,7 @@ export function SpotsList({ spots, accent = "#00afdb" }: { spots: PublicSpot[]; 
                   </div>
                 )}
 
-                <div>
-                  <ForecastPanel np7Models={spot.np7_forecast_models} tally={spot.forecast} accent={accent} />
-                  <ForecastVoter spotId={spot.id} accent={accent} />
-                </div>
+                <ForecastPanel np7Models={spot.np7_forecast_models} tally={spot.forecast} accent={accent} />
 
                 {(spot.np7 > 0 || spot.member.count > 0) && (
                   <div className="rounded-xl border border-[#f0e9da] p-4">
@@ -102,12 +100,12 @@ export function SpotsList({ spots, accent = "#00afdb" }: { spots: PublicSpot[]; 
                   </div>
                 )}
 
-                <div>
-                  <div className="text-[11px] font-bold uppercase tracking-[0.1em] text-[#9aa6ac] mb-2">Photos</div>
-                  <SpotPhotos spotId={spot.id} photos={[...spot.gallery, ...spot.photos.map((p) => p.url)]} accent={accent} />
-                </div>
-
-                <SpotVisitRater spotId={spot.id} accent={accent} />
+                {(spot.gallery.length > 0 || spot.photos.length > 0) && (
+                  <div>
+                    <div className="text-[11px] font-bold uppercase tracking-[0.1em] text-[#9aa6ac] mb-2">Photos</div>
+                    <SpotPhotos spotId={spot.id} photos={[...spot.gallery.map((url) => ({ url })), ...spot.photos.map((p) => ({ url: p.url, id: p.id, score: p.score }))]} accent={accent} mode="gallery" />
+                  </div>
+                )}
 
                 {spot.infrastructure.length > 0 && (
                   <div className="flex flex-wrap items-center gap-1.5">
@@ -115,6 +113,11 @@ export function SpotsList({ spots, accent = "#00afdb" }: { spots: PublicSpot[]; 
                     {spot.infrastructure.map((t) => <span key={t} className="text-[12px] font-semibold text-[#5a6b72] bg-[#f3ede0] rounded-full px-2.5 py-1">{t}</span>)}
                   </div>
                 )}
+
+                {/* Contribute — the one clearly-separated input zone */}
+                <SpotContribute spotId={spot.id} accent={accent} />
+                <SuggestEdit spotId={spot.id} accent={accent}
+                  current={{ name: spot.name, lat: spot.lat, lng: spot.lng }} />
               </div>
             </div>
           </div>

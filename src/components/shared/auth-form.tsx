@@ -33,6 +33,10 @@ export function AuthForm({ onLoggedIn, compact = false, initialMode = "login" }:
   async function submit(e: React.FormEvent) {
     e.preventDefault();
     setBusy(true); setError("");
+    // Return the member to the page they logged in FROM (not the account home),
+    // unless they're already in the account area.
+    const here = typeof window !== "undefined" ? window.location.pathname + window.location.search : "";
+    const next = here && !here.startsWith("/account") ? here : undefined;
     try {
       if (mode === "login") {
         const { error } = await supabase.auth.signInWithPassword({ email, password });
@@ -47,7 +51,7 @@ export function AuthForm({ onLoggedIn, compact = false, initialMode = "login" }:
       if (mode === "magic") {
         await fetch("/api/portal/login", {
           method: "POST", headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ email }),
+          body: JSON.stringify({ email, next }),
         });
         setSent("magic"); setBusy(false);
         return;
@@ -55,7 +59,7 @@ export function AuthForm({ onLoggedIn, compact = false, initialMode = "login" }:
       // register
       await fetch("/api/portal/register", {
         method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email, name }),
+        body: JSON.stringify({ email, name, next }),
       });
       setSent("register"); setBusy(false);
     } catch {
