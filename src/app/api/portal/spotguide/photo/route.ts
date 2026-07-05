@@ -1,18 +1,21 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest, NextResponse, after } from "next/server";
 import { getPortalUser } from "@/lib/auth";
 import { createAdminClient } from "@/lib/supabase";
+import { resizeForStorage, makeThumb } from "@/lib/image-resize";
 import { r2Enabled, uploadToR2 } from "@/lib/r2";
 
+export const runtime = "nodejs"; // sharp (image resize) needs the Node runtime
 const BUCKET = "assets";
 const MAX = 10 * 1024 * 1024; // 10 MB
 
 /**
  * POST /api/portal/spotguide/photo -- a member uploads a photo for a spot
- * (multipart: file, spotId). Lands in spot_photos as 'pending' for moderation.
+ * (multipart: file, spotId). Lands in spot_photos as 'approved' for immediate
+ * display; vote flags auto-hide for NP7 review.
  *
  * Upload destination (in priority order):
- *   1. Cloudflare R2  -- when r2Enabled() is true
- *   2. Supabase Storage -- fallback
+ *   1. Cloudflare R2  -- when r2Enabled() is true (zero-egress CDN)
+ *   2. Supabase Storage -- fallback; image is still resized before storage
  */
 export async function POST(request: NextRequest) {
   const user = await getPortalUser({ allowPreview: false });
@@ -36,23 +39,33 @@ export async function POST(request: NextRequest) {
   const ext = (file.name.split(".").pop() || "jpg").toLowerCase().replace(/[^a-z0-9]/g, "").slice(0, 5) || "jpg";
   const timestamp = Date.now();
   const random = Math.random().toString(36).slice(2, 8);
+  const key = `spots/${spotId}/member/${timestamp}-${random}.${ext}`;
+
+  // Downscale before storing so a phone shot doesn't sit at 10 MB and burn egress on every view.
+  const { body, contentType } = await resizeForStorage(file);
 
   let url: string;
 
   if (r2Enabled()) {
-    // -- Cloudflare R2 upload ------------------------------------------------
-    const key = `spots/${spotId}/member/${timestamp}-${random}.${ext}`;
+    // -- Cloudflare R2 (primary) ---------------------------------------------
+    const buf = Buffer.isBuffer(body) ? body : Buffer.from(await file.arrayBuffer());
     try {
-      url = await uploadToR2(file, key, file.type);
+      url = await uploadToR2(buf, key, contentType);
     } catch {
       return NextResponse.json({ error: "Upload failed. Please try again." }, { status: 500 });
     }
+    // Generate and upload thumbnail in background (best-effort).
+    after(async () => {
+      try {
+        const thumb = await makeThumb(file);
+        if (thumb) await uploadToR2(thumb.body, `_thumb/${key}`, thumb.contentType);
+      } catch { /* ignore */ }
+    });
   } else {
-    // -- Supabase Storage fallback -------------------------------------------
-    const path = `spots/${spotId}/member/${timestamp}-${random}.${ext}`;
-    const { error: upErr } = await admin.storage.from(BUCKET).upload(path, file, { contentType: file.type, upsert: false });
+    // -- Supabase Storage (fallback) -----------------------------------------
+    const { error: upErr } = await admin.storage.from(BUCKET).upload(key, body, { contentType, upsert: false });
     if (upErr) return NextResponse.json({ error: "Upload failed. Please try again." }, { status: 500 });
-    url = `${process.env.NEXT_PUBLIC_SUPABASE_URL}/storage/v1/object/public/${BUCKET}/${path}`;
+    url = `${process.env.NEXT_PUBLIC_SUPABASE_URL}/storage/v1/object/public/${BUCKET}/${key}`;
   }
 
   // Member photos auto-show (status 'approved'); members up/down-vote them and

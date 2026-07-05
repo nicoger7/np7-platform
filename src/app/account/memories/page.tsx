@@ -4,7 +4,7 @@ import type { Metadata } from "next";
 import { getPortalUser } from "@/lib/auth";
 import { getAllMemberMemories } from "@/lib/portal-data";
 import { PortalChrome } from "@/components/portal/portal-chrome";
-import { MemberGallery } from "@/components/portal/member-gallery";
+import { MemoriesBrowser } from "@/components/portal/memories-browser";
 
 export const metadata: Metadata = { title: "My memories — NP7" };
 export const dynamic = "force-dynamic";
@@ -40,18 +40,7 @@ export default async function MemoriesPage() {
               </Link>
             </div>
           ) : (
-            <div className="space-y-10">
-              {trips.map((t) => (
-                <section key={t.bookingId}>
-                  <div className="flex flex-wrap items-baseline justify-between gap-2 mb-3">
-                    <h2 className="text-[20px] font-black tracking-[-0.02em] text-[#00374a]">{t.title}</h2>
-                    <span className="text-[13px] text-[#8a9aa0]">{t.dateLabel ? `${t.dateLabel} · ` : ""}{t.total} photo{t.total === 1 ? "" : "s"}</span>
-                  </div>
-                  {/* view-only: no bookingId/downloadsRemaining → no download button */}
-                  <MemberGallery groups={t.groups} />
-                </section>
-              ))}
-            </div>
+            <MemoriesBrowser trips={trips} />
           )}
         </div>
       </main>

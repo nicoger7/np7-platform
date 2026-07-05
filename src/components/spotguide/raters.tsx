@@ -35,14 +35,18 @@ function StarRows({ criteria, value, onPick, accent }: { criteria: Criterion[]; 
   );
 }
 
-/** Destination rating — star criteria only (wind is the spots' objective climatology). */
+/** Destination rating — star criteria only (wind is the spots' objective
+    climatology). Collapsed by default; goes quiet once rated and folds on save,
+    so it never nags (mirrors the spot contribute block). */
 export function DestinationRater({ criteria, accent = "#00afdb" }: { criteria: Criterion[]; accent?: string }) {
   const sg = useSpotguide();
   const saved = sg.mineDest;
+  const rated = !!saved && Object.values(saved).some((n) => n > 0);
+  const [open, setOpen] = useState(false);
   const [draft, setDraft] = useState<Record<string, number>>({});
   const [busy, setBusy] = useState(false);
   const [done, setDone] = useState(false);
-  useEffect(() => { setDraft(saved ?? {}); }, [saved]);
+  useEffect(() => { setDraft(saved ?? {}); }, [JSON.stringify(saved ?? null)]); // eslint-disable-line react-hooks/exhaustive-deps
   const dirty = JSON.stringify(draft) !== JSON.stringify(saved ?? {});
   const hasAny = Object.values(draft).some((n) => n > 0);
 
@@ -52,22 +56,35 @@ export function DestinationRater({ criteria, accent = "#00afdb" }: { criteria: C
     setBusy(true);
     const res = await sg.saveDest(draft);
     setBusy(false);
-    if (res) { setDone(true); setTimeout(() => setDone(false), 2200); }
+    if (res) { setDone(true); setTimeout(() => { setDone(false); setOpen(false); }, 1400); }
   }
 
   return (
-    <div className="rounded-xl border border-[#ece3d3] bg-[#fdfaf3] p-4">
-      <div className="flex items-center justify-between mb-2">
-        <span className="text-[12px] font-black uppercase tracking-[0.1em] text-[#9aa6ac]">{saved ? "Your rating" : "Rate it yourself"}</span>
-        {!sg.loggedIn && <span className="text-[11px] text-[#9aa6ac]">free · takes seconds</span>}
-      </div>
-      <StarRows criteria={criteria} value={draft} onPick={(k, n) => setDraft((d) => ({ ...d, [k]: n }))} accent={accent} />
-      <div className="flex items-center gap-3 mt-3">
-        <button onClick={submit} disabled={busy || (sg.loggedIn && (!hasAny || !dirty))} className="px-4 py-2 rounded-full text-[13px] font-bold text-white disabled:opacity-40 transition-opacity" style={{ backgroundColor: accent }}>
-          {busy ? "Saving…" : !sg.loggedIn ? "Sign up to rate" : saved ? "Update rating" : "Submit rating"}
-        </button>
-        {done && <span className="text-[12.5px] font-bold" style={{ color: "#1f9e57" }}>Saved — thanks! 🤙</span>}
-      </div>
+    <div className={`rounded-2xl border overflow-hidden ${rated ? "border-[#ece3d3] bg-[#fdfaf3]" : "border-dashed border-[#d8cdbb] bg-[#fffdf8]"}`}>
+      <button type="button" onClick={() => setOpen((o) => !o)} aria-expanded={open}
+        className="w-full flex items-center justify-between gap-3 px-5 py-3.5 text-left hover:bg-[#fdf8ee] transition-colors">
+        <span className="min-w-0">
+          {rated
+            ? <span className="block text-[13.5px] font-bold text-[#1f9e57]">✓ You rated this destination</span>
+            : <span className="block text-[14.5px] font-extrabold text-[#00374a]">★ Rate this destination</span>}
+        </span>
+        <span className={`shrink-0 inline-flex items-center gap-1.5 text-[13px] font-bold rounded-full px-4 py-2 ${rated ? "" : "text-white"}`}
+          style={rated ? { color: accent, border: `1px solid ${accent}55` } : { backgroundColor: accent }}>
+          {open ? "Close" : rated ? "Edit" : "Rate it"}
+          <svg className={`w-4 h-4 transition-transform ${open ? "rotate-180" : ""}`} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="m6 9 6 6 6-6" /></svg>
+        </span>
+      </button>
+      {open && (
+        <div className="px-5 pb-5 pt-4 border-t border-[#f0e9da]">
+          <StarRows criteria={criteria} value={draft} onPick={(k, n) => setDraft((d) => ({ ...d, [k]: n }))} accent={accent} />
+          <div className="flex items-center gap-3 mt-3">
+            <button onClick={submit} disabled={busy || (sg.loggedIn && (!hasAny || !dirty))} className="px-4 py-2 rounded-full text-[13px] font-bold text-white disabled:opacity-40 transition-opacity" style={{ backgroundColor: accent }}>
+              {busy ? "Saving…" : !sg.loggedIn ? "Sign up to rate" : rated ? "Update rating" : "Submit rating"}
+            </button>
+            {done && <span className="text-[12.5px] font-bold" style={{ color: "#1f9e57" }}>Saved — thanks! 🤙</span>}
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -75,7 +92,7 @@ export function DestinationRater({ criteria, accent = "#00afdb" }: { criteria: C
 /** Spot "your visit" — the facts a member actually knows (level it suits, the
     conditions they saw, the wind directions that worked) plus season-independent
     stars. Wind is NOT rated here (that's the objective climatology chart). */
-export function SpotVisitRater({ spotId, accent = "#00afdb" }: { spotId: string; accent?: string }) {
+export function SpotVisitRater({ spotId, accent = "#00afdb", onSaved }: { spotId: string; accent?: string; onSaved?: () => void }) {
   const sg = useSpotguide();
   const mine = sg.mineSpot(spotId);
   const [ratings, setRatings] = useState<Record<string, number>>({});
@@ -99,7 +116,7 @@ export function SpotVisitRater({ spotId, accent = "#00afdb" }: { spotId: string;
     setBusy(true);
     const ok = await sg.saveSpot(spotId, { ratings, level: level || null, conditions, wind_window: wind });
     setBusy(false);
-    if (ok) { setDone(true); setTimeout(() => setDone(false), 2400); }
+    if (ok) { setDone(true); setTimeout(() => { setDone(false); onSaved?.(); }, 1400); }
   }
 
   const chip = (on: boolean) => `px-3 py-1.5 rounded-full text-[12.5px] font-semibold transition-colors ${on ? "text-white" : "text-[#5a6b72] border border-[#e2d8c6]"}`;

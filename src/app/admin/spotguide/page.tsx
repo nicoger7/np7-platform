@@ -10,18 +10,39 @@ interface PendingSpot {
   verification: string; confirms: number; flags: number;
 }
 interface PendingPhoto { id: string; spot_id: string; url: string; caption: string | null }
+interface PendingEdit { id: string; spotId: string; spotName: string; proposer: string; field: string; fieldLabel: string; from: string; to: string; note: string | null; status: string }
+interface Grant { id: string; contactName: string; contactEmail: string | null; role: string; destinationName: string | null }
 
 export default function SpotguideModeration() {
   const [spots, setSpots] = useState<PendingSpot[]>([]);
   const [photos, setPhotos] = useState<PendingPhoto[]>([]);
   const [proposedDests, setProposedDests] = useState<{ id: string; name: string; region: string | null }[]>([]);
+  const [edits, setEdits] = useState<PendingEdit[]>([]);
+  const [trust, setTrust] = useState<Grant[]>([]);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState<string | null>(null);
 
   const load = useCallback(() => {
-    fetch("/api/admin/spotguide/pending").then((r) => r.json()).then((d) => { setSpots(d.spots ?? []); setPhotos(d.photos ?? []); setProposedDests(d.proposedDests ?? []); setLoading(false); });
+    fetch("/api/admin/spotguide/pending").then((r) => r.json()).then((d) => { setSpots(d.spots ?? []); setPhotos(d.photos ?? []); setProposedDests(d.proposedDests ?? []); setEdits(d.edits ?? []); setLoading(false); });
+    fetch("/api/admin/spotguide/trust").then((r) => r.json()).then((d) => setTrust(d.grants ?? [])).catch(() => {});
   }, []);
   useEffect(() => { load(); }, [load]);
+
+  async function moderateEdit(id: string, action: "approve" | "reject" | "merged") {
+    setBusy(id);
+    const j = await fetch(`/api/admin/spotguide/edits/${id}`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action }) }).then((r) => r.json()).catch(() => ({}));
+    setBusy(null);
+    // Accepting an info suggestion keeps it in the list (now awaiting merge); everything else clears.
+    if (action === "approve" && j.status === "approved") setEdits((list) => list.map((e) => e.id === id ? { ...e, status: "approved" } : e));
+    else setEdits((list) => list.filter((e) => e.id !== id));
+  }
+
+  async function revokeTrust(id: string) {
+    setBusy(id);
+    await fetch(`/api/admin/spotguide/trust?id=${id}`, { method: "DELETE" });
+    setBusy(null);
+    setTrust((list) => list.filter((g) => g.id !== id));
+  }
 
   async function publishDest(id: string) {
     setBusy(id);
@@ -72,6 +93,44 @@ export default function SpotguideModeration() {
         </div>
       )}
 
+      {!loading && edits.length > 0 && (
+        <div className="mb-8">
+          <h2 className="text-sm font-bold admin-heading mb-2">Pending corrections <span className="admin-faint font-normal">({edits.length})</span></h2>
+          <p className="text-xs admin-faint mb-2">Name/pin fixes apply on approve. Info suggestions are collected (members confirm them too) and, once accepted, wait to be folded into the description — AI will do this later; for now open the spot and edit it, then mark merged.</p>
+          <div className="space-y-2">
+            {edits.map((e) => {
+              const isInfo = e.field === "info";
+              const awaitingMerge = isInfo && e.status === "approved";
+              return (
+              <div key={e.id} className="flex items-start justify-between gap-3 rounded-xl p-3" style={{ border: "1px solid var(--admin-border)", backgroundColor: "var(--admin-surface)" }}>
+                <div className="min-w-0">
+                  <p className="text-sm font-bold admin-heading">
+                    <Link href={`/admin/spots/${e.spotId}`} className="hover:text-[#0aa3c7]">{e.spotName}</Link> <span className="admin-faint font-normal">· {e.fieldLabel}</span>
+                    {awaitingMerge && <span className="ml-2 px-1.5 py-0.5 rounded text-[10px] font-bold uppercase bg-green-500/15 text-green-500">accepted · awaiting merge</span>}
+                  </p>
+                  {isInfo ? (
+                    <p className="text-xs admin-muted mt-1">“{e.to}”</p>
+                  ) : (
+                    <p className="text-xs admin-muted mt-1"><span className="line-through admin-faint">{e.from}</span> <span className="admin-faint">→</span> <b className="admin-heading">{e.to}</b></p>
+                  )}
+                  {e.note && <p className="text-[11px] admin-faint italic mt-0.5">“{e.note}”</p>}
+                  <p className="text-[11px] admin-faint mt-1">by {e.proposer}</p>
+                </div>
+                <div className="flex gap-2 shrink-0">
+                  {awaitingMerge ? (
+                    <button onClick={() => moderateEdit(e.id, "merged")} disabled={busy === e.id} className="px-3 py-1.5 rounded-lg text-xs font-bold bg-[var(--admin-accent)] text-[var(--admin-accent-contrast)] disabled:opacity-50">Mark merged</button>
+                  ) : (
+                    <button onClick={() => moderateEdit(e.id, "approve")} disabled={busy === e.id} className="px-3 py-1.5 rounded-lg text-xs font-bold bg-[var(--admin-accent)] text-[var(--admin-accent-contrast)] disabled:opacity-50">{isInfo ? "Accept" : "Approve"}</button>
+                  )}
+                  <button onClick={() => moderateEdit(e.id, "reject")} disabled={busy === e.id} className="px-3 py-1.5 rounded-lg text-xs font-semibold text-red-400/70 hover:text-red-400 disabled:opacity-50" style={{ border: "1px solid var(--admin-border)" }}>Reject</button>
+                </div>
+              </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
       {!loading && photos.length > 0 && (
         <div className="mb-8">
           <h2 className="text-sm font-bold admin-heading mb-2">Pending photos <span className="admin-faint font-normal">({photos.length})</span></h2>
@@ -92,7 +151,7 @@ export default function SpotguideModeration() {
       {loading ? (
         <div className="py-12 text-center text-sm admin-faint">Loading…</div>
       ) : spots.length === 0 ? (
-        photos.length === 0 && proposedDests.length === 0 ? <div className="py-16 text-center"><p className="text-sm admin-faint">Nothing awaiting review</p><p className="text-xs admin-faint mt-1">Member-submitted spots, photos &amp; areas will appear here.</p></div> : null
+        photos.length === 0 && proposedDests.length === 0 && edits.length === 0 ? <div className="py-16 text-center"><p className="text-sm admin-faint">Nothing awaiting review</p><p className="text-xs admin-faint mt-1">Member-submitted spots, corrections, photos &amp; areas will appear here.</p></div> : null
       ) : (
         <div className="space-y-3">
           {spots.map((s) => {
@@ -119,6 +178,29 @@ export default function SpotguideModeration() {
               </div>
             );
           })}
+        </div>
+      )}
+
+      {!loading && (
+        <div className="mt-10 pt-6" style={{ borderTop: "1px solid var(--admin-border)" }}>
+          <h2 className="text-sm font-bold admin-heading mb-1">Trusted contributors <span className="admin-faint font-normal">({trust.length})</span></h2>
+          <p className="text-xs admin-faint mb-3">Moderators&apos; edits &amp; new spots go live instantly; a local specialist&apos;s need just one confirm, and their confirm alone clears anyone&apos;s. Appoint someone from their member page → Spotguide trust. Locals also <em>earn</em> specialist standing automatically from activity.</p>
+          {trust.length === 0 ? (
+            <p className="text-xs admin-faint">No appointments yet.</p>
+          ) : (
+            <div className="space-y-1.5">
+              {trust.map((g) => (
+                <div key={g.id} className="flex items-center justify-between gap-3 rounded-lg px-3 py-2" style={{ border: "1px solid var(--admin-border)", backgroundColor: "var(--admin-surface)" }}>
+                  <div className="min-w-0 flex items-center gap-2">
+                    <span className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase ${g.role === "moderator" ? "bg-[#0aa3c7]/15 text-[#0aa3c7]" : "bg-green-500/15 text-green-500"}`}>{g.role === "moderator" ? "Moderator" : "Specialist"}</span>
+                    <span className="text-sm font-semibold admin-heading truncate">{g.contactName}</span>
+                    {g.destinationName && <span className="text-[11px] admin-faint">· {g.destinationName}</span>}
+                  </div>
+                  <button onClick={() => revokeTrust(g.id)} disabled={busy === g.id} className="px-2.5 py-1 rounded text-[11px] font-semibold text-red-400/70 hover:text-red-400 disabled:opacity-50 shrink-0">Revoke</button>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
       )}
     </div>

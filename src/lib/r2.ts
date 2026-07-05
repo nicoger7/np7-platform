@@ -1,7 +1,7 @@
 /**
  * Cloudflare R2 upload/delete helpers (S3-compatible via @aws-sdk/client-s3).
  *
- * Server-only — never import this module in client components or pages that
+ * Server-only -- never import this module in client components or pages that
  * run in the browser. All credential env vars are server-side only.
  *
  * Env vars required:
@@ -15,7 +15,7 @@
 import { S3Client, DeleteObjectCommand } from "@aws-sdk/client-s3";
 import { Upload } from "@aws-sdk/lib-storage";
 
-// ── Client (lazy singleton) ────────────────────────────────────────────────
+// -- Client (lazy singleton) --------------------------------------------------
 
 let _client: S3Client | null = null;
 
@@ -32,7 +32,7 @@ function getClient(): S3Client {
   return _client;
 }
 
-// ── Public API ─────────────────────────────────────────────────────────────
+// -- Public API ---------------------------------------------------------------
 
 /**
  * Returns true when all R2 credentials and endpoint are configured.
@@ -49,8 +49,8 @@ export function r2Enabled(): boolean {
 /**
  * Upload a file to R2.
  *
- * @param body       - File, Buffer, or Uint8Array to upload
- * @param key        - Object key (path) inside the bucket, e.g. spots/123/photo.jpg
+ * @param body        - File, Buffer, or Uint8Array to upload
+ * @param key         - Object key (path) inside the bucket, e.g. spots/123/photo.jpg
  * @param contentType - MIME type of the object
  * @returns Public CDN URL of the uploaded object
  */
@@ -62,13 +62,18 @@ export async function uploadToR2(
   const bucket = process.env.R2_BUCKET || "np7-media";
   const cdnBase = (process.env.NEXT_PUBLIC_R2_CDN_URL || "").replace(/\/$/, "");
 
+  const resolvedBody = body instanceof File
+    ? Buffer.from(await body.arrayBuffer())
+    : body;
+
   const upload = new Upload({
     client: getClient(),
     params: {
       Bucket: bucket,
       Key: key,
-      Body: body instanceof File ? (await body.arrayBuffer()) as unknown as Buffer : body,
+      Body: resolvedBody,
       ContentType: contentType,
+      CacheControl: "public, max-age=31536000, immutable",
     },
   });
 

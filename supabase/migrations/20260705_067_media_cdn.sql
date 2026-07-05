@@ -1,4 +1,4 @@
--- Migration 066: Cloudflare R2 CDN base URL per company
+-- Migration 067: Cloudflare R2 CDN base URL per company
 -- ─────────────────────────────────────────────────────────────────────────
 -- Stores the public CDN base URL of the Cloudflare R2 bucket (e.g.
 -- https://media.np-seven.com). All new media uploads use this URL when set;

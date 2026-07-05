@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase";
+import { EDIT_FIELD_LABEL, humanEditValue, type EditableField } from "@/lib/spotguide-trust";
 
 // GET /api/admin/spotguide/pending — member-submitted spots awaiting review +
 // member photos awaiting moderation, for the Spotguide moderation page.
@@ -43,5 +44,30 @@ export async function GET() {
     .not("submitted_by", "is", null)
     .eq("spotguide_status", "draft");
 
-  return NextResponse.json({ spots: out, photos: photos ?? [], proposedDests: proposedDests ?? [] });
+  // Member-suggested edits: pending (name/pin awaiting apply, info awaiting
+  // confirms) + approved info notes awaiting a merge into the description.
+  const { data: rawEdits } = await db
+    .from("spot_edits")
+    .select("id, spot_id, contact_id, field, old_value, new_value, note, status, created_at")
+    .in("status", ["pending", "approved"]).order("created_at", { ascending: false });
+  let edits: Record<string, unknown>[] = [];
+  if (rawEdits && rawEdits.length) {
+    const eSpotIds = [...new Set(rawEdits.map((e: { spot_id: string }) => e.spot_id))];
+    const eContactIds = [...new Set(rawEdits.map((e: { contact_id: string }) => e.contact_id))];
+    const [{ data: eSpots }, { data: eContacts }] = await Promise.all([
+      db.from("spots").select("id, name").in("id", eSpotIds),
+      db.from("contacts").select("id, name").in("id", eContactIds),
+    ]);
+    const spotName = new Map((eSpots ?? []).map((s: { id: string; name: string }) => [s.id, s.name]));
+    const who = new Map((eContacts ?? []).map((c: { id: string; name: string }) => [c.id, c.name]));
+    edits = rawEdits.map((e: Record<string, unknown>) => ({
+      id: e.id, spotId: e.spot_id, spotName: spotName.get(e.spot_id as string) ?? "—",
+      proposer: who.get(e.contact_id as string) ?? "A member",
+      field: e.field, fieldLabel: EDIT_FIELD_LABEL[e.field as EditableField] ?? e.field, status: e.status,
+      from: humanEditValue(e.field as string, e.old_value), to: humanEditValue(e.field as string, e.new_value),
+      note: e.note ?? null, created_at: e.created_at,
+    }));
+  }
+
+  return NextResponse.json({ spots: out, photos: photos ?? [], proposedDests: proposedDests ?? [], edits });
 }

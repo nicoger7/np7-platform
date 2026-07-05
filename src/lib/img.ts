@@ -13,6 +13,17 @@
  *
  * Usage: <img src={cdnImage(url, { width: 1000 })} />
  */
+
+const SUPA_ASSET_BASE = `${process.env.NEXT_PUBLIC_SUPABASE_URL}/storage/v1/object/public/assets`;
+const R2_CDN = (process.env.NEXT_PUBLIC_R2_CDN_URL || "").replace(/\/$/, "");
+
+/** Supabase-assets URL -> R2 CDN URL when R2 is configured; else returns the original URL. */
+export function mediaUrl(url: string | null | undefined): string {
+  if (!url) return url ?? "";
+  if (!R2_CDN) return url;
+  return url.startsWith(SUPA_ASSET_BASE) ? R2_CDN + url.slice(SUPA_ASSET_BASE.length) : url;
+}
+
 export function cdnImage(
   url: string | null | undefined,
   opts: { width?: number; quality?: number } = {}
@@ -23,8 +34,7 @@ export function cdnImage(
   const { width = 1200, quality = 75 } = opts;
 
   // -- Cloudflare R2 branch --------------------------------------------------
-  const r2Base = (process.env.NEXT_PUBLIC_R2_CDN_URL || "").replace(/\/$/, "");
-  if (r2Base && url.startsWith(r2Base + "/")) {
+  if (R2_CDN && url.startsWith(R2_CDN + "/")) {
     const sep = url.includes("?") ? "&" : "?";
     return `${url}${sep}width=${width}&quality=${quality}`;
   }

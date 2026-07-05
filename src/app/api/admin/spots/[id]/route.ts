@@ -1,5 +1,6 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest, NextResponse, after } from "next/server";
 import { createAdminClient } from "@/lib/supabase";
+import { fetchWindStats } from "@/lib/wind-stats";
 import { summariseRatings, tallyForecastVotes, SPOT_CRITERIA_KEYS } from "@/lib/spotguide";
 
 const COLS = [
@@ -39,10 +40,32 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
   const db = createAdminClient() as any;
   const { id } = await params;
   const body = await request.json();
+
+  // Snapshot the pin + stats source so we can detect a moved pin and avoid
+  // clobbering a manual "NP7 · local knowledge" override.
+  const { data: before } = await db.from("spots").select("lat, lng, wind_stats, wind_profile").eq("id", id).maybeSingle();
+
   const patch: Record<string, unknown> = { updated_at: new Date().toISOString() };
   for (const k of COLS) if (k in body) patch[k] = body[k];
   const { data, error } = await db.from("spots").update(patch).eq("id", id).select("*").single();
   if (error) return NextResponse.json({ error: error.message }, { status: 400 });
+
+  // Pin moved → refresh the wind climatology for the new location (background),
+  // unless the current stats are a protected manual override.
+  const moved = ("lat" in body && body.lat !== before?.lat) || ("lng" in body && body.lng !== before?.lng);
+  const isManual = String(before?.wind_stats?.source ?? "").startsWith("NP7");
+  if (moved && !isManual && data.lat != null && data.lng != null) {
+    const { lat, lng } = data;
+    const accelerated = (data.wind_profile ?? before?.wind_profile) === "accelerated";
+    after(async () => {
+      try {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const bg = createAdminClient() as any;
+        const stats = await fetchWindStats(lat, lng, { accelerated });
+        await bg.from("spots").update({ wind_stats: stats, wind_stats_at: new Date().toISOString() }).eq("id", id);
+      } catch { /* the wind-stats cron will retry */ }
+    });
+  }
   return NextResponse.json(data);
 }
 
