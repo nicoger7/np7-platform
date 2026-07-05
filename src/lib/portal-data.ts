@@ -7,6 +7,7 @@ import {
   type ContactProfileRow, type ProfileSurface, type PublicProfile, type Visibility,
 } from "@/lib/member-profile";
 import { deriveSuggestedLevel, type SkillTag } from "@/lib/member-level";
+import { buildProgression, type CatalogSkill, type Achievement, type Progression } from "@/lib/progression";
 
 /* Server-only data access for the member portal. Always scoped to the
    member's own contactId (the caller verifies the session first). */
@@ -388,6 +389,29 @@ export async function getMemberLevelDetail(contactId: string): Promise<MemberLev
   return { self_level, coach_level, level_status, coach_can_manage_level, suggested, milestones, history, hasAttended };
 }
 
+/** Discipline-track progression (Freeride/Freerace/Slalom + side skills) with the
+    difficulty grade and three-tier verification. Tolerant of a pre-068 DB: reads
+    the whole rows and defaults difficulty/verified_via/discipline in code. */
+export async function getMemberProgression(contactId: string): Promise<Progression | null> {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const db = createAdminClient() as any;
+  const cat = await db.from("level_milestones").select("*").eq("active", true);
+  if (cat.error || !cat.data?.length) return null;
+  const catalog: CatalogSkill[] = (cat.data as Record<string, unknown>[]).map((m) => ({
+    id: String(m.id), key: String(m.key), label: String(m.label ?? ""), tier: String(m.tier ?? ""),
+    discipline: m.discipline as CatalogSkill["discipline"],
+    difficulty: typeof m.difficulty === "number" ? m.difficulty : 10,
+    prerequisite_key: (m.prerequisite_key as string | null) ?? null,
+    sort_order: typeof m.sort_order === "number" ? m.sort_order : 0,
+  }));
+  const ach = await db.from("contact_milestones").select("*").eq("contact_id", contactId);
+  const achievements: Achievement[] = (ach.data ?? []).map((r: Record<string, unknown>) => ({
+    milestone_id: String(r.milestone_id),
+    verified_via: ((r.verified_via as Achievement["verified_via"]) ?? "coach"),
+  }));
+  return buildProgression(catalog, achievements);
+}
+
 export type CatalogMilestone = { id: string; key: string; label: string; description: string | null; tier: string; sort_order: number };
 export type EditionCrewMember = {
   contactId: string; name: string; self_level: string | null; coach_level: string | null;
@@ -731,10 +755,11 @@ export async function getEditionCoaches(editionId: string): Promise<CoachCard[]>
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const db = createAdminClient() as any;
   const sel = (wa: boolean) => `sort_order,name_override,role_override,bio_override,image_override,exp_coaches(name,role,bio,image_url${wa ? ",whatsapp_link" : ""})`;
-  let { data, error } = await db.from("exp_edition_coaches").select(sel(true)).eq("edition_id", editionId).order("sort_order");
-  if (error) ({ data } = await db.from("exp_edition_coaches").select(sel(false)).eq("edition_id", editionId).order("sort_order"));
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const first = await db.from("exp_edition_coaches").select(sel(true)).eq("edition_id", editionId).order("sort_order");
+  let data = first.data;
+  if (first.error) ({ data } = await db.from("exp_edition_coaches").select(sel(false)).eq("edition_id", editionId).order("sort_order"));
   return (data ?? [])
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     .map((g: any) => ({
       name: g.name_override ?? g.exp_coaches?.name ?? "",
       role: g.role_override ?? g.exp_coaches?.role ?? "",
