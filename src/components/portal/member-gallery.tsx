@@ -124,13 +124,17 @@ export function MemberGallery({
       <span className="shrink-0 text-[12px] font-semibold text-[#9aa6ac] tabular-nums">{g.photos.length}</span>
     </>
   );
+  // Masonry tile: the WHOLE photo at its natural aspect ratio (no crop). Trip
+  // shots are often portrait, so a fixed landscape tile would zoom into a slice.
   const thumb = (src: string, idx: number) => (
     <button key={idx} type="button" onClick={() => setOpen(idx)} aria-label={`Open photo ${idx + 1}`}
-      className="aspect-[4/3] rounded-lg bg-cover bg-center hover:opacity-90 hover:scale-[1.02] transition-all"
-      style={{ backgroundImage: `url('${cdnImage(src, { width: 500 })}')` }} />
+      className="block w-full mb-2 break-inside-avoid rounded-lg overflow-hidden hover:opacity-90 transition-opacity">
+      {/* eslint-disable-next-line @next/next/no-img-element */}
+      <img src={cdnImage(src, { width: 500 })} alt="" loading="lazy" decoding="async" className="w-full h-auto bg-[#e9eef0]" />
+    </button>
   );
 
-  const PREVIEW = 4; // ≈ one row before the blurred peek
+  const PREVIEW = 6; // photos shown before "Show all"
 
   return (
     <>
@@ -139,51 +143,19 @@ export function MemberGallery({
           // "Your photos" — always shown, first row + a blurred peek, expandable.
           if (g.kind === "mine") {
             const hasMore = g.photos.length > PREVIEW;
+            const shown = !mineExpanded && hasMore ? g.photos.slice(0, PREVIEW) : g.photos;
             return (
               <div key={g.key} className="rounded-xl border border-[#f0e6d6] bg-[#fffdf9] overflow-hidden">
                 <div className="flex items-center gap-2.5 px-4 py-3">{header(g)}</div>
                 <div className="px-4 pb-4">
-                  {!mineExpanded && hasMore ? (
-                    <>
-                      {/* Exactly one row at each breakpoint: 3 on mobile (hide the
-                          4th), 4 on sm+ — so there's no orphan thumbnail. */}
-                      <div className="grid grid-cols-3 sm:grid-cols-4 gap-2">
-                        {g.photos.slice(0, 4).map((src, i) => {
-                          const idx = offsets[gi] + i;
-                          return (
-                            <button key={idx} type="button" onClick={() => setOpen(idx)} aria-label={`Open photo ${idx + 1}`}
-                              className={`aspect-square rounded-lg bg-cover bg-center hover:opacity-90 hover:scale-[1.02] transition-all ${i === 3 ? "hidden sm:block" : ""}`}
-                              style={{ backgroundImage: `url('${cdnImage(src, { width: 500 })}')` }} />
-                          );
-                        })}
-                      </div>
-                      <button type="button" onClick={() => setMineExpanded(true)} className="relative block w-full mt-2" aria-label={`Show all ${g.photos.length} photos`}>
-                        <div className="grid grid-cols-3 sm:grid-cols-4 gap-2 max-h-[56px] sm:max-h-[64px] overflow-hidden blur-[3px] opacity-80 pointer-events-none" aria-hidden>
-                          {g.photos.slice(3, 3 + 4).map((src, i) => (
-                            <div key={i} className="aspect-square rounded-lg bg-cover bg-center" style={{ backgroundImage: `url('${cdnImage(src, { width: 500 })}')` }} />
-                          ))}
-                        </div>
-                        <span className="absolute inset-0 bg-gradient-to-t from-[#fffdf9] via-[#fffdf9]/80 to-[#fffdf9]/10" aria-hidden />
-                        <span className="absolute inset-0 grid place-items-center">
-                          <span className="inline-flex items-center gap-1.5 px-4 py-2 rounded-full text-[13px] font-bold text-[#00374a] bg-white border border-[#f0e6d6] shadow-[0_4px_14px_rgba(0,55,74,0.1)]">
-                            Show all {g.photos.length} photos
-                            <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M6 9l6 6 6-6" /></svg>
-                          </span>
-                        </span>
-                      </button>
-                    </>
-                  ) : (
-                    <>
-                      <div className="grid grid-cols-3 sm:grid-cols-4 gap-2">
-                        {g.photos.map((src, i) => thumb(src, offsets[gi] + i))}
-                      </div>
-                      {hasMore && (
-                        <button type="button" onClick={() => setMineExpanded(false)} className="mt-2.5 inline-flex items-center gap-1.5 text-[13px] font-bold text-[#00afdb]">
-                          Show less
-                          <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M18 15l-6-6-6 6" /></svg>
-                        </button>
-                      )}
-                    </>
+                  <div className="columns-2 sm:columns-3 gap-2">
+                    {shown.map((src, i) => thumb(src, offsets[gi] + i))}
+                  </div>
+                  {hasMore && (
+                    <button type="button" onClick={() => setMineExpanded((v) => !v)} className="mt-1 inline-flex items-center gap-1.5 text-[13px] font-bold text-[#00afdb]">
+                      {mineExpanded ? "Show less" : `Show all ${g.photos.length} photos`}
+                      <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d={mineExpanded ? "M18 15l-6-6-6 6" : "M6 9l6 6 6-6"} /></svg>
+                    </button>
                   )}
                 </div>
               </div>
@@ -199,7 +171,7 @@ export function MemberGallery({
                 <svg className="w-4 h-4 text-[#c0ccd0] acc-chevron shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M6 9l6 6 6-6" /></svg>
               </summary>
               <div className="px-4 pb-4">
-                <div className="grid grid-cols-3 sm:grid-cols-4 gap-2">
+                <div className="columns-2 sm:columns-3 gap-2">
                   {g.photos.map((src, i) => thumb(src, offsets[gi] + i))}
                 </div>
               </div>
