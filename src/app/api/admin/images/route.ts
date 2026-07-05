@@ -2,6 +2,7 @@ import { createClient } from "@/lib/supabase/server";
 import { createClient as createServiceClient } from "@supabase/supabase-js";
 import { NextRequest } from "next/server";
 import { isActiveTeamMember } from "@/lib/admin-auth";
+import { r2Enabled, uploadToR2, deleteFromR2, keyFromR2Url } from "@/lib/r2";
 
 const BUCKET = "assets";
 
@@ -129,20 +130,31 @@ export async function POST(request: NextRequest) {
     return Response.json({ error: "No file provided" }, { status: 400 });
   }
 
-  const path = folder ? `${folder}/${file.name}` : file.name;
-  const admin = getServiceClient();
+  const key = folder ? `${folder}/${file.name}` : file.name;
 
+  if (r2Enabled()) {
+    // -- Cloudflare R2 upload ------------------------------------------------
+    try {
+      const url = await uploadToR2(file, key, file.type);
+      return Response.json({ url, path: key });
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : "Upload failed";
+      return Response.json({ error: msg }, { status: 500 });
+    }
+  }
+
+  // -- Supabase Storage fallback ---------------------------------------------
+  const admin = getServiceClient();
   const { error } = await admin.storage
     .from(BUCKET)
-    .upload(path, file, { upsert: true });
+    .upload(key, file, { upsert: true });
 
   if (error) {
     return Response.json({ error: error.message }, { status: 500 });
   }
 
-  const url = `${process.env.NEXT_PUBLIC_SUPABASE_URL}/storage/v1/object/public/${BUCKET}/${path}`;
-
-  return Response.json({ url, path });
+  const url = `${process.env.NEXT_PUBLIC_SUPABASE_URL}/storage/v1/object/public/${BUCKET}/${key}`;
+  return Response.json({ url, path: key });
 }
 
 export async function PUT(request: NextRequest) {
@@ -211,21 +223,40 @@ export async function DELETE(request: NextRequest) {
     return Response.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  const { paths } = await request.json();
+  const body = await request.json();
+  // Accept either { paths: string[] } (Supabase-style storage paths) or
+  // { urls: string[] } (full CDN URLs -- used when R2 is the backend).
+  const paths: string[] = Array.isArray(body.paths) ? body.paths : [];
+  const urls: string[] = Array.isArray(body.urls) ? body.urls : [];
 
-  if (!paths || !Array.isArray(paths) || paths.length === 0) {
+  if (paths.length === 0 && urls.length === 0) {
     return Response.json({ error: "No paths provided" }, { status: 400 });
   }
 
-  const admin = getServiceClient();
-
-  const { error } = await admin.storage
-    .from(BUCKET)
-    .remove(paths);
-
-  if (error) {
-    return Response.json({ error: error.message }, { status: 500 });
+  // -- Cloudflare R2 deletions -----------------------------------------------
+  // If any of the supplied URLs are R2 URLs, delete them from R2 regardless of
+  // whether R2 is currently enabled (the object already lives there).
+  const r2Keys = urls.map(keyFromR2Url).filter((k): k is string => k !== null);
+  if (r2Keys.length > 0) {
+    await Promise.all(r2Keys.map(deleteFromR2));
   }
 
-  return Response.json({ deleted: paths });
+  // -- Supabase Storage deletions -------------------------------------------
+  // paths are raw storage paths (no bucket prefix); urls that are not R2 are
+  // treated as Supabase-hosted and their path is extracted.
+  const supaBase = `${process.env.NEXT_PUBLIC_SUPABASE_URL}/storage/v1/object/public/${BUCKET}/`;
+  const supaPathsFromUrls = urls
+    .filter((u) => u.startsWith(supaBase))
+    .map((u) => u.slice(supaBase.length));
+  const allSupaPaths = [...paths, ...supaPathsFromUrls];
+
+  if (allSupaPaths.length > 0) {
+    const admin = getServiceClient();
+    const { error } = await admin.storage.from(BUCKET).remove(allSupaPaths);
+    if (error) {
+      return Response.json({ error: error.message }, { status: 500 });
+    }
+  }
+
+  return Response.json({ deleted: paths.length + r2Keys.length });
 }

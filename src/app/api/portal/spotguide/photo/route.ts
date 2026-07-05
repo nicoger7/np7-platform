@@ -1,13 +1,18 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getPortalUser } from "@/lib/auth";
 import { createAdminClient } from "@/lib/supabase";
+import { r2Enabled, uploadToR2 } from "@/lib/r2";
 
 const BUCKET = "assets";
 const MAX = 10 * 1024 * 1024; // 10 MB
 
 /**
- * POST /api/portal/spotguide/photo — a member uploads a photo for a spot
+ * POST /api/portal/spotguide/photo -- a member uploads a photo for a spot
  * (multipart: file, spotId). Lands in spot_photos as 'pending' for moderation.
+ *
+ * Upload destination (in priority order):
+ *   1. Cloudflare R2  -- when r2Enabled() is true
+ *   2. Supabase Storage -- fallback
  */
 export async function POST(request: NextRequest) {
   const user = await getPortalUser({ allowPreview: false });
@@ -29,13 +34,29 @@ export async function POST(request: NextRequest) {
   if (!spot) return NextResponse.json({ error: "Spot not found." }, { status: 404 });
 
   const ext = (file.name.split(".").pop() || "jpg").toLowerCase().replace(/[^a-z0-9]/g, "").slice(0, 5) || "jpg";
-  const path = `spots/${spotId}/member/${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${ext}`;
-  const { error: upErr } = await admin.storage.from(BUCKET).upload(path, file, { contentType: file.type, upsert: false });
-  if (upErr) return NextResponse.json({ error: "Upload failed. Please try again." }, { status: 500 });
-  const url = `${process.env.NEXT_PUBLIC_SUPABASE_URL}/storage/v1/object/public/${BUCKET}/${path}`;
+  const timestamp = Date.now();
+  const random = Math.random().toString(36).slice(2, 8);
 
-  // Member photos auto-show (status 'approved'); members up/down-vote them and a
-  // few flags will auto-hide one for NP7 review.
+  let url: string;
+
+  if (r2Enabled()) {
+    // -- Cloudflare R2 upload ------------------------------------------------
+    const key = `spots/${spotId}/member/${timestamp}-${random}.${ext}`;
+    try {
+      url = await uploadToR2(file, key, file.type);
+    } catch {
+      return NextResponse.json({ error: "Upload failed. Please try again." }, { status: 500 });
+    }
+  } else {
+    // -- Supabase Storage fallback -------------------------------------------
+    const path = `spots/${spotId}/member/${timestamp}-${random}.${ext}`;
+    const { error: upErr } = await admin.storage.from(BUCKET).upload(path, file, { contentType: file.type, upsert: false });
+    if (upErr) return NextResponse.json({ error: "Upload failed. Please try again." }, { status: 500 });
+    url = `${process.env.NEXT_PUBLIC_SUPABASE_URL}/storage/v1/object/public/${BUCKET}/${path}`;
+  }
+
+  // Member photos auto-show (status 'approved'); members up/down-vote them and
+  // a few flags will auto-hide one for NP7 review.
   const { error } = await db.from("spot_photos").insert({
     spot_id: spotId, contact_id: user.contactId, url, caption, source: "member", status: "approved",
   });
