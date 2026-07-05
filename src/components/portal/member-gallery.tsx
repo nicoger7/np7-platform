@@ -130,9 +130,9 @@ export function MemberGallery({
   // splitting across columns; `mb-2` is the vertical gutter (column-gap is `gap-2`).
   const thumb = (src: string, idx: number) => (
     <button key={idx} type="button" onClick={() => setOpen(idx)} aria-label={`Open photo ${idx + 1}`}
-      className="mb-2 block w-full break-inside-avoid overflow-hidden rounded-lg bg-[#eef3f4] hover:opacity-90 transition-opacity">
+      className="group mb-3 block w-full break-inside-avoid overflow-hidden rounded-xl bg-[#eef3f4] shadow-sm ring-1 ring-black/[0.04] transition-shadow hover:shadow-lg">
       {/* eslint-disable-next-line @next/next/no-img-element */}
-      <img src={cdnImage(src, { width: 500 })} alt="" loading="lazy" className="block w-full h-auto" />
+      <img src={cdnImage(src, { width: 700 })} alt="" loading="lazy" className="block w-full h-auto transition-transform duration-300 group-hover:scale-[1.03]" />
     </button>
   );
 
@@ -150,7 +150,7 @@ export function MemberGallery({
               <div key={g.key} className="rounded-xl border border-[#f0e6d6] bg-[#fffdf9] overflow-hidden">
                 <div className="flex items-center gap-2.5 px-4 py-3">{header(g)}</div>
                 <div className="px-4 pb-4">
-                  <div className="columns-3 sm:columns-4 gap-2">
+                  <div className="columns-2 sm:columns-3 gap-3">
                     {shown.map((src, i) => thumb(src, offsets[gi] + i))}
                   </div>
                   {hasMore && (

@@ -6,7 +6,7 @@ import { useEffect, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 
 type Tone = "ocean" | "hardware";
-type Tab = { href: string; label: string; exact?: boolean; flag?: "gear"; icon?: IconName };
+type Tab = { href: string; label: string; exact?: boolean; flag?: "gear" | "blog"; icon?: IconName };
 
 // Desktop: full horizontal nav. Mobile: bottom tab bar (PRIMARY) + a "More" sheet.
 // Cart is NOT a nav item — it's a contextual icon shown only on Hardware once the
@@ -19,6 +19,7 @@ const DESKTOP_TABS: Tab[] = [
   { href: "/account/vouchers", label: "Gift vouchers" },
   { href: "/account/profile", label: "Profile" },
   { href: "/account/settings", label: "Account" },
+  { href: "/blog", label: "Magazine", flag: "blog" },
 ];
 const PRIMARY: Tab[] = [
   { href: "/account", label: "Home", exact: true, icon: "home" },
@@ -30,15 +31,16 @@ const MORE: Tab[] = [
   { href: "/account/level", label: "Progress" },
   { href: "/account/vouchers", label: "Gift vouchers" },
   { href: "/account/settings", label: "Account" },
+  { href: "/blog", label: "Magazine", flag: "blog" },
 ];
 
-export function PortalSubnav({ tone, showGear = false }: { tone: Tone; showGear?: boolean; showCart?: boolean }) {
+export function PortalSubnav({ tone, showGear = false, showBlog = false }: { tone: Tone; showGear?: boolean; showCart?: boolean; showBlog?: boolean }) {
   const pathname = usePathname();
   const router = useRouter();
   const [cartCount, setCartCount] = useState(0);
   const [moreOpen, setMoreOpen] = useState(false);
 
-  const showTab = (t: Tab) => (t.flag === "gear" ? showGear : true);
+  const showTab = (t: Tab) => (t.flag === "gear" ? showGear : t.flag === "blog" ? showBlog : true);
   const isActive = (t: Tab) => (t.exact ? pathname === t.href : pathname === t.href || pathname.startsWith(t.href + "/"));
 
   useEffect(() => {
@@ -129,7 +131,7 @@ export function PortalSubnav({ tone, showGear = false }: { tone: Tone; showGear?
           <div className="absolute inset-0 bg-black/40" />
           <div className="absolute bottom-0 inset-x-0 bg-white rounded-t-2xl p-3 pb-[calc(0.75rem+env(safe-area-inset-bottom))]" onClick={(e) => e.stopPropagation()}>
             <div className="mx-auto w-9 h-1 rounded-full bg-[#e0d8c8] mb-3" />
-            {MORE.map((t) => (
+            {MORE.filter(showTab).map((t) => (
               <Link key={t.href} href={t.href} onClick={() => setMoreOpen(false)} className="flex items-center justify-between px-3 py-3.5 rounded-xl active:bg-[#f3ede2]" style={{ color: isActive(t) ? accent : "#00374a" }}>
                 <span className="text-[15px] font-semibold">{t.label}</span>
                 <span className="text-[#c9d4d8]">›</span>

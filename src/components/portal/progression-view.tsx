@@ -79,7 +79,8 @@ function TrackCard({ track }: { track: Track }) {
 export function ProgressionView({ progression }: { progression: Progression }) {
   const { level, nextLevel, toNext, pct, mastered, ladder, coachCount, windcoachCount, tracks, side } = progression;
   const [active, setActive] = useState<string>(tracks[0]?.discipline ?? "side");
-  const [showSide, setShowSide] = useState(false);
+  // Core three + Wave & Freestyle, all as equal pills (side is just lighter when idle).
+  const pills = side ? [...tracks, side] : tracks;
   const shown = active === "side" ? side : tracks.find((t) => t.discipline === active) ?? tracks[0];
 
   const toNextLabel = mastered
@@ -130,14 +131,17 @@ export function ProgressionView({ progression }: { progression: Progression }) {
         <Link href="/experience" className="text-[12px] font-bold text-white rounded-full px-3 py-1.5 whitespace-nowrap" style={{ background: CYAN }}>Book a trip</Link>
       </div>
 
-      {/* discipline pills */}
+      {/* discipline pills — core three + Wave & Freestyle as a 4th */}
       <div className="flex gap-1.5 flex-wrap my-3">
-        {tracks.map((t) => {
+        {pills.map((t) => {
           const on = active === t.discipline;
+          const secondary = t.discipline === "side";
           return (
             <button key={t.discipline} type="button" onClick={() => setActive(t.discipline)}
               className="px-3.5 py-2 rounded-full text-[13px] font-bold border"
-              style={on ? { background: CYAN, color: "#fff", borderColor: CYAN } : { background: "#fff", color: TEAL, borderColor: "#e7ddcb" }}>
+              style={on
+                ? { background: CYAN, color: "#fff", borderColor: CYAN }
+                : { background: "#fff", color: secondary ? "#6a7a80" : TEAL, borderColor: "#e7ddcb" }}>
               {t.label} <span className="font-semibold opacity-80">{t.verified}/{t.total}</span>
             </button>
           );
@@ -145,17 +149,6 @@ export function ProgressionView({ progression }: { progression: Progression }) {
       </div>
 
       {shown && <TrackCard track={shown} />}
-
-      {/* Wave & Freestyle — one de-emphasised group */}
-      {side && (
-        <div className="mt-3">
-          <button type="button" onClick={() => { const next = !showSide; setShowSide(next); setActive(next ? "side" : (tracks[0]?.discipline ?? "side")); }}
-            className="inline-flex items-center gap-1.5 text-[13px] font-bold text-[#6a7a80]">
-            <Ico name={showSide ? "chev-up" : "chev-down"} size={16} />
-            Wave &amp; Freestyle ({side.verified}/{side.total})
-          </button>
-        </div>
-      )}
 
       {/* legend */}
       <div className="flex flex-wrap gap-x-4 gap-y-2 mt-4 text-[11.5px] text-[#9aa6ac] items-center">

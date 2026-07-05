@@ -57,7 +57,7 @@ export async function PortalChrome({ section }: { section?: "experience" | "hard
           </div>
         </header>
       )}
-      <PortalSubnav tone={resolved === "hardware" ? "hardware" : "ocean"} showGear={flags.showGear} showCart={flags.showCart} />
+      <PortalSubnav tone={resolved === "hardware" ? "hardware" : "ocean"} showGear={flags.showGear} showCart={flags.showCart} showBlog={flags.showBlog} />
       <MemberInstallPrompt env={resolved} />
     </>
   );
