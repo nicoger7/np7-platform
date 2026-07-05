@@ -124,11 +124,11 @@ export function MemberGallery({
       <span className="shrink-0 text-[12px] font-semibold text-[#9aa6ac] tabular-nums">{g.photos.length}</span>
     </>
   );
-  // Uniform SQUARE tile showing the WHOLE photo (contain) on a soft neutral fill —
-  // no cover-crop zoom, but keeps a tidy square grid (not tall/narrow masonry).
+  // Uniform SQUARE tile, image fills it entirely (cover, centre-cropped). A square
+  // crop of a portrait keeps the rider centred — no tall/narrow strips, no bars.
   const thumb = (src: string, idx: number) => (
     <button key={idx} type="button" onClick={() => setOpen(idx)} aria-label={`Open photo ${idx + 1}`}
-      className="aspect-square rounded-lg bg-[#e9eef0] bg-contain bg-no-repeat bg-center hover:opacity-90 transition-opacity"
+      className="aspect-square rounded-lg bg-cover bg-center hover:opacity-90 transition-opacity"
       style={{ backgroundImage: `url('${cdnImage(src, { width: 500 })}')` }} />
   );
 
