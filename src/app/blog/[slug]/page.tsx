@@ -91,7 +91,7 @@ export default async function BlogPostPage({ params }: Props) {
   const kicker = heroFields[0] && fieldHasValue(heroFields[0], data) ? asText(data[heroFields[0].key]) : "";
   const subtitle =
     (heroFields[1] && fieldHasValue(heroFields[1], data) ? asText(data[heroFields[1].key]) : "") || post.excerpt || "";
-  const chip = template.id === "standard" ? post.category || "Article" : template.label;
+  const chip = post.category?.trim() || (template.id === "standard" ? "Article" : template.label);
 
   const ctaUrl = asText(data.ctaUrl);
   const ctaLabel = asText(data.ctaLabel) || template.cta?.defaultLabel || "Learn more";

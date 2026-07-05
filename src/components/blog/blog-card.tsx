@@ -35,7 +35,9 @@ function teaser(p: CardPost) {
 export function BlogCard({ post }: { post: CardPost }) {
   const tpl = getTemplate(post.template);
   const theme = worldTheme(post.world);
-  const chip = tpl.id === "standard" ? post.category || "Article" : tpl.label;
+  // Explicit `category` wins over the template's label (e.g. a technique-format
+  // post filed under "Gear Guide"); otherwise fall back to the template label.
+  const chip = post.category?.trim() || (tpl.id === "standard" ? "Article" : tpl.label);
 
   return (
     <Link

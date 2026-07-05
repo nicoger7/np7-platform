@@ -151,7 +151,9 @@ export default async function BlogIndexPage({ searchParams }: Props) {
 function FeaturedCard({ post }: { post: CardPost }) {
   const tpl = getTemplate(post.template);
   const theme = worldTheme(post.world);
-  const chip = tpl.id === "standard" ? post.category || "Article" : tpl.label;
+  // An explicit `category` wins (lets a post read as e.g. "Gear Guide" even on a
+  // technique-format template); otherwise fall back to the template's own label.
+  const chip = post.category?.trim() || (tpl.id === "standard" ? "Article" : tpl.label);
 
   return (
     <Link
