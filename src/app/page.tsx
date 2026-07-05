@@ -9,10 +9,10 @@ export const metadata: Metadata = {
     "Two worlds, one passion. NP7 Experience — premium watersports travel. NP7 Hardware — custom boards & fins.",
 };
 
-const NP7_LOGO =
-  "https://qfdqigumjadvrocxjolx.supabase.co/storage/v1/object/public/assets/logos/np7-logo.png";
-const NP7_EXPERIENCE_LOGO =
-  "https://qfdqigumjadvrocxjolx.supabase.co/storage/v1/object/public/assets/logos/np7-experience-logo.png";
+import { cdn } from "@/lib/cdn";
+
+const NP7_LOGO = cdn('logos/np7-logo.png');
+const NP7_EXPERIENCE_LOGO = cdn('logos/np7-experience-logo.png');
 const EXP_PHOTO =
   "https://surfcenter-experience.com/wp-content/uploads/2025/01/53724070151_54cd73586b_k-1536x1024.jpg";
 

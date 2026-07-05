@@ -7,6 +7,18 @@ const nextConfig: NextConfig = {
   // which silently breaks hydration in the preview.
   allowedDevOrigins: ["127.0.0.1"],
 
+  // Route Supabase Storage through Vercel's edge CDN so assets are cached
+  // there and Supabase egress drops to near-zero after the first cache miss.
+  async rewrites() {
+    return [
+      {
+        source: '/cdn/:path*',
+        destination:
+          'https://qfdqigumjadvrocxjolx.supabase.co/storage/v1/object/public/:path*',
+      },
+    ];
+  },
+
   // The blog moved up a level — from /experience/blog to the top-level /blog
   // (brand-neutral, spans both worlds). Keep old links and bookmarks working.
   async redirects() {

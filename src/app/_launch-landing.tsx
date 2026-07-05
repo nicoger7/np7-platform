@@ -7,7 +7,7 @@ import Link from "next/link";
  * small Member login button in the corner. Shown until a public world goes live.
  */
 
-const STORAGE = "https://qfdqigumjadvrocxjolx.supabase.co/storage/v1/object/public/assets";
+const STORAGE = "/cdn/assets";
 
 const experiences = [
   { title: "NP7 Turkey Experience", location: "Alaçatı, Turkey", dates: "Aug 17–23, 2026", status: "last-spots" as const, statusLabel: "Last spots", url: "https://surfcenter-experience.com/event/np7-turkey-experience-2026/" },

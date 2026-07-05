@@ -1,4 +1,5 @@
-const STORAGE = "https://qfdqigumjadvrocxjolx.supabase.co/storage/v1/object/public/assets";
+// Use the CDN-proxied URL (absolute, needed for email clients)
+const STORAGE = `${process.env.NEXT_PUBLIC_APP_URL ?? 'https://np-seven.com'}/cdn/assets`;
 const LOGOS = `${STORAGE}/logos`;
 
 export type Division = "experience" | "hardware";

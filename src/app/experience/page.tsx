@@ -17,13 +17,11 @@ export const metadata: Metadata = {
 
 export const revalidate = 60;
 
-const NP7_EXPERIENCE_LOGO =
-  "https://qfdqigumjadvrocxjolx.supabase.co/storage/v1/object/public/assets/logos/np7-experience-logo.png";
+import { cdn } from "@/lib/cdn";
 
-const HERO_VIDEO =
-  "https://qfdqigumjadvrocxjolx.supabase.co/storage/v1/object/public/assets/hero/windsurf-hero.mp4";
-const HERO_POSTER =
-  "https://qfdqigumjadvrocxjolx.supabase.co/storage/v1/object/public/assets/hero/windsurf-hero-poster.jpg";
+const NP7_EXPERIENCE_LOGO = cdn('logos/np7-experience-logo.png');
+const HERO_VIDEO = cdn('hero/windsurf-hero.mp4');
+const HERO_POSTER = cdn('hero/windsurf-hero-poster.jpg');
 
 // Dedicated background photo for the "Gift of NP7" band — a plain photo, NOT a
 // baked tile graphic. Leave empty for the gradient-only (restrained) band.
