@@ -1,12 +1,15 @@
 /**
- * Serve storage images through on-the-fly transform endpoints.
+ * Serve storage images through the right transform path per provider.
  *
  * Supabase Storage: rewrites to `/render/image/...` so Supabase resizes and
  * auto-negotiates WebP/AVIF -- typically 60-80% smaller, without touching
  * the originals.
  *
- * Cloudflare R2 + Cloudflare Images: appends `?width=&quality=` query params
- * directly (no path rewrite needed -- R2 serves transforms via the CDN URL).
+ * Cloudflare R2: R2 has no native image transforms. Instead, upload routes
+ * pre-generate a thumbnail at `_thumb/{key}` (400x400, resize=cover) and
+ * store it alongside the original. cdnImage() serves `_thumb/{path}` for
+ * small display widths (< THUMB_BREAKPOINT) and the raw original for large
+ * ones. No fake `?width=` params -- those do nothing on plain R2.
  *
  * Pass-through (returned unchanged) for: empty values, unrecognised URLs,
  * already-transformed URLs, and SVG/GIF.
@@ -34,9 +37,15 @@ export function cdnImage(
   const { width = 1200, quality = 75 } = opts;
 
   // -- Cloudflare R2 branch --------------------------------------------------
+  // R2 has no on-the-fly transforms. For thumbnail-sized display use the
+  // pre-generated _thumb/ variant; for full-size display serve the original.
+  const THUMB_BREAKPOINT = 600;
   if (R2_CDN && url.startsWith(R2_CDN + "/")) {
-    const sep = url.includes("?") ? "&" : "?";
-    return `${url}${sep}width=${width}&quality=${quality}`;
+    if (width < THUMB_BREAKPOINT) {
+      const rel = url.slice(R2_CDN.length + 1); // strip leading slash
+      if (!rel.startsWith("_thumb/")) return `${R2_CDN}/_thumb/${rel}`;
+    }
+    return url; // original, no fake transform params
   }
 
   // -- Supabase Storage branch -----------------------------------------------
