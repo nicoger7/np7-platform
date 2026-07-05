@@ -183,16 +183,16 @@ export function EditionMemoriesUploader({ editionId, initialVideoUrl }: { editio
                 )}
               </div>
             )}
-            <div className="columns-2 sm:columns-4 gap-2">
+            <div className="grid grid-cols-3 sm:grid-cols-5 gap-2">
               {photos.map((p) => {
                 const sel = selected.has(p.path);
                 const selectable = scope === "";
                 return (
                   <div key={p.path} onClick={selectable ? () => toggleSelect(p.path) : undefined}
-                    className={`relative group mb-2 break-inside-avoid rounded-lg overflow-hidden ${selectable ? "cursor-pointer" : ""} ${sel ? "ring-2 ring-[#0aa3c7] ring-offset-1" : ""}`}
+                    className={`relative group aspect-square rounded-lg overflow-hidden ${selectable ? "cursor-pointer" : ""} ${sel ? "ring-2 ring-[#0aa3c7] ring-offset-1" : ""}`}
                     style={{ border: "1px solid var(--admin-border)", backgroundColor: "var(--admin-input-bg)" }}>
                     {/* eslint-disable-next-line @next/next/no-img-element */}
-                    <img src={p.thumbUrl || p.url} alt="" loading="lazy" decoding="async" className={`block w-full h-auto ${sel ? "opacity-80" : ""}`} />
+                    <img src={p.thumbUrl || p.url} alt="" loading="lazy" decoding="async" className={`w-full h-full object-contain ${sel ? "opacity-80" : ""}`} />
                     {selectable && sel && (
                       <span className="absolute top-1 left-1 w-5 h-5 rounded-full bg-[#0aa3c7] text-white grid place-items-center">
                         <svg className="w-3 h-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3.5" strokeLinecap="round" strokeLinejoin="round"><path d="M20 6L9 17l-5-5" /></svg>
