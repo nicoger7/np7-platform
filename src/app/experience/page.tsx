@@ -25,6 +25,10 @@ const HERO_VIDEO =
 const HERO_POSTER =
   "https://qfdqigumjadvrocxjolx.supabase.co/storage/v1/object/public/assets/hero/windsurf-hero-poster.jpg";
 
+// Dedicated background photo for the "Gift of NP7" band — a plain photo, NOT a
+// baked tile graphic. Leave empty for the gradient-only (restrained) band.
+const GIFT_PHOTO = "";
+
 /* ----------------------------- data shaping ----------------------------- */
 
 type Edition = {
@@ -35,6 +39,7 @@ type Edition = {
   spots_taken: number | null;
   status: string | null;
   active: boolean | null;
+  coaches: string | null;
 };
 
 type RawExperience = {
@@ -72,6 +77,13 @@ function money(n: number | null, currency: string | null) {
   return `${symbol}${n.toLocaleString("en-US")}`;
 }
 
+// The lead coach for a tile: the first name in the edition's free-text coaches
+// field ("Nico Prien, Simona" -> "Nico Prien"). Empty -> null.
+function leadCoach(coaches: string | null | undefined): string | null {
+  const first = (coaches ?? "").split(",")[0]?.trim();
+  return first || null;
+}
+
 const DISCIPLINES = [
   { name: "Windsurf", tag: "Plane, jibe, send", color: "#00afdb" },
   { name: "Wingfoil", tag: "Fly above the water", color: "#f47b20" },
@@ -84,7 +96,7 @@ export default async function ExperienceOverviewPage() {
   const { data } = await supabase
     .from("exp_experiences")
     .select(
-      "id,title,slug,location,price,currency,description,hero_image,destination_id,exp_editions(id,date_start,date_end,max_spots,spots_taken,status,active)"
+      "id,title,slug,location,price,currency,description,hero_image,destination_id,exp_editions(id,date_start,date_end,max_spots,spots_taken,status,active,coaches)"
     )
     .eq("status", "published");
 
@@ -105,10 +117,32 @@ export default async function ExperienceOverviewPage() {
       return ad < bd ? -1 : 1;
     });
 
+  // Auto-branded tiles: which experiences opted in, and the coach-cutout library.
+  // Both tolerant — `tile_auto` (migration 069) and `cutout_url` may not exist yet.
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { data: autoRows } = await (supabase as any).from("exp_experiences").select("id,tile_auto").eq("status", "published");
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const autoIds = new Set(((autoRows ?? []) as any[]).filter((e) => e.tile_auto === true).map((e) => e.id as string));
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { data: coachRows } = await (supabase as any).from("exp_coaches").select("*");
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const coachList = (coachRows ?? []) as any[];
+  const coachByName = new Map<string, { name: string; cutout: string | null }>();
+  for (const c of coachList) {
+    coachByName.set(String(c.name ?? "").toLowerCase().trim(), { name: c.name, cutout: c.cutout_url ?? null });
+  }
+  // Default coach for an auto-tile when the edition names none: the library's head
+  // coach (Nico), else the first coach. Keeps every tile branded with a coach.
+  const headCoachRow = coachList.find((c) => /head/i.test(String(c.role ?? ""))) ?? coachList[0];
+  const headCoach = headCoachRow ? { name: headCoachRow.name as string, cutout: (headCoachRow.cutout_url ?? null) as string | null } : undefined;
+
   // Card data for the month-filtered grid. `months` = every upcoming edition's
   // YYYY-MM, so the month chips reflect exactly what's bookable.
   const today = new Date().toISOString().slice(0, 10);
-  const expCards: ExpCard[] = experiences.map((exp) => ({
+  const expCards: ExpCard[] = experiences.map((exp) => {
+    const named = leadCoach(exp.ed?.coaches);
+    const coach = (named ? coachByName.get(named.toLowerCase()) : undefined) ?? headCoach;
+    return {
     id: exp.id,
     slug: exp.slug,
     title: exp.title,
@@ -118,6 +152,9 @@ export default async function ExperienceOverviewPage() {
     priceLabel: money(exp.price, exp.currency),
     dateLabel: fmtRange(exp.ed?.date_start, exp.ed?.date_end),
     spotsLeft: exp.spotsLeft,
+    tileAuto: autoIds.has(exp.id),
+    coachName: coach?.name ?? named,
+    coachCutout: coach?.cutout ?? null,
     months: Array.from(
       new Set(
         (exp.exp_editions ?? [])
@@ -125,11 +162,13 @@ export default async function ExperienceOverviewPage() {
           .map((e) => e.date_start!.slice(0, 7))
       )
     ).sort(),
-  }));
+  };
+  });
 
-  // The gift card's backdrop = the hero of the next experience coming up
-  // (experiences are already sorted soonest-first).
-  const giftHero = experiences.find((e) => e.hero_image)?.hero_image ?? null;
+  // The gift card's backdrop = a dedicated plain photo (GIFT_PHOTO). We no longer
+  // reuse an experience's tile image here — those are baked graphics with text,
+  // which looked wrong bleeding through the band. Empty = gradient-only band.
+  const giftHero = GIFT_PHOTO || null;
 
   // Destinations: prefer real destination records (clickable → /destinations/:slug);
   // fall back to location-derived cards (non-clickable) until they're generated in admin.
@@ -145,9 +184,12 @@ export default async function ExperienceOverviewPage() {
     }, new Map<string, { location: string; image: string | null; count: number }>())
     .values()
   );
-  const destCards = tableDest.length
+  const destCards = (tableDest.length
     ? tableDest.map((d) => ({ key: d.slug, title: d.name, image: d.hero_image, count: experiences.filter((e) => e.destination_id === d.id).length, href: `/destinations/${d.slug}` }))
-    : derived.map((d) => ({ key: d.location, title: d.location, image: d.image, count: d.count, href: "#experiences" }));
+    : derived.map((d) => ({ key: d.location, title: d.location, image: d.image, count: d.count, href: "#experiences" })))
+    // Only show destinations we actually run visible trips to. Hides places whose
+    // experience is hidden/unpublished (e.g. Madagascar) so no "0 trips" tiles appear.
+    .filter((d) => d.count > 0);
 
   return (
     <>

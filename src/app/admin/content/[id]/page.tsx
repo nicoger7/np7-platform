@@ -29,6 +29,7 @@ export default function ContentEditorPage({ params }: { params: Promise<{ id: st
 
   // images
   const [tileImage, setTileImage] = useState("");
+  const [tileAuto, setTileAuto] = useState(false);
   const [heroImage, setHeroImage] = useState("");
   const [heroVideo, setHeroVideo] = useState("");
   const [heroVideoStart, setHeroVideoStart] = useState("");
@@ -64,6 +65,7 @@ export default function ContentEditorPage({ params }: { params: Promise<{ id: st
         setTitle(c._title ?? "");
         setSlug(c._slug ?? "");
         setTileImage(c.tile_image ?? "");
+        setTileAuto(!!c.tile_auto);
         setHeroImage(c.hero_image ?? "");
         setHeroVideo(c.hero_video_url ?? "");
         setHeroVideoStart(c.hero_video_start != null ? String(c.hero_video_start) : "");
@@ -110,6 +112,7 @@ export default function ContentEditorPage({ params }: { params: Promise<{ id: st
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         tile_image: tileImage,
+        tile_auto: tileAuto,
         hero_image: heroImage,
         hero_video_url: heroVideo,
         hero_video_start: heroVideoStart === "" ? null : Number(heroVideoStart),
@@ -172,6 +175,25 @@ export default function ContentEditorPage({ params }: { params: Promise<{ id: st
         {/* IMAGES */}
         <Section show={tab === "media"} title="Main image (card + hero)" hint="The experience's one main image: the card/tile on the overview grid AND the default page hero. A single week can override just its hero on the edition's Branding tab.">
           <ImageField url={tileImage} onPick={() => setPicker({ kind: "tile" })} onClear={() => setTileImage("")} ratio="aspect-[4/3]" />
+
+          {/* Auto-brand toggle: compose the tile's flag / place name / coach live
+              over a RAW photo, instead of uploading a hand-made graphic. */}
+          <label className="mt-4 flex items-start gap-3 max-w-[480px] cursor-pointer select-none">
+            <input
+              type="checkbox"
+              checked={tileAuto}
+              onChange={(e) => setTileAuto(e.target.checked)}
+              className="mt-0.5 h-4 w-4 shrink-0 accent-[var(--admin-accent)]"
+            />
+            <span>
+              <span className="block text-[13px] font-bold admin-heading">Auto-brand this card</span>
+              <span className="block text-xs admin-faint mt-0.5 leading-relaxed">
+                When on, upload a <strong>plain photo</strong> above (no text) — the overview card
+                composites the country flag, the place name and the coach automatically.
+                Leave off to use a hand-made graphic as-is (the current behaviour).
+              </span>
+            </span>
+          </label>
         </Section>
 
         <Section show={tab === "media"} title="Event hero" hint="The big image at the top of the event page. Paste a YouTube link for a video background, or pick an image. Video wins if both are set.">

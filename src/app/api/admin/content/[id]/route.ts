@@ -57,11 +57,15 @@ export async function GET(
     return NextResponse.json({ error: error.message }, { status: 400 });
   }
 
+  // Tolerant: `tile_auto` (migration 069) may not exist yet — treat as off.
+  const { data: exAuto } = await db.from("exp_experiences").select("tile_auto").eq("id", id).maybeSingle();
+
   return NextResponse.json({
     experience_id: id,
     ...EMPTY,
     ...(content ?? {}),
     tile_image: exp?.hero_image ?? "",
+    tile_auto: !!exAuto?.tile_auto,
     _title: exp?.title ?? "",
     _slug: exp?.slug ?? "",
   });
@@ -166,6 +170,10 @@ export async function PUT(
   // Mirror the tile image onto the experience (the listing card / experiences admin).
   if (typeof body.tile_image === "string") {
     await db.from("exp_experiences").update({ hero_image: body.tile_image }).eq("id", id);
+  }
+  // Auto-brand toggle (migration 069). Tolerant: ignore if the column is absent.
+  if (typeof body.tile_auto === "boolean") {
+    await db.from("exp_experiences").update({ tile_auto: body.tile_auto }).eq("id", id);
   }
 
   return NextResponse.json(data);

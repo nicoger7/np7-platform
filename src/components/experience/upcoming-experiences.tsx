@@ -3,6 +3,8 @@
 import Link from "next/link";
 import { useMemo, useState } from "react";
 import { Reveal } from "./reveal";
+import { BrandedTile } from "./branded-tile";
+import { placeFromLocation, flagFromLocation } from "@/lib/experience-tile";
 
 export type ExpCard = {
   id: string;
@@ -15,6 +17,11 @@ export type ExpCard = {
   dateLabel: string | null;
   spotsLeft: number | null;
   months: string[]; // "YYYY-MM" of every upcoming edition
+  // Auto-branded tile (migration 069): when on, hero_image is a RAW photo and the
+  // flag / place name / coach are composited live by <BrandedTile>.
+  tileAuto?: boolean;
+  coachName?: string | null;
+  coachCutout?: string | null;
 };
 
 const monthLabel = (ym: string) =>
@@ -63,14 +70,27 @@ export function UpcomingExperiences({ experiences }: { experiences: ExpCard[] })
                 href={`/experience/${exp.slug}`}
                 className="group block bg-white rounded-[18px] overflow-hidden border border-white/10 shadow-[0_24px_50px_rgba(0,20,30,0.28)] hover:-translate-y-1.5 hover:shadow-[0_30px_60px_rgba(0,20,30,0.4)] transition-all duration-300 h-full"
               >
-                <div className="relative h-[210px] bg-[#e9eef0] bg-cover bg-center overflow-hidden" style={{ backgroundImage: exp.hero_image ? `url('${exp.hero_image}')` : undefined }}>
-                  <div className="absolute inset-0 bg-gradient-to-t from-black/35 to-transparent" />
+                <div className="relative h-[210px] bg-[#e9eef0] overflow-hidden">
+                  {exp.tileAuto && exp.hero_image ? (
+                    <BrandedTile
+                      photo={exp.hero_image}
+                      place={placeFromLocation(exp.location).toUpperCase()}
+                      flag={flagFromLocation(exp.location)}
+                      coachName={exp.coachName}
+                      coachCutout={exp.coachCutout}
+                    />
+                  ) : (
+                    <>
+                      <div className="absolute inset-0 bg-cover bg-center" style={{ backgroundImage: exp.hero_image ? `url('${exp.hero_image}')` : undefined }} />
+                      <div className="absolute inset-0 bg-gradient-to-t from-black/35 to-transparent" />
+                      <span className="absolute bottom-3 left-3 text-[11px] font-bold tracking-wide uppercase text-white drop-shadow">{exp.location}</span>
+                    </>
+                  )}
                   {typeof exp.spotsLeft === "number" && (
-                    <span className={`absolute top-3 right-3 text-[11px] font-bold px-3 py-1.5 rounded-full backdrop-blur-md ${exp.spotsLeft > 0 ? "bg-white/85 text-[#00374a]" : "bg-[#f47b20] text-white"}`}>
+                    <span className={`absolute top-3 left-3 z-20 text-[11px] font-bold px-3 py-1.5 rounded-full backdrop-blur-md ${exp.spotsLeft > 0 ? "bg-white/85 text-[#00374a]" : "bg-[#f47b20] text-white"}`}>
                       {exp.spotsLeft > 0 ? `${exp.spotsLeft} spots left` : "Fully booked"}
                     </span>
                   )}
-                  <span className="absolute bottom-3 left-3 text-[11px] font-bold tracking-wide uppercase text-white drop-shadow">{exp.location}</span>
                 </div>
                 <div className="p-6">
                   <p className="text-[12px] font-semibold text-[#00afdb] mb-1.5">{exp.dateLabel}</p>

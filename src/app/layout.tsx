@@ -1,5 +1,5 @@
 import type { Metadata, Viewport } from "next";
-import { Inter } from "next/font/google";
+import { Inter, Anton } from "next/font/google";
 import "./globals.css";
 import { CookieConsent } from "@/components/shared/cookie-consent";
 import { AnalyticsTracker } from "@/components/analytics/tracker";
@@ -8,6 +8,14 @@ import { MetaPixel } from "@/components/analytics/meta-pixel";
 const inter = Inter({
   subsets: ["latin"],
   variable: "--font-inter",
+});
+
+// Heavy condensed display face for the auto-branded experience tiles
+// (the big gold place-name — "ALACATI", "BONAIRE", …).
+const anton = Anton({
+  subsets: ["latin"],
+  weight: "400",
+  variable: "--font-display",
 });
 
 const SITE_URL = "https://www.np-seven.com";
@@ -60,7 +68,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en" className={`${inter.variable} antialiased`}>
+    <html lang="en" className={`${inter.variable} ${anton.variable} antialiased`}>
       <body className="min-h-screen flex flex-col">
         {children}
         <AnalyticsTracker />
