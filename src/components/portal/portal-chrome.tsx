@@ -46,7 +46,7 @@ export async function PortalChrome({ section }: { section?: "experience" | "hard
         </div>
       )}
       {siteLive ? (
-        resolved === "hardware" ? <HardwareHeader variant="docked" /> : <OceanHeader variant="docked" />
+        resolved === "hardware" ? <HardwareHeader variant="docked" /> : <OceanHeader variant="docked" showExperience={flags.showExperience} showBlog={flags.showBlog} />
       ) : (
         <header className={`sticky top-0 z-50 ${resolved === "hardware" ? "bg-black" : "bg-[#00374a]"} border-b border-white/10`}>
           <div className="max-w-[1000px] mx-auto px-5 sm:px-8 h-16 flex items-center">

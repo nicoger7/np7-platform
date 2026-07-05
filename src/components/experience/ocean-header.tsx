@@ -9,17 +9,17 @@ import { NP7_LOGO } from "@/components/shared/brand";
 // re-exported for the many call sites that import it from here
 export { NP7_LOGO };
 
-const NAV = [
-  { label: "Experiences", href: "/experience#experiences" },
-  { label: "Destinations", href: "/experience#destinations" },
-  { label: "Disciplines", href: "/experience#disciplines" },
+type NavItem = { label: string; href: string; side?: "right"; need?: "experience" | "blog" };
+// `need` gates each link on a visibility flag, so with only SHOW_BLOG live the
+// header shows just Magazine — the experience links stay hidden until that world reveals.
+const NAV: NavItem[] = [
+  { label: "Experiences", href: "/experience#experiences", need: "experience" },
+  { label: "Destinations", href: "/experience#destinations", need: "experience" },
+  { label: "Disciplines", href: "/experience#disciplines", need: "experience" },
   // right-aligned, next to the account button + CTA
-  { label: "Magazine", href: "/blog?from=experience", side: "right" as const },
-  { label: "About", href: "/about?from=experience", side: "right" as const },
+  { label: "Magazine", href: "/blog?from=experience", side: "right", need: "blog" },
+  { label: "About", href: "/about?from=experience", side: "right", need: "experience" },
 ];
-
-const leftNav = NAV.filter((n) => n.side !== "right");
-const rightNav = NAV.filter((n) => n.side === "right");
 const navLink = "text-[12.5px] font-semibold text-white/70 hover:text-white transition-colors tracking-wide";
 
 /**
@@ -36,11 +36,18 @@ const navLink = "text-[12.5px] font-semibold text-white/70 hover:text-white tran
 export function OceanHeader({
   bookHref = "#experiences",
   variant = "overlay",
+  showExperience = true,
+  showBlog = true,
 }: {
   bookHref?: string;
   variant?: "overlay" | "docked";
+  showExperience?: boolean;
+  showBlog?: boolean;
 }) {
   const docked = variant === "docked";
+  const visibleNav = NAV.filter((n) => (n.need === "blog" ? showBlog : n.need === "experience" ? showExperience : true));
+  const leftNav = visibleNav.filter((n) => n.side !== "right");
+  const rightNav = visibleNav.filter((n) => n.side === "right");
   const [scrolled, setScrolled] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
 
@@ -92,12 +99,14 @@ export function OceanHeader({
               <Link key={n.href} href={n.href} className={navLink}>{n.label}</Link>
             ))}
           </nav>
-          <Link
-            href={bookHref}
-            className="hidden sm:inline-block shrink-0 px-5 py-2.5 rounded-full text-[12.5px] font-bold text-white bg-[#00afdb] shadow-[0_4px_18px_rgba(0,175,219,0.4)] hover:bg-[#15c0ec] hover:-translate-y-0.5 transition-all"
-          >
-            Book a trip
-          </Link>
+          {showExperience && (
+            <Link
+              href={bookHref}
+              className="hidden sm:inline-block shrink-0 px-5 py-2.5 rounded-full text-[12.5px] font-bold text-white bg-[#00afdb] shadow-[0_4px_18px_rgba(0,175,219,0.4)] hover:bg-[#15c0ec] hover:-translate-y-0.5 transition-all"
+            >
+              Book a trip
+            </Link>
+          )}
           {/* account lives in the far-right corner, after the CTA */}
           <MemberButton section="experience" />
           {/* mobile menu toggle — the nav links are desktop-only otherwise */}
@@ -121,14 +130,16 @@ export function OceanHeader({
       {menuOpen && (
         <div className="lg:hidden border-t border-white/10 bg-[#00374a]">
           <nav className="max-w-[1200px] mx-auto px-5 py-2 flex flex-col">
-            {NAV.map((n) => (
+            {visibleNav.map((n) => (
               <Link key={n.href} href={n.href} onClick={() => setMenuOpen(false)} className="py-3.5 text-[15px] font-semibold text-white/85 hover:text-white border-b border-white/5">
                 {n.label}
               </Link>
             ))}
-            <Link href={bookHref} onClick={() => setMenuOpen(false)} className="mt-3 mb-1 inline-flex justify-center px-5 py-3 rounded-full text-[14px] font-bold text-white bg-[#00afdb] shadow-[0_4px_18px_rgba(0,175,219,0.4)]">
-              Book a trip
-            </Link>
+            {showExperience && (
+              <Link href={bookHref} onClick={() => setMenuOpen(false)} className="mt-3 mb-1 inline-flex justify-center px-5 py-3 rounded-full text-[14px] font-bold text-white bg-[#00afdb] shadow-[0_4px_18px_rgba(0,175,219,0.4)]">
+                Book a trip
+              </Link>
+            )}
           </nav>
         </div>
       )}
