@@ -26,7 +26,7 @@ export default function LandingPage() {
   // Until a public world is live (production), keep the existing brand splash + a small
   // member-login link, exactly as production looks today. Once SHOW_EXPERIENCE /
   // SHOW_HARDWARE is on, the new internal landing below takes over.
-  if (!flags.showExperience && !flags.showHardware) return <LaunchLanding />;
+  if (!flags.showExperience && !flags.showHardware) return <LaunchLanding showBlog={flags.showBlog} />;
   return (
     <main className="relative w-full h-[100svh] flex flex-col overflow-hidden md:flex-row bg-black">
       {/* ---------------------------------------------------------------- */}
