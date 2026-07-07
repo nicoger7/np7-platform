@@ -67,20 +67,24 @@ export function AddSpot({ destId, destName, destinations, accent = "#00afdb" }: 
     );
   }
 
-  const input = "w-full px-3.5 py-2.5 rounded-lg border border-[#e2d8c6] text-[14px] text-[#00374a] outline-none focus:border-[#9aa6ac] bg-white";
-  const chip = (on: boolean) => `px-3 py-1.5 rounded-full text-[12.5px] font-semibold transition-colors ${on ? "text-white" : "text-[#5a6b72] border border-[#e2d8c6]"}`;
+  // 16px on mobile stops iOS zooming the page when a field gets focus.
+  const input = "w-full px-4 py-3 rounded-xl border border-[#e2d8c6] bg-white text-[16px] sm:text-[14px] text-[#00374a] placeholder:text-[#a9b4b9] outline-none focus:border-[#00afdb] focus:ring-2 focus:ring-[#00afdb]/15 transition";
+  const chip = (on: boolean) => `px-3.5 py-2 rounded-full text-[13px] font-semibold transition-colors ${on ? "text-white" : "text-[#5a6b72] border border-[#e2d8c6] hover:border-[#c6b89d] bg-white"}`;
 
   return (
-    <div className="rounded-2xl border border-[#ece3d3] bg-white p-5 space-y-3">
-      <p className="text-[15px] font-extrabold text-[#00374a]">{destName ? `Add a spot in ${destName}` : "Add a spot"}</p>
+    <div className="rounded-2xl border border-[#ece3d3] bg-white p-4 sm:p-5 space-y-4">
+      <p className="text-[16px] font-extrabold text-[#00374a]">{destName ? `Add a spot in ${destName}` : "Add a spot"}</p>
       {chooseDest && (
         <div>
           <p className="text-[11px] font-bold uppercase tracking-wide text-[#9aa6ac] mb-1.5">Where is it?</p>
-          <select className={input} value={destChoice} onChange={(e) => setDestChoice(e.target.value)}>
-            <option value="">Pick a destination…</option>
-            {destinations!.map((d) => <option key={d.id} value={d.id}>{d.name}</option>)}
-            <option value="__new__">➕ A new destination (not listed)</option>
-          </select>
+          <div className="relative">
+            <select className={`${input} appearance-none pr-11 cursor-pointer`} value={destChoice} onChange={(e) => setDestChoice(e.target.value)}>
+              <option value="">Pick a destination…</option>
+              {destinations!.map((d) => <option key={d.id} value={d.id}>{d.name}</option>)}
+              <option value="__new__">＋ A new destination (not listed)</option>
+            </select>
+            <svg className="pointer-events-none absolute right-4 top-1/2 -translate-y-1/2 w-4 h-4 text-[#9aa6ac]" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M6 9l6 6 6-6" /></svg>
+          </div>
           {destChoice === "__new__" && (
             <input className={`${input} mt-2`} placeholder="Name the area / town (e.g. Prasonisi, Rhodes) *" value={newArea} onChange={(e) => setNewArea(e.target.value)} />
           )}
@@ -117,11 +121,11 @@ export function AddSpot({ destId, destName, destinations, accent = "#00afdb" }: 
           <button type="button" onClick={addCustomTag} className="shrink-0 px-3 py-2 rounded-lg text-[13px] font-bold" style={{ border: `1px solid ${accent}`, color: accent }}>Add</button>
         </div>
       </div>
-      {error && <p className="text-[12.5px] text-red-500">{error}</p>}
-      <div className="flex items-center gap-3 pt-1">
-        <button onClick={submit} disabled={busy} className="px-5 py-2.5 rounded-full text-[13.5px] font-bold text-white disabled:opacity-50" style={{ backgroundColor: accent }}>{busy ? "Submitting…" : "Submit spot"}</button>
-        <button onClick={() => setOpen(false)} className="text-[13px] font-semibold text-[#6a7a80]">Cancel</button>
-        <span className="ml-auto text-[11px] text-[#9aa6ac]">Verified by members before it&apos;s public</span>
+      {error && <p className="text-[13px] font-semibold text-[#c4471a]">{error}</p>}
+      <div className="flex flex-col sm:flex-row sm:items-center gap-3 pt-1">
+        <button onClick={submit} disabled={busy} className="w-full sm:w-auto px-6 py-3 sm:py-2.5 rounded-full text-[14px] font-bold text-white disabled:opacity-50 transition-opacity hover:opacity-90" style={{ backgroundColor: accent }}>{busy ? "Submitting…" : "Submit spot"}</button>
+        <button onClick={() => setOpen(false)} className="text-[13.5px] font-semibold text-[#6a7a80] py-1">Cancel</button>
+        <span className="sm:ml-auto text-[11.5px] text-[#9aa6ac]">Verified by members before it&apos;s public</span>
       </div>
     </div>
   );

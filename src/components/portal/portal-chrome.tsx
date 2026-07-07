@@ -3,6 +3,7 @@ import Link from "next/link";
 import { OceanHeader } from "@/components/experience/ocean-header";
 import { HardwareHeader } from "@/components/hardware/hardware-header";
 import { NP7_LOGO } from "@/components/shared/brand";
+import { MemberButton } from "@/components/shared/member-button";
 import { flags } from "@/lib/flags";
 import { PortalSubnav } from "./portal-subnav";
 import { MemberInstallPrompt } from "@/components/pwa/member-install-prompt";
@@ -56,11 +57,14 @@ export async function PortalChrome({ section }: { section?: "experience" | "hard
             </Link>
             {/* Magazine — the one public surface during the quiet launch, so it lives
                 in the site header (dark bar), not in the member menu below. */}
-            {flags.showBlog && (
-              <Link href="/blog" className="text-[12.5px] font-semibold text-white/70 hover:text-white transition-colors tracking-wide">
-                Magazine
-              </Link>
-            )}
+            <span className="flex items-center gap-4">
+              {flags.showBlog && (
+                <Link href="/blog" className="text-[12.5px] font-semibold text-white/70 hover:text-white transition-colors tracking-wide">
+                  Magazine
+                </Link>
+              )}
+              <MemberButton section={resolved} />
+            </span>
           </div>
         </header>
       )}
