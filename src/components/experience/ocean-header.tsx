@@ -17,7 +17,7 @@ const NAV: NavItem[] = [
   { label: "Destinations", href: "/experience#destinations", need: "experience" },
   { label: "Disciplines", href: "/experience#disciplines", need: "experience" },
   // right-aligned, next to the account button + CTA
-  { label: "Magazine", href: "/blog?from=experience", side: "right", need: "blog" },
+  { label: "Magazine", href: "/blog", side: "right", need: "blog" },
   { label: "About", href: "/about?from=experience", side: "right", need: "experience" },
 ];
 const navLink = "text-[12.5px] font-semibold text-white/70 hover:text-white transition-colors tracking-wide";

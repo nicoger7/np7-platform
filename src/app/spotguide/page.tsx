@@ -18,7 +18,8 @@ export const metadata: Metadata = {
 export const revalidate = 60;
 
 export default async function SpotguideIndex() {
-  const section = resolveSection((await cookies()).get("np7_section")?.value);
+  // Cookie only when Hardware is live — cookies() would opt this page out of ISR.
+  const section = flags.showHardware ? resolveSection((await cookies()).get("np7_section")?.value) : "experience";
   const chrome = SECTION_CHROME[section];
   const [dests, points] = await Promise.all([getSpotguideDestinations(), getAllSpotguidePoints()]);
 
@@ -50,8 +51,8 @@ export default async function SpotguideIndex() {
             {/* jump to the other magazine sections */}
             <nav className="mt-7 flex flex-wrap items-center justify-center gap-2 text-[13px] font-bold">
               <span className="rounded-full px-3.5 py-1.5 text-[#00374a]" style={{ backgroundColor: chrome.eyebrow }}>Spotguide</span>
-              <Link href="/blog?world=hardware" className="rounded-full px-3.5 py-1.5 text-white/80 hover:text-white bg-white/10 hover:bg-white/20 transition-colors">Gear</Link>
-              <Link href="/blog?world=technique" className="rounded-full px-3.5 py-1.5 text-white/80 hover:text-white bg-white/10 hover:bg-white/20 transition-colors">Technique</Link>
+              <Link href="/blog/gear" className="rounded-full px-3.5 py-1.5 text-white/80 hover:text-white bg-white/10 hover:bg-white/20 transition-colors">Gear</Link>
+              <Link href="/blog/technique" className="rounded-full px-3.5 py-1.5 text-white/80 hover:text-white bg-white/10 hover:bg-white/20 transition-colors">Technique</Link>
               <Link href="/blog" className="rounded-full px-3.5 py-1.5 text-white/80 hover:text-white bg-white/10 hover:bg-white/20 transition-colors">All stories</Link>
             </nav>
           </div>

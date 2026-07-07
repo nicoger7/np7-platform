@@ -73,7 +73,8 @@ export default async function BlogPostPage({ params }: Props) {
 
   const template = getTemplate(post.template);
   const theme = worldTheme(post.world);
-  const section = resolveSection((await cookies()).get("np7_section")?.value);
+  // Cookie only when Hardware is live — cookies() would opt this post page out of ISR.
+  const section = flags.showHardware ? resolveSection((await cookies()).get("np7_section")?.value) : "experience";
   const data: TemplateData = (post.template_data && typeof post.template_data === "object" ? post.template_data : {}) as TemplateData;
 
   // The old magazine spotguide template is superseded by the structured /spotguide

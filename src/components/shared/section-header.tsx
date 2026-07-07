@@ -13,8 +13,12 @@ import { flags } from "@/lib/flags";
  * just the Magazine link (no experience/hardware page links). Docked above the hero.
  */
 export async function SectionHeader() {
-  const store = await cookies();
-  const section = resolveSection(store.get("np7_section")?.value);
+  // Only read the section cookie when Hardware is actually live: cookies() opts
+  // the whole page out of ISR, and with a single visible world the section is
+  // always "experience" anyway. Keeps /blog + /spotguide statically cacheable.
+  const section = flags.showHardware
+    ? resolveSection((await cookies()).get("np7_section")?.value)
+    : "experience";
   return section === "hardware" && flags.showHardware ? (
     <HardwareHeader variant="docked" />
   ) : (
