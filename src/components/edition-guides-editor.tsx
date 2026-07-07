@@ -9,6 +9,7 @@ interface Coach {
   role: string | null;
   bio: string | null;
   image_url: string | null;
+  cutout_url: string | null;
   whatsapp_link: string | null;
 }
 
@@ -23,7 +24,7 @@ interface GuideLink {
   exp_coaches: Coach | null;
 }
 
-type PickerTarget = { coachId: string; mode: "template" | "override" };
+type PickerTarget = { coachId: string; mode: "template" | "override" | "cutout" };
 
 // Standard team roles (suggested in the role fields; free text still allowed).
 export const TEAM_ROLES = ["Head Coach", "Coach", "Co-Coach", "Trip Assistant"];
@@ -168,6 +169,17 @@ export function EditionGuidesEditor({ editionId, slug }: { editionId: string; sl
                         <label className={labelClass}>Photo</label>
                         <button onClick={() => setPicker({ coachId: link.coach_id, mode: "template" })} className={`${inputClass} w-full text-left admin-muted`}>{link.exp_coaches?.image_url ? "Change photo…" : "Pick photo…"}</button>
                       </div>
+                      <div>
+                        <label className={labelClass}>Tile cutout <span className="admin-faint font-normal normal-case">· transparent PNG, for auto-branded tiles</span></label>
+                        <div className="flex items-center gap-2">
+                          {link.exp_coaches?.cutout_url && (
+                            // eslint-disable-next-line @next/next/no-img-element
+                            <img src={link.exp_coaches.cutout_url} alt="" className="w-9 h-9 object-contain shrink-0 rounded admin-bg" style={{ border: "1px solid var(--admin-border)" }} />
+                          )}
+                          <button onClick={() => setPicker({ coachId: link.coach_id, mode: "cutout" })} className={`${inputClass} flex-1 text-left admin-muted`}>{link.exp_coaches?.cutout_url ? "Change cutout…" : "Pick cutout…"}</button>
+                          {link.exp_coaches?.cutout_url && <button onClick={() => patchTemplate(link.coach_id, { cutout_url: null })} className="text-[11px] admin-faint hover:text-red-400 px-1">clear</button>}
+                        </div>
+                      </div>
                     </div>
                     {/* Override (this edition) */}
                     <div className="space-y-2">
@@ -218,6 +230,7 @@ export function EditionGuidesEditor({ editionId, slug }: { editionId: string; sl
           defaultFolder={folder}
           onSelect={(url) => {
             if (picker.coachId === "__new__") setNewCoach((n) => ({ ...n, image_url: url }));
+            else if (picker.mode === "cutout") patchTemplate(picker.coachId, { cutout_url: url });
             else if (picker.mode === "template") patchTemplate(picker.coachId, { image_url: url });
             else patchLink(picker.coachId, { image_override: url });
             setPicker(null);

@@ -11,7 +11,7 @@ export async function GET(
   const { id } = await params;
   const { data, error } = await client
     .from("exp_edition_coaches")
-    .select("*, exp_coaches(id, name, role, bio, image_url)")
+    .select("*, exp_coaches(id, name, role, bio, image_url, cutout_url)")
     .eq("edition_id", id)
     .order("sort_order");
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
@@ -53,7 +53,7 @@ export async function POST(
   const { data, error } = await client
     .from("exp_edition_coaches")
     .insert({ edition_id: id, coach_id: coachId, sort_order: nextSort })
-    .select("*, exp_coaches(id, name, role, bio, image_url)")
+    .select("*, exp_coaches(id, name, role, bio, image_url, cutout_url)")
     .single();
   if (error) return NextResponse.json({ error: error.message }, { status: 400 });
   return NextResponse.json(data, { status: 201 });
@@ -78,7 +78,7 @@ export async function PATCH(
     .update(patch)
     .eq("edition_id", id)
     .eq("coach_id", body.coach_id)
-    .select("*, exp_coaches(id, name, role, bio, image_url)")
+    .select("*, exp_coaches(id, name, role, bio, image_url, cutout_url)")
     .single();
   if (error) return NextResponse.json({ error: error.message }, { status: 400 });
   return NextResponse.json(data);

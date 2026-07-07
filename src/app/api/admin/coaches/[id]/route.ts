@@ -11,7 +11,7 @@ export async function PATCH(
   const { id } = await params;
   const body = await request.json();
   const patch: Record<string, unknown> = { updated_at: new Date().toISOString() };
-  for (const k of ["name", "role", "bio", "image_url", "whatsapp_link"]) {
+  for (const k of ["name", "role", "bio", "image_url", "cutout_url", "whatsapp_link"]) {
     if (k in body) patch[k] = body[k];
   }
   const doUpdate = (p: Record<string, unknown>) => client.from("exp_coaches").update(p).eq("id", id).select("*").single();
