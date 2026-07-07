@@ -13,6 +13,8 @@ export type CardPost = {
   published_at: string | null;
   members_only?: boolean | null;
   content?: string | null;
+  /** CSS object-position for the cover crop (admin reframe tool); null = center. */
+  cover_focus?: string | null;
 };
 
 export function fmtDate(iso: string | null) {
@@ -45,8 +47,11 @@ export function BlogCard({ post }: { post: CardPost }) {
       className="group block bg-white rounded-[18px] overflow-hidden border border-[#f0e6d6] hover:-translate-y-1.5 hover:shadow-[0_24px_50px_rgba(0,55,74,0.12)] transition-all duration-300 h-full"
     >
       <div
-        className="relative h-[200px] bg-[#e9eef0] bg-cover bg-center overflow-hidden"
-        style={{ backgroundImage: post.cover_image ? `url('${cdnImage(post.cover_image, { width: 800 })}')` : `linear-gradient(160deg, ${theme.accent}, ${theme.deep})` }}
+        className="relative aspect-video bg-[#e9eef0] bg-cover overflow-hidden"
+        style={{
+          backgroundImage: post.cover_image ? `url('${cdnImage(post.cover_image, { width: 800 })}')` : `linear-gradient(160deg, ${theme.accent}, ${theme.deep})`,
+          backgroundPosition: post.cover_focus || "center",
+        }}
       >
         <div className="absolute inset-0 bg-gradient-to-t from-black/25 to-transparent" />
         <span

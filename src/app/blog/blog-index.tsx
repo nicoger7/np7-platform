@@ -41,14 +41,15 @@ export async function BlogIndexView({ world: activeWorld }: { world: BlogWorld }
     : "experience";
   const chrome = SECTION_CHROME[section];
 
-  let query = supabase
-    .from("exp_blog_posts")
-    .select("slug,title,excerpt,cover_image,template,world,category,published_at,members_only,content")
-    .eq("status", "published")
-    .order("published_at", { ascending: false });
-  if (activeWorld) query = query.eq("world", activeWorld);
-
-  const { data } = await query;
+  const CARD_COLS = "slug,title,excerpt,cover_image,template,world,category,published_at,members_only,content";
+  const fetchPosts = (cols: string) => {
+    let q = supabase.from("exp_blog_posts").select(cols).eq("status", "published").order("published_at", { ascending: false });
+    if (activeWorld) q = q.eq("world", activeWorld);
+    return q;
+  };
+  // cover_focus ships with migration 071 — fall back to the legacy columns until applied
+  let { data } = await fetchPosts(CARD_COLS + ",cover_focus");
+  if (!data) ({ data } = await fetchPosts(CARD_COLS));
   const posts = (data ?? []) as unknown as CardPost[];
   const [featured, ...rest] = posts;
 
@@ -159,8 +160,11 @@ function FeaturedCard({ post }: { post: CardPost }) {
       className="group grid md:grid-cols-2 bg-white rounded-[22px] overflow-hidden border border-[#f0e6d6] hover:-translate-y-1.5 hover:shadow-[0_24px_50px_rgba(0,55,74,0.12)] transition-all duration-300"
     >
       <div
-        className="relative h-[260px] md:h-full min-h-[320px] bg-[#e9eef0] bg-cover bg-center overflow-hidden"
-        style={{ backgroundImage: post.cover_image ? `url('${cdnImage(post.cover_image, { width: 1200 })}')` : `linear-gradient(160deg, ${theme.accent}, ${theme.deep})` }}
+        className="relative h-[260px] md:h-full min-h-[320px] bg-[#e9eef0] bg-cover overflow-hidden"
+        style={{
+          backgroundImage: post.cover_image ? `url('${cdnImage(post.cover_image, { width: 1200 })}')` : `linear-gradient(160deg, ${theme.accent}, ${theme.deep})`,
+          backgroundPosition: post.cover_focus || "center",
+        }}
       >
         <div className="absolute inset-0 bg-gradient-to-t from-black/30 to-transparent" />
         <span className="absolute top-4 left-4 text-[11px] font-bold px-3 py-1.5 rounded-full backdrop-blur-md" style={{ backgroundColor: "rgba(255,255,255,0.9)", color: theme.accentInk }}>

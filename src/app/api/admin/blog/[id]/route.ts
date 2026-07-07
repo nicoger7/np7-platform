@@ -19,12 +19,15 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
   const client = createAdminClient();
   const { id } = await params;
   const fields = pickBlogFields(await request.json());
-  const { data, error } = await client
-    .from("exp_blog_posts")
-    .update({ ...fields, updated_at: new Date().toISOString() })
-    .eq("id", id)
-    .select()
-    .single();
+  const doUpdate = (f: Record<string, unknown>) =>
+    client.from("exp_blog_posts").update({ ...f, updated_at: new Date().toISOString() }).eq("id", id).select().single();
+  let { data, error } = await doUpdate(fields);
+  if (error && "cover_focus" in fields && /cover_focus|schema cache|does not exist/i.test(error.message)) {
+    // migration 071 not applied yet — save everything else and drop the framing
+    const { cover_focus: _omit, ...rest } = fields as Record<string, unknown>;
+    void _omit;
+    ({ data, error } = await doUpdate(rest));
+  }
   if (error) return NextResponse.json({ error: error.message }, { status: 400 });
   return NextResponse.json(data);
 }

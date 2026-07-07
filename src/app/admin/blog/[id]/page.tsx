@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, use } from "react";
+import { useEffect, useRef, useState, use } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import ImagePickerModal from "@/components/image-picker-modal";
@@ -47,6 +47,11 @@ export default function BlogEditorPage({ params }: { params: Promise<{ id: strin
   const [category, setCategory] = useState("");
   const [author, setAuthor] = useState("Nico Prien");
   const [coverImage, setCoverImage] = useState("");
+  // Cover reframe: CSS object-position ("50% 35%"); "" = center. Drag the 16:9
+  // preview to pick which part of the photo the card crop keeps.
+  const [coverFocus, setCoverFocus] = useState("");
+  const [coverCrop, setCoverCrop] = useState<{ pct: number; axis: string } | null>(null);
+  const dragRef = useRef<{ x: number; y: number; fx: number; fy: number } | null>(null);
   const [excerpt, setExcerpt] = useState("");
   const [content, setContent] = useState("");
   const [status, setStatus] = useState<"draft" | "published">("draft");
@@ -73,6 +78,7 @@ export default function BlogEditorPage({ params }: { params: Promise<{ id: strin
         setCategory(p.category ?? "");
         setAuthor(p.author ?? "Nico Prien");
         setCoverImage(p.cover_image ?? "");
+        setCoverFocus(p.cover_focus ?? "");
         setExcerpt(p.excerpt ?? "");
         setContent(p.content ?? "");
         setStatus(p.status === "published" ? "published" : "draft");
@@ -116,6 +122,7 @@ export default function BlogEditorPage({ params }: { params: Promise<{ id: strin
         category: category || null,
         author,
         cover_image: coverImage || null,
+        cover_focus: (coverImage && coverFocus) || null,
         excerpt: excerpt || null,
         content,
         status: effectiveStatus,
@@ -245,14 +252,55 @@ export default function BlogEditorPage({ params }: { params: Promise<{ id: strin
           </Section>
         </div>
 
-        <Section title="Cover image" hint="Used on the blog index card and as the post hero.">
+        <Section title="Cover image" hint="Shown at 16:9 on the magazine cards — this preview IS the card crop. Drag the photo to reframe it.">
           {coverImage ? (
-            <div className="relative aspect-[21/9] rounded-xl overflow-hidden admin-border border max-w-[480px]">
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img src={coverImage} alt="" className="w-full h-full object-cover" />
-              <div className="absolute top-2 right-2 flex gap-1.5">
-                <button onClick={() => setPicker(true)} className="px-2.5 py-1 rounded-md text-[11px] font-bold bg-black/60 text-white hover:bg-black/80">Change</button>
-                <button onClick={() => setCoverImage("")} className="px-2.5 py-1 rounded-md text-[11px] font-bold bg-black/60 text-white hover:bg-red-500">Remove</button>
+            <div className="max-w-[480px]">
+              <div
+                className="relative aspect-video rounded-xl overflow-hidden admin-border border cursor-grab active:cursor-grabbing select-none touch-none"
+                onPointerDown={(e) => {
+                  e.currentTarget.setPointerCapture(e.pointerId);
+                  const m = (coverFocus || "50% 50%").match(/([\d.]+)%\s+([\d.]+)%/);
+                  dragRef.current = { x: e.clientX, y: e.clientY, fx: m ? +m[1] : 50, fy: m ? +m[2] : 50 };
+                }}
+                onPointerMove={(e) => {
+                  if (!dragRef.current) return;
+                  const r = e.currentTarget.getBoundingClientRect();
+                  const fx = Math.min(100, Math.max(0, dragRef.current.fx - ((e.clientX - dragRef.current.x) / r.width) * 100));
+                  const fy = Math.min(100, Math.max(0, dragRef.current.fy - ((e.clientY - dragRef.current.y) / r.height) * 100));
+                  setCoverFocus(`${Math.round(fx)}% ${Math.round(fy)}%`);
+                }}
+                onPointerUp={() => { dragRef.current = null; }}
+                onPointerCancel={() => { dragRef.current = null; }}
+              >
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img
+                  src={coverImage}
+                  alt=""
+                  draggable={false}
+                  className="w-full h-full object-cover pointer-events-none"
+                  style={{ objectPosition: coverFocus || "50% 50%" }}
+                  onLoad={(e) => {
+                    const img = e.currentTarget;
+                    if (!img.naturalWidth || !img.naturalHeight) return;
+                    const a = img.naturalWidth / img.naturalHeight, t = 16 / 9;
+                    const crop = a < t ? 1 - a / t : 1 - t / a;
+                    setCoverCrop(crop >= 0.12 ? { pct: Math.round(crop * 100), axis: a < t ? "top and bottom" : "the sides" } : null);
+                  }}
+                />
+                <div className="absolute top-2 right-2 flex gap-1.5">
+                  <button onClick={() => setPicker(true)} className="px-2.5 py-1 rounded-md text-[11px] font-bold bg-black/60 text-white hover:bg-black/80">Change</button>
+                  <button onClick={() => { setCoverImage(""); setCoverFocus(""); setCoverCrop(null); }} className="px-2.5 py-1 rounded-md text-[11px] font-bold bg-black/60 text-white hover:bg-red-500">Remove</button>
+                </div>
+              </div>
+              <div className="flex items-center gap-3 mt-1.5 min-h-[20px]">
+                {coverCrop && (
+                  <p className="text-[11.5px] font-semibold text-amber-600">
+                    ⚠ {coverCrop.pct}% of this image is cut off at 16:9 ({coverCrop.axis}) — drag above to choose what stays, or pick a 16:9 photo.
+                  </p>
+                )}
+                {coverFocus && (
+                  <button onClick={() => setCoverFocus("")} className="ml-auto shrink-0 text-[11.5px] font-bold admin-muted hover:admin-heading">Reset framing</button>
+                )}
               </div>
             </div>
           ) : (

@@ -13,6 +13,7 @@ const EDITABLE_FIELDS = [
   "slug",
   "content",
   "cover_image",
+  "cover_focus",
   "status",
   "published_at",
   "excerpt",

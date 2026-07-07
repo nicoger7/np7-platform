@@ -37,6 +37,7 @@ type Post = {
   excerpt: string | null;
   content: string | null;
   cover_image: string | null;
+  cover_focus?: string | null;
   category: string | null;
   author: string | null;
   template: string | null;
@@ -98,13 +99,12 @@ export default async function BlogPostPage({ params }: Props) {
   const ctaLabel = asText(data.ctaLabel) || template.cta?.defaultLabel || "Learn more";
 
   // related — newest other published posts (same world first)
-  const { data: relRaw } = await supabase
-    .from("exp_blog_posts")
-    .select("slug,title,excerpt,cover_image,template,world,category,published_at,members_only,content")
-    .eq("status", "published")
-    .neq("id", post.id)
-    .order("published_at", { ascending: false })
-    .limit(6);
+  const REL_COLS = "slug,title,excerpt,cover_image,template,world,category,published_at,members_only,content";
+  const fetchRelated = (cols: string) =>
+    supabase.from("exp_blog_posts").select(cols).eq("status", "published").neq("id", post.id).order("published_at", { ascending: false }).limit(6);
+  // cover_focus ships with migration 071 — fall back until applied
+  let { data: relRaw } = await fetchRelated(REL_COLS + ",cover_focus");
+  if (!relRaw) ({ data: relRaw } = await fetchRelated(REL_COLS));
   const related = ((relRaw ?? []) as unknown as CardPost[])
     .sort((a, b) => Number(b.world === post.world) - Number(a.world === post.world))
     .slice(0, 3);
@@ -140,7 +140,7 @@ export default async function BlogPostPage({ params }: Props) {
       {/* ---------------------------------------------------------------- HERO */}
       <section className="relative text-white overflow-hidden" style={{ backgroundColor: theme.deep }}>
         {post.cover_image && (
-          <div className="absolute inset-0 bg-cover bg-center" style={{ backgroundImage: `url('${cdnImage(post.cover_image, { width: 1600 })}')` }} />
+          <div className="absolute inset-0 bg-cover" style={{ backgroundImage: `url('${cdnImage(post.cover_image, { width: 1600 })}')`, backgroundPosition: post.cover_focus || "center" }} />
         )}
         <div
           className="absolute inset-0"
