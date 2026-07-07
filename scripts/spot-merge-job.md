@@ -21,7 +21,7 @@ Run a Node.js script (inline via exec, no temp files) that calls:
 
 ```
 GET {SUPABASE_URL}/rest/v1/spot_edits
-  ?field=eq.info&status=eq.approved&select=id,spot_id,suggestion&order=spot_id
+  ?field=eq.info&status=eq.approved&select=id,spot_id,new_value&order=spot_id
   Headers: apikey: {KEY}, Authorization: Bearer {KEY}
 ```
 
@@ -34,6 +34,8 @@ GET {SUPABASE_URL}/rest/v1/spots
 ```
 
 Group edits by spot_id. Cap at 30 suggestions per spot (first 30 if more exist).
+
+`new_value` comes back as a JS string (jsonb text value) — use it directly as the suggestion text.
 
 If there are zero approved edits, print:
   `Spot merge — {date}: No approved edits. Nothing to do.`
@@ -76,7 +78,10 @@ Then mark the applied edit IDs (only after the PATCH succeeds):
 ```
 PATCH {SUPABASE_URL}/rest/v1/spot_edits?id=in.({edit_ids_for_this_spot})
   Headers: same
-  Body: {"status": "applied", "applied_at": "{ISO-8601 now}"}
+  Body: {"status": "merged", "applied_at": "{ISO-8601 now}"}
+
+Status lifecycle for info edits: `pending → approved → merged`.
+(`applied` is only for canonical fields like name/pin — info edits use `merged`.)
 ```
 
 If a PATCH fails (non-2xx), print the error with the spot_id and leave

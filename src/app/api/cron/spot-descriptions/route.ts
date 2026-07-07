@@ -35,7 +35,7 @@ export async function GET(req: NextRequest) {
   // Fetch all approved info suggestions
   const { data: edits, error } = await db
     .from("spot_edits")
-    .select("id, spot_id, suggestion")
+    .select("id, spot_id, new_value")
     .eq("field", "info")
     .eq("status", "approved");
 
@@ -86,7 +86,7 @@ export async function GET(req: NextRequest) {
 
         try {
           const suggestionLines = group
-            .map((e, idx) => `${idx + 1}. ${e.suggestion}`)
+            .map((e, idx) => `${idx + 1}. ${typeof e.new_value === "string" ? e.new_value : JSON.stringify(e.new_value)}`)
             .join("\n");
 
           const userMessage = `Current description:\n${currentDescription}\n\nMember suggestions:\n${suggestionLines}`;
@@ -106,14 +106,16 @@ export async function GET(req: NextRequest) {
           // Write merged description to the spot
           await db.from("spots").update({ description: merged }).eq("id", spotId);
 
-          // Mark all applied edits as 'applied' (idempotent — failures stay 'approved' for retry)
-          await db.from("spot_edits").update({ status: "applied" }).in("id", editIds);
+          // Mark as 'merged' (info lifecycle: pending → approved → merged)
+          // failures stay 'approved' so next run retries
+          await db.from("spot_edits").update({ status: "merged", applied_at: new Date().toISOString() }).in("id", editIds);
 
           processed++;
         } catch (err) {
           console.error("[spot-descriptions] merge failed", spotId, err);
           failed++;
           // Leave status = 'approved' so the next run retries
+          // (do not set 'merged' — that would hide the failure)
         }
       })
     );
