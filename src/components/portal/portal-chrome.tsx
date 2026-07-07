@@ -46,18 +46,25 @@ export async function PortalChrome({ section }: { section?: "experience" | "hard
         </div>
       )}
       {siteLive ? (
-        resolved === "hardware" ? <HardwareHeader variant="docked" /> : <OceanHeader variant="docked" showExperience={flags.showExperience} showBlog={flags.showBlog} />
+        resolved === "hardware" ? <HardwareHeader variant="docked" /> : <OceanHeader variant="docked" showExperience={flags.showExperience} showHardware={flags.showHardware} showBlog={flags.showBlog} />
       ) : (
         <header className={`sticky top-0 z-50 ${resolved === "hardware" ? "bg-black" : "bg-[#00374a]"} border-b border-white/10`}>
-          <div className="max-w-[1000px] mx-auto px-5 sm:px-8 h-16 flex items-center">
+          <div className="max-w-[1000px] mx-auto px-5 sm:px-8 h-16 flex items-center justify-between gap-4">
             <Link href="/account" aria-label="NP7 home" className="shrink-0">
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img src={NP7_LOGO} alt="NP7" className="h-6 w-auto invert" />
             </Link>
+            {/* Magazine — the one public surface during the quiet launch, so it lives
+                in the site header (dark bar), not in the member menu below. */}
+            {flags.showBlog && (
+              <Link href="/blog" className="text-[12.5px] font-semibold text-white/70 hover:text-white transition-colors tracking-wide">
+                Magazine
+              </Link>
+            )}
           </div>
         </header>
       )}
-      <PortalSubnav tone={resolved === "hardware" ? "hardware" : "ocean"} showGear={flags.showGear} showCart={flags.showCart} showBlog={flags.showBlog} />
+      <PortalSubnav tone={resolved === "hardware" ? "hardware" : "ocean"} showGear={flags.showGear} showCart={flags.showCart} />
       <MemberInstallPrompt env={resolved} />
     </>
   );

@@ -18,6 +18,6 @@ export async function SectionHeader() {
   return section === "hardware" && flags.showHardware ? (
     <HardwareHeader variant="docked" />
   ) : (
-    <OceanHeader variant="docked" bookHref="/experience#experiences" showExperience={flags.showExperience} showBlog={flags.showBlog} />
+    <OceanHeader variant="docked" bookHref="/experience#experiences" showExperience={flags.showExperience} showHardware={flags.showHardware} showBlog={flags.showBlog} />
   );
 }

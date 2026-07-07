@@ -37,14 +37,19 @@ export function OceanHeader({
   bookHref = "#experiences",
   variant = "overlay",
   showExperience = true,
+  showHardware = true,
   showBlog = true,
 }: {
   bookHref?: string;
   variant?: "overlay" | "docked";
   showExperience?: boolean;
+  showHardware?: boolean;
   showBlog?: boolean;
 }) {
   const docked = variant === "docked";
+  // The Experience⇄Hardware switch only makes sense once a public world is live —
+  // while just the Magazine is out it would advertise (and link to) 404 pages.
+  const showSwitch = showExperience || showHardware;
   const visibleNav = NAV.filter((n) => (n.need === "blog" ? showBlog : n.need === "experience" ? showExperience : true));
   const leftNav = visibleNav.filter((n) => n.side !== "right");
   const rightNav = visibleNav.filter((n) => n.side === "right");
@@ -83,8 +88,12 @@ export function OceanHeader({
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img src={NP7_LOGO} alt="NP7" className="h-6 w-auto invert" />
           </Link>
-          <span className="w-px h-6 bg-white/20 hidden sm:block" />
-          <BrandSwitch active="experience" />
+          {showSwitch && (
+            <>
+              <span className="w-px h-6 bg-white/20 hidden sm:block" />
+              <BrandSwitch active="experience" />
+            </>
+          )}
           <nav className="hidden lg:flex items-center gap-7 ml-1">
             {leftNav.map((n) => (
               <Link key={n.href} href={n.href} className={navLink}>{n.label}</Link>

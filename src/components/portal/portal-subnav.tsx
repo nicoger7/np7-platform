@@ -6,7 +6,7 @@ import { useEffect, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 
 type Tone = "ocean" | "hardware";
-type Tab = { href: string; label: string; exact?: boolean; flag?: "gear" | "blog"; icon?: IconName };
+type Tab = { href: string; label: string; exact?: boolean; flag?: "gear"; icon?: IconName };
 
 // Desktop: full horizontal nav. Mobile: bottom tab bar (PRIMARY) + a "More" sheet.
 // Cart is NOT a nav item — it's a contextual icon shown only on Hardware once the
@@ -19,7 +19,6 @@ const DESKTOP_TABS: Tab[] = [
   { href: "/account/vouchers", label: "Gift vouchers" },
   { href: "/account/profile", label: "Profile" },
   { href: "/account/settings", label: "Account" },
-  { href: "/blog", label: "Magazine", flag: "blog" },
 ];
 const PRIMARY: Tab[] = [
   { href: "/account", label: "Home", exact: true, icon: "home" },
@@ -31,16 +30,15 @@ const MORE: Tab[] = [
   { href: "/account/level", label: "Progress" },
   { href: "/account/vouchers", label: "Gift vouchers" },
   { href: "/account/settings", label: "Account" },
-  { href: "/blog", label: "Magazine", flag: "blog" },
 ];
 
-export function PortalSubnav({ tone, showGear = false, showBlog = false }: { tone: Tone; showGear?: boolean; showCart?: boolean; showBlog?: boolean }) {
+export function PortalSubnav({ tone, showGear = false }: { tone: Tone; showGear?: boolean; showCart?: boolean }) {
   const pathname = usePathname();
   const router = useRouter();
   const [cartCount, setCartCount] = useState(0);
   const [moreOpen, setMoreOpen] = useState(false);
 
-  const showTab = (t: Tab) => (t.flag === "gear" ? showGear : t.flag === "blog" ? showBlog : true);
+  const showTab = (t: Tab) => (t.flag === "gear" ? showGear : true);
   const isActive = (t: Tab) => (t.exact ? pathname === t.href : pathname === t.href || pathname.startsWith(t.href + "/"));
 
   useEffect(() => {
