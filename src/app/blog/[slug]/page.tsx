@@ -53,10 +53,27 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
     .from("exp_blog_posts").select("*")
     .eq("slug", slug).eq("status", "published").maybeSingle();
   const data = raw as unknown as Post | null;
-  if (!data) return { title: "Post Not Found — NP7" };
+  if (!data) return { title: "Post not found" };
+  const description = data.excerpt || `${data.title} — stories, guides & reviews from the NP7 crew.`;
   return {
-    title: `${data.title} — NP7 Magazine`,
-    description: data.excerpt || `${data.title} — stories, guides & reviews from the NP7 crew.`,
+    // bare title — the root layout template appends "· NP7"
+    title: data.title,
+    description,
+    alternates: { canonical: `/blog/${slug}` },
+    openGraph: {
+      type: "article",
+      title: data.title,
+      description,
+      url: `/blog/${slug}`,
+      ...(data.published_at ? { publishedTime: data.published_at } : {}),
+      ...(data.cover_image ? { images: [{ url: data.cover_image, alt: data.title }] } : {}),
+    },
+    twitter: {
+      card: "summary_large_image",
+      title: data.title,
+      description,
+      ...(data.cover_image ? { images: [data.cover_image] } : {}),
+    },
   };
 }
 
@@ -135,6 +152,33 @@ export default async function BlogPostPage({ params }: Props) {
 
   return (
     <>
+      {/* Article schema — authorship is the E-E-A-T signal (Nico = real pro athlete) */}
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{
+          __html: JSON.stringify({
+            "@context": "https://schema.org",
+            "@type": "Article",
+            headline: post.title,
+            description: post.excerpt ?? undefined,
+            image: post.cover_image ?? undefined,
+            datePublished: post.published_at ?? undefined,
+            mainEntityOfPage: `https://www.np-seven.com/blog/${post.slug}`,
+            author: {
+              "@type": "Person",
+              name: post.author || "Nico Prien",
+              url: "https://nicoprien.com",
+              sameAs: ["https://nicoprien.com"],
+            },
+            publisher: {
+              "@type": "Organization",
+              name: "NP7",
+              url: "https://www.np-seven.com",
+              logo: { "@type": "ImageObject", url: "https://www.np-seven.com/icons/favicon-96.png" },
+            },
+          }),
+        }}
+      />
       <SectionHeader />
 
       {/* ---------------------------------------------------------------- HERO */}

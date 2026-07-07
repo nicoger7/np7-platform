@@ -12,8 +12,9 @@ import { ContributeSpot } from "@/components/spotguide/contribute-spot";
 import { flags } from "@/lib/flags";
 
 export const metadata: Metadata = {
-  title: "Spotguide — NP7",
+  title: "Windsurf Spotguide",
   description: "Honest windsurf spot guides, rated by NP7 and the crew. Real conditions, the forecast that works, and where to ride — destination by destination.",
+  alternates: { canonical: "/spotguide" },
 };
 export const revalidate = 60;
 

@@ -50,11 +50,15 @@ export const metadata: Metadata = {
     url: SITE_URL,
     title: "NP7 — Nico Prien | GER-7",
     description: "Premium watersports travel experiences and custom board engineering by Nico Prien (GER-7).",
+    // Site-wide default share image — pages with their own art (blog covers,
+    // destination heroes) override it in their generateMetadata.
+    images: [{ url: `${SITE_URL}/cdn/assets/hero/windsurf-hero-poster.jpg`, width: 1920, height: 1080, alt: "NP7 — windsurfing" }],
   },
   twitter: {
     card: "summary_large_image",
     title: "NP7 — Nico Prien | GER-7",
     description: "Premium watersports travel experiences and custom board engineering by Nico Prien (GER-7).",
+    images: [`${SITE_URL}/cdn/assets/hero/windsurf-hero-poster.jpg`],
   },
 };
 

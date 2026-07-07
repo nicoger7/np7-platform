@@ -24,10 +24,19 @@ type Props = { params: Promise<{ slug: string }> };
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { slug } = await params;
   const d = await getSpotguideDestination(slug);
-  if (!d) return { title: "Spotguide — NP7" };
+  if (!d) return { title: "Spotguide" };
+  const description = d.tagline ?? `Windsurf spots in ${d.name}, rated by NP7 and the crew — conditions, wind windows and the forecast that actually works.`;
   return {
-    title: `${d.name} windsurf spotguide — NP7`,
-    description: d.tagline ?? `Windsurf spots in ${d.name}, rated by NP7 and the crew — conditions, wind windows and the forecast that actually works.`,
+    // bare title — the root layout template appends "· NP7"
+    title: `${d.name} windsurf spotguide`,
+    description,
+    alternates: { canonical: `/spotguide/${slug}` },
+    ...(d.hero_image
+      ? {
+          openGraph: { title: `${d.name} windsurf spotguide`, description, url: `/spotguide/${slug}`, images: [{ url: d.hero_image, alt: `Windsurfing in ${d.name}` }] },
+          twitter: { card: "summary_large_image" as const, title: `${d.name} windsurf spotguide`, description, images: [d.hero_image] },
+        }
+      : {}),
   };
 }
 
