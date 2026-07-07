@@ -31,7 +31,7 @@ export type CatalogSkill = {
 export type Achievement = { milestone_id: string; verified_via: VerifiedVia; verified_ref?: string | null };
 
 export type SkillState = VerifiedVia | "available" | "locked";
-export type ProgressSkill = CatalogSkill & { state: SkillState; prereqLabel: string | null };
+export type ProgressSkill = CatalogSkill & { state: SkillState; prereqLabel: string | null; band: number };
 export type Track = { discipline: Discipline; label: string; skills: ProgressSkill[]; verified: number; total: number };
 export type LadderRung = { name: string; done: boolean; current: boolean };
 export type Progression = {
@@ -66,7 +66,10 @@ export function buildProgression(catalogRaw: CatalogSkill[], achievements: Achie
   const ach = new Map<string, VerifiedVia>();
   for (const a of achievements) if (byId.has(a.milestone_id)) ach.set(a.milestone_id, a.verified_via);
 
-  const verifiedKeys = new Set(catalog.filter((m) => { const v = ach.get(m.id); return !!v && isVerified(v); }).map((m) => m.key));
+  // ANY logged skill (self included) satisfies prerequisites — the chain guides
+  // learning order, but must never stop a rider from self-assessing what they
+  // can already do. Only windcoach/coach verification counts toward RANK below.
+  const unlockKeys = new Set(catalog.filter((m) => ach.has(m.id)).map((m) => m.key));
   const labelByKey = new Map(catalog.map((m) => [m.key, m.label] as const));
 
   let coachCount = 0, windcoachCount = 0;
@@ -74,8 +77,8 @@ export function buildProgression(catalogRaw: CatalogSkill[], achievements: Achie
     const v = ach.get(m.id);
     let state: SkillState;
     if (v) { state = v; if (v === "coach") coachCount++; if (v === "windcoach") windcoachCount++; }
-    else state = !m.prerequisite_key || verifiedKeys.has(m.prerequisite_key) ? "available" : "locked";
-    return { ...m, state, prereqLabel: m.prerequisite_key ? (labelByKey.get(m.prerequisite_key) ?? null) : null };
+    else state = !m.prerequisite_key || unlockKeys.has(m.prerequisite_key) ? "available" : "locked";
+    return { ...m, state, prereqLabel: m.prerequisite_key ? (labelByKey.get(m.prerequisite_key) ?? null) : null, band: bandOf(m.difficulty) };
   });
 
   // Rank = how many core difficulty bands you've fully mastered.

@@ -2,12 +2,16 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import type { Progression, Track, ProgressSkill } from "@/lib/progression";
+import { useRouter } from "next/navigation";
+import { RANKS, type Progression, type Track, type ProgressSkill } from "@/lib/progression";
 
 /* The member "Progress" view — Freeride/Freerace/Slalom tracks. Rank (Beginner →
    Pro) is earned by MASTERING skills, so the headline is always "N skills to <next
    rank>". Three verification tiers: coach on a trip (gold) → Wind Coach App video
-   (purple) → self. Read-only: skills are verified by a coach or the Wind Coach App. */
+   (purple) → self. Members self-log with "I can do this" — that unlocks the chain
+   and pre-fills the coach's verify list on a trip, but only coach / Wind Coach App
+   verification moves the rank. Skills are grouped by rank band; mastered bands
+   fold away so the list always opens on what's NEXT. */
 
 const CYAN = "#00afdb", TEAL = "#00374a", PURPLE = "#7b61c9";
 const GOLD = "#d4a017", GOLD_BG = "#f8efd6", GOLD_TX = "#6b5214";
@@ -28,7 +32,10 @@ function Ico({ name, size = 18, color }: { name: string; size?: number; color?: 
   }
 }
 
-function SkillRow({ s }: { s: ProgressSkill }) {
+type LogHandlers = { onLog: (id: string) => void; onUndo: (id: string) => void; busyId: string | null };
+
+function SkillRow({ s, onLog, onUndo, busyId }: { s: ProgressSkill } & LogHandlers) {
+  const busy = busyId === s.id;
   const icon =
     s.state === "coach" ? <Ico name="check" size={21} color={GOLD} />
     : s.state === "windcoach" ? <Ico name="check" size={21} color={PURPLE} />
@@ -37,12 +44,28 @@ function SkillRow({ s }: { s: ProgressSkill }) {
     : <Ico name="lock" size={18} color="#c0ccd0" />;
   const sub =
     s.state === "coach" ? "coach-verified" : s.state === "windcoach" ? "Wind Coach App verified"
-    : s.state === "self" ? "logged — get it verified" : s.state === "available" ? "ready to learn"
-    : `needs ${s.prereqLabel ?? "a prerequisite"}`;
-  const badge =
+    : s.state === "self" ? "logged — get it verified on a trip" : s.state === "available" ? "ready to learn"
+    : `unlocks after ${s.prereqLabel ?? "the previous skill"}`;
+  const right =
     s.state === "coach" ? <span className="inline-flex items-center gap-1 text-[11px] font-bold px-2 py-[3px] rounded-full" style={{ background: GOLD_BG, color: GOLD_TX }}><Ico name="check" size={13} color={GOLD} />Coach</span>
     : s.state === "windcoach" ? <span className="inline-flex items-center gap-1 text-[11px] font-bold px-2 py-[3px] rounded-full" style={{ background: "#efeafb", color: "#4a3b7a" }}><Ico name="video" size={13} color={PURPLE} />Wind Coach App</span>
-    : s.state === "self" ? <span className="text-[11px] font-semibold px-2 py-[3px] rounded-full bg-[#f1efe8] text-[#8a9aa0]">unverified</span>
+    : s.state === "self" ? (
+      <span className="inline-flex items-center gap-2">
+        <span className="text-[11px] font-semibold px-2 py-[3px] rounded-full bg-[#f1efe8] text-[#8a9aa0]">logged ✓</span>
+        <button type="button" disabled={busy} onClick={() => onUndo(s.id)} className="text-[11px] font-semibold text-[#b6c2c7] hover:text-[#c4621a] disabled:opacity-50">undo</button>
+      </span>
+    )
+    : s.state === "available" ? (
+      <button
+        type="button"
+        disabled={busy}
+        onClick={() => onLog(s.id)}
+        className="text-[11.5px] font-bold px-2.5 py-1.5 rounded-full border transition-colors whitespace-nowrap disabled:opacity-50"
+        style={{ color: CYAN, borderColor: "#bfe8f3", background: "#f4fbfd" }}
+      >
+        {busy ? "Saving…" : "I can do this"}
+      </button>
+    )
     : null;
   return (
     <div className="flex items-center gap-[11px] px-3 py-2.5 rounded-[11px] border border-[#f0e6d6] bg-[#fffdf9]" style={{ opacity: s.state === "locked" ? 0.6 : 1 }}>
@@ -51,22 +74,52 @@ function SkillRow({ s }: { s: ProgressSkill }) {
         <span className="block text-[14px] font-bold text-[#00374a]">{s.label}</span>
         <span className="block text-[12px] text-[#9aa6ac]">{sub}</span>
       </span>
-      {badge && <span className="shrink-0">{badge}</span>}
+      {right && <span className="shrink-0">{right}</span>}
     </div>
   );
 }
 
-function TrackCard({ track }: { track: Track }) {
+const isDone = (s: ProgressSkill) => s.state === "coach" || s.state === "windcoach";
+
+function TrackCard({ track, onLog, onUndo, busyId }: { track: Track } & LogHandlers) {
+  // Skills grouped by rank band — the list reads as a ladder: master a section,
+  // it folds away, the next one is already open.
+  const groups: { band: number; skills: ProgressSkill[] }[] = [];
+  for (const s of track.skills) {
+    const g = groups.find((x) => x.band === s.band);
+    if (g) g.skills.push(s); else groups.push({ band: s.band, skills: [s] });
+  }
+  groups.sort((a, b) => a.band - b.band);
+
   const next = track.skills.find((s) => s.state === "available" || s.state === "self") ?? track.skills.find((s) => s.state === "locked");
   return (
     <div className="bg-white border border-[#f0e6d6] rounded-2xl p-3.5">
       <div className="text-[13.5px] text-[#6a7a80] mb-0.5">
         <span className="font-black text-[15px] text-[#00374a]">{track.label}</span> &nbsp;·&nbsp; {track.verified}/{track.total} mastered
       </div>
-      <div className="text-[11.5px] text-[#9aa6ac] mb-2.5">Verified by a coach on a trip, or via the Wind Coach App.</div>
-      <div className="flex flex-col gap-1.5">
-        {track.skills.map((s) => <SkillRow key={s.id} s={s} />)}
+      <div className="text-[11.5px] text-[#9aa6ac] mb-2.5">Log what you can do — a coach on a trip (or the Wind Coach App) makes it count.</div>
+
+      <div className="flex flex-col gap-2">
+        {groups.map((g) => {
+          const done = g.skills.filter(isDone).length;
+          const complete = done === g.skills.length;
+          return (
+            <details key={g.band} open={!complete} className="group rounded-xl border border-[#f4ecdd] overflow-hidden [&_summary::-webkit-details-marker]:hidden">
+              <summary className="flex items-center gap-2 px-3 py-2 cursor-pointer select-none list-none bg-[#fbf6ec]">
+                <span className="text-[12px] font-black tracking-wide uppercase" style={{ color: complete ? "#1aa851" : "#8a9aa0" }}>
+                  {RANKS[g.band]}
+                </span>
+                <span className="text-[11.5px] font-semibold text-[#a9b4b9]">{done}/{g.skills.length}{complete ? " ✓" : ""}</span>
+                <svg className="w-3.5 h-3.5 ml-auto text-[#c0ccd0] transition-transform group-open:rotate-180" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M6 9l6 6 6-6" /></svg>
+              </summary>
+              <div className="flex flex-col gap-1.5 p-2">
+                {g.skills.map((s) => <SkillRow key={s.id} s={s} onLog={onLog} onUndo={onUndo} busyId={busyId} />)}
+              </div>
+            </details>
+          );
+        })}
       </div>
+
       {next && (
         <div className="mt-3 pt-2.5 border-t border-[#f4ecdd] text-[12px] text-[#8a9aa0] flex items-center gap-1.5">
           <Ico name="target" size={14} color={CYAN} /> Next up: <span className="font-bold text-[#00374a]">{next.label}</span> — get it coach-verified on a trip
@@ -78,10 +131,30 @@ function TrackCard({ track }: { track: Track }) {
 
 export function ProgressionView({ progression }: { progression: Progression }) {
   const { level, nextLevel, toNext, pct, mastered, ladder, coachCount, windcoachCount, tracks, side } = progression;
+  const router = useRouter();
   const [active, setActive] = useState<string>(tracks[0]?.discipline ?? "side");
+  const [busyId, setBusyId] = useState<string | null>(null);
   // Core three + Wave & Freestyle, all as equal pills (side is just lighter when idle).
   const pills = side ? [...tracks, side] : tracks;
   const shown = active === "side" ? side : tracks.find((t) => t.discipline === active) ?? tracks[0];
+
+  // Self-log: "I can do this" → verified_via='self'. The server recomputes the
+  // whole progression (unlocks etc.) via router.refresh(), so the UI stays truthful.
+  async function mutate(method: "POST" | "DELETE", milestoneId: string) {
+    setBusyId(milestoneId);
+    try {
+      const res = await fetch("/api/portal/progress/log", {
+        method,
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ milestoneId }),
+      });
+      if (res.ok) router.refresh();
+    } finally {
+      setBusyId(null);
+    }
+  }
+  const onLog = (id: string) => mutate("POST", id);
+  const onUndo = (id: string) => mutate("DELETE", id);
 
   const toNextLabel = mastered
     ? "Every core skill mastered — you're at the top"
@@ -148,13 +221,13 @@ export function ProgressionView({ progression }: { progression: Progression }) {
         })}
       </div>
 
-      {shown && <TrackCard track={shown} />}
+      {shown && <TrackCard track={shown} onLog={onLog} onUndo={onUndo} busyId={busyId} />}
 
       {/* legend */}
       <div className="flex flex-wrap gap-x-4 gap-y-2 mt-4 text-[11.5px] text-[#9aa6ac] items-center">
         <span className="inline-flex items-center gap-1"><Ico name="check" size={13} color={GOLD} /> coach-verified (trip)</span>
         <span className="inline-flex items-center gap-1"><Ico name="video" size={13} color={PURPLE} /> Wind Coach App video</span>
-        <span className="inline-flex items-center gap-1"><Ico name="lock" size={13} /> needs a prerequisite</span>
+        <span className="inline-flex items-center gap-1"><Ico name="circle" size={13} /> “I can do this” logs a skill — verification makes it count</span>
       </div>
     </div>
   );

@@ -3,9 +3,8 @@ import { redirect } from "next/navigation";
 import type { Metadata } from "next";
 import { getPortalUser, getTeamMember } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
-import { getMemberBookings, getMemberBannerImages, getMemberProfile, getMemberLevelDetail } from "@/lib/portal-data";
+import { getMemberBookings, getMemberBannerImages, getMemberProfile, getMemberProgression } from "@/lib/portal-data";
 import { fmtDates, needsDownpayment } from "@/lib/portal-status";
-import { LEVELS, displayLevel, levelProgress } from "@/lib/member-level";
 import { firstNameInitial, initialsFrom } from "@/lib/member-profile";
 import { PortalChrome } from "@/components/portal/portal-chrome";
 import { MemberHomeBanner } from "@/components/portal/member-home-banner";
@@ -29,11 +28,11 @@ export default async function AccountHome() {
     await supabase.auth.signOut();
     redirect("/account/login");
   }
-  const [bookings, bannerImages, profile, levelDetail] = await Promise.all([
+  const [bookings, bannerImages, profile, progression] = await Promise.all([
     getMemberBookings(user.contactId),
     getMemberBannerImages(user.contactId).catch(() => []),
     getMemberProfile(user.contactId).catch(() => null),
-    getMemberLevelDetail(user.contactId).catch(() => null),
+    getMemberProgression(user.contactId).catch(() => null),
   ]);
   const first = user.name?.split(" ")[0] ?? "there";
 
@@ -53,19 +52,17 @@ export default async function AccountHome() {
     } catch { return false; } // on any hiccup, don't nag
   })();
 
-  // level progress for the home dashboard card
-  const lvl = levelDetail
-    ? (() => {
-        const shown = displayLevel({ self_level: levelDetail.self_level, level: levelDetail.coach_level, level_status: levelDetail.level_status });
-        const prog = levelProgress(levelDetail.milestones);
-        // The tier they're EARNING now drives the ring; finishing it reaches reachTier.
-        const workingTier = prog.nextTier;
-        const wIdx = workingTier ? LEVELS.indexOf(workingTier) : -1;
-        const reachTier = workingTier && wIdx < LEVELS.length - 1 ? LEVELS[wIdx + 1] : null;
-        const wStat = prog.tiers.find((t) => t.tier === workingTier);
-        const pct = wStat && wStat.total ? (wStat.done / wStat.total) * 100 : (workingTier ? 0 : 100);
-        return { level: shown.level, verified: shown.verified, nextTier: reachTier, toNext: prog.toNext, pct };
-      })()
+  // Home card reads the SAME 6-rank ladder as the Progress page — one source of
+  // truth (rank + "N skills to <next>" + band progress). Verified ✓ = at least
+  // one coach-verified skill.
+  const lvl = progression
+    ? {
+        level: progression.level,
+        verified: progression.coachCount > 0,
+        nextTier: progression.nextLevel,
+        toNext: progression.toNext,
+        pct: progression.pct,
+      }
     : null;
 
   const today = new Date().toISOString().slice(0, 10);
