@@ -27,14 +27,18 @@ function seasonLabel(windy: number[]): string | null {
  */
 export function WindStatsChart({ stats, compact = false, accent = "#00afdb" }: { stats: WindStats; compact?: boolean; accent?: string }) {
   const [hi, setHi] = useState<number | null>(null);
+  // Model switcher: `stats` = standard coastal read, `stats.alt` = the
+  // offshore/accelerated read (present only when the two disagree).
+  const [model, setModel] = useState<"main" | "alt">("main");
+  const view = model === "alt" && stats.alt ? stats.alt : stats;
   const H = compact ? 130 : 176;
-  const season = seasonLabel(stats.summary?.windyMonths ?? []);
-  const warm = stats.summary?.warmestMonth;
+  const season = seasonLabel(view.summary?.windyMonths ?? []);
+  const warm = view.summary?.warmestMonth;
   // Single windiest month — most planing wind (4+ Bft, tie-break 3+). Derived
   // live so it works even for stats cached before this was added.
   const windiest = (() => {
     let best = -1, m: number | null = null;
-    for (const x of stats.months) { const s = (x.pct["4"] ?? 0) * 100 + (x.pct["3"] ?? 0); if (s > best) { best = s; m = x.m; } }
+    for (const x of view.months) { const s = (x.pct["4"] ?? 0) * 100 + (x.pct["3"] ?? 0); if (s > best) { best = s; m = x.m; } }
     return m;
   })();
 
@@ -51,6 +55,25 @@ export function WindStatsChart({ stats, compact = false, accent = "#00afdb" }: {
 
   return (
     <div>
+      {/* model switcher — only when both reads exist and disagree */}
+      {stats.alt && (
+        <div className="flex items-center gap-1 mb-3 rounded-full bg-[#f1ede3] p-1 w-fit" role="tablist" aria-label="Wind model">
+          {([["main", "Standard model"], ["alt", "Offshore (accelerated)"]] as const).map(([k, label]) => (
+            <button
+              key={k}
+              role="tab"
+              aria-selected={model === k}
+              onClick={() => setModel(k)}
+              className={`px-3 py-1 rounded-full text-[11.5px] font-bold transition-colors ${
+                model === k ? "bg-white text-[#00374a] shadow-sm" : "text-[#8a9aa0] hover:text-[#00374a]"
+              }`}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+      )}
+
       {/* smart summary */}
       {!compact && (season || warm || windiest) && (
         <div className="flex flex-wrap gap-2 mb-3">
@@ -64,9 +87,9 @@ export function WindStatsChart({ stats, compact = false, accent = "#00afdb" }: {
               💨 Windiest · {MONTH_LABELS[windiest - 1]}
             </span>
           )}
-          {warm != null && stats.summary?.warmestTemp != null && (
+          {warm != null && view.summary?.warmestTemp != null && (
             <span className="inline-flex items-center gap-1.5 text-[12.5px] font-bold text-[#00374a] bg-white border border-[#ece3d3] rounded-full px-3 py-1">
-              ☀ Warmest · {MONTH_LABELS[warm - 1]} {stats.summary.warmestTemp}°
+              ☀ Warmest · {MONTH_LABELS[warm - 1]} {view.summary.warmestTemp}°
             </span>
           )}
         </div>
@@ -86,7 +109,7 @@ export function WindStatsChart({ stats, compact = false, accent = "#00afdb" }: {
             <div key={v} className="absolute left-0 right-0 border-t border-dashed border-[#ece3d3]" style={{ top: `${100 - v}%` }} />
           ))}
           <div className="absolute inset-0 flex items-end gap-[3px] sm:gap-1.5">
-            {stats.months.map((m) => {
+            {view.months.map((m) => {
               const on = hi === m.m;
               return (
                 <button key={m.m} type="button" onMouseEnter={() => setHi(m.m)} onMouseLeave={() => setHi(null)} onFocus={() => setHi(m.m)} onClick={() => setHi(on ? null : m.m)}
@@ -101,7 +124,7 @@ export function WindStatsChart({ stats, compact = false, accent = "#00afdb" }: {
 
           {/* hover read-out */}
           {hi != null && (() => {
-            const m = stats.months[hi - 1];
+            const m = view.months[hi - 1];
             return (
               <div className="absolute -top-1 left-1/2 -translate-x-1/2 -translate-y-full z-10 w-[150px] rounded-lg bg-[#00374a] text-white p-2.5 shadow-lg pointer-events-none">
                 <div className="flex items-center justify-between text-[11px] font-bold mb-1.5"><span>{MONTH_LABELS[hi - 1]}</span><span className="text-white/70">{m.avgWind} kn avg{m.airTemp != null ? ` · ${m.airTemp}°` : ""}</span></div>
@@ -119,7 +142,7 @@ export function WindStatsChart({ stats, compact = false, accent = "#00afdb" }: {
 
       {/* month labels */}
       <div className="flex gap-[3px] sm:gap-1.5 mt-1.5 pl-8">
-        {stats.months.map((m) => (
+        {view.months.map((m) => (
           <div key={m.m} className="flex-1 text-center">
             <div className={`text-[9.5px] sm:text-[10.5px] font-bold ${hi === m.m ? "text-[#00374a]" : "text-[#9aa6ac]"}`}>{MONTH_LABELS[m.m - 1][0]}</div>
             {!compact && m.airTemp != null && <div className="text-[9px] text-[#c3b9a6]">{m.airTemp}°</div>}
@@ -135,12 +158,12 @@ export function WindStatsChart({ stats, compact = false, accent = "#00afdb" }: {
           </span>
         ))}
         <span className="text-[10.5px] text-[#9aa6ac] ml-auto">
-          {stats.source.startsWith("NP7")
-            ? <>% planing days · {stats.source}</>
-            : <>% of sailing hours (09–18) · {stats.source} · modeled</>}
+          {(view.source ?? "").startsWith("NP7")
+            ? <>% planing days · {view.source}</>
+            : <>% of sailing hours (09–18) · {view.source} · modeled</>}
         </span>
       </div>
-      {!stats.source.startsWith("NP7") && (
+      {!(view.source ?? "").startsWith("NP7") && (
         <p className="text-[10px] text-[#b3a994] mt-1 leading-snug">Modeled estimate — coarse models can under-read wind-acceleration spots (Canaries, Tarifa…).</p>
       )}
     </div>

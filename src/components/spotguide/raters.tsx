@@ -9,14 +9,15 @@ import {
   SPOT_CRITERIA, CONDITIONS, windWindowHasValue, asWindWindow,
 } from "@/lib/spotguide";
 
-/** Clickable 0–5 stars. */
-function Stars({ value, onPick, accent = "#1f9e57" }: { value: number; onPick: (n: number) => void; accent?: string }) {
+/** Clickable 0–5 symbols (★ quality, $ price level). */
+function Stars({ value, onPick, accent = "#1f9e57", symbol = "★" }: { value: number; onPick: (n: number) => void; accent?: string; symbol?: "★" | "$" }) {
   const [hover, setHover] = useState(0);
   return (
     <span className="inline-flex items-center" onMouseLeave={() => setHover(0)}>
       {[1, 2, 3, 4, 5].map((n) => (
         <button key={n} type="button" onMouseEnter={() => setHover(n)} onClick={() => onPick(n === value ? 0 : n)}
-          className="text-[18px] leading-none px-0.5" style={{ color: n <= (hover || value) ? accent : "#dcd3c2" }} aria-label={`${n} star${n > 1 ? "s" : ""}`}>★</button>
+          className={`leading-none px-0.5 ${symbol === "$" ? "text-[15px] font-black" : "text-[18px]"}`} style={{ color: n <= (hover || value) ? accent : "#dcd3c2" }}
+          aria-label={symbol === "$" ? `Price level ${n} of 5` : `${n} star${n > 1 ? "s" : ""}`}>{symbol}</button>
       ))}
     </span>
   );
@@ -28,7 +29,8 @@ function StarRows({ criteria, value, onPick, accent }: { criteria: Criterion[]; 
       {criteria.map((c) => (
         <div key={c.key} className="flex items-center justify-between gap-2 py-0.5" title={c.hint}>
           <span className="text-[13px] font-semibold text-[#5a6b72]">{c.label}</span>
-          <Stars value={value[c.key] ?? 0} onPick={(n) => onPick(c.key, n)} accent={accent} />
+          {/* price = cost level → $ glyphs (5 $ = most expensive); the rest = stars */}
+          <Stars value={value[c.key] ?? 0} onPick={(n) => onPick(c.key, n)} accent={c.key === "price" ? "#1f9e57" : accent} symbol={c.key === "price" ? "$" : "★"} />
         </div>
       ))}
     </div>

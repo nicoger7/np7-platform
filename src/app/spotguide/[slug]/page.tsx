@@ -131,7 +131,7 @@ export default async function SpotguideDestinationPage({ params }: Props) {
                   {(() => {
                     const pts = d.spots.filter((s) => s.lat != null && s.lng != null)
                       .map((s) => ({ lat: s.lat as number, lng: s.lng as number, name: s.name, destSlug: d.slug ?? "", verification: s.verification }));
-                    return pts.length > 0 ? <div className="mb-5"><SpotMap spots={pts} height={340} /></div> : null;
+                    return pts.length > 0 ? <div className="mb-5"><SpotMap spots={pts} cluster height={340} /></div> : null;
                   })()}
                   <MeteredContent accent={chrome.accent}>
                     <SpotsList spots={d.spots} accent={chrome.accent} />

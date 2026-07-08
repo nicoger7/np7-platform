@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase";
-import { fetchWindStats } from "@/lib/wind-stats";
+import { fetchWindStatsWithAlt } from "@/lib/wind-stats";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
@@ -23,15 +23,18 @@ export async function GET(req: NextRequest) {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const db = createAdminClient() as any;
   const cutoff = new Date(Date.now() - 180 * 86400000).toISOString(); // refresh if older than ~6 months
-  const { data: candidates, error } = await db
+  // ?force=1 refreshes regardless of age (backfills after a data-shape change).
+  const force = new URL(req.url).searchParams.get("force") === "1";
+  let q = db
     .from("spots")
     .select("id, lat, lng, wind_stats_at, wind_stats, wind_profile")
-    .not("lat", "is", null)
-    .or(`wind_stats_at.is.null,wind_stats_at.lt.${cutoff}`)
-    .limit(25);
+    .not("lat", "is", null);
+  if (!force) q = q.or(`wind_stats_at.is.null,wind_stats_at.lt.${cutoff}`);
+  else q = q.or(`wind_stats_at.is.null,wind_stats->alt.is.null`); // force = top up spots missing the alt model
+  const { data: candidates, error } = await q.limit(25);
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
 
-  // Never overwrite a legacy hand-entered "NP7 · local knowledge" override.
+  // Never overwrite a hand-entered "NP7 · …" override.
   const spots = (candidates ?? [])
     .filter((s: { wind_stats: { source?: string } | null }) => !String(s.wind_stats?.source ?? "").startsWith("NP7"))
     .slice(0, 5);
@@ -39,8 +42,8 @@ export async function GET(req: NextRequest) {
   let updated = 0;
   for (const s of spots) {
     try {
-      // Respect each spot's profile so an "accelerated" spot keeps its offshore sampling.
-      const stats = await fetchWindStats(s.lat, s.lng, { accelerated: s.wind_profile === "accelerated" });
+      // Fetch BOTH model reads — the chart shows a switcher when they disagree.
+      const stats = await fetchWindStatsWithAlt(s.lat, s.lng);
       const now = new Date().toISOString();
       await db.from("spots").update({ wind_stats: stats, wind_stats_at: now }).eq("id", s.id);
       updated++;

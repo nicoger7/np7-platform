@@ -61,7 +61,13 @@ export const DESTINATION_CRITERIA: Criterion[] = [
   { key: "family", label: "Family-friendly", hint: "How well it works for families and non-sailing partners." },
   { key: "value", label: "Value for money", hint: "What you get for what you spend." },
   { key: "vibe", label: "Vibe", hint: "The overall feel of the place." },
+  // Cost LEVEL, not a quality score: shown as $ symbols (1 $ budget … 5 $
+  // premium) and excluded from the overall star average.
+  { key: "price", label: "Price level", hint: "1 $ = budget · 5 $ = premium." },
 ];
+
+/** Descriptive scales (not quality) — kept OUT of the overall star averages. */
+export const NON_QUALITY_KEYS = new Set<string>(["price"]);
 
 export const SPOT_CRITERIA_KEYS = SPOT_CRITERIA.map((c) => c.key);
 export const DESTINATION_CRITERIA_KEYS = DESTINATION_CRITERIA.map((c) => c.key);
@@ -207,7 +213,8 @@ export function summariseRatings(rows: { ratings: unknown }[], keys: string[]): 
   }
   const byCriterion: RatingMap = {};
   for (const k of keys) if (counts[k]) byCriterion[k] = round1(sums[k] / counts[k]);
-  const present = Object.values(byCriterion);
+  // Overall = quality criteria only ("price level" is a cost scale, not a score).
+  const present = Object.entries(byCriterion).filter(([k]) => !NON_QUALITY_KEYS.has(k)).map(([, v]) => v);
   const overall = present.length ? round1(present.reduce((a, b) => a + b, 0) / present.length) : 0;
   return { byCriterion, overall, count: raters };
 }
@@ -215,7 +222,7 @@ export function summariseRatings(rows: { ratings: unknown }[], keys: string[]): 
 /** Mean of an NP7 editorial rating map (the single authoritative value). */
 export function np7Overall(ratings: unknown, keys: string[]): number {
   const map = asRatingMap(ratings, keys);
-  const vals = Object.values(map);
+  const vals = Object.entries(map).filter(([k]) => !NON_QUALITY_KEYS.has(k)).map(([, v]) => v);
   return vals.length ? round1(vals.reduce((a, b) => a + b, 0) / vals.length) : 0;
 }
 

@@ -61,8 +61,9 @@ export function SuggestEdit({ spotId, current, accent = "#00afdb" }: { spotId: s
   if (!open) {
     return (
       <button type="button" onClick={() => (sg.loggedIn ? setOpen(true) : sg.needAuth())}
-        className="mt-2 text-[12.5px] font-semibold text-[#9aa6ac] hover:text-[#5a6b72] transition-colors">
-        Something off, or extra intel? <span style={{ color: accent }}>Add a correction →</span>
+        className="mt-2 inline-flex items-center gap-2 rounded-full border border-[#e2d8c6] bg-white px-4 py-2 text-[12.5px] font-bold text-[#5a6b72] hover:border-[#c9bda5] hover:text-[#00374a] transition-colors">
+        <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="M17 3a2.8 2.8 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5z" /></svg>
+        Something off? <span style={{ color: accent }}>Suggest a correction</span>
       </button>
     );
   }

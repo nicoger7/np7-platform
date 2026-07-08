@@ -46,12 +46,21 @@ export function RatingBreakdown({ criteria, np7Ratings, member }: { criteria: Cr
         const hasNp7 = np7 > 0;
         const val = hasNp7 ? np7 : mem;
         const color = hasNp7 ? "#f5a623" : "#1f9e57";
+        // Price level reads as $ glyphs (5 $ = most expensive), not a score.
+        const isPrice = c.key === "price";
         return (
           <div key={c.key} title={c.hint}>
             <div className="flex items-center justify-between mb-1">
               <span className="text-[13px] font-semibold text-[#5a6b72]">{c.label}</span>
               <span className="inline-flex items-baseline gap-1.5">
-                <span className="text-[14px] font-black tracking-tight" style={{ color }}>{val.toFixed(1)}</span>
+                {isPrice ? (
+                  <span className="text-[13px] font-black tracking-[0.06em]" aria-label={`Price level ${Math.round(val)} of 5`}>
+                    <span style={{ color }}>{"$".repeat(Math.max(1, Math.round(val)))}</span>
+                    <span className="text-[#dcd3c2]">{"$".repeat(5 - Math.max(1, Math.round(val)))}</span>
+                  </span>
+                ) : (
+                  <span className="text-[14px] font-black tracking-tight" style={{ color }}>{val.toFixed(1)}</span>
+                )}
                 <span className="text-[9.5px] font-bold uppercase tracking-[0.08em] text-[#b3a994]">{hasNp7 ? "NP7" : `${member.count} member${member.count === 1 ? "" : "s"}`}</span>
               </span>
             </div>

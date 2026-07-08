@@ -85,10 +85,15 @@ export function SpotsList({ spots, accent = "#00afdb" }: { spots: PublicSpot[]; 
                 )}
 
                 {spot.wind_stats && (
-                  <div className="rounded-xl bg-white border border-[#f0e9da] p-4">
-                    <div className="text-[11px] font-bold uppercase tracking-[0.1em] text-[#9aa6ac] mb-3">Wind statistics</div>
-                    <WindStatsChart stats={spot.wind_stats} />
-                  </div>
+                  <details open className="group/stats rounded-xl bg-white border border-[#f0e9da] [&_summary::-webkit-details-marker]:hidden">
+                    <summary className="flex items-center justify-between gap-3 p-4 cursor-pointer list-none select-none">
+                      <span className="text-[11px] font-bold uppercase tracking-[0.1em] text-[#9aa6ac]">Wind statistics</span>
+                      <svg className="w-4 h-4 text-[#c0ccd0] transition-transform group-open/stats:rotate-180" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M6 9l6 6 6-6" /></svg>
+                    </summary>
+                    <div className="px-4 pb-4">
+                      <WindStatsChart stats={spot.wind_stats} />
+                    </div>
+                  </details>
                 )}
 
                 <ForecastPanel np7Models={spot.np7_forecast_models} tally={spot.forecast} accent={accent} />

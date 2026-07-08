@@ -38,6 +38,9 @@ export type WindStats = {
   /** Smart readout the bar chart shows above itself. */
   summary: { windyMonths: number[]; warmestMonth: number | null; warmestTemp: number | null };
   fetchedAt: string;
+  /** Alternative model read (offshore/accelerated sampling). When present the
+      chart shows a model switcher so the rider can compare both. */
+  alt?: Omit<WindStats, "alt">;
 };
 
 type Hourly = { time: string[]; wind: (number | null)[]; temp: (number | null)[] };
@@ -159,4 +162,22 @@ export async function fetchWindStats(lat: number, lng: number, opts?: { accelera
     months: agg.months, summary: { windyMonths: agg.windyMonths, warmestMonth: agg.warmestMonth, warmestTemp: agg.warmestTemp },
     fetchedAt: new Date().toISOString(),
   };
+}
+
+/**
+ * Both model reads in one blob: the standard coastal-pin read as the main
+ * stats, plus the offshore/accelerated read as `alt` — but only when the two
+ * disagree enough to matter (≥5 pp mean planing). The chart shows a switcher
+ * whenever `alt` is present, so the rider can compare the coarse model with
+ * the accelerated flow a few km out.
+ */
+export async function fetchWindStatsWithAlt(lat: number, lng: number): Promise<WindStats> {
+  const [standard, offshore] = await Promise.all([
+    fetchWindStats(lat, lng),
+    fetchWindStats(lat, lng, { accelerated: true }).catch(() => null),
+  ]);
+  if (!offshore) return standard;
+  const meanPlaning = (s: WindStats) => s.months.reduce((a, m) => a + (m.pct["4"] ?? 0), 0) / 12;
+  if (Math.abs(meanPlaning(offshore) - meanPlaning(standard)) < 5) return standard;
+  return { ...standard, alt: offshore };
 }
