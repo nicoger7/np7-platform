@@ -20,9 +20,11 @@ import { cdnImage } from "@/lib/img";
 
 export type BlogWorld = "" | "experience" | "hardware" | "technique";
 
+// "Spotguide" jumps OUT of the magazine to the interactive product (the real
+// spotguide); the rest are in-magazine world filters.
 const TABS: { key: BlogWorld; label: string; href: string }[] = [
   { key: "", label: "All", href: "/blog" },
-  { key: "experience", label: "Spotguide", href: "/blog/spotguide" },
+  { key: "experience", label: "Spotguide", href: "/spotguide" },
   { key: "hardware", label: "Gear", href: "/blog/gear" },
   { key: "technique", label: "Technique", href: "/blog/technique" },
 ];

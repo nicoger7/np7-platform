@@ -14,7 +14,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   const entries: MetadataRoute.Sitemap = [
     { url: `${SITE}/`, lastModified: now, changeFrequency: "weekly", priority: 1 },
     { url: `${SITE}/blog`, lastModified: now, changeFrequency: "daily", priority: 0.9 },
-    { url: `${SITE}/blog/spotguide`, lastModified: now, changeFrequency: "weekly", priority: 0.7 },
+    // /blog/spotguide now 308s → /spotguide (the product); don't list the redirect.
     { url: `${SITE}/blog/gear`, lastModified: now, changeFrequency: "weekly", priority: 0.7 },
     { url: `${SITE}/blog/technique`, lastModified: now, changeFrequency: "weekly", priority: 0.7 },
     { url: `${SITE}/spotguide`, lastModified: now, changeFrequency: "weekly", priority: 0.9 },

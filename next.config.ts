@@ -31,6 +31,10 @@ const nextConfig: NextConfig = {
     return [
       { source: "/experience/blog", destination: "/blog", permanent: true },
       { source: "/experience/blog/:slug", destination: "/blog/:slug", permanent: true },
+      // The interactive Spotguide product IS the spotguide — the magazine's
+      // old spotguide-articles tab was a confusing duplicate. Send it (and any
+      // indexed links) to the real thing.
+      { source: "/blog/spotguide", destination: "/spotguide", permanent: true },
     ];
   },
 };
