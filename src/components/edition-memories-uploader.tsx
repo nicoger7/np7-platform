@@ -29,6 +29,14 @@ export function EditionMemoriesUploader({ editionId, initialVideoUrl }: { editio
   const [assigning, setAssigning] = useState(false);
   const fileInput = useRef<HTMLInputElement>(null);
 
+  // -- Trip videos (big files → presigned direct-to-R2 → jibe compresses) -----
+  type Vid = { stem: string; status: "ready" | "processing"; url: string | null; poster: string | null; size: number };
+  const [videos, setVideos] = useState<Vid[]>([]);
+  const [vidR2, setVidR2] = useState(true);
+  const [vidLoading, setVidLoading] = useState(true);
+  const [vidUp, setVidUp] = useState<{ name: string; pct: number; done: number; total: number } | null>(null);
+  const vidInput = useRef<HTMLInputElement>(null);
+
   // Selection is per-scope; drop it whenever you switch who you're viewing.
   useEffect(() => { setSelected(new Set()); }, [scope]);
   const toggleSelect = (path: string) =>
@@ -109,6 +117,62 @@ export function EditionMemoriesUploader({ editionId, initialVideoUrl }: { editio
     if (!confirm("Remove this photo from the gallery?")) return;
     await fetch("/api/admin/images", { method: "DELETE", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ paths: [path] }) });
     load(); refreshCounts();
+  }
+
+  // -- Videos: list for the current scope ------------------------------------
+  const loadVideos = useCallback(async () => {
+    setVidLoading(true);
+    const qs = new URLSearchParams({ editionId, ...(scope ? { bookingId: scope } : {}) });
+    try {
+      const d = await fetch(`/api/admin/videos?${qs}`).then((r) => r.json());
+      setVidR2(d.r2 !== false);
+      setVideos(Array.isArray(d.videos) ? d.videos : []);
+    } catch { setVideos([]); }
+    setVidLoading(false);
+  }, [editionId, scope]);
+  useEffect(() => { loadVideos(); }, [loadVideos]);
+
+  // PUT one file straight to R2 via a presigned URL, reporting % as it goes.
+  function putToR2(url: string, file: File, onPct: (p: number) => void) {
+    return new Promise<void>((resolve, reject) => {
+      const xhr = new XMLHttpRequest();
+      xhr.open("PUT", url);
+      xhr.setRequestHeader("Content-Type", file.type);
+      xhr.upload.onprogress = (e) => { if (e.lengthComputable) onPct(Math.round((e.loaded / e.total) * 100)); };
+      xhr.onload = () => (xhr.status >= 200 && xhr.status < 300 ? resolve() : reject(new Error(`Upload failed (${xhr.status})`)));
+      xhr.onerror = () => reject(new Error("Network error during upload"));
+      xhr.send(file);
+    });
+  }
+
+  async function uploadVideos(files: FileList | null) {
+    if (!files || files.length === 0) return;
+    const list = Array.from(files);
+    for (let i = 0; i < list.length; i++) {
+      const file = list[i];
+      setVidUp({ name: file.name, pct: 0, done: i, total: list.length });
+      try {
+        const pre = await fetch("/api/admin/videos", {
+          method: "POST", headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ editionId, bookingId: scope || undefined, filename: file.name, contentType: file.type }),
+        });
+        if (!pre.ok) { const j = await pre.json().catch(() => ({})); alert(j.error || "Could not start upload."); break; }
+        const { uploadUrl } = await pre.json();
+        await putToR2(uploadUrl, file, (pct) => setVidUp({ name: file.name, pct, done: i, total: list.length }));
+      } catch (e) { alert(e instanceof Error ? e.message : "Upload failed"); break; }
+    }
+    setVidUp(null);
+    if (vidInput.current) vidInput.current.value = "";
+    loadVideos();
+  }
+
+  async function removeVideo(s: string) {
+    if (!confirm("Remove this video? This deletes it for everyone.")) return;
+    await fetch("/api/admin/videos", {
+      method: "DELETE", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ stem: s, editionId, bookingId: scope || undefined }),
+    });
+    loadVideos();
   }
 
   async function saveVideo() {
@@ -203,6 +267,74 @@ export function EditionMemoriesUploader({ editionId, initialVideoUrl }: { editio
                 );
               })}
             </div>
+          </>
+        )}
+      </div>
+
+      {/* -- Trip videos: upload the big raw files; they compress automatically -- */}
+      <div className="rounded-xl p-4" style={{ border: "1px solid var(--admin-border)", backgroundColor: "var(--admin-surface)" }}>
+        <h3 className="text-sm font-bold admin-heading">Trip videos</h3>
+        <p className="text-xs admin-faint mt-0.5 mb-3">
+          Drop in the <span className="admin-muted">full-size clips straight off the camera</span> — they upload directly and get
+          <span className="admin-muted"> compressed automatically</span> (the giant original is deleted, only the web version is kept).
+          Same scope as photos: uploading to <span className="admin-muted">{scopeLabel}</span>.
+        </p>
+
+        {!vidR2 ? (
+          <p className="text-xs admin-faint">Video storage isn&apos;t switched on yet (R2 keys not set).</p>
+        ) : (
+          <>
+            <div className="flex items-center gap-3 mb-4">
+              <input ref={vidInput} type="file" accept="video/*" multiple onChange={(e) => uploadVideos(e.target.files)} className="hidden" id="memories-video" disabled={!!vidUp} />
+              <label htmlFor="memories-video" className={`px-4 py-2 rounded-lg text-xs font-bold cursor-pointer transition-colors ${vidUp ? "opacity-50 pointer-events-none" : ""} bg-[#0aa3c7] hover:bg-[#0aa3c7]/90 text-white`}>
+                {vidUp ? `Uploading ${vidUp.done + 1}/${vidUp.total}…` : `Upload videos for ${scopeLabel}`}
+              </label>
+              {vidUp && <span className="text-xs admin-muted truncate max-w-[180px]">{vidUp.name}</span>}
+            </div>
+
+            {vidUp && (
+              <div className="mb-4">
+                <div className="h-2 rounded-full overflow-hidden" style={{ backgroundColor: "var(--admin-input-bg)" }}>
+                  <div className="h-full bg-[#0aa3c7] transition-[width] duration-150" style={{ width: `${vidUp.pct}%` }} />
+                </div>
+                <p className="text-[11px] admin-faint mt-1">{vidUp.pct}% — big files can take a while; keep this tab open.</p>
+              </div>
+            )}
+
+            {vidLoading ? (
+              <p className="text-xs admin-faint">Loading…</p>
+            ) : videos.length === 0 ? (
+              <p className="text-xs admin-faint">No videos for {scopeLabel} yet.</p>
+            ) : (
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5">
+                {videos.map((v) => (
+                  <div key={v.stem} className="relative group aspect-video rounded-lg overflow-hidden"
+                    style={{ border: "1px solid var(--admin-border)", backgroundColor: "var(--admin-input-bg)" }}>
+                    {v.status === "ready" ? (
+                      <a href={v.url ?? "#"} target="_blank" rel="noreferrer" className="block w-full h-full">
+                        {v.poster ? (
+                          // eslint-disable-next-line @next/next/no-img-element
+                          <img src={v.poster} alt="" loading="lazy" className="w-full h-full object-cover" />
+                        ) : <div className="w-full h-full grid place-items-center admin-faint text-xs">Video</div>}
+                        <span className="absolute inset-0 grid place-items-center">
+                          <span className="w-9 h-9 rounded-full bg-black/55 backdrop-blur grid place-items-center">
+                            <svg className="w-4 h-4 text-white translate-x-[1px]" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z" /></svg>
+                          </span>
+                        </span>
+                      </a>
+                    ) : (
+                      <div className="w-full h-full grid place-items-center text-center px-2">
+                        <div>
+                          <svg className="w-5 h-5 mx-auto animate-spin text-[#0aa3c7]" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M21 12a9 9 0 1 1-6.2-8.6" strokeLinecap="round" /></svg>
+                          <p className="text-[11px] admin-faint mt-1">Compressing…</p>
+                        </div>
+                      </div>
+                    )}
+                    <button onClick={() => removeVideo(v.stem)} className="absolute top-1 right-1 w-6 h-6 rounded bg-black/60 text-white text-sm grid place-items-center opacity-0 group-hover:opacity-100 transition-opacity" title="Remove">×</button>
+                  </div>
+                ))}
+              </div>
+            )}
           </>
         )}
       </div>

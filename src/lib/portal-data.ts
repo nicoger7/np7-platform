@@ -623,7 +623,38 @@ export async function getTripGalleryGroupsForBooking(editionId: string, viewerBo
   return groups;
 }
 
-export type TripMemories = { bookingId: string; title: string; dateLabel: string | null; groups: GalleryGroup[]; total: number };
+export type TripVideo = { url: string; poster: string | null };
+
+/** Ready (compressed) trip videos a member can watch: their own personal clips
+    plus the week's shared ones. Raw uploads still being compressed are excluded
+    (they only exist under _vidraw/ until jibe's box finishes). */
+export async function getTripVideosForBooking(editionId: string, viewerBookingId: string): Promise<TripVideo[]> {
+  const { listUnderPrefix, cdnUrlFor, r2VideoEnabled } = await import("./r2-presign");
+  if (!r2VideoEnabled()) return [];
+  const prefixes = [`_video/${editionId}/p/${viewerBookingId}/`, `_video/${editionId}/`];
+  const seen = new Set<string>();
+  const out: TripVideo[] = [];
+  for (const pfx of prefixes) {
+    const objs = await listUnderPrefix(pfx).catch(() => []);
+    // The "Everyone" prefix recurses into /p/… — keep only this member's own subtree there.
+    const scoped = pfx.endsWith(`/p/${viewerBookingId}/`)
+      ? objs
+      : objs.filter((o) => !o.key.includes(`/${editionId}/p/`));
+    const posters = new Map(
+      scoped.filter((o) => /\.(jpe?g|png|webp)$/i.test(o.key)).map((o) => [o.key.replace(/\.[^.]+$/, ""), o.key] as const)
+    );
+    for (const o of scoped) {
+      if (!o.key.endsWith(".mp4")) continue;
+      const base = o.key.replace(/\.[^.]+$/, "");
+      if (seen.has(base)) continue;
+      seen.add(base);
+      out.push({ url: cdnUrlFor(o.key), poster: posters.get(base) ? cdnUrlFor(posters.get(base)!) : null });
+    }
+  }
+  return out;
+}
+
+export type TripMemories = { bookingId: string; title: string; dateLabel: string | null; groups: GalleryGroup[]; total: number; videos: TripVideo[] };
 
 /** Every trip the member has photos for, each split into the same groups — for the
     cross-trip "My memories" view on the home area (view-only, no download). */
@@ -632,13 +663,16 @@ export async function getAllMemberMemories(contactId: string): Promise<TripMemor
   const out = await Promise.all(
     bookings.map(async (b): Promise<TripMemories | null> => {
       if (!b.edition?.id) return null;
-      const groups = await getTripGalleryGroupsForBooking(b.edition.id, b.id).catch(() => [] as GalleryGroup[]);
+      const [groups, videos] = await Promise.all([
+        getTripGalleryGroupsForBooking(b.edition.id, b.id).catch(() => [] as GalleryGroup[]),
+        getTripVideosForBooking(b.edition.id, b.id).catch(() => [] as TripVideo[]),
+      ]);
       const total = groups.reduce((n, g) => n + g.photos.length, 0);
-      if (!total) return null;
+      if (!total && videos.length === 0) return null;
       const dl = b.edition.date_start
         ? new Date(b.edition.date_start).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" })
         : null;
-      return { bookingId: b.id, title: b.experience?.title ?? "Your trip", dateLabel: dl, groups, total };
+      return { bookingId: b.id, title: b.experience?.title ?? "Your trip", dateLabel: dl, groups, total, videos };
     })
   );
   return out.filter((x): x is TripMemories => x != null);
