@@ -17,6 +17,7 @@ export const DEFAULT_SUBJECTS: Record<string, string> = {
   voucher_gift: "🎁 You've been gifted an NP7 windsurf trip",
   cancellation_confirmed: "Your cancellation — {{experienceTitle}}",
   payment_pending_nudge: "Your spot is waiting — {{experienceTitle}}",
+  invoice_after_payment: "Payment received 🤙 your invoice for {{experienceTitle}}",
   downpayment_last_chance: "Last chance to hold your spot — {{experienceTitle}}",
   spot_released: "Your spot on {{experienceTitle}} is no longer held",
   balance_invoice_reminder: "Balance for {{experienceTitle}} — invoice",
@@ -34,7 +35,7 @@ export const DEFAULT_BODIES: Record<string, string> = {
   reservation_received:
     P("Hey {{firstName}} 🤙") +
     P("You're registered for <strong>{{experienceTitle}}</strong> — awesome to have you. Here's how it works from here:") +
-    P("<strong>1. Secure your spot.</strong> Your place is held once you pay the refundable downpayment in your account — 14 days to change your mind, plenty of time to sort flights.") +
+    P("<strong>1. Secure your spot.</strong> Attached are your payment details (pro-forma invoice) — pay the downpayment by bank transfer within the window shown and your place is locked in. Fully refundable for 14 days after you pay.") +
     P("<strong>2. Plan it with us.</strong> Manage your booking, add extra nights and meet your crew in your trip account.") +
     P("<strong>3. Pay the balance later</strong> by bank transfer, in good time before the trip.") +
     BTN("Secure my spot", "bookingLink") +
@@ -67,6 +68,13 @@ export const DEFAULT_BODIES: Record<string, string> = {
     P("Your place on <strong>{{experienceTitle}}</strong> is still open — but it isn't secured yet. Spots are limited, so lock yours in with the down-payment whenever you're ready. You'll find the amount and how to pay in your account:") +
     BTN("Secure my spot", "bookingLink") +
     P("It stays fully refundable for 14 days. Questions? Just reply — we're happy to help."),
+
+  invoice_after_payment:
+    P("Hey {{firstName}} 🤙") +
+    P("Great news — your payment of <strong>{{amount}}</strong> for <strong>{{experienceTitle}}</strong> has arrived. Your spot is secured! 🎉") +
+    P("Attached is your official invoice (<strong>{{reference}}</strong>) for your records — it replaces the pro-forma payment request.") +
+    BTN("View my booking", "bookingLink") +
+    P("Next up: plan your trip in your account — flights, extra nights, your crew. See you on the water!" + SIGN),
 
   downpayment_last_chance:
     P("Hey {{firstName}} 🤙") +

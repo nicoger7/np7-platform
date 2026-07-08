@@ -1,7 +1,8 @@
 import { createClient } from "@/lib/supabase/server";
 import { createClient as createServiceClient } from "@supabase/supabase-js";
-import { NextRequest } from "next/server";
+import { NextRequest, after } from "next/server";
 import { isActiveTeamMember } from "@/lib/admin-auth";
+import { promoteProformaIfPaid } from "@/lib/invoices/promote";
 
 function getServiceClient() {
   return createServiceClient(
@@ -74,5 +75,13 @@ export async function POST(
   }
 
   if (error) return Response.json({ error: error.message }, { status: 500 });
+
+  // Money landed → if it covers the pro-forma, the real tax invoice is issued,
+  // allocations move over, the pro-forma is voided and the customer gets the
+  // invoice by email. Background + best-effort: recording never blocks on it.
+  after(() => promoteProformaIfPaid(id).catch((e) =>
+    console.error("proforma promotion failed", e instanceof Error ? e.message : e)
+  ));
+
   return Response.json({ payment: data });
 }

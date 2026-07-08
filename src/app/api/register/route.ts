@@ -1,10 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
+import { after } from "next/server";
 import { checkBotId } from "botid/server";
 import { createAdminClient } from "@/lib/supabase";
 import { sendEmail } from "@/lib/email/send";
 import { getPortalUser } from "@/lib/auth";
 import { composeBookingName } from "@/lib/booking-name";
 import { attachBookingToInvite } from "@/lib/invites";
+import { generateDocument } from "@/lib/invoices/generate";
 
 /**
  * Free, low-friction registration (the redesigned funnel).
@@ -131,15 +133,33 @@ export async function POST(request: NextRequest) {
   }
 
   const origin = request.headers.get("origin") ?? `https://${request.headers.get("host")}`;
-  await sendEmail({
-    to: email,
-    templateKey: "reservation_received",
-    vars: { firstName, experienceTitle: exp.title, editionLabel: edition?.label ?? undefined, bookingLink: `${origin}/account` },
-    bookingId: booking.id,
-    contactId,
-    experienceId: exp.id,
-    dedupeKey: `registration_welcome:${booking.id}`,
-  }).catch(() => {});
+
+  // Welcome email + PRO-FORMA payment request in ONE send, generated in the
+  // background so registration stays instant. The pro-forma gives the rider
+  // bank details + the pay-by date the moment the clock starts — the real tax
+  // invoice is only issued once money arrives (promoteProformaIfPaid), so
+  // unpaid registrations never need a Storno. If PDF generation fails for any
+  // reason, the welcome email still goes out (registration must never break).
+  after(async () => {
+    let attachments: { filename: string; content: Buffer }[] | undefined;
+    try {
+      const doc = await generateDocument({ bookingId: booking.id, type: "proforma_invoice" });
+      const pdf = (doc as { pdf?: Buffer }).pdf;
+      if (pdf) attachments = [{ filename: `${doc.invoice_number || "payment-details"}.pdf`, content: pdf }];
+    } catch (e) {
+      console.error("proforma generation failed (welcome email sent without it)", e instanceof Error ? e.message : e);
+    }
+    await sendEmail({
+      to: email,
+      templateKey: "reservation_received",
+      vars: { firstName, experienceTitle: exp.title, editionLabel: edition?.label ?? undefined, bookingLink: `${origin}/account` },
+      bookingId: booking.id,
+      contactId,
+      experienceId: exp.id,
+      attachments,
+      dedupeKey: `registration_welcome:${booking.id}`,
+    }).catch(() => {});
+  });
 
   return NextResponse.json({ ok: true, bookingId: booking.id });
 }

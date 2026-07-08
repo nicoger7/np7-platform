@@ -6,6 +6,7 @@ export type Division = "experience" | "hardware";
 export type VatMode = "margin" | "standard";
 
 export const DOCUMENT_TYPES = [
+  "proforma_invoice",
   "deposit_invoice",
   "downpayment_invoice",
   "final_invoice",
@@ -16,10 +17,14 @@ export const DOCUMENT_TYPES = [
 ] as const;
 export type DocumentType = (typeof DOCUMENT_TYPES)[number];
 
-/** The invoice/document types the generator can produce from a booking. */
+/** The invoice/document types the generator can produce from a booking.
+    proforma_invoice = a PAYMENT REQUEST for the securing payment (deposit if
+    set, else the downpayment): its own PF- reference for the bank transfer,
+    no tax-invoice number burned. The real invoice is issued when money lands
+    (promoteProformaIfPaid) — so unpaid registrations never need a Storno. */
 export type GeneratableType = Extract<
   DocumentType,
-  "deposit_invoice" | "downpayment_invoice" | "final_invoice" | "booking_confirmation"
+  "proforma_invoice" | "deposit_invoice" | "downpayment_invoice" | "final_invoice" | "booking_confirmation"
 >;
 
 /** Per-division legal/company profile (company_settings row). */

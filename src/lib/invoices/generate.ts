@@ -22,6 +22,8 @@ import {
 } from "./types";
 import {
   milestoneAmount,
+  addDays,
+  PAYMENT_DEFAULTS,
   type PackagePaymentConfig,
   type BookingPaymentState,
 } from "@/lib/payments";
@@ -97,6 +99,7 @@ type ResolvedBooking = {
   downpayment_received: boolean;
   final_payment_received: boolean;
   notes: string | null;
+  created_at: string | null;
   // joined
   contacts: {
     name: string | null;
@@ -129,7 +132,7 @@ async function resolveBooking(bookingId: string): Promise<ResolvedBooking> {
     .from("exp_bookings")
     .select(
       `id, contact_id, experience_id, edition_id, package_id,
-       agreed_price, downpayment_received, final_payment_received, notes,
+       agreed_price, downpayment_received, final_payment_received, notes, created_at,
        contacts(name, email, billing_address, billing_postal_code, billing_city, billing_country),
        exp_experiences(title, slug),
        exp_editions(label, year, date_start, date_end, deposit),
@@ -214,7 +217,28 @@ export async function generateDocument(input: GenerateInput): Promise<DocumentRo
 
   const currency = company.currency || "EUR";
   const isInvoice = type !== "booking_confirmation";
+  const isProforma = type === "proforma_invoice";
   const year = new Date().getFullYear();
+
+  // Pro-forma = payment request for the SECURING payment (deposit if set, else
+  // downpayment), due X days after sign-up. Idempotent: a live pro-forma for
+  // this booking is returned as-is (double-clicks / repeat registrations).
+  const securingAmt = depositAmt > 0 ? depositAmt : downpaymentAmt;
+  const proformaDue = booking.created_at
+    ? addDays(booking.created_at, cfg.deposit_refund_days ?? PAYMENT_DEFAULTS.depositRefundDays)
+    : null;
+  if (isProforma) {
+    if (securingAmt <= 0) throw new Error("Nothing to request — this booking has no securing payment stage.");
+    const admin0 = getDb();
+    const { data: existing } = await admin0
+      .from("documents")
+      .select("*")
+      .eq("booking_id", bookingId)
+      .eq("type", "proforma_invoice")
+      .eq("status", "issued")
+      .maybeSingle();
+    if (existing) return existing as DocumentRow;
+  }
 
   // Don't issue an invoice for a stage that doesn't exist in this plan
   // (e.g. a deposit invoice when the package has deposit = 0 → 2-stage plan).
@@ -228,9 +252,13 @@ export async function generateDocument(input: GenerateInput): Promise<DocumentRo
     throw new Error("This booking has no outstanding final balance — nothing to invoice.");
   }
 
-  // 2. Allocate invoice number (only for invoice types)
+  // 2. Allocate invoice number. Pro-formas do NOT burn the gapless tax-invoice
+  // counter — they get a deterministic PF reference (unique per booking) the
+  // rider quotes on the transfer, which reconciliation matches like any other.
   let invoiceNumber: string | null = null;
-  if (isInvoice) {
+  if (isProforma) {
+    invoiceNumber = `PF-${company.invoice_prefix || "INV"}-${year}-${bookingId.replace(/-/g, "").slice(0, 6).toUpperCase()}`;
+  } else if (isInvoice) {
     const seq = await allocateInvoiceNumber(division, year);
     invoiceNumber = formatInvoiceNumber(company.invoice_prefix, year, seq);
   }
@@ -275,6 +303,7 @@ export async function generateDocument(input: GenerateInput): Promise<DocumentRo
           dateEnd: ed.date_end,
         }
       : null,
+    dueDate: isProforma ? proformaDue : null,
   };
 
   // 4. Render PDF
@@ -301,7 +330,8 @@ export async function generateDocument(input: GenerateInput): Promise<DocumentRo
 
   // 6. Determine amount for the documents row
   let amount: number | null = null;
-  if (type === "deposit_invoice") amount = depositAmt;
+  if (type === "proforma_invoice") amount = securingAmt;
+  else if (type === "deposit_invoice") amount = depositAmt;
   else if (type === "downpayment_invoice") amount = downpaymentAmt;
   else if (type === "final_invoice") amount = finalAmt;
 
@@ -314,7 +344,9 @@ export async function generateDocument(input: GenerateInput): Promise<DocumentRo
     invoice_number: invoiceNumber,
     title: isInvoice
       ? `${
-          type === "deposit_invoice"
+          type === "proforma_invoice"
+            ? "Pro-forma Invoice (Payment Request)"
+            : type === "deposit_invoice"
             ? "Deposit Invoice"
             : type === "downpayment_invoice"
             ? "Down-Payment Invoice"
@@ -326,11 +358,15 @@ export async function generateDocument(input: GenerateInput): Promise<DocumentRo
     currency,
     status: "issued",
     issued_at: new Date().toISOString(),
+    // The pro-forma's deadline drives recon's "what's due next" + the promote
+    // step knows which milestone it stands in for.
+    ...(isProforma ? { due_date: proformaDue } : {}),
     meta: {
       booking_id: bookingId,
       experience_title: exp.title,
       edition_label: ed?.label ?? null,
       package_name: pkg?.name ?? null,
+      ...(isProforma ? { milestone: depositAmt > 0 ? "deposit" : "downpayment" } : {}),
     },
   };
 
@@ -347,7 +383,9 @@ export async function generateDocument(input: GenerateInput): Promise<DocumentRo
     throw new Error(`Failed to insert document row: ${insertError.message}`);
   }
 
-  return inserted as DocumentRow;
+  // Callers that email the document right away get the buffer for free
+  // (saves a signed-URL download round-trip).
+  return Object.assign(inserted as DocumentRow, { pdf: pdfBuffer });
 }
 
 // ─── Import type shim ─────────────────────────────────────────────────────────

@@ -75,11 +75,11 @@ export async function POST(
 
   if (
     !type ||
-    !["deposit_invoice", "downpayment_invoice", "final_invoice", "booking_confirmation"].includes(type)
+    !["proforma_invoice", "deposit_invoice", "downpayment_invoice", "final_invoice", "booking_confirmation"].includes(type)
   ) {
     return NextResponse.json(
       {
-        error: `Invalid type. Must be one of: deposit_invoice, downpayment_invoice, final_invoice, booking_confirmation. Got: "${type ?? ""}"`,
+        error: `Invalid type. Must be one of: proforma_invoice, deposit_invoice, downpayment_invoice, final_invoice, booking_confirmation. Got: "${type ?? ""}"`,
       },
       { status: 400 }
     );

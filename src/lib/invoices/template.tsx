@@ -128,6 +128,8 @@ export type InvoiceData = {
     dateStart: string | null;
     dateEnd: string | null;
   } | null;
+  /** Pro-forma only: the pay-by date (sign-up + the package's payment window). */
+  dueDate?: string | null;
 };
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
@@ -204,6 +206,8 @@ function DocInfoBlock({ data }: { data: InvoiceData }) {
   const isConfirmation = type === "booking_confirmation";
   const docTitle = isConfirmation
     ? "Booking Confirmation"
+    : type === "proforma_invoice"
+    ? "Pro-forma Invoice"
     : type === "deposit_invoice"
     ? "Deposit Invoice"
     : type === "downpayment_invoice"
@@ -213,11 +217,17 @@ function DocInfoBlock({ data }: { data: InvoiceData }) {
   return (
     <View style={s.docInfoBlock}>
       <Text style={s.docTitle}>{docTitle}</Text>
+      {type === "proforma_invoice" && (
+        <Text style={s.smallText}>Payment request — not a tax invoice</Text>
+      )}
       {!isConfirmation && invoiceNumber && (
         <Text style={s.docNumber}>No. {invoiceNumber}</Text>
       )}
       <View style={{ marginTop: 8 }}>
         <Text style={s.smallText}>Date: {fmtDate(invoiceDate)}</Text>
+        {type === "proforma_invoice" && data.dueDate && (
+          <Text style={[s.smallText, { fontFamily: "Helvetica-Bold" }]}>Payment due by: {fmtDate(data.dueDate)}</Text>
+        )}
         {!isConfirmation && (
           <Text style={s.smallText}>
             Service period: {servicePeriod(edition)}
@@ -311,6 +321,56 @@ function PageFooter({ company, invoiceNumber }: { company: CompanySettings; invo
 }
 
 // ─── Line-item tables ────────────────────────────────────────────────────────
+
+/** Pro-forma = payment request for the SECURING payment (deposit if configured,
+    else the downpayment). Deliberately shows a single gross amount and no VAT
+    breakdown — it is not a tax document; the real invoice follows on payment. */
+function ProformaLines({ data }: { data: InvoiceData }) {
+  const { booking, company, experience, edition } = data;
+  const currency = booking.currency || company.currency;
+  const securing = booking.deposit > 0 ? booking.deposit : booking.downpayment;
+  const securingLabel = booking.deposit > 0 ? "Deposit" : "Down-Payment";
+  const description = [experience.title, edition?.label].filter(Boolean).join(" · ");
+  const packageDesc = booking.packageName ? `Package: ${booking.packageName}` : "";
+  const remaining = booking.agreedPrice - securing;
+
+  return (
+    <View>
+      <View style={s.tableHeader}>
+        <Text style={[s.colHeader, s.col_desc]}>Description</Text>
+        <Text style={[s.colHeader, s.col_period]}>Service period</Text>
+        <Text style={[s.colHeader, s.col_amount]}>Amount</Text>
+      </View>
+
+      <View style={s.tableRow}>
+        <View style={s.col_desc}>
+          <Text style={{ fontFamily: "Helvetica-Bold" }}>{description} – {securingLabel} (secures your spot)</Text>
+          {packageDesc ? <Text style={s.smallText}>{packageDesc}</Text> : null}
+        </View>
+        <Text style={s.col_period}>{servicePeriod(edition)}</Text>
+        <Text style={s.col_amount}>{formatMoney(securing, currency)}</Text>
+      </View>
+
+      <View style={s.divider} />
+
+      <View style={s.totalsBox}>
+        <View style={s.grandTotalRow}>
+          <Text style={s.grandLabel}>Amount due:</Text>
+          <Text style={s.grandValue}>{formatMoney(securing, currency)}</Text>
+        </View>
+      </View>
+
+      <View style={[s.noteBox, { marginTop: 16 }]}>
+        <Text>
+          This pro-forma invoice is a payment request, not a tax invoice — your official
+          invoice follows automatically once your payment has arrived.
+          {data.dueDate ? ` Please pay by ${fmtDate(data.dueDate)}, quoting the reference above — after that date we can no longer hold your spot.` : " Please quote the reference above with your transfer."}
+          {" "}The remaining balance of {formatMoney(remaining, currency)} is invoiced separately later.
+        </Text>
+      </View>
+    </View>
+  );
+}
 
 function DepositInvoiceLines({ data }: { data: InvoiceData }) {
   const { booking, company, experience, edition } = data;
@@ -640,13 +700,14 @@ export function buildInvoiceDocument(data: InvoiceData): React.ReactElement {
         {!isConfirmation && <BuyerBlock contact={data.contact} />}
 
         {/* Content */}
+        {type === "proforma_invoice" && <ProformaLines data={data} />}
         {type === "deposit_invoice" && <DepositInvoiceLines data={data} />}
         {type === "downpayment_invoice" && <DownpaymentInvoiceLines data={data} />}
         {type === "final_invoice" && <FinalInvoiceLines data={data} />}
         {isConfirmation && <BookingConfirmation data={data} />}
 
-        {/* VAT note for invoices */}
-        {!isConfirmation && (
+        {/* VAT note for TAX invoices only (a pro-forma isn't one) */}
+        {!isConfirmation && type !== "proforma_invoice" && (
           <VatNote vatMode={company.vat_mode} vatRate={company.vat_rate} />
         )}
 

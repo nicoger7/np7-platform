@@ -1054,7 +1054,7 @@ export function BookingDetailPane({ bookingId, onBack }: { bookingId: string; on
           {/* Generate buttons */}
           <div className="flex items-center gap-3 mb-4 flex-wrap">
             <span className="text-xs admin-faint">Generate:</span>
-            {(["deposit_invoice", "downpayment_invoice", "final_invoice", "booking_confirmation"] as const).map((type) => (
+            {(["proforma_invoice", "deposit_invoice", "downpayment_invoice", "final_invoice", "booking_confirmation"] as const).map((type) => (
               <button
                 key={type}
                 onClick={() => generateDocument(type)}
@@ -1063,6 +1063,8 @@ export function BookingDetailPane({ bookingId, onBack }: { bookingId: string; on
               >
                 {generating === type
                   ? "Generating..."
+                  : type === "proforma_invoice"
+                  ? "Pro-forma (payment request)"
                   : type === "deposit_invoice"
                   ? "Deposit Invoice"
                   : type === "downpayment_invoice"

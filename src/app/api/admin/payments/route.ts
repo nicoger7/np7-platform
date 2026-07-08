@@ -1,5 +1,6 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest, NextResponse, after } from "next/server";
 import { createAdminClient } from "@/lib/supabase";
+import { promoteProformaIfPaid } from "@/lib/invoices/promote";
 
 // GET /api/admin/payments — list payments with related data
 export async function GET(request: NextRequest) {
@@ -46,6 +47,14 @@ export async function POST(request: NextRequest) {
 
   if (error) {
     return NextResponse.json({ error: error.message }, { status: 400 });
+  }
+
+  // Pro-forma → real invoice once the securing payment is covered (see promote.ts).
+  const bookingId = (data as { booking_id?: string | null })?.booking_id;
+  if (bookingId) {
+    after(() => promoteProformaIfPaid(bookingId).catch((e) =>
+      console.error("proforma promotion failed", e instanceof Error ? e.message : e)
+    ));
   }
 
   return NextResponse.json(data, { status: 201 });
