@@ -110,6 +110,9 @@ export default function PackagesPage() {
   const [filterExperienceId, setFilterExperienceId] = useState("");
   const [filterEditionId, setFilterEditionId] = useState("");
   const [search, setSearch] = useState("");
+  const [filterYear, setFilterYear] = useState<number | null>(null);
+  const [dupOpen, setDupOpen] = useState<string | null>(null);   // group key with the target-picker open
+  const [dupBusy, setDupBusy] = useState(false);
   const [sortKey, setSortKey] = useState<string | null>(null);
   const [sortDir, setSortDir] = useState<"asc" | "desc" | null>(null);
   const [showNew, setShowNew] = useState(false);
@@ -135,17 +138,24 @@ export default function PackagesPage() {
   useEffect(() => { load(); }, [load]);
 
   // Cascading: edition options narrow to the selected experience
-  const editionOptions = filterExperienceId
+  const editionOptions = (filterExperienceId
     ? editions.filter((e) => e.experience_id === filterExperienceId)
-    : editions;
+    : editions
+  ).filter((e) => filterYear == null || e.year === filterYear);
+
+  const editionMap = new Map(editions.map((e) => [e.id, e]));
+  const expCodeById = new Map(experiences.map((e) => [e.id, e.code]));
 
   const q = search.trim().toLowerCase();
+  const yearOf = (p: Package) => (p.edition_id ? editionMap.get(p.edition_id)?.year ?? null : null);
   const filtered = packages.filter((p) => {
     if (q && !p.name.toLowerCase().includes(q)) return false;
+    if (filterYear != null && p.edition_id && yearOf(p) !== filterYear) return false; // shared (no edition) spans all years
     if (filterEditionId) return p.edition_id === filterEditionId;
     if (filterExperienceId) return p.experience_id === filterExperienceId;
     return true;
   });
+  const years = [...new Set(editions.map((e) => e.year).filter((y): y is number => y != null))].sort();
 
   // Column sorting (within each edition group); null/undefined always sink.
   const SORT_GET: Record<string, (p: Package) => string | number | null | undefined> = {
@@ -179,8 +189,6 @@ export default function PackagesPage() {
     else { setSortKey(null); setSortDir(null); }
   }
 
-  const editionMap = new Map(editions.map((e) => [e.id, e]));
-  const expCodeById = new Map(experiences.map((e) => [e.id, e.code]));
 
   // Group by edition; packages WITHOUT an edition are the experience's SHARED
   // set (they apply to every week on the website). Order: live editions by
@@ -408,6 +416,14 @@ export default function PackagesPage() {
             />
           ))}
         </div>
+        {years.length > 1 && (
+          <div className="flex flex-wrap items-center gap-1.5">
+            <FilterPill small label="All years" active={filterYear == null} onClick={() => { setFilterYear(null); setFilterEditionId(""); }} />
+            {years.map((y) => (
+              <FilterPill key={y} small label={String(y)} active={filterYear === y} onClick={() => { setFilterYear(y); setFilterEditionId(""); }} />
+            ))}
+          </div>
+        )}
         <div className="flex flex-wrap items-center gap-1.5">
           {filterExperienceId && editionOptions.length > 1 && (
             <>
@@ -448,9 +464,56 @@ export default function PackagesPage() {
                   )}
                 </h2>
                 {group.editionId && (
-                  <Link href={`/admin/editions/${group.editionId}`} className="text-xs text-[#0aa3c7] hover:text-[#0aa3c7]/80 transition-colors">
-                    View edition →
-                  </Link>
+                  <div className="flex items-center gap-4">
+                    {(() => {
+                      const expId = group.pkgs[0]?.experience_id;
+                      const targets = editions.filter((e) => e.experience_id === expId && e.id !== group.editionId);
+                      if (!targets.length) return null;
+                      return (
+                        <span className="relative">
+                          <button
+                            type="button"
+                            onClick={() => setDupOpen(dupOpen === group.key ? null : group.key)}
+                            className="text-xs admin-muted hover:text-[#0aa3c7] transition-colors font-semibold"
+                          >
+                            Duplicate set →
+                          </button>
+                          {dupOpen === group.key && (
+                            <span className="absolute right-0 top-full mt-1.5 z-30 min-w-[240px] rounded-xl p-1.5 shadow-xl" style={{ backgroundColor: "var(--admin-surface)", border: "1px solid var(--admin-border)" }}>
+                              <span className="block px-2.5 py-1.5 text-[10px] font-bold uppercase tracking-[0.1em] admin-faint">Copy {group.pkgs.length} package{group.pkgs.length === 1 ? "" : "s"} to…</span>
+                              {targets.map((t) => (
+                                <button
+                                  key={t.id}
+                                  type="button"
+                                  disabled={dupBusy}
+                                  onClick={async () => {
+                                    if (!confirm(`Copy ${group.pkgs.length} package${group.pkgs.length === 1 ? "" : "s"} to "${editionLabel(t)}"?\n\nCopies arrive DEACTIVATED — review prices (and the PO codes in the names) before setting them active.`)) return;
+                                    setDupBusy(true);
+                                    for (const pkg of group.pkgs) {
+                                      await fetch(`/api/admin/packages/${pkg.id}/duplicate`, {
+                                        method: "POST",
+                                        headers: { "Content-Type": "application/json" },
+                                        body: JSON.stringify({ editionId: t.id }),
+                                      });
+                                    }
+                                    setDupBusy(false);
+                                    setDupOpen(null);
+                                    load();
+                                  }}
+                                  className="block w-full text-left px-2.5 py-2 rounded-lg text-xs font-semibold admin-heading hover:bg-[var(--admin-accent)]/10 disabled:opacity-50 transition-colors"
+                                >
+                                  {editionLabel(t)}
+                                </button>
+                              ))}
+                            </span>
+                          )}
+                        </span>
+                      );
+                    })()}
+                    <Link href={`/admin/editions/${group.editionId}`} className="text-xs text-[#0aa3c7] hover:text-[#0aa3c7]/80 transition-colors">
+                      View edition →
+                    </Link>
+                  </div>
                 )}
               </div>
               <div className="rounded-xl admin-tablecard" style={{ border: "1px solid var(--admin-border)" }}>
