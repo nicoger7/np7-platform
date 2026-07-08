@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import Link from "next/link";
 import { PackageComponentsEditor } from "@/components/package-components-editor";
 import { PublicBadge } from "@/components/admin/public-badge";
@@ -111,6 +111,7 @@ export default function PackagesPage() {
   const [filterEditionId, setFilterEditionId] = useState("");
   const [search, setSearch] = useState("");
   const [filterYear, setFilterYear] = useState<number | null>(null);
+  const yearDefaulted = useRef(false);
   const [dupOpen, setDupOpen] = useState<string | null>(null);   // group key with the target-picker open
   const [dupBusy, setDupBusy] = useState(false);
   const [sortKey, setSortKey] = useState<string | null>(null);
@@ -136,6 +137,18 @@ export default function PackagesPage() {
   }, []);
 
   useEffect(() => { load(); }, [load]);
+
+  // Open on the working year (current calendar year if editions exist for it,
+  // else the most recent year) — so the overview lands on live packages, not
+  // "All years" with future drafts. Only auto-set once; respects later clicks.
+  useEffect(() => {
+    if (yearDefaulted.current || editions.length === 0) return;
+    const ys = [...new Set(editions.map((e) => e.year).filter((y): y is number => y != null))];
+    if (ys.length === 0) return;
+    const now = new Date().getFullYear();
+    setFilterYear(ys.includes(now) ? now : Math.max(...ys));
+    yearDefaulted.current = true;
+  }, [editions]);
 
   // Cascading: edition options narrow to the selected experience
   const editionOptions = (filterExperienceId
