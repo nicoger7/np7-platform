@@ -88,6 +88,17 @@ function includesToText(raw: unknown): string {
     .join("\n");
 }
 
+/** Split a package name into its parts — same convention the public site
+    parses: "BON002 - Advanced – SOROBON Garden View Studio"
+    → code "BON002", level "Advanced", room "SOROBON Garden View Studio". */
+function parsePkgName(name: string): { code: string | null; level: string; room: string | null } {
+  const m = name.match(/^([A-Z]{2,6}\d{0,4})\s*-\s*(.+)$/);
+  const code = m ? m[1] : null;
+  const rest = (m ? m[2] : name).trim();
+  const segs = rest.split(/\s+[\u2013-]\s+/).map((x) => x.trim()).filter(Boolean);
+  return { code, level: segs[0] || rest || "\u2014", room: segs.slice(1).join(" \u2013 ") || null };
+}
+
 export default function PackagesPage() {
   const [packages, setPackages] = useState<Package[]>([]);
   const [editions, setEditions] = useState<Edition[]>([]);
@@ -96,6 +107,9 @@ export default function PackagesPage() {
   const [loading, setLoading] = useState(true);
   const [filterExperienceId, setFilterExperienceId] = useState("");
   const [filterEditionId, setFilterEditionId] = useState("");
+  const [search, setSearch] = useState("");
+  const [sortKey, setSortKey] = useState<string | null>(null);
+  const [sortDir, setSortDir] = useState<"asc" | "desc" | null>(null);
   const [showNew, setShowNew] = useState(false);
   const [editId, setEditId] = useState<string | null>(null);
   const [form, setForm] = useState(emptyForm);
@@ -123,11 +137,37 @@ export default function PackagesPage() {
     ? editions.filter((e) => e.experience_id === filterExperienceId)
     : editions;
 
+  const q = search.trim().toLowerCase();
   const filtered = packages.filter((p) => {
+    if (q && !p.name.toLowerCase().includes(q)) return false;
     if (filterEditionId) return p.edition_id === filterEditionId;
     if (filterExperienceId) return p.experience_id === filterExperienceId;
     return true;
   });
+
+  // Column sorting (within each edition group); null/undefined always sink.
+  const SORT_GET: Record<string, (p: Package) => string | number | null | undefined> = {
+    name: (p) => p.name?.toLowerCase(), category: (p) => p.category || "",
+    sell: (p) => p.price, cost: (p) => p.cost_estimate, margin: (p) => p.margin,
+    comps: (p) => p.component_count, deposit: (p) => p.deposit, status: (p) => p.status,
+  };
+  function sortPkgs(list: Package[]): Package[] {
+    if (!sortKey || !sortDir) return list;
+    const get = SORT_GET[sortKey];
+    return [...list].sort((a, b) => {
+      const av = get(a), bv = get(b);
+      if (av == null && bv == null) return 0;
+      if (av == null) return 1;
+      if (bv == null) return -1;
+      const c = typeof av === "number" && typeof bv === "number" ? av - bv : String(av).localeCompare(String(bv));
+      return sortDir === "asc" ? c : -c;
+    });
+  }
+  function toggleSort(key: string) {
+    if (sortKey !== key) { setSortKey(key); setSortDir("asc"); }
+    else if (sortDir === "asc") setSortDir("desc");
+    else { setSortKey(null); setSortDir(null); }
+  }
 
   const editionMap = new Map(editions.map((e) => [e.id, e]));
   const expCodeById = new Map(experiences.map((e) => [e.id, e.code]));
@@ -331,33 +371,38 @@ export default function PackagesPage() {
       </div>
       ) : (
       <>
-      {/* Cascading filters: experience → edition */}
-      <div className="flex items-center gap-3 mb-5">
-        <select
-          className={`${inputClass} max-w-[240px]`}
-          value={filterExperienceId}
-          onChange={(e) => { setFilterExperienceId(e.target.value); setFilterEditionId(""); }}
-        >
-          <option value="">All Experiences</option>
+      {/* Filters: experience pills → edition pills, plus search */}
+      <div className="mb-5 space-y-2.5">
+        <div className="flex flex-wrap items-center gap-1.5">
+          <FilterPill label="All experiences" active={!filterExperienceId} onClick={() => { setFilterExperienceId(""); setFilterEditionId(""); }} />
           {experiences.map((exp) => (
-            <option key={exp.id} value={exp.id}>{exp.title}</option>
+            <FilterPill
+              key={exp.id}
+              label={exp.title.replace(/^NP7\s+(Experience\s+)?/i, "")}
+              active={filterExperienceId === exp.id}
+              onClick={() => { setFilterExperienceId(exp.id); setFilterEditionId(""); }}
+            />
           ))}
-        </select>
-        <select
-          className={`${inputClass} max-w-[220px]`}
-          value={filterEditionId}
-          onChange={(e) => setFilterEditionId(e.target.value)}
-        >
-          <option value="">All Editions</option>
-          {editionOptions.map((ed) => (
-            <option key={ed.id} value={ed.id}>{ed.label || ed.year}{filterExperienceId ? "" : ` — ${ed.exp_experiences?.title || ""}`}</option>
-          ))}
-        </select>
-        {(filterExperienceId || filterEditionId) && (
-          <button onClick={() => { setFilterExperienceId(""); setFilterEditionId(""); }} className="text-xs admin-faint hover:admin-muted transition-colors">
-            Clear
-          </button>
-        )}
+        </div>
+        <div className="flex flex-wrap items-center gap-1.5">
+          {filterExperienceId && editionOptions.length > 1 && (
+            <>
+              <FilterPill small label="All editions" active={!filterEditionId} onClick={() => setFilterEditionId("")} />
+              {editionOptions.map((ed) => (
+                <FilterPill key={ed.id} small label={String(ed.label || ed.year)} active={filterEditionId === ed.id} onClick={() => setFilterEditionId(ed.id)} />
+              ))}
+            </>
+          )}
+          <div className="relative ml-auto">
+            <svg className="w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2 admin-faint pointer-events-none" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round"><circle cx="11" cy="11" r="7" /><path d="m21 21-4.3-4.3" /></svg>
+            <input
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder="Search packages…"
+              className={`${inputClass} pl-9 w-[220px]`}
+            />
+          </div>
+        </div>
       </div>
 
       {loading ? (
@@ -378,28 +423,45 @@ export default function PackagesPage() {
               </div>
               <div className="rounded-xl admin-tablecard" style={{ border: "1px solid var(--admin-border)" }}>
                 <div
-                  className="grid grid-cols-[1fr_90px_80px_80px_90px_55px_70px_80px_70px] gap-3 px-5 py-3 admin-surface"
+                  className="grid grid-cols-[minmax(240px,1fr)_90px_80px_80px_90px_55px_70px_80px_70px] gap-3 px-5 py-3 admin-surface"
                   style={{ borderBottom: "1px solid var(--admin-border)" }}
                 >
-                  <span className="text-[10px] font-bold tracking-[0.1em] admin-faint uppercase">Name</span>
-                  <span className="text-[10px] font-bold tracking-[0.1em] admin-faint uppercase">Category</span>
-                  <span className="text-[10px] font-bold tracking-[0.1em] admin-faint uppercase">Sell</span>
-                  <span className="text-[10px] font-bold tracking-[0.1em] admin-faint uppercase">Cost</span>
-                  <span className="text-[10px] font-bold tracking-[0.1em] admin-faint uppercase">Margin</span>
-                  <span className="text-[10px] font-bold tracking-[0.1em] admin-faint uppercase">Comps</span>
-                  <span className="text-[10px] font-bold tracking-[0.1em] admin-faint uppercase">Deposit</span>
-                  <span className="text-[10px] font-bold tracking-[0.1em] admin-faint uppercase">Status</span>
+                  {[["name", "Name"], ["category", "Category"], ["sell", "Sell"], ["cost", "Cost"], ["margin", "Margin"], ["comps", "Comps"], ["deposit", "Deposit"], ["status", "Status"]].map(([key, lbl]) => (
+                    <button
+                      key={key}
+                      type="button"
+                      onClick={() => toggleSort(key)}
+                      className={`flex items-center gap-1 text-left text-[10px] font-bold tracking-[0.1em] uppercase transition-colors ${sortKey === key ? "text-[#0aa3c7]" : "admin-faint hover:admin-muted"}`}
+                      title="Sort"
+                    >
+                      {lbl}
+                      {sortKey === key && <span className="text-[9px]">{sortDir === "asc" ? "\u25b2" : "\u25bc"}</span>}
+                    </button>
+                  ))}
                   <span></span>
                 </div>
-                {group.pkgs.map((pkg) => {
+                {sortPkgs(group.pkgs).map((pkg) => {
                   return (
                     <div key={pkg.id} style={{ borderBottom: "1px solid var(--admin-border)" }}>
                       <div
-                        className="grid grid-cols-[1fr_90px_80px_80px_90px_55px_70px_80px_70px] gap-3 px-5 py-3 transition-colors"
+                        className="grid grid-cols-[minmax(240px,1fr)_90px_80px_80px_90px_55px_70px_80px_70px] gap-3 px-5 py-3 transition-colors"
                         onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = "var(--admin-surface-hover)")}
                         onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = "transparent")}
                       >
-                        <span className="text-sm font-medium admin-heading truncate cursor-pointer self-center" onClick={() => startEdit(pkg)}>{pkg.name}</span>
+                        {(() => {
+                          const parsed = parsePkgName(pkg.name);
+                          return (
+                            <span className="min-w-0 cursor-pointer self-center" onClick={() => startEdit(pkg)}>
+                              <span className="flex items-center gap-1.5 min-w-0">
+                                <span className="text-sm font-semibold admin-heading">{parsed.level}</span>
+                                {parsed.code && (
+                                  <span className="shrink-0 text-[9px] font-mono px-1 py-px rounded admin-faint" style={{ border: "1px solid var(--admin-border)" }}>{parsed.code}</span>
+                                )}
+                              </span>
+                              {parsed.room && <span className="block text-xs admin-muted mt-0.5">{parsed.room}</span>}
+                            </span>
+                          );
+                        })()}
                         <span className="text-xs admin-muted self-center capitalize">{pkg.category || "—"}</span>
                         <span className="text-xs admin-muted self-center">{money(pkg.price)}</span>
                         <span className="text-xs admin-muted self-center">
@@ -432,5 +494,21 @@ export default function PackagesPage() {
       </>
       )}
     </div>
+  );
+}
+
+/** Admin filter pill — active = accent, inactive = quiet outline. */
+function FilterPill({ label, active, onClick, small = false }: { label: string; active: boolean; onClick: () => void; small?: boolean }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={`rounded-full font-semibold transition-colors ${small ? "px-2.5 py-1 text-[11px]" : "px-3 py-1.5 text-xs"}`}
+      style={active
+        ? { backgroundColor: "var(--admin-accent)", color: "var(--admin-accent-contrast, #fff)" }
+        : { border: "1px solid var(--admin-border)", color: "var(--admin-text-muted)" }}
+    >
+      {label}
+    </button>
   );
 }
