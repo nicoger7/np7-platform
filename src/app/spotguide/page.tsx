@@ -2,12 +2,11 @@ import Link from "next/link";
 import type { Metadata } from "next";
 import { cookies } from "next/headers";
 import { getSpotguideDestinations, getAllSpotguidePoints } from "@/lib/spotguide-data";
-import { levelRangeLabel } from "@/lib/spotguide";
 import { SpotMap } from "@/components/spotguide/spot-map";
 import { resolveSection, SECTION_CHROME } from "@/lib/blog-section";
 import { SectionHeader } from "@/components/shared/section-header";
 import { BlogFooter } from "@/components/blog/blog-footer";
-import { RatingHeadline } from "@/components/spotguide/rating-panel";
+import { SpotguideBrowser } from "@/components/spotguide/spotguide-browser";
 import { ContributeSpot } from "@/components/spotguide/contribute-spot";
 import { flags } from "@/lib/flags";
 
@@ -71,30 +70,7 @@ export default async function SpotguideIndex() {
                   <SpotMap spots={points} cluster height={460} linkLabel="Explore the spots →" />
                 </div>
               )}
-              <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-5">
-              {dests.map((d) => {
-                const lvl = levelRangeLabel(d.level_min, d.level_max);
-                return (
-                  <Link key={d.id} href={`/spotguide/${d.slug}`}
-                    className="group flex flex-col rounded-2xl overflow-hidden bg-white border border-[#f0e6d6] hover:-translate-y-0.5 hover:shadow-[0_18px_44px_rgba(0,55,74,0.10)] transition-all">
-                    <div className="relative aspect-[16/10] bg-cover bg-center bg-[#e9eef0]" style={{ backgroundImage: d.hero_image ? `url('${d.hero_image}')` : undefined }}>
-                      <div className="absolute inset-0 bg-gradient-to-t from-black/45 to-transparent" />
-                      <div className="absolute left-4 bottom-3 right-4">
-                        <h2 className="text-white text-[20px] font-black tracking-[-0.02em] leading-tight">{d.name}</h2>
-                        <p className="text-white/80 text-[12.5px] font-semibold">{[d.region, d.country].filter(Boolean).join(", ")}</p>
-                      </div>
-                    </div>
-                    <div className="p-4 flex flex-col gap-2.5">
-                      <RatingHeadline np7={d.np7} member={d.member} accent={chrome.accent} />
-                      <div className="flex items-center gap-x-3 gap-y-1 flex-wrap text-[12px] font-semibold text-[#6a7a80]">
-                        <span>{d.spotCount} spot{d.spotCount === 1 ? "" : "s"}</span>
-                        {lvl && <><span className="text-[#d8cdbb]">·</span><span>{lvl}</span></>}
-                      </div>
-                    </div>
-                  </Link>
-                );
-              })}
-              </div>
+              <SpotguideBrowser dests={dests} accent={chrome.accent} />
             </>
           )}
         </div>

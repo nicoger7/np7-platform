@@ -4,13 +4,14 @@ import { useState, useEffect, use } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import ImagePickerModal from "@/components/image-picker-modal";
-import { LEVELS, DESTINATION_CRITERIA, VERIFICATION_META, type Verification } from "@/lib/spotguide";
+import { LEVELS, DESTINATION_CRITERIA, DESTINATION_TAGS, VERIFICATION_META, type Verification } from "@/lib/spotguide";
 
 type Partner = { name: string; description: string; url: string; image?: string };
 interface Dest {
   id: string; name: string; slug: string | null; region: string | null; country: string | null;
   hero_image: string | null; tagline: string | null; intro: string | null;
   hero_video_url: string | null; hero_video_start: number | null; hero_video_end: number | null;
+  tags: string[] | null;
   wind_probability: string | null; wind_season: string | null; wind_speed: string | null;
   best_season: string | null; conditions: string | null; skill_levels: string | null;
   gallery: string[] | null; partners: Partner[] | null; status: string;
@@ -120,6 +121,24 @@ export default function DestinationEditor({ params }: { params: Promise<{ id: st
             <div><label className={labelClass}>Loop to (seconds)</label><input type="number" min={0} className={inputClass} value={d.hero_video_end ?? ""} onChange={(e) => set("hero_video_end", e.target.value === "" ? null : Number(e.target.value))} placeholder="e.g. 42" /></div>
           </div>
           <p className="text-xs admin-faint mt-1.5">Muted, auto-looping just the chosen window. Leave both blank to loop the whole clip. The hero image is the poster while it loads.</p>
+        </div>
+
+        {/* Vibe tags — power the spotguide filter (country · level · vibe). */}
+        <div>
+          <label className={labelClass}>Vibe tags <span className="admin-faint">(for the spotguide filter)</span></label>
+          <div className="flex flex-wrap gap-1.5 mt-1">
+            {DESTINATION_TAGS.map((t) => {
+              const on = (d.tags ?? []).includes(t);
+              return (
+                <button key={t} type="button"
+                  onClick={() => set("tags", on ? (d.tags ?? []).filter((x) => x !== t) : [...(d.tags ?? []), t])}
+                  className={`px-3 py-1.5 rounded-full text-xs font-semibold border transition-colors ${on ? "border-[#0aa3c7] bg-[#0aa3c7]/10 admin-heading" : "admin-surface admin-muted"}`}
+                  style={{ borderColor: on ? undefined : "var(--admin-border)" }}>
+                  {t}
+                </button>
+              );
+            })}
+          </div>
         </div>
 
         <div className="grid grid-cols-3 gap-4">

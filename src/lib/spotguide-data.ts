@@ -19,7 +19,7 @@ import type { WindStats } from "@/lib/wind-stats";
 export type SpotguideDestinationCard = {
   id: string; name: string; slug: string | null; region: string | null; country: string | null;
   hero_image: string | null; tagline: string | null;
-  level_min: string | null; level_max: string | null;
+  level_min: string | null; level_max: string | null; tags: string[];
   spotCount: number; np7: number; member: RatingSummary;
 };
 
@@ -58,13 +58,13 @@ function groupBy<T>(rows: T[], key: (r: T) => string): Map<string, T[]> {
 /** Index: every destination whose spotguide is live, with a headline rating. */
 export async function getSpotguideDestinations(): Promise<SpotguideDestinationCard[]> {
   const sb = db();
-  const { data: dests } = await sb
-    .from("destinations")
-    .select("id, name, slug, region, country, hero_image, tagline, level_min, level_max, np7_ratings")
-    .eq("spotguide_status", "published")
-    .order("sort_order").order("name");
+  const BASE = "id, name, slug, region, country, hero_image, tagline, level_min, level_max, np7_ratings";
+  // tags ships with migration 076 — fall back to the base columns until applied.
+  let dests: Record<string, unknown>[] | null = null;
+  ({ data: dests } = await sb.from("destinations").select(BASE + ", tags").eq("spotguide_status", "published").order("sort_order").order("name"));
+  if (!dests) ({ data: dests } = await sb.from("destinations").select(BASE).eq("spotguide_status", "published").order("sort_order").order("name"));
   if (!dests?.length) return [];
-  const ids = dests.map((d: { id: string }) => d.id);
+  const ids = dests.map((d) => d.id as string);
 
   const [{ data: spots }, { data: dratings }] = await Promise.all([
     sb.from("spots").select("destination_id").in("destination_id", ids).eq("status", "published").in("verification", ["community", "np7"]),
@@ -78,6 +78,7 @@ export async function getSpotguideDestinations(): Promise<SpotguideDestinationCa
     region: d.region as string | null, country: d.country as string | null,
     hero_image: d.hero_image as string | null, tagline: d.tagline as string | null,
     level_min: d.level_min as string | null, level_max: d.level_max as string | null,
+    tags: Array.isArray(d.tags) ? (d.tags as string[]) : [],
     spotCount: spotCounts.get(d.id as string)?.length ?? 0,
     np7: np7Overall(d.np7_ratings, DESTINATION_CRITERIA_KEYS),
     member: summariseRatings(ratingRows.get(d.id as string) ?? [], DESTINATION_CRITERIA_KEYS),

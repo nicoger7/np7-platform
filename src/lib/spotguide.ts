@@ -102,6 +102,14 @@ export const INFRASTRUCTURE_TAGS = [
   "Toilets", "Showers", "Beach bar", "Restaurant", "Rescue / lifeguard", "Shop",
 ] as const;
 
+/** Curated "vibe" tags for the destination filter (migration 076). Kept short —
+    a light way to say what a place feels like beyond country + level. */
+export const DESTINATION_TAGS = [
+  "Family-friendly", "Beginner-friendly", "Flat water", "Waves", "Freestyle",
+  "Foiling", "Uncrowded", "Easy launch", "Year-round wind", "Warm water",
+] as const;
+export type DestinationTag = (typeof DESTINATION_TAGS)[number];
+
 /* ------------------------------------------------------------------ */
 /* Forecast models — the curated list riders actually pick from.      */
 /* In most wind apps you can choose which model to display; this is    */

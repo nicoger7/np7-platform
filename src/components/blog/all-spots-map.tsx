@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { Map as LeafletMap } from "leaflet";
 import "leaflet/dist/leaflet.css";
 
@@ -15,6 +15,7 @@ export type SpotPoint = { lat: number; lng: number; spot: string; title: string;
 export function AllSpotsMap({ points }: { points: SpotPoint[] }) {
   const elRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<LeafletMap | null>(null);
+  const [ready, setReady] = useState(false); // hide the skeleton once tiles+pins are in
 
   useEffect(() => {
     if (!elRef.current || points.length === 0 || mapRef.current) return;
@@ -50,6 +51,8 @@ export function AllSpotsMap({ points }: { points: SpotPoint[] }) {
       const group = L.featureGroup(markers).addTo(map);
       map.fitBounds(group.getBounds().pad(0.25));
       if (points.length === 1) map.setZoom(9);
+      // A tick after the tile layer starts loading — the container has a map now.
+      map.whenReady(() => { if (!cancelled) setReady(true); });
     })();
     return () => {
       cancelled = true;
@@ -60,5 +63,18 @@ export function AllSpotsMap({ points }: { points: SpotPoint[] }) {
   }, []);
 
   if (points.length === 0) return null;
-  return <div ref={elRef} className="relative z-0 w-full h-[400px] sm:h-[460px] rounded-3xl overflow-hidden border border-[#ece3d3] shadow-[0_10px_36px_rgba(0,55,74,0.1)]" />;
+  return (
+    <div className="relative z-0 w-full h-[400px] sm:h-[460px] rounded-3xl overflow-hidden border border-[#ece3d3] shadow-[0_10px_36px_rgba(0,55,74,0.1)]">
+      <div ref={elRef} className="absolute inset-0" />
+      {/* Light skeleton until Leaflet mounts — so the block never flashes empty. */}
+      <div className={`pointer-events-none absolute inset-0 grid place-items-center transition-opacity duration-500 ${ready ? "opacity-0" : "opacity-100"}`}
+        style={{ background: "linear-gradient(135deg,#eaf4f6,#f3ece0)" }} aria-hidden>
+        <div className="absolute inset-0 animate-pulse" style={{ background: "radial-gradient(ellipse at 50% 40%, rgba(0,175,219,0.08), transparent 60%)" }} />
+        <div className="relative flex items-center gap-2 text-[#9aa6ac]">
+          <svg className="w-5 h-5 animate-bounce" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 10c0 7-9 12-9 12s-9-5-9-12a9 9 0 0 1 18 0z" /><circle cx="12" cy="10" r="3" /></svg>
+          <span className="text-[13px] font-semibold">Loading the map…</span>
+        </div>
+      </div>
+    </div>
+  );
 }
