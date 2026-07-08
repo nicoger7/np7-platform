@@ -4,6 +4,7 @@ import { useState, useEffect, use } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { ExperienceComponentsManager } from "@/components/experience-components-manager";
+import { PublicBadge } from "@/components/admin/public-badge";
 
 interface Experience {
   id: string;
@@ -397,7 +398,7 @@ export default function ExperienceDetailPage({
           {/* Title, Slug, Code */}
           <div className="grid grid-cols-[1fr_1fr_120px] gap-4">
             <div>
-              <label className={labelClass}>Title</label>
+              <label className={labelClass}>Title<PublicBadge note="Trip title everywhere on the website" /></label>
               <input
                 className={inputClass}
                 value={exp.title}
@@ -434,7 +435,7 @@ export default function ExperienceDetailPage({
           {/* Location & Airport */}
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <label className={labelClass}>Location</label>
+              <label className={labelClass}>Location<PublicBadge note="Drives the place name + country flag on the trip card" /></label>
               <input
                 className={inputClass}
                 value={exp.location}
@@ -533,7 +534,7 @@ export default function ExperienceDetailPage({
 
           {/* Description */}
           <div>
-            <label className={labelClass}>Description</label>
+            <label className={labelClass}>Description<PublicBadge note="Short teaser on the trip card + intro on the trip page" /></label>
             <textarea
               className={`${inputClass} min-h-[120px] resize-y`}
               value={exp.description || ""}

@@ -14,6 +14,7 @@ import { composeBookingName } from "@/lib/booking-name";
 import ImagePickerModal from "@/components/image-picker-modal";
 import { useAccess } from "@/lib/use-access";
 import { effectiveCanAccess } from "@/lib/access";
+import { PublicBadge } from "@/components/admin/public-badge";
 
 // Edition detail sub-tabs. The order is reorderable by drag-and-drop and saved
 // per admin in localStorage (each team member keeps their own preferred order).
@@ -752,7 +753,7 @@ export default function EditionDetailPage({
           {/* Label, Year & Status */}
           <div className="grid grid-cols-3 gap-4">
             <div>
-              <label className={labelClass}>Label</label>
+              <label className={labelClass}>Label<PublicBadge note="Week name on the public trip page (e.g. Week I)" /></label>
               <input
                 className={inputClass}
                 value={edition.label || ""}
@@ -900,7 +901,7 @@ export default function EditionDetailPage({
             <div className="space-y-4">
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <label className={labelClass}>Coaches</label>
+                  <label className={labelClass}>Coaches<PublicBadge note="Shown on the week card + the first name is the coach on the trip tile" /></label>
                   <input
                     className={inputClass}
                     value={edition.coaches || ""}

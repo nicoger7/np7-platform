@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback } from "react";
 import ImagePickerModal from "@/components/image-picker-modal";
+import { PublicBadge } from "@/components/admin/public-badge";
 
 interface Hotel {
   id: string | null;
@@ -135,7 +136,7 @@ export default function HotelsPage() {
             <div className="flex gap-5">
               {/* primary image */}
               <div className="shrink-0">
-                <label className={labelClass}>Preview photo</label>
+                <label className={labelClass}>Preview photo<PublicBadge note="Hotel card photo in the public booking step + destination pages" /></label>
                 {h.image_url ? (
                   <div className="relative w-44 h-32 rounded-xl overflow-hidden group" style={{ border: "1px solid var(--admin-border)" }}>
                     {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -152,19 +153,19 @@ export default function HotelsPage() {
 
               {/* fields */}
               <div className="flex-1 min-w-0 grid grid-cols-2 gap-3">
-                <div><label className={labelClass}>Name</label><input className={inputClass} value={h.name ?? ""} onChange={(e) => h.id && setField(h.id, "name", e.target.value)} /></div>
+                <div><label className={labelClass}>Name<PublicBadge /></label><input className={inputClass} value={h.name ?? ""} onChange={(e) => h.id && setField(h.id, "name", e.target.value)} /></div>
                 <div className="grid grid-cols-2 gap-2">
                   <div><label className={labelClass}>Prefix</label><input className={inputClass} value={h.prefix ?? ""} onChange={(e) => h.id && setField(h.id, "prefix", e.target.value)} /></div>
                   <div><label className={labelClass}>Location</label><input className={inputClass} value={h.location ?? ""} onChange={(e) => h.id && setField(h.id, "location", e.target.value)} /></div>
                 </div>
                 <div className="col-span-2"><label className={labelClass}>Website</label><input className={inputClass} value={h.website ?? ""} onChange={(e) => h.id && setField(h.id, "website", e.target.value)} placeholder="https://…" /></div>
-                <div className="col-span-2"><label className={labelClass}>Short description</label><textarea className={`${inputClass} min-h-[56px] resize-y`} value={h.description ?? ""} onChange={(e) => h.id && setField(h.id, "description", e.target.value)} placeholder="One or two lines shown under the hotel name in the booking step." /></div>
+                <div className="col-span-2"><label className={labelClass}>Short description<PublicBadge note="Shown under the hotel name in the public booking step" /></label><textarea className={`${inputClass} min-h-[56px] resize-y`} value={h.description ?? ""} onChange={(e) => h.id && setField(h.id, "description", e.target.value)} placeholder="One or two lines shown under the hotel name in the booking step." /></div>
               </div>
             </div>
 
             {/* gallery */}
             <div className="mt-4">
-              <label className={labelClass}>More photos</label>
+              <label className={labelClass}>More photos<PublicBadge note="Swappable photos on the expanded hotel card in the booking step" /></label>
               <div className="flex flex-wrap gap-2">
                 {(h.images || []).map((src, i) => (
                   <div key={i} className="relative w-20 h-16 rounded-lg overflow-hidden group" style={{ border: "1px solid var(--admin-border)" }}>

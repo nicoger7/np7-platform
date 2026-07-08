@@ -102,6 +102,7 @@ export default function SpotEditor({ params }: { params: Promise<{ id: string }>
         <div className="min-w-0">
           <Link href={dest ? `/admin/destinations/${dest.id}` : "/admin/destinations"} className="text-xs admin-faint hover:admin-heading">← {dest?.name ?? "Destinations"}</Link>
           <h1 className="text-2xl font-bold admin-heading mt-1 truncate">{s.name}</h1>
+          <p className="text-xs admin-faint mt-0.5">Everything on this page is the <span className="font-semibold text-[#0aa3c7]">public spotguide content</span> (once published + verified).</p>
           <div className="flex items-center gap-2 mt-1">
             <span className="px-2 py-0.5 rounded text-[10px] font-bold uppercase" style={{ backgroundColor: `${vmeta.color}1f`, color: vmeta.color }}>{vmeta.short}</span>
             {s.source === "member" && <span className="text-[10px] admin-faint">member-submitted{confirms ? ` · ${confirms} confirm${confirms === 1 ? "" : "s"}` : ""}</span>}

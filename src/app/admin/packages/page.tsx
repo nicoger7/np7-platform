@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback } from "react";
 import Link from "next/link";
 import { PackageComponentsEditor } from "@/components/package-components-editor";
+import { PublicBadge } from "@/components/admin/public-badge";
 
 interface Package {
   id: string;
@@ -252,7 +253,7 @@ export default function PackagesPage() {
         <div className="p-5 rounded-xl" style={{ border: "1px solid var(--admin-border)", backgroundColor: "var(--admin-surface)" }}>
           <h3 className="text-base font-bold admin-heading mb-4">{editId ? "Edit package" : "New package"}</h3>
           <div className="grid grid-cols-[1fr_180px_180px] gap-4 mb-4">
-            <div><label className={labelClass}>Name *</label><input className={inputClass} value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} /></div>
+            <div><label className={labelClass}>Name *<PublicBadge note="Parsed into the level + room label shown in the public booking step" /></label><input className={inputClass} value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} /></div>
             <div><label className={labelClass}>Experience</label>
               <select className={inputClass} value={form.experience_id} onChange={(e) => setForm({ ...form, experience_id: e.target.value, edition_id: "" })}>
                 <option value="">—</option>
@@ -267,7 +268,7 @@ export default function PackagesPage() {
             </div>
           </div>
           <div className="grid grid-cols-6 gap-4 mb-4">
-            <div><label className={labelClass}>Sell (€)</label><input type="number" className={inputClass} value={form.price} onChange={(e) => setForm({ ...form, price: e.target.value })} /></div>
+            <div><label className={labelClass}>Sell (€)<PublicBadge note="The public package price" /></label><input type="number" className={inputClass} value={form.price} onChange={(e) => setForm({ ...form, price: e.target.value })} /></div>
             <div><label className={labelClass}>Cost / person</label><input type="number" className={inputClass} value={form.cost_per_person} onChange={(e) => setForm({ ...form, cost_per_person: e.target.value })} placeholder="auto" /></div>
             <div><label className={labelClass}>Deposit</label><input type="number" className={inputClass} value={form.deposit} onChange={(e) => setForm({ ...form, deposit: e.target.value })} /></div>
             <div><label className={labelClass}>Spots</label><input type="number" className={inputClass} value={form.max_spots} onChange={(e) => setForm({ ...form, max_spots: e.target.value })} /></div>
@@ -289,9 +290,9 @@ export default function PackagesPage() {
           <div className="mb-4">
             <p className="text-[11px] font-bold uppercase tracking-wide admin-faint mb-1.5">Payment plan</p>
             <div className="grid grid-cols-3 gap-4">
-              <div><label className={labelClass}>Downpayment due (days after sign-up)</label><input type="number" className={inputClass} value={form.deposit_refund_days} onChange={(e) => setForm({ ...form, deposit_refund_days: e.target.value })} placeholder="14" /></div>
-              <div><label className={labelClass}>Downpayment (% of total)</label><input type="number" className={inputClass} value={form.downpayment_percent} onChange={(e) => setForm({ ...form, downpayment_percent: e.target.value })} placeholder="50" /></div>
-              <div><label className={labelClass}>Final due (days before trip)</label><input type="number" className={inputClass} value={form.final_days_before} onChange={(e) => setForm({ ...form, final_days_before: e.target.value })} placeholder="90" /></div>
+              <div><label className={labelClass}>Downpayment due (days after sign-up)<PublicBadge note="Shown in the public “How you pay” schedule + reserve modal" /></label><input type="number" className={inputClass} value={form.deposit_refund_days} onChange={(e) => setForm({ ...form, deposit_refund_days: e.target.value })} placeholder="14" /></div>
+              <div><label className={labelClass}>Downpayment (% of total)<PublicBadge note="Shown in the public “How you pay” schedule + invoices" /></label><input type="number" className={inputClass} value={form.downpayment_percent} onChange={(e) => setForm({ ...form, downpayment_percent: e.target.value })} placeholder="50" /></div>
+              <div><label className={labelClass}>Final due (days before trip)<PublicBadge note="Shown in the public “How you pay” schedule + invoices" /></label><input type="number" className={inputClass} value={form.final_days_before} onChange={(e) => setForm({ ...form, final_days_before: e.target.value })} placeholder="90" /></div>
             </div>
             <p className="text-[11px] admin-faint mt-1.5">Downpayment is always due that many days after sign-up (the flight-booking window); the final balance that many days before the trip. A deposit, if set, also stays refundable for the same window.</p>
           </div>

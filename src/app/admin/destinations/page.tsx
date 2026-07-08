@@ -63,7 +63,7 @@ export default function DestinationsPage() {
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between mb-6">
         <div>
           <h1 className="text-2xl font-bold admin-heading mb-1">Destinations</h1>
-          <p className="text-sm admin-muted">Reusable location pages — a trip points to its destination, the destination lists its trips.</p>
+          <p className="text-sm admin-muted">Reusable location pages — a trip points to its destination, the destination lists its trips. <span className="font-semibold text-[#0aa3c7]">Everything here shows on the public website</span> (destination pages + spotguide) once published.</p>
         </div>
         <div className="flex items-center gap-3">
           <button onClick={generate} disabled={generating} className="px-4 py-2 admin-surface admin-muted text-sm font-bold rounded-lg transition-colors disabled:opacity-50" style={{ border: "1px solid var(--admin-border)" }} title="Create a destination for each experience location and link them">{generating ? "Generating…" : "Generate from experiences"}</button>
