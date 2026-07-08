@@ -36,6 +36,11 @@ export type BookingPaymentState = {
   paidAmount?: number | null;
   /** ISO date (yyyy-mm-dd) the edition starts, if known. */
   editionStart?: string | null;
+  /** ISO date the booking/registration was made. With NO deposit (deposit = 0)
+   *  this anchors the downpayment deadline: registration is free, and the
+   *  downpayment falls due `deposit_refund_days` later — the window the rider
+   *  gets to sort flights before any money is committed. */
+  bookedAt?: string | null;
   depositReceivedAt?: string | null;
   /** Explicit milestone flags — used as the status driver when paidAmount is absent. */
   depositReceived?: boolean | null;
@@ -101,7 +106,11 @@ export function computePaymentPlan(cfg: PackagePaymentConfig, state: BookingPaym
   const finalAmt = round(Math.max(0, total - depositAmt - downpaymentAmt));
 
   const refundableUntil = state.depositReceivedAt ? addDays(state.depositReceivedAt, refundDays) : null;
-  const downpaymentDue = state.depositReceivedAt ? addDays(state.depositReceivedAt, refundDays) : null;
+  // Downpayment deadline: `refundDays` after the deposit lands — or, when the
+  // package has NO deposit (free signup), `refundDays` after registering: the
+  // rider's window to sort flights before the first real payment is due.
+  const downpaymentAnchor = state.depositReceivedAt ?? (depositAmt <= 0 ? state.bookedAt ?? null : null);
+  const downpaymentDue = downpaymentAnchor ? addDays(downpaymentAnchor, refundDays) : null;
   const finalDue = state.editionStart ? addDays(state.editionStart, -finalDaysBefore) : null;
 
   // Prefer the actual paid amount (cumulative thresholds); fall back to flags.
@@ -136,7 +145,7 @@ export function computePaymentPlan(cfg: PackagePaymentConfig, state: BookingPaym
         ? fmtDue(downpaymentDue)
         : depositAmt > 0
           ? `Due within ${refundDays} days of your deposit`
-          : "Pay to secure your spot",
+          : `Due within ${refundDays} days of registering — secures your spot`,
       status: downPaid ? "paid" : depositPaid ? "due" : "upcoming",
     },
     {

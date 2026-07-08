@@ -214,10 +214,10 @@ export function PackagePicker({ packages, currency = "EUR", reserve }: Props) {
           disabled={!reserve || !selected}
           className="w-full px-7 py-4 rounded-full text-[14px] font-bold bg-[#00afdb] text-white shadow-[0_4px_20px_rgba(0,175,219,0.35)] hover:bg-[#15c0ec] hover:-translate-y-0.5 transition-all disabled:opacity-60"
         >
-          Reserve my spot · {fmt(DEPOSIT_EUR)} deposit
+          Reserve my spot — free
         </button>
         <p className="text-[12px] text-white/40 text-center mt-3">
-          Just your name &amp; contact — we sort the rest personally after payment
+          Register free today — your payment plan is shown before you confirm
         </p>
         </div>
       </aside>

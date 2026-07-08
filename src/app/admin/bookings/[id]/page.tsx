@@ -432,7 +432,7 @@ export function BookingDetailPane({ bookingId, onBack }: { bookingId: string; on
       final_days_before: booking.exp_packages?.final_days_before ?? null,
       deposit_refund_days: booking.exp_packages?.deposit_refund_days ?? null,
     },
-    { total: bookingTotal, paidAmount: recon.paidTotal, editionStart: booking.exp_editions?.date_start ?? null },
+    { total: bookingTotal, paidAmount: recon.paidTotal, editionStart: booking.exp_editions?.date_start ?? null, bookedAt: booking.created_at ?? null },
   );
   const DOC_FOR: Record<MilestoneKind, string> = { deposit: "deposit_invoice", downpayment: "downpayment_invoice", final: "final_invoice" };
   const LEGACY_SENT: Record<MilestoneKind, boolean> = { deposit: !!booking.deposit_invoice_sent, downpayment: !!booking.downpayment_invoice_sent, final: !!booking.final_invoice_sent };

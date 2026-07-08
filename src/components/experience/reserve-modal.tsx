@@ -4,7 +4,17 @@ import { useEffect, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { track } from "@/lib/analytics-client";
 
+/** @deprecated The real deposit comes from the package config via /api/register/quote —
+    this constant only remains so older imports keep compiling. Do not use for display. */
 export const DEPOSIT_EUR = 300;
+
+type Quote = {
+  price: number;
+  deposit: number;
+  downpaymentPercent: number;
+  refundDays: number;
+  milestones: { kind: string; label: string; amount: number; dueLabel: string; dueDate: string | null }[];
+};
 
 export type ReserveContext = {
   experienceId: string;
@@ -35,6 +45,19 @@ export function ReserveModal({ ctx, onClose }: { ctx: ReserveContext; onClose: (
   const [registered, setRegistered] = useState(false);
   const [member, setMember] = useState(false);
   const [ready, setReady] = useState(false);
+  const [quote, setQuote] = useState<Quote | null>(null);
+
+  // The real payment plan for THIS package (deposit, downpayment %, deadlines) —
+  // computed server-side by the same engine that drives invoices, so what we
+  // promise here always matches what the account shows later. Best-effort: if
+  // it fails we just show the generic copy, never block registration.
+  useEffect(() => {
+    const qs = new URLSearchParams({ packageId: ctx.packageId, ...(ctx.editionId ? { editionId: ctx.editionId } : {}) });
+    fetch(`/api/register/quote?${qs}`)
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d) => { if (d?.milestones) setQuote(d); })
+      .catch(() => {});
+  }, [ctx.packageId, ctx.editionId]);
 
   // The modal only mounts once the visitor clicks "Reserve" → start of the funnel.
   useEffect(() => {
@@ -120,7 +143,7 @@ export function ReserveModal({ ctx, onClose }: { ctx: ReserveContext; onClose: (
               </button>
             </div>
 
-            {/* selection summary */}
+            {/* selection summary + the real payment schedule for this package */}
             <div className="rounded-2xl bg-[#f7fbfc] border border-[#e6eef0] px-5 py-4 mb-6">
               <div className="flex items-center justify-between gap-3 text-[14px]">
                 <span className="font-bold text-[#00374a]">{ctx.level} · {ctx.accommodation}</span>
@@ -130,6 +153,15 @@ export function ReserveModal({ ctx, onClose }: { ctx: ReserveContext; onClose: (
                 <span className="text-[#5a6b72]">Due today to register</span>
                 <span className="font-black text-[#00afdb] text-[15px] shrink-0">Free</span>
               </div>
+              {quote && quote.milestones.map((m) => (
+                <div key={m.kind} className="flex items-start justify-between gap-3 mt-2 pt-2 border-t border-[#e6eef0] text-[13.5px]">
+                  <span className="text-[#5a6b72]">
+                    {m.kind === "deposit" ? "Deposit — secures your spot" : m.kind === "downpayment" ? `Downpayment (${quote.downpaymentPercent}% of your trip)` : "Final balance"}
+                    <span className="block text-[11.5px] text-[#9aa6ac] mt-0.5">{m.dueLabel}</span>
+                  </span>
+                  <span className="font-bold text-[#00374a] shrink-0">{fmt(m.amount)}</span>
+                </div>
+              ))}
             </div>
 
             {/* what happens next */}
@@ -139,7 +171,14 @@ export function ReserveModal({ ctx, onClose }: { ctx: ReserveContext; onClose: (
                 {[
                   "Register free today — no payment, no commitment.",
                   "We email you how it works & set up your account.",
-                  `Secure your spot with the refundable ${fmt(DEPOSIT_EUR)} downpayment — 14 days to change your mind.`,
+                  // The securing step, with THIS package's real numbers (deposit if
+                  // one is set; otherwise the catch-up downpayment) — generic if
+                  // the quote hasn't loaded.
+                  quote
+                    ? quote.deposit > 0
+                      ? `Secure your spot with the refundable ${fmt(quote.deposit)} deposit — ${quote.refundDays} days to change your mind.${quote.milestones.some((m) => m.kind === "downpayment") ? ` Your ${quote.downpaymentPercent}% downpayment tops it up later.` : ""}`
+                      : `Secure your spot with the ${quote.downpaymentPercent}% downpayment${quote.milestones[0] ? ` (${fmt(quote.milestones[0].amount)})` : ""} — due within ${quote.refundDays} days, so you've got time to sort flights first.`
+                    : "Secure your spot with the refundable downpayment — no rush, you've got time.",
                   "Plan it in your account — flights, extra nights & your team.",
                   "Pay the balance later, then show up & ride.",
                 ].map((t, i) => (

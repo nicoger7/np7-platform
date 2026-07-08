@@ -80,13 +80,15 @@ export default async function BookingDetail({ params }: Props) {
   // %, and final-payment timing. An edition-level deposit, if set, overrides the
   // package's. Tolerant: pre-migration / missing → falls back to defaults.
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const payCfg: any = await (createAdminClient() as any)
+  const payRow: any = await (createAdminClient() as any)
     .from("exp_bookings")
-    .select("exp_packages(deposit,downpayment_percent,final_days_before,deposit_refund_days)")
+    .select("created_at, exp_packages(deposit,downpayment_percent,final_days_before,deposit_refund_days)")
     .eq("id", id)
     .maybeSingle()
-    .then((r: { data: { exp_packages: unknown } | null }) => r.data?.exp_packages ?? null)
+    .then((r: { data: { created_at: string | null; exp_packages: unknown } | null }) => r.data ?? null)
     .catch(() => null);
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const payCfg: any = payRow?.exp_packages ?? null;
   const plan = computePaymentPlan(
     {
       deposit: b.edition?.deposit ?? payCfg?.deposit ?? null,
@@ -94,7 +96,8 @@ export default async function BookingDetail({ params }: Props) {
       final_days_before: payCfg?.final_days_before ?? null,
       deposit_refund_days: payCfg?.deposit_refund_days ?? null,
     },
-    { total: total ?? 0, paidAmount: paid, editionStart: b.edition?.date_start ?? null }
+    // bookedAt anchors the no-deposit downpayment deadline (registration + X days).
+    { total: total ?? 0, paidAmount: paid, editionStart: b.edition?.date_start ?? null, bookedAt: payRow?.created_at ?? null }
   );
 
   // "Secured" = the first real payment milestone is paid (the deposit, or — when
