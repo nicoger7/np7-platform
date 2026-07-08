@@ -9,6 +9,7 @@ import { effectiveCanAccess, effectiveCanEnterWorld, type EffectiveAccess, type 
 import { AccountSwitcher } from "@/components/admin/account-switcher";
 import { AdminInstallPrompt } from "@/components/pwa/admin-install-prompt";
 import { ActiveTimeHeartbeat } from "@/components/admin/active-time-heartbeat";
+import { CommandPalette, type PaletteItem } from "@/components/admin/command-palette";
 
 // ─── Environments ────────────────────────────────────────────────────────────
 
@@ -391,10 +392,23 @@ export default function AdminShell({
   const [envMenuOpen, setEnvMenuOpen] = useState(false);
   const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
+  const [paletteOpen, setPaletteOpen] = useState(false);
   const envMenuRef = useRef<HTMLDivElement>(null);
 
   // Close the mobile nav drawer whenever the route changes (a link was tapped).
   useEffect(() => { setMobileNavOpen(false); }, [pathname]);
+
+  // ⌘K / Ctrl+K opens the command palette from anywhere in the admin.
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "k") {
+        e.preventDefault();
+        setPaletteOpen((o) => !o);
+      }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, []);
 
   useEffect(() => {
     const savedTheme = localStorage.getItem("np7-admin-theme") as Theme | null;
@@ -474,6 +488,39 @@ export default function AdminShell({
   const sections = allSections
     .map((g) => ({ ...g, items: g.items.filter((i) => effectiveCanAccess(access, i.href)) }))
     .filter((g) => g.items.length > 0);
+
+  // Every destination the member can reach across ALL worlds they may enter —
+  // powers the ⌘K palette. De-duped by href (Dashboard/File Storage repeat per world).
+  const paletteItems: PaletteItem[] = (() => {
+    const out: PaletteItem[] = [];
+    const seen = new Set<string>();
+    for (const e of environments) {
+      if (!effectiveCanEnterWorld(access, e.id as WorldId)) continue;
+      const groups: NavGroup[] = [
+        sharedNavTop,
+        ...navByEnv[e.id],
+        { label: "GENERAL", items: e.id === "experience" ? [archiveItem] : [fileStorageItem, archiveItem] },
+      ];
+      for (const g of groups) {
+        for (const it of g.items) {
+          if (seen.has(it.href) || !effectiveCanAccess(access, it.href)) continue;
+          seen.add(it.href);
+          out.push({ label: it.label, href: it.href, group: g.label, env: e.id, envColor: e.color });
+        }
+      }
+    }
+    return out;
+  })();
+
+  function handlePaletteNavigate(item: PaletteItem) {
+    // If the target lives in another world, switch the sidebar to it so the chrome
+    // stays consistent with the page you land on.
+    if (item.env !== env && navByEnv[item.env as Environment]) {
+      setEnv(item.env as Environment);
+      localStorage.setItem("np7-admin-env", item.env);
+    }
+    router.push(item.href);
+  }
 
   return (
     <div
@@ -616,6 +663,19 @@ export default function AdminShell({
               </div>
             )}
           </div>
+
+          {/* Command palette trigger — jump to any page (⌘K) */}
+          <button
+            onClick={() => setPaletteOpen(true)}
+            className="mt-2.5 w-full flex items-center gap-2 px-2.5 py-2 rounded-lg transition-colors"
+            style={{ backgroundColor: "var(--admin-surface)", border: "1px solid var(--admin-border)", color: "var(--admin-text-muted)" }}
+          >
+            <svg className="w-3.5 h-3.5 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+              <circle cx="11" cy="11" r="7" /><path d="M21 21l-4.3-4.3" />
+            </svg>
+            <span className="text-xs">Search…</span>
+            <kbd className="ml-auto text-[10px] font-semibold px-1.5 py-0.5 rounded" style={{ border: "1px solid var(--admin-border)", color: "var(--admin-text-faint)" }}>⌘K</kbd>
+          </button>
         </div>
 
         <nav className="flex-1 p-3 space-y-4 overflow-y-auto">
@@ -719,6 +779,14 @@ export default function AdminShell({
 
       {/* Main content */}
       <main className="flex-1 min-w-0 p-4 sm:p-6 lg:p-8 overflow-auto">{children}</main>
+
+      {paletteOpen && (
+        <CommandPalette
+          onClose={() => setPaletteOpen(false)}
+          items={paletteItems}
+          onNavigate={handlePaletteNavigate}
+        />
+      )}
 
       {/* "Add NP7 Admin to your home screen" — only for logged-in team members */}
       <AdminInstallPrompt />

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState, use } from "react";
+import { useEffect, useMemo, useRef, useState, use } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import ImagePickerModal from "@/components/image-picker-modal";
@@ -14,6 +14,7 @@ import {
   type World,
 } from "@/lib/blog-templates";
 import { TemplateFieldsEditor } from "@/components/blog/template-fields-editor";
+import { MarkdownEditor } from "@/components/blog/markdown-editor";
 import { BlogIcon } from "@/components/blog/blog-icons";
 
 const WORLD_OPTIONS: { id: World; label: string }[] = [
@@ -37,9 +38,12 @@ export default function BlogEditorPage({ params }: { params: Promise<{ id: strin
 
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
-  const [saved, setSaved] = useState(false);
   const [error, setError] = useState("");
   const [picker, setPicker] = useState(false);
+  // Autosave: `savedSnapshot` is the serialized field-state as of the last
+  // successful save (or the hydrated load). `dirty` = anything changed since.
+  const [savedSnapshot, setSavedSnapshot] = useState<string | null>(null);
+  const justSavedRef = useRef(false);
 
   const [title, setTitle] = useState("");
   const [slug, setSlug] = useState("");
@@ -87,6 +91,8 @@ export default function BlogEditorPage({ params }: { params: Promise<{ id: strin
         setWorld((p.world as World) ?? "experience");
         setMembersOnly(p.members_only !== false);
         setTemplateData(p.template_data && typeof p.template_data === "object" ? p.template_data : {});
+        // Capture the hydrated state as the clean baseline (see the snapshot effect).
+        justSavedRef.current = true;
       })
       .finally(() => setLoading(false));
   }, [id]);
@@ -110,7 +116,6 @@ export default function BlogEditorPage({ params }: { params: Promise<{ id: strin
     const effectiveStatus = nextStatus ?? status;
     setSaving(true);
     setError("");
-    setSaved(false);
     const effectivePublishedAt =
       effectiveStatus === "published" && !publishedAt ? new Date().toISOString() : publishedAt;
     const res = await fetch(`/api/admin/blog/${id}`, {
@@ -138,14 +143,49 @@ export default function BlogEditorPage({ params }: { params: Promise<{ id: strin
       setStatus(effectiveStatus);
       setPublishedAt(p.published_at ?? effectivePublishedAt);
       setSlug(p.slug ?? slug);
-      setSaved(true);
-      setTimeout(() => setSaved(false), 2500);
+      // Re-capture the baseline once the canonical slug/status land (see effect).
+      justSavedRef.current = true;
     } else {
       const j = await res.json().catch(() => ({}));
       setError(j.error ?? "Failed to save");
     }
     setSaving(false);
   }
+
+  // --- Autosave plumbing --------------------------------------------------
+  const bodyState = useMemo(
+    () =>
+      JSON.stringify({ title, slug, category, author, coverImage, coverFocus, excerpt, content, status, template, world, membersOnly, templateData }),
+    [title, slug, category, author, coverImage, coverFocus, excerpt, content, status, template, world, membersOnly, templateData]
+  );
+  const dirty = savedSnapshot !== null && bodyState !== savedSnapshot;
+
+  // Whenever a save/load has just landed, snapshot the (now-canonical) state as clean.
+  useEffect(() => {
+    if (justSavedRef.current) {
+      justSavedRef.current = false;
+      setSavedSnapshot(bodyState);
+    }
+  }, [bodyState]);
+
+  // Keep a live ref to save() so the debounce effect never captures a stale closure.
+  const saveRef = useRef<(s?: "draft" | "published") => void>(() => {});
+  saveRef.current = save;
+
+  // Debounced autosave — fires ~1.8s after the last edit, preserving publish status.
+  useEffect(() => {
+    if (savedSnapshot === null || !dirty || saving) return;
+    const t = setTimeout(() => saveRef.current?.(), 1800);
+    return () => clearTimeout(t);
+  }, [bodyState, dirty, saving, savedSnapshot]);
+
+  // Warn before leaving with unsaved edits (e.g. a stray back-navigation).
+  useEffect(() => {
+    if (!dirty) return;
+    const h = (e: BeforeUnloadEvent) => { e.preventDefault(); e.returnValue = ""; };
+    window.addEventListener("beforeunload", h);
+    return () => window.removeEventListener("beforeunload", h);
+  }, [dirty]);
 
   async function remove() {
     if (!confirm("Delete this post? This cannot be undone.")) return;
@@ -335,14 +375,13 @@ export default function BlogEditorPage({ params }: { params: Promise<{ id: strin
 
         <Section
           title="Content"
-          hint="Markdown supported: ## heading, ### subheading, **bold**, *italic*, [link](https://…), ![photo](image-url), - bullet list, 1. numbered list, > quote, --- divider. Blank line starts a new paragraph."
+          hint="Use the toolbar (or ⌘B / ⌘I / ⌘K), insert photos straight from your library, and hit Preview to see the post exactly as readers will."
         >
-          <textarea
+          <MarkdownEditor
             value={content}
-            onChange={(e) => setContent(e.target.value)}
+            onChange={setContent}
             rows={22}
             placeholder={"The week started with 25 knots…\n\n## Day one\n\nWe rigged early and…"}
-            className="admin-input w-full px-4 py-3 rounded-lg border text-sm outline-none resize-y leading-relaxed"
           />
         </Section>
 
@@ -394,8 +433,17 @@ export default function BlogEditorPage({ params }: { params: Promise<{ id: strin
 
       <div className="fixed bottom-0 inset-x-0 z-40 admin-surface border-t admin-border">
         <div className="max-w-[860px] mx-auto px-6 sm:px-8 py-3 flex items-center justify-end gap-3">
-          {error && <span className="text-[13px] text-red-400 mr-auto">{error}</span>}
-          {saved && <span className="text-[13px] text-green-400 mr-auto">Saved ✓</span>}
+          <span className="mr-auto text-[13px] flex items-center gap-1.5">
+            {error ? (
+              <span className="text-red-400">{error}</span>
+            ) : saving ? (
+              <span className="admin-faint">Saving…</span>
+            ) : dirty ? (
+              <span className="admin-faint">Unsaved changes — autosaving…</span>
+            ) : savedSnapshot !== null ? (
+              <span className="text-green-500">✓ All changes saved</span>
+            ) : null}
+          </span>
           {status === "published" ? (
             <button
               onClick={() => save("draft")}

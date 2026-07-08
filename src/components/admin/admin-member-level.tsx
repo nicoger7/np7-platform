@@ -6,7 +6,7 @@ import { LEVELS } from "@/lib/member-level";
 type Detail = {
   self_level: string | null; coach_level: string | null; level_status: string | null;
   coach_can_manage_level: boolean; suggested: string | null;
-  milestones: { id: string; key: string; label: string; tier: string; sort_order: number; achieved: boolean }[];
+  milestones: { id: string; key: string; label: string; tier: string; sort_order: number; achieved: boolean; via?: string | null }[];
   history: { level: string | null; status: string | null; source: string | null; created_at: string }[];
 };
 
@@ -85,18 +85,32 @@ export function AdminMemberLevel({ contactId }: { contactId: string }) {
     setMsg(r.ok ? "🎉 Congrats email sent" : "Couldn't send the email.");
   }
 
-  function applyLocal(ids: Set<string>, achieved: boolean) {
-    setD((cur) => (cur ? { ...cur, milestones: cur.milestones.map((m) => (ids.has(m.id) ? { ...m, achieved } : m)) } : cur));
+  // A coach action resolves the "self-logged" state: ticking marks it via='coach'
+  // (counts toward rank); unticking clears it.
+  function applyLocal(ids: Set<string>, achieved: boolean, via: string | null) {
+    setD((cur) => (cur ? { ...cur, milestones: cur.milestones.map((m) => (ids.has(m.id) ? { ...m, achieved, via } : m)) } : cur));
   }
   function toggleOne(m: Detail["milestones"][number]) {
-    applyLocal(new Set([m.id]), !m.achieved);
-    bg({ action: "toggle_milestone", milestone_id: m.id, achieved: !m.achieved });
+    const next = !m.achieved;
+    applyLocal(new Set([m.id]), next, next ? "coach" : null);
+    bg({ action: "toggle_milestone", milestone_id: m.id, achieved: next });
+  }
+  function confirmOne(m: Detail["milestones"][number]) {
+    applyLocal(new Set([m.id]), true, "coach");
+    bg({ action: "toggle_milestone", milestone_id: m.id, achieved: true });
+  }
+  function confirmAllSelf() {
+    if (!d) return;
+    const ids = d.milestones.filter((m) => m.achieved && m.via === "self").map((m) => m.id);
+    if (!ids.length) return;
+    applyLocal(new Set(ids), true, "coach");
+    bg({ action: "set_milestones", milestone_ids: ids, achieved: true });
   }
   function setTier(tier: string, achieved: boolean) {
     if (!d) return;
     const ids = d.milestones.filter((m) => m.tier === tier).map((m) => m.id);
     if (!ids.length) return;
-    applyLocal(new Set(ids), achieved);
+    applyLocal(new Set(ids), achieved, achieved ? "coach" : null);
     bg({ action: "set_milestones", milestone_ids: ids, achieved });
   }
 
@@ -104,6 +118,7 @@ export function AdminMemberLevel({ contactId }: { contactId: string }) {
 
   const ctl = "text-xs px-2 py-1 rounded";
   const formEl: React.CSSProperties = { backgroundColor: "var(--admin-surface)", border: "1px solid var(--admin-border)", color: "var(--admin-text)" };
+  const selfCount = d.milestones.filter((m) => m.achieved && m.via === "self").length;
 
   return (
     <div className="space-y-3">
@@ -135,6 +150,13 @@ export function AdminMemberLevel({ contactId }: { contactId: string }) {
         </div>
       )}
 
+      {selfCount > 0 && (
+        <div className="flex items-center gap-2 rounded-lg px-3 py-2 text-xs" style={{ border: "1px solid rgba(245,158,11,0.4)", backgroundColor: "rgba(245,158,11,0.08)" }}>
+          <span style={{ color: "#f59e0b" }}>⬦ {selfCount} skill{selfCount > 1 ? "s" : ""} self-logged by the member — tap each to confirm, or</span>
+          <button onClick={confirmAllSelf} className="ml-auto shrink-0 px-2.5 py-1 rounded font-bold" style={{ backgroundColor: "#f59e0b", color: "#0a0a0a" }}>Confirm all</button>
+        </div>
+      )}
+
       <div className="space-y-2 pt-1">
         {LEVELS.map((t) => {
           const inTier = d.milestones.filter((m) => m.tier === t);
@@ -154,17 +176,31 @@ export function AdminMemberLevel({ contactId }: { contactId: string }) {
                 </button>
               </div>
               <div className="flex flex-wrap gap-1.5">
-                {inTier.map((m) => (
-                  <button key={m.id} onClick={() => toggleOne(m)}
-                    className="text-xs px-2 py-1 rounded transition-colors"
-                    style={m.achieved ? { backgroundColor: "rgba(10,163,199,0.18)", color: "#0aa3c7" } : formEl}>
-                    {m.achieved ? "✓ " : ""}{m.label}
-                  </button>
-                ))}
+                {inTier.map((m) => {
+                  if (m.achieved && m.via === "self") {
+                    return (
+                      <span key={m.id} className="inline-flex items-center rounded overflow-hidden text-xs" style={{ border: "1px solid rgba(245,158,11,0.5)" }}>
+                        <button onClick={() => confirmOne(m)} className="px-2 py-1 font-semibold" style={{ backgroundColor: "rgba(245,158,11,0.14)", color: "#f59e0b" }}>⬦ {m.label} · confirm</button>
+                        <button onClick={() => toggleOne(m)} title="Reject self-claim" className="px-1.5 py-1 border-l" style={{ backgroundColor: "rgba(245,158,11,0.14)", color: "#f59e0b", borderColor: "rgba(245,158,11,0.5)" }}>✕</button>
+                      </span>
+                    );
+                  }
+                  return (
+                    <button key={m.id} onClick={() => toggleOne(m)}
+                      className="text-xs px-2 py-1 rounded transition-colors"
+                      style={m.achieved ? { backgroundColor: "rgba(10,163,199,0.18)", color: "#0aa3c7" } : formEl}>
+                      {m.achieved ? "✓ " : ""}{m.label}
+                    </button>
+                  );
+                })}
               </div>
             </div>
           );
         })}
+        <p className="text-[10.5px] admin-faint pt-0.5 flex flex-wrap items-center gap-x-3 gap-y-1">
+          <span style={{ color: "#f59e0b" }}>⬦ self-logged — tap to confirm</span>
+          <span style={{ color: "#0aa3c7" }}>✓ verified (counts toward rank)</span>
+        </p>
       </div>
 
       {d.history.length > 0 && (

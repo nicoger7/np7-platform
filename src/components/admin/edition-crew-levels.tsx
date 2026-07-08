@@ -58,11 +58,24 @@ export function EditionCrewLevels({ editionId }: { editionId: string }) {
   const statusChip = (s: string | null) =>
     s === "verified" ? "bg-green-500/15 text-green-400" : s === "suggested" ? "bg-amber-500/15 text-amber-400" : "admin-faint";
 
+  // A coach action always resolves the "self-logged, pending" state: confirming
+  // (achieved) keeps the skill and clears the pending flag; unticking removes it.
   function toggleSkill(m: EditionCrewMember, milestoneId: string, achieved: boolean) {
     const achievedIds = achieved ? [...new Set([...m.achievedIds, milestoneId])] : m.achievedIds.filter((x) => x !== milestoneId);
+    const selfLoggedIds = m.selfLoggedIds.filter((x) => x !== milestoneId);
     const derived = deriveSuggestedLevel(catalog, new Set(achievedIds));
-    patch(m.contactId, derived ? { achievedIds, coach_level: derived, level_status: "verified", reviewed: true } : { achievedIds });
+    patch(m.contactId, derived ? { achievedIds, selfLoggedIds, coach_level: derived, level_status: "verified", reviewed: true } : { achievedIds, selfLoggedIds });
     fire(`/api/admin/members/${m.contactId}/level`, { action: "toggle_milestone", milestone_id: milestoneId, achieved });
+  }
+
+  // Confirm every skill this rider self-logged in one write — the common on-trip move.
+  function confirmAllSelf(m: EditionCrewMember) {
+    if (m.selfLoggedIds.length === 0) return;
+    const ids = m.selfLoggedIds;
+    const achievedIds = [...new Set([...m.achievedIds, ...ids])];
+    const derived = deriveSuggestedLevel(catalog, new Set(achievedIds));
+    patch(m.contactId, derived ? { achievedIds, selfLoggedIds: [], coach_level: derived, level_status: "verified", reviewed: true } : { achievedIds, selfLoggedIds: [] });
+    fire(`/api/admin/members/${m.contactId}/level`, { action: "set_milestones", milestone_ids: ids, achieved: true });
   }
 
   // "Select all" / "Clear all" for one rider's whole tier — one bulk write.
@@ -72,8 +85,9 @@ export function EditionCrewLevels({ editionId }: { editionId: string }) {
     const set = new Set(m.achievedIds);
     tierIds.forEach((id) => (achieved ? set.add(id) : set.delete(id)));
     const achievedIds = [...set];
+    const selfLoggedIds = m.selfLoggedIds.filter((x) => !tierIds.includes(x));
     const derived = deriveSuggestedLevel(catalog, set);
-    patch(m.contactId, derived ? { achievedIds, coach_level: derived, level_status: "verified", reviewed: true } : { achievedIds });
+    patch(m.contactId, derived ? { achievedIds, selfLoggedIds, coach_level: derived, level_status: "verified", reviewed: true } : { achievedIds, selfLoggedIds });
     fire(`/api/admin/members/${m.contactId}/level`, { action: "set_milestones", milestone_ids: tierIds, achieved });
   }
 
@@ -85,8 +99,9 @@ export function EditionCrewLevels({ editionId }: { editionId: string }) {
       const members = d.members.map((m) => {
         if (!ids.includes(m.contactId)) return m;
         const achievedIds = achieved ? [...new Set([...m.achievedIds, bulkSkill])] : m.achievedIds.filter((x) => x !== bulkSkill);
+        const selfLoggedIds = m.selfLoggedIds.filter((x) => x !== bulkSkill);
         const derived = deriveSuggestedLevel(d.catalog, new Set(achievedIds));
-        return derived ? { ...m, achievedIds, coach_level: derived, level_status: "verified" } : { ...m, achievedIds };
+        return derived ? { ...m, achievedIds, selfLoggedIds, coach_level: derived, level_status: "verified" } : { ...m, achievedIds, selfLoggedIds };
       });
       return { ...d, members, reviewed: members.filter((m) => m.reviewed).length };
     });
@@ -96,6 +111,8 @@ export function EditionCrewLevels({ editionId }: { editionId: string }) {
   // The full per-rider editor — shown in the detail pane (always expanded).
   function riderDetail(m: EditionCrewMember) {
     const achieved = new Set(m.achievedIds);
+    const selfSet = new Set(m.selfLoggedIds);
+    const selfCount = m.selfLoggedIds.length;
     const suggested = deriveSuggestedLevel(catalog, achieved);
     const pick = picks[m.contactId] ?? m.coach_level ?? suggested ?? "";
     return (
@@ -118,6 +135,12 @@ export function EditionCrewLevels({ editionId }: { editionId: string }) {
             <button disabled={!pick} onClick={() => { patch(m.contactId, { coach_level: pick, level_status: "verified", reviewed: true }); fire(`/api/admin/members/${m.contactId}/level`, { action: "set_level", level: pick, verify: true }); }} className="text-xs px-2.5 py-1.5 rounded disabled:opacity-40 font-bold" style={{ backgroundColor: "#0aa3c7", color: "#fff" }}>Verify</button>
             {catalog.length > 0 && <span className="ml-auto text-xs admin-faint">{m.achievedIds.length}/{catalog.length} skills</span>}
           </div>
+          {selfCount > 0 && (
+            <div className="flex items-center gap-2 mt-3 rounded-lg px-3 py-2 text-xs" style={{ border: "1px solid rgba(245,158,11,0.4)", backgroundColor: "rgba(245,158,11,0.08)" }}>
+              <span style={{ color: "#f59e0b" }}>⬦ {selfCount} skill{selfCount > 1 ? "s" : ""} the rider self-logged — tap each to confirm, or</span>
+              <button onClick={() => confirmAllSelf(m)} className="ml-auto shrink-0 px-2.5 py-1 rounded font-bold" style={{ backgroundColor: "#f59e0b", color: "#0a0a0a" }}>Confirm all</button>
+            </div>
+          )}
         </div>
         {catalog.length > 0 && (
           <div className="px-4 sm:px-5 py-4 space-y-3" style={{ backgroundColor: "var(--admin-surface)" }}>
@@ -135,6 +158,15 @@ export function EditionCrewLevels({ editionId }: { editionId: string }) {
                   <div className="flex flex-wrap gap-1.5">
                     {inTier.map((c) => {
                       const on = achieved.has(c.id);
+                      // Self-logged & unconfirmed → amber "confirm/✕"; coach-verified → cyan ✓; else plain.
+                      if (on && selfSet.has(c.id)) {
+                        return (
+                          <span key={c.id} title={c.description ?? c.label} className="inline-flex items-center rounded overflow-hidden text-xs" style={{ border: "1px solid rgba(245,158,11,0.5)" }}>
+                            <button onClick={() => toggleSkill(m, c.id, true)} className="px-2 py-1 font-semibold" style={{ backgroundColor: "rgba(245,158,11,0.14)", color: "#f59e0b" }}>⬦ {c.label} · confirm</button>
+                            <button onClick={() => toggleSkill(m, c.id, false)} title="Reject self-claim" className="px-1.5 py-1 border-l" style={{ backgroundColor: "rgba(245,158,11,0.14)", color: "#f59e0b", borderColor: "rgba(245,158,11,0.5)" }}>✕</button>
+                          </span>
+                        );
+                      }
                       return (
                         <button key={c.id} title={c.description ?? c.label} onClick={() => toggleSkill(m, c.id, !on)}
                           className="text-xs px-2 py-1 rounded" style={on ? { backgroundColor: "rgba(10,163,199,0.18)", color: "#0aa3c7" } : formEl}>
@@ -146,6 +178,10 @@ export function EditionCrewLevels({ editionId }: { editionId: string }) {
                 </div>
               );
             })}
+            <p className="text-[10.5px] admin-faint pt-1 flex flex-wrap items-center gap-x-3 gap-y-1">
+              <span style={{ color: "#f59e0b" }}>⬦ self-logged — tap to confirm</span>
+              <span style={{ color: "#0aa3c7" }}>✓ you verified (counts toward rank)</span>
+            </p>
           </div>
         )}
       </div>
@@ -204,6 +240,7 @@ export function EditionCrewLevels({ editionId }: { editionId: string }) {
                       <span className="block text-sm font-medium admin-heading truncate group-hover:text-[var(--admin-accent)] transition-colors">{m.name}</span>
                       <span className="block text-[11px] admin-faint truncate">self: {m.self_level ?? "—"}{suggested ? ` · milestones → ${suggested}` : ""}{catalog.length > 0 ? ` · ${m.achievedIds.length}/${catalog.length} skills` : ""}</span>
                     </span>
+                    {m.selfLoggedIds.length > 0 && <span className="shrink-0 px-1.5 py-0.5 rounded text-[10px] font-bold" style={{ backgroundColor: "rgba(245,158,11,0.14)", color: "#f59e0b" }}>{m.selfLoggedIds.length} to confirm</span>}
                     <span className={`shrink-0 px-1.5 py-0.5 rounded text-[10px] uppercase ${statusChip(m.level_status)}`}>{m.coach_level ?? m.self_level ?? "—"}{m.level_status ? ` · ${m.level_status}` : ""}</span>
                     <svg className="w-4 h-4 shrink-0 admin-faint" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m9 18 6-6-6-6" /></svg>
                   </button>

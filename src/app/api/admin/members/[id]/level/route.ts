@@ -31,8 +31,10 @@ export async function POST(req: NextRequest, { params }: Ctx) {
 
   if (body.action === "toggle_milestone") {
     if (typeof body.milestone_id !== "string") return NextResponse.json({ error: "milestone_id required" }, { status: 400 });
+    // A coach tick is authoritative: verified_via='coach' upgrades a member's
+    // self-log (self → coach) so "confirm" sticks and counts toward rank.
     const q = body.achieved
-      ? db.from("contact_milestones").upsert({ contact_id: id, milestone_id: body.milestone_id, set_by: by, achieved_at: now }, { onConflict: "contact_id,milestone_id" })
+      ? db.from("contact_milestones").upsert({ contact_id: id, milestone_id: body.milestone_id, set_by: by, achieved_at: now, verified_via: "coach" }, { onConflict: "contact_id,milestone_id" })
       : db.from("contact_milestones").delete().eq("contact_id", id).eq("milestone_id", body.milestone_id);
     const { error } = await q;
     if (error) return NextResponse.json({ ok: true, levelUnavailable: true });
@@ -46,7 +48,7 @@ export async function POST(req: NextRequest, { params }: Ctx) {
     const ids: string[] = Array.isArray(body.milestone_ids) ? body.milestone_ids.filter((x: unknown) => typeof x === "string") : [];
     if (ids.length === 0) return NextResponse.json({ error: "milestone_ids required" }, { status: 400 });
     const q = body.achieved
-      ? db.from("contact_milestones").upsert(ids.map((mid) => ({ contact_id: id, milestone_id: mid, set_by: by, achieved_at: now })), { onConflict: "contact_id,milestone_id" })
+      ? db.from("contact_milestones").upsert(ids.map((mid) => ({ contact_id: id, milestone_id: mid, set_by: by, achieved_at: now, verified_via: "coach" })), { onConflict: "contact_id,milestone_id" })
       : db.from("contact_milestones").delete().eq("contact_id", id).in("milestone_id", ids);
     const { error } = await q;
     if (error) return NextResponse.json({ ok: true, levelUnavailable: true });

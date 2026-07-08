@@ -29,7 +29,7 @@ export async function POST(req: NextRequest, { params }: Ctx) {
     if (typeof body.milestone_id !== "string" || ids.length === 0) return NextResponse.json({ error: "milestone_id and contact_ids required" }, { status: 400 });
     const now = new Date().toISOString();
     const q = body.achieved
-      ? db.from("contact_milestones").upsert(ids.map((cid) => ({ contact_id: cid, milestone_id: body.milestone_id, set_by: auth.member.teamMemberId, achieved_at: now })), { onConflict: "contact_id,milestone_id" })
+      ? db.from("contact_milestones").upsert(ids.map((cid) => ({ contact_id: cid, milestone_id: body.milestone_id, set_by: auth.member.teamMemberId, achieved_at: now, verified_via: "coach" })), { onConflict: "contact_id,milestone_id" })
       : db.from("contact_milestones").delete().eq("milestone_id", body.milestone_id).in("contact_id", ids);
     const { error } = await q;
     if (error) return NextResponse.json({ ok: true, levelUnavailable: true });

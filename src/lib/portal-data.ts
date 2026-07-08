@@ -314,7 +314,7 @@ export async function getCommunityAuthors(contactIds: (string | null | undefined
   return out;
 }
 
-export type LevelMilestone = { id: string; key: string; label: string; description: string | null; tier: string; sort_order: number; achieved: boolean };
+export type LevelMilestone = { id: string; key: string; label: string; description: string | null; tier: string; sort_order: number; achieved: boolean; via?: string | null };
 export type LevelHistoryEntry = { level: string | null; status: string | null; source: string | null; note: string | null; created_at: string };
 export type MemberLevelDetail = {
   self_level: string | null; coach_level: string | null; level_status: string | null;
@@ -358,10 +358,13 @@ export async function getMemberLevelDetail(contactId: string): Promise<MemberLev
   const catalog = await readActiveCatalog(db);
   let milestones: LevelMilestone[] = [];
   if (catalog.length) {
-    const ach = await db.from("contact_milestones").select("milestone_id").eq("contact_id", contactId);
+    // Carry the verification source (self / coach / windcoach) so the coach panel
+    // can flag self-logged skills awaiting confirmation. Tolerant of a pre-068 DB.
+    let ach = await db.from("contact_milestones").select("milestone_id,verified_via").eq("contact_id", contactId);
+    if (ach.error) ach = await db.from("contact_milestones").select("milestone_id").eq("contact_id", contactId);
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const achieved = new Set((ach.data ?? []).map((r: any) => r.milestone_id));
-    milestones = catalog.map((m) => ({ ...m, achieved: achieved.has(m.id) }));
+    const viaById = new Map<string, string | null>((ach.data ?? []).map((r: any) => [r.milestone_id, r.verified_via ?? null]));
+    milestones = catalog.map((m) => ({ ...m, achieved: viaById.has(m.id), via: viaById.get(m.id) ?? null }));
   }
 
   let history: LevelHistoryEntry[] = [];
@@ -416,6 +419,8 @@ export type CatalogMilestone = { id: string; key: string; label: string; descrip
 export type EditionCrewMember = {
   contactId: string; name: string; self_level: string | null; coach_level: string | null;
   level_status: string | null; suggested: string | null; reviewed: boolean; achievedIds: string[];
+  /** Achieved skills the rider self-logged that a coach hasn't confirmed yet. */
+  selfLoggedIds: string[];
 };
 export type EditionCrewLevels = {
   catalog: CatalogMilestone[]; members: EditionCrewMember[]; reviewed: number; total: number;
@@ -444,10 +449,17 @@ export async function getEditionCrewLevels(editionId: string): Promise<EditionCr
 
   const catalog = await readActiveCatalog(db);
 
-  const ach = await db.from("contact_milestones").select("contact_id,milestone_id").in("contact_id", contactIds);
+  // Read the verification source too (068+) so the UI can flag skills the rider
+  // self-logged and awaiting a coach's confirm. Tolerant of a pre-068 DB.
+  let ach = await db.from("contact_milestones").select("contact_id,milestone_id,verified_via").in("contact_id", contactIds);
+  if (ach.error) ach = await db.from("contact_milestones").select("contact_id,milestone_id").in("contact_id", contactIds);
   const achBy = new Map<string, string[]>();
+  const selfBy = new Map<string, string[]>();
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  for (const r of (ach.data ?? []) as any[]) achBy.set(r.contact_id, [...(achBy.get(r.contact_id) ?? []), r.milestone_id]);
+  for (const r of (ach.data ?? []) as any[]) {
+    achBy.set(r.contact_id, [...(achBy.get(r.contact_id) ?? []), r.milestone_id]);
+    if (r.verified_via === "self") selfBy.set(r.contact_id, [...(selfBy.get(r.contact_id) ?? []), r.milestone_id]);
+  }
 
   const members: EditionCrewMember[] = contactIds.map((cid) => {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -459,6 +471,7 @@ export async function getEditionCrewLevels(editionId: string): Promise<EditionCr
     return {
       contactId: cid, name: b.name ?? "—", self_level: l.self_level ?? null, coach_level: b.level ?? null,
       level_status: l.level_status ?? null, suggested, reviewed: l.level_status === "verified", achievedIds,
+      selfLoggedIds: selfBy.get(cid) ?? [],
     };
   }).sort((a, b) => a.name.localeCompare(b.name));
 
