@@ -1,7 +1,7 @@
-import Link from "next/link";
 import type { Metadata } from "next";
 import { cookies } from "next/headers";
 import { getSpotguideDestinations, getAllSpotguidePoints } from "@/lib/spotguide-data";
+import { MagazineTabs } from "@/components/blog/magazine-tabs";
 import { SpotMap } from "@/components/spotguide/spot-map";
 import { resolveSection, SECTION_CHROME } from "@/lib/blog-section";
 import { SectionHeader } from "@/components/shared/section-header";
@@ -30,22 +30,21 @@ export default async function SpotguideIndex() {
     <>
       <SectionHeader />
       <main className="bg-[#fff7ec] min-h-[100svh]">
-        {/* hero */}
-        <header className="relative overflow-hidden" style={{ background: chrome.heroBackground }}>
-          <div className="h-1" style={{ background: chrome.stripe }} />
-          <div className="max-w-[1100px] mx-auto px-6 sm:px-8 pt-16 pb-20 sm:pt-20 sm:pb-24 text-center">
-            <p className="text-[12px] font-black uppercase tracking-[0.2em] mb-3" style={{ color: chrome.eyebrow }}>The Spotguide</p>
-            <h1 className="text-white text-4xl sm:text-6xl font-black tracking-[-0.03em]">Where to ride</h1>
-            <p className="text-white/70 text-[16px] sm:text-[18px] mt-4 max-w-[560px] mx-auto leading-relaxed">
+        {/* hero — SAME shell as the magazine (bg image, left align, shared tab bar)
+            so switching Spotguide ⇄ Gear ⇄ Technique never shifts the pills */}
+        <header className="relative text-white pt-16 pb-12 overflow-hidden" style={{ background: chrome.heroBackground }}>
+          <div className="absolute inset-0 bg-cover bg-center opacity-20 mix-blend-luminosity" style={{ backgroundImage: "url('/cdn/assets/hero/windsurf-hero-poster.jpg')" }} aria-hidden />
+          <div className="absolute inset-0" style={{ background: "linear-gradient(to bottom, transparent 45%, rgba(0,20,29,0.55) 100%)" }} aria-hidden />
+          <div className="relative max-w-[1200px] mx-auto px-6 sm:px-8">
+            <p className="text-[11px] font-bold tracking-[0.25em] mb-3" style={{ color: chrome.eyebrow }}>THE SPOTGUIDE</p>
+            <h1 className="text-4xl sm:text-6xl font-black tracking-[-0.03em]">Where to ride</h1>
+            <span className="block h-1.5 w-28 rounded-full mt-4" style={{ background: chrome.stripe }} />
+            <p className="mt-5 text-[16px] sm:text-[18px] text-white/70 max-w-[600px] leading-relaxed">
               Honest spot guides — rated by NP7 and the crew. Real conditions, the forecast that actually works, and the spots worth your time.
             </p>
-            {/* jump to the other magazine sections */}
-            <nav className="mt-7 flex flex-wrap items-center justify-center gap-2 text-[13px] font-bold">
-              <span className="rounded-full px-3.5 py-1.5 text-[#00374a]" style={{ backgroundColor: chrome.eyebrow }}>Spotguide</span>
-              <Link href="/blog/gear" className="rounded-full px-3.5 py-1.5 text-white/80 hover:text-white bg-white/10 hover:bg-white/20 transition-colors">Gear</Link>
-              <Link href="/blog/technique" className="rounded-full px-3.5 py-1.5 text-white/80 hover:text-white bg-white/10 hover:bg-white/20 transition-colors">Technique</Link>
-              <Link href="/blog" className="rounded-full px-3.5 py-1.5 text-white/80 hover:text-white bg-white/10 hover:bg-white/20 transition-colors">All stories</Link>
-            </nav>
+            <div className="mt-8">
+              <MagazineTabs active="spotguide" accent={chrome.accent} onAccent={chrome.onAccent} />
+            </div>
           </div>
         </header>
 

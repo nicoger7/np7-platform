@@ -8,6 +8,7 @@ import { resolveSection, SECTION_CHROME } from "@/lib/blog-section";
 import { SectionHeader } from "@/components/shared/section-header";
 import { BlogFooter } from "@/components/blog/blog-footer";
 import { BlogCard, type CardPost, fmtDate, readTime } from "@/components/blog/blog-card";
+import { MagazineTabs } from "@/components/blog/magazine-tabs";
 import { cdnImage } from "@/lib/img";
 
 /**
@@ -19,15 +20,6 @@ import { cdnImage } from "@/lib/img";
  */
 
 export type BlogWorld = "" | "experience" | "hardware" | "technique";
-
-// "Spotguide" jumps OUT of the magazine to the interactive product (the real
-// spotguide); the rest are in-magazine world filters.
-const TABS: { key: BlogWorld; label: string; href: string }[] = [
-  { key: "", label: "All", href: "/blog" },
-  { key: "experience", label: "Spotguide", href: "/spotguide" },
-  { key: "hardware", label: "Gear", href: "/blog/gear" },
-  { key: "technique", label: "Technique", href: "/blog/technique" },
-];
 
 function teaser(p: CardPost) {
   if (p.excerpt) return p.excerpt;
@@ -96,22 +88,14 @@ export async function BlogIndexView({ world: activeWorld }: { world: BlogWorld }
             Spotguides, gear reviews, technique guides and stories — written between sessions by Nico and the crew.
           </p>
 
-          {/* world filter tabs — real routes, so every tab is edge-cacheable */}
-          <div className="mt-8 inline-flex items-center gap-1 p-1 rounded-full bg-white/10 backdrop-blur-sm">
-            {TABS.map((t) => {
-              const active = activeWorld === t.key;
-              return (
-                <Link
-                  key={t.key}
-                  href={t.href}
-                  scroll={false}
-                  className={`px-5 py-2 rounded-full text-[13px] font-bold transition-colors ${active ? "" : "text-white/70 hover:text-white"}`}
-                  style={active ? { backgroundColor: chrome.accent, color: chrome.onAccent } : undefined}
-                >
-                  {t.label}
-                </Link>
-              );
-            })}
+          {/* one shared tab bar (identical on the Spotguide product) so switching
+              between Spotguide / Gear / Technique never shifts the pills */}
+          <div className="mt-8">
+            <MagazineTabs
+              active={activeWorld === "" ? "all" : activeWorld === "hardware" ? "gear" : activeWorld === "technique" ? "technique" : "spotguide"}
+              accent={chrome.accent}
+              onAccent={chrome.onAccent}
+            />
           </div>
         </div>
       </section>
