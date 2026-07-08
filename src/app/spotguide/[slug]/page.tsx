@@ -55,6 +55,16 @@ export default async function SpotguideDestinationPage({ params }: Props) {
   const chrome = SECTION_CHROME[section];
   const lvl = levelRangeLabel(d.level_min, d.level_max);
 
+  // There's ALWAYS a hero image — as the video's poster (slow/failed load) and
+  // as the hero itself when there's no video. Fall back through the destination
+  // image → any spot's image/photo → the site's default windsurf poster, so the
+  // header never renders bare. (Nico: a fallback image, always.)
+  const heroPoster =
+    d.hero_image ||
+    d.spots.map((s) => s.hero_image).find(Boolean) ||
+    d.spots.flatMap((s) => s.photos ?? []).map((p) => p.url).find(Boolean) ||
+    "/cdn/assets/hero/windsurf-hero-poster.jpg";
+
   // Paywall structured data — tells Google the gated section is intentionally
   // members-only (NOT cloaking), so the in-DOM content still indexes.
   const jsonLd = {
@@ -74,14 +84,14 @@ export default async function SpotguideDestinationPage({ params }: Props) {
         {/* hero */}
         <header className="relative overflow-hidden" style={{ background: chrome.heroBackground }}>
           <div className="h-1 relative z-20" style={{ background: chrome.stripe }} />
-          {/* A YouTube segment (migration 073) plays behind the header when set;
-              otherwise the still hero_image. Both sit at 25% so the text reads. */}
-          {d.hero_video_url ? (
+          {/* The fallback image ALWAYS renders underneath (slow connection / no
+              video / video fails). A YouTube segment (migration 073) layers over
+              it when set. Both sit at 25% so the header text stays readable. */}
+          <div className="absolute inset-0 bg-cover bg-center opacity-25" style={{ backgroundImage: `url('${heroPoster}')` }} />
+          {d.hero_video_url && (
             <div className="absolute inset-0 opacity-25">
-              <HeroVideo url={d.hero_video_url} start={d.hero_video_start} end={d.hero_video_end} poster={d.hero_image} />
+              <HeroVideo url={d.hero_video_url} start={d.hero_video_start} end={d.hero_video_end} poster={heroPoster} />
             </div>
-          ) : (
-            d.hero_image && <div className="absolute inset-0 bg-cover bg-center opacity-25" style={{ backgroundImage: `url('${d.hero_image}')` }} />
           )}
           <div className="relative max-w-[1000px] mx-auto px-6 sm:px-8 pt-12 pb-14 sm:pt-16 sm:pb-16">
             <Link href="/spotguide" className="text-[12px] font-bold text-white/70 hover:text-white transition-colors">← Spotguide</Link>

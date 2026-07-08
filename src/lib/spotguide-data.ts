@@ -88,6 +88,7 @@ export async function getSpotguideDestinations(): Promise<SpotguideDestinationCa
 export async function getSpotguideDestination(slug: string): Promise<SpotguideDestination | null> {
   const sb = db();
   const { data: d } = await sb
+    .from("destinations")
     // select("*") so the hero_video_* columns (migration 073) flow through when
     // present without breaking before it's applied (they're just undefined then).
     .select("*")
