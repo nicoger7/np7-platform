@@ -7,6 +7,8 @@ const COLS = [
   "skill_levels", "gallery", "partners", "status", "sort_order",
   // Spotguide (migration 062): rating track, level range, separate visibility, coords
   "np7_ratings", "level_min", "level_max", "spotguide_status", "lat", "lng",
+  // Hero video (migration 073): looped YouTube segment behind the page header
+  "hero_video_url", "hero_video_start", "hero_video_end",
 ];
 
 // GET /api/admin/destinations/:id — destination + the trips that point to it
@@ -39,7 +41,13 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
   const body = await request.json();
   const patch: Record<string, unknown> = { updated_at: new Date().toISOString() };
   for (const k of COLS) if (k in body) patch[k] = body[k];
-  const { data, error } = await db.from("destinations").update(patch).eq("id", id).select("*").single();
+  let { data, error } = await db.from("destinations").update(patch).eq("id", id).select("*").single();
+  // Tolerant of pre-migration-073: if the hero_video_* columns aren't there yet,
+  // drop them and retry so saving a destination never breaks before the paste.
+  if (error && /hero_video_/.test(error.message || "")) {
+    for (const k of ["hero_video_url", "hero_video_start", "hero_video_end"]) delete patch[k];
+    ({ data, error } = await db.from("destinations").update(patch).eq("id", id).select("*").single());
+  }
   if (error) return NextResponse.json({ error: error.message }, { status: 400 });
   return NextResponse.json(data);
 }

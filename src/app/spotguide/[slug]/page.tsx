@@ -17,6 +17,7 @@ import { AddSpot } from "@/components/spotguide/add-spot";
 import { VerifySpots } from "@/components/spotguide/verify-spots";
 import { VerifyEdits } from "@/components/spotguide/verify-edits";
 import { SpotMap } from "@/components/spotguide/spot-map";
+import { HeroVideo } from "@/components/experience/hero-video";
 import { flags } from "@/lib/flags";
 
 type Props = { params: Promise<{ slug: string }> };
@@ -72,8 +73,16 @@ export default async function SpotguideDestinationPage({ params }: Props) {
       <main className="bg-[#fff7ec] min-h-[100svh]">
         {/* hero */}
         <header className="relative overflow-hidden" style={{ background: chrome.heroBackground }}>
-          <div className="h-1" style={{ background: chrome.stripe }} />
-          {d.hero_image && <div className="absolute inset-0 bg-cover bg-center opacity-25" style={{ backgroundImage: `url('${d.hero_image}')` }} />}
+          <div className="h-1 relative z-20" style={{ background: chrome.stripe }} />
+          {/* A YouTube segment (migration 073) plays behind the header when set;
+              otherwise the still hero_image. Both sit at 25% so the text reads. */}
+          {d.hero_video_url ? (
+            <div className="absolute inset-0 opacity-25">
+              <HeroVideo url={d.hero_video_url} start={d.hero_video_start} end={d.hero_video_end} poster={d.hero_image} />
+            </div>
+          ) : (
+            d.hero_image && <div className="absolute inset-0 bg-cover bg-center opacity-25" style={{ backgroundImage: `url('${d.hero_image}')` }} />
+          )}
           <div className="relative max-w-[1000px] mx-auto px-6 sm:px-8 pt-12 pb-14 sm:pt-16 sm:pb-16">
             <Link href="/spotguide" className="text-[12px] font-bold text-white/70 hover:text-white transition-colors">← Spotguide</Link>
             <h1 className="text-white text-4xl sm:text-6xl font-black tracking-[-0.03em] mt-3">{d.name}</h1>

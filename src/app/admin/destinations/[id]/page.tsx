@@ -10,6 +10,7 @@ type Partner = { name: string; description: string; url: string; image?: string 
 interface Dest {
   id: string; name: string; slug: string | null; region: string | null; country: string | null;
   hero_image: string | null; tagline: string | null; intro: string | null;
+  hero_video_url: string | null; hero_video_start: number | null; hero_video_end: number | null;
   wind_probability: string | null; wind_season: string | null; wind_speed: string | null;
   best_season: string | null; conditions: string | null; skill_levels: string | null;
   gallery: string[] | null; partners: Partner[] | null; status: string;
@@ -109,6 +110,17 @@ export default function DestinationEditor({ params }: { params: Promise<{ id: st
 
         <div><label className={labelClass}>Tagline</label><input className={inputClass} value={d.tagline ?? ""} onChange={(e) => set("tagline", e.target.value)} placeholder="Dream destination Alaçatı" /></div>
         <div><label className={labelClass}>Intro</label><textarea className={`${inputClass} min-h-[100px] resize-y`} value={d.intro ?? ""} onChange={(e) => set("intro", e.target.value)} /></div>
+
+        {/* Hero video — a looped YouTube segment behind the header (falls back to the hero image). */}
+        <div className="rounded-lg p-3" style={{ border: "1px solid var(--admin-border)", backgroundColor: "var(--admin-surface)" }}>
+          <label className={labelClass}>Hero video (YouTube) — optional</label>
+          <input className={inputClass} value={d.hero_video_url ?? ""} onChange={(e) => set("hero_video_url", e.target.value || null)} placeholder="https://youtu.be/… or the 11-char video ID" />
+          <div className="grid grid-cols-2 gap-3 mt-2">
+            <div><label className={labelClass}>Loop from (seconds)</label><input type="number" min={0} className={inputClass} value={d.hero_video_start ?? ""} onChange={(e) => set("hero_video_start", e.target.value === "" ? null : Number(e.target.value))} placeholder="0" /></div>
+            <div><label className={labelClass}>Loop to (seconds)</label><input type="number" min={0} className={inputClass} value={d.hero_video_end ?? ""} onChange={(e) => set("hero_video_end", e.target.value === "" ? null : Number(e.target.value))} placeholder="e.g. 42" /></div>
+          </div>
+          <p className="text-xs admin-faint mt-1.5">Muted, auto-looping just the chosen window. Leave both blank to loop the whole clip. The hero image is the poster while it loads.</p>
+        </div>
 
         <div className="grid grid-cols-3 gap-4">
           <div><label className={labelClass}>Wind probability</label><input className={inputClass} value={d.wind_probability ?? ""} onChange={(e) => set("wind_probability", e.target.value)} placeholder="80–90%" /></div>

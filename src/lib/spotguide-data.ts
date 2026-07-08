@@ -40,6 +40,7 @@ export type SpotguideTrip = { id: string; title: string; slug: string; hero_imag
 export type SpotguideDestination = {
   id: string; name: string; slug: string | null; region: string | null; country: string | null;
   hero_image: string | null; tagline: string | null; intro: string | null;
+  hero_video_url: string | null; hero_video_start: number | null; hero_video_end: number | null;
   level_min: string | null; level_max: string | null;
   np7_ratings: Record<string, number>; np7: number; member: RatingSummary;
   spots: PublicSpot[]; trips: SpotguideTrip[];
@@ -87,8 +88,9 @@ export async function getSpotguideDestinations(): Promise<SpotguideDestinationCa
 export async function getSpotguideDestination(slug: string): Promise<SpotguideDestination | null> {
   const sb = db();
   const { data: d } = await sb
-    .from("destinations")
-    .select("id, name, slug, region, country, hero_image, tagline, intro, level_min, level_max, np7_ratings, spotguide_status")
+    // select("*") so the hero_video_* columns (migration 073) flow through when
+    // present without breaking before it's applied (they're just undefined then).
+    .select("*")
     .eq("slug", slug)
     .maybeSingle();
   if (!d || d.spotguide_status !== "published") return null;
@@ -146,6 +148,9 @@ export async function getSpotguideDestination(slug: string): Promise<SpotguideDe
   return {
     id: d.id, name: d.name, slug: d.slug, region: d.region, country: d.country,
     hero_image: d.hero_image, tagline: d.tagline, intro: d.intro,
+    hero_video_url: d.hero_video_url ?? null,
+    hero_video_start: d.hero_video_start ?? null,
+    hero_video_end: d.hero_video_end ?? null,
     level_min: d.level_min, level_max: d.level_max, np7_ratings: d.np7_ratings ?? {},
     np7: np7Overall(d.np7_ratings, DESTINATION_CRITERIA_KEYS),
     member: summariseRatings(dratings ?? [], DESTINATION_CRITERIA_KEYS),
