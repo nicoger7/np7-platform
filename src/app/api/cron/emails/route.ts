@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase";
 import { sendEmail } from "@/lib/email/send";
 import { getMemoryPhotosForBooking } from "@/lib/portal-data";
+import { computePaymentPlan, dueUrgency, balanceDue } from "@/lib/payments";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
@@ -10,9 +11,14 @@ export const maxDuration = 60;
  * Daily lifecycle runner (Vercel cron → vercel.json). Idempotent: every send
  * uses a per-booking dedupe_key so re-runs never double-send.
  *
- * Covers the market-standard booking arc against booking state + edition dates:
- *   • payment nudges    — up to 2 (+2d, +5d), stop once the deposit is paid
- *   • balance invoice    — invoice + reminder (~45d / ~30d out), stop once paid
+ * Covers the market-standard booking arc against booking state + edition dates.
+ * Payment timing is driven by the SAME engine as the member plan + invoices
+ * (computePaymentPlan/dueUrgency), so mails always match what the account shows:
+ *   • payment nudges    — up to 2 (+2d, +5d), stop once secured
+ *   • deadline ladder    — "last chance" a few days before the downpayment
+ *                          deadline, "spot released" once it has passed
+ *   • balance invoice    — reminder the week it falls due (start − N days),
+ *                          plus one overdue nudge; stop once paid
  *   • balance paid        — one confirmation
  *   • pre-trip            — planning (~21d) + final countdown (~3d, WhatsApp)
  *   • post-trip           — thank-you + review/photos (~3d after the week ends)
@@ -75,7 +81,7 @@ export async function GET(req: NextRequest) {
 
   const { data: bookings } = await db
     .from("exp_bookings")
-    .select("id,status,experience_id,edition_id,agreed_price,downpayment_received,final_payment_received,created_at,contacts(name,email),exp_experiences(title,slug),exp_editions(date_start,date_end,deposit,whatsapp_group_link)")
+    .select("id,status,experience_id,edition_id,agreed_price,deposit_received,downpayment_received,final_payment_received,created_at,contacts(name,email),exp_experiences(title,slug),exp_editions(date_start,date_end,deposit,whatsapp_group_link),exp_packages(deposit,deposit_refund_days,downpayment_percent,final_days_before)")
     .not("status", "in", "(lost)");
 
   // Pre-trip content (packing list + personal note) per experience — written once
@@ -107,7 +113,7 @@ export async function GET(req: NextRequest) {
 
   const out = {
     evaluated: (bookings ?? []).length,
-    nudge: 0, balance: 0, balance_paid: 0, pretrip: 0, excitement: 0, pretrip_final: 0, post_trip: 0, waiver: 0, photos: 0,
+    nudge: 0, last_chance: 0, released: 0, balance: 0, balance_paid: 0, pretrip: 0, excitement: 0, pretrip_final: 0, post_trip: 0, waiver: 0, photos: 0,
   };
   const bump = (k: keyof typeof out, r: { status: string }) => { if (r.status === "sent") (out[k] as number)++; };
 
@@ -120,9 +126,33 @@ export async function GET(req: NextRequest) {
     const daysToStart = start ? Math.round((new Date(start).getTime() - now) / DAY) : null;
     const daysSinceEnd = end ? Math.round((now - new Date(end).getTime()) / DAY) : null;
     const ageDays = b.created_at ? Math.round((now - new Date(b.created_at).getTime()) / DAY) : 0;
-    const deposit = b.exp_editions?.deposit ?? 300;
-    const balanceNum = b.agreed_price != null ? b.agreed_price - deposit : null;
     const status = (b.status ?? "").toLowerCase();
+
+    // The booking's real payment plan — same engine as the member view and the
+    // invoices, so every mail quotes the amounts/deadlines the account shows.
+    const pkgCfg = b.exp_packages ?? {};
+    const payCfg = {
+      deposit: b.exp_editions?.deposit ?? pkgCfg.deposit ?? null,
+      deposit_refund_days: pkgCfg.deposit_refund_days ?? null,
+      downpayment_percent: pkgCfg.downpayment_percent ?? null,
+      final_days_before: pkgCfg.final_days_before ?? null,
+    };
+    const payState = {
+      total: b.agreed_price ?? 0,
+      editionStart: start,
+      bookedAt: b.created_at ?? null,
+      depositReceived: b.deposit_received ?? null,
+      downpaymentReceived: b.downpayment_received ?? null,
+      finalPaymentReceived: b.final_payment_received ?? null,
+    };
+    const plan = computePaymentPlan(payCfg, payState);
+    const securing = plan.find((m) => (m.kind === "deposit" || m.kind === "downpayment") && m.status !== "paid");
+    const urgency = securing ? dueUrgency(securing) : "ok";
+    const finalMs = plan.find((m) => m.kind === "final");
+    const balanceNum = balanceDue(payCfg, payState);
+    const deposit = plan.find((m) => m.kind === "deposit")?.amount ?? 0;
+    const money = (n: number) => `€${n.toLocaleString("en-US", { minimumFractionDigits: n % 1 ? 2 : 0, maximumFractionDigits: 2 })}`;
+    const fmtDay = (iso: string) => new Date(iso + "T00:00:00Z").toLocaleDateString("en-GB", { day: "numeric", month: "long", year: "numeric", timeZone: "UTC" });
     // Awaiting their first payment (down-payment OR deposit) — includes free-signup
     // LEADS (the new funnel) so they're nudged to secure their spot, not just the
     // older deposit-first "reserved" rows. Tolerant of legacy statuses.
@@ -139,7 +169,9 @@ export async function GET(req: NextRequest) {
     const vars = {
       firstName, experienceTitle: b.exp_experiences?.title,
       deposit: String(deposit),
-      balance: balanceNum != null ? `€${balanceNum.toLocaleString("en-US")}` : undefined,
+      balance: balanceNum > 0 ? money(balanceNum) : undefined,
+      downpayment: securing ? money(securing.amount) : undefined,
+      dueDate: securing?.dueDate ? fmtDay(securing.dueDate) : undefined,
       dates: fmtRange(start, end),
       whatsappLink: b.exp_editions?.whatsapp_group_link ?? undefined,
       reviewLink: `${origin}/account/bookings/${b.id}/review`,
@@ -153,21 +185,31 @@ export async function GET(req: NextRequest) {
     const send = (templateKey: string, dedupeKey: string) =>
       sendEmail({ to: email, templateKey, vars, bookingId: b.id, dedupeKey });
 
-    // 1 · deposit still pending — up to two gentle nudges (+2d, +5d), stop once paid
+    // 1 · securing payment still pending — up to two gentle nudges (+2d, +5d)
     if (leadLive && !depositPaid && awaitingDeposit && (daysToStart == null || daysToStart > 3)) {
       if (ageDays >= 2) bump("nudge", await send("payment_pending_nudge", `payment_pending_nudge:d2:${b.id}`));
       if (ageDays >= 5) bump("nudge", await send("payment_pending_nudge", `payment_pending_nudge:d5:${b.id}`));
     }
 
-    // 2 · balance — invoice + reminder, stop once paid (proxied by days-to-start since
-    //     there's no per-booking "invoice sent" timestamp; the team triggers it in time)
-    if (tripLive && depositPaid && !balancePaid && balanceNum && balanceNum > 0 && daysToStart != null) {
-      if (daysToStart <= 45 && daysToStart > 30) bump("balance", await send("balance_invoice_reminder", `balance_invoice_reminder:r1:${b.id}`));
-      if (daysToStart <= 30 && daysToStart > 14) bump("balance", await send("balance_invoice_reminder", `balance_invoice_reminder:r2:${b.id}`));
+    // 1b · deadline ladder — the SAME dueUrgency() the member banners use:
+    //      "last chance" once inside the final days before the downpayment
+    //      deadline, "spot released" once it's passed. Skipped for trips that
+    //      already started; a recorded payment stops the ladder automatically.
+    if (leadLive && !depositPaid && awaitingDeposit && securing && (daysToStart == null || daysToStart > 0)) {
+      if (urgency === "last_chance") bump("last_chance", await send("downpayment_last_chance", `downpayment_last_chance:${b.id}`));
+      if (urgency === "expired") bump("released", await send("spot_released", `spot_released:${b.id}`));
+    }
+
+    // 2 · final balance — anchored to the plan's REAL deadline (start − N days,
+    //     N per package): one reminder the week it falls due, one overdue nudge.
+    const daysToFinalDue = finalMs?.dueDate ? Math.round((new Date(finalMs.dueDate).getTime() - now) / DAY) : null;
+    if (tripLive && depositPaid && !balancePaid && finalMs && finalMs.amount > 0 && daysToFinalDue != null) {
+      if (daysToFinalDue <= 7 && daysToFinalDue >= 0) bump("balance", await send("balance_invoice_reminder", `balance_invoice_reminder:r1:${b.id}`));
+      if (daysToFinalDue <= -3 && (daysToStart == null || daysToStart > 0)) bump("balance", await send("balance_invoice_reminder", `balance_invoice_reminder:r2:${b.id}`));
     }
 
     // 3 · balance paid in full — one confirmation
-    if (tripLive && depositPaid && balancePaid && balanceNum && balanceNum > 0) {
+    if (tripLive && depositPaid && balancePaid && (b.agreed_price ?? 0) > 0) {
       bump("balance_paid", await send("balance_paid_confirmation", `balance_paid_confirmation:${b.id}`));
     }
 

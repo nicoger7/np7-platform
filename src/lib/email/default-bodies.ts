@@ -17,6 +17,8 @@ export const DEFAULT_SUBJECTS: Record<string, string> = {
   voucher_gift: "🎁 You've been gifted an NP7 windsurf trip",
   cancellation_confirmed: "Your cancellation — {{experienceTitle}}",
   payment_pending_nudge: "Your spot is waiting — {{experienceTitle}}",
+  downpayment_last_chance: "Last chance to hold your spot — {{experienceTitle}}",
+  spot_released: "Your spot on {{experienceTitle}} is no longer held",
   balance_invoice_reminder: "Balance for {{experienceTitle}} — invoice",
   pre_trip_info: "Getting ready for {{experienceTitle}} 🌊",
   pre_trip_excitement: "Almost time 🌊 {{experienceTitle}} is around the corner",
@@ -65,6 +67,20 @@ export const DEFAULT_BODIES: Record<string, string> = {
     P("Your place on <strong>{{experienceTitle}}</strong> is still open — but it isn't secured yet. Spots are limited, so lock yours in with the down-payment whenever you're ready. You'll find the amount and how to pay in your account:") +
     BTN("Secure my spot", "bookingLink") +
     P("It stays fully refundable for 14 days. Questions? Just reply — we're happy to help."),
+
+  downpayment_last_chance:
+    P("Hey {{firstName}} 🤙") +
+    P("Quick heads-up: your window to secure <strong>{{experienceTitle}}</strong> closes on <strong>{{dueDate}}</strong>. After that we can't hold your place, and the spot opens up to other riders.") +
+    P("Locking it in takes a minute — pay the downpayment of <strong>{{downpayment}}</strong> by bank transfer. Everything you need is in your account:") +
+    BTN("Secure my spot now", "bookingLink") +
+    P("Already paid in the last day or two? Then you're set — bank transfers can take a moment to reach us. Questions? Just reply."),
+
+  spot_released:
+    P("Hey {{firstName}} 🤙") +
+    P("Your payment window for <strong>{{experienceTitle}}</strong> has passed, so we can no longer hold your place — the spot is open to other riders again.") +
+    P("Still want to come? If there's room left, it's yours the moment your downpayment lands:") +
+    BTN("Check my trip & pay", "bookingLink") +
+    P("And if the timing didn't work out this round — no hard feelings. Reply and we'll find you a week that fits. 🤙"),
 
   balance_invoice_reminder:
     P("Hey {{firstName}} 🤙") +

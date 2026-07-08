@@ -29,6 +29,9 @@ export type EmailVars = {
   inviterName?: string;
   rewardFriend?: string;
   personalNote?: string;
+  /** Formatted securing-payment amount (e.g. "€1,399.50") and its deadline. */
+  downpayment?: string;
+  dueDate?: string;
   [k: string]: string | undefined;
 };
 
@@ -117,6 +120,37 @@ export const TEMPLATES: Record<string, (v: EmailVars, opts?: LayoutOpts) => Buil
         p(`Your place on <strong>${esc(v.experienceTitle || "")}</strong> is still open — but it isn't secured yet. Spots are limited, so lock yours in with the down-payment whenever you're ready. You'll find the amount and how to pay in your account:`) +
         (v.bookingLink ? emailButton("Secure my spot", v.bookingLink) : "") +
         p(`It stays fully refundable for 14 days. Questions? Just reply — we're happy to help.`),
+    }),
+  }),
+
+  // Deadline ladder on the securing payment — mirrors the member-area banners
+  // (dueUrgency in src/lib/payments.ts): a loud warning a few days before the
+  // window closes, then the honest "we can't hold it any more" once it has.
+  downpayment_last_chance: (v, opts) => ({
+    subject: `Last chance to hold your spot — ${v.experienceTitle ?? "NP7 Experience"}`,
+    html: emailLayout({
+      ...opts,
+      preheader: "Your payment window closes soon — after that we can't hold your place.",
+      bodyHtml:
+        greet(v) +
+        p(`Quick heads-up: your window to secure <strong>${esc(v.experienceTitle || "your trip")}</strong> closes ${v.dueDate ? `on <strong>${esc(v.dueDate)}</strong>` : "in the next days"}. After that we can't hold your place, and the spot opens up to other riders.`) +
+        p(`Locking it in takes a minute — pay the downpayment${v.downpayment ? ` of <strong>${esc(v.downpayment)}</strong>` : ""} by bank transfer. Everything you need is in your account:`) +
+        (v.bookingLink ? emailButton("Secure my spot now", v.bookingLink) : "") +
+        p(`Already paid in the last day or two? Then you're set — bank transfers can take a moment to reach us. Questions? Just reply.`),
+    }),
+  }),
+
+  spot_released: (v, opts) => ({
+    subject: `Your spot on ${v.experienceTitle ?? "the trip"} is no longer held`,
+    html: emailLayout({
+      ...opts,
+      preheader: "Your payment window has passed — but there may still be room.",
+      bodyHtml:
+        greet(v) +
+        p(`Your payment window for <strong>${esc(v.experienceTitle || "your trip")}</strong> has passed, so we can no longer hold your place — the spot is open to other riders again.`) +
+        p(`Still want to come? If there's room left, it's yours the moment your downpayment lands:`) +
+        (v.bookingLink ? emailButton("Check my trip & pay", v.bookingLink) : "") +
+        p(`And if the timing didn't work out this round — no hard feelings. Reply and we'll find you a week that fits. 🤙`),
     }),
   }),
 
