@@ -28,7 +28,11 @@ html {
 /* Sidebar nav: subtle lift + tint on hover so items feel clickable and alive. */
 .admin-navlink:hover { background-color: var(--admin-active); transform: translateX(2px); }
 .admin-navlink:active { transform: translateX(2px) scale(0.99); }
-@media (prefers-reduced-motion: reduce) { .admin-navlink:hover, .admin-navlink:active { transform: none; } }
+@media (prefers-reduced-motion: reduce) {
+  .admin-navlink:hover, .admin-navlink:active,
+  .admin-card-hover:hover,
+  .admin-btn:hover:not(:disabled), .admin-btn:active { transform: none; }
+}
 .admin-heading { color: var(--admin-text); letter-spacing: -0.01em; }
 .admin-muted { color: var(--admin-text-muted); }
 .admin-faint { color: var(--admin-text-faint); }
@@ -54,8 +58,14 @@ html {
   border: 1px solid var(--admin-border);
   border-radius: var(--admin-radius);
 }
-.admin-card-hover { transition: border-color .15s ease, background-color .15s ease; }
-.admin-card-hover:hover { border-color: var(--admin-border-strong); background-color: var(--admin-surface-hover); }
+.admin-card-hover { transition: border-color .15s ease, background-color .15s ease, transform .15s ease, box-shadow .15s ease; will-change: transform; }
+.admin-card-hover:hover {
+  border-color: var(--admin-border-strong);
+  background-color: var(--admin-surface-hover);
+  /* subtle lift — interactive things grow slightly under the cursor */
+  transform: translateY(-1px) scale(1.004);
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.18);
+}
 
 .admin-btn {
   display: inline-flex; align-items: center; justify-content: center; gap: .4rem;
@@ -64,6 +74,7 @@ html {
   border: 1px solid transparent;
   transition: background-color .15s ease, border-color .15s ease, transform .04s ease;
 }
+.admin-btn:hover:not(:disabled) { transform: translateY(-1px); }
 .admin-btn:active { transform: translateY(1px); }
 .admin-btn:disabled { opacity: .5; cursor: default; }
 .admin-btn-primary { background-color: var(--admin-accent); color: #fff; }
