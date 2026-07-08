@@ -83,9 +83,9 @@ function leadCoach(coaches: string | null | undefined): string | null {
 }
 
 const DISCIPLINES = [
-  { name: "Windsurf", tag: "Plane, jibe, send", color: "#00afdb" },
-  { name: "Wingfoil", tag: "Fly above the water", color: "#f47b20" },
-  { name: "Foil", tag: "Silent, weightless glide", color: "#ffc42e" },
+  { name: "Windsurf", tag: "Plane, jibe, send", color: "#00afdb", image: "https://media.np-seven.com/experiences/np7-alacati/action/alacati-experience-action-nico-2.jpg" },
+  { name: "Wingfoil", tag: "Fly above the water", color: "#f47b20", image: "https://media.np-seven.com/experiences/np7-bonaire/action/winging-in-bonaire-2.jpg" },
+  { name: "Foil", tag: "Silent, weightless glide", color: "#ffc42e", image: "https://media.np-seven.com/experiences/np7-alacati/action/participant-action-alacati-on-foil-with-coach.jpg" },
 ];
 
 /* --------------------------------- page --------------------------------- */
@@ -320,7 +320,10 @@ export default async function ExperienceOverviewPage() {
               {DISCIPLINES.map((d, i) => (
                 <Reveal key={d.name} delay={i * 100}>
                   <div className="group relative rounded-3xl overflow-hidden p-8 h-[220px] flex flex-col justify-end text-white shadow-[0_24px_50px_rgba(0,20,30,0.28)]" style={{ background: `linear-gradient(160deg, ${d.color}, #00374a)` }}>
-                    <div className="absolute -right-8 -top-8 w-40 h-40 rounded-full bg-white/10 group-hover:scale-125 transition-transform duration-500" />
+                    {/* real action shot per discipline; the colour gradient stays as a tint */}
+                    <div className="absolute inset-0 bg-cover bg-center transition-transform duration-700 group-hover:scale-105" style={{ backgroundImage: `url('${d.image}')` }} />
+                    <div className="absolute inset-0 mix-blend-multiply opacity-55" style={{ background: `linear-gradient(160deg, ${d.color}, #00374a)` }} />
+                    <div className="absolute inset-0 bg-gradient-to-t from-[#00131b]/75 via-transparent to-transparent" />
                     <h3 className="relative text-2xl font-black tracking-[-0.02em]">{d.name}</h3>
                     <p className="relative text-[13px] font-semibold text-white/80 mt-1">{d.tag}</p>
                   </div>

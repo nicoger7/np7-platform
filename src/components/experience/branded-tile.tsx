@@ -45,24 +45,25 @@ export function BrandedTile({
       )}
 
       {/* 2 — sun-to-sea colour wash: warm gold/coral over teal, plus a
-             bottom-left darken so the gold title and location label stay legible */}
+             bottom-left darken so the gold title and location label stay legible.
+             Deliberately light — the background photo is the hero of the tile. */}
       <div
-        className="absolute inset-0 mix-blend-soft-light opacity-90"
-        style={{ background: "linear-gradient(115deg, rgba(255,164,38,0.55) 0%, rgba(244,123,32,0.35) 38%, rgba(0,55,74,0.15) 62%, rgba(0,175,219,0.35) 100%)" }}
+        className="absolute inset-0 mix-blend-soft-light opacity-70"
+        style={{ background: "linear-gradient(115deg, rgba(255,164,38,0.5) 0%, rgba(244,123,32,0.3) 38%, rgba(0,55,74,0.12) 62%, rgba(0,175,219,0.3) 100%)" }}
       />
       {/* brand "sun to sea" tint — a clear-but-transparent yellow→blue veil that
          keeps the CI feeling over any photo (normal blend, sits behind the coach) */}
       <div
         className="absolute inset-0"
-        style={{ background: "linear-gradient(150deg, rgba(255,196,46,0.30) 0%, rgba(255,196,46,0.06) 44%, rgba(0,175,219,0.12) 68%, rgba(0,175,219,0.34) 100%)" }}
+        style={{ background: "linear-gradient(150deg, rgba(255,196,46,0.22) 0%, rgba(255,196,46,0.05) 44%, rgba(0,175,219,0.09) 68%, rgba(0,175,219,0.25) 100%)" }}
       />
       <div
         className="absolute inset-0"
-        style={{ background: "linear-gradient(90deg, rgba(0,32,44,0.72) 0%, rgba(0,32,44,0.30) 42%, transparent 70%)" }}
+        style={{ background: "linear-gradient(90deg, rgba(0,32,44,0.55) 0%, rgba(0,32,44,0.22) 30%, transparent 52%)" }}
       />
       <div
         className="absolute inset-0"
-        style={{ background: "linear-gradient(to top, rgba(0,24,34,0.55), transparent 45%)" }}
+        style={{ background: "linear-gradient(to top, rgba(0,24,34,0.45), transparent 38%)" }}
       />
 
       {/* 3 — flag drape on the coach side: a translucent flag draped diagonally,
@@ -73,18 +74,18 @@ export function BrandedTile({
           src={flagSrc(flag.code)}
           alt=""
           aria-hidden
-          className="pointer-events-none absolute right-[-4%] top-[-18%] h-[150%] w-[64%] rotate-[12deg] object-cover opacity-70"
+          className="pointer-events-none absolute right-[-2%] top-[-12%] h-[135%] w-[42%] rotate-[12deg] object-cover opacity-45"
           style={{
-            WebkitMaskImage: "linear-gradient(104deg, transparent 8%, rgba(0,0,0,0.8) 34%, #000 66%)",
-            maskImage: "linear-gradient(104deg, transparent 8%, rgba(0,0,0,0.8) 34%, #000 66%)",
+            WebkitMaskImage: "linear-gradient(104deg, transparent 10%, rgba(0,0,0,0.7) 40%, #000 70%)",
+            maskImage: "linear-gradient(104deg, transparent 10%, rgba(0,0,0,0.7) 40%, #000 70%)",
           }}
         />
       )}
 
-      {/* 4 — gold place name + subtitle (kept clear of the coach on the right) */}
-      <div className="absolute left-4 top-1/2 -translate-y-1/2 max-w-[56%] z-10">
+      {/* 4 — gold place name + subtitle (bottom-left, clear of the photo's centre) */}
+      <div className="absolute left-4 bottom-3.5 max-w-[58%] z-10">
         <h3
-          className="font-[family-name:var(--font-display)] uppercase leading-[0.82] tracking-[0.005em] text-[clamp(30px,7.6vw,46px)]"
+          className="font-[family-name:var(--font-display)] uppercase leading-[0.82] tracking-[0.005em] text-[clamp(24px,5.8vw,36px)]"
           style={{
             backgroundImage: "linear-gradient(180deg, #fff2c2 0%, #ffd257 42%, #f4a11f 66%, #d97a12 100%)",
             WebkitBackgroundClip: "text",
@@ -95,7 +96,7 @@ export function BrandedTile({
         >
           {place}
         </h3>
-        <p className="mt-1.5 font-extrabold uppercase tracking-[0.015em] leading-tight text-white text-[clamp(9px,2.4vw,12.5px)] drop-shadow-[0_2px_6px_rgba(0,0,0,0.6)]">
+        <p className="mt-1 font-extrabold uppercase tracking-[0.015em] leading-tight text-white/95 text-[clamp(8.5px,2vw,11px)] drop-shadow-[0_2px_6px_rgba(0,0,0,0.6)]">
           {subtitle}
         </p>
       </div>
@@ -108,13 +109,13 @@ export function BrandedTile({
             <img
               src={coachCutout}
               alt={coachName}
-              className="h-[108%] w-auto max-w-none self-end object-contain object-bottom"
-              style={{ filter: "drop-shadow(-6px 6px 10px rgba(0,0,0,0.45))" }}
+              className="h-[82%] w-auto max-w-none self-end object-contain object-bottom"
+              style={{ filter: "drop-shadow(-5px 5px 9px rgba(0,0,0,0.45))" }}
             />
           )}
-          <span className="absolute right-3 bottom-3 text-right leading-none">
-            <span className="block italic text-white/85 text-[10px] mb-0.5">with</span>
-            <span className="block font-extrabold uppercase tracking-[0.02em] text-white text-[clamp(11px,2.6vw,15px)] drop-shadow-[0_2px_6px_rgba(0,0,0,0.7)]">
+          <span className="absolute right-3 top-3 text-right leading-none">
+            <span className="block italic text-white/85 text-[9.5px] mb-0.5">with</span>
+            <span className="block font-extrabold uppercase tracking-[0.02em] text-white text-[clamp(10px,2.2vw,13px)] drop-shadow-[0_2px_6px_rgba(0,0,0,0.7)]">
               {coachName}
             </span>
           </span>

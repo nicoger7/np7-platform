@@ -14,18 +14,20 @@ import { paidSpotsByEdition, spotsLeftFrom } from "@/lib/availability";
 import { GalleryStrip } from "@/components/experience/gallery-strip";
 import { Slideshow } from "@/components/experience/slideshow";
 import { EpicWeekScroll } from "@/components/experience/epic-week-scroll";
+import { SectionNav, type NavSection } from "@/components/experience/section-nav";
 
 export const revalidate = 60;
 
 type Props = { params: Promise<{ slug: string }> };
 
 /* -------- evergreen brand content (per-trip fields come from admin later) -------- */
+// Our own shots on our own CDN (R2) — no third-party hosting.
 const BRAND_IMG = {
-  group: "https://surfcenter-experience.com/wp-content/uploads/2025/01/P1021717-Kopie-scaled-e1736503004873.jpg",
-  action: "https://surfcenter-experience.com/wp-content/uploads/2025/11/Balz_Muller-5.jpg",
-  ease: "https://surfcenter-experience.com/wp-content/uploads/2025/03/21-e1741705621400.jpg",
-  spot: "https://surfcenter-experience.com/wp-content/uploads/2025/04/4-5-may-768x576.jpg",
-  coach: "https://surfcenter-experience.com/wp-content/uploads/2025/11/Rossmeier-2.jpg",
+  group: "https://media.np-seven.com/experiences/np7-alacati/people/alacati-group-photo.jpg",
+  action: "https://media.np-seven.com/experiences/np7-alacati/action/nico-action-alacati.jpg",
+  ease: "https://media.np-seven.com/experiences/np7-bonaire/learning/beginner-lesson-bonaire.jpg",
+  spot: "https://media.np-seven.com/experiences/np7-bonaire/place/bonaire-spot-overview-drone-shot.jpg",
+  coach: "https://media.np-seven.com/experiences/np7-alacati/learning/nico-one-on-one-explanation-to-participant-alacati.jpg",
 };
 
 /* The outcome stack — what you take home. Transformation, not features. */
@@ -324,6 +326,8 @@ export default async function ExperienceDetailPage({ params }: Props) {
   const windRange = content?.wind_range?.trim() ?? "";
   const noWindProgram = content?.no_wind_program?.trim() ?? "";
   const highlights = (content?.highlights ?? []).filter((h) => h && h.trim());
+  // Deliberately NO per-day photos — cycled gallery shots never matched the day
+  // text and looked unprofessional (Nico, 2026-07-08). Text-only timeline.
   const programItems: AccordionItem[] =
     (content?.daily_program ?? []).length > 0
       ? content!.daily_program!.map((p, i) => ({
@@ -382,14 +386,20 @@ export default async function ExperienceDetailPage({ params }: Props) {
         : MOMENTS.map((m) => ({ ...m, rating: 5, verified: false }));
 
   // Destination quick-module (migration 022; tolerant — hidden until applied + linked)
-  let destination: { slug: string | null; name: string; region: string | null; country: string | null; tagline: string | null; hero_image: string | null } | null = null;
+  let destination: { slug: string | null; name: string; region: string | null; country: string | null; tagline: string | null; intro: string | null; hero_image: string | null } | null = null;
   {
     const { data: ed } = await sb.from("exp_experiences").select("destination_id").eq("id", experience.id).maybeSingle();
     if (ed?.destination_id) {
-      const { data: dd } = await sb.from("destinations").select("slug,name,region,country,tagline,hero_image,status").eq("id", ed.destination_id).maybeSingle();
+      const { data: dd } = await sb.from("destinations").select("slug,name,region,country,tagline,intro,hero_image,status").eq("id", ed.destination_id).maybeSingle();
       if (dd && dd.status === "published" && dd.slug) destination = dd;
     }
   }
+
+  // ONE preset for every experience: "The spot" always renders the same section —
+  // the editor's location_about wins, otherwise the linked destination's own
+  // intro/tagline fills it. No per-experience layout divergence (Nico's rule);
+  // only when there's no text anywhere does the compact banner stand in.
+  const spotAbout = locationAbout || destination?.intro?.trim() || destination?.tagline?.trim() || "";
 
   return (
     <>
@@ -467,7 +477,25 @@ export default async function ExperienceDetailPage({ params }: Props) {
         </div></div>
       </section>
 
+      {/* sticky sub-nav — same component as the destination pages, so the two
+          long-form templates feel like one family. "Reserve" = persistent
+          shortcut to the conversion module. */}
+      <SectionNav
+        sections={([
+          { id: "week", label: "Your week" },
+          { id: "method", label: "Coaching" },
+          spotAbout && { id: "spot", label: "The spot" },
+          { id: "packages", label: "Packages" },
+          { id: "program", label: "Day by day" },
+          { id: "crew", label: "Crew" },
+          { id: "faq", label: "FAQ" },
+        ].filter(Boolean)) as NavSection[]}
+        topClass="top-16"
+        action={{ label: soldOut ? "Waitlist" : "Reserve", href: "#packages" }}
+      />
+
       {/* 1 · THE DREAM — your epic week (pinned scroll through the outcomes) */}
+      <div id="week" className="scroll-mt-28">
       <EpicWeekScroll
         outcomes={OUTCOMES}
         images={vibeImages}
@@ -476,8 +504,9 @@ export default async function ExperienceDetailPage({ params }: Props) {
         intro={experience.description || "One week, fully immersed in the sport you love — epic conditions, world-class coaching, and a crew that feels like old friends by day two."}
         weekInfo={weekInfo}
       />
+      </div>
       {/* 2 · THE NP7 TRAINING SYSTEM — the unique mechanism */}
-      <section id="method" className="scroll-mt-16 py-16 sm:py-24 bg-[#00374a] text-white relative overflow-hidden">
+      <section id="method" className="scroll-mt-28 py-16 sm:py-24 bg-[#00374a] text-white relative overflow-hidden">
         <Slideshow images={vibeImages} className="opacity-45" />
         {/* readable scrim — photo shows through more than before; warm glow keeps it fun, not clinical */}
         <div className="absolute inset-0 bg-gradient-to-br from-[#00374a]/85 via-[#00374a]/65 to-[#013242]/85" />
@@ -563,23 +592,35 @@ export default async function ExperienceDetailPage({ params }: Props) {
         </div>
       </section>
 
-      {/* 4 · THE SPOT — only when there's no linked destination (the destination module replaces it) */}
-      {locationAbout && !destination && (
-        <section className="py-16 sm:py-24">
-          <div className="max-w-[1100px] mx-auto px-6 sm:px-8 grid lg:grid-cols-[1.1fr_1fr] gap-10 lg:gap-16 items-center">
+      {/* 4 · THE SPOT — the destination link lives INSIDE it (no separate banner) */}
+      {spotAbout && (
+        <section id="spot" className="scroll-mt-28 py-16 sm:py-24">
+          {/* two columns already from md — stacked full-width only on phones, where
+              a 16:9 crop keeps the image from eating the whole viewport */}
+          <div className="max-w-[1100px] mx-auto px-6 sm:px-8 grid md:grid-cols-[1.1fr_1fr] gap-8 md:gap-10 lg:gap-16 items-center">
             <Reveal from="left">
-              <div className="aspect-[4/3] rounded-3xl bg-cover bg-center shadow-[0_20px_50px_rgba(0,55,74,0.12)]" style={{ backgroundImage: `url('${galleryImgs[1] ?? heroMediaImage}')` }} />
+              {(() => {
+                const spotImg = destination?.hero_image ?? galleryImgs[1] ?? heroMediaImage;
+                const inner = <div className="aspect-[16/9] md:aspect-[4/3] rounded-3xl bg-cover bg-center shadow-[0_20px_50px_rgba(0,55,74,0.12)] transition-transform duration-500 group-hover:scale-[1.02]" style={{ backgroundImage: `url('${spotImg}')` }} />;
+                return destination?.slug ? <Link href={`/destinations/${destination.slug}`} className="group block">{inner}</Link> : inner;
+              })()}
             </Reveal>
             <Reveal from="right">
               <div>
                 <p className="text-[11px] font-bold tracking-[0.25em] text-[#00afdb] mb-3">THE SPOT</p>
                 <h2 className="text-3xl sm:text-5xl font-black tracking-[-0.03em] text-[#00374a] mb-5">{place}</h2>
-                <p className="text-[16px] text-[#5a6b72] leading-relaxed whitespace-pre-line">{locationAbout}</p>
+                <p className="text-[16px] text-[#5a6b72] leading-relaxed whitespace-pre-line">{spotAbout}</p>
                 {(windRange || windProbability) && (
                   <div className="flex flex-wrap gap-2 mt-6">
                     {windRange && <span className="text-[12.5px] font-bold text-[#00374a] bg-[#00afdb]/10 px-3.5 py-1.5 rounded-full">{windRange}</span>}
                     {windProbability && <span className="text-[12.5px] font-bold text-[#00374a] bg-[#00afdb]/10 px-3.5 py-1.5 rounded-full">{windProbability} wind probability</span>}
                   </div>
+                )}
+                {destination?.slug && (
+                  <Link href={`/destinations/${destination.slug}`} className="group inline-flex items-center gap-2 mt-7 px-6 py-3 rounded-full text-[13.5px] font-bold text-white bg-[#00afdb] shadow-[0_4px_18px_rgba(0,175,219,0.3)] hover:bg-[#15c0ec] hover:-translate-y-0.5 transition-all">
+                    Explore {destination.name}
+                    <svg className="w-4 h-4 group-hover:translate-x-0.5 transition-transform" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M5 12h14M13 6l6 6-6 6" /></svg>
+                  </Link>
                 )}
               </div>
             </Reveal>
@@ -587,8 +628,8 @@ export default async function ExperienceDetailPage({ params }: Props) {
         </section>
       )}
 
-      {/* 4b · DESTINATION quick-module → full destination page */}
-      {destination && (
+      {/* 4b · DESTINATION banner — fallback only when there's no spot text to host the link */}
+      {destination && !spotAbout && (
         <section className="py-12 sm:py-16">
           <div className="max-w-[1100px] mx-auto px-6 sm:px-8">
             <Reveal>
@@ -610,7 +651,7 @@ export default async function ExperienceDetailPage({ params }: Props) {
       )}
 
       {/* 5 · PACKAGES + BOOKING */}
-      <section id="packages" className="scroll-mt-16 py-16 sm:py-24 bg-[#f7f7f7]">
+      <section id="packages" className="scroll-mt-28 py-16 sm:py-24 bg-[#f7f7f7]">
         <div className="max-w-[1200px] mx-auto px-6 sm:px-8">
           <Reveal className="text-center max-w-[600px] mx-auto mb-12">
             <p className="text-[11px] font-bold tracking-[0.25em] text-[#00afdb] mb-3">PACKAGES</p>
@@ -642,7 +683,7 @@ export default async function ExperienceDetailPage({ params }: Props) {
       </section>
 
       {/* 6 · YOUR PERFECT WEEK */}
-      <section className="py-16 sm:py-24">
+      <section id="program" className="scroll-mt-28 py-16 sm:py-24">
         <div className="max-w-[760px] mx-auto px-6 sm:px-8">
           {highlights.length > 0 && (
             <Reveal className="flex flex-wrap gap-2 mb-8">
@@ -660,8 +701,8 @@ export default async function ExperienceDetailPage({ params }: Props) {
         </div>
       </section>
 
-      {/* 7 · PROOF — coaches & reviews */}
-      <section className="py-16 sm:py-24 bg-[#f7f7f7]">
+      {/* 7 · PROOF — coaches & reviews (crew = your coaches + the riders you'll share the week with) */}
+      <section id="crew" className="scroll-mt-28 py-16 sm:py-24 bg-[#f7f7f7]">
         <div className="max-w-[1100px] mx-auto px-6 sm:px-8">
           <Reveal className="mb-8"><p className="text-[11px] font-bold tracking-[0.25em] text-[#00afdb] mb-3">YOUR TEAM</p><h2 className="text-3xl sm:text-4xl font-black tracking-[-0.03em] text-[#00374a]">Learn from the best</h2></Reveal>
           <Reveal className="mb-16">
@@ -715,7 +756,7 @@ export default async function ExperienceDetailPage({ params }: Props) {
       )}
 
       {/* 9 · FAQ */}
-      <section className="py-16 sm:py-24 bg-[#fff7ec]">
+      <section id="faq" className="scroll-mt-28 py-16 sm:py-24 bg-[#fff7ec]">
         <div className="max-w-[760px] mx-auto px-6 sm:px-8">
           <Reveal className="mb-10 text-center"><p className="text-[11px] font-bold tracking-[0.25em] text-[#00afdb] mb-3">GOOD TO KNOW</p><h2 className="text-3xl sm:text-4xl font-black tracking-[-0.03em] text-[#00374a]">Questions, answered</h2></Reveal>
           <Reveal><Accordion items={faqItems} allowMultiple /></Reveal>

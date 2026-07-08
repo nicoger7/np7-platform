@@ -3,6 +3,7 @@
 import { useMemo, useState } from "react";
 import { ReserveModal, DEPOSIT_EUR, type ReserveContext } from "./reserve-modal";
 import { track } from "@/lib/analytics-client";
+import { cdnImage } from "@/lib/img";
 
 export type RealPackage = {
   id: string;
@@ -65,6 +66,9 @@ const DEFAULT_INCLUDES = [
  */
 export function PackagePicker({ packages, currency = "EUR", reserve }: Props) {
   const [showReserve, setShowReserve] = useState(false);
+  // Active photo per hotel group (the expanded card shows a swappable banner —
+  // photos stay at card size on purpose: sources aren't always hi-res, so no lightbox).
+  const [photoIdx, setPhotoIdx] = useState<Record<string, number>>({});
   const symbol = currency === "EUR" || !currency ? "€" : `${currency} `;
   const fmt = (n: number) => `${symbol}${n.toLocaleString("en-US")}`;
 
@@ -93,6 +97,44 @@ export function PackagePicker({ packages, currency = "EUR", reserve }: Props) {
   // keep accommodation valid when level changes
   const selected =
     accommodations.find((a) => a.id === accId) ?? accommodations[0];
+
+  // Group the room options by hotel so the list reads "pick a place, then a
+  // room" instead of one long flat radio list. "No hotel" and rooms without a
+  // resolved hotel stay as slim single rows.
+  type HotelGroup = {
+    key: string;
+    hotelName: string | null;
+    image: string | null;
+    images: string[] | null;
+    description: string | null;
+    rooms: RealPackage[]; // price-ascending (accommodations is pre-sorted)
+  };
+  const isNoHotel = (a: RealPackage) => /^no\s*hotel$/i.test(a.accommodation.trim());
+  const groups = useMemo<HotelGroup[]>(() => {
+    const map = new Map<string, HotelGroup>();
+    for (const a of accommodations) {
+      const key = isNoHotel(a) ? "__none" : a.hotelName ? `h:${a.hotelName}` : `solo:${a.id}`;
+      if (!map.has(key)) {
+        map.set(key, {
+          key,
+          hotelName: a.hotelName ?? null,
+          image: a.hotelImage ?? null,
+          images: a.hotelImages ?? null,
+          description: a.hotelDescription ?? null,
+          rooms: [],
+        });
+      }
+      map.get(key)!.rooms.push(a);
+    }
+    return [...map.values()].sort((g1, g2) => g1.rooms[0].price - g2.rooms[0].price);
+  }, [accommodations]);
+
+  // "WANAPA Double Deluxe Patio" -> "Double Deluxe Patio" (the card already names the hotel)
+  const roomLabel = (a: RealPackage, hotelName: string | null) => {
+    if (!hotelName) return a.accommodation;
+    const esc = hotelName.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    return a.accommodation.replace(new RegExp(`^${esc}\\s*`, "i"), "").trim() || a.accommodation;
+  };
 
   const onLevel = (lv: string) => {
     setLevel(lv);
@@ -139,39 +181,148 @@ export function PackagePicker({ packages, currency = "EUR", reserve }: Props) {
           })()}
         </div>
 
-        {/* accommodation */}
+        {/* accommodation — hotels as photo cards; rooms unfold inside the chosen hotel */}
         <div>
           <p className="text-[11px] font-bold tracking-[0.2em] uppercase text-[#9aa6ac] mb-3">2 · Accommodation</p>
           <div className="space-y-2.5">
-            {accommodations.map((a) => {
-              const active = a.id === selected?.id;
+            {groups.map((g) => {
+              const groupActive = g.rooms.some((r) => r.id === selected?.id);
+
+              // Slim rows: "No hotel" + rooms without a resolved hotel.
+              if (!g.hotelName || g.key === "__none") {
+                return g.rooms.map((a) => {
+                  const active = a.id === selected?.id;
+                  return (
+                    <button
+                      key={a.id}
+                      onClick={() => setAccId(a.id)}
+                      aria-pressed={active}
+                      className={`w-full flex items-center justify-between gap-4 text-left px-4 py-3.5 rounded-xl border transition-all ${
+                        active
+                          ? "border-[#00afdb] bg-[#00afdb]/[0.05] shadow-[0_6px_20px_rgba(0,175,219,0.1)]"
+                          : "border-[#e3e9ec] hover:border-[#bcd] bg-white"
+                      }`}
+                    >
+                      <span className="flex items-center gap-3 min-w-0">
+                        <Radio on={active} />
+                        <span className="min-w-0">
+                          <span className="block text-[14px] font-semibold text-[#1f3138] truncate">
+                            {g.key === "__none" ? "No hotel" : a.accommodation}
+                          </span>
+                          {g.key === "__none" && (
+                            <span className="block text-[12px] text-[#7a8a90]">Coaching &amp; program only — you sort your own stay</span>
+                          )}
+                        </span>
+                      </span>
+                      <span className="text-[14px] font-bold text-[#1f3138] shrink-0">{fmt(a.price)}</span>
+                    </button>
+                  );
+                });
+              }
+
+              // Hotel card: photo + name + blurb; the chosen hotel unfolds its rooms.
+              const single = g.rooms.length === 1;
+              const cheapest = g.rooms[0];
+              const photos = [g.image, ...(g.images ?? [])].filter(Boolean) as string[];
+              const idx = Math.min(photoIdx[g.key] ?? 0, Math.max(0, photos.length - 1));
               return (
-                <button
-                  key={a.id}
-                  onClick={() => setAccId(a.id)}
-                  aria-pressed={active}
-                  className={`w-full flex items-center justify-between gap-4 text-left px-4 py-3 rounded-xl border transition-all ${
-                    active
-                      ? "border-[#00afdb] bg-[#00afdb]/[0.05] shadow-[0_6px_20px_rgba(0,175,219,0.1)]"
-                      : "border-[#e3e9ec] hover:border-[#bcd] bg-white"
+                <div
+                  key={g.key}
+                  className={`rounded-2xl border overflow-hidden transition-all ${
+                    groupActive
+                      ? "border-[#00afdb] bg-[#00afdb]/[0.04] shadow-[0_8px_26px_rgba(0,175,219,0.12)]"
+                      : "border-[#e3e9ec] bg-white hover:border-[#bcd]"
                   }`}
                 >
-                  <span className="flex items-center gap-3 min-w-0">
-                    <span className={`w-4 h-4 rounded-full border-2 grid place-items-center shrink-0 ${active ? "border-[#00afdb]" : "border-[#cbd5d9]"}`}>
-                      {active && <span className="w-2 h-2 rounded-full bg-[#00afdb]" />}
-                    </span>
-                    {a.hotelImage && (
-                      <span className="w-14 h-12 rounded-lg bg-cover bg-center shrink-0" style={{ backgroundImage: `url('${a.hotelImage}')` }} aria-hidden />
-                    )}
-                    <span className="min-w-0">
-                      <span className="block text-[14px] font-semibold text-[#1f3138] truncate">{a.hotelName || a.accommodation}</span>
-                      {a.hotelName && a.accommodation && a.accommodation !== a.hotelName && (
-                        <span className="block text-[12px] text-[#7a8a90] truncate">{a.accommodation}</span>
+                  {/* Expanded hotel = big edge-to-edge photo banner + swap thumbs.
+                      Kept at card width (no lightbox) — sources aren't always hi-res. */}
+                  {groupActive && photos.length > 0 && (
+                    <>
+                      <div
+                        className="h-44 sm:h-56 bg-cover bg-center"
+                        style={{ backgroundImage: `url('${cdnImage(photos[idx], { width: 1200 })}')` }}
+                        aria-hidden
+                      />
+                      {photos.length > 1 && (
+                        <div className="flex gap-1.5 px-3 pt-2 overflow-x-auto scrollbar-hide">
+                          {photos.map((u, i) => (
+                            <button
+                              key={i}
+                              type="button"
+                              onClick={() => setPhotoIdx((s) => ({ ...s, [g.key]: i }))}
+                              aria-label={`${g.hotelName} photo ${i + 1}`}
+                              aria-pressed={i === idx}
+                              className={`w-20 h-14 rounded-lg bg-cover bg-center shrink-0 transition-all ${
+                                i === idx ? "ring-2 ring-[#00afdb]" : "opacity-65 hover:opacity-100"
+                              }`}
+                              style={{ backgroundImage: `url('${cdnImage(u, { width: 200 })}')` }}
+                            />
+                          ))}
+                        </div>
                       )}
+                    </>
+                  )}
+
+                  <button
+                    onClick={() => !groupActive && setAccId(cheapest.id)}
+                    aria-pressed={groupActive}
+                    className="w-full flex items-stretch gap-4 text-left p-3"
+                  >
+                    {!groupActive && g.image && (
+                      <span
+                        className="w-28 sm:w-36 self-stretch min-h-[84px] rounded-xl bg-cover bg-center shrink-0"
+                        style={{ backgroundImage: `url('${cdnImage(g.image, { width: 400 })}')` }}
+                        aria-hidden
+                      />
+                    )}
+                    <span className="min-w-0 flex-1 py-1">
+                      <span className="flex items-center justify-between gap-3">
+                        <span className="text-[15px] font-extrabold text-[#00374a] truncate">{g.hotelName}</span>
+                        <span className="text-[13.5px] font-bold text-[#1f3138] shrink-0">
+                          {single ? fmt(cheapest.price) : `from ${fmt(cheapest.price)}`}
+                        </span>
+                      </span>
+                      {g.description && (
+                        <span className="block text-[12.5px] text-[#5a6b72] leading-snug mt-0.5 line-clamp-2">{g.description}</span>
+                      )}
+                      <span className="flex items-center gap-2 mt-1.5">
+                        <Radio on={groupActive} />
+                        <span className="text-[12px] font-semibold text-[#7a8a90]">
+                          {single ? roomLabel(cheapest, g.hotelName) : `${g.rooms.length} room types`}
+                        </span>
+                      </span>
                     </span>
-                  </span>
-                  <span className="text-[14px] font-bold text-[#1f3138] shrink-0">{fmt(a.price)}</span>
-                </button>
+                  </button>
+
+                  {groupActive && !single && (
+                    <div className="border-t border-[#00afdb]/20 px-3 py-2 space-y-1">
+                      {g.rooms.map((a) => {
+                        const active = a.id === selected?.id;
+                        return (
+                          <button
+                            key={a.id}
+                            onClick={() => setAccId(a.id)}
+                            aria-pressed={active}
+                            className={`w-full flex items-center justify-between gap-3 text-left px-3 py-2.5 rounded-lg transition-colors ${
+                              active ? "bg-white shadow-[0_2px_10px_rgba(0,55,74,0.08)]" : "hover:bg-white/60"
+                            }`}
+                          >
+                            <span className="flex items-center gap-2.5 min-w-0">
+                              <Radio on={active} />
+                              <span className={`text-[13.5px] truncate ${active ? "font-bold text-[#00374a]" : "font-medium text-[#4a5b62]"}`}>
+                                {roomLabel(a, g.hotelName)}
+                              </span>
+                            </span>
+                            <span className={`text-[13.5px] shrink-0 tabular-nums ${active ? "font-bold text-[#00374a]" : "font-semibold text-[#5a6b72]"}`}>
+                              {fmt(a.price)}
+                            </span>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  )}
+
+                </div>
               );
             })}
           </div>
@@ -222,6 +373,7 @@ export function PackagePicker({ packages, currency = "EUR", reserve }: Props) {
         </div>
       </aside>
 
+      {/* radio-dot helper is defined below the component */}
       {showReserve && reserve && selected && (
         <ReserveModal
           ctx={
@@ -238,5 +390,14 @@ export function PackagePicker({ packages, currency = "EUR", reserve }: Props) {
         />
       )}
     </div>
+  );
+}
+
+/** The little radio dot used across the accommodation rows. */
+function Radio({ on }: { on: boolean }) {
+  return (
+    <span className={`w-4 h-4 rounded-full border-2 grid place-items-center shrink-0 ${on ? "border-[#00afdb]" : "border-[#cbd5d9]"}`}>
+      {on && <span className="w-2 h-2 rounded-full bg-[#00afdb]" />}
+    </span>
   );
 }

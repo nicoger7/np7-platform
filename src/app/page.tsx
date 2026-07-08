@@ -14,7 +14,7 @@ import { cdn } from "@/lib/cdn";
 const NP7_LOGO = cdn('logos/np7-logo.png');
 const NP7_EXPERIENCE_LOGO = cdn('logos/np7-experience-logo.png');
 const EXP_PHOTO =
-  "https://surfcenter-experience.com/wp-content/uploads/2025/01/53724070151_54cd73586b_k-1536x1024.jpg";
+  "https://media.np-seven.com/experiences/np7-alacati/people/alacati-group-photo.jpg";
 
 const Arrow = () => (
   <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">

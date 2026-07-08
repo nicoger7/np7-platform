@@ -7,6 +7,8 @@ export type AccordionItem = {
   eyebrow?: string;
   title: string;
   content: React.ReactNode;
+  /** optional photo shown inside the expanded panel (timeline variant) */
+  image?: string;
 };
 
 type AccordionProps = {
@@ -40,9 +42,9 @@ export function Accordion({
   return (
     <div className={variant === "timeline" ? "relative" : ""}>
       {variant === "timeline" && (
-        <span className="absolute left-[15px] top-2 bottom-2 w-px bg-[#ebebeb]" aria-hidden />
+        <span className="absolute left-[17px] top-3 bottom-3 w-[2px] rounded-full bg-gradient-to-b from-[#0aa3c7]/40 via-[#e6eef0] to-[#e6eef0]" aria-hidden />
       )}
-      <ul className="space-y-3">
+      <ul className={variant === "timeline" ? "space-y-2" : "space-y-3"}>
         {items.map((item, i) => {
           const isOpen = open.has(i);
           return (
@@ -50,14 +52,31 @@ export function Accordion({
               key={i}
               className={
                 variant === "timeline"
-                  ? "relative pl-12"
+                  ? `relative pl-12 rounded-2xl transition-colors ${isOpen ? "bg-[#f4fafc] ring-1 ring-[#0aa3c7]/15 overflow-hidden" : ""} ${isOpen && item.image ? "md:pr-[264px] md:min-h-[176px]" : ""}`
                   : "border border-[#ebebeb] rounded-2xl overflow-hidden"
               }
             >
+              {/* photo = full-height right panel of the open card, fading into the
+                  card background — a proper media card, no floating thumbnail */}
+              {variant === "timeline" && isOpen && item.image && (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img
+                  src={item.image}
+                  alt=""
+                  loading="lazy"
+                  className="hidden md:block absolute inset-y-0 right-0 w-[240px] object-cover"
+                  style={{
+                    WebkitMaskImage: "linear-gradient(to right, transparent 0%, #000 22%)",
+                    maskImage: "linear-gradient(to right, transparent 0%, #000 22%)",
+                  }}
+                />
+              )}
               {variant === "timeline" && (
                 <span
-                  className={`absolute left-0 top-3 w-8 h-8 rounded-full flex items-center justify-center text-[11px] font-bold transition-colors ${
-                    isOpen ? "bg-[#0aa3c7] text-white" : "bg-[#f0f0f0] text-[#777]"
+                  className={`absolute left-0 top-3 w-9 h-9 rounded-full flex items-center justify-center text-[12px] font-bold transition-all ${
+                    isOpen
+                      ? "bg-gradient-to-br from-[#00afdb] to-[#0a7ea3] text-white shadow-[0_4px_14px_rgba(0,175,219,0.4)]"
+                      : "bg-white text-[#7a8a90] ring-1 ring-[#e3e9ec]"
                   }`}
                   aria-hidden
                 >
@@ -107,10 +126,24 @@ export function Accordion({
                 <div className="overflow-hidden">
                   <div
                     className={`text-[14.5px] text-[#555] leading-relaxed ${
-                      variant === "timeline" ? "pb-4 pr-2" : "px-5 pb-5"
+                      variant === "timeline" ? "pb-4 pr-4" : "px-5 pb-5"
                     }`}
                   >
-                    {item.content}
+                    {variant === "timeline" && item.image ? (
+                      <>
+                        {item.content}
+                        {/* mobile: clean full-width image below the text */}
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                        <img
+                          src={item.image}
+                          alt=""
+                          loading="lazy"
+                          className="md:hidden mt-4 w-full aspect-[16/9] object-cover rounded-xl"
+                        />
+                      </>
+                    ) : (
+                      item.content
+                    )}
                   </div>
                 </div>
               </div>

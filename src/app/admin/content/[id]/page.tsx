@@ -239,7 +239,7 @@ export default function ContentEditorPage({ params }: { params: Promise<{ id: st
           )}
         </Section>
 
-        <Section show={tab === "media"} title="Gallery" hint="Photos shown in the gallery grid.">
+        <Section show={tab === "media"} title="Gallery" hint="ORDER MATTERS: the first 6 photos illustrate the 'Your epic week' sections in order — 1 confidence on the water · 2 control & speed · 3 better jibes · 4 knowledge/theory · 5 friends/group · 6 photo & video. Photos 7+ are extra flavour (slideshow + gallery strip).">
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
             {gallery.map((url, i) => (
               <div key={i} className="relative group aspect-square rounded-lg overflow-hidden admin-border border">

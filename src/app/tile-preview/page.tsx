@@ -7,10 +7,10 @@ import { placeFromLocation, flagFromLocation } from "@/lib/experience-tile";
 const NICO = "/coaches/nico.png";
 
 const SAMPLES = [
-  { location: "Alacati, Turkey", photo: "https://surfcenter-experience.com/wp-content/uploads/2025/03/21-e1741705621400.jpg", date: "17 Aug – 23 Aug 2026", price: "€1,890", spots: null as number | null, title: "NP7 Experience Alacati", desc: "Meltemi wind, flat water, and a week of pure freestyle and freeride. One…" },
-  { location: "Bonaire, Caribbean", photo: "https://surfcenter-experience.com/wp-content/uploads/2025/11/Balz_Muller-5.jpg", date: "30 Nov – 6 Dec 2026", price: "€2,890", spots: 1, title: "NP7 Experience Bonaire", desc: "Trade winds, warm water, and the most consistent spot in the…" },
-  { location: "Lake Garda, Italy", photo: "https://surfcenter-experience.com/wp-content/uploads/2025/04/4-5-may-768x576.jpg", date: "26 May – 31 May 2026", price: "€1,490", spots: 6, title: "NP7 Experience Lake Garda", desc: "Six days riding the Ora wind on one of Europe's most scenic lakes. Dail…" },
-  { location: "Tenerife, Spain", photo: "https://surfcenter-experience.com/wp-content/uploads/2025/01/53724070151_54cd73586b_k-1536x1024.jpg", date: "Dates coming soon", price: "€3,120", spots: 4, title: "NP7 Experience Tenerife", desc: "Wave and freeride clinic on Tenerife. Atlantic swells and consistent trad…" },
+  { location: "Alacati, Turkey", photo: "https://media.np-seven.com/experiences/np7-alacati/action/alacati-experience-action-nico.jpg", date: "17 Aug – 23 Aug 2026", price: "€1,890", spots: null as number | null, title: "NP7 Experience Alacati", desc: "Meltemi wind, flat water, and a week of pure freestyle and freeride. One…" },
+  { location: "Bonaire, Caribbean", photo: "https://media.np-seven.com/experiences/np7-bonaire/action/nico-actio-duck-jibe.jpg", date: "30 Nov – 6 Dec 2026", price: "€2,890", spots: 1, title: "NP7 Experience Bonaire", desc: "Trade winds, warm water, and the most consistent spot in the…" },
+  { location: "Lake Garda, Italy", photo: "https://media.np-seven.com/experiences/np7-lake-garda-2026/action/nico-action-garda.jpg", date: "26 May – 31 May 2026", price: "€1,490", spots: 6, title: "NP7 Experience Lake Garda", desc: "Six days riding the Ora wind on one of Europe's most scenic lakes. Dail…" },
+  { location: "Tenerife, Spain", photo: "https://media.np-seven.com/experiences/np7-tenerife-2026/action/tenerife-action-nico.jpg", date: "Dates coming soon", price: "€3,120", spots: 4, title: "NP7 Experience Tenerife", desc: "Wave and freeride clinic on Tenerife. Atlantic swells and consistent trad…" },
 ];
 
 export default function TilePreviewPage() {

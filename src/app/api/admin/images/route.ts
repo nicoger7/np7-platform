@@ -3,7 +3,7 @@ import { createClient as createServiceClient } from "@supabase/supabase-js";
 import { NextRequest, after } from "next/server";
 import { isActiveTeamMember } from "@/lib/admin-auth";
 import { resizeForStorage, makeThumb } from "@/lib/image-resize";
-import { r2Enabled, uploadToR2, deleteFromR2, keyFromR2Url } from "@/lib/r2";
+import { r2Enabled, r2CdnBase, uploadToR2, deleteFromR2, keyFromR2Url, moveInR2 } from "@/lib/r2";
 
 export const runtime = "nodejs"; // sharp (image resize) needs the Node runtime
 const BUCKET = "assets";
@@ -45,7 +45,7 @@ export async function GET(request: NextRequest) {
   const admin = getServiceClient();
   const baseUrl = `${process.env.NEXT_PUBLIC_SUPABASE_URL}/storage/v1/object/public/${BUCKET}`;
   const renderBase = `${process.env.NEXT_PUBLIC_SUPABASE_URL}/storage/v1/render/image/public/${BUCKET}`;
-  const R2 = (process.env.NEXT_PUBLIC_R2_CDN_URL || "").replace(/\/$/, "");
+  const R2 = r2CdnBase();
   // Encode each path segment -- filenames can contain spaces etc., which otherwise
   // break <img>/CSS loading. thumb() serves a small variant (fast grids vs MBs):
   // R2's pre-generated `_thumb/`, or Supabase's on-the-fly transform.
@@ -141,16 +141,22 @@ export async function POST(request: NextRequest) {
   const { body, contentType } = await resizeForStorage(file);
 
   if (r2Enabled()) {
-    // -- Cloudflare R2 (primary) ---------------------------------------------
+    // -- Cloudflare R2 (primary, serves the file) ------------------------------
+    // The Supabase bucket stays the CATALOG: the library's folder listing walks
+    // it, so every upload is mirrored there too (in the background). Serving
+    // traffic (the expensive part) all goes to R2.
     const buf = Buffer.isBuffer(body) ? body : Buffer.from(await file.arrayBuffer());
     try {
       const url = await uploadToR2(buf, key, contentType);
-      // Generate and upload thumbnail in background (best-effort).
+      // Thumbnail + catalog mirror in the background (best-effort).
       after(async () => {
         try {
           const t = await makeThumb(file);
           if (t) await uploadToR2(t.body, `_thumb/${key}`, t.contentType);
         } catch { /* ignore */ }
+        try {
+          await getServiceClient().storage.from(BUCKET).upload(key, buf, { upsert: true, contentType });
+        } catch { /* ignore -- R2 already has it; the library just won't list it */ }
       });
       return Response.json({ url, path: key });
     } catch (err) {
@@ -223,6 +229,11 @@ export async function PATCH(request: NextRequest) {
   const results = await Promise.all(
     moves.map(async (m) => {
       const { error } = await admin.storage.from(BUCKET).move(m.from, m.to);
+      // Mirror the rename to R2 (main file + thumb) so served URLs keep working.
+      if (!error && r2Enabled()) {
+        await moveInR2(m.from, m.to);
+        await moveInR2(`_thumb/${m.from}`, `_thumb/${m.to}`);
+      }
       return { from: m.from, to: m.to, ok: !error, error: error?.message };
     })
   );
@@ -250,29 +261,30 @@ export async function DELETE(request: NextRequest) {
     return Response.json({ error: "No paths provided" }, { status: 400 });
   }
 
-  // -- Cloudflare R2 deletions -----------------------------------------------
-  // Delete from R2 any URL that belongs to the R2 CDN (regardless of whether
-  // R2 is currently enabled -- the object already lives there).
-  const r2Keys = urls.map(keyFromR2Url).filter((k): k is string => k !== null);
-  if (r2Keys.length > 0) {
-    await Promise.all(r2Keys.map(deleteFromR2));
+  // Keys are IDENTICAL in both stores (R2 serves, Supabase catalogs), so a
+  // delete removes the object everywhere: R2 main + `_thumb/` + catalog copy.
+  const supaBase = `${process.env.NEXT_PUBLIC_SUPABASE_URL}/storage/v1/object/public/${BUCKET}/`;
+  const keysFromUrls = urls
+    .map((u) => keyFromR2Url(u) ?? (u.startsWith(supaBase) ? u.slice(supaBase.length) : null))
+    .filter((k): k is string => k !== null);
+  const allKeys = Array.from(new Set([...paths, ...keysFromUrls]));
+
+  // -- Cloudflare R2 (best-effort -- the object may predate the R2 mirror) ----
+  if (r2Enabled() && allKeys.length > 0) {
+    await Promise.all(allKeys.flatMap((k) => [
+      deleteFromR2(k).catch(() => {}),
+      deleteFromR2(`_thumb/${k}`).catch(() => {}),
+    ]));
   }
 
-  // -- Supabase Storage deletions --------------------------------------------
-  // paths are raw storage paths (no bucket prefix).
-  const supaBase = `${process.env.NEXT_PUBLIC_SUPABASE_URL}/storage/v1/object/public/${BUCKET}/`;
-  const supaPathsFromUrls = urls
-    .filter((u) => u.startsWith(supaBase))
-    .map((u) => u.slice(supaBase.length));
-  const allSupaPaths = [...paths, ...supaPathsFromUrls];
-
-  if (allSupaPaths.length > 0) {
+  // -- Supabase catalog ---------------------------------------------------------
+  if (allKeys.length > 0) {
     const admin = getServiceClient();
-    const { error } = await admin.storage.from(BUCKET).remove(allSupaPaths);
+    const { error } = await admin.storage.from(BUCKET).remove(allKeys);
     if (error) {
       return Response.json({ error: error.message }, { status: 500 });
     }
   }
 
-  return Response.json({ deleted: paths.length + r2Keys.length });
+  return Response.json({ deleted: allKeys.length });
 }

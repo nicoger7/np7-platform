@@ -18,7 +18,8 @@
  */
 
 const SUPA_ASSET_BASE = `${process.env.NEXT_PUBLIC_SUPABASE_URL}/storage/v1/object/public/assets`;
-const R2_CDN = (process.env.NEXT_PUBLIC_R2_CDN_URL || "").replace(/\/$/, "");
+// Both spellings accepted (NEXT_PUBLIC_* is inlined at build time either way).
+const R2_CDN = (process.env.NEXT_PUBLIC_R2_CDN_URL || process.env.NEXT_PUBLIC_R2_PUBLIC_URL || "").replace(/\/$/, "");
 
 /** Supabase-assets URL -> R2 CDN URL when R2 is configured; else returns the original URL. */
 export function mediaUrl(url: string | null | undefined): string {
