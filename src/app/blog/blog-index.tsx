@@ -82,6 +82,10 @@ export async function BlogIndexView({ world: activeWorld }: { world: BlogWorld }
 
       {/* ---------------------------------------------------------------- HERO */}
       <section className="relative text-white pt-16 pb-12 overflow-hidden" style={{ background: chrome.heroBackground }}>
+        {/* A windsurf shot living quietly behind the gradient — texture, not a
+            focal point (kept dark so the white headline stays crisp). */}
+        <div className="absolute inset-0 bg-cover bg-center opacity-20 mix-blend-luminosity" style={{ backgroundImage: "url('/cdn/assets/hero/windsurf-hero-poster.jpg')" }} aria-hidden />
+        <div className="absolute inset-0" style={{ background: `linear-gradient(to bottom, transparent 45%, ${chrome.heroBackground.includes("gradient") ? "rgba(0,20,29,0.55)" : "transparent"} 100%)` }} aria-hidden />
         <div className="relative max-w-[1200px] mx-auto px-6 sm:px-8">
           <p className="text-[11px] font-bold tracking-[0.25em] mb-3" style={{ color: chrome.eyebrow }}>FROM THE WATER & THE WORKSHOP</p>
           <h1 className="text-4xl sm:text-6xl font-black tracking-[-0.03em]">The NP7 Magazine</h1>

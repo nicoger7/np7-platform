@@ -47,7 +47,7 @@ export function LaunchLanding({ showBlog = false }: { showBlog?: boolean }) {
           mirrors the member-login pill). Hidden until SHOW_BLOG=true. */}
       {showBlog && (
         <Link
-          href="/blog"
+          href="/blog/spotguide"
           className="absolute top-5 left-5 z-20 inline-flex items-center gap-1.5 text-[12px] font-semibold text-white/70 hover:text-white bg-white/10 hover:bg-white/[0.18] border border-white/15 rounded-full px-3.5 py-1.5 backdrop-blur-md transition-colors"
         >
           <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20M4 19.5A2.5 2.5 0 0 0 6.5 22H20V2H6.5A2.5 2.5 0 0 0 4 4.5z" /></svg>

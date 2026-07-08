@@ -59,7 +59,7 @@ export async function PortalChrome({ section }: { section?: "experience" | "hard
                 in the site header (dark bar), not in the member menu below. */}
             <span className="flex items-center gap-4">
               {flags.showBlog && (
-                <Link href="/blog" className="text-[12.5px] font-semibold text-white/70 hover:text-white transition-colors tracking-wide">
+                <Link href="/blog/spotguide" className="text-[12.5px] font-semibold text-white/70 hover:text-white transition-colors tracking-wide">
                   Magazine
                 </Link>
               )}
