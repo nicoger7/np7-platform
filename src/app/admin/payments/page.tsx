@@ -32,7 +32,18 @@ const STATUSES = ["paid", "pending", "overdue", "cancelled"];
 
 function money(n: number | null) {
   if (n == null) return "—";
-  return `€${Number(n).toLocaleString("en-US", { minimumFractionDigits: 0, maximumFractionDigits: 2 })}`;
+  // Currency → always 2 decimals (no more "€3,010.8" next to "€1,083.33").
+  return `€${Number(n).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+}
+
+/** Signed amount for a payment row. The sign follows the real cash direction —
+    a cost is money out (−), revenue is money in (+) — AND a negative amount
+    (e.g. a refund entered as negative revenue) flips it, so we never render the
+    old "+€-1,083.33". */
+function signedAmount(amount: number | null, direction: string | null) {
+  const v = Number(amount) || 0;
+  const out = direction === "cost" ? v >= 0 : v < 0; // cost=out unless credited back; revenue=out only if negative
+  return `${out ? "−" : "+"}${money(Math.abs(v))}`;
 }
 function fmtDate(d: string | null) {
   if (!d) return "—";
@@ -208,7 +219,7 @@ export default function PaymentsPage() {
                 onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = "transparent")}>
                 <span className="text-xs admin-muted">{fmtDate(p.date)}</span>
                 <span className={`text-sm font-medium ${p.direction === "cost" ? "text-red-400" : "text-green-400"}`}>
-                  {p.direction === "cost" ? "−" : "+"}{money(p.amount)}
+                  {signedAmount(p.amount, p.direction)}
                 </span>
                 <span className="text-[10px]">
                   <span className={`px-1.5 py-0.5 rounded font-bold uppercase ${p.direction === "cost" ? "bg-red-500/15 text-red-400" : "bg-green-500/15 text-green-400"}`}>{p.direction === "cost" ? "Cost" : "Rev"}</span>
@@ -248,7 +259,7 @@ export default function PaymentsPage() {
               {filtered.map((p) => (
                 <button key={p.id} onClick={() => startEdit(p)} className="w-full text-left px-4 py-2.5 flex items-center justify-between gap-2 transition-colors" style={{ borderBottom: "1px solid var(--admin-border)", backgroundColor: editId === p.id ? "var(--admin-surface-hover)" : "transparent" }}>
                   <span className="min-w-0">
-                    <span className={`text-sm font-medium ${p.direction === "cost" ? "text-red-400" : "text-green-400"}`}>{p.direction === "cost" ? "−" : "+"}{money(p.amount)}</span>
+                    <span className={`text-sm font-medium ${p.direction === "cost" ? "text-red-400" : "text-green-400"}`}>{signedAmount(p.amount, p.direction)}</span>
                     <span className="block text-[11px] admin-faint truncate">{fmtDate(p.date)} · {p.reference || p.exp_bookings?.name || p.contacts?.name || p.vendors?.name || "—"}</span>
                   </span>
                   <span className={`shrink-0 text-[9px] px-1.5 py-0.5 rounded font-bold uppercase ${
