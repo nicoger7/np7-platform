@@ -90,17 +90,38 @@ export async function POST(request: NextRequest) {
   try { await requireAuth(); } catch { return Response.json({ error: "Unauthorized" }, { status: 401 }); }
   if (!r2VideoEnabled()) return Response.json({ error: "Video storage is not configured yet." }, { status: 503 });
 
-  const { editionId, bookingId, filename, contentType } = await request.json().catch(() => ({}));
+  const { editionId, bookingId, filename, contentType, target } = await request.json().catch(() => ({}));
   if (!editionId || !filename || !contentType) {
     return Response.json({ error: "editionId, filename and contentType are required" }, { status: 400 });
   }
+
+  const base = safeName(String(filename).replace(/\.[^.]+$/, ""));
+  const stamp = Date.now();
+
+  // Primary path: the browser already compressed the clip (WebCodecs) — presign
+  // the final MP4 + its poster straight into the served _video/ tree. Nothing
+  // else to do server-side; the clip is live the moment the PUTs finish.
+  if (target === "video") {
+    if (contentType !== "video/mp4") {
+      return Response.json({ error: "Compressed uploads must be video/mp4" }, { status: 400 });
+    }
+    const folder = scopeFolder("_video", editionId, bookingId || undefined);
+    const key = `${folder}/${stamp}-${base}.mp4`;
+    const posterKey = `${folder}/${stamp}-${base}.jpg`;
+    const [uploadUrl, posterUploadUrl] = await Promise.all([
+      presignPut(key, "video/mp4"),
+      presignPut(posterKey, "image/jpeg"),
+    ]);
+    return Response.json({ uploadUrl, key, posterUploadUrl, posterKey });
+  }
+
+  // Fallback path (browser without WebCodecs): raw original into _vidraw/,
+  // compressed later by the optional worker script (plain node+ffmpeg).
   if (!OK_TYPES.has(contentType)) {
     return Response.json({ error: `Unsupported video type: ${contentType}` }, { status: 400 });
   }
-
   const ext = (filename.match(/\.[^.]+$/)?.[0] || ".mov").toLowerCase();
-  const base = safeName(String(filename).replace(/\.[^.]+$/, ""));
-  const key = `${scopeFolder("_vidraw", editionId, bookingId || undefined)}/${Date.now()}-${base}${ext}`;
+  const key = `${scopeFolder("_vidraw", editionId, bookingId || undefined)}/${stamp}-${base}${ext}`;
   const uploadUrl = await presignPut(key, contentType);
   return Response.json({ uploadUrl, key });
 }

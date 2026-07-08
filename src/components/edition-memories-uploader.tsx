@@ -29,12 +29,14 @@ export function EditionMemoriesUploader({ editionId, initialVideoUrl }: { editio
   const [assigning, setAssigning] = useState(false);
   const fileInput = useRef<HTMLInputElement>(null);
 
-  // -- Trip videos (big files → presigned direct-to-R2 → jibe compresses) -----
+  // -- Trip videos: compressed IN THE BROWSER (WebCodecs), then uploaded -------
+  // The giant original never leaves this machine — same idea as the photo
+  // resize-on-upload. Browsers without WebCodecs fall back to a raw upload.
   type Vid = { stem: string; status: "ready" | "processing"; url: string | null; poster: string | null; size: number };
   const [videos, setVideos] = useState<Vid[]>([]);
   const [vidR2, setVidR2] = useState(true);
   const [vidLoading, setVidLoading] = useState(true);
-  const [vidUp, setVidUp] = useState<{ name: string; pct: number; done: number; total: number } | null>(null);
+  const [vidUp, setVidUp] = useState<{ name: string; pct: number; done: number; total: number; phase: "compress" | "upload" } | null>(null);
   const vidInput = useRef<HTMLInputElement>(null);
 
   // Selection is per-scope; drop it whenever you switch who you're viewing.
@@ -132,33 +134,52 @@ export function EditionMemoriesUploader({ editionId, initialVideoUrl }: { editio
   }, [editionId, scope]);
   useEffect(() => { loadVideos(); }, [loadVideos]);
 
-  // PUT one file straight to R2 via a presigned URL, reporting % as it goes.
-  function putToR2(url: string, file: File, onPct: (p: number) => void) {
+  // PUT one blob straight to R2 via a presigned URL, reporting % as it goes.
+  function putToR2(url: string, body: Blob, contentType: string, onPct?: (p: number) => void) {
     return new Promise<void>((resolve, reject) => {
       const xhr = new XMLHttpRequest();
       xhr.open("PUT", url);
-      xhr.setRequestHeader("Content-Type", file.type);
-      xhr.upload.onprogress = (e) => { if (e.lengthComputable) onPct(Math.round((e.loaded / e.total) * 100)); };
+      xhr.setRequestHeader("Content-Type", contentType);
+      xhr.upload.onprogress = (e) => { if (e.lengthComputable && onPct) onPct(Math.round((e.loaded / e.total) * 100)); };
       xhr.onload = () => (xhr.status >= 200 && xhr.status < 300 ? resolve() : reject(new Error(`Upload failed (${xhr.status})`)));
       xhr.onerror = () => reject(new Error("Network error during upload"));
-      xhr.send(file);
+      xhr.send(body);
     });
+  }
+
+  async function presign(body: Record<string, string | undefined>) {
+    const res = await fetch("/api/admin/videos", {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ editionId, bookingId: scope || undefined, ...body }),
+    });
+    if (!res.ok) { const j = await res.json().catch(() => ({})); throw new Error(j.error || "Could not start upload."); }
+    return res.json();
   }
 
   async function uploadVideos(files: FileList | null) {
     if (!files || files.length === 0) return;
     const list = Array.from(files);
+    // In-browser compressor (WebCodecs) — loaded on demand so the admin bundle
+    // stays lean. On unsupported browsers we fall back to a raw upload.
+    const compressor = await import("@/lib/video-compress").catch(() => null);
     for (let i = 0; i < list.length; i++) {
       const file = list[i];
-      setVidUp({ name: file.name, pct: 0, done: i, total: list.length });
+      const prog = (phase: "compress" | "upload") => (pct: number) => setVidUp({ name: file.name, pct, done: i, total: list.length, phase });
       try {
-        const pre = await fetch("/api/admin/videos", {
-          method: "POST", headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ editionId, bookingId: scope || undefined, filename: file.name, contentType: file.type }),
-        });
-        if (!pre.ok) { const j = await pre.json().catch(() => ({})); alert(j.error || "Could not start upload."); break; }
-        const { uploadUrl } = await pre.json();
-        await putToR2(uploadUrl, file, (pct) => setVidUp({ name: file.name, pct, done: i, total: list.length }));
+        if (compressor?.canCompressInBrowser()) {
+          // Primary: compress HERE, upload only the small MP4 + poster.
+          setVidUp({ name: file.name, pct: 0, done: i, total: list.length, phase: "compress" });
+          const { mp4, poster } = await compressor.compressVideo(file, prog("compress"));
+          const pre = await presign({ filename: file.name, contentType: "video/mp4", target: "video" });
+          setVidUp({ name: file.name, pct: 0, done: i, total: list.length, phase: "upload" });
+          await putToR2(pre.uploadUrl, mp4, "video/mp4", prog("upload"));
+          if (poster && pre.posterUploadUrl) await putToR2(pre.posterUploadUrl, poster, "image/jpeg").catch(() => {});
+        } else {
+          // Fallback: raw original → _vidraw/ (compressed later by the fallback script).
+          setVidUp({ name: file.name, pct: 0, done: i, total: list.length, phase: "upload" });
+          const pre = await presign({ filename: file.name, contentType: file.type });
+          await putToR2(pre.uploadUrl, file, file.type, prog("upload"));
+        }
       } catch (e) { alert(e instanceof Error ? e.message : "Upload failed"); break; }
     }
     setVidUp(null);
@@ -275,8 +296,9 @@ export function EditionMemoriesUploader({ editionId, initialVideoUrl }: { editio
       <div className="rounded-xl p-4" style={{ border: "1px solid var(--admin-border)", backgroundColor: "var(--admin-surface)" }}>
         <h3 className="text-sm font-bold admin-heading">Trip videos</h3>
         <p className="text-xs admin-faint mt-0.5 mb-3">
-          Drop in the <span className="admin-muted">full-size clips straight off the camera</span> — they upload directly and get
-          <span className="admin-muted"> compressed automatically</span> (the giant original is deleted, only the web version is kept).
+          Drop in the <span className="admin-muted">full-size clips straight off the camera</span> — they&apos;re
+          <span className="admin-muted"> compressed right here in your browser</span> before upload, so only the small
+          web version is ever stored (the giant original never leaves this machine).
           Same scope as photos: uploading to <span className="admin-muted">{scopeLabel}</span>.
         </p>
 
@@ -287,7 +309,7 @@ export function EditionMemoriesUploader({ editionId, initialVideoUrl }: { editio
             <div className="flex items-center gap-3 mb-4">
               <input ref={vidInput} type="file" accept="video/*" multiple onChange={(e) => uploadVideos(e.target.files)} className="hidden" id="memories-video" disabled={!!vidUp} />
               <label htmlFor="memories-video" className={`px-4 py-2 rounded-lg text-xs font-bold cursor-pointer transition-colors ${vidUp ? "opacity-50 pointer-events-none" : ""} bg-[#0aa3c7] hover:bg-[#0aa3c7]/90 text-white`}>
-                {vidUp ? `Uploading ${vidUp.done + 1}/${vidUp.total}…` : `Upload videos for ${scopeLabel}`}
+                {vidUp ? `${vidUp.phase === "compress" ? "Compressing" : "Uploading"} ${vidUp.done + 1}/${vidUp.total}…` : `Upload videos for ${scopeLabel}`}
               </label>
               {vidUp && <span className="text-xs admin-muted truncate max-w-[180px]">{vidUp.name}</span>}
             </div>
@@ -297,7 +319,9 @@ export function EditionMemoriesUploader({ editionId, initialVideoUrl }: { editio
                 <div className="h-2 rounded-full overflow-hidden" style={{ backgroundColor: "var(--admin-input-bg)" }}>
                   <div className="h-full bg-[#0aa3c7] transition-[width] duration-150" style={{ width: `${vidUp.pct}%` }} />
                 </div>
-                <p className="text-[11px] admin-faint mt-1">{vidUp.pct}% — big files can take a while; keep this tab open.</p>
+                <p className="text-[11px] admin-faint mt-1">
+                  {vidUp.phase === "compress" ? `Compressing in your browser — ${vidUp.pct}%` : `Uploading — ${vidUp.pct}%`} · keep this tab open.
+                </p>
               </div>
             )}
 
