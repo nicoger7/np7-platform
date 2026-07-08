@@ -443,7 +443,10 @@ export function BookingDetailPane({ bookingId, onBack }: { bookingId: string; on
     const invoiceSent = !!ir?.sent || LEGACY_SENT[m.kind];
     const invoiceIssued = !!ir;
     const partialLeft = ir && ir.state === "partial" ? ir.remaining : 0;
-    return { kind: m.kind, label: m.label, amount: m.amount, paid, invoiceIssued, invoiceSent, partialLeft };
+    // Unpaid past its deadline → the team should chase (registration+X days for
+    // a no-deposit downpayment; N days before the trip for the final balance).
+    const overdue = !paid && !!m.dueDate && m.dueDate < new Date().toISOString().slice(0, 10);
+    return { kind: m.kind, label: m.label, amount: m.amount, paid, invoiceIssued, invoiceSent, partialLeft, dueLabel: m.dueLabel, overdue };
   });
 
   const inputClass =
@@ -681,11 +684,16 @@ export function BookingDetailPane({ bookingId, onBack }: { bookingId: string; on
                 <div className="px-4 py-3 text-xs admin-faint">No payment plan yet — set the agreed price.</div>
               ) : (
                 paymentStages.map((s, i) => {
-                  const tone = s.paid ? "bg-green-500/15 text-green-400" : s.partialLeft > 0 ? "bg-amber-500/15 text-amber-400" : s.invoiceSent ? "bg-blue-500/15 text-blue-400" : "bg-gray-500/15 text-gray-400";
-                  const statusText = s.paid ? "Paid" : s.partialLeft > 0 ? `Part-paid · €${s.partialLeft.toLocaleString()} left` : s.invoiceSent ? "Invoice sent" : s.invoiceIssued ? "Invoice ready" : "Not invoiced";
+                  const tone = s.paid ? "bg-green-500/15 text-green-400" : s.overdue ? "bg-red-500/15 text-red-400" : s.partialLeft > 0 ? "bg-amber-500/15 text-amber-400" : s.invoiceSent ? "bg-blue-500/15 text-blue-400" : "bg-gray-500/15 text-gray-400";
+                  const statusText = s.paid ? "Paid" : s.overdue ? "Overdue" : s.partialLeft > 0 ? `Part-paid · €${s.partialLeft.toLocaleString()} left` : s.invoiceSent ? "Invoice sent" : s.invoiceIssued ? "Invoice ready" : "Not invoiced";
                   return (
                     <div key={s.kind} className="flex items-center gap-3 px-4 py-2.5 text-sm" style={i < paymentStages.length - 1 ? { borderBottom: "1px solid var(--admin-border)" } : undefined}>
-                      <span className="admin-heading flex-1 truncate">{s.label}</span>
+                      <span className="flex-1 min-w-0">
+                        <span className="admin-heading block truncate">{s.label}</span>
+                        {!s.paid && s.dueLabel && (
+                          <span className={`block text-[11px] mt-0.5 ${s.overdue ? "text-red-400 font-semibold" : "admin-faint"}`}>{s.dueLabel}</span>
+                        )}
+                      </span>
                       <span className="text-xs admin-faint">€{s.amount.toLocaleString()}</span>
                       <span className={`inline-block px-1.5 py-0.5 rounded text-[10px] font-bold uppercase ${tone}`}>{statusText}</span>
                     </div>
@@ -693,7 +701,7 @@ export function BookingDetailPane({ bookingId, onBack }: { bookingId: string; on
                 })
               )}
             </div>
-            <p className="text-[11px] admin-faint mt-1.5">Derived from invoices &amp; payments — record a payment (Payments tab) to update it. Deposit confirms automatically once Stripe is connected.</p>
+            <p className="text-[11px] admin-faint mt-1.5">Derived from invoices &amp; payments — record a payment (Payments tab) to update it. Deadlines come from the package&apos;s payment settings (downpayment %, days) — edit them under Packages.</p>
           </div>
 
           {/* WhatsApp — the one manual flag */}
