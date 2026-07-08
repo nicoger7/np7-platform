@@ -16,6 +16,7 @@
   ],
   "crons": [
     { "path": "/api/cron/emails", "schedule": "0 9 * * *" },
-    { "path": "/api/cron/wind-stats", "schedule": "0 4 * * 1" }
+    { "path": "/api/cron/wind-stats", "schedule": "0 4 * * 1" },
+    { "path": "/api/cron/media-retention", "schedule": "0 3 * * 1" }
   ]
 }

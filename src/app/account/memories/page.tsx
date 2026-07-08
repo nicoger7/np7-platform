@@ -29,6 +29,11 @@ export default async function MemoriesPage() {
                 ? <>Every photo from your trips — your own, the week&apos;s shared shots, and the ones your crew shared with you. View only.</>
                 : <>Your trip photos will gather here after each week.</>}
             </p>
+            {trips.length > 0 && (
+              <p className="text-[12.5px] text-[#9aa6ac] mt-2 leading-relaxed max-w-[620px]">
+                💾 Your full gallery stays here for <strong className="text-[#6a7a80] font-semibold">3 months after each trip</strong>. After that we keep a hand-picked set of your best photos &amp; videos as permanent memories — so download anything else you&apos;d like to keep before then.
+              </p>
+            )}
           </div>
 
           {trips.length === 0 ? (
