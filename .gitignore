@@ -42,3 +42,6 @@ next-env.d.ts
 
 # local image drop (not committed)
 /incoming/
+
+# second-session dev server (npm run dev:preview) — own dist dir, own lock
+/.next-preview/

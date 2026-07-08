@@ -7,6 +7,12 @@ const nextConfig: NextConfig = {
   // which silently breaks hydration in the preview.
   allowedDevOrigins: ["127.0.0.1"],
 
+  // Two agent sessions share this checkout, and Next 16 allows ONE dev server
+  // per dist dir (its lock lives at `${distDir}/lock`). `npm run dev:preview`
+  // sets NEXT_DIST_DIR so a second session runs its own isolated dev server
+  // instead of killing the other's. Unset → the normal `.next`.
+  distDir: process.env.NEXT_DIST_DIR || undefined,
+
   // Route Supabase Storage through Vercel's edge CDN so assets are cached
   // there and Supabase egress drops to near-zero after the first cache miss.
   async rewrites() {
