@@ -55,12 +55,13 @@ export async function PortalChrome({ section }: { section?: "experience" | "hard
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img src={NP7_LOGO} alt="NP7" className="h-6 w-auto invert" />
             </Link>
-            {/* Magazine — the one public surface during the quiet launch, so it lives
-                in the site header (dark bar), not in the member menu below. */}
+            {/* Spotguide — the flagship public feature during the quiet launch, so
+                it lives in the site header (dark bar). The magazine (Gear/Technique/
+                All stories) is reachable from the spotguide sub-nav. */}
             <span className="flex items-center gap-4">
               {flags.showBlog && (
-                <Link href="/blog/spotguide" className="text-[12.5px] font-semibold text-white/70 hover:text-white transition-colors tracking-wide">
-                  Magazine
+                <Link href="/spotguide" className="text-[12.5px] font-semibold text-white/70 hover:text-white transition-colors tracking-wide">
+                  Spotguide
                 </Link>
               )}
               <MemberButton section={resolved} />

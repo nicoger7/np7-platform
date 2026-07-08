@@ -43,15 +43,15 @@ export function LaunchLanding({ showBlog = false }: { showBlog?: boolean }) {
       {/* Fade: transparent top → black bottom */}
       <div className="absolute inset-0" style={{ background: "linear-gradient(to bottom, rgba(0,0,0,0) 0%, rgba(0,0,0,0) 10%, rgba(0,0,0,0.4) 40%, rgba(0,0,0,0.8) 70%, rgba(0,0,0,1) 100%)" }} />
 
-      {/* Magazine — the one public world that's live during the soft launch (top-left,
+      {/* Spotguide — the flagship public feature during the soft launch (top-left,
           mirrors the member-login pill). Hidden until SHOW_BLOG=true. */}
       {showBlog && (
         <Link
-          href="/blog/spotguide"
+          href="/spotguide"
           className="absolute top-5 left-5 z-20 inline-flex items-center gap-1.5 text-[12px] font-semibold text-white/70 hover:text-white bg-white/10 hover:bg-white/[0.18] border border-white/15 rounded-full px-3.5 py-1.5 backdrop-blur-md transition-colors"
         >
-          <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20M4 19.5A2.5 2.5 0 0 0 6.5 22H20V2H6.5A2.5 2.5 0 0 0 4 4.5z" /></svg>
-          Magazine
+          <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 10c0 7-9 12-9 12s-9-5-9-12a9 9 0 0 1 18 0z" /><circle cx="12" cy="10" r="3" /></svg>
+          Spotguide
         </Link>
       )}
 
