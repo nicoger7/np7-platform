@@ -25,6 +25,10 @@ html {
 
 /* Admin theme utilities — driven by CSS vars set in admin-shell.tsx */
 .admin-root { --admin-radius: 12px; }
+/* Sidebar nav: subtle lift + tint on hover so items feel clickable and alive. */
+.admin-navlink:hover { background-color: var(--admin-active); transform: translateX(2px); }
+.admin-navlink:active { transform: translateX(2px) scale(0.99); }
+@media (prefers-reduced-motion: reduce) { .admin-navlink:hover, .admin-navlink:active { transform: none; } }
 .admin-heading { color: var(--admin-text); letter-spacing: -0.01em; }
 .admin-muted { color: var(--admin-text-muted); }
 .admin-faint { color: var(--admin-text-faint); }

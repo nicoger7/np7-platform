@@ -168,7 +168,11 @@ export default async function BlogPostPage({ params }: Props) {
               "@type": "Person",
               name: post.author || "Nico Prien",
               url: "https://nicoprien.com",
-              sameAs: ["https://nicoprien.com"],
+              sameAs: [
+                "https://nicoprien.com",
+                "https://www.youtube.com/@Nico_GER7",
+                "https://www.instagram.com/nico_ger7/",
+              ],
             },
             publisher: {
               "@type": "Organization",

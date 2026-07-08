@@ -643,7 +643,8 @@ export default function AdminShell({
                     <Link
                       key={item.href}
                       href={item.href}
-                      className="relative flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm transition-colors"
+                      prefetch
+                      className="admin-navlink relative flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm transition-all duration-150 will-change-transform"
                       style={{
                         backgroundColor: active ? "var(--admin-active)" : "transparent",
                         color: active ? "var(--admin-text)" : "var(--admin-text-muted)",
