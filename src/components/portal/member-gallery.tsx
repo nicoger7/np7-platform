@@ -13,20 +13,50 @@ import { cdnImage } from "@/lib/img";
  * photos in order. An optional "Download all" zips every photo client-side, capped
  * per booking (omit bookingId/downloadsRemaining for a view-only gallery).
  */
+const ASSET_MARK = "/storage/v1/object/public/assets/";
+/** Raw storage path (memories/…) from a photo URL — the ref admin stars + the
+    retention cron use, so a member keeper protects the same file. */
+function photoRef(url: string): string {
+  const i = url.indexOf(ASSET_MARK);
+  return i === -1 ? url : decodeURIComponent(url.slice(i + ASSET_MARK.length));
+}
+
 export function MemberGallery({
   groups,
   bookingId,
   downloadsRemaining,
+  keeperBookingId,
 }: {
   groups: GalleryGroup[];
   bookingId?: string;
   downloadsRemaining?: number;
+  /** When set, members can star photos as permanent "keepers" for this booking. */
+  keeperBookingId?: string;
 }) {
   const [open, setOpen] = useState<number | null>(null);
   const [mineExpanded, setMineExpanded] = useState(false);
   const [remaining, setRemaining] = useState(downloadsRemaining ?? 0);
   const [zipping, setZipping] = useState(false);
   const [err, setErr] = useState("");
+  const [keepers, setKeepers] = useState<Set<string>>(new Set());
+
+  useEffect(() => {
+    if (!keeperBookingId) return;
+    fetch(`/api/portal/memories/stars?bookingId=${keeperBookingId}`)
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d) => { if (d?.photos) setKeepers(new Set(d.photos)); })
+      .catch(() => {});
+  }, [keeperBookingId]);
+
+  async function toggleKeeper(ref: string) {
+    if (!keeperBookingId) return;
+    const starred = !keepers.has(ref);
+    setKeepers((s) => { const n = new Set(s); starred ? n.add(ref) : n.delete(ref); return n; }); // optimistic
+    await fetch("/api/portal/memories/stars", {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ bookingId: keeperBookingId, kind: "photo", ref, starred }),
+    }).catch(() => setKeepers((s) => { const n = new Set(s); starred ? n.delete(ref) : n.add(ref); return n; }));
+  }
 
   // Flatten in display order; each group knows its starting index for the lightbox.
   const { flat, offsets } = useMemo(() => {
@@ -130,18 +160,35 @@ export function MemberGallery({
   // splitting across columns; `mb-2` is the vertical gutter (column-gap is `gap-2`).
   // Square tile, photo fills it edge-to-edge (object-cover, no hover zoom) —
   // the uniform Instagram-style grid.
-  const thumb = (src: string, idx: number) => (
-    <button key={idx} type="button" onClick={() => setOpen(idx)} aria-label={`Open photo ${idx + 1}`}
-      className="relative block w-full aspect-square overflow-hidden rounded-xl bg-[#eef3f4] ring-1 ring-black/[0.04] transition-shadow hover:shadow-lg">
-      {/* eslint-disable-next-line @next/next/no-img-element */}
-      <img src={cdnImage(src, { width: 700 })} alt="" loading="lazy" className="absolute inset-0 w-full h-full object-cover" />
-    </button>
-  );
+  const thumb = (src: string, idx: number) => {
+    const ref = photoRef(src);
+    const kept = !!keeperBookingId && keepers.has(ref);
+    return (
+      <div key={idx} className="relative group block w-full aspect-square overflow-hidden rounded-xl bg-[#eef3f4] ring-1 ring-black/[0.04]">
+        <button type="button" onClick={() => setOpen(idx)} aria-label={`Open photo ${idx + 1}`} className="absolute inset-0 w-full h-full transition-shadow hover:shadow-lg">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src={cdnImage(src, { width: 700 })} alt="" loading="lazy" className="absolute inset-0 w-full h-full object-cover" />
+        </button>
+        {keeperBookingId && (
+          <button type="button" onClick={() => toggleKeeper(ref)} title={kept ? "Kept forever ⭐" : "Keep this forever"}
+            className={`absolute top-2 right-2 z-10 w-8 h-8 rounded-full grid place-items-center transition-all ${kept ? "bg-amber-400 text-white shadow" : "bg-black/45 text-white opacity-0 group-hover:opacity-100"}`}>
+            <svg className="w-4 h-4" viewBox="0 0 24 24" fill={kept ? "currentColor" : "none"} stroke="currentColor" strokeWidth="2" strokeLinejoin="round"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z" /></svg>
+          </button>
+        )}
+      </div>
+    );
+  };
 
   const PREVIEW = 8; // photos shown before "Show all" (~2 grid rows)
 
   return (
     <>
+      {keeperBookingId && (
+        <div className="rounded-2xl border border-[#f6d9a8] bg-[#fff8ec] px-4 py-3 mb-4">
+          <p className="text-[13.5px] font-bold text-[#00374a]">⭐ Choose your keepers{keepers.size > 0 ? ` — ${keepers.size} saved` : ""}</p>
+          <p className="text-[12.5px] text-[#8a6a2a] mt-0.5 leading-snug">Tap the star on the photos you want to keep forever. The rest of the gallery is removed 3 months after the trip.</p>
+        </div>
+      )}
       <div className="space-y-2.5">
         {groups.map((g, gi) => {
           // "Your photos" — always shown, first row + a blurred peek, expandable.

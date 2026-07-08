@@ -623,7 +623,7 @@ export async function getTripGalleryGroupsForBooking(editionId: string, viewerBo
   return groups;
 }
 
-export type TripVideo = { url: string; poster: string | null };
+export type TripVideo = { url: string; poster: string | null; stem: string };
 
 /** Ready (compressed) trip videos a member can watch: their own personal clips
     plus the week's shared ones. Raw uploads still being compressed are excluded
@@ -648,7 +648,8 @@ export async function getTripVideosForBooking(editionId: string, viewerBookingId
       const base = o.key.replace(/\.[^.]+$/, "");
       if (seen.has(base)) continue;
       seen.add(base);
-      out.push({ url: cdnUrlFor(o.key), poster: posters.get(base) ? cdnUrlFor(posters.get(base)!) : null });
+      // stem = key minus the _video/ root + extension — the ref keepers use.
+      out.push({ url: cdnUrlFor(o.key), poster: posters.get(base) ? cdnUrlFor(posters.get(base)!) : null, stem: base.replace(/^_video\//, "") });
     }
   }
   return out;
