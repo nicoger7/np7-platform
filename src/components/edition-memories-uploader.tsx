@@ -28,6 +28,10 @@ export function EditionMemoriesUploader({ editionId, initialVideoUrl }: { editio
   const [selected, setSelected] = useState<Set<string>>(new Set()); // photo paths picked for "assign"
   const [assigning, setAssigning] = useState(false);
   const fileInput = useRef<HTMLInputElement>(null);
+  // Foldable galleries: a big grid otherwise pushes the video/highlight cards
+  // miles down the page. Collapse to reach them; expanded grids scroll internally.
+  const [photosOpen, setPhotosOpen] = useState(true);
+  const [videosOpen, setVideosOpen] = useState(true);
 
   // -- Trip videos: compressed IN THE BROWSER (WebCodecs), then uploaded -------
   // The giant original never leaves this machine — same idea as the photo
@@ -248,6 +252,12 @@ export function EditionMemoriesUploader({ editionId, initialVideoUrl }: { editio
           <p className="text-xs admin-faint">No photos for {scopeLabel} yet.</p>
         ) : (
           <>
+            <button type="button" onClick={() => setPhotosOpen((o) => !o)} className="flex items-center gap-1.5 text-xs font-bold admin-heading mb-3 hover:opacity-80">
+              <svg className={`w-3.5 h-3.5 transition-transform ${photosOpen ? "rotate-90" : ""}`} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M9 6l6 6-6 6" /></svg>
+              {photos.length} photo{photos.length === 1 ? "" : "s"}
+              <span className="admin-faint font-medium">· {photosOpen ? "hide" : "show"}</span>
+            </button>
+            {photosOpen && (<>
             {/* Assign bar — only in the Everyone pool: pick shots, send to a rider. */}
             {scope === "" && (
               <div className="flex flex-wrap items-center gap-2 mb-3 text-xs min-h-[28px]">
@@ -268,7 +278,7 @@ export function EditionMemoriesUploader({ editionId, initialVideoUrl }: { editio
                 )}
               </div>
             )}
-            <div className="grid grid-cols-3 sm:grid-cols-5 gap-2">
+            <div className="grid grid-cols-3 sm:grid-cols-5 gap-2 max-h-[55vh] overflow-y-auto pr-1">
               {photos.map((p) => {
                 const sel = selected.has(p.path);
                 const selectable = scope === "";
@@ -288,6 +298,7 @@ export function EditionMemoriesUploader({ editionId, initialVideoUrl }: { editio
                 );
               })}
             </div>
+            </>)}
           </>
         )}
       </div>
@@ -330,7 +341,14 @@ export function EditionMemoriesUploader({ editionId, initialVideoUrl }: { editio
             ) : videos.length === 0 ? (
               <p className="text-xs admin-faint">No videos for {scopeLabel} yet.</p>
             ) : (
-              <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5">
+              <>
+              <button type="button" onClick={() => setVideosOpen((o) => !o)} className="flex items-center gap-1.5 text-xs font-bold admin-heading mb-3 hover:opacity-80">
+                <svg className={`w-3.5 h-3.5 transition-transform ${videosOpen ? "rotate-90" : ""}`} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M9 6l6 6-6 6" /></svg>
+                {videos.length} video{videos.length === 1 ? "" : "s"}
+                <span className="admin-faint font-medium">· {videosOpen ? "hide" : "show"}</span>
+              </button>
+              {videosOpen && (
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5 max-h-[55vh] overflow-y-auto pr-1">
                 {videos.map((v) => (
                   <div key={v.stem} className="relative group aspect-video rounded-lg overflow-hidden"
                     style={{ border: "1px solid var(--admin-border)", backgroundColor: "var(--admin-input-bg)" }}>
@@ -358,6 +376,8 @@ export function EditionMemoriesUploader({ editionId, initialVideoUrl }: { editio
                   </div>
                 ))}
               </div>
+              )}
+              </>
             )}
           </>
         )}
