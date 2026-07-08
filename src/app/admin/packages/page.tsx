@@ -289,10 +289,11 @@ export default function PackagesPage() {
           <div className="mb-4">
             <p className="text-[11px] font-bold uppercase tracking-wide admin-faint mb-1.5">Payment plan</p>
             <div className="grid grid-cols-3 gap-4">
-              <div><label className={labelClass}>Deposit refundable (days)</label><input type="number" className={inputClass} value={form.deposit_refund_days} onChange={(e) => setForm({ ...form, deposit_refund_days: e.target.value })} placeholder="14" /></div>
+              <div><label className={labelClass}>Downpayment due (days after sign-up)</label><input type="number" className={inputClass} value={form.deposit_refund_days} onChange={(e) => setForm({ ...form, deposit_refund_days: e.target.value })} placeholder="14" /></div>
               <div><label className={labelClass}>Downpayment (% of total)</label><input type="number" className={inputClass} value={form.downpayment_percent} onChange={(e) => setForm({ ...form, downpayment_percent: e.target.value })} placeholder="50" /></div>
               <div><label className={labelClass}>Final due (days before trip)</label><input type="number" className={inputClass} value={form.final_days_before} onChange={(e) => setForm({ ...form, final_days_before: e.target.value })} placeholder="90" /></div>
             </div>
+            <p className="text-[11px] admin-faint mt-1.5">Downpayment is always due that many days after sign-up (the flight-booking window); the final balance that many days before the trip. A deposit, if set, also stays refundable for the same window.</p>
           </div>
           <div className="grid grid-cols-[260px_1fr] gap-4 mb-4">
             <div><label className={labelClass}>Hotel</label>

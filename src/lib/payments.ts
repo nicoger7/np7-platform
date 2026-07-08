@@ -9,10 +9,11 @@
  *                      `deposit_refund_days` (default 14) after it's paid.
  *   2. Downpayment   — brings the total paid up to `downpayment_percent`
  *                      (default 50%) of the trip total (incl. confirmed add-ons),
- *                      i.e. amount = 50% of total − deposit. Due once the deposit's
- *                      refundable window closes.
- *   3. Final balance — the remainder. Due `final_days_before` (default 90) days
- *                      before the trip starts (or right away if the trip is sooner).
+ *                      i.e. amount = 50% of total − deposit. ALWAYS due
+ *                      `deposit_refund_days` (default 14) after SIGN-UP — the
+ *                      rider's window to book flights before money is committed.
+ *   3. Final balance — the remainder. ALWAYS due `final_days_before` (default 90)
+ *                      days before the trip starts (or right away if sooner).
  *
  * Everything is a "due-by" deadline — the member can always pay sooner.
  */
@@ -106,10 +107,10 @@ export function computePaymentPlan(cfg: PackagePaymentConfig, state: BookingPaym
   const finalAmt = round(Math.max(0, total - depositAmt - downpaymentAmt));
 
   const refundableUntil = state.depositReceivedAt ? addDays(state.depositReceivedAt, refundDays) : null;
-  // Downpayment deadline: `refundDays` after the deposit lands — or, when the
-  // package has NO deposit (free signup), `refundDays` after registering: the
-  // rider's window to sort flights before the first real payment is due.
-  const downpaymentAnchor = state.depositReceivedAt ?? (depositAmt <= 0 ? state.bookedAt ?? null : null);
+  // Downpayment deadline: ALWAYS `refundDays` after SIGN-UP (deposit or not) —
+  // the rider's window to book flights before the first real payment is due.
+  // Deposit-payment date only as a fallback for legacy rows missing bookedAt.
+  const downpaymentAnchor = state.bookedAt ?? state.depositReceivedAt ?? null;
   const downpaymentDue = downpaymentAnchor ? addDays(downpaymentAnchor, refundDays) : null;
   const finalDue = state.editionStart ? addDays(state.editionStart, -finalDaysBefore) : null;
 
@@ -144,7 +145,7 @@ export function computePaymentPlan(cfg: PackagePaymentConfig, state: BookingPaym
       dueLabel: downpaymentDue
         ? fmtDue(downpaymentDue)
         : depositAmt > 0
-          ? `Due within ${refundDays} days of your deposit`
+          ? `Due within ${refundDays} days of signing up`
           : `Due within ${refundDays} days of registering — secures your spot`,
       status: downPaid ? "paid" : depositPaid ? "due" : "upcoming",
     },

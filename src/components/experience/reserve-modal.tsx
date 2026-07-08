@@ -176,7 +176,7 @@ export function ReserveModal({ ctx, onClose }: { ctx: ReserveContext; onClose: (
                   // the quote hasn't loaded.
                   quote
                     ? quote.deposit > 0
-                      ? `Secure your spot with the refundable ${fmt(quote.deposit)} deposit — ${quote.refundDays} days to change your mind.${quote.milestones.some((m) => m.kind === "downpayment") ? ` Your ${quote.downpaymentPercent}% downpayment tops it up later.` : ""}`
+                      ? `Secure your spot with the refundable ${fmt(quote.deposit)} deposit — ${quote.refundDays} days to change your mind.${quote.milestones.some((m) => m.kind === "downpayment") ? ` Your ${quote.downpaymentPercent}% downpayment tops it up within ${quote.refundDays} days of signing up.` : ""}`
                       : `Secure your spot with the ${quote.downpaymentPercent}% downpayment${quote.milestones[0] ? ` (${fmt(quote.milestones[0].amount)})` : ""} — due within ${quote.refundDays} days, so you've got time to sort flights first.`
                     : "Secure your spot with the refundable downpayment — no rush, you've got time.",
                   "Plan it in your account — flights, extra nights & your team.",
