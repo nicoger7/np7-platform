@@ -1,4 +1,4 @@
-import type { Milestone } from "@/lib/payments";
+import { dueUrgency, type Milestone } from "@/lib/payments";
 
 const money = (n: number, currency = "EUR") =>
   new Intl.NumberFormat("en-GB", { style: "currency", currency, maximumFractionDigits: 0 }).format(n);
@@ -25,6 +25,12 @@ export function PaymentPlan({
   const balance = Math.max(0, total - paid);
   const paidInFull = total > 0 && balance <= 0.01;
 
+  // Escalation on the SECURING payment (deposit or downpayment): a few days
+  // before its deadline → last-chance warning; past it → the spot is no longer
+  // held. Communication only — a payment still un-expires it.
+  const securing = milestones.find((m) => (m.kind === "deposit" || m.kind === "downpayment") && m.status !== "paid");
+  const urgency = securing ? dueUrgency(securing) : "ok";
+
   const dot = (s: Milestone["status"]) =>
     s === "paid"
       ? "bg-green-500 text-white"
@@ -34,6 +40,23 @@ export function PaymentPlan({
 
   return (
     <div>
+      {urgency === "last_chance" && securing?.dueDate && (
+        <div className="mb-4 rounded-xl border border-[#f6d9a8] bg-[#fff7e8] px-4 py-3">
+          <p className="text-[13.5px] font-bold text-[#9a6a12]">⏳ Last chance to secure your spot</p>
+          <p className="text-[12.5px] text-[#8a6a2a] leading-snug mt-0.5">
+            Pay your {securing.kind === "deposit" ? "deposit" : "downpayment"} of <strong>{money(securing.amount, currency)}</strong> by{" "}
+            <strong>{fmtDate(securing.dueDate)}</strong> — after that we can&apos;t hold your place on the trip.
+          </p>
+        </div>
+      )}
+      {urgency === "expired" && (
+        <div className="mb-4 rounded-xl border border-[#f3c1b0] bg-[#fdf0eb] px-4 py-3">
+          <p className="text-[13.5px] font-bold text-[#b3401f]">Your payment window has passed</p>
+          <p className="text-[12.5px] text-[#a05236] leading-snug mt-0.5">
+            We can no longer hold your spot — it&apos;s open to other riders until it fills. Pay now and it&apos;s yours again if it&apos;s still free, or message us and we&apos;ll do our best to sort it.
+          </p>
+        </div>
+      )}
       <ol className="relative">
         {milestones.map((m, i) => {
           const last = i === milestones.length - 1;

@@ -9,7 +9,7 @@ import { normalizeBookingStatus } from "@/lib/types";
 import { effectiveAddonStatus } from "@/lib/addons";
 import { describePrice } from "@/lib/pricing";
 import { reconcileBooking, suggestInvoices, type ReconInvoice, type ReconPayment } from "@/lib/reconcile";
-import { computePaymentPlan, type MilestoneKind } from "@/lib/payments";
+import { computePaymentPlan, dueUrgency, type MilestoneKind } from "@/lib/payments";
 
 interface BookingDetail {
   id: string;
@@ -443,10 +443,12 @@ export function BookingDetailPane({ bookingId, onBack }: { bookingId: string; on
     const invoiceSent = !!ir?.sent || LEGACY_SENT[m.kind];
     const invoiceIssued = !!ir;
     const partialLeft = ir && ir.state === "partial" ? ir.remaining : 0;
-    // Unpaid past its deadline → the team should chase (registration+X days for
-    // a no-deposit downpayment; N days before the trip for the final balance).
+    // Unpaid past its deadline → the team should chase (sign-up + X days for
+    // the downpayment; N days before the trip for the final balance). A few
+    // days before it, "last chance" — same ladder the member sees.
     const overdue = !paid && !!m.dueDate && m.dueDate < new Date().toISOString().slice(0, 10);
-    return { kind: m.kind, label: m.label, amount: m.amount, paid, invoiceIssued, invoiceSent, partialLeft, dueLabel: m.dueLabel, overdue };
+    const lastChance = !paid && !overdue && dueUrgency(m) === "last_chance";
+    return { kind: m.kind, label: m.label, amount: m.amount, paid, invoiceIssued, invoiceSent, partialLeft, dueLabel: m.dueLabel, overdue, lastChance };
   });
 
   const inputClass =
@@ -684,8 +686,8 @@ export function BookingDetailPane({ bookingId, onBack }: { bookingId: string; on
                 <div className="px-4 py-3 text-xs admin-faint">No payment plan yet — set the agreed price.</div>
               ) : (
                 paymentStages.map((s, i) => {
-                  const tone = s.paid ? "bg-green-500/15 text-green-400" : s.overdue ? "bg-red-500/15 text-red-400" : s.partialLeft > 0 ? "bg-amber-500/15 text-amber-400" : s.invoiceSent ? "bg-blue-500/15 text-blue-400" : "bg-gray-500/15 text-gray-400";
-                  const statusText = s.paid ? "Paid" : s.overdue ? "Overdue" : s.partialLeft > 0 ? `Part-paid · €${s.partialLeft.toLocaleString()} left` : s.invoiceSent ? "Invoice sent" : s.invoiceIssued ? "Invoice ready" : "Not invoiced";
+                  const tone = s.paid ? "bg-green-500/15 text-green-400" : s.overdue ? "bg-red-500/15 text-red-400" : s.lastChance ? "bg-amber-500/15 text-amber-400" : s.partialLeft > 0 ? "bg-amber-500/15 text-amber-400" : s.invoiceSent ? "bg-blue-500/15 text-blue-400" : "bg-gray-500/15 text-gray-400";
+                  const statusText = s.paid ? "Paid" : s.overdue ? "Overdue" : s.lastChance ? "Last chance" : s.partialLeft > 0 ? `Part-paid · €${s.partialLeft.toLocaleString()} left` : s.invoiceSent ? "Invoice sent" : s.invoiceIssued ? "Invoice ready" : "Not invoiced";
                   return (
                     <div key={s.kind} className="flex items-center gap-3 px-4 py-2.5 text-sm" style={i < paymentStages.length - 1 ? { borderBottom: "1px solid var(--admin-border)" } : undefined}>
                       <span className="flex-1 min-w-0">

@@ -182,3 +182,24 @@ export function milestoneAmount(kind: MilestoneKind, cfg: PackagePaymentConfig, 
   const m = computePaymentPlan(cfg, state).find((x) => x.kind === kind);
   return m ? m.amount : 0;
 }
+
+// -- Deadline escalation ------------------------------------------------------
+// A missed securing payment (deposit/downpayment) means we can't hold the spot:
+//   due − LAST_CHANCE_DAYS … due   →  "last_chance": warn the member loudly
+//   past due                       →  "expired": the spot is no longer held
+// Nothing is auto-cancelled in the DB (bank transfers land days late; admin
+// records them manually) — this drives messaging + funnel state only.
+
+export const LAST_CHANCE_DAYS = 4;
+/** After the missed deadline, how long admin keeps chasing before the booking
+ *  drops out of the active funnel as effectively lost. */
+export const RELEASE_GRACE_DAYS = 7;
+
+export type DueUrgency = "ok" | "last_chance" | "expired";
+
+/** How urgent an unpaid, currently-due milestone is (paid/upcoming → "ok"). */
+export function dueUrgency(m: Pick<Milestone, "status" | "dueDate">, today: string = todayISO()): DueUrgency {
+  if (m.status !== "due" || !m.dueDate) return "ok";
+  if (m.dueDate < today) return "expired";
+  return addDays(today, LAST_CHANCE_DAYS) >= m.dueDate ? "last_chance" : "ok";
+}

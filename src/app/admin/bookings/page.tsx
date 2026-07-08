@@ -45,14 +45,19 @@ const STATUSES = [
   { value: "paid", label: "Fully paid", color: "bg-green-600" },
   { value: "attended", label: "Attended", color: "bg-gray-400" },
   { value: "lost", label: "Lost", color: "bg-red-500" },
-  // Derived (not a DB value): a 'lead' whose edition has already ended — the
-  // inquiry quietly expired. Kept out of the active funnel; see effStatus().
+  // Derived (not a DB value): a 'lead' whose edition already ended, or an unpaid
+  // booking past the downpayment deadline + grace — the spot is no longer held.
+  // Kept out of the active funnel; see effStatus().
   { value: "expired", label: "Expired", color: "bg-gray-500/60" },
 ];
 
 // A lead idle this long → "follow-up"; a reserved spot unpaid this long → "payment due".
 const FOLLOW_UP_DAYS = 14;
 const DOWNPAYMENT_DAYS = 14;
+// Chase window after the missed downpayment. Past due + grace the booking drops
+// out of the active funnel as "expired" — the spot is no longer held for them
+// (mark it Lost, or record the payment if it turns up and it un-expires).
+const RELEASE_GRACE_DAYS = 7;
 const daysSince = (iso: string | null) => (iso ? (Date.now() - Date.parse(iso)) / 86_400_000 : 0);
 
 // Pipeline ordering — most-advanced first; dead/expired sink to the bottom.
@@ -66,17 +71,20 @@ function isExpiredLead(b: Booking): boolean {
   return !!end && new Date(end) < new Date();
 }
 // View-only overlays on the real DB status (no migration): a stale lead →
-// "follow-up", a reserved spot whose down-payment is overdue → "payment due".
+// "follow-up", an overdue down-payment → "payment due", and past the grace
+// window → "expired" (spot no longer held; sinks out of the active funnel).
 function effStatus(b: Booking): string {
   const s = normalizeBookingStatus(b.status);
+  const unpaidPast = (days: number) => !b.downpayment_received && daysSince(b.created_at) > days;
   if (s === "lead") {
     if (isExpiredLead(b)) return "expired";
+    if (unpaidPast(DOWNPAYMENT_DAYS + RELEASE_GRACE_DAYS)) return "expired";
+    if (unpaidPast(DOWNPAYMENT_DAYS)) return "payment_due";
     if (daysSince(b.created_at) > FOLLOW_UP_DAYS) return "follow_up";
     return "lead";
   }
-  if (s === "reserved" && !b.downpayment_received && daysSince(b.created_at) > DOWNPAYMENT_DAYS) {
-    return "payment_due";
-  }
+  if (s === "reserved" && unpaidPast(DOWNPAYMENT_DAYS + RELEASE_GRACE_DAYS)) return "expired";
+  if (s === "reserved" && unpaidPast(DOWNPAYMENT_DAYS)) return "payment_due";
   return s;
 }
 
