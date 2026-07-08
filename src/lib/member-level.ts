@@ -4,7 +4,12 @@
    status is private; the displayed (public) level falls back to the member's
    self-declared value until they accept. */
 
-export const LEVELS = ["Beginner", "Intermediate", "Advanced", "Pro"] as const;
+import { RANKS } from "./progression";
+
+/** ONE taxonomy everywhere: the member-progression rank ladder (6 ranks,
+    Beginner → … → Pro) is the single source — level pickers, badges and the
+    spotguide all derive from it. Old 4-level data stays valid (a subset). */
+export const LEVELS = RANKS;
 export type Level = (typeof LEVELS)[number];
 
 /** One-line, plain-English definition of each level — shared everywhere a level
@@ -13,6 +18,8 @@ export const LEVEL_DESCRIPTIONS: Record<Level, string> = {
   Beginner: "Uphauling, sailing both ways and basic steering — not yet planing.",
   Intermediate: "Planing in the harness & footstraps; learning the carve gybe.",
   Advanced: "Confident planing, waterstart & carve gybes; into waves or freestyle.",
+  Amateur: "Dialled-in all-rounder — carve gybes both ways, solid in strong wind & chop.",
+  "Semi-Pro": "Advanced moves land reliably — race pace, jumps or a first wave/freestyle repertoire.",
   Pro: "Masters most conditions — advanced waves, freestyle or racing.",
 };
 export type LevelStatus = "self" | "suggested" | "verified";

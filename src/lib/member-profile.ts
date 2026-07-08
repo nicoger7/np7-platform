@@ -5,7 +5,7 @@
    way a contact becomes visible to someone else, and it returns null unless the
    owner opted into that specific surface. */
 
-import { displayLevel, type SkillTag } from "@/lib/member-level";
+import { displayLevel, LEVELS, type SkillTag } from "@/lib/member-level";
 
 export type ProfileSurface = "crew" | "reviews" | "spot_notes";
 export type ProfileField = "age" | "country" | "city" | "level";
@@ -72,8 +72,9 @@ export function ageFrom(dob: string | null | undefined): number | null {
 
 export const MINOR_AGE = 18;
 
-/** Self-declared community level (separate from the coach-assessed contacts.level). */
-export const SELF_LEVELS = ["Beginner", "Intermediate", "Advanced", "Pro"] as const;
+/** Self-declared community level (separate from the coach-assessed contacts.level).
+    Same 6-rank ladder as the progression system — ONE taxonomy everywhere. */
+export const SELF_LEVELS = LEVELS;
 export type SelfLevel = (typeof SELF_LEVELS)[number];
 
 /** Normalise a desired self-level to the canonical set, or "" to clear it. */
