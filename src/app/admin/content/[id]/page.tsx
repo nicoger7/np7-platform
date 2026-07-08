@@ -5,6 +5,8 @@ import Link from "next/link";
 import ImagePickerModal from "@/components/image-picker-modal";
 import { EditionGuidesEditor } from "@/components/edition-guides-editor";
 import { ReviewPlacementsEditor } from "@/components/edition-reviews-editor";
+import { BrandedTile } from "@/components/experience/branded-tile";
+import { placeFromLocation, flagFromLocation } from "@/lib/experience-tile";
 
 type ProgramItem = { title: string; description: string };
 type FaqItem = { q: string; a: string };
@@ -26,6 +28,9 @@ export default function ContentEditorPage({ params }: { params: Promise<{ id: st
 
   const [title, setTitle] = useState("");
   const [slug, setSlug] = useState("");
+  const [location, setLocation] = useState("");
+  // Head coach for the live tile preview — same fallback the public card uses.
+  const [headCoach, setHeadCoach] = useState<{ name: string; cutout: string | null } | null>(null);
 
   // images
   const [tileImage, setTileImage] = useState("");
@@ -64,6 +69,7 @@ export default function ContentEditorPage({ params }: { params: Promise<{ id: st
         if (!c) return;
         setTitle(c._title ?? "");
         setSlug(c._slug ?? "");
+        setLocation(c._location ?? "");
         setTileImage(c.tile_image ?? "");
         setTileAuto(!!c.tile_auto);
         setHeroImage(c.hero_image ?? "");
@@ -87,6 +93,12 @@ export default function ContentEditorPage({ params }: { params: Promise<{ id: st
   }, [id]);
 
   useEffect(() => {
+    fetch("/api/admin/coaches").then((r) => r.json()).then((list) => {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const arr = (Array.isArray(list) ? list : []) as any[];
+      const head = arr.find((c) => /head/i.test(String(c.role ?? ""))) ?? arr[0];
+      if (head) setHeadCoach({ name: head.name, cutout: head.cutout_url ?? null });
+    }).catch(() => {});
     fetch("/api/admin/editions").then((r) => r.json()).then((d) => {
       const eds = (Array.isArray(d) ? d : []).filter((e: { experience_id: string }) => e.experience_id === id);
       setEditions(eds.map((e: { id: string; year: number | null; label: string | null }) => ({ id: e.id, year: e.year, label: e.label })));
@@ -194,6 +206,22 @@ export default function ContentEditorPage({ params }: { params: Promise<{ id: st
               </span>
             </span>
           </label>
+
+          {/* live preview — EXACTLY the component the public overview card renders */}
+          {tileAuto && tileImage && (
+            <div className="mt-4 max-w-[480px]">
+              <p className="text-xs admin-faint mb-2">Live preview — how the card renders on the website:</p>
+              <div className="relative aspect-[16/9] rounded-xl overflow-hidden group border admin-border">
+                <BrandedTile
+                  photo={tileImage}
+                  place={placeFromLocation(location).toUpperCase()}
+                  flag={flagFromLocation(location)}
+                  coachName={headCoach?.name}
+                  coachCutout={headCoach?.cutout}
+                />
+              </div>
+            </div>
+          )}
         </Section>
 
         <Section show={tab === "media"} title="Event hero" hint="The big image at the top of the event page. Paste a YouTube link for a video background, or pick an image. Video wins if both are set.">

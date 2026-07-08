@@ -5,6 +5,8 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { SortableHeader } from "@/components/sortable-header";
 import { ColumnToggle, ColumnDef, buildGridTemplate, loadVisibleColumns } from "@/components/column-toggle";
+import { BrandedTile } from "@/components/experience/branded-tile";
+import { placeFromLocation, flagFromLocation } from "@/lib/experience-tile";
 
 interface Experience {
   id: string;
@@ -15,6 +17,7 @@ interface Experience {
   hero_image: string;
   hotel: string | null;
   website_visible?: boolean | null;
+  tile_auto?: boolean | null;
 }
 
 // "published" is the stored value for an operationally-active experience.
@@ -71,9 +74,9 @@ function EditionPills({ editions }: { editions: Edition[] }) {
   }
   return (
     <div className="flex flex-wrap gap-1">
-      {editions.map((ed) => (
+      {editions.map((ed, i) => (
         <span
-          key={ed.year}
+          key={`${ed.year}-${i}`}
           className={`inline-block px-1.5 py-0.5 rounded text-[10px] font-medium ${
             ed.status === "published"
               ? "bg-[var(--admin-accent)]/15 text-[#0aa3c7]"
@@ -103,6 +106,8 @@ function compareValues(a: unknown, b: unknown, dir: "asc" | "desc"): number {
 export default function ExperiencesPage() {
   const [experiences, setExperiences] = useState<Experience[]>([]);
   const [editions, setEditions] = useState<Edition[]>([]);
+  // Head coach for the auto-branded tile previews — same fallback the public site uses.
+  const [headCoach, setHeadCoach] = useState<{ name: string; cutout: string | null } | null>(null);
   const [loading, setLoading] = useState(true);
   const [view, setView] = useState<ViewMode>(() => {
     if (typeof window !== "undefined") {
@@ -121,9 +126,14 @@ export default function ExperiencesPage() {
     Promise.all([
       fetch("/api/admin/experiences").then((r) => r.json()),
       fetch("/api/admin/editions").then((r) => r.json()),
-    ]).then(([exps, eds]) => {
+      fetch("/api/admin/coaches").then((r) => r.json()).catch(() => []),
+    ]).then(([exps, eds, coaches]) => {
       setExperiences(Array.isArray(exps) ? exps : exps.experiences || []);
       setEditions(Array.isArray(eds) ? eds : []);
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const list = (Array.isArray(coaches) ? coaches : []) as any[];
+      const head = list.find((c) => /head/i.test(String(c.role ?? ""))) ?? list[0];
+      if (head) setHeadCoach({ name: head.name, cutout: head.cutout_url ?? null });
       setLoading(false);
     });
   }, []);
@@ -297,8 +307,17 @@ export default function ExperiencesPage() {
                 onMouseLeave={(e) => (e.currentTarget.style.borderColor = "var(--admin-border)")}
               >
                 {/* Hero image */}
-                <div className="aspect-[16/9] overflow-hidden" style={{ backgroundColor: "var(--admin-surface)" }}>
-                  {exp.hero_image ? (
+                <div className="relative aspect-[16/9] overflow-hidden" style={{ backgroundColor: "var(--admin-surface)" }}>
+                  {exp.hero_image && exp.tile_auto ? (
+                    /* mirrors the PUBLIC card exactly: photo + flag + place + coach */
+                    <BrandedTile
+                      photo={exp.hero_image}
+                      place={placeFromLocation(exp.location).toUpperCase()}
+                      flag={flagFromLocation(exp.location)}
+                      coachName={headCoach?.name}
+                      coachCutout={headCoach?.cutout}
+                    />
+                  ) : exp.hero_image ? (
                     // eslint-disable-next-line @next/next/no-img-element
                     <img
                       src={exp.hero_image}

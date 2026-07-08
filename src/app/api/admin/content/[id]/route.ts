@@ -50,7 +50,7 @@ export async function GET(
 
   const [{ data: content, error }, { data: exp }] = await Promise.all([
     db.from("exp_content").select("*").eq("experience_id", id).maybeSingle(),
-    db.from("exp_experiences").select("hero_image,title,slug").eq("id", id).maybeSingle(),
+    db.from("exp_experiences").select("hero_image,title,slug,location").eq("id", id).maybeSingle(),
   ]);
 
   if (error && !isMissing(error.message)) {
@@ -68,6 +68,7 @@ export async function GET(
     tile_auto: !!exAuto?.tile_auto,
     _title: exp?.title ?? "",
     _slug: exp?.slug ?? "",
+    _location: exp?.location ?? "",
   });
 }
 
