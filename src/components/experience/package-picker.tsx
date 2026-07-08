@@ -1,7 +1,7 @@
 "use client";
 
-import { useMemo, useState } from "react";
-import { ReserveModal, DEPOSIT_EUR, type ReserveContext } from "./reserve-modal";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { ReserveModal, type ReserveContext } from "./reserve-modal";
 import { track } from "@/lib/analytics-client";
 import { cdnImage } from "@/lib/img";
 
@@ -64,11 +64,21 @@ const DEFAULT_INCLUDES = [
  * Choose a coaching level, then an accommodation — the price updates instantly.
  * The page's primary conversion module.
  */
+/** The real milestone schedule from /api/register/quote — the same engine that
+    writes the invoices, so the sidebar can never disagree with what's billed. */
+type Quote = {
+  price: number; deposit: number; downpaymentPercent: number; refundDays: number;
+  milestones: { kind: string; label: string; amount: number; dueLabel: string; dueDate: string | null }[];
+};
+
 export function PackagePicker({ packages, currency = "EUR", reserve }: Props) {
   const [showReserve, setShowReserve] = useState(false);
   // Active photo per hotel group (the expanded card shows a swappable banner —
   // photos stay at card size on purpose: sources aren't always hi-res, so no lightbox).
   const [photoIdx, setPhotoIdx] = useState<Record<string, number>>({});
+  // Payment plan for the selected package (cached per package to avoid flicker).
+  const [quote, setQuote] = useState<Quote | null>(null);
+  const quoteCache = useRef<Map<string, Quote>>(new Map());
   const symbol = currency === "EUR" || !currency ? "€" : `${currency} `;
   const fmt = (n: number) => `${symbol}${n.toLocaleString("en-US")}`;
 
@@ -135,6 +145,28 @@ export function PackagePicker({ packages, currency = "EUR", reserve }: Props) {
     const esc = hotelName.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
     return a.accommodation.replace(new RegExp(`^${esc}\\s*`, "i"), "").trim() || a.accommodation;
   };
+
+  // Fetch the payment plan whenever the selection changes.
+  const selectedId = accommodations.find((a) => a.id === accId)?.id ?? accommodations[0]?.id;
+  useEffect(() => {
+    if (!selectedId) { setQuote(null); return; }
+    const key = `${selectedId}:${reserve?.editionId ?? ""}`;
+    const cached = quoteCache.current.get(key);
+    if (cached) { setQuote(cached); return; }
+    setQuote(null);
+    let dead = false;
+    const qs = new URLSearchParams({ packageId: selectedId });
+    if (reserve?.editionId) qs.set("editionId", reserve.editionId);
+    fetch(`/api/register/quote?${qs}`)
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d) => {
+        if (dead || !d?.milestones) return;
+        quoteCache.current.set(key, d);
+        setQuote(d);
+      })
+      .catch(() => {});
+    return () => { dead = true; };
+  }, [selectedId, reserve?.editionId]);
 
   const onLevel = (lv: string) => {
     setLevel(lv);
@@ -359,6 +391,29 @@ export function PackagePicker({ packages, currency = "EUR", reserve }: Props) {
           <span className="text-[13px] text-white/50">Total p.p.</span>
           <span className="text-3xl font-black tracking-[-0.02em] tabular-nums">{selected ? fmt(selected.price) : "—"}</span>
         </div>
+
+        {/* How you pay — the REAL schedule from /api/register/quote (the invoice
+            engine), so this can never disagree with what's actually billed. */}
+        {quote && quote.milestones.length > 0 && (
+          <div className="mb-5 rounded-xl bg-white/[0.06] p-3.5 space-y-2">
+            <p className="text-[10.5px] font-bold tracking-[0.15em] uppercase text-white/40">How you pay</p>
+            <div className="flex items-center justify-between text-[12.5px]">
+              <span className="text-white/75">Reserve today</span>
+              <span className="font-bold text-[#8fe6f2]">Free</span>
+            </div>
+            {quote.milestones.map((m) => (
+              <div key={`${m.kind}-${m.dueDate ?? m.dueLabel}`} className="flex items-start justify-between gap-3 text-[12.5px]">
+                <span className="min-w-0">
+                  <span className="block text-white/75">
+                    {m.kind === "deposit" ? "Deposit — secures your spot" : m.kind === "downpayment" ? `Downpayment · ${quote.downpaymentPercent}%` : "Final balance"}
+                  </span>
+                  <span className="block text-[11px] text-white/40">{m.dueLabel}</span>
+                </span>
+                <span className="shrink-0 font-bold tabular-nums">{fmt(m.amount)}</span>
+              </div>
+            ))}
+          </div>
+        )}
 
         <button
           onClick={() => reserve && selected && setShowReserve(true)}
