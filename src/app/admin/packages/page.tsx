@@ -37,6 +37,8 @@ interface Edition {
   experience_id: string;
   year: number;
   label: string | null;
+  status?: string | null;
+  date_start?: string | null;
   exp_experiences: { id: string; title: string } | null;
 }
 
@@ -147,12 +149,20 @@ export default function PackagesPage() {
 
   // Column sorting (within each edition group); null/undefined always sink.
   const SORT_GET: Record<string, (p: Package) => string | number | null | undefined> = {
-    name: (p) => p.name?.toLowerCase(), category: (p) => p.category || "",
+    package: (p) => parsePkgName(p.name).level.toLowerCase(),
+    room: (p) => (parsePkgName(p.name).room || "").toLowerCase(),
     sell: (p) => p.price, cost: (p) => p.cost_estimate, margin: (p) => p.margin,
     comps: (p) => p.component_count, deposit: (p) => p.deposit, status: (p) => p.status,
   };
   function sortPkgs(list: Package[]): Package[] {
-    if (!sortKey || !sortDir) return list;
+    // Default: level A→Z then room A→Z, so identical levels sit together and
+    // the list reads the same way every time.
+    if (!sortKey || !sortDir) {
+      return [...list].sort((a, b) => {
+        const pa = parsePkgName(a.name), pb = parsePkgName(b.name);
+        return pa.level.localeCompare(pb.level) || (pa.room || "").localeCompare(pb.room || "");
+      });
+    }
     const get = SORT_GET[sortKey];
     return [...list].sort((a, b) => {
       const av = get(a), bv = get(b);
@@ -172,14 +182,28 @@ export default function PackagesPage() {
   const editionMap = new Map(editions.map((e) => [e.id, e]));
   const expCodeById = new Map(experiences.map((e) => [e.id, e.code]));
 
-  // Group by edition (or experience fallback)
-  const grouped = new Map<string, { pkgs: Package[]; editionId: string | null }>();
+  // Group by edition; packages WITHOUT an edition are the experience's SHARED
+  // set (they apply to every week on the website). Order: live editions by
+  // start date, then shared groups, then drafts/archived at the bottom.
+  type PkgGroup = { key: string; label: string; editionId: string | null; status: string | null; date: string | null; shared: boolean; pkgs: Package[] };
+  const groupMap = new Map<string, PkgGroup>();
   for (const pkg of filtered) {
     const ed = pkg.edition_id ? editionMap.get(pkg.edition_id) : null;
-    const key = ed ? editionLabel(ed) : pkg.exp_experiences?.title || "No Experience";
-    if (!grouped.has(key)) grouped.set(key, { pkgs: [], editionId: pkg.edition_id });
-    grouped.get(key)!.pkgs.push(pkg);
+    const key = ed ? ed.id : `shared:${pkg.experience_id ?? "none"}`;
+    if (!groupMap.has(key)) {
+      groupMap.set(key, {
+        key,
+        label: ed ? editionLabel(ed) : `${pkg.exp_experiences?.title || "No Experience"} — all editions`,
+        editionId: pkg.edition_id, status: ed?.status ?? null,
+        date: ed?.date_start ?? null, shared: !ed, pkgs: [],
+      });
+    }
+    groupMap.get(key)!.pkgs.push(pkg);
   }
+  const groupRank = (g: PkgGroup) => (g.status === "draft" ? 2 : g.status === "archived" || g.status === "cancelled" ? 3 : g.shared ? 1 : 0);
+  const grouped = [...groupMap.values()].sort((a, b) =>
+    groupRank(a) - groupRank(b) || String(a.date ?? "9999").localeCompare(String(b.date ?? "9999")) || a.label.localeCompare(b.label)
+  );
 
   function startNew() {
     setEditId(null);
@@ -261,7 +285,7 @@ export default function PackagesPage() {
         <div>
           <h1 className="text-2xl font-bold admin-heading mb-1">Packages</h1>
           <p className="text-sm admin-muted">
-            {filtered.length} package{filtered.length !== 1 ? "s" : ""} across {grouped.size} edition{grouped.size !== 1 ? "s" : ""}
+            {filtered.length} package{filtered.length !== 1 ? "s" : ""} across {grouped.length} group{grouped.length !== 1 ? "s" : ""}
           </p>
         </div>
         <button onClick={startNew} className="px-4 py-2 bg-[var(--admin-accent)] hover:bg-[var(--admin-accent)]/90 text-[var(--admin-accent-contrast)] text-sm font-bold rounded-lg transition-colors">
@@ -411,10 +435,18 @@ export default function PackagesPage() {
         <div className="py-16 text-center"><p className="text-sm admin-faint">No packages match</p></div>
       ) : (
         <div className="space-y-6">
-          {Array.from(grouped.entries()).map(([label, group]) => (
-            <div key={label}>
+          {grouped.map((group) => (
+            <div key={group.key}>
               <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between mb-3">
-                <h2 className="text-sm font-bold admin-heading">{label}</h2>
+                <h2 className="text-sm font-bold admin-heading flex items-center gap-2">
+                  {group.label}
+                  {group.shared && (
+                    <span className="px-1.5 py-0.5 rounded text-[9px] font-bold uppercase tracking-[0.06em] bg-[var(--admin-accent)]/15 text-[#0aa3c7]" title="No edition set — these packages apply to EVERY week of the experience on the website. An edition-scoped package with the same name overrides them for that week.">Shared · all editions</span>
+                  )}
+                  {group.status && group.status !== "published" && (
+                    <span className="px-1.5 py-0.5 rounded text-[9px] font-bold uppercase tracking-[0.06em] bg-amber-500/15 text-amber-400">{group.status}</span>
+                  )}
+                </h2>
                 {group.editionId && (
                   <Link href={`/admin/editions/${group.editionId}`} className="text-xs text-[#0aa3c7] hover:text-[#0aa3c7]/80 transition-colors">
                     View edition →
@@ -423,10 +455,10 @@ export default function PackagesPage() {
               </div>
               <div className="rounded-xl admin-tablecard" style={{ border: "1px solid var(--admin-border)" }}>
                 <div
-                  className="grid grid-cols-[minmax(240px,1fr)_90px_80px_80px_90px_55px_70px_80px_70px] gap-3 px-5 py-3 admin-surface"
+                  className="grid grid-cols-[minmax(120px,0.7fr)_minmax(170px,1fr)_80px_80px_90px_55px_70px_80px_70px] gap-3 px-5 py-3 admin-surface"
                   style={{ borderBottom: "1px solid var(--admin-border)" }}
                 >
-                  {[["name", "Name"], ["category", "Category"], ["sell", "Sell"], ["cost", "Cost"], ["margin", "Margin"], ["comps", "Comps"], ["deposit", "Deposit"], ["status", "Status"]].map(([key, lbl]) => (
+                  {[["package", "Package"], ["room", "Room / variant"], ["sell", "Sell"], ["cost", "Cost"], ["margin", "Margin"], ["comps", "Comps"], ["deposit", "Deposit"], ["status", "Status"]].map(([key, lbl]) => (
                     <button
                       key={key}
                       type="button"
@@ -444,25 +476,25 @@ export default function PackagesPage() {
                   return (
                     <div key={pkg.id} style={{ borderBottom: "1px solid var(--admin-border)" }}>
                       <div
-                        className="grid grid-cols-[minmax(240px,1fr)_90px_80px_80px_90px_55px_70px_80px_70px] gap-3 px-5 py-3 transition-colors"
+                        className="grid grid-cols-[minmax(120px,0.7fr)_minmax(170px,1fr)_80px_80px_90px_55px_70px_80px_70px] gap-3 px-5 py-3 transition-colors cursor-pointer"
+                        onClick={() => startEdit(pkg)}
                         onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = "var(--admin-surface-hover)")}
                         onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = "transparent")}
                       >
                         {(() => {
                           const parsed = parsePkgName(pkg.name);
                           return (
-                            <span className="min-w-0 cursor-pointer self-center" onClick={() => startEdit(pkg)}>
-                              <span className="flex items-center gap-1.5 min-w-0">
+                            <>
+                              <span className="min-w-0 self-center flex items-center gap-1.5">
                                 <span className="text-sm font-semibold admin-heading">{parsed.level}</span>
                                 {parsed.code && (
                                   <span className="shrink-0 text-[9px] font-mono px-1 py-px rounded admin-faint" style={{ border: "1px solid var(--admin-border)" }}>{parsed.code}</span>
                                 )}
                               </span>
-                              {parsed.room && <span className="block text-xs admin-muted mt-0.5">{parsed.room}</span>}
-                            </span>
+                              <span className="min-w-0 self-center text-sm admin-muted">{parsed.room || "—"}</span>
+                            </>
                           );
                         })()}
-                        <span className="text-xs admin-muted self-center capitalize">{pkg.category || "—"}</span>
                         <span className="text-xs admin-muted self-center">{money(pkg.price)}</span>
                         <span className="text-xs admin-muted self-center">
                           {money(pkg.cost_estimate)}
@@ -475,10 +507,10 @@ export default function PackagesPage() {
                         <span className="text-xs admin-muted self-center">{money(pkg.deposit)}</span>
                         <span className="self-center"><StatusBadge status={pkg.status} /></span>
                         <span className="flex items-center gap-2 self-center justify-end">
-                          <button onClick={() => duplicate(pkg.id)} className="admin-faint hover:text-[#0aa3c7] transition-colors" title="Duplicate">
+                          <button onClick={(e) => { e.stopPropagation(); duplicate(pkg.id); }} className="admin-faint hover:text-[#0aa3c7] transition-colors" title="Duplicate">
                             <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="9" y="9" width="13" height="13" rx="2" /><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1" /></svg>
                           </button>
-                          <button onClick={() => remove(pkg.id)} className="admin-faint hover:text-red-400 transition-colors" title="Delete">
+                          <button onClick={(e) => { e.stopPropagation(); remove(pkg.id); }} className="admin-faint hover:text-red-400 transition-colors" title="Delete">
                             <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M3 6h18M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a2 2 0 012-2h4a2 2 0 012 2v2" /></svg>
                           </button>
                         </span>

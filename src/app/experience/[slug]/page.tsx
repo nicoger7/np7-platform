@@ -251,19 +251,35 @@ export default async function ExperienceDetailPage({ params }: Props) {
     return hotelsList.find((h) => h.name && hay.includes(h.name.toLowerCase())) ?? null;
   };
 
+  // Packages per edition. A package WITHOUT an edition is SHARED — it applies
+  // to every week. A week that needs to differ gets its own edition-scoped
+  // package with the same level+room name, which OVERRIDES the shared one for
+  // that week only (two passes: scoped first, then shared fills the gaps).
   const packagesByEdition: Record<string, RealPackage[]> = {};
-  for (const ed of allEditions) packagesByEdition[ed.id] = [];
-  for (const p of activePackages) {
-    if (privatePkgIds.has(p.id)) continue; // off-website package — sold privately only
+  const claimedByEdition: Record<string, Set<string>> = {};
+  for (const ed of allEditions) { packagesByEdition[ed.id] = []; claimedByEdition[ed.id] = new Set(); }
+  const toReal = (p: PackageRow): RealPackage => {
     const x = parsePackageName(p.name);
     const h = resolveHotel(p.id, p.name, x.accommodation);
-    const rp: RealPackage = {
+    return {
       id: p.id, level: x.level, accommodation: x.accommodation, price: p.price as number,
       hotelName: h?.name ?? null, hotelImage: h?.image_url ?? null, hotelImages: h?.images ?? null, hotelDescription: h?.description ?? null,
       includes: parseIncludes(p.includes),
     };
-    if (p.edition_id && packagesByEdition[p.edition_id]) packagesByEdition[p.edition_id].push(rp);
-    else allEditions.forEach((ed) => packagesByEdition[ed.id].push(rp)); // unscoped → all weeks
+  };
+  const pkgKey = (rp: RealPackage) => `${rp.level}::${rp.accommodation}`.toLowerCase();
+  const visible = activePackages.filter((p) => !privatePkgIds.has(p.id)); // off-website = sold privately only
+  for (const p of visible.filter((p) => p.edition_id)) {
+    if (!packagesByEdition[p.edition_id!]) continue;
+    const rp = toReal(p);
+    packagesByEdition[p.edition_id!].push(rp);
+    claimedByEdition[p.edition_id!].add(pkgKey(rp));
+  }
+  for (const p of visible.filter((p) => !p.edition_id)) {
+    const rp = toReal(p);
+    for (const ed of allEditions) {
+      if (!claimedByEdition[ed.id].has(pkgKey(rp))) packagesByEdition[ed.id].push(rp);
+    }
   }
 
   const editionsLite: EditionLite[] = allEditions.map((ed, i) => {
