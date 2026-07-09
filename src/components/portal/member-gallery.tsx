@@ -203,7 +203,7 @@ export function MemberGallery({
       {keeperBookingId && (
         <div className="rounded-2xl border border-[#f6d9a8] bg-[#fff8ec] px-4 py-3 mb-4">
           <p className="text-[13.5px] font-bold text-[#00374a]">⭐ Choose your keepers{keepers.size > 0 ? ` — ${keepers.size} saved` : ""}</p>
-          <p className="text-[12.5px] text-[#8a6a2a] mt-0.5 leading-snug">Tap the star on the photos you want to keep forever. The rest of the gallery is removed 3 months after the trip.</p>
+          <p className="text-[12.5px] text-[#8a6a2a] mt-0.5 leading-snug">Tap the star on the photos you want to keep forever. Photos stay for a year after the trip (videos 3 months) — starred keepers stay for good.</p>
         </div>
       )}
       <div className="space-y-2.5">

@@ -31,7 +31,7 @@ export default async function MemoriesPage() {
             </p>
             {trips.length > 0 && (
               <p className="text-[12.5px] text-[#9aa6ac] mt-2 leading-relaxed max-w-[620px]">
-                💾 Your full gallery stays here for <strong className="text-[#6a7a80] font-semibold">3 months after each trip</strong>. After that we keep a hand-picked set of your best photos &amp; videos as permanent memories — so download anything else you&apos;d like to keep before then.
+                💾 Your photos stay here for <strong className="text-[#6a7a80] font-semibold">a year after each trip</strong>, videos for <strong className="text-[#6a7a80] font-semibold">3 months</strong>. The keepers you star stay forever — so star your favourites (and download anything else) before then.
               </p>
             )}
           </div>

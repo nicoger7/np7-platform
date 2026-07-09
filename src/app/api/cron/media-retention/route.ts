@@ -6,21 +6,23 @@ export const dynamic = "force-dynamic";
 export const maxDuration = 300;
 
 /**
- * 3-month media retention. After a trip ends, the full gallery stays available
- * for RETENTION_DAYS; then everything is purged EXCEPT the starred "keepers"
- * (memory_stars) — the 3 photos + 3 videos per rider the uploader marked, kept
- * forever. Photos live in Supabase Storage (assets/memories/…), videos in R2
- * (_video/…).
+ * Media retention. After a trip ends the full gallery stays available, then the
+ * non-keeper files are purged EXCEPT the starred "keepers" (memory_stars) — kept
+ * forever. Photos are kept a YEAR (light, and the main memory); videos only 3
+ * MONTHS (they're heavy). Photos live in Supabase Storage (assets/memories/…),
+ * videos in R2 (_video/…).
  *
  * SAFE BY DEFAULT:
  *  • dry-run unless MEDIA_RETENTION_LIVE === "true" (reports what it WOULD delete)
- *  • only editions whose trip ended > RETENTION_DAYS ago
+ *  • photos only purge once the trip ended > PHOTO_RETENTION_DAYS ago, videos > VIDEO_RETENTION_DAYS ago
  *  • only editions that have ≥1 star (i.e. were curated) — an un-curated old trip
  *    is never nuked; it's reported so the team can go star keepers first
  *  • keepers are never deleted
  */
 
-const RETENTION_DAYS = Number(process.env.MEDIA_RETENTION_DAYS || 90);
+// Photos are kept a year; videos 3 months. Overridable per env.
+const PHOTO_RETENTION_DAYS = Number(process.env.MEDIA_RETENTION_PHOTO_DAYS || 365);
+const VIDEO_RETENTION_DAYS = Number(process.env.MEDIA_RETENTION_VIDEO_DAYS || 90);
 const BUCKET = "assets";
 
 function db() {
@@ -63,15 +65,17 @@ export async function GET(req: NextRequest) {
   if (!authorized(req)) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   const live = process.env.MEDIA_RETENTION_LIVE === "true";
   const admin = db();
-  const cutoff = new Date(Date.now() - RETENTION_DAYS * 86400000).toISOString().slice(0, 10);
+  const daysAgo = (d: number) => new Date(Date.now() - d * 86400000).toISOString().slice(0, 10);
+  const photoCutoff = daysAgo(PHOTO_RETENTION_DAYS);
+  const videoCutoff = daysAgo(VIDEO_RETENTION_DAYS);
 
-  // Editions whose trip ended more than RETENTION_DAYS ago.
+  // Broadest net = the sooner (video) cutoff; photos are only purged once a year old.
   const { data: eds, error: edErr } = await admin
-    .from("exp_editions").select("id, date_end").lt("date_end", cutoff);
+    .from("exp_editions").select("id, date_end").lt("date_end", videoCutoff);
   if (edErr) return NextResponse.json({ error: edErr.message }, { status: 500 });
 
   const report = {
-    live, cutoff, editionsChecked: (eds ?? []).length,
+    live, photoCutoff, videoCutoff, editionsChecked: (eds ?? []).length,
     deletedPhotos: 0, deletedVideos: 0, keptPhotos: 0, keptVideos: 0,
     skippedUncurated: [] as string[],
   };
@@ -85,18 +89,20 @@ export async function GET(req: NextRequest) {
     // Never auto-purge an edition nobody curated — flag it instead.
     if ((stars ?? []).length === 0) { report.skippedUncurated.push(ed.id); continue; }
 
-    // -- Photos (Supabase Storage) --
-    const photoPaths = await listStorage(admin, `memories/${ed.id}`);
-    const photosToDelete = photoPaths.filter((p) => !keepPhotos.has(p));
-    report.keptPhotos += photoPaths.length - photosToDelete.length;
-    if (live && photosToDelete.length) {
-      for (let i = 0; i < photosToDelete.length; i += 100) {
-        await admin.storage.from(BUCKET).remove(photosToDelete.slice(i, i + 100)).then(() => {}, () => {});
+    // -- Photos (Supabase Storage) — only once the trip is a YEAR past --
+    if (ed.date_end < photoCutoff) {
+      const photoPaths = await listStorage(admin, `memories/${ed.id}`);
+      const photosToDelete = photoPaths.filter((p) => !keepPhotos.has(p));
+      report.keptPhotos += photoPaths.length - photosToDelete.length;
+      if (live && photosToDelete.length) {
+        for (let i = 0; i < photosToDelete.length; i += 100) {
+          await admin.storage.from(BUCKET).remove(photosToDelete.slice(i, i + 100)).then(() => {}, () => {});
+        }
       }
+      report.deletedPhotos += photosToDelete.length;
     }
-    report.deletedPhotos += photosToDelete.length;
 
-    // -- Videos (R2 _video/) --
+    // -- Videos (R2 _video/) — 3 months (every edition in this net qualifies) --
     if (r2VideoEnabled()) {
       const objs = await listUnderPrefix(`_video/${ed.id}/`).catch(() => []);
       const mp4s = objs.filter((o) => o.key.endsWith(".mp4"));

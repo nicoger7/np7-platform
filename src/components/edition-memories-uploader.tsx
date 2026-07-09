@@ -284,7 +284,7 @@ export function EditionMemoriesUploader({ editionId, initialVideoUrl }: { editio
               </p>
               <p className="admin-faint mt-1">
                 Star (☆ → ⭐) at least {KEEPERS_TARGET} photos and {KEEPERS_TARGET} videos for each person — these are <span className="admin-muted">kept forever</span>.
-                The rest of the gallery is deleted <span className="admin-muted">3 months after the trip</span>, so please curate before then.
+                The rest is deleted <span className="admin-muted">a year after the trip (videos after 3 months)</span>, so please curate before then.
               </p>
             </div>
           );
@@ -342,7 +342,7 @@ export function EditionMemoriesUploader({ editionId, initialVideoUrl }: { editio
                     <button onClick={(e) => { e.stopPropagation(); remove(p.path); }} className="absolute top-1 right-1 w-6 h-6 rounded bg-black/60 text-white text-sm grid place-items-center opacity-0 group-hover:opacity-100 transition-opacity" title="Remove">×</button>
                     <button onClick={(e) => { e.stopPropagation(); toggleStar("photo", p.path); }}
                       className={`absolute bottom-1 left-1 w-6 h-6 rounded grid place-items-center transition-all ${starPhotos.has(p.path) ? "bg-amber-400 text-white" : "bg-black/45 text-white/85 opacity-0 group-hover:opacity-100"}`}
-                      title={starPhotos.has(p.path) ? "Keeper — kept forever" : "Mark as keeper (survives the 3-month purge)"}>
+                      title={starPhotos.has(p.path) ? "Keeper — kept forever" : "Mark as keeper (kept forever)"}>
                       <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill={starPhotos.has(p.path) ? "currentColor" : "none"} stroke="currentColor" strokeWidth="2" strokeLinejoin="round"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z" /></svg>
                     </button>
                   </div>
@@ -431,7 +431,7 @@ export function EditionMemoriesUploader({ editionId, initialVideoUrl }: { editio
                     {v.status === "ready" && (
                       <button onClick={(e) => { e.stopPropagation(); toggleStar("video", v.stem); }}
                         className={`absolute bottom-1 left-1 w-6 h-6 rounded grid place-items-center transition-all ${starVideos.has(v.stem) ? "bg-amber-400 text-white" : "bg-black/45 text-white/85 opacity-0 group-hover:opacity-100"}`}
-                        title={starVideos.has(v.stem) ? "Keeper — kept forever" : "Mark as keeper (survives the 3-month purge)"}>
+                        title={starVideos.has(v.stem) ? "Keeper — kept forever" : "Mark as keeper (kept forever)"}>
                         <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill={starVideos.has(v.stem) ? "currentColor" : "none"} stroke="currentColor" strokeWidth="2" strokeLinejoin="round"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z" /></svg>
                       </button>
                     )}

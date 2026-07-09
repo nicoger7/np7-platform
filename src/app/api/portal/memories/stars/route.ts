@@ -4,7 +4,7 @@ import { createAdminClient } from "@/lib/supabase";
 
 /**
  * Member-picked "keepers" — the photos/videos a participant wants kept forever
- * (they survive the 3-month purge). Same memory_stars table the admin uses, but
+ * (they survive the retention purge — photos kept a year, videos 3 months). Same memory_stars table the admin uses, but
  * scoped + ownership-checked to the member's own booking. Admins can still fill
  * gaps for anyone who doesn't curate.
  */
