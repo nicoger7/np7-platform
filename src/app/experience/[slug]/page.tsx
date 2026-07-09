@@ -484,7 +484,7 @@ export default async function ExperienceDetailPage({ params }: Props) {
                 ? fmtShort(spanStart, spanEnd)
                 : fmtShort(edition?.date_start, edition?.date_end) },
             { icon: "pin", label: "Where", value: experience.location ?? "—" },
-            { icon: "wind", label: "Wind", value: windProbability || windRange || "Reliable, steady wind" },
+            { icon: "wind", label: "Wind", value: windRange || (windProbability ? `Windy ${windProbability} of days` : "Reliable, steady wind") },
             { icon: "plane", label: "Airport", value: experience.airport_code ?? "—" },
           ] as const).map((f) => (
             <div key={f.label} className="flex items-start gap-3">
