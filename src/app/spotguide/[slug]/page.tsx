@@ -152,7 +152,7 @@ export default async function SpotguideDestinationPage({ params }: Props) {
                       .map((s) => ({ lat: s.lat as number, lng: s.lng as number, name: s.name, destSlug: d.slug ?? "", verification: s.verification }));
                     return pts.length > 0 ? <div className="mb-5"><SpotMap spots={pts} cluster height={340} /></div> : null;
                   })()}
-                  <MeteredContent accent={chrome.accent}>
+                  <MeteredContent accent={chrome.accent} spotCount={d.spots.length} destName={d.name}>
                     <SpotsList spots={d.spots} accent={chrome.accent} />
                   </MeteredContent>
                 </>
