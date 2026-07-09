@@ -2,7 +2,7 @@ import { NextRequest, NextResponse, after } from "next/server";
 import { getPortalUser } from "@/lib/auth";
 import { createAdminClient } from "@/lib/supabase";
 import { slugifySpot, asWindWindow, CONDITIONS, LEVELS } from "@/lib/spotguide";
-import { fetchWindStats } from "@/lib/wind-stats";
+import { fetchWindStatsBoth } from "@/lib/wind-stats";
 import { getStanding } from "@/lib/spotguide-trust";
 import { parseCoords } from "@/lib/blog-templates";
 
@@ -121,7 +121,7 @@ export async function POST(request: NextRequest) {
       try {
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const bg = createAdminClient() as any;
-        const stats = await fetchWindStats(lat, lng);
+        const stats = await fetchWindStatsBoth(lat, lng);
         await bg.from("spots").update({ wind_stats: stats, wind_stats_at: new Date().toISOString() }).eq("id", spotId);
       } catch { /* the wind-stats cron will retry */ }
     });

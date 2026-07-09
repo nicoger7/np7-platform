@@ -165,19 +165,24 @@ export async function fetchWindStats(lat: number, lng: number, opts?: { accelera
 }
 
 /**
- * Both model reads in one blob: the standard coastal-pin read as the main
- * stats, plus the offshore/accelerated read as `alt` — but only when the two
- * disagree enough to matter (≥5 pp mean planing). The chart shows a switcher
- * whenever `alt` is present, so the rider can compare the coarse model with
- * the accelerated flow a few km out.
+ * BOTH model reads in one blob, so the rider can switch between them on demand:
+ * the coastal-pin read and the offshore/accelerated read. `primary` picks which
+ * one shows first (`main`); the other becomes `alt`. We keep `alt` whenever the
+ * second read exists and differs *at all* from the first (only a spot where the
+ * two are byte-identical drops it — a toggle between identical charts is
+ * pointless). Falls back to a single read if the second can't be computed.
  */
-export async function fetchWindStatsWithAlt(lat: number, lng: number): Promise<WindStats> {
+export async function fetchWindStatsBoth(lat: number, lng: number, primary: "standard" | "accelerated" = "standard"): Promise<WindStats> {
   const [standard, offshore] = await Promise.all([
-    fetchWindStats(lat, lng),
+    fetchWindStats(lat, lng).catch(() => null),
     fetchWindStats(lat, lng, { accelerated: true }).catch(() => null),
   ]);
-  if (!offshore) return standard;
-  const meanPlaning = (s: WindStats) => s.months.reduce((a, m) => a + (m.pct["4"] ?? 0), 0) / 12;
-  if (Math.abs(meanPlaning(offshore) - meanPlaning(standard)) < 5) return standard;
-  return { ...standard, alt: offshore };
+  const main = (primary === "accelerated" ? offshore : standard) ?? standard ?? offshore;
+  const other = primary === "accelerated" ? standard : offshore;
+  if (!main) throw new Error("No wind data for this location");
+  const strip = (s: WindStats): Omit<WindStats, "alt"> => { const { alt: _drop, ...rest } = s; return rest; };
+  if (!other || other === main || other.source === main.source) return strip(main);
+  const differs = main.months.some((m, i) =>
+    (m.pct["4"] ?? 0) !== (other.months[i]?.pct["4"] ?? 0) || (m.pct["3"] ?? 0) !== (other.months[i]?.pct["3"] ?? 0));
+  return differs ? { ...strip(main), alt: strip(other) } : strip(main);
 }

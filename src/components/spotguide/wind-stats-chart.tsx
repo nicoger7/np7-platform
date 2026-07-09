@@ -3,6 +3,14 @@
 import { useState } from "react";
 import { BFT_META, MONTH_LABELS, type WindStats } from "@/lib/wind-stats";
 
+/** Short, rider-friendly name for a model read, from its `source` string. */
+function modelLabel(source: string): string {
+  const s = (source ?? "").toLowerCase();
+  if (s.startsWith("np7")) return "NP7 local";
+  if (s.includes("accel") || s.includes("offshore")) return "Offshore flow";
+  return "Coastal";
+}
+
 /** Longest contiguous run of windy months on the 12-month circle → "Jun–Sep". */
 function seasonLabel(windy: number[]): string | null {
   if (windy.length === 0) return null;
@@ -55,22 +63,26 @@ export function WindStatsChart({ stats, compact = false, accent = "#00afdb" }: {
 
   return (
     <div>
-      {/* model switcher — only when both reads exist and disagree */}
+      {/* model switcher — both reads are stored, so the rider can compare the
+          coastal-pin read with the offshore/accelerated flow on demand. */}
       {stats.alt && (
-        <div className="flex items-center gap-1 mb-3 rounded-full bg-[#f1ede3] p-1 w-fit" role="tablist" aria-label="Wind model">
-          {([["main", "Standard model"], ["alt", "Offshore (accelerated)"]] as const).map(([k, label]) => (
-            <button
-              key={k}
-              role="tab"
-              aria-selected={model === k}
-              onClick={() => setModel(k)}
-              className={`px-3 py-1 rounded-full text-[11.5px] font-bold transition-colors ${
-                model === k ? "bg-white text-[#00374a] shadow-sm" : "text-[#8a9aa0] hover:text-[#00374a]"
-              }`}
-            >
-              {label}
-            </button>
-          ))}
+        <div className="mb-3">
+          <div className="text-[10px] font-bold uppercase tracking-wide text-[#b3a994] mb-1">Model read · tap to compare</div>
+          <div className="flex items-center gap-1 rounded-full bg-[#f1ede3] p-1 w-fit" role="tablist" aria-label="Wind model">
+            {([["main", modelLabel(stats.source)], ["alt", modelLabel(stats.alt.source)]] as const).map(([k, label]) => (
+              <button
+                key={k}
+                role="tab"
+                aria-selected={model === k}
+                onClick={() => setModel(k)}
+                className={`px-3 py-1 rounded-full text-[11.5px] font-bold transition-colors ${
+                  model === k ? "bg-white text-[#00374a] shadow-sm" : "text-[#8a9aa0] hover:text-[#00374a]"
+                }`}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
         </div>
       )}
 

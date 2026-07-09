@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase";
-import { fetchWindStatsWithAlt } from "@/lib/wind-stats";
+import { fetchWindStatsBoth } from "@/lib/wind-stats";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
@@ -42,8 +42,9 @@ export async function GET(req: NextRequest) {
   let updated = 0;
   for (const s of spots) {
     try {
-      // Fetch BOTH model reads — the chart shows a switcher when they disagree.
-      const stats = await fetchWindStatsWithAlt(s.lat, s.lng);
+      // Store BOTH model reads (main = the spot's chosen profile) so riders can
+      // toggle between the coastal and offshore reads on demand.
+      const stats = await fetchWindStatsBoth(s.lat, s.lng, s.wind_profile === "accelerated" ? "accelerated" : "standard");
       const now = new Date().toISOString();
       await db.from("spots").update({ wind_stats: stats, wind_stats_at: now }).eq("id", s.id);
       updated++;

@@ -1,4 +1,4 @@
-import { fetchWindStats } from "./wind-stats";
+import { fetchWindStatsBoth } from "./wind-stats";
 import { slugifySpot, conditionLabel } from "./spotguide";
 
 /**
@@ -103,7 +103,7 @@ export async function applyEditToSpot(db: DB, spot: SpotRow, field: string, newV
 
   if (field === "pin" && patch.lat != null && !String(spot.wind_stats?.source ?? "").startsWith("NP7")) {
     try {
-      const stats = await fetchWindStats(patch.lat as number, patch.lng as number, { accelerated: spot.wind_profile === "accelerated" });
+      const stats = await fetchWindStatsBoth(patch.lat as number, patch.lng as number, spot.wind_profile === "accelerated" ? "accelerated" : "standard");
       await db.from("spots").update({ wind_stats: stats, wind_stats_at: new Date().toISOString() }).eq("id", spot.id);
     } catch { /* the wind-stats cron will retry */ }
   }

@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase";
-import { fetchWindStats } from "@/lib/wind-stats";
+import { fetchWindStatsBoth } from "@/lib/wind-stats";
 
 /**
  * POST /api/admin/spots/:id/wind-stats — (re)compute the spot's wind climatology
@@ -31,7 +31,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
   const profile = body?.profile === "accelerated" ? "accelerated" : "standard";
   let stats;
   try {
-    stats = await fetchWindStats(spot.lat, spot.lng, { accelerated: profile === "accelerated" });
+    stats = await fetchWindStatsBoth(spot.lat, spot.lng, profile);
   } catch (e) {
     return NextResponse.json({ error: e instanceof Error ? e.message : "Could not fetch wind data." }, { status: 502 });
   }

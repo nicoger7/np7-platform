@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse, after } from "next/server";
 import { createAdminClient } from "@/lib/supabase";
-import { fetchWindStats } from "@/lib/wind-stats";
+import { fetchWindStatsBoth } from "@/lib/wind-stats";
 import { summariseRatings, tallyForecastVotes, SPOT_CRITERIA_KEYS } from "@/lib/spotguide";
 
 const COLS = [
@@ -61,7 +61,7 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
       try {
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const bg = createAdminClient() as any;
-        const stats = await fetchWindStats(lat, lng, { accelerated });
+        const stats = await fetchWindStatsBoth(lat, lng, accelerated ? "accelerated" : "standard");
         await bg.from("spots").update({ wind_stats: stats, wind_stats_at: new Date().toISOString() }).eq("id", id);
       } catch { /* the wind-stats cron will retry */ }
     });
