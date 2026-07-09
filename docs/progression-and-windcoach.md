@@ -103,8 +103,10 @@ The maneuvers: jibes, tacks, transitions, loops, wave riding, freestyle.
   either door.
 
 ### B. GPS-based skills — **owned by wind.coach (Enrico)**
-The measurable performance skills: top speed, consistent start timing — anything
-a GPS track proves.
+The measurable performance skills — anything a GPS track proves. **The exact
+catalog here is Enrico's to define, not NP7's:** wind.coach has GPS features and
+detail NP7 hasn't seen yet, so *which* skills exist, what they measure and where
+the thresholds sit are his call. This half of the ladder lives in his hands.
 
 - **Authored by Enrico** in wind.coach's GPS feature. wind.coach is the source of
   truth; these are transferred *into* the NP7 progression.
@@ -123,14 +125,18 @@ wind.coach owns *measured performance* (what the GPS proves). Neither duplicates
 the other, and the rider sees one unified ladder.
 
 ### Which of today's skills fall on each side
-Applying the rule to the current catalog (for Enrico — these are the exact `key`s
-wind.coach would verify against):
 
-**GPS-owned — wind.coach is the source of truth (auto-verifies from a GPS track):**
-- **Top / max board speed** — `20kn max speed`, `25kn max speed`, `30kn max speed`,
-  `35kn max speed`, `40kn top speed`. (Hit the speed on GPS → verified.)
-- **Consistent starts** — `0–5 s`, `0–2 s`, `0–1 s`. (Start-timing consistency
-  from the GPS track → verified.)
+**GPS-owned → Enrico defines the exact set.** The measured-performance half of the
+ladder is wind.coach's domain, and the precise skills, metrics and thresholds are
+**his to specify** — wind.coach has GPS detail NP7 hasn't seen yet, and his set is
+likely richer than what we hold. NP7 has only seeded a few **placeholder** keys so
+the vocabulary is there to align to:
+
+> _placeholders, pending Enrico's definitive list:_ Top / max board speed
+> (`20kn max speed` … `40kn top speed`) · Consistent starts (`0–5 s`, `0–2 s`, `0–1 s`).
+
+**Enrico's list supersedes these** — the `key`s line up on both sides. Don't treat
+the placeholders as final; the GPS catalog is his to own.
 
 **NP7-owned — coach on a trip or wind.coach video (technique):** everything else —
 all jibes/tacks/transitions, straps & harness, waterstart, chop hop, railing,
@@ -139,8 +145,7 @@ tuning, racing basics/advanced, the whole Wave & Freestyle track, **and the
 
 Those control skills stay NP7-owned on purpose: they measure the rider being **in
 control of that wind strength** — a coaching/technique judgment — *not* the speed
-they make on the GPS track. **Wind strength ≠ board speed**, so only the
-top/max-speed skills are GPS-owned; controlling 40 knots of wind is a coach call.
+they make on the GPS track. **Wind strength ≠ board speed.**
 
 ---
 
@@ -159,16 +164,17 @@ top/max-speed skills are GPS-owned; controlling 40 knots of wind is a coach call
   vocabulary is ready for wind.coach to verify against.
 
 **To build for the full loop**
+- **Enrico defines the GPS skill set** — the exact measured-performance skills,
+  their metrics and thresholds live in wind.coach and are **his to own**; NP7 adopts
+  his list (our current speed/start entries are placeholders holding keys). Not ours
+  to guess. The "control in N knots" skills are settled on the NP7 side — technique.
 - A **`gps` (boolean) / `source` tag** on the skill catalog (`level_milestones`)
-  so each skill records whether it's wind.coach-GPS or NP7-technique. The partition
-  is already spelled out above (§3) — the 8 GPS-owned skills flip the flag; this
-  is the switch that routes a skill's authority and sync direction.
+  so each skill records whether it's wind.coach-GPS or NP7-technique — the switch
+  that routes a skill's authority and sync direction. NP7's placeholder GPS entries
+  give way to Enrico's list once he's defined it.
 - The **two-way sync**: NP7 → wind.coach (push technique skills + coach
   verifications), and wind.coach → NP7 (GPS + video verifications land via the
   webhook and write a `windcoach`-tier `contact_milestone`).
-- Enrico confirms the **GPS skill set** (the top/max-speed + consistent-start
-  skills in §3); those become the GPS-owned skills. The "control in N knots" skills
-  are settled — they stay NP7 technique (wind strength ≠ board speed).
 
 Keeping the skill `key`s stable across both apps is the one hard rule — the keys
 are the join between NP7 and wind.coach. (Ranks are now stored on the skill —
