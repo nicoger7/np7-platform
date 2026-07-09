@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 
 type Tone = "coral" | "amber" | "green" | "cyan";
-export type TripTile = { key: string; label: string; value: string; sub?: string; tone: Tone; tab?: string };
+export type TripTile = { key: string; label: string; value: string; sub?: string; tone: Tone; tab?: string; attention?: boolean; done?: boolean; cta?: string };
 export type TripTab = { key: string; label: string; attention?: boolean; content: React.ReactNode };
 
 const LBL: Record<Tone, string> = { coral: "#993c1d", amber: "#9a6b16", green: "#0f6e56", cyan: "#0782a0" };
@@ -29,19 +29,37 @@ export function TripView({ hero, tiles, tabs, initial, title, statusLabel }: { h
     <>
       {hero}
 
-      {/* at-a-glance tiles — persistent; each jumps to its tab. Action tiles
-          (coral/amber) get a warm border so they clearly pop. */}
+      {/* at-a-glance tiles — three unambiguous states so it's instantly clear
+          what needs the member vs what's handled:
+            · attention → warm amber card, pulse dot + a "do it" verb
+            · done      → calm card with a green check
+            · info      → plain card, no cue                                   */}
       <div className="mt-4 grid grid-cols-2 sm:grid-cols-4 gap-2.5">
         {tiles.map((t) => {
-          const attention = t.tone === "coral" || t.tone === "amber";
+          const labelColor = t.done ? "#0f6e56" : t.attention ? "#9a6b16" : LBL[t.tone];
           const inner = (
             <>
-              <p className="text-[10px] font-bold uppercase tracking-[0.1em]" style={{ color: LBL[t.tone] }}>{t.label}</p>
+              <div className="flex items-start justify-between gap-2">
+                <p className="text-[10px] font-bold uppercase tracking-[0.1em]" style={{ color: labelColor }}>{t.label}</p>
+                {t.done ? (
+                  <span className="shrink-0 w-4 h-4 rounded-full bg-[#d8f3e7] text-[#0f6e56] grid place-items-center text-[9px] font-black leading-none">✓</span>
+                ) : t.attention ? (
+                  <span className="shrink-0 mt-0.5 w-2 h-2 rounded-full bg-[#f47b20] animate-pulse" />
+                ) : null}
+              </div>
               <p className="text-[15px] font-black text-[#00374a] mt-1 leading-tight">{t.value}</p>
               {t.sub && <p className="text-[11px] text-[#9aa6ac] mt-0.5">{t.sub}</p>}
+              {t.attention && t.cta && (
+                <span className="mt-2 inline-flex items-center gap-1 text-[11.5px] font-bold text-[#c4621a]">
+                  {t.cta}
+                  <svg className="w-3 h-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.8" strokeLinecap="round" strokeLinejoin="round"><path d="M5 12h14M13 6l6 6-6 6" /></svg>
+                </span>
+              )}
             </>
           );
-          const base = `text-left rounded-2xl border p-3.5 block w-full ${attention ? "bg-[#fffaf4] border-[#f3c9a0]" : "bg-white border-[#f0e6d6]"}`;
+          const base = `text-left rounded-2xl border p-3.5 block w-full ${
+            t.attention ? "bg-[#fff8ef] border-[#f4c99a] shadow-[0_2px_10px_rgba(244,123,32,0.08)]" : t.done ? "bg-white border-[#e4efe9]" : "bg-white border-[#f0e6d6]"
+          }`;
           return t.tab ? (
             <button key={t.key} onClick={() => t.tab && setActive(t.tab)} className={`${base} transition-all hover:-translate-y-0.5 hover:shadow-[0_10px_24px_rgba(0,55,74,0.07)]`}>{inner}</button>
           ) : (
