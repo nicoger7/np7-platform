@@ -169,8 +169,8 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { data } = await supabase
     .from("exp_experiences").select("title, description, location")
     .eq("slug", slug).eq("status", "published").maybeSingle();
-  if (!data) return { title: "Experience Not Found — NP7" };
-  return { title: `${data.title} — NP7 Experience`, description: data.description || `NP7 Experience in ${data.location}` };
+  if (!data) return { title: { absolute: "Experience not found — NP7" } };
+  return { title: { absolute: `${data.title} — NP7 Experience` }, description: data.description || `NP7 Experience in ${data.location}` };
 }
 
 export default async function ExperienceDetailPage({ params }: Props) {

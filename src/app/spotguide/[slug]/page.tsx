@@ -115,7 +115,7 @@ export default async function SpotguideDestinationPage({ params }: Props) {
                     <RatingBreakdown criteria={DESTINATION_CRITERIA} np7Ratings={d.np7_ratings} member={d.member} />
                   </div>
                 )}
-                <DestinationRater criteria={DESTINATION_CRITERIA} accent={chrome.accent} />
+                <DestinationRater criteria={DESTINATION_CRITERIA} accent={chrome.accent} defaults={d.np7_ratings} />
               </div>
             </section>
 

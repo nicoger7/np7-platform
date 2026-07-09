@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import { getLegalEntity, addressLine } from "@/lib/legal";
 import { LegalShell } from "@/components/shared/legal-shell";
 
-export const metadata: Metadata = { title: "Privacy Policy — NP7", robots: { index: true } };
+export const metadata: Metadata = { title: { absolute: "Privacy Policy — NP7" }, robots: { index: true } };
 export const revalidate = 300;
 
 export default async function PrivacyPage() {

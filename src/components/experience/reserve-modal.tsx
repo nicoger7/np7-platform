@@ -27,6 +27,8 @@ export type ReserveContext = {
   accommodation: string;
   price: number;
   currency?: string;
+  /** Real remaining capacity for this week — drives an honest "spots left" nudge. */
+  spotsLeft?: number | null;
 };
 
 /**
@@ -71,6 +73,17 @@ export function ReserveModal({ ctx, onClose }: { ctx: ReserveContext; onClose: (
         if (d?.loggedIn) {
           setMember(true);
           setFirstName(d.firstName ?? ""); setLastName(d.lastName ?? ""); setEmail(d.email ?? "");
+        } else {
+          // Returning guest — prefill what they typed last time (their own device;
+          // localStorage, never sent anywhere new) so the form isn't a blank slate.
+          try {
+            const saved = JSON.parse(localStorage.getItem("np7_reserve_guest") || "null");
+            if (saved && typeof saved === "object") {
+              if (saved.firstName) setFirstName(saved.firstName);
+              if (saved.lastName) setLastName(saved.lastName);
+              if (saved.email) setEmail(saved.email);
+            }
+          } catch { /* ignore */ }
         }
       })
       .catch(() => {})
@@ -97,6 +110,8 @@ export function ReserveModal({ ctx, onClose }: { ctx: ReserveContext; onClose: (
       const json = await res.json();
       if (!res.ok) { setError(json.error ?? "Something went wrong — please try again."); setSubmitting(false); return; }
       track("register", { package: ctx.packageId, member });
+      // Remember this guest on their own device so a later reserve is one-tap.
+      try { localStorage.setItem("np7_reserve_guest", JSON.stringify({ firstName, lastName, email })); } catch { /* ignore */ }
       setRegistered(true);
       setSubmitting(false);
     } catch {
@@ -137,6 +152,12 @@ export function ReserveModal({ ctx, onClose }: { ctx: ReserveContext; onClose: (
                   {ctx.editionLabel ? ` · ${ctx.editionLabel}` : ""}
                   {ctx.editionDates ? ` · ${ctx.editionDates}` : ""}
                 </p>
+                {/* Honest loss-aversion — only the REAL remaining count, only when it's genuinely low. */}
+                {typeof ctx.spotsLeft === "number" && ctx.spotsLeft > 0 && ctx.spotsLeft <= 6 && (
+                  <span className="inline-flex items-center gap-1.5 mt-2 text-[11.5px] font-bold text-[#c4621a] bg-[#fdebd0] px-2.5 py-1 rounded-full">
+                    🌊 Only {ctx.spotsLeft} spot{ctx.spotsLeft === 1 ? "" : "s"} left this week
+                  </span>
+                )}
               </div>
               <button type="button" onClick={onClose} aria-label="Close" className="shrink-0 w-9 h-9 grid place-items-center rounded-full bg-[#f1f5f6] text-[#5a6b72] hover:bg-[#e4ebee]">
                 <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><path d="M18 6L6 18M6 6l12 12" /></svg>

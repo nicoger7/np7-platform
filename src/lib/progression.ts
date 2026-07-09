@@ -97,7 +97,11 @@ export function buildProgression(catalogRaw: CatalogSkill[], achievements: Achie
   const level = RANKS[currentIdx];
   const nextLevel = completed <= 4 ? RANKS[completed + 1] : null;
   const toNext = mastered ? 0 : bands[wb].total - bands[wb].verified;
-  const pct = mastered ? 100 : bands[wb].total ? Math.round((bands[wb].verified / bands[wb].total) * 100) : 100;
+  // The ring credits self-logged skills at half weight — real claims the rider
+  // made (endowed progress), so it's never a dead 0% once they've engaged. RANK
+  // and toNext stay verified-only; the ring never hits 100 until truly mastered.
+  const selfInWb = skills.filter((s) => s.discipline !== "side" && bandOf(s.difficulty) === wb && s.state === "self").length;
+  const pct = mastered ? 100 : bands[wb].total ? Math.min(99, Math.round(((bands[wb].verified + selfInWb * 0.5) / bands[wb].total) * 100)) : 100;
   const ladder: LadderRung[] = RANKS.map((name, i) => ({ name, done: i < currentIdx || mastered, current: i === currentIdx && !mastered }));
 
   const makeTrack = (d: Discipline): Track => {

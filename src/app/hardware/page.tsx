@@ -7,7 +7,7 @@ import { NP7_LOGO } from "@/components/experience/ocean-header";
 import { Reveal } from "@/components/experience/reveal";
 
 export const metadata: Metadata = {
-  title: "NP7 Hardware — Custom Windsurf Boards & Fins",
+  title: { absolute: "NP7 Hardware — Custom Windsurf Boards & Fins" },
   description:
     "Custom windsurf boards and fins, shaped on the bench by Nico Prien (GER-7). Carbon, hand-finished, built to ride.",
 };

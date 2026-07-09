@@ -11,7 +11,8 @@ export function LevelHomeCard({
   avatarUrl: string | null; initials: string; displayName: string; username: string | null;
   level: string | null; verified: boolean; nextTier: string | null; toNext: number; pct: number;
 }) {
-  const ring = Math.max(0, Math.min(100, Math.round(pct)));
+  // Never a dead 0% ring — a rider on the ladder always shows a little progress.
+  const ring = Math.min(100, Math.max(8, Math.round(pct)));
   const circ = 103.67; // 2πr for r=16.5
   return (
     <Link href="/account/level" className="group flex items-center gap-4 bg-white rounded-2xl border border-[#f0e6d6] px-4 py-4 hover:-translate-y-0.5 hover:shadow-[0_12px_30px_rgba(0,55,74,0.07)] transition-all">

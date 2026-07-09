@@ -122,6 +122,7 @@ export function EditionBooking({
             editionId: ed?.id ?? null,
             editionLabel: multi ? ed?.label ?? null : null,
             editionDates: ed?.shortRange ?? null,
+            spotsLeft: ed?.spotsLeft ?? null,
           }}
         />
       ) : (

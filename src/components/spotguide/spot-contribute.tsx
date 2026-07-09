@@ -13,7 +13,7 @@ import { windWindowHasValue, asWindWindow } from "@/lib/spotguide";
  * contributed it goes quiet (subdued "✓ … — edit") and auto-folds after
  * saving, so it never nags.
  */
-export function SpotContribute({ spotId, accent = "#00afdb" }: { spotId: string; accent?: string }) {
+export function SpotContribute({ spotId, accent = "#00afdb", np7Ratings }: { spotId: string; accent?: string; np7Ratings?: Record<string, number> }) {
   const sg = useSpotguide();
   const [open, setOpen] = useState(false);
   const mine = sg.mineSpot(spotId);
@@ -23,7 +23,7 @@ export function SpotContribute({ spotId, accent = "#00afdb" }: { spotId: string;
 
   const body = open && (
     <div className="px-5 pb-5 pt-4 space-y-2 border-t border-[#f0e9da]">
-      <SpotVisitRater spotId={spotId} accent={accent} onSaved={() => setOpen(false)} />
+      <SpotVisitRater spotId={spotId} accent={accent} onSaved={() => setOpen(false)} defaults={np7Ratings} />
       <ForecastVoter spotId={spotId} accent={accent} />
       <div className="mt-3 pt-3 border-t border-[#f0e9da]">
         <p className="text-[11px] font-bold uppercase tracking-[0.1em] text-[#9aa6ac] mb-2">Add a photo</p>

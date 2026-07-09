@@ -40,7 +40,7 @@ function StarRows({ criteria, value, onPick, accent }: { criteria: Criterion[]; 
 /** Destination rating — star criteria only (wind is the spots' objective
     climatology). Collapsed by default; goes quiet once rated and folds on save,
     so it never nags (mirrors the spot contribute block). */
-export function DestinationRater({ criteria, accent = "#00afdb" }: { criteria: Criterion[]; accent?: string }) {
+export function DestinationRater({ criteria, accent = "#00afdb", defaults }: { criteria: Criterion[]; accent?: string; defaults?: Record<string, number> }) {
   const sg = useSpotguide();
   const saved = sg.mineDest;
   const rated = !!saved && Object.values(saved).some((n) => n > 0);
@@ -48,7 +48,11 @@ export function DestinationRater({ criteria, accent = "#00afdb" }: { criteria: C
   const [draft, setDraft] = useState<Record<string, number>>({});
   const [busy, setBusy] = useState(false);
   const [done, setDone] = useState(false);
-  useEffect(() => { setDraft(saved ?? {}); }, [JSON.stringify(saved ?? null)]); // eslint-disable-line react-hooks/exhaustive-deps
+  // Smart default: seed the stars from NP7's rating so it's one tap to agree (or
+  // tweak) instead of rating from an empty slate. The member's own saved rating
+  // always wins once they have one.
+  const seededFromNp7 = !rated && !!defaults && Object.values(defaults).some((n) => n > 0);
+  useEffect(() => { setDraft(saved ?? defaults ?? {}); }, [JSON.stringify(saved ?? null)]); // eslint-disable-line react-hooks/exhaustive-deps
   const dirty = JSON.stringify(draft) !== JSON.stringify(saved ?? {});
   const hasAny = Object.values(draft).some((n) => n > 0);
 
@@ -78,6 +82,7 @@ export function DestinationRater({ criteria, accent = "#00afdb" }: { criteria: C
       </button>
       {open && (
         <div className="px-5 pb-5 pt-4 border-t border-[#f0e9da]">
+          {seededFromNp7 && <p className="text-[12px] text-[#8a9aa0] mb-2.5">Starting from <b className="text-[#00374a]">NP7&apos;s rating</b> — tap the stars to adjust to yours.</p>}
           <StarRows criteria={criteria} value={draft} onPick={(k, n) => setDraft((d) => ({ ...d, [k]: n }))} accent={accent} />
           <div className="flex items-center gap-3 mt-3">
             <button onClick={submit} disabled={busy || (sg.loggedIn && (!hasAny || !dirty))} className="px-4 py-2 rounded-full text-[13px] font-bold text-white disabled:opacity-40 transition-opacity" style={{ backgroundColor: accent }}>
@@ -94,7 +99,7 @@ export function DestinationRater({ criteria, accent = "#00afdb" }: { criteria: C
 /** Spot "your visit" — the facts a member actually knows (level it suits, the
     conditions they saw, the wind directions that worked) plus season-independent
     stars. Wind is NOT rated here (that's the objective climatology chart). */
-export function SpotVisitRater({ spotId, accent = "#00afdb", onSaved }: { spotId: string; accent?: string; onSaved?: () => void }) {
+export function SpotVisitRater({ spotId, accent = "#00afdb", onSaved, defaults }: { spotId: string; accent?: string; onSaved?: () => void; defaults?: Record<string, number> }) {
   const sg = useSpotguide();
   const mine = sg.mineSpot(spotId);
   const [ratings, setRatings] = useState<Record<string, number>>({});
@@ -103,10 +108,12 @@ export function SpotVisitRater({ spotId, accent = "#00afdb", onSaved }: { spotId
   const [wind, setWind] = useState<Record<string, string>>({});
   const [busy, setBusy] = useState(false);
   const [done, setDone] = useState(false);
+  // Seed stars from NP7's rating so it's one tap to agree/tweak (member's own wins).
+  const seededFromNp7 = !mine?.ratings && !!defaults && Object.values(defaults).some((n) => n > 0);
 
   const mineKey = JSON.stringify(mine ?? null);
   useEffect(() => {
-    setRatings(mine?.ratings ?? {}); setLevel(mine?.level ?? "");
+    setRatings(mine?.ratings ?? defaults ?? {}); setLevel(mine?.level ?? "");
     setConditions(mine?.conditions ?? []); setWind(mine?.wind_window ?? {});
   }, [mineKey]); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -153,6 +160,7 @@ export function SpotVisitRater({ spotId, accent = "#00afdb", onSaved }: { spotId
 
       <div>
         <p className="text-[11px] font-bold uppercase tracking-wide text-[#9aa6ac] mb-1.5">Rate it</p>
+        {seededFromNp7 && <p className="text-[11.5px] text-[#8a9aa0] mb-1.5">Starting from <b className="text-[#00374a]">NP7&apos;s rating</b> — tap to adjust to yours.</p>}
         <StarRows criteria={SPOT_CRITERIA} value={ratings} onPick={(k, n) => setRatings((r) => ({ ...r, [k]: n === (r[k] ?? 0) ? 0 : n }))} accent={accent} />
       </div>
 

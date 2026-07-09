@@ -1,4 +1,7 @@
+"use client";
+
 import Link from "next/link";
+import { useEffect, useState } from "react";
 
 export type SetupStep = { key: string; label: string; hint?: string; done: boolean; href: string; accent?: boolean };
 
@@ -12,13 +15,64 @@ export type SetupStep = { key: string; label: string; hint?: string; done: boole
  * - Every step is a REAL, useful action tied to actual account state (no fake
  *   progress). The strip removes itself entirely once nothing's left to do, so
  *   a set-up member is never nagged.
+ * - Completion gets a beat of closure: the first time a member finishes the
+ *   last step (they were seen incomplete on this device), the strip is replaced
+ *   once by a warm "You're all set" moment instead of silently vanishing. A
+ *   member who arrives already complete never sees it — no hollow celebration.
  */
 export function SetupProgress({ steps }: { steps: SetupStep[] }) {
   const total = steps.length;
   const done = steps.filter((s) => s.done).length;
   const remaining = total - done;
-  if (remaining === 0 || total === 0) return null; // fully set up → don't nag
-  const pct = Math.round((done / total) * 100);
+  const pct = total ? Math.round((done / total) * 100) : 100;
+
+  // Deterministic first paint (SSR-safe): strip when there's work, else nothing.
+  // The localStorage-driven "you're all set" moment is decided after mount.
+  const [phase, setPhase] = useState<"strip" | "celebrate" | "hidden">(remaining > 0 && total > 0 ? "strip" : "hidden");
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    if (remaining > 0) {
+      // Remember, on this device, that they still had steps left — so when they
+      // finish we know it's a genuine transition worth celebrating.
+      window.localStorage.setItem("np7_setup_incomplete", "1");
+      return;
+    }
+    const wasIncomplete = window.localStorage.getItem("np7_setup_incomplete") === "1";
+    const celebrated = window.localStorage.getItem("np7_setup_celebrated") === "1";
+    if (wasIncomplete && !celebrated) {
+      window.localStorage.setItem("np7_setup_celebrated", "1");
+      window.localStorage.removeItem("np7_setup_incomplete");
+      setPhase("celebrate");
+    }
+  }, [remaining]);
+
+  if (phase === "hidden") return null;
+
+  if (phase === "celebrate") {
+    return (
+      <section className="relative overflow-hidden rounded-2xl border border-[#cdeede] bg-gradient-to-br from-[#e9fbf2] to-[#fffdf5] p-5 sm:p-6">
+        <button
+          type="button"
+          onClick={() => setPhase("hidden")}
+          aria-label="Dismiss"
+          className="absolute top-3 right-3 w-7 h-7 grid place-items-center rounded-full text-[#9aa6ac] hover:text-[#00374a] hover:bg-white/70 transition-colors"
+        >
+          <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M18 6 6 18M6 6l12 12" /></svg>
+        </button>
+        <div className="flex items-center gap-3">
+          <span className="shrink-0 grid place-items-center w-11 h-11 rounded-full bg-white text-[22px] shadow-[0_4px_14px_rgba(15,110,86,0.15)]" aria-hidden>🤙</span>
+          <div className="min-w-0">
+            <p className="text-[11px] font-bold tracking-[0.18em] uppercase text-[#0f6e56]">All set</p>
+            <h2 className="text-[17px] font-black tracking-[-0.01em] text-[#00374a] mt-0.5">You&apos;re all set — your NP7 home is ready</h2>
+          </div>
+        </div>
+        <p className="text-[13.5px] text-[#5a6b72] leading-relaxed mt-3">
+          Profile complete. Everything you need for your trips lives here now — payments, prep, your crew and your photos.
+        </p>
+      </section>
+    );
+  }
 
   return (
     <section className="bg-white rounded-2xl border border-[#f0e6d6] p-5 sm:p-6">

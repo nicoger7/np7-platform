@@ -10,7 +10,7 @@ import { UpcomingExperiences, type ExpCard } from "@/components/experience/upcom
 import { paidSpotsByEdition, spotsLeftFrom } from "@/lib/availability";
 
 export const metadata: Metadata = {
-  title: "NP7 Experience — Premium Watersports Travel",
+  title: { absolute: "NP7 Experience — Premium Watersports Travel" },
   description:
     "Guided windsurf, wing & foil trips with Nico Prien (GER-7). World-class coaching, hand-picked crews, and everything arranged.",
 };

@@ -26,9 +26,9 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
     .eq("slug", slug)
     .eq("status", "published")
     .maybeSingle();
-  if (!data) return { title: "Product Not Found — NP7 Hardware" };
+  if (!data) return { title: { absolute: "Product not found — NP7 Hardware" } };
   return {
-    title: `${data.name} — NP7 Hardware`,
+    title: { absolute: `${data.name} — NP7 Hardware` },
     description: data.description ?? `${data.name} — custom windsurf hardware by NP7`,
   };
 }

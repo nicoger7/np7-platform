@@ -397,7 +397,7 @@ export default async function BookingDetail({ params }: Props) {
             />
           </div>
 
-          <TripView hero={!tripEnded ? <NextStepHero {...hero} /> : null} tiles={tiles} tabs={tabs} initial={initialTab} />
+          <TripView hero={!tripEnded ? <NextStepHero {...hero} /> : null} tiles={tiles} tabs={tabs} initial={initialTab} title={b.experience?.title ?? "Your trip"} statusLabel={chip.label} />
         </div>
       </main>
     </>
