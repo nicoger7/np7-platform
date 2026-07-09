@@ -12,7 +12,7 @@ import { MemberGallery } from "@/components/portal/member-gallery";
 import { PhotoSharingToggle } from "@/components/portal/photo-sharing-toggle";
 import { TripAddons } from "@/components/portal/trip-addons";
 import { PaymentPlan } from "@/components/portal/payment-plan";
-import { AnchorOpener } from "@/components/portal/anchor-opener";
+import { TripView, type TripTab, type TripTile } from "@/components/portal/trip-view";
 import { hasFlightDetails } from "@/lib/flights";
 import { CancelTrip } from "@/components/portal/cancel-trip";
 import { RedeemVoucher } from "@/components/portal/redeem-voucher";
@@ -172,32 +172,30 @@ export default async function BookingDetail({ params }: Props) {
     hero = { eyebrow: "You're all set", title: "You're set 🎉", body: "Everything's sorted for your trip.", ctaLabel: "Open trip prep", ctaHref: "#prep", tone: "green" };
   }
 
-  // "At a glance" tiles — the trip's whole state in one row, each opening its
-  // section (via AnchorOpener). Phase-aware: countdown flips once the trip is live.
+  // "At a glance" tiles — persistent status strip; each jumps to its tab. Phase-aware.
   const flightsAdded = hasFlightDetails(flights);
   const dueShort = nextMilestone?.dueDate ? new Date(nextMilestone.dueDate).toLocaleDateString("en-GB", { day: "numeric", month: "short" }) : null;
-  type TileTone = "coral" | "amber" | "green" | "cyan";
-  const tiles: { key: string; label: string; value: string; sub?: string; tone: TileTone; href?: string }[] = [
+  const tiles: TripTile[] = [
     {
-      key: "payment", label: "Payment", href: "#payment",
+      key: "payment", label: "Payment", tab: "payment",
       value: fullyPaid ? "Paid ✓" : nextMilestone ? (money(nextMilestone.amount, cur) ?? "—") : "—",
       sub: fullyPaid ? "all done" : dueShort ? `due ${dueShort}` : undefined,
       tone: fullyPaid ? "green" : !depositPaid ? "coral" : "amber",
     },
     {
-      key: "flights", label: "Flights", href: "#prep",
+      key: "flights", label: "Flights", tab: tripStarted ? undefined : "prep",
       value: flightsAdded ? "Added ✓" : "To add",
       sub: flightsAdded ? "tap to review" : "tap to add",
       tone: flightsAdded ? "green" : "cyan",
     },
     {
-      key: "waiver", label: "Waiver", href: "#waiver",
+      key: "waiver", label: "Waiver", tab: tripStarted ? undefined : "prep",
       value: waiverSig ? "Signed ✓" : "To sign",
       sub: waiverSig ? undefined : "takes a minute",
       tone: waiverSig ? "green" : "amber",
     },
     {
-      key: "count", label: tripStarted ? "Status" : "Countdown", href: tripStarted ? "#photos" : undefined,
+      key: "count", label: tripStarted ? "Status" : "Countdown", tab: tripStarted ? "photos" : undefined,
       value: tripEnded ? "Wrapped 🌊" : tripStarted ? "On the water" : daysToGo != null ? `${daysToGo} ${daysToGo === 1 ? "day" : "days"}` : "—",
       sub: tripEnded ? "relive it" : tripStarted ? undefined : "to go",
       tone: "cyan",
@@ -268,6 +266,108 @@ export default async function BookingDetail({ params }: Props) {
     </div>
   );
 
+  // ── Tab content ──────────────────────────────────────────────────────────
+  const prepContent = (
+    <>
+      <TripAddons bookingId={b.id} depositPaid={depositPaid} hasDeposit={hasDeposit} securingLabel={securingLabel} initialFlights={flights} arrival={arrival} editionStart={b.edition?.date_start ?? null} editionEnd={b.edition?.date_end ?? null} />
+      <div className="mt-5 pt-4 border-t border-[#f3ede2]"><ExtraNightsButton bookingId={b.id} /></div>
+      <div className="mt-6 pt-5 border-t border-[#f3ede2]">
+        <p className="text-[11px] font-bold tracking-[0.14em] uppercase text-[#9aa6ac] mb-2.5">Participation waiver</p>
+        {waiverBody}
+      </div>
+    </>
+  );
+
+  const tripContent = (
+    <div className="space-y-6">
+      {hotel && (
+        <div>
+          <p className="text-[11px] font-bold tracking-[0.14em] uppercase text-[#9aa6ac] mb-2">Your stay</p>
+          {hotel.image_url && <div className="rounded-xl overflow-hidden mb-3 aspect-[16/9] bg-cover bg-center" style={{ backgroundImage: `url('${hotel.image_url}')` }} />}
+          <p className="text-[15px] font-bold text-[#00374a]">{hotel.name}</p>
+          {hotel.description && <p className="text-[13.5px] text-[#5a6b72] leading-relaxed mt-1.5 whitespace-pre-line">{hotel.description}</p>}
+          {hotel.website && <a href={hotel.website} target="_blank" className="inline-flex items-center gap-1.5 text-[13.5px] font-semibold text-[#00afdb] hover:underline mt-2">Hotel website ↗</a>}
+        </div>
+      )}
+      {coaches.length > 0 && (
+        <div>
+          <p className="text-[11px] font-bold tracking-[0.14em] uppercase text-[#9aa6ac] mb-2">Your team</p>
+          <div className="space-y-4">
+            {coaches.map((c) => (
+              <div key={c.name} className="flex items-start gap-3">
+                <div className="w-14 h-14 rounded-full bg-cover bg-center shrink-0 bg-[#eef3f4]" style={{ backgroundImage: c.image ? `url('${c.image}')` : undefined }} />
+                <div className="min-w-0">
+                  <p className="text-[14.5px] font-bold text-[#00374a]">{c.name}</p>
+                  {c.role && <p className="text-[11px] font-bold tracking-wide uppercase text-[#00afdb]">{c.role}</p>}
+                  {c.bio && <p className="text-[13px] text-[#6a7a80] leading-relaxed mt-1">{c.bio}</p>}
+                  {c.whatsapp && (
+                    <a href={normalizeWa(c.whatsapp)} target="_blank" rel="noopener" className="inline-flex items-center gap-1.5 mt-1.5 text-[13px] font-semibold text-[#1aa851] hover:underline">
+                      <svg className="w-4 h-4" viewBox="0 0 24 24" fill="currentColor"><path d="M.057 24l1.687-6.163a11.867 11.867 0 01-1.587-5.946C.16 5.335 5.495 0 12.05 0a11.817 11.817 0 018.413 3.488 11.824 11.824 0 013.48 8.414c-.003 6.557-5.338 11.892-11.893 11.892a11.9 11.9 0 01-5.688-1.448L.057 24zm6.597-3.807c1.676.995 3.276 1.591 5.392 1.592 5.448 0 9.886-4.434 9.889-9.885.002-5.462-4.415-9.89-9.881-9.892-5.452 0-9.887 4.434-9.889 9.884a9.86 9.86 0 001.51 5.26l-.999 3.648 3.978-1.205zm11.387-5.464c-.074-.124-.272-.198-.57-.347-.297-.149-1.758-.868-2.031-.967-.272-.099-.47-.149-.669.149-.198.297-.768.967-.941 1.165-.173.198-.347.223-.644.074-.297-.149-1.255-.462-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.297-.347.446-.521.151-.172.2-.296.3-.495.099-.198.05-.372-.025-.521-.074-.148-.669-1.611-.916-2.206-.242-.579-.487-.501-.669-.51l-.57-.01c-.198 0-.52.074-.792.372s-1.04 1.016-1.04 2.479 1.065 2.876 1.213 3.074c.149.198 2.095 3.2 5.076 4.487.709.306 1.263.489 1.694.626.712.226 1.36.194 1.872.118.571-.085 1.758-.719 2.006-1.413.248-.695.248-1.29.173-1.414z" /></svg>
+                      Chat on WhatsApp
+                    </a>
+                  )}
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+      {(crew.going > 1 || b.edition?.whatsapp_group_link) && (
+        <div>
+          <p className="text-[11px] font-bold tracking-[0.14em] uppercase text-[#9aa6ac] mb-2">Your crew</p>
+          <CrewCard bookingId={b.id} going={crew.going} sharing={crew.sharing} profiles={crew.profiles} whatsappLink={b.edition?.whatsapp_group_link ?? null} />
+        </div>
+      )}
+      {!tripEnded && (
+        <div>
+          <p className="text-[11px] font-bold tracking-[0.14em] uppercase text-[#9aa6ac] mb-2">Bring a friend — {money(inviteData.friend, inviteData.currency)} off each</p>
+          <InvitePanel bookingId={b.id} rewardFriend={inviteData.friend} rewardInviter={inviteData.inviter} currency={inviteData.currency} initialInvites={inviteData.invites} />
+        </div>
+      )}
+      {!hotel && coaches.length === 0 && crew.going <= 1 && !b.edition?.whatsapp_group_link && tripEnded && (
+        <p className="text-[13.5px] text-[#9aa6ac]">Your stay, team &amp; crew details will show here.</p>
+      )}
+    </div>
+  );
+
+  const docsContent = (
+    <>
+      <DocLink href={`/account/bookings/${b.id}/confirmation`} label="Trip confirmation" sub="Your booking summary (print / save as PDF)" />
+      <DocLink href="/experience/legal/package-travel" label="Standard information form" sub="Your rights under EU package-travel law" />
+      <p className="text-[12.5px] text-[#9aa6ac] py-2.5">Your invoices &amp; pro-forma are in the <strong className="text-[#6a7a80] font-semibold">Payment</strong> tab.</p>
+      <details className="mt-2 border-t border-[#f3ede2] pt-3">
+        <summary className="text-[14px] font-semibold text-[#00374a] cursor-pointer">Cancellation policy</summary>
+        <p className="text-[13px] text-[#6a7a80] leading-relaxed mt-2 whitespace-pre-line">{cancellation}</p>
+      </details>
+      <div className="mt-3 pt-3 border-t border-[#f3ede2]">
+        <p className="text-[14px] text-[#5a6b72] leading-relaxed">Need anything? We&apos;re here for you personally — reply to any of our emails or reach us at <a href="mailto:experience@np-seven.com" className="text-[#00afdb] font-semibold">experience@np-seven.com</a>.</p>
+      </div>
+    </>
+  );
+
+  const photosContent = (
+    <>
+      {tripEnded && (
+        <div className="mb-5 bg-gradient-to-br from-[#00afdb] to-[#0782a0] rounded-2xl p-6 text-white">
+          <h2 className="text-[11px] font-bold tracking-[0.2em] uppercase text-white/80 mb-2">How was it?</h2>
+          <p className="text-[15px] font-bold leading-snug mb-1">Loved your week? Leave a review.</p>
+          <p className="text-[13.5px] text-white/85 leading-relaxed mb-4">It takes a minute and helps other riders find their next trip. You can add a photo too.</p>
+          <Link href={`/account/bookings/${b.id}/review`} className="inline-flex items-center gap-2 px-6 py-3 rounded-full text-[13.5px] font-bold text-[#00374a] bg-white hover:-translate-y-0.5 transition-transform">Leave a review</Link>
+        </div>
+      )}
+      {memoriesContent}
+    </>
+  );
+
+  // Tabs — phase-aware order + attention dots on anything that needs the member.
+  const paymentTab: TripTab = { key: "payment", label: "Payment", attention: !fullyPaid && !depositPaid, content: paymentBody };
+  const prepTab: TripTab = { key: "prep", label: "Prep", attention: !flightsAdded || !waiverSig, content: prepContent };
+  const tripTab: TripTab = { key: "trip", label: "Trip", content: tripContent };
+  const docsTab: TripTab = { key: "docs", label: "Docs", content: docsContent };
+  const photosTab: TripTab = { key: "photos", label: "Photos", content: photosContent };
+  const tabs: TripTab[] = tripStarted ? [photosTab, paymentTab, tripTab, docsTab] : [paymentTab, prepTab, tripTab, docsTab, photosTab];
+  const initialTab = tripStarted ? "photos" : !depositPaid ? "payment" : "prep";
+
   return (
     <>
       <PortalChrome section="experience" />
@@ -283,122 +383,10 @@ export default async function BookingDetail({ params }: Props) {
             <span className={`inline-block px-3.5 py-1.5 rounded-full text-[12px] font-bold ${CHIP_CLASS[chip.tone]}`}>{chip.label}</span>
           </div>
 
-          {/* Next step — the one thing to focus on right now. Once the trip is over
-              there's no "next step", so we drop the hero (the review card leads). */}
-          {!tripEnded && <NextStepHero {...hero} />}
-
-          {/* At a glance — the whole trip's state in one row; each tile opens its section */}
-          <GlanceTiles tiles={tiles} />
-          <AnchorOpener />
-
-          <div className="mt-5 space-y-4">
-            {/* once the week is over, the review nudge leads; then photos */}
-            {tripEnded && (
-              <section className="bg-gradient-to-br from-[#00afdb] to-[#0782a0] rounded-2xl p-6 text-white">
-                <h2 className="text-[11px] font-bold tracking-[0.2em] uppercase text-white/80 mb-2">How was it?</h2>
-                <p className="text-[15px] font-bold leading-snug mb-1">Loved your week? Leave a review.</p>
-                <p className="text-[13.5px] text-white/85 leading-relaxed mb-4">It takes a minute and helps other riders find their next trip. You can add a photo too.</p>
-                <Link href={`/account/bookings/${b.id}/review`} className="inline-flex items-center gap-2 px-6 py-3 rounded-full text-[13.5px] font-bold text-[#00374a] bg-white hover:-translate-y-0.5 transition-transform">Leave a review</Link>
-              </section>
-            )}
-
-            {/* once the trip has started, photos lead (below the review nudge if ended) */}
-            {tripStarted && <Card id="photos" title="Your memories">{memoriesContent}</Card>}
-
-            {/* payment — a collapsed row; the "Secure your spot" hero CTA and the
-                Payment tile both open it (via AnchorOpener), keeping the page short */}
-            <Accordion id="payment" title="Payment plan" badge={fullyPaid ? { text: "Paid", tone: "green" } : nextMilestone ? { text: `${money(nextMilestone.amount, cur)} due`, tone: "amber" } : undefined}>{paymentBody}</Accordion>
-
-            {/* trip prep — a collapsed row; the Flights tile opens it */}
-            {!tripStarted && (
-              <Accordion id="prep" title="Trip prep" badge={flightsAdded ? { text: "Flights ✓", tone: "green" } : { text: "To do", tone: "amber" }}>
-                <TripAddons bookingId={b.id} depositPaid={depositPaid} hasDeposit={hasDeposit} securingLabel={securingLabel} initialFlights={flights} arrival={arrival} editionStart={b.edition?.date_start ?? null} editionEnd={b.edition?.date_end ?? null} />
-                <div className="mt-5 pt-4 border-t border-[#f3ede2]"><ExtraNightsButton bookingId={b.id} /></div>
-              </Accordion>
-            )}
-
-            {/* secondary sections — collapsed accordions, but their headers still show status */}
-            <Accordion id="waiver" title="Participation waiver" badge={waiverSig ? { text: "Signed", tone: "green" } : { text: "Action needed", tone: "amber" }}>{waiverBody}</Accordion>
-
-            {(hotel || coaches.length > 0 || crew.going > 1 || b.edition?.whatsapp_group_link) && (
-              <Accordion id="crew" title="Your stay, team & crew" badge={coaches.length ? { text: `${coaches.length} ${coaches.length === 1 ? "coach" : "coaches"}`, tone: "cyan" } : undefined}>
-                <div className="space-y-6">
-                  {hotel && (
-                    <div>
-                      <p className="text-[11px] font-bold tracking-[0.14em] uppercase text-[#9aa6ac] mb-2">Your stay</p>
-                      {hotel.image_url && <div className="rounded-xl overflow-hidden mb-3 aspect-[16/9] bg-cover bg-center" style={{ backgroundImage: `url('${hotel.image_url}')` }} />}
-                      <p className="text-[15px] font-bold text-[#00374a]">{hotel.name}</p>
-                      {hotel.description && <p className="text-[13.5px] text-[#5a6b72] leading-relaxed mt-1.5 whitespace-pre-line">{hotel.description}</p>}
-                      {hotel.website && <a href={hotel.website} target="_blank" className="inline-flex items-center gap-1.5 text-[13.5px] font-semibold text-[#00afdb] hover:underline mt-2">Hotel website ↗</a>}
-                    </div>
-                  )}
-                  {coaches.length > 0 && (
-                    <div>
-                      <p className="text-[11px] font-bold tracking-[0.14em] uppercase text-[#9aa6ac] mb-2">Your team</p>
-                      <div className="space-y-4">
-                        {coaches.map((c) => (
-                          <div key={c.name} className="flex items-start gap-3">
-                            <div className="w-14 h-14 rounded-full bg-cover bg-center shrink-0 bg-[#eef3f4]" style={{ backgroundImage: c.image ? `url('${c.image}')` : undefined }} />
-                            <div className="min-w-0">
-                              <p className="text-[14.5px] font-bold text-[#00374a]">{c.name}</p>
-                              {c.role && <p className="text-[11px] font-bold tracking-wide uppercase text-[#00afdb]">{c.role}</p>}
-                              {c.bio && <p className="text-[13px] text-[#6a7a80] leading-relaxed mt-1">{c.bio}</p>}
-                              {c.whatsapp && (
-                                <a href={normalizeWa(c.whatsapp)} target="_blank" rel="noopener" className="inline-flex items-center gap-1.5 mt-1.5 text-[13px] font-semibold text-[#1aa851] hover:underline">
-                                  <svg className="w-4 h-4" viewBox="0 0 24 24" fill="currentColor"><path d="M.057 24l1.687-6.163a11.867 11.867 0 01-1.587-5.946C.16 5.335 5.495 0 12.05 0a11.817 11.817 0 018.413 3.488 11.824 11.824 0 013.48 8.414c-.003 6.557-5.338 11.892-11.893 11.892a11.9 11.9 0 01-5.688-1.448L.057 24zm6.597-3.807c1.676.995 3.276 1.591 5.392 1.592 5.448 0 9.886-4.434 9.889-9.885.002-5.462-4.415-9.89-9.881-9.892-5.452 0-9.887 4.434-9.889 9.884a9.86 9.86 0 001.51 5.26l-.999 3.648 3.978-1.205zm11.387-5.464c-.074-.124-.272-.198-.57-.347-.297-.149-1.758-.868-2.031-.967-.272-.099-.47-.149-.669.149-.198.297-.768.967-.941 1.165-.173.198-.347.223-.644.074-.297-.149-1.255-.462-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.297-.347.446-.521.151-.172.2-.296.3-.495.099-.198.05-.372-.025-.521-.074-.148-.669-1.611-.916-2.206-.242-.579-.487-.501-.669-.51l-.57-.01c-.198 0-.52.074-.792.372s-1.04 1.016-1.04 2.479 1.065 2.876 1.213 3.074c.149.198 2.095 3.2 5.076 4.487.709.306 1.263.489 1.694.626.712.226 1.36.194 1.872.118.571-.085 1.758-.719 2.006-1.413.248-.695.248-1.29.173-1.414z" /></svg>
-                                  Chat on WhatsApp
-                                </a>
-                              )}
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-                  {(crew.going > 1 || b.edition?.whatsapp_group_link) && (
-                    <div>
-                      <p className="text-[11px] font-bold tracking-[0.14em] uppercase text-[#9aa6ac] mb-2">Your crew</p>
-                      <CrewCard bookingId={b.id} going={crew.going} sharing={crew.sharing} profiles={crew.profiles} whatsappLink={b.edition?.whatsapp_group_link ?? null} />
-                    </div>
-                  )}
-                </div>
-              </Accordion>
-            )}
-
-            {!tripEnded && (
-              <Accordion id="invite" title="Invite a friend" badge={{ text: `${money(inviteData.friend, inviteData.currency)} off`, tone: "green" }}>
-                <InvitePanel bookingId={b.id} rewardFriend={inviteData.friend} rewardInviter={inviteData.inviter} currency={inviteData.currency} initialInvites={inviteData.invites} />
-              </Accordion>
-            )}
-
-            <Accordion id="docs" title="Documents & help">
-              <DocLink href={`/account/bookings/${b.id}/confirmation`} label="Trip confirmation" sub="Your booking summary (print / save as PDF)" />
-              <DocLink href="/experience/legal/package-travel" label="Standard information form" sub="Your rights under EU package-travel law" />
-              <p className="text-[12.5px] text-[#9aa6ac] py-2.5">Your invoices &amp; pro-forma live in the <a href="#payment" className="font-semibold text-[#00afdb] hover:underline">Payment plan</a> above.</p>
-              <details className="mt-2 border-t border-[#f3ede2] pt-3">
-                <summary className="text-[14px] font-semibold text-[#00374a] cursor-pointer">Cancellation policy</summary>
-                <p className="text-[13px] text-[#6a7a80] leading-relaxed mt-2 whitespace-pre-line">{cancellation}</p>
-              </details>
-              <div className="mt-3 pt-3 border-t border-[#f3ede2]">
-                <p className="text-[14px] text-[#5a6b72] leading-relaxed">Need anything? We&apos;re here for you personally — reply to any of our emails or reach us at <a href="mailto:experience@np-seven.com" className="text-[#00afdb] font-semibold">experience@np-seven.com</a>.</p>
-              </div>
-            </Accordion>
-
-            {/* before the trip there are no photos yet — keep memories at the bottom */}
-            {!tripStarted && <Accordion id="photos" title="Your memories" badge={{ text: "after the week", tone: "slate" }}>{memoriesContent}</Accordion>}
-          </div>
+          <TripView hero={!tripEnded ? <NextStepHero {...hero} /> : null} tiles={tiles} tabs={tabs} initial={initialTab} />
         </div>
       </main>
     </>
-  );
-}
-
-function Card({ id, title, children }: { id?: string; title: string; children: React.ReactNode }) {
-  return (
-    <section id={id} className="bg-white rounded-2xl border border-[#f0e6d6] p-6 scroll-mt-20">
-      <h2 className="text-[11px] font-bold tracking-[0.2em] uppercase text-[#00afdb] mb-4">{title}</h2>
-      {children}
-    </section>
   );
 }
 
@@ -426,53 +414,6 @@ function NextStepHero({ eyebrow, title, body, ctaLabel, ctaHref, tone }: { eyebr
   );
 }
 
-const TILE_LABEL: Record<"coral" | "amber" | "green" | "cyan", string> = {
-  coral: "#993c1d", amber: "#9a6b16", green: "#0f6e56", cyan: "#0782a0",
-};
-/** "At a glance" tile grid — 4 status tiles giving the trip's whole state at a
- *  glance; each opens its section on tap (via AnchorOpener). */
-function GlanceTiles({ tiles }: { tiles: { key: string; label: string; value: string; sub?: string; tone: "coral" | "amber" | "green" | "cyan"; href?: string }[] }) {
-  return (
-    <div className="mt-4 grid grid-cols-2 sm:grid-cols-4 gap-2.5">
-      {tiles.map((t) => {
-        const inner = (
-          <>
-            <p className="text-[10px] font-bold uppercase tracking-[0.1em]" style={{ color: TILE_LABEL[t.tone] }}>{t.label}</p>
-            <p className="text-[15px] font-black text-[#00374a] mt-1 leading-tight">{t.value}</p>
-            {t.sub && <p className="text-[11px] text-[#9aa6ac] mt-0.5">{t.sub}</p>}
-          </>
-        );
-        const cls = "bg-white rounded-2xl border border-[#f0e6d6] p-3.5 block";
-        return t.href ? (
-          <a key={t.key} href={t.href} className={`${cls} hover:-translate-y-0.5 hover:shadow-[0_10px_24px_rgba(0,55,74,0.07)] transition-all`}>{inner}</a>
-        ) : (
-          <div key={t.key} className={cls}>{inner}</div>
-        );
-      })}
-    </div>
-  );
-}
-
-const BADGE_TONES: Record<"green" | "amber" | "cyan" | "slate", string> = {
-  green: "bg-[#e1f5ee] text-[#0f6e56]",
-  amber: "bg-[#fdebd0] text-[#9a6b16]",
-  cyan: "bg-[#e3f5fb] text-[#0782a0]",
-  slate: "bg-[#eef2f3] text-[#8a9aa0]",
-};
-/** A collapsible section. Collapsed by default (the "accordion" the page wants),
- *  but the header still shows a status badge so nothing's truly hidden. */
-function Accordion({ id, title, badge, defaultOpen, children }: { id?: string; title: string; badge?: { text: string; tone: "green" | "amber" | "cyan" | "slate" }; defaultOpen?: boolean; children: React.ReactNode }) {
-  return (
-    <details id={id} open={defaultOpen} className="group bg-white rounded-2xl border border-[#f0e6d6] scroll-mt-20 [&_summary::-webkit-details-marker]:hidden">
-      <summary className="flex items-center gap-3 p-5 cursor-pointer list-none select-none">
-        <h2 className="flex-1 text-[11px] font-bold tracking-[0.2em] uppercase text-[#00afdb]">{title}</h2>
-        {badge && <span className={`text-[11px] font-bold px-2.5 py-0.5 rounded-full ${BADGE_TONES[badge.tone]}`}>{badge.text}</span>}
-        <svg className="w-5 h-5 text-[#c0ccd0] acc-chevron shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M6 9l6 6 6-6" /></svg>
-      </summary>
-      <div className="px-5 pb-5 -mt-1">{children}</div>
-    </details>
-  );
-}
 /** Normalise a stored WhatsApp value (wa.me/…, a full URL, or a raw number) into a tappable link. */
 function normalizeWa(v: string): string {
   const s = v.trim();
