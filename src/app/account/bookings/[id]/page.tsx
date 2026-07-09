@@ -131,7 +131,7 @@ export default async function BookingDetail({ params }: Props) {
     <>
       {photoCount > 0 && (
         <div className="mb-3">
-          <MemberGallery groups={galleryGroups} bookingId={b.id} downloadsRemaining={downloadsRemaining} />
+          <MemberGallery groups={galleryGroups} bookingId={b.id} downloadsRemaining={downloadsRemaining} keeperBookingId={b.id} />
           <div className="mt-3">
             <PhotoSharingToggle bookingId={b.id} initialShared={photosShared} />
           </div>

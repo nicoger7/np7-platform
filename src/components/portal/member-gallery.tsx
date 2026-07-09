@@ -58,17 +58,34 @@ export function MemberGallery({
     }).catch(() => setKeepers((s) => { const n = new Set(s); starred ? n.delete(ref) : n.add(ref); return n; }));
   }
 
+  // Keepers first: once the member has starred photos, surface them as a pinned
+  // "Your keepers" section at the very top of the show (they also stay in their
+  // own group). Empty until keepers exist (needs the keepers table live).
+  const keeperGroup: GalleryGroup | null = useMemo(() => {
+    if (!keeperBookingId || keepers.size === 0) return null;
+    const photos: string[] = [];
+    const seen = new Set<string>();
+    for (const g of groups) for (const src of g.photos) {
+      const ref = photoRef(src);
+      if (keepers.has(ref) && !seen.has(ref)) { seen.add(ref); photos.push(src); }
+    }
+    return photos.length ? { key: "keepers", label: "Your keepers", kind: "everyone", photos } : null;
+  }, [groups, keepers, keeperBookingId]);
+  const displayGroups = useMemo(() => (keeperGroup ? [keeperGroup, ...groups] : groups), [keeperGroup, groups]);
+
   // Flatten in display order; each group knows its starting index for the lightbox.
   const { flat, offsets } = useMemo(() => {
     const flat: string[] = [];
     const offsets: number[] = [];
-    for (const g of groups) { offsets.push(flat.length); flat.push(...g.photos); }
+    for (const g of displayGroups) { offsets.push(flat.length); flat.push(...g.photos); }
     return { flat, offsets };
-  }, [groups]);
+  }, [displayGroups]);
 
   const downloadable = !!bookingId && downloadsRemaining != null;
   const minePhotos = groups.find((g) => g.kind === "mine")?.photos ?? [];
-  const hasOthers = flat.length > minePhotos.length;
+  // Downloads work off the real, de-duplicated set (the keepers pin duplicates refs).
+  const uniqueAll = useMemo(() => [...new Set(groups.flatMap((g) => g.photos))], [groups]);
+  const hasOthers = uniqueAll.length > minePhotos.length;
 
   async function zipAndSave(urls: string[], filename: string) {
     const { default: JSZip } = await import("jszip");
@@ -113,7 +130,7 @@ export function MemberGallery({
         return;
       }
       const { remaining: rem } = await res.json();
-      await zipAndSave(flat, "trip-photos.zip");
+      await zipAndSave(uniqueAll, "trip-photos.zip");
       setRemaining(typeof rem === "number" ? rem : Math.max(0, remaining - 1));
     } catch {
       setErr("Couldn't build the download. Please try again.");
@@ -190,7 +207,26 @@ export function MemberGallery({
         </div>
       )}
       <div className="space-y-2.5">
-        {groups.map((g, gi) => {
+        {displayGroups.map((g, gi) => {
+          // Keepers — pinned at the very top, always open, star-marked.
+          if (g.key === "keepers") {
+            return (
+              <div key={g.key} className="rounded-xl border-2 border-[#f6d9a8] bg-[#fffaf0] overflow-hidden">
+                <div className="flex items-center gap-2.5 px-4 py-3">
+                  <span className="shrink-0 w-7 h-7 rounded-full grid place-items-center bg-amber-400/20 text-amber-500">
+                    <svg className="w-4 h-4" viewBox="0 0 24 24" fill="currentColor" stroke="currentColor" strokeWidth="1.5" strokeLinejoin="round"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z" /></svg>
+                  </span>
+                  <span className="min-w-0 flex-1 block text-[14px] font-bold text-[#00374a] truncate">Your keepers</span>
+                  <span className="shrink-0 text-[12px] font-semibold text-[#9aa6ac] tabular-nums">{g.photos.length}</span>
+                </div>
+                <div className="px-4 pb-4">
+                  <div className="grid grid-cols-3 sm:grid-cols-4 gap-2 sm:gap-2.5">
+                    {g.photos.map((src, i) => thumb(src, offsets[gi] + i))}
+                  </div>
+                </div>
+              </div>
+            );
+          }
           // "Your photos" — always shown, first row + a blurred peek, expandable.
           if (g.kind === "mine") {
             const hasMore = g.photos.length > PREVIEW;
