@@ -87,7 +87,10 @@ export default async function AccountHome() {
   const setupSteps: SetupStep[] = profile
     ? [
         { key: "account", label: "Account created", done: true, href: "/account" },
-        { key: "level", label: "Set your riding level", hint: "So coaches meet you where you are", done: !!profile.self_level, href: "/account/level" },
+        // Done if they've declared a level OR already have a real one — a coach-
+        // verified rank (lvl.verified / level_status) counts; don't nag someone
+        // whose level card already shows a verified rank to "set" it.
+        { key: "level", label: "Set your riding level", hint: "So coaches meet you where you are", done: !!profile.self_level || !!lvl?.verified || profile.level_status === "verified", href: "/account/level" },
         { key: "photo", label: "Add a profile photo", done: !!profile.avatar_url, href: "/account/profile" },
         { key: "handle", label: "Pick your @handle", hint: "Your name on the crew & spotguide", done: !!profile.username, href: "/account/profile" },
       ]
