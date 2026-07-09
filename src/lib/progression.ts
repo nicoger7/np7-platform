@@ -14,21 +14,34 @@ export const DISCIPLINE_LABEL: Record<Discipline, string> = {
   freeride: "Freeride", freerace: "Freerace", slalom: "Slalom", side: "Wave & Freestyle",
 };
 
-/** The 6 ranks a rider climbs — earned by mastering each difficulty band in turn. */
+/** The 6 ranks a rider climbs — earned by mastering each band in turn. A skill's
+    rank is stored directly (admin sets it by dropping the skill into a band). */
 export const RANKS = ["Beginner", "Intermediate", "Advanced", "Amateur", "Semi-Pro", "Pro"] as const;
-/** Upper difficulty bound of each band (band i → rank i+1 once fully mastered). */
+const RANK_INDEX: Record<string, number> = { Beginner: 0, Intermediate: 1, Advanced: 2, Amateur: 3, "Semi-Pro": 4, Pro: 5 };
+/** Band index for a stored rank (the source of truth), or null if unrecognised. */
+export function bandOfRank(rank: string | null | undefined): number | null {
+  if (!rank) return null;
+  const i = RANK_INDEX[rank];
+  return i == null ? null : i;
+}
+/** Legacy fallback: the band a numeric `difficulty` falls in, for rows not yet
+    migrated to `rank` (BAND_MAX upper bounds). Kept for the migration backfill and
+    for tolerance during the deploy window. */
 const BAND_MAX = [14, 28, 46, 62, 85, Infinity];
 function bandOf(difficulty: number): number { for (let i = 0; i < BAND_MAX.length; i++) if (difficulty <= BAND_MAX[i]) return i; return 5; }
-/** The rank a difficulty score sits in — used to keep the legacy `tier` column
-    consistent when skills are added/edited in admin, and to band the editor. */
 export function rankForDifficulty(difficulty: number): string { return RANKS[bandOf(difficulty)]; }
+/** A skill's band — its stored `rank` wins; falls back to the legacy difficulty
+    band only when rank isn't set yet (pre-migration rows). */
+export function bandForSkill(m: { rank?: string | null; difficulty?: number | null }): number {
+  return bandOfRank(m.rank) ?? bandOf(m.difficulty ?? 10);
+}
 
 export type VerifiedVia = "self" | "windcoach" | "coach";
 export const VERIFY_LABEL: Record<VerifiedVia, string> = { self: "Logged", windcoach: "Wind Coach App", coach: "Coach" };
 export function isVerified(v: VerifiedVia): boolean { return v === "windcoach" || v === "coach"; }
 
 export type CatalogSkill = {
-  id: string; key: string; label: string; tier: string;
+  id: string; key: string; label: string; tier: string; rank?: string | null;
   discipline: Discipline; difficulty: number; prerequisite_key: string | null; sort_order: number;
 };
 export type Achievement = { milestone_id: string; verified_via: VerifiedVia; verified_ref?: string | null };
@@ -81,14 +94,14 @@ export function buildProgression(catalogRaw: CatalogSkill[], achievements: Achie
     let state: SkillState;
     if (v) { state = v; if (v === "coach") coachCount++; if (v === "windcoach") windcoachCount++; }
     else state = !m.prerequisite_key || unlockKeys.has(m.prerequisite_key) ? "available" : "locked";
-    return { ...m, state, prereqLabel: m.prerequisite_key ? (labelByKey.get(m.prerequisite_key) ?? null) : null, band: bandOf(m.difficulty) };
+    return { ...m, state, prereqLabel: m.prerequisite_key ? (labelByKey.get(m.prerequisite_key) ?? null) : null, band: bandForSkill(m) };
   });
 
-  // Rank = how many core difficulty bands you've fully mastered.
+  // Rank = how many core bands you've fully mastered.
   const bands = Array.from({ length: 6 }, () => ({ verified: 0, total: 0 }));
   for (const s of skills) {
     if (s.discipline === "side") continue;
-    const b = bands[bandOf(s.difficulty)];
+    const b = bands[s.band];
     b.total++;
     if (s.state === "coach" || s.state === "windcoach") b.verified++;
   }
@@ -103,7 +116,7 @@ export function buildProgression(catalogRaw: CatalogSkill[], achievements: Achie
   // The ring credits self-logged skills at half weight — real claims the rider
   // made (endowed progress), so it's never a dead 0% once they've engaged. RANK
   // and toNext stay verified-only; the ring never hits 100 until truly mastered.
-  const selfInWb = skills.filter((s) => s.discipline !== "side" && bandOf(s.difficulty) === wb && s.state === "self").length;
+  const selfInWb = skills.filter((s) => s.discipline !== "side" && s.band === wb && s.state === "self").length;
   const pct = mastered ? 100 : bands[wb].total ? Math.min(99, Math.round(((bands[wb].verified + selfInWb * 0.5) / bands[wb].total) * 100)) : 100;
   const ladder: LadderRung[] = RANKS.map((name, i) => ({ name, done: i < currentIdx || mastered, current: i === currentIdx && !mastered }));
 

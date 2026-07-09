@@ -12,20 +12,15 @@ Six ranks, climbed in order:
 
 **Beginner → Intermediate → Advanced → Amateur → Semi-Pro → Pro**
 
-There are no points. Every skill carries a **difficulty score**, and difficulty
-maps to a rank band:
+There are no points and no difficulty numbers. **Every skill is assigned a rank
+directly** — the team places each skill into one of the six bands in admin (you
+literally drag the skill into the band). You reach a rank by **mastering the skills
+in that band**; master every core band in turn and you climb.
 
-| Rank | Difficulty band |
-|------|-----------------|
-| Beginner | ≤ 14 |
-| Intermediate | 15–28 |
-| Advanced | 29–46 |
-| Amateur | 47–62 |
-| Semi-Pro | 63–85 |
-| Pro | 86+ |
-
-You reach a rank by **mastering the skills in that band**. Master every core
-band in turn and you climb.
+The rank is a *shared, cross-track calibration*: "Advanced" means the same thing
+whether it's a Freeride skill or a Freerace skill, which is why a human sets it —
+the system can't infer it from learning order alone (a Slalom skill 3rd in its
+chain and a Freeride skill 3rd in its chain aren't the same rank).
 
 ### Disciplines (tracks)
 Skills live in four tracks:
@@ -128,7 +123,10 @@ the other, and the rider sees one unified ladder.
 - Three verification tiers on each achievement (`contact_milestones.verified_via`
   = `self` | `windcoach` | `coach`).
 - An inbound webhook slot for wind.coach verifications (`WINDCOACH_WEBHOOK_SECRET`).
-- The admin Progress Skills editor to add/edit/reorder/retire skills.
+- The admin Progress Skills editor: add / edit / retire skills and set a skill's
+  rank by **dragging it into the band** (rank is stored directly on the skill —
+  migration 077 — which replaced the old difficulty number; drag within a band to
+  reorder). Keys stay stable, so the wind.coach join is unaffected.
 - The GPS-based slalom skills (top speed, consistent starts) already seeded so the
   vocabulary is ready for wind.coach to verify against.
 
