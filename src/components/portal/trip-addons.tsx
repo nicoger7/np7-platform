@@ -265,10 +265,16 @@ export function TripAddons({ bookingId, depositPaid, hasDeposit, securingLabel, 
   const chevron = (open: boolean) => (
     <svg className={`w-4 h-4 shrink-0 text-[#8a9aa0] transition-transform ${open ? "rotate-180" : ""}`} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M6 9l6 6 6-6" /></svg>
   );
-  const badge = (i: number, done: boolean) => (
-    <span className={`shrink-0 w-6 h-6 rounded-full grid place-items-center text-[12px] font-bold ${done ? "bg-green-500 text-white" : "bg-[#e3eef1] text-[#00748f]"}`}>
-      {done ? "✓" : i + 1}
-    </span>
+  // Checklist status: done = green check, pending = hollow ring. No numbers, so
+  // the list never reads as a broken "✓, 2, ✓, 4" sequence.
+  const stepIcon = (done: boolean) => (
+    done ? (
+      <span className="shrink-0 w-6 h-6 rounded-full bg-[#22a45d] text-white grid place-items-center">
+        <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><path d="M20 6L9 17l-5-5" /></svg>
+      </span>
+    ) : (
+      <span className="shrink-0 w-6 h-6 rounded-full border-2 border-[#d3dde0] bg-white" />
+    )
   );
 
   // Prep steps — flights lead (people sort flights right after the free
@@ -286,56 +292,57 @@ export function TripAddons({ bookingId, depositPaid, hasDeposit, securingLabel, 
   ];
 
   return (
-    <div className="space-y-2">
+    <div className="rounded-2xl border border-[#f0e6d6] overflow-hidden bg-white">
       {steps.map((s, i) => {
         const done = s.key === "flights" ? flightsSaved : s.key === "secure" ? depositPaid : s.key === "extras" ? resolved : s.key === "confirm" ? addonsConfirmed : s.key === "group" ? joined : flightsBooked;
         const isFlights = s.key === "flights";
         const isExtras = s.key === "extras";
         const isGroup = s.key === "group";
+        const interactive = isFlights || isExtras || isGroup;
         const open = (isFlights && showFlights) || (isExtras && showOffers) || (isGroup && showGroup);
-
-        // Non-interactive steps (secure, we confirm, book flights w/ button)
-        if (!isFlights && !isExtras && !isGroup) {
-          return (
-            <div key={s.key} className="flex gap-3 px-1 py-1">
-              {badge(i, done)}
-              <div className="min-w-0">
-                <p className="text-[14px] font-bold text-[#00374a] leading-tight">{s.t}</p>
-                <p className="text-[12.5px] text-[#8a9aa0] leading-snug">{s.key === "confirm" && addonsConfirmed ? (active.length > 0 ? "All your extras are confirmed and added to your trip." : "No extras to confirm — you're all set.") : s.d}</p>
-                {s.key === "secure" && !done && (
-                  <a href="#payment" className="mt-1.5 inline-flex items-center gap-1 text-[12.5px] font-bold text-[#00afdb] hover:underline">See the payment plan &amp; how to pay →</a>
-                )}
-                {s.key === "book" && !flightsBooked && (
-                  <button onClick={markBooked} className="mt-1.5 px-3 py-1 rounded-full text-[12px] font-bold text-white bg-[#00afdb] hover:bg-[#15c0ec] transition-colors">I&apos;ve booked them ✓</button>
-                )}
-              </div>
-            </div>
-          );
-        }
-
-        // Interactive steps: clickable module that folds open inline
         const toggle = isFlights ? () => setShowFlights((v) => !v) : isGroup ? () => setShowGroup((v) => !v) : () => setShowOffers((v) => !v);
         const subline = isFlights
           ? (flightsSaved ? "Flight details added — tap to view or edit" : "Tap to add your flight details")
           : isGroup
           ? (joined ? "You're in the group ✓ — tap to open" : "Tap to open the group & mark yourself in")
-          : (resolved ? (active.length ? `${active.length} requested — tap to manage` : "No extras — tap to change") : "Tap to add extra nights, gear & more");
+          : isExtras
+          ? (resolved ? (active.length ? `${active.length} requested — tap to manage` : "No extras — tap to change") : "Tap to add extra nights, gear & more")
+          : s.key === "confirm" && addonsConfirmed
+          ? (active.length > 0 ? "All your extras are confirmed and added to your trip." : "No extras to confirm — you're all set.")
+          : s.d;
+
+        // One consistent row grammar for every step: [status] [title + sub] [affordance].
+        const rowCls = "flex items-center gap-3 w-full text-left px-4 py-3 min-h-[58px]";
+        const rowInner = (
+          <>
+            {stepIcon(done)}
+            <div className="min-w-0 flex-1">
+              <p className="text-[14px] font-bold text-[#00374a] leading-tight">
+                {s.t}
+                {isFlights && flightsBooked && <span className="ml-1.5 text-[11px] font-bold uppercase tracking-wide text-green-600">Booked</span>}
+              </p>
+              <p className="text-[12.5px] text-[#8a9aa0] leading-snug">{subline}</p>
+            </div>
+            {interactive ? chevron(open)
+              : s.key === "secure" && !done ? (
+                <span className="shrink-0 inline-flex items-center gap-0.5 text-[13px] font-bold text-[#00afdb]">Pay<svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M9 18l6-6-6-6" /></svg></span>
+              ) : s.key === "book" && !flightsBooked ? (
+                <button type="button" onClick={markBooked} className="shrink-0 px-3 py-1.5 rounded-full text-[12px] font-bold text-white bg-[#00afdb] hover:bg-[#15c0ec] transition-colors">I&apos;ve booked ✓</button>
+              ) : null}
+          </>
+        );
         return (
-          <div key={s.key} id={isFlights ? "prep-flights" : undefined} className="rounded-xl border border-[#eee2cf] bg-[#fffdf8] overflow-hidden scroll-mt-20">
-            <button onClick={toggle} className="flex items-center gap-3 w-full text-left px-3.5 py-3 min-h-[54px] hover:bg-[#fbf6ec] transition-colors">
-              {badge(i, done)}
-              <div className="min-w-0 flex-1">
-                <p className="text-[14px] font-bold text-[#00374a] leading-tight">
-                  {s.t}
-                  {isFlights && flightsBooked && <span className="ml-1.5 text-[11px] font-bold uppercase tracking-wide text-green-600">Booked</span>}
-                </p>
-                <p className="text-[12.5px] text-[#8a9aa0] leading-snug">{subline}</p>
-              </div>
-              {chevron(open)}
-            </button>
+          <div key={s.key} id={isFlights ? "prep-flights" : undefined} className={`scroll-mt-20 ${i > 0 ? "border-t border-[#f3ede2]" : ""}`}>
+            {interactive ? (
+              <button onClick={toggle} className={`${rowCls} hover:bg-[#faf6ee] transition-colors`}>{rowInner}</button>
+            ) : s.key === "secure" && !done ? (
+              <a href="#payment" className={`${rowCls} hover:bg-[#faf6ee] transition-colors`}>{rowInner}</a>
+            ) : (
+              <div className={rowCls}>{rowInner}</div>
+            )}
 
             {open && isFlights && (
-              <div className="px-3 pb-3 pt-3 border-t border-[#f0e6d6]">
+              <div className="px-4 pb-4 pt-3 border-t border-[#f3ede2]">
                 <div className="rounded-lg bg-[#eef6f8] p-3 mb-3 text-[13px] text-[#4a5b62] space-y-1.5">
                   <p className="font-bold text-[#00374a]">You book your own flights</p>
                   <p className="leading-snug">We don&apos;t book flights for you — choose times that fit the week and add them here. Happy to advise on the best arrival/departure if you&apos;re unsure.</p>
@@ -371,7 +378,7 @@ export function TripAddons({ bookingId, depositPaid, hasDeposit, securingLabel, 
             )}
 
             {open && isExtras && (
-              <div className="px-3 pb-3 pt-3 border-t border-[#f0e6d6]">
+              <div className="px-4 pb-4 pt-3 border-t border-[#f3ede2]">
                 {offer.length > 0 ? <Offers /> : <p className="text-[13px] text-[#8a9aa0]">No optional extras for this trip.</p>}
                 {!resolved && (
                   <button onClick={chooseNone} disabled={busy === "none"} className="mt-3 text-[13px] font-semibold text-[#6a7a80] hover:text-[#00374a] underline underline-offset-2">{busy === "none" ? "…" : "No extras needed — I'm all set"}</button>
@@ -403,7 +410,7 @@ export function TripAddons({ bookingId, depositPaid, hasDeposit, securingLabel, 
             )}
 
             {open && isGroup && (
-              <div className="px-3 pb-3 pt-3 border-t border-[#f0e6d6] space-y-3">
+              <div className="px-4 pb-4 pt-3 border-t border-[#f3ede2] space-y-3">
                 <p className="text-[13px] text-[#4a5b62] leading-snug">Your whole crew for this week is in here — coaches and riders. Great for questions, plans and getting to know each other before you arrive.</p>
                 <a href={groupLink ?? "#"} target="_blank" rel="noopener"
                   className="inline-flex items-center gap-2 px-5 py-2.5 rounded-full text-[13px] font-bold text-white bg-[#1aa851] hover:bg-[#149247] transition-colors">
