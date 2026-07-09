@@ -10,8 +10,8 @@ import { RANKS, type Progression, type Track, type ProgressSkill } from "@/lib/p
    rank>". Three verification tiers: coach on a trip (gold) → Wind Coach App video
    (purple) → self. Members self-log with "I can do this" — that unlocks the chain
    and pre-fills the coach's verify list on a trip, but only coach / Wind Coach App
-   verification moves the rank. Skills are grouped by rank band; mastered bands
-   fold away so the list always opens on what's NEXT. */
+   verification moves the rank. Skills are grouped by rank band, all folded by
+   default — the "Next up" pointer says what to open. */
 
 const CYAN = "#00afdb", TEAL = "#00374a", PURPLE = "#7b61c9";
 const GOLD = "#d4a017", GOLD_BG = "#f8efd6", GOLD_TX = "#6b5214";
@@ -84,8 +84,9 @@ function SkillRow({ s, onLog, onUndo, busyId }: { s: ProgressSkill } & LogHandle
 const isDone = (s: ProgressSkill) => s.state === "coach" || s.state === "windcoach";
 
 function TrackCard({ track, onLog, onUndo, busyId }: { track: Track } & LogHandlers) {
-  // Skills grouped by rank band — the list reads as a ladder: master a section,
-  // it folds away, the next one is already open.
+  // Skills grouped by rank band — the list reads as a ladder. Every band starts
+  // folded so the page opens clean; the "Next up" pointer says what to open.
+  const isSide = track.discipline === "side";
   const groups: { band: number; skills: ProgressSkill[] }[] = [];
   for (const s of track.skills) {
     const g = groups.find((x) => x.band === s.band);
@@ -101,12 +102,19 @@ function TrackCard({ track, onLog, onUndo, busyId }: { track: Track } & LogHandl
       </div>
       <div className="text-[11.5px] text-[#9aa6ac] mb-2.5">Log what you can do — a coach on a trip (or the Wind Coach App) makes it count.</div>
 
+      {isSide && (
+        <div className="flex items-start gap-2 rounded-lg px-3 py-2 mb-2.5 text-[11.5px]" style={{ background: "#f6f3ee", color: "#8a949a" }}>
+          <span className="shrink-0 mt-px"><Ico name="target" size={14} color="#b3bcc1" /></span>
+          <span>Side track — extra mastery that shows on your profile. It doesn&rsquo;t move your core rank.</span>
+        </div>
+      )}
+
       <div className="flex flex-col gap-2">
         {groups.map((g) => {
           const done = g.skills.filter(isDone).length;
           const complete = done === g.skills.length;
           return (
-            <details key={g.band} open={!complete} className="group rounded-xl border border-[#f4ecdd] overflow-hidden [&_summary::-webkit-details-marker]:hidden">
+            <details key={g.band} className="group rounded-xl border border-[#f4ecdd] overflow-hidden [&_summary::-webkit-details-marker]:hidden">
               <summary className="flex items-center gap-2.5 px-4 py-3.5 min-h-[52px] cursor-pointer select-none list-none bg-[#fbf6ec] hover:bg-[#f6efe0] transition-colors">
                 <span className="shrink-0 text-[12.5px] font-black tracking-wide uppercase" style={{ color: complete ? "#1aa851" : "#8a9aa0" }}>
                   {RANKS[g.band]}
@@ -139,8 +147,6 @@ export function ProgressionView({ progression }: { progression: Progression }) {
   const router = useRouter();
   const [active, setActive] = useState<string>(tracks[0]?.discipline ?? "side");
   const [busyId, setBusyId] = useState<string | null>(null);
-  // Core three + Wave & Freestyle, all as equal pills (side is just lighter when idle).
-  const pills = side ? [...tracks, side] : tracks;
   const shown = active === "side" ? side : tracks.find((t) => t.discipline === active) ?? tracks[0];
 
   // Self-log: "I can do this" → verified_via='self'. The server recomputes the
@@ -215,21 +221,34 @@ export function ProgressionView({ progression }: { progression: Progression }) {
         <span className="inline-flex items-center gap-1 text-[12px] font-bold text-white rounded-full px-3 py-1.5 whitespace-nowrap" style={{ background: PURPLE }}>Open Wind Coach ↗</span>
       </a>
 
-      {/* discipline pills — core three + Wave & Freestyle as a 4th */}
-      <div className="flex gap-1.5 flex-wrap my-3">
-        {pills.map((t) => {
+      {/* discipline pills — the three CORE tracks drive your rank. Wave & Freestyle
+          is a "side" track, set apart and lighter so it doesn't read as equal weight. */}
+      <div className="flex items-center gap-1.5 flex-wrap my-3">
+        {tracks.map((t) => {
           const on = active === t.discipline;
-          const secondary = t.discipline === "side";
           return (
             <button key={t.discipline} type="button" onClick={() => setActive(t.discipline)}
-              className="px-3.5 py-2 rounded-full text-[13px] font-bold border"
+              className="px-3.5 py-2 rounded-full text-[13px] font-bold border transition-colors"
               style={on
                 ? { background: CYAN, color: "#fff", borderColor: CYAN }
-                : { background: "#fff", color: secondary ? "#6a7a80" : TEAL, borderColor: "#e7ddcb" }}>
+                : { background: "#fff", color: TEAL, borderColor: "#e7ddcb" }}>
               {t.label} <span className="font-semibold opacity-80">{t.verified}/{t.total}</span>
             </button>
           );
         })}
+        {side && (
+          <>
+            <span aria-hidden className="mx-1 h-6 w-px bg-[#e7ddcb] self-center" />
+            <span className="text-[10px] font-black uppercase tracking-[0.12em] text-[#b3bcc1] self-center">Side</span>
+            <button type="button" onClick={() => setActive("side")}
+              className="px-3 py-1.5 rounded-full text-[12px] font-semibold border transition-colors"
+              style={active === "side"
+                ? { background: "#5b6b71", color: "#fff", borderColor: "#5b6b71" }
+                : { background: "#faf7f1", color: "#98a4aa", borderColor: "#e3d9c7", borderStyle: "dashed" }}>
+              {side.label} <span className="opacity-80">{side.verified}/{side.total}</span>
+            </button>
+          </>
+        )}
       </div>
 
       {shown && <TrackCard track={shown} onLog={onLog} onUndo={onUndo} busyId={busyId} />}
