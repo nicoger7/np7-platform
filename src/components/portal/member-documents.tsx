@@ -52,8 +52,10 @@ export function MemberDocuments({ bookingId }: { bookingId: string }) {
   useEffect(() => {
     fetch(`/api/portal/bookings/${bookingId}/documents`)
       .then((r) => (r.ok ? r.json() : null))
-      .then((data: BookingDocument[] | null) => {
-        if (Array.isArray(data)) setDocs(data.filter((d) => d.status !== "void"));
+      // The API returns { documents: [...] }; tolerate a bare array too.
+      .then((data: { documents?: BookingDocument[] } | BookingDocument[] | null) => {
+        const arr = Array.isArray(data) ? data : data?.documents;
+        setDocs(Array.isArray(arr) ? arr.filter((d) => d.status !== "void") : []);
       })
       .catch(() => setDocs([]));
   }, [bookingId]);
