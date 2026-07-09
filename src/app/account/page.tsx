@@ -5,6 +5,7 @@ import { getPortalUser, getTeamMember } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 import { getMemberBookings, getMemberBannerImages, getMemberProfile, getMemberProgression } from "@/lib/portal-data";
 import { fmtDates, needsDownpayment } from "@/lib/portal-status";
+import { hasFlightDetails, type FlightInfo } from "@/lib/flights";
 import { firstNameInitial, initialsFrom } from "@/lib/member-profile";
 import { PortalChrome } from "@/components/portal/portal-chrome";
 import { MemberHomeBanner } from "@/components/portal/member-home-banner";
@@ -152,6 +153,23 @@ export default async function AccountHome() {
                           <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M5 12h14M13 6l6 6-6 6" /></svg>
                         </span>
                       </div>
+                      {/* "Your trip so far" — compact endowment recap of what's already set up */}
+                      {!secure && (() => {
+                        const done = [
+                          "Spot secured",
+                          hasFlightDetails(b.flight_info as FlightInfo | null) ? "Flights added" : null,
+                          b.wa_group ? "In the crew chat" : null,
+                        ].filter(Boolean) as string[];
+                        return (
+                          <div className="mt-3 flex flex-wrap items-center gap-1.5">
+                            {done.map((d) => (
+                              <span key={d} className="inline-flex items-center gap-1 text-[11px] font-bold text-[#0f6e56] bg-[#e6f5ee] rounded-full px-2 py-0.5">
+                                <svg className="w-3 h-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><path d="M20 6L9 17l-5-5" /></svg>{d}
+                              </span>
+                            ))}
+                          </div>
+                        );
+                      })()}
                     </Link>
                   ))}
                 </div>

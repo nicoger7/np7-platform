@@ -27,10 +27,11 @@ export type MemberBooking = {
   } | null;
   pkg: { name: string; price: number | null } | null;
   wa_group: boolean | null;
+  flight_info: Record<string, unknown> | null;
 };
 
 const SELECT =
-  "id,status,experience_id,agreed_price,downpayment_received,final_payment_received,created_at,wa_group," +
+  "id,status,experience_id,agreed_price,downpayment_received,final_payment_received,created_at,wa_group,flight_info," +
   "exp_experiences(title,slug,currency,cancellation_policy,hero_image)," +
   "exp_editions(id,label,date_start,date_end,deposit,whatsapp_group_link,memories_video_url,hero_image)," +
   "exp_packages(name,price)";
@@ -45,6 +46,7 @@ function shape(b: any): MemberBooking {
     edition: b.exp_editions ?? null,
     pkg: b.exp_packages ?? null,
     wa_group: b.wa_group ?? null,
+    flight_info: b.flight_info ?? null,
   };
 }
 

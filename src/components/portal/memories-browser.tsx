@@ -33,6 +33,13 @@ export function MemoriesBrowser({ trips }: { trips: TripMemories[] }) {
   }
 
   if (open) {
+    // Photo fallback: if a clip has no poster (or on a slow connection, where
+    // preload="none" means nothing loads until play), fall back to a trip photo
+    // so the member always sees an image, never a black box.
+    const coverPhoto = open.groups.flatMap((g) => g.photos)[0];
+    const fallbackPoster = coverPhoto ? cdnImage(coverPhoto, { width: 1200 }) : undefined;
+    // Keepers first — starred clips float to the top of the video grid.
+    const sortedVideos = [...open.videos].sort((a, b) => (videoKeepers.has(b.stem) ? 1 : 0) - (videoKeepers.has(a.stem) ? 1 : 0));
     return (
       <div>
         <button onClick={() => setOpenId(null)}
@@ -52,11 +59,11 @@ export function MemoriesBrowser({ trips }: { trips: TripMemories[] }) {
           <div className="mb-6">
             <h3 className="text-[13px] font-bold uppercase tracking-wide text-[#9aa6ac] mb-2">Trip videos</h3>
             <div className="grid gap-3 sm:grid-cols-2">
-              {open.videos.map((v) => {
+              {sortedVideos.map((v) => {
                 const kept = videoKeepers.has(v.stem);
                 return (
                   <div key={v.stem} className="relative group">
-                    <video src={v.url} poster={v.poster ?? undefined} controls playsInline preload="none"
+                    <video src={v.url} poster={v.poster ?? fallbackPoster} controls playsInline preload="none"
                       className="w-full rounded-2xl bg-black aspect-video object-cover" />
                     <button type="button" onClick={() => toggleVideoKeeper(v.stem)} title={kept ? "Kept forever ⭐" : "Keep this forever"}
                       className={`absolute top-2 right-2 z-10 w-8 h-8 rounded-full grid place-items-center transition-all ${kept ? "bg-amber-400 text-white shadow" : "bg-black/45 text-white opacity-0 group-hover:opacity-100"}`}>
