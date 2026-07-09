@@ -152,8 +152,9 @@ export function ReserveModal({ ctx, onClose }: { ctx: ReserveContext; onClose: (
                   {ctx.editionLabel ? ` · ${ctx.editionLabel}` : ""}
                   {ctx.editionDates ? ` · ${ctx.editionDates}` : ""}
                 </p>
-                {/* Honest loss-aversion — only the REAL remaining count, only when it's genuinely low. */}
-                {typeof ctx.spotsLeft === "number" && ctx.spotsLeft > 0 && ctx.spotsLeft <= 6 && (
+                {/* Honest loss-aversion — only the REAL remaining count, and only
+                    when it's genuinely almost gone (last 3 or fewer). */}
+                {typeof ctx.spotsLeft === "number" && ctx.spotsLeft > 0 && ctx.spotsLeft <= 3 && (
                   <span className="inline-flex items-center gap-1.5 mt-2 text-[11.5px] font-bold text-[#c4621a] bg-[#fdebd0] px-2.5 py-1 rounded-full">
                     🌊 Only {ctx.spotsLeft} spot{ctx.spotsLeft === 1 ? "" : "s"} left this week
                   </span>
