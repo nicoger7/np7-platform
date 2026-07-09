@@ -34,12 +34,29 @@ export function LevelHomeCard({
         <p className="text-[15.5px] font-extrabold tracking-[-0.01em] text-[#00374a] truncate leading-tight">{displayName}</p>
         {username && <p className="text-[12px] text-[#9aa6ac] truncate">@{username}</p>}
         {level ? (
-          <div className="flex items-center gap-2 mt-1.5">
-            <span className={`shrink-0 inline-flex items-center gap-0.5 text-[11px] font-bold px-2 py-0.5 rounded-full ${verified ? "bg-[#e1f5ee] text-[#0f6e56]" : "bg-[#eef3f4] text-[#5a6b72]"}`}>
-              {verified && <span aria-hidden="true">✓</span>}{level}
-            </span>
-            <span className="text-[12px] text-[#6a7a80] truncate">{nextTier ? `${toNext} ${toNext === 1 ? "skill" : "skills"} to ${nextTier}` : "top level 🎉"}</span>
-          </div>
+          <>
+            <div className="flex items-center gap-1.5 mt-1.5">
+              <span className={`shrink-0 inline-flex items-center gap-0.5 text-[11px] font-bold px-2 py-0.5 rounded-full ${verified ? "bg-[#e1f5ee] text-[#0f6e56]" : "bg-[#eef3f4] text-[#5a6b72]"}`}>
+                {verified && <span aria-hidden="true">✓</span>}{level}
+              </span>
+              {nextTier && (
+                <>
+                  <svg className="w-3 h-3 text-[#c9d4d8] shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.8" strokeLinecap="round" strokeLinejoin="round"><path d="M5 12h14M13 6l6 6-6 6" /></svg>
+                  <span className="shrink-0 text-[11px] font-bold px-2 py-0.5 rounded-full bg-[#fdf1df] text-[#9a6b16]">{nextTier}</span>
+                </>
+              )}
+            </div>
+            {nextTier ? (
+              <div className="mt-2">
+                <div className="h-1.5 rounded-full bg-[#eef3f4] overflow-hidden">
+                  <div className="h-full rounded-full transition-[width] duration-500" style={{ width: `${ring}%`, background: "linear-gradient(90deg,#ffc42e,#f47b20 60%,#00afdb)" }} />
+                </div>
+                <p className="text-[11.5px] text-[#6a7a80] mt-1">{toNext} {toNext === 1 ? "skill" : "skills"} to {nextTier}</p>
+              </div>
+            ) : (
+              <p className="text-[12px] text-[#0f6e56] font-semibold mt-1.5">Top level 🎉</p>
+            )}
+          </>
         ) : (
           <p className="text-[12.5px] text-[#00afdb] font-semibold mt-1">Set your level →</p>
         )}
