@@ -183,6 +183,6 @@ export async function fetchWindStatsBoth(lat: number, lng: number, primary: "sta
   const strip = (s: WindStats): Omit<WindStats, "alt"> => { const { alt: _drop, ...rest } = s; return rest; };
   if (!other || other === main || other.source === main.source) return strip(main);
   const differs = main.months.some((m, i) =>
-    (m.pct["4"] ?? 0) !== (other.months[i]?.pct["4"] ?? 0) || (m.pct["3"] ?? 0) !== (other.months[i]?.pct["3"] ?? 0));
+    BFT_THRESHOLDS.some((b) => (m.pct[String(b)] ?? 0) !== (other.months[i]?.pct[String(b)] ?? 0)));
   return differs ? { ...strip(main), alt: strip(other) } : strip(main);
 }
