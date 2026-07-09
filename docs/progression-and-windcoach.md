@@ -134,13 +134,13 @@ wind.coach would verify against):
 
 **NP7-owned — coach on a trip or wind.coach video (technique):** everything else —
 all jibes/tacks/transitions, straps & harness, waterstart, chop hop, railing,
-tuning, racing basics/advanced, and the whole Wave & Freestyle track.
+tuning, racing basics/advanced, the whole Wave & Freestyle track, **and the
+"control in N knots" skills** (`20kn control` … `40kn control`).
 
-**⚠ To confirm with Enrico — the "control in N knots" skills** (`20kn control` …
-`40kn control`) currently sit in NP7's technique bucket. They describe *handling a
-wind strength*, not a GPS number — but if wind.coach can derive them from a track
-(e.g. sustained planing/speed in that wind band), they can flip to GPS-owned. One
-decision per skill; the `key`s don't change either way.
+Those control skills stay NP7-owned on purpose: they measure the rider being **in
+control of that wind strength** — a coaching/technique judgment — *not* the speed
+they make on the GPS track. **Wind strength ≠ board speed**, so only the
+top/max-speed skills are GPS-owned; controlling 40 knots of wind is a coach call.
 
 ---
 
@@ -166,8 +166,9 @@ decision per skill; the `key`s don't change either way.
 - The **two-way sync**: NP7 → wind.coach (push technique skills + coach
   verifications), and wind.coach → NP7 (GPS + video verifications land via the
   webhook and write a `windcoach`-tier `contact_milestone`).
-- Enrico confirms the **GPS skill set** (the speeds + start windows in §3, plus a
-  decision on the "control in N knots" skills); those become the GPS-owned skills.
+- Enrico confirms the **GPS skill set** (the top/max-speed + consistent-start
+  skills in §3); those become the GPS-owned skills. The "control in N knots" skills
+  are settled — they stay NP7 technique (wind strength ≠ board speed).
 
 Keeping the skill `key`s stable across both apps is the one hard rule — the keys
 are the join between NP7 and wind.coach. (Ranks are now stored on the skill —
