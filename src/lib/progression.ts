@@ -19,6 +19,9 @@ export const RANKS = ["Beginner", "Intermediate", "Advanced", "Amateur", "Semi-P
 /** Upper difficulty bound of each band (band i → rank i+1 once fully mastered). */
 const BAND_MAX = [14, 28, 46, 62, 85, Infinity];
 function bandOf(difficulty: number): number { for (let i = 0; i < BAND_MAX.length; i++) if (difficulty <= BAND_MAX[i]) return i; return 5; }
+/** The rank a difficulty score sits in — used to keep the legacy `tier` column
+    consistent when skills are added/edited in admin, and to band the editor. */
+export function rankForDifficulty(difficulty: number): string { return RANKS[bandOf(difficulty)]; }
 
 export type VerifiedVia = "self" | "windcoach" | "coach";
 export const VERIFY_LABEL: Record<VerifiedVia, string> = { self: "Logged", windcoach: "Wind Coach App", coach: "Coach" };
