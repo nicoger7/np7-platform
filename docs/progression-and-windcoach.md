@@ -46,7 +46,8 @@ A skill can be confirmed by three sources, in ascending authority:
 
 1. **Self-logged** — the member taps *"I can do this."* Unlocks the chain and
    pre-fills a coach's checklist, but on its own it **does not move rank**.
-2. **wind.coach** — verified in the Wind Coach App (see §3). **Counts toward rank.**
+2. **wind.coach** — verified in the Wind Coach App, by **GPS analysis** (measurable
+   skills) or **video analysis** (technique) — see §3. **Counts toward rank.**
 3. **Coach on an NP7 trip (gold standard)** — a coach ticks it in person on a
    trip. The surest way to climb.
 
@@ -81,7 +82,14 @@ NP7 and wind.coach share **one skill vocabulary**: every skill has a stable
 in one place count in the other. A rider's progress is *the same progress*,
 whether they earned it on an NP7 trip or in wind.coach between trips.
 
-There are **two kinds of skills**, split by *how they're measured*:
+**wind.coach runs two analysis engines**, and both feed back into NP7 as a single
+`windcoach`-tier verification:
+- **GPS analysis** — auto-verifies the measurable skills (speeds, start timing).
+- **Video analysis** — verifies the technique skills (jibes, tacks, loops, waves).
+
+So a rider between trips can rank up either way in wind.coach; on a trip, an NP7
+coach is the third (gold) tier. There are **two kinds of skills**, split by *how
+they're measured / who authors them*:
 
 ### A. Technique / non-GPS skills — **owned by NP7**
 The maneuvers: jibes, tacks, transitions, loops, wave riding, freestyle.
