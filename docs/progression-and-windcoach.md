@@ -114,6 +114,26 @@ This split is deliberate: NP7 owns *coaching craft* (what a good jibe looks like
 wind.coach owns *measured performance* (what the GPS proves). Neither duplicates
 the other, and the rider sees one unified ladder.
 
+### Which of today's skills fall on each side
+Applying the rule to the current catalog (for Enrico — these are the exact `key`s
+wind.coach would verify against):
+
+**GPS-owned — wind.coach is the source of truth (auto-verifies from a GPS track):**
+- **Top / max board speed** — `20kn max speed`, `25kn max speed`, `30kn max speed`,
+  `35kn max speed`, `40kn top speed`. (Hit the speed on GPS → verified.)
+- **Consistent starts** — `0–5 s`, `0–2 s`, `0–1 s`. (Start-timing consistency
+  from the GPS track → verified.)
+
+**NP7-owned — coach on a trip or wind.coach video (technique):** everything else —
+all jibes/tacks/transitions, straps & harness, waterstart, chop hop, railing,
+tuning, racing basics/advanced, and the whole Wave & Freestyle track.
+
+**⚠ To confirm with Enrico — the "control in N knots" skills** (`20kn control` …
+`40kn control`) currently sit in NP7's technique bucket. They describe *handling a
+wind strength*, not a GPS number — but if wind.coach can derive them from a track
+(e.g. sustained planing/speed in that wind band), they can flip to GPS-owned. One
+decision per skill; the `key`s don't change either way.
+
 ---
 
 ## 4. What's built vs. still to build
@@ -131,14 +151,17 @@ the other, and the rider sees one unified ladder.
   vocabulary is ready for wind.coach to verify against.
 
 **To build for the full loop**
-- A **`source` / `gps` tag** on the skill catalog (`level_milestones`) so each
-  skill records its origin + verification method (NP7-technique vs wind.coach-GPS).
-  This is the switch that routes a skill's authority and sync direction.
+- A **`gps` (boolean) / `source` tag** on the skill catalog (`level_milestones`)
+  so each skill records whether it's wind.coach-GPS or NP7-technique. The partition
+  is already spelled out above (§3) — the 8 GPS-owned skills flip the flag; this
+  is the switch that routes a skill's authority and sync direction.
 - The **two-way sync**: NP7 → wind.coach (push technique skills + coach
   verifications), and wind.coach → NP7 (GPS + video verifications land via the
   webhook and write a `windcoach`-tier `contact_milestone`).
-- Enrico defines the **GPS skill set** (speeds, start windows, run consistency)
-  in wind.coach; those get transferred in as the GPS-owned skills here.
+- Enrico confirms the **GPS skill set** (the speeds + start windows in §3, plus a
+  decision on the "control in N knots" skills); those become the GPS-owned skills.
 
 Keeping the skill `key`s stable across both apps is the one hard rule — the keys
-are the join between NP7 and wind.coach.
+are the join between NP7 and wind.coach. (Ranks are now stored on the skill —
+migration 077 — but that's an NP7-internal detail; it doesn't touch the `key`s or
+the sync.)
