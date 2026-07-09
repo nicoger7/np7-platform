@@ -5,7 +5,7 @@ import { LaunchLanding } from "./_launch-landing";
 
 export const metadata: Metadata = {
   // absolute → the "%s · NP7" root template doesn't append a second "NP7".
-  title: { absolute: "NP7 — Nico Prien | GER-7" },
+  title: { absolute: "NP7 — Windsurf trips, spots & gear" },
   description:
     "Two worlds, one passion. NP7 Experience — premium watersports travel. NP7 Hardware — custom boards & fins.",
 };
