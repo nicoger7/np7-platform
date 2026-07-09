@@ -22,6 +22,7 @@ interface BookingDocument {
   issued_at: string | null;
   status: string;
   signedUrl: string;
+  downloadUrl?: string | null;
 }
 
 const TYPE_LABELS: Record<DocumentType, string> = {
@@ -83,39 +84,30 @@ export function MemberDocuments({ bookingId }: { bookingId: string }) {
         const sub = [invoiceNumber, amountStr, dateStr].filter(Boolean).join(" · ");
 
         return (
-          <a
-            key={doc.id}
-            href={doc.signedUrl}
-            target="_blank"
-            rel="noreferrer"
-            className="flex items-center gap-3 py-2.5 group"
-          >
+          <div key={doc.id} className="flex items-center gap-3 py-2.5">
             <span className="shrink-0 w-9 h-9 rounded-lg bg-[#00afdb]/10 text-[#00afdb] grid place-items-center">
-              <svg
-                className="w-4 h-4"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="2"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-              >
+              <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                 <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z" />
-                <path d="M14 2v6h6" />
-                <line x1="12" y1="18" x2="12" y2="12" />
-                <polyline points="9 15 12 18 15 15" />
+                <path d="M14 2v6h6M9 13h6M9 17h6" />
               </svg>
             </span>
             <span className="min-w-0 flex-1">
-              <span className="block text-[14px] font-bold text-[#00374a] group-hover:text-[#00afdb] transition-colors">
-                {label}
-              </span>
+              <span className="block text-[14px] font-bold text-[#00374a]">{label}</span>
               {sub && <span className="block text-[12px] text-[#9aa6ac]">{sub}</span>}
             </span>
-            <span className="shrink-0 text-[11px] font-semibold text-[#00afdb] opacity-0 group-hover:opacity-100 transition-opacity">
-              Download
+            <span className="shrink-0 flex items-center gap-3">
+              <a href={doc.signedUrl} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 text-[12.5px] font-bold text-[#00afdb] hover:underline">
+                <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" /><circle cx="12" cy="12" r="3" /></svg>
+                View
+              </a>
+              {doc.downloadUrl && (
+                <a href={doc.downloadUrl} className="inline-flex items-center gap-1 text-[12.5px] font-semibold text-[#8a9aa0] hover:text-[#00374a]">
+                  <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M7 10l5 5 5-5M12 15V3" /></svg>
+                  Save
+                </a>
+              )}
             </span>
-          </a>
+          </div>
         );
       })}
     </div>
