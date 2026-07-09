@@ -24,6 +24,21 @@ function cleanAddonName(name: string): string {
     .trim();
 }
 
+/** Break a cleaned add-on name into a small hotel eyebrow + a short title, so
+    the consumer sees "WANAPA / Double Deluxe Patio" instead of one long line.
+    Drops the redundant "Extra Night(s)" prefix for accommodation (the whole
+    step is about extra nights). Falls back gracefully when there's no hotel. */
+function splitAddon(name: string, category?: string | null): { hotel: string | null; title: string } {
+  const clean = cleanAddonName(name);
+  const parts = clean.split(" · ").map((p) => p.trim()).filter(Boolean);
+  let hotel: string | null = null;
+  let rest = parts;
+  if (parts.length >= 2) { hotel = parts[0]; rest = parts.slice(1); }
+  let title = rest.join(" · ");
+  if (category === "accommodation") title = title.replace(/^extra nights?\s+/i, "");
+  return { hotel, title: title || clean };
+}
+
 function money(n: number | null) {
   return n != null ? `€${Number(n).toLocaleString("en-US")}` : "";
 }
@@ -139,12 +154,15 @@ export function TripAddons({ bookingId, depositPaid, hasDeposit, securingLabel, 
           const after = Math.max(0, nightsBetween(editionEnd, nightForm.checkOut));
           const total = before + after;
           const price = a.sell_price != null ? a.sell_price * total : null;
+          const { hotel, title } = splitAddon(a.name, a.category);
           return (
-            <div key={a.id} className="bg-[#f8fbfc] rounded-xl px-4 py-3">
+            <div key={a.id} className="bg-white rounded-xl border border-[#eef2f0] px-4 py-3">
               <div className="flex items-center justify-between gap-3">
                 <div className="min-w-0 flex-1">
-                  <p className="text-[14px] font-semibold text-[#00374a] truncate">{cleanAddonName(a.name)}{a.sell_price ? ` · ${money(a.sell_price)}/night` : ""}</p>
-                  {a.description && <p className="text-[12.5px] text-[#8a9aa0] truncate">{a.description}</p>}
+                  {hotel && <p className="text-[10.5px] font-bold uppercase tracking-[0.1em] text-[#9aa6ac] leading-none mb-1">{hotel}</p>}
+                  <p className="text-[14.5px] font-bold text-[#00374a] leading-tight">{title}</p>
+                  {a.sell_price != null && <p className="text-[12.5px] text-[#5a6b72] mt-0.5"><span className="font-bold text-[#00374a]">{money(a.sell_price)}</span> / night</p>}
+                  {a.description && <p className="text-[12px] text-[#9aa6ac] mt-0.5 truncate">{a.description}</p>}
                 </div>
                 {!open && (
                   <button onClick={() => openNights(a.id)}
@@ -177,11 +195,14 @@ export function TripAddons({ bookingId, depositPaid, hasDeposit, securingLabel, 
             </div>
           );
         }
+        const { hotel, title } = splitAddon(a.name, a.category);
         return (
-          <div key={a.id} className="flex items-center justify-between gap-3 bg-[#f8fbfc] rounded-xl px-4 py-3">
+          <div key={a.id} className="flex items-center justify-between gap-3 bg-white rounded-xl border border-[#eef2f0] px-4 py-3">
             <div className="min-w-0 flex-1">
-              <p className="text-[14px] font-semibold text-[#00374a] truncate">{cleanAddonName(a.name)}{a.sell_price ? ` · ${money(a.sell_price)}` : ""}</p>
-              {a.description && <p className="text-[12.5px] text-[#8a9aa0] truncate">{a.description}</p>}
+              {hotel && <p className="text-[10.5px] font-bold uppercase tracking-[0.1em] text-[#9aa6ac] leading-none mb-1">{hotel}</p>}
+              <p className="text-[14.5px] font-bold text-[#00374a] leading-tight">{title}</p>
+              {a.sell_price != null && <p className="text-[12.5px] text-[#5a6b72] mt-0.5"><span className="font-bold text-[#00374a]">{money(a.sell_price)}</span></p>}
+              {a.description && <p className="text-[12px] text-[#9aa6ac] mt-0.5 truncate">{a.description}</p>}
             </div>
             <button onClick={() => request(a.id)} disabled={busy === a.id}
               className="shrink-0 px-4 py-2 rounded-full text-[12.5px] font-bold text-white bg-[#00afdb] hover:bg-[#15c0ec] disabled:opacity-60 transition-colors">
@@ -307,10 +328,14 @@ export function TripAddons({ bookingId, depositPaid, hasDeposit, securingLabel, 
                   <div className="mt-3 pt-3 border-t border-[#f3ede2] space-y-2">
                     {active.map((m) => {
                       const confirmed = effectiveAddonStatus(m) === "confirmed";
+                      const { hotel, title } = splitAddon(m.label, m.meta?.checkIn || m.meta?.nights != null ? "accommodation" : null);
                       return (
                         <div key={m.id} className="flex items-start justify-between gap-3 text-[13.5px]">
                           <div className="min-w-0">
-                            <span className="font-semibold text-[#00374a] truncate block">{cleanAddonName(m.label)}{m.price ? ` · ${money(m.price)}` : ""}</span>
+                            <span className="font-semibold text-[#00374a] block leading-tight">
+                              {hotel && <span className="text-[10.5px] font-bold uppercase tracking-[0.08em] text-[#9aa6ac] mr-1.5">{hotel}</span>}
+                              {title}{m.price ? ` · ${money(m.price)}` : ""}
+                            </span>
                             {(m.meta?.checkIn || m.meta?.checkOut) && (
                               <span className="text-[12px] text-[#8a9aa0]">{fmtDay(m.meta.checkIn)} → {fmtDay(m.meta.checkOut)}</span>
                             )}
