@@ -15,6 +15,8 @@ import { RANKS, type Progression, type Track, type ProgressSkill } from "@/lib/p
 
 const CYAN = "#00afdb", TEAL = "#00374a", PURPLE = "#7b61c9";
 const GOLD = "#d4a017", GOLD_BG = "#f8efd6", GOLD_TX = "#6b5214";
+// wind.coach — Nico's year-round rider-progress app; the second path to verify skills.
+const WINDCOACH_URL = "https://wind.coach";
 
 function Ico({ name, size = 18, color }: { name: string; size?: number; color?: string }) {
   const c = { width: size, height: size, viewBox: "0 0 24 24", style: color ? { color } : undefined, "aria-hidden": true } as const;
@@ -200,12 +202,18 @@ export function ProgressionView({ progression }: { progression: Progression }) {
         </div>
       </div>
 
-      {/* coach = gold standard (sells trips) */}
+      {/* Two ways to climb: coach on a trip (gold standard) OR wind.coach video
+          verification year-round between trips. */}
       <div className="flex items-center gap-2.5 rounded-xl px-3 py-2.5 mt-3" style={{ background: GOLD_BG, border: "1px solid #ecdcae" }}>
         <span className="shrink-0"><Ico name="check" size={20} color={GOLD} /></span>
         <span className="text-[12.5px] flex-1" style={{ color: GOLD_TX }}>Coach-verified on an NP7 trip is the gold standard — the surest way to climb the ranks.</span>
         <Link href="/experience" className="text-[12px] font-bold text-white rounded-full px-3 py-1.5 whitespace-nowrap" style={{ background: CYAN }}>Book a trip</Link>
       </div>
+      <a href={WINDCOACH_URL} target="_blank" rel="noopener" className="flex items-center gap-2.5 rounded-xl px-3 py-2.5 mt-2 hover:brightness-[0.99] transition-all" style={{ background: "#efeafb", border: "1px solid #ddd2f2" }}>
+        <span className="shrink-0"><Ico name="video" size={20} color={PURPLE} /></span>
+        <span className="text-[12.5px] flex-1" style={{ color: "#4a3b7a" }}>Between trips, keep progressing with <strong>wind.coach</strong> — get your skills video-verified year-round.</span>
+        <span className="inline-flex items-center gap-1 text-[12px] font-bold text-white rounded-full px-3 py-1.5 whitespace-nowrap" style={{ background: PURPLE }}>Open wind.coach ↗</span>
+      </a>
 
       {/* discipline pills — core three + Wave & Freestyle as a 4th */}
       <div className="flex gap-1.5 flex-wrap my-3">
