@@ -105,15 +105,15 @@ function TrackCard({ track, onLog, onUndo, busyId }: { track: Track } & LogHandl
           const complete = done === g.skills.length;
           return (
             <details key={g.band} open={!complete} className="group rounded-xl border border-[#f4ecdd] overflow-hidden [&_summary::-webkit-details-marker]:hidden">
-              <summary className="flex items-center gap-2.5 px-3 py-2 cursor-pointer select-none list-none bg-[#fbf6ec]">
-                <span className="shrink-0 text-[12px] font-black tracking-wide uppercase" style={{ color: complete ? "#1aa851" : "#8a9aa0" }}>
+              <summary className="flex items-center gap-2.5 px-4 py-3.5 min-h-[52px] cursor-pointer select-none list-none bg-[#fbf6ec] hover:bg-[#f6efe0] transition-colors">
+                <span className="shrink-0 text-[12.5px] font-black tracking-wide uppercase" style={{ color: complete ? "#1aa851" : "#8a9aa0" }}>
                   {RANKS[g.band]}
                 </span>
                 <span className="shrink-0 text-[11.5px] font-semibold text-[#a9b4b9]">{done}/{g.skills.length}{complete ? " ✓" : ""}</span>
-                <span className="flex-1 min-w-[24px] h-1.5 rounded-full bg-[#efe6d4] overflow-hidden">
+                <span className="flex-1 min-w-[24px] h-2 rounded-full bg-[#efe6d4] overflow-hidden">
                   <span className="block h-full rounded-full transition-[width] duration-500" style={{ width: `${Math.round((done / g.skills.length) * 100)}%`, background: complete ? "#1aa851" : "linear-gradient(90deg,#ffc42e,#f47b20 55%,#00afdb)" }} />
                 </span>
-                <svg className="w-3.5 h-3.5 shrink-0 text-[#c0ccd0] transition-transform group-open:rotate-180" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M6 9l6 6 6-6" /></svg>
+                <svg className="w-5 h-5 shrink-0 text-[#c0ccd0] transition-transform group-open:rotate-180" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M6 9l6 6 6-6" /></svg>
               </summary>
               <div className="flex flex-col gap-1.5 p-2">
                 {g.skills.map((s) => <SkillRow key={s.id} s={s} onLog={onLog} onUndo={onUndo} busyId={busyId} />)}
