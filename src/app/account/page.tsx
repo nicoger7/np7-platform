@@ -79,6 +79,18 @@ export default async function AccountHome() {
     ...upcoming.filter((b) => !needsDownpayment(b)).map((b) => ({ b, secure: false })),
   ];
 
+  // A photo avatar is EARNED on a trip — trip photos are the only source (see
+  // community-profile.tsx: "ride with your initials until your first trip"). So
+  // only offer "Add a profile photo" once the rider has actually attended; nagging
+  // a fresh signup to add a photo they can't add yet is a dead end. It surfaces on
+  // its own after their first trip.
+  const hasAttended = bookings.some((b) => {
+    const st = String(b.status ?? "").toLowerCase();
+    if (st.includes("attend")) return true;
+    const end = b.edition?.date_end;
+    return !!end && end < today && !/lost|cancel|lead/.test(st);
+  });
+
   // "Get set up" onboarding strip — endowed progress: account is always the
   // first (done) step so the bar never starts at 0%. This is ONE-TIME PROFILE
   // setup only — the per-trip "secure your spot" action lives on the trip cards
@@ -91,7 +103,10 @@ export default async function AccountHome() {
         // verified rank (lvl.verified / level_status) counts; don't nag someone
         // whose level card already shows a verified rank to "set" it.
         { key: "level", label: "Set your riding level", hint: "So coaches meet you where you are", done: !!profile.self_level || !!lvl?.verified || profile.level_status === "verified", href: "/account/level" },
-        { key: "photo", label: "Add a profile photo", done: !!profile.avatar_url, href: "/account/profile" },
+        // Only when a photo is actually earnable (attended a trip) or already set.
+        ...(hasAttended || profile.avatar_url
+          ? [{ key: "photo", label: "Add a profile photo", hint: "Pick one from your trip photos", done: !!profile.avatar_url, href: "/account/profile" } as SetupStep]
+          : []),
         { key: "handle", label: "Pick your @handle", hint: "Your name on the crew & spotguide", done: !!profile.username, href: "/account/profile" },
       ]
     : [];
