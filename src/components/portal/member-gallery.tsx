@@ -253,7 +253,7 @@ export function MemberGallery({
           // makes them an exclusive accordion: opening one folds the others.
           return (
             <details key={g.key} name="trip-gallery-group" className="rounded-xl border border-[#f0e6d6] bg-[#fffdf9] overflow-hidden [&_summary::-webkit-details-marker]:hidden">
-              <summary className="flex items-center gap-2.5 px-4 py-3 cursor-pointer list-none select-none">
+              <summary className="flex items-center gap-2.5 px-4 py-3.5 min-h-[54px] cursor-pointer list-none select-none hover:bg-[#fbf6ec] transition-colors">
                 {header(g)}
                 <svg className="w-4 h-4 text-[#c0ccd0] acc-chevron shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M6 9l6 6 6-6" /></svg>
               </summary>

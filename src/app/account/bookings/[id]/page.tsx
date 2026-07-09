@@ -302,6 +302,19 @@ export default async function BookingDetail({ params }: Props) {
 
   const tripContent = (
     <div className="space-y-6">
+      {!tripEnded && (
+        <TripSoFar
+          title={b.experience?.title ?? "Your trip"}
+          items={[
+            { label: "Spot secured", done: depositPaid },
+            { label: "Flights added", done: flightsAdded },
+            { label: "Waiver signed", done: !!waiverSig },
+            { label: "In the crew chat", done: !!b.wa_group },
+          ]}
+          weeks={weeks}
+          daysToGo={daysToGo}
+        />
+      )}
       {preTrip.preTripNote && (
         <div className="rounded-2xl border border-[#f0e6d6] bg-[#fffdf8] p-5">
           <p className="text-[11px] font-bold tracking-[0.14em] uppercase text-[#9aa6ac] mb-2">A note from Nico</p>
@@ -476,6 +489,33 @@ function Row({ label, value, tone }: { label: string; value: React.ReactNode; to
     </div>
   );
 }
+/**
+ * "Your trip so far" — an endowment / IKEA-effect recap: reflects back what the
+ * member has already set up for THIS trip, framed as accomplishment (the setup
+ * strip covers the to-do side). Only shows real, completed steps, and only once
+ * there's genuine momentum (2+), so it grows with engagement instead of nagging.
+ */
+function TripSoFar({ title, items, weeks, daysToGo }: { title: string; items: { label: string; done: boolean }[]; weeks: number | null; daysToGo: number | null }) {
+  const done = items.filter((i) => i.done);
+  if (done.length < 2) return null;
+  const togo = weeks != null && weeks >= 2 ? `${weeks} weeks to go` : daysToGo != null ? `${daysToGo} ${daysToGo === 1 ? "day" : "days"} to go` : null;
+  return (
+    <div className="rounded-2xl border border-[#f0e6d6] bg-white p-5">
+      <p className="text-[11px] font-bold tracking-[0.14em] uppercase text-[#c4621a]">Your trip so far</p>
+      <h3 className="text-[17px] font-black tracking-[-0.01em] text-[#00374a] mt-1">{title} is taking shape 🤙</h3>
+      <div className="mt-3.5 grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-2.5">
+        {done.map((i) => (
+          <span key={i.label} className="flex items-center gap-2.5 text-[13.5px] text-[#3a4a50]">
+            <span className="shrink-0 w-[18px] h-[18px] rounded-full bg-[#d8f3e7] text-[#0f6e56] grid place-items-center text-[11px] font-black leading-none">✓</span>
+            {i.label}
+          </span>
+        ))}
+      </div>
+      {togo && <p className="mt-3.5 pt-3 border-t border-[#f3ede2] text-[13px] text-[#6a7a80]">Everything&apos;s coming together — <strong className="text-[#00374a]">{togo}</strong>.</p>}
+    </div>
+  );
+}
+
 function DocLink({ href, label, sub }: { href: string; label: string; sub: string }) {
   return (
     <Link href={href} className="flex items-center gap-3 py-2.5 group">

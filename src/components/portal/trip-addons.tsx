@@ -322,7 +322,7 @@ export function TripAddons({ bookingId, depositPaid, hasDeposit, securingLabel, 
           : (resolved ? (active.length ? `${active.length} requested — tap to manage` : "No extras — tap to change") : "Tap to add extra nights, gear & more");
         return (
           <div key={s.key} id={isFlights ? "prep-flights" : undefined} className="rounded-xl border border-[#eee2cf] bg-[#fffdf8] overflow-hidden scroll-mt-20">
-            <button onClick={toggle} className="flex items-center gap-3 w-full text-left px-3 py-2.5 hover:bg-[#fbf6ec] transition-colors">
+            <button onClick={toggle} className="flex items-center gap-3 w-full text-left px-3.5 py-3 min-h-[54px] hover:bg-[#fbf6ec] transition-colors">
               {badge(i, done)}
               <div className="min-w-0 flex-1">
                 <p className="text-[14px] font-bold text-[#00374a] leading-tight">
