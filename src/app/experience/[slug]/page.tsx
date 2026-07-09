@@ -293,6 +293,7 @@ export default async function ExperienceDetailPage({ params }: Props) {
       fromPrice: pks.length ? Math.min(...pks.map((p) => p.price)) : null,
       deposit: ed.deposit,
       coaches: ed.coaches,
+      dateStart: ed.date_start,
     };
   });
 

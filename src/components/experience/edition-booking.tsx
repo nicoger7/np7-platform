@@ -12,6 +12,7 @@ export type EditionLite = {
   fromPrice: number | null;
   deposit: number | null;
   coaches: string | null;
+  dateStart: string | null;
 };
 
 /**
@@ -41,6 +42,17 @@ export function EditionBooking({
 
   const symbol = currency === "EUR" || !currency ? "€" : `${currency} `;
   const fmt = (n: number) => `${symbol}${n.toLocaleString("en-US")}`;
+
+  // When a week's full, don't dead-end: surface the other bookable weeks — this
+  // season's still-open weeks, and any FUTURE-year edition as an early-bird
+  // pre-sale (same register + refundable-downpayment flow, no special code).
+  const yearOf = (e: EditionLite) => (e.dateStart ? new Date(e.dateStart + "T00:00:00Z").getUTCFullYear() : new Date().getUTCFullYear());
+  const currentYear = ed?.dateStart ? yearOf(ed) : new Date().getUTCFullYear();
+  const openOthers = editions
+    .filter((e) => e.id !== ed?.id && (e.spotsLeft == null || e.spotsLeft > 0))
+    .sort((a, b) => ((a.dateStart ?? "") < (b.dateStart ?? "") ? -1 : 1));
+  const sameSeason = openOthers.filter((e) => yearOf(e) <= currentYear);
+  const nextSeason = openOthers.filter((e) => yearOf(e) > currentYear);
 
   return (
     <div>
@@ -98,18 +110,55 @@ export function EditionBooking({
 
       {/* key forces a fresh picker (resets level/accommodation) when the week changes */}
       {selectedFull ? (
-        <div className="max-w-[560px] mx-auto text-center rounded-2xl border border-[#f0e6d6] bg-white p-8">
-          <span className="inline-block px-3 py-1 rounded-full text-[12px] font-bold text-white bg-[#f47b20] mb-4">Fully booked</span>
-          <h3 className="text-[20px] font-black text-[#00374a] mb-2">{multi ? "This week is fully booked" : "This trip is fully booked"}</h3>
-          <p className="text-[14px] text-[#5a6b72] leading-relaxed mb-6">
-            {multi ? "Pick another week above, or join the waitlist" : "Every spot is taken"} — plans change and places free up. Join the waitlist and we&apos;ll reach out the moment one opens.
-          </p>
-          <a
-            href={`mailto:experience@np-seven.com?subject=Waitlist: ${experienceTitle}${multi && ed?.label ? " · " + ed.label : ""}`}
-            className="inline-block px-7 py-3.5 rounded-full text-[13.5px] font-bold text-white bg-[#00afdb] hover:bg-[#15c0ec] transition-colors"
-          >
-            Join the waitlist
-          </a>
+        <div className="max-w-[620px] mx-auto rounded-2xl border border-[#f0e6d6] bg-white p-6 sm:p-8">
+          <div className="text-center">
+            <span className="inline-block px-3 py-1 rounded-full text-[12px] font-bold text-white bg-[#f47b20] mb-3">Fully booked</span>
+            <h3 className="text-[20px] font-black text-[#00374a] mb-1.5">{multi ? "This week is fully booked" : "This trip is fully booked"}</h3>
+            <p className="text-[14px] text-[#5a6b72] leading-relaxed">Every spot is taken — but you&apos;ve still got options.</p>
+          </div>
+
+          {/* This season's other open weeks — book now, spot secured with the down-payment. */}
+          {sameSeason.length > 0 && (
+            <div className="mt-5">
+              <p className="text-[11px] font-bold tracking-[0.14em] uppercase text-[#9aa6ac] mb-2">Weeks with space</p>
+              <div className="space-y-2">
+                {sameSeason.map((e) => (
+                  <button key={e.id} onClick={() => setSel(e.id)}
+                    className="w-full flex items-center justify-between gap-3 rounded-xl border border-[#e3e9ec] bg-white hover:border-[#9fd9e8] px-4 py-3 text-left transition-colors">
+                    <span className="min-w-0"><span className="block font-bold text-[#00374a]">{e.label}</span><span className="text-[13px] text-[#5a6b72]">{e.shortRange}</span></span>
+                    <span className="shrink-0 text-right">
+                      {e.spotsLeft != null && <span className="block text-[11px] font-bold text-green-600">{e.spotsLeft} left</span>}
+                      {e.fromPrice != null && <span className="text-[13px] font-bold text-[#00afdb]">from {fmt(e.fromPrice)} →</span>}
+                    </span>
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Next-year edition = early-bird pre-sale: real, refundable down-payment now. */}
+          {nextSeason.length > 0 && (
+            <div className="mt-5 rounded-xl border-2 border-[#00afdb]/30 bg-[#00afdb]/[0.04] p-4">
+              <p className="text-[11px] font-bold tracking-[0.14em] uppercase text-[#0782a0] mb-1">Beat the rush · {yearOf(nextSeason[0])}</p>
+              <p className="text-[15px] text-[#00374a] font-black mb-0.5">Secure your {yearOf(nextSeason[0])} spot early</p>
+              <p className="text-[13px] text-[#5a6b72] mb-3">These weeks sell out. Lock yours in now with a fully-refundable down-payment.</p>
+              <div className="space-y-2">
+                {nextSeason.map((e) => (
+                  <button key={e.id} onClick={() => setSel(e.id)}
+                    className="w-full flex items-center justify-between gap-3 rounded-lg bg-white border border-[#bfe8f3] hover:border-[#00afdb] px-4 py-3 text-left transition-colors">
+                    <span className="min-w-0"><span className="block font-bold text-[#00374a]">{e.label}</span><span className="text-[13px] text-[#5a6b72]">{e.shortRange}</span></span>
+                    <span className="shrink-0 text-[13px] font-bold text-[#00afdb]">{e.fromPrice != null ? `from ${fmt(e.fromPrice)} →` : "Secure →"}</span>
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+
+          <div className="mt-5 pt-4 border-t border-[#f0e6d6] flex flex-col sm:flex-row items-center justify-center gap-2.5 sm:gap-4 text-center">
+            <a href={`mailto:experience@np-seven.com?subject=Waitlist: ${experienceTitle}${ed?.label ? " · " + ed.label : ""}`} className="text-[13px] font-bold text-[#5a6b72] hover:text-[#00374a] transition-colors">Waitlist this week — tell me if a spot opens</a>
+            <span className="hidden sm:inline text-[#d3dbde]">·</span>
+            <a href="/experience" className="text-[13px] font-bold text-[#00afdb] hover:underline">Explore other trips →</a>
+          </div>
         </div>
       ) : packages.length > 0 ? (
         <PackagePicker
