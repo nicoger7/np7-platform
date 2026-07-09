@@ -4,7 +4,11 @@ import { useEffect, useRef, useState } from "react";
 import type { Map as LeafletMap } from "leaflet";
 import "leaflet/dist/leaflet.css";
 
-export type MapSpot = { lat: number; lng: number; name: string; destSlug: string; destName?: string; verification?: string };
+export type MapSpot = {
+  lat: number; lng: number; name: string; destSlug: string; destName?: string; verification?: string;
+  // Optional destination context for a richer popup card (index map only).
+  thumb?: string | null; rating?: number; ratingKind?: "np7" | "member"; spotCount?: number; level?: string | null;
+};
 
 /**
  * Spotguide map — NP7-branded pins on CARTO tiles, destination-aware clustering
@@ -51,10 +55,19 @@ export function SpotMap({ spots, cluster = false, height = 420, linkLabel = "Vie
           html: `<div style="${teardrop(fill)}"><div style="transform:rotate(45deg);width:100%;height:100%;display:flex;align-items:center;justify-content:center"><span style="width:7px;height:7px;border-radius:50%;background:#fff;display:block"></span></div></div>`,
           iconSize: [26, 26], iconAnchor: [13, 26], popupAnchor: [0, -24],
         });
+        // Richer card: thumbnail + a meta row (rating · spots · level) when the
+        // caller supplies destination context; falls back to the plain card.
+        const meta: string[] = [];
+        if (s.rating && s.rating > 0) meta.push(`<span style="font-weight:700;color:#00374a">${s.ratingKind === "np7" ? "NP7 " : ""}★ ${s.rating.toFixed(1)}</span>`);
+        if (s.spotCount) meta.push(`<span>${s.spotCount} spot${s.spotCount === 1 ? "" : "s"}</span>`);
+        if (s.level) meta.push(`<span>${s.level}</span>`);
         const m = L.marker([s.lat, s.lng], { icon }).bindPopup(
-          `<div style="font-family:inherit;min-width:150px"><strong style="color:#00374a;font-size:13.5px">${s.name}</strong>` +
-            (s.destName ? `<div style="color:#6a7a80;font-size:12px;margin-top:2px">${s.destName}</div>` : "") +
-            `<a href="/spotguide/${s.destSlug}" style="color:#00afdb;font-weight:700;font-size:12.5px;display:inline-block;margin-top:6px;text-decoration:none">${linkLabel}</a></div>`
+          `<div style="font-family:inherit;width:${s.thumb ? 200 : 158}px">` +
+            (s.thumb ? `<div style="height:92px;border-radius:10px;background:#e8f1f3 center/cover no-repeat;background-image:url('${s.thumb}');margin-bottom:8px"></div>` : "") +
+            `<strong style="color:#00374a;font-size:13.5px">${s.name}</strong>` +
+            (s.destName ? `<div style="color:#6a7a80;font-size:12px;margin-top:1px">${s.destName}</div>` : "") +
+            (meta.length ? `<div style="display:flex;gap:9px;flex-wrap:wrap;margin-top:6px;font-size:11.5px;color:#5a6b72">${meta.join("")}</div>` : "") +
+            `<a href="/spotguide/${s.destSlug}" style="color:#00afdb;font-weight:700;font-size:12.5px;display:inline-block;margin-top:8px;text-decoration:none">${linkLabel}</a></div>`
         );
         // stash the destination on the marker so clusters can label themselves
         // eslint-disable-next-line @typescript-eslint/no-explicit-any

@@ -8,6 +8,7 @@ import { SectionHeader } from "@/components/shared/section-header";
 import { BlogFooter } from "@/components/blog/blog-footer";
 import { SpotguideBrowser } from "@/components/spotguide/spotguide-browser";
 import { ContributeSpot } from "@/components/spotguide/contribute-spot";
+import { cdnImage } from "@/lib/img";
 import { flags } from "@/lib/flags";
 
 export const metadata: Metadata = {
@@ -25,6 +26,25 @@ export default async function SpotguideIndex() {
   // All real spot points, clustered by the map itself: zoomed out a destination
   // reads as ONE branded bubble (count + name), zooming in splits into spots —
   // scales to hundreds of spots without a dot-soup.
+
+  // Enrich each pin with its destination's headline (thumb · rating · #spots ·
+  // level) so tapping a pin shows real info in the popup, not just a link.
+  const destBySlug = new Map(dests.map((d) => [d.slug, d]));
+  const mapPoints = points.map((p) => {
+    const d = destBySlug.get(p.destSlug);
+    if (!d) return p;
+    const level = d.level_min && d.level_max && d.level_min !== d.level_max
+      ? `${d.level_min}–${d.level_max}`
+      : d.level_min || d.level_max || null;
+    return {
+      ...p,
+      thumb: d.hero_image ? cdnImage(d.hero_image, { width: 360 }) : null,
+      rating: d.np7 > 0 ? d.np7 : d.member.count > 0 ? d.member.overall : 0,
+      ratingKind: (d.np7 > 0 ? "np7" : "member") as "np7" | "member",
+      spotCount: d.spotCount,
+      level,
+    };
+  });
 
   return (
     <>
@@ -66,7 +86,7 @@ export default async function SpotguideIndex() {
               {points.length > 0 && (
                 <div className="mb-10">
                   <h2 className="text-[13px] font-black uppercase tracking-[0.14em] text-[#9aa6ac] mb-3">Where we ride <span className="text-[#c3b9a6]">({dests.length} destination{dests.length === 1 ? "" : "s"} · {points.length} spots)</span></h2>
-                  <SpotMap spots={points} cluster height={460} linkLabel="Explore the spots →" />
+                  <SpotMap spots={mapPoints} cluster height={460} linkLabel="Explore the spots →" />
                 </div>
               )}
               <SpotguideBrowser dests={dests} accent={chrome.accent} />
