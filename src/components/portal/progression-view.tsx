@@ -211,8 +211,8 @@ export function ProgressionView({ progression }: { progression: Progression }) {
       </div>
       <a href={WINDCOACH_URL} target="_blank" rel="noopener" className="flex items-center gap-2.5 rounded-xl px-3 py-2.5 mt-2 hover:brightness-[0.99] transition-all" style={{ background: "#efeafb", border: "1px solid #ddd2f2" }}>
         <span className="shrink-0"><Ico name="video" size={20} color={PURPLE} /></span>
-        <span className="text-[12.5px] flex-1" style={{ color: "#4a3b7a" }}>Between trips, keep progressing with <strong>wind.coach</strong> — get your skills video-verified year-round.</span>
-        <span className="inline-flex items-center gap-1 text-[12px] font-bold text-white rounded-full px-3 py-1.5 whitespace-nowrap" style={{ background: PURPLE }}>Open wind.coach ↗</span>
+        <span className="text-[12.5px] flex-1" style={{ color: "#4a3b7a" }}>Between trips, keep progressing with <strong>Wind Coach</strong> — get your skills video-verified year-round.</span>
+        <span className="inline-flex items-center gap-1 text-[12px] font-bold text-white rounded-full px-3 py-1.5 whitespace-nowrap" style={{ background: PURPLE }}>Open Wind Coach ↗</span>
       </a>
 
       {/* discipline pills — core three + Wave & Freestyle as a 4th */}
