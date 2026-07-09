@@ -97,7 +97,7 @@ export default async function AccountHome() {
     <>
       <PortalChrome />
       <main className="min-h-[100svh] bg-[#fff7ec]">
-        <div className="max-w-[1000px] mx-auto px-5 sm:px-8 py-10 sm:py-14">
+        <div className="max-w-[1000px] mx-auto px-5 sm:px-8 py-7 sm:py-9">
           <MemberHomeBanner
             images={bannerImages}
             name={first}
@@ -190,7 +190,6 @@ export default async function AccountHome() {
             <SectionCard href="/account/trips" title="My trips" desc={bookings.length ? `${bookings.length} trip${bookings.length === 1 ? "" : "s"} · prep, photos` : "Book your first adventure"} icon={<path d="M3 7l9-4 9 4-9 4-9-4zM3 7v10l9 4 9-4V7M12 11v10" />} />
             {bookings.length > 0 && <SectionCard href="/account/memories" title="My memories" desc="Photos from all your trips" icon={<><rect x="3" y="3" width="18" height="18" rx="2" /><circle cx="8.5" cy="8.5" r="1.5" /><path d="m21 15-5-5L5 21" /></>} />}
             {flags.showGear && <SectionCard href="/account/gear" title="My gear" desc="Board & fin orders" icon={<><rect x="3" y="3" width="18" height="18" rx="2" /><path d="M3 9h18M9 21V9" /></>} />}
-            <SectionCard href="/account/level" title="Progress" desc="Your level & skills" icon={<path d="M4 19V5M4 19h16M8 16v-4M12 16V8M16 16v-7" />} />
             {flags.showExperience && <SectionCard href="/experience" title="Explore" desc="Trips & destinations" icon={<><circle cx="12" cy="12" r="9" /><path d="M3 12h18M12 3a15 15 0 0 1 0 18 15 15 0 0 1 0-18z" /></>} />}
           </div>
         </div>

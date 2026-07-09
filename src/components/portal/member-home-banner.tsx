@@ -26,10 +26,10 @@ export function MemberHomeBanner({
   const fallback = variant === "hardware" ? "bg-[#b9770a]" : "bg-[#00374a]";
 
   return (
-    <div className="relative rounded-3xl overflow-hidden mb-7 min-h-[210px] sm:min-h-[260px] flex items-end">
+    <div className="relative rounded-3xl overflow-hidden mb-7 min-h-[164px] sm:min-h-[190px] flex items-end">
       {images.length > 0 ? <Slideshow images={images} interval={6000} /> : <div className={`absolute inset-0 ${fallback}`} />}
       <div className={`absolute inset-0 ${overlay}`} />
-      <div className="relative p-6 sm:p-9 text-white">
+      <div className="relative p-6 sm:p-7 text-white">
         <h1 className="text-3xl sm:text-4xl font-black tracking-[-0.03em] drop-shadow-sm">{title ?? `Hey ${name ?? "there"}`}</h1>
         <p className="text-[15px] text-white/85 mt-1.5 max-w-[560px]">{subtitle}</p>
       </div>
