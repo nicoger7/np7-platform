@@ -105,12 +105,15 @@ function TrackCard({ track, onLog, onUndo, busyId }: { track: Track } & LogHandl
           const complete = done === g.skills.length;
           return (
             <details key={g.band} open={!complete} className="group rounded-xl border border-[#f4ecdd] overflow-hidden [&_summary::-webkit-details-marker]:hidden">
-              <summary className="flex items-center gap-2 px-3 py-2 cursor-pointer select-none list-none bg-[#fbf6ec]">
-                <span className="text-[12px] font-black tracking-wide uppercase" style={{ color: complete ? "#1aa851" : "#8a9aa0" }}>
+              <summary className="flex items-center gap-2.5 px-3 py-2 cursor-pointer select-none list-none bg-[#fbf6ec]">
+                <span className="shrink-0 text-[12px] font-black tracking-wide uppercase" style={{ color: complete ? "#1aa851" : "#8a9aa0" }}>
                   {RANKS[g.band]}
                 </span>
-                <span className="text-[11.5px] font-semibold text-[#a9b4b9]">{done}/{g.skills.length}{complete ? " ✓" : ""}</span>
-                <svg className="w-3.5 h-3.5 ml-auto text-[#c0ccd0] transition-transform group-open:rotate-180" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M6 9l6 6 6-6" /></svg>
+                <span className="shrink-0 text-[11.5px] font-semibold text-[#a9b4b9]">{done}/{g.skills.length}{complete ? " ✓" : ""}</span>
+                <span className="flex-1 min-w-[24px] h-1.5 rounded-full bg-[#efe6d4] overflow-hidden">
+                  <span className="block h-full rounded-full transition-[width] duration-500" style={{ width: `${Math.round((done / g.skills.length) * 100)}%`, background: complete ? "#1aa851" : "linear-gradient(90deg,#ffc42e,#f47b20 55%,#00afdb)" }} />
+                </span>
+                <svg className="w-3.5 h-3.5 shrink-0 text-[#c0ccd0] transition-transform group-open:rotate-180" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M6 9l6 6 6-6" /></svg>
               </summary>
               <div className="flex flex-col gap-1.5 p-2">
                 {g.skills.map((s) => <SkillRow key={s.id} s={s} onLog={onLog} onUndo={onUndo} busyId={busyId} />)}
@@ -165,24 +168,24 @@ export function ProgressionView({ progression }: { progression: Progression }) {
   return (
     <div>
       {/* hero — rank + the ladder to the next milestone */}
-      <div className="rounded-2xl px-5 py-4 text-white" style={{ background: TEAL }}>
+      <div className="rounded-[24px] px-5 py-5 text-white shadow-[0_14px_40px_rgba(0,55,74,0.18)]" style={{ background: "linear-gradient(155deg,#00485f 0%,#00323f 55%,#012732 100%)" }}>
         <div className="flex items-center gap-3">
-          <div className="w-12 h-12 rounded-full grid place-items-center font-black text-[15px] shrink-0" style={{ background: CYAN, color: TEAL }}>NP</div>
+          <div className="w-12 h-12 rounded-full grid place-items-center font-black text-[15px] shrink-0" style={{ background: "linear-gradient(145deg,#22c3ea,#00afdb)", color: TEAL }}>NP</div>
           <div className="min-w-0">
-            <div className="text-[13px]" style={{ color: "#9fc9d6" }}>Your rank</div>
-            <div className="text-[26px] font-black leading-none">{level}</div>
+            <div className="text-[11px] font-bold uppercase tracking-[0.14em]" style={{ color: "#7fa6b3" }}>Your rank</div>
+            <div className="text-[27px] font-black leading-none mt-0.5">{level}</div>
           </div>
           <div className="ml-auto text-right shrink-0">
             <div className="inline-flex items-center gap-1.5 text-[12px] font-bold rounded-full px-3 py-1.5" style={{ background: "rgba(255,255,255,.1)", color: "#cdeaf3" }}>
-              <Ico name={mastered ? "trophy" : "target"} size={14} color={mastered ? GOLD : CYAN} /> {toNextLabel}
+              <Ico name={mastered ? "trophy" : "target"} size={14} color={mastered ? GOLD : "#ffc42e"} /> {toNextLabel}
             </div>
           </div>
         </div>
-        {/* rank ladder — 6 segments, the current one fills as you master its band */}
-        <div className="flex gap-1 mt-3.5">
+        {/* rank ladder — 6 segments, the current one fills (sun→sea) as you master its band */}
+        <div className="flex gap-1 mt-4">
           {ladder.map((r) => (
             <div key={r.name} className="flex-1 h-2 rounded-full overflow-hidden" style={{ background: r.done ? CYAN : "rgba(255,255,255,.14)" }}>
-              {r.current && <div className="h-full" style={{ width: `${pct}%`, background: CYAN }} />}
+              {r.current && <div className="h-full rounded-full transition-[width] duration-500" style={{ width: `${pct}%`, background: "linear-gradient(90deg,#ffc42e,#f47b20 55%,#00afdb)" }} />}
             </div>
           ))}
         </div>
