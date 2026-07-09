@@ -26,10 +26,11 @@ export type MemberBooking = {
     whatsapp_group_link: string | null; memories_video_url: string | null; hero_image: string | null;
   } | null;
   pkg: { name: string; price: number | null } | null;
+  wa_group: boolean | null;
 };
 
 const SELECT =
-  "id,status,experience_id,agreed_price,downpayment_received,final_payment_received,created_at," +
+  "id,status,experience_id,agreed_price,downpayment_received,final_payment_received,created_at,wa_group," +
   "exp_experiences(title,slug,currency,cancellation_policy,hero_image)," +
   "exp_editions(id,label,date_start,date_end,deposit,whatsapp_group_link,memories_video_url,hero_image)," +
   "exp_packages(name,price)";
@@ -43,7 +44,19 @@ function shape(b: any): MemberBooking {
     experience: b.exp_experiences ?? null,
     edition: b.exp_editions ?? null,
     pkg: b.exp_packages ?? null,
+    wa_group: b.wa_group ?? null,
   };
+}
+
+/** The experience's pre-trip content (written once in admin → Event Content →
+    Pre-trip): the packing list and Nico's personal note. Same source the
+    pre-trip emails use, so the trip account shows exactly what the emails
+    promise is "in your account". */
+export async function getPreTripContent(experienceId: string): Promise<{ packingList: string | null; preTripNote: string | null }> {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const db = createAdminClient() as any;
+  const { data } = await db.from("exp_content").select("packing_list,pre_trip_note").eq("experience_id", experienceId).maybeSingle();
+  return { packingList: data?.packing_list ?? null, preTripNote: data?.pre_trip_note ?? null };
 }
 
 export async function getMemberBookings(contactId: string): Promise<MemberBooking[]> {

@@ -2,7 +2,7 @@ import Link from "next/link";
 import { redirect, notFound } from "next/navigation";
 import type { Metadata } from "next";
 import { getPortalUser } from "@/lib/auth";
-import { getMemberBooking, getTripGalleryGroupsForBooking, getBookingPhotoSharing, getBookingPaid, getBookingHotel, getEditionCoaches, getMemoryDownloadsRemaining, getConfirmedAddonsTotal, getBookingFlights, getExperienceArrivalInfo, getCrewProfiles } from "@/lib/portal-data";
+import { getMemberBooking, getTripGalleryGroupsForBooking, getBookingPhotoSharing, getBookingPaid, getBookingHotel, getEditionCoaches, getMemoryDownloadsRemaining, getConfirmedAddonsTotal, getBookingFlights, getExperienceArrivalInfo, getCrewProfiles, getPreTripContent } from "@/lib/portal-data";
 import { bookingStatus, fmtDates, money } from "@/lib/portal-status";
 import { isAttending } from "@/lib/types";
 import { PortalChrome } from "@/components/portal/portal-chrome";
@@ -37,7 +37,7 @@ export default async function BookingDetail({ params }: Props) {
   if (!b) notFound();
 
   const chip = bookingStatus(b);
-  const [galleryGroups, paid, hotel, coaches, downloadsRemaining, addonsTotal, flights, arrival, crew, photosShared] = await Promise.all([
+  const [galleryGroups, paid, hotel, coaches, downloadsRemaining, addonsTotal, flights, arrival, crew, photosShared, preTrip] = await Promise.all([
     b.edition?.id ? getTripGalleryGroupsForBooking(b.edition.id, b.id).catch(() => []) : Promise.resolve([]),
     getBookingPaid(b.id).catch(() => 0),
     getBookingHotel(b.id).catch(() => null),
@@ -48,7 +48,9 @@ export default async function BookingDetail({ params }: Props) {
     b.experience_id ? getExperienceArrivalInfo(b.experience_id).catch(() => null) : Promise.resolve(null),
     b.edition?.id ? getCrewProfiles(b.edition.id, user.contactId).catch(() => ({ going: 0, sharing: 0, profiles: [] })) : Promise.resolve({ going: 0, sharing: 0, profiles: [] }),
     getBookingPhotoSharing(b.id).catch(() => true),
+    b.experience_id ? getPreTripContent(b.experience_id).catch(() => ({ packingList: null, preTripNote: null })) : Promise.resolve({ packingList: null, preTripNote: null }),
   ]);
+  const packingItems = (preTrip.packingList ?? "").split("\n").map((s) => s.trim()).filter(Boolean);
 
   const baseTotal = b.agreed_price ?? null;
   const total = baseTotal != null ? baseTotal + addonsTotal : addonsTotal > 0 ? addonsTotal : null;
@@ -289,7 +291,7 @@ export default async function BookingDetail({ params }: Props) {
   // ── Tab content ──────────────────────────────────────────────────────────
   const prepContent = (
     <>
-      <TripAddons bookingId={b.id} depositPaid={depositPaid} hasDeposit={hasDeposit} securingLabel={securingLabel} initialFlights={flights} arrival={arrival} editionStart={b.edition?.date_start ?? null} editionEnd={b.edition?.date_end ?? null} />
+      <TripAddons bookingId={b.id} depositPaid={depositPaid} hasDeposit={hasDeposit} securingLabel={securingLabel} initialFlights={flights} arrival={arrival} editionStart={b.edition?.date_start ?? null} editionEnd={b.edition?.date_end ?? null} groupLink={b.edition?.whatsapp_group_link ?? null} joinedGroup={!!b.wa_group} />
       <div className="mt-5 pt-4 border-t border-[#f3ede2]"><ExtraNightsButton bookingId={b.id} /></div>
       <div className="mt-6 pt-5 border-t border-[#f3ede2]">
         <p className="text-[11px] font-bold tracking-[0.14em] uppercase text-[#9aa6ac] mb-2.5">Participation waiver</p>
@@ -300,6 +302,26 @@ export default async function BookingDetail({ params }: Props) {
 
   const tripContent = (
     <div className="space-y-6">
+      {preTrip.preTripNote && (
+        <div className="rounded-2xl border border-[#f0e6d6] bg-[#fffdf8] p-5">
+          <p className="text-[11px] font-bold tracking-[0.14em] uppercase text-[#9aa6ac] mb-2">A note from Nico</p>
+          <p className="text-[14px] text-[#3a4a50] leading-relaxed whitespace-pre-line">{preTrip.preTripNote}</p>
+        </div>
+      )}
+      {packingItems.length > 0 && (
+        <div>
+          <p className="text-[11px] font-bold tracking-[0.14em] uppercase text-[#9aa6ac] mb-2">What to bring</p>
+          <ul className="grid sm:grid-cols-2 gap-x-6 gap-y-2">
+            {packingItems.map((it, i) => (
+              <li key={i} className="flex items-start gap-2.5 text-[13.5px] text-[#3a4a50] leading-snug">
+                <span className="mt-[3px] w-3.5 h-3.5 rounded border border-[#c9d6da] shrink-0" />
+                <span>{it}</span>
+              </li>
+            ))}
+          </ul>
+          <p className="text-[12px] text-[#9aa6ac] mt-2.5">We&apos;ll remind you closer to departure — no need to memorise it.</p>
+        </div>
+      )}
       {hotel && (
         <div>
           <p className="text-[11px] font-bold tracking-[0.14em] uppercase text-[#9aa6ac] mb-2">Your stay</p>
