@@ -107,6 +107,11 @@ export default async function BookingDetail({ params }: Props) {
     (depositMilestone ? depositMilestone.status === "paid" : paid > 0) ||
     b.downpayment_received ||
     isAttending(b.status);
+  // Deposit vs down-payment: many packages have NO deposit (the % down-payment is
+  // the first, refundable securing payment). Labels must reflect the real config
+  // — never say "deposit" when the securing payment is the down-payment.
+  const hasDeposit = !!depositMilestone;
+  const securingLabel = hasDeposit ? "Pay your deposit" : "Secure your spot";
 
   // Cancellation copy — deposit-aware: many trips have no deposit (the 50%
   // downpayment is the first, 14-day-refundable payment), so don't mention one.
@@ -155,7 +160,10 @@ export default async function BookingDetail({ params }: Props) {
   } else if (fullyPaid) {
     hero = { eyebrow: "You're all set", title: daysToGo != null ? `${daysToGo} ${daysToGo === 1 ? "day" : "days"} to go 🎉` : "You're all set 🎉", body: "Everything's paid. Check your packing list and arrival info so you're ready to ride.", ctaLabel: "Open trip prep", ctaHref: "#prep", tone: "green" };
   } else if (!depositPaid && nextMilestone) {
-    hero = { eyebrow: "Your next step", title: "Secure your spot", body: `Pay the ${money(nextMilestone.amount, cur)} downpayment to lock in your place — fully refundable for 14 days.`, ctaLabel: "View payment plan", ctaHref: "#payment", tone: "coral" };
+    // Honest loss-aversion: name the real date we hold the place until (from the
+    // engine), then reassure with the 14-day refund. No fake scarcity.
+    const heldUntil = nextMilestone.dueDate ? new Date(nextMilestone.dueDate).toLocaleDateString("en-GB", { day: "numeric", month: "long" }) : null;
+    hero = { eyebrow: "Your next step", title: "Secure your spot", body: `Pay the ${money(nextMilestone.amount, cur)} down-payment to lock in your place${heldUntil ? ` — we hold it for you until ${heldUntil}` : ""}. Fully refundable for 14 days.`, ctaLabel: "See how to pay", ctaHref: "#payment", tone: "coral" };
   } else if (nextMilestone) {
     hero = { eyebrow: "Your next step", title: `Balance due — ${money(nextMilestone.amount, cur)}`, body: `Pay by bank transfer${nextMilestone.dueDate ? ` (due ${new Date(nextMilestone.dueDate).toLocaleDateString("en-GB", { day: "numeric", month: "short" })})` : ""}. The bank details are in your payment plan.`, ctaLabel: "View payment plan", ctaHref: "#payment", tone: "amber" };
   } else {
@@ -197,6 +205,17 @@ export default async function BookingDetail({ params }: Props) {
       )}
       <div className="mt-3.5">
         <PaymentPlan milestones={plan} currency={cur} total={total ?? 0} paid={paid} />
+      </div>
+      {/* How to pay + the invoice/pro-forma (with the bank details & reference)
+          right where the money is — not buried in a separate documents tab. */}
+      <div className="mt-4 pt-4 border-t border-[#f3ede2]">
+        {!tripEnded && paid < (total ?? 0) && (
+          <>
+            <p className="text-[13px] font-bold text-[#00374a]">How to pay</p>
+            <p className="text-[12.5px] text-[#6a7a80] leading-snug mt-0.5">Pay by <strong className="text-[#00374a]">bank transfer</strong> using the account details and payment reference printed on your invoice below — no need to wait for our email. Send it any time before the due date; we mark it here once it lands.</p>
+          </>
+        )}
+        <MemberDocuments bookingId={b.id} />
       </div>
       {!tripEnded && paid < (total ?? 0) && (
         <div className="mt-4 pt-3 border-t border-[#f3ede2]"><RedeemVoucher bookingId={b.id} /></div>
@@ -272,7 +291,7 @@ export default async function BookingDetail({ params }: Props) {
             {/* trip prep — open before the trip */}
             {!tripStarted && (
               <Card id="prep" title="Trip prep">
-                <TripAddons bookingId={b.id} depositPaid={depositPaid} initialFlights={flights} arrival={arrival} editionStart={b.edition?.date_start ?? null} editionEnd={b.edition?.date_end ?? null} />
+                <TripAddons bookingId={b.id} depositPaid={depositPaid} hasDeposit={hasDeposit} securingLabel={securingLabel} initialFlights={flights} arrival={arrival} editionStart={b.edition?.date_start ?? null} editionEnd={b.edition?.date_end ?? null} />
                 <div className="mt-5 pt-4 border-t border-[#f3ede2]"><ExtraNightsButton bookingId={b.id} /></div>
               </Card>
             )}
@@ -327,7 +346,7 @@ export default async function BookingDetail({ params }: Props) {
             <Accordion id="docs" title="Travel documents">
               <DocLink href={`/account/bookings/${b.id}/confirmation`} label="Trip confirmation" sub="Your booking summary (print / save as PDF)" />
               <DocLink href="/experience/legal/package-travel" label="Standard information form" sub="Your rights under EU package-travel law" />
-              <MemberDocuments bookingId={b.id} />
+              <p className="text-[12.5px] text-[#9aa6ac] py-2.5">Your invoices &amp; pro-forma live in the <a href="#payment" className="font-semibold text-[#00afdb] hover:underline">Payment plan</a> above.</p>
               <details className="mt-2 border-t border-[#f3ede2] pt-3">
                 <summary className="text-[14px] font-semibold text-[#00374a] cursor-pointer">Cancellation policy</summary>
                 <p className="text-[13px] text-[#6a7a80] leading-relaxed mt-2 whitespace-pre-line">{cancellation}</p>

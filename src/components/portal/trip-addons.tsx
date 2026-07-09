@@ -12,19 +12,23 @@ type Mine = { id: string; component_id: string | null; label: string; price: num
 const nightsBetween = (a?: string | null, b?: string | null) => (a && b ? Math.round((Date.parse(b) - Date.parse(a)) / 86400000) : 0);
 const fmtDay = (d?: string | null) => (d ? new Date(d + "T00:00:00Z").toLocaleDateString("en-GB", { day: "numeric", month: "short", timeZone: "UTC" }) : "");
 
-const STEPS = [
-  { t: "Pay your deposit", d: "Secures your spot — done if you're here." },
-  { t: "Check your flights", d: "Find arrival/departure times that fit the week." },
-  { t: "Request extras", d: "Want extra nights, gear or more? Request them — or choose none." },
-  { t: "We confirm", d: "We'll confirm availability and add it to your trip." },
-  { t: "Book your flights", d: "Once your dates are set, lock in your flights." },
-];
+/** Strip the internal code prefix from an add-on's admin name for a clean
+    consumer label. "BON - Wanapa - Extra Night Double Deluxe Patio" →
+    "Wanapa · Extra Night Double Deluxe Patio". Conservative: drops only a
+    leading short destination code, then prettifies the remaining separators
+    (keeps the hotel so options at different hotels stay distinguishable). */
+function cleanAddonName(name: string): string {
+  return name
+    .replace(/^[A-Z0-9]{2,5}\s+[–—-]\s+/, "")
+    .replace(/\s+[–—-]\s+/g, " · ")
+    .trim();
+}
 
 function money(n: number | null) {
   return n != null ? `€${Number(n).toLocaleString("en-US")}` : "";
 }
 
-export function TripAddons({ bookingId, depositPaid, initialFlights, arrival, editionStart, editionEnd }: { bookingId: string; depositPaid: boolean; initialFlights: FlightInfo | null; arrival: ArrivalInfo | null; editionStart: string | null; editionEnd: string | null }) {
+export function TripAddons({ bookingId, depositPaid, hasDeposit, securingLabel, initialFlights, arrival, editionStart, editionEnd }: { bookingId: string; depositPaid: boolean; hasDeposit: boolean; securingLabel: string; initialFlights: FlightInfo | null; arrival: ArrivalInfo | null; editionStart: string | null; editionEnd: string | null }) {
   const [available, setAvailable] = useState<Available[]>([]);
   const [mine, setMine] = useState<Mine[]>([]);
   const [loading, setLoading] = useState(true);
@@ -139,7 +143,7 @@ export function TripAddons({ bookingId, depositPaid, initialFlights, arrival, ed
             <div key={a.id} className="bg-[#f8fbfc] rounded-xl px-4 py-3">
               <div className="flex items-center justify-between gap-3">
                 <div className="min-w-0 flex-1">
-                  <p className="text-[14px] font-semibold text-[#00374a] truncate">{a.name}{a.sell_price ? ` · ${money(a.sell_price)}/night` : ""}</p>
+                  <p className="text-[14px] font-semibold text-[#00374a] truncate">{cleanAddonName(a.name)}{a.sell_price ? ` · ${money(a.sell_price)}/night` : ""}</p>
                   {a.description && <p className="text-[12.5px] text-[#8a9aa0] truncate">{a.description}</p>}
                 </div>
                 {!open && (
@@ -176,7 +180,7 @@ export function TripAddons({ bookingId, depositPaid, initialFlights, arrival, ed
         return (
           <div key={a.id} className="flex items-center justify-between gap-3 bg-[#f8fbfc] rounded-xl px-4 py-3">
             <div className="min-w-0 flex-1">
-              <p className="text-[14px] font-semibold text-[#00374a] truncate">{a.name}{a.sell_price ? ` · ${money(a.sell_price)}` : ""}</p>
+              <p className="text-[14px] font-semibold text-[#00374a] truncate">{cleanAddonName(a.name)}{a.sell_price ? ` · ${money(a.sell_price)}` : ""}</p>
               {a.description && <p className="text-[12.5px] text-[#8a9aa0] truncate">{a.description}</p>}
             </div>
             <button onClick={() => request(a.id)} disabled={busy === a.id}
@@ -199,23 +203,38 @@ export function TripAddons({ bookingId, depositPaid, initialFlights, arrival, ed
     </span>
   );
 
+  // Prep steps — flights lead (people sort flights right after the free
+  // sign-up), then securing the spot with the down-payment (or deposit, when
+  // the package sets one), then extras. Labels adapt to the package so it never
+  // says "deposit" when the securing payment is really the down-payment.
+  const steps: { key: "flights" | "secure" | "extras" | "confirm" | "book"; t: string; d: string }[] = [
+    { key: "flights", t: "Check your flights", d: "Find arrival/departure times that fit the week — you've got time before the down-payment's due." },
+    { key: "secure", t: securingLabel, d: depositPaid ? "Your spot is secured ✓" : `Pay the ${hasDeposit ? "deposit" : "down-payment"} to lock in your place — refundable for 14 days.` },
+    { key: "extras", t: "Request extras", d: "Want extra nights, gear or more? Request them — or choose none." },
+    { key: "confirm", t: "We confirm", d: "We'll confirm availability and add it to your trip." },
+    { key: "book", t: "Book your flights", d: "Once your dates are set, lock in your flights." },
+  ];
+
   return (
     <div className="space-y-2">
-      {STEPS.map((s, i) => {
-        const done = (i === 0 && depositPaid) || (i === 1 && flightsSaved) || (i === 2 && resolved) || (i === 3 && addonsConfirmed) || (i === 4 && flightsBooked);
-        const isFlights = i === 1;
-        const isExtras = i === 2;
+      {steps.map((s, i) => {
+        const done = s.key === "flights" ? flightsSaved : s.key === "secure" ? depositPaid : s.key === "extras" ? resolved : s.key === "confirm" ? addonsConfirmed : flightsBooked;
+        const isFlights = s.key === "flights";
+        const isExtras = s.key === "extras";
         const open = (isFlights && showFlights) || (isExtras && showOffers);
 
-        // Non-interactive steps (deposit, we confirm, book flights w/ button)
+        // Non-interactive steps (secure, we confirm, book flights w/ button)
         if (!isFlights && !isExtras) {
           return (
-            <div key={s.t} className="flex gap-3 px-1 py-1">
+            <div key={s.key} className="flex gap-3 px-1 py-1">
               {badge(i, done)}
               <div className="min-w-0">
                 <p className="text-[14px] font-bold text-[#00374a] leading-tight">{s.t}</p>
-                <p className="text-[12.5px] text-[#8a9aa0] leading-snug">{i === 3 && addonsConfirmed ? (active.length > 0 ? "All your extras are confirmed and added to your trip." : "No extras to confirm — you're all set.") : s.d}</p>
-                {i === 4 && !flightsBooked && (
+                <p className="text-[12.5px] text-[#8a9aa0] leading-snug">{s.key === "confirm" && addonsConfirmed ? (active.length > 0 ? "All your extras are confirmed and added to your trip." : "No extras to confirm — you're all set.") : s.d}</p>
+                {s.key === "secure" && !done && (
+                  <a href="#payment" className="mt-1.5 inline-flex items-center gap-1 text-[12.5px] font-bold text-[#00afdb] hover:underline">See the payment plan &amp; how to pay →</a>
+                )}
+                {s.key === "book" && !flightsBooked && (
                   <button onClick={markBooked} className="mt-1.5 px-3 py-1 rounded-full text-[12px] font-bold text-white bg-[#00afdb] hover:bg-[#15c0ec] transition-colors">I&apos;ve booked them ✓</button>
                 )}
               </div>
@@ -229,7 +248,7 @@ export function TripAddons({ bookingId, depositPaid, initialFlights, arrival, ed
           ? (flightsSaved ? "Flight details added — tap to view or edit" : "Tap to add your flight details")
           : (resolved ? (active.length ? `${active.length} requested — tap to manage` : "No extras — tap to change") : "Tap to add extra nights, gear & more");
         return (
-          <div key={s.t} className="rounded-xl border border-[#eee2cf] bg-[#fffdf8] overflow-hidden">
+          <div key={s.key} className="rounded-xl border border-[#eee2cf] bg-[#fffdf8] overflow-hidden">
             <button onClick={toggle} className="flex items-center gap-3 w-full text-left px-3 py-2.5 hover:bg-[#fbf6ec] transition-colors">
               {badge(i, done)}
               <div className="min-w-0 flex-1">
@@ -291,7 +310,7 @@ export function TripAddons({ bookingId, depositPaid, initialFlights, arrival, ed
                       return (
                         <div key={m.id} className="flex items-start justify-between gap-3 text-[13.5px]">
                           <div className="min-w-0">
-                            <span className="font-semibold text-[#00374a] truncate block">{m.label}{m.price ? ` · ${money(m.price)}` : ""}</span>
+                            <span className="font-semibold text-[#00374a] truncate block">{cleanAddonName(m.label)}{m.price ? ` · ${money(m.price)}` : ""}</span>
                             {(m.meta?.checkIn || m.meta?.checkOut) && (
                               <span className="text-[12px] text-[#8a9aa0]">{fmtDay(m.meta.checkIn)} → {fmtDay(m.meta.checkOut)}</span>
                             )}
