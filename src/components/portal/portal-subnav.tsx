@@ -12,13 +12,13 @@ type Tab = { href: string; label: string; exact?: boolean; flag?: "gear"; icon?:
 // Cart is NOT a nav item — it's a contextual icon shown only on Hardware once the
 // cart has something in it (never on Experience).
 const DESKTOP_TABS: Tab[] = [
-  { href: "/account", label: "Home", exact: true },
-  { href: "/account/trips", label: "My trips" },
-  { href: "/account/gear", label: "My gear", flag: "gear" },
-  { href: "/account/level", label: "Progress" },
-  { href: "/account/vouchers", label: "Gift vouchers" },
-  { href: "/account/profile", label: "Profile" },
-  { href: "/account/settings", label: "Account" },
+  { href: "/account", label: "Home", exact: true, icon: "home" },
+  { href: "/account/trips", label: "My trips", icon: "trips" },
+  { href: "/account/gear", label: "My gear", flag: "gear", icon: "gear" },
+  { href: "/account/level", label: "Progress", icon: "progress" },
+  { href: "/account/vouchers", label: "Gift vouchers", icon: "gift" },
+  { href: "/account/profile", label: "Profile", icon: "user" },
+  { href: "/account/settings", label: "Account", icon: "cog" },
 ];
 const PRIMARY: Tab[] = [
   { href: "/account", label: "Home", exact: true, icon: "home" },
@@ -75,6 +75,7 @@ export function PortalSubnav({ tone, showGear = false }: { tone: Tone; showGear?
           {DESKTOP_TABS.filter(showTab).map((t) => (
             <Link key={t.href} href={t.href}
               className={`relative shrink-0 inline-flex items-center gap-1.5 px-3 h-12 text-[13px] font-bold tracking-wide transition-colors ${isActive(t) ? deskActive : "text-[#6a7a80] hover:text-[#00374a]"}`}>
+              {t.icon && <Icon name={t.icon} size={17} />}
               {t.label}
               {isActive(t) && <span className={`absolute left-3 right-3 bottom-0 h-0.5 rounded-full ${deskBar}`} />}
             </Link>
@@ -143,17 +144,18 @@ export function PortalSubnav({ tone, showGear = false }: { tone: Tone; showGear?
   );
 }
 
-type IconName = "home" | "trips" | "progress" | "gear" | "user" | "cart" | "more";
-function Icon({ name }: { name: IconName }) {
-  const p = "w-[22px] h-[22px]";
-  const c = { fill: "none", stroke: "currentColor", strokeWidth: 2, strokeLinecap: "round" as const, strokeLinejoin: "round" as const };
+type IconName = "home" | "trips" | "progress" | "gear" | "user" | "cart" | "more" | "gift" | "cog";
+function Icon({ name, size = 22 }: { name: IconName; size?: number }) {
+  const c = { width: size, height: size, fill: "none", stroke: "currentColor", strokeWidth: 2, strokeLinecap: "round" as const, strokeLinejoin: "round" as const };
   switch (name) {
-    case "home": return <svg className={p} viewBox="0 0 24 24" {...c}><path d="M3 10.5L12 3l9 7.5M5 9.5V21h14V9.5" /></svg>;
-    case "trips": return <svg className={p} viewBox="0 0 24 24" {...c}><rect x="3" y="5" width="18" height="16" rx="2" /><path d="M3 9h18M8 3v4M16 3v4" /></svg>;
-    case "progress": return <svg className={p} viewBox="0 0 24 24" {...c}><path d="M4 19V5M4 19h16M8 16v-4M12 16V8M16 16v-7" /></svg>;
-    case "gear": return <svg className={p} viewBox="0 0 24 24" {...c}><path d="M21 16V8l-9-5-9 5v8l9 5 9-5zM3.3 7.5L12 12l8.7-4.5M12 12v9.5" /></svg>;
-    case "user": return <svg className={p} viewBox="0 0 24 24" {...c}><circle cx="12" cy="8" r="4" /><path d="M4 21c0-4 4-6 8-6s8 2 8 6" /></svg>;
-    case "cart": return <svg className={p} viewBox="0 0 24 24" {...c}><circle cx="9" cy="20" r="1.4" /><circle cx="18" cy="20" r="1.4" /><path d="M2 3h3l2.4 12.4a2 2 0 0 0 2 1.6h8.2a2 2 0 0 0 2-1.6L23 7H6" /></svg>;
-    case "more": return <svg className={p} viewBox="0 0 24 24" {...c}><circle cx="5" cy="12" r="1.4" /><circle cx="12" cy="12" r="1.4" /><circle cx="19" cy="12" r="1.4" /></svg>;
+    case "home": return <svg viewBox="0 0 24 24" {...c}><path d="M3 10.5L12 3l9 7.5M5 9.5V21h14V9.5" /></svg>;
+    case "trips": return <svg viewBox="0 0 24 24" {...c}><rect x="3" y="5" width="18" height="16" rx="2" /><path d="M3 9h18M8 3v4M16 3v4" /></svg>;
+    case "progress": return <svg viewBox="0 0 24 24" {...c}><path d="M4 19V5M4 19h16M8 16v-4M12 16V8M16 16v-7" /></svg>;
+    case "gear": return <svg viewBox="0 0 24 24" {...c}><path d="M21 16V8l-9-5-9 5v8l9 5 9-5zM3.3 7.5L12 12l8.7-4.5M12 12v9.5" /></svg>;
+    case "user": return <svg viewBox="0 0 24 24" {...c}><circle cx="12" cy="8" r="4" /><path d="M4 21c0-4 4-6 8-6s8 2 8 6" /></svg>;
+    case "gift": return <svg viewBox="0 0 24 24" {...c}><rect x="3" y="8" width="18" height="4" /><path d="M12 8v13M20 12v9H4v-9" /><path d="M7.5 8a2.5 2.5 0 0 1 0-5C11 3 12 8 12 8M16.5 8a2.5 2.5 0 0 0 0-5C13 3 12 8 12 8" /></svg>;
+    case "cog": return <svg viewBox="0 0 24 24" {...c}><circle cx="12" cy="12" r="3" /><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V15z" /></svg>;
+    case "cart": return <svg viewBox="0 0 24 24" {...c}><circle cx="9" cy="20" r="1.4" /><circle cx="18" cy="20" r="1.4" /><path d="M2 3h3l2.4 12.4a2 2 0 0 0 2 1.6h8.2a2 2 0 0 0 2-1.6L23 7H6" /></svg>;
+    case "more": return <svg viewBox="0 0 24 24" {...c}><circle cx="5" cy="12" r="1.4" /><circle cx="12" cy="12" r="1.4" /><circle cx="19" cy="12" r="1.4" /></svg>;
   }
 }
