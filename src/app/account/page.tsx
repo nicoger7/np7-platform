@@ -79,14 +79,13 @@ export default async function AccountHome() {
   ];
 
   // "Get set up" onboarding strip — endowed progress: account is always the
-  // first (done) step so the bar never starts at 0%. Every other step is a real,
-  // useful action gated on actual account state; the strip hides once all done.
+  // first (done) step so the bar never starts at 0%. This is ONE-TIME PROFILE
+  // setup only — the per-trip "secure your spot" action lives on the trip cards
+  // below (which handle multiple trips), so nothing is duplicated. The strip
+  // hides once the profile is complete.
   const setupSteps: SetupStep[] = profile
     ? [
         { key: "account", label: "Account created", done: true, href: "/account" },
-        ...(unsecured.length > 0
-          ? [{ key: "secure", label: "Secure your spot", hint: "Lock in your place with the refundable downpayment", done: false, href: `/account/bookings/${unsecured[0].id}`, accent: true }]
-          : []),
         { key: "level", label: "Set your riding level", hint: "So coaches meet you where you are", done: !!profile.self_level, href: "/account/level" },
         { key: "photo", label: "Add a profile photo", done: !!profile.avatar_url, href: "/account/profile" },
         { key: "handle", label: "Pick your @handle", hint: "Your name on the crew & spotguide", done: !!profile.username, href: "/account/profile" },
