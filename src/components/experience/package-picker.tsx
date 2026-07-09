@@ -25,6 +25,7 @@ export type ReserveTarget = {
   editionLabel: string | null;
   editionDates: string | null;
   spotsLeft?: number | null;
+  going?: number | null;
 };
 
 type Props = {

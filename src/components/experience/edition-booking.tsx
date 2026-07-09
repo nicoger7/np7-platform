@@ -13,6 +13,7 @@ export type EditionLite = {
   deposit: number | null;
   coaches: string | null;
   dateStart: string | null;
+  going: number | null;
 };
 
 /**
@@ -172,6 +173,7 @@ export function EditionBooking({
             editionLabel: multi ? ed?.label ?? null : null,
             editionDates: ed?.shortRange ?? null,
             spotsLeft: ed?.spotsLeft ?? null,
+            going: ed?.going ?? null,
           }}
         />
       ) : (

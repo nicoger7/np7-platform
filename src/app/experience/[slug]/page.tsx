@@ -294,6 +294,7 @@ export default async function ExperienceDetailPage({ params }: Props) {
       deposit: ed.deposit,
       coaches: ed.coaches,
       dateStart: ed.date_start,
+      going: securedByEd[ed.id] ?? 0,
     };
   });
 

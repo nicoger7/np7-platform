@@ -29,6 +29,8 @@ export type ReserveContext = {
   currency?: string;
   /** Real remaining capacity for this week — drives an honest "spots left" nudge. */
   spotsLeft?: number | null;
+  /** Riders already secured for this week — honest social proof, only when high. */
+  going?: number | null;
 };
 
 /**
@@ -92,6 +94,8 @@ export function ReserveModal({ ctx, onClose }: { ctx: ReserveContext; onClose: (
 
   const symbol = ctx.currency === "EUR" || !ctx.currency ? "€" : `${ctx.currency} `;
   const fmt = (n: number) => `${symbol}${n.toLocaleString("en-US")}`;
+  const refundDays = quote?.refundDays ?? 14;
+  const reassurance = `No payment now · downpayment fully refundable for ${refundDays} days · cancel anytime.`;
 
   async function go() {
     setError("");
@@ -152,39 +156,59 @@ export function ReserveModal({ ctx, onClose }: { ctx: ReserveContext; onClose: (
                   {ctx.editionLabel ? ` · ${ctx.editionLabel}` : ""}
                   {ctx.editionDates ? ` · ${ctx.editionDates}` : ""}
                 </p>
-                {/* Honest loss-aversion — only the REAL remaining count, and only
-                    when it's genuinely almost gone (last 3 or fewer). */}
-                {typeof ctx.spotsLeft === "number" && ctx.spotsLeft > 0 && ctx.spotsLeft <= 3 && (
-                  <span className="inline-flex items-center gap-1.5 mt-2 text-[11.5px] font-bold text-[#c4621a] bg-[#fdebd0] px-2.5 py-1 rounded-full">
-                    🌊 Only {ctx.spotsLeft} spot{ctx.spotsLeft === 1 ? "" : "s"} left this week
-                  </span>
-                )}
+                {/* Honest levers — the REAL numbers, only when they genuinely help:
+                    almost-gone (≤3 left) and a healthy crew already in (≥4 going). */}
+                <div className="flex flex-wrap gap-1.5 mt-2 empty:hidden">
+                  {typeof ctx.spotsLeft === "number" && ctx.spotsLeft > 0 && ctx.spotsLeft <= 3 && (
+                    <span className="inline-flex items-center gap-1.5 text-[11.5px] font-bold text-[#c4621a] bg-[#fdebd0] px-2.5 py-1 rounded-full">
+                      🌊 Only {ctx.spotsLeft} spot{ctx.spotsLeft === 1 ? "" : "s"} left this week
+                    </span>
+                  )}
+                  {typeof ctx.going === "number" && ctx.going >= 4 && (
+                    <span className="inline-flex items-center gap-1.5 text-[11.5px] font-bold text-[#0f6e56] bg-[#e6f5ee] px-2.5 py-1 rounded-full">
+                      🤙 Join {ctx.going} riders already in this week
+                    </span>
+                  )}
+                </div>
               </div>
               <button type="button" onClick={onClose} aria-label="Close" className="shrink-0 w-9 h-9 grid place-items-center rounded-full bg-[#f1f5f6] text-[#5a6b72] hover:bg-[#e4ebee]">
                 <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><path d="M18 6L6 18M6 6l12 12" /></svg>
               </button>
             </div>
 
-            {/* selection summary + the real payment schedule for this package */}
-            <div className="rounded-2xl bg-[#f7fbfc] border border-[#e6eef0] px-5 py-4 mb-6">
-              <div className="flex items-center justify-between gap-3 text-[14px]">
-                <span className="font-bold text-[#00374a]">{ctx.level} · {ctx.accommodation}</span>
-                <span className="font-bold text-[#00374a] shrink-0">{fmt(ctx.price)}</span>
-              </div>
-              <div className="flex items-center justify-between gap-3 mt-2 pt-2 border-t border-[#e6eef0] text-[13.5px]">
-                <span className="text-[#5a6b72]">Due today to register</span>
-                <span className="font-black text-[#00afdb] text-[15px] shrink-0">Free</span>
-              </div>
-              {quote && quote.milestones.map((m) => (
-                <div key={m.kind} className="flex items-start justify-between gap-3 mt-2 pt-2 border-t border-[#e6eef0] text-[13.5px]">
-                  <span className="text-[#5a6b72]">
-                    {m.kind === "deposit" ? "Deposit — secures your spot" : m.kind === "downpayment" ? `Downpayment (${quote.downpaymentPercent}% of your trip)` : "Final balance"}
-                    <span className="block text-[11.5px] text-[#9aa6ac] mt-0.5">{m.dueLabel}</span>
-                  </span>
-                  <span className="font-bold text-[#00374a] shrink-0">{fmt(m.amount)}</span>
-                </div>
-              ))}
+            {/* Hero: FREE is the loud element at the low-friction signup moment. */}
+            <div className="rounded-2xl bg-[#00afdb]/[0.07] border border-[#cdeefa] px-5 py-4 mb-3 text-center">
+              <p className="text-[27px] font-black tracking-[-0.02em] text-[#00afdb] leading-none">Free today</p>
+              <p className="text-[13px] text-[#5a6b72] mt-1.5">No card needed — pay <strong className="text-[#00374a]">{fmt(0)}</strong> to register.<br />{ctx.level} · {ctx.accommodation}, from <strong className="text-[#00374a]">{fmt(ctx.price)}</strong> paid later.</p>
             </div>
+
+            {/* Full payment plan — transparent, but on demand (they already saw the
+                price when choosing their package) so the numbers don't dominate. */}
+            <details className="group mb-6 rounded-2xl bg-[#f7fbfc] border border-[#e6eef0] overflow-hidden">
+              <summary className="flex items-center justify-between gap-3 px-5 py-3 cursor-pointer list-none select-none text-[13px] font-bold text-[#5a6b72] hover:text-[#00374a]">
+                See the full payment plan
+                <svg className="w-4 h-4 text-[#9aa6ac] transition-transform group-open:rotate-180" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="m6 9 6 6 6-6" /></svg>
+              </summary>
+              <div className="px-5 pb-4">
+                <div className="flex items-center justify-between gap-3 text-[13.5px] pt-1">
+                  <span className="font-bold text-[#00374a]">{ctx.level} · {ctx.accommodation}</span>
+                  <span className="font-bold text-[#00374a] shrink-0">{fmt(ctx.price)}</span>
+                </div>
+                <div className="flex items-center justify-between gap-3 mt-2 pt-2 border-t border-[#e6eef0] text-[13.5px]">
+                  <span className="text-[#5a6b72]">Due today to register</span>
+                  <span className="font-black text-[#00afdb] shrink-0">Free</span>
+                </div>
+                {quote && quote.milestones.map((m) => (
+                  <div key={m.kind} className="flex items-start justify-between gap-3 mt-2 pt-2 border-t border-[#e6eef0] text-[13.5px]">
+                    <span className="text-[#5a6b72]">
+                      {m.kind === "deposit" ? "Deposit — secures your spot" : m.kind === "downpayment" ? `Downpayment (${quote.downpaymentPercent}% of your trip)` : "Final balance"}
+                      <span className="block text-[11.5px] text-[#9aa6ac] mt-0.5">{m.dueLabel}</span>
+                    </span>
+                    <span className="font-bold text-[#00374a] shrink-0">{fmt(m.amount)}</span>
+                  </div>
+                ))}
+              </div>
+            </details>
 
             {/* what happens next */}
             <div className="mb-6">
@@ -226,6 +250,7 @@ export function ReserveModal({ ctx, onClose }: { ctx: ReserveContext; onClose: (
                   className="w-full px-7 py-4 rounded-full text-[15px] font-bold text-white bg-[#00afdb] shadow-[0_6px_24px_rgba(0,175,219,0.35)] hover:bg-[#15c0ec] disabled:opacity-60 transition-all">
                   {submitting ? "One sec…" : "Register me — free"}
                 </button>
+                <p className="mt-3 text-center text-[12px] text-[#9aa6ac] leading-snug">{reassurance}</p>
                 <button onClick={logoutAndRegisterAsGuest} disabled={submitting}
                   className="w-full mt-3 text-[12.5px] font-semibold text-[#7a8a90] hover:text-[#00374a] transition-colors disabled:opacity-60">
                   Not you? Log out &amp; register as someone else
@@ -250,7 +275,7 @@ export function ReserveModal({ ctx, onClose }: { ctx: ReserveContext; onClose: (
                   className="w-full px-7 py-4 rounded-full text-[15px] font-bold text-white bg-[#00afdb] shadow-[0_6px_24px_rgba(0,175,219,0.35)] hover:bg-[#15c0ec] disabled:opacity-60 transition-all">
                   {submitting ? "One sec…" : "Register free"}
                 </button>
-                <p className="mt-3 text-center text-[12px] text-[#9aa6ac]">No payment now. Your spot is secured later with a refundable downpayment.</p>
+                <p className="mt-3 text-center text-[12px] text-[#9aa6ac] leading-snug">{reassurance}</p>
               </form>
             )}
           </div>
