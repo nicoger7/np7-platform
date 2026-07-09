@@ -3,7 +3,7 @@ import { redirect, notFound } from "next/navigation";
 import type { Metadata } from "next";
 import { getPortalUser } from "@/lib/auth";
 import { getMemberBooking, getTripGalleryGroupsForBooking, getBookingPhotoSharing, getBookingPaid, getBookingHotel, getEditionCoaches, getMemoryDownloadsRemaining, getConfirmedAddonsTotal, getBookingFlights, getExperienceArrivalInfo, getCrewProfiles } from "@/lib/portal-data";
-import { bookingStatus, CHIP_CLASS, fmtDates, money } from "@/lib/portal-status";
+import { bookingStatus, fmtDates, money } from "@/lib/portal-status";
 import { isAttending } from "@/lib/types";
 import { PortalChrome } from "@/components/portal/portal-chrome";
 import { ExtraNightsButton } from "@/components/portal/extra-nights-button";
@@ -13,6 +13,7 @@ import { PhotoSharingToggle } from "@/components/portal/photo-sharing-toggle";
 import { TripAddons } from "@/components/portal/trip-addons";
 import { PaymentPlan } from "@/components/portal/payment-plan";
 import { TripView, type TripTab, type TripTile } from "@/components/portal/trip-view";
+import { TripHero } from "@/components/portal/trip-hero";
 import { hasFlightDetails } from "@/lib/flights";
 import { CancelTrip } from "@/components/portal/cancel-trip";
 import { RedeemVoucher } from "@/components/portal/redeem-voucher";
@@ -152,6 +153,16 @@ export default async function BookingDetail({ params }: Props) {
   const fullyPaid = total != null && total > 0 && paid >= total;
   const nextMilestone = plan.find((m) => m.status !== "paid");
 
+  // Immersive hero: cover photo (the edition's own tile wins, then the
+  // experience's) + a phase-aware countdown with a wait-progress bar (booked → go).
+  const coverImage = b.edition?.hero_image ?? b.experience?.hero_image ?? null;
+  const weeks = daysToGo != null ? Math.floor(daysToGo / 7) : null;
+  const bookedAt = payRow?.created_at ? new Date(payRow.created_at) : null;
+  const waitPct = bookedAt && startsAt && startsAt.getTime() > bookedAt.getTime()
+    ? Math.max(4, Math.min(100, Math.round(((now.getTime() - bookedAt.getTime()) / (startsAt.getTime() - bookedAt.getTime())) * 100)))
+    : null;
+  const tripPhase: "before" | "during" | "after" = tripEnded ? "after" : tripStarted ? "during" : "before";
+
   // The single "what now?" the member should focus on.
   type Tone = "coral" | "amber" | "green" | "cyan";
   let hero: { eyebrow: string; title: string; body: string; ctaLabel?: string; ctaHref?: string; tone: Tone };
@@ -195,9 +206,9 @@ export default async function BookingDetail({ params }: Props) {
       tone: waiverSig ? "green" : "amber",
     },
     {
-      key: "count", label: tripStarted ? "Status" : "Countdown", tab: tripStarted ? "photos" : undefined,
-      value: tripEnded ? "Wrapped 🌊" : tripStarted ? "On the water" : daysToGo != null ? `${daysToGo} ${daysToGo === 1 ? "day" : "days"}` : "—",
-      sub: tripEnded ? "relive it" : tripStarted ? undefined : "to go",
+      key: "crew", label: "Crew", tab: "trip",
+      value: crew.going > 1 ? `${crew.going} going` : "Just you",
+      sub: crew.going > 1 ? "meet them" : "bring a friend",
       tone: "cyan",
     },
   ];
@@ -373,14 +384,17 @@ export default async function BookingDetail({ params }: Props) {
       <PortalChrome section="experience" />
       <main className="min-h-[100svh] bg-[#fff7ec] overflow-x-clip">
         <div className="max-w-[780px] mx-auto px-5 sm:px-8 py-8 sm:py-12">
-          <Link href="/account/trips" className="text-[13px] font-semibold text-[#6a7a80] hover:text-[#00374a]">← My trips</Link>
-
-          <div className="flex flex-wrap items-start justify-between gap-3 mt-3 mb-6">
-            <div>
-              <h1 className="text-3xl sm:text-4xl font-black tracking-[-0.03em] text-[#00374a]">{b.experience?.title ?? "Your trip"}</h1>
-              <p className="text-[15px] text-[#6a7a80] mt-1.5">{b.edition?.label ? `${b.edition.label} · ` : ""}{fmtDates(b.edition?.date_start, b.edition?.date_end)}</p>
-            </div>
-            <span className={`inline-block px-3.5 py-1.5 rounded-full text-[12px] font-bold ${CHIP_CLASS[chip.tone]}`}>{chip.label}</span>
+          <div className="mb-6">
+            <TripHero
+              coverImage={coverImage}
+              title={b.experience?.title ?? "Your trip"}
+              dateLabel={`${b.edition?.label ? `${b.edition.label} · ` : ""}${fmtDates(b.edition?.date_start, b.edition?.date_end)}`}
+              statusLabel={chip.label}
+              phase={tripPhase}
+              daysToGo={daysToGo}
+              weeks={weeks}
+              waitPct={waitPct}
+            />
           </div>
 
           <TripView hero={!tripEnded ? <NextStepHero {...hero} /> : null} tiles={tiles} tabs={tabs} initial={initialTab} />
