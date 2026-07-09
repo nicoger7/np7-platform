@@ -9,6 +9,7 @@ import { firstNameInitial, initialsFrom } from "@/lib/member-profile";
 import { PortalChrome } from "@/components/portal/portal-chrome";
 import { MemberHomeBanner } from "@/components/portal/member-home-banner";
 import { LevelHomeCard } from "@/components/portal/level-home-card";
+import { SetupProgress, type SetupStep } from "@/components/portal/setup-progress";
 import { SetPasswordPrompt } from "@/components/portal/set-password-prompt";
 import { flags } from "@/lib/flags";
 
@@ -77,6 +78,21 @@ export default async function AccountHome() {
     ...upcoming.filter((b) => !needsDownpayment(b)).map((b) => ({ b, secure: false })),
   ];
 
+  // "Get set up" onboarding strip — endowed progress: account is always the
+  // first (done) step so the bar never starts at 0%. Every other step is a real,
+  // useful action gated on actual account state; the strip hides once all done.
+  const setupSteps: SetupStep[] = profile
+    ? [
+        { key: "account", label: "Account created", done: true, href: "/account" },
+        ...(unsecured.length > 0
+          ? [{ key: "secure", label: "Secure your spot", hint: "Lock in your place with the refundable downpayment", done: false, href: `/account/bookings/${unsecured[0].id}`, accent: true }]
+          : []),
+        { key: "level", label: "Set your riding level", hint: "So coaches meet you where you are", done: !!profile.self_level, href: "/account/level" },
+        { key: "photo", label: "Add a profile photo", done: !!profile.avatar_url, href: "/account/profile" },
+        { key: "handle", label: "Pick your @handle", hint: "Your name on the crew & spotguide", done: !!profile.username, href: "/account/profile" },
+      ]
+    : [];
+
   return (
     <>
       <PortalChrome />
@@ -91,6 +107,12 @@ export default async function AccountHome() {
           <div className="mt-6">
             <SetPasswordPrompt show={showPwPrompt} />
           </div>
+
+          {setupSteps.length > 0 && (
+            <div className="mt-6">
+              <SetupProgress steps={setupSteps} />
+            </div>
+          )}
 
           {/* main + level sidebar — one column on mobile, two on desktop */}
           <div className="mt-6 grid lg:grid-cols-[1.6fr_1fr] gap-5 items-start">
