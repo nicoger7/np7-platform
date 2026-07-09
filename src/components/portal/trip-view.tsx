@@ -8,6 +8,19 @@ export type TripTab = { key: string; label: string; attention?: boolean; content
 
 const LBL: Record<Tone, string> = { coral: "#993c1d", amber: "#9a6b16", green: "#0f6e56", cyan: "#0782a0" };
 
+/** Icon per trip section, so the tab bar reads as app navigation (not filters). */
+function tabIcon(key: string) {
+  const p = { className: "w-[18px] h-[18px]", viewBox: "0 0 24 24", fill: "none", stroke: "currentColor", strokeWidth: 2, strokeLinecap: "round" as const, strokeLinejoin: "round" as const };
+  switch (key) {
+    case "payment": return <svg {...p}><rect x="2" y="5" width="20" height="14" rx="2" /><path d="M2 10h20" /></svg>;
+    case "prep": return <svg {...p}><path d="M9 11l3 3L22 4" /><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11" /></svg>;
+    case "trip": return <svg {...p}><path d="M12 21s-6-5.3-6-10a6 6 0 0 1 12 0c0 4.7-6 10-6 10z" /><circle cx="12" cy="11" r="2.2" /></svg>;
+    case "docs": return <svg {...p}><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" /><path d="M14 2v6h6" /></svg>;
+    case "photos": return <svg {...p}><rect x="3" y="3" width="18" height="18" rx="2" /><circle cx="8.5" cy="8.5" r="1.5" /><path d="m21 15-5-5L5 21" /></svg>;
+    default: return <svg {...p}><circle cx="12" cy="12" r="9" /></svg>;
+  }
+}
+
 /**
  * App-like trip shell: a persistent header (the next-step hero + at-a-glance
  * tiles) over a tab bar that swaps the detail below — no long scroll, one
@@ -102,17 +115,21 @@ export function TripView({ hero, tiles, tabs, initial, title, statusLabel }: { h
             )}
           </div>
         )}
-        <div className="flex gap-1.5 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+        <div className="grid auto-cols-fr grid-flow-col gap-1 rounded-2xl bg-[#f4ece0] p-1">
           {tabs.map((t) => {
             const on = t.key === active;
             return (
               <button
                 key={t.key}
                 onClick={() => setActive(t.key)}
-                className={`shrink-0 inline-flex items-center gap-1.5 px-4 py-2 rounded-full text-[13px] font-bold transition-colors ${on ? "bg-[#00374a] text-white" : "bg-white border border-[#e7dcc9] text-[#5a6b72] hover:text-[#00374a]"}`}
+                aria-current={on ? "page" : undefined}
+                className={`relative flex flex-col items-center justify-center gap-1 py-2 rounded-xl transition-all ${on ? "bg-white shadow-[0_2px_8px_rgba(0,55,74,0.09)] text-[#00374a]" : "text-[#82909a] hover:text-[#00374a]"}`}
               >
-                {t.label}
-                {t.attention && !on && <span className="w-1.5 h-1.5 rounded-full bg-[#f47b20]" />}
+                <span className="relative">
+                  {tabIcon(t.key)}
+                  {t.attention && !on && <span className="absolute -top-1 -right-2 w-1.5 h-1.5 rounded-full bg-[#f47b20]" />}
+                </span>
+                <span className="text-[11px] font-bold leading-none tracking-[-0.01em]">{t.label}</span>
               </button>
             );
           })}
