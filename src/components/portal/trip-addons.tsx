@@ -43,6 +43,16 @@ function money(n: number | null) {
   return n != null ? `€${Number(n).toLocaleString("en-US")}` : "";
 }
 
+/** Add-ons billed by time around the trip week. Accommodation is charged per
+    night, gear rental per day; both are worked out from the member's flight
+    dates (any time outside the trip week is "extra"). Everything else is a flat
+    request. */
+const PERIOD: Record<string, { unit: string; add: string }> = {
+  accommodation: { unit: "night", add: "Add nights" },
+  gear: { unit: "day", add: "Add days" },
+};
+const plural = (unit: string, n: number) => `${unit}${n !== 1 ? "s" : ""}`;
+
 export function TripAddons({ bookingId, depositPaid, hasDeposit, securingLabel, initialFlights, arrival, editionStart, editionEnd }: { bookingId: string; depositPaid: boolean; hasDeposit: boolean; securingLabel: string; initialFlights: FlightInfo | null; arrival: ArrivalInfo | null; editionStart: string | null; editionEnd: string | null }) {
   const [available, setAvailable] = useState<Available[]>([]);
   const [mine, setMine] = useState<Mine[]>([]);
@@ -110,6 +120,13 @@ export function TripAddons({ bookingId, depositPaid, hasDeposit, securingLabel, 
     setNightsFor(componentId);
   }
 
+  // Jump the member up to the flights step so they can enter dates that then
+  // auto-fill the extra-night/day maths.
+  function goToFlights() {
+    setShowFlights(true);
+    requestAnimationFrame(() => document.getElementById("prep-flights")?.scrollIntoView({ behavior: "smooth", block: "start" }));
+  }
+
   async function request(componentId: string, extra?: { checkIn: string; checkOut: string }) {
     setBusy(componentId);
     await fetch(`/api/portal/bookings/${bookingId}/addons`, {
@@ -148,7 +165,9 @@ export function TripAddons({ bookingId, depositPaid, hasDeposit, securingLabel, 
       {offer.map((a) => {
         // Extra hotel nights need the dates — capture arrive/leave (pre-filled from
         // flights) and bill anything outside the trip week.
-        if (a.category === "accommodation") {
+        const period = a.category ? PERIOD[a.category] : undefined;
+        if (period) {
+          const u = period.unit; // "night" | "day"
           const open = nightsFor === a.id;
           const before = Math.max(0, nightsBetween(nightForm.checkIn, editionStart));
           const after = Math.max(0, nightsBetween(editionEnd, nightForm.checkOut));
@@ -161,17 +180,29 @@ export function TripAddons({ bookingId, depositPaid, hasDeposit, securingLabel, 
                 <div className="min-w-0 flex-1">
                   {hotel && <p className="text-[10.5px] font-bold uppercase tracking-[0.1em] text-[#9aa6ac] leading-none mb-1">{hotel}</p>}
                   <p className="text-[14.5px] font-bold text-[#00374a] leading-tight">{title}</p>
-                  {a.sell_price != null && <p className="text-[12.5px] text-[#5a6b72] mt-0.5"><span className="font-bold text-[#00374a]">{money(a.sell_price)}</span> / night</p>}
+                  {a.sell_price != null && <p className="text-[12.5px] text-[#5a6b72] mt-0.5"><span className="font-bold text-[#00374a]">{money(a.sell_price)}</span> / {u}</p>}
                   {a.description && <p className="text-[12px] text-[#9aa6ac] mt-0.5 truncate">{a.description}</p>}
                 </div>
                 {!open && (
                   <button onClick={() => openNights(a.id)}
-                    className="shrink-0 px-4 py-2 rounded-full text-[12.5px] font-bold text-white bg-[#00afdb] hover:bg-[#15c0ec] transition-colors">Add nights</button>
+                    className="shrink-0 px-4 py-2 rounded-full text-[12.5px] font-bold text-white bg-[#00afdb] hover:bg-[#15c0ec] transition-colors">{period.add}</button>
                 )}
               </div>
               {open && (
-                <div className="mt-3 pt-3 border-t border-[#e3eef1] space-y-3">
-                  <p className="text-[12.5px] text-[#5a6b72] leading-snug">Which nights? Pick when you arrive &amp; leave — any night outside the trip week ({fmtDay(editionStart)} – {fmtDay(editionEnd)}) is an extra night.</p>
+                <div className="mt-3 pt-3 border-t border-[#eef2f0] space-y-3">
+                  {/* Anything outside the trip week is an "extra" — worked out from
+                      the member's own flight dates, which we pre-fill here. */}
+                  {flightsSaved ? (
+                    <p className="text-[12.5px] text-[#5a6b72] leading-snug">
+                      Suggested from your flights ({fmtDay(flights?.arrivalDate)} → {fmtDay(flights?.departureDate)}). Any {u} outside the trip week ({fmtDay(editionStart)}–{fmtDay(editionEnd)}) counts as an extra {u} — adjust below if needed.
+                    </p>
+                  ) : (
+                    <div className="rounded-lg bg-[#eef6f8] p-3 text-[12.5px] text-[#4a5b62] leading-snug">
+                      <p className="font-bold text-[#00374a] mb-0.5">Add your flights and we&apos;ll do the maths</p>
+                      <p>Enter when you arrive &amp; leave and we auto-calculate the extra {plural(u, 2)} — or set the dates below.</p>
+                      <button onClick={goToFlights} className="mt-1.5 inline-flex items-center gap-1 font-bold text-[#00afdb] hover:underline">Add flight dates →</button>
+                    </div>
+                  )}
                   <div className="grid grid-cols-2 gap-2">
                     <label className="block"><span className="block text-[11px] font-bold uppercase tracking-wide text-[#9aa6ac] mb-1">Arrive</span>
                       <input type="date" value={nightForm.checkIn} onChange={(e) => setNightForm((f) => ({ ...f, checkIn: e.target.value }))} className={dateInput} /></label>
@@ -180,14 +211,14 @@ export function TripAddons({ bookingId, depositPaid, hasDeposit, securingLabel, 
                   </div>
                   <p className="text-[13px] text-[#00374a]">
                     {total > 0 ? (
-                      <><strong>{[before > 0 ? `${before} night${before !== 1 ? "s" : ""} before` : "", after > 0 ? `${after} night${after !== 1 ? "s" : ""} after` : ""].filter(Boolean).join(" + ")}</strong> = {total} extra night{total !== 1 ? "s" : ""}{price != null ? ` · ${money(price)}` : ""}</>
+                      <><strong>{[before > 0 ? `${before} ${plural(u, before)} before` : "", after > 0 ? `${after} ${plural(u, after)} after` : ""].filter(Boolean).join(" + ")}</strong> = {total} extra {plural(u, total)}{price != null ? ` · ${money(price)}` : ""}</>
                     ) : (
-                      <span className="text-[#8a9aa0]">Those dates are within the trip week — no extra nights yet.</span>
+                      <span className="text-[#8a9aa0]">Those dates are within the trip week — no extra {plural(u, 2)} yet. Arrive earlier or leave later to add some.</span>
                     )}
                   </p>
                   <div className="flex gap-2">
                     <button onClick={() => request(a.id, nightForm)} disabled={busy === a.id || total < 1}
-                      className="px-4 py-2 rounded-full text-[12.5px] font-bold text-white bg-[#00afdb] hover:bg-[#15c0ec] disabled:opacity-50 transition-colors">{busy === a.id ? "…" : "Request these nights"}</button>
+                      className="px-4 py-2 rounded-full text-[12.5px] font-bold text-white bg-[#00afdb] hover:bg-[#15c0ec] disabled:opacity-50 transition-colors">{busy === a.id ? "…" : total > 0 ? `Request ${total} ${plural(u, total)}` : `Request extra ${plural(u, 2)}`}</button>
                     <button onClick={() => setNightsFor(null)} className="px-4 py-2 rounded-full text-[12.5px] font-semibold text-[#6a7a80] bg-[#f1f5f6]">Cancel</button>
                   </div>
                 </div>
@@ -269,7 +300,7 @@ export function TripAddons({ bookingId, depositPaid, hasDeposit, securingLabel, 
           ? (flightsSaved ? "Flight details added — tap to view or edit" : "Tap to add your flight details")
           : (resolved ? (active.length ? `${active.length} requested — tap to manage` : "No extras — tap to change") : "Tap to add extra nights, gear & more");
         return (
-          <div key={s.key} className="rounded-xl border border-[#eee2cf] bg-[#fffdf8] overflow-hidden">
+          <div key={s.key} id={isFlights ? "prep-flights" : undefined} className="rounded-xl border border-[#eee2cf] bg-[#fffdf8] overflow-hidden scroll-mt-20">
             <button onClick={toggle} className="flex items-center gap-3 w-full text-left px-3 py-2.5 hover:bg-[#fbf6ec] transition-colors">
               {badge(i, done)}
               <div className="min-w-0 flex-1">

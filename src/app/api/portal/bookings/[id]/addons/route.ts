@@ -85,25 +85,28 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     return NextResponse.json({ error: "Already requested" }, { status: 409 });
   }
 
-  // Extra hotel nights (accommodation) need the actual dates: which nights they
-  // want around the trip week. We compute nights before/after the edition and
-  // price = nights × per-night rate (server-authoritative). { checkIn, checkOut }.
+  // Time-based extras (accommodation → nights, gear rental → days) need the
+  // actual dates: which nights/days they want around the trip week. We compute
+  // units before/after the edition and price = units × per-unit rate
+  // (server-authoritative). { checkIn, checkOut }.
+  const PERIOD_UNIT: Record<string, string> = { accommodation: "night", gear: "day" };
   let label = comp.name;
   let price: number | null = comp.sell_price ?? null;
   let meta: Record<string, unknown> = {};
-  if (comp.category === "accommodation" && (body.checkIn || body.checkOut)) {
+  const unit = comp.category ? PERIOD_UNIT[comp.category] : undefined;
+  if (unit && (body.checkIn || body.checkOut)) {
     const { data: bk } = await db.from("exp_bookings").select("exp_editions(date_start, date_end)").eq("id", id).maybeSingle();
     const edStart: string | null = bk?.exp_editions?.date_start ?? null;
     const edEnd: string | null = bk?.exp_editions?.date_end ?? null;
     const checkIn: string | null = typeof body.checkIn === "string" ? body.checkIn : null;
     const checkOut: string | null = typeof body.checkOut === "string" ? body.checkOut : null;
-    const nights = (a: string | null, b: string | null) => (a && b ? Math.round((Date.parse(b) - Date.parse(a)) / 86400000) : 0);
-    const nightsBefore = Math.max(0, nights(checkIn, edStart));
-    const nightsAfter = Math.max(0, nights(edEnd, checkOut));
+    const span = (a: string | null, b: string | null) => (a && b ? Math.round((Date.parse(b) - Date.parse(a)) / 86400000) : 0);
+    const nightsBefore = Math.max(0, span(checkIn, edStart));
+    const nightsAfter = Math.max(0, span(edEnd, checkOut));
     const total = nightsBefore + nightsAfter;
-    meta = { checkIn, checkOut, nightsBefore, nightsAfter, nights: total };
+    meta = { checkIn, checkOut, nightsBefore, nightsAfter, nights: total, unit };
     if (total > 0) {
-      label = `${comp.name} (${total} night${total !== 1 ? "s" : ""})`;
+      label = `${comp.name} (${total} ${unit}${total !== 1 ? "s" : ""})`;
       if (comp.sell_price != null) price = Math.round(Number(comp.sell_price) * total * 100) / 100;
     }
   }
