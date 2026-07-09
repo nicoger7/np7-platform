@@ -333,7 +333,7 @@ export default async function BookingDetail({ params }: Props) {
         </div>
       )}
       {(crew.going > 1 || b.edition?.whatsapp_group_link) && (
-        <div>
+        <div id="crew" className="scroll-mt-28">
           <p className="text-[11px] font-bold tracking-[0.14em] uppercase text-[#9aa6ac] mb-2">Your crew</p>
           <CrewCard bookingId={b.id} going={crew.going} sharing={crew.sharing} profiles={crew.profiles} whatsappLink={b.edition?.whatsapp_group_link ?? null} />
         </div>

@@ -25,8 +25,30 @@ export function TripView({ hero, tiles, tabs, initial, title, statusLabel }: { h
   }, []);
   const current = tabs.find((t) => t.key === active) ?? tabs[0];
 
+  // In-page hash links (hero CTAs, "see how to pay") point at tabs, e.g.
+  // href="#payment". Those tabs are swapped in and out of the DOM, so a native
+  // anchor jump can't reach them — intercept the click and switch tab instead.
+  // A few anchors target a section that lives inside a tab (e.g. #crew is in the
+  // Trip tab): switch to that tab, then scroll to the section.
+  const SUB_ANCHOR: Record<string, string> = { crew: "trip" };
+  function handleHashNav(e: React.MouseEvent) {
+    const a = (e.target as HTMLElement).closest?.('a[href^="#"]') as HTMLAnchorElement | null;
+    if (!a) return;
+    const hash = (a.getAttribute("href") ?? "").slice(1);
+    if (!hash) return;
+    if (tabs.some((t) => t.key === hash)) {
+      e.preventDefault();
+      setActive(hash);
+      requestAnimationFrame(() => document.getElementById("trip-content")?.scrollIntoView({ behavior: "smooth", block: "start" }));
+    } else if (SUB_ANCHOR[hash] && tabs.some((t) => t.key === SUB_ANCHOR[hash])) {
+      e.preventDefault();
+      setActive(SUB_ANCHOR[hash]);
+      requestAnimationFrame(() => document.getElementById(hash)?.scrollIntoView({ behavior: "smooth", block: "start" }));
+    }
+  }
+
   return (
-    <>
+    <div onClickCapture={handleHashNav}>
       {hero}
 
       {/* at-a-glance tiles — three unambiguous states so it's instantly clear
@@ -97,7 +119,7 @@ export function TripView({ hero, tiles, tabs, initial, title, statusLabel }: { h
         </div>
       </div>
 
-      <div className="mt-5 bg-white rounded-2xl border border-[#f0e6d6] p-6">{current?.content}</div>
-    </>
+      <div id="trip-content" className="mt-5 scroll-mt-28 bg-white rounded-2xl border border-[#f0e6d6] p-6">{current?.content}</div>
+    </div>
   );
 }
