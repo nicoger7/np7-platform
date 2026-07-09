@@ -1,5 +1,10 @@
 import { type Criterion, type RatingSummary } from "@/lib/spotguide";
 
+/** Social proof, honestly: only call out the rider count once it's genuinely a
+    crowd — a weak "(2)" reads as unpopular, so below this bar we show the rating
+    without a number. */
+export const MEMBER_PROOF_MIN = 5;
+
 /** Five stars filled to `value` (supports halves via a clip). */
 function Stars({ value, color = "#f5a623", size = 15 }: { value: number; color?: string; size?: number }) {
   const pct = Math.max(0, Math.min(100, (value / 5) * 100));
@@ -25,7 +30,7 @@ export function RatingHeadline({ np7, member, accent = "#00afdb" }: { np7: numbe
         <span className="inline-flex items-center gap-1.5">
           <span className="text-[10px] font-black uppercase tracking-[0.12em] text-[#9aa6ac]">Members</span>
           <Stars value={member.overall} color="#1f9e57" /><span className="text-[13px] font-bold text-[#00374a]">{member.overall.toFixed(1)}</span>
-          <span className="text-[12px] text-[#9aa6ac]">({member.count})</span>
+          {member.count >= MEMBER_PROOF_MIN && <span className="text-[12px] font-semibold text-[#1f9e57]">· rated by {member.count} riders</span>}
         </span>
       ) : (
         <span className="text-[12px] text-[#9aa6ac]">No member ratings yet</span>
