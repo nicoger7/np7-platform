@@ -30,7 +30,7 @@ const THEMES: Record<Division, {
     hero: `${STORAGE}/hero/windsurf-hero-poster.jpg`,
     headerBg: "#00374a", headerFade: "rgba(0,40,58,0.82)",
     footerBg: "#00374a", footerText: "#9fb3bb", footerStrong: "#cfe0e5",
-    tagline: "Windsurf trips, spots & gear — by Nico Prien.",
+    tagline: "Windsurf trips & spots — by Nico Prien.",
     contactEmail: "experience@np-seven.com",
   },
   hardware: {
