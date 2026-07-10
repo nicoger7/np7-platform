@@ -7,8 +7,6 @@ import { ParallaxHero } from "@/components/experience/parallax-hero";
 import { Reveal } from "@/components/experience/reveal";
 import { SignatureApply } from "@/components/experience/signature-apply";
 
-// Public + promoted (unlike the invite-only surveys, this one IS meant to be
-// found and shared), so it lives at a top-level route not gated by SHOW_EXPERIENCE.
 export const metadata: Metadata = {
   title: "Signature Trips — invite-only windsurf expeditions",
   description: "NP7's most special windsurf trips — private villas, a chef, world-class coaching, in places like Madagascar and Mauritius. Premium, small-group and by application only.",
@@ -22,20 +20,34 @@ export const metadata: Metadata = {
 };
 
 const HERO = cdn("hero/windsurf-hero-poster.jpg");
-// Real Madagascar scenery (already public on the site). Swap MAURITIUS for a real
-// Mauritius shot when there's one — both are single consts so it's a 10-sec change.
-const MADAGASCAR = "https://qfdqigumjadvrocxjolx.supabase.co/storage/v1/object/public/assets/experience/Mazavaloha-resort-mer-emeraude-madagascar-kite-windsurf-11.jpg";
-const MAURITIUS = cdn("hero/windsurf-hero-poster.jpg");
+// Real shots from the last Signature Trip (one trip, both islands — Madagascar &
+// Mauritius), curated from the trip's memory gallery. Swap the numbers freely.
+const MEM = (n: number) => `https://qfdqigumjadvrocxjolx.supabase.co/storage/v1/object/public/assets/memories/6af5c7fe-26af-4105-ad45-910390da2594/NP7%20Experience%20Madagascar-${n}.jpg`;
+const TRIP_LEAD = MEM(211);
+const TRIP_SHOTS = [MEM(458), MEM(480), MEM(252)];
 const EYEBROW = "text-[11px] font-bold tracking-[0.25em] text-[#8fe6f2]";
 
 const INCLUDES: { icon: string; label: string }[] = [
-  { icon: "🏝️", label: "Private villa, right on the water" },
-  { icon: "👨‍🍳", label: "Your own private chef" },
-  { icon: "🏄", label: "World-class coaching, all week" },
-  { icon: "📸", label: "Pro photo & video sessions" },
-  { icon: "🍹", label: "Sunset drinks & chill days" },
-  { icon: "🤙", label: "A small crew of genuinely good people" },
+  { icon: "villa", label: "Private villa, right on the water" },
+  { icon: "chef", label: "Your own private chef" },
+  { icon: "coach", label: "World-class coaching, all week" },
+  { icon: "camera", label: "Pro photo & video sessions" },
+  { icon: "drinks", label: "Sunset drinks & chill days" },
+  { icon: "crew", label: "A small crew of genuinely good people" },
 ];
+
+function Ico({ name }: { name: string }) {
+  const c = { className: "w-5 h-5", viewBox: "0 0 24 24", fill: "none", stroke: "currentColor", strokeWidth: 1.7, strokeLinecap: "round" as const, strokeLinejoin: "round" as const };
+  switch (name) {
+    case "villa": return <svg {...c}><path d="M3 10.5 12 4l9 6.5" /><path d="M5 9.5V20h14V9.5" /><path d="M10 20v-5h4v5" /></svg>;
+    case "chef": return <svg {...c}><path d="M7 13.5a3.4 3.4 0 0 1-1-6.65A3.4 3.4 0 0 1 12.5 5a3.4 3.4 0 0 1 5.5 1.85 3.4 3.4 0 0 1-1 6.65" /><path d="M7 13.5h10V18a2 2 0 0 1-2 2H9a2 2 0 0 1-2-2z" /></svg>;
+    case "coach": return <svg {...c}><path d="M4 20h15" /><path d="M7 20V5l9 9H7z" /></svg>;
+    case "camera": return <svg {...c}><path d="M4 8h3l1.5-2h7L17 8h3a1 1 0 0 1 1 1v9a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V9a1 1 0 0 1 1-1z" /><circle cx="12" cy="13" r="3.2" /></svg>;
+    case "drinks": return <svg {...c}><path d="M5 4h14l-7 8z" /><path d="M12 12v6" /><path d="M8 21h8" /></svg>;
+    case "crew": return <svg {...c}><circle cx="8" cy="9" r="2.6" /><circle cx="16" cy="9" r="2.6" /><path d="M3.5 19a4.5 4.5 0 0 1 9 0" /><path d="M12.5 18.2A4.5 4.5 0 0 1 20.5 19" /></svg>;
+    default: return null;
+  }
+}
 
 function Step({ n, title, body }: { n: string; title: string; body: string }) {
   return (
@@ -44,20 +56,6 @@ function Step({ n, title, body }: { n: string; title: string; body: string }) {
       <div>
         <p className="text-[15px] font-black text-white">{title}</p>
         <p className="text-[13.5px] text-white/60 mt-0.5 leading-relaxed">{body}</p>
-      </div>
-    </div>
-  );
-}
-
-function TripCard({ image, place, line }: { image: string; place: string; line: string }) {
-  return (
-    <div className="group rounded-[20px] overflow-hidden relative border border-white/10 h-[300px] sm:h-[340px]">
-      <div className="absolute inset-0 bg-cover bg-center transition-transform duration-700 group-hover:scale-105" style={{ backgroundImage: `url('${image}')` }} />
-      <div className="absolute inset-0" style={{ background: "linear-gradient(180deg, rgba(1,26,34,0.1) 0%, rgba(1,26,34,0.35) 45%, rgba(1,26,34,0.92) 100%)" }} />
-      <div className="absolute bottom-0 inset-x-0 p-6">
-        <p className="text-[11px] font-bold uppercase tracking-[0.2em] text-[#ffd97a]">Signature · past trip</p>
-        <h3 className="text-2xl font-black text-white tracking-[-0.02em] mt-1">{place}</h3>
-        <p className="text-[13.5px] text-white/75 mt-1.5 leading-relaxed">{line}</p>
       </div>
     </div>
   );
@@ -95,8 +93,8 @@ export default function SignatureTripsPage() {
                 <p className="text-[16px] sm:text-[17px] text-white/70 leading-relaxed">
                   A Signature Trip isn&apos;t a package you book — it&apos;s a small group we put together ourselves. We keep the crew tight and the vibe right, because the people make the trip. That&apos;s why these run <strong className="text-white/90">by application</strong>: we want to know who&apos;s coming.
                 </p>
-                <p className="text-[14.5px] text-white/55 leading-relaxed mt-4">
-                  These are our premium, all-in trips — a proper investment, and worth every cent. Everything you pay goes straight back into making the week genuinely unforgettable.
+                <p className="text-[15px] text-white/55 leading-relaxed mt-4">
+                  This is the very top of what we do — no compromises, nothing left to chance. The kind of week you&apos;ll be telling stories about for years.
                 </p>
               </Reveal>
             </div>
@@ -112,8 +110,8 @@ export default function SignatureTripsPage() {
               <Reveal>
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
                   {INCLUDES.map((it) => (
-                    <div key={it.label} className="flex items-center gap-3 rounded-2xl bg-white/[0.05] border border-white/10 backdrop-blur-sm px-4 py-4">
-                      <span className="text-[22px]" aria-hidden>{it.icon}</span>
+                    <div key={it.label} className="flex items-center gap-3.5 rounded-2xl bg-white/[0.05] border border-white/10 backdrop-blur-sm px-4 py-4">
+                      <span className="shrink-0 w-10 h-10 rounded-full grid place-items-center" style={{ background: "rgba(240,165,0,0.14)", color: "#ffcf6a" }}><Ico name={it.icon} /></span>
                       <span className="text-[14.5px] font-semibold text-white/90 leading-snug">{it.label}</span>
                     </div>
                   ))}
@@ -122,17 +120,26 @@ export default function SignatureTripsPage() {
             </div>
           </section>
 
-          {/* our last trips */}
+          {/* our last trip — one trip, both islands */}
           <section className="py-12">
             <div className="max-w-[1000px] mx-auto px-6 sm:px-8">
-              <Reveal className="text-center max-w-[560px] mx-auto mb-9">
+              <Reveal className="text-center max-w-[600px] mx-auto mb-9">
                 <p className={`${EYEBROW} mb-3`}>WHERE WE&apos;VE BEEN</p>
-                <h2 className="text-3xl sm:text-4xl font-black tracking-[-0.03em] text-white">Our last Signature Trips</h2>
+                <h2 className="text-3xl sm:text-4xl font-black tracking-[-0.03em] text-white">Our last Signature Trip</h2>
+                <p className="text-[15px] text-white/65 mt-3 leading-relaxed">One trip, two islands — Madagascar &amp; Mauritius. Emerald lagoons, empty walls, a beachfront villa, and a crew that clicked from day one.</p>
               </Reveal>
               <Reveal>
-                <div className="grid sm:grid-cols-2 gap-5">
-                  <TripCard image={MADAGASCAR} place="Madagascar" line="Emerald lagoons and empty down-the-line walls, a beachfront villa, and a crew that clicked from day one." />
-                  <TripCard image={MAURITIUS} place="Mauritius" line="One Eye and the flat inside lagoon, sunset sessions, chef dinners, and chill days between the wind." />
+                <div className="relative rounded-[22px] overflow-hidden h-[300px] sm:h-[440px] border border-white/10">
+                  <div className="absolute inset-0 bg-cover bg-center" style={{ backgroundImage: `url('${TRIP_LEAD}')` }} />
+                  <div className="absolute inset-0" style={{ background: "linear-gradient(180deg, rgba(1,26,34,0) 45%, rgba(1,26,34,0.8) 100%)" }} />
+                  <div className="absolute bottom-0 inset-x-0 p-6">
+                    <p className="text-[11px] font-bold uppercase tracking-[0.2em] text-[#ffd97a]">Signature · Madagascar &amp; Mauritius</p>
+                  </div>
+                </div>
+                <div className="grid grid-cols-3 gap-3 mt-3">
+                  {TRIP_SHOTS.map((s, i) => (
+                    <div key={i} className="h-[110px] sm:h-[170px] rounded-xl overflow-hidden bg-cover bg-center border border-white/10" style={{ backgroundImage: `url('${s}')` }} />
+                  ))}
                 </div>
               </Reveal>
             </div>
