@@ -173,13 +173,17 @@ export function BookingDetailPane({ bookingId, onBack }: { bookingId: string; on
     Promise.all([
       fetch(`/api/admin/bookings/${id}`).then((r) => r.json()),
       fetch("/api/admin/experiences").then((r) => r.json()),
-      fetch("/api/admin/components").then((r) => r.json()),
-    ]).then(([b, exps, comps]) => {
+    ]).then(([b, exps]) => {
       setBooking(b);
       fetchDocuments(); // also needed by the Payments tab to reconcile
       const expList = exps.experiences || exps || [];
       setExperiences(expList.map((e: Record<string, string>) => ({ id: e.id, title: e.title })));
-      setComponents(comps || []);
+      // Add-on components: only what's relevant to this booking — global + this
+      // experience's components (edition-scoped when possible). Otherwise the
+      // picker floods with every experience's items (e.g. Garda "GAR-" ones).
+      fetch(`/api/admin/components${b.experience_id ? `?experience_id=${b.experience_id}${b.edition_id ? `&edition_id=${b.edition_id}` : ""}` : ""}`)
+        .then((r) => r.json())
+        .then((comps) => setComponents(Array.isArray(comps) ? comps : []));
       // Packages are stored per edition (~14 per week) — scope the picker to the
       // booking's own edition so it shows just this week's list, not every
       // edition's near-duplicate packages. Fall back to the experience if the
@@ -941,24 +945,22 @@ export function BookingDetailPane({ bookingId, onBack }: { bookingId: string; on
               <div className="grid grid-cols-3 gap-3 mb-3">
                 <div>
                   <label className={labelClass}>Component</label>
-                  <select
-                    className={inputClass}
-                    value={addonForm.component_id}
-                    onChange={(e) => {
-                      const comp = components.find((c) => c.id === e.target.value);
+                  <SearchSelect
+                    value={addonForm.component_id || null}
+                    onChange={(v) => {
+                      const comp = components.find((c) => c.id === v);
                       setAddonForm({
                         ...addonForm,
-                        component_id: e.target.value,
+                        component_id: v ?? "",
                         label: comp?.name || addonForm.label,
-                        price: comp?.unit_cost?.toString() || addonForm.price,
+                        price: comp?.unit_cost != null ? String(comp.unit_cost) : addonForm.price,
                       });
                     }}
-                  >
-                    <option value="">Custom (no component)</option>
-                    {components.map((c) => (
-                      <option key={c.id} value={c.id}>{c.name} ({c.category}){c.unit_cost ? ` — €${c.unit_cost}` : ""}</option>
-                    ))}
-                  </select>
+                    options={components.map((c) => ({ value: c.id, label: c.name, sub: c.category, hint: c.unit_cost != null ? `€${c.unit_cost}` : undefined }))}
+                    placeholder="Custom (no component)"
+                    clearLabel="Custom (no component)"
+                    searchPlaceholder="Search components…"
+                  />
                 </div>
                 <div>
                   <label className={labelClass}>Label *</label>
