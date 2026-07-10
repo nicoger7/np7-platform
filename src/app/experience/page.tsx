@@ -244,7 +244,7 @@ export default async function ExperienceOverviewPage() {
             {experiences.length === 0 ? (
               <p className="text-center text-white/70">New experiences are being planned — check back soon.</p>
             ) : (
-              <UpcomingExperiences experiences={expCards} />
+              <UpcomingExperiences experiences={expCards} showSignature />
             )}
 
             {/* Gift — a premium, restrained invitation */}
@@ -349,27 +349,6 @@ export default async function ExperienceOverviewPage() {
               <h2 className="text-3xl sm:text-5xl font-black tracking-[-0.03em] mb-6 leading-[1.08]">You arrive solo.<br />You leave with a crew.</h2>
               <p className="text-[17px] text-white/75 leading-relaxed">Small groups of good people, shared sunset sessions and beach dinners, and coaching from one of the world&apos;s best. Most riders come once — then rebook with the friends they made.</p>
               <Link href="#experiences" className="inline-block mt-9 px-8 py-4 rounded-full text-[14px] font-bold text-[#00374a] bg-white hover:-translate-y-0.5 transition-all">Find your trip</Link>
-            </Reveal>
-          </div>
-        </section>
-
-        {/* SIGNATURE TRIPS — the invite-only tier, at the very end */}
-        <section className="pt-16">
-          <div className="max-w-[1000px] mx-auto px-6 sm:px-8">
-            <Reveal>
-              <Link href="/signature" className="group block rounded-3xl overflow-hidden relative border border-white/10 hover:border-white/20 transition-colors">
-                <div className="absolute inset-0 bg-cover bg-center transition-transform duration-700 group-hover:scale-105" style={{ backgroundImage: "url('/cdn/assets/hero/windsurf-hero-poster.jpg')" }} />
-                <div className="absolute inset-0" style={{ background: "linear-gradient(115deg, rgba(1,24,32,0.92) 0%, rgba(1,24,32,0.6) 58%, rgba(1,24,32,0.32) 100%)" }} />
-                <div className="relative z-10 p-8 sm:p-12">
-                  <span className="text-[11px] font-black uppercase tracking-[0.26em] text-[#ffd97a]">✦ By application only</span>
-                  <h2 className="text-3xl sm:text-5xl font-black tracking-[-0.03em] text-white mt-3">Signature Trips</h2>
-                  <p className="text-white/80 text-[15.5px] mt-3 max-w-[520px] leading-relaxed">My most special, invite-only trips — small hand-picked crews, in places you talk about for years. Apply to be considered.</p>
-                  <span className="inline-flex items-center gap-2 mt-6 rounded-full text-[#3a2a05] text-[14px] font-black px-6 py-3 shadow-[0_10px_26px_rgba(240,165,0,0.28)]" style={{ background: "linear-gradient(135deg,#ffe08a,#f0a500)" }}>
-                    Apply for a spot
-                    <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round"><path d="M5 12h14M13 6l6 6-6 6" /></svg>
-                  </span>
-                </div>
-              </Link>
             </Reveal>
           </div>
         </section>

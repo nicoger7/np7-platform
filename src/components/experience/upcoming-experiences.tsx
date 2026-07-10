@@ -5,6 +5,42 @@ import { useMemo, useState } from "react";
 import { Reveal } from "./reveal";
 import { BrandedTile } from "./branded-tile";
 import { placeFromLocation, flagFromLocation } from "@/lib/experience-tile";
+import { cdn } from "@/lib/cdn";
+
+const SIG_IMG = cdn("hero/windsurf-hero-poster.jpg");
+
+/** The invite-only "Signature Trips" tier — a tile that sits at the END of the
+ *  experiences grid, deliberately dark + gold so it reads as the premium step up
+ *  from the regular (white-card) trips. Links to the public application page. */
+function SignatureTile() {
+  return (
+    <Reveal as="article">
+      <Link
+        href="/signature"
+        className="group block rounded-[18px] overflow-hidden border border-[#ffd97a]/25 shadow-[0_24px_50px_rgba(0,20,30,0.34)] hover:-translate-y-1.5 hover:shadow-[0_30px_60px_rgba(0,20,30,0.45)] transition-all duration-300 h-full"
+        style={{ background: "linear-gradient(165deg,#013443 0%,#01222d 100%)" }}
+      >
+        <div className="relative h-[210px] overflow-hidden">
+          <div className="absolute inset-0 bg-cover bg-center opacity-55 group-hover:opacity-70 group-hover:scale-105 transition-all duration-500" style={{ backgroundImage: `url('${SIG_IMG}')` }} />
+          <div className="absolute inset-0" style={{ background: "linear-gradient(180deg, rgba(1,26,34,0.3) 0%, rgba(1,26,34,0.85) 100%)" }} />
+          <span className="absolute top-3 left-3 z-10 inline-flex items-center gap-1 text-[11px] font-black uppercase tracking-wide px-3 py-1.5 rounded-full text-[#3a2a05]" style={{ background: "linear-gradient(135deg,#ffe08a,#f0a500)" }}>✦ Invite only</span>
+        </div>
+        <div className="p-6">
+          <p className="text-[12px] font-semibold text-[#ffd97a] mb-1.5">By application</p>
+          <h3 className="text-xl font-extrabold tracking-[-0.02em] text-white mb-2.5">Signature Trips</h3>
+          <p className="text-[14px] text-white/65 leading-relaxed line-clamp-2 mb-4">My most special trips — small, hand-picked crews, in places you talk about for years.</p>
+          <div className="flex items-center justify-between pt-3 border-t border-white/10">
+            <span className="text-[13px] font-semibold text-white/45">Selective</span>
+            <span className="inline-flex items-center gap-1.5 text-[12px] font-bold text-[#ffd97a] group-hover:gap-2.5 transition-all">
+              Apply
+              <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M5 12h14M13 6l6 6-6 6" /></svg>
+            </span>
+          </div>
+        </div>
+      </Link>
+    </Reveal>
+  );
+}
 
 export type ExpCard = {
   id: string;
@@ -32,7 +68,7 @@ const monthLabel = (ym: string) =>
  * from the trips themselves — only months that actually have an upcoming edition
  * show up, so new months appear automatically as trips are added.
  */
-export function UpcomingExperiences({ experiences }: { experiences: ExpCard[] }) {
+export function UpcomingExperiences({ experiences, showSignature = false }: { experiences: ExpCard[]; showSignature?: boolean }) {
   const months = useMemo(() => {
     const set = new Set<string>();
     for (const e of experiences) for (const m of e.months) set.add(m);
@@ -60,7 +96,7 @@ export function UpcomingExperiences({ experiences }: { experiences: ExpCard[] })
         </div>
       )}
 
-      {filtered.length === 0 ? (
+      {filtered.length === 0 && !showSignature ? (
         <p className="text-center text-white/70">No trips that month — try another.</p>
       ) : (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
@@ -107,6 +143,7 @@ export function UpcomingExperiences({ experiences }: { experiences: ExpCard[] })
               </Link>
             </Reveal>
           ))}
+          {showSignature && <SignatureTile />}
         </div>
       )}
     </>
