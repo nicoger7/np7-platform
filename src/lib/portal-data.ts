@@ -20,7 +20,7 @@ export type MemberBooking = {
   downpayment_received: boolean | null;
   final_payment_received: boolean | null;
   created_at: string | null;
-  experience: { title: string; slug: string; currency: string | null; cancellation_policy: string | null; hero_image: string | null } | null;
+  experience: { title: string; slug: string; currency: string | null; cancellation_policy: string | null; hero_image: string | null; location?: string | null; tileAuto?: boolean; coachName?: string | null; coachCutout?: string | null } | null;
   edition: {
     id: string; label: string | null; date_start: string | null; date_end: string | null; deposit: number | null;
     whatsapp_group_link: string | null; memories_video_url: string | null; hero_image: string | null;
@@ -32,7 +32,7 @@ export type MemberBooking = {
 
 const SELECT =
   "id,status,experience_id,agreed_price,downpayment_received,final_payment_received,created_at,wa_group,flight_info," +
-  "exp_experiences(title,slug,currency,cancellation_policy,hero_image)," +
+  "exp_experiences(title,slug,currency,cancellation_policy,hero_image,location)," +
   "exp_editions(id,label,date_start,date_end,deposit,whatsapp_group_link,memories_video_url,hero_image)," +
   "exp_packages(name,price)";
 
@@ -61,11 +61,45 @@ export async function getPreTripContent(experienceId: string): Promise<{ packing
   return { packingList: data?.packing_list ?? null, preTripNote: data?.pre_trip_note ?? null };
 }
 
+/** Attach the auto-branded-tile data (tile_auto + default/head coach) to each
+    booking's experience, so the member trip tiles render the SAME <BrandedTile>
+    as the homepage experience tiles. Tolerant: pre-069 (no tile_auto / coaches) →
+    tileAuto stays false and the tile falls back to a plain hero. */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+async function enrichBrandedTiles(db: any, bookings: MemberBooking[]): Promise<void> {
+  const expIds = [...new Set(bookings.map((b) => b.experience_id).filter(Boolean))] as string[];
+  if (!expIds.length) return;
+  try {
+    const [autoRes, coachRes] = await Promise.all([
+      db.from("exp_experiences").select("id,tile_auto").in("id", expIds),
+      db.from("exp_coaches").select("name,cutout_url,role"),
+    ]);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const autoIds = new Set(((autoRes.data ?? []) as any[]).filter((e) => e.tile_auto === true).map((e) => e.id));
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const coaches = (coachRes.data ?? []) as any[];
+    // Default coach = the library's head coach (Nico), else the first — matches the
+    // homepage's fallback when an edition names no coach.
+    const head = coaches.find((c) => /head/i.test(String(c.role ?? ""))) ?? coaches[0];
+    const coachName = head?.name ?? null;
+    const coachCutout = head?.cutout_url ?? null;
+    for (const b of bookings) {
+      if (b.experience && b.experience_id) {
+        b.experience.tileAuto = autoIds.has(b.experience_id);
+        b.experience.coachName = coachName;
+        b.experience.coachCutout = coachCutout;
+      }
+    }
+  } catch { /* tolerant — no tile data → plain hero fallback */ }
+}
+
 export async function getMemberBookings(contactId: string): Promise<MemberBooking[]> {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const db = createAdminClient() as any;
   const { data } = await db.from("exp_bookings").select(SELECT).eq("contact_id", contactId).order("created_at", { ascending: false });
-  return (data ?? []).map(shape);
+  const bookings = (data ?? []).map(shape);
+  await enrichBrandedTiles(db, bookings);
+  return bookings;
 }
 
 export async function getMemberBooking(contactId: string, bookingId: string): Promise<MemberBooking | null> {
