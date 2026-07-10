@@ -17,7 +17,8 @@ export function AuthForm({ onLoggedIn, compact = false, initialMode = "login" }:
   const supabase = createClient();
 
   const [mode, setMode] = useState<Mode>(initialMode);
-  const [name, setName] = useState("");
+  const [firstName, setFirstName] = useState("");
+  const [lastName, setLastName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [busy, setBusy] = useState(false);
@@ -59,7 +60,7 @@ export function AuthForm({ onLoggedIn, compact = false, initialMode = "login" }:
       // register
       await fetch("/api/portal/register", {
         method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email, name, next }),
+        body: JSON.stringify({ email, name: `${firstName.trim()} ${lastName.trim()}`.trim(), next }),
       });
       setSent("register"); setBusy(false);
     } catch {
@@ -91,7 +92,13 @@ export function AuthForm({ onLoggedIn, compact = false, initialMode = "login" }:
   return (
     <form onSubmit={submit} className="space-y-3">
       {mode === "register" && (
-        <input value={name} onChange={(e) => setName(e.target.value)} placeholder="Your name" autoComplete="name" className={input} />
+        <>
+          <div className="flex gap-3">
+            <input value={firstName} onChange={(e) => setFirstName(e.target.value)} placeholder="First name" autoComplete="given-name" className={input} />
+            <input value={lastName} onChange={(e) => setLastName(e.target.value)} placeholder="Last name" autoComplete="family-name" className={input} />
+          </div>
+          <p className="text-[11.5px] text-[#9aa6ac] -mt-1">Kept private — others only ever see your first name.</p>
+        </>
       )}
       <input required type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="Your email" autoComplete="email" className={input} />
       {mode === "login" && (

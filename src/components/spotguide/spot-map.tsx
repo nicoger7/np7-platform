@@ -71,7 +71,7 @@ export function SpotMap({ spots, cluster = false, height = 420, linkLabel = "Vie
             `<strong style="color:#00374a;font-size:13.5px">${s.name}</strong>` +
             (s.destName ? `<div style="color:#6a7a80;font-size:12px;margin-top:1px">${s.destName}</div>` : "") +
             (meta.length ? `<div style="display:flex;gap:9px;flex-wrap:wrap;margin-top:6px;font-size:11.5px;color:#5a6b72">${meta.join("")}</div>` : "") +
-            `<a href="/spotguide/${s.destSlug}" style="color:#00afdb;font-weight:700;font-size:12.5px;display:inline-block;margin-top:8px;text-decoration:none">${linkLabel}</a></div>`
+            `<a href="/spotguide/${s.destSlug}" style="color:#00afdb;font-weight:700;font-size:12.5px;display:block;margin-top:8px;text-decoration:none">${linkLabel}</a></div>`
         );
         // stash the destination on the marker so clusters can label themselves
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
