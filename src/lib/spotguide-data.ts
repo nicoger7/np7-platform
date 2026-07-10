@@ -103,7 +103,9 @@ export async function getSpotguideDestination(slug: string): Promise<SpotguideDe
     .eq("destination_id", d.id)
     .eq("status", "published")
     .in("verification", ["community", "np7"])
-    .order("sort_order").order("name");
+    // Spots are listed A→Z (predictable) — sort_order was arbitrary. (Switch the
+    // primary key to a rating/verification order here if "best first" is wanted.)
+    .order("name");
   const spots = spotRows ?? [];
   const spotIds = spots.map((s: { id: string }) => s.id);
 

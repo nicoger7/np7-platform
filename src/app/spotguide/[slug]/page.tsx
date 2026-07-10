@@ -82,18 +82,20 @@ export default async function SpotguideDestinationPage({ params }: Props) {
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }} />
       <main className="bg-[#fff7ec] min-h-[100svh]">
         {/* hero */}
-        <header className="relative overflow-hidden" style={{ background: chrome.heroBackground }}>
+        <header className="relative overflow-hidden flex flex-col min-h-[360px] sm:min-h-[460px]" style={{ background: chrome.heroBackground }}>
           <div className="h-1 relative z-20" style={{ background: chrome.stripe }} />
           {/* The fallback image ALWAYS renders underneath (slow connection / no
-              video / video fails). A YouTube segment (migration 073) layers over
-              it when set. Both sit at 25% so the header text stays readable. */}
-          <div className="absolute inset-0 bg-cover bg-center opacity-25" style={{ backgroundImage: `url('${heroPoster}')` }} />
+              video / video fails); a YouTube segment (migration 073) layers over
+              it when set. A brand colour-fade — darker toward the bottom — keeps
+              the header text readable while letting the photo/video show. */}
+          <div className="absolute inset-0 bg-cover bg-center" style={{ backgroundImage: `url('${heroPoster}')` }} />
           {d.hero_video_url && (
-            <div className="absolute inset-0 opacity-25">
+            <div className="absolute inset-0">
               <HeroVideo url={d.hero_video_url} start={d.hero_video_start} end={d.hero_video_end} poster={heroPoster} />
             </div>
           )}
-          <div className="relative max-w-[1000px] mx-auto px-6 sm:px-8 pt-12 pb-14 sm:pt-16 sm:pb-16">
+          <div className="absolute inset-0" style={{ background: "linear-gradient(180deg, rgba(0,36,48,0.42) 0%, rgba(0,36,48,0.18) 45%, rgba(0,36,48,0.80) 100%)" }} />
+          <div className="relative z-10 mt-auto w-full max-w-[1000px] mx-auto px-6 sm:px-8 pt-12 pb-11 sm:pt-16 sm:pb-14">
             <Link href="/spotguide" className="text-[12px] font-bold text-white/70 hover:text-white transition-colors">← Spotguide</Link>
             <h1 className="text-white text-4xl sm:text-6xl font-black tracking-[-0.03em] mt-3">{d.name}</h1>
             <p className="text-white/75 text-[15px] font-semibold mt-2">{[d.region, d.country].filter(Boolean).join(", ")}{lvl ? `  ·  ${lvl}` : ""}</p>
