@@ -27,6 +27,7 @@ export type TripApplication = {
   media_type: MediaKind | null;
   status: ApplicationStatus;
   admin_notes: string | null;
+  verified: boolean;
   created_at: string;
   archived_at: string | null;
 };
@@ -44,6 +45,7 @@ function row(r: Record<string, unknown>): TripApplication {
     media_type: (r.media_type as MediaKind | null) ?? null,
     status: (r.status as ApplicationStatus) ?? "new",
     admin_notes: (r.admin_notes as string | null) ?? null,
+    verified: r.verified === true,
     created_at: String(r.created_at ?? ""),
     archived_at: (r.archived_at as string | null) ?? null,
   };
@@ -58,6 +60,7 @@ export type ApplyInput = {
   name: string; email: string; phone?: string | null; level?: string | null;
   wants?: string | null; motivation?: string | null;
   contactId?: string | null;   // set — applications are account-required now
+  verified?: boolean;          // true for logged-in members; false until a guest clicks their magic link
   media?: { kind: MediaKind; contentType: string } | null;
 };
 
@@ -75,6 +78,7 @@ export async function createApplication(input: ApplyInput): Promise<{ id: string
     wants: input.wants?.trim() || null,
     motivation: input.motivation?.trim() || null,
     contact_id: input.contactId ?? null,
+    verified: input.verified ?? false,
   };
 
   let uploadUrl: string | null = null;
@@ -103,7 +107,8 @@ export async function createApplication(input: ApplyInput): Promise<{ id: string
 /** Admin: every application (newest first, non-archived), with a short-lived
  *  presigned playback URL for the pitch. */
 export async function listApplications(): Promise<(TripApplication & { playbackUrl: string | null })[]> {
-  const { data } = await db().from("exp_trip_applications").select("*").is("archived_at", null).order("created_at", { ascending: false });
+  // Only verified (real) applications — an unverified one hasn't clicked its magic link yet.
+  const { data } = await db().from("exp_trip_applications").select("*").eq("verified", true).is("archived_at", null).order("created_at", { ascending: false });
   const rows = ((data ?? []) as Record<string, unknown>[]).map(row);
   return Promise.all(rows.map(async (a) => ({
     ...a,
@@ -115,9 +120,28 @@ export async function listApplications(): Promise<(TripApplication & { playbackU
  *  applied" guard and the member-portal status card. */
 export async function getMemberApplication(contactId: string): Promise<TripApplication | null> {
   const { data } = await db().from("exp_trip_applications").select("*")
-    .eq("contact_id", contactId).is("archived_at", null)
+    .eq("contact_id", contactId).eq("verified", true).is("archived_at", null)
     .order("created_at", { ascending: false }).limit(1).maybeSingle();
   return data ? row(data) : null;
+}
+
+/** Confirm a member's pending applications — called when they land back logged in
+ *  after clicking their magic link. Flips verified=false → true (makes it "real"). */
+export async function verifyApplications(contactId: string): Promise<void> {
+  await db().from("exp_trip_applications").update({ verified: true }).eq("contact_id", contactId).eq("verified", false);
+}
+
+/** Find-or-create a contact by email (mirrors the register flow) — used when a
+ *  guest applies before they have an account. */
+export async function findOrCreateContact(email: string, name?: string): Promise<string | null> {
+  const sb = db();
+  const { data: existing } = await sb.from("contacts").select("id,name").eq("email", email).maybeSingle();
+  if (existing?.id) {
+    if (name && !existing.name) await sb.from("contacts").update({ name }).eq("id", existing.id);
+    return String(existing.id);
+  }
+  const { data: created } = await sb.from("contacts").insert({ name: name || email.split("@")[0], email, source: "signature-apply" }).select("id").single();
+  return created?.id ? String(created.id) : null;
 }
 
 export async function updateApplication(id: string, patch: { status?: ApplicationStatus; admin_notes?: string }): Promise<TripApplication | null> {

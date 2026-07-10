@@ -2,21 +2,25 @@
 
 import { useState } from "react";
 import { PitchRecorder } from "@/components/experience/pitch-recorder";
-import { AuthForm } from "@/components/shared/auth-form";
+import type { ApplicationStatus } from "@/lib/signature";
 
 /**
- * The Signature Trips application. ACCOUNT-REQUIRED (a deliberate barrier for a
- * premium, invite-only trip): the marketing page is public, but to apply you
- * log in / create an account. Identity comes from the account; we just collect
- * phone + level + what you want + a short pitch (recorded in-browser → R2).
- * One live application per member; they see its status in their portal.
+ * The Signature Trips application. Everyone fills it in straight (pitch-first, no
+ * upfront wall). Members are verified on submit; guests submit with their email
+ * and get a magic login link — clicking it confirms their account AND makes the
+ * application "real" (a fake email never verifies = the barrier). Existing
+ * members can log in first. One live application per person; status shows in
+ * their portal.
  */
 const LEVELS = ["Beginner", "Intermediate", "Advanced", "Semi-Pro", "Pro", "Not sure yet"];
 
-export function SignatureApply({ loggedIn = false, prefill }: {
+export function SignatureApply({ loggedIn = false, prefill, existing }: {
   loggedIn?: boolean;
   prefill?: { name: string | null; email: string | null; phone: string | null } | null;
+  existing?: { status: ApplicationStatus } | null;
 }) {
+  const [name, setName] = useState(prefill?.name ?? "");
+  const [email, setEmail] = useState(prefill?.email ?? "");
   const [phone, setPhone] = useState(prefill?.phone ?? "");
   const [level, setLevel] = useState("");
   const [wants, setWants] = useState("");
@@ -25,7 +29,8 @@ export function SignatureApply({ loggedIn = false, prefill }: {
   const [busy, setBusy] = useState(false);
   const [phase, setPhase] = useState("");
   const [err, setErr] = useState("");
-  const [done, setDone] = useState<false | "sent" | "already">(false);
+  const [done, setDone] = useState<false | "sent" | "verify" | "already">(false);
+  const [sentEmail, setSentEmail] = useState("");
 
   const card = "rounded-2xl border border-[#ecdcbb] bg-white p-5 sm:p-6 shadow-[0_10px_30px_rgba(120,90,20,0.05)]";
   const label = "text-[12px] font-black uppercase tracking-[0.16em] text-[#b0791e]";
@@ -33,6 +38,7 @@ export function SignatureApply({ loggedIn = false, prefill }: {
 
   async function submit() {
     setErr("");
+    if (!loggedIn && (!name.trim() || !email.trim())) { setErr("Please add your name and email."); return; }
     setBusy(true);
     try {
       const baseType = media ? (media.blob.type.split(";")[0] || (media.kind === "video" ? "video/webm" : "audio/webm")) : null;
@@ -41,6 +47,7 @@ export function SignatureApply({ loggedIn = false, prefill }: {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
+          name: name.trim() || null, email: email.trim() || null,
           phone: phone.trim() || null, level: level || null,
           wants: wants.trim() || null, motivation: motivation.trim() || null,
           media: media && baseType ? { kind: media.kind, contentType: baseType } : null,
@@ -53,50 +60,76 @@ export function SignatureApply({ loggedIn = false, prefill }: {
       if (media && baseType && j.uploadUrl) {
         setPhase("Uploading your pitch…");
         const put = await fetch(j.uploadUrl, { method: "PUT", headers: { "Content-Type": baseType }, body: media.blob }).catch(() => null);
-        if (!put || !put.ok) setErr("Your application is in, but the pitch upload failed — we may reach out for it.");
+        if (!put || !put.ok) setErr("Your pitch upload failed — but your application is in; we may reach out for it.");
       }
-      setDone("sent");
+      if (j.needsVerification) { setSentEmail(j.email || email.trim()); setDone("verify"); }
+      else setDone("sent");
       window.scrollTo({ top: 0, behavior: "smooth" });
     } finally { setBusy(false); setPhase(""); }
   }
 
-  // ── not logged in: the account gate ──────────────────────────────────────
-  if (!loggedIn) {
+  // ── already applied (verified) ──
+  if (existing) {
+    const line = existing.status === "accepted" ? "You're accepted 🎉 — we'll reach out with the details."
+      : existing.status === "shortlisted" ? "You've been shortlisted 🎉 — we'll be in touch."
+      : "Your application is in and under review.";
     return (
-      <div className={card}>
-        <p className={label}>Apply with your NP7 account</p>
-        <p className="text-[14px] text-[#5a6b72] mt-2 mb-5 leading-relaxed">
-          These trips are invite-only, so applications go through your NP7 account — it&apos;s how we keep it personal, and how you&apos;ll follow where your application stands. Create one (takes 30 seconds) or log in to apply.
-        </p>
-        <AuthForm initialMode="register" />
+      <div className="rounded-2xl border border-[#bfe6d7] bg-[#f1faf5] p-8 text-center">
+        <div className="text-3xl mb-2">✦</div>
+        <h2 className="text-[21px] font-black text-[#00374a]">You&apos;ve applied</h2>
+        <p className="text-[14.5px] text-[#5a6b72] mt-2 max-w-[440px] mx-auto leading-relaxed">{line} You can see the status any time in your account.</p>
+        <a href="/account" className="inline-block mt-5 rounded-full bg-[#00afdb] text-white text-[13.5px] font-bold px-6 py-3 hover:bg-[#15c0ec] transition-colors">Go to your account</a>
       </div>
     );
   }
 
-  // ── done states ──────────────────────────────────────────────────────────
+  // ── done states ──
+  if (done === "verify") {
+    return (
+      <div className="rounded-2xl border border-[#f4c99a] bg-[#fff8ef] p-8 text-center">
+        <div className="text-4xl mb-2">📩</div>
+        <h2 className="text-[21px] font-black text-[#00374a]">One last step — check your email</h2>
+        <p className="text-[14.5px] text-[#5a6b72] mt-2 max-w-[460px] mx-auto leading-relaxed">
+          We sent a login link to <strong className="text-[#00374a]">{sentEmail}</strong>. Click it to confirm your NP7 account — that&apos;s what makes your application real and lets you track it. Nothing counts until you do. 🌊
+        </p>
+      </div>
+    );
+  }
   if (done) {
     return (
       <div className="rounded-2xl border border-[#bfe6d7] bg-[#f1faf5] p-8 text-center">
         <div className="text-4xl mb-2">🤙</div>
-        <h2 className="text-[22px] font-black text-[#00374a]">{done === "already" ? "You've already applied" : `Thank you, ${prefill?.name?.split(/\s+/)[0] || "there"}!`}</h2>
+        <h2 className="text-[22px] font-black text-[#00374a]">{done === "already" ? "You've already applied" : `Thank you, ${(prefill?.name || name).split(/\s+/)[0] || "there"}!`}</h2>
         <p className="text-[14.5px] text-[#5a6b72] mt-2 max-w-[440px] mx-auto leading-relaxed">
           {done === "already"
-            ? "Your application is with us and under review — you can see its status any time in your account. If there's a fit, we'll reach out personally. 🌊"
-            : "Your application is in, and it's now in your account under review. These trips are small and hand-picked — if there's a fit, we'll reach out to you personally. 🌊"}
+            ? "Your application is with us and under review — you can see its status in your account. If there's a fit, we'll reach out personally. 🌊"
+            : "Your application is in, and it's now in your account under review. If there's a fit, we'll reach out to you personally. 🌊"}
         </p>
         <a href="/account" className="inline-block mt-5 rounded-full bg-[#00afdb] text-white text-[13.5px] font-bold px-6 py-3 hover:bg-[#15c0ec] transition-colors">Go to your account</a>
       </div>
     );
   }
 
-  // ── logged in: the form ──────────────────────────────────────────────────
+  // ── the form (everyone) ──
   return (
     <div className="space-y-4">
       <div className={card}>
-        <p className={label}>Applying as</p>
-        <p className="text-[16px] font-black text-[#00374a] mt-1.5">{prefill?.name || "Your account"}</p>
-        {prefill?.email && <p className="text-[13px] text-[#8a97a0]">{prefill.email}</p>}
-        <div className="grid sm:grid-cols-2 gap-3 mt-4">
+        <div className="flex items-start justify-between gap-3">
+          <p className={label}>About you</p>
+          {!loggedIn && <a href="/account/login?next=/signature" className="text-[12.5px] font-bold text-[#00849e] hover:underline shrink-0">Already have an account? Log in →</a>}
+        </div>
+        {loggedIn ? (
+          <div className="mt-2">
+            <p className="text-[15.5px] font-black text-[#00374a]">{prefill?.name || "Your account"}</p>
+            {prefill?.email && <p className="text-[13px] text-[#8a97a0]">{prefill.email}</p>}
+          </div>
+        ) : (
+          <div className="grid sm:grid-cols-2 gap-3 mt-3">
+            <input className={input} placeholder="Full name" value={name} onChange={(e) => setName(e.target.value)} />
+            <input className={input} type="email" placeholder="Email" value={email} onChange={(e) => setEmail(e.target.value)} />
+          </div>
+        )}
+        <div className="grid sm:grid-cols-2 gap-3 mt-3">
           <input className={input} placeholder="Phone / WhatsApp" value={phone} onChange={(e) => setPhone(e.target.value)} />
           <select className={input} value={level} onChange={(e) => setLevel(e.target.value)}>
             <option value="">Your windsurf level…</option>
@@ -127,7 +160,7 @@ export function SignatureApply({ loggedIn = false, prefill }: {
         style={{ background: "linear-gradient(135deg,#f7b733 0%,#f47b20 55%,#e0590f 100%)" }}>
         {busy ? (phase || "Sending…") : "Send my application"}
       </button>
-      <p className="text-[12px] text-[#a58a5e] text-center">Private — your application &amp; pitch go straight to the NP7 team. No spam, ever.</p>
+      <p className="text-[12px] text-[#a58a5e] text-center">{loggedIn ? "Private — your application & pitch go straight to the NP7 team." : "We'll email you a link to confirm — that makes your application real. No spam, ever."}</p>
     </div>
   );
 }

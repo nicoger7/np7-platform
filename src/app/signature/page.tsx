@@ -8,6 +8,7 @@ import { Reveal } from "@/components/experience/reveal";
 import { SignatureApply } from "@/components/experience/signature-apply";
 import { getPortalUser } from "@/lib/auth";
 import { createAdminClient } from "@/lib/supabase";
+import { getMemberApplication, verifyApplications } from "@/lib/signature";
 
 // Personalised apply section (login-gated), so render per request.
 export const dynamic = "force-dynamic";
@@ -69,11 +70,19 @@ function Step({ n, title, body }: { n: string; title: string; body: string }) {
 export default async function SignatureTripsPage() {
   const user = await getPortalUser().catch(() => null);
   let prefill: { name: string | null; email: string | null; phone: string | null } | null = null;
+  let existing: { status: import("@/lib/signature").ApplicationStatus } | null = null;
   if (user) {
+    // Landing here logged in after clicking the magic link confirms any pending
+    // application (makes it "real"), then we read their (verified) application.
+    await verifyApplications(user.contactId).catch(() => {});
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const db = createAdminClient() as any;
-    const { data } = await db.from("contacts").select("name,email,phone").eq("id", user.contactId).maybeSingle();
+    const [{ data }, app] = await Promise.all([
+      db.from("contacts").select("name,email,phone").eq("id", user.contactId).maybeSingle(),
+      getMemberApplication(user.contactId).catch(() => null),
+    ]);
     prefill = { name: data?.name ?? null, email: data?.email ?? null, phone: data?.phone ?? null };
+    existing = app ? { status: app.status } : null;
   }
 
   return (
@@ -184,7 +193,7 @@ export default async function SignatureTripsPage() {
                 <h2 className="text-3xl sm:text-5xl font-black tracking-[-0.03em] text-white mb-3">Apply for a Signature Trip</h2>
                 <p className="text-[15px] text-white/70">Two minutes. The pitch is the part that matters — we&apos;d rather hear you than read a CV.</p>
               </Reveal>
-              <SignatureApply loggedIn={!!user} prefill={prefill} />
+              <SignatureApply loggedIn={!!user} prefill={prefill} existing={existing} />
             </div>
           </section>
 

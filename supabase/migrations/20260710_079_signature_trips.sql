@@ -18,6 +18,10 @@ create table if not exists exp_trip_applications (
   motivation text,            -- free text "why me" (optional when they record a pitch)
   media_key text,             -- R2 object key for the pitch clip (private, presigned playback)
   media_type text check (media_type in ('video', 'audio')),
+  -- Double opt-in: guests apply then click a magic link to "make it real". Only
+  -- verified applications are shown to admin / count as real. Logged-in members
+  -- are verified on submit.
+  verified boolean not null default false,
   status text not null default 'new' check (status in ('new', 'shortlisted', 'accepted', 'declined')),
   admin_notes text,
   contact_id uuid references contacts(id) on delete set null,  -- linked once they get an account
