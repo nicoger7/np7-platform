@@ -110,6 +110,21 @@ export const TEMPLATES: Record<string, (v: EmailVars, opts?: LayoutOpts) => Buil
     }),
   }),
 
+  // Hidden invite-only trip-interest survey (a personal secret link).
+  survey_invite: (v, opts) => ({
+    subject: `A quick one for you — ${v.surveyTitle ?? "help shape a special NP7 trip"} 🌊`,
+    html: emailLayout({
+      ...opts,
+      preheader: `A private invite to help plan a special NP7 trip — 2 minutes.`,
+      bodyHtml:
+        p(`Hey ${esc(v.firstName || "there")} 🤙`) +
+        p(`I'm putting together a <strong>special, invite-only trip</strong> and I'd love your input to help shape it — where, when, and what you'd want out of it.`) +
+        (v.surveyIntro ? p(`<em>${esc(v.surveyIntro)}</em>`) : "") +
+        (v.surveyLink ? emailButton("Take the 2-minute survey", v.surveyLink) : "") +
+        p(`This link is just for you — no need to log in. Thanks for helping me build something great.<br>— Nico`),
+    }),
+  }),
+
   payment_pending_nudge: (v, opts) => ({
     subject: `Your spot is waiting — ${v.experienceTitle ?? "NP7 Experience"}`,
     html: emailLayout({
