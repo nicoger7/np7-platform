@@ -10,7 +10,7 @@ interface MemberData {
   contact: { id: string; name: string; email: string | null; phone: string | null; country: string | null; level: string | null; auth_user_id?: string | null };
   bookings: { id: string; name: string | null; status: string | null; agreed_price: number | null; created_at: string; exp_experiences: { title: string } | null; exp_editions: { label: string | null; year: number | null } | null }[];
   payments: { id: string; amount: number | null; direction: string | null; status: string | null; type: string | null; date: string | null; reference: string | null }[];
-  emails: { template_key: string; subject: string | null; status: string | null; sent_at: string | null; created_at: string }[];
+  emails: { template_key: string; subject: string | null; status: string | null; to_email?: string | null; provider_id?: string | null; sent_at: string | null; created_at: string }[];
   documents: { id: string; type: string; invoice_number: string | null; amount: number | null; currency: string; issued_at: string; status: string }[];
   reviews: { id: string; rating: number | null; quote: string | null; status: string; photo_url: string | null }[];
   gallery: string[];
@@ -37,7 +37,7 @@ function Panel({ title, count, children }: { title: string; count?: number; chil
 export function MemberDetailPane({ contactId, initialTab = "overview", onBack }: { contactId: string; initialTab?: "overview" | "level"; onBack?: () => void }) {
   const [d, setD] = useState<MemberData | null>(null);
   const [loading, setLoading] = useState(true);
-  const [tab, setTab] = useState<"overview" | "level" | "preview">(initialTab);
+  const [tab, setTab] = useState<"overview" | "level" | "preview" | "emails">(initialTab);
 
   // Refetch when the selected member changes (split view swaps contactId in place).
   useEffect(() => {
@@ -71,7 +71,7 @@ export function MemberDetailPane({ contactId, initialTab = "overview", onBack }:
       </div>
 
       <div className="flex items-center gap-1 mb-5 border-b" style={{ borderColor: "var(--admin-border)" }}>
-        {([["overview", "Overview"], ["level", "Level & skills"], ["preview", "Member view"]] as const).map(([key, label]) => (
+        {([["overview", "Overview"], ["level", "Level & skills"], ["emails", "Emails"], ["preview", "Member view"]] as const).map(([key, label]) => (
           <button
             key={key}
             onClick={() => setTab(key)}
@@ -95,6 +95,24 @@ export function MemberDetailPane({ contactId, initialTab = "overview", onBack }:
             <SpotguideTrust contactId={c.id} />
           </Panel>
         </div>
+      ) : tab === "emails" ? (
+        <Panel title="Emails to this member" count={d.emails.length}>
+          {d.emails.length === 0 ? <p className="text-xs admin-faint">No emails to this member yet.</p> : (
+            <div className="divide-y" style={{ borderColor: "var(--admin-border)" }}>
+              {d.emails.map((e, i) => (
+                <div key={i} className="flex items-center gap-3 py-2">
+                  <span className="flex-1 min-w-0">
+                    <span className="block text-sm admin-heading truncate">{e.subject || (e.template_key || "").replace(/_/g, " ")}</span>
+                    <span className="block text-[11px] admin-faint truncate">{(e.template_key || "").replace(/_/g, " ")}{e.to_email ? ` · ${e.to_email}` : ""}</span>
+                  </span>
+                  <span className={`text-xs w-20 text-right ${e.status === "sent" ? "text-green-400" : e.status === "failed" ? "text-red-400" : "admin-faint"}`}>{e.status === "sent" ? "sent ✓" : e.status}</span>
+                  <span className="admin-faint text-xs w-20 text-right">{fmtDate(e.sent_at || e.created_at)}</span>
+                </div>
+              ))}
+            </div>
+          )}
+          <p className="text-[11px] admin-faint mt-3 leading-relaxed">&ldquo;Sent&rdquo; means our email provider (Resend) <strong>accepted</strong> the message — it&rsquo;s not a delivery or read receipt. Check the Resend dashboard for delivery/bounce status.</p>
+        </Panel>
       ) : (
       <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
         <Panel title="Bookings" count={d.bookings.length}>

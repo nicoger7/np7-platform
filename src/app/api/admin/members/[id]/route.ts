@@ -14,12 +14,16 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
   const { data: contact, error } = await db.from("contacts").select("*").eq("id", id).maybeSingle();
   if (error || !contact) return NextResponse.json({ error: "Not found" }, { status: 404 });
 
+  // Emails: match by the linked contact_id OR the member's email address — many
+  // sends (magic links, etc.) log a to_email without a contact_id, so contact_id
+  // alone misses most of a member's mail.
+  const emailFilter = contact.email ? `contact_id.eq.${id},to_email.eq.${contact.email}` : `contact_id.eq.${id}`;
   const [bookingsRes, payments, emails, documents] = await Promise.all([
     db.from("exp_bookings")
       .select("id,name,status,agreed_price,edition_id,created_at,exp_experiences(title,slug),exp_editions(label,year,date_start)")
       .eq("contact_id", id).order("created_at", { ascending: false }),
     db.from("exp_payments").select("id,amount,direction,status,type,date,reference").eq("contact_id", id).order("date", { ascending: false }),
-    db.from("email_log").select("template_key,subject,status,sent_at,created_at").eq("contact_id", id).order("created_at", { ascending: false }).limit(15),
+    db.from("email_log").select("template_key,subject,status,to_email,provider_id,sent_at,created_at").or(emailFilter).order("created_at", { ascending: false }).limit(40),
     db.from("documents").select("id,type,invoice_number,amount,currency,issued_at,status").eq("contact_id", id).order("issued_at", { ascending: false }),
   ]);
 
