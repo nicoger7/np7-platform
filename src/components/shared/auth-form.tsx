@@ -97,7 +97,7 @@ export function AuthForm({ onLoggedIn, compact = false, initialMode = "login" }:
             <input value={firstName} onChange={(e) => setFirstName(e.target.value)} placeholder="First name" autoComplete="given-name" className={input} />
             <input value={lastName} onChange={(e) => setLastName(e.target.value)} placeholder="Last name" autoComplete="family-name" className={input} />
           </div>
-          <p className="text-[11.5px] text-[#9aa6ac] -mt-1">Kept private — others only ever see your first name.</p>
+          <p className="text-[11.5px] text-[#9aa6ac] -mt-1">Private — others only ever see your first name &amp; last initial (e.g. &ldquo;Nico P.&rdquo;), never your full name.</p>
         </>
       )}
       <input required type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="Your email" autoComplete="email" className={input} />
