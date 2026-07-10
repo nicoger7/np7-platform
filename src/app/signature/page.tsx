@@ -6,6 +6,11 @@ import { OceanHeader } from "@/components/experience/ocean-header";
 import { ParallaxHero } from "@/components/experience/parallax-hero";
 import { Reveal } from "@/components/experience/reveal";
 import { SignatureApply } from "@/components/experience/signature-apply";
+import { getPortalUser } from "@/lib/auth";
+import { createAdminClient } from "@/lib/supabase";
+
+// Personalised apply section (login-gated), so render per request.
+export const dynamic = "force-dynamic";
 
 export const metadata: Metadata = {
   title: "Signature Trips — invite-only windsurf expeditions",
@@ -61,7 +66,16 @@ function Step({ n, title, body }: { n: string; title: string; body: string }) {
   );
 }
 
-export default function SignatureTripsPage() {
+export default async function SignatureTripsPage() {
+  const user = await getPortalUser().catch(() => null);
+  let prefill: { name: string | null; email: string | null; phone: string | null } | null = null;
+  if (user) {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const db = createAdminClient() as any;
+    const { data } = await db.from("contacts").select("name,email,phone").eq("id", user.contactId).maybeSingle();
+    prefill = { name: data?.name ?? null, email: data?.email ?? null, phone: data?.phone ?? null };
+  }
+
   return (
     <>
       <OceanHeader showExperience={flags.showExperience} showHardware={flags.showHardware} showBlog={flags.showBlog} bookHref="#apply" />
@@ -170,7 +184,7 @@ export default function SignatureTripsPage() {
                 <h2 className="text-3xl sm:text-5xl font-black tracking-[-0.03em] text-white mb-3">Apply for a Signature Trip</h2>
                 <p className="text-[15px] text-white/70">Two minutes. The pitch is the part that matters — we&apos;d rather hear you than read a CV.</p>
               </Reveal>
-              <SignatureApply />
+              <SignatureApply loggedIn={!!user} prefill={prefill} />
             </div>
           </section>
 

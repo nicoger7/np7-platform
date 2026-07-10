@@ -57,6 +57,7 @@ const EXT: Record<string, string> = {
 export type ApplyInput = {
   name: string; email: string; phone?: string | null; level?: string | null;
   wants?: string | null; motivation?: string | null;
+  contactId?: string | null;   // set — applications are account-required now
   media?: { kind: MediaKind; contentType: string } | null;
 };
 
@@ -73,6 +74,7 @@ export async function createApplication(input: ApplyInput): Promise<{ id: string
     level: input.level?.trim() || null,
     wants: input.wants?.trim() || null,
     motivation: input.motivation?.trim() || null,
+    contact_id: input.contactId ?? null,
   };
 
   let uploadUrl: string | null = null;
@@ -107,6 +109,15 @@ export async function listApplications(): Promise<(TripApplication & { playbackU
     ...a,
     playbackUrl: a.media_key ? await presignGet(a.media_key, 3600).catch(() => null) : null,
   })));
+}
+
+/** A member's latest (non-archived) Signature application — for the "already
+ *  applied" guard and the member-portal status card. */
+export async function getMemberApplication(contactId: string): Promise<TripApplication | null> {
+  const { data } = await db().from("exp_trip_applications").select("*")
+    .eq("contact_id", contactId).is("archived_at", null)
+    .order("created_at", { ascending: false }).limit(1).maybeSingle();
+  return data ? row(data) : null;
 }
 
 export async function updateApplication(id: string, patch: { status?: ApplicationStatus; admin_notes?: string }): Promise<TripApplication | null> {

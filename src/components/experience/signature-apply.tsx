@@ -2,19 +2,22 @@
 
 import { useState } from "react";
 import { PitchRecorder } from "@/components/experience/pitch-recorder";
+import { AuthForm } from "@/components/shared/auth-form";
 
 /**
- * The public Signature Trips application. Guest-friendly (no account): who you
- * are + phone + level + what you want, plus a short pitch recorded in-browser.
- * On submit we create the application, then PUT the pitch straight to R2 via the
- * presigned URL the server hands back. The pitch is optional but encouraged.
+ * The Signature Trips application. ACCOUNT-REQUIRED (a deliberate barrier for a
+ * premium, invite-only trip): the marketing page is public, but to apply you
+ * log in / create an account. Identity comes from the account; we just collect
+ * phone + level + what you want + a short pitch (recorded in-browser → R2).
+ * One live application per member; they see its status in their portal.
  */
 const LEVELS = ["Beginner", "Intermediate", "Advanced", "Semi-Pro", "Pro", "Not sure yet"];
 
-export function SignatureApply() {
-  const [name, setName] = useState("");
-  const [email, setEmail] = useState("");
-  const [phone, setPhone] = useState("");
+export function SignatureApply({ loggedIn = false, prefill }: {
+  loggedIn?: boolean;
+  prefill?: { name: string | null; email: string | null; phone: string | null } | null;
+}) {
+  const [phone, setPhone] = useState(prefill?.phone ?? "");
   const [level, setLevel] = useState("");
   const [wants, setWants] = useState("");
   const [motivation, setMotivation] = useState("");
@@ -22,11 +25,14 @@ export function SignatureApply() {
   const [busy, setBusy] = useState(false);
   const [phase, setPhase] = useState("");
   const [err, setErr] = useState("");
-  const [done, setDone] = useState(false);
+  const [done, setDone] = useState<false | "sent" | "already">(false);
+
+  const card = "rounded-2xl border border-[#ecdcbb] bg-white p-5 sm:p-6 shadow-[0_10px_30px_rgba(120,90,20,0.05)]";
+  const label = "text-[12px] font-black uppercase tracking-[0.16em] text-[#b0791e]";
+  const input = "w-full rounded-xl border border-[#d8e3e6] px-3.5 py-3 text-[15px] outline-none focus:border-[#f0a500] transition-colors";
 
   async function submit() {
     setErr("");
-    if (!name.trim() || !email.trim()) { setErr("Please add your name and email."); return; }
     setBusy(true);
     try {
       const baseType = media ? (media.blob.type.split(";")[0] || (media.kind === "video" ? "video/webm" : "audio/webm")) : null;
@@ -35,52 +41,62 @@ export function SignatureApply() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          name: name.trim(), email: email.trim(), phone: phone.trim() || null,
-          level: level || null, wants: wants.trim() || null, motivation: motivation.trim() || null,
+          phone: phone.trim() || null, level: level || null,
+          wants: wants.trim() || null, motivation: motivation.trim() || null,
           media: media && baseType ? { kind: media.kind, contentType: baseType } : null,
         }),
       });
       const j = await res.json().catch(() => ({}));
+      if (res.status === 409) { setDone("already"); window.scrollTo({ top: 0, behavior: "smooth" }); return; }
       if (!res.ok) { setErr(j.error || "Something went wrong — please try again."); return; }
 
       if (media && baseType && j.uploadUrl) {
         setPhase("Uploading your pitch…");
         const put = await fetch(j.uploadUrl, { method: "PUT", headers: { "Content-Type": baseType }, body: media.blob }).catch(() => null);
-        if (!put || !put.ok) setErr("Your application is in, but the pitch upload failed — I may reach out for it.");
+        if (!put || !put.ok) setErr("Your application is in, but the pitch upload failed — we may reach out for it.");
       }
-      setDone(true);
+      setDone("sent");
       window.scrollTo({ top: 0, behavior: "smooth" });
     } finally { setBusy(false); setPhase(""); }
   }
 
-  const card = "rounded-2xl border border-[#ecdcbb] bg-white p-5 sm:p-6 shadow-[0_10px_30px_rgba(120,90,20,0.05)]";
-  const label = "text-[12px] font-black uppercase tracking-[0.16em] text-[#b0791e]";
-  const input = "w-full rounded-xl border border-[#d8e3e6] px-3.5 py-3 text-[15px] outline-none focus:border-[#f0a500] transition-colors";
-
-  if (done) {
+  // ── not logged in: the account gate ──────────────────────────────────────
+  if (!loggedIn) {
     return (
-      <div className="rounded-2xl border border-[#bfe6d7] bg-[#f1faf5] p-8 text-center">
-        <div className="text-4xl mb-2">🤙</div>
-        <h2 className="text-[22px] font-black text-[#00374a]">Thank you, {name.split(/\s+/)[0] || "there"}!</h2>
-        <p className="text-[14.5px] text-[#5a6b72] mt-2 max-w-[440px] mx-auto leading-relaxed">Your application is in. These trips are small and hand-picked — if there&apos;s a fit, we&apos;ll reach out to you personally. 🌊</p>
+      <div className={card}>
+        <p className={label}>Apply with your NP7 account</p>
+        <p className="text-[14px] text-[#5a6b72] mt-2 mb-5 leading-relaxed">
+          These trips are invite-only, so applications go through your NP7 account — it&apos;s how we keep it personal, and how you&apos;ll follow where your application stands. Create one (takes 30 seconds) or log in to apply.
+        </p>
+        <AuthForm initialMode="register" />
       </div>
     );
   }
 
+  // ── done states ──────────────────────────────────────────────────────────
+  if (done) {
+    return (
+      <div className="rounded-2xl border border-[#bfe6d7] bg-[#f1faf5] p-8 text-center">
+        <div className="text-4xl mb-2">🤙</div>
+        <h2 className="text-[22px] font-black text-[#00374a]">{done === "already" ? "You've already applied" : `Thank you, ${prefill?.name?.split(/\s+/)[0] || "there"}!`}</h2>
+        <p className="text-[14.5px] text-[#5a6b72] mt-2 max-w-[440px] mx-auto leading-relaxed">
+          {done === "already"
+            ? "Your application is with us and under review — you can see its status any time in your account. If there's a fit, we'll reach out personally. 🌊"
+            : "Your application is in, and it's now in your account under review. These trips are small and hand-picked — if there's a fit, we'll reach out to you personally. 🌊"}
+        </p>
+        <a href="/account" className="inline-block mt-5 rounded-full bg-[#00afdb] text-white text-[13.5px] font-bold px-6 py-3 hover:bg-[#15c0ec] transition-colors">Go to your account</a>
+      </div>
+    );
+  }
+
+  // ── logged in: the form ──────────────────────────────────────────────────
   return (
     <div className="space-y-4">
-      {/* login offer — members can apply faster; everyone else applies as a guest */}
-      <div className="rounded-2xl border border-[#cfe9f1] bg-[#f1fbfd] px-4 py-3 flex flex-wrap items-center gap-x-2 gap-y-1 text-[13.5px]">
-        <span className="font-semibold text-[#00374a]">Already an NP7 member?</span>
-        <a href="/account/login?next=/signature" className="font-bold text-[#00849e] hover:underline">Log in to apply faster →</a>
-        <span className="text-[#8a97a0]">New here? Just apply below.</span>
-      </div>
-
       <div className={card}>
-        <p className={label}>About you</p>
-        <div className="grid sm:grid-cols-2 gap-3 mt-3">
-          <input className={input} placeholder="Full name" value={name} onChange={(e) => setName(e.target.value)} />
-          <input className={input} type="email" placeholder="Email" value={email} onChange={(e) => setEmail(e.target.value)} />
+        <p className={label}>Applying as</p>
+        <p className="text-[16px] font-black text-[#00374a] mt-1.5">{prefill?.name || "Your account"}</p>
+        {prefill?.email && <p className="text-[13px] text-[#8a97a0]">{prefill.email}</p>}
+        <div className="grid sm:grid-cols-2 gap-3 mt-4">
           <input className={input} placeholder="Phone / WhatsApp" value={phone} onChange={(e) => setPhone(e.target.value)} />
           <select className={input} value={level} onChange={(e) => setLevel(e.target.value)}>
             <option value="">Your windsurf level…</option>

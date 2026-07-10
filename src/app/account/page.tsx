@@ -13,6 +13,7 @@ import { LevelHomeCard } from "@/components/portal/level-home-card";
 import { HomeProgress } from "@/components/portal/home-progress";
 import { SetupProgress, type SetupStep } from "@/components/portal/setup-progress";
 import { SetPasswordPrompt } from "@/components/portal/set-password-prompt";
+import { getMemberApplication } from "@/lib/signature";
 import { flags } from "@/lib/flags";
 
 export const metadata: Metadata = { title: "My account — NP7" };
@@ -31,11 +32,12 @@ export default async function AccountHome() {
     await supabase.auth.signOut();
     redirect("/account/login");
   }
-  const [bookings, bannerImages, profile, progression] = await Promise.all([
+  const [bookings, bannerImages, profile, progression, signatureApp] = await Promise.all([
     getMemberBookings(user.contactId),
     getMemberBannerImages(user.contactId).catch(() => []),
     getMemberProfile(user.contactId).catch(() => null),
     getMemberProgression(user.contactId).catch(() => null),
+    getMemberApplication(user.contactId).catch(() => null),
   ]);
   const first = user.name?.split(" ")[0] ?? "there";
 
@@ -130,6 +132,24 @@ export default async function AccountHome() {
           {setupSteps.length > 0 && (
             <div className="mt-6">
               <SetupProgress steps={setupSteps} />
+            </div>
+          )}
+
+          {/* Signature Trip application status — the "kept a bit open" loop */}
+          {signatureApp && signatureApp.status !== "declined" && (
+            <div className="mt-6">
+              <Link href="/signature" className="group flex items-center gap-4 rounded-2xl p-5 text-white hover:-translate-y-0.5 transition-transform" style={{ background: "linear-gradient(135deg,#013443,#01222d)", border: "1px solid rgba(255,217,122,0.25)" }}>
+                <span className="shrink-0 w-11 h-11 rounded-full grid place-items-center text-[18px] font-black" style={{ background: "linear-gradient(145deg,#ffe08a,#f0a500)", color: "#3a2a05" }}>✦</span>
+                <div className="min-w-0 flex-1">
+                  <p className="text-[11px] font-black uppercase tracking-[0.16em] text-[#ffd97a]">Signature Trips</p>
+                  <p className="text-[14.5px] font-bold mt-0.5">
+                    {signatureApp.status === "accepted" ? "You're accepted 🎉 — we'll reach out with the details."
+                      : signatureApp.status === "shortlisted" ? "You've been shortlisted 🎉 — we'll be in touch."
+                      : "Your application is in — under review."}
+                  </p>
+                </div>
+                <span className="shrink-0 text-[12.5px] font-bold text-white/60 group-hover:text-white transition-colors">View →</span>
+              </Link>
             </div>
           )}
 
