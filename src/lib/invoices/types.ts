@@ -81,6 +81,10 @@ export type GenerateInput = {
   type: GeneratableType;
   /** Force a specific division; otherwise inferred (experience for bookings). */
   division?: Division;
+  /** For a pro-forma: which stage it stands in for. Default = the securing
+   *  payment (deposit if set, else downpayment). "final" = a pro-forma for the
+   *  remaining balance (trip total incl. add-ons − amounts already real-invoiced). */
+  milestone?: "deposit" | "downpayment" | "final";
 };
 
 export const DIVISIONS: Division[] = ["experience", "hardware"];

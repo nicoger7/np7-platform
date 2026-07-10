@@ -27,12 +27,45 @@ import {
   type PackagePaymentConfig,
   type BookingPaymentState,
 } from "@/lib/payments";
+import { effectiveAddonStatus } from "@/lib/addons";
 
 // ─── DB helpers ───────────────────────────────────────────────────────────────
 
 function getDb() {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   return createAdminClient() as any;
+}
+
+const round2 = (n: number) => Math.round((n + Number.EPSILON) * 100) / 100;
+
+/** Sum of CONFIRMED add-ons on a booking — billable, part of the trip total
+    everywhere (member plan + invoices). Matches getBookingAddonsTotal in
+    portal-data so plan and invoices agree. */
+export async function confirmedAddonsTotal(bookingId: string): Promise<number> {
+  const db = getDb();
+  const { data } = await db.from("exp_booking_addons").select("price,status,notes").eq("booking_id", bookingId);
+  return round2(((data ?? []) as { price: number | null; status?: string | null; notes?: string | null }[])
+    .filter((a) => effectiveAddonStatus(a) === "confirmed")
+    .reduce((s, a) => s + (Number(a.price) || 0), 0));
+}
+
+/** Total of the real (non-void) tax invoices already ISSUED for a booking. Used
+    to derive the outstanding balance — a real invoice is immutable, so anything
+    added after it flows into the next document, never backward. */
+export async function issuedInvoiceTotal(bookingId: string): Promise<number> {
+  const db = getDb();
+  const { data } = await db.from("documents").select("amount,type,status").eq("booking_id", bookingId).eq("status", "issued");
+  return round2(((data ?? []) as { amount: number | null; type: string }[])
+    .filter((d) => ["deposit_invoice", "downpayment_invoice", "final_invoice"].includes(d.type))
+    .reduce((s, d) => s + (Number(d.amount) || 0), 0));
+}
+
+/** One place for the money: trip total (agreed + confirmed add-ons), how much has
+    already been real-invoiced, and the outstanding balance. */
+export async function bookingBillingTotals(bookingId: string, agreedPrice: number): Promise<{ total: number; invoiced: number; outstanding: number }> {
+  const [addons, invoiced] = await Promise.all([confirmedAddonsTotal(bookingId), issuedInvoiceTotal(bookingId)]);
+  const total = round2((agreedPrice || 0) + addons);
+  return { total, invoiced, outstanding: round2(Math.max(0, total - invoiced)) };
 }
 
 // ─── Resolve company settings ──────────────────────────────────────────────────
@@ -198,9 +231,11 @@ export async function generateDocument(input: GenerateInput): Promise<DocumentRo
   ]);
 
   // Milestone amounts — single source of truth shared with the member payment
-  // plan (computePaymentPlan). Deposit honours an edition-level override; the
-  // rest of the schedule (down-payment %, final timing) comes from the package.
-  const total = booking.agreed_price ?? 0;
+  // plan (computePaymentPlan). The trip TOTAL is agreed price + confirmed add-ons,
+  // so every stage below reflects extras the same way the member's plan does.
+  // Deposit honours an edition-level override; the rest (down-payment %, final
+  // timing) comes from the package.
+  const { total, invoiced, outstanding } = await bookingBillingTotals(bookingId, booking.agreed_price ?? 0);
   const cfg: PackagePaymentConfig = {
     deposit: computeDeposit(booking),
     downpayment_percent: booking.exp_packages?.downpayment_percent ?? null,
@@ -213,31 +248,46 @@ export async function generateDocument(input: GenerateInput): Promise<DocumentRo
   };
   const depositAmt = milestoneAmount("deposit", cfg, state);
   const downpaymentAmt = milestoneAmount("downpayment", cfg, state);
-  const finalAmt = milestoneAmount("final", cfg, state);
+  // Final = the OUTSTANDING balance (total − what's already been real-invoiced),
+  // NOT a fresh 50/50 split — so add-ons added after the down-payment invoice
+  // land in the final, never backward into an immutable invoice.
+  const finalAmt = round2(Math.max(0, total - invoiced));
 
   const currency = company.currency || "EUR";
   const isInvoice = type !== "booking_confirmation";
   const isProforma = type === "proforma_invoice";
   const year = new Date().getFullYear();
 
-  // Pro-forma = payment request for the SECURING payment (deposit if set, else
-  // downpayment), due X days after sign-up. Idempotent: a live pro-forma for
-  // this booking is returned as-is (double-clicks / repeat registrations).
-  const securingAmt = depositAmt > 0 ? depositAmt : downpaymentAmt;
-  const proformaDue = booking.created_at
-    ? addDays(booking.created_at, cfg.deposit_refund_days ?? PAYMENT_DEFAULTS.depositRefundDays)
-    : null;
+  // Which stage a pro-forma stands in for (default = the securing payment).
+  const proformaMilestone: "deposit" | "downpayment" | "final" =
+    input.milestone ?? (depositAmt > 0 ? "deposit" : "downpayment");
+  const proformaAmt =
+    proformaMilestone === "final" ? outstanding
+    : proformaMilestone === "deposit" ? depositAmt
+    : downpaymentAmt;
+  // Deadline: securing = sign-up + refund window; final balance = trip start − final_days_before.
+  const refundDays = cfg.deposit_refund_days ?? PAYMENT_DEFAULTS.depositRefundDays;
+  const finalDaysBefore = cfg.final_days_before ?? PAYMENT_DEFAULTS.finalDaysBefore;
+  const proformaDue =
+    proformaMilestone === "final"
+      ? (booking.exp_editions?.date_start ? addDays(booking.exp_editions.date_start, -finalDaysBefore) : null)
+      : (booking.created_at ? addDays(booking.created_at, refundDays) : null);
+
+  // One open pro-forma per booking. If one is already issued, this call UPDATES
+  // it in place (a resync after an add-on change) — keeping its existing PF
+  // reference — or returns it unchanged when the amount already matches.
+  let existingProforma: DocumentRow | null = null;
   if (isProforma) {
-    if (securingAmt <= 0) throw new Error("Nothing to request — this booking has no securing payment stage.");
+    if (proformaAmt <= 0) throw new Error("Nothing to request — this booking has no outstanding amount for this stage.");
     const admin0 = getDb();
     const { data: existing } = await admin0
-      .from("documents")
-      .select("*")
-      .eq("booking_id", bookingId)
-      .eq("type", "proforma_invoice")
-      .eq("status", "issued")
+      .from("documents").select("*")
+      .eq("booking_id", bookingId).eq("type", "proforma_invoice").eq("status", "issued")
       .maybeSingle();
-    if (existing) return existing as DocumentRow;
+    if (existing) {
+      existingProforma = existing as DocumentRow;
+      if (Math.abs(Number(existing.amount ?? 0) - proformaAmt) < 0.01) return existing as DocumentRow; // unchanged
+    }
   }
 
   // Don't issue an invoice for a stage that doesn't exist in this plan
@@ -253,12 +303,14 @@ export async function generateDocument(input: GenerateInput): Promise<DocumentRo
   }
 
   // 2. Allocate invoice number. Pro-formas do NOT burn the gapless tax-invoice
-  // counter — they get a deterministic PF reference (unique per booking) the
-  // rider quotes on the transfer, which reconciliation matches like any other.
-  let invoiceNumber: string | null = null;
-  if (isProforma) {
-    invoiceNumber = `PF-${company.invoice_prefix || "INV"}-${year}-${bookingId.replace(/-/g, "").slice(0, 6).toUpperCase()}`;
-  } else if (isInvoice) {
+  // counter — they get a deterministic PF reference (stage-coded, unique per
+  // booking+stage) the rider quotes on the transfer, matched by reconciliation.
+  // An existing pro-forma being updated keeps its reference.
+  let invoiceNumber: string | null = existingProforma?.invoice_number ?? null;
+  if (isProforma && !invoiceNumber) {
+    const stage = proformaMilestone === "final" ? "FIN" : proformaMilestone === "deposit" ? "DEP" : "DP";
+    invoiceNumber = `PF-${company.invoice_prefix || "INV"}-${year}-${bookingId.replace(/-/g, "").slice(0, 6).toUpperCase()}-${stage}`;
+  } else if (isInvoice && !isProforma) {
     const seq = await allocateInvoiceNumber(division, year);
     invoiceNumber = formatInvoiceNumber(company.invoice_prefix, year, seq);
   }
@@ -330,7 +382,7 @@ export async function generateDocument(input: GenerateInput): Promise<DocumentRo
 
   // 6. Determine amount for the documents row
   let amount: number | null = null;
-  if (type === "proforma_invoice") amount = securingAmt;
+  if (type === "proforma_invoice") amount = proformaAmt;
   else if (type === "deposit_invoice") amount = depositAmt;
   else if (type === "downpayment_invoice") amount = downpaymentAmt;
   else if (type === "final_invoice") amount = finalAmt;
@@ -366,9 +418,23 @@ export async function generateDocument(input: GenerateInput): Promise<DocumentRo
       experience_title: exp.title,
       edition_label: ed?.label ?? null,
       package_name: pkg?.name ?? null,
-      ...(isProforma ? { milestone: depositAmt > 0 ? "deposit" : "downpayment" } : {}),
+      ...(isProforma ? { milestone: proformaMilestone } : {}),
     },
   };
+
+  // Update-in-place for an existing pro-forma (resync after an add-on change) —
+  // its PDF was just re-uploaded above (upsert); refresh amount/due/meta. New
+  // documents are inserted.
+  if (existingProforma) {
+    const { data: updated, error: updErr } = await admin
+      .from("documents")
+      .update({ amount, due_date: proformaDue ?? null, title: docRow.title, meta: docRow.meta, issued_at: docRow.issued_at })
+      .eq("id", existingProforma.id)
+      .select()
+      .single();
+    if (updErr) throw new Error(`Failed to update pro-forma: ${updErr.message}`);
+    return Object.assign(updated as DocumentRow, { pdf: pdfBuffer });
+  }
 
   const { data: inserted, error: insertError } = await admin
     .from("documents")

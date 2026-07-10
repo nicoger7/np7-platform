@@ -1,7 +1,8 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest, NextResponse, after } from "next/server";
 import { createAdminClient } from "@/lib/supabase";
 import { sendEmail } from "@/lib/email/send";
 import { noteForStatus, type AddonStatus } from "@/lib/addons";
+import { resyncBookingBilling } from "@/lib/invoices/promote";
 
 // GET /api/admin/bookings/:id/addons — list add-ons for a booking
 export async function GET(
@@ -80,6 +81,10 @@ export async function PATCH(
   }
   if (error) return NextResponse.json({ error: error.message }, { status: 400 });
 
+  // A confirm/decline changes the trip total → refresh the open pro-forma so the
+  // amount due reflects the add-on (best-effort; never blocks the response).
+  after(() => resyncBookingBilling(id).catch((e) => console.error("[addons] resync billing failed:", e)));
+
   // notify the member on confirm (best-effort)
   if (status === "confirmed") {
     const { data: bk } = await client
@@ -135,6 +140,11 @@ export async function DELETE(
   if (error) {
     return NextResponse.json({ error: error.message }, { status: 400 });
   }
+
+  // Removing an add-on lowers the total → refresh the open pro-forma. If a real
+  // invoice already covered more than the new total, this can't undo it (the
+  // balance goes ≤ 0) — that case needs a credit note, handled separately.
+  after(() => resyncBookingBilling(id).catch((e) => console.error("[addons] resync billing failed:", e)));
 
   return NextResponse.json({ success: true });
 }
