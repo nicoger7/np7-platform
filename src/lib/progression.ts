@@ -50,6 +50,18 @@ export type SkillState = VerifiedVia | "available" | "locked";
 export type ProgressSkill = CatalogSkill & { state: SkillState; prereqLabel: string | null; band: number };
 export type Track = { discipline: Discipline; label: string; skills: ProgressSkill[]; verified: number; total: number };
 export type LadderRung = { name: string; done: boolean; current: boolean };
+
+/** Tally a set of skills by verification state — feeds the layered progress bar
+ *  (coach = gold, Wind Coach = purple, self-logged = grey "to fill up"). */
+export function skillStateCounts(skills: { state: SkillState }[]): { coach: number; windcoach: number; self: number } {
+  let coach = 0, windcoach = 0, self = 0;
+  for (const s of skills) {
+    if (s.state === "coach") coach++;
+    else if (s.state === "windcoach") windcoach++;
+    else if (s.state === "self") self++;
+  }
+  return { coach, windcoach, self };
+}
 export type Progression = {
   level: string;              // current rank
   nextLevel: string | null;   // next rank (null once Pro)
