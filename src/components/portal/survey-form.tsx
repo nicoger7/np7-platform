@@ -13,16 +13,14 @@ export function SurveyForm({ survey, token, contactName, existing, preview = fal
   survey: Survey; token: string; contactName: string | null; existing: SurveyResponse | null; preview?: boolean;
 }) {
   const fmt = (n: number) => new Intl.NumberFormat("en-IE", { style: "currency", currency: survey.currency || "EUR", maximumFractionDigits: 0 }).format(n);
-  const step = 250;
-  const clampStep = (n: number) => Math.round(n / step) * step;
-  const lo0 = existing?.budget_min ?? (survey.budget_anchor ? Math.max(survey.budget_min, clampStep(survey.budget_anchor * 0.9)) : survey.budget_min);
-  const hi0 = existing?.budget_max ?? (survey.budget_anchor ? Math.min(survey.budget_max, clampStep(survey.budget_anchor * 1.1)) : clampStep((survey.budget_min + survey.budget_max) / 2));
+  // Readable week dates: "20 – 27 Feb 2027" instead of raw ISO.
+  const fmtDay = (s: string, withYear = false) => new Date(s).toLocaleDateString("en-GB", { day: "numeric", month: "short", ...(withYear ? { year: "numeric" } : {}) });
+  const fmtWeek = (start: string | null, end: string | null) => (start && end ? `${fmtDay(start)} – ${fmtDay(end, true)}` : start || end ? fmtDay((start || end)!, true) : "");
 
   const [topDest, setTopDest] = useState<string | null>(existing?.top_destination ?? null);
   const [alsoDest, setAlsoDest] = useState<Set<string>>(new Set(existing?.other_destinations ?? []));
   const [weeks, setWeeks] = useState<Set<string>>(new Set(existing?.weeks ?? []));
-  const [budLo, setBudLo] = useState<number>(lo0);
-  const [budHi, setBudHi] = useState<number>(hi0);
+  const [budgetOk, setBudgetOk] = useState<"yes" | "maybe" | "no" | null>(existing?.budget_ok ?? null);
   const [lookingFor, setLookingFor] = useState(existing?.looking_for ?? "");
   const [busy, setBusy] = useState(false);
   const [done, setDone] = useState(false);
@@ -33,6 +31,8 @@ export function SurveyForm({ survey, token, contactName, existing, preview = fal
   async function submit() {
     setErr("");
     if (survey.destinations.length > 0 && !topDest) { setErr("Pick your top choice of spot."); return; }
+    // Preview: run the full flow (incl. the thank-you) without saving anything.
+    if (preview) { setDone(true); window.scrollTo({ top: 0, behavior: "smooth" }); return; }
     setBusy(true);
     try {
       const res = await fetch(`/api/survey/${token}`, {
@@ -42,8 +42,7 @@ export function SurveyForm({ survey, token, contactName, existing, preview = fal
           top_destination: topDest,
           other_destinations: [...alsoDest].filter((k) => k !== topDest),
           weeks: [...weeks],
-          budget_min: Math.min(budLo, budHi),
-          budget_max: Math.max(budLo, budHi),
+          budget_ok: budgetOk,
           looking_for: lookingFor.trim() || null,
         }),
       });
@@ -59,7 +58,7 @@ export function SurveyForm({ survey, token, contactName, existing, preview = fal
       <div className="rounded-2xl border border-[#bfe6d7] bg-[#f1faf5] p-8 text-center">
         <div className="text-4xl mb-2">🤙</div>
         <h2 className="text-[20px] font-black text-[#00374a]">Thank you{contactName ? `, ${contactName.split(/\s+/)[0]}` : ""}!</h2>
-        <p className="text-[14px] text-[#5a6b72] mt-2 max-w-[420px] mx-auto">Your answers are in. This really helps me shape the trip — I&apos;ll be in touch if it comes together. 🌊</p>
+        <p className="text-[14px] text-[#5a6b72] mt-2 max-w-[420px] mx-auto">{preview ? "This is the confirmation members see. (Preview — nothing was saved.)" : "Your answers are in. This really helps me shape the trip — I’ll be in touch if it comes together. 🌊"}</p>
       </div>
     );
   }
@@ -119,7 +118,7 @@ export function SurveyForm({ survey, token, contactName, existing, preview = fal
                 <button key={w.key} type="button" onClick={() => setWeeks((s) => toggle(s, w.key))}
                   className={`text-left rounded-xl border-2 px-4 py-3 transition-colors ${on ? "border-[#f0a500] bg-[#fff7e6]" : "border-[#ecdcbb] bg-white hover:border-[#f2cf8a]"}`}>
                   <span className="block font-bold text-[14.5px] text-[#00374a]">{w.label}</span>
-                  {(w.start || w.end) && <span className="block text-[12.5px] text-[#a58a5e] mt-0.5">{[w.start, w.end].filter(Boolean).join(" – ")}</span>}
+                  {(w.start || w.end) && <span className="block text-[15px] font-bold text-[#b0791e] mt-1">{fmtWeek(w.start, w.end)}</span>}
                 </button>
               );
             })}
@@ -127,28 +126,26 @@ export function SurveyForm({ survey, token, contactName, existing, preview = fal
         </div>
       )}
 
-      {/* Budget range */}
-      <div className={card}>
-        <p className={label}>What&apos;s your comfortable budget?</p>
-        {survey.budget_anchor ? (
-          <p className="text-[13px] text-[#8a97a0] mt-1 mb-4">This trip would land around <strong className="text-[#00374a]">{fmt(survey.budget_anchor)}</strong>. Set the range you&apos;d be comfortable with.</p>
-        ) : (
-          <p className="text-[13px] text-[#8a97a0] mt-1 mb-4">Set the range you&apos;d be comfortable spending on this trip.</p>
-        )}
-        <div className="text-center text-[22px] font-black text-[#00374a] mb-3">{fmt(Math.min(budLo, budHi))} <span className="text-[#c0ccd0]">–</span> {fmt(Math.max(budLo, budHi))}</div>
-        <div className="space-y-3">
-          <label className="block">
-            <span className="text-[12px] font-bold text-[#6a7a80]">Comfortable from</span>
-            <input type="range" min={survey.budget_min} max={survey.budget_max} step={step} value={budLo}
-              onChange={(e) => setBudLo(Number(e.target.value))} className="w-full accent-[#e0992a]" />
-          </label>
-          <label className="block">
-            <span className="text-[12px] font-bold text-[#6a7a80]">up to</span>
-            <input type="range" min={survey.budget_min} max={survey.budget_max} step={step} value={budHi}
-              onChange={(e) => setBudHi(Number(e.target.value))} className="w-full accent-[#e0992a]" />
-          </label>
+      {/* Budget — just the approximate figure + a comfort check */}
+      {survey.budget_anchor != null && (
+        <div className={card}>
+          <p className={label}>The budget</p>
+          <p className="text-[13.5px] text-[#5a6b72] mt-1.5 mb-3.5 leading-relaxed">
+            This trip would be around <strong className="text-[#00374a] text-[17px]">{fmt(survey.budget_anchor)}</strong> per person. Is that comfortable for you?
+          </p>
+          <div className="grid grid-cols-3 gap-2">
+            {([["yes", "Yes, works 👍"], ["maybe", "Maybe"], ["no", "Too much"]] as const).map(([val, txt]) => {
+              const on = budgetOk === val;
+              return (
+                <button key={val} type="button" onClick={() => setBudgetOk(on ? null : val)}
+                  className={`rounded-xl border-2 px-3 py-3 text-[14px] font-bold transition-colors ${on ? "border-[#f0a500] bg-[#fff7e6] text-[#00374a] shadow-[0_6px_18px_rgba(240,165,0,0.12)]" : "border-[#ecdcbb] bg-white text-[#3a4a50] hover:border-[#f2cf8a]"}`}>
+                  {txt}
+                </button>
+              );
+            })}
+          </div>
         </div>
-      </div>
+      )}
 
       {/* Looking for */}
       <div className={card}>
@@ -160,15 +157,11 @@ export function SurveyForm({ survey, token, contactName, existing, preview = fal
       </div>
 
       {err && <p className="text-[13px] text-[#c0392b] font-semibold">{err}</p>}
-      {preview ? (
-        <div className="w-full rounded-full text-center text-[14px] font-bold py-4 bg-[#f0e6d6] text-[#8a7a5e]">Preview — members send their answers from here</div>
-      ) : (
-        <button type="button" onClick={submit} disabled={busy}
-          className="w-full rounded-full text-white text-[15.5px] font-black py-4 disabled:opacity-50 transition-transform hover:-translate-y-0.5 shadow-[0_12px_30px_rgba(240,123,32,0.26)]"
-          style={{ background: "linear-gradient(135deg,#f7b733 0%,#f47b20 55%,#e0590f 100%)" }}>
-          {busy ? "Sending…" : existing ? "Update my answers" : "Send my answers"}
-        </button>
-      )}
+      <button type="button" onClick={submit} disabled={busy}
+        className="w-full rounded-full text-white text-[15.5px] font-black py-4 disabled:opacity-50 transition-transform hover:-translate-y-0.5 shadow-[0_12px_30px_rgba(240,123,32,0.26)]"
+        style={{ background: "linear-gradient(135deg,#f7b733 0%,#f47b20 55%,#e0590f 100%)" }}>
+        {busy ? "Sending…" : existing ? "Update my answers" : "Send my answers"}
+      </button>
       <p className="text-[12px] text-[#a58a5e] text-center">Private — only Nico &amp; the NP7 team see this.</p>
     </div>
   );

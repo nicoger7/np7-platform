@@ -137,12 +137,10 @@ export function SurveyAdmin({ initialSurvey, initialInvites }: { initialSurvey: 
       {/* budget */}
       <div className={card}>
         <span className={lbl}>Budget</span>
-        <p className="text-[12px] text-[#9aa6ac] mt-1 mb-3">The ~€X anchor riders see, and the slider bounds for their comfort range.</p>
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+        <p className="text-[12px] text-[#9aa6ac] mt-1 mb-3">The approximate per-person figure riders see — they confirm if it&apos;s comfortable (yes / maybe / too much).</p>
+        <div className="grid grid-cols-2 gap-3 max-w-[320px]">
           <label className="block"><span className="text-[12px] font-bold text-[#6a7a80]">Currency</span><input className={`${input} mt-1`} value={s.currency} onChange={(e) => patch({ currency: e.target.value.toUpperCase().slice(0, 3) })} /></label>
-          <label className="block"><span className="text-[12px] font-bold text-[#6a7a80]">Anchor (~€X)</span><input type="number" className={`${input} mt-1`} value={s.budget_anchor ?? ""} onChange={(e) => patch({ budget_anchor: e.target.value ? Number(e.target.value) : null })} /></label>
-          <label className="block"><span className="text-[12px] font-bold text-[#6a7a80]">Slider min</span><input type="number" className={`${input} mt-1`} value={s.budget_min} onChange={(e) => patch({ budget_min: Number(e.target.value) || 0 })} /></label>
-          <label className="block"><span className="text-[12px] font-bold text-[#6a7a80]">Slider max</span><input type="number" className={`${input} mt-1`} value={s.budget_max} onChange={(e) => patch({ budget_max: Number(e.target.value) || 0 })} /></label>
+          <label className="block"><span className="text-[12px] font-bold text-[#6a7a80]">Approx. €/person</span><input type="number" className={`${input} mt-1`} value={s.budget_anchor ?? ""} onChange={(e) => patch({ budget_anchor: e.target.value ? Number(e.target.value) : null })} /></label>
         </div>
       </div>
 
@@ -272,23 +270,21 @@ function ResponsesSection({ survey, invites, fmtMoney }: { survey: Survey; invit
   const destInterest = new Map<string, number>();  // #1 OR "also up for"
   const weekTally = new Map<string, number>();
   const anchor = survey.budget_anchor;
-  let budLo = 0, budHi = 0, budN = 0, comfyAtAnchor = 0;
+  const budOk = { yes: 0, maybe: 0, no: 0 };
   for (const i of responded) {
     const r = i.response!;
     if (r.top_destination) destTop.set(r.top_destination, (destTop.get(r.top_destination) ?? 0) + 1);
     const keys = new Set([r.top_destination, ...r.other_destinations].filter(Boolean) as string[]);
     for (const k of keys) destInterest.set(k, (destInterest.get(k) ?? 0) + 1);
     for (const w of r.weeks) weekTally.set(w, (weekTally.get(w) ?? 0) + 1);
-    if (r.budget_min != null && r.budget_max != null) {
-      budLo += r.budget_min; budHi += r.budget_max; budN += 1;
-      if (anchor != null && r.budget_max >= anchor) comfyAtAnchor += 1;
-    }
+    if (r.budget_ok === "yes") budOk.yes++;
+    else if (r.budget_ok === "maybe") budOk.maybe++;
+    else if (r.budget_ok === "no") budOk.no++;
   }
   const rankedDests = [...destInterest.entries()].sort((a, b) => b[1] - a[1]);
   const topWeeks = [...weekTally.entries()].sort((a, b) => b[1] - a[1]);
   const bestDest = rankedDests[0], bestWeek = topWeeks[0];
-  const avgLo = budN ? Math.round(budLo / budN) : null;
-  const avgHi = budN ? Math.round(budHi / budN) : null;
+  const budRated = budOk.yes + budOk.maybe + budOk.no;
 
   return (
     <div className="rounded-2xl border border-[#e7ddcb] bg-white p-5">
@@ -303,7 +299,7 @@ function ResponsesSection({ survey, invites, fmtMoney }: { survey: Survey; invit
             <p className="text-[13.5px] text-[#00374a] leading-relaxed">
               {bestDest ? <><b>{destLabel(bestDest[0])}</b> leads — {bestDest[1]} interested{destTop.get(bestDest[0]) ? `, ${destTop.get(bestDest[0])} as #1` : ""}</> : "No destination data yet"}
               {bestWeek ? <> · best week <b>{weekLabel(bestWeek[0])}</b> ({bestWeek[1]} free)</> : ""}
-              {avgLo != null ? <> · comfort <b>{fmtMoney(avgLo)}–{fmtMoney(avgHi)}</b>{anchor != null ? `, ${comfyAtAnchor}/${budN} ok at ${fmtMoney(anchor)}` : ""}</> : ""}
+              {anchor != null && budRated ? <> · budget <b>{budOk.yes} ok</b>{budOk.maybe ? `, ${budOk.maybe} maybe` : ""}{budOk.no ? `, ${budOk.no} no` : ""} at {fmtMoney(anchor)}</> : ""}
               {" · "}{responded.length}/{invites.length} replied
             </p>
           </div>
@@ -319,9 +315,10 @@ function ResponsesSection({ survey, invites, fmtMoney }: { survey: Survey; invit
               {topWeeks.length ? topWeeks.map(([k, n]) => <p key={k} className="text-[13px] text-[#00374a]"><b>{n}</b> · {weekLabel(k)}</p>) : <p className="text-[13px] text-[#9aa6ac]">—</p>}
             </div>
             <div className="rounded-xl bg-[#f9fbfb] border border-[#eef3f4] p-3">
-              <p className="text-[11px] font-bold uppercase tracking-wide text-[#9aa6ac] mb-1.5">Budget comfort</p>
-              <p className="text-[13px] text-[#00374a]">{avgLo != null ? `avg ${fmtMoney(avgLo)} – ${fmtMoney(avgHi)}` : "—"}</p>
-              {anchor != null && budN > 0 && <p className="text-[12.5px] text-[#6a7a80] mt-0.5">{comfyAtAnchor}/{budN} comfortable at {fmtMoney(anchor)}</p>}
+              <p className="text-[11px] font-bold uppercase tracking-wide text-[#9aa6ac] mb-1.5">Budget{anchor != null ? ` · ${fmtMoney(anchor)}` : ""}</p>
+              {budRated ? (
+                <p className="text-[13px] text-[#00374a]"><b className="text-[#0f6e56]">{budOk.yes}</b> yes · {budOk.maybe} maybe · <span className="text-[#a5432a]">{budOk.no}</span> too much</p>
+              ) : <p className="text-[13px] text-[#9aa6ac]">—</p>}
             </div>
           </div>
 
@@ -335,7 +332,7 @@ function ResponsesSection({ survey, invites, fmtMoney }: { survey: Survey; invit
                   <div className="text-[13px] text-[#5a6b72] mt-1 space-y-0.5">
                     <p><span className="text-[#9aa6ac]">Top pick:</span> <b>{destLabel(r.top_destination)}</b>{r.other_destinations.length ? ` · also: ${r.other_destinations.map(destLabel).join(", ")}` : ""}</p>
                     <p><span className="text-[#9aa6ac]">Weeks:</span> {r.weeks.length ? r.weeks.map(weekLabel).join(", ") : "—"}</p>
-                    <p><span className="text-[#9aa6ac]">Budget:</span> {r.budget_min != null ? `${fmtMoney(r.budget_min)} – ${fmtMoney(r.budget_max)}` : "—"}</p>
+                    <p><span className="text-[#9aa6ac]">Budget:</span> {r.budget_ok === "yes" ? "👍 comfortable" : r.budget_ok === "maybe" ? "maybe" : r.budget_ok === "no" ? "too much" : "—"}</p>
                     {r.looking_for && <p className="text-[#3a4a50] mt-1"><span className="text-[#9aa6ac]">Wants:</span> {r.looking_for}</p>}
                   </div>
                 </div>

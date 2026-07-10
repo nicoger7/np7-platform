@@ -37,7 +37,7 @@ export default async function SurveyPage({ params }: Props) {
     <main className="min-h-[100svh] bg-[#fdf6ea]">
       {isPreview && (
         <div className="sticky top-0 z-30 bg-[#0a2a33] text-white text-[12.5px] font-bold text-center py-2 px-4">
-          👁 Preview — this is exactly what an invited member sees. Answers are disabled.
+          👁 Preview — exactly what an invited member sees. Try it end-to-end; nothing you submit here is saved.
         </div>
       )}
       {/* Immersive, aspirational hero — a real windsurf backdrop under a deep
