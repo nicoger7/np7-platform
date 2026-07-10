@@ -35,6 +35,10 @@ export function MemberGallery({
 }) {
   const [open, setOpen] = useState<number | null>(null);
   const [mineExpanded, setMineExpanded] = useState(false);
+  // "From the crew" merges every participant's shared gallery into one filterable
+  // section (chip per rider) instead of a long stack of accordions.
+  const [crewFilter, setCrewFilter] = useState<string | null>(null); // null = everyone
+  const [crewExpanded, setCrewExpanded] = useState(false);
   const [remaining, setRemaining] = useState(downloadsRemaining ?? 0);
   const [zipping, setZipping] = useState(false);
   const [err, setErr] = useState("");
@@ -197,6 +201,20 @@ export function MemberGallery({
   };
 
   const PREVIEW = 8; // photos shown before "Show all" (~2 grid rows)
+  const CREW_PREVIEW = 12; // crew-shared photos shown before "Show all" (~3 rows)
+
+  // Crew-shared galleries (kind "participant") folded into one section. Each item
+  // keeps its ABSOLUTE index into `flat` so the shared lightbox still traverses
+  // the whole show correctly.
+  const nameShort = (s: string) => s.split(/\s+/)[0] || s;
+  const nameInitials = (s: string) => s.split(/\s+/).filter(Boolean).slice(0, 2).map((w) => w[0]).join("").toUpperCase() || "?";
+  // "Everyone's photos" = the shared "Week memories" (kind everyone) + every
+  // participant's gallery, in one filterable section. Keepers are pinned above
+  // and excluded here.
+  const crewEntries = displayGroups.map((g, gi) => ({ g, gi })).filter((e) => e.g.key !== "keepers" && (e.g.kind === "participant" || e.g.kind === "everyone"));
+  const crewItems = crewEntries.flatMap(({ g, gi }) => g.photos.map((src, i) => ({ src, absIdx: offsets[gi] + i, key: g.key })));
+  const crewFiltered = crewFilter ? crewItems.filter((it) => it.key === crewFilter) : crewItems;
+  const crewVisible = !crewExpanded && crewFiltered.length > CREW_PREVIEW ? crewFiltered.slice(0, CREW_PREVIEW) : crewFiltered;
 
   return (
     <>
@@ -208,6 +226,10 @@ export function MemberGallery({
       )}
       <div className="space-y-2.5">
         {displayGroups.map((g, gi) => {
+          // Week memories (everyone) + participant galleries are merged into the
+          // single "Everyone's photos" section rendered below — skip them here.
+          // (Keepers is kind "everyone" too but pinned separately, so keep it.)
+          if (g.key !== "keepers" && (g.kind === "participant" || g.kind === "everyone")) return null;
           // Keepers — pinned at the very top, always open, star-marked.
           if (g.key === "keepers") {
             return (
@@ -265,6 +287,60 @@ export function MemberGallery({
             </details>
           );
         })}
+
+        {/* Everyone's photos — Week memories + every rider's shared gallery in
+            one place, filterable by source. */}
+        {crewEntries.length > 0 && (
+          <div className="rounded-xl border border-[#f0e6d6] bg-[#fffdf9] overflow-hidden">
+            <div className="flex items-center gap-2.5 px-4 py-3">
+              <span className={iconWrap("everyone")}>{iconSvg("everyone")}</span>
+              <span className="min-w-0 flex-1 block text-[14px] font-bold text-[#00374a] truncate">Everyone&apos;s photos</span>
+              <span className="shrink-0 text-[12px] font-semibold text-[#9aa6ac] tabular-nums">{crewItems.length}</span>
+            </div>
+
+            {/* source filter chips: All · Week memories · each rider */}
+            <div className="px-4 flex flex-wrap gap-1.5">
+              <button
+                type="button"
+                onClick={() => { setCrewFilter(null); setCrewExpanded(false); }}
+                className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-[12.5px] font-bold border transition-colors ${crewFilter === null ? "bg-[#00afdb] text-white border-[#00afdb]" : "bg-white text-[#00374a] border-[#e2e9ec] hover:border-[#00afdb]"}`}
+              >
+                All <span className="opacity-70 tabular-nums">{crewItems.length}</span>
+              </button>
+              {crewEntries.map(({ g }) => {
+                const on = crewFilter === g.key;
+                const isEveryone = g.kind === "everyone";
+                return (
+                  <button
+                    key={g.key}
+                    type="button"
+                    onClick={() => { setCrewFilter(on ? null : g.key); setCrewExpanded(false); }}
+                    className={`inline-flex items-center gap-1.5 rounded-full pl-1 pr-2.5 py-1 text-[12.5px] font-bold border transition-colors ${on ? "bg-[#00afdb] text-white border-[#00afdb]" : "bg-white text-[#00374a] border-[#e2e9ec] hover:border-[#00afdb]"}`}
+                  >
+                    <span className={`w-6 h-6 rounded-full grid place-items-center ${on ? "bg-white/25 text-white" : isEveryone ? "bg-[#f47b20]/15 text-[#f47b20]" : "bg-[#dceef2] text-[#00748f]"}`}>
+                      {isEveryone
+                        ? <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="3" width="18" height="18" rx="2" /><circle cx="8.5" cy="8.5" r="1.5" /><path d="m21 15-5-5L5 21" /></svg>
+                        : <span className="text-[10px] font-bold">{nameInitials(g.label)}</span>}
+                    </span>
+                    {isEveryone ? g.label : nameShort(g.label)} <span className="opacity-70 tabular-nums">{g.photos.length}</span>
+                  </button>
+                );
+              })}
+            </div>
+
+            <div className="px-4 pb-4 pt-3">
+              <div className="grid grid-cols-3 sm:grid-cols-4 gap-2 sm:gap-2.5">
+                {crewVisible.map((it) => thumb(it.src, it.absIdx))}
+              </div>
+              {crewFiltered.length > CREW_PREVIEW && (
+                <button type="button" onClick={() => setCrewExpanded((v) => !v)} className="mt-2 inline-flex items-center gap-1.5 text-[13px] font-bold text-[#00afdb]">
+                  {crewExpanded ? "Show less" : `Show all ${crewFiltered.length} photos`}
+                  <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d={crewExpanded ? "M18 15l-6-6-6 6" : "M6 9l6 6 6-6"} /></svg>
+                </button>
+              )}
+            </div>
+          </div>
+        )}
       </div>
 
       {downloadable && (

@@ -10,6 +10,7 @@ import { firstNameInitial, initialsFrom } from "@/lib/member-profile";
 import { PortalChrome } from "@/components/portal/portal-chrome";
 import { MemberHomeBanner } from "@/components/portal/member-home-banner";
 import { LevelHomeCard } from "@/components/portal/level-home-card";
+import { HomeProgress } from "@/components/portal/home-progress";
 import { SetupProgress, type SetupStep } from "@/components/portal/setup-progress";
 import { SetPasswordPrompt } from "@/components/portal/set-password-prompt";
 import { flags } from "@/lib/flags";
@@ -202,6 +203,16 @@ export default async function AccountHome() {
               )}
             </div>
           </div>
+
+          {/* Your progression — the ladder gets real estate on the home, not just a
+              chip: rank + 6-rung ladder + per-discipline breakdown, linking to the
+              full Progress page. */}
+          {progression && (
+            <div className="mt-6">
+              <p className="text-[11px] font-bold tracking-[0.18em] uppercase text-[#9aa6ac] mb-3">Your progression</p>
+              <HomeProgress progression={progression} selfLevel={profile?.self_level ?? null} />
+            </div>
+          )}
 
           {/* Quick links — uniform, single accent; a row across the bottom on desktop */}
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 mt-6">

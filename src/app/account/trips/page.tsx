@@ -63,7 +63,10 @@ export default async function MyTrips() {
                       ) : (
                         <svg className="w-10 h-10 text-[#b9cdd3]" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="3" width="18" height="18" rx="2" /><circle cx="8.5" cy="8.5" r="1.5" /><path d="m21 15-5-5L5 21" /></svg>
                       ); })()}
-                      <span className={`absolute top-3 right-3 z-20 inline-block px-3 py-1.5 rounded-full text-[11px] font-bold shadow-sm ${CHIP_CLASS[chip.tone]}`}>{chip.label}</span>
+                      {/* top-LEFT: the branded tile's coach cutout + "with Nico"
+                          branding sits on the right, so the status chip goes left
+                          to avoid overlapping it. */}
+                      <span className={`absolute top-3 left-3 z-20 inline-block px-3 py-1.5 rounded-full text-[11px] font-bold shadow-sm ${CHIP_CLASS[chip.tone]}`}>{chip.label}</span>
                     </div>
                     <div className="p-5">
                       <h2 className="text-xl font-extrabold tracking-[-0.01em] text-[#00374a] group-hover:text-[#00afdb] transition-colors">

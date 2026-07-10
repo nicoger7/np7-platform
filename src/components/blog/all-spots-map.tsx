@@ -25,7 +25,11 @@ export function AllSpotsMap({ points }: { points: SpotPoint[] }) {
       if (cancelled || !elRef.current || mapRef.current) return;
       const map = L.map(elRef.current, { scrollWheelZoom: false });
       mapRef.current = map;
-      L.tileLayer("https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png", {
+      // `voyager_nolabels`: no country/place labels — Carto's raster tiles render
+      // them in each region's LOCAL language (Arabic, Chinese, "América do Sul"…),
+      // which looked messy. The destination pins carry the names, so a clean
+      // label-free base reads best.
+      L.tileLayer("https://{s}.basemaps.cartocdn.com/rastertiles/voyager_nolabels/{z}/{x}/{y}{r}.png", {
         attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> &copy; <a href="https://carto.com/attributions">CARTO</a>',
         subdomains: "abcd",
         maxZoom: 19,

@@ -346,11 +346,11 @@ export default async function BookingDetail({ params }: Props) {
       )}
       {coaches.length > 0 && (
         <div>
-          <p className="text-[11px] font-bold tracking-[0.14em] uppercase text-[#9aa6ac] mb-2">Your team</p>
+          <p className="text-[11px] font-bold tracking-[0.14em] uppercase text-[#9aa6ac] mb-3">Your team</p>
           <div className="space-y-4">
             {coaches.map((c) => (
-              <div key={c.name} className="flex items-start gap-3">
-                <div className="w-14 h-14 rounded-full bg-cover bg-center shrink-0 bg-[#eef3f4]" style={{ backgroundImage: c.image ? `url('${c.image}')` : undefined }} />
+              <div key={c.name} className="flex items-start gap-4">
+                <div className="w-[76px] h-[76px] rounded-2xl bg-cover bg-center shrink-0 bg-[#eef3f4] ring-1 ring-black/[0.04]" style={{ backgroundImage: c.image ? `url('${c.image}')` : undefined }} />
                 <div className="min-w-0">
                   <p className="text-[14.5px] font-bold text-[#00374a]">{c.name}</p>
                   {c.role && <p className="text-[11px] font-bold tracking-wide uppercase text-[#00afdb]">{c.role}</p>}
@@ -373,15 +373,10 @@ export default async function BookingDetail({ params }: Props) {
           <CrewCard bookingId={b.id} going={crew.going} sharing={crew.sharing} profiles={crew.profiles} whatsappLink={b.edition?.whatsapp_group_link ?? null} />
         </div>
       )}
-      {!tripEnded && (
-        <div>
-          <p className="text-[11px] font-bold tracking-[0.14em] uppercase text-[#9aa6ac] mb-2">Bring a friend — {money(inviteData.friend, inviteData.currency)} off each</p>
-          <InvitePanel bookingId={b.id} rewardFriend={inviteData.friend} rewardInviter={inviteData.inviter} currency={inviteData.currency} initialInvites={inviteData.invites} />
-        </div>
-      )}
-      {!hotel && coaches.length === 0 && crew.going <= 1 && !b.edition?.whatsapp_group_link && tripEnded && (
-        <p className="text-[13.5px] text-[#9aa6ac]">Your stay, team &amp; crew details will show here.</p>
-      )}
+      {/* Referral — always available (works past or future: the credit rides to
+          the friend's own next trip), tucked into a tap-to-expand gift CTA so it
+          never dominates the tab. */}
+      <InvitePanel collapsible bookingId={b.id} rewardFriend={inviteData.friend} rewardInviter={inviteData.inviter} currency={inviteData.currency} initialInvites={inviteData.invites} />
     </div>
   );
 

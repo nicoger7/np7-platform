@@ -32,13 +32,19 @@ export function InvitePanel({
   rewardInviter,
   currency = "EUR",
   initialInvites,
+  collapsible = false,
 }: {
   bookingId: string;
   rewardFriend: number;
   rewardInviter: number;
   currency?: string;
   initialInvites: Invite[];
+  // When true, start as a compact gift CTA that expands to the form on tap —
+  // so it tucks neatly into the Trip tab instead of dominating with a full form.
+  // Auto-expands if invites already exist (there's a status list worth showing).
+  collapsible?: boolean;
 }) {
+  const [open, setOpen] = useState(!collapsible || initialInvites.length > 0);
   const [invites, setInvites] = useState<Invite[]>(initialInvites);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState("");
@@ -96,10 +102,31 @@ export function InvitePanel({
   const input = "w-full rounded-lg border border-[#d8e3e6] px-3.5 py-2.5 text-[15px] outline-none focus:border-[#00afdb] transition-colors";
   const shareBtn = "inline-flex items-center justify-center gap-1.5 rounded-lg border border-[#d8e3e6] text-[#00374a] text-[13px] font-semibold px-3 py-2 hover:bg-[#f2f8f9] transition-colors disabled:opacity-50";
 
+  // Collapsed: a single gift CTA row so the referral tucks into the Trip tab
+  // without a wall of form. Tap to expand.
+  if (!open) {
+    return (
+      <button
+        onClick={() => setOpen(true)}
+        className="group w-full flex items-center gap-3 rounded-2xl border border-[#cfe9d8] bg-gradient-to-br from-[#f1faf3] to-[#eef8fb] p-3.5 text-left hover:border-[#0f6e56]/30 transition-colors"
+      >
+        <span className="shrink-0 w-10 h-10 rounded-full bg-white grid place-items-center text-[18px] shadow-[0_1px_4px_rgba(15,110,86,0.12)]">🎁</span>
+        <span className="min-w-0 flex-1">
+          <span className="block text-[14px] font-bold text-[#00374a] leading-tight">Bring a friend</span>
+          <span className="block text-[12.5px] text-[#5a6b72] mt-0.5">They get {fmt(rewardFriend)} off · you get a {fmt(rewardInviter)} credit</span>
+        </span>
+        <span className="shrink-0 inline-flex items-center gap-1 text-[13px] font-bold text-[#0f6e56] group-hover:gap-2 transition-all">
+          Invite
+          <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M5 12h14M13 6l6 6-6 6" /></svg>
+        </span>
+      </button>
+    );
+  }
+
   return (
     <div>
       <p className="text-[14px] text-[#5a6b72] leading-relaxed">
-        Bring a friend on this trip — <span className="text-[#0f6e56] font-semibold">they get {fmt(rewardFriend)} off</span> and{" "}
+        Bring a friend on an NP7 trip — <span className="text-[#0f6e56] font-semibold">they get {fmt(rewardFriend)} off</span> and{" "}
         <span className="text-[#0f6e56] font-semibold">you get a {fmt(rewardInviter)} credit</span> once they book.
       </p>
 
