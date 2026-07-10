@@ -15,7 +15,7 @@
  *   _video/{editionId}[/p/{bookingId}]/{name}.jpg      poster frame
  */
 
-import { S3Client, ListObjectsV2Command, DeleteObjectsCommand, PutObjectCommand } from "@aws-sdk/client-s3";
+import { S3Client, ListObjectsV2Command, DeleteObjectsCommand, PutObjectCommand, GetObjectCommand } from "@aws-sdk/client-s3";
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 
 const accessKeyId = () => process.env.CF_R2_ACCESS_KEY_ID || process.env.R2_ACCESS_KEY_ID;
@@ -58,6 +58,16 @@ export async function presignPut(key: string, contentType: string, expiresSec = 
   return getSignedUrl(
     client(),
     new PutObjectCommand({ Bucket: bucket(), Key: key, ContentType: contentType }),
+    { expiresIn: expiresSec }
+  );
+}
+
+/** A short-lived presigned GET URL — for PRIVATE objects the admin plays back
+    (e.g. an applicant's pitch clip) without exposing a permanent public URL. */
+export async function presignGet(key: string, expiresSec = 3600): Promise<string> {
+  return getSignedUrl(
+    client(),
+    new GetObjectCommand({ Bucket: bucket(), Key: key }),
     { expiresIn: expiresSec }
   );
 }
