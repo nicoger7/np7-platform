@@ -4,6 +4,7 @@ import { useState, useEffect, use } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { ContactPicker } from "@/components/contact-picker";
+import { SearchSelect } from "@/components/admin/search-select";
 import { type DocumentType, formatMoney } from "@/lib/invoices/types";
 import { normalizeBookingStatus } from "@/lib/types";
 import { effectiveAddonStatus } from "@/lib/addons";
@@ -11,10 +12,16 @@ import { describePrice } from "@/lib/pricing";
 import { reconcileBooking, suggestInvoices, type ReconInvoice, type ReconPayment } from "@/lib/reconcile";
 import { computePaymentPlan, dueUrgency, type MilestoneKind } from "@/lib/payments";
 
+// Package names carry an edition code prefix (e.g. "BON001 - Advanced – …") baked
+// into the string. Inside an edition-scoped list that prefix is redundant noise,
+// so strip a leading "CODE - " for display.
+const cleanPackageName = (name: string) => name.replace(/^[A-Za-z0-9]+\s*[-–—]\s*/, "").trim() || name;
+
 interface BookingDetail {
   id: string;
   name: string;
   experience_id: string | null;
+  edition_id: string | null;
   package_id: string | null;
   contact_id: string | null;
   status: string;
@@ -173,9 +180,12 @@ export function BookingDetailPane({ bookingId, onBack }: { bookingId: string; on
       const expList = exps.experiences || exps || [];
       setExperiences(expList.map((e: Record<string, string>) => ({ id: e.id, title: e.title })));
       setComponents(comps || []);
-      // Load packages for the booking's experience
-      if (b.experience_id) {
-        fetch(`/api/admin/packages?experience_id=${b.experience_id}`)
+      // Packages are stored per edition (~14 per week) — scope the picker to the
+      // booking's own edition so it shows just this week's list, not every
+      // edition's near-duplicate packages. Fall back to the experience if the
+      // booking somehow has no edition.
+      if (b.edition_id || b.experience_id) {
+        fetch(`/api/admin/packages?${b.edition_id ? `edition_id=${b.edition_id}` : `experience_id=${b.experience_id}`}`)
           .then((r) => r.json())
           .then((pkgs) => setPackages(pkgs || []));
       }
@@ -568,21 +578,23 @@ export function BookingDetailPane({ bookingId, onBack }: { bookingId: string; on
           <div className="grid grid-cols-2 gap-4">
             <div>
               <label className={labelClass}>Experience</label>
-              <select className={inputClass} value={booking.experience_id || ""} onChange={(e) => handleExperienceChange(e.target.value)}>
-                <option value="">None</option>
-                {experiences.map((exp) => (
-                  <option key={exp.id} value={exp.id}>{exp.title}</option>
-                ))}
-              </select>
+              <SearchSelect
+                value={booking.experience_id}
+                onChange={(v) => handleExperienceChange(v ?? "")}
+                options={experiences.map((exp) => ({ value: exp.id, label: exp.title }))}
+                placeholder="None"
+                searchPlaceholder="Search experiences…"
+              />
             </div>
             <div>
-              <label className={labelClass}>Package</label>
-              <select className={inputClass} value={booking.package_id || ""} onChange={(e) => update("package_id", e.target.value || null)}>
-                <option value="">None</option>
-                {packages.map((pkg) => (
-                  <option key={pkg.id} value={pkg.id}>{pkg.name}{pkg.price ? ` (€${pkg.price})` : ""}</option>
-                ))}
-              </select>
+              <label className={labelClass}>Package <span className="admin-faint font-normal">· this week&apos;s options</span></label>
+              <SearchSelect
+                value={booking.package_id}
+                onChange={(v) => update("package_id", v)}
+                options={packages.map((pkg) => ({ value: pkg.id, label: cleanPackageName(pkg.name), hint: pkg.price ? `€${pkg.price}` : undefined }))}
+                placeholder="No package"
+                searchPlaceholder="Search packages…"
+              />
             </div>
           </div>
 
