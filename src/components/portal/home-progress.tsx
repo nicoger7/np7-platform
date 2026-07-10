@@ -59,16 +59,20 @@ export function HomeProgress({ progression, selfLevel }: { progression: Progress
       className="group block rounded-[24px] p-5 sm:p-6 text-white shadow-[0_14px_40px_rgba(0,55,74,0.18)] transition-all hover:-translate-y-0.5 hover:shadow-[0_20px_50px_rgba(0,55,74,0.24)]"
       style={{ background: "linear-gradient(155deg,#00485f 0%,#00323f 55%,#012732 100%)" }}
     >
-      <div className="flex items-center gap-3">
-        <span className="w-12 h-12 rounded-full grid place-items-center font-black text-[15px] shrink-0" style={{ background: "linear-gradient(145deg,#22c3ea,#00afdb)", color: "#00374a" }}>NP</span>
-        <div className="min-w-0">
-          <div className="text-[11px] font-bold uppercase tracking-[0.14em] text-[#7fa6b3]">Your rank</div>
-          <div className="flex items-baseline gap-2 mt-0.5">
-            <span className="text-[26px] sm:text-[30px] font-black leading-none">{headlineLevel}</span>
-            {notStarted && selfLevel && <span className="text-[10px] font-bold uppercase tracking-[0.1em] text-[#7fa6b3]">self-rated</span>}
+      {/* Stack on mobile (chip below the rank) so a long status label never
+          collides with the big rank headline; side-by-side from sm up. */}
+      <div className="flex flex-col sm:flex-row sm:items-center gap-2.5">
+        <div className="flex items-center gap-3 min-w-0">
+          <span className="w-12 h-12 rounded-full grid place-items-center font-black text-[15px] shrink-0" style={{ background: "linear-gradient(145deg,#22c3ea,#00afdb)", color: "#00374a" }}>NP</span>
+          <div className="min-w-0">
+            <div className="text-[11px] font-bold uppercase tracking-[0.14em] text-[#7fa6b3]">Your rank</div>
+            <div className="flex items-baseline gap-2 mt-0.5">
+              <span className="text-[26px] sm:text-[30px] font-black leading-none">{headlineLevel}</span>
+              {notStarted && selfLevel && <span className="text-[10px] font-bold uppercase tracking-[0.1em] text-[#7fa6b3] shrink-0">self-rated</span>}
+            </div>
           </div>
         </div>
-        <div className="ml-auto text-right shrink-0">
+        <div className="shrink-0 sm:ml-auto">
           <span className="inline-flex items-center gap-1.5 text-[12px] font-bold rounded-full px-3 py-1.5" style={{ background: "rgba(255,255,255,.1)", color: "#cdeaf3" }}>
             {mastered ? <Trophy className="w-3.5 h-3.5" /> : <Target className="w-3.5 h-3.5" />}
             {statusLabel}
