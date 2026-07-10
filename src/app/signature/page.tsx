@@ -19,12 +19,12 @@ export const metadata: Metadata = {
   },
 };
 
-const HERO = cdn("hero/windsurf-hero-poster.jpg");
 // Real shots from the last Signature Trip (one trip, both islands — Madagascar &
 // Mauritius), curated from the trip's memory gallery. Swap the numbers freely.
 const MEM = (n: number) => `https://qfdqigumjadvrocxjolx.supabase.co/storage/v1/object/public/assets/memories/6af5c7fe-26af-4105-ad45-910390da2594/NP7%20Experience%20Madagascar-${n}.jpg`;
-const TRIP_LEAD = MEM(211);
-const TRIP_SHOTS = [MEM(458), MEM(480), MEM(252)];
+const HERO = MEM(458);        // golden-hour action, two riders — the hero
+const TRIP_LEAD = MEM(211);   // windsurf on the emerald lagoon
+const TRIP_SHOTS = [MEM(480), MEM(252), MEM(212)];
 const EYEBROW = "text-[11px] font-bold tracking-[0.25em] text-[#8fe6f2]";
 
 const INCLUDES: { icon: string; label: string }[] = [
