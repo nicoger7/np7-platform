@@ -38,7 +38,19 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
       body: JSON.stringify({ from: "NP7 <experience@np-seven.com>", to: c.email, reply_to: "experience@np-seven.com", subject, html }),
     });
-    if (!res.ok) return NextResponse.json({ error: "Send failed." }, { status: 502 });
+    const json = await res.json().catch(() => ({}));
+    if (!res.ok) return NextResponse.json({ error: json?.message || "Send failed." }, { status: 502 });
+    // This note sends outside the templated lifecycle pipeline, so record it here
+    // too — otherwise it never shows in the Email Log or the member's Emails tab.
+    await db.from("email_log").insert({
+      template_key: "level_congrats",
+      contact_id: id,
+      to_email: c.email,
+      subject,
+      status: "sent",
+      provider_id: json?.id ?? null,
+      sent_at: new Date().toISOString(),
+    }).then(() => {}, () => {}); // best-effort — never fail the send on a log hiccup
   } catch {
     return NextResponse.json({ error: "Send failed." }, { status: 502 });
   }
