@@ -104,7 +104,7 @@ export function PitchRecorder({ onChange, accent = "#f47b20" }: {
               <input type="file" accept="video/*,audio/*" className="hidden" onChange={onFile} />
             </label>
           </div>
-          <p className="text-[12px] text-[#9aa6ac] mt-2.5">Up to 2 minutes. Tell me who you are and why this trip — no need to be polished. {supported ? "" : "(Recording isn’t supported on this browser — upload a file.)"}</p>
+          <p className="text-[12px] text-[#9aa6ac] mt-2.5">Up to 2 minutes. Tell us who you are and why this trip — no need to be polished. {supported ? "" : "(Recording isn’t supported on this browser — upload a file.)"}</p>
           {err && <p className="text-[12.5px] text-[#c0392b] font-semibold mt-2">{err}</p>}
         </div>
       )}

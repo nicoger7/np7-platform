@@ -62,13 +62,20 @@ export function SignatureApply() {
       <div className="rounded-2xl border border-[#bfe6d7] bg-[#f1faf5] p-8 text-center">
         <div className="text-4xl mb-2">🤙</div>
         <h2 className="text-[22px] font-black text-[#00374a]">Thank you, {name.split(/\s+/)[0] || "there"}!</h2>
-        <p className="text-[14.5px] text-[#5a6b72] mt-2 max-w-[440px] mx-auto leading-relaxed">Your application is in. These trips are small and hand-picked — if there&apos;s a fit, I&apos;ll reach out to you personally. 🌊</p>
+        <p className="text-[14.5px] text-[#5a6b72] mt-2 max-w-[440px] mx-auto leading-relaxed">Your application is in. These trips are small and hand-picked — if there&apos;s a fit, we&apos;ll reach out to you personally. 🌊</p>
       </div>
     );
   }
 
   return (
     <div className="space-y-4">
+      {/* login offer — members can apply faster; everyone else applies as a guest */}
+      <div className="rounded-2xl border border-[#cfe9f1] bg-[#f1fbfd] px-4 py-3 flex flex-wrap items-center gap-x-2 gap-y-1 text-[13.5px]">
+        <span className="font-semibold text-[#00374a]">Already an NP7 member?</span>
+        <a href="/account/login?next=/signature" className="font-bold text-[#00849e] hover:underline">Log in to apply faster →</a>
+        <span className="text-[#8a97a0]">New here? Just apply below.</span>
+      </div>
+
       <div className={card}>
         <p className={label}>About you</p>
         <div className="grid sm:grid-cols-2 gap-3 mt-3">
@@ -90,7 +97,7 @@ export function SignatureApply() {
 
       <div className={card}>
         <p className={label}>Your pitch <span className="text-[#c3b9a6] font-bold normal-case tracking-normal text-[12px]">— the important bit</span></p>
-        <p className="text-[13px] text-[#5a6b72] mt-1.5 mb-3 leading-relaxed">I hand-pick every rider for these trips, so I&apos;d love to hear from you directly. <strong className="text-[#00374a]">Record a short video or voice note</strong> — who you are, your windsurf story, and why this trip. This matters more than anything else.</p>
+        <p className="text-[13px] text-[#5a6b72] mt-1.5 mb-3 leading-relaxed">We hand-pick every rider for these trips, so we&apos;d love to hear from you directly. <strong className="text-[#00374a]">Record a short video or voice note</strong> — who you are, your windsurf story, and why this trip. This matters more than anything else.</p>
         <PitchRecorder onChange={setMedia} accent="#f47b20" />
         <div className="mt-3">
           <p className="text-[12px] font-bold text-[#8a97a0] mb-1.5">Prefer to write it? (optional)</p>
@@ -104,7 +111,7 @@ export function SignatureApply() {
         style={{ background: "linear-gradient(135deg,#f7b733 0%,#f47b20 55%,#e0590f 100%)" }}>
         {busy ? (phase || "Sending…") : "Send my application"}
       </button>
-      <p className="text-[12px] text-[#a58a5e] text-center">Private — your application &amp; pitch go straight to Nico. No spam, ever.</p>
+      <p className="text-[12px] text-[#a58a5e] text-center">Private — your application &amp; pitch go straight to the NP7 team. No spam, ever.</p>
     </div>
   );
 }
