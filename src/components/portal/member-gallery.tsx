@@ -258,7 +258,7 @@ export function MemberGallery({
                 <svg className="w-4 h-4 text-[#c0ccd0] acc-chevron shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M6 9l6 6 6-6" /></svg>
               </summary>
               <div className="px-4 pb-4">
-                <div className="columns-3 sm:columns-4 gap-2">
+                <div className="grid grid-cols-3 sm:grid-cols-4 gap-2 sm:gap-2.5">
                   {g.photos.map((src, i) => thumb(src, offsets[gi] + i))}
                 </div>
               </div>
