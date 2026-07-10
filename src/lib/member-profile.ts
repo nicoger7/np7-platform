@@ -31,7 +31,10 @@ export function parseVisibility(raw: unknown): Visibility {
     Object.fromEntries(keys.filter((k) => typeof o[k] === "boolean").map((k) => [k, o[k] === true])) as Partial<Record<K, boolean>>;
   return {
     surfaces: pickBool(s, ["crew", "reviews", "spot_notes"] as ProfileSurface[]),
-    fields: pickTrue(f, ["age", "country", "city", "level"] as ProfileField[]),
+    // `level` (skill sharing) is shared by DEFAULT among your crew — keep an
+    // explicit `false` (pickBool) so a member can opt out. age/country/city stay
+    // opt-in (pickTrue, only `true` shares them).
+    fields: { ...pickTrue(f, ["age", "country", "city"] as ProfileField[]), ...pickBool(f, ["level"] as ProfileField[]) },
   };
 }
 
@@ -39,6 +42,12 @@ export function parseVisibility(raw: unknown): Visibility {
     explicit `crew:false` opts out. */
 export function crewShared(vis: Visibility): boolean {
   return vis.surfaces.crew !== false;
+}
+
+/** Is the member's level / verified skills shared? Default ON (skill sharing with
+    your crew is auto-enabled) — only an explicit `level:false` opts out. */
+export function levelShared(vis: Visibility): boolean {
+  return vis.fields.level !== false;
 }
 
 /** "Nico Prien" → "Nico P."; "Nico" → "Nico"; empty → "Member". */
@@ -135,8 +144,8 @@ export function publicProfileFor(contact: ContactProfileRow, surface: ProfileSur
     avatarUrl: contact.avatar_url ?? null,
     initials: initialsFrom(contact.name),
     skills: [], // enriched server-side (getCrewProfiles) for verified members
-    level: vis.fields.level ? dl.level : null,
-    levelVerified: vis.fields.level ? dl.verified : false,
+    level: levelShared(vis) ? dl.level : null,
+    levelVerified: levelShared(vis) ? dl.verified : false,
     country: vis.fields.country ? contact.country ?? null : null,
     city: vis.fields.city ? contact.display_city ?? null : null,
     // never surface the age of a minor, regardless of the toggle

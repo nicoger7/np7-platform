@@ -36,7 +36,8 @@ export function CommunityProfile(p: Props) {
   const [avatar, setAvatar] = useState<string | null>(p.avatarUrl);
   // Crew sharing is ON by default (only an explicit false opts out); reviews & spot notes off.
   const [surfaces, setSurfaces] = useState<Record<string, boolean>>({ crew: true, ...p.visibility.surfaces });
-  const [fields, setFields] = useState<Record<string, boolean>>({ ...p.visibility.fields });
+  // Level (skill sharing with your crew) is ON by default; age/city/country opt-in.
+  const [fields, setFields] = useState<Record<string, boolean>>({ level: true, ...p.visibility.fields });
   const [pickerOpen, setPickerOpen] = useState(false);
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
