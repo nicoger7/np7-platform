@@ -170,14 +170,19 @@ export function BookingDetailPane({ bookingId, onBack }: { bookingId: string; on
   const [paymentForm, setPaymentForm] = useState({ amount: "", type: "downpayment", direction: "revenue", status: "paid", method: "", reference: "", notes: "", document_id: "" });
 
   useEffect(() => {
+    // Resilient loads: a restricted role may get 403 on some of these — never let
+    // a non-OK response (or a non-array body) crash the page into an error/404.
+    const safeJson = (r: Response) => (r.ok ? r.json().catch(() => null) : null);
     Promise.all([
-      fetch(`/api/admin/bookings/${id}`).then((r) => r.json()),
-      fetch("/api/admin/experiences").then((r) => r.json()),
+      fetch(`/api/admin/bookings/${id}`).then(safeJson),
+      fetch("/api/admin/experiences").then(safeJson),
     ]).then(([b, exps]) => {
       setBooking(b);
+      if (!b) { setLoading(false); return; } // no access / not found → graceful empty state
       fetchDocuments(); // also needed by the Payments tab to reconcile
-      const expList = exps.experiences || exps || [];
-      setExperiences(expList.map((e: Record<string, string>) => ({ id: e.id, title: e.title })));
+      const expList = Array.isArray(exps?.experiences) ? exps.experiences : Array.isArray(exps) ? exps : [];
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      setExperiences(expList.map((e: any) => ({ id: e.id, title: e.title })));
       // Add-on components: only what's relevant to this booking — global + this
       // experience's components (edition-scoped when possible). Otherwise the
       // picker floods with every experience's items (e.g. Garda "GAR-" ones).
