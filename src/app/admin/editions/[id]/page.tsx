@@ -13,7 +13,7 @@ import { BookingDetailPane } from "../../bookings/[id]/page";
 import { composeBookingName } from "@/lib/booking-name";
 import ImagePickerModal from "@/components/image-picker-modal";
 import { useAccess } from "@/lib/use-access";
-import { effectiveCanAccess } from "@/lib/access";
+import { effectiveCanAccess, effectiveCanSeeField } from "@/lib/access";
 import { PublicBadge } from "@/components/admin/public-badge";
 
 // Edition detail sub-tabs. The order is reorderable by drag-and-drop and saved
@@ -951,8 +951,8 @@ export default function EditionDetailPage({
           </div>
           )}
 
-          {/* Financials */}
-          {!hiddenSections.has("financials") && (
+          {/* Financials — money-gated: never render for a role without the money grant. */}
+          {!hiddenSections.has("financials") && (!access || effectiveCanSeeField(access, "money")) && (
           <div className="pt-4" style={{ borderTop: "1px solid var(--admin-border)" }}>
             <h3 className="text-xs font-bold tracking-[0.1em] admin-faint uppercase mb-4">Financials</h3>
 

@@ -2,6 +2,14 @@ import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase";
 import { softDelete } from "@/lib/archive";
 import { flags } from "@/lib/flags";
+import { getRequestAccess } from "@/lib/admin-auth";
+import { effectiveCanSeeField } from "@/lib/access";
+
+// Money columns on an edition — nulled for roles without the "money" grant.
+const EDITION_MONEY_FIELDS = [
+  "price_from", "price_to", "deposit", "estimated_costs", "expected_revenue",
+  "expected_profit", "paid_revenue", "paid_profit", "expected_variable_costs", "total_fixed_costs",
+];
 
 // GET /api/admin/editions/:id — single edition with related counts
 export async function GET(
@@ -74,12 +82,18 @@ export async function GET(
   const siteLive = flags.showExperience;
   const publicVisible = siteLive && edition.data?.status === "published" && expStatus === "published" && expOnWebsite;
 
+  // Redact money fields for roles without the "money" grant (Photographer/Media).
+  const access = await getRequestAccess();
+  const showMoney = !access || effectiveCanSeeField(access, "money");
+  const edData = { ...(edition.data ?? {}) };
+  if (!showMoney) for (const k of EDITION_MONEY_FIELDS) if (k in edData) edData[k] = null;
+
   return NextResponse.json({
-    ...edition.data,
+    ...edData,
     site_live: siteLive,
     public_visible: publicVisible,
-    computed_price_from: prices.length ? Math.min(...prices) : null,
-    computed_price_to: prices.length ? Math.max(...prices) : null,
+    computed_price_from: showMoney && prices.length ? Math.min(...prices) : null,
+    computed_price_to: showMoney && prices.length ? Math.max(...prices) : null,
     confirmed_count: confirmedCount.count ?? 0,
     _counts: {
       bookings: bookingCount.count ?? 0,

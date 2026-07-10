@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase";
+import { getRequestAccess } from "@/lib/admin-auth";
+import { effectiveCanSeeField } from "@/lib/access";
 
 // GET /api/admin/editions/[id]/pnl — the real per-edition P&L:
 //   received  = Σ revenue payments (status paid) on this edition's bookings, minus refunds
@@ -8,6 +10,10 @@ import { createAdminClient } from "@/lib/supabase";
 //               (split costs: amount × percent for allocations landing on this edition)
 //   net       = received − costs
 export async function GET(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  const access = await getRequestAccess();
+  if (access && !effectiveCanSeeField(access, "money")) {
+    return NextResponse.json({ error: "You don't have access to financials." }, { status: 403 });
+  }
   const { id } = await params;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const db = createAdminClient() as any;

@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase";
 import { isAttending } from "@/lib/types";
+import { getRequestAccess } from "@/lib/admin-auth";
+import { effectiveCanSeeField } from "@/lib/access";
 
 // A "confirmed head" = anyone whose spot is secured: status confirmed onward
 // (hold-deposit paid), tolerant of legacy rows via isAttending().
@@ -12,6 +14,14 @@ export async function GET(
   _request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
+  // Money gate: this endpoint returns full P&L (revenue, costs, margins, profit).
+  // Roles without the "money" field grant (e.g. Photographer / Media) must NOT
+  // see it. `access === null` = an owner/manager tier who sees everything.
+  const access = await getRequestAccess();
+  if (access && !effectiveCanSeeField(access, "money")) {
+    return NextResponse.json({ error: "You don't have access to financials." }, { status: 403 });
+  }
+
   const client = createAdminClient();
   const { id } = await params;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
