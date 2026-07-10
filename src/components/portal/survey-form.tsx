@@ -9,8 +9,8 @@ import type { Survey, SurveyResponse } from "@/lib/surveys";
  * of the allowed weeks work, a budget comfort RANGE anchored on the target, and
  * what they want from the trip. Submits to /api/survey/[token].
  */
-export function SurveyForm({ survey, token, contactName, existing }: {
-  survey: Survey; token: string; contactName: string | null; existing: SurveyResponse | null;
+export function SurveyForm({ survey, token, contactName, existing, preview = false }: {
+  survey: Survey; token: string; contactName: string | null; existing: SurveyResponse | null; preview?: boolean;
 }) {
   const fmt = (n: number) => new Intl.NumberFormat("en-IE", { style: "currency", currency: survey.currency || "EUR", maximumFractionDigits: 0 }).format(n);
   const step = 250;
@@ -160,11 +160,15 @@ export function SurveyForm({ survey, token, contactName, existing }: {
       </div>
 
       {err && <p className="text-[13px] text-[#c0392b] font-semibold">{err}</p>}
-      <button type="button" onClick={submit} disabled={busy}
-        className="w-full rounded-full text-white text-[15.5px] font-black py-4 disabled:opacity-50 transition-transform hover:-translate-y-0.5 shadow-[0_12px_30px_rgba(240,123,32,0.26)]"
-        style={{ background: "linear-gradient(135deg,#f7b733 0%,#f47b20 55%,#e0590f 100%)" }}>
-        {busy ? "Sending…" : existing ? "Update my answers" : "Send my answers"}
-      </button>
+      {preview ? (
+        <div className="w-full rounded-full text-center text-[14px] font-bold py-4 bg-[#f0e6d6] text-[#8a7a5e]">Preview — members send their answers from here</div>
+      ) : (
+        <button type="button" onClick={submit} disabled={busy}
+          className="w-full rounded-full text-white text-[15.5px] font-black py-4 disabled:opacity-50 transition-transform hover:-translate-y-0.5 shadow-[0_12px_30px_rgba(240,123,32,0.26)]"
+          style={{ background: "linear-gradient(135deg,#f7b733 0%,#f47b20 55%,#e0590f 100%)" }}>
+          {busy ? "Sending…" : existing ? "Update my answers" : "Send my answers"}
+        </button>
+      )}
       <p className="text-[12px] text-[#a58a5e] text-center">Private — only Nico &amp; the NP7 team see this.</p>
     </div>
   );

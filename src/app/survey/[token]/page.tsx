@@ -1,8 +1,8 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { getSurveyForToken } from "@/lib/surveys";
-import { getPortalUser } from "@/lib/auth";
+import { getSurveyForToken, getSurvey } from "@/lib/surveys";
+import { getPortalUser, getTeamMember } from "@/lib/auth";
 import { SurveyForm } from "@/components/portal/survey-form";
 
 type Props = { params: Promise<{ token: string }> };
@@ -11,16 +11,35 @@ type Props = { params: Promise<{ token: string }> };
 export const metadata: Metadata = { robots: { index: false, follow: false }, title: "NP7 — a private invitation" };
 export const dynamic = "force-dynamic";
 
+const PREVIEW_PREFIX = "preview-";
+
 export default async function SurveyPage({ params }: Props) {
   const { token } = await params;
-  const data = await getSurveyForToken(token);
-  if (!data) notFound();
-  const { survey, contactName, response } = data;
+  const isPreview = token.startsWith(PREVIEW_PREFIX);
+
+  let survey, contactName: string | null = null, response = null;
+  if (isPreview) {
+    // Admin/team preview: render the final survey from its id, no invite needed.
+    const team = await getTeamMember().catch(() => null);
+    if (!team) notFound();
+    survey = await getSurvey(token.slice(PREVIEW_PREFIX.length));
+    if (!survey) notFound();
+  } else {
+    const data = await getSurveyForToken(token);
+    if (!data) notFound();
+    ({ survey, contactName, response } = data);
+  }
+
   const user = await getPortalUser().catch(() => null);
   const firstName = contactName?.split(/\s+/)[0] || null;
 
   return (
     <main className="min-h-[100svh] bg-[#fdf6ea]">
+      {isPreview && (
+        <div className="sticky top-0 z-30 bg-[#0a2a33] text-white text-[12.5px] font-bold text-center py-2 px-4">
+          👁 Preview — this is exactly what an invited member sees. Answers are disabled.
+        </div>
+      )}
       {/* Immersive, aspirational hero — a real windsurf backdrop under a deep
           ocean gradient, with a gold "by invitation" treatment so it reads
           premium the moment it opens (this is a dream-trip invite, not a form). */}
@@ -39,15 +58,15 @@ export default async function SurveyPage({ params }: Props) {
       </header>
 
       <div className="max-w-[720px] mx-auto px-5 sm:px-8 py-9 sm:py-12">
-        {survey.status === "closed" ? (
+        {survey.status === "closed" && !isPreview ? (
           <div className="rounded-2xl border border-[#ecdcbb] bg-white p-8 text-center shadow-[0_10px_30px_rgba(120,90,20,0.06)]">
             <h2 className="text-[19px] font-black text-[#00374a]">This invitation has closed</h2>
             <p className="text-[14px] text-[#6a7a80] mt-2">Thanks for your interest — keep an eye on your inbox for what&apos;s next. 🌊</p>
           </div>
         ) : (
           <>
-            <SurveyForm survey={survey} token={token} contactName={contactName} existing={response} />
-            {!user && (
+            <SurveyForm survey={survey} token={token} contactName={contactName} existing={response} preview={isPreview} />
+            {!user && !isPreview && (
               <p className="text-[12.5px] text-[#9a8a6a] text-center mt-6">
                 Have an NP7 account? <Link href="/account" className="font-semibold text-[#b0791e] hover:underline">Log in</Link> — not required, this invitation is already personal to you.
               </p>

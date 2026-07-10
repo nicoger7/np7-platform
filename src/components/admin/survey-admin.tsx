@@ -14,6 +14,7 @@ import type { Survey, SurveyInvite, SurveyDestination, SurveyWeek, SurveyStatus 
 
 const uid = () => Math.random().toString(36).slice(2, 9);
 const STATUSES: SurveyStatus[] = ["draft", "open", "closed"];
+const PREVIEW_PREFIX = "preview-"; // team-only preview link (matches /survey/[token])
 
 export function SurveyAdmin({ initialSurvey, initialInvites }: { initialSurvey: Survey; initialInvites: SurveyInvite[] }) {
   const router = useRouter();
@@ -38,13 +39,14 @@ export function SurveyAdmin({ initialSurvey, initialInvites }: { initialSurvey: 
           budget_anchor: s.budget_anchor, budget_min: s.budget_min, budget_max: s.budget_max, currency: s.currency,
         }),
       });
-      if (res.ok) setSavedAt(new Date().toLocaleTimeString());
+      if (res.ok) { setSavedAt(new Date().toLocaleTimeString()); router.refresh(); }
     } finally { setSaving(false); }
   }
 
   async function archive() {
     if (!confirm("Archive this survey?")) return;
     await fetch(`/api/admin/surveys/${s.id}`, { method: "DELETE" });
+    router.refresh();
     router.push("/admin/surveys");
   }
 
@@ -63,9 +65,10 @@ export function SurveyAdmin({ initialSurvey, initialInvites }: { initialSurvey: 
   return (
     <div className="max-w-[900px] space-y-4">
       {/* header */}
-      <div className="flex items-center gap-3">
+      <div className="flex items-center gap-2.5">
         <Link href="/admin/surveys" className="text-[13px] font-bold text-[#6a7a80] hover:text-[#0a2a33]">← Surveys</Link>
-        <span className="ml-auto text-[12px] text-[#9aa6ac]">{savedAt ? `Saved ${savedAt}` : ""}</span>
+        <span className="ml-auto text-[12px] text-[#9aa6ac] hidden sm:inline">{savedAt ? `Saved ${savedAt}` : ""}</span>
+        <a href={`${origin}/survey/${PREVIEW_PREFIX}${s.id}`} target="_blank" rel="noopener" className="rounded-full border border-[#0aa3c7] text-[#0aa3c7] text-[13px] font-bold px-4 py-2 hover:bg-[#eaf7fb] transition-colors">Preview ↗</a>
         <button onClick={save} disabled={saving} className="rounded-full bg-[#0aa3c7] text-white text-[13px] font-bold px-5 py-2 hover:bg-[#0891b2] disabled:opacity-50">{saving ? "Saving…" : "Save"}</button>
       </div>
 
@@ -265,17 +268,27 @@ function ResponsesSection({ survey, invites, fmtMoney }: { survey: Survey; invit
   const weekLabel = (key: string) => survey.weeks.find((w) => w.key === key)?.label ?? key;
 
   // aggregates
-  const destTally = new Map<string, number>();
+  const destTop = new Map<string, number>();       // chosen as #1
+  const destInterest = new Map<string, number>();  // #1 OR "also up for"
   const weekTally = new Map<string, number>();
-  let budLo = 0, budHi = 0, budN = 0;
+  const anchor = survey.budget_anchor;
+  let budLo = 0, budHi = 0, budN = 0, comfyAtAnchor = 0;
   for (const i of responded) {
     const r = i.response!;
-    if (r.top_destination) destTally.set(r.top_destination, (destTally.get(r.top_destination) ?? 0) + 1);
+    if (r.top_destination) destTop.set(r.top_destination, (destTop.get(r.top_destination) ?? 0) + 1);
+    const keys = new Set([r.top_destination, ...r.other_destinations].filter(Boolean) as string[]);
+    for (const k of keys) destInterest.set(k, (destInterest.get(k) ?? 0) + 1);
     for (const w of r.weeks) weekTally.set(w, (weekTally.get(w) ?? 0) + 1);
-    if (r.budget_min != null && r.budget_max != null) { budLo += r.budget_min; budHi += r.budget_max; budN += 1; }
+    if (r.budget_min != null && r.budget_max != null) {
+      budLo += r.budget_min; budHi += r.budget_max; budN += 1;
+      if (anchor != null && r.budget_max >= anchor) comfyAtAnchor += 1;
+    }
   }
-  const topDests = [...destTally.entries()].sort((a, b) => b[1] - a[1]);
+  const rankedDests = [...destInterest.entries()].sort((a, b) => b[1] - a[1]);
   const topWeeks = [...weekTally.entries()].sort((a, b) => b[1] - a[1]);
+  const bestDest = rankedDests[0], bestWeek = topWeeks[0];
+  const avgLo = budN ? Math.round(budLo / budN) : null;
+  const avgHi = budN ? Math.round(budHi / budN) : null;
 
   return (
     <div className="rounded-2xl border border-[#e7ddcb] bg-white p-5">
@@ -284,19 +297,31 @@ function ResponsesSection({ survey, invites, fmtMoney }: { survey: Survey; invit
         <p className="text-[13px] text-[#9aa6ac] mt-2">No responses yet.</p>
       ) : (
         <>
+          {/* planning takeaway — the one-line conclusion */}
+          <div className="rounded-xl bg-[#eefaf3] border border-[#bfe6d7] p-3.5 mt-3">
+            <p className="text-[11px] font-bold uppercase tracking-wide text-[#0f6e56] mb-1">Planning takeaway</p>
+            <p className="text-[13.5px] text-[#00374a] leading-relaxed">
+              {bestDest ? <><b>{destLabel(bestDest[0])}</b> leads — {bestDest[1]} interested{destTop.get(bestDest[0]) ? `, ${destTop.get(bestDest[0])} as #1` : ""}</> : "No destination data yet"}
+              {bestWeek ? <> · best week <b>{weekLabel(bestWeek[0])}</b> ({bestWeek[1]} free)</> : ""}
+              {avgLo != null ? <> · comfort <b>{fmtMoney(avgLo)}–{fmtMoney(avgHi)}</b>{anchor != null ? `, ${comfyAtAnchor}/${budN} ok at ${fmtMoney(anchor)}` : ""}</> : ""}
+              {" · "}{responded.length}/{invites.length} replied
+            </p>
+          </div>
+
           {/* aggregates */}
           <div className="grid sm:grid-cols-3 gap-3 mt-3">
             <div className="rounded-xl bg-[#f9fbfb] border border-[#eef3f4] p-3">
-              <p className="text-[11px] font-bold uppercase tracking-wide text-[#9aa6ac] mb-1.5">Top picks</p>
-              {topDests.length ? topDests.map(([k, n]) => <p key={k} className="text-[13px] text-[#00374a]"><b>{n}</b> · {destLabel(k)}</p>) : <p className="text-[13px] text-[#9aa6ac]">—</p>}
+              <p className="text-[11px] font-bold uppercase tracking-wide text-[#9aa6ac] mb-1.5">Demand (incl. also-up-for)</p>
+              {rankedDests.length ? rankedDests.map(([k, n]) => <p key={k} className="text-[13px] text-[#00374a]"><b>{n}</b> · {destLabel(k)} <span className="text-[#9aa6ac]">{destTop.get(k) ? `(${destTop.get(k)}× #1)` : ""}</span></p>) : <p className="text-[13px] text-[#9aa6ac]">—</p>}
             </div>
             <div className="rounded-xl bg-[#f9fbfb] border border-[#eef3f4] p-3">
               <p className="text-[11px] font-bold uppercase tracking-wide text-[#9aa6ac] mb-1.5">Best weeks</p>
               {topWeeks.length ? topWeeks.map(([k, n]) => <p key={k} className="text-[13px] text-[#00374a]"><b>{n}</b> · {weekLabel(k)}</p>) : <p className="text-[13px] text-[#9aa6ac]">—</p>}
             </div>
             <div className="rounded-xl bg-[#f9fbfb] border border-[#eef3f4] p-3">
-              <p className="text-[11px] font-bold uppercase tracking-wide text-[#9aa6ac] mb-1.5">Avg comfort range</p>
-              <p className="text-[13px] text-[#00374a]">{budN ? `${fmtMoney(Math.round(budLo / budN))} – ${fmtMoney(Math.round(budHi / budN))}` : "—"}</p>
+              <p className="text-[11px] font-bold uppercase tracking-wide text-[#9aa6ac] mb-1.5">Budget comfort</p>
+              <p className="text-[13px] text-[#00374a]">{avgLo != null ? `avg ${fmtMoney(avgLo)} – ${fmtMoney(avgHi)}` : "—"}</p>
+              {anchor != null && budN > 0 && <p className="text-[12.5px] text-[#6a7a80] mt-0.5">{comfyAtAnchor}/{budN} comfortable at {fmtMoney(anchor)}</p>}
             </div>
           </div>
 
