@@ -92,7 +92,7 @@ export default function AdminDashboard() {
           {photoTasks.length === 0 ? <p className="text-xs admin-faint">Every started trip has participant photos. 🎉</p> : (
             <div className="space-y-3">
               {photoTasks.map((t) => (
-                <Link key={t.editionId} href="/admin/images" className="block py-1.5 px-2 -mx-2 rounded-lg hover:bg-[var(--admin-surface-hover)]">
+                <Link key={t.editionId} href={`/admin/editions/${t.editionId}?tab=memories`} className="block py-1.5 px-2 -mx-2 rounded-lg hover:bg-[var(--admin-surface-hover)]">
                   <div className="flex items-center justify-between gap-2">
                     <span className="text-xs font-semibold admin-heading truncate">{t.label}</span>
                     <span className="shrink-0 text-[9px] font-bold uppercase px-1.5 py-0.5 rounded bg-amber-500/15 text-amber-500">{t.total} missing</span>

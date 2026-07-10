@@ -105,7 +105,7 @@ function TrackCard({ track, onLog, onUndo, busyId }: { track: Track } & LogHandl
       {isSide && (
         <div className="flex items-start gap-2 rounded-lg px-3 py-2 mb-2.5 text-[11.5px]" style={{ background: "#f6f3ee", color: "#8a949a" }}>
           <span className="shrink-0 mt-px"><Ico name="target" size={14} color="#b3bcc1" /></span>
-          <span>Side track — extra mastery that shows on your profile. It doesn&rsquo;t move your core rank.</span>
+          <span>Side quest — extra mastery that shows on your profile. It doesn&rsquo;t move your core rank.</span>
         </div>
       )}
 
@@ -239,7 +239,7 @@ export function ProgressionView({ progression }: { progression: Progression }) {
         {side && (
           <>
             <span aria-hidden className="mx-1 h-6 w-px bg-[#e7ddcb] self-center" />
-            <span className="text-[10px] font-black uppercase tracking-[0.12em] text-[#b3bcc1] self-center">Side</span>
+            <span className="text-[10px] font-black uppercase tracking-[0.12em] text-[#b3bcc1] self-center whitespace-nowrap">Side quest</span>
             <button type="button" onClick={() => setActive("side")}
               className="px-3 py-1.5 rounded-full text-[12px] font-semibold border transition-colors"
               style={active === "side"
