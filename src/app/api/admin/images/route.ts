@@ -26,11 +26,35 @@ async function requireAuth() {
 
 type ListedFile = {
   name: string; path: string; isFolder: boolean; url: string | null; thumbUrl: string | null;
-  size: number; type: string | null; updatedAt: string | null;
+  size: number; type: string | null; updatedAt: string | null; label?: string | null;
 };
 
 const isFolderItem = (item: { metadata?: unknown; id?: string | null }) =>
   !item.metadata || item.id === null;
+
+// The memories tree is keyed by UUID BY DESIGN (memories/{editionId}/p/{bookingId}
+// — the member portal looks a participant's photos up by booking id), so we never
+// rename those keys. Instead we show a friendly label for each UUID folder here:
+// edition title at the top, "Participants" for the `p` level, the rider's name below.
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+async function labelMemoryFolders(admin: any, folder: string, files: ListedFile[]) {
+  const dirs = files.filter((f) => f.isFolder);
+  if (dirs.length === 0) return;
+  if (folder === "memories") {
+    const { data } = await admin.from("exp_editions").select("id, title").in("id", dirs.map((f) => f.name));
+    const m = new Map((data ?? []).map((e: { id: string; title: string }) => [e.id, e.title]));
+    for (const f of dirs) f.label = (m.get(f.name) as string) ?? null;
+  } else if (/^memories\/[^/]+$/.test(folder)) {
+    for (const f of dirs) if (f.name === "p") f.label = "Participants";
+  } else if (/^memories\/[^/]+\/p$/.test(folder)) {
+    const { data: bks } = await admin.from("exp_bookings").select("id, contact_id").in("id", dirs.map((f) => f.name));
+    const cidByBooking = new Map((bks ?? []).map((b: { id: string; contact_id: string }) => [b.id, b.contact_id]));
+    const contactIds = [...new Set((bks ?? []).map((b: { contact_id: string }) => b.contact_id).filter(Boolean))];
+    const { data: cs } = contactIds.length ? await admin.from("contacts").select("id, name").in("id", contactIds) : { data: [] };
+    const nameById = new Map((cs ?? []).map((c: { id: string; name: string }) => [c.id, c.name]));
+    for (const f of dirs) f.label = (nameById.get(cidByBooking.get(f.name)) as string) ?? null;
+  }
+}
 
 export async function GET(request: NextRequest) {
   try {
@@ -115,6 +139,10 @@ export async function GET(request: NextRequest) {
         updatedAt: item.updated_at,
       };
     });
+
+  if (folder === "memories" || folder.startsWith("memories/")) {
+    try { await labelMemoryFolders(admin, folder, files); } catch { /* fall back to raw UUIDs */ }
+  }
 
   return Response.json({ files });
 }

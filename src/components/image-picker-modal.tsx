@@ -10,6 +10,7 @@ interface FileItem {
   size: number;
   type: string | null;
   updatedAt: string;
+  label?: string | null; // friendly name for UUID folders (e.g. memories → edition / rider)
 }
 
 interface ImagePickerModalProps {
@@ -220,9 +221,9 @@ export default function ImagePickerModal({ onSelect, onClose, defaultFolder }: I
               {folders.length > 0 && (
                 <div className="grid grid-cols-3 sm:grid-cols-5 lg:grid-cols-7 gap-3 mb-5">
                   {folders.map((item) => (
-                    <button key={item.path} onClick={() => setFolder(item.path)} className="flex flex-col items-center gap-1.5 p-3 rounded-xl transition-colors hover:bg-[var(--admin-surface-hover)]" style={{ border: "1px solid var(--admin-border)" }}>
+                    <button key={item.path} onClick={() => setFolder(item.path)} title={item.label ? `${item.label} (${item.name})` : item.name} className="flex flex-col items-center gap-1.5 p-3 rounded-xl transition-colors hover:bg-[var(--admin-surface-hover)]" style={{ border: "1px solid var(--admin-border)" }}>
                       <svg className="w-7 h-7 admin-faint" viewBox="0 0 24 24" fill="currentColor"><path d="M2 6a2 2 0 012-2h5l2 2h9a2 2 0 012 2v10a2 2 0 01-2 2H4a2 2 0 01-2-2V6z" /></svg>
-                      <span className="text-[11px] admin-muted truncate max-w-full">{item.name}</span>
+                      <span className="text-[11px] admin-muted truncate max-w-full">{item.label ?? item.name}</span>
                     </button>
                   ))}
                 </div>
