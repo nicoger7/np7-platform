@@ -2,6 +2,7 @@ import { NextRequest, NextResponse, after } from "next/server";
 import { createAdminClient } from "@/lib/supabase";
 import { fetchWindStatsBoth } from "@/lib/wind-stats";
 import { summariseRatings, tallyForecastVotes, SPOT_CRITERIA_KEYS } from "@/lib/spotguide";
+import { publishDestinationIfEarned } from "@/lib/spotguide-trust";
 
 const COLS = [
   "name", "slug", "lat", "lng", "level", "conditions", "wind_window",
@@ -49,6 +50,11 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
   for (const k of COLS) if (k in body) patch[k] = body[k];
   const { data, error } = await db.from("spots").update(patch).eq("id", id).select("*").single();
   if (error) return NextResponse.json({ error: error.message }, { status: 400 });
+
+  // Verifying a spot (community/np7) auto-publishes its rider-proposed draft place.
+  if (data && (data.verification === "community" || data.verification === "np7")) {
+    await publishDestinationIfEarned(db, data.destination_id);
+  }
 
   // Pin moved → refresh the wind climatology for the new location (background),
   // unless the current stats are a protected manual override.

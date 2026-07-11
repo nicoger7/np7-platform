@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase";
 import { EDIT_FIELD_LABEL, humanEditValue, type EditableField } from "@/lib/spotguide-trust";
+import { COMMUNITY_VERIFY_THRESHOLD } from "@/lib/spotguide";
 
 // GET /api/admin/spotguide/pending — member-submitted spots awaiting review +
 // member photos awaiting moderation, for the Spotguide moderation page.
@@ -28,15 +29,21 @@ export async function GET() {
   ]);
   const destName = new Map((dests ?? []).map((d: { id: string; name: string }) => [d.id, d.name]));
 
+  // Tag each pending spot so the admin surfaces only what needs a human: FLAGGED
+  // (riders reported it wrong) or STUCK (no one's confirmed it after a few days —
+  // early on, when there's no community yet, this catches everything so nothing
+  // rots). The rest just wait for the crowd. Needs-attention sorts to the top.
+  const STUCK_DAYS = 3;
   const out = (spots ?? []).map((s: Record<string, unknown>) => {
     const vs = (verifs ?? []).filter((v: { spot_id: string }) => v.spot_id === s.id);
-    return {
-      ...s,
-      destinationName: destName.get(s.destination_id as string) ?? "—",
-      confirms: vs.filter((v: { kind: string }) => v.kind === "confirm").length,
-      flags: vs.filter((v: { kind: string }) => v.kind === "flag").length,
-    };
-  });
+    const confirms = vs.filter((v: { kind: string }) => v.kind === "confirm").length;
+    const flags = vs.filter((v: { kind: string }) => v.kind === "flag").length;
+    const ageDays = Math.floor((Date.now() - new Date(String(s.created_at)).getTime()) / 86_400_000);
+    const flagged = flags > 0;
+    const stuck = !flagged && ageDays >= STUCK_DAYS && confirms < COMMUNITY_VERIFY_THRESHOLD;
+    return { ...s, destinationName: destName.get(s.destination_id as string) ?? "—", confirms, flags, ageDays, flagged, stuck };
+  }).sort((a: { flagged: boolean; stuck: boolean; ageDays: number }, b: { flagged: boolean; stuck: boolean; ageDays: number }) =>
+    (Number(b.flagged) - Number(a.flagged)) || (Number(b.stuck) - Number(a.stuck)) || (b.ageDays - a.ageDays));
   // Member-proposed new areas (destinations) awaiting NP7 publish.
   const { data: proposedDests } = await db
     .from("destinations")

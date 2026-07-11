@@ -19,6 +19,22 @@ import { slugifySpot, conditionLabel } from "./spotguide";
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type DB = any;
 
+/** The big scaling unlock: when a spot becomes public (community/np7), auto-publish
+ *  its DRAFT rider-proposed destination. The spot's verification (3 rider confirms,
+ *  a trusted local, or NP7) is the trust gate — a fake place can't earn it — so a
+ *  place with a vouched-for spot is real and can go live without a manual publish.
+ *  Only touches rider-submitted drafts (submitted_by set); NP7's own scaffolded
+ *  drafts stay under manual control. No-op if already published or not a draft. */
+export async function publishDestinationIfEarned(db: DB, destinationId: string | null): Promise<void> {
+  if (!destinationId) return;
+  const { data: d } = await db.from("destinations")
+    .select("spotguide_status, submitted_by").eq("id", destinationId).maybeSingle();
+  if (!d || d.spotguide_status !== "draft" || !d.submitted_by) return;
+  await db.from("destinations")
+    .update({ spotguide_status: "published", updated_at: new Date().toISOString() })
+    .eq("id", destinationId);
+}
+
 // What a member may suggest changing.
 //   • CANONICAL fields (name, pin) have one right answer → a proposed value that
 //     auto-applies to the spot on approval.

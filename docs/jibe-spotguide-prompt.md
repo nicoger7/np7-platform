@@ -123,6 +123,34 @@ Do **not** change the `slug` (links depend on it), and **never** set
 
 ---
 
+## Job D — Merge duplicate areas
+Two riders often add the **same place** under different names/pins (e.g. "Tarifa",
+"Tarifa Spain", "Los Lances"). Before a draft area clutters the guide, check
+whether it's really one we already have.
+
+**Find the work** (draft, rider-submitted areas) + the existing published ones:
+```sql
+select id, name, lat, lng from destinations
+where spotguide_status = 'draft' and submitted_by is not null;
+
+select id, name, lat, lng from destinations where spotguide_status = 'published';
+```
+For each draft, compare its `lat`/`lng` (or its spots' pins) to the published
+list. If it's the **same place** — within ~15 km, or an obvious name match at the
+same coast — **merge** rather than publish a duplicate:
+```sql
+update spots set destination_id = $publishedId, updated_at = now() where destination_id = $draftId;
+update destinations set archived_at = now() where id = $draftId;
+```
+(Archiving hides it — it stays `draft`, never published.) Only merge when you're
+**confident** it's the same spot area. A near-but-different bay is its own place —
+if unsure, leave it for a human.
+
+> Order: run **D (merge)** before **C (tidy names)** — no point renaming a
+> duplicate you're about to merge away.
+
+---
+
 ## Cadence & safety
 - Run on your own schedule (e.g. every few hours). All three jobs are
   **idempotent**: Job A skips spots already structured; Job B skips edits already

@@ -8,6 +8,7 @@ interface PendingSpot {
   id: string; name: string; destination_id: string; destinationName: string;
   level: string | null; conditions: string[] | null; description: string | null;
   verification: string; confirms: number; flags: number;
+  ageDays: number; stuck: boolean; flagged: boolean;
 }
 interface PendingPhoto { id: string; spot_id: string; url: string; caption: string | null }
 interface PendingEdit { id: string; spotId: string; spotName: string; proposer: string; field: string; fieldLabel: string; from: string; to: string; note: string | null; status: string }
@@ -92,7 +93,7 @@ export default function SpotguideModeration() {
     <div className="max-w-[860px]">
       <div className="mb-6">
         <h1 className="text-2xl font-bold admin-heading mb-1">Spotguide — contributions</h1>
-        <p className="text-sm admin-muted">Member-submitted spots awaiting review. Community-verify needs 3 member confirmations; you can NP7-verify (gold) any time.</p>
+        <p className="text-sm admin-muted">Most of this runs itself: a spot goes public once 3 riders confirm it (or a local, or you), and its <span className="font-semibold">rider-proposed place auto-publishes with it</span>. The ones sorted to the top — <span className="text-red-400 font-semibold">🚩 Flagged</span> or <span className="text-amber-500 font-semibold">Needs you</span> (waiting too long) — are the ones worth your glance. You can NP7-verify (gold) any spot any time.</p>
       </div>
 
       {jibe && (
@@ -206,6 +207,11 @@ export default function SpotguideModeration() {
                     <div className="flex items-center gap-2">
                       <Link href={`/admin/spots/${s.id}`} className="text-sm font-bold admin-heading hover:text-[#0aa3c7]">{s.name}</Link>
                       <span className="px-2 py-0.5 rounded text-[10px] font-bold uppercase" style={{ backgroundColor: `${vm.color}1f`, color: vm.color }}>{vm.short}</span>
+                      {s.flagged ? (
+                        <span className="px-2 py-0.5 rounded text-[10px] font-bold uppercase bg-red-500/15 text-red-400">🚩 Flagged</span>
+                      ) : s.stuck ? (
+                        <span className="px-2 py-0.5 rounded text-[10px] font-bold uppercase bg-amber-500/15 text-amber-500">Needs you</span>
+                      ) : null}
                     </div>
                     <p className="text-[11px] admin-faint mt-0.5">{s.destinationName}{s.level ? ` · ${s.level}` : ""}{s.conditions?.length ? ` · ${s.conditions.map(conditionLabel).join(", ")}` : ""}</p>
                     {s.description && <p className="text-xs admin-muted mt-1.5 line-clamp-3">{s.description}</p>}

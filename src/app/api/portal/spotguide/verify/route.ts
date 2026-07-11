@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getPortalUser } from "@/lib/auth";
 import { createAdminClient } from "@/lib/supabase";
 import { COMMUNITY_VERIFY_THRESHOLD } from "@/lib/spotguide";
-import { getStanding } from "@/lib/spotguide-trust";
+import { getStanding, publishDestinationIfEarned } from "@/lib/spotguide-trust";
 
 /**
  * POST /api/portal/spotguide/verify — cross-member verification of a pending,
@@ -69,6 +69,8 @@ export async function POST(request: NextRequest) {
     if (confirms >= COMMUNITY_VERIFY_THRESHOLD || st.moderator || st.specialist) {
       await db.from("spots").update({ verification: "community", updated_at: new Date().toISOString() }).eq("id", spotId);
       verification = "community";
+      await publishDestinationIfEarned(db, spot.destination_id); // rider place goes live off its first verified spot
+
     }
   } else if (kind === "flag" && spot.verification === "pending") {
     // Enough members say it's wrong → pull it from the public queue for NP7 review
