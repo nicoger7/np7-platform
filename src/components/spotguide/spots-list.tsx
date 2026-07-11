@@ -4,8 +4,9 @@ import { useState } from "react";
 import type { PublicSpot } from "@/lib/spotguide-data";
 import {
   SPOT_CRITERIA, conditionLabel, bestWinds, windWindowHasValue,
-  VERIFICATION_META, type Verification,
+  levelRangeLabel, VERIFICATION_META, type Verification,
 } from "@/lib/spotguide";
+import { LEVELS } from "@/lib/member-level";
 import { WindRose, WindRoseLegend } from "./wind-rose";
 import { RatingHeadline, RatingBreakdown } from "./rating-panel";
 import { ForecastPanel } from "./forecast-panel";
@@ -26,8 +27,10 @@ export function SpotsList({ spots, accent = "#00afdb" }: { spots: PublicSpot[]; 
         const isOpen = open.includes(spot.id);
         const winds = bestWinds(spot.wind_window);
         const vm = VERIFICATION_META[(spot.verification as Verification)] ?? VERIFICATION_META.np7;
+        const sortedLv = [...spot.levels].sort((a, b) => (LEVELS as readonly string[]).indexOf(a) - (LEVELS as readonly string[]).indexOf(b));
+        const levelChip = sortedLv.length ? levelRangeLabel(sortedLv[0], sortedLv[sortedLv.length - 1]) : null;
         const chips = [
-          spot.level,
+          levelChip,
           spot.conditions.map(conditionLabel).join(" · "),
           winds.length ? `Best: ${winds.join(", ")}` : "",
         ].filter(Boolean);

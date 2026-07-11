@@ -89,7 +89,8 @@ export async function POST(request: NextRequest) {
   const { data: dest } = await db.from("destinations").select("id").eq("id", destinationId).maybeSingle();
   if (!dest) return NextResponse.json({ error: "Destination not found." }, { status: 404 });
 
-  const level = LEVELS.includes(body.level) ? body.level : null;
+  const levels = Array.isArray(body.levels) ? body.levels.filter((l: string) => (LEVELS as readonly string[]).includes(l)) : [];
+  const level = levels[0] ?? (LEVELS.includes(body.level) ? body.level : null); // single `level` = primary, kept for back-compat
   const conditions = Array.isArray(body.conditions) ? body.conditions.filter((c: string) => CONDITIONS.some((x) => x.key === c)) : [];
   const infrastructure = Array.isArray(body.infrastructure) ? body.infrastructure.map((t: unknown) => String(t).slice(0, 40)).slice(0, 20) : [];
   const description = typeof body.description === "string" ? body.description.trim().slice(0, 4000) : null;
@@ -100,13 +101,19 @@ export async function POST(request: NextRequest) {
   const standing = await getStanding(db, user.contactId, destinationId);
   const verification = standing.moderator || standing.specialist ? "community" : "pending";
 
-  const { data, error } = await db.from("spots").insert({
+  const insertRow: Record<string, unknown> = {
     destination_id: destinationId, name, slug: slugifySpot(name),
-    level, conditions, infrastructure, wind_window: asWindWindow(body.wind_window),
+    level, levels, conditions, infrastructure, wind_window: asWindWindow(body.wind_window),
     lat: coords?.lat ?? null, lng: coords?.lng ?? null, description, summary,
     source: "member", submitted_by: user.contactId,
     status: "published", verification,
-  }).select("id").single();
+  };
+  let { data, error } = await db.from("spots").insert(insertRow).select("id").single();
+  // tolerate the levels column not existing yet (migration 082): fall back to the single `level`
+  if (error && /\blevels\b/i.test(error.message)) {
+    delete insertRow.levels;
+    ({ data, error } = await db.from("spots").insert(insertRow).select("id").single());
+  }
   if (error) {
     if (/does not exist|schema cache/i.test(error.message)) return NextResponse.json({ error: "Spotguide isn't live yet." }, { status: 503 });
     return NextResponse.json({ error: "Could not save the spot." }, { status: 500 });

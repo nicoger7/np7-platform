@@ -25,7 +25,7 @@ export type SpotguideDestinationCard = {
 
 export type PublicSpot = {
   id: string; name: string; slug: string | null; lat: number | null; lng: number | null;
-  level: string | null; conditions: string[]; wind_window: Record<string, string>;
+  level: string | null; levels: string[]; conditions: string[]; wind_window: Record<string, string>;
   infrastructure: string[]; np7_forecast_models: string[];
   hero_image: string | null; gallery: string[]; summary: string | null; description: string | null;
   np7_ratings: Record<string, number>; verification: string;
@@ -147,6 +147,7 @@ export async function getSpotguideDestination(slug: string, viewerId?: string | 
   const publicSpots: PublicSpot[] = spots.map((s: Record<string, unknown>) => ({
     id: s.id as string, name: s.name as string, slug: s.slug as string | null,
     lat: (s.lat as number) ?? null, lng: (s.lng as number) ?? null, level: (s.level as string) ?? null,
+    levels: Array.isArray(s.levels) && (s.levels as string[]).length ? (s.levels as string[]) : ((s.level as string) ? [s.level as string] : []),
     conditions: (s.conditions as string[]) ?? [], wind_window: (s.wind_window as Record<string, string>) ?? {},
     infrastructure: (s.infrastructure as string[]) ?? [], np7_forecast_models: (s.np7_forecast_models as string[]) ?? [],
     hero_image: (s.hero_image as string) ?? null, gallery: (s.gallery as string[]) ?? [],

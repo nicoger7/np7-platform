@@ -19,7 +19,7 @@ export function AddSpot({ destId, destName, destinations, accent = "#00afdb" }: 
   const [busy, setBusy] = useState(false);
   const [done, setDone] = useState(false);
   const [error, setError] = useState("");
-  const [f, setF] = useState({ name: "", summary: "", description: "", level: "", conditions: [] as string[], infrastructure: [] as string[] });
+  const [f, setF] = useState({ name: "", summary: "", description: "", levels: [] as string[], conditions: [] as string[], infrastructure: [] as string[] });
   const [pin, setPin] = useState<{ lat: number; lng: number } | null>(null);
   const [customTag, setCustomTag] = useState("");
   const [destChoice, setDestChoice] = useState(""); // "" | destId | "__new__"
@@ -96,8 +96,8 @@ export function AddSpot({ destId, destName, destinations, accent = "#00afdb" }: 
       <input className={input} placeholder="One-line summary" value={f.summary} onChange={(e) => setF({ ...f, summary: e.target.value })} />
       <textarea className={`${input} min-h-[80px] resize-y`} placeholder="What's it like here — wind, water, launch, hazards…" value={f.description} onChange={(e) => setF({ ...f, description: e.target.value })} />
       <div>
-        <p className="text-[11px] font-bold uppercase tracking-wide text-[#9aa6ac] mb-1.5">Level it suits</p>
-        <LevelPicker value={f.level} onChange={(v) => setF({ ...f, level: v })} accent={accent} />
+        <p className="text-[11px] font-bold uppercase tracking-wide text-[#9aa6ac] mb-1.5">Levels it suits <span className="normal-case tracking-normal text-[#c3b9a6]">— pick any that fit</span></p>
+        <LevelPicker multiple values={f.levels} onValues={(v) => setF({ ...f, levels: v })} accent={accent} />
       </div>
       <div>
         <p className="text-[11px] font-bold uppercase tracking-wide text-[#9aa6ac] mb-1.5">Where is it? *</p>
