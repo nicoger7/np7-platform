@@ -80,7 +80,7 @@ export function SpotPhotos({ spotId, photos, accent = "#00afdb", mode = "both" }
             <div className="rounded-xl border border-[#e2d8c6] bg-white p-3 space-y-2.5">
               <label className="flex items-start gap-2 text-[12.5px] text-[#5a6b72] cursor-pointer">
                 <input type="checkbox" checked={attest} onChange={(e) => setAttest(e.target.checked)} className="mt-0.5 shrink-0 accent-[#00afdb]" />
-                <span>I took this photo, or I have the right to share it — it&apos;s not grabbed from the web or someone else&apos;s.</span>
+                <span>I took this photo (or have the right to share it) &mdash; it&apos;s not grabbed from the web or someone else&apos;s &mdash; and I&apos;m happy for NP7 to use it in the spotguide.</span>
               </label>
               <div className="flex items-center gap-3">
                 <button onClick={() => fileRef.current?.click()} disabled={!attest || busy} className="px-3.5 py-2 rounded-full text-[13px] font-bold text-white disabled:opacity-40" style={{ backgroundColor: accent }}>

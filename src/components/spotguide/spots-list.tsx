@@ -54,7 +54,7 @@ export function SpotsList({ spots, accent = "#00afdb" }: { spots: PublicSpot[]; 
               <div className="space-y-4">
                 <div className="sm:hidden"><RatingHeadline np7={spot.np7} member={spot.member} accent={accent} /></div>
                 {spot.hero_image && (
-                  <div className="relative h-44 sm:h-56 rounded-xl overflow-hidden bg-[#e9eef0]">
+                  <div className="relative aspect-video rounded-xl overflow-hidden bg-[#e9eef0]">
                     {/* eslint-disable-next-line @next/next/no-img-element */}
                     <img src={spot.hero_image} alt={spot.name} className="absolute inset-0 w-full h-full object-cover" loading="lazy" />
                   </div>
