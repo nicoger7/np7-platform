@@ -133,7 +133,7 @@ export function SpotMap({ spots, cluster = false, height = 420, linkLabel = "Vie
 
   if (spots.length === 0) return null;
   return (
-    <div className={full ? "fixed inset-0 z-[120] bg-[#00131b]/60 backdrop-blur-sm p-3 sm:p-8" : "relative"}>
+    <div className={full ? "fixed inset-0 z-[120] bg-[#00131b]/60 backdrop-blur-sm p-3 sm:p-8" : "relative isolate"}>
       <div className={`relative overflow-hidden ${full ? "h-full rounded-2xl shadow-2xl" : "rounded-3xl border border-[#ece3d3] shadow-[0_10px_36px_rgba(0,55,74,0.1)]"}`}>
         <div ref={elRef} className="relative z-0 w-full h-full" style={full ? undefined : { height }} />
         {/* soft edge blend into the cream page background */}
