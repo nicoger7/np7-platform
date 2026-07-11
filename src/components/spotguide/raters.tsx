@@ -103,7 +103,7 @@ export function SpotVisitRater({ spotId, accent = "#00afdb", onSaved, defaults }
   const sg = useSpotguide();
   const mine = sg.mineSpot(spotId);
   const [ratings, setRatings] = useState<Record<string, number>>({});
-  const [level, setLevel] = useState("");
+  const [levels, setLevels] = useState<string[]>([]);
   const [conditions, setConditions] = useState<string[]>([]);
   const [infra, setInfra] = useState<string[]>([]);
   const [wind, setWind] = useState<Record<string, string>>({});
@@ -114,17 +114,18 @@ export function SpotVisitRater({ spotId, accent = "#00afdb", onSaved, defaults }
 
   const mineKey = JSON.stringify(mine ?? null);
   useEffect(() => {
-    setRatings(mine?.ratings ?? defaults ?? {}); setLevel(mine?.level ?? "");
+    setRatings(mine?.ratings ?? defaults ?? {});
+    setLevels(mine?.levels ?? (mine?.level ? [mine.level] : []));
     setConditions(mine?.conditions ?? []); setInfra(mine?.infrastructure ?? []); setWind(mine?.wind_window ?? {});
   }, [mineKey]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const hasAny = Object.values(ratings).some((n) => n > 0) || !!level || conditions.length > 0 || infra.length > 0 || windWindowHasValue(asWindWindow(wind));
+  const hasAny = Object.values(ratings).some((n) => n > 0) || levels.length > 0 || conditions.length > 0 || infra.length > 0 || windWindowHasValue(asWindWindow(wind));
 
   async function submit() {
     if (!sg.loggedIn) { sg.needAuth(); return; }
     if (!hasAny) return;
     setBusy(true);
-    const ok = await sg.saveSpot(spotId, { ratings, level: level || null, conditions, infrastructure: infra, wind_window: wind });
+    const ok = await sg.saveSpot(spotId, { ratings, levels, conditions, infrastructure: infra, wind_window: wind });
     setBusy(false);
     if (ok) { setDone(true); setTimeout(() => { setDone(false); onSaved?.(); }, 1400); }
   }
@@ -140,8 +141,8 @@ export function SpotVisitRater({ spotId, accent = "#00afdb", onSaved, defaults }
 
       <div className="grid sm:grid-cols-2 gap-4">
         <div>
-          <p className="text-[11px] font-bold uppercase tracking-wide text-[#9aa6ac] mb-1.5">Level it suits</p>
-          <LevelPicker value={level} onChange={setLevel} accent={accent} />
+          <p className="text-[11px] font-bold uppercase tracking-wide text-[#9aa6ac] mb-1.5">Level it suits <span className="normal-case tracking-normal text-[#c3b9a6]">— pick any that fit</span></p>
+          <LevelPicker multiple values={levels} onValues={setLevels} accent={accent} />
         </div>
         <div>
           <p className="text-[11px] font-bold uppercase tracking-wide text-[#9aa6ac] mb-1.5">Conditions you saw</p>

@@ -284,13 +284,19 @@ export function crowdWindow(rows: { wind_window?: unknown }[]): CrowdWindow {
 }
 
 export type LevelConsensus = { modal: string | null; label: string | null; counts: Record<string, number>; raters: number };
-/** Members' consensus on the level a spot suits. */
-export function levelConsensus(rows: { level?: string | null }[]): LevelConsensus {
+/** Members' consensus on the level(s) a spot suits. Each member may pick several
+    levels (`levels`); we fall back to the single `level` for pre-084 rows. A member
+    who picks Beginner+Intermediate counts toward both; `raters` = members who gave
+    any level. `label` names the top-picked level. */
+export function levelConsensus(rows: { level?: string | null; levels?: string[] | null }[]): LevelConsensus {
   const counts: Record<string, number> = {};
   let raters = 0;
   for (const r of rows) {
-    const l = r.level;
-    if (l && (LEVELS as readonly string[]).includes(l)) { counts[l] = (counts[l] ?? 0) + 1; raters++; }
+    const ls = (Array.isArray(r.levels) && r.levels.length ? r.levels : r.level ? [r.level] : [])
+      .filter((l) => (LEVELS as readonly string[]).includes(l));
+    if (ls.length === 0) continue;
+    raters++;
+    for (const l of ls) counts[l] = (counts[l] ?? 0) + 1;
   }
   let modal: string | null = null, best = 0;
   for (const l of LEVELS) if ((counts[l] ?? 0) > best) { best = counts[l]!; modal = l; }

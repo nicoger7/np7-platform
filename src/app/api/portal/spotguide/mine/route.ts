@@ -22,13 +22,13 @@ export async function GET(request: NextRequest) {
   }
 
   const [{ data: sr }, { data: sv }, { data: dr }] = await Promise.all([
-    spotIds.length ? db.from("spot_ratings").select("spot_id, ratings, level, conditions, wind_window").eq("contact_id", user.contactId).in("spot_id", spotIds) : Promise.resolve({ data: [] }),
+    spotIds.length ? db.from("spot_ratings").select("*").eq("contact_id", user.contactId).in("spot_id", spotIds) : Promise.resolve({ data: [] }),
     spotIds.length ? db.from("spot_forecast_votes").select("spot_id, model").eq("contact_id", user.contactId).in("spot_id", spotIds) : Promise.resolve({ data: [] }),
     destId ? db.from("destination_ratings").select("ratings").eq("contact_id", user.contactId).eq("destination_id", destId).maybeSingle() : Promise.resolve({ data: null }),
   ]);
 
-  const spots: Record<string, { ratings?: Record<string, number>; model?: string; level?: string | null; conditions?: string[]; wind_window?: Record<string, string> }> = {};
-  for (const r of sr ?? []) spots[r.spot_id] = { ...(spots[r.spot_id] ?? {}), ratings: r.ratings ?? {}, level: r.level ?? null, conditions: r.conditions ?? [], wind_window: r.wind_window ?? {} };
+  const spots: Record<string, { ratings?: Record<string, number>; model?: string; level?: string | null; levels?: string[]; conditions?: string[]; wind_window?: Record<string, string> }> = {};
+  for (const r of sr ?? []) spots[r.spot_id] = { ...(spots[r.spot_id] ?? {}), ratings: r.ratings ?? {}, level: r.level ?? null, levels: (r.levels?.length ? r.levels : r.level ? [r.level] : []), conditions: r.conditions ?? [], wind_window: r.wind_window ?? {} };
   for (const v of sv ?? []) spots[v.spot_id] = { ...(spots[v.spot_id] ?? {}), model: v.model };
 
   return NextResponse.json({ loggedIn: true, dest: dr?.ratings ?? null, spots });

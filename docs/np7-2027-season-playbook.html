@@ -1,0 +1,407 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>NP7 2027 Season Playbook</title>
+<style>
+  :root{
+    --sun:#ffc42e; --coral:#f47b20; --coral-deep:#e0590f;
+    --bg:#faf3e6; --surface:#fffdf8; --surface-2:#f5ecda; --border:#ece0cc; --border-soft:#f0e7d6;
+    --text:#06303f; --text-soft:#4c636d; --text-faint:#8a9aa0;
+    --accent:#00849e; --accent-ink:#00374a; --accent-soft:#e2f4f8;
+    --reuse:#00738a; --reuse-bg:#e1f3f7;
+    --new:#c85510; --new-bg:#fce7d6;
+    --tbd:#8a7a5e; --tbd-bg:#efe6d2;
+    --done:#1f8a53; --done-bg:#e2f3e9;
+    --shadow:0 12px 34px rgba(120,90,20,.07);
+    --shadow-sm:0 4px 14px rgba(120,90,20,.05);
+    --sans:ui-sans-serif,-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+    --mono:ui-monospace,"SF Mono","SFMono-Regular",Menlo,Consolas,monospace;
+  }
+  @media (prefers-color-scheme:dark){
+    :root{
+      --bg:#04202b; --surface:#0a2c39; --surface-2:#0f3646; --border:#1a4553; --border-soft:#143b49;
+      --text:#eaf3f5; --text-soft:#aac4cc; --text-faint:#6f8b95;
+      --accent:#33c5eb; --accent-ink:#bfe9f5; --accent-soft:#0e3a49;
+      --reuse:#4fd0ee; --reuse-bg:#0d3a48;
+      --new:#ff9a52; --new-bg:#3a2413;
+      --tbd:#c7b48c; --tbd-bg:#332c1c;
+      --done:#4bc07f; --done-bg:#0f3524;
+      --sun:#ffd25a; --coral:#ff8a3d;
+      --shadow:0 14px 40px rgba(0,0,0,.4); --shadow-sm:0 4px 16px rgba(0,0,0,.3);
+    }
+  }
+  :root[data-theme="light"]{
+    --bg:#faf3e6; --surface:#fffdf8; --surface-2:#f5ecda; --border:#ece0cc; --border-soft:#f0e7d6;
+    --text:#06303f; --text-soft:#4c636d; --text-faint:#8a9aa0;
+    --accent:#00849e; --accent-ink:#00374a; --accent-soft:#e2f4f8;
+    --reuse:#00738a; --reuse-bg:#e1f3f7; --new:#c85510; --new-bg:#fce7d6;
+    --tbd:#8a7a5e; --tbd-bg:#efe6d2; --done:#1f8a53; --done-bg:#e2f3e9;
+    --sun:#ffc42e; --coral:#f47b20;
+    --shadow:0 12px 34px rgba(120,90,20,.07); --shadow-sm:0 4px 14px rgba(120,90,20,.05);
+  }
+  :root[data-theme="dark"]{
+    --bg:#04202b; --surface:#0a2c39; --surface-2:#0f3646; --border:#1a4553; --border-soft:#143b49;
+    --text:#eaf3f5; --text-soft:#aac4cc; --text-faint:#6f8b95;
+    --accent:#33c5eb; --accent-ink:#bfe9f5; --accent-soft:#0e3a49;
+    --reuse:#4fd0ee; --reuse-bg:#0d3a48; --new:#ff9a52; --new-bg:#3a2413;
+    --tbd:#c7b48c; --tbd-bg:#332c1c; --done:#4bc07f; --done-bg:#0f3524;
+    --sun:#ffd25a; --coral:#ff8a3d;
+    --shadow:0 14px 40px rgba(0,0,0,.4); --shadow-sm:0 4px 16px rgba(0,0,0,.3);
+  }
+
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--text);font-family:var(--sans);
+    line-height:1.55;-webkit-font-smoothing:antialiased;letter-spacing:-0.006em}
+  .wrap{max-width:940px;margin:0 auto;padding:clamp(20px,5vw,56px) clamp(16px,4vw,40px) 90px}
+
+  /* ---- masthead ---- */
+  .mast{position:relative;margin-bottom:44px}
+  .rule{height:5px;border-radius:99px;background:linear-gradient(90deg,var(--sun),var(--coral) 46%,var(--accent));
+    width:96px;margin-bottom:22px}
+  .eyebrow{font-family:var(--mono);font-size:12px;letter-spacing:.22em;text-transform:uppercase;
+    color:var(--coral-deep,var(--coral));font-weight:600;margin:0 0 10px}
+  @media(prefers-color-scheme:dark){.eyebrow{color:var(--coral)}}
+  h1{font-size:clamp(30px,6vw,50px);line-height:1.02;letter-spacing:-0.03em;font-weight:850;
+    margin:0 0 14px;text-wrap:balance;color:var(--accent-ink)}
+  .lede{font-size:clamp(15px,2.1vw,17.5px);color:var(--text-soft);max-width:60ch;margin:0}
+  .lede strong{color:var(--text);font-weight:650}
+
+  section{margin-top:56px}
+  .sec-head{display:flex;align-items:baseline;gap:14px;margin-bottom:6px}
+  .sec-num{font-family:var(--mono);font-size:13px;font-weight:600;color:var(--accent);
+    letter-spacing:.05em;flex:none}
+  h2{font-size:clamp(21px,3.4vw,27px);letter-spacing:-0.02em;font-weight:800;margin:0;
+    color:var(--accent-ink);text-wrap:balance}
+  .sec-sub{color:var(--text-soft);font-size:14.5px;margin:8px 0 22px;max-width:64ch}
+
+  /* ---- calendar ---- */
+  .cal{display:flex;flex-direction:column;gap:10px}
+  .month{display:grid;grid-template-columns:96px 1fr auto;gap:16px;align-items:center;
+    background:var(--surface);border:1px solid var(--border);border-radius:15px;
+    padding:14px 18px;box-shadow:var(--shadow-sm)}
+  .month .when{font-family:var(--mono);font-size:12.5px;font-weight:600;color:var(--text-faint);
+    text-transform:uppercase;letter-spacing:.06em}
+  .month .trip{min-width:0}
+  .month .trip b{font-size:16px;font-weight:750;color:var(--text);display:block;letter-spacing:-0.01em}
+  .month .trip span{font-size:13px;color:var(--text-soft)}
+  .month .trip .spot{color:var(--accent);font-weight:600}
+  .pill{font-size:11px;font-weight:750;letter-spacing:.04em;text-transform:uppercase;
+    padding:5px 11px;border-radius:99px;white-space:nowrap;flex:none;text-align:center}
+  .pill.reuse{background:var(--reuse-bg);color:var(--reuse)}
+  .pill.new{background:var(--new-bg);color:var(--new)}
+  .pill.tbd{background:var(--tbd-bg);color:var(--tbd)}
+  .pill.sig{background:linear-gradient(100deg,var(--sun),var(--coral));color:#3a1e00}
+  @media(prefers-color-scheme:dark){.pill.sig{color:#1a0f00}}
+  .legend{display:flex;flex-wrap:wrap;gap:8px 16px;margin-top:16px;font-size:12.5px;color:var(--text-soft)}
+  .legend span{display:inline-flex;align-items:center;gap:7px}
+  .dot{width:10px;height:10px;border-radius:99px;flex:none}
+
+  /* ---- two tracks ---- */
+  .tracks{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:8px}
+  @media(max-width:640px){.tracks{grid-template-columns:1fr}}
+  .track{border:1px solid var(--border);border-radius:16px;padding:20px;background:var(--surface);
+    box-shadow:var(--shadow-sm)}
+  .track.hi{background:linear-gradient(180deg,var(--accent-soft),var(--surface));border-color:color-mix(in srgb,var(--accent) 30%,var(--border))}
+  .track h3{margin:0 0 4px;font-size:16.5px;font-weight:800;color:var(--accent-ink);letter-spacing:-0.01em}
+  .track .eta{font-family:var(--mono);font-size:12px;color:var(--text-faint);font-weight:600}
+  .track p{margin:10px 0 0;font-size:13.5px;color:var(--text-soft)}
+  .track .who{margin-top:12px;font-size:12.5px;color:var(--text);font-weight:600}
+  .track .who em{font-style:normal;color:var(--accent)}
+
+  /* ---- master checklist ---- */
+  .steps{counter-reset:step;display:flex;flex-direction:column;gap:2px;margin-top:6px}
+  .step{display:grid;grid-template-columns:38px 1fr;gap:16px;padding:18px 4px;
+    border-top:1px solid var(--border-soft)}
+  .step:first-child{border-top:none}
+  .step .n{counter-increment:step;flex:none}
+  .step .n::before{content:counter(step,decimal-leading-zero);font-family:var(--mono);font-size:13px;
+    font-weight:700;color:var(--accent);display:grid;place-items:center;width:34px;height:34px;
+    border-radius:10px;background:var(--accent-soft);border:1px solid color-mix(in srgb,var(--accent) 22%,transparent)}
+  .step h4{margin:2px 0 5px;font-size:16px;font-weight:750;color:var(--text);letter-spacing:-0.01em}
+  .step .desc{font-size:14px;color:var(--text-soft);margin:0}
+  .step .desc b{color:var(--text);font-weight:650}
+  .path{display:inline-flex;align-items:center;gap:6px;font-family:var(--mono);font-size:11.5px;
+    color:var(--accent);background:var(--accent-soft);border:1px solid color-mix(in srgb,var(--accent) 18%,transparent);
+    padding:2px 8px;border-radius:7px;margin-top:9px;font-weight:600}
+  .fields{margin:11px 0 0;padding:0;list-style:none;display:flex;flex-wrap:wrap;gap:6px}
+  .fields li{font-size:12px;color:var(--text-soft);background:var(--surface-2);
+    border:1px solid var(--border);border-radius:6px;padding:3px 9px;font-family:var(--mono)}
+  .flag{display:inline-block;margin-top:10px;font-size:12.5px;color:var(--new);font-weight:600}
+
+  /* ---- workflow / do-this cards ---- */
+  .cards{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+  @media(max-width:640px){.cards{grid-template-columns:1fr}}
+  .card{border:1px solid var(--border);border-radius:14px;padding:18px 20px;background:var(--surface);
+    box-shadow:var(--shadow-sm)}
+  .card .k{display:flex;align-items:center;gap:9px;font-size:14.5px;font-weight:750;color:var(--text);margin-bottom:7px}
+  .card p{margin:0;font-size:13.5px;color:var(--text-soft)}
+  .ic{width:20px;height:20px;flex:none;stroke:var(--accent);stroke-width:1.9;fill:none;
+    stroke-linecap:round;stroke-linejoin:round}
+
+  /* ---- claude callout ---- */
+  .offer{margin-top:56px;border-radius:18px;padding:clamp(22px,4vw,32px);
+    background:linear-gradient(140deg,var(--accent-ink),#012a38);color:#eaf6f9;
+    box-shadow:var(--shadow);position:relative;overflow:hidden}
+  .offer::after{content:"";position:absolute;right:-60px;top:-60px;width:220px;height:220px;border-radius:99px;
+    background:radial-gradient(circle,rgba(255,196,46,.28),transparent 68%)}
+  .offer h2{color:#fff;margin:0 0 6px;position:relative}
+  .offer p.o-sub{color:#a9d4de;font-size:14.5px;margin:0 0 20px;max-width:60ch;position:relative}
+  .offer ul{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:12px;position:relative}
+  .offer li{display:grid;grid-template-columns:26px 1fr;gap:12px;align-items:start;font-size:14.5px}
+  .offer li b{color:#fff;font-weight:700}
+  .offer li span.txt{color:#cfe6ec}
+  .chk{width:22px;height:22px;border-radius:7px;background:linear-gradient(135deg,var(--sun),var(--coral));
+    display:grid;place-items:center;flex:none;margin-top:1px}
+  .chk svg{width:13px;height:13px;stroke:#3a1e00;stroke-width:3;fill:none;stroke-linecap:round;stroke-linejoin:round}
+
+  .done-tag{display:inline-block;font-family:var(--mono);font-size:10.5px;font-weight:700;letter-spacing:.03em;
+    text-transform:uppercase;color:var(--done);background:var(--done-bg);
+    border:1px solid color-mix(in srgb,var(--done) 26%,transparent);padding:2px 8px;border-radius:99px;
+    margin-left:10px;vertical-align:middle;white-space:nowrap}
+  .note{margin-top:26px;border:1px solid color-mix(in srgb,var(--accent) 30%,var(--border));border-radius:17px;
+    background:linear-gradient(180deg,var(--accent-soft),var(--surface));padding:22px 24px;box-shadow:var(--shadow-sm)}
+  .note .eyebrow{color:var(--accent);margin-bottom:8px}
+  .note h3{margin:0 0 4px;font-size:18px;font-weight:820;color:var(--accent-ink);letter-spacing:-0.01em}
+  .note>p{margin:0;font-size:14px;color:var(--text-soft);max-width:64ch}
+  .mini{margin:16px 0 0;padding:0;list-style:none;display:flex;flex-direction:column;gap:11px}
+  .mini li{display:grid;grid-template-columns:22px 1fr;gap:11px;align-items:start;font-size:14px;color:var(--text)}
+  .mini li b{font-weight:700;color:var(--accent-ink)}
+  .mini li span.t{color:var(--text-soft)}
+  .tick,.warn{font-family:var(--mono);font-weight:900;font-size:15px;line-height:1.3;text-align:center}
+  .tick{color:var(--done)} .warn{color:var(--new)}
+
+  footer{margin-top:44px;padding-top:22px;border-top:1px solid var(--border);
+    font-size:12.5px;color:var(--text-faint);display:flex;justify-content:space-between;flex-wrap:wrap;gap:10px}
+  footer .mono{font-family:var(--mono)}
+
+  @media (prefers-reduced-motion:no-preference){
+    .month,.card,.track{transition:transform .18s ease, box-shadow .18s ease}
+    .month:hover,.card:hover{transform:translateY(-2px);box-shadow:var(--shadow)}
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header class="mast">
+    <div class="rule"></div>
+    <p class="eyebrow">For Simona · Season build guide</p>
+    <h1>NP7 2027 Experience Calendar</h1>
+    <p class="lede">Everything it takes to bring a season of trips live on <strong>np-seven.com</strong>. The good news: the whole 2027 line-up is <strong>already sitting in your admin as hidden drafts</strong> — so this isn't about building from nothing, it's about opening each one and filling it in. Reuse trips just need refreshing; new spots need their story. Here's the line-up, your head start, and the exact steps to take each one live.</p>
+  </header>
+
+  <!-- ================= 1 · CALENDAR ================= -->
+  <section>
+    <div class="sec-head"><span class="sec-num">01</span><h2>The 2027 line-up</h2></div>
+    <p class="sec-sub">Nine slots across the year. The pill on the right tells you whether it already lives in the admin (reuse &amp; refresh) or needs building from scratch.</p>
+
+    <div class="cal">
+      <div class="month">
+        <div class="when">Jan–Feb</div>
+        <div class="trip"><b>Signature · South Africa</b><span>Our premium all-in trip — <span class="spot">Langebaan</span> lagoon</span></div>
+        <span class="pill sig">Signature · new</span>
+      </div>
+      <div class="month">
+        <div class="when">March</div>
+        <div class="trip"><b>NP7 Experience Maui</b><span>Under consideration — <span class="spot">Maui, Hawai&#699;i</span></span></div>
+        <span class="pill new">New build</span>
+      </div>
+      <div class="month">
+        <div class="when">May</div>
+        <div class="trip"><b>NP7 Experience Croatia</b><span><span class="spot">Volosko</span>, Kvarner bay</span></div>
+        <span class="pill new">New build</span>
+      </div>
+      <div class="month">
+        <div class="when">May</div>
+        <div class="trip"><b>NP7 Experience Lake Garda</b><span><span class="spot">Torbole</span> — ran in 2026</span></div>
+        <span class="pill reuse">Reuse &amp; adapt</span>
+      </div>
+      <div class="month">
+        <div class="when">June</div>
+        <div class="trip"><b>NP7 Experience Greece</b><span>Spot not decided yet — narrow it down first</span></div>
+        <span class="pill tbd">Spot TBD</span>
+      </div>
+      <div class="month">
+        <div class="when">August</div>
+        <div class="trip"><b>NP7 Experience Alaçatı</b><span><span class="spot">Alaçatı</span>, Turkey — ran in 2026</span></div>
+        <span class="pill reuse">Reuse &amp; adapt</span>
+      </div>
+      <div class="month">
+        <div class="when">Sept</div>
+        <div class="trip"><b>Open slot</b><span>Another one, spot &amp; concept still open</span></div>
+        <span class="pill tbd">To decide</span>
+      </div>
+      <div class="month">
+        <div class="when">Dec</div>
+        <div class="trip"><b>NP7 Bonaire × 3 weeks</b><span><span class="spot">Bonaire</span> — same three weeks as now</span></div>
+        <span class="pill reuse">Reuse ×3</span>
+      </div>
+    </div>
+
+    <div class="legend">
+      <span><i class="dot" style="background:var(--reuse)"></i>Ran in 2026 — refresh &amp; re-run</span>
+      <span><i class="dot" style="background:var(--new)"></i>New experience + new spotguide destination</span>
+      <span><i class="dot" style="background:var(--tbd)"></i>Decide the spot before building</span>
+    </div>
+
+    <div class="note">
+      <p class="eyebrow">Already done for you</p>
+      <h3>Your head start — it's all in the admin already</h3>
+      <p>Every trip above was pre-created as a hidden draft, so you're editing, not starting blank. Here's exactly where each one stands the moment you log in:</p>
+      <ul class="mini">
+        <li><span class="tick">✓</span><span><b>Garda, Alaçatı &amp; Bonaire ×3</b> <span class="t">— the 2027 editions are in, with dates copied from last year. Open each, <b>confirm the dates</b>, then refresh photos &amp; price.</span></span></li>
+        <li><span class="tick">✓</span><span><b>South Africa, Maui &amp; Croatia</b> <span class="t">— the experience <em>and</em> its spotguide destination (Langebaan / Maui / Volosko) are created and linked. Open and fill in the story, packages and photos.</span></span></li>
+        <li><span class="warn">!</span><span><b>Greece &amp; September</b> <span class="t">— the experience shells exist, but there's no spot yet. Decide the location first, then create its destination (checklist step 2).</span></span></li>
+        <li><span class="warn">!</span><span><b>Dates are placeholders</b> <span class="t">— the reuse trips carry last year's dates +1 year. They're a starting guess, not confirmed — fix them before anyone can book.</span></span></li>
+      </ul>
+    </div>
+  </section>
+
+  <!-- ================= 2 · TWO PATHS ================= -->
+  <section>
+    <div class="sec-head"><span class="sec-num">02</span><h2>Two ways in — pick the path first</h2></div>
+    <p class="sec-sub">Before touching anything, decide which track the experience is on. It changes the whole workload.</p>
+    <div class="tracks">
+      <div class="track hi">
+        <h3>Reuse &amp; adapt</h3>
+        <div class="eta">Garda · Alaçatı · Bonaire &nbsp;— ~30–45 min each</div>
+        <p>The 2027 edition already carries last year's content page, packages, components, hotels and coaches. You only refresh what changed: <b>confirm the dates</b>, a fresh photo or two, prices, hotel availability. Then re-publish.</p>
+        <div class="who">Steps 1–3 are already done — jump to <em>step 4</em>, and don't forget to confirm dates.</div>
+      </div>
+      <div class="track">
+        <h3>New build</h3>
+        <div class="eta">South Africa · Maui · Croatia · Greece &nbsp;— ~½ day each</div>
+        <p>The empty experience is waiting for you (and for South Africa / Maui / Croatia, its spotguide destination too). Fill it in down the checklist. Do one all the way before starting the next so nothing is left half-finished.</p>
+        <div class="who">Work <em>step 2 → 12</em> in order — each step depends on the one above.</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ================= 3 · MASTER CHECKLIST ================= -->
+  <section>
+    <div class="sec-head"><span class="sec-num">03</span><h2>Bring one experience online — the checklist</h2></div>
+    <p class="sec-sub">The order matters: you can't price a package before the edition exists, or fill the page before there are photos. Everything below is in the admin under <span style="font-family:var(--mono);font-size:13px">np-seven.com/admin</span>.</p>
+
+    <div class="steps">
+      <div class="step"><div class="n"></div><div>
+        <h4>Create the experience<span class="done-tag">✓ done for all 9</span></h4>
+        <p class="desc">The container for everything. <b>This already exists as a Draft for every 2027 trip</b> — just open it. (For reference: new ones start via <em>Experiences → New</em>, reused ones via <b>Duplicate</b>.)</p>
+        <div class="path">Admin → Experiences → New (or Duplicate)</div>
+        <ul class="fields"><li>Title</li><li>Slug</li><li>Code</li><li>Location</li><li>Airport code</li><li>Distance from airport</li><li>Timezone</li><li>Cancellation policy</li></ul>
+      </div></div>
+
+      <div class="step"><div class="n"></div><div>
+        <h4>Link the spotguide destination<span class="done-tag">✓ done — except Greece &amp; Sept</span></h4>
+        <p class="desc">Every experience points at a <b>Destination</b> — the same place that powers the public Spotguide. Already created &amp; linked for the reuse spots <em>and</em> for Langebaan / Maui / Volosko. <b>Only Greece &amp; September still need one</b> — once you know the spot, create the destination and add at least one place, and the wind graphic fills itself from Open-Meteo.</p>
+        <div class="path">Admin → Destinations → New → add ≥1 spot</div>
+        <span class="flag">Still to do: Greece &amp; September (decide the spot first)</span>
+      </div></div>
+
+      <div class="step"><div class="n"></div><div>
+        <h4>Add the edition(s) &amp; dates<span class="done-tag">✓ done for reuse trips</span></h4>
+        <p class="desc">An edition is one dated running of the trip. <b>Garda, Alaçatı and Bonaire (all three weeks) already have their 2027 editions</b> — but the dates are last year's +1, so <b>open each and confirm the real dates</b>. The new builds still need their edition added (set travel dates + level band).</p>
+        <div class="path">Experience detail → Add Edition (or Duplicate)</div>
+        <ul class="fields"><li>Label (e.g. Week I)</li><li>Start / end date</li><li>Level min–max</li></ul>
+      </div></div>
+
+      <div class="step"><div class="n"></div><div>
+        <h4>Hotels &amp; rooms</h4>
+        <p class="desc">Add the accommodation and its room types, then set which rooms are available for which week. This is what the booking flow shows and what the packages attach to.</p>
+        <div class="path">Admin → Hotels &nbsp;·&nbsp; Admin → Hotel Rooms</div>
+      </div></div>
+
+      <div class="step"><div class="n"></div><div>
+        <h4>Components — the priced building blocks</h4>
+        <p class="desc">The individual line-items a package is made of: accommodation, coaching, transfer, extras. They're prefixed with the experience code and tied to the edition.</p>
+        <div class="path">Admin → Components</div>
+      </div></div>
+
+      <div class="step"><div class="n"></div><div>
+        <h4>Packages — what guests actually book</h4>
+        <p class="desc">Bundle components into the buyable offers, each with its price and room. <b>Deposit stays 0</b> (the first invoice is the downpayment) — the payment engine builds the plan from there. Turn on <b>Public website</b> for the ones you want visible.</p>
+        <div class="path">Admin → Packages</div>
+        <ul class="fields"><li>Price</li><li>Deposit = 0</li><li>Downpayment due (days)</li><li>Final due (days before)</li><li>Room link</li></ul>
+      </div></div>
+
+      <div class="step"><div class="n"></div><div>
+        <h4>Coaches &amp; guides</h4>
+        <p class="desc">Assign who's coaching this edition from the coach library. They show up on the public page and in the member trip view.</p>
+        <div class="path">Admin → Event Content → Coaches / Guides</div>
+      </div></div>
+
+      <div class="step"><div class="n"></div><div>
+        <h4>Build the public page (Event Content)</h4>
+        <p class="desc">The story people see: hero image (or a looped <b>hero video</b>), tagline, the "About" and "The spot" text, highlights and gallery. Reused spots inherit last year's copy — just adapt the parts that changed.</p>
+        <div class="path">Admin → Event Content → this experience</div>
+        <ul class="fields"><li>hero_image</li><li>hero_video (url·start·end)</li><li>about</li><li>location_about</li><li>highlights</li><li>gallery</li></ul>
+      </div></div>
+
+      <div class="step"><div class="n"></div><div>
+        <h4>Photos into the media library</h4>
+        <p class="desc"><b>This is the long pole — start collecting early.</b> Drop real photos into the experience's media folders; the tiles, heroes and galleries pull from there automatically, and the auto-branded tiles composite the flag &amp; coach on their own.</p>
+        <div class="path">Experience → Media tab &nbsp;·&nbsp; experiences/&lt;slug&gt;/&lt;category&gt;/</div>
+      </div></div>
+
+      <div class="step"><div class="n"></div><div>
+        <h4>Reviews &amp; trust</h4>
+        <p class="desc">Add a few verified guest reviews (from past guests or the trip surveys) — they feed the Crew tab and the trust badges. Reused spots already have theirs.</p>
+        <div class="path">Admin → Event Content → Reviews</div>
+      </div></div>
+
+      <div class="step"><div class="n"></div><div>
+        <h4>Publish</h4>
+        <p class="desc">Flip the experience Status to <b>Active</b> and toggle <b>Public website ON</b>. It's now live-ready. <span style="color:var(--text-faint)">(The season-wide Experience reveal is a separate switch Nico controls — that's the final gate.)</span></p>
+        <div class="path">Experience detail → Status: Active + Public website</div>
+      </div></div>
+
+      <div class="step"><div class="n"></div><div>
+        <h4>Walk it like a guest</h4>
+        <p class="desc">Open the public page: hero, photos, dates, packages and prices right? Run a test booking through the reserve flow, and check the spot on the map. If it looks great to a stranger, it's done.</p>
+        <div class="path">np-seven.com/experience/&lt;slug&gt;</div>
+      </div></div>
+    </div>
+  </section>
+
+  <!-- ================= 4 · WORKFLOW ================= -->
+  <section>
+    <div class="sec-head"><span class="sec-num">04</span><h2>How to run the season efficiently</h2></div>
+    <p class="sec-sub">Four habits that keep a nine-trip season from becoming nine separate scrambles.</p>
+    <div class="cards">
+      <div class="card">
+        <div class="k"><svg class="ic" viewBox="0 0 24 24"><rect x="9" y="9" width="11" height="11" rx="2"/><path d="M5 15V5a2 2 0 0 1 2-2h8"/></svg>Duplicate before you build</div>
+        <p>For Garda, Alaçatı, Bonaire and Tenerife, always start from last year's copy. You inherit the page, packages, hotels and coaches — refreshing is minutes, building is hours.</p>
+      </div>
+      <div class="card">
+        <div class="k"><svg class="ic" viewBox="0 0 24 24"><path d="M12 3v18"/><path d="M5 8l7-5 7 5"/><circle cx="12" cy="14" r="3"/></svg>Draft now, publish in batches</div>
+        <p>Keep everything on Draft while you fill it in. Only flip to Active + Public website once a trip is fully ready — then reveal a batch together, not one dribble at a time.</p>
+      </div>
+      <div class="card">
+        <div class="k"><svg class="ic" viewBox="0 0 24 24"><path d="M4 7l5-3 6 3 5-3v13l-5 3-6-3-5 3z"/><path d="M9 4v13M15 7v13"/></svg>Chase photos first</div>
+        <p>Photos are always the bottleneck. Start a shared album per new spot (South Africa, Maui, Croatia, Greece) now — the whole visual identity of the page depends on them.</p>
+      </div>
+      <div class="card">
+        <div class="k"><svg class="ic" viewBox="0 0 24 24"><path d="M20 6L9 17l-5-5"/></svg>Finish one, then start the next</div>
+        <p>Take a new build all the way to "walk it like a guest" before opening the next. Four half-finished pages are worse than one live one.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- ================= OFFER ================= -->
+  <div class="offer">
+    <h2>Start here — your first three moves</h2>
+    <p class="o-sub">The shells are ready. These are the things to do before anything else, in order:</p>
+    <ul>
+      <li><span class="chk"><svg viewBox="0 0 24 24"><path d="M5 12h14M13 6l6 6-6 6"/></svg></span><span class="txt"><b>Confirm the reuse dates.</b> Open Garda, Alaçatı and Bonaire (×3) and set the <em>real</em> 2027 dates — right now they're last year's +1 and nobody should book against a guess.</span></li>
+      <li><span class="chk"><svg viewBox="0 0 24 24"><path d="M5 12h14M13 6l6 6-6 6"/></svg></span><span class="txt"><b>Start a photo album per new spot.</b> South Africa, Maui and Croatia live or die on their photos, and photos take the longest to gather — begin collecting now, in parallel with everything else.</span></li>
+      <li><span class="chk"><svg viewBox="0 0 24 24"><path d="M5 12h14M13 6l6 6-6 6"/></svg></span><span class="txt"><b>Pin down Greece &amp; September.</b> Both have an experience shell but no spot. Once the location's decided, create its destination (step 2) and the rest of the checklist unlocks.</span></li>
+    </ul>
+  </div>
+
+  <footer>
+    <span>NP7 GmbH · 2027 season planning</span>
+    <span class="mono">Reuse: Garda · Alaçatı · Bonaire · Tenerife &nbsp;|&nbsp; New: South Africa · Maui · Croatia · Greece</span>
+  </footer>
+</div>
+</body>
+</html>
