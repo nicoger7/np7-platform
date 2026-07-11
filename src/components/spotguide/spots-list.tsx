@@ -65,12 +65,18 @@ export function SpotsList({ spots, accent = "#00afdb" }: { spots: PublicSpot[]; 
                   </div>
                 )}
                 <div className="sm:hidden"><RatingHeadline np7={spot.np7} member={spot.member} accent={accent} /></div>
-                {spot.hero_image && (
-                  <div className="relative aspect-video rounded-xl overflow-hidden bg-[#e9eef0]">
-                    {/* eslint-disable-next-line @next/next/no-img-element */}
-                    <img src={spot.hero_image} alt={spot.name} className="absolute inset-0 w-full h-full object-cover" style={{ objectPosition: spot.hero_focus || undefined }} loading="lazy" />
-                  </div>
-                )}
+                {(() => {
+                  // Hero = the chosen photo, else the crew's top-VOTED photo (spot.photos
+                  // is score-sorted) — upvotes pick the hero when no one's set one.
+                  const heroSrc = spot.hero_image || spot.photos[0]?.url || null;
+                  if (!heroSrc) return null;
+                  return (
+                    <div className="relative aspect-video rounded-xl overflow-hidden bg-[#e9eef0]">
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img src={heroSrc} alt={spot.name} className="absolute inset-0 w-full h-full object-cover" style={{ objectPosition: spot.hero_image ? spot.hero_focus || undefined : undefined }} loading="lazy" />
+                    </div>
+                  );
+                })()}
                 {spot.description && <p className="text-[15.5px] text-[#5a6b72] leading-relaxed whitespace-pre-line">{spot.description}</p>}
 
                 {(windWindowHasValue(spot.wind_window) || spot.crowdWindow.raters > 0) && (

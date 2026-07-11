@@ -18,7 +18,7 @@ import type { WindStats } from "@/lib/wind-stats";
 
 export type SpotguideDestinationCard = {
   id: string; name: string; slug: string | null; region: string | null; country: string | null;
-  hero_image: string | null; tagline: string | null;
+  hero_image: string | null; image: string; tagline: string | null;
   level_min: string | null; level_max: string | null; tags: string[];
   spotCount: number; np7: number; member: RatingSummary;
 };
@@ -70,7 +70,7 @@ function groupBy<T>(rows: T[], key: (r: T) => string): Map<string, T[]> {
 /** Index: every destination whose spotguide is live, with a headline rating. */
 export async function getSpotguideDestinations(): Promise<SpotguideDestinationCard[]> {
   const sb = db();
-  const BASE = "id, name, slug, region, country, hero_image, tagline, level_min, level_max, np7_ratings";
+  const BASE = "id, name, slug, region, country, hero_image, tagline, level_min, level_max, np7_ratings, lat, lng";
   // tags ships with migration 076 — fall back to the base columns until applied.
   let dests: Record<string, unknown>[] | null = null;
   ({ data: dests } = await sb.from("destinations").select(BASE + ", tags").eq("spotguide_status", "published").order("sort_order").order("name"));
@@ -79,22 +79,34 @@ export async function getSpotguideDestinations(): Promise<SpotguideDestinationCa
   const ids = dests.map((d) => d.id as string);
 
   const [{ data: spots }, { data: dratings }] = await Promise.all([
-    sb.from("spots").select("destination_id").in("destination_id", ids).eq("status", "published").in("verification", ["community", "np7"]),
+    sb.from("spots").select("destination_id, hero_image").in("destination_id", ids).eq("status", "published").in("verification", ["community", "np7"]).order("sort_order"),
     sb.from("destination_ratings").select("destination_id, ratings").in("destination_id", ids),
   ]);
-  const spotCounts = groupBy((spots ?? []) as { destination_id: string }[], (s) => s.destination_id);
+  const spotsByDest = groupBy((spots ?? []) as { destination_id: string; hero_image: string | null }[], (s) => s.destination_id);
   const ratingRows = groupBy((dratings ?? []) as { destination_id: string; ratings: unknown }[], (r) => r.destination_id);
 
-  return dests.map((d: Record<string, unknown>) => ({
-    id: d.id as string, name: d.name as string, slug: d.slug as string | null,
+  return dests.map((d: Record<string, unknown>) => {
+    const id = d.id as string;
+    const lat = d.lat as number | null, lng = d.lng as number | null;
+    // The card image mirrors the page hero: destination photo → a spot's photo →
+    // a satellite view of the area → the branded default. Never a blank tile.
+    const spotHero = (spotsByDest.get(id) ?? []).map((s) => s.hero_image).find(Boolean) ?? null;
+    const image =
+      (d.hero_image as string | null) ||
+      spotHero ||
+      (lat != null && lng != null ? satelliteHero(lat, lng) : null) ||
+      "https://media.np-seven.com/experiences/np7-bonaire/place/bonaire-spot-overview-drone-shot.jpg";
+    return {
+    id, name: d.name as string, slug: d.slug as string | null,
     region: d.region as string | null, country: d.country as string | null,
-    hero_image: d.hero_image as string | null, tagline: d.tagline as string | null,
+    hero_image: d.hero_image as string | null, image, tagline: d.tagline as string | null,
     level_min: d.level_min as string | null, level_max: d.level_max as string | null,
     tags: Array.isArray(d.tags) ? (d.tags as string[]) : [],
-    spotCount: spotCounts.get(d.id as string)?.length ?? 0,
+    spotCount: (spotsByDest.get(id)?.length) ?? 0,
     np7: np7Overall(d.np7_ratings, DESTINATION_CRITERIA_KEYS),
-    member: summariseRatings(ratingRows.get(d.id as string) ?? [], DESTINATION_CRITERIA_KEYS),
-  }));
+    member: summariseRatings(ratingRows.get(id) ?? [], DESTINATION_CRITERIA_KEYS),
+    };
+  });
 }
 
 /** A destination page: the destination + its public spots, each fully rated. */

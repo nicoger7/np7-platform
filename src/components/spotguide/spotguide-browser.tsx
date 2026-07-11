@@ -95,7 +95,7 @@ export function SpotguideBrowser({ dests, accent = "#00afdb", section = "experie
             return (
               <Link key={d.id} href={`/spotguide/${d.slug}?from=${section}`}
                 className="group flex flex-col rounded-2xl overflow-hidden bg-white border border-[#f0e6d6] hover:-translate-y-0.5 hover:shadow-[0_18px_44px_rgba(0,55,74,0.10)] transition-all">
-                <div className="relative aspect-[16/10] bg-cover bg-center bg-[#e9eef0]" style={{ backgroundImage: d.hero_image ? `url('${d.hero_image}')` : undefined }}>
+                <div className="relative aspect-[16/10] bg-cover bg-center bg-[#e9eef0]" style={{ backgroundImage: `url('${d.image}')` }}>
                   <div className="absolute inset-0 bg-gradient-to-t from-black/45 to-transparent" />
                   <div className="absolute left-4 bottom-3 right-4">
                     <h2 className="text-white text-[20px] font-black tracking-[-0.02em] leading-tight">{d.name}</h2>

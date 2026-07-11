@@ -239,16 +239,19 @@ export function HeroFindYourFit({ src, poster, children }: { src: string; poster
             <div className="grid w-full">{fitDetails}</div>
           </div>
 
-          {/* ── DESKTOP: overview cards pinned top, detail centred (unchanged) ── */}
-          <div className="hidden sm:flex absolute top-0 inset-x-0 pt-[120px] px-5 flex-col items-center z-10">
-            <p className="text-[13px] font-bold tracking-[0.3em] text-[#8fe6f2] mb-1.5 fyf-copy">FIND YOUR FIT</p>
-            <h2 className="text-[26px] font-black tracking-[-0.02em] text-white text-center mb-5 fyf-copy">Whatever brings you to the water</h2>
-            {/* 2×2 until there's room for a full row of 4 — never the lopsided 3+1
-                that a plain flex-wrap produces at mid widths. */}
-            <div className="grid grid-cols-2 lg:grid-cols-4 gap-3.5 w-full max-w-[920px]">{fitCards}</div>
-          </div>
-          <div className="hidden sm:flex absolute inset-0 px-6 items-center justify-center z-10 pt-[112px] pb-16">
-            <div className="grid w-full max-w-[760px] min-h-[280px]">{fitDetails}</div>
+          {/* ── DESKTOP: cards + active detail as ONE vertically-centred group —
+                 like mobile, so they can never overlap at any viewport height (the
+                 old split layout pinned the cards at top and centred the detail
+                 independently, which collided on shorter / mid-width screens). ── */}
+          <div className="hidden sm:flex absolute inset-0 z-10 flex-col items-center justify-center gap-7 lg:gap-9 px-6 pt-[92px] pb-16">
+            <div className="w-full flex flex-col items-center shrink-0">
+              <p className="text-[13px] font-bold tracking-[0.3em] text-[#8fe6f2] mb-1.5 fyf-copy">FIND YOUR FIT</p>
+              <h2 className="text-[26px] font-black tracking-[-0.02em] text-white text-center mb-5 fyf-copy">Whatever brings you to the water</h2>
+              {/* 2×2 until there's room for a full row of 4 — never the lopsided 3+1
+                  that a plain flex-wrap produces at mid widths. */}
+              <div className="grid grid-cols-2 lg:grid-cols-4 gap-3.5 w-full max-w-[920px]">{fitCards}</div>
+            </div>
+            <div className="grid w-full max-w-[760px] min-h-[240px]">{fitDetails}</div>
           </div>
         </div>
       </div>
