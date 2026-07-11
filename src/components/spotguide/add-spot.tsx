@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { useRouter } from "next/navigation";
 import { useSpotguide } from "./spotguide-provider";
 import { CONDITIONS, INFRASTRUCTURE_TAGS } from "@/lib/spotguide";
 import { PinPicker } from "./pin-picker";
@@ -12,6 +13,7 @@ import { LevelPicker } from "./level-picker";
     (existing area, or name a NEW area → creates a pending destination). */
 export function AddSpot({ destId, destName, destinations, accent = "#00afdb" }: { destId?: string; destName?: string; destinations?: { id: string; name: string }[]; accent?: string }) {
   const sg = useSpotguide();
+  const router = useRouter();
   const chooseDest = !destId && !!destinations;
   const [open, setOpen] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -50,11 +52,11 @@ export function AddSpot({ destId, destName, destinations, accent = "#00afdb" }: 
       body: JSON.stringify({ ...dest, ...f, coords: `${pin.lat}, ${pin.lng}` }),
     });
     setBusy(false);
-    if (res.ok) { setDone(true); setOpen(false); }
+    if (res.ok) { setDone(true); setOpen(false); router.refresh(); /* re-fetch so the new spot shows here, badged "under review" */ }
     else { const j = await res.json().catch(() => ({})); setError(j.error ?? "Could not submit."); }
   }
 
-  if (done) return <div className="rounded-2xl border border-[#cdeede] bg-[#f0faf4] p-5 text-[14px] text-[#1f7a4d] font-semibold">Thanks — your spot is in for verification. Once a few members confirm it, it goes live for everyone. 🤙</div>;
+  if (done) return <div className="rounded-2xl border border-[#cdeede] bg-[#f0faf4] p-5 text-[14px] text-[#1f7a4d] font-semibold">Your spot is in — it&apos;s now on this page under review, and only you can see it for now. Open it above to keep adding conditions, wind and photos; once a few riders confirm it, it goes live for everyone. 🤙</div>;
 
   if (!open) {
     return (

@@ -46,10 +46,10 @@ export const dynamic = "force-dynamic";
 
 export default async function SpotguideDestinationPage({ params }: Props) {
   const { slug } = await params;
-  const d = await getSpotguideDestination(slug);
+  const [user, store] = await Promise.all([getPortalUser().catch(() => null), cookies()]);
+  const d = await getSpotguideDestination(slug, user?.contactId ?? null);
   if (!d) notFound();
 
-  const [user, store] = await Promise.all([getPortalUser().catch(() => null), cookies()]);
   const loggedIn = !!user;
   const section = resolveSection(store.get("np7_section")?.value);
   const chrome = SECTION_CHROME[section];
