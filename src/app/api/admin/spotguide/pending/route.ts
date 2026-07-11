@@ -24,7 +24,7 @@ export async function GET() {
   const spotIds = (spots ?? []).map((s: { id: string }) => s.id);
   const [{ data: dests }, { data: verifs }, { data: photos }] = await Promise.all([
     destIds.length ? db.from("destinations").select("id, name, slug").in("id", destIds) : Promise.resolve({ data: [] }),
-    spotIds.length ? db.from("spot_verifications").select("spot_id, kind").in("spot_id", spotIds) : Promise.resolve({ data: [] }),
+    spotIds.length ? db.from("spot_verifications").select("spot_id, kind, note").in("spot_id", spotIds) : Promise.resolve({ data: [] }),
     db.from("spot_photos").select("id, spot_id, url, caption, status").in("status", ["pending", "hidden"]),
   ]);
   const destName = new Map((dests ?? []).map((d: { id: string; name: string }) => [d.id, d.name]));
@@ -38,10 +38,13 @@ export async function GET() {
     const vs = (verifs ?? []).filter((v: { spot_id: string }) => v.spot_id === s.id);
     const confirms = vs.filter((v: { kind: string }) => v.kind === "confirm").length;
     const flags = vs.filter((v: { kind: string }) => v.kind === "flag").length;
+    // the "why" behind each flag — the reasons riders typed when flagging
+    const flagReasons = vs.filter((v: { kind: string; note?: string | null }) => v.kind === "flag" && v.note && String(v.note).trim())
+      .map((v: { note?: string | null }) => String(v.note).trim());
     const ageDays = Math.floor((Date.now() - new Date(String(s.created_at)).getTime()) / 86_400_000);
     const flagged = flags > 0;
     const stuck = !flagged && ageDays >= STUCK_DAYS && confirms < COMMUNITY_VERIFY_THRESHOLD;
-    return { ...s, destinationName: destName.get(s.destination_id as string) ?? "—", confirms, flags, ageDays, flagged, stuck };
+    return { ...s, destinationName: destName.get(s.destination_id as string) ?? "—", confirms, flags, flagReasons, ageDays, flagged, stuck };
   }).sort((a: { flagged: boolean; stuck: boolean; ageDays: number }, b: { flagged: boolean; stuck: boolean; ageDays: number }) =>
     (Number(b.flagged) - Number(a.flagged)) || (Number(b.stuck) - Number(a.stuck)) || (b.ageDays - a.ageDays));
   // Member-proposed new areas (destinations) awaiting NP7 publish.

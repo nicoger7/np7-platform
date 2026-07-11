@@ -20,17 +20,20 @@ export function VerifySpots({ destId, accent = "#00afdb" }: { destId: string; ac
   const [fieldVerify, setFieldVerify] = useState(false); // per-field level/conditions votes (migration 066)
   const [busy, setBusy] = useState<string | null>(null);
   const [open, setOpen] = useState(false); // folded by default so the page stays short
+  const [flagFor, setFlagFor] = useState<string | null>(null); // spotId being flagged → ask why
+  const [flagNote, setFlagNote] = useState("");
 
   useEffect(() => {
     if (!sg.loggedIn) return;
     fetch(`/api/portal/spotguide/spots?dest=${destId}`).then((r) => r.json()).then((d) => { setSpots(d.spots ?? []); setFieldVerify(!!d.fieldVerify); }).catch(() => {});
   }, [sg.loggedIn, destId]);
 
-  async function vote(id: string, category: "location" | "level" | "conditions", kind: "confirm" | "flag") {
+  async function vote(id: string, category: "location" | "level" | "conditions", kind: "confirm" | "flag", note?: string) {
     const key = `${id}:${category}`;
     setBusy(key);
-    const r = await fetch("/api/portal/spotguide/verify", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ spotId: id, category, kind }) });
+    const r = await fetch("/api/portal/spotguide/verify", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ spotId: id, category, kind, note: note?.trim() || undefined }) });
     setBusy(null);
+    if (category === "location" && kind === "flag") { setFlagFor(null); setFlagNote(""); }
     if (!r.ok) return;
     const j = await r.json();
     setSpots((list) => list.map((s) => {
@@ -93,12 +96,24 @@ export function VerifySpots({ destId, accent = "#00afdb" }: { destId: string; ac
                         <div className="flex items-center gap-1.5 shrink-0">
                           <button onClick={() => vote(s.id, row.key, "confirm")} disabled={busy === k} aria-label="Right" title={row.gate ? "I've been here — accurate" : "This is right"}
                             className={chip(cat.mine === "confirm", "ok")} style={cat.mine === "confirm" ? { backgroundColor: "#1f9e57" } : undefined}>✓</button>
-                          <button onClick={() => vote(s.id, row.key, "flag")} disabled={busy === k} aria-label="Off" title={row.gate ? "Not accurate" : "This is wrong"}
-                            className={chip(cat.mine === "flag", "no")} style={cat.mine === "flag" ? { backgroundColor: "#c05a34" } : undefined}>✕</button>
+                          <button onClick={() => (row.gate ? (setFlagFor(flagFor === s.id ? null : s.id), setFlagNote("")) : vote(s.id, row.key, "flag"))} disabled={busy === k} aria-label="Off" title={row.gate ? "Not accurate — tell us what's off" : "This is wrong"}
+                            className={chip(cat.mine === "flag" || (!!row.gate && flagFor === s.id), "no")} style={cat.mine === "flag" ? { backgroundColor: "#c05a34" } : undefined}>✕</button>
                         </div>
                       </div>
                     );
                   })}
+                  {flagFor === s.id && (
+                    <div className="mt-2 rounded-lg border border-[#f0d9d0] bg-[#fdf6f3] p-2.5">
+                      <p className="text-[12px] font-semibold text-[#b4522f] mb-1.5">What&apos;s off? <span className="font-normal text-[#9aa6ac]">A line helps NP7 fix it faster (optional).</span></p>
+                      <textarea value={flagNote} onChange={(e) => setFlagNote(e.target.value)} rows={2}
+                        className="w-full px-2.5 py-2 rounded-lg border border-[#e2d8c6] text-[13px] text-[#00374a] outline-none focus:border-[#c05a34] bg-white resize-y"
+                        placeholder="e.g. the pin is ~200 m off · this spot doesn't exist · the name is wrong" />
+                      <div className="flex items-center gap-2 mt-1.5">
+                        <button onClick={() => vote(s.id, "location", "flag", flagNote)} disabled={busy === `${s.id}:location`} className="px-3.5 py-1.5 rounded-full text-[12.5px] font-bold text-white disabled:opacity-50" style={{ backgroundColor: "#c05a34" }}>Flag it</button>
+                        <button onClick={() => { setFlagFor(null); setFlagNote(""); }} className="text-[12px] font-semibold text-[#9aa6ac]">Cancel</button>
+                      </div>
+                    </div>
+                  )}
                 </div>
               )}
               {!done && !s.isOwn && <p className="mt-2 text-[11px] text-[#b3a994]">✓ what&apos;s right · ✕ what&apos;s off — only the top row decides if it goes public.</p>}

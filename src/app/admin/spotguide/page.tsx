@@ -7,7 +7,7 @@ import { VERIFICATION_META, conditionLabel, type Verification } from "@/lib/spot
 interface PendingSpot {
   id: string; name: string; destination_id: string; destinationName: string;
   level: string | null; conditions: string[] | null; description: string | null;
-  verification: string; confirms: number; flags: number;
+  verification: string; confirms: number; flags: number; flagReasons?: string[];
   ageDays: number; stuck: boolean; flagged: boolean;
 }
 interface PendingPhoto { id: string; spot_id: string; url: string; caption: string | null }
@@ -205,7 +205,7 @@ export default function SpotguideModeration() {
                 <div className="flex items-start justify-between gap-3">
                   <div className="min-w-0">
                     <div className="flex items-center gap-2">
-                      <Link href={`/admin/spots/${s.id}`} className="text-sm font-bold admin-heading hover:text-[#0aa3c7]">{s.name}</Link>
+                      <Link href={`/admin/spots/${s.id}?from=spotguide`} className="text-sm font-bold admin-heading hover:text-[#0aa3c7]">{s.name}</Link>
                       <span className="px-2 py-0.5 rounded text-[10px] font-bold uppercase" style={{ backgroundColor: `${vm.color}1f`, color: vm.color }}>{vm.short}</span>
                       {s.flagged ? (
                         <span className="px-2 py-0.5 rounded text-[10px] font-bold uppercase bg-red-500/15 text-red-400">🚩 Flagged</span>
@@ -216,13 +216,25 @@ export default function SpotguideModeration() {
                     <p className="text-[11px] admin-faint mt-0.5">{s.destinationName}{s.level ? ` · ${s.level}` : ""}{s.conditions?.length ? ` · ${s.conditions.map(conditionLabel).join(", ")}` : ""}</p>
                     {s.description && <p className="text-xs admin-muted mt-1.5 line-clamp-3">{s.description}</p>}
                     <p className="text-[11px] admin-faint mt-1.5">{s.confirms} member confirm{s.confirms === 1 ? "" : "s"}{s.flags ? ` · ${s.flags} flag${s.flags === 1 ? "" : "s"}` : ""}</p>
+                    {s.flagged && (
+                      <div className="mt-1.5 rounded-lg px-2.5 py-2 bg-red-500/10" style={{ border: "1px solid rgba(248,113,113,0.25)" }}>
+                        <p className="text-[10px] font-bold uppercase tracking-wide text-red-400 mb-0.5">Why it was flagged</p>
+                        {s.flagReasons && s.flagReasons.length > 0 ? (
+                          <ul className="space-y-0.5">
+                            {s.flagReasons.map((r, i) => <li key={i} className="text-[11.5px] admin-muted">“{r}”</li>)}
+                          </ul>
+                        ) : (
+                          <p className="text-[11px] admin-faint">{s.flags} rider{s.flags === 1 ? "" : "s"} marked it off but left no reason — open the editor to check the pin &amp; details.</p>
+                        )}
+                      </div>
+                    )}
                   </div>
                 </div>
                 <div className="flex flex-wrap gap-2 mt-3">
                   <button onClick={() => act(s.id, { verification: "np7" })} disabled={busy === s.id} className="px-3 py-1.5 rounded-lg text-xs font-bold bg-[var(--admin-accent)] text-[var(--admin-accent-contrast)] disabled:opacity-50">NP7 verify</button>
                   <button onClick={() => act(s.id, { verification: "community" })} disabled={busy === s.id} className="px-3 py-1.5 rounded-lg text-xs font-bold disabled:opacity-50" style={{ border: "1px solid var(--admin-border)" }}>Approve (community)</button>
                   <button onClick={() => act(s.id, { status: "hidden" })} disabled={busy === s.id} className="px-3 py-1.5 rounded-lg text-xs font-semibold text-red-400/70 hover:text-red-400 disabled:opacity-50">Hide</button>
-                  <Link href={`/admin/spots/${s.id}`} className="px-3 py-1.5 rounded-lg text-xs font-semibold admin-muted ml-auto" style={{ border: "1px solid var(--admin-border)" }}>Open editor</Link>
+                  <Link href={`/admin/spots/${s.id}?from=spotguide`} className="px-3 py-1.5 rounded-lg text-xs font-semibold admin-muted ml-auto" style={{ border: "1px solid var(--admin-border)" }}>Open editor</Link>
                 </div>
               </div>
             );

@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef, use } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import ImagePickerModal from "@/components/image-picker-modal";
 import { parseCoords } from "@/lib/blog-templates";
 import {
@@ -32,6 +32,7 @@ interface Dest { id: string; name: string; slug: string | null }
 export default function SpotEditor({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
   const router = useRouter();
+  const fromSpotguide = useSearchParams().get("from") === "spotguide"; // came from the /admin/spotguide review queue
   const [s, setS] = useState<Spot | null>(null);
   const [dest, setDest] = useState<Dest | null>(null);
   const [member, setMember] = useState<RatingSummary | null>(null);
@@ -101,7 +102,7 @@ export default function SpotEditor({ params }: { params: Promise<{ id: string }>
     <div className="max-w-[760px]">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between mb-6">
         <div className="min-w-0">
-          <Link href={dest ? `/admin/destinations/${dest.id}` : "/admin/destinations"} className="text-xs admin-faint hover:admin-heading">← {dest?.name ?? "Destinations"}</Link>
+          <Link href={fromSpotguide ? "/admin/spotguide" : dest ? `/admin/destinations/${dest.id}` : "/admin/destinations"} className="text-xs admin-faint hover:admin-heading">← {fromSpotguide ? "Spotguide review" : dest?.name ?? "Destinations"}</Link>
           <h1 className="text-2xl font-bold admin-heading mt-1 truncate">{s.name}</h1>
           <p className="text-xs admin-faint mt-0.5">Everything on this page is the <span className="font-semibold text-[#0aa3c7]">public spotguide content</span> (once published + verified).</p>
           <div className="flex items-center gap-2 mt-1">
