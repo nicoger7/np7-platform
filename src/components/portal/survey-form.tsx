@@ -22,15 +22,25 @@ export function SurveyForm({ survey, token, contactName, existing, preview = fal
   const [weeks, setWeeks] = useState<Set<string>>(new Set(existing?.weeks ?? []));
   const [budgetOk, setBudgetOk] = useState<"yes" | "maybe" | "no" | null>(existing?.budget_ok ?? null);
   const [lookingFor, setLookingFor] = useState(existing?.looking_for ?? "");
+  const [chosen, setChosen] = useState<Set<string>>(new Set([...(existing?.top_destination ? [existing.top_destination] : []), ...(existing?.other_destinations ?? [])]));
   const [busy, setBusy] = useState(false);
   const [done, setDone] = useState(false);
   const [err, setErr] = useState("");
+
+  // Trip-cards mode: when the options carry dates they ARE the trips — members
+  // multi-select which fixed date+place combos they'd join (no separate weeks).
+  const hasTrips = survey.destinations.some((d) => !!(d.start || d.end));
+  const byKey = new Map(survey.destinations.map((d) => [d.key, d]));
+  const rangesOverlap = (a?: typeof survey.destinations[number], b?: typeof survey.destinations[number]) => !!(a?.start && a?.end && b?.start && b?.end && a.start <= b.end && b.start <= a.end);
+  const chosenArr = [...chosen];
+  const overlapNote = hasTrips && chosenArr.some((k, i) => chosenArr.slice(i + 1).some((k2) => rangesOverlap(byKey.get(k), byKey.get(k2))));
 
   const toggle = (set: Set<string>, key: string) => { const n = new Set(set); n.has(key) ? n.delete(key) : n.add(key); return n; };
 
   async function submit() {
     setErr("");
-    if (survey.destinations.length > 0 && !topDest) { setErr("Pick your top choice of spot."); return; }
+    if (hasTrips) { if (chosen.size === 0) { setErr("Pick at least one trip you'd join."); return; } }
+    else if (survey.destinations.length > 0 && !topDest) { setErr("Pick your top choice of spot."); return; }
     // Preview: run the full flow (incl. the thank-you) without saving anything.
     if (preview) { setDone(true); window.scrollTo({ top: 0, behavior: "smooth" }); return; }
     setBusy(true);
@@ -39,9 +49,9 @@ export function SurveyForm({ survey, token, contactName, existing, preview = fal
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          top_destination: topDest,
-          other_destinations: [...alsoDest].filter((k) => k !== topDest),
-          weeks: [...weeks],
+          top_destination: hasTrips ? null : topDest,
+          other_destinations: hasTrips ? chosenArr : [...alsoDest].filter((k) => k !== topDest),
+          weeks: hasTrips ? [] : [...weeks],
           budget_ok: budgetOk,
           looking_for: lookingFor.trim() || null,
         }),
@@ -68,8 +78,37 @@ export function SurveyForm({ survey, token, contactName, existing, preview = fal
 
   return (
     <div className="space-y-4">
-      {/* Destinations */}
-      {survey.destinations.length > 0 && (
+      {/* Trip options — fixed date+place combos, multi-select cards */}
+      {hasTrips && (
+        <div className={card}>
+          <p className={label}>Which trips would you join?</p>
+          <p className="text-[13px] text-[#8a97a0] mt-1 mb-3.5">Dates &amp; place are fixed — tick every trip you&apos;d want in on. The more you pick, the more likely we run the ones you want.</p>
+          <div className="space-y-2.5">
+            {[...survey.destinations].sort((a, b) => (a.start || "").localeCompare(b.start || "")).map((d) => {
+              const on = chosen.has(d.key);
+              return (
+                <button key={d.key} type="button" onClick={() => setChosen((s) => toggle(s, d.key))}
+                  className={`w-full text-left rounded-2xl border-2 p-4 sm:p-5 transition-colors ${on ? "border-[#f0a500] bg-[#fff7e6] shadow-[0_8px_22px_rgba(240,165,0,0.14)]" : "border-[#ecdcbb] bg-white hover:border-[#f2cf8a]"}`}>
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="min-w-0">
+                      <span className="block text-[17px] font-black text-[#00374a]">{d.location || d.label}</span>
+                      {(d.start || d.end) && <span className="block text-[15px] font-bold text-[#b0791e] mt-0.5">{fmtWeek(d.start ?? null, d.end ?? null)}</span>}
+                      {d.blurb && <span className="block text-[13.5px] text-[#6a7a80] mt-1.5 leading-relaxed">{d.blurb}</span>}
+                    </div>
+                    <span className={`shrink-0 mt-0.5 grid place-items-center w-6 h-6 rounded-full border-2 transition-colors ${on ? "border-[#f0a500] bg-[#f0a500] text-white" : "border-[#e2d8c6] text-transparent"}`}>
+                      <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3.5" strokeLinecap="round" strokeLinejoin="round"><path d="M20 6L9 17l-5-5" /></svg>
+                    </span>
+                  </div>
+                </button>
+              );
+            })}
+          </div>
+          {overlapNote && <p className="text-[12px] text-[#a58a5e] mt-3">Some of your picks overlap in dates — no problem. Tell us all you&apos;d join and we&apos;ll help you land on one if both happen.</p>}
+        </div>
+      )}
+
+      {/* Destinations (classic: pick a spot + choose weeks separately) */}
+      {!hasTrips && survey.destinations.length > 0 && (
         <div className={card}>
           <p className={label}>Where would you want to go?</p>
           <p className="text-[13px] text-[#8a97a0] mt-1 mb-3">Pick your top choice.</p>
@@ -106,8 +145,8 @@ export function SurveyForm({ survey, token, contactName, existing, preview = fal
         </div>
       )}
 
-      {/* Weeks */}
-      {survey.weeks.length > 0 && (
+      {/* Weeks (classic mode only — trips carry their own dates) */}
+      {!hasTrips && survey.weeks.length > 0 && (
         <div className={card}>
           <p className={label}>When could you go?</p>
           <p className="text-[13px] text-[#8a97a0] mt-1 mb-3">Tick every week that could work — the more the better.</p>

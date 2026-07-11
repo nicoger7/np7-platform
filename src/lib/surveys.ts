@@ -13,7 +13,11 @@ import { sendEmail } from "@/lib/email/send";
 type DB = any;
 function db(): DB { return createAdminClient() as DB; }
 
-export type SurveyDestination = { key: string; label: string };
+// A survey option is either a plain destination (label only, paired with separate
+// `weeks`) OR a fixed date+place "trip" (start/end + a blurb) that members
+// multi-select directly. When any option carries start/end the form switches to
+// premium trip-cards and the separate weeks question is hidden.
+export type SurveyDestination = { key: string; label: string; location?: string | null; start?: string | null; end?: string | null; blurb?: string | null };
 export type SurveyWeek = { key: string; label: string; start: string | null; end: string | null };
 export type SurveyStatus = "draft" | "open" | "closed";
 
