@@ -11,8 +11,8 @@ type Ctx = {
   loggedIn: boolean;
   mineDest: Record<string, number> | null;
   mineSpot: (spotId: string) => SpotMine | undefined;
-  /** Open the free-signup modal; resolves the member into a logged-in state. */
-  needAuth: () => void;
+  /** Open the auth modal; defaults to "register" (join), pass "login" for returning members. */
+  needAuth: (mode?: "login" | "register") => void;
   saveSpot: (spotId: string, facts: SpotFacts) => Promise<boolean>;
   voteForecast: (spotId: string, model: string) => Promise<ForecastTally[] | null>;
   saveDest: (ratings: Record<string, number>) => Promise<RatingSummary | null>;
@@ -29,7 +29,7 @@ export function SpotguideProvider({ destId, initialLoggedIn = false, children }:
   const [loggedIn, setLoggedIn] = useState(initialLoggedIn);
   const [mineDest, setMineDest] = useState<Record<string, number> | null>(null);
   const [mineSpots, setMineSpots] = useState<Record<string, SpotMine>>({});
-  const [auth, setAuth] = useState(false);
+  const [auth, setAuth] = useState<false | "login" | "register">(false);
 
   const load = useCallback(() => {
     fetch(`/api/portal/spotguide/mine?dest=${destId}`)
@@ -39,11 +39,11 @@ export function SpotguideProvider({ destId, initialLoggedIn = false, children }:
   }, [destId]);
   useEffect(() => { load(); }, [load]);
 
-  const needAuth = useCallback(() => setAuth(true), []);
+  const needAuth = useCallback((mode: "login" | "register" = "register") => setAuth(mode), []);
 
   async function post(url: string, body: unknown) {
     const r = await fetch(url, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
-    if (r.status === 401) { setAuth(true); return null; }
+    if (r.status === 401) { setAuth("register"); return null; }
     if (!r.ok) return null;
     return r.json();
   }
@@ -72,9 +72,9 @@ export function SpotguideProvider({ destId, initialLoggedIn = false, children }:
       {children}
       {auth && (
         <AuthModal
-          initialMode="register"
-          title="Join NP7 — free"
-          subtitle="It takes a few seconds — then rate spots and unlock every guide."
+          initialMode={auth}
+          title={auth === "login" ? "Welcome back" : "Join NP7 — free"}
+          subtitle={auth === "login" ? "Log in to rate spots and unlock every guide." : "It takes a few seconds — then rate spots and unlock every guide."}
           onClose={() => setAuth(false)}
           onLoggedIn={() => { setAuth(false); load(); }}
         />

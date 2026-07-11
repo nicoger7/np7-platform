@@ -66,10 +66,10 @@ export function MeteredContent({ accent = "#00afdb", children, spotCount, destNa
         )}
 
         <div className="mt-8 flex flex-col sm:flex-row items-center justify-center gap-3">
-          <button onClick={sg.needAuth} className="w-full sm:w-auto px-8 py-3.5 rounded-full text-[14px] font-bold text-white transition-all hover:-translate-y-0.5" style={{ backgroundColor: accent, boxShadow: `0 8px 24px ${accent}66` }}>
+          <button onClick={() => sg.needAuth("register")} className="w-full sm:w-auto px-8 py-3.5 rounded-full text-[14px] font-bold text-white transition-all hover:-translate-y-0.5" style={{ backgroundColor: accent, boxShadow: `0 8px 24px ${accent}66` }}>
             {community ? "Join & add your spot" : "Create free account"}
           </button>
-          <button onClick={sg.needAuth} className="text-[13.5px] font-bold text-[#5a6b72] hover:text-[#00374a] transition-colors">Already a member? Log in</button>
+          <button onClick={() => sg.needAuth("login")} className="text-[13.5px] font-bold text-[#5a6b72] hover:text-[#00374a] transition-colors">Already a member? Log in</button>
         </div>
         <p className="mt-3 text-[12px] text-[#9aa6ac]">Free — no payment, ever.</p>
       </div>
