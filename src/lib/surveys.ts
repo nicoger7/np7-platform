@@ -17,7 +17,7 @@ function db(): DB { return createAdminClient() as DB; }
 // `weeks`) OR a fixed date+place "trip" (start/end + a blurb) that members
 // multi-select directly. When any option carries start/end the form switches to
 // premium trip-cards and the separate weeks question is hidden.
-export type SurveyDestination = { key: string; label: string; location?: string | null; start?: string | null; end?: string | null; blurb?: string | null };
+export type SurveyDestination = { key: string; label: string; location?: string | null; start?: string | null; end?: string | null; blurb?: string | null; image?: string | null; lat?: number | null; lng?: number | null };
 export type SurveyWeek = { key: string; label: string; start: string | null; end: string | null };
 export type SurveyStatus = "draft" | "open" | "closed";
 

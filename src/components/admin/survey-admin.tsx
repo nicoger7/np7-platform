@@ -3,6 +3,7 @@
 import { useState, useMemo } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import ImagePickerModal from "@/components/image-picker-modal";
 import type { Survey, SurveyInvite, SurveyDestination, SurveyWeek, SurveyStatus } from "@/lib/surveys";
 
 /**
@@ -56,6 +57,21 @@ export function SurveyAdmin({ initialSurvey, initialInvites }: { initialSurvey: 
   const delDest = (i: number) => patch({ destinations: s.destinations.filter((_, j) => j !== i) });
   // Offer a second date window for the same place with one tap (riders then pick a period).
   const addPeriod = (i: number) => { const d = s.destinations[i]; patch({ destinations: [...s.destinations.slice(0, i + 1), { key: uid(), label: d.label, location: d.location, blurb: d.blurb, start: null, end: null }, ...s.destinations.slice(i + 1)] }); };
+  const [picker, setPicker] = useState<number | null>(null); // trip index whose image picker is open
+  const [geoBusy, setGeoBusy] = useState<number | null>(null);
+  // Drop a pin from the place name → coords power the satellite fallback when there's no photo.
+  async function locate(i: number) {
+    const d = s.destinations[i];
+    const q = [d.location, d.label].filter(Boolean).join(", ").trim();
+    if (!q) return;
+    setGeoBusy(i);
+    try {
+      const r = await fetch(`https://nominatim.openstreetmap.org/search?format=json&limit=1&q=${encodeURIComponent(q)}`, { headers: { "Accept-Language": "en" } });
+      const hits = await r.json().catch(() => []);
+      if (Array.isArray(hits) && hits[0]) setDest(i, { lat: Math.round(+hits[0].lat * 1e5) / 1e5, lng: Math.round(+hits[0].lon * 1e5) / 1e5 });
+    } catch { /* leave coords blank — admin can type them */ }
+    finally { setGeoBusy(null); }
+  }
   const addWeek = () => patch({ weeks: [...s.weeks, { key: uid(), label: "", start: null, end: null }] });
   const setWeek = (i: number, p: Partial<SurveyWeek>) => patch({ weeks: s.weeks.map((w, j) => j === i ? { ...w, ...p } : w) });
   const delWeek = (i: number) => patch({ weeks: s.weeks.filter((_, j) => j !== i) });
@@ -120,11 +136,38 @@ export function SurveyAdmin({ initialSurvey, initialInvites }: { initialSurvey: 
                   <button onClick={() => addPeriod(i)} className="text-[12px] font-bold text-[#0aa3c7] ml-1">+ Another date for this place</button>
                 </div>
                 <textarea className={`${input} min-h-[60px] resize-y`} value={d.blurb ?? ""} onChange={(e) => setDest(i, { blurb: e.target.value })} placeholder="Write about the trip — the spot, the vibe, what's included…" />
+
+                {/* Photo (or a satellite fallback from the pin when there's none) */}
+                <div className="flex flex-wrap items-center gap-2 pt-1">
+                  {d.image ? (
+                    <>
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img src={d.image} alt="" className="w-16 h-12 rounded-lg object-cover border border-[#e2d8c6]" />
+                      <button onClick={() => setPicker(i)} className="text-[12px] font-bold text-[#0aa3c7]">Change photo</button>
+                      <button onClick={() => setDest(i, { image: null })} className="text-[12px] font-bold text-[#c0392b]">Remove</button>
+                    </>
+                  ) : (
+                    <button onClick={() => setPicker(i)} className="inline-flex items-center gap-1.5 rounded-lg border border-dashed border-[#c9bda5] px-3 py-1.5 text-[12.5px] font-bold text-[#6a7a80] hover:border-[#0aa3c7] hover:text-[#0aa3c7]">＋ Add / upload photo</button>
+                  )}
+                  <span className="text-[#e2d8c6]">·</span>
+                  <button onClick={() => locate(i)} disabled={geoBusy === i} className="text-[12px] font-bold text-[#0aa3c7] disabled:opacity-50">{geoBusy === i ? "Locating…" : "📍 Locate from name"}</button>
+                  {d.lat != null && d.lng != null && <span className="text-[11.5px] text-[#1f9e57] font-semibold">✓ satellite fallback ready</span>}
+                </div>
+                {!d.image && (d.lat == null || d.lng == null) && (
+                  <p className="text-[11px] text-[#9aa6ac]">No photo yet? Hit <b>Locate</b> — riders will see a satellite view of the spot instead of a blank card.</p>
+                )}
               </div>
             ))}
           </div>
         )}
       </div>
+      {picker !== null && (
+        <ImagePickerModal
+          defaultFolder="experiences/shared"
+          onSelect={(url) => { setDest(picker, { image: url }); setPicker(null); }}
+          onClose={() => setPicker(null)}
+        />
+      )}
 
       {/* weeks */}
       <div className={card}>

@@ -4,6 +4,7 @@ import { notFound } from "next/navigation";
 import { getSurveyForToken, getSurvey } from "@/lib/surveys";
 import { getPortalUser, getTeamMember } from "@/lib/auth";
 import { SurveyForm } from "@/components/portal/survey-form";
+import { satelliteHero } from "@/lib/satellite";
 
 type Props = { params: Promise<{ token: string }> };
 
@@ -33,6 +34,14 @@ export default async function SurveyPage({ params }: Props) {
   const user = await getPortalUser().catch(() => null);
   const firstName = contactName?.split(/\s+/)[0] || null;
 
+  // Hero photo = the first trip's image (or a satellite view of its pin), else a
+  // premium default — never the low-res poster.
+  const heroTrip = survey.destinations.find((d) => d.image) ?? survey.destinations.find((d) => d.lat != null && d.lng != null);
+  const heroImg =
+    heroTrip?.image ||
+    (heroTrip?.lat != null && heroTrip?.lng != null ? satelliteHero(heroTrip.lat, heroTrip.lng) : null) ||
+    "https://media.np-seven.com/experiences/np7-bonaire/place/bonaire-spot-overview-drone-shot.jpg";
+
   return (
     <main className="min-h-[100svh] bg-[#fdf6ea]">
       {isPreview && (
@@ -44,7 +53,7 @@ export default async function SurveyPage({ params }: Props) {
           ocean gradient, with a gold "by invitation" treatment so it reads
           premium the moment it opens (this is a dream-trip invite, not a form). */}
       <header className="relative overflow-hidden flex flex-col min-h-[430px] sm:min-h-[540px] text-white">
-        <div className="absolute inset-0 bg-cover bg-center scale-105" style={{ backgroundImage: "url('/cdn/assets/hero/windsurf-hero-poster.jpg')" }} />
+        <div className="absolute inset-0 bg-cover bg-center scale-105" style={{ backgroundImage: `url('${heroImg}')` }} />
         <div className="absolute inset-0" style={{ background: "linear-gradient(180deg, rgba(1,32,42,0.50) 0%, rgba(1,28,38,0.28) 38%, rgba(1,22,30,0.90) 100%)" }} />
         <div className="absolute top-0 inset-x-0 h-[3px] z-10" style={{ background: "linear-gradient(90deg,#ffe08a,#f0a500 45%,#f47b20)" }} />
         <div className="relative z-10 mt-auto w-full max-w-[720px] mx-auto px-5 sm:px-8 pb-12 pt-16">

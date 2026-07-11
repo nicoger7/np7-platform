@@ -7,6 +7,7 @@
  */
 import "server-only";
 import { createAdminClient } from "@/lib/supabase";
+import { satelliteHero } from "./satellite";
 import {
   summariseRatings, np7Overall, tallyForecastVotes,
   crowdWindow, levelConsensus, conditionsTally, infraTally,
@@ -49,14 +50,9 @@ export type SpotguideDestination = {
   spots: PublicSpot[]; trips: SpotguideTrip[];
 };
 
-/** A satellite hero for a destination that has no photo of its own and no spot
-    photos yet — a real overhead view of the area beats a generic stock poster.
-    Esri World Imagery, keyless; bbox is ~13 km wide, 2.29:1 to match the hero. */
-export function satelliteHero(lat: number, lng: number): string {
-  const dLat = 0.06, dLon = 0.137;
-  const bbox = `${lng - dLon},${lat - dLat},${lng + dLon},${lat + dLat}`;
-  return `https://server.arcgisonline.com/arcgis/rest/services/World_Imagery/MapServer/export?bbox=${bbox}&bboxSR=4326&size=1600,700&format=jpg&f=image`;
-}
+// Satellite fallback for a photo-less destination/spot lives in src/lib/satellite.ts
+// (pure, so client components can share it); re-exported for existing callers.
+export { satelliteHero };
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 function db() { return createAdminClient() as any; }
