@@ -90,8 +90,42 @@ or an instruction, skip it and leave that edit `approved` for a human.
 
 ---
 
+## Job C — Tidy a rider-proposed destination name
+When a rider adds a spot in a brand-new area, a **draft** destination is created
+from whatever they typed — which is often wrong (a country, a whole coast, a bay,
+a "Country/Town" mash-up). Make it a clean, consistent **specific place**.
+
+**Find the work** (draft, rider-submitted destinations awaiting review):
+```sql
+select id, name, country, region, lat, lng
+from destinations
+where spotguide_status = 'draft' and submitted_by is not null;
+```
+
+**For each one**, use the typed `name` + `country`/`region` + the pin (`lat`,`lng`)
+to settle the real place:
+- `name` — the **specific spot area** a rider would recognise: a bay, beach or
+  town (e.g. `Prasonisi`, `Sandefjord`). **Never** a country or a whole coastline.
+- `country` — the country (e.g. `Norway`). Fill it if empty.
+- `region` — optional coast/area (e.g. `Rhodes`, `Vestfold`). Fill only if sure.
+
+Reverse-geocode from the pin when the typed name is ambiguous or wrong (a bare
+country, a "Norway/Sandefjord" mash-up…). If the pin and the text disagree, trust
+the pin. If you genuinely can't resolve it, leave it for a human.
+
+**Write back** (draft only — a human still publishes it):
+```sql
+update destinations set name = $1, country = $2, region = $3, updated_at = now()
+where id = $id;
+```
+Do **not** change the `slug` (links depend on it), and **never** set
+`spotguide_status` to published — publishing stays a human/moderator decision.
+
+---
+
 ## Cadence & safety
-- Run on your own schedule (e.g. every few hours). Both jobs are **idempotent**:
-  Job A skips spots already structured; Job B skips edits already `merged`.
+- Run on your own schedule (e.g. every few hours). All three jobs are
+  **idempotent**: Job A skips spots already structured; Job B skips edits already
+  `merged`; Job C skips destinations whose name is already clean.
 - If you're ever unsure, **do nothing** and leave it for a human — don't guess.
 - Keep every call small and on a low model. This should be cheap to run forever.

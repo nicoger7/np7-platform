@@ -75,7 +75,8 @@ export async function POST(request: NextRequest) {
     const slug = slugifySpot(newArea) + "-" + Math.random().toString(36).slice(2, 6);
     const { data: nd, error: dErr } = await db.from("destinations").insert({
       name: newArea, slug,
-      region: typeof body.new_region === "string" ? body.new_region.trim().slice(0, 120) : null,
+      country: (typeof body.new_country === "string" && body.new_country.trim()) ? body.new_country.trim().slice(0, 80) : null,
+      region: (typeof body.new_region === "string" && body.new_region.trim()) ? body.new_region.trim().slice(0, 120) : null,
       lat: coords?.lat ?? null, lng: coords?.lng ?? null,
       status: "draft", spotguide_status: "draft", submitted_by: user.contactId,
     }).select("id").single();

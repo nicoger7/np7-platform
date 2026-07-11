@@ -24,6 +24,8 @@ export function AddSpot({ destId, destName, destinations, accent = "#00afdb" }: 
   const [customTag, setCustomTag] = useState("");
   const [destChoice, setDestChoice] = useState(""); // "" | destId | "__new__"
   const [newArea, setNewArea] = useState("");
+  const [newCountry, setNewCountry] = useState("");
+  const [newRegion, setNewRegion] = useState("");
 
   function toggle(list: "conditions" | "infrastructure", v: string) {
     setF((p) => ({ ...p, [list]: p[list].includes(v) ? p[list].filter((x) => x !== v) : [...p[list], v] }));
@@ -41,8 +43,9 @@ export function AddSpot({ destId, destName, destinations, accent = "#00afdb" }: 
     let dest: Record<string, string> = { destination_id: destId ?? "" };
     if (chooseDest) {
       if (destChoice === "__new__") {
-        if (newArea.trim().length < 2) { setError("Name the new area."); return; }
-        dest = { new_destination: newArea.trim() };
+        if (newArea.trim().length < 2) { setError("Name the spot area (a bay, beach or town)."); return; }
+        if (newCountry.trim().length < 2) { setError("Add the country."); return; }
+        dest = { new_destination: newArea.trim(), new_country: newCountry.trim(), new_region: newRegion.trim() };
       } else if (destChoice) dest = { destination_id: destChoice };
       else { setError("Pick a destination or name a new area."); return; }
     }
@@ -88,7 +91,14 @@ export function AddSpot({ destId, destName, destinations, accent = "#00afdb" }: 
             <svg className="pointer-events-none absolute right-4 top-1/2 -translate-y-1/2 w-4 h-4 text-[#9aa6ac]" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M6 9l6 6 6-6" /></svg>
           </div>
           {destChoice === "__new__" && (
-            <input className={`${input} mt-2`} placeholder="Name the area / town (e.g. Prasonisi, Rhodes) *" value={newArea} onChange={(e) => setNewArea(e.target.value)} />
+            <div className="mt-2 space-y-2 rounded-xl border border-[#ece3d3] bg-[#fdfaf3] p-3">
+              <p className="text-[12px] text-[#6a7a80] leading-snug">Name the <b className="text-[#00374a]">specific spot area</b> a rider would know — a bay, beach or town. <b>Not</b> the country or a whole coastline; the country has its own field.</p>
+              <input className={input} placeholder="Spot area — bay / beach / town (e.g. Prasonisi) *" value={newArea} onChange={(e) => setNewArea(e.target.value)} />
+              <div className="grid grid-cols-2 gap-2">
+                <input className={input} placeholder="Country (e.g. Greece) *" value={newCountry} onChange={(e) => setNewCountry(e.target.value)} />
+                <input className={input} placeholder="Region / coast — optional" value={newRegion} onChange={(e) => setNewRegion(e.target.value)} />
+              </div>
+            </div>
           )}
         </div>
       )}
