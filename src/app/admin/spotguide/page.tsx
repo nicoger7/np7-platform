@@ -12,6 +12,7 @@ interface PendingSpot {
 interface PendingPhoto { id: string; spot_id: string; url: string; caption: string | null }
 interface PendingEdit { id: string; spotId: string; spotName: string; proposer: string; field: string; fieldLabel: string; from: string; to: string; note: string | null; status: string }
 interface Grant { id: string; contactName: string; contactEmail: string | null; role: string; destinationName: string | null }
+interface Member { id: string; name: string; email: string | null }
 
 export default function SpotguideModeration() {
   const [spots, setSpots] = useState<PendingSpot[]>([]);
@@ -19,14 +20,27 @@ export default function SpotguideModeration() {
   const [proposedDests, setProposedDests] = useState<{ id: string; name: string; region: string | null }[]>([]);
   const [edits, setEdits] = useState<PendingEdit[]>([]);
   const [trust, setTrust] = useState<Grant[]>([]);
+  const [jibe, setJibe] = useState<{ toStructure: number; toMerge: number } | null>(null);
+  const [members, setMembers] = useState<Member[]>([]);
+  const [dests, setDests] = useState<{ id: string; name: string }[]>([]);
+  const [q, setQ] = useState("");
+  const [picked, setPicked] = useState<Member | null>(null);
+  const [specDest, setSpecDest] = useState("");
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState<string | null>(null);
 
-  const load = useCallback(() => {
-    fetch("/api/admin/spotguide/pending").then((r) => r.json()).then((d) => { setSpots(d.spots ?? []); setPhotos(d.photos ?? []); setProposedDests(d.proposedDests ?? []); setEdits(d.edits ?? []); setLoading(false); });
+  const reloadTrust = useCallback(() => {
     fetch("/api/admin/spotguide/trust").then((r) => r.json()).then((d) => setTrust(d.grants ?? [])).catch(() => {});
   }, []);
+  const load = useCallback(() => {
+    fetch("/api/admin/spotguide/pending").then((r) => r.json()).then((d) => { setSpots(d.spots ?? []); setPhotos(d.photos ?? []); setProposedDests(d.proposedDests ?? []); setEdits(d.edits ?? []); setJibe(d.jibe ?? null); setLoading(false); });
+    reloadTrust();
+  }, [reloadTrust]);
   useEffect(() => { load(); }, [load]);
+  useEffect(() => {
+    fetch("/api/admin/members").then((r) => r.json()).then((d) => { const arr = Array.isArray(d) ? d : (d.members ?? []); setMembers(arr.map((m: { id: string; name: string; email: string | null }) => ({ id: m.id, name: m.name, email: m.email ?? null }))); }).catch(() => {});
+    fetch("/api/admin/destinations").then((r) => r.json()).then((d) => { if (Array.isArray(d)) setDests(d.map((x: { id: string; name: string }) => ({ id: x.id, name: x.name }))); }).catch(() => {});
+  }, []);
 
   async function moderateEdit(id: string, action: "approve" | "reject" | "merged") {
     setBusy(id);
@@ -42,6 +56,15 @@ export default function SpotguideModeration() {
     await fetch(`/api/admin/spotguide/trust?id=${id}`, { method: "DELETE" });
     setBusy(null);
     setTrust((list) => list.filter((g) => g.id !== id));
+  }
+
+  async function grantTrust(role: "moderator" | "specialist") {
+    if (!picked || (role === "specialist" && !specDest)) return;
+    setBusy("appoint");
+    await fetch("/api/admin/spotguide/trust", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ contactId: picked.id, role, destinationId: role === "specialist" ? specDest : undefined }) });
+    setBusy(null);
+    setPicked(null); setQ(""); setSpecDest("");
+    reloadTrust();
   }
 
   async function publishDest(id: string) {
@@ -71,6 +94,26 @@ export default function SpotguideModeration() {
         <h1 className="text-2xl font-bold admin-heading mb-1">Spotguide — contributions</h1>
         <p className="text-sm admin-muted">Member-submitted spots awaiting review. Community-verify needs 3 member confirmations; you can NP7-verify (gold) any time.</p>
       </div>
+
+      {jibe && (
+        <div className="mb-8 rounded-xl p-4" style={{ border: "1px solid var(--admin-border)", backgroundColor: "var(--admin-surface)" }}>
+          <div className="flex items-center gap-2 mb-1">
+            <span className="text-sm font-bold admin-heading">jibe</span>
+            <span className="px-2 py-0.5 rounded text-[10px] font-bold uppercase bg-[#0aa3c7]/15 text-[#0aa3c7]">automated</span>
+          </div>
+          <p className="text-xs admin-faint mb-3">jibe structures new member spots and folds community-confirmed tips into descriptions on its own schedule — this is just a window in, nothing to action.</p>
+          <div className="flex gap-3">
+            <div className="flex-1 rounded-lg px-3 py-2.5" style={{ border: "1px solid var(--admin-border)" }}>
+              <div className="text-2xl font-bold admin-heading tabular-nums">{jibe.toStructure}</div>
+              <div className="text-[11px] admin-faint">spots to structure</div>
+            </div>
+            <div className="flex-1 rounded-lg px-3 py-2.5" style={{ border: "1px solid var(--admin-border)" }}>
+              <div className="text-2xl font-bold admin-heading tabular-nums">{jibe.toMerge}</div>
+              <div className="text-[11px] admin-faint">tips to fold in</div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {!loading && proposedDests.length > 0 && (
         <div className="mb-8">
@@ -184,7 +227,41 @@ export default function SpotguideModeration() {
       {!loading && (
         <div className="mt-10 pt-6" style={{ borderTop: "1px solid var(--admin-border)" }}>
           <h2 className="text-sm font-bold admin-heading mb-1">Trusted contributors <span className="admin-faint font-normal">({trust.length})</span></h2>
-          <p className="text-xs admin-faint mb-3">Moderators&apos; edits &amp; new spots go live instantly; a local specialist&apos;s need just one confirm, and their confirm alone clears anyone&apos;s. Appoint someone from their member page → Spotguide trust. Locals also <em>earn</em> specialist standing automatically from activity.</p>
+          <p className="text-xs admin-faint mb-3">Moderators&apos; edits &amp; new spots go live instantly; a local specialist&apos;s need just one confirm, and their confirm alone clears anyone&apos;s. Appoint someone below (or from their member page). Locals also <em>earn</em> specialist standing automatically from activity.</p>
+
+          <div className="mb-3 rounded-lg p-3" style={{ border: "1px solid var(--admin-border)", backgroundColor: "var(--admin-surface)" }}>
+            {!picked ? (
+              <>
+                <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Appoint a member — search name or email…" className="w-full px-3 py-2 admin-input border rounded-lg text-sm focus:outline-none focus:border-[var(--admin-accent)]" />
+                {q.trim().length >= 2 && (() => {
+                  const matches = members.filter((m) => `${m.name} ${m.email ?? ""}`.toLowerCase().includes(q.trim().toLowerCase())).slice(0, 6);
+                  return (
+                    <div className="mt-1.5 space-y-1">
+                      {matches.map((m) => (
+                        <button key={m.id} onClick={() => { setPicked(m); setQ(""); }} className="block w-full text-left px-3 py-1.5 rounded-lg text-sm" style={{ border: "1px solid var(--admin-border)" }}>
+                          <span className="font-semibold admin-heading">{m.name}</span>{m.email && <span className="admin-faint text-xs"> · {m.email}</span>}
+                        </button>
+                      ))}
+                      {matches.length === 0 && <p className="text-xs admin-faint px-1">No match.</p>}
+                    </div>
+                  );
+                })()}
+              </>
+            ) : (
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="text-sm font-semibold admin-heading">{picked.name}</span>
+                <button onClick={() => grantTrust("moderator")} disabled={busy === "appoint"} className="px-3 py-1.5 rounded-lg text-xs font-bold bg-[#0aa3c7]/15 text-[#0aa3c7] disabled:opacity-50">Make moderator</button>
+                <span className="admin-faint text-xs">or</span>
+                <select value={specDest} onChange={(e) => setSpecDest(e.target.value)} className="px-2 py-1.5 admin-input border rounded-lg text-xs">
+                  <option value="">specialist at…</option>
+                  {dests.map((d) => <option key={d.id} value={d.id}>{d.name}</option>)}
+                </select>
+                <button onClick={() => grantTrust("specialist")} disabled={busy === "appoint" || !specDest} className="px-3 py-1.5 rounded-lg text-xs font-bold bg-green-500/15 text-green-500 disabled:opacity-50">Make specialist</button>
+                <button onClick={() => { setPicked(null); setSpecDest(""); }} className="text-xs admin-faint hover:underline ml-auto">cancel</button>
+              </div>
+            )}
+          </div>
+
           {trust.length === 0 ? (
             <p className="text-xs admin-faint">No appointments yet.</p>
           ) : (

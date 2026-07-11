@@ -69,5 +69,14 @@ export async function GET() {
     }));
   }
 
-  return NextResponse.json({ spots: out, photos: photos ?? [], proposedDests: proposedDests ?? [], edits });
+  // jibe queue readout: Job A = pending member spots still missing structured
+  // fields; Job B = community-approved tips awaiting a merge into the description.
+  const { data: memberPending } = await db.from("spots")
+    .select("level, conditions, infrastructure")
+    .eq("source", "member").eq("status", "published").eq("verification", "pending");
+  const toStructure = (memberPending ?? []).filter((s: { level: unknown; conditions: unknown; infrastructure: unknown }) =>
+    !s.level || !(Array.isArray(s.conditions) && s.conditions.length) || !(Array.isArray(s.infrastructure) && s.infrastructure.length)).length;
+  const toMerge = (rawEdits ?? []).filter((e: { field: string; status: string }) => e.field === "info" && e.status === "approved").length;
+
+  return NextResponse.json({ spots: out, photos: photos ?? [], proposedDests: proposedDests ?? [], edits, jibe: { toStructure, toMerge } });
 }
