@@ -108,6 +108,30 @@ export default async function SpotguideDestinationPage({ params }: Props) {
           <div className="max-w-[1000px] mx-auto px-6 sm:px-8 py-10 sm:py-14 space-y-10">
             {d.intro && <p className="text-[16.5px] text-[#3f5158] leading-relaxed max-w-[680px] whitespace-pre-line">{d.intro}</p>}
 
+            {/* Destination photo strip — its own gallery, or (when empty) the
+                photos from its spots, so a destination is never photo-bare. */}
+            {(() => {
+              const spotShots = [
+                ...d.spots.map((s) => s.hero_image).filter(Boolean),
+                ...d.spots.flatMap((s) => (s.photos ?? []).map((p) => p.url)),
+              ] as string[];
+              const photos = Array.from(new Set((d.gallery.length ? d.gallery : spotShots).filter(Boolean)))
+                .filter((u) => u !== heroPoster).slice(0, 12);
+              if (photos.length === 0) return null;
+              return (
+                <section className="-mx-6 sm:-mx-8 px-6 sm:px-8">
+                  <div className="flex gap-3 overflow-x-auto pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+                    {photos.map((url) => (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img key={url} src={url} alt={`${d.name} windsurfing`} loading="lazy"
+                        className="h-40 sm:h-52 w-auto shrink-0 rounded-xl object-cover border border-[#ece3d3]" />
+                    ))}
+                  </div>
+                  {d.gallery.length === 0 && <p className="text-[11.5px] text-[#b3a994] mt-2">Photos from this destination&apos;s spots.</p>}
+                </section>
+              );
+            })()}
+
             {/* The destination, rated */}
             <section>
               <h2 className="text-[13px] font-black uppercase tracking-[0.14em] text-[#9aa6ac] mb-3">The destination</h2>

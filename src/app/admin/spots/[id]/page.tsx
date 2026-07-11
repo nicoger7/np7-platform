@@ -18,7 +18,7 @@ import type { WindStats } from "@/lib/wind-stats";
 
 interface Spot {
   id: string; destination_id: string; name: string; slug: string | null;
-  lat: number | null; lng: number | null; level: string | null;
+  lat: number | null; lng: number | null; level: string | null; levels: string[] | null;
   conditions: string[] | null; wind_window: Record<string, string> | null;
   infrastructure: string[] | null; np7_forecast_models: string[] | null;
   hero_image: string | null; hero_focus: string | null; gallery: string[] | null;
@@ -49,7 +49,7 @@ export default function SpotEditor({ params }: { params: Promise<{ id: string }>
   useEffect(() => {
     fetch(`/api/admin/spots/${id}`).then((r) => r.json()).then((x) => {
       if (x.spot) {
-        setS({ ...x.spot, conditions: x.spot.conditions ?? [], infrastructure: x.spot.infrastructure ?? [], gallery: x.spot.gallery ?? [], np7_forecast_models: x.spot.np7_forecast_models ?? [], wind_window: x.spot.wind_window ?? {}, np7_ratings: x.spot.np7_ratings ?? {} });
+        setS({ ...x.spot, conditions: x.spot.conditions ?? [], infrastructure: x.spot.infrastructure ?? [], gallery: x.spot.gallery ?? [], np7_forecast_models: x.spot.np7_forecast_models ?? [], wind_window: x.spot.wind_window ?? {}, np7_ratings: x.spot.np7_ratings ?? {}, levels: (x.spot.levels?.length ? x.spot.levels : x.spot.level ? [x.spot.level] : []) });
         setDest(x.destination ?? null);
         setMember(x.memberRatings ?? null);
         setTally(x.forecastTally ?? []);
@@ -94,6 +94,7 @@ export default function SpotEditor({ params }: { params: Promise<{ id: string }>
   const folder = s.slug ? `spots/${s.slug}` : dest?.slug ? `destinations/${dest.slug}` : undefined;
   const gallery = s.gallery ?? [];
   const conditions = s.conditions ?? [];
+  const levels = s.levels ?? [];
   const infra = s.infrastructure ?? [];
   const models = s.np7_forecast_models ?? [];
   const vmeta = VERIFICATION_META[(s.verification as Verification)] ?? VERIFICATION_META.np7;
@@ -137,12 +138,25 @@ export default function SpotEditor({ params }: { params: Promise<{ id: string }>
             </div>
           </div>
           <div>
-            <label className={labelClass}>Level</label>
-            <select className={inputClass} value={s.level ?? ""} onChange={(e) => set("level", e.target.value || null)}>
-              <option value="">—</option>
-              {LEVELS.map((l) => <option key={l} value={l}>{l}</option>)}
-            </select>
-            <p className="text-[11px] admin-faint mt-1">Synced with the member level system.</p>
+            <label className={labelClass}>Levels it suits <span className="admin-faint font-normal">(pick any that fit)</span></label>
+            <div className="flex flex-wrap gap-2">
+              {LEVELS.map((l) => {
+                const on = levels.includes(l);
+                return (
+                  <button key={l} type="button" onClick={() => {
+                    const next = on ? levels.filter((x) => x !== l) : [...levels, l];
+                    // keep levels[] as the source of truth; level = primary (first, in LEVELS order) for back-compat
+                    const ordered = LEVELS.filter((x) => next.includes(x));
+                    set("levels", ordered); set("level", ordered[0] ?? null);
+                  }}
+                    className="px-3 py-1.5 rounded-full text-xs font-semibold transition-colors"
+                    style={on ? { backgroundColor: "var(--admin-accent)", color: "var(--admin-accent-contrast)" } : { border: "1px solid var(--admin-border)" }}>
+                    {l}
+                  </button>
+                );
+              })}
+            </div>
+            <p className="text-[11px] admin-faint mt-1">Synced with the member level system — shows as a range (e.g. “Intermediate–Pro”) on the public spot.</p>
           </div>
         </div>
 

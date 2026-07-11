@@ -43,7 +43,7 @@ export type SpotguideDestination = {
   id: string; name: string; slug: string | null; region: string | null; country: string | null;
   hero_image: string | null; tagline: string | null; intro: string | null;
   hero_video_url: string | null; hero_video_start: number | null; hero_video_end: number | null;
-  level_min: string | null; level_max: string | null;
+  level_min: string | null; level_max: string | null; gallery: string[];
   np7_ratings: Record<string, number>; np7: number; member: RatingSummary;
   spots: PublicSpot[]; trips: SpotguideTrip[];
 };
@@ -173,7 +173,8 @@ export async function getSpotguideDestination(slug: string, viewerId?: string | 
     hero_video_url: d.hero_video_url ?? null,
     hero_video_start: d.hero_video_start ?? null,
     hero_video_end: d.hero_video_end ?? null,
-    level_min: d.level_min, level_max: d.level_max, np7_ratings: d.np7_ratings ?? {},
+    level_min: d.level_min, level_max: d.level_max, gallery: (d.gallery as string[]) ?? [],
+    np7_ratings: d.np7_ratings ?? {},
     np7: np7Overall(d.np7_ratings, DESTINATION_CRITERIA_KEYS),
     member: summariseRatings(dratings ?? [], DESTINATION_CRITERIA_KEYS),
     spots: publicSpots,

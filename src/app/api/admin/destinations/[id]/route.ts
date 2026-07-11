@@ -6,7 +6,7 @@ const COLS = [
   "wind_probability", "wind_season", "wind_speed", "best_season", "conditions",
   "skill_levels", "gallery", "partners", "status", "sort_order",
   // Spotguide (migration 062): rating track, level range, separate visibility, coords
-  "np7_ratings", "level_min", "level_max", "spotguide_status", "lat", "lng",
+  "np7_ratings", "level_min", "level_max", "levels", "spotguide_status", "lat", "lng",
   // Hero video (migration 073): looped YouTube segment behind the page header
   "hero_video_url", "hero_video_start", "hero_video_end",
   // Vibe tags (migration 076): powers the spotguide filter
@@ -46,8 +46,8 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
   let { data, error } = await db.from("destinations").update(patch).eq("id", id).select("*").single();
   // Tolerant of pre-migration-073: if the hero_video_* columns aren't there yet,
   // drop them and retry so saving a destination never breaks before the paste.
-  if (error && /(hero_video_|\btags\b)/.test(error.message || "")) {
-    for (const k of ["hero_video_url", "hero_video_start", "hero_video_end", "tags"]) delete patch[k];
+  if (error && /(hero_video_|\btags\b|\blevels\b)/.test(error.message || "")) {
+    for (const k of ["hero_video_url", "hero_video_start", "hero_video_end", "tags", "levels"]) delete patch[k];
     ({ data, error } = await db.from("destinations").update(patch).eq("id", id).select("*").single());
   }
   if (error) return NextResponse.json({ error: error.message }, { status: 400 });

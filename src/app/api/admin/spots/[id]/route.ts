@@ -5,7 +5,7 @@ import { summariseRatings, tallyForecastVotes, SPOT_CRITERIA_KEYS } from "@/lib/
 import { publishDestinationIfEarned } from "@/lib/spotguide-trust";
 
 const COLS = [
-  "name", "slug", "lat", "lng", "level", "conditions", "wind_window",
+  "name", "slug", "lat", "lng", "level", "levels", "conditions", "wind_window",
   "infrastructure", "np7_forecast_models", "hero_image", "hero_focus", "gallery", "summary",
   "description", "np7_ratings", "status", "verification", "sort_order",
 ];
@@ -48,7 +48,12 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
 
   const patch: Record<string, unknown> = { updated_at: new Date().toISOString() };
   for (const k of COLS) if (k in body) patch[k] = body[k];
-  const { data, error } = await db.from("spots").update(patch).eq("id", id).select("*").single();
+  let { data, error } = await db.from("spots").update(patch).eq("id", id).select("*").single();
+  // tolerate the levels column not existing yet (migration 082): drop it and retry
+  if (error && /\blevels\b/i.test(error.message) && "levels" in patch) {
+    delete patch.levels;
+    ({ data, error } = await db.from("spots").update(patch).eq("id", id).select("*").single());
+  }
   if (error) return NextResponse.json({ error: error.message }, { status: 400 });
 
   // Verifying a spot (community/np7) auto-publishes its rider-proposed draft place.

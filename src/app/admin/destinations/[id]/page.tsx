@@ -16,7 +16,7 @@ interface Dest {
   best_season: string | null; conditions: string | null; skill_levels: string | null;
   gallery: string[] | null; partners: Partner[] | null; status: string;
   // Spotguide (migration 062)
-  np7_ratings: Record<string, number> | null; level_min: string | null; level_max: string | null;
+  np7_ratings: Record<string, number> | null; level_min: string | null; level_max: string | null; levels: string[] | null;
   spotguide_status: string | null;
 }
 interface Trip { id: string; title: string; slug: string; status: string }
@@ -208,18 +208,37 @@ export default function DestinationEditor({ params }: { params: Promise<{ id: st
             </select>
           </div>
 
-          {/* Level range */}
-          <div className="grid grid-cols-2 gap-4 max-w-[360px]">
-            <div><label className={labelClass}>Level from</label>
-              <select className={inputClass} value={d.level_min ?? ""} onChange={(e) => set("level_min", e.target.value || null)}>
-                <option value="">—</option>{LEVELS.map((l) => <option key={l} value={l}>{l}</option>)}
-              </select>
-            </div>
-            <div><label className={labelClass}>Level to</label>
-              <select className={inputClass} value={d.level_max ?? ""} onChange={(e) => set("level_max", e.target.value || null)}>
-                <option value="">—</option>{LEVELS.map((l) => <option key={l} value={l}>{l}</option>)}
-              </select>
-            </div>
+          {/* Levels it suits — multi-select; stored as levels[] + derived min/max */}
+          <div>
+            <label className={labelClass}>Levels it suits <span className="admin-faint font-normal">(pick any that fit)</span></label>
+            {(() => {
+              const rankIdx = (l: string | null) => (l ? LEVELS.indexOf(l as (typeof LEVELS)[number]) : -1);
+              // source of truth = levels[]; before migration 085 fall back to the min→max span
+              const selected: string[] = d.levels?.length
+                ? d.levels
+                : (d.level_min && d.level_max ? LEVELS.slice(rankIdx(d.level_min), rankIdx(d.level_max) + 1) : []);
+              return (
+                <div className="flex flex-wrap gap-2">
+                  {LEVELS.map((l) => {
+                    const on = selected.includes(l);
+                    return (
+                      <button key={l} type="button" onClick={() => {
+                        const next = on ? selected.filter((x) => x !== l) : [...selected, l];
+                        const ordered = LEVELS.filter((x) => next.includes(x));
+                        set("levels", ordered);
+                        set("level_min", ordered[0] ?? null);        // derived for the public range label
+                        set("level_max", ordered[ordered.length - 1] ?? null);
+                      }}
+                        className="px-3 py-1.5 rounded-full text-xs font-semibold transition-colors"
+                        style={on ? { backgroundColor: "var(--admin-accent)", color: "var(--admin-accent-contrast)" } : { border: "1px solid var(--admin-border)" }}>
+                        {l}
+                      </button>
+                    );
+                  })}
+                </div>
+              );
+            })()}
+            <p className="text-[11px] admin-faint mt-1">Shows on the public spotguide as a range (e.g. “Intermediate–Pro”).</p>
           </div>
 
           {/* NP7 destination rating */}
