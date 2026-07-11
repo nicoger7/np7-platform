@@ -19,7 +19,7 @@ const NAV: NavItem[] = [
   // right-aligned, next to the account button + CTA. Spotguide is the flagship
   // public feature for now, so the header points at the product (the magazine's
   // Gear/Technique/stories are reachable from the spotguide sub-nav).
-  { label: "Spotguide", href: "/spotguide", side: "right", need: "blog" },
+  { label: "Spotguide", href: "/spotguide?from=experience", side: "right", need: "blog" },
   { label: "About", href: "/about?from=experience", side: "right", need: "experience" },
 ];
 const navLink = "text-[12.5px] font-semibold text-white/70 hover:text-white transition-colors tracking-wide";

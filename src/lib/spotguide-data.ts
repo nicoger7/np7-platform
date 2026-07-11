@@ -44,9 +44,19 @@ export type SpotguideDestination = {
   hero_image: string | null; tagline: string | null; intro: string | null;
   hero_video_url: string | null; hero_video_start: number | null; hero_video_end: number | null;
   level_min: string | null; level_max: string | null; gallery: string[];
+  lat: number | null; lng: number | null;
   np7_ratings: Record<string, number>; np7: number; member: RatingSummary;
   spots: PublicSpot[]; trips: SpotguideTrip[];
 };
+
+/** A satellite hero for a destination that has no photo of its own and no spot
+    photos yet — a real overhead view of the area beats a generic stock poster.
+    Esri World Imagery, keyless; bbox is ~13 km wide, 2.29:1 to match the hero. */
+export function satelliteHero(lat: number, lng: number): string {
+  const dLat = 0.06, dLon = 0.137;
+  const bbox = `${lng - dLon},${lat - dLat},${lng + dLon},${lat + dLat}`;
+  return `https://server.arcgisonline.com/arcgis/rest/services/World_Imagery/MapServer/export?bbox=${bbox}&bboxSR=4326&size=1600,700&format=jpg&f=image`;
+}
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 function db() { return createAdminClient() as any; }
@@ -174,6 +184,7 @@ export async function getSpotguideDestination(slug: string, viewerId?: string | 
     hero_video_start: d.hero_video_start ?? null,
     hero_video_end: d.hero_video_end ?? null,
     level_min: d.level_min, level_max: d.level_max, gallery: (d.gallery as string[]) ?? [],
+    lat: (d.lat as number) ?? null, lng: (d.lng as number) ?? null,
     np7_ratings: d.np7_ratings ?? {},
     np7: np7Overall(d.np7_ratings, DESTINATION_CRITERIA_KEYS),
     member: summariseRatings(dratings ?? [], DESTINATION_CRITERIA_KEYS),

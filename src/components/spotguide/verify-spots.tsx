@@ -7,8 +7,17 @@ import { COMMUNITY_VERIFY_THRESHOLD, conditionLabel } from "@/lib/spotguide";
 type Cat = { confirms: number; flags: number; mine: "confirm" | "flag" | null };
 type Pending = {
   id: string; name: string; level: string | null; conditions: string[]; description: string | null;
+  lat: number | null; lng: number | null;
   isOwn: boolean; cats: { location: Cat; level: Cat; conditions: Cat }; justLive?: boolean; justHidden?: boolean;
 };
+
+// Tight satellite view centred on the pin — with a marker dead-centre, this shows
+// a verifier EXACTLY where the spot sits so "correctly placed?" is answerable.
+function pinSatellite(lat: number, lng: number): string {
+  const dLat = 0.013, dLon = 0.028; // ~2.8 km wide, ~2.2:1
+  const bbox = `${lng - dLon},${lat - dLat},${lng + dLon},${lat + dLat}`;
+  return `https://server.arcgisonline.com/arcgis/rest/services/World_Imagery/MapServer/export?bbox=${bbox}&bboxSR=4326&size=720,320&format=jpg&f=image`;
+}
 
 /** "Help verify" — pending member spots. Verifiers confirm/flag each fact
     separately: LOCATION gates going public (3 confirms → live, 3 flags → pulled
@@ -68,6 +77,20 @@ export function VerifySpots({ destId, accent = "#00afdb" }: { destId: string; ac
             <div key={s.id} className="rounded-2xl border border-[#ece3d3] bg-white p-4">
               <p className="text-[15px] font-extrabold text-[#00374a]">{s.name}</p>
               {s.description && <p className="text-[13px] text-[#6a7a80] mt-1 line-clamp-2">{s.description}</p>}
+
+              {/* Where it is — so you can actually judge "correctly placed?" */}
+              {s.lat != null && s.lng != null && (
+                <a href={`https://www.google.com/maps/search/?api=1&query=${s.lat},${s.lng}`} target="_blank" rel="noopener noreferrer"
+                  className="group relative mt-2.5 block h-32 rounded-xl overflow-hidden border border-[#e2d8c6]" title="Open in Google Maps">
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img src={pinSatellite(s.lat, s.lng)} alt={`Where ${s.name} is`} loading="lazy" className="w-full h-full object-cover" />
+                  {/* marker dead-centre = the exact pin */}
+                  <span className="pointer-events-none absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-full drop-shadow-[0_2px_3px_rgba(0,0,0,0.5)]">
+                    <svg className="w-7 h-7" viewBox="0 0 24 24" fill={accent} stroke="#fff" strokeWidth="1.5"><path d="M12 2c-3.9 0-7 3.1-7 7 0 5 7 13 7 13s7-8 7-13c0-3.9-3.1-7-7-7z" /><circle cx="12" cy="9" r="2.4" fill="#fff" stroke="none" /></svg>
+                  </span>
+                  <span className="absolute bottom-1.5 right-2 text-[10px] font-bold text-white/90 bg-black/40 rounded px-1.5 py-0.5 opacity-0 group-hover:opacity-100 transition-opacity">Open in Maps ↗</span>
+                </a>
+              )}
 
               {s.justLive ? (
                 <p className="mt-3 text-[13px] font-bold text-[#1f9e57]">Now live for everyone — thanks! 🎉</p>

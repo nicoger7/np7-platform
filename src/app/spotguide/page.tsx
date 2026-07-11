@@ -18,9 +18,11 @@ export const metadata: Metadata = {
 };
 export const revalidate = 60;
 
-export default async function SpotguideIndex() {
-  // Cookie only when Hardware is live — cookies() would opt this page out of ISR.
-  const section = flags.showHardware ? resolveSection((await cookies()).get("np7_section")?.value) : "experience";
+export default async function SpotguideIndex({ searchParams }: { searchParams: Promise<{ from?: string }> }) {
+  // Cookie + ?from only when Hardware is live — either would opt this page out of
+  // ISR, and with one visible world the section is always "experience" anyway.
+  const from = flags.showHardware ? (await searchParams).from : undefined;
+  const section = flags.showHardware ? resolveSection(from ?? (await cookies()).get("np7_section")?.value) : "experience";
   const chrome = SECTION_CHROME[section];
   const [dests, points] = await Promise.all([getSpotguideDestinations(), getAllSpotguidePoints()]);
   // All real spot points, clustered by the map itself: zoomed out a destination
@@ -48,7 +50,7 @@ export default async function SpotguideIndex() {
 
   return (
     <>
-      <SectionHeader />
+      <SectionHeader section={section} />
       <main className="bg-[#fff7ec] min-h-[100svh]">
         {/* hero — SAME shell as the magazine (bg image, left align, shared tab bar)
             so switching Spotguide ⇄ Gear ⇄ Technique never shifts the pills */}
@@ -89,7 +91,7 @@ export default async function SpotguideIndex() {
                   <SpotMap spots={mapPoints} cluster height={460} linkLabel="Explore the spots →" />
                 </div>
               )}
-              <SpotguideBrowser dests={dests} accent={chrome.accent} />
+              <SpotguideBrowser dests={dests} accent={chrome.accent} section={section} />
             </>
           )}
         </div>

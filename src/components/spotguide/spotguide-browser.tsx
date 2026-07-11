@@ -14,7 +14,7 @@ import { RatingHeadline } from "./rating-panel";
  */
 const CORE_LEVELS = ["Beginner", "Intermediate", "Advanced", "Pro"];
 
-export function SpotguideBrowser({ dests, accent = "#00afdb" }: { dests: SpotguideDestinationCard[]; accent?: string }) {
+export function SpotguideBrowser({ dests, accent = "#00afdb", section = "experience" }: { dests: SpotguideDestinationCard[]; accent?: string; section?: "experience" | "hardware" }) {
   const [country, setCountry] = useState<string | null>(null);
   const [level, setLevel] = useState<string | null>(null);
   const [tags, setTags] = useState<Set<string>>(new Set());
@@ -93,7 +93,7 @@ export function SpotguideBrowser({ dests, accent = "#00afdb" }: { dests: Spotgui
           {filtered.map((d) => {
             const lvl = levelRangeLabel(d.level_min, d.level_max);
             return (
-              <Link key={d.id} href={`/spotguide/${d.slug}`}
+              <Link key={d.id} href={`/spotguide/${d.slug}?from=${section}`}
                 className="group flex flex-col rounded-2xl overflow-hidden bg-white border border-[#f0e6d6] hover:-translate-y-0.5 hover:shadow-[0_18px_44px_rgba(0,55,74,0.10)] transition-all">
                 <div className="relative aspect-[16/10] bg-cover bg-center bg-[#e9eef0]" style={{ backgroundImage: d.hero_image ? `url('${d.hero_image}')` : undefined }}>
                   <div className="absolute inset-0 bg-gradient-to-t from-black/45 to-transparent" />

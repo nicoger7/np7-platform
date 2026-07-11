@@ -51,9 +51,11 @@ export function SurveyAdmin({ initialSurvey, initialInvites }: { initialSurvey: 
   }
 
   // ---- destinations / weeks repeaters ----
-  const addDest = () => patch({ destinations: [...s.destinations, { key: uid(), label: "" }] });
-  const setDest = (i: number, label: string) => patch({ destinations: s.destinations.map((d, j) => j === i ? { ...d, label } : d) });
+  const addDest = () => patch({ destinations: [...s.destinations, { key: uid(), label: "", location: "", start: null, end: null, blurb: "" }] });
+  const setDest = (i: number, p: Partial<SurveyDestination>) => patch({ destinations: s.destinations.map((d, j) => j === i ? { ...d, ...p } : d) });
   const delDest = (i: number) => patch({ destinations: s.destinations.filter((_, j) => j !== i) });
+  // Offer a second date window for the same place with one tap (riders then pick a period).
+  const addPeriod = (i: number) => { const d = s.destinations[i]; patch({ destinations: [...s.destinations.slice(0, i + 1), { key: uid(), label: d.label, location: d.location, blurb: d.blurb, start: null, end: null }, ...s.destinations.slice(i + 1)] }); };
   const addWeek = () => patch({ weeks: [...s.weeks, { key: uid(), label: "", start: null, end: null }] });
   const setWeek = (i: number, p: Partial<SurveyWeek>) => patch({ weeks: s.weeks.map((w, j) => j === i ? { ...w, ...p } : w) });
   const delWeek = (i: number) => patch({ weeks: s.weeks.filter((_, j) => j !== i) });
@@ -94,19 +96,30 @@ export function SurveyAdmin({ initialSurvey, initialInvites }: { initialSurvey: 
         </div>
       </div>
 
-      {/* destinations */}
+      {/* destinations = fixed date + place trips */}
       <div className={card}>
         <div className="flex items-center justify-between mb-2">
-          <span className={lbl}>Destination shortlist</span>
-          <button onClick={addDest} className="text-[12.5px] font-bold text-[#0aa3c7]">+ Add spot</button>
+          <span className={lbl}>Trips</span>
+          <button onClick={addDest} className="text-[12.5px] font-bold text-[#0aa3c7]">+ Add trip</button>
         </div>
-        <p className="text-[12px] text-[#9aa6ac] mb-3">The candidate spots riders pick from (their #1 + others they&apos;d also join).</p>
-        {s.destinations.length === 0 ? <p className="text-[13px] text-[#9aa6ac]">No spots yet.</p> : (
-          <div className="space-y-2">
+        <p className="text-[12px] text-[#9aa6ac] mb-3">Each trip is a <b>place + a date window</b> a rider can tick. Give it a blurb so they know what it is. Want to offer <b>the same place on different dates?</b> Use <b>“+ Another date”</b> — riders then see one card for the place with a period to pick under it. (Leave the dates empty to fall back to the old “pick a spot + a week” style.)</p>
+        {s.destinations.length === 0 ? <p className="text-[13px] text-[#9aa6ac]">No trips yet.</p> : (
+          <div className="space-y-2.5">
             {s.destinations.map((d, i) => (
-              <div key={d.key} className="flex items-center gap-2">
-                <input className={input} value={d.label} onChange={(e) => setDest(i, e.target.value)} placeholder="e.g. Dakhla, Morocco" />
-                <button onClick={() => delDest(i)} className="shrink-0 text-[#c0392b] text-[13px] font-bold px-2">Remove</button>
+              <div key={d.key} className="rounded-xl border border-[#ece3d3] bg-[#fdfaf3] p-3 space-y-2">
+                <div className="flex items-center gap-2">
+                  <input className={`${input} font-semibold`} value={d.label} onChange={(e) => setDest(i, { label: e.target.value })} placeholder="Place — e.g. Langebaan" />
+                  <button onClick={() => delDest(i)} className="shrink-0 text-[#c0392b] text-[13px] font-bold px-2">Remove</button>
+                </div>
+                <input className={input} value={d.location ?? ""} onChange={(e) => setDest(i, { location: e.target.value })} placeholder="Location — e.g. Cape Town, South Africa (optional)" />
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className="text-[12px] font-bold text-[#6a7a80]">Dates</span>
+                  <input type="date" className={`${input} w-[150px]`} value={d.start ?? ""} onChange={(e) => setDest(i, { start: e.target.value || null })} />
+                  <span className="text-[#9aa6ac]">→</span>
+                  <input type="date" className={`${input} w-[150px]`} value={d.end ?? ""} onChange={(e) => setDest(i, { end: e.target.value || null })} />
+                  <button onClick={() => addPeriod(i)} className="text-[12px] font-bold text-[#0aa3c7] ml-1">+ Another date for this place</button>
+                </div>
+                <textarea className={`${input} min-h-[60px] resize-y`} value={d.blurb ?? ""} onChange={(e) => setDest(i, { blurb: e.target.value })} placeholder="Write about the trip — the spot, the vibe, what's included…" />
               </div>
             ))}
           </div>

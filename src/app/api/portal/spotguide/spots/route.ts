@@ -24,7 +24,7 @@ export async function GET(request: NextRequest) {
   const db = createAdminClient() as any;
   const { data: spots } = await db
     .from("spots")
-    .select("id, name, level, conditions, description, submitted_by, created_at")
+    .select("id, name, level, conditions, description, lat, lng, submitted_by, created_at")
     .eq("destination_id", dest).eq("source", "member").eq("verification", "pending").eq("status", "published")
     .order("created_at", { ascending: false });
   const ids = (spots ?? []).map((s: { id: string }) => s.id);
@@ -47,6 +47,7 @@ export async function GET(request: NextRequest) {
     const fv = (field: string) => (fieldVerifs as { spot_id: string; field: string; contact_id: string; kind: string }[]).filter((v) => v.spot_id === s.id && v.field === field);
     return {
       id: s.id, name: s.name, level: s.level, conditions: s.conditions ?? [], description: s.description,
+      lat: s.lat ?? null, lng: s.lng ?? null,
       isOwn: s.submitted_by === user.contactId,
       cats: { location: tally(loc), level: tally(fv("level")), conditions: tally(fv("conditions")) },
     };

@@ -2,8 +2,8 @@ import Link from "next/link";
 import type { Metadata } from "next";
 import { cookies } from "next/headers";
 import { notFound } from "next/navigation";
-import { getSpotguideDestination } from "@/lib/spotguide-data";
 import { getPortalUser } from "@/lib/auth";
+import { getSpotguideDestination, satelliteHero } from "@/lib/spotguide-data";
 import { levelRangeLabel, DESTINATION_CRITERIA } from "@/lib/spotguide";
 import { resolveSection, SECTION_CHROME } from "@/lib/blog-section";
 import { SectionHeader } from "@/components/shared/section-header";
@@ -20,7 +20,7 @@ import { SpotMap } from "@/components/spotguide/spot-map";
 import { HeroVideo } from "@/components/experience/hero-video";
 import { flags } from "@/lib/flags";
 
-type Props = { params: Promise<{ slug: string }> };
+type Props = { params: Promise<{ slug: string }>; searchParams: Promise<{ from?: string }> };
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { slug } = await params;
@@ -44,26 +44,33 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
 // Personalised (login-aware gate), so render per request.
 export const dynamic = "force-dynamic";
 
-export default async function SpotguideDestinationPage({ params }: Props) {
+export default async function SpotguideDestinationPage({ params, searchParams }: Props) {
   const { slug } = await params;
+  const { from } = await searchParams;
   const [user, store] = await Promise.all([getPortalUser().catch(() => null), cookies()]);
   const d = await getSpotguideDestination(slug, user?.contactId ?? null);
   if (!d) notFound();
 
   const loggedIn = !!user;
-  const section = resolveSection(store.get("np7_section")?.value);
+  // Resolve the world the SAME way the index + magazine do: only follow the
+  // hardware cookie when Hardware is live, and let an explicit ?from= (carried by
+  // the nav + the back link) win, so the spotguide never flips worlds mid-browse.
+  const section = flags.showHardware ? resolveSection(from ?? store.get("np7_section")?.value) : "experience";
   const chrome = SECTION_CHROME[section];
   const lvl = levelRangeLabel(d.level_min, d.level_max);
 
   // There's ALWAYS a hero image — as the video's poster (slow/failed load) and
   // as the hero itself when there's no video. Fall back through the destination
-  // image → any spot's image/photo → the site's default windsurf poster, so the
-  // header never renders bare. (Nico: a fallback image, always.)
+  // image → any spot's image/photo → a real SATELLITE view of the area (beats a
+  // generic poster for a place with no photos yet) → a high-quality default, so
+  // the header never renders bare. (Nico: a fallback image, always — and no more
+  // low-res video screenshot.)
   const heroPoster =
     d.hero_image ||
     d.spots.map((s) => s.hero_image).find(Boolean) ||
     d.spots.flatMap((s) => s.photos ?? []).map((p) => p.url).find(Boolean) ||
-    "/cdn/assets/hero/windsurf-hero-poster.jpg";
+    (d.lat != null && d.lng != null ? satelliteHero(d.lat, d.lng) : null) ||
+    "https://media.np-seven.com/experiences/np7-bonaire/place/bonaire-spot-overview-drone-shot.jpg";
 
   // Paywall structured data — tells Google the gated section is intentionally
   // members-only (NOT cloaking), so the in-DOM content still indexes.
@@ -78,7 +85,7 @@ export default async function SpotguideDestinationPage({ params }: Props) {
 
   return (
     <>
-      <SectionHeader />
+      <SectionHeader section={section} />
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }} />
       <main className="bg-[#fff7ec] min-h-[100svh]">
         {/* hero */}
@@ -96,7 +103,7 @@ export default async function SpotguideDestinationPage({ params }: Props) {
           )}
           <div className="absolute inset-0" style={{ background: "linear-gradient(180deg, rgba(0,36,48,0.42) 0%, rgba(0,36,48,0.18) 45%, rgba(0,36,48,0.80) 100%)" }} />
           <div className="relative z-10 mt-auto w-full max-w-[1000px] mx-auto px-6 sm:px-8 pt-12 pb-11 sm:pt-16 sm:pb-14">
-            <Link href="/spotguide" className="text-[12px] font-bold text-white/70 hover:text-white transition-colors">← Spotguide</Link>
+            <Link href={`/spotguide?from=${section}`} className="text-[12px] font-bold text-white/70 hover:text-white transition-colors">← Spotguide</Link>
             <h1 className="text-white text-4xl sm:text-6xl font-black tracking-[-0.03em] mt-3">{d.name}</h1>
             <p className="text-white/75 text-[15px] font-semibold mt-2">{[d.region, d.country].filter(Boolean).join(", ")}{lvl ? `  ·  ${lvl}` : ""}</p>
             {d.tagline && <p className="text-white/80 text-[17px] mt-4 max-w-[620px] leading-relaxed">{d.tagline}</p>}

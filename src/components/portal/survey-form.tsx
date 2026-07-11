@@ -31,6 +31,22 @@ export function SurveyForm({ survey, token, contactName, existing, preview = fal
   // multi-select which fixed date+place combos they'd join (no separate weeks).
   const hasTrips = survey.destinations.some((d) => !!(d.start || d.end));
   const byKey = new Map(survey.destinations.map((d) => [d.key, d]));
+  // Group the trip rows by place so several date windows for the same place nest
+  // as period pills under one card (each row stays its own selectable option).
+  const tripGroups = (() => {
+    const m = new Map<string, typeof survey.destinations>();
+    for (const d of survey.destinations) {
+      const name = (d.label || d.location || d.key).trim();
+      if (!m.has(name)) m.set(name, []);
+      m.get(name)!.push(d);
+    }
+    return [...m.entries()].map(([name, rows]) => ({
+      key: rows[0].key, name,
+      location: rows.find((r) => r.location)?.location ?? null,
+      blurb: rows.find((r) => r.blurb)?.blurb ?? null,
+      periods: [...rows].sort((a, b) => (a.start || "").localeCompare(b.start || "")),
+    })).sort((a, b) => (a.periods[0].start || "").localeCompare(b.periods[0].start || ""));
+  })();
   const rangesOverlap = (a?: typeof survey.destinations[number], b?: typeof survey.destinations[number]) => !!(a?.start && a?.end && b?.start && b?.end && a.start <= b.end && b.start <= a.end);
   const chosenArr = [...chosen];
   const overlapNote = hasTrips && chosenArr.some((k, i) => chosenArr.slice(i + 1).some((k2) => rangesOverlap(byKey.get(k), byKey.get(k2))));
@@ -78,28 +94,53 @@ export function SurveyForm({ survey, token, contactName, existing, preview = fal
 
   return (
     <div className="space-y-4">
-      {/* Trip options — fixed date+place combos, multi-select cards */}
+      {/* Trip options — a card per PLACE (big), with a period pill per date window
+          (small) underneath. Picking a period selects that trip; the place card
+          lights up. One period → the whole card is the toggle. */}
       {hasTrips && (
         <div className={card}>
           <p className={label}>Which trips would you join?</p>
-          <p className="text-[13px] text-[#8a97a0] mt-1 mb-3.5">Dates &amp; place are fixed — tick every trip you&apos;d want in on. The more you pick, the more likely we run the ones you want.</p>
+          <p className="text-[13px] text-[#8a97a0] mt-1 mb-3.5">Dates &amp; place are fixed — tick every window you&apos;d want in on. The more you pick, the more likely we run the ones you want.</p>
           <div className="space-y-2.5">
-            {[...survey.destinations].sort((a, b) => (a.start || "").localeCompare(b.start || "")).map((d) => {
-              const on = chosen.has(d.key);
+            {tripGroups.map((g) => {
+              const anyOn = g.periods.some((p) => chosen.has(p.key));
+              const single = g.periods.length === 1;
+              const Head = (
+                <div className="min-w-0">
+                  <span className="block text-[17px] font-black text-[#00374a]">{g.name}</span>
+                  {g.location && <span className="block text-[13px] font-bold text-[#b0791e]/90 mt-0.5">{g.location}</span>}
+                  {single && (g.periods[0].start || g.periods[0].end) && <span className="block text-[15px] font-bold text-[#b0791e] mt-0.5">{fmtWeek(g.periods[0].start ?? null, g.periods[0].end ?? null)}</span>}
+                  {g.blurb && <span className="block text-[13.5px] text-[#6a7a80] mt-1.5 leading-relaxed">{g.blurb}</span>}
+                </div>
+              );
+              const cls = `rounded-2xl border-2 p-4 sm:p-5 transition-colors ${anyOn ? "border-[#f0a500] bg-[#fff7e6] shadow-[0_8px_22px_rgba(240,165,0,0.14)]" : "border-[#ecdcbb] bg-white hover:border-[#f2cf8a]"}`;
+              const check = (on: boolean) => `shrink-0 mt-0.5 grid place-items-center w-6 h-6 rounded-full border-2 transition-colors ${on ? "border-[#f0a500] bg-[#f0a500] text-white" : "border-[#e2d8c6] text-transparent"}`;
+              const tick = <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3.5" strokeLinecap="round" strokeLinejoin="round"><path d="M20 6L9 17l-5-5" /></svg>;
+              // single date window → the whole card toggles it
+              if (single) {
+                const on = chosen.has(g.periods[0].key);
+                return (
+                  <button key={g.key} type="button" onClick={() => setChosen((s) => toggle(s, g.periods[0].key))} className={`w-full text-left ${cls}`}>
+                    <div className="flex items-start justify-between gap-3">{Head}<span className={check(on)}>{tick}</span></div>
+                  </button>
+                );
+              }
+              // multiple windows → a pill per period; picking one selects the place
               return (
-                <button key={d.key} type="button" onClick={() => setChosen((s) => toggle(s, d.key))}
-                  className={`w-full text-left rounded-2xl border-2 p-4 sm:p-5 transition-colors ${on ? "border-[#f0a500] bg-[#fff7e6] shadow-[0_8px_22px_rgba(240,165,0,0.14)]" : "border-[#ecdcbb] bg-white hover:border-[#f2cf8a]"}`}>
-                  <div className="flex items-start justify-between gap-3">
-                    <div className="min-w-0">
-                      <span className="block text-[17px] font-black text-[#00374a]">{d.location || d.label}</span>
-                      {(d.start || d.end) && <span className="block text-[15px] font-bold text-[#b0791e] mt-0.5">{fmtWeek(d.start ?? null, d.end ?? null)}</span>}
-                      {d.blurb && <span className="block text-[13.5px] text-[#6a7a80] mt-1.5 leading-relaxed">{d.blurb}</span>}
-                    </div>
-                    <span className={`shrink-0 mt-0.5 grid place-items-center w-6 h-6 rounded-full border-2 transition-colors ${on ? "border-[#f0a500] bg-[#f0a500] text-white" : "border-[#e2d8c6] text-transparent"}`}>
-                      <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3.5" strokeLinecap="round" strokeLinejoin="round"><path d="M20 6L9 17l-5-5" /></svg>
-                    </span>
+                <div key={g.key} className={cls}>
+                  <div className="flex items-start justify-between gap-3">{Head}<span className={check(anyOn)}>{tick}</span></div>
+                  <div className="flex flex-wrap gap-1.5 mt-3">
+                    {g.periods.map((p) => {
+                      const on = chosen.has(p.key);
+                      return (
+                        <button key={p.key} type="button" onClick={() => setChosen((s) => toggle(s, p.key))}
+                          className={`px-3.5 py-2 rounded-full text-[13px] font-bold transition-colors ${on ? "bg-[#f0a500] text-white" : "bg-[#fbf3e0] text-[#8a6a1e] border border-[#ecdcbb] hover:border-[#f2cf8a]"}`}>
+                          {on ? "✓ " : ""}{fmtWeek(p.start ?? null, p.end ?? null) || "Dates flexible"}
+                        </button>
+                      );
+                    })}
                   </div>
-                </button>
+                </div>
               );
             })}
           </div>
