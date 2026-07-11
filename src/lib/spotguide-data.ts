@@ -9,10 +9,10 @@ import "server-only";
 import { createAdminClient } from "@/lib/supabase";
 import {
   summariseRatings, np7Overall, tallyForecastVotes,
-  crowdWindow, levelConsensus, conditionsTally,
+  crowdWindow, levelConsensus, conditionsTally, infraTally,
   SPOT_CRITERIA_KEYS, DESTINATION_CRITERIA_KEYS,
   type RatingSummary, type ForecastTally,
-  type CrowdWindow, type LevelConsensus, type ConditionShare,
+  type CrowdWindow, type LevelConsensus, type ConditionShare, type InfraShare,
 } from "@/lib/spotguide";
 import type { WindStats } from "@/lib/wind-stats";
 
@@ -34,6 +34,7 @@ export type PublicSpot = {
   np7: number; member: RatingSummary; forecast: ForecastTally[];
   // crowd-aggregated member facts
   crowdWindow: CrowdWindow; memberLevel: LevelConsensus; memberConditions: { shares: ConditionShare[]; raters: number };
+  memberInfra: { shares: InfraShare[]; raters: number };
   ownPending?: boolean; // the viewer's own not-yet-public spot (badged "under review")
 };
 
@@ -124,7 +125,7 @@ export async function getSpotguideDestination(slug: string, viewerId?: string | 
   const spotIds = spots.map((s: { id: string }) => s.id);
 
   const [{ data: sratings }, { data: svotes }, { data: dratings }, { data: trips }] = await Promise.all([
-    spotIds.length ? sb.from("spot_ratings").select("spot_id, ratings, level, conditions, wind_window").in("spot_id", spotIds) : Promise.resolve({ data: [] }),
+    spotIds.length ? sb.from("spot_ratings").select("*").in("spot_id", spotIds) : Promise.resolve({ data: [] }),
     spotIds.length ? sb.from("spot_forecast_votes").select("spot_id, model").in("spot_id", spotIds) : Promise.resolve({ data: [] }),
     sb.from("destination_ratings").select("ratings").eq("destination_id", d.id),
     sb.from("exp_experiences").select("id, title, slug, hero_image, tagline, status").eq("destination_id", d.id).eq("status", "published"),
@@ -139,7 +140,7 @@ export async function getSpotguideDestination(slug: string, viewerId?: string | 
   const scoreByPhoto = new Map<string, number>();
   for (const v of (pvotes ?? []) as { photo_id: string; value: number }[]) scoreByPhoto.set(v.photo_id, (scoreByPhoto.get(v.photo_id) ?? 0) + (v.value || 0));
 
-  const ratingsBySpot = groupBy((sratings ?? []) as { spot_id: string; ratings: unknown; level?: string | null; conditions?: string[] | null; wind_window?: unknown }[], (r) => r.spot_id);
+  const ratingsBySpot = groupBy((sratings ?? []) as { spot_id: string; ratings: unknown; level?: string | null; conditions?: string[] | null; infrastructure?: string[] | null; wind_window?: unknown }[], (r) => r.spot_id);
   const votesBySpot = groupBy((svotes ?? []) as { spot_id: string; model: string }[], (r) => r.spot_id);
   const photosBySpot = groupBy((sphotos ?? []) as { id: string; spot_id: string; url: string; caption: string | null; source: string }[], (r) => r.spot_id);
 
@@ -161,6 +162,7 @@ export async function getSpotguideDestination(slug: string, viewerId?: string | 
     crowdWindow: crowdWindow(ratingsBySpot.get(s.id as string) ?? []),
     memberLevel: levelConsensus(ratingsBySpot.get(s.id as string) ?? []),
     memberConditions: conditionsTally(ratingsBySpot.get(s.id as string) ?? []),
+    memberInfra: infraTally(ratingsBySpot.get(s.id as string) ?? []),
     ownPending: ownPendingIds.has(s.id as string),
   }));
 

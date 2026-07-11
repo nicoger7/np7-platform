@@ -3,8 +3,8 @@ import { getPortalUser } from "@/lib/auth";
 import { createAdminClient } from "@/lib/supabase";
 import {
   SPOT_CRITERIA_KEYS, DESTINATION_CRITERIA_KEYS, summariseRatings,
-  LEVELS, CONDITIONS, asWindWindow, windWindowHasValue,
-  crowdWindow, levelConsensus, conditionsTally,
+  LEVELS, CONDITIONS, INFRASTRUCTURE_TAGS, asWindWindow, windWindowHasValue,
+  crowdWindow, levelConsensus, conditionsTally, infraTally,
 } from "@/lib/spotguide";
 
 /**
@@ -37,9 +37,11 @@ export async function POST(request: NextRequest) {
   const level = target === "spot" && LEVELS.includes(body.level) ? body.level : null;
   const conditions = target === "spot" && Array.isArray(body.conditions)
     ? body.conditions.filter((c: string) => CONDITIONS.some((x) => x.key === c)) : [];
+  const infrastructure = target === "spot" && Array.isArray(body.infrastructure)
+    ? body.infrastructure.filter((t: string) => (INFRASTRUCTURE_TAGS as readonly string[]).includes(t)) : [];
   const wind_window = asWindWindow(body.wind_window); // {} for destinations (no body.wind_window)
 
-  const hasAnyInput = Object.keys(ratings).length > 0 || !!level || conditions.length > 0 || (target === "spot" && windWindowHasValue(wind_window));
+  const hasAnyInput = Object.keys(ratings).length > 0 || !!level || conditions.length > 0 || infrastructure.length > 0 || (target === "spot" && windWindowHasValue(wind_window));
   if (!hasAnyInput) return NextResponse.json({ error: "Add at least one rating or fact." }, { status: 400 });
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -48,23 +50,30 @@ export async function POST(request: NextRequest) {
   const fk = target === "spot" ? "spot_id" : "destination_id";
 
   const row: Record<string, unknown> = { [fk]: id, contact_id: user.contactId, ratings, comment, updated_at: new Date().toISOString() };
-  if (target === "spot") { row.level = level; row.conditions = conditions; row.wind_window = wind_window; }
+  if (target === "spot") { row.level = level; row.conditions = conditions; row.wind_window = wind_window; row.infrastructure = infrastructure; }
 
-  const { error } = await db.from(table).upsert(row, { onConflict: `${fk},contact_id` });
+  let { error } = await db.from(table).upsert(row, { onConflict: `${fk},contact_id` });
+  // Tolerate the infrastructure column not existing yet (migration 081): save the
+  // rest so rating still works; infra just isn't recorded until it's applied.
+  if (error && /infrastructure/i.test(error.message)) {
+    delete row.infrastructure;
+    ({ error } = await db.from(table).upsert(row, { onConflict: `${fk},contact_id` }));
+  }
   if (error) {
     if (/does not exist|schema cache/i.test(error.message)) return NextResponse.json({ error: "Spotguide isn't live yet." }, { status: 503 });
     return NextResponse.json({ error: "Could not save your rating." }, { status: 500 });
   }
 
   if (target === "spot") {
-    const { data: rows } = await db.from(table).select("ratings, level, conditions, wind_window").eq(fk, id);
+    const { data: rows } = await db.from(table).select("*").eq(fk, id);
     return NextResponse.json({
       ok: true,
       summary: summariseRatings(rows ?? [], keys),
       level: levelConsensus(rows ?? []),
       conditions: conditionsTally(rows ?? []),
+      infrastructure: infraTally(rows ?? []),
       windrose: crowdWindow(rows ?? []),
-      mine: { ratings, level, conditions, wind_window },
+      mine: { ratings, level, conditions, wind_window, infrastructure },
     });
   }
   const { data: rows } = await db.from(table).select("ratings").eq(fk, id);

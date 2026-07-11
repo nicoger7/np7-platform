@@ -4,8 +4,8 @@ import { createContext, useContext, useEffect, useState, useCallback } from "rea
 import { AuthModal } from "@/components/shared/auth-modal";
 import type { RatingSummary, ForecastTally } from "@/lib/spotguide";
 
-export type SpotFacts = { ratings: Record<string, number>; level: string | null; conditions: string[]; wind_window: Record<string, string> };
-type SpotMine = { ratings?: Record<string, number>; model?: string; level?: string | null; conditions?: string[]; wind_window?: Record<string, string> };
+export type SpotFacts = { ratings: Record<string, number>; level: string | null; conditions: string[]; infrastructure: string[]; wind_window: Record<string, string> };
+type SpotMine = { ratings?: Record<string, number>; model?: string; level?: string | null; conditions?: string[]; infrastructure?: string[]; wind_window?: Record<string, string> };
 
 type Ctx = {
   loggedIn: boolean;
@@ -51,7 +51,7 @@ export function SpotguideProvider({ destId, initialLoggedIn = false, children }:
   const saveSpot = async (spotId: string, facts: SpotFacts) => {
     const j = await post("/api/portal/spotguide/rate", { target: "spot", id: spotId, ...facts });
     if (!j) return false;
-    setMineSpots((m) => ({ ...m, [spotId]: { ...m[spotId], ratings: j.mine.ratings, level: j.mine.level, conditions: j.mine.conditions, wind_window: j.mine.wind_window } }));
+    setMineSpots((m) => ({ ...m, [spotId]: { ...m[spotId], ratings: j.mine.ratings, level: j.mine.level, conditions: j.mine.conditions, infrastructure: j.mine.infrastructure, wind_window: j.mine.wind_window } }));
     return true;
   };
   const voteForecast = async (spotId: string, model: string) => {

@@ -85,11 +85,12 @@ export function SpotsList({ spots, accent = "#00afdb" }: { spots: PublicSpot[]; 
                   </div>
                 )}
 
-                {(spot.memberLevel.raters > 0 || spot.memberConditions.raters > 0) && (
+                {(spot.memberLevel.raters > 0 || spot.memberConditions.raters > 0 || spot.memberInfra.raters > 0) && (
                   <div className="rounded-xl border border-[#f0e9da] p-4 space-y-1.5">
                     <div className="text-[11px] font-bold uppercase tracking-[0.1em] text-[#9aa6ac]">Members say</div>
                     {spot.memberLevel.label && <p className="text-[13.5px] text-[#5a6b72]"><span className="font-semibold">Level:</span> <span className="text-[#00374a] font-bold">{spot.memberLevel.label}</span> <span className="text-[#9aa6ac]">({spot.memberLevel.raters})</span></p>}
                     {spot.memberConditions.shares.length > 0 && <p className="text-[13.5px] text-[#5a6b72]"><span className="font-semibold">Conditions:</span> {spot.memberConditions.shares.map((s) => `${s.pct}% ${s.label.toLowerCase()}`).join(" · ")}</p>}
+                    {spot.memberInfra.shares.length > 0 && <p className="text-[13.5px] text-[#5a6b72]"><span className="font-semibold">On site:</span> {spot.memberInfra.shares.map((s) => `${s.tag} (${s.count})`).join(" · ")}</p>}
                   </div>
                 )}
 

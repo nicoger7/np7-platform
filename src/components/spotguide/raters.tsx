@@ -6,7 +6,7 @@ import { WindroseInput } from "./windrose-input";
 import { LevelPicker } from "./level-picker";
 import {
   type Criterion, FORECAST_MODELS, FORECAST_TIER_LABEL, type ForecastTier,
-  SPOT_CRITERIA, CONDITIONS, windWindowHasValue, asWindWindow,
+  SPOT_CRITERIA, CONDITIONS, INFRASTRUCTURE_TAGS, windWindowHasValue, asWindWindow,
 } from "@/lib/spotguide";
 
 /** Clickable 0–5 symbols (★ quality, $ price level). */
@@ -105,6 +105,7 @@ export function SpotVisitRater({ spotId, accent = "#00afdb", onSaved, defaults }
   const [ratings, setRatings] = useState<Record<string, number>>({});
   const [level, setLevel] = useState("");
   const [conditions, setConditions] = useState<string[]>([]);
+  const [infra, setInfra] = useState<string[]>([]);
   const [wind, setWind] = useState<Record<string, string>>({});
   const [busy, setBusy] = useState(false);
   const [done, setDone] = useState(false);
@@ -114,16 +115,16 @@ export function SpotVisitRater({ spotId, accent = "#00afdb", onSaved, defaults }
   const mineKey = JSON.stringify(mine ?? null);
   useEffect(() => {
     setRatings(mine?.ratings ?? defaults ?? {}); setLevel(mine?.level ?? "");
-    setConditions(mine?.conditions ?? []); setWind(mine?.wind_window ?? {});
+    setConditions(mine?.conditions ?? []); setInfra(mine?.infrastructure ?? []); setWind(mine?.wind_window ?? {});
   }, [mineKey]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const hasAny = Object.values(ratings).some((n) => n > 0) || !!level || conditions.length > 0 || windWindowHasValue(asWindWindow(wind));
+  const hasAny = Object.values(ratings).some((n) => n > 0) || !!level || conditions.length > 0 || infra.length > 0 || windWindowHasValue(asWindWindow(wind));
 
   async function submit() {
     if (!sg.loggedIn) { sg.needAuth(); return; }
     if (!hasAny) return;
     setBusy(true);
-    const ok = await sg.saveSpot(spotId, { ratings, level: level || null, conditions, wind_window: wind });
+    const ok = await sg.saveSpot(spotId, { ratings, level: level || null, conditions, infrastructure: infra, wind_window: wind });
     setBusy(false);
     if (ok) { setDone(true); setTimeout(() => { setDone(false); onSaved?.(); }, 1400); }
   }
@@ -150,6 +151,16 @@ export function SpotVisitRater({ spotId, accent = "#00afdb", onSaved, defaults }
               return <button key={c.key} type="button" onClick={() => setConditions((p) => on ? p.filter((x) => x !== c.key) : [...p, c.key])} className={chip(on)} style={on ? { backgroundColor: accent } : undefined}>{c.label}</button>;
             })}
           </div>
+        </div>
+      </div>
+
+      <div>
+        <p className="text-[11px] font-bold uppercase tracking-wide text-[#9aa6ac] mb-1.5">What&apos;s here? (on-site)</p>
+        <div className="flex flex-wrap gap-1.5">
+          {INFRASTRUCTURE_TAGS.map((t) => {
+            const on = infra.includes(t);
+            return <button key={t} type="button" onClick={() => setInfra((p) => on ? p.filter((x) => x !== t) : [...p, t])} className={chip(on)} style={on ? { backgroundColor: accent } : undefined}>{t}</button>;
+          })}
         </div>
       </div>
 

@@ -314,6 +314,23 @@ export function conditionsTally(rows: { conditions?: string[] | null }[]): { sha
   return { shares, raters };
 }
 
+export type InfraShare = { tag: string; count: number; pct: number };
+/** Crowd-confirmed on-site facilities: how many riders reported each one. */
+export function infraTally(rows: { infrastructure?: string[] | null }[]): { shares: InfraShare[]; raters: number } {
+  const counts: Record<string, number> = {};
+  let raters = 0;
+  for (const r of rows) {
+    const xs = Array.isArray(r.infrastructure) ? r.infrastructure : [];
+    if (xs.length === 0) continue;
+    raters++;
+    for (const x of xs) counts[x] = (counts[x] ?? 0) + 1;
+  }
+  const shares = (INFRASTRUCTURE_TAGS as readonly string[])
+    .map((t) => ({ tag: t, count: counts[t] ?? 0, pct: raters ? Math.round(((counts[t] ?? 0) / raters) * 100) : 0 }))
+    .filter((s) => s.count > 0).sort((a, b) => b.count - a.count);
+  return { shares, raters };
+}
+
 /** Level-range label for a destination, e.g. "Beginner–Advanced" or "All levels". */
 export function levelRangeLabel(min?: string | null, max?: string | null): string | null {
   const lo = min && (LEVELS as readonly string[]).includes(min) ? min : null;
