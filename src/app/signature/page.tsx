@@ -16,6 +16,9 @@ export const dynamic = "force-dynamic";
 export const metadata: Metadata = {
   title: "Signature Trips — invite-only windsurf expeditions",
   description: "NP7's most special windsurf trips — private villas, a chef, world-class coaching, in places like Madagascar and Mauritius. Premium, small-group and by application only.",
+  // Link-only for now: reachable at /signature but kept out of search + sitemap
+  // while the Experience world isn't public on main. (Flip to index later.)
+  robots: { index: false, follow: false },
   alternates: { canonical: "/signature" },
   openGraph: {
     title: "Signature Trips — invite-only windsurf expeditions by NP7",

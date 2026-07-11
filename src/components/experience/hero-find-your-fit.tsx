@@ -29,8 +29,8 @@ const SEGMENTS: Segment[] = [
 ];
 
 const N = SEGMENTS.length;
-const HERO_SCENES = 1.3;       // scroll length of the logo hero
-const FIT_SCENES = 0.85;       // scroll length per fit
+const HERO_SCENES = 1.45;      // scroll length of the logo hero
+const FIT_SCENES = 1.35;       // scroll length per fit — longer so each fit "sticks"
 const DIVE_SCENES = 1.1;       // dive-out: video fades + experiences rise over it
 const TOTAL = HERO_SCENES + N * FIT_SCENES + DIVE_SCENES;
 const HERO_END = HERO_SCENES / TOTAL;                       // fits take over
@@ -81,7 +81,7 @@ export function HeroFindYourFit({ src, poster, children }: { src: string; poster
     let raf = 0, running = true;
     const tick = () => {
       const target = progress();
-      current += (target - current) * 0.14;
+      current += (target - current) * 0.17; // track scroll a touch tighter — feels more locked to the fit
       if (Math.abs(target - current) < 0.0005) current = target;
       const p = current;
 
