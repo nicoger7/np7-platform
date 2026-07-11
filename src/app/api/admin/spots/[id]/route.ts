@@ -5,7 +5,7 @@ import { summariseRatings, tallyForecastVotes, SPOT_CRITERIA_KEYS } from "@/lib/
 
 const COLS = [
   "name", "slug", "lat", "lng", "level", "conditions", "wind_window",
-  "infrastructure", "np7_forecast_models", "hero_image", "gallery", "summary",
+  "infrastructure", "np7_forecast_models", "hero_image", "hero_focus", "gallery", "summary",
   "description", "np7_ratings", "status", "verification", "sort_order",
 ];
 

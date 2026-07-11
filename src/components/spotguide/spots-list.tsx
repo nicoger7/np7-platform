@@ -68,7 +68,7 @@ export function SpotsList({ spots, accent = "#00afdb" }: { spots: PublicSpot[]; 
                 {spot.hero_image && (
                   <div className="relative aspect-video rounded-xl overflow-hidden bg-[#e9eef0]">
                     {/* eslint-disable-next-line @next/next/no-img-element */}
-                    <img src={spot.hero_image} alt={spot.name} className="absolute inset-0 w-full h-full object-cover" loading="lazy" />
+                    <img src={spot.hero_image} alt={spot.name} className="absolute inset-0 w-full h-full object-cover" style={{ objectPosition: spot.hero_focus || undefined }} loading="lazy" />
                   </div>
                 )}
                 {spot.description && <p className="text-[15.5px] text-[#5a6b72] leading-relaxed whitespace-pre-line">{spot.description}</p>}

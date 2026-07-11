@@ -27,7 +27,7 @@ export type PublicSpot = {
   id: string; name: string; slug: string | null; lat: number | null; lng: number | null;
   level: string | null; levels: string[]; conditions: string[]; wind_window: Record<string, string>;
   infrastructure: string[]; np7_forecast_models: string[];
-  hero_image: string | null; gallery: string[]; summary: string | null; description: string | null;
+  hero_image: string | null; hero_focus: string | null; gallery: string[]; summary: string | null; description: string | null;
   np7_ratings: Record<string, number>; verification: string;
   wind_stats: WindStats | null;
   photos: { id: string; url: string; caption: string | null; score: number; source: string }[];
@@ -150,7 +150,7 @@ export async function getSpotguideDestination(slug: string, viewerId?: string | 
     levels: Array.isArray(s.levels) && (s.levels as string[]).length ? (s.levels as string[]) : ((s.level as string) ? [s.level as string] : []),
     conditions: (s.conditions as string[]) ?? [], wind_window: (s.wind_window as Record<string, string>) ?? {},
     infrastructure: (s.infrastructure as string[]) ?? [], np7_forecast_models: (s.np7_forecast_models as string[]) ?? [],
-    hero_image: (s.hero_image as string) ?? null, gallery: (s.gallery as string[]) ?? [],
+    hero_image: (s.hero_image as string) ?? null, hero_focus: (s.hero_focus as string) ?? null, gallery: (s.gallery as string[]) ?? [],
     summary: (s.summary as string) ?? null, description: (s.description as string) ?? null,
     np7_ratings: (s.np7_ratings as Record<string, number>) ?? {}, verification: s.verification as string,
     wind_stats: (s.wind_stats as WindStats) ?? null,

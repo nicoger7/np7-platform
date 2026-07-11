@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, use } from "react";
+import { useState, useEffect, useRef, use } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import ImagePickerModal from "@/components/image-picker-modal";
@@ -21,7 +21,7 @@ interface Spot {
   lat: number | null; lng: number | null; level: string | null;
   conditions: string[] | null; wind_window: Record<string, string> | null;
   infrastructure: string[] | null; np7_forecast_models: string[] | null;
-  hero_image: string | null; gallery: string[] | null;
+  hero_image: string | null; hero_focus: string | null; gallery: string[] | null;
   summary: string | null; description: string | null;
   np7_ratings: Record<string, number> | null; source: string;
   status: string; verification: string;
@@ -43,6 +43,7 @@ export default function SpotEditor({ params }: { params: Promise<{ id: string }>
   const [picker, setPicker] = useState<null | "hero" | "gallery">(null);
   const [computing, setComputing] = useState(false);
   const [statsError, setStatsError] = useState("");
+  const dragRef = useRef<{ x: number; y: number; fx: number; fy: number } | null>(null);
 
   useEffect(() => {
     fetch(`/api/admin/spots/${id}`).then((r) => r.json()).then((x) => {
@@ -148,10 +149,36 @@ export default function SpotEditor({ params }: { params: Promise<{ id: string }>
         <div>
           <label className={labelClass}>Hero photo</label>
           {s.hero_image ? (
-            <div className="flex items-center gap-3">
-              <div className="w-40 aspect-[16/9] bg-cover bg-center rounded-lg" style={{ backgroundImage: `url('${s.hero_image}')`, border: "1px solid var(--admin-border)" }} />
-              <button onClick={() => setPicker("hero")} className="text-xs text-[#0aa3c7] hover:underline">Change</button>
-              <button onClick={() => set("hero_image", "")} className="text-xs admin-faint hover:text-red-400">Remove</button>
+            <div className="max-w-[420px]">
+              <div
+                className="relative aspect-[16/9] rounded-lg overflow-hidden cursor-grab active:cursor-grabbing select-none touch-none"
+                style={{ border: "1px solid var(--admin-border)" }}
+                onPointerDown={(e) => {
+                  e.currentTarget.setPointerCapture(e.pointerId);
+                  const m = (s.hero_focus || "50% 50%").match(/([\d.]+)%\s+([\d.]+)%/);
+                  dragRef.current = { x: e.clientX, y: e.clientY, fx: m ? +m[1] : 50, fy: m ? +m[2] : 50 };
+                }}
+                onPointerMove={(e) => {
+                  if (!dragRef.current) return;
+                  const r = e.currentTarget.getBoundingClientRect();
+                  const fx = Math.min(100, Math.max(0, dragRef.current.fx - ((e.clientX - dragRef.current.x) / r.width) * 100));
+                  const fy = Math.min(100, Math.max(0, dragRef.current.fy - ((e.clientY - dragRef.current.y) / r.height) * 100));
+                  set("hero_focus", `${Math.round(fx)}% ${Math.round(fy)}%`);
+                }}
+                onPointerUp={() => { dragRef.current = null; }}
+                onPointerCancel={() => { dragRef.current = null; }}
+              >
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img src={s.hero_image} alt="" draggable={false} className="w-full h-full object-cover pointer-events-none" style={{ objectPosition: s.hero_focus || "50% 50%" }} />
+                <div className="absolute top-2 right-2 flex gap-1.5">
+                  <button onClick={() => setPicker("hero")} className="px-2.5 py-1 rounded-md text-[11px] font-bold bg-black/60 text-white hover:bg-black/80">Change</button>
+                  <button onClick={() => { set("hero_image", ""); set("hero_focus", null); }} className="px-2.5 py-1 rounded-md text-[11px] font-bold bg-black/60 text-white hover:bg-red-500">Remove</button>
+                </div>
+              </div>
+              <div className="flex items-center gap-3 mt-1">
+                <p className="text-[11px] admin-faint">Drag the photo to reframe how it crops at 16:9.</p>
+                {s.hero_focus && <button onClick={() => set("hero_focus", null)} className="ml-auto text-[11px] font-bold admin-muted hover:admin-heading">Reset</button>}
+              </div>
             </div>
           ) : <button onClick={() => setPicker("hero")} className={`${inputClass} text-left admin-muted max-w-[200px]`}>Pick hero photo…</button>}
         </div>
