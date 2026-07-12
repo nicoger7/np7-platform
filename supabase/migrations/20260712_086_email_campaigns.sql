@@ -33,3 +33,7 @@ create table if not exists email_campaigns (
 
 comment on table email_campaigns is
   'Marketing blast campaigns. Sends log to email_log (dedupe_key camp:<id>:<contact_id>); only marketing_opt_in contacts ever receive them.';
+
+-- No policies on purpose: all reads/writes go through the service role (admin
+-- APIs); RLS with zero policies locks the anon key out entirely.
+alter table email_campaigns enable row level security;
