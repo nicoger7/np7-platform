@@ -35,7 +35,10 @@ export function ShareSheet({ photo, photos, trip, onClose }: {
   useEffect(() => { const t = setTimeout(() => setDebounced(caption), 400); return () => clearTimeout(t); }, [caption]);
 
   const build = (cap: string) => {
-    const p = new URLSearchParams({ photo: activePhoto, title, format });
+    // v = card-design version. Bump it whenever the server render changes — the old
+    // cards are CDN/browser-cached for hours, and a new URL is the only reliable way
+    // to make every preview pick up the new design immediately.
+    const p = new URLSearchParams({ photo: activePhoto, title, format, v: "4" });
     if (trip?.sub) p.set("sub", trip.sub);
     if (cap) p.set("caption", cap);
     if (!showTitle) p.set("showTitle", "0");
@@ -101,7 +104,7 @@ export function ShareSheet({ photo, photos, trip, onClose }: {
                 <p className="text-[11px] font-black uppercase tracking-wide text-[#b0791e] mb-2">Photo <span className="normal-case tracking-normal text-[#c3b9a6] font-medium">— tap to change</span></p>
                 {/* Wrapping grid (NOT a horizontal scroll strip) — flows onto rows and
                     caps its height, so it never drags the modal sideways. */}
-                <div className="flex flex-wrap gap-2 max-h-[176px] overflow-y-auto pr-0.5">
+                <div className="flex flex-wrap gap-2 max-h-[200px] overflow-y-auto pr-0.5">
                   {pickable.map((p) => {
                     const on = p === activePhoto;
                     return (
@@ -110,7 +113,7 @@ export function ShareSheet({ photo, photos, trip, onClose }: {
                       // again into a square made every tile an unreadable close-up). Same
                       // width as the gallery grid, so the image is already in browser cache.
                       <button key={p} type="button" onClick={() => setActivePhoto(p)} aria-label="Use this photo"
-                        className={`relative w-20 h-16 rounded-lg overflow-hidden bg-[#062b36] transition-all ${on ? "ring-2 ring-[#f0a500]" : "ring-1 ring-black/10 opacity-70 hover:opacity-100"}`}>
+                        className={`relative w-24 h-20 rounded-lg overflow-hidden bg-[#062b36] transition-all ${on ? "ring-2 ring-[#f0a500]" : "ring-1 ring-black/10 opacity-70 hover:opacity-100"}`}>
                         {/* eslint-disable-next-line @next/next/no-img-element */}
                         <img src={cdnImage(p, { width: 700 })} alt="" loading="lazy" className="w-full h-full object-contain" />
                       </button>
