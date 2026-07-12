@@ -18,6 +18,9 @@ export async function GET(request: NextRequest) {
   const page = parseInt(searchParams.get("page") || "1");
   const limit = parseInt(searchParams.get("limit") || "50");
   const search = searchParams.get("search");
+  // Segment: "crm" = working contacts (hides newsletter-only imports, i.e. the
+  // 'maillist' tag), "newsletter" = only those, anything else/absent = all.
+  const segment = searchParams.get("segment");
   const offset = (page - 1) * limit;
 
   // Sort params
@@ -39,6 +42,9 @@ export async function GET(request: NextRequest) {
     if (search) {
       q = q.or(`name.ilike.%${search}%,email.ilike.%${search}%,phone.ilike.%${search}%`);
     }
+    // Segment filter (multiple .or() groups AND together, so this composes with search)
+    if (segment === "crm") q = q.or("tags.is.null,tags.not.cs.{maillist}");
+    else if (segment === "newsletter") q = q.contains("tags", ["maillist"]);
     return q;
   };
 

@@ -26,6 +26,7 @@ interface Contact {
   marketing_opt_in_at: string | null;
   experience_locations: string[] | null;
   interested_products: string[] | null;
+  tags: string[] | null;
   ai_summary: string | null;
   chatwoot_contact_id: string | null;
   pii_redacted?: boolean;
@@ -284,6 +285,7 @@ export function ContactDetailPane({ contactId, onBack }: { contactId: string; on
               <option value="referral">Referral</option>
               <option value="facebook">Facebook</option>
               <option value="google">Google</option>
+              <option value="newsletter">Newsletter (maillist import)</option>
               <option value="other">Other</option>
             </select>
           </div>
@@ -391,6 +393,18 @@ export function ContactDetailPane({ contactId, onBack }: { contactId: string; on
             <button onClick={() => { addTag("interested_products", productInput); setProductInput(""); }} className="px-3 py-2 admin-surface admin-muted text-sm rounded-lg" style={{ border: "1px solid var(--admin-border)" }}>Add</button>
           </div>
         </div>
+
+        {/* Origin lists / tags (read-only — set by imports) */}
+        {(contact.tags || []).length > 0 && (
+          <div>
+            <label className={labelClass}>Lists / Tags <span className="text-[10px] admin-faint">(from imports)</span></label>
+            <div className="flex flex-wrap gap-1.5">
+              {(contact.tags || []).map((t) => (
+                <span key={t} className="px-2.5 py-1 rounded-full text-xs admin-muted" style={{ backgroundColor: "var(--admin-surface)", border: "1px solid var(--admin-border)" }}>{t}</span>
+              ))}
+            </div>
+          </div>
+        )}
 
         {/* Notes */}
         <div>

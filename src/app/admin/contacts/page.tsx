@@ -98,11 +98,16 @@ function ContactsInner() {
     accepts_marketing: false,
   });
 
+  // Segment: CRM = the working contact base (hides newsletter-only maillist
+  // imports); Newsletter = only those; All = everything.
+  const [segment, setSegment] = useState<"crm" | "newsletter" | "all">("crm");
+
   const fetchContacts = useCallback(() => {
     const params = new URLSearchParams();
     params.set("page", String(page));
     params.set("limit", String(pageSize));
     if (search) params.set("search", search);
+    if (segment !== "all") params.set("segment", segment);
     if (sortKey) {
       params.set("sort", sortKey);
       params.set("order", sortDir === "desc" ? "desc" : "asc");
@@ -114,7 +119,7 @@ function ContactsInner() {
         setTotalCount(d.count || 0);
         setLoading(false);
       });
-  }, [page, search, sortKey, sortDir]);
+  }, [page, search, segment, sortKey, sortDir]);
 
   useEffect(() => {
     fetchContacts();
@@ -190,14 +195,26 @@ function ContactsInner() {
         </div>
       </div>
 
-      {/* Search */}
-      <div className="flex items-center gap-3 mb-5">
+      {/* Search + segment */}
+      <div className="flex items-center gap-3 mb-5 flex-wrap">
         <input
           className={`${inputClass} max-w-sm`}
           placeholder="Search by name, email, or phone..."
           value={search}
           onChange={(e) => setSearch(e.target.value)}
         />
+        <div className="flex rounded-lg overflow-hidden" style={{ border: "1px solid var(--admin-border)" }}>
+          {([["crm", "CRM"], ["newsletter", "Newsletter"], ["all", "All"]] as const).map(([key, label]) => (
+            <button
+              key={key}
+              onClick={() => { setSegment(key); setPage(1); }}
+              className={`px-3 py-1.5 text-xs font-semibold transition-colors ${segment === key ? "bg-[var(--admin-accent)] text-[var(--admin-accent-contrast)]" : "admin-muted hover:admin-heading"}`}
+              title={key === "crm" ? "Working contacts (hides newsletter-only imports)" : key === "newsletter" ? "Maillist imports" : "Everything"}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
       </div>
 
       {/* New contact form */}
