@@ -78,6 +78,13 @@ export async function GET(req: NextRequest) {
   const { W, H } = format === "square" ? { W: 1080, H: 1080 } : format === "post" ? { W: 1080, H: 1350 } : { W: 1080, H: 1920 };
   if (!ALLOWED.test(photo)) return new Response("bad photo", { status: 400 });
 
+  // Story safe zones: Instagram overlays ~250px of UI at the top (profile, close)
+  // and ~310px at the bottom (reply bar) of a 1080x1920 story. Keep every element
+  // inside those margins so nothing hides under the app chrome. Feed formats have
+  // no overlay, so no inset.
+  const SAFE = format === "story" ? { top: 250, bottom: 270 } : { top: 0, bottom: 0 };
+  const B = H - SAFE.bottom; // baseline anchor for the bottom text block
+
   try {
     const [imgRes, fonts] = await Promise.all([
       fetch(photo, { signal: AbortSignal.timeout(9000) }),
@@ -90,20 +97,20 @@ export async function GET(req: NextRequest) {
     // Title — shrink to fit the width so long names never overflow (measured, not guessed).
     let titleSize = 94;
     if (showTitle) { const maxW = W - 150; while (titleSize > 46 && head.getAdvanceWidth(clean(head, title), titleSize) > maxW) titleSize -= 2; }
-    const titleEl = showTitle ? tp(head, title, 70, H - 210, titleSize, "#ffffff") : { svg: "", width: 0 };
+    const titleEl = showTitle ? tp(head, title, 70, B - 210, titleSize, "#ffffff") : { svg: "", width: 0 };
 
     // Hand-drawn wave underline (echoes the Experience logo's wave), sized to the title.
     const uw = showTitle ? Math.min(W - 148, Math.max(170, Math.round(titleEl.width))) : 0;
     const wavePath = (() => {
       if (!showTitle) return "";
-      const x0 = 74, y = H - 176, humps = 3, amp = 9, seg = uw / humps;
+      const x0 = 74, y = B - 176, humps = 3, amp = 9, seg = uw / humps;
       let d = `M ${x0} ${y}`;
       for (let i = 0; i < humps; i++) d += ` Q ${x0 + seg * i + seg / 2} ${y + (i % 2 ? amp : -amp)} ${x0 + seg * (i + 1)} ${y}`;
       return `<path d="${d}" fill="none" stroke="url(#bar)" stroke-width="8" stroke-linecap="round"/>`;
     })();
 
-    const subEl = showTitle && sub ? tp(body, sub, 76, H - 132, 42, "#ffffff", { opacity: 0.9 }) : { svg: "", width: 0 };
-    const footEl = tp(body, "np-seven.com", 76, H - 62, 29, "#ffffff", { opacity: 0.62, tracking: 3 });
+    const subEl = showTitle && sub ? tp(body, sub, 76, B - 132, 42, "#ffffff", { opacity: 0.9 }) : { svg: "", width: 0 };
+    const footEl = tp(body, "np-seven.com", 76, B - 62, 29, "#ffffff", { opacity: 0.62, tracking: 3 });
 
     // Caption → tilted, Instagram-style gradient "sticker" near the top. Fit + measure so
     // the pill hugs the text exactly.
@@ -116,7 +123,8 @@ export async function GET(req: NextRequest) {
       const capTextW = head.getAdvanceWidth(capText, capSize);
       const capW = Math.round(capTextW) + 78;
       const capH = capSize + 36;
-      const cx = W / 2, cy = Math.round(H * 0.16);
+      // Centre the sticker just below the top safe zone (profile pic / close button).
+      const cx = W / 2, cy = Math.max(Math.round(H * 0.16), SAFE.top + Math.round(capH / 2) + 28);
       const cap = tp(head, capText, cx, cy + capSize * 0.34, capSize, "#ffffff", { anchor: "middle" });
       capBlock = `<g transform="rotate(-4.5 ${cx} ${cy})">
         <rect x="${cx - capW / 2 + 4}" y="${cy - capH / 2 + 8}" width="${capW}" height="${capH}" rx="${capH / 2}" fill="#001018" fill-opacity="0.28"/>
@@ -153,7 +161,7 @@ export async function GET(req: NextRequest) {
       if (logoRes.ok) {
         const logoH = 118;
         const logo = await sharp(Buffer.from(await logoRes.arrayBuffer())).resize({ height: logoH }).png().toBuffer();
-        layers.push({ input: logo, top: H - 214 - titleSize - logoH - 18, left: 72 });
+        layers.push({ input: logo, top: B - 214 - titleSize - logoH - 18, left: 72 });
       }
     } catch { /* title still carries the card */ }
 

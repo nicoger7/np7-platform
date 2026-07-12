@@ -101,14 +101,18 @@ export function ShareSheet({ photo, photos, trip, onClose }: {
                 <p className="text-[11px] font-black uppercase tracking-wide text-[#b0791e] mb-2">Photo <span className="normal-case tracking-normal text-[#c3b9a6] font-medium">— tap to change</span></p>
                 {/* Wrapping grid (NOT a horizontal scroll strip) — flows onto rows and
                     caps its height, so it never drags the modal sideways. */}
-                <div className="flex flex-wrap gap-2 max-h-[168px] overflow-y-auto pr-0.5">
+                <div className="flex flex-wrap gap-2 max-h-[176px] overflow-y-auto pr-0.5">
                   {pickable.map((p) => {
                     const on = p === activePhoto;
                     return (
+                      // object-contain on a dark tile = the WHOLE photo, recognisable at a
+                      // glance (the _thumb/ variant is a 400x400 centre-crop — cropping that
+                      // again into a square made every tile an unreadable close-up). Same
+                      // width as the gallery grid, so the image is already in browser cache.
                       <button key={p} type="button" onClick={() => setActivePhoto(p)} aria-label="Use this photo"
-                        className={`relative w-12 h-12 rounded-lg overflow-hidden transition-all ${on ? "ring-2 ring-[#f0a500]" : "ring-1 ring-black/10 opacity-65 hover:opacity-100"}`}>
+                        className={`relative w-20 h-16 rounded-lg overflow-hidden bg-[#062b36] transition-all ${on ? "ring-2 ring-[#f0a500]" : "ring-1 ring-black/10 opacity-70 hover:opacity-100"}`}>
                         {/* eslint-disable-next-line @next/next/no-img-element */}
-                        <img src={cdnImage(p, { width: 120 })} alt="" className="w-full h-full object-cover" />
+                        <img src={cdnImage(p, { width: 700 })} alt="" loading="lazy" className="w-full h-full object-contain" />
                       </button>
                     );
                   })}
