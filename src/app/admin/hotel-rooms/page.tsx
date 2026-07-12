@@ -43,7 +43,7 @@ interface RoomUnit {
 }
 
 interface Experience { id: string; title: string; status?: string }
-type Edition = { id: string; label: string | null; year: number; experience_id: string };
+type Edition = { id: string; label: string | null; year: number; experience_id: string; date_start?: string | null; date_end?: string | null };
 
 const HOTELS = ["Sorobon", "Wanapa", "Playa Surf", "Hotel Paradiso", "Alacati", "REF", "REF II"];
 const STATUSES = ["available", "assigned", "held"];
@@ -74,6 +74,7 @@ export default function HotelRoomsPage() {
   // per-week editor (inside a selected room)
   const [weekEditId, setWeekEditId] = useState<string | "new" | null>(null);
   const [weekForm, setWeekForm] = useState(emptyWeek);
+  const [weekYear, setWeekYear] = useState("");
   const [savingWeek, setSavingWeek] = useState(false);
 
   const loadRooms = useCallback(() => {
@@ -176,6 +177,7 @@ export default function HotelRoomsPage() {
   }
 
   function startWeek(w: Occupancy | "new") {
+    setWeekYear("");
     if (w === "new") { setWeekEditId("new"); setWeekForm(emptyWeek); return; }
     setWeekEditId(w.id);
     setWeekForm({ edition_id: w.edition_id || "", booking_id: w.booking?.id || "", status: w.status, check_in: w.check_in || "", check_out: w.check_out || "", transfer_need: !!w.transfer_need, partner_tag_along: w.partner_tag_along || "" });
@@ -188,6 +190,22 @@ export default function HotelRoomsPage() {
     if (selUnit === "new" || !selUnit) return;
     const u = groupMap[selUnit]?.unit;
     if (!u) return;
+    // date-aware collision check: warn when this stay overlaps another week row
+    // of the same room (e.g. a Week II guest extending into Week III)
+    const ed = weekForm.edition_id ? editionById.get(weekForm.edition_id) : null;
+    const myStart = weekForm.check_in || ed?.date_start || null;
+    const myEnd = weekForm.check_out || ed?.date_end || null;
+    if (myStart && myEnd) {
+      const clash = selUnitWeeks.filter((w) => {
+        if (weekEditId !== "new" && w.id === weekEditId) return false;
+        const r = rangeOf(w);
+        return r && myStart < r.end && r.start < myEnd;
+      });
+      if (clash.length) {
+        const who = clash.map((w) => `${w.edition ? (w.edition.label || w.edition.year) : "?"}${w.booking?.name ? ` (${w.booking.name.split(" — ")[0]})` : ""}`).join(", ");
+        if (!confirm(`These dates overlap this room's ${who}. The slot can't host both.\n\nSave anyway?`)) return;
+      }
+    }
     setSavingWeek(true);
     const body = {
       room_id: u.id, experience_id: u.experience_id || null, name: u.name, hotel: u.hotel || null,
@@ -216,6 +234,32 @@ export default function HotelRoomsPage() {
   const inputClass = "w-full px-3 py-2 admin-input border rounded-lg text-sm focus:outline-none focus:border-[var(--admin-accent)] focus:ring-1 focus:ring-[var(--admin-accent)] transition-colors";
   const labelClass = "block text-xs font-medium admin-muted mb-1";
   const selUnitWeeks = (selUnit && selUnit !== "new" ? groupMap[selUnit]?.weeks : []) || [];
+  const editionById = new Map(editions.map((e) => [e.id, e]));
+  // Effective stay range of a week row: explicit check-in/out, else the edition's
+  // window. This is what makes cross-edition overlaps (extra nights!) detectable.
+  const rangeOf = (w: { check_in?: string | null; check_out?: string | null; edition_id?: string | null }) => {
+    const ed = w.edition_id ? editionById.get(w.edition_id) : null;
+    const start = w.check_in || ed?.date_start || null;
+    const end = w.check_out || ed?.date_end || null;
+    return start && end ? { start, end } : null;
+  };
+  const weekConflicts = (() => {
+    const map = new Map<string, string[]>();
+    for (const a of selUnitWeeks) {
+      const ra = rangeOf(a);
+      if (!ra) continue;
+      for (const b of selUnitWeeks) {
+        if (b.id === a.id) continue;
+        const rb = rangeOf(b);
+        if (!rb) continue;
+        if (ra.start < rb.end && rb.start < ra.end) {
+          const lbl = b.edition ? String(b.edition.label || b.edition.year) : "another week";
+          map.set(a.id, [...(map.get(a.id) ?? []), lbl]);
+        }
+      }
+    }
+    return map;
+  })();
   const selUnitObj = selUnit && selUnit !== "new" ? groupMap[selUnit]?.unit : null;
   const weekEditions = editions.filter((e) => !selUnitObj?.experience_id || e.experience_id === selUnitObj.experience_id);
   const statusColor = (s: string) => s === "assigned" ? "bg-blue-500/15 text-blue-400" : s === "held" ? "bg-amber-500/15 text-amber-400" : "bg-green-500/15 text-green-400";
@@ -313,6 +357,7 @@ export default function HotelRoomsPage() {
 
                 <div className="space-y-1.5">
                   {selUnitWeeks.length === 0 && <p className="text-xs admin-faint">No weeks yet — add one to book a guest into this room.</p>}
+                  {selUnitWeeks.length > 0 && <p className="text-[11px] admin-faint">Rooms are <b>allotment slots</b>, not real hotel room numbers. A week&apos;s stay defaults to the edition&apos;s dates — set check-in/out when a guest extends, and overlapping stays (even across editions) get flagged ⚠.</p>}
                   {[...selUnitWeeks].sort((a, b) => (a.edition?.year ?? 0) - (b.edition?.year ?? 0) || String(a.edition?.label ?? "").localeCompare(String(b.edition?.label ?? ""))).map((w) => {
                     const g = w.booking?.name ? w.booking.name.split(" — ")[0].split(" - ")[0] : null;
                     const lbl = w.edition ? (w.edition.label || w.edition.year) : "—";
@@ -322,6 +367,7 @@ export default function HotelRoomsPage() {
                         <span className="text-sm admin-heading">{lbl}</span>
                         <span className="text-xs admin-muted truncate">{g ? (w.booking ? <Link href={`/admin/bookings/${w.booking.id}`} className="text-[#0aa3c7] hover:underline">{g}</Link> : g) : "free"}{w.partner_tag_along ? ` (+${w.partner_tag_along})` : ""}</span>
                         {w.check_in && <span className="text-[10px] admin-faint">{formatDate(w.check_in)} → {formatDate(w.check_out)}</span>}
+                        {(weekConflicts.get(w.id)?.length ?? 0) > 0 && <span className="text-[10px] font-bold text-amber-400" title="The stays overlap — this allotment slot can't host both. Adjust check-in/out or move a guest to another slot.">⚠ overlaps {weekConflicts.get(w.id)!.join(", ")}</span>}
                         <span className="ml-auto flex gap-1">
                           <button onClick={() => startWeek(w)} className="px-2 py-1 text-xs admin-muted hover:text-[var(--admin-accent)] transition-colors">Edit</button>
                           <button onClick={() => removeWeek(w.id)} className="px-2 py-1 text-xs text-red-400 hover:bg-red-500/10 rounded transition-colors">✕</button>
@@ -335,7 +381,20 @@ export default function HotelRoomsPage() {
                   <div className="mt-4 p-4 rounded-lg" style={{ border: "1px solid var(--admin-border)", backgroundColor: "var(--admin-surface-hover)" }}>
                     <h4 className="text-sm font-bold admin-heading mb-3">{weekEditId === "new" ? "Add week" : "Edit week"}</h4>
                     <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 mb-3">
-                      <div><label className={labelClass}>Edition (week)</label><select className={inputClass} value={weekForm.edition_id} onChange={(e) => setWeekForm({ ...weekForm, edition_id: e.target.value, booking_id: "" })}><option value="">—</option>{weekEditions.map((ed) => <option key={ed.id} value={ed.id}>{ed.label || ed.year}</option>)}</select></div>
+                      {(() => {
+                        const selYear = weekYear || (weekForm.edition_id ? String(editionById.get(weekForm.edition_id)?.year ?? "") : "");
+                        const years = [...new Set(weekEditions.map((e) => e.year).filter((y) => y != null))].sort((a, b) => b - a);
+                        const opts = weekEditions.filter((ed) => !selYear || String(ed.year ?? "") === selYear);
+                        return (
+                          <>
+                            <div><label className={labelClass}>Year</label><select className={inputClass} value={selYear} onChange={(e) => { const y = e.target.value; setWeekYear(y); const cur = editionById.get(weekForm.edition_id); if (cur && String(cur.year ?? "") !== y && y !== "") setWeekForm({ ...weekForm, edition_id: "", booking_id: "" }); }}>
+                              <option value="">All</option>
+                              {years.map((y) => <option key={y} value={String(y)}>{y}</option>)}
+                            </select></div>
+                            <div><label className={labelClass}>Edition (week)</label><select className={inputClass} value={weekForm.edition_id} onChange={(e) => setWeekForm({ ...weekForm, edition_id: e.target.value, booking_id: "" })}><option value="">—</option>{opts.map((ed) => <option key={ed.id} value={ed.id}>{selYear ? (ed.label || ed.year) : [ed.year, ed.label].filter(Boolean).join(" · ")}</option>)}</select></div>
+                          </>
+                        );
+                      })()}
                       <div><label className={labelClass}>Guest (booking)</label><select className={inputClass} value={weekForm.booking_id} onChange={(e) => setWeekForm({ ...weekForm, booking_id: e.target.value })} disabled={!weekForm.edition_id}><option value="">Unassigned</option>{editionBookings.map((b) => <option key={b.id} value={b.id}>{b.name}</option>)}</select></div>
                       <div><label className={labelClass}>Status</label><select className={inputClass} value={weekForm.status} onChange={(e) => setWeekForm({ ...weekForm, status: e.target.value })}>{STATUSES.map((s) => <option key={s} value={s}>{s[0].toUpperCase() + s.slice(1)}</option>)}</select></div>
                       <div><label className={labelClass}>Check-in</label><input type="date" key={`ci-${weekEditId}`} className={inputClass} defaultValue={weekForm.check_in} onChange={(e) => setWeekForm((f) => ({ ...f, check_in: e.target.value }))} onBlur={(e) => setWeekForm((f) => ({ ...f, check_in: e.target.value }))} /></div>
