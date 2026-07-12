@@ -76,7 +76,7 @@ export function ShareSheet({ photo, photos, trip, onClose }: {
 
   return (
     <div className="fixed inset-0 z-[110] bg-black/85 backdrop-blur-sm flex items-center justify-center p-4" onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}>
-      <div className="w-full max-w-[880px] max-h-[92vh] overflow-auto rounded-3xl bg-[#fffdf9] shadow-2xl">
+      <div className="w-full max-w-[880px] max-h-[92vh] overflow-y-auto overflow-x-hidden rounded-3xl bg-[#fffdf9] shadow-2xl">
         <div className="flex items-center justify-between px-6 py-4 border-b border-[#f0e6d6] sticky top-0 bg-[#fffdf9] z-10">
           <h3 className="text-[16px] font-black text-[#00374a]">Share your trip 🤙</h3>
           <button onClick={onClose} aria-label="Close" className="w-9 h-9 grid place-items-center rounded-full text-[#6a7a80] hover:bg-black/5">
@@ -84,7 +84,7 @@ export function ShareSheet({ photo, photos, trip, onClose }: {
           </button>
         </div>
 
-        <div className="grid sm:grid-cols-[minmax(0,300px)_1fr] gap-6 p-6">
+        <div className="grid sm:grid-cols-[minmax(0,300px)_minmax(0,1fr)] gap-6 p-6">
           {/* live preview */}
           <div className="mx-auto w-full max-w-[300px]">
             <div className={`relative ${ratioClass} w-full rounded-2xl overflow-hidden bg-[#0a2a33] shadow-lg`}>
@@ -95,9 +95,9 @@ export function ShareSheet({ photo, photos, trip, onClose }: {
           </div>
 
           {/* controls */}
-          <div className="space-y-5">
+          <div className="space-y-5 min-w-0">
             {pickable.length > 0 && (
-              <div>
+              <div className="min-w-0">
                 <p className="text-[11px] font-black uppercase tracking-wide text-[#b0791e] mb-2">Photo <span className="normal-case tracking-normal text-[#c3b9a6] font-medium">— tap to change</span></p>
                 <div className="flex gap-2 overflow-x-auto pb-1.5 -mx-0.5 px-0.5">
                   {pickable.map((p) => {
