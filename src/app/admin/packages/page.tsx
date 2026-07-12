@@ -318,6 +318,15 @@ export default function PackagesPage() {
     fetch(`/api/admin/packages/${editId}/rooms`).then((r) => r.json())
       .then((d) => setPkgRoomIds(new Set<string>(Array.isArray(d?.roomIds) ? d.roomIds : []))).catch(() => {});
   }, [editId]);
+  // Week scheduling: which physical rooms are operated (and still free) in the
+  // package's edition — from the room's Weeks & guests rows.
+  const [occ, setOcc] = useState<{ room_id: string | null; status: string | null }[]>([]);
+  useEffect(() => {
+    if (!form.edition_id) { setOcc([]); return; }
+    fetch(`/api/admin/hotel-rooms?edition_id=${form.edition_id}`).then((r) => r.json())
+      .then((d) => setOcc((Array.isArray(d) ? d : d?.rooms ?? d?.data ?? []).map((x: { room_id?: string | null; status?: string | null }) => ({ room_id: x.room_id ?? null, status: x.status ?? null }))))
+      .catch(() => setOcc([]));
+  }, [form.edition_id]);
   // Toggle a whole ROOM TYPE (all its physical rooms) — the type's room count is
   // what makes the package's availability.
   function toggleRoomType(ids: string[]) {
@@ -454,6 +463,9 @@ export default function PackagesPage() {
                 if (!hotelName) return <p className="text-xs admin-faint mt-1">Choose a <b>Hotel</b> above first — then pick its room types here.</p>;
                 const hotelRooms = rooms.filter((r) => (r.hotel ?? "").toLowerCase() === hotelName);
                 if (hotelRooms.length === 0) return <p className="text-xs admin-faint mt-1">No rooms for this hotel yet — add them on the Hotel Rooms page.</p>;
+                const scheduled = new Set(occ.map((o) => o.room_id).filter(Boolean) as string[]);
+                const free = new Set(occ.filter((o) => (o.status ?? "").toLowerCase() === "available").map((o) => o.room_id).filter(Boolean) as string[]);
+                const editionAware = !!form.edition_id && occ.length > 0;
                 const byType = new Map<string, string[]>();
                 for (const r of hotelRooms) {
                   const t = r.room_type || r.name || "Untyped";
@@ -462,17 +474,29 @@ export default function PackagesPage() {
                 const strays = [...pkgRoomIds].filter((id) => !rooms.some((r) => r.id === id && (r.hotel ?? "").toLowerCase() === hotelName)).length;
                 return (
                   <>
-                    <p className="text-[11px] admin-faint mb-2">One chip per <b>room type</b> — its room count becomes the package&apos;s <b>Spots</b>. Saved instantly; press Update to store the synced spots.</p>
+                    <p className="text-[11px] admin-faint mb-2">One chip per <b>room type</b> — counting only rooms <b>scheduled for this edition</b> (their week rows on the Hotel Rooms page). The count becomes the package&apos;s <b>Spots</b>; &quot;free&quot; = not yet assigned to a booking. Packages sharing the same rooms (Advanced + Beginner) share this availability. Saved instantly; press Update to store the synced spots.</p>
                     <div className="flex flex-wrap gap-1.5">
-                      {[...byType.entries()].map(([t, ids]) => {
+                      {[...byType.entries()].map(([t, allIds]) => {
+                        // only rooms actually operated in THIS edition count (week rows)
+                        const ids = editionAware ? allIds.filter((id) => scheduled.has(id)) : allIds;
+                        const unscheduled = allIds.length - ids.length;
+                        const freeN = editionAware ? ids.filter((id) => free.has(id)).length : null;
+                        if (ids.length === 0) {
+                          return (
+                            <span key={t} className="px-3 py-1.5 rounded-lg text-xs font-semibold admin-faint opacity-60 cursor-not-allowed" style={{ border: "1px dashed var(--admin-border)" }}
+                              title="No week rows for this edition — schedule the rooms on the Hotel Rooms page first">
+                              {t} · not this week
+                            </span>
+                          );
+                        }
                         const on = ids.every((id) => pkgRoomIds.has(id));
                         const some = !on && ids.some((id) => pkgRoomIds.has(id));
                         return (
                           <button key={t} type="button" onClick={() => toggleRoomType(ids)}
                             className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors ${on ? "bg-[#0aa3c7] text-white" : "admin-muted hover:admin-heading"}`}
                             style={on ? undefined : { border: some ? "1px dashed #0aa3c7" : "1px solid var(--admin-border)" }}
-                            title={`${ids.length} physical room${ids.length === 1 ? "" : "s"} of this type`}>
-                            {on ? "\u2713 " : ""}{t} <span className={on ? "opacity-80" : "admin-faint"}>· {ids.length}</span>
+                            title={`${ids.length} room${ids.length === 1 ? "" : "s"} scheduled this edition${freeN != null ? ` · ${freeN} still free` : ""}${unscheduled > 0 ? ` · ${unscheduled} more exist but aren't scheduled this week` : ""}`}>
+                            {on ? "\u2713 " : ""}{t} <span className={on ? "opacity-80" : "admin-faint"}>· {ids.length}{freeN != null ? ` · ${freeN} free` : ""}</span>
                           </button>
                         );
                       })}

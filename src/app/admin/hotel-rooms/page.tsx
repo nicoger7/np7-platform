@@ -70,6 +70,7 @@ export default function HotelRoomsPage() {
   const [selUnit, setSelUnit] = useState<string | "new" | null>(null);
   const [unitForm, setUnitForm] = useState(emptyUnit);
   const [savingUnit, setSavingUnit] = useState(false);
+  const [expPickerOpen, setExpPickerOpen] = useState(false);
   // per-week editor (inside a selected room)
   const [weekEditId, setWeekEditId] = useState<string | "new" | null>(null);
   const [weekForm, setWeekForm] = useState(emptyWeek);
@@ -253,15 +254,35 @@ export default function HotelRoomsPage() {
               <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 mb-3">
                 <div><label className={labelClass}>Hotel</label><select className={inputClass} value={unitForm.hotel} onChange={(e) => setUnitForm({ ...unitForm, hotel: e.target.value })}><option value="">—</option>{HOTELS.map((h) => <option key={h} value={h}>{h}</option>)}</select></div>
                 <div><label className={labelClass}>Room # <span className="normal-case font-normal admin-faint">— the hotel’s own number, if any</span></label><input className={inputClass} value={unitForm.room_number} onChange={(e) => setUnitForm({ ...unitForm, room_number: e.target.value })} /></div>
-                <div><label className={labelClass}>Experiences <span className="normal-case font-normal admin-faint">— all that use this room</span></label>
-                  <div className="flex flex-wrap gap-1.5 pt-1">
-                    {experiences.map((ex) => {
-                      const on = unitForm.experience_ids.includes(ex.id);
-                      return <button key={ex.id} type="button" onClick={() => setUnitForm({ ...unitForm, experience_ids: on ? unitForm.experience_ids.filter((x) => x !== ex.id) : [...unitForm.experience_ids, ex.id] })}
-                        className={`px-2.5 py-1 rounded-lg text-xs font-semibold transition-colors ${on ? "bg-[#0aa3c7] text-white" : "admin-muted hover:admin-heading"}`}
-                        style={on ? undefined : { border: "1px solid var(--admin-border)" }}>{on ? "✓ " : ""}{ex.title}</button>;
-                    })}
-                  </div>
+                <div className="relative"><label className={labelClass}>Experiences <span className="normal-case font-normal admin-faint">— all that use this room</span></label>
+                  <button type="button" onClick={() => setExpPickerOpen((v) => !v)}
+                    className={`${inputClass} text-left flex items-center justify-between gap-2`}>
+                    <span className="truncate">
+                      {unitForm.experience_ids.length === 0 ? "—"
+                        : unitForm.experience_ids.length <= 2
+                          ? unitForm.experience_ids.map((id) => experiences.find((e) => e.id === id)?.title?.replace(/^NP7 (Experience )?/, "") ?? "?").join(", ")
+                          : `${unitForm.experience_ids.length} experiences`}
+                    </span>
+                    <svg className="w-3.5 h-3.5 shrink-0 admin-faint" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="m6 9 6 6 6-6" /></svg>
+                  </button>
+                  {expPickerOpen && (
+                    <>
+                      <div className="fixed inset-0 z-20" onClick={() => setExpPickerOpen(false)} />
+                      <div className="absolute z-30 left-0 right-0 top-full mt-1 max-h-[260px] overflow-y-auto rounded-xl py-1" style={{ border: "1px solid var(--admin-border)", background: "var(--admin-bg)", boxShadow: "0 8px 24px rgba(0,0,0,0.3)" }}>
+                        {experiences.map((ex) => {
+                          const on = unitForm.experience_ids.includes(ex.id);
+                          return (
+                            <button key={ex.id} type="button"
+                              onClick={() => setUnitForm({ ...unitForm, experience_ids: on ? unitForm.experience_ids.filter((x) => x !== ex.id) : [...unitForm.experience_ids, ex.id] })}
+                              className="w-full flex items-center gap-2 px-3 py-1.5 text-left text-xs hover:bg-[var(--admin-surface-hover)] transition-colors">
+                              <span className={`w-4 h-4 shrink-0 grid place-items-center rounded border ${on ? "bg-[#0aa3c7] border-[#0aa3c7] text-white" : ""}`} style={on ? undefined : { borderColor: "var(--admin-border)" }}>{on ? "✓" : ""}</span>
+                              <span className={on ? "admin-heading font-semibold" : "admin-muted"}>{ex.title}</span>
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </>
+                  )}
                 </div>
               </div>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-4">
