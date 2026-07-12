@@ -65,8 +65,8 @@ export const SENDERS: Record<Division, { from: string; replyTo: string }> = {
  * division default) + the brand colour-fade bar + the logo. Footer carries the
  * division contact address. Pass `headerImage: null` to drop the photo.
  */
-export function emailLayout(opts: { division?: Division; preheader?: string; headerImage?: string | null; headerPosition?: number | null; bodyHtml: string }): string {
-  const { division = "experience", preheader = "", headerImage, headerPosition, bodyHtml: rawBody } = opts;
+export function emailLayout(opts: { division?: Division; preheader?: string; headerImage?: string | null; headerPosition?: number | null; bodyHtml: string; unsubscribeUrl?: string }): string {
+  const { division = "experience", preheader = "", headerImage, headerPosition, bodyHtml: rawBody, unsubscribeUrl } = opts;
   const t = THEMES[division];
   const hero = headerImage === undefined ? t.hero : headerImage;
   const posY = Math.min(100, Math.max(0, headerPosition ?? 50)); // vertical focal point %
@@ -90,7 +90,7 @@ export function emailLayout(opts: { division?: Division; preheader?: string; hea
   <tr><td style="padding:26px 32px 30px;color:#33434a;font-size:15px;line-height:1.6;">${bodyHtml}</td></tr>
   <tr><td style="background:${t.footerBg};padding:22px 32px;color:${t.footerText};font-size:12px;line-height:1.6;">
     <strong style="color:${t.footerStrong};">NP7 GmbH</strong> · Germany · ${t.contactEmail}<br>
-    ${esc(t.tagline)}
+    ${esc(t.tagline)}${unsubscribeUrl ? `<br><span style="color:${t.footerText};">You're receiving this because you subscribed — <a href="${unsubscribeUrl}" style="color:${t.footerStrong};text-decoration:underline;">unsubscribe</a>.</span>` : ""}
   </td></tr>
 </table>
 <div style="color:#9aa6ac;font-size:11px;padding:16px 8px 0;">© 2026 NP7 GmbH</div>

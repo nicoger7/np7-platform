@@ -109,7 +109,7 @@ export const SECTIONS: Section[] = [
   { key: "documents", label: "Documents", world: "experience", group: "Finance", paths: ["/admin/documents", "/api/admin/documents"] },
   { key: "settings", label: "Company settings", world: "experience", group: "Finance", paths: ["/admin/settings", "/api/admin/company-settings"] },
   // Experience · Automation
-  { key: "emails", label: "Emails & templates", world: "experience", group: "Automation", paths: ["/admin/emails", "/admin/email-templates", "/admin/email-log", "/api/admin/emails", "/api/admin/email-templates", "/api/admin/email-log"] },
+  { key: "emails", label: "Emails & templates", world: "experience", group: "Automation", paths: ["/admin/emails", "/admin/email-templates", "/admin/email-log", "/admin/campaigns", "/api/admin/emails", "/api/admin/email-templates", "/api/admin/email-log", "/api/admin/campaigns"] },
   // Hardware
   { key: "products", label: "Products", world: "hardware", group: "Hardware", paths: ["/admin/products", "/api/admin/products"] },
   { key: "orders", label: "Orders", world: "hardware", group: "Hardware", paths: ["/admin/orders", "/api/admin/orders"] },

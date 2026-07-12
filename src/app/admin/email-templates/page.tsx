@@ -85,6 +85,45 @@ export default function EmailTemplatesPage() {
   const [pickingImage, setPickingImage] = useState(false);
   const autoOpenedRef = useRef(false);
   const heroDrag = useRef<{ y: number; pos: number; h: number } | null>(null);
+  // editor polish: unsaved-changes guard + test send + mobile preview
+  const [dirty, setDirty] = useState(false);
+  const skipDirty = useRef(false);
+  const [testTo, setTestTo] = useState("");
+  const [testState, setTestState] = useState<"idle" | "sending" | "ok" | string>("idle");
+  const [previewMobile, setPreviewMobile] = useState(false);
+
+  // Any form change while the editor is open marks it dirty (skipped once right
+  // after openNew/startEdit populate the form).
+  useEffect(() => {
+    if (!showNew && !editId) return;
+    if (skipDirty.current) { skipDirty.current = false; return; }
+    setDirty(true);
+  }, [form]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  useEffect(() => {
+    if (!dirty) return;
+    const h = (e: BeforeUnloadEvent) => { e.preventDefault(); };
+    window.addEventListener("beforeunload", h);
+    return () => window.removeEventListener("beforeunload", h);
+  }, [dirty]);
+
+  function confirmDiscard(): boolean {
+    if (!dirty) return true;
+    const ok = confirm("You have unsaved changes — discard them?");
+    if (ok) setDirty(false);
+    return ok;
+  }
+
+  async function sendTestDraft() {
+    setTestState("sending");
+    const res = await fetch("/api/admin/email/test", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ to: testTo, subject: previewSubject || form.subject_line, html: previewHtml, division: previewDivision }),
+    });
+    const d = await res.json().catch(() => ({}));
+    setTestState(res.ok ? "ok" : (d.error || "Failed"));
+  }
 
   // Deep-link: /admin/email-templates?edit=<template_key> opens that template's
   // editor straight away (used by the Emails hub "click to edit").
@@ -153,10 +192,16 @@ export default function EmailTemplatesPage() {
     : templates;
 
   function openNew() {
+    if (!confirmDiscard()) return;
+    skipDirty.current = true;
+    setTestState("idle");
     setShowNew(true); setEditId(null); setShowAdvanced(false); setForm(EMPTY_FORM);
   }
 
   function startEdit(t: EmailTemplate) {
+    if (!confirmDiscard()) return;
+    skipDirty.current = true;
+    setTestState("idle");
     setEditId(t.id);
     setShowAdvanced(false);
     const key = t.template_key || "";
@@ -195,6 +240,7 @@ export default function EmailTemplatesPage() {
       alert(j.error?.includes("header_image") ? "Couldn't save — apply migration 029 (adds the header image column) first." : (j.error || "Couldn't save."));
       return;
     }
+    setDirty(false);
     setShowNew(false); setEditId(null); fetchData();
   }
 
@@ -258,7 +304,7 @@ export default function EmailTemplatesPage() {
       <div className="flex flex-col lg:flex-row gap-4">
         {/* rail — small list of templates */}
         <div className="lg:w-60 shrink-0 flex lg:flex-col gap-1.5 lg:max-h-[82vh] lg:overflow-y-auto lg:pr-1">
-          <button onClick={() => { setShowNew(false); setEditId(null); }} className="shrink-0 mb-1 flex items-center gap-1.5 text-xs font-semibold admin-muted hover:text-[var(--admin-accent)] transition-colors">
+          <button onClick={() => { if (!confirmDiscard()) return; setShowNew(false); setEditId(null); }} className="shrink-0 mb-1 flex items-center gap-1.5 text-xs font-semibold admin-muted hover:text-[var(--admin-accent)] transition-colors">
             <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m15 18-6-6 6-6" /></svg>
             All templates
           </button>
@@ -379,10 +425,29 @@ export default function EmailTemplatesPage() {
             <p className="mt-2 text-center text-[11px] admin-faint">The toolbar above formats the body; the header, logo, colours and footer are added automatically. <button type="button" onClick={() => setExactOpen((v) => !v)} className="hover:text-[#0aa3c7] transition-colors underline">{exactOpen ? "Hide exact render" : "See exact render"}</button></p>
 
             {exactOpen && (
-              <div className="mx-auto max-w-[600px] mt-2 rounded-lg overflow-hidden bg-white" style={{ border: "1px solid var(--admin-border)", height: 420 }}>
-                <iframe title="Exact email render" srcDoc={previewHtml} sandbox="" className="w-full h-full" />
-              </div>
+              <>
+                <div className="flex justify-center mt-2">
+                  <div className="inline-flex rounded-md overflow-hidden" style={{ border: "1px solid var(--admin-border)" }}>
+                    {([[false, "Desktop"], [true, "Mobile"]] as const).map(([mob, label]) => (
+                      <button key={label} type="button" onClick={() => setPreviewMobile(mob)} className={`px-2.5 py-1 text-[11px] font-semibold transition-colors ${previewMobile === mob ? "bg-[var(--admin-accent)] text-[var(--admin-accent-contrast)]" : "admin-muted"}`}>{label}</button>
+                    ))}
+                  </div>
+                </div>
+                <div className="mx-auto mt-2 rounded-lg overflow-hidden bg-white transition-all" style={{ border: "1px solid var(--admin-border)", height: 420, maxWidth: previewMobile ? 380 : 600 }}>
+                  <iframe title="Exact email render" srcDoc={previewHtml} sandbox="" className="w-full h-full" />
+                </div>
+              </>
             )}
+
+            {/* Send test to me — delivers the exact current draft via Resend */}
+            <div className="mt-3 flex items-center justify-center gap-2 flex-wrap">
+              <input className={`${inputClass} !w-60`} type="email" placeholder="you@np-seven.com" value={testTo} onChange={(e) => setTestTo(e.target.value)} />
+              <button type="button" onClick={sendTestDraft} disabled={!testTo || !previewHtml || testState === "sending"} className="px-3 py-2 text-xs font-bold rounded-lg admin-surface admin-heading disabled:opacity-40 transition-colors" style={{ border: "1px solid var(--admin-border)" }}>
+                {testState === "sending" ? "Sending…" : "Send test to me"}
+              </button>
+              {testState === "ok" && <span className="text-xs text-green-400">Sent ✓</span>}
+              {testState !== "idle" && testState !== "sending" && testState !== "ok" && <span className="text-xs text-red-400">{testState}</span>}
+            </div>
           </div>
 
           {/* Advanced (collapsed) */}
@@ -416,8 +481,8 @@ export default function EmailTemplatesPage() {
           )}
 
           <div className="flex gap-2">
-            <button onClick={handleSave} disabled={!form.name} className="px-4 py-2 bg-[var(--admin-accent)] hover:bg-[var(--admin-accent)]/90 disabled:opacity-40 text-[var(--admin-accent-contrast)] text-sm font-bold rounded-lg">{editId ? "Save" : "Create"}</button>
-            <button onClick={() => { setShowNew(false); setEditId(null); }} className="px-4 py-2 admin-muted text-sm rounded-lg">Cancel</button>
+            <button onClick={handleSave} disabled={!form.name} className="px-4 py-2 bg-[var(--admin-accent)] hover:bg-[var(--admin-accent)]/90 disabled:opacity-40 text-[var(--admin-accent-contrast)] text-sm font-bold rounded-lg">{editId ? (dirty ? "Save" : "Saved ✓") : "Create"}</button>
+            <button onClick={() => { if (!confirmDiscard()) return; setShowNew(false); setEditId(null); }} className="px-4 py-2 admin-muted text-sm rounded-lg">Cancel</button>
           </div>
         </div>
         </div>

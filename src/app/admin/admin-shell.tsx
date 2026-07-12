@@ -94,6 +94,7 @@ const navByEnv: Record<Environment, NavGroup[]> = {
       label: "AUTOMATION",
       items: [
         { label: "Emails", href: "/admin/emails", icon: "flow" },
+        { label: "Campaigns", href: "/admin/campaigns", icon: "mail" },
         { label: "Email Templates", href: "/admin/email-templates", icon: "mail" },
         { label: "Email Log", href: "/admin/email-log", icon: "mail" },
       ],
