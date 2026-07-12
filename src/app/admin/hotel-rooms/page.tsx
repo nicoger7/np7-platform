@@ -196,9 +196,16 @@ export default function HotelRoomsPage() {
       check_in: weekForm.check_in || null, check_out: weekForm.check_out || null,
       transfer_need: weekForm.transfer_need, partner_tag_along: weekForm.partner_tag_along || null,
     };
-    if (weekEditId === "new") await fetch("/api/admin/hotel-rooms", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
-    else await fetch(`/api/admin/hotel-rooms/${weekEditId}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
-    setSavingWeek(false); setWeekEditId(null); setWeekForm(emptyWeek); loadRooms();
+    const res = weekEditId === "new"
+      ? await fetch("/api/admin/hotel-rooms", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) })
+      : await fetch(`/api/admin/hotel-rooms/${weekEditId}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+    setSavingWeek(false);
+    if (!res.ok) {
+      const j = await res.json().catch(() => ({} as { error?: string }));
+      alert(j.error || "Couldn't save this week — please try again.");
+      return; // keep the form open so nothing typed is lost
+    }
+    setWeekEditId(null); setWeekForm(emptyWeek); loadRooms();
   }
   async function removeWeek(id: string) {
     if (!confirm("Remove this week's booking from the room?")) return;
@@ -331,8 +338,8 @@ export default function HotelRoomsPage() {
                       <div><label className={labelClass}>Edition (week)</label><select className={inputClass} value={weekForm.edition_id} onChange={(e) => setWeekForm({ ...weekForm, edition_id: e.target.value, booking_id: "" })}><option value="">—</option>{weekEditions.map((ed) => <option key={ed.id} value={ed.id}>{ed.label || ed.year}</option>)}</select></div>
                       <div><label className={labelClass}>Guest (booking)</label><select className={inputClass} value={weekForm.booking_id} onChange={(e) => setWeekForm({ ...weekForm, booking_id: e.target.value })} disabled={!weekForm.edition_id}><option value="">Unassigned</option>{editionBookings.map((b) => <option key={b.id} value={b.id}>{b.name}</option>)}</select></div>
                       <div><label className={labelClass}>Status</label><select className={inputClass} value={weekForm.status} onChange={(e) => setWeekForm({ ...weekForm, status: e.target.value })}>{STATUSES.map((s) => <option key={s} value={s}>{s[0].toUpperCase() + s.slice(1)}</option>)}</select></div>
-                      <div><label className={labelClass}>Check-in</label><input type="date" className={inputClass} value={weekForm.check_in} onChange={(e) => setWeekForm({ ...weekForm, check_in: e.target.value })} /></div>
-                      <div><label className={labelClass}>Check-out</label><input type="date" className={inputClass} value={weekForm.check_out} onChange={(e) => setWeekForm({ ...weekForm, check_out: e.target.value })} /></div>
+                      <div><label className={labelClass}>Check-in</label><input type="date" key={`ci-${weekEditId}`} className={inputClass} defaultValue={weekForm.check_in} onChange={(e) => setWeekForm((f) => ({ ...f, check_in: e.target.value }))} onBlur={(e) => setWeekForm((f) => ({ ...f, check_in: e.target.value }))} /></div>
+                      <div><label className={labelClass}>Check-out</label><input type="date" key={`co-${weekEditId}`} className={inputClass} defaultValue={weekForm.check_out} onChange={(e) => setWeekForm((f) => ({ ...f, check_out: e.target.value }))} onBlur={(e) => setWeekForm((f) => ({ ...f, check_out: e.target.value }))} /></div>
                       <div><label className={labelClass}>Partner tagging along</label><input className={inputClass} value={weekForm.partner_tag_along} onChange={(e) => setWeekForm({ ...weekForm, partner_tag_along: e.target.value })} /></div>
                     </div>
                     <label className="flex items-center gap-2 text-sm admin-muted cursor-pointer mb-3"><input type="checkbox" checked={weekForm.transfer_need} onChange={(e) => setWeekForm({ ...weekForm, transfer_need: e.target.checked })} className="w-4 h-4 accent-[#0aa3c7]" />Airport transfer needed</label>
