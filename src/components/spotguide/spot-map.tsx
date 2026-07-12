@@ -32,6 +32,7 @@ export function SpotMap({ spots, cluster = false, height = 420, linkLabel = "Vie
       if (cluster) await import("leaflet.markercluster");
       if (cancelled || !elRef.current || mapRef.current) return;
       const map = L.map(elRef.current, { scrollWheelZoom: false, zoomControl: true });
+      map.attributionControl.setPrefix('<a href="https://leafletjs.com" title="A JavaScript library for interactive maps">Leaflet</a>'); // strip Leaflet's default Ukraine-flag prefix
       mapRef.current = map;
 
       // Scroll-zoom engages only after a click — otherwise wheel/trackpad keeps

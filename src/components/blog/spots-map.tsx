@@ -31,6 +31,7 @@ export function SpotsMap({ spots, accent, accentInk }: { spots: Spot[]; accent: 
       await import("leaflet.markercluster"); // augments L with markerClusterGroup
       if (cancelled || !elRef.current || mapRef.current) return;
       const map = L.map(elRef.current, { scrollWheelZoom: false });
+      map.attributionControl.setPrefix('<a href="https://leafletjs.com" title="A JavaScript library for interactive maps">Leaflet</a>'); // strip Leaflet's default Ukraine-flag prefix
       mapRef.current = map;
       L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
         attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',

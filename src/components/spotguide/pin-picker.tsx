@@ -21,6 +21,7 @@ export function PinPicker({ value, onChange, height = 260 }: { value: { lat: num
       if (cancelled || !elRef.current || mapRef.current) return;
       const start = value ?? { lat: 30, lng: 0 };
       const map = L.map(elRef.current, { scrollWheelZoom: false }).setView([start.lat, start.lng], value ? 11 : 2);
+      map.attributionControl.setPrefix('<a href="https://leafletjs.com" title="A JavaScript library for interactive maps">Leaflet</a>'); // strip Leaflet's default Ukraine-flag prefix
       mapRef.current = map;
       L.tileLayer("https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png", { subdomains: "abcd", maxZoom: 19, attribution: "&copy; OpenStreetMap &copy; CARTO" }).addTo(map);
 

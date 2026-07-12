@@ -24,6 +24,7 @@ export function AllSpotsMap({ points }: { points: SpotPoint[] }) {
       const L = (await import("leaflet")).default;
       if (cancelled || !elRef.current || mapRef.current) return;
       const map = L.map(elRef.current, { scrollWheelZoom: false });
+      map.attributionControl.setPrefix('<a href="https://leafletjs.com" title="A JavaScript library for interactive maps">Leaflet</a>'); // strip Leaflet's default Ukraine-flag prefix
       mapRef.current = map;
       // `voyager_nolabels`: no country/place labels — Carto's raster tiles render
       // them in each region's LOCAL language (Arabic, Chinese, "América do Sul"…),
