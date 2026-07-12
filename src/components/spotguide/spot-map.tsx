@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import type { Map as LeafletMap } from "leaflet";
 import "leaflet/dist/leaflet.css";
+import { attachBaseLayers } from "@/lib/leaflet-base";
 
 export type MapSpot = {
   lat: number; lng: number; name: string; destSlug: string; destName?: string; verification?: string;
@@ -46,10 +47,8 @@ export function SpotMap({ spots, cluster = false, height = 420, linkLabel = "Vie
       // region's LOCAL language (Arabic, Chinese, "América do Sul"…), which looked
       // messy on the world overview; the spot pins carry the names, so a clean
       // label-free base reads best.
-      L.tileLayer("https://{s}.basemaps.cartocdn.com/rastertiles/voyager_nolabels/{z}/{x}/{y}{r}.png", {
-        attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> &copy; <a href="https://carto.com/attributions">CARTO</a>',
-        subdomains: "abcd", maxZoom: 19,
-      }).addTo(map);
+      // street/satellite base layers + toggle
+      attachBaseLayers(L, map);
 
       const teardrop = (fill: string) =>
         `position:relative;width:26px;height:26px;border-radius:50% 50% 50% 0;transform:rotate(-45deg);background:${fill};border:2.5px solid #fff;box-shadow:0 3px 9px rgba(0,55,74,.4)`;

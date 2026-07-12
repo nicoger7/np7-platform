@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import type { Map as LeafletMap } from "leaflet";
 import "leaflet/dist/leaflet.css";
+import { attachBaseLayers } from "@/lib/leaflet-base";
 
 export type SpotPoint = { lat: number; lng: number; spot: string; title: string; slug: string; region?: string };
 
@@ -30,11 +31,8 @@ export function AllSpotsMap({ points }: { points: SpotPoint[] }) {
       // them in each region's LOCAL language (Arabic, Chinese, "América do Sul"…),
       // which looked messy. The destination pins carry the names, so a clean
       // label-free base reads best.
-      L.tileLayer("https://{s}.basemaps.cartocdn.com/rastertiles/voyager_nolabels/{z}/{x}/{y}{r}.png", {
-        attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> &copy; <a href="https://carto.com/attributions">CARTO</a>',
-        subdomains: "abcd",
-        maxZoom: 19,
-      }).addTo(map);
+      // street/satellite base layers + toggle
+      attachBaseLayers(L, map);
 
       const pin = `position:relative;width:28px;height:28px;border-radius:50% 50% 50% 0;transform:rotate(-45deg);background:linear-gradient(135deg,#ffc42e,#f47b20,#00afdb);border:2.5px solid #fff;box-shadow:0 3px 9px rgba(0,55,74,.4)`;
       const dot = `transform:rotate(45deg);width:100%;height:100%;display:flex;align-items:center;justify-content:center`;

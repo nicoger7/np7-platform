@@ -3,6 +3,7 @@
 import { useEffect, useRef } from "react";
 import type { Map as LeafletMap, Marker } from "leaflet";
 import "leaflet/dist/leaflet.css";
+import { attachBaseLayers } from "@/lib/leaflet-base";
 
 /** Click-to-drop a pin → returns coordinates. Used in the member add-spot flow
     so every submitted spot is precisely located. */
@@ -23,7 +24,8 @@ export function PinPicker({ value, onChange, height = 260 }: { value: { lat: num
       const map = L.map(elRef.current, { scrollWheelZoom: false }).setView([start.lat, start.lng], value ? 11 : 2);
       map.attributionControl.setPrefix('<a href="https://leafletjs.com" title="A JavaScript library for interactive maps">Leaflet</a>'); // strip Leaflet's default Ukraine-flag prefix
       mapRef.current = map;
-      L.tileLayer("https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png", { subdomains: "abcd", maxZoom: 19, attribution: "&copy; OpenStreetMap &copy; CARTO" }).addTo(map);
+      // street/satellite base + toggle — satellite is gold for pinning launches/reefs
+      attachBaseLayers(L, map, { labels: true });
 
       const icon = L.divIcon({
         className: "",

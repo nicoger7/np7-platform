@@ -4,6 +4,7 @@ import { useEffect, useRef } from "react";
 import type { Map as LeafletMap } from "leaflet";
 import "leaflet/dist/leaflet.css";
 import "leaflet.markercluster/dist/MarkerCluster.css";
+import { attachBaseLayers } from "@/lib/leaflet-base";
 import { type Spot, parseCoords } from "@/lib/blog-templates";
 
 /**
@@ -33,10 +34,8 @@ export function SpotsMap({ spots, accent, accentInk }: { spots: Spot[]; accent: 
       const map = L.map(elRef.current, { scrollWheelZoom: false });
       map.attributionControl.setPrefix('<a href="https://leafletjs.com" title="A JavaScript library for interactive maps">Leaflet</a>'); // strip Leaflet's default Ukraine-flag prefix
       mapRef.current = map;
-      L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
-        attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
-        maxZoom: 18,
-      }).addTo(map);
+      // street/satellite base layers + toggle (labelled — article maps need place context)
+      attachBaseLayers(L, map, { labels: true });
 
       const pin = (bg: string, fg: string, size: number, fontSize: number, label: string | number) =>
         `<div style="width:${size}px;height:${size}px;border-radius:50%;background:${bg};color:${fg};display:flex;align-items:center;justify-content:center;font-weight:800;font-size:${fontSize}px;border:2px solid #fff;box-shadow:0 1px 6px rgba(0,0,0,.45)">${label}</div>`;
