@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback } from "react";
 import Link from "next/link";
-import { editionLabel } from "@/lib/edition-label";
+import { editionLabel, editionOptionLabel } from "@/lib/edition-label";
 
 /**
  * Hotel Rooms — physical room (exp_rooms) + per-week occupancy (exp_hotel_rooms).
@@ -433,7 +433,7 @@ export default function HotelRoomsPage() {
                               <option value="">All</option>
                               {years.map((y) => <option key={y} value={String(y)}>{y}</option>)}
                             </select></div>
-                            <div><label className={labelClass}>Edition (week)</label><select className={inputClass} value={weekForm.edition_id} onChange={(e) => setWeekForm({ ...weekForm, edition_id: e.target.value, booking_id: "" })}><option value="">—</option>{opts.map((ed) => <option key={ed.id} value={ed.id}>{selYear ? (ed.label || ed.year) : [ed.year, ed.label].filter(Boolean).join(" · ")}</option>)}</select></div>
+                            <div><label className={labelClass}>Edition (week)</label><select className={inputClass} value={weekForm.edition_id} onChange={(e) => setWeekForm({ ...weekForm, edition_id: e.target.value, booking_id: "" })}><option value="">—</option>{opts.map((ed) => <option key={ed.id} value={ed.id}>{editionOptionLabel(ed)}</option>)}</select></div>
                           </>
                         );
                       })()}
