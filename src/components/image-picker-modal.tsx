@@ -99,9 +99,21 @@ export default function ImagePickerModal({ onSelect, onClose, defaultFolder }: I
   const [query, setQuery] = useState("");
   const [error, setError] = useState("");
   const [dragOver, setDragOver] = useState(false);
+  const [dest, setDest] = useState(defaultFolder || ""); // where NEW uploads land — always shown, changeable
+  const [newFolderOpen, setNewFolderOpen] = useState(false);
+  const [newFolder, setNewFolder] = useState("");
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const uploadTarget = (view === "folders" && folder) ? folder : (defaultFolder || folder || "uploads");
+  const target = dest || "uploads"; // effective upload folder (root falls back to /uploads)
+
+  async function createFolder() {
+    const clean = newFolder.trim().toLowerCase().replace(/[^a-z0-9/_-]+/g, "-").replace(/^-+|-+$/g, "");
+    if (!clean) { setNewFolderOpen(false); return; }
+    const path = dest ? `${dest}/${clean}` : clean;
+    await fetch("/api/admin/images", { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ folder: path }) }).catch(() => {});
+    setDest(path); setNewFolder(""); setNewFolderOpen(false);
+    if (view === "folders") { setFolder(path); loadFolder(path); }
+  }
 
   const loadAll = useCallback(async () => {
     setLoading(true);
@@ -141,7 +153,7 @@ export default function ImagePickerModal({ onSelect, onClose, defaultFolder }: I
         const named = new File([file], safeName(file), { type: file.type });
         const fd = new FormData();
         fd.append("file", named);
-        fd.append("folder", uploadTarget);
+        fd.append("folder", target);
         const res = await fetch("/api/admin/images", { method: "POST", body: fd });
         if (!res.ok) { const j = await res.json().catch(() => ({})); throw new Error(j.error || `Upload failed (${res.status})`); }
         const j = await res.json();
@@ -211,6 +223,32 @@ export default function ImagePickerModal({ onSelect, onClose, defaultFolder }: I
           </button>
         </div>
 
+        {/* Upload destination — ALWAYS visible so it's obvious where new files land,
+            and easy to change (browse a folder → "use this", or make a new one). */}
+        <div className="flex items-center gap-2 px-5 py-2.5 flex-wrap" style={{ borderBottom: "1px solid var(--admin-border)", backgroundColor: "var(--admin-bg)" }}>
+          <span className="text-[11px] font-bold uppercase tracking-wide admin-faint shrink-0">New uploads go to</span>
+          <span className="inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1 text-[12.5px] font-bold admin-heading" style={{ backgroundColor: "var(--admin-surface)", border: "1px solid var(--admin-border)" }}>
+            <svg className="w-3.5 h-3.5 admin-faint" viewBox="0 0 24 24" fill="currentColor"><path d="M2 6a2 2 0 012-2h5l2 2h9a2 2 0 012 2v10a2 2 0 01-2 2H4a2 2 0 01-2-2V6z" /></svg>
+            {target}
+          </span>
+          {view === "folders" && folder && folder !== dest && (
+            <button onClick={() => setDest(folder)} className="text-[12px] font-bold text-[#0aa3c7] hover:underline">← put uploads in “{folder.split("/").pop()}”</button>
+          )}
+          {view === "all" && <button onClick={() => setView("folders")} className="text-[12px] font-bold text-[#0aa3c7] hover:underline">Change folder</button>}
+          <span className="admin-faint hidden sm:inline">·</span>
+          {newFolderOpen ? (
+            <span className="inline-flex items-center gap-1.5">
+              <input autoFocus value={newFolder} onChange={(e) => setNewFolder(e.target.value)}
+                onKeyDown={(e) => { if (e.key === "Enter") createFolder(); if (e.key === "Escape") { setNewFolderOpen(false); setNewFolder(""); } }}
+                placeholder="new-folder-name" className="px-2.5 py-1 admin-input border rounded-lg text-[12.5px] w-[160px] focus:outline-none focus:border-[#0aa3c7]" />
+              <button onClick={createFolder} className="text-[12px] font-bold text-[#0aa3c7]">Create</button>
+              <button onClick={() => { setNewFolderOpen(false); setNewFolder(""); }} className="text-[12px] admin-faint">Cancel</button>
+            </span>
+          ) : (
+            <button onClick={() => setNewFolderOpen(true)} className="text-[12px] font-bold text-[#0aa3c7] hover:underline">＋ New folder{dest ? ` inside ${dest.split("/").pop()}` : ""}</button>
+          )}
+        </div>
+
         {error && <div className="mx-5 mt-3 rounded-lg px-4 py-2.5 text-[13px] font-medium" style={{ backgroundColor: "rgba(239,68,68,0.12)", color: "#ef4444", border: "1px solid rgba(239,68,68,0.3)" }}>{error}</div>}
 
         {/* Folder breadcrumbs (folders view only) */}
@@ -234,7 +272,7 @@ export default function ImagePickerModal({ onSelect, onClose, defaultFolder }: I
         <div className="relative flex-1 overflow-auto p-4 sm:p-5 min-h-0">
           {dragOver && (
             <div className="absolute inset-3 z-10 rounded-2xl border-2 border-dashed border-[#0aa3c7] bg-[#0aa3c7]/10 grid place-items-center pointer-events-none">
-              <p className="text-sm font-bold text-[#0aa3c7]">Drop to upload to “{uploadTarget}”</p>
+              <p className="text-sm font-bold text-[#0aa3c7]">Drop to upload to “{target}”</p>
             </div>
           )}
 
@@ -304,8 +342,8 @@ export default function ImagePickerModal({ onSelect, onClose, defaultFolder }: I
         {/* Footer */}
         <div className="flex items-center justify-between p-4 sm:p-5" style={{ borderTop: "1px solid var(--admin-border)" }}>
           <p className="text-xs admin-faint">
-            {view === "all" ? `${allImages.length} image${allImages.length === 1 ? "" : "s"}` : `Uploads go to “${uploadTarget}”`}
-            <span className="hidden sm:inline"> · double-click to confirm</span>
+            {view === "all" ? `${allImages.length} image${allImages.length === 1 ? "" : "s"}` : `${folders.length} folder${folders.length === 1 ? "" : "s"} · ${grid.length} image${grid.length === 1 ? "" : "s"} here`}
+            <span className="hidden sm:inline"> · double-click a photo to pick it</span>
           </p>
           <div className="flex gap-3">
             <button onClick={onClose} className="px-4 py-2 text-sm admin-muted">Cancel</button>
