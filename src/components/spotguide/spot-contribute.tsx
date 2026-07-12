@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { SpotVisitRater, ForecastVoter } from "./raters";
+import { SpotVisitRater } from "./raters";
 import { SpotPhotos } from "./spot-photos";
 import { useSpotguide } from "./spotguide-provider";
 import { windWindowHasValue, asWindWindow } from "@/lib/spotguide";
@@ -19,12 +19,13 @@ export function SpotContribute({ spotId, accent = "#00afdb", np7Ratings }: { spo
   const mine = sg.mineSpot(spotId);
   const rated = !!mine && (Object.values(mine.ratings ?? {}).some((n) => n > 0) || !!mine.level || (mine.conditions ?? []).length > 0 || windWindowHasValue(asWindWindow(mine.wind_window ?? {})));
 
-  const WAYS = ["★ Stars", "Level", "Conditions", "Wind window", "Forecast vote", "Photos"];
+  // (the forecast-model vote lives in the always-visible "Best forecast here"
+  // panel above — not in this fold, where members kept missing it)
+  const WAYS = ["★ Stars", "Level", "Conditions", "Wind window", "Photos"];
 
   const body = open && (
     <div className="px-5 pb-5 pt-4 space-y-2 border-t border-[#f0e9da]">
       <SpotVisitRater spotId={spotId} accent={accent} onSaved={() => setOpen(false)} defaults={np7Ratings} />
-      <ForecastVoter spotId={spotId} accent={accent} />
       <div className="mt-3 pt-3 border-t border-[#f0e9da]">
         <p className="text-[11px] font-bold uppercase tracking-[0.1em] text-[#9aa6ac] mb-2">Add a photo</p>
         <SpotPhotos spotId={spotId} photos={[]} accent={accent} mode="upload" />

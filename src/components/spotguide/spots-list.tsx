@@ -117,7 +117,7 @@ export function SpotsList({ spots, accent = "#00afdb" }: { spots: PublicSpot[]; 
                   </details>
                 )}
 
-                <ForecastPanel np7Models={spot.np7_forecast_models} tally={spot.forecast} accent={accent} />
+                <ForecastPanel spotId={spot.id} np7Models={spot.np7_forecast_models} tally={spot.forecast} accent={accent} />
 
                 {(spot.np7 > 0 || spot.member.count > 0) && (
                   <div className="rounded-xl border border-[#f0e9da] p-4">

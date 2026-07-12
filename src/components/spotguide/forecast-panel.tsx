@@ -1,12 +1,16 @@
+"use client";
+
 import { forecastLabel, forecastModel, type ForecastTally } from "@/lib/spotguide";
+import { ForecastVoter } from "./raters";
 
 /**
  * "Best forecast here." NP7's recommended model(s) + the crowd vote rendered
  * like the windrose: colour + placement show which model riders trust most, so
- * "most likely correct" reads at a glance. (Voting itself arrives in Phase 2.)
+ * "most likely correct" reads at a glance. The VOTER lives right here too and
+ * the panel renders on EVERY spot — members kept missing the vote when it was
+ * buried in the contribute fold and hidden entirely on spots without NP7 models.
  */
-export function ForecastPanel({ np7Models, tally, accent = "#00afdb" }: { np7Models: string[]; tally: ForecastTally[]; accent?: string }) {
-  if (np7Models.length === 0 && tally.length === 0) return null;
+export function ForecastPanel({ spotId, np7Models, tally, accent = "#00afdb" }: { spotId: string; np7Models: string[]; tally: ForecastTally[]; accent?: string }) {
   const top = tally[0];
   return (
     <div className="rounded-xl bg-[#fdfaf3] border border-[#f0e9da] p-4">
@@ -39,8 +43,11 @@ export function ForecastPanel({ np7Models, tally, accent = "#00afdb" }: { np7Mod
           </div>
         </div>
       ) : (
-        <p className="text-[12px] text-[#9aa6ac]">In most wind apps you can choose which forecast model to display. Members vote the one they trust most here — be the first.</p>
+        <p className="text-[12px] text-[#9aa6ac]">No votes yet — be the first.</p>
       )}
+
+      {/* vote right where the result shows — your pick is ticked, tap to change */}
+      <ForecastVoter spotId={spotId} accent={accent} />
     </div>
   );
 }
