@@ -374,7 +374,7 @@ export default function PackagesPage() {
             return (
               <button key={pkg.id} onClick={() => startEdit(pkg)} className="shrink-0 text-left px-3 py-2 rounded-lg transition-colors" style={{ background: active ? "var(--admin-accent)" : "var(--admin-surface)", border: "1px solid var(--admin-border)" }}>
                 <span className={`block text-xs font-semibold truncate ${active ? "text-[var(--admin-accent-contrast)]" : "admin-heading"}`}>{pkg.name}</span>
-                <span className={`block text-[10px] mt-0.5 truncate ${active ? "text-[var(--admin-accent-contrast)]/80" : "admin-faint"}`}>{ed ? `${ed.label || ed.year} · ` : ""}{money(pkg.price)} · {pkg.status}</span>
+                <span className={`block text-[10px] mt-0.5 truncate ${active ? "text-[var(--admin-accent-contrast)]/80" : "admin-faint"}`}>{ed ? `${ed.label || ed.year} · ` : ""}{pkg.category ? `${pkg.category[0].toUpperCase()}${pkg.category.slice(1)} · ` : ""}{money(pkg.price)} · {pkg.status}</span>
               </button>
             );
           })}
