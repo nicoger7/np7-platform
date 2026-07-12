@@ -139,7 +139,7 @@ function CertaintyIcon({ name }: { name: string }) {
 
 /* live schema (generated types are stale) */
 type Edition = { id: string; label: string | null; coaches: string | null; date_start: string | null; date_end: string | null; max_spots: number | null; spots_taken: number | null; deposit: number | null; status: string | null };
-type PackageRow = { id: string; name: string; price: number | null; status: string | null; edition_id: string | null; includes: unknown; exp_package_components?: { show_on_website: boolean | null; exp_components: { name: string | null; description: string | null } | null }[] | null };
+type PackageRow = { id: string; name: string; price: number | null; status: string | null; edition_id: string | null; category: string | null; includes: unknown; exp_package_components?: { show_on_website: boolean | null; exp_components: { name: string | null; description: string | null } | null }[] | null };
 
 /** Coerce the jsonb `exp_packages.includes` into a clean list of display strings. */
 function parseIncludes(raw: unknown): string[] {
@@ -177,7 +177,7 @@ export default async function ExperienceDetailPage({ params }: Props) {
   const { slug } = await params;
   const { data: raw } = await supabase
     .from("exp_experiences")
-    .select("id,title,location,currency,price,description,hero_image,gallery,airport_code,exp_editions(id,label,coaches,date_start,date_end,max_spots,spots_taken,deposit,status),exp_packages(id,name,price,status,edition_id,includes,exp_package_components(show_on_website,exp_components(name,description)))")
+    .select("id,title,location,currency,price,description,hero_image,gallery,airport_code,exp_editions(id,label,coaches,date_start,date_end,max_spots,spots_taken,deposit,status),exp_packages(id,name,price,status,edition_id,category,includes,exp_package_components(show_on_website,exp_components(name,description)))")
     .eq("slug", slug).eq("status", "published").maybeSingle();
 
   const experience = raw as unknown as Detail | null;
@@ -261,8 +261,11 @@ export default async function ExperienceDetailPage({ params }: Props) {
   const toReal = (p: PackageRow): RealPackage => {
     const x = parsePackageName(p.name);
     const h = resolveHotel(p.id, p.name, x.accommodation);
+    // Level: the package's Category field is the source of truth; the name-parse
+    // ("… - Advanced – …") stays as fallback for legacy names.
+    const level = p.category ? p.category[0].toUpperCase() + p.category.slice(1) : x.level;
     return {
-      id: p.id, level: x.level, accommodation: x.accommodation, price: p.price as number,
+      id: p.id, level, accommodation: x.accommodation, price: p.price as number,
       hotelName: h?.name ?? null, hotelImage: h?.image_url ?? null, hotelImages: h?.images ?? null, hotelDescription: h?.description ?? null,
       // Manual list (exp_packages.includes) wins when filled; otherwise the list is
       // the components ✓-checked for the website, each shown with its Website text

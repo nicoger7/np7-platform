@@ -386,7 +386,7 @@ export default function PackagesPage() {
             <div><label className={labelClass}>Cost / person</label><input type="number" className={inputClass} value={form.cost_per_person} onChange={(e) => setForm({ ...form, cost_per_person: e.target.value })} placeholder="auto" /></div>
             <div><label className={labelClass}>Deposit</label><input type="number" className={inputClass} value={form.deposit} onChange={(e) => setForm({ ...form, deposit: e.target.value })} /></div>
             <div><label className={labelClass}>Spots</label><input type="number" className={inputClass} value={form.max_spots} onChange={(e) => setForm({ ...form, max_spots: e.target.value })} /></div>
-            <div><label className={labelClass}>Category</label>
+            <div><label className={labelClass}>Category<PublicBadge note="THIS drives the Advanced/Beginner choice customers see in the public booking step (name text is only a fallback)" /></label>
               <select className={inputClass} value={form.category} onChange={(e) => setForm({ ...form, category: e.target.value })}>
                 {PKG_CATEGORIES.map((c) => <option key={c} value={c}>{c ? c[0].toUpperCase() + c.slice(1) : "None"}</option>)}
               </select>
