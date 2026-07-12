@@ -272,26 +272,30 @@ export function SurveyAdmin({ initialSurvey, initialInvites }: { initialSurvey: 
         />
       )}
 
-      {/* weeks */}
-      <div className={card}>
-        <div className="flex items-center justify-between mb-2">
-          <span className={lbl}>Possible weeks</span>
-          <button onClick={addWeek} className="text-[12.5px] font-bold text-[#0aa3c7]">+ Add week</button>
-        </div>
-        <p className="text-[12px] text-[#9aa6ac] mb-3">Constrain availability to a few windows — riders tick the ones that work.</p>
-        {s.weeks.length === 0 ? <p className="text-[13px] text-[#9aa6ac]">No weeks yet.</p> : (
-          <div className="space-y-2">
-            {s.weeks.map((w, i) => (
-              <div key={w.key} className="flex flex-wrap items-center gap-2">
-                <input className={`${input} flex-1 min-w-[160px]`} value={w.label} onChange={(e) => setWeek(i, { label: e.target.value })} placeholder="e.g. Week 1 · early March" />
-                <input type="date" className={`${input} w-[150px]`} value={w.start ?? ""} onChange={(e) => setWeek(i, { start: e.target.value || null })} />
-                <input type="date" className={`${input} w-[150px]`} value={w.end ?? ""} onChange={(e) => setWeek(i, { end: e.target.value || null })} />
-                <button onClick={() => delWeek(i)} className="shrink-0 text-[#c0392b] text-[13px] font-bold px-2">Remove</button>
-              </div>
-            ))}
+      {/* weeks — legacy "pick a spot + a week" mode ONLY. The member form hides &
+          ignores weeks as soon as any trip has dates, so hide the editor too (it
+          would just collect answers nobody can give). */}
+      {!s.destinations.some((d) => !!(d.start || d.end)) && (
+        <div className={card}>
+          <div className="flex items-center justify-between mb-2">
+            <span className={lbl}>Possible weeks</span>
+            <button onClick={addWeek} className="text-[12.5px] font-bold text-[#0aa3c7]">+ Add week</button>
           </div>
-        )}
-      </div>
+          <p className="text-[12px] text-[#9aa6ac] mb-3">Constrain availability to a few windows — riders tick the ones that work. <b>Only used when your trips above have no dates</b> — with dated trips, riders pick dates on the trip cards instead.</p>
+          {s.weeks.length === 0 ? <p className="text-[13px] text-[#9aa6ac]">No weeks yet.</p> : (
+            <div className="space-y-2">
+              {s.weeks.map((w, i) => (
+                <div key={w.key} className="flex flex-wrap items-center gap-2">
+                  <input className={`${input} flex-1 min-w-[160px]`} value={w.label} onChange={(e) => setWeek(i, { label: e.target.value })} placeholder="e.g. Week 1 · early March" />
+                  <input type="date" className={`${input} w-[150px]`} value={w.start ?? ""} onChange={(e) => setWeek(i, { start: e.target.value || null })} />
+                  <input type="date" className={`${input} w-[150px]`} value={w.end ?? ""} onChange={(e) => setWeek(i, { end: e.target.value || null })} />
+                  <button onClick={() => delWeek(i)} className="shrink-0 text-[#c0392b] text-[13px] font-bold px-2">Remove</button>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
 
       {/* budget */}
       <div className={card}>
