@@ -134,7 +134,7 @@ export function SurveyAdmin({ initialSurvey, initialInvites }: { initialSurvey: 
 
   const card = "rounded-2xl border border-[#e7ddcb] bg-white p-5";
   const lbl = "text-[12px] font-black uppercase tracking-[0.1em] text-[#0aa3c7]";
-  const input = "w-full rounded-lg border border-[#d8e3e6] px-3 py-2 text-[14px] outline-none focus:border-[#0aa3c7] transition-colors";
+  const input = "w-full rounded-lg border border-[#d8e3e6] bg-white text-[#0a2a33] placeholder:text-[#9aa6ac] px-3 py-2 text-[14px] outline-none focus:border-[#0aa3c7] transition-colors";
 
   return (
     <div className="max-w-[900px] space-y-4">
@@ -334,7 +334,7 @@ function InviteSection({ surveyId, invites, setInvites, linkFor }: {
   const [term, setTerm] = useState("");
   const [results, setResults] = useState<Picked[]>([]);
   const [picked, setPicked] = useState<Picked[]>([]);
-  const [sendEmail, setSendEmail] = useState(true);
+  const [sendEmail, setSendEmail] = useState(false);
   const [busy, setBusy] = useState(false);
   const [copied, setCopied] = useState<string | null>(null);
   const [msg, setMsg] = useState("");
@@ -368,6 +368,24 @@ function InviteSection({ surveyId, invites, setInvites, linkFor }: {
     } finally { setBusy(false); }
   }
 
+  // Explicit send step: add → review the list (remove anyone) → press Send.
+  const [sending, setSending] = useState(false);
+  const [sendMsg, setSendMsg] = useState("");
+  const unsent = invites.filter((i) => !i.emailed && i.contactEmail).length;
+  async function sendAll() {
+    if (!unsent || sending) return;
+    if (!confirm(`Email the invite to ${unsent} ${unsent === 1 ? "person" : "people"} who haven't received it yet?`)) return;
+    setSending(true); setSendMsg("");
+    try {
+      const res = await fetch(`/api/admin/surveys/${surveyId}/invites/send`, { method: "POST" });
+      const j = await res.json().catch(() => ({}));
+      if (!res.ok) { setSendMsg(j.error || "Couldn't send."); return; }
+      setSendMsg(`Sent to ${j.sent}${j.failed ? ` · ${j.failed} failed` : ""} 🤙`);
+      const list = await fetch(`/api/admin/surveys/${surveyId}/invites`).then((r) => r.json()).catch(() => null);
+      if (list?.invites) setInvites(list.invites);
+    } finally { setSending(false); }
+  }
+
   async function remove(inviteId: string) {
     await fetch(`/api/admin/surveys/${surveyId}/invites?inviteId=${inviteId}`, { method: "DELETE" });
     setInvites(invites.filter((i) => i.id !== inviteId));
@@ -380,9 +398,24 @@ function InviteSection({ surveyId, invites, setInvites, linkFor }: {
 
   return (
     <div className="rounded-2xl border border-[#e7ddcb] bg-white p-5">
-      <span className="text-[12px] font-black uppercase tracking-[0.1em] text-[#0aa3c7]">Invite members</span>
+      <div className="flex items-center justify-between gap-3">
+        <span className="text-[12px] font-black uppercase tracking-[0.1em] text-[#0aa3c7]">Invite members</span>
+        {invites.length > 0 && (
+          <div className="flex items-center gap-2.5">
+            {sendMsg && <span className="text-[12px] font-semibold text-[#0f6e56]">{sendMsg}</span>}
+            {unsent > 0 ? (
+              <button onClick={sendAll} disabled={sending}
+                className="rounded-full bg-[#0aa3c7] hover:bg-[#0891b2] text-white text-[12.5px] font-bold px-4 py-1.5 disabled:opacity-60 transition-colors">
+                {sending ? "Sending…" : `Send invites (${unsent})`}
+              </button>
+            ) : (
+              <span className="rounded-full bg-[#eef3f4] text-[#8a97a0] text-[12.5px] font-bold px-4 py-1.5 cursor-default">All invites sent ✓</span>
+            )}
+          </div>
+        )}
+      </div>
       <div className="relative mt-2">
-        <input className="w-full rounded-lg border border-[#d8e3e6] px-3 py-2 text-[14px] outline-none focus:border-[#0aa3c7]" value={term} onChange={(e) => search(e.target.value)} placeholder="Search members by name or email…" />
+        <input className="w-full rounded-lg border border-[#d8e3e6] bg-white text-[#0a2a33] placeholder:text-[#9aa6ac] px-3 py-2 text-[14px] outline-none focus:border-[#0aa3c7]" value={term} onChange={(e) => search(e.target.value)} placeholder="Search members by name or email…" />
         {results.length > 0 && (
           <div className="absolute z-10 left-0 right-0 mt-1 rounded-lg border border-[#e2e9ec] bg-white shadow-lg overflow-hidden">
             {results.map((r) => (
@@ -406,7 +439,7 @@ function InviteSection({ surveyId, invites, setInvites, linkFor }: {
           </div>
           <div className="flex items-center gap-3 mt-3">
             <label className="inline-flex items-center gap-2 text-[13px] text-[#3a4a50]">
-              <input type="checkbox" checked={sendEmail} onChange={(e) => setSendEmail(e.target.checked)} /> Send invite email
+              <input type="checkbox" checked={sendEmail} onChange={(e) => setSendEmail(e.target.checked)} /> Email immediately <span className="text-[#9aa6ac]">(otherwise: review the list, then press Send invites)</span>
             </label>
             <button onClick={addInvites} disabled={busy} className="rounded-full bg-[#0aa3c7] text-white text-[13px] font-bold px-4 py-2 disabled:opacity-50">{busy ? "Adding…" : `Add ${picked.length}`}</button>
             {msg && <span className="text-[12.5px] text-[#0f6e56] font-semibold">{msg}</span>}
@@ -420,6 +453,7 @@ function InviteSection({ surveyId, invites, setInvites, linkFor }: {
             <div key={i.id} className="flex items-center gap-2.5 text-[13.5px]">
               <span className="min-w-0 flex-1 truncate text-[#00374a] font-semibold">{i.contactName || "Member"}</span>
               <span className={`shrink-0 text-[10.5px] font-bold uppercase tracking-wide px-2 py-0.5 rounded-full ${STATUS[i.status]}`}>{i.status}</span>
+              <span className={`shrink-0 text-[11px] font-bold ${i.emailed ? "text-[#0f6e56]" : "text-[#c9bda5]"}`} title={i.emailed ? "Invite email delivered to the outbox" : "No email sent yet — use Send invites"}>{i.emailed ? "✉ sent" : "✉ not sent"}</span>
               <button onClick={() => copy(linkFor(i.token), i.id)} className="shrink-0 text-[12px] font-bold text-[#0aa3c7]">{copied === i.id ? "Copied!" : "Copy link"}</button>
               <button onClick={() => remove(i.id)} className="shrink-0 text-[12px] font-bold text-[#b6c2c7] hover:text-[#c0392b]">Remove</button>
             </div>

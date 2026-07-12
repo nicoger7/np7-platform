@@ -69,6 +69,8 @@ export type SurveyInvite = {
   contactName?: string | null;
   contactEmail?: string | null;
   response?: SurveyResponse | null;
+  /** An invite email actually went out (from email_log). */
+  emailed?: boolean;
 };
 
 /** Readable, hard-to-guess token like `nico-3f9a2b`. */
@@ -168,10 +170,13 @@ export async function listInvites(surveyId: string): Promise<SurveyInvite[]> {
   const rows = (invites ?? []) as Record<string, unknown>[];
   if (!rows.length) return [];
   const contactIds = [...new Set(rows.map((r) => String(r.contact_id)))];
-  const [{ data: contacts }, { data: responses }] = await Promise.all([
+  const [{ data: contacts }, { data: responses }, { data: sends }] = await Promise.all([
     sb.from("contacts").select("id,name,email").in("id", contactIds),
     sb.from("exp_survey_responses").select("*").eq("survey_id", surveyId),
+    sb.from("email_log").select("dedupe_key").eq("template_key", "survey_invite").eq("status", "sent")
+      .in("dedupe_key", rows.map((r) => `survey_invite:${r.id}`)),
   ]);
+  const sentKeys = new Set(((sends ?? []) as { dedupe_key: string | null }[]).map((x) => x.dedupe_key));
   const cById = new Map<string, Record<string, unknown>>(((contacts ?? []) as Record<string, unknown>[]).map((c) => [String(c.id), c]));
   const rById = new Map<string, SurveyResponse>(((responses ?? []) as Record<string, unknown>[]).map((r) => [String(r.invite_id), rowToResponse(r)]));
   return rows.map((r) => {
@@ -181,6 +186,7 @@ export async function listInvites(surveyId: string): Promise<SurveyInvite[]> {
       token: String(r.token), status: (r.status as SurveyInvite["status"]) ?? "invited",
       invited_at: String(r.invited_at ?? ""), opened_at: (r.opened_at as string | null) ?? null,
       contactName: (c?.name as string | null) ?? null, contactEmail: (c?.email as string | null) ?? null,
+      emailed: sentKeys.has(`survey_invite:${r.id}`),
       response: rById.get(String(r.id)) ?? null,
     };
   });
