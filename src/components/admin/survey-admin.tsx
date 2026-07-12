@@ -419,7 +419,7 @@ function InviteSection({ surveyId, invites, setInvites, linkFor }: {
         {results.length > 0 && (
           <div className="absolute z-10 left-0 right-0 mt-1 rounded-lg border border-[#e2e9ec] bg-white shadow-lg overflow-hidden">
             {results.map((r) => (
-              <button key={r.id} onClick={() => addPick(r)} disabled={invitedIds.has(r.id)} className="block w-full text-left px-3 py-2 text-[14px] hover:bg-[#f2f8f9] disabled:opacity-40 disabled:cursor-not-allowed">
+              <button key={r.id} onClick={() => addPick(r)} disabled={invitedIds.has(r.id)} className="block w-full text-left px-3 py-2 text-[14px] text-[#0a2a33] hover:bg-[#f2f8f9] disabled:opacity-40 disabled:cursor-not-allowed">
                 {r.name}{invitedIds.has(r.id) ? " · already invited" : ""}
               </button>
             ))}
