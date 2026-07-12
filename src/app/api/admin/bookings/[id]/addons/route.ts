@@ -85,6 +85,44 @@ export async function PATCH(
   // amount due reflects the add-on (best-effort; never blocks the response).
   after(() => resyncBookingBilling(id).catch((e) => console.error("[addons] resync billing failed:", e)));
 
+  // Extra nights: when the confirmed add-on carries stay dates, EXTEND the guest's
+  // room week-row so the allotment slot reflects the real stay — that's what the
+  // cross-edition overlap warnings watch. Extend-only: never shrinks an existing
+  // range; missing sides fall back to the edition's window.
+  if (status === "confirmed") {
+    const meta = (data?.meta ?? {}) as { checkIn?: string | null; checkOut?: string | null };
+    const isDate = (v: unknown): v is string => typeof v === "string" && /^\d{4}-\d{2}-\d{2}$/.test(v);
+    if (isDate(meta.checkIn) || isDate(meta.checkOut)) {
+      after(async () => {
+        try {
+          const { data: bk2 } = await client.from("exp_bookings").select("edition_id").eq("id", id).maybeSingle();
+          let q = client.from("exp_hotel_rooms").select("id, check_in, check_out, edition_id").eq("booking_id", id).is("archived_at", null);
+          if (bk2?.edition_id) q = q.eq("edition_id", bk2.edition_id);
+          const { data: rows } = await q.limit(1);
+          const row = rows?.[0];
+          if (!row) return; // no room slot assigned yet — dates get set when the admin assigns one
+          let edStart: string | null = null, edEnd: string | null = null;
+          if (row.edition_id) {
+            const { data: ed } = await client.from("exp_editions").select("date_start,date_end").eq("id", row.edition_id).maybeSingle();
+            edStart = ed?.date_start ?? null; edEnd = ed?.date_end ?? null;
+          }
+          const roomPatch: Record<string, unknown> = {};
+          if (isDate(meta.checkIn)) {
+            const base = row.check_in ?? edStart;
+            roomPatch.check_in = !base || meta.checkIn < base ? meta.checkIn : base;
+          }
+          if (isDate(meta.checkOut)) {
+            const base = row.check_out ?? edEnd;
+            roomPatch.check_out = !base || meta.checkOut > base ? meta.checkOut : base;
+          }
+          if (Object.keys(roomPatch).length) {
+            await client.from("exp_hotel_rooms").update({ ...roomPatch, updated_at: new Date().toISOString() }).eq("id", row.id);
+          }
+        } catch (e) { console.error("[addons] room-dates sync failed:", e); }
+      });
+    }
+  }
+
   // notify the member on confirm (best-effort)
   if (status === "confirmed") {
     const { data: bk } = await client
