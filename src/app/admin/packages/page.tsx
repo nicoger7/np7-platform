@@ -383,7 +383,7 @@ export default function PackagesPage() {
           </div>
           <div className="grid grid-cols-6 gap-4 mb-4">
             <div><label className={labelClass}>Sell (€)<PublicBadge note="The public package price" /></label><input type="number" className={inputClass} value={form.price} onChange={(e) => setForm({ ...form, price: e.target.value })} /></div>
-            <div><label className={labelClass}>Cost / person</label><input type="number" className={inputClass} value={form.cost_per_person} onChange={(e) => setForm({ ...form, cost_per_person: e.target.value })} placeholder="auto" /></div>
+            <div><label className={labelClass}>Cost / person <span className="normal-case font-normal admin-faint">— auto: components buy total</span></label><input type="number" className={inputClass} value={form.cost_per_person} onChange={(e) => setForm({ ...form, cost_per_person: e.target.value })} placeholder="auto" title="Kept in sync with the components’ buy total on every component change" /></div>
             <div><label className={labelClass}>Deposit</label><input type="number" className={inputClass} value={form.deposit} onChange={(e) => setForm({ ...form, deposit: e.target.value })} /></div>
             <div><label className={labelClass}>Spots</label><input type="number" className={inputClass} value={form.max_spots} onChange={(e) => setForm({ ...form, max_spots: e.target.value })} /></div>
             <div><label className={labelClass}>Category<PublicBadge note="THIS drives the Advanced/Beginner choice customers see in the public booking step (name text is only a fallback)" /></label>
@@ -467,6 +467,7 @@ export default function PackagesPage() {
               editionId={form.edition_id || null}
               sellPrice={form.price ? Number(form.price) : null}
               onChanged={load}
+              onCostSynced={(n) => setForm((f) => ({ ...f, cost_per_person: String(n) }))}
             />
           </div>
         )}

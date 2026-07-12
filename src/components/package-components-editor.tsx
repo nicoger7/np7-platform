@@ -46,6 +46,7 @@ export function PackageComponentsEditor({
   editionId,
   sellPrice,
   onChanged,
+  onCostSynced,
 }: {
   packageId: string;
   /** Restrict the picker to this experience's components (+ global + unscoped) */
@@ -55,6 +56,8 @@ export function PackageComponentsEditor({
   /** The package's current (manual) sell price — to show override status + a one-click sync. */
   sellPrice?: number | null;
   onChanged?: () => void;
+  /** Fired after the buy total auto-syncs into the package's cost/person. */
+  onCostSynced?: (n: number) => void;
 }) {
   const [links, setLinks] = useState<LinkedComponent[]>([]);
   const [options, setOptions] = useState<ComponentOption[]>([]);
@@ -69,20 +72,32 @@ export function PackageComponentsEditor({
   const [copyPkgs, setCopyPkgs] = useState<{ id: string; name: string; edition?: { label: string | null; year: number | null } | null }[]>([]);
   const [copyBusy, setCopyBusy] = useState(false);
 
-  const load = useCallback(() => {
+  const load = useCallback(async (): Promise<LinkedComponent[]> => {
     const params = new URLSearchParams();
     if (experienceId) params.set("experience_id", experienceId);
     if (editionId) params.set("edition_id", editionId);
     const compsUrl = `/api/admin/components${params.toString() ? `?${params}` : ""}`;
-    Promise.all([
+    const [l, c] = await Promise.all([
       fetch(`/api/admin/packages/${packageId}/components`).then((r) => r.json()),
       fetch(compsUrl).then((r) => r.json()),
-    ]).then(([l, c]) => {
-      setLinks(Array.isArray(l) ? l : []);
-      setOptions(Array.isArray(c) ? c : []);
-      setLoading(false);
-    });
+    ]);
+    const list: LinkedComponent[] = Array.isArray(l) ? l : [];
+    setLinks(list);
+    setOptions(Array.isArray(c) ? c : []);
+    setLoading(false);
+    return list;
   }, [packageId, experienceId, editionId]);
+
+  // The components ARE the cost basis — whenever they change, the buy total is
+  // written straight into the package's cost/person (no manual copying).
+  const syncCost = useCallback(async (list: LinkedComponent[]) => {
+    const buy = Math.round(list.reduce((a, l) => a + (Number(l.exp_components?.unit_cost) || 0) * (Number(l.quantity) || 1), 0) * 100) / 100;
+    await fetch(`/api/admin/packages/${packageId}`, {
+      method: "PATCH", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ cost_per_person: buy }),
+    }).catch(() => {});
+    onCostSynced?.(buy);
+  }, [packageId, onCostSynced]);
 
   useEffect(() => { load(); }, [load]);
 
@@ -99,7 +114,8 @@ export function PackageComponentsEditor({
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ component_id: componentId, quantity: 1 }),
     });
-    setSearch(""); setPickerOpen(false); load(); onChanged?.();
+    setSearch(""); setPickerOpen(false);
+    syncCost(await load()); onChanged?.();
   }
 
   /** Pull the candidate packages to copy a component set from (same experience). */
@@ -123,12 +139,13 @@ export function PackageComponentsEditor({
         body: JSON.stringify({ component_id: l.component_id, quantity: l.quantity || 1 }),
       });
     }
-    setCopyBusy(false); setCopyOpen(false); load(); onChanged?.();
+    setCopyBusy(false); setCopyOpen(false);
+    syncCost(await load()); onChanged?.();
   }
 
   async function detach(componentId: string) {
     await fetch(`/api/admin/packages/${packageId}/components?component_id=${componentId}`, { method: "DELETE" });
-    load(); onChanged?.();
+    syncCost(await load()); onChanged?.();
   }
 
   async function setWeb(componentId: string, on: boolean) {
@@ -146,7 +163,7 @@ export function PackageComponentsEditor({
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ component_id: componentId, quantity: qty }),
     });
-    load(); onChanged?.();
+    syncCost(await load()); onChanged?.();
   }
 
   async function createAndAttach() {
@@ -173,7 +190,7 @@ export function PackageComponentsEditor({
       });
       setShowNewComp(false);
       setNewComp({ name: "", category: "other", unit_cost: "", sell_price: "" });
-      load(); onChanged?.();
+      syncCost(await load()); onChanged?.();
     }
   }
 
@@ -215,7 +232,7 @@ export function PackageComponentsEditor({
         </span>
         <div className="flex items-center gap-3">
           <span className="text-xs admin-muted tabular-nums">
-            buy <span className="admin-heading font-semibold">{money(computedBuy)}</span> · sell <span className="admin-heading font-semibold">{money(computedSell)}</span> · margin{" "}
+            buy <span className="admin-heading font-semibold" title="Auto-synced into the package\u2019s Cost/person on every change">{money(computedBuy)}</span> · sell <span className="admin-heading font-semibold">{money(computedSell)}</span> · margin{" "}
             <span className={`font-semibold ${computedMargin < 0 ? "text-red-400" : "text-green-500"}`}>{money(computedMargin)}</span>
           </span>
           {links.length > 0 && (priceMatches ? (
