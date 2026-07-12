@@ -32,7 +32,10 @@ export function attachBaseLayers(L: any, map: any, opts: { labels?: boolean } = 
   const btn = L.DomUtil.create("button");
   btn.type = "button";
   Object.assign(btn.style, {
-    padding: "6px 12px",
+    display: "flex",
+    alignItems: "center",
+    gap: "6px",
+    padding: "7px 13px",
     borderRadius: "9999px",
     background: "rgba(255,255,255,0.95)",
     border: "none",
@@ -40,8 +43,13 @@ export function attachBaseLayers(L: any, map: any, opts: { labels?: boolean } = 
     font: "700 12px system-ui, sans-serif",
     color: "#00374a",
     cursor: "pointer",
+    // sit BESIDE the zoom control (right of +), not stacked below it — Leaflet
+    // stacks corner controls via clear:both; clearing that floats us alongside,
+    // top-aligned with the "+" (both carry the same 10px corner margin).
+    clear: "none",
   });
-  const paint = () => { btn.textContent = on ? "🗺 Map" : "🛰 Satellite"; };
+  const ICON = '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" style="flex:none"><path d="M12 2 2 7l10 5 10-5-10-5z"/><path d="M2 12l10 5 10-5"/><path d="M2 17l10 5 10-5"/></svg>';
+  const paint = () => { btn.innerHTML = `${ICON}<span>${on ? "Map" : "Satellite"}</span>`; };
   paint();
   btn.onclick = () => {
     on = !on;
@@ -51,9 +59,7 @@ export function attachBaseLayers(L: any, map: any, opts: { labels?: boolean } = 
     paint();
   };
 
-  // Constructor options (not extend-time — those don't reliably apply). Top-left
-  // stacks the toggle under the zoom control on every map; the "Enlarge" buttons
-  // live top-right, so this can never collide.
+  // Constructor options (not extend-time — those don't reliably apply).
   const ctl = new L.Control({ position: "topleft" });
   ctl.onAdd = () => {
     // keep map drag/zoom/scroll from hijacking the button
