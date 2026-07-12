@@ -31,23 +31,33 @@ const chunk = <T,>(arr: T[], n: number): T[][] =>
 export async function GET() {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const admin = createAdminClient() as any;
-  const [bookings, accountContacts, usersRes] = await Promise.all([
+  const SELECT = "id,name,email,auth_user_id,created_at,marketing_opt_in";
+  const [bookings, crmContacts, usersRes] = await Promise.all([
     allRows(({ from, to }) => admin.from("exp_bookings").select("contact_id, status, experience_id, exp_experiences(id,title)").range(from, to)),
-    allRows(({ from, to }) => admin.from("contacts").select("id,name,email,auth_user_id,created_at,marketing_opt_in").is("archived_at", null).not("auth_user_id", "is", null).range(from, to)),
+    // Every CRM contact (same rule as the Contacts page's CRM view: newsletter-only
+    // `maillist` imports stay out) — this page is where portal invites are sent from,
+    // so the whole working CRM belongs here, bookings or not.
+    allRows(({ from, to }) => admin.from("contacts").select(SELECT).is("archived_at", null).or("tags.is.null,tags.not.cs.{maillist}").range(from, to)),
     // fine while accounts < 1000; page like the above when we get there
     admin.auth.admin.listUsers({ perPage: 1000 }),
   ]);
 
-  // Guests = contacts with a booking but no account → fetch just those ids.
-  const accountIds = new Set(accountContacts.map((c: { id: string }) => c.id));
-  const guestIds = [...new Set(bookings.map((b: { contact_id: string | null }) => b.contact_id).filter((id: string | null): id is string => !!id && !accountIds.has(id)))];
-  const guestContacts = (await Promise.all(
-    chunk(guestIds, 200).map((ids) =>
-      admin.from("contacts").select("id,name,email,auth_user_id,created_at,marketing_opt_in").is("archived_at", null).in("id", ids)
+  // Newsletter-only contacts still surface here if they have an account or a
+  // real booking — those are members/guests no matter which list they came from.
+  const haveIds = new Set(crmContacts.map((c: { id: string }) => c.id));
+  const extraIds = [...new Set(bookings.map((b: { contact_id: string | null }) => b.contact_id).filter((id: string | null): id is string => !!id && !haveIds.has(id)))];
+  const extraContacts = (await Promise.all(
+    chunk(extraIds, 200).map((ids) =>
+      admin.from("contacts").select(SELECT).is("archived_at", null).in("id", ids)
         .then(({ data }: { data: unknown[] | null }) => data ?? [])
     )
   )).flat();
-  const contacts = [...accountContacts, ...guestContacts].sort((a, b) => String(a.name ?? "").localeCompare(String(b.name ?? "")));
+  const extraAccounts = await allRows(({ from, to }) =>
+    admin.from("contacts").select(SELECT).is("archived_at", null).not("auth_user_id", "is", null).contains("tags", ["maillist"]).range(from, to));
+  const seen = new Set<string>();
+  const contacts = [...crmContacts, ...extraContacts, ...extraAccounts]
+    .filter((c: { id: string }) => !seen.has(c.id) && (seen.add(c.id), true))
+    .sort((a, b) => String(a.name ?? "").localeCompare(String(b.name ?? "")));
 
   // Per-contact booking count + the distinct experiences they're booked on
   // (with whether they've SECURED a spot — that's a real participant).
@@ -113,7 +123,8 @@ export async function GET() {
 
   return NextResponse.json({
     members: out.filter((r: { hasAccount: boolean }) => r.hasAccount),
-    guests: out.filter((r: { hasAccount: boolean; bookings: number }) => !r.hasAccount && r.bookings > 0),
+    // every CRM contact without an account — each row carries "Invite to portal"
+    guests: out.filter((r: { hasAccount: boolean }) => !r.hasAccount),
     experiences: [...expFilter.entries()].map(([id, title]) => ({ id, title })).sort((a, b) => a.title.localeCompare(b.title)),
   });
 }
