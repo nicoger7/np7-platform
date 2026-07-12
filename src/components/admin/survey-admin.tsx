@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import ImagePickerModal from "@/components/image-picker-modal";
@@ -372,8 +372,17 @@ function InviteSection({ surveyId, invites, setInvites, linkFor }: {
   // un-emailed — review, remove anyone, then Send invites.
   const [tag, setTag] = useState("");
   const [tagBusy, setTagBusy] = useState(false);
-  async function addByTag() {
-    const t = tag.trim();
+  const [tagFocus, setTagFocus] = useState(false);
+  const [tagOptions, setTagOptions] = useState<{ tag: string; count: number }[]>([]);
+  useEffect(() => {
+    fetch("/api/admin/contacts/tags").then((r) => r.json()).then((d) => setTagOptions(Array.isArray(d?.tags) ? d.tags : [])).catch(() => {});
+  }, []);
+  const tagMatches = (tag.trim()
+    ? tagOptions.filter((t) => t.tag.toLowerCase().includes(tag.trim().toLowerCase()))
+    : tagOptions
+  ).slice(0, 8);
+  async function addByTag(tArg?: string) {
+    const t = (tArg ?? tag).trim();
     if (!t || tagBusy) return;
     setTagBusy(true); setMsg("");
     try {
@@ -461,9 +470,24 @@ No emails yet — review the list, then press Send invites.`)) return;
       {/* whole-group add: pull in everyone carrying a contact tag */}
       <div className="mt-2 flex flex-wrap items-center gap-2">
         <span className="text-[12px] text-[#9aa6ac]">…or a whole group:</span>
-        <input value={tag} onChange={(e) => setTag(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") addByTag(); }}
-          placeholder='contact tag — e.g. Tenerife' className="w-48 rounded-lg border border-[#d8e3e6] bg-white text-[#0a2a33] placeholder:text-[#9aa6ac] px-3 py-1.5 text-[13px] outline-none focus:border-[#0aa3c7]" />
-        <button onClick={addByTag} disabled={!tag.trim() || tagBusy}
+        <div className="relative">
+          <input value={tag} onChange={(e) => setTag(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") addByTag(); }}
+            onFocus={() => setTagFocus(true)} onBlur={() => setTagFocus(false)}
+            placeholder='contact tag — e.g. Tenerife' className="w-48 rounded-lg border border-[#d8e3e6] bg-white text-[#0a2a33] placeholder:text-[#9aa6ac] px-3 py-1.5 text-[13px] outline-none focus:border-[#0aa3c7]" />
+          {tagFocus && tagMatches.length > 0 && (
+            <div className="absolute z-10 left-0 top-full mt-1 w-64 rounded-lg border border-[#e2e9ec] bg-white shadow-lg overflow-hidden">
+              {tagMatches.map((t) => (
+                <button key={t.tag} type="button"
+                  onMouseDown={(e) => { e.preventDefault(); setTag(t.tag); setTagFocus(false); addByTag(t.tag); }}
+                  className="flex w-full items-center justify-between gap-3 px-3 py-2 text-[13.5px] text-[#0a2a33] hover:bg-[#f2f8f9]">
+                  <span className="font-semibold truncate">{t.tag}</span>
+                  <span className="shrink-0 text-[12px] text-[#8a97a0] tabular-nums">{t.count} contacts</span>
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+        <button onClick={() => addByTag()} disabled={!tag.trim() || tagBusy}
           className="rounded-full border border-[#0aa3c7] text-[#0aa3c7] text-[12.5px] font-bold px-3.5 py-1.5 hover:bg-[#eaf7fb] disabled:opacity-40 transition-colors">
           {tagBusy ? "Looking up…" : "Add everyone tagged"}
         </button>
