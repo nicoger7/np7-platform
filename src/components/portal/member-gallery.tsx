@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import type { GalleryGroup } from "@/lib/portal-data";
 import { cdnImage } from "@/lib/img";
-import { ShareCardButton } from "./share-card-button";
+import { ShareSheet } from "./share-sheet";
 
 /**
  * The participant's trip-photo gallery, split into foldable groups:
@@ -44,6 +44,7 @@ export function MemberGallery({
   const [crewFilter, setCrewFilter] = useState<string | null>(null); // null = everyone
   const [crewExpanded, setCrewExpanded] = useState(false);
   const [remaining, setRemaining] = useState(downloadsRemaining ?? 0);
+  const [share, setShare] = useState<string | null>(null); // photo url open in the share sheet
   const [zipping, setZipping] = useState(false);
   const [err, setErr] = useState("");
   const [keepers, setKeepers] = useState<Set<string>>(new Set());
@@ -200,6 +201,11 @@ export function MemberGallery({
             <svg className="w-4 h-4" viewBox="0 0 24 24" fill={kept ? "currentColor" : "none"} stroke="currentColor" strokeWidth="2" strokeLinejoin="round"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z" /></svg>
           </button>
         )}
+        {/* Share this shot as a branded story card */}
+        <button type="button" onClick={(e) => { e.stopPropagation(); setShare(src); }} title="Share this photo"
+          className="absolute bottom-2 left-2 z-10 w-8 h-8 rounded-full grid place-items-center bg-black/45 text-white opacity-80 group-hover:opacity-100 hover:bg-black/75 transition-all">
+          <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.1" strokeLinecap="round" strokeLinejoin="round"><path d="M4 12v7a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-7" /><path d="M16 6l-4-4-4 4" /><path d="M12 2v14" /></svg>
+        </button>
       </div>
     );
   };
@@ -347,6 +353,15 @@ export function MemberGallery({
         )}
       </div>
 
+      {/* Prominent, always-visible share CTA — turn a shot into a branded story card */}
+      <button type="button" onClick={() => setShare(flat[0])}
+        className="mt-4 w-full sm:w-auto inline-flex items-center justify-center gap-2 px-6 py-3 rounded-full text-[14.5px] font-black text-white shadow-[0_10px_26px_rgba(240,123,32,0.26)] hover:-translate-y-0.5 transition-transform"
+        style={{ background: "linear-gradient(135deg,#f7b733 0%,#f47b20 55%,#e0590f 100%)" }}>
+        <svg className="w-4.5 h-4.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="M4 12v7a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-7" /><path d="M16 6l-4-4-4 4" /><path d="M12 2v14" /></svg>
+        Share your trip 🤙
+      </button>
+      <p className="text-[12px] text-[#9aa6ac] mt-1.5">Post a branded card to your story — or tap the share icon on any photo.</p>
+
       {downloadable && (
         <div className="flex flex-wrap items-center gap-2.5 mt-4">
           {minePhotos.length > 0 && (
@@ -386,9 +401,11 @@ export function MemberGallery({
             <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><path d="M18 6L6 18M6 6l12 12" /></svg>
           </button>
           {/* Share this shot as a branded NP7 story card */}
-          <div className="absolute top-5 left-5 z-10" onClick={(e) => e.stopPropagation()}>
-            <ShareCardButton photo={flat[open]} title={trip?.title ?? "NP7 Experience"} sub={trip?.sub} label="Share to story" />
-          </div>
+          <button onClick={(e) => { e.stopPropagation(); setShare(flat[open]); }}
+            className="absolute top-5 left-5 z-10 inline-flex items-center gap-2 px-4 py-2 rounded-full text-[13px] font-bold text-[#00374a] bg-white/95 hover:bg-white shadow-lg transition-colors">
+            <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="M4 12v7a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-7" /><path d="M16 6l-4-4-4 4" /><path d="M12 2v14" /></svg>
+            Share to story
+          </button>
           <button aria-label="Previous" className="absolute left-3 sm:left-6 w-12 h-12 rounded-full bg-white/10 hover:bg-white/20 text-white grid place-items-center" onClick={(e) => { e.stopPropagation(); setOpen((i) => (i === null ? i : (i - 1 + flat.length) % flat.length)); }}>
             <svg className="w-6 h-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M15 18l-6-6 6-6" /></svg>
           </button>
@@ -400,6 +417,8 @@ export function MemberGallery({
           <span className="absolute bottom-5 left-1/2 -translate-x-1/2 text-white/60 text-sm font-medium tabular-nums">{open + 1} / {flat.length}</span>
         </div>
       )}
+
+      {share && <ShareSheet photo={share} trip={trip} onClose={() => setShare(null)} />}
     </>
   );
 }

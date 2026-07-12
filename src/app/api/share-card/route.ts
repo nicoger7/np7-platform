@@ -26,18 +26,22 @@ export async function GET(req: NextRequest) {
   const photo = sp.get("photo") || "";
   const title = (sp.get("title") || "NP7 Experience").trim().slice(0, 42);
   const sub = (sp.get("sub") || "").trim().slice(0, 64);
+  const caption = (sp.get("caption") || "").trim().replace(/\s+/g, " ").slice(0, 42);
+  const showTitle = sp.get("showTitle") !== "0";
+  const format = sp.get("format") || "story";
+  const { W, H } = format === "square" ? { W: 1080, H: 1080 } : format === "post" ? { W: 1080, H: 1350 } : { W: 1080, H: 1920 };
   if (!ALLOWED.test(photo)) return new Response("bad photo", { status: 400 });
 
-  const W = 1080, H = 1920;
   try {
     const imgRes = await fetch(photo, { signal: AbortSignal.timeout(9000) });
     if (!imgRes.ok) return new Response("photo unavailable", { status: 502 });
     const base = await sharp(Buffer.from(await imgRes.arrayBuffer())).rotate().resize(W, H, { fit: "cover" }).toBuffer();
 
+    // Bottom text block, anchored from the foot so it works for any aspect ratio.
     const svg = `<svg width="${W}" height="${H}" xmlns="http://www.w3.org/2000/svg">
       <defs>
         <linearGradient id="scrim" x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0.40" stop-color="#001a24" stop-opacity="0"/>
+          <stop offset="0.38" stop-color="#001a24" stop-opacity="0"/>
           <stop offset="1" stop-color="#001a24" stop-opacity="0.94"/>
         </linearGradient>
         <linearGradient id="bar" x1="0" y1="0" x2="1" y2="0">
@@ -45,10 +49,11 @@ export async function GET(req: NextRequest) {
         </linearGradient>
       </defs>
       <rect width="${W}" height="12" fill="url(#bar)"/>
-      <rect x="0" y="${Math.round(H * 0.42)}" width="${W}" height="${Math.round(H * 0.58)}" fill="url(#scrim)"/>
+      <rect x="0" y="${Math.round(H * 0.40)}" width="${W}" height="${Math.round(H * 0.60)}" fill="url(#scrim)"/>
+      ${caption ? `<text x="72" y="${H - 372}" fill="#ffffff" font-family="Arial, Helvetica, sans-serif" font-size="44" font-weight="700" font-style="italic">${esc(caption)}</text>` : ""}
       <text x="72" y="${H - 322}" fill="#ffd97a" font-family="Arial, Helvetica, sans-serif" font-size="30" font-weight="800" letter-spacing="7">✦ NP7 EXPERIENCE</text>
-      <text x="70" y="${H - 214}" fill="#ffffff" font-family="Arial, Helvetica, sans-serif" font-size="98" font-weight="800" letter-spacing="-2">${esc(title)}</text>
-      ${sub ? `<text x="72" y="${H - 150}" fill="#ffffff" fill-opacity="0.88" font-family="Arial, Helvetica, sans-serif" font-size="42" font-weight="600">${esc(sub)}</text>` : ""}
+      ${showTitle ? `<text x="70" y="${H - 214}" fill="#ffffff" font-family="Arial, Helvetica, sans-serif" font-size="98" font-weight="800" letter-spacing="-2">${esc(title)}</text>` : ""}
+      ${showTitle && sub ? `<text x="72" y="${H - 150}" fill="#ffffff" fill-opacity="0.88" font-family="Arial, Helvetica, sans-serif" font-size="42" font-weight="600">${esc(sub)}</text>` : ""}
       <text x="72" y="${H - 66}" fill="#ffffff" fill-opacity="0.6" font-family="Arial, Helvetica, sans-serif" font-size="30" font-weight="700" letter-spacing="3">np-seven.com</text>
     </svg>`;
 
