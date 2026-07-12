@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { cdnImage } from "@/lib/img";
 
 type Format = "story" | "square" | "post";
 const FORMATS: { key: Format; label: string; ratio: string }[] = [
@@ -14,8 +15,11 @@ const FORMATS: { key: Format; label: string; ratio: string }[] = [
  * caption, toggle the trip name, see a live preview of the branded NP7 card, then
  * post it to your story/feed (native share sheet) or download it.
  */
-export function ShareSheet({ photo, trip, onClose }: {
-  photo: string; trip?: { title?: string; sub?: string }; onClose: () => void;
+export function ShareSheet({ photo, photos, trip, onClose }: {
+  photo: string;
+  /** All of the rider's trip photos, so they can swap which shot the card uses. */
+  photos?: string[];
+  trip?: { title?: string; sub?: string }; onClose: () => void;
 }) {
   const [format, setFormat] = useState<Format>("story");
   const [caption, setCaption] = useState("");
@@ -23,13 +27,15 @@ export function ShareSheet({ photo, trip, onClose }: {
   const [debounced, setDebounced] = useState("");
   const [busy, setBusy] = useState(false);
   const [previewing, setPreviewing] = useState(true);
+  const [activePhoto, setActivePhoto] = useState(photo); // the chosen shot (swappable)
   const title = trip?.title || "NP7 Experience";
+  const pickable = (photos && photos.length > 1 ? photos : []);
 
   // debounce the caption so the preview doesn't regenerate on every keystroke
   useEffect(() => { const t = setTimeout(() => setDebounced(caption), 400); return () => clearTimeout(t); }, [caption]);
 
   const build = (cap: string) => {
-    const p = new URLSearchParams({ photo, title, format });
+    const p = new URLSearchParams({ photo: activePhoto, title, format });
     if (trip?.sub) p.set("sub", trip.sub);
     if (cap) p.set("caption", cap);
     if (!showTitle) p.set("showTitle", "0");
@@ -90,6 +96,23 @@ export function ShareSheet({ photo, trip, onClose }: {
 
           {/* controls */}
           <div className="space-y-5">
+            {pickable.length > 0 && (
+              <div>
+                <p className="text-[11px] font-black uppercase tracking-wide text-[#b0791e] mb-2">Photo <span className="normal-case tracking-normal text-[#c3b9a6] font-medium">— tap to change</span></p>
+                <div className="flex gap-2 overflow-x-auto pb-1.5 -mx-0.5 px-0.5">
+                  {pickable.map((p) => {
+                    const on = p === activePhoto;
+                    return (
+                      <button key={p} type="button" onClick={() => setActivePhoto(p)} aria-label="Use this photo"
+                        className={`relative shrink-0 w-14 h-14 rounded-lg overflow-hidden transition-all ${on ? "ring-2 ring-[#f0a500] ring-offset-2 ring-offset-[#fffdf9]" : "ring-1 ring-black/10 opacity-65 hover:opacity-100"}`}>
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                        <img src={cdnImage(p, { width: 120 })} alt="" className="w-full h-full object-cover" />
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
             <div>
               <p className="text-[11px] font-black uppercase tracking-wide text-[#b0791e] mb-2">Format</p>
               <div className="flex gap-2">

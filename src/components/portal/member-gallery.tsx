@@ -95,6 +95,13 @@ export function MemberGallery({
   // Downloads work off the real, de-duplicated set (the keepers pin duplicates refs).
   const uniqueAll = useMemo(() => [...new Set(groups.flatMap((g) => g.photos))], [groups]);
   const hasOthers = uniqueAll.length > minePhotos.length;
+  // Photos offered in the share sheet's picker — the rider's OWN shots first, then
+  // the rest of the gallery, so "Share your trip" opens on their own photo but lets
+  // them swap to any other.
+  const sharePhotos = useMemo(
+    () => [...minePhotos, ...uniqueAll.filter((s) => !minePhotos.includes(s))],
+    [minePhotos, uniqueAll]
+  );
 
   async function zipAndSave(urls: string[], filename: string) {
     const { default: JSZip } = await import("jszip");
@@ -418,7 +425,7 @@ export function MemberGallery({
         </div>
       )}
 
-      {share && <ShareSheet photo={share} trip={trip} onClose={() => setShare(null)} />}
+      {share && <ShareSheet photo={share} photos={sharePhotos} trip={trip} onClose={() => setShare(null)} />}
     </>
   );
 }
