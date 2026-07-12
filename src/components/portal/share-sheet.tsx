@@ -38,7 +38,7 @@ export function ShareSheet({ photo, photos, trip, onClose }: {
     // v = card-design version. Bump it whenever the server render changes — the old
     // cards are CDN/browser-cached for hours, and a new URL is the only reliable way
     // to make every preview pick up the new design immediately.
-    const p = new URLSearchParams({ photo: activePhoto, title, format, v: "4" });
+    const p = new URLSearchParams({ photo: activePhoto, title, format, v: "5" });
     if (trip?.sub) p.set("sub", trip.sub);
     if (cap) p.set("caption", cap);
     if (!showTitle) p.set("showTitle", "0");

@@ -35,6 +35,19 @@ function loadFonts() {
 // boxes — outlines can't fall back to a colour-emoji font the way <text> can.
 const clean = (font: Font, s: string) => [...s].filter((ch) => ch === " " || font.charToGlyphIndex(ch) > 0).join("").replace(/\s+/g, " ").trim();
 
+// opentype.js v2's toPathData() emits NaN tokens for some glyph runs (serializer
+// bug — the command list itself is clean). librsvg silently stops drawing a path
+// at the first bad token, truncating the text mid-word. So serialize the commands
+// ourselves — four command types, fully deterministic.
+const rnd = (n: number) => Math.round(n * 100) / 100;
+const pathData = (p: { commands: Array<{ type: string; x?: number; y?: number; x1?: number; y1?: number; x2?: number; y2?: number }> }) =>
+  p.commands.map((c) =>
+    c.type === "M" ? `M${rnd(c.x!)} ${rnd(c.y!)}` :
+    c.type === "L" ? `L${rnd(c.x!)} ${rnd(c.y!)}` :
+    c.type === "Q" ? `Q${rnd(c.x1!)} ${rnd(c.y1!)} ${rnd(c.x!)} ${rnd(c.y!)}` :
+    c.type === "C" ? `C${rnd(c.x1!)} ${rnd(c.y1!)} ${rnd(c.x2!)} ${rnd(c.y2!)} ${rnd(c.x!)} ${rnd(c.y!)}` : "Z"
+  ).join("");
+
 /** A line of text as an SVG <path>. Returns the markup + measured width. */
 function tp(font: Font, raw: string, x: number, y: number, size: number, fill: string,
   o: { opacity?: number; anchor?: "start" | "middle"; tracking?: number } = {}) {
@@ -46,9 +59,9 @@ function tp(font: Font, raw: string, x: number, y: number, size: number, fill: s
   let d = "";
   if (tracking) {
     let cx = sx;
-    for (const ch of text) { d += font.getPath(ch, cx, y, size).toPathData(2) + " "; cx += font.getAdvanceWidth(ch, size) + tracking; }
+    for (const ch of text) { d += pathData(font.getPath(ch, cx, y, size)) + " "; cx += font.getAdvanceWidth(ch, size) + tracking; }
   } else {
-    d = font.getPath(text, sx, y, size).toPathData(2);
+    d = pathData(font.getPath(text, sx, y, size));
   }
   const op = o.opacity != null ? ` fill-opacity="${o.opacity}"` : "";
   return { svg: `<path d="${d}" fill="${fill}"${op}/>`, width };
@@ -70,7 +83,7 @@ export async function GET(req: NextRequest) {
 
   const sp = req.nextUrl.searchParams;
   const photo = sp.get("photo") || "";
-  const title = (sp.get("title") || "NP7 Experience").trim().slice(0, 42);
+  const title = (sp.get("title") || "NP7 Experience").trim().slice(0, 64); // wrap/ellipsis below guarantees fit
   const sub = (sp.get("sub") || "").trim().slice(0, 64);
   const caption = (sp.get("caption") || "").trim().replace(/\s+/g, " ").slice(0, 42);
   const showTitle = sp.get("showTitle") !== "0";
@@ -94,13 +107,42 @@ export async function GET(req: NextRequest) {
     const base = await sharp(Buffer.from(await imgRes.arrayBuffer())).rotate().resize(W, H, { fit: "cover" }).toBuffer();
     const { head, body } = fonts;
 
-    // Title — shrink to fit the width so long names never overflow (measured, not guessed).
+    // Title — guaranteed to fit: shrink a little first, then wrap onto two balanced
+    // lines, shrink again, and (last resort) ellipsis-truncate. Long experience names
+    // ("NP7 Signature EXP - Mauritius & Madagascar") must never leave the frame.
+    const maxW = W - 150;
+    const fitsW = (t: string, s: number) => head.getAdvanceWidth(t, s) <= maxW;
+    const ell = (t: string, s: number) => { if (fitsW(t, s)) return t; let x = t; while (x.length > 1 && !fitsW(x.trimEnd() + "…", s)) x = x.slice(0, -1); return x.trimEnd() + "…"; };
+    const cleanTitle = clean(head, title);
     let titleSize = 94;
-    if (showTitle) { const maxW = W - 150; while (titleSize > 46 && head.getAdvanceWidth(clean(head, title), titleSize) > maxW) titleSize -= 2; }
-    const titleEl = showTitle ? tp(head, title, 70, B - 210, titleSize, "#ffffff") : { svg: "", width: 0 };
+    let titleLines: string[] = [cleanTitle];
+    if (showTitle) {
+      while (titleSize > 64 && !fitsW(cleanTitle, titleSize)) titleSize -= 2;
+      if (!fitsW(cleanTitle, titleSize)) {
+        // split at the word boundary that balances the two lines best
+        const words = cleanTitle.split(" ");
+        let best: [string, string] = [cleanTitle, ""]; let bestDiff = Infinity;
+        for (let i = 1; i < words.length; i++) {
+          const a = words.slice(0, i).join(" "), b = words.slice(i).join(" ");
+          const diff = Math.abs(head.getAdvanceWidth(a, 60) - head.getAdvanceWidth(b, 60));
+          if (diff < bestDiff) { bestDiff = diff; best = [a, b]; }
+        }
+        titleLines = best[1] ? best : [best[0]];
+        titleSize = 72;
+        while (titleSize > 46 && !titleLines.every((l) => fitsW(l, titleSize))) titleSize -= 2;
+        titleLines = titleLines.map((l) => ell(l, titleSize));
+      }
+    }
+    const lineH = Math.round(titleSize * 1.08);
+    // last line keeps the B-210 baseline so the wave/dates/footer stay anchored;
+    // extra lines stack upward.
+    const titleEls = showTitle ? titleLines.map((ln, i) => tp(head, ln, 70, B - 210 - (titleLines.length - 1 - i) * lineH, titleSize, "#ffffff")) : [];
+    const titleSvg = titleEls.map((e) => e.svg).join("");
+    const titleWidth = titleEls.length ? Math.max(...titleEls.map((e) => e.width)) : 0;
+    const titleBlockH = showTitle ? titleSize + (titleLines.length - 1) * lineH : 0;
 
     // Hand-drawn wave underline (echoes the Experience logo's wave), sized to the title.
-    const uw = showTitle ? Math.min(W - 148, Math.max(170, Math.round(titleEl.width))) : 0;
+    const uw = showTitle ? Math.min(W - 148, Math.max(170, Math.round(titleWidth))) : 0;
     const wavePath = (() => {
       if (!showTitle) return "";
       const x0 = 74, y = B - 176, humps = 3, amp = 9, seg = uw / humps;
@@ -146,7 +188,7 @@ export async function GET(req: NextRequest) {
       <rect width="${W}" height="10" fill="url(#bar)"/>
       <rect x="0" y="${Math.round(H * 0.38)}" width="${W}" height="${Math.round(H * 0.62)}" fill="url(#scrim)"/>
       ${capBlock}
-      ${titleEl.svg}
+      ${titleSvg}
       ${wavePath}
       ${subEl.svg}
       ${footEl.svg}
@@ -161,7 +203,7 @@ export async function GET(req: NextRequest) {
       if (logoRes.ok) {
         const logoH = 118;
         const logo = await sharp(Buffer.from(await logoRes.arrayBuffer())).resize({ height: logoH }).png().toBuffer();
-        layers.push({ input: logo, top: B - 214 - titleSize - logoH - 18, left: 72 });
+        layers.push({ input: logo, top: B - 214 - titleBlockH - logoH - 18, left: 72 });
       }
     } catch { /* title still carries the card */ }
 
