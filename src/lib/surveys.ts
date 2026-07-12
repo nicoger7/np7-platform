@@ -17,7 +17,10 @@ function db(): DB { return createAdminClient() as DB; }
 // `weeks`) OR a fixed date+place "trip" (start/end + a blurb) that members
 // multi-select directly. When any option carries start/end the form switches to
 // premium trip-cards and the separate weeks question is hidden.
-export type SurveyDestination = { key: string; label: string; location?: string | null; start?: string | null; end?: string | null; blurb?: string | null; image?: string | null; lat?: number | null; lng?: number | null };
+// One row = a place on ONE date window. Several rows sharing a `groupId` (or, for
+// older data, the same label) are the same place with multiple date windows — the
+// admin edits them as one card; the member form shows one card with period pills.
+export type SurveyDestination = { key: string; groupId?: string | null; label: string; location?: string | null; start?: string | null; end?: string | null; blurb?: string | null; image?: string | null; lat?: number | null; lng?: number | null };
 export type SurveyWeek = { key: string; label: string; start: string | null; end: string | null };
 export type SurveyStatus = "draft" | "open" | "closed";
 

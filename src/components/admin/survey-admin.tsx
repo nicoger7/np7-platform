@@ -51,24 +51,50 @@ export function SurveyAdmin({ initialSurvey, initialInvites }: { initialSurvey: 
     router.push("/admin/surveys");
   }
 
-  // ---- destinations / weeks repeaters ----
-  const addDest = () => patch({ destinations: [...s.destinations, { key: uid(), label: "", location: "", start: null, end: null, blurb: "" }] });
-  const setDest = (i: number, p: Partial<SurveyDestination>) => patch({ destinations: s.destinations.map((d, j) => j === i ? { ...d, ...p } : d) });
-  const delDest = (i: number) => patch({ destinations: s.destinations.filter((_, j) => j !== i) });
-  // Offer a second date window for the same place with one tap (riders then pick a period).
-  const addPeriod = (i: number) => { const d = s.destinations[i]; patch({ destinations: [...s.destinations.slice(0, i + 1), { key: uid(), label: d.label, location: d.location, blurb: d.blurb, start: null, end: null }, ...s.destinations.slice(i + 1)] }); };
-  const [picker, setPicker] = useState<number | null>(null); // trip index whose image picker is open
-  const [geoBusy, setGeoBusy] = useState<number | null>(null);
+  // ---- trips (places) / weeks repeaters ----
+  // A "place" is one card; its date windows are the rows sharing a groupId (or, for
+  // older rows, the same label). The admin edits the place once; each date is a row.
+  const gkey = (d: SurveyDestination) => d.groupId ?? (d.label || d.location || d.key || "").trim();
+  const tripGroups = (() => {
+    const seen = new Set<string>(); const out: { key: string; rows: SurveyDestination[] }[] = [];
+    for (const d of s.destinations) { const k = gkey(d); if (!seen.has(k)) { seen.add(k); out.push({ key: k, rows: s.destinations.filter((x) => gkey(x) === k) }); } }
+    return out;
+  })();
+  const addTrip = () => patch({ destinations: [...s.destinations, { key: uid(), groupId: uid(), label: "", location: "", start: null, end: null, blurb: "" }] });
+  // edit a shared place field on EVERY date row of the place
+  const setGroup = (gid: string, p: Partial<SurveyDestination>) => patch({ destinations: s.destinations.map((d) => gkey(d) === gid ? { ...d, ...p } : d) });
+  // edit one date row
+  const setRow = (rowKey: string, p: Partial<SurveyDestination>) => patch({ destinations: s.destinations.map((d) => d.key === rowKey ? { ...d, ...p } : d) });
+  const delGroup = (gid: string) => patch({ destinations: s.destinations.filter((d) => gkey(d) !== gid) });
+  // add another date window to a place (clones its shared fields; stamps a groupId
+  // so the rows stay one card even if the place is renamed later)
+  const addDate = (gid: string) => {
+    const rows = s.destinations.filter((d) => gkey(d) === gid);
+    const groupId = rows.find((d) => d.groupId)?.groupId ?? uid();
+    const base = rows[rows.length - 1];
+    const newRow: SurveyDestination = { key: uid(), groupId, label: base.label, location: base.location, blurb: base.blurb, image: base.image, lat: base.lat, lng: base.lng, start: null, end: null };
+    const upgraded = s.destinations.map((d) => gkey(d) === gid ? { ...d, groupId } : d);
+    let lastIdx = -1; upgraded.forEach((d, i) => { if (d.groupId === groupId) lastIdx = i; });
+    patch({ destinations: [...upgraded.slice(0, lastIdx + 1), newRow, ...upgraded.slice(lastIdx + 1)] });
+  };
+  const delDate = (gid: string, rowKey: string) => {
+    const rows = s.destinations.filter((d) => gkey(d) === gid);
+    if (rows.length <= 1) { setRow(rowKey, { start: null, end: null }); return; } // last date → just clear it
+    patch({ destinations: s.destinations.filter((d) => d.key !== rowKey) });
+  };
+  const [picker, setPicker] = useState<string | null>(null); // group key whose image picker is open
+  const [geoBusy, setGeoBusy] = useState<string | null>(null);
   // Drop a pin from the place name → coords power the satellite fallback when there's no photo.
-  async function locate(i: number) {
-    const d = s.destinations[i];
+  async function locate(gid: string) {
+    const d = s.destinations.find((x) => gkey(x) === gid);
+    if (!d) return;
     const q = [d.location, d.label].filter(Boolean).join(", ").trim();
     if (!q) return;
-    setGeoBusy(i);
+    setGeoBusy(gid);
     try {
       const r = await fetch(`https://nominatim.openstreetmap.org/search?format=json&limit=1&q=${encodeURIComponent(q)}`, { headers: { "Accept-Language": "en" } });
       const hits = await r.json().catch(() => []);
-      if (Array.isArray(hits) && hits[0]) setDest(i, { lat: Math.round(+hits[0].lat * 1e5) / 1e5, lng: Math.round(+hits[0].lon * 1e5) / 1e5 });
+      if (Array.isArray(hits) && hits[0]) setGroup(gid, { lat: Math.round(+hits[0].lat * 1e5) / 1e5, lng: Math.round(+hits[0].lon * 1e5) / 1e5 });
     } catch { /* leave coords blank — admin can type them */ }
     finally { setGeoBusy(null); }
   }
@@ -112,59 +138,72 @@ export function SurveyAdmin({ initialSurvey, initialInvites }: { initialSurvey: 
         </div>
       </div>
 
-      {/* destinations = fixed date + place trips */}
+      {/* trips = a PLACE with one or more date windows */}
       <div className={card}>
         <div className="flex items-center justify-between mb-2">
           <span className={lbl}>Trips</span>
-          <button onClick={addDest} className="text-[12.5px] font-bold text-[#0aa3c7]">+ Add trip</button>
+          <button onClick={addTrip} className="text-[12.5px] font-bold text-[#0aa3c7]">+ Add place</button>
         </div>
-        <p className="text-[12px] text-[#9aa6ac] mb-3">Each trip is a <b>place + a date window</b> a rider can tick. Give it a blurb so they know what it is. Want to offer <b>the same place on different dates?</b> Use <b>“+ Another date”</b> — riders then see one card for the place with a period to pick under it. (Leave the dates empty to fall back to the old “pick a spot + a week” style.)</p>
-        {s.destinations.length === 0 ? <p className="text-[13px] text-[#9aa6ac]">No trips yet.</p> : (
+        <p className="text-[12px] text-[#9aa6ac] mb-3">One card per <b>place</b> — add as many <b>date windows</b> under it as you like. Riders see one card for the place and tick the dates that work. Give it a blurb + a photo (or hit <b>Locate</b> for a satellite fallback). (Leave dates empty to fall back to the old “pick a spot + a week” style.)</p>
+        {tripGroups.length === 0 ? <p className="text-[13px] text-[#9aa6ac]">No trips yet.</p> : (
           <div className="space-y-2.5">
-            {s.destinations.map((d, i) => (
-              <div key={d.key} className="rounded-xl border border-[#ece3d3] bg-[#fdfaf3] p-3 space-y-2">
-                <div className="flex items-center gap-2">
-                  <input className={`${input} font-semibold`} value={d.label} onChange={(e) => setDest(i, { label: e.target.value })} placeholder="Place — e.g. Langebaan" />
-                  <button onClick={() => delDest(i)} className="shrink-0 text-[#c0392b] text-[13px] font-bold px-2">Remove</button>
-                </div>
-                <input className={input} value={d.location ?? ""} onChange={(e) => setDest(i, { location: e.target.value })} placeholder="Location — e.g. Cape Town, South Africa (optional)" />
-                <div className="flex flex-wrap items-center gap-2">
-                  <span className="text-[12px] font-bold text-[#6a7a80]">Dates</span>
-                  <input type="date" className={`${input} w-[150px]`} value={d.start ?? ""} onChange={(e) => setDest(i, { start: e.target.value || null })} />
-                  <span className="text-[#9aa6ac]">→</span>
-                  <input type="date" className={`${input} w-[150px]`} value={d.end ?? ""} onChange={(e) => setDest(i, { end: e.target.value || null })} />
-                  <button onClick={() => addPeriod(i)} className="text-[12px] font-bold text-[#0aa3c7] ml-1">+ Another date for this place</button>
-                </div>
-                <textarea className={`${input} min-h-[60px] resize-y`} value={d.blurb ?? ""} onChange={(e) => setDest(i, { blurb: e.target.value })} placeholder="Write about the trip — the spot, the vibe, what's included…" />
+            {tripGroups.map((g) => {
+              const first = g.rows[0];
+              return (
+                <div key={g.key} className="rounded-xl border border-[#ece3d3] bg-[#fdfaf3] p-3 space-y-2">
+                  <div className="flex items-center gap-2">
+                    <input className={`${input} font-semibold`} value={first.label} onChange={(e) => setGroup(g.key, { label: e.target.value })} placeholder="Place — e.g. Langebaan" />
+                    <button onClick={() => delGroup(g.key)} className="shrink-0 text-[#c0392b] text-[13px] font-bold px-2">Remove</button>
+                  </div>
+                  <input className={input} value={first.location ?? ""} onChange={(e) => setGroup(g.key, { location: e.target.value })} placeholder="Location — e.g. Cape Town, South Africa (optional)" />
 
-                {/* Photo (or a satellite fallback from the pin when there's none) */}
-                <div className="flex flex-wrap items-center gap-2 pt-1">
-                  {d.image ? (
-                    <>
-                      {/* eslint-disable-next-line @next/next/no-img-element */}
-                      <img src={d.image} alt="" className="w-16 h-12 rounded-lg object-cover border border-[#e2d8c6]" />
-                      <button onClick={() => setPicker(i)} className="text-[12px] font-bold text-[#0aa3c7]">Change photo</button>
-                      <button onClick={() => setDest(i, { image: null })} className="text-[12px] font-bold text-[#c0392b]">Remove</button>
-                    </>
-                  ) : (
-                    <button onClick={() => setPicker(i)} className="inline-flex items-center gap-1.5 rounded-lg border border-dashed border-[#c9bda5] px-3 py-1.5 text-[12.5px] font-bold text-[#6a7a80] hover:border-[#0aa3c7] hover:text-[#0aa3c7]">＋ Add / upload photo</button>
+                  {/* dates — one row per window; add as many as you like */}
+                  <div>
+                    <span className="text-[12px] font-bold text-[#6a7a80]">Dates <span className="font-normal text-[#9aa6ac]">— riders pick from these</span></span>
+                    <div className="space-y-1.5 mt-1">
+                      {g.rows.map((r) => (
+                        <div key={r.key} className="flex flex-wrap items-center gap-2">
+                          <input type="date" className={`${input} w-[150px]`} value={r.start ?? ""} onChange={(e) => setRow(r.key, { start: e.target.value || null })} />
+                          <span className="text-[#9aa6ac]">→</span>
+                          <input type="date" className={`${input} w-[150px]`} value={r.end ?? ""} onChange={(e) => setRow(r.key, { end: e.target.value || null })} />
+                          {g.rows.length > 1 && <button onClick={() => delDate(g.key, r.key)} title="Remove this date" className="text-[13px] font-bold text-[#c0392b] px-1.5">✕</button>}
+                        </div>
+                      ))}
+                    </div>
+                    <button onClick={() => addDate(g.key)} className="text-[12px] font-bold text-[#0aa3c7] mt-1.5">＋ Add another date</button>
+                  </div>
+
+                  <textarea className={`${input} min-h-[60px] resize-y`} value={first.blurb ?? ""} onChange={(e) => setGroup(g.key, { blurb: e.target.value })} placeholder="Write about the trip — the spot, the vibe, what's included…" />
+
+                  {/* one photo / satellite fallback for the whole place */}
+                  <div className="flex flex-wrap items-center gap-2 pt-1">
+                    {first.image ? (
+                      <>
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                        <img src={first.image} alt="" className="w-16 h-12 rounded-lg object-cover border border-[#e2d8c6]" />
+                        <button onClick={() => setPicker(g.key)} className="text-[12px] font-bold text-[#0aa3c7]">Change photo</button>
+                        <button onClick={() => setGroup(g.key, { image: null })} className="text-[12px] font-bold text-[#c0392b]">Remove</button>
+                      </>
+                    ) : (
+                      <button onClick={() => setPicker(g.key)} className="inline-flex items-center gap-1.5 rounded-lg border border-dashed border-[#c9bda5] px-3 py-1.5 text-[12.5px] font-bold text-[#6a7a80] hover:border-[#0aa3c7] hover:text-[#0aa3c7]">＋ Add / upload photo</button>
+                    )}
+                    <span className="text-[#e2d8c6]">·</span>
+                    <button onClick={() => locate(g.key)} disabled={geoBusy === g.key} className="text-[12px] font-bold text-[#0aa3c7] disabled:opacity-50">{geoBusy === g.key ? "Locating…" : "📍 Locate from name"}</button>
+                    {first.lat != null && first.lng != null && <span className="text-[11.5px] text-[#1f9e57] font-semibold">✓ satellite fallback ready</span>}
+                  </div>
+                  {!first.image && (first.lat == null || first.lng == null) && (
+                    <p className="text-[11px] text-[#9aa6ac]">No photo yet? Hit <b>Locate</b> — riders will see a satellite view of the spot instead of a blank card.</p>
                   )}
-                  <span className="text-[#e2d8c6]">·</span>
-                  <button onClick={() => locate(i)} disabled={geoBusy === i} className="text-[12px] font-bold text-[#0aa3c7] disabled:opacity-50">{geoBusy === i ? "Locating…" : "📍 Locate from name"}</button>
-                  {d.lat != null && d.lng != null && <span className="text-[11.5px] text-[#1f9e57] font-semibold">✓ satellite fallback ready</span>}
                 </div>
-                {!d.image && (d.lat == null || d.lng == null) && (
-                  <p className="text-[11px] text-[#9aa6ac]">No photo yet? Hit <b>Locate</b> — riders will see a satellite view of the spot instead of a blank card.</p>
-                )}
-              </div>
-            ))}
+              );
+            })}
           </div>
         )}
       </div>
       {picker !== null && (
         <ImagePickerModal
           defaultFolder="experiences/shared"
-          onSelect={(url) => { setDest(picker, { image: url }); setPicker(null); }}
+          onSelect={(url) => { setGroup(picker, { image: url }); setPicker(null); }}
           onClose={() => setPicker(null)}
         />
       )}

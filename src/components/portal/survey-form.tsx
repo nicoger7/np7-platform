@@ -46,12 +46,12 @@ export function SurveyForm({ survey, token, contactName, existing, preview = fal
   const tripGroups = (() => {
     const m = new Map<string, SurveyDestination[]>();
     for (const d of survey.destinations) {
-      const name = (d.label || d.location || d.key).trim();
-      if (!m.has(name)) m.set(name, []);
-      m.get(name)!.push(d);
+      const gk = d.groupId ?? (d.label || d.location || d.key).trim();
+      if (!m.has(gk)) m.set(gk, []);
+      m.get(gk)!.push(d);
     }
-    return [...m.entries()].map(([name, rows]) => ({
-      key: rows[0].key, name,
+    return [...m.entries()].map(([, rows]) => ({
+      key: rows[0].key, name: (rows.find((r) => r.label)?.label || rows[0].location || rows[0].key).trim(),
       location: rows.find((r) => r.location)?.location ?? null,
       blurb: rows.find((r) => r.blurb)?.blurb ?? null,
       image: tripImage(rows),
