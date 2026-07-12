@@ -58,6 +58,9 @@ export function SurveyForm({ survey, token, contactName, existing, preview = fal
       periods: [...rows].sort((a, b) => (a.start || "").localeCompare(b.start || "")),
     })).sort((a, b) => (a.periods[0].start || "").localeCompare(b.periods[0].start || ""));
   })();
+  // Adaptive density: a few trips → big immersive cards; many → a tighter 2-up grid
+  // so 4–5 places don't become an endless scroll. Dates always stay as chips.
+  const many = tripGroups.length > 3;
   const rangesOverlap = (a?: SurveyDestination, b?: SurveyDestination) => !!(a?.start && a?.end && b?.start && b?.end && a.start <= b.end && b.start <= a.end);
   const chosenArr = [...chosen];
   const overlapNote = hasTrips && chosenArr.some((k, i) => chosenArr.slice(i + 1).some((k2) => rangesOverlap(byKey.get(k), byKey.get(k2))));
@@ -169,12 +172,12 @@ export function SurveyForm({ survey, token, contactName, existing, preview = fal
           <section data-reveal>
             <p className={label}>Which trips would you join?</p>
             <p className="text-[13.5px] text-[#8a97a0] mt-1 mb-4">Dates &amp; place are fixed — tick every window you&apos;d want in on. The more you pick, the more likely we run the ones you want.</p>
-            <div className="space-y-4">
+            <div className={many ? "grid sm:grid-cols-2 gap-3.5" : "space-y-4"}>
               {tripGroups.map((g, gi) => {
                 const anyOn = g.periods.some((p) => chosen.has(p.key));
                 const single = g.periods.length === 1;
                 const Banner = (
-                  <div className="relative h-52 sm:h-60 overflow-hidden bg-[#0a2a33]">
+                  <div className={`relative overflow-hidden bg-[#0a2a33] ${many ? "h-40" : "h-52 sm:h-60"}`}>
                     {g.image
                       ? <div data-zoom className="absolute inset-0 bg-cover bg-center will-change-transform" style={{ backgroundImage: `url('${g.image}')` }} />
                       : <div className="absolute inset-0" style={{ background: "linear-gradient(135deg,#0f6f86,#00afdb 55%,#1aa3c7)" }} />}
