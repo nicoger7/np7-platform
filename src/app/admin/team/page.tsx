@@ -17,6 +17,7 @@ interface TeamMember {
   notes: string | null;
   total_hours: number;
   total_cost: number | null;
+  access_roles?: string[];
 }
 
 type SortDir = "asc" | "desc" | null;
@@ -206,7 +207,7 @@ export default function TeamPage() {
               <Link href={`/admin/team/${m.id}`} className="text-sm font-medium admin-heading truncate hover:text-[#0aa3c7] transition-colors">{m.name}</Link>
               {visibleColumns.has("email") && <span className="text-xs admin-muted self-center truncate">{m.email || "—"}</span>}
               {visibleColumns.has("phone") && <span className="text-xs admin-muted self-center truncate">{m.phone || "—"}</span>}
-              {visibleColumns.has("role") && <span className="text-xs admin-muted self-center">{m.role || "—"}</span>}
+              {visibleColumns.has("role") && <span className="text-xs admin-muted self-center truncate" title={[...(m.access_roles ?? []), m.role || ""].filter(Boolean).join(" · ")}>{(m.access_roles?.length ? m.access_roles.join(", ") : m.role) || "—"}</span>}
               {visibleColumns.has("rate_per_hour") && <span className="text-xs admin-muted self-center">{m.rate_per_hour ? `€${m.rate_per_hour}/h` : "—"}</span>}
               {visibleColumns.has("total_hours") && <span className="text-xs admin-muted self-center">{m.total_hours ? `${m.total_hours}h` : "—"}</span>}
               {visibleColumns.has("total_cost") && <span className="text-xs admin-muted self-center">{m.total_cost != null ? `€${m.total_cost.toLocaleString()}` : "—"}</span>}

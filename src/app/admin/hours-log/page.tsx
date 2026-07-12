@@ -161,11 +161,17 @@ export default function HoursLogPage() {
   }
 
   async function handleSave() {
-    const body = { date: form.date || null, hours: form.hours ? Number(form.hours) : 0, category: form.category || null, entry: form.entry || null, employee_id: form.employee_id || null, experience_id: form.experience_id || null, edition_id: form.experience_id ? (form.edition_id || null) : null, notes: form.notes || null, is_general: form.is_general, processed_at: form.processed_at || null };
-    if (editId) {
-      await fetch(`/api/admin/hours-log/${editId}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
-    } else {
-      await fetch("/api/admin/hours-log", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+    // date + hours + entry are NOT NULL in the DB — don't let a silent 400 eat the log
+    if (!form.date) { alert("Pick a date for this entry."); return; }
+    if (!form.hours || Number(form.hours) <= 0) { alert("Enter the hours worked."); return; }
+    const body = { date: form.date, hours: Number(form.hours), category: form.category || null, entry: form.entry.trim() || "Untitled", employee_id: form.employee_id || null, experience_id: form.experience_id || null, edition_id: form.experience_id ? (form.edition_id || null) : null, notes: form.notes || null, is_general: form.is_general, processed_at: form.processed_at || null };
+    const res = editId
+      ? await fetch(`/api/admin/hours-log/${editId}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) })
+      : await fetch("/api/admin/hours-log", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+    if (!res.ok) {
+      const j = await res.json().catch(() => ({} as { error?: string }));
+      alert(j.error || "Couldn't save this entry — please try again.");
+      return; // keep the form open so nothing typed is lost
     }
     setShowNew(false); setEditId(null); fetchData();
     if (fromSuggestion && !editId) {

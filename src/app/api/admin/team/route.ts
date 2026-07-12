@@ -12,11 +12,21 @@ export async function GET() {
   for (const h of (hours || []) as { employee_id: string | null; hours: number | null }[]) {
     if (h.employee_id) hoursByMember[h.employee_id] = (hoursByMember[h.employee_id] || 0) + (Number(h.hours) || 0);
   }
+  // Access-role names (role editor) — the overview shows these; "role" is just
+  // a free-text job title and often empty. Tolerant pre-migration 045.
+  const roleName = new Map<string, string>();
+  try {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { data: roleRows } = await (client as any).from("team_roles").select("id, name");
+    for (const r of (roleRows ?? []) as { id: string; name: string }[]) roleName.set(r.id, r.name);
+  } catch { /* pre-migration */ }
+
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const enriched = (data || []).map((m: any) => {
     const total_hours = Math.round((hoursByMember[m.id] || 0) * 10) / 10;
     const total_cost = m.rate_per_hour != null ? Math.round(total_hours * Number(m.rate_per_hour) * 100) / 100 : null;
-    return { ...m, total_hours, total_cost };
+    const access_roles = ((m.role_ids ?? []) as string[]).map((id) => roleName.get(id)).filter(Boolean);
+    return { ...m, total_hours, total_cost, access_roles };
   });
   return NextResponse.json(enriched);
 }
