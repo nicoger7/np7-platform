@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import type { GalleryGroup } from "@/lib/portal-data";
 import { cdnImage } from "@/lib/img";
+import { ShareCardButton } from "./share-card-button";
 
 /**
  * The participant's trip-photo gallery, split into foldable groups:
@@ -26,12 +27,15 @@ export function MemberGallery({
   bookingId,
   downloadsRemaining,
   keeperBookingId,
+  trip,
 }: {
   groups: GalleryGroup[];
   bookingId?: string;
   downloadsRemaining?: number;
   /** When set, members can star photos as permanent "keepers" for this booking. */
   keeperBookingId?: string;
+  /** Trip title + dates → branded share card ("share your trip to your story"). */
+  trip?: { title: string; sub?: string };
 }) {
   const [open, setOpen] = useState<number | null>(null);
   const [mineExpanded, setMineExpanded] = useState(false);
@@ -381,6 +385,10 @@ export function MemberGallery({
           <button aria-label="Close" className="absolute top-5 right-5 w-11 h-11 rounded-full bg-white/10 hover:bg-white/20 text-white grid place-items-center" onClick={() => setOpen(null)}>
             <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><path d="M18 6L6 18M6 6l12 12" /></svg>
           </button>
+          {/* Share this shot as a branded NP7 story card */}
+          <div className="absolute top-5 left-5 z-10" onClick={(e) => e.stopPropagation()}>
+            <ShareCardButton photo={flat[open]} title={trip?.title ?? "NP7 Experience"} sub={trip?.sub} label="Share to story" />
+          </div>
           <button aria-label="Previous" className="absolute left-3 sm:left-6 w-12 h-12 rounded-full bg-white/10 hover:bg-white/20 text-white grid place-items-center" onClick={(e) => { e.stopPropagation(); setOpen((i) => (i === null ? i : (i - 1 + flat.length) % flat.length)); }}>
             <svg className="w-6 h-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M15 18l-6-6 6-6" /></svg>
           </button>

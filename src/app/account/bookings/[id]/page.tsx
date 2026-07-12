@@ -131,7 +131,11 @@ export default async function BookingDetail({ params }: Props) {
     <>
       {photoCount > 0 && (
         <div className="mb-3">
-          <MemberGallery groups={galleryGroups} bookingId={b.id} downloadsRemaining={downloadsRemaining} keeperBookingId={b.id} />
+          <MemberGallery groups={galleryGroups} bookingId={b.id} downloadsRemaining={downloadsRemaining} keeperBookingId={b.id}
+            trip={{
+              title: (b.experience?.title ?? "").replace(/^NP7\s*Experience\s*/i, "").trim() || "NP7 Experience",
+              sub: b.edition?.date_start ? new Date(b.edition.date_start).toLocaleDateString("en-GB", { month: "short", year: "numeric" }) : undefined,
+            }} />
           <div className="mt-3">
             <PhotoSharingToggle bookingId={b.id} initialShared={photosShared} />
           </div>
