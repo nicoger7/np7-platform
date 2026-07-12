@@ -208,7 +208,10 @@ export async function GET(req: NextRequest) {
     } catch { /* title still carries the card */ }
 
     const out = await sharp(base).composite(layers).jpeg({ quality: 88 }).toBuffer();
-    return new Response(new Uint8Array(out), { headers: { "Content-Type": "image/jpeg", "Cache-Control": "public, max-age=3600" } });
+    // no-store: cached cards from older card designs kept resurfacing in previews
+    // ("works on some photos, not others"). The card is member-gated + personal and
+    // takes ~1s to build — always render fresh, never let any cache serve a stale one.
+    return new Response(new Uint8Array(out), { headers: { "Content-Type": "image/jpeg", "Cache-Control": "private, no-store" } });
   } catch {
     return new Response("error", { status: 500 });
   }
