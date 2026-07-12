@@ -14,7 +14,8 @@ export async function GET(request: Request) {
   const client = createAdminClient() as any;
   const experienceId = new URL(request.url).searchParams.get("experience_id");
   let q = client.from("exp_rooms").select("*").order("hotel").order("name");
-  if (experienceId) q = q.eq("experience_id", experienceId);
+  // match the multi-experience array OR the legacy single column
+  if (experienceId) q = q.or(`experience_id.eq.${experienceId},experience_ids.cs.{${experienceId}}`);
   const { data, error } = await q;
   if (error) return NextResponse.json({ rooms: [] }); // tolerant pre-migration 060
   return NextResponse.json({ rooms: notArchived(data) });
@@ -31,7 +32,8 @@ export async function POST(request: Request) {
   const { data, error } = await client
     .from("exp_rooms")
     .insert({
-      experience_id: body.experience_id || null,
+      experience_id: (Array.isArray(body.experience_ids) ? body.experience_ids[0] : body.experience_id) || null,
+      experience_ids: Array.isArray(body.experience_ids) ? body.experience_ids : (body.experience_id ? [body.experience_id] : []),
       hotel: body.hotel || null,
       name: body.name,
       room_type: body.room_type || null,

@@ -34,6 +34,7 @@ interface Occupancy {
 interface RoomUnit {
   id: string;
   experience_id: string | null;
+  experience_ids?: string[] | null;
   hotel: string | null;
   name: string;
   room_type: string | null;
@@ -52,7 +53,7 @@ function formatDate(d: string | null) {
   return new Date(d).toLocaleDateString("en-US", { month: "short", day: "numeric" });
 }
 
-const emptyUnit = { name: "", hotel: "", room_type: "", room_number: "", comments: "", experience_id: "" };
+const emptyUnit = { name: "", hotel: "", room_type: "", room_number: "", comments: "", experience_ids: [] as string[] };
 const emptyWeek = { edition_id: "", booking_id: "", status: "available", check_in: "", check_out: "", transfer_need: false, partner_tag_along: "" };
 
 export default function HotelRoomsPage() {
@@ -93,7 +94,7 @@ export default function HotelRoomsPage() {
     ]).then(([occ, un, expData, edData]) => {
       setOccupancy(occ.rooms || []);
       setUnits(un.rooms || []);
-      setExperiences(expData.experiences || []);
+      setExperiences(Array.isArray(expData) ? expData : expData.experiences || []);
       setEditions(Array.isArray(edData) ? edData : (edData.editions || []));
       setLoading(false);
     });
@@ -116,7 +117,7 @@ export default function HotelRoomsPage() {
   });
   const filteredUnits = units.filter((u) => {
     if (filterHotel && u.hotel !== filterHotel) return false;
-    if (filterExperience && u.experience_id !== filterExperience) return false;
+    if (filterExperience && u.experience_id !== filterExperience && !(u.experience_ids ?? []).includes(filterExperience)) return false;
     return true;
   });
 
@@ -144,17 +145,17 @@ export default function HotelRoomsPage() {
   function startUnit(id: string | "new") {
     setWeekEditId(null); setWeekForm(emptyWeek);
     setSelUnit(id);
-    if (id === "new") { setUnitForm({ ...emptyUnit, hotel: filterHotel || "", experience_id: filterExperience || "" }); return; }
+    if (id === "new") { setUnitForm({ ...emptyUnit, hotel: filterHotel || "", experience_ids: filterExperience ? [filterExperience] : [] }); return; }
     const g = groupMap[id];
     const u = g?.unit;
-    if (u) setUnitForm({ name: u.name, hotel: u.hotel || "", room_type: u.room_type || "", room_number: u.room_number || "", comments: u.comments || "", experience_id: u.experience_id || "" });
+    if (u) setUnitForm({ name: u.name, hotel: u.hotel || "", room_type: u.room_type || "", room_number: u.room_number || "", comments: u.comments || "", experience_ids: (u.experience_ids?.length ? u.experience_ids : u.experience_id ? [u.experience_id] : []) });
   }
   function closeUnit() { setSelUnit(null); setUnitForm(emptyUnit); setWeekEditId(null); setWeekForm(emptyWeek); }
 
   async function saveUnit() {
     if (!unitForm.name) return;
     setSavingUnit(true);
-    const body = { name: unitForm.name, hotel: unitForm.hotel || null, room_type: unitForm.room_type || null, room_number: unitForm.room_number || null, comments: unitForm.comments || null, experience_id: unitForm.experience_id || null };
+    const body = { name: unitForm.name, hotel: unitForm.hotel || null, room_type: unitForm.room_type || null, room_number: unitForm.room_number || null, comments: unitForm.comments || null, experience_ids: unitForm.experience_ids };
     if (selUnit === "new") {
       const res = await fetch("/api/admin/rooms", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }).then((r) => r.json());
       await loadRooms();
@@ -248,14 +249,23 @@ export default function HotelRoomsPage() {
             <div className="p-5 rounded-xl" style={{ border: "1px solid var(--admin-border)", backgroundColor: "var(--admin-surface)" }}>
               <h3 className="text-base font-bold admin-heading mb-1">{selUnit === "new" ? "New room" : "Edit room"}</h3>
               <p className="text-xs admin-faint mb-4">The physical room — name &amp; type apply to every week.</p>
-              <div className="mb-3"><label className={labelClass}>Name *</label><input className={inputClass} value={unitForm.name} onChange={(e) => setUnitForm({ ...unitForm, name: e.target.value })} /></div>
+              <div className="mb-3"><label className={labelClass}>Name * <span className="normal-case font-normal admin-faint">— our numbering, e.g. “Double Deluxe Patio 1”</span></label><input className={inputClass} value={unitForm.name} onChange={(e) => setUnitForm({ ...unitForm, name: e.target.value })} /></div>
               <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 mb-3">
                 <div><label className={labelClass}>Hotel</label><select className={inputClass} value={unitForm.hotel} onChange={(e) => setUnitForm({ ...unitForm, hotel: e.target.value })}><option value="">—</option>{HOTELS.map((h) => <option key={h} value={h}>{h}</option>)}</select></div>
-                <div><label className={labelClass}>Room #</label><input className={inputClass} value={unitForm.room_number} onChange={(e) => setUnitForm({ ...unitForm, room_number: e.target.value })} /></div>
-                <div><label className={labelClass}>Experience</label><select className={inputClass} value={unitForm.experience_id} onChange={(e) => setUnitForm({ ...unitForm, experience_id: e.target.value })}><option value="">—</option>{experiences.map((ex) => <option key={ex.id} value={ex.id}>{ex.title}</option>)}</select></div>
+                <div><label className={labelClass}>Room # <span className="normal-case font-normal admin-faint">— the hotel’s own number, if any</span></label><input className={inputClass} value={unitForm.room_number} onChange={(e) => setUnitForm({ ...unitForm, room_number: e.target.value })} /></div>
+                <div><label className={labelClass}>Experiences <span className="normal-case font-normal admin-faint">— all that use this room</span></label>
+                  <div className="flex flex-wrap gap-1.5 pt-1">
+                    {experiences.map((ex) => {
+                      const on = unitForm.experience_ids.includes(ex.id);
+                      return <button key={ex.id} type="button" onClick={() => setUnitForm({ ...unitForm, experience_ids: on ? unitForm.experience_ids.filter((x) => x !== ex.id) : [...unitForm.experience_ids, ex.id] })}
+                        className={`px-2.5 py-1 rounded-lg text-xs font-semibold transition-colors ${on ? "bg-[#0aa3c7] text-white" : "admin-muted hover:admin-heading"}`}
+                        style={on ? undefined : { border: "1px solid var(--admin-border)" }}>{on ? "✓ " : ""}{ex.title}</button>;
+                    })}
+                  </div>
+                </div>
               </div>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-4">
-                <div><label className={labelClass}>Room type</label><input className={inputClass} value={unitForm.room_type} onChange={(e) => setUnitForm({ ...unitForm, room_type: e.target.value })} placeholder="e.g. Double Deluxe Balcony" /></div>
+                <div><label className={labelClass}>Room type <span className="normal-case font-normal admin-faint">— internal; the website’s room label comes from the package name</span></label><input className={inputClass} value={unitForm.room_type} onChange={(e) => setUnitForm({ ...unitForm, room_type: e.target.value })} placeholder="e.g. Double Deluxe Balcony" /></div>
                 <div><label className={labelClass}>Notes</label><input className={inputClass} value={unitForm.comments} onChange={(e) => setUnitForm({ ...unitForm, comments: e.target.value })} /></div>
               </div>
               <div className="flex gap-2">

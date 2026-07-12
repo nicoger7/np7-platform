@@ -124,7 +124,7 @@ export default function HotelsPage() {
             return (
               <button key={rh.id ?? rh.name} onClick={() => rh.id && setSelId(rh.id)} className="shrink-0 text-left px-3 py-2 rounded-lg transition-colors" style={{ background: active ? "var(--admin-accent)" : "var(--admin-surface)", border: "1px solid var(--admin-border)" }}>
                 <span className={`block text-xs font-semibold truncate ${active ? "text-[var(--admin-accent-contrast)]" : "admin-heading"}`}>{rh.name}</span>
-                <span className={`block text-[10px] mt-0.5 truncate ${active ? "text-[var(--admin-accent-contrast)]/80" : "admin-faint"}`}>{rh.location || rh.prefix || "—"}</span>
+                <span className={`block text-[10px] mt-0.5 truncate ${active ? "text-[var(--admin-accent-contrast)]/80" : "admin-faint"}`}>{[rh.prefix, rh.location].filter(Boolean).join(" · ") || "—"}</span>
               </button>
             );
           })}
