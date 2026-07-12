@@ -63,7 +63,10 @@ export function SpotguideProvider({ destId, initialLoggedIn = false, children }:
   const saveDest = async (ratings: Record<string, number>) => {
     const j = await post("/api/portal/spotguide/rate", { target: "destination", id: destId, ratings });
     if (!j) return null;
-    setMineDest(j.mine);
+    // the rate API wraps it ({ mine: { ratings } }) while GET /mine returns the flat
+    // record — unwrap so the rater sees the member's rating and shows "✓ rated /
+    // Update" instead of a fresh empty form.
+    setMineDest(j.mine?.ratings ?? null);
     return j.summary as RatingSummary;
   };
 
