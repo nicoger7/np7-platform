@@ -200,15 +200,24 @@ export function EditionMemoriesUploader({ editionId, initialVideoUrl }: { editio
     for (let i = 0; i < list.length; i++) {
       const file = list[i];
       const prog = (phase: "compress" | "upload") => (pct: number) => setVidUp({ name: file.name, pct, done: i, total: list.length, phase });
+      // Primary: compress HERE, upload only the small MP4 + poster. ANY compression
+      // problem (missing encoder, exotic codec, stall) downgrades this one file to a
+      // raw upload — the clip always lands, never an aborted batch.
+      let compressed: { mp4: Blob; poster: Blob | null } | null = null;
+      if (compressor?.canCompressInBrowser()) {
+        setVidUp({ name: file.name, pct: 0, done: i, total: list.length, phase: "compress" });
+        try {
+          compressed = await compressor.compressVideo(file, prog("compress"));
+        } catch (err) {
+          console.warn(`In-browser compression failed for ${file.name} — uploading raw instead.`, err);
+        }
+      }
       try {
-        if (compressor?.canCompressInBrowser()) {
-          // Primary: compress HERE, upload only the small MP4 + poster.
-          setVidUp({ name: file.name, pct: 0, done: i, total: list.length, phase: "compress" });
-          const { mp4, poster } = await compressor.compressVideo(file, prog("compress"));
+        if (compressed) {
           const pre = await presign({ filename: file.name, contentType: "video/mp4", target: "video" });
           setVidUp({ name: file.name, pct: 0, done: i, total: list.length, phase: "upload" });
-          await putToR2(pre.uploadUrl, mp4, "video/mp4", prog("upload"));
-          if (poster && pre.posterUploadUrl) await putToR2(pre.posterUploadUrl, poster, "image/jpeg").catch(() => {});
+          await putToR2(pre.uploadUrl, compressed.mp4, "video/mp4", prog("upload"));
+          if (compressed.poster && pre.posterUploadUrl) await putToR2(pre.posterUploadUrl, compressed.poster, "image/jpeg").catch(() => {});
         } else {
           // Fallback: raw original → _vidraw/ (compressed later by the fallback script).
           setVidUp({ name: file.name, pct: 0, done: i, total: list.length, phase: "upload" });
@@ -420,10 +429,15 @@ export function EditionMemoriesUploader({ editionId, initialVideoUrl }: { editio
                         </span>
                       </a>
                     ) : (
-                      <div className="w-full h-full grid place-items-center text-center px-2">
+                      <div className="w-full h-full grid place-items-center text-center px-2" title="The original was uploaded uncompressed. Re-upload the same file to compress it in your browser — this tile then becomes playable.">
+                        {/* raw upload without a compressed twin — nothing is actively
+                            running (the old label said "Compressing…", which read as a
+                            stuck job). Re-uploading the same file compresses it in the
+                            browser and this tile flips to ready. */}
                         <div>
-                          <svg className="w-5 h-5 mx-auto animate-spin text-[#0aa3c7]" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M21 12a9 9 0 1 1-6.2-8.6" strokeLinecap="round" /></svg>
-                          <p className="text-[11px] admin-faint mt-1">Compressing…</p>
+                          <svg className="w-5 h-5 mx-auto admin-faint" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="9" /><path d="M12 7v5l3 3" /></svg>
+                          <p className="text-[11px] admin-faint mt-1">Uploaded — not compressed yet</p>
+                          <p className="text-[10px] admin-faint opacity-70">re-upload the same file to fix</p>
                         </div>
                       </div>
                     )}
