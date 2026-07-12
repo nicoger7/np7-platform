@@ -8,14 +8,46 @@ import { effectiveCanSeeField } from "@/lib/access";
 
 // (Auth enforced by middleware: /api/admin/* requires an active team member.)
 
+// Supabase REST caps every read at 1000 rows — since the 13.5k newsletter
+// import, "select all contacts" silently returns only the first 1000 by name.
+// So: page through big tables, and only fetch the contacts this page is
+// actually about (has an account, or has a booking) instead of the whole CRM.
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+async function allRows(build: (q: { from: number; to: number }) => any): Promise<any[]> {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const out: any[] = [];
+  for (let from = 0; ; from += 1000) {
+    const { data, error } = await build({ from, to: from + 999 });
+    if (error) throw error;
+    out.push(...(data ?? []));
+    if (!data || data.length < 1000) break;
+  }
+  return out;
+}
+
+const chunk = <T,>(arr: T[], n: number): T[][] =>
+  Array.from({ length: Math.ceil(arr.length / n) }, (_, i) => arr.slice(i * n, i * n + n));
+
 export async function GET() {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const admin = createAdminClient() as any;
-  const [{ data: contacts }, { data: bookings }, usersRes] = await Promise.all([
-    admin.from("contacts").select("id,name,email,auth_user_id,created_at,marketing_opt_in").is("archived_at", null).order("name"),
-    admin.from("exp_bookings").select("contact_id, status, experience_id, exp_experiences(id,title)"),
+  const [bookings, accountContacts, usersRes] = await Promise.all([
+    allRows(({ from, to }) => admin.from("exp_bookings").select("contact_id, status, experience_id, exp_experiences(id,title)").range(from, to)),
+    allRows(({ from, to }) => admin.from("contacts").select("id,name,email,auth_user_id,created_at,marketing_opt_in").is("archived_at", null).not("auth_user_id", "is", null).range(from, to)),
+    // fine while accounts < 1000; page like the above when we get there
     admin.auth.admin.listUsers({ perPage: 1000 }),
   ]);
+
+  // Guests = contacts with a booking but no account → fetch just those ids.
+  const accountIds = new Set(accountContacts.map((c: { id: string }) => c.id));
+  const guestIds = [...new Set(bookings.map((b: { contact_id: string | null }) => b.contact_id).filter((id: string | null): id is string => !!id && !accountIds.has(id)))];
+  const guestContacts = (await Promise.all(
+    chunk(guestIds, 200).map((ids) =>
+      admin.from("contacts").select("id,name,email,auth_user_id,created_at,marketing_opt_in").is("archived_at", null).in("id", ids)
+        .then(({ data }: { data: unknown[] | null }) => data ?? [])
+    )
+  )).flat();
+  const contacts = [...accountContacts, ...guestContacts].sort((a, b) => String(a.name ?? "").localeCompare(String(b.name ?? "")));
 
   // Per-contact booking count + the distinct experiences they're booked on
   // (with whether they've SECURED a spot — that's a real participant).
@@ -36,13 +68,17 @@ export async function GET() {
   });
 
   // Level fields (migration 036) — tolerant: missing columns → just omit.
+  // Scoped to this page's contacts (the whole-table select hits the 1000 cap).
   const levelById: Record<string, { level: string | null; status: string | null; self: string | null }> = {};
   try {
-    const { data: lv, error } = await admin.from("contacts").select("id, level, level_status, self_level");
-    if (!error) {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      (lv ?? []).forEach((c: any) => { levelById[c.id] = { level: c.level ?? null, status: c.level_status ?? null, self: c.self_level ?? null }; });
-    }
+    const lv = (await Promise.all(
+      chunk(contacts.map((c: { id: string }) => c.id), 200).map((ids) =>
+        admin.from("contacts").select("id, level, level_status, self_level").in("id", ids)
+          .then(({ data, error }: { data: unknown[] | null; error: unknown }) => (error ? [] : data ?? []))
+      )
+    )).flat();
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    lv.forEach((c: any) => { levelById[c.id] = { level: c.level ?? null, status: c.level_status ?? null, self: c.self_level ?? null }; });
   } catch { /* pre-migration */ }
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any

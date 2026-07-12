@@ -197,13 +197,22 @@ export async function listInvites(surveyId: string): Promise<SurveyInvite[]> {
 /** Contact ids carrying a tag (exact match, e.g. "Tenerife") that have an email —
  *  the bulk feed for survey invites ("add everyone tagged …"). */
 export async function contactIdsByTag(tag: string): Promise<string[]> {
-  const { data } = await db()
-    .from("contacts")
-    .select("id")
-    .contains("tags", [tag.trim()])
-    .not("email", "is", null)
-    .is("archived_at", null);
-  return ((data ?? []) as { id: string }[]).map((c) => c.id);
+  // paged: Supabase caps reads at 1000 rows, and big tags (Clinic ≈ 900,
+  // maillist ≈ 13.5k) blow straight past that
+  const ids: string[] = [];
+  for (let from = 0; ; from += 1000) {
+    const { data } = await db()
+      .from("contacts")
+      .select("id")
+      .contains("tags", [tag.trim()])
+      .not("email", "is", null)
+      .is("archived_at", null)
+      .order("id")
+      .range(from, from + 999);
+    ids.push(...((data ?? []) as { id: string }[]).map((c) => c.id));
+    if (!data || data.length < 1000) break;
+  }
+  return ids;
 }
 
 export async function addInvites(surveyId: string, contactIds: string[]): Promise<SurveyInvite[]> {
@@ -332,6 +341,9 @@ export async function sendSurveyInviteEmail(inviteId: string, url: string): Prom
     templateKey: "survey_invite",
     vars,
     dedupeKey: `survey_invite:${inviteId}`,
+    // explicit admin button press ("Send invites") — must go out during the
+    // soft launch too, like every other manual send
+    manual: true,
   });
   return res.status;
 }
