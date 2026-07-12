@@ -312,12 +312,14 @@ export default function PackagesPage() {
     fetch(`/api/admin/packages/${editId}/rooms`).then((r) => r.json())
       .then((d) => setPkgRoomIds(new Set<string>(Array.isArray(d?.roomIds) ? d.roomIds : []))).catch(() => {});
   }, [editId]);
-  function toggleRoom(roomId: string) {
-    if (!editId) return;
+  // Toggle a whole ROOM TYPE (all its physical rooms) — the type's room count is
+  // what makes the package's availability.
+  function toggleRoomType(ids: string[]) {
+    if (!editId || ids.length === 0) return;
     const next = new Set(pkgRoomIds);
-    if (next.has(roomId)) next.delete(roomId); else next.add(roomId);
+    const allOn = ids.every((id) => next.has(id));
+    for (const id of ids) { if (allOn) next.delete(id); else next.add(id); }
     setPkgRoomIds(next);
-    // room count drives availability — mirror it into Spots (saved on Update)
     if (next.size > 0) setForm((f) => ({ ...f, max_spots: String(next.size) }));
     fetch(`/api/admin/packages/${editId}/rooms`, {
       method: "PUT", headers: { "Content-Type": "application/json" },
@@ -425,32 +427,42 @@ export default function PackagesPage() {
           </div>
           {editId && (
             <div className="mb-4">
-              <label className={labelClass}>Rooms → availability</label>
-              <p className="text-[11px] admin-faint mb-2">Tick the physical rooms this package sells — the count becomes the package&apos;s <b>Spots</b>. Saved instantly; press Update to store the synced spots.</p>
-              {rooms.length === 0 ? (
-                <p className="text-xs admin-faint">No rooms for this experience yet — add them on the Hotel Rooms page.</p>
-              ) : (
-                <div className="space-y-2.5">
-                  {[...new Set(rooms.map((r) => r.hotel || "No hotel"))].map((h) => (
-                    <div key={h}>
-                      <p className="text-[10px] font-bold uppercase tracking-[0.08em] admin-faint mb-1">{h}</p>
-                      <div className="flex flex-wrap gap-1.5">
-                        {rooms.filter((r) => (r.hotel || "No hotel") === h).map((r) => {
-                          const on = pkgRoomIds.has(r.id);
-                          return (
-                            <button key={r.id} type="button" onClick={() => toggleRoom(r.id)}
-                              className={`px-2.5 py-1.5 rounded-lg text-xs font-semibold transition-colors ${on ? "bg-[#0aa3c7] text-white" : "admin-muted hover:admin-heading"}`}
-                              style={on ? undefined : { border: "1px solid var(--admin-border)" }}>
-                              {on ? "✓ " : ""}{r.name || r.room_number || "Room"}{r.room_type ? ` · ${r.room_type}` : ""}
-                            </button>
-                          );
-                        })}
-                      </div>
+              <label className={labelClass}>Rooms &rarr; availability</label>
+              {(() => {
+                const hotelName = hotels.find((h) => h.id === form.hotel_id)?.name?.toLowerCase() ?? null;
+                if (!hotelName) return <p className="text-xs admin-faint mt-1">Choose a <b>Hotel</b> above first — then pick its room types here.</p>;
+                const hotelRooms = rooms.filter((r) => (r.hotel ?? "").toLowerCase() === hotelName);
+                if (hotelRooms.length === 0) return <p className="text-xs admin-faint mt-1">No rooms for this hotel yet — add them on the Hotel Rooms page.</p>;
+                const byType = new Map<string, string[]>();
+                for (const r of hotelRooms) {
+                  const t = r.room_type || r.name || "Untyped";
+                  byType.set(t, [...(byType.get(t) ?? []), r.id]);
+                }
+                const strays = [...pkgRoomIds].filter((id) => !rooms.some((r) => r.id === id && (r.hotel ?? "").toLowerCase() === hotelName)).length;
+                return (
+                  <>
+                    <p className="text-[11px] admin-faint mb-2">One chip per <b>room type</b> — its room count becomes the package&apos;s <b>Spots</b>. Saved instantly; press Update to store the synced spots.</p>
+                    <div className="flex flex-wrap gap-1.5">
+                      {[...byType.entries()].map(([t, ids]) => {
+                        const on = ids.every((id) => pkgRoomIds.has(id));
+                        const some = !on && ids.some((id) => pkgRoomIds.has(id));
+                        return (
+                          <button key={t} type="button" onClick={() => toggleRoomType(ids)}
+                            className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors ${on ? "bg-[#0aa3c7] text-white" : "admin-muted hover:admin-heading"}`}
+                            style={on ? undefined : { border: some ? "1px dashed #0aa3c7" : "1px solid var(--admin-border)" }}
+                            title={`${ids.length} physical room${ids.length === 1 ? "" : "s"} of this type`}>
+                            {on ? "\u2713 " : ""}{t} <span className={on ? "opacity-80" : "admin-faint"}>· {ids.length}</span>
+                          </button>
+                        );
+                      })}
                     </div>
-                  ))}
-                  <p className="text-[11px] admin-faint">{pkgRoomIds.size > 0 ? `${pkgRoomIds.size} room${pkgRoomIds.size === 1 ? "" : "s"} assigned → Spots synced to ${pkgRoomIds.size}.` : "No rooms assigned — Spots stays manual."}</p>
-                </div>
-              )}
+                    <p className="text-[11px] admin-faint mt-2">
+                      {pkgRoomIds.size > 0 ? `${pkgRoomIds.size} room${pkgRoomIds.size === 1 ? "" : "s"} assigned \u2192 Spots synced to ${pkgRoomIds.size}.` : "No rooms assigned \u2014 Spots stays manual."}
+                      {strays > 0 && <span className="text-amber-400"> · {strays} assigned room{strays === 1 ? "" : "s"} belong to another hotel <button type="button" className="underline" onClick={() => { const keep = [...pkgRoomIds].filter((id) => rooms.some((r) => r.id === id && (r.hotel ?? "").toLowerCase() === hotelName)); const next = new Set(keep); setPkgRoomIds(next); if (next.size > 0) setForm((f) => ({ ...f, max_spots: String(next.size) })); fetch(`/api/admin/packages/${editId}/rooms`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ roomIds: keep }) }).catch(() => {}); }}>clear them</button></span>}
+                    </p>
+                  </>
+                );
+              })()}
             </div>
           )}
           <div className="flex gap-2">
