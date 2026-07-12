@@ -67,8 +67,9 @@ export function SurveyAdmin({ initialSurvey, initialInvites }: { initialSurvey: 
   const setRow = (rowKey: string, p: Partial<SurveyDestination>) => patch({ destinations: s.destinations.map((d) => d.key === rowKey ? { ...d, ...p } : d) });
   const delGroup = (gid: string) => patch({ destinations: s.destinations.filter((d) => gkey(d) !== gid) });
   // add another date window to a place (clones its shared fields; stamps a groupId
-  // so the rows stay one card even if the place is renamed later)
-  const addDate = (gid: string) => {
+  // so the rows stay one card even if the place is renamed later). Returns the new
+  // row's key so the caller can pop its date editor open immediately.
+  const addDate = (gid: string): string => {
     const rows = s.destinations.filter((d) => gkey(d) === gid);
     const groupId = rows.find((d) => d.groupId)?.groupId ?? uid();
     const base = rows[rows.length - 1];
@@ -76,11 +77,39 @@ export function SurveyAdmin({ initialSurvey, initialInvites }: { initialSurvey: 
     const upgraded = s.destinations.map((d) => gkey(d) === gid ? { ...d, groupId } : d);
     let lastIdx = -1; upgraded.forEach((d, i) => { if (d.groupId === groupId) lastIdx = i; });
     patch({ destinations: [...upgraded.slice(0, lastIdx + 1), newRow, ...upgraded.slice(lastIdx + 1)] });
+    return newRow.key;
   };
   const delDate = (gid: string, rowKey: string) => {
     const rows = s.destinations.filter((d) => gkey(d) === gid);
     if (rows.length <= 1) { setRow(rowKey, { start: null, end: null }); return; } // last date → just clear it
     patch({ destinations: s.destinations.filter((d) => d.key !== rowKey) });
+  };
+  // ---- date pills ----
+  const [openDate, setOpenDate] = useState<string | null>(null); // row key whose date popover is open
+  /** "12 – 20 Jan 2027" (compacts when the range shares a month/year). */
+  const fmtRange = (start?: string | null, end?: string | null): string | null => {
+    if (!start && !end) return null;
+    const f = (d: string, o: Intl.DateTimeFormatOptions) => new Date(d + "T00:00:00").toLocaleDateString("en-GB", o);
+    const full: Intl.DateTimeFormatOptions = { day: "numeric", month: "short", year: "numeric" };
+    if (start && end) {
+      if (start.slice(0, 7) === end.slice(0, 7)) return `${+start.slice(8, 10)} – ${f(end, full)}`;
+      if (start.slice(0, 4) === end.slice(0, 4)) return `${f(start, { day: "numeric", month: "short" })} – ${f(end, full)}`;
+      return `${f(start, full)} – ${f(end, full)}`;
+    }
+    return start ? `${f(start, full)} → ?` : `? → ${f(end!, full)}`;
+  };
+  const nightsOf = (r: SurveyDestination) =>
+    r.start && r.end && r.end > r.start ? Math.round((+new Date(r.end) - +new Date(r.start)) / 86400000) : null;
+  // Picking a start auto-fills a sensible end (start + 8 days — the typical trip
+  // window) whenever the end is empty or now invalid. One click less, every time.
+  const setStartSmart = (r: SurveyDestination, v: string | null) => {
+    const p: Partial<SurveyDestination> = { start: v };
+    if (v && (!r.end || r.end <= v)) {
+      // UTC throughout — local-midnight + toISOString() shifts a day in TZs east of UTC
+      const d = new Date(v + "T00:00:00Z"); d.setUTCDate(d.getUTCDate() + 8);
+      p.end = d.toISOString().slice(0, 10);
+    }
+    setRow(r.key, p);
   };
   const [picker, setPicker] = useState<string | null>(null); // group key whose image picker is open
   const [geoBusy, setGeoBusy] = useState<string | null>(null);
@@ -157,20 +186,55 @@ export function SurveyAdmin({ initialSurvey, initialInvites }: { initialSurvey: 
                   </div>
                   <input className={input} value={first.location ?? ""} onChange={(e) => setGroup(g.key, { location: e.target.value })} placeholder="Location — e.g. Cape Town, South Africa (optional)" />
 
-                  {/* dates — one row per window; add as many as you like */}
+                  {/* dates — one PILL per window; click a pill to edit it in a popover */}
                   <div>
-                    <span className="text-[12px] font-bold text-[#6a7a80]">Dates <span className="font-normal text-[#9aa6ac]">— riders pick from these</span></span>
-                    <div className="space-y-1.5 mt-1">
-                      {g.rows.map((r) => (
-                        <div key={r.key} className="flex flex-wrap items-center gap-2">
-                          <input type="date" className={`${input} w-[150px]`} value={r.start ?? ""} onChange={(e) => setRow(r.key, { start: e.target.value || null })} />
-                          <span className="text-[#9aa6ac]">→</span>
-                          <input type="date" className={`${input} w-[150px]`} value={r.end ?? ""} onChange={(e) => setRow(r.key, { end: e.target.value || null })} />
-                          {g.rows.length > 1 && <button onClick={() => delDate(g.key, r.key)} title="Remove this date" className="text-[13px] font-bold text-[#c0392b] px-1.5">✕</button>}
-                        </div>
-                      ))}
+                    <span className="text-[12px] font-bold text-[#6a7a80]">Dates <span className="font-normal text-[#9aa6ac]">— riders pick from these · click a pill to edit</span></span>
+                    <div className="flex flex-wrap items-center gap-1.5 mt-1.5">
+                      {g.rows.map((r) => {
+                        const label = fmtRange(r.start, r.end);
+                        const open = openDate === r.key;
+                        const nights = nightsOf(r);
+                        return (
+                          <div key={r.key} className="relative">
+                            <button type="button" onClick={() => setOpenDate(open ? null : r.key)}
+                              className={`inline-flex items-center gap-1.5 rounded-full py-1.5 text-[13px] font-bold border transition-colors ${g.rows.length > 1 ? "pl-3.5 pr-1.5" : "px-3.5"} ${open ? "border-[#0aa3c7] bg-[#eaf7fb] text-[#0a2a33]" : label ? "border-[#d8e3e6] bg-white text-[#0a2a33] hover:border-[#0aa3c7]" : "border-dashed border-[#c9bda5] text-[#8a9aa0] hover:border-[#0aa3c7] hover:text-[#0aa3c7]"}`}>
+                              <svg className="w-3.5 h-3.5 opacity-60" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round"><rect x="3" y="5" width="18" height="16" rx="2.5" /><path d="M8 3v4M16 3v4M3 10.5h18" /></svg>
+                              {label ?? "Pick dates…"}
+                              {g.rows.length > 1 && (
+                                <span role="button" tabIndex={0} title="Remove this date"
+                                  onClick={(e) => { e.stopPropagation(); if (open) setOpenDate(null); delDate(g.key, r.key); }}
+                                  className="w-5 h-5 grid place-items-center rounded-full text-[#9aa6ac] hover:bg-[#fbe4de] hover:text-[#c0392b] transition-colors">✕</span>
+                              )}
+                            </button>
+                            {open && (
+                              <>
+                                {/* click-away layer */}
+                                <div className="fixed inset-0 z-20" onClick={() => setOpenDate(null)} />
+                                <div className="absolute z-30 top-full left-0 mt-2 w-[300px] rounded-2xl border border-[#e2e9ec] bg-white shadow-[0_16px_40px_rgba(2,33,46,0.18)] p-3.5">
+                                  <div className="flex items-center gap-2.5">
+                                    <label className="flex-1 min-w-0">
+                                      <span className="text-[11px] font-black uppercase tracking-wide text-[#6a7a80]">From</span>
+                                      <input type="date" autoFocus className={`${input} mt-1`} value={r.start ?? ""} onChange={(e) => setStartSmart(r, e.target.value || null)} />
+                                    </label>
+                                    <label className="flex-1 min-w-0">
+                                      <span className="text-[11px] font-black uppercase tracking-wide text-[#6a7a80]">To</span>
+                                      <input type="date" className={`${input} mt-1`} min={r.start ?? undefined} value={r.end ?? ""} onChange={(e) => setRow(r.key, { end: e.target.value || null })} />
+                                    </label>
+                                  </div>
+                                  <div className="flex items-center justify-between mt-3">
+                                    <button onClick={() => { setOpenDate(null); delDate(g.key, r.key); }} className="text-[12px] font-bold text-[#c0392b]">Remove</button>
+                                    <span className="text-[11.5px] text-[#9aa6ac]">{nights ? `${nights} nights` : ""}</span>
+                                    <button onClick={() => setOpenDate(null)} className="rounded-full bg-[#0aa3c7] text-white text-[12.5px] font-bold px-4 py-1.5 hover:bg-[#0891b2]">Done</button>
+                                  </div>
+                                </div>
+                              </>
+                            )}
+                          </div>
+                        );
+                      })}
+                      <button onClick={() => setOpenDate(addDate(g.key))}
+                        className="inline-flex items-center gap-1 rounded-full border border-dashed border-[#c9bda5] px-3.5 py-1.5 text-[13px] font-bold text-[#6a7a80] hover:border-[#0aa3c7] hover:text-[#0aa3c7] transition-colors">＋ Add dates</button>
                     </div>
-                    <button onClick={() => addDate(g.key)} className="text-[12px] font-bold text-[#0aa3c7] mt-1.5">＋ Add another date</button>
                   </div>
 
                   <textarea className={`${input} min-h-[60px] resize-y`} value={first.blurb ?? ""} onChange={(e) => setGroup(g.key, { blurb: e.target.value })} placeholder="Write about the trip — the spot, the vibe, what's included…" />
