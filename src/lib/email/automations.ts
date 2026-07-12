@@ -38,6 +38,10 @@ export const AUTOMATIONS: Automation[] = [
   { key: "waiver_reminder", name: "Waiver reminder", stage: "Pre-trip", trigger: "~14→2 days before, if the waiver isn't signed yet", division: "experience", kind: "lifecycle" },
   { key: "post_trip_thank_you", name: "Thank you + review", stage: "Post-trip", trigger: "~3 days after the trip ends", division: "experience", kind: "lifecycle" },
   { key: "photos_ready", name: "Photos are ready", stage: "Post-trip", trigger: "Once photos land in the member's gallery", division: "experience", kind: "lifecycle" },
+  { key: "invoice_sent", name: "Invoice sent (manual)", stage: "Billing", trigger: "When you email an invoice / pro-forma from a booking's Documents tab (PDF attached)", division: "experience", kind: "transactional" },
+  { key: "invoice_after_payment", name: "Invoice after payment", stage: "Billing", trigger: "When a payment lands and the official invoice replaces the pro-forma (PDF attached)", division: "experience", kind: "lifecycle" },
+  { key: "payment_shortfall_reminder", name: "Shortfall reminder", stage: "Billing", trigger: "When you settle a payment that doesn't quite cover the amount due — friendly ask for the difference", division: "experience", kind: "transactional" },
+  { key: "survey_invite", name: "Trip interest survey", stage: "Surveys", trigger: "When you press 'Send invites' on an interest survey (personal link; quick mode = one-tap answer buttons)", division: "experience", kind: "transactional" },
   { key: "cancellation_confirmed", name: "Cancellation confirmed", stage: "Cancellation", trigger: "When you confirm a cancellation on the booking (manual)", division: "experience", kind: "transactional" },
   { key: "addon_confirmed", name: "Add-on confirmed", stage: "Add-ons", trigger: "When you confirm a requested add-on", division: "experience", kind: "lifecycle" },
 ];

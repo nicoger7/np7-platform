@@ -137,6 +137,9 @@ export async function sendEmail(args: SendArgs): Promise<SendResult> {
     subject,
     status: "queued" as string,
     dedupe_key: dedupeKey ?? null,
+    // for the log's hover preview (re-rendered on demand). Never store the
+    // magic-link vars — they contain the live login token.
+    vars: templateKey === "account_magic_link" ? null : (vars ?? null),
   };
   const { data: inserted, error: insErr } = await db.from("email_log").insert(logRow).select("id").single();
   if (insErr) {

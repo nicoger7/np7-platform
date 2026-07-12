@@ -20,6 +20,8 @@ export default function EmailLogPage() {
   const [testTo, setTestTo] = useState("");
   const [testing, setTesting] = useState(false);
   const [testMsg, setTestMsg] = useState<{ ok: boolean; text: string } | null>(null);
+  // hover preview: which row, and where to pin the floating panel
+  const [preview, setPreview] = useState<{ id: string; top: number } | null>(null);
 
   useEffect(() => {
     fetch("/api/admin/email-log").then((r) => r.json()).then((d) => setRows(d.rows ?? [])).finally(() => setLoading(false));
@@ -60,7 +62,18 @@ export default function EmailLogPage() {
       ) : (
         <div className="grid gap-1.5">
           {rows.map((r) => (
-            <div key={r.id} className="admin-surface admin-border border rounded-lg px-4 py-2.5 flex items-center gap-3 text-[13px]">
+            <div
+              key={r.id}
+              className="admin-surface admin-border border rounded-lg px-4 py-2.5 flex items-center gap-3 text-[13px] cursor-pointer hover:border-[var(--admin-accent)]/50 transition-colors"
+              title="Hover to preview · click to open full size"
+              onMouseEnter={(e) => {
+                const h = 480, pad = 16;
+                const top = Math.min(Math.max(e.clientY - h / 3, pad), window.innerHeight - h - pad);
+                setPreview({ id: r.id, top });
+              }}
+              onMouseLeave={() => setPreview(null)}
+              onClick={() => window.open(`/api/admin/email-log/${r.id}/preview`, "_blank")}
+            >
               <span className={`shrink-0 text-[10px] font-bold uppercase px-2 py-0.5 rounded ${TONE[r.status] ?? "bg-gray-500/15 text-gray-400"}`}>{r.status}</span>
               <span className="shrink-0 admin-faint w-[150px] truncate font-mono text-[11px]">{r.template_key ?? "—"}</span>
               <span className="min-w-0 flex-1 truncate admin-heading">{r.subject ?? "—"}</span>
@@ -68,6 +81,16 @@ export default function EmailLogPage() {
               <span className="shrink-0 admin-faint text-[11px]">{r.created_at ? new Date(r.created_at).toLocaleString("en-GB", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" }) : ""}</span>
             </div>
           ))}
+        </div>
+      )}
+
+      {/* floating hover preview — re-rendered from the logged variables */}
+      {preview && (
+        <div
+          className="hidden md:block fixed right-6 z-50 rounded-xl overflow-hidden shadow-2xl pointer-events-none"
+          style={{ top: preview.top, width: 380, height: 480, border: "1px solid var(--admin-border)", backgroundColor: "#fff" }}
+        >
+          <iframe title="Email preview" src={`/api/admin/email-log/${preview.id}/preview`} sandbox="" className="w-full h-full bg-white" />
         </div>
       )}
     </div>

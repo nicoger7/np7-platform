@@ -22,6 +22,11 @@ const SAMPLE: Record<string, string> = {
   reviewLink: "#",
   addonLabel: "Private coaching session",
   addonPrice: "€250",
+  amount: "€2,445",
+  reference: "NP7-A1B2C3",
+  surveyTitle: "NP7 Experience Tenerife 2027",
+  surveyIntro: "El Médano, one week in March — small crew, big wind.",
+  surveyLink: "#",
 };
 
 export default async function EmailsHubPage() {
