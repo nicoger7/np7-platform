@@ -30,7 +30,8 @@ export const metadata: Metadata = {
 
 // Real shots from the last Signature Trip (one trip, both islands — Madagascar &
 // Mauritius), curated from the trip's memory gallery. Swap the numbers freely.
-const MEM = (n: number) => `https://qfdqigumjadvrocxjolx.supabase.co/storage/v1/object/public/assets/memories/6af5c7fe-26af-4105-ad45-910390da2594/NP7%20Experience%20Madagascar-${n}.jpg`;
+// Served from our R2 CDN (media.np-seven.com), not Supabase storage — no egress.
+const MEM = (n: number) => `https://media.np-seven.com/memories/6af5c7fe-26af-4105-ad45-910390da2594/NP7%20Experience%20Madagascar-${n}.jpg`;
 const HERO = MEM(458);        // golden-hour action, two riders — the hero
 const TRIP_LEAD = MEM(211);   // windsurf on the emerald lagoon
 const TRIP_SHOTS = [MEM(480), MEM(252), MEM(212)];

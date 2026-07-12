@@ -7,7 +7,7 @@
  */
 import "server-only";
 import { createAdminClient } from "@/lib/supabase";
-import { satelliteHero } from "./satellite";
+import { satImage } from "./satellite";
 import {
   summariseRatings, np7Overall, tallyForecastVotes,
   crowdWindow, levelConsensus, conditionsTally, infraTally,
@@ -51,8 +51,7 @@ export type SpotguideDestination = {
 };
 
 // Satellite fallback for a photo-less destination/spot lives in src/lib/satellite.ts
-// (pure, so client components can share it); re-exported for existing callers.
-export { satelliteHero };
+// (pure, so client components can share it). Import satImage from there directly.
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 function db() { return createAdminClient() as any; }
@@ -90,7 +89,7 @@ export async function getSpotguideDestinations(): Promise<SpotguideDestinationCa
     const image =
       (d.hero_image as string | null) ||
       spotHero ||
-      (lat != null && lng != null ? satelliteHero(lat, lng) : null) ||
+      (lat != null && lng != null ? satImage(lat, lng) : null) ||
       "https://media.np-seven.com/experiences/np7-bonaire/place/bonaire-spot-overview-drone-shot.jpg";
     return {
     id, name: d.name as string, slug: d.slug as string | null,

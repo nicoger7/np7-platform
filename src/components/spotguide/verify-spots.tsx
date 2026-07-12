@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { useSpotguide } from "./spotguide-provider";
 import { COMMUNITY_VERIFY_THRESHOLD, conditionLabel } from "@/lib/spotguide";
+import { satImage } from "@/lib/satellite";
 
 type Cat = { confirms: number; flags: number; mine: "confirm" | "flag" | null };
 type Pending = {
@@ -13,11 +14,8 @@ type Pending = {
 
 // Tight satellite view centred on the pin — with a marker dead-centre, this shows
 // a verifier EXACTLY where the spot sits so "correctly placed?" is answerable.
-function pinSatellite(lat: number, lng: number): string {
-  const dLat = 0.013, dLon = 0.028; // ~2.8 km wide, ~2.2:1
-  const bbox = `${lng - dLon},${lat - dLat},${lng + dLon},${lat + dLat}`;
-  return `https://server.arcgisonline.com/arcgis/rest/services/World_Imagery/MapServer/export?bbox=${bbox}&bboxSR=4326&size=720,320&format=jpg&f=image`;
-}
+// Uses the shared cached satellite (served from our CDN after the first hit).
+const pinSatellite = (lat: number, lng: number) => satImage(lat, lng, { dLat: 0.013, w: 720, h: 320 });
 
 /** "Help verify" — pending member spots. Verifiers confirm/flag each fact
     separately: LOCATION gates going public (3 confirms → live, 3 flags → pulled

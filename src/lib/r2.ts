@@ -14,7 +14,7 @@
  *   NEXT_PUBLIC_R2_CDN_URL  | NEXT_PUBLIC_R2_PUBLIC_URL - public CDN base URL
  */
 
-import { S3Client, DeleteObjectCommand, CopyObjectCommand } from "@aws-sdk/client-s3";
+import { S3Client, DeleteObjectCommand, CopyObjectCommand, HeadObjectCommand } from "@aws-sdk/client-s3";
 import { Upload } from "@aws-sdk/lib-storage";
 
 // -- Env (accept both spellings) ----------------------------------------------
@@ -103,6 +103,17 @@ export async function deleteFromR2(key: string): Promise<void> {
   await getClient().send(
     new DeleteObjectCommand({ Bucket: bucket, Key: key })
   );
+}
+
+/** True if an object already exists in R2 (cheap HEAD). Used to cache-check. */
+export async function r2Has(key: string): Promise<boolean> {
+  const bucket = process.env.R2_BUCKET || "np7-media";
+  try {
+    await getClient().send(new HeadObjectCommand({ Bucket: bucket, Key: key }));
+    return true;
+  } catch {
+    return false;
+  }
 }
 
 /**

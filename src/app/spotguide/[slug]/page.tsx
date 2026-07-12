@@ -3,7 +3,8 @@ import type { Metadata } from "next";
 import { cookies } from "next/headers";
 import { notFound } from "next/navigation";
 import { getPortalUser } from "@/lib/auth";
-import { getSpotguideDestination, satelliteHero } from "@/lib/spotguide-data";
+import { getSpotguideDestination } from "@/lib/spotguide-data";
+import { satImage } from "@/lib/satellite";
 import { levelRangeLabel, DESTINATION_CRITERIA } from "@/lib/spotguide";
 import { resolveSection, SECTION_CHROME } from "@/lib/blog-section";
 import { SectionHeader } from "@/components/shared/section-header";
@@ -69,7 +70,7 @@ export default async function SpotguideDestinationPage({ params, searchParams }:
     d.hero_image ||
     d.spots.map((s) => s.hero_image).find(Boolean) ||
     d.spots.flatMap((s) => s.photos ?? []).map((p) => p.url).find(Boolean) ||
-    (d.lat != null && d.lng != null ? satelliteHero(d.lat, d.lng) : null) ||
+    (d.lat != null && d.lng != null ? satImage(d.lat, d.lng) : null) ||
     "https://media.np-seven.com/experiences/np7-bonaire/place/bonaire-spot-overview-drone-shot.jpg";
 
   // Paywall structured data — tells Google the gated section is intentionally
@@ -102,6 +103,7 @@ export default async function SpotguideDestinationPage({ params, searchParams }:
             </div>
           )}
           <div className="absolute inset-0" style={{ background: "linear-gradient(180deg, rgba(0,36,48,0.42) 0%, rgba(0,36,48,0.18) 45%, rgba(0,36,48,0.80) 100%)" }} />
+          {heroPoster.includes("/api/sat") && <span className="absolute bottom-1 right-2 z-20 text-[9px] font-medium text-white/55">Imagery © Esri</span>}
           <div className="relative z-10 mt-auto w-full max-w-[1000px] mx-auto px-6 sm:px-8 pt-12 pb-11 sm:pt-16 sm:pb-14">
             <Link href={`/spotguide?from=${section}`} className="text-[12px] font-bold text-white/70 hover:text-white transition-colors">← Spotguide</Link>
             <h1 className="text-white text-4xl sm:text-6xl font-black tracking-[-0.03em] mt-3">{d.name}</h1>

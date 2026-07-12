@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef } from "react";
 import type { Survey, SurveyResponse, SurveyDestination } from "@/lib/surveys";
-import { satelliteHero } from "@/lib/satellite";
+import { satImage } from "@/lib/satellite";
 
 /**
  * The member-facing trip-interest form (reached only via a secret token link).
@@ -20,7 +20,7 @@ function tripImage(rows: SurveyDestination[]): string | null {
   const withImg = rows.find((r) => r.image)?.image;
   if (withImg) return withImg;
   const withCoord = rows.find((r) => r.lat != null && r.lng != null);
-  return withCoord ? satelliteHero(withCoord.lat as number, withCoord.lng as number, { dLat: 0.05, w: 1200, h: 760 }) : null;
+  return withCoord ? satImage(withCoord.lat as number, withCoord.lng as number, { dLat: 0.05, w: 1200, h: 760 }) : null;
 }
 
 export function SurveyForm({ survey, token, contactName, existing, preview = false }: {
@@ -83,6 +83,7 @@ export function SurveyForm({ survey, token, contactName, existing, preview = fal
     if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
     const root = rootRef.current;
     if (!root) return;
+    root.classList.add("sv-armed"); // JS is running → enable the hide-then-reveal
     const zooms = Array.from(root.querySelectorAll<HTMLElement>("[data-zoom]"));
     let raf = 0;
     const update = () => {
@@ -145,9 +146,12 @@ export function SurveyForm({ survey, token, contactName, existing, preview = fal
   return (
     <div ref={rootRef} className="relative">
       <style>{`
-        [data-reveal]{opacity:0;transform:translateY(22px);transition:opacity .7s cubic-bezier(.2,.7,.2,1),transform .7s cubic-bezier(.2,.7,.2,1)}
-        [data-reveal].sv-in{opacity:1;transform:none}
-        @media (prefers-reduced-motion: reduce){[data-reveal]{opacity:1;transform:none;transition:none}}
+        /* Content is visible by DEFAULT — only hidden once JS arms the reveal, so a
+           slow/failed hydration never leaves the form blank. */
+        [data-reveal]{transition:opacity .7s cubic-bezier(.2,.7,.2,1),transform .7s cubic-bezier(.2,.7,.2,1)}
+        .sv-armed [data-reveal]{opacity:0;transform:translateY(22px)}
+        .sv-armed [data-reveal].sv-in{opacity:1;transform:none}
+        @media (prefers-reduced-motion: reduce){.sv-armed [data-reveal]{opacity:1;transform:none;transition:none}}
         @keyframes sv-pop{0%{transform:scale(.4);opacity:0}60%{transform:scale(1.15)}100%{transform:scale(1);opacity:1}}
         .sv-pop{animation:sv-pop .34s cubic-bezier(.2,.8,.3,1.2)}
       `}</style>
