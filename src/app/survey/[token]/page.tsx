@@ -1,12 +1,13 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { notFound } from "next/navigation";
-import { getSurveyForToken, getSurvey } from "@/lib/surveys";
+import { notFound, redirect } from "next/navigation";
+import { getSurveyForToken, getSurvey, submitResponse } from "@/lib/surveys";
 import { getPortalUser, getTeamMember } from "@/lib/auth";
 import { SurveyForm } from "@/components/portal/survey-form";
+import { SurveyQuick } from "@/components/portal/survey-quick";
 import { satImage } from "@/lib/satellite";
 
-type Props = { params: Promise<{ token: string }> };
+type Props = { params: Promise<{ token: string }>; searchParams: Promise<{ pick?: string; saved?: string }> };
 
 // Hidden, invite-only — never indexed, never linked publicly.
 export const metadata: Metadata = { robots: { index: false, follow: false }, title: "NP7 — a private invitation" };
@@ -14,8 +15,9 @@ export const dynamic = "force-dynamic";
 
 const PREVIEW_PREFIX = "preview-";
 
-export default async function SurveyPage({ params }: Props) {
+export default async function SurveyPage({ params, searchParams }: Props) {
   const { token } = await params;
+  const { pick, saved } = await searchParams;
   const isPreview = token.startsWith(PREVIEW_PREFIX);
 
   let survey, contactName: string | null = null, response = null;
@@ -29,6 +31,23 @@ export default async function SurveyPage({ params }: Props) {
     const data = await getSurveyForToken(token);
     if (!data) notFound();
     ({ survey, contactName, response } = data);
+  }
+
+  // One-click registration (quick surveys): the email button's link carries the
+  // answer — save it BEFORE first paint, then bounce to a clean URL so a refresh
+  // can't re-save and the page opens already in the "you're in" state.
+  if (!isPreview && pick && survey.quick && survey.status === "open" && response !== undefined) {
+    const valid = new Set(survey.destinations.map((d) => d.key));
+    const existingPicks = response?.other_destinations ?? [];
+    if (pick === "none") {
+      const note = "Can't make it this time";
+      await submitResponse(token, { top_destination: null, other_destinations: [], weeks: [], budget_ok: response?.budget_ok ?? null, looking_for: note });
+      redirect(`/survey/${token}?saved=1`);
+    } else if (valid.has(pick)) {
+      const merged = existingPicks.includes(pick) ? existingPicks : [...existingPicks, pick];
+      await submitResponse(token, { top_destination: null, other_destinations: merged, weeks: [], budget_ok: response?.budget_ok ?? null, looking_for: response?.looking_for?.startsWith("Can't make it") ? null : response?.looking_for ?? null });
+      redirect(`/survey/${token}?saved=1`);
+    }
   }
 
   const user = await getPortalUser().catch(() => null);
@@ -75,7 +94,9 @@ export default async function SurveyPage({ params }: Props) {
           </div>
         ) : (
           <>
-            <SurveyForm survey={survey} token={token} contactName={contactName} existing={response} preview={isPreview} />
+            {survey.quick
+              ? <SurveyQuick survey={survey} token={token} existing={response} preview={isPreview} justSaved={saved === "1"} />
+              : <SurveyForm survey={survey} token={token} contactName={contactName} existing={response} preview={isPreview} />}
             {!user && !isPreview && (
               <p className="text-[12.5px] text-[#9a8a6a] text-center mt-6">
                 Have an NP7 account? <Link href="/account" className="font-semibold text-[#b0791e] hover:underline">Log in</Link> — not required, this invitation is already personal to you.

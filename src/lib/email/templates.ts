@@ -111,19 +111,34 @@ export const TEMPLATES: Record<string, (v: EmailVars, opts?: LayoutOpts) => Buil
   }),
 
   // Hidden invite-only trip-interest survey (a personal secret link).
-  survey_invite: (v, opts) => ({
-    subject: `A quick one for you — ${v.surveyTitle ?? "help shape a special NP7 trip"} 🌊`,
-    html: emailLayout({
-      ...opts,
-      preheader: `A private invite to help plan a special NP7 trip — 2 minutes.`,
-      bodyHtml:
-        p(`Hey ${esc(v.firstName || "there")} 🤙`) +
-        p(`I'm putting together a <strong>special, invite-only trip</strong> and I'd love your input to help shape it — where, when, and what you'd want out of it.`) +
-        (v.surveyIntro ? p(`<em>${esc(v.surveyIntro)}</em>`) : "") +
-        (v.surveyLink ? emailButton("Take the 2-minute survey", v.surveyLink) : "") +
-        p(`This link is just for you — no need to log in. Thanks for helping me build something great.<br>— Nico`),
-    }),
-  }),
+  survey_invite: (v, opts) => {
+    // Quick mode: one button per date — tapping it ALREADY registers the answer
+    // (the link carries it; the page just confirms). Plus an honest opt-out link.
+    let quick: { label: string; url: string }[] = [];
+    try { quick = v.quickChoices ? JSON.parse(v.quickChoices) : []; } catch { /* fall back to the classic button */ }
+    const isQuick = quick.length > 0;
+    return {
+      subject: isQuick
+        ? `${v.surveyTitle ?? "A special NP7 trip"} — would you join? One tap 🤙`
+        : `A quick one for you — ${v.surveyTitle ?? "help shape a special NP7 trip"} 🌊`,
+      html: emailLayout({
+        ...opts,
+        preheader: isQuick ? `One tap answers it — no forms, no login.` : `A private invite to help plan a special NP7 trip — 2 minutes.`,
+        bodyHtml: isQuick
+          ? p(`Hey ${esc(v.firstName || "there")} 🤙`) +
+            p(`I'm putting together <strong>${esc(v.surveyTitle || "a special, invite-only trip")}</strong> and you're on my shortlist. Just tell me if you'd be in — <strong>one tap on a date below is all it takes</strong> (it registers instantly, and you can change it after).`) +
+            (v.surveyIntro ? p(`<em>${esc(v.surveyIntro)}</em>`) : "") +
+            quick.map((ch) => emailButton(ch.label, ch.url)).join("") +
+            (v.quickDeclineUrl ? p(`Not this time? No hard feelings — <a href="${esc(v.quickDeclineUrl)}" style="color:#b0791e;font-weight:bold;">tap here</a> and I'll stop asking. 🤙`) : "") +
+            p(`This link is personal to you — no login, no commitment, just a show of hands.<br>— Nico`)
+          : p(`Hey ${esc(v.firstName || "there")} 🤙`) +
+            p(`I'm putting together a <strong>special, invite-only trip</strong> and I'd love your input to help shape it — where, when, and what you'd want out of it.`) +
+            (v.surveyIntro ? p(`<em>${esc(v.surveyIntro)}</em>`) : "") +
+            (v.surveyLink ? emailButton("Take the 2-minute survey", v.surveyLink) : "") +
+            p(`This link is just for you — no need to log in. Thanks for helping me build something great.<br>— Nico`),
+      }),
+    };
+  },
 
   payment_pending_nudge: (v, opts) => ({
     subject: `Your spot is waiting — ${v.experienceTitle ?? "NP7 Experience"}`,

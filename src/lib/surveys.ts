@@ -35,6 +35,9 @@ export type Survey = {
   budget_min: number;
   budget_max: number;
   currency: string;
+  /** One-click interest mode: email buttons pre-register the answer; the page is
+   *  an auto-saving confirmation, not a form. */
+  quick: boolean;
   created_at: string;
   archived_at: string | null;
 };
@@ -87,6 +90,7 @@ function rowToSurvey(r: Record<string, unknown>): Survey {
     budget_min: r.budget_min != null ? Number(r.budget_min) : 1000,
     budget_max: r.budget_max != null ? Number(r.budget_max) : 8000,
     currency: String(r.currency ?? "EUR"),
+    quick: r.quick === true,
     created_at: String(r.created_at ?? ""),
     archived_at: (r.archived_at as string | null) ?? null,
   };
@@ -146,7 +150,7 @@ export async function createSurvey(input: Partial<Survey>): Promise<Survey | nul
 
 export async function updateSurvey(id: string, patch: Partial<Survey>): Promise<Survey | null> {
   const clean: Record<string, unknown> = { updated_at: new Date().toISOString() };
-  for (const k of ["title", "intro", "status", "destinations", "weeks", "budget_anchor", "budget_min", "budget_max", "currency"] as const) {
+  for (const k of ["title", "intro", "status", "destinations", "weeks", "budget_anchor", "budget_min", "budget_max", "currency", "quick"] as const) {
     if (k in patch) clean[k] = patch[k];
   }
   const { data } = await db().from("exp_surveys").update(clean).eq("id", id).select("*").single();
@@ -287,15 +291,28 @@ export async function sendSurveyInviteEmail(inviteId: string, url: string): Prom
     getSurvey(String(inv.survey_id)),
   ]);
   if (!contact?.email) return "skipped";
+  const vars: Record<string, string> = {
+    firstName: String(contact.name ?? "").trim().split(/\s+/)[0] || "there",
+    surveyTitle: survey?.title || "a quick question from NP7",
+    surveyIntro: survey?.intro || "",
+    surveyLink: url,
+  };
+  // Quick surveys: the email buttons carry the answer — one tap on a date link
+  // pre-registers it (the page then confirms and lets them adjust).
+  if (survey?.quick) {
+    const fmt = (d: string) => new Date(d + "T00:00:00Z").toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric", timeZone: "UTC" });
+    const range = (a?: string | null, b?: string | null) => a && b ? `${+a.slice(8, 10)}\u2013${fmt(b)}` : fmt((a ?? b)!);
+    const dated = survey.destinations.filter((d) => d.start || d.end);
+    vars.quickChoices = JSON.stringify(dated.map((d) => ({
+      label: `I'd join \u2014 ${range(d.start, d.end)}${dated.length > 1 && d.label ? ` (${d.label})` : ""}`,
+      url: `${url}?pick=${encodeURIComponent(d.key)}`,
+    })));
+    vars.quickDeclineUrl = `${url}?pick=none`;
+  }
   const res = await sendEmail({
     to: contact.email,
     templateKey: "survey_invite",
-    vars: {
-      firstName: String(contact.name ?? "").trim().split(/\s+/)[0] || "there",
-      surveyTitle: survey?.title || "a quick question from NP7",
-      surveyIntro: survey?.intro || "",
-      surveyLink: url,
-    },
+    vars,
     dedupeKey: `survey_invite:${inviteId}`,
   });
   return res.status;
