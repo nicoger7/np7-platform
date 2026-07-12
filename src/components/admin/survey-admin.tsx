@@ -368,6 +368,37 @@ function InviteSection({ surveyId, invites, setInvites, linkFor }: {
     } finally { setBusy(false); }
   }
 
+  // Bulk add: everyone carrying a contact tag (e.g. "Tenerife") joins the list
+  // un-emailed — review, remove anyone, then Send invites.
+  const [tag, setTag] = useState("");
+  const [tagBusy, setTagBusy] = useState(false);
+  async function addByTag() {
+    const t = tag.trim();
+    if (!t || tagBusy) return;
+    setTagBusy(true); setMsg("");
+    try {
+      const dry = await fetch(`/api/admin/surveys/${surveyId}/invites`, {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ tag: t, dryRun: true }),
+      }).then((r) => r.json()).catch(() => null);
+      if (!dry || typeof dry.count !== "number") { setMsg("Couldn't look up that tag."); return; }
+      if (dry.count === 0) { setMsg(dry.total > 0 ? `All ${dry.total} "${t}" contacts are already on the list.` : `No contacts carry the tag "${t}".`); return; }
+      if (!confirm(`Add ${dry.count} contacts tagged "${t}" to the invite list?
+
+No emails yet — review the list, then press Send invites.`)) return;
+      const res = await fetch(`/api/admin/surveys/${surveyId}/invites`, {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ tag: t, sendEmail: false }),
+      });
+      const j = await res.json().catch(() => ({}));
+      if (!res.ok) { setMsg(j.error || "Couldn't add."); return; }
+      const list = await fetch(`/api/admin/surveys/${surveyId}/invites`).then((r) => r.json()).catch(() => null);
+      if (list?.invites) setInvites(list.invites);
+      setMsg(`Added ${j.created?.length ?? 0} from "${t}" — press Send invites when ready.`);
+      setTag("");
+    } finally { setTagBusy(false); }
+  }
+
   // Explicit send step: add → review the list (remove anyone) → press Send.
   const [sending, setSending] = useState(false);
   const [sendMsg, setSendMsg] = useState("");
@@ -425,6 +456,18 @@ function InviteSection({ surveyId, invites, setInvites, linkFor }: {
             ))}
           </div>
         )}
+      </div>
+
+      {/* whole-group add: pull in everyone carrying a contact tag */}
+      <div className="mt-2 flex flex-wrap items-center gap-2">
+        <span className="text-[12px] text-[#9aa6ac]">…or a whole group:</span>
+        <input value={tag} onChange={(e) => setTag(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") addByTag(); }}
+          placeholder='contact tag — e.g. Tenerife' className="w-48 rounded-lg border border-[#d8e3e6] bg-white text-[#0a2a33] placeholder:text-[#9aa6ac] px-3 py-1.5 text-[13px] outline-none focus:border-[#0aa3c7]" />
+        <button onClick={addByTag} disabled={!tag.trim() || tagBusy}
+          className="rounded-full border border-[#0aa3c7] text-[#0aa3c7] text-[12.5px] font-bold px-3.5 py-1.5 hover:bg-[#eaf7fb] disabled:opacity-40 transition-colors">
+          {tagBusy ? "Looking up…" : "Add everyone tagged"}
+        </button>
+        {!picked.length && msg && <span className="text-[12.5px] text-[#0f6e56] font-semibold">{msg}</span>}
       </div>
 
       {picked.length > 0 && (

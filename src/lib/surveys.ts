@@ -194,6 +194,18 @@ export async function listInvites(surveyId: string): Promise<SurveyInvite[]> {
 
 /** Add invites for a set of contacts (skips any already invited). Returns the
  *  newly-created invites (with fresh tokens). */
+/** Contact ids carrying a tag (exact match, e.g. "Tenerife") that have an email —
+ *  the bulk feed for survey invites ("add everyone tagged …"). */
+export async function contactIdsByTag(tag: string): Promise<string[]> {
+  const { data } = await db()
+    .from("contacts")
+    .select("id")
+    .contains("tags", [tag.trim()])
+    .not("email", "is", null)
+    .is("archived_at", null);
+  return ((data ?? []) as { id: string }[]).map((c) => c.id);
+}
+
 export async function addInvites(surveyId: string, contactIds: string[]): Promise<SurveyInvite[]> {
   const sb = db();
   const { data: existing } = await sb.from("exp_survey_invites").select("contact_id").eq("survey_id", surveyId);
