@@ -15,7 +15,7 @@ export const dynamic = "force-dynamic";
 
 export const metadata: Metadata = {
   title: "Signature Trips — invite-only windsurf expeditions",
-  description: "NP7's most special windsurf trips — private villas, a chef, world-class coaching, in places like Madagascar and Mauritius. Premium, small-group and by application only.",
+  description: "NP7's most special windsurf trips — small, hand-picked crews in one-of-a-kind places, each built from scratch. Premium, small-group and by application only.",
   // Link-only for now: reachable at /signature but kept out of search + sitemap
   // while the Experience world isn't public on main. (Flip to index later.)
   robots: { index: false, follow: false },
@@ -37,19 +37,23 @@ const TRIP_LEAD = MEM(211);   // windsurf on the emerald lagoon
 const TRIP_SHOTS = [MEM(480), MEM(252), MEM(212)];
 const EYEBROW = "text-[11px] font-bold tracking-[0.25em] text-[#8fe6f2]";
 
+// No fixed checklist — every Signature Trip is different. These describe HOW we
+// build them, not a package we guarantee.
 const INCLUDES: { icon: string; label: string }[] = [
-  { icon: "villa", label: "Private villa, right on the water" },
-  { icon: "chef", label: "Your own private chef" },
-  { icon: "coach", label: "World-class coaching, all week" },
-  { icon: "camera", label: "Pro photo & video sessions" },
-  { icon: "drinks", label: "Sunset drinks & chill days" },
-  { icon: "crew", label: "A small crew of genuinely good people" },
+  { icon: "place", label: "A unique place, every time" },
+  { icon: "villa", label: "A stay we choose by hand" },
+  { icon: "local", label: "Real connections with the locals" },
+  { icon: "crew", label: "A small, hand-picked crew" },
+  { icon: "coach", label: "Coaching, tuned to you" },
+  { icon: "camera", label: "Memories worth keeping" },
 ];
 
 function Ico({ name }: { name: string }) {
   const c = { className: "w-5 h-5", viewBox: "0 0 24 24", fill: "none", stroke: "currentColor", strokeWidth: 1.7, strokeLinecap: "round" as const, strokeLinejoin: "round" as const };
   switch (name) {
+    case "place": return <svg {...c}><path d="M12 21s-6.5-5.8-6.5-10.5a6.5 6.5 0 0 1 13 0C18.5 15.2 12 21 12 21z" /><circle cx="12" cy="10.5" r="2.4" /></svg>;
     case "villa": return <svg {...c}><path d="M3 10.5 12 4l9 6.5" /><path d="M5 9.5V20h14V9.5" /><path d="M10 20v-5h4v5" /></svg>;
+    case "local": return <svg {...c}><circle cx="12" cy="12" r="8.5" /><path d="M3.5 12h17" /><path d="M12 3.5c2.4 2.4 2.4 14.6 0 17M12 3.5c-2.4 2.4-2.4 14.6 0 17" /></svg>;
     case "chef": return <svg {...c}><path d="M7 13.5a3.4 3.4 0 0 1-1-6.65A3.4 3.4 0 0 1 12.5 5a3.4 3.4 0 0 1 5.5 1.85 3.4 3.4 0 0 1-1 6.65" /><path d="M7 13.5h10V18a2 2 0 0 1-2 2H9a2 2 0 0 1-2-2z" /></svg>;
     case "coach": return <svg {...c}><path d="M4 20h15" /><path d="M7 20V5l9 9H7z" /></svg>;
     case "camera": return <svg {...c}><path d="M4 8h3l1.5-2h7L17 8h3a1 1 0 0 1 1 1v9a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V9a1 1 0 0 1 1-1z" /><circle cx="12" cy="13" r="3.2" /></svg>;
@@ -100,7 +104,7 @@ export default async function SignatureTripsPage() {
               <span className={`inline-flex items-center gap-2 uppercase ${EYEBROW}`} style={{ color: "#ffd97a" }}><span aria-hidden>✦</span> By application only</span>
               <h1 className="text-[46px] sm:text-6xl lg:text-[70px] font-black text-white leading-[0.96] tracking-[-0.035em] mt-4 drop-shadow-[0_4px_30px_rgba(0,0,0,0.35)]">Signature Trips</h1>
               <p className="mt-5 text-[17px] sm:text-[20px] text-white/85 max-w-[580px] font-medium leading-relaxed">
-                Our most special windsurf trips — small, hand-picked crews, private villas, and world-class coaching, in the kind of places you talk about for years. Madagascar. Mauritius. Spots most people never reach.
+                Our most special windsurf trips — small, hand-picked crews and one-of-a-kind places, each built from scratch. No two the same. Think Madagascar, Mauritius — spots most people never reach.
               </p>
               <a href="#apply" className="inline-flex items-center gap-2 mt-8 px-7 py-4 rounded-full text-[14px] font-bold text-[#00374a] bg-white shadow-[0_8px_30px_rgba(255,255,255,0.2)] hover:-translate-y-0.5 transition-all">
                 Apply for a spot
@@ -130,9 +134,10 @@ export default async function SignatureTripsPage() {
           {/* what's included */}
           <section className="py-10">
             <div className="max-w-[900px] mx-auto px-6 sm:px-8">
-              <Reveal className="text-center max-w-[560px] mx-auto mb-8">
-                <p className={`${EYEBROW} mb-3`}>WHAT&apos;S IN IT</p>
-                <h2 className="text-3xl sm:text-4xl font-black tracking-[-0.03em] text-white">The full experience, handled</h2>
+              <Reveal className="text-center max-w-[620px] mx-auto mb-8">
+                <p className={`${EYEBROW} mb-3`}>NO TWO ALIKE</p>
+                <h2 className="text-3xl sm:text-4xl font-black tracking-[-0.03em] text-white">Every trip is one of a kind</h2>
+                <p className="text-[15px] text-white/65 mt-3 leading-relaxed">We never run the same trip twice. Each one is built from scratch — a place worth the journey, a stay chosen just for it, the locals who make it, and a crew that fits.</p>
               </Reveal>
               <Reveal>
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
