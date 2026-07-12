@@ -23,6 +23,8 @@ interface Component {
   name: string;
   category: string;
   description: string | null;
+  hotel_id?: string | null;
+  room_type?: string | null;
   unit_cost: number | null;
   sell_price: number | null;
   addon_available: boolean;
@@ -104,8 +106,11 @@ export default function ComponentsPage() {
   const emptyForm = {
     name: "", category: "coaching", description: "", unit_cost: "", sell_price: "",
     addon_available: false, notes: "", is_global: true, experience_id: "", edition_id: "",
+    hotel_id: "", room_type: "",
   };
   const [form, setForm] = useState(emptyForm);
+  const [hotels, setHotels] = useState<{ id: string; name: string }[]>([]);
+  const [allRooms, setAllRooms] = useState<{ hotel: string | null; room_type: string | null }[]>([]);
 
   useEffect(() => {
     fetchData();
@@ -116,7 +121,11 @@ export default function ComponentsPage() {
       fetch("/api/admin/components").then((r) => r.json()),
       fetch("/api/admin/experiences").then((r) => r.json()),
       fetch("/api/admin/editions").then((r) => r.json()),
-    ]).then(([comps, exps, eds]) => {
+      fetch("/api/admin/hotels").then((r) => r.json()).catch(() => ({})),
+      fetch("/api/admin/rooms").then((r) => r.json()).catch(() => ({})),
+    ]).then(([comps, exps, eds, hot, rms]) => {
+      setHotels(((hot?.hotels ?? []) as { id: string | null; name: string }[]).filter((h) => h.id) as { id: string; name: string }[]);
+      setAllRooms(Array.isArray(rms?.rooms) ? rms.rooms : []);
       setComponents(comps || []);
       setExperiences(
         (exps.experiences || exps || []).map((e: Record<string, string>) => ({
@@ -196,6 +205,8 @@ export default function ComponentsPage() {
       is_global: c.is_global,
       experience_id: c.experience_id || "",
       edition_id: c.edition_id || "",
+      hotel_id: c.hotel_id || "",
+      room_type: c.room_type || "",
     });
     setShowNew(false);
   }
@@ -222,6 +233,8 @@ export default function ComponentsPage() {
       is_global: form.is_global,
       experience_id: form.is_global ? null : form.experience_id || null,
       edition_id: form.is_global ? null : form.edition_id || null,
+      hotel_id: form.category === "accommodation" ? form.hotel_id || null : null,
+      room_type: form.category === "accommodation" ? form.room_type || null : null,
     };
 
     if (editId) {
@@ -268,6 +281,35 @@ export default function ComponentsPage() {
       </div>
       <div className="grid grid-cols-2 gap-4 mb-4">
         <div><label className={labelClass}>Website text <span className="normal-case font-normal admin-faint">— how it appears in a package's &quot;What's included&quot;</span></label><input className={inputClass} value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} placeholder="e.g. Healthy lunch on the beach daily" /><p className="text-[11px] admin-faint mt-1">Shown for every package where this component is ✓-checked for the website. Blank = the component name is used.</p></div>
+        {form.category === "accommodation" && (
+          <div className="grid grid-cols-2 gap-4">
+            <div><label className={labelClass}>Hotel</label>
+              <select className={inputClass} value={form.hotel_id}
+                onChange={(e) => {
+                  const hotel_id = e.target.value;
+                  const hName = hotels.find((h) => h.id === hotel_id)?.name || "";
+                  setForm((f) => ({ ...f, hotel_id, name: f.name.trim() ? f.name : (hName && f.room_type ? `${hName} – ${f.room_type}` : f.name) }));
+                }}>
+                <option value="">—</option>
+                {hotels.map((h) => <option key={h.id} value={h.id}>{h.name}</option>)}
+              </select>
+            </div>
+            <div><label className={labelClass}>Room type <span className="normal-case font-normal admin-faint">(or type new)</span></label>
+              <input className={inputClass} list="component-room-types" value={form.room_type}
+                onChange={(e) => {
+                  const room_type = e.target.value;
+                  const hName = hotels.find((h) => h.id === form.hotel_id)?.name || "";
+                  setForm((f) => ({ ...f, room_type, name: f.name.trim() ? f.name : (hName && room_type ? `${hName} – ${room_type}` : f.name) }));
+                }} placeholder="e.g. Double Deluxe Balcony" />
+              <datalist id="component-room-types">
+                {[...new Set(allRooms
+                  .filter((r) => { const hName = hotels.find((h) => h.id === form.hotel_id)?.name; return !hName || r.hotel === hName; })
+                  .map((r) => r.room_type).filter(Boolean))].map((t) => <option key={String(t)} value={String(t)} />)}
+              </datalist>
+              <p className="text-[11px] admin-faint mt-1">Suggestions come from that hotel&apos;s real rooms.</p>
+            </div>
+          </div>
+        )}
         <div><label className={labelClass}>Notes</label><input className={inputClass} value={form.notes} onChange={(e) => setForm({ ...form, notes: e.target.value })} /></div>
       </div>
       <div className="grid grid-cols-3 gap-4 mb-4">
