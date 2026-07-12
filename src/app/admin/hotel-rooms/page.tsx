@@ -65,6 +65,8 @@ export default function HotelRoomsPage() {
   const [loading, setLoading] = useState(true);
   const [filterHotel, setFilterHotel] = useState("");
   const [filterExperience, setFilterExperience] = useState("");
+  const [filterYear, setFilterYear] = useState("");
+  const [filterEdition, setFilterEdition] = useState("");
 
   // physical-room editor
   const [selUnit, setSelUnit] = useState<string | "new" | null>(null);
@@ -115,6 +117,8 @@ export default function HotelRoomsPage() {
   const filteredOcc = occupancy.filter((r) => {
     if (filterHotel && r.hotel !== filterHotel) return false;
     if (filterExperience && r.experience_id !== filterExperience) return false;
+    if (filterEdition && r.edition_id !== filterEdition) return false;
+    if (filterYear && String(r.edition?.year ?? "") !== filterYear) return false;
     return true;
   });
   const filteredUnits = units.filter((u) => {
@@ -132,7 +136,11 @@ export default function HotelRoomsPage() {
     }
     groupMap[key].weeks.push(r);
   }
-  const groupList = Object.values(groupMap).sort((a, b) => (a.unit.name || "").localeCompare(b.unit.name || ""));
+  // with a year/edition filter on, a room only shows if it has a matching week —
+  // the list becomes "this edition's (or year's) allotment"
+  const groupList = Object.values(groupMap)
+    .filter((g) => (!filterYear && !filterEdition) || g.weeks.length > 0)
+    .sort((a, b) => (a.unit.name || "").localeCompare(b.unit.name || ""));
   // hotel → physical rooms
   const byHotel = groupList.reduce<Record<string, { unit: RoomUnit; weeks: Occupancy[] }[]>>((acc, g) => {
     const h = g.unit.hotel || "—";
@@ -142,6 +150,17 @@ export default function HotelRoomsPage() {
 
   const roomExpIds = new Set([...occupancy.map((r) => r.experience_id), ...units.map((u) => u.experience_id)].filter(Boolean));
   const pickerExperiences = experiences.filter((e) => roomExpIds.has(e.id) || e.status === "published");
+
+  // year → edition cascade for the list filter (years that actually have week rows)
+  const filterYears = [...new Set(occupancy
+    .filter((r) => !filterExperience || r.experience_id === filterExperience)
+    .map((r) => r.edition?.year).filter((y): y is number => y != null))].sort((a, b) => b - a);
+  const usedEditionIds = new Set(occupancy.map((r) => r.edition_id).filter(Boolean));
+  const filterEditions = editions
+    .filter((e) => usedEditionIds.has(e.id)
+      && (!filterExperience || e.experience_id === filterExperience)
+      && (!filterYear || String(e.year) === filterYear))
+    .sort((a, b) => a.year - b.year || String(a.label ?? "").localeCompare(String(b.label ?? "")));
 
   // ── actions ──────────────────────────────────────────────────────────────────
   function startUnit(id: string | "new") {
@@ -178,7 +197,14 @@ export default function HotelRoomsPage() {
 
   function startWeek(w: Occupancy | "new") {
     setWeekYear("");
-    if (w === "new") { setWeekEditId("new"); setWeekForm(emptyWeek); return; }
+    if (w === "new") {
+      // filtering by a year/edition? that's almost certainly the week being added
+      const ed = filterEdition ? editionById.get(filterEdition) : undefined;
+      const edOk = ed && (!selUnitObj?.experience_id || ed.experience_id === selUnitObj.experience_id);
+      setWeekYear(filterYear);
+      setWeekEditId("new"); setWeekForm({ ...emptyWeek, edition_id: edOk ? filterEdition : "" });
+      return;
+    }
     setWeekEditId(w.id);
     setWeekForm({ edition_id: w.edition_id || "", booking_id: w.booking?.id || "", status: w.status, check_in: w.check_in || "", check_out: w.check_out || "", transfer_need: !!w.transfer_need, partner_tag_along: w.partner_tag_along || "" });
     // edition_id isn't always on the list row → fetch the full occupancy row
@@ -420,12 +446,20 @@ export default function HotelRoomsPage() {
             <option value="">All Hotels</option>
             {HOTELS.map((h) => <option key={h} value={h}>{h}</option>)}
           </select>
-          <select value={filterExperience} onChange={(e) => setFilterExperience(e.target.value)} className="admin-input text-sm px-3 py-1.5 rounded-lg">
+          <select value={filterExperience} onChange={(e) => { setFilterExperience(e.target.value); setFilterEdition(""); }} className="admin-input text-sm px-3 py-1.5 rounded-lg">
             <option value="">All Experiences</option>
             {pickerExperiences.map((exp) => <option key={exp.id} value={exp.id}>{exp.title}</option>)}
           </select>
-          {(filterHotel || filterExperience) && (
-            <button onClick={() => { setFilterHotel(""); setFilterExperience(""); }} className="text-xs admin-faint hover:admin-muted transition-colors">Clear filters</button>
+          <select value={filterYear} onChange={(e) => { const y = e.target.value; setFilterYear(y); const cur = editionById.get(filterEdition); if (y && cur && String(cur.year) !== y) setFilterEdition(""); }} className="admin-input text-sm px-3 py-1.5 rounded-lg">
+            <option value="">All years</option>
+            {filterYears.map((y) => <option key={y} value={String(y)}>{y}</option>)}
+          </select>
+          <select value={filterEdition} onChange={(e) => setFilterEdition(e.target.value)} className="admin-input text-sm px-3 py-1.5 rounded-lg">
+            <option value="">All weeks</option>
+            {filterEditions.map((ed) => <option key={ed.id} value={ed.id}>{filterYear ? (ed.label || ed.year) : [ed.year, ed.label].filter(Boolean).join(" · ")}</option>)}
+          </select>
+          {(filterHotel || filterExperience || filterYear || filterEdition) && (
+            <button onClick={() => { setFilterHotel(""); setFilterExperience(""); setFilterYear(""); setFilterEdition(""); }} className="text-xs admin-faint hover:admin-muted transition-colors">Clear filters</button>
           )}
         </div>
 
