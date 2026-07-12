@@ -91,7 +91,8 @@ export function ContactDetailPane({ contactId, onBack }: { contactId: string; on
         (doc: ContactDocument) => doc.contact_id === id
       );
       setContactDocs(docs);
-      setExperiences((exp.experiences || []).map((e: { id: string; title: string }) => ({ id: e.id, title: e.title })));
+      // /api/admin/experiences returns a plain array (not {experiences})
+      setExperiences((Array.isArray(exp) ? exp : exp.experiences || []).map((e: { id: string; title: string }) => ({ id: e.id, title: e.title })));
       setLoading(false);
     });
   }, [id]);
@@ -115,7 +116,8 @@ export function ContactDetailPane({ contactId, onBack }: { contactId: string; on
       level: contact.level,
       level_notes: contact.level_notes,
       source: contact.source,
-      tshirt_size: contact.tshirt_size,
+      // normalize: the DB check allows only lowercase sizes, "" is never valid
+      tshirt_size: contact.tshirt_size ? contact.tshirt_size.toLowerCase() : null,
       notes: contact.notes,
       experience_locations: contact.experience_locations || [],
       interested_products: contact.interested_products || [],
@@ -291,14 +293,10 @@ export function ContactDetailPane({ contactId, onBack }: { contactId: string; on
           </div>
           <div>
             <label className={labelClass}>T-shirt size</label>
-            <select className={inputClass} value={contact.tshirt_size || ""} onChange={(e) => update("tshirt_size", e.target.value || null)}>
+            {/* values must stay lowercase — contacts_tshirt_size_check allows only 'xs'…'xxl' */}
+            <select className={inputClass} value={contact.tshirt_size?.toLowerCase() || ""} onChange={(e) => update("tshirt_size", e.target.value || null)}>
               <option value="">—</option>
-              <option>XS</option>
-              <option>S</option>
-              <option>M</option>
-              <option>L</option>
-              <option>XL</option>
-              <option>XXL</option>
+              {["xs", "s", "m", "l", "xl", "xxl"].map((s) => <option key={s} value={s}>{s.toUpperCase()}</option>)}
             </select>
           </div>
         </div>
