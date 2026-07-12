@@ -125,7 +125,10 @@ export default function AdminDashboard() {
     <div>
       <div className="flex items-center justify-between mb-6">
         <h1 className="text-2xl font-bold admin-heading">Dashboard</h1>
-        <button
+        {/* Privacy eye only for roles that can see money at all — for restricted
+            roles there are no € figures on the page, and even showing the toggle
+            (or masked ••••) would advertise that something is being hidden. */}
+        {!slim && <button
           onClick={toggleHideMoney}
           title={hideMoney ? "Show amounts" : "Hide amounts"}
           aria-pressed={hideMoney}
@@ -138,7 +141,7 @@ export default function AdminDashboard() {
             <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7z" /><circle cx="12" cy="12" r="3" /></svg>
           )}
           {hideMoney ? "Show €" : "Hide €"}
-        </button>
+        </button>}
       </div>
 
       {/* Counters */}
@@ -189,7 +192,9 @@ export default function AdminDashboard() {
                   <span className="flex-1 admin-heading truncate">{b.name || "Untitled"}</span>
                   <span className="admin-faint truncate hidden sm:block max-w-[120px]">{b.exp_experiences?.title || ""}</span>
                   <span className={`${STATUS_COLOR[normalizeBookingStatus(b.status)] || "admin-muted"} w-24 text-right`}>{BOOKING_STATUS_LABELS[normalizeBookingStatus(b.status)]}</span>
-                  <span className="admin-muted w-16 text-right">{amt(b.agreed_price)}</span>
+                  {/* price slot only for money-visible roles — an empty (or masked)
+                      column just advertises what's being withheld */}
+                  {!slim && <span className="admin-muted w-16 text-right">{amt(b.agreed_price)}</span>}
                 </Link>
               ))}
             </div>
