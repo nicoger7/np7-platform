@@ -19,7 +19,8 @@
 ## Access
 - Supabase project `qfdqigumjadvrocxjolx`. Use the **service-role** key Nico gives
   you (server-side only — never expose it, never put it in output).
-- You READ and WRITE exactly two tables: **`spots`** and **`spot_edits`**. Nothing else.
+- You READ and WRITE exactly three tables: **`spots`**, **`spot_edits`** and
+  **`destinations`** — plus **`jibe_runs`** (write-only, your heartbeat). Nothing else.
 
 ## Background (so you know what you're touching)
 A spot has structured fields (`level`, `conditions`, `infrastructure`, …) plus a
@@ -151,8 +152,29 @@ if unsure, leave it for a human.
 
 ---
 
+## Heartbeat — log every run (MANDATORY, even a no-op)
+The NP7 admin shows "jibe last ran: …" from the `jibe_runs` table — it's how
+Nico tells "queue is empty" apart from "jibe stopped showing up". So as the
+**last step of every run**, insert exactly one row:
+
+```
+POST {SUPABASE_URL}/rest/v1/jibe_runs
+Headers: apikey: {KEY}, Authorization: Bearer {KEY},
+         Content-Type: application/json, Prefer: return=minimal
+Body: {
+  "job": "spotguide",
+  "structured": <Job A: spots you structured this run>,
+  "merged":     <Job B: spots whose description you rewrote this run>,
+  "summary":    "<one human line, e.g. 'structured 1 spot, folded 3 tips into One Eye' or 'nothing to do'>",
+  "meta":       { "tidiedNames": <Job C count>, "mergedAreas": <Job D count> }
+}
+```
+Never skip this — a run without a heartbeat row looks like no run at all.
+
+---
+
 ## Cadence & safety
-- Run on your own schedule (e.g. every few hours). All three jobs are
+- Run on your own schedule (e.g. every few hours, or daily). All jobs are
   **idempotent**: Job A skips spots already structured; Job B skips edits already
   `merged`; Job C skips destinations whose name is already clean.
 - If you're ever unsure, **do nothing** and leave it for a human — don't guess.

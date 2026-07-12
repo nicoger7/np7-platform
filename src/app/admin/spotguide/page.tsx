@@ -15,13 +15,21 @@ interface PendingEdit { id: string; spotId: string; spotName: string; proposer: 
 interface Grant { id: string; contactName: string; contactEmail: string | null; role: string; destinationName: string | null }
 interface Member { id: string; name: string; email: string | null }
 
+function timeAgo(iso: string): string {
+  const mins = Math.max(0, Math.round((Date.now() - new Date(iso).getTime()) / 60000));
+  if (mins < 60) return `${mins} min ago`;
+  const h = Math.round(mins / 60);
+  if (h < 48) return `${h}h ago`;
+  return `${Math.round(h / 24)} days ago`;
+}
+
 export default function SpotguideModeration() {
   const [spots, setSpots] = useState<PendingSpot[]>([]);
   const [photos, setPhotos] = useState<PendingPhoto[]>([]);
   const [proposedDests, setProposedDests] = useState<{ id: string; name: string; region: string | null }[]>([]);
   const [edits, setEdits] = useState<PendingEdit[]>([]);
   const [trust, setTrust] = useState<Grant[]>([]);
-  const [jibe, setJibe] = useState<{ toStructure: number; toMerge: number } | null>(null);
+  const [jibe, setJibe] = useState<{ toStructure: number; toMerge: number; lastRun?: { ran_at: string; structured: number; merged: number; summary: string | null } | null } | null>(null);
   const [members, setMembers] = useState<Member[]>([]);
   const [dests, setDests] = useState<{ id: string; name: string }[]>([]);
   const [q, setQ] = useState("");
@@ -103,6 +111,14 @@ export default function SpotguideModeration() {
             <span className="px-2 py-0.5 rounded text-[10px] font-bold uppercase bg-[#0aa3c7]/15 text-[#0aa3c7]">automated</span>
           </div>
           <p className="text-xs admin-faint mb-3">jibe structures new member spots and folds community-confirmed tips into descriptions on its own schedule — this is just a window in, nothing to action.</p>
+          {jibe.lastRun ? (
+            <p className="text-xs mb-3">
+              <span className="text-green-500 font-semibold">Last ran {timeAgo(jibe.lastRun.ran_at)}</span>
+              <span className="admin-muted"> — {jibe.lastRun.summary || `structured ${jibe.lastRun.structured}, folded ${jibe.lastRun.merged}`}</span>
+            </p>
+          ) : (
+            <p className="text-xs mb-3 text-amber-500">No heartbeat yet — jibe hasn&apos;t checked in. Make sure the spotguide brief is scheduled on jibe (it logs every run here, even &ldquo;nothing to do&rdquo;).</p>
+          )}
           <div className="flex gap-3">
             <div className="flex-1 rounded-lg px-3 py-2.5" style={{ border: "1px solid var(--admin-border)" }}>
               <div className="text-2xl font-bold admin-heading tabular-nums">{jibe.toStructure}</div>

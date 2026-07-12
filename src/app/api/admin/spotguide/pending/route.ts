@@ -88,5 +88,14 @@ export async function GET() {
     !s.level || !(Array.isArray(s.conditions) && s.conditions.length) || !(Array.isArray(s.infrastructure) && s.infrastructure.length)).length;
   const toMerge = (rawEdits ?? []).filter((e: { field: string; status: string }) => e.field === "info" && e.status === "approved").length;
 
-  return NextResponse.json({ spots: out, photos: photos ?? [], proposedDests: proposedDests ?? [], edits, jibe: { toStructure, toMerge } });
+  // last heartbeat — jibe logs one jibe_runs row per run, even a no-op
+  // (tolerant: table may not exist pre-migration 095)
+  let lastRun: { ran_at: string; structured: number; merged: number; summary: string | null } | null = null;
+  try {
+    const { data: hb } = await db.from("jibe_runs").select("ran_at, structured, merged, summary")
+      .eq("job", "spotguide").order("ran_at", { ascending: false }).limit(1).maybeSingle();
+    if (hb) lastRun = hb;
+  } catch { /* pre-migration */ }
+
+  return NextResponse.json({ spots: out, photos: photos ?? [], proposedDests: proposedDests ?? [], edits, jibe: { toStructure, toMerge, lastRun } });
 }
