@@ -227,12 +227,14 @@ export default function PackagesPage() {
   );
 
   function startNew() {
+    setFormYear("");
     setEditId(null);
     setForm({ ...emptyForm, experience_id: filterExperienceId, edition_id: filterEditionId });
     setShowNew(true);
   }
 
   function startEdit(p: Package) {
+    setFormYear("");
     setEditId(p.id);
     setShowNew(false);
     setForm({
@@ -298,6 +300,10 @@ export default function PackagesPage() {
     ? editions.filter((e) => e.experience_id === form.experience_id)
     : editions
   ).slice().sort((a, b) => (b.year ?? 0) - (a.year ?? 0) || String(a.label ?? "").localeCompare(String(b.label ?? "")));
+
+  // Year-first edition cascade — several seasons of "Week I/II/III" in one list
+  // gets overloaded fast.
+  const [formYear, setFormYear] = useState<string>("");
 
   // Rooms → availability: the physical rooms backing this package.
   const [rooms, setRooms] = useState<{ id: string; name: string | null; hotel: string | null; room_type: string | null; room_number: string | null }[]>([]);
@@ -368,29 +374,45 @@ export default function PackagesPage() {
         <div className="flex-1 min-w-0 space-y-4">
         <div className="p-5 rounded-xl" style={{ border: "1px solid var(--admin-border)", backgroundColor: "var(--admin-surface)" }}>
           <h3 className="text-base font-bold admin-heading mb-4">{editId ? "Edit package" : "New package"}</h3>
-          <div className="grid grid-cols-[1fr_180px_180px] gap-4 mb-4">
-            <div><label className={labelClass}>Name *<PublicBadge note="Parsed into the level + room label shown in the public booking step" /></label><input className={inputClass} value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} /></div>
-            <div><label className={labelClass}>Experience</label>
-              <select className={inputClass} value={form.experience_id} onChange={(e) => setForm({ ...form, experience_id: e.target.value, edition_id: "" })}>
-                <option value="">—</option>
-                {experiences.map((exp) => <option key={exp.id} value={exp.id}>{exp.title}</option>)}
-              </select>
-            </div>
-            <div><label className={labelClass}>Edition</label>
-              <select className={inputClass} value={form.edition_id} onChange={(e) => setForm({ ...form, edition_id: e.target.value })}>
-                <option value="">—</option>
-                {formEditionOptions.map((ed) => <option key={ed.id} value={ed.id}>{[ed.year, ed.label].filter(Boolean).join(" · ") || "—"}{form.experience_id ? "" : ` — ${ed.exp_experiences?.title || ""}`}</option>)}
-              </select>
-            </div>
-          </div>
-          <div className="grid grid-cols-6 gap-4 mb-4">
-            <div><label className={labelClass}>Sell (€)<PublicBadge note="The public package price" /></label><input type="number" className={inputClass} value={form.price} onChange={(e) => setForm({ ...form, price: e.target.value })} /></div>
-            <div><label className={labelClass}>Cost / person <span className="normal-case font-normal admin-faint">— auto: components buy total</span></label><input type="number" className={inputClass} value={form.cost_per_person} onChange={(e) => setForm({ ...form, cost_per_person: e.target.value })} placeholder="auto" title="Kept in sync with the components’ buy total on every component change" /></div>
-            <div><label className={labelClass}>Deposit</label><input type="number" className={inputClass} value={form.deposit} onChange={(e) => setForm({ ...form, deposit: e.target.value })} /></div>
-            <div><label className={labelClass}>Spots</label><input type="number" className={inputClass} value={form.max_spots} onChange={(e) => setForm({ ...form, max_spots: e.target.value })} /></div>
-            <div><label className={labelClass}>Category<PublicBadge note="THIS drives the Advanced/Beginner choice customers see in the public booking step (name text is only a fallback)" /></label>
+          {(() => {
+            const selYear = formYear || (form.edition_id ? String(editionMap.get(form.edition_id)?.year ?? "") : "");
+            const yearOptions = [...new Set(formEditionOptions.map((e) => e.year).filter((y): y is number => y != null))].sort((a, b) => b - a);
+            const editionOpts = formEditionOptions.filter((ed) => !selYear || String(ed.year ?? "") === selYear);
+            return (
+              <div className="grid grid-cols-[1fr_170px_100px_170px] gap-4 mb-4">
+                <div><label className={labelClass}>Name *<PublicBadge note="Shown as the package/room label in the public booking step" /></label><input className={inputClass} value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} /></div>
+                <div><label className={labelClass}>Experience</label>
+                  <select className={inputClass} value={form.experience_id} onChange={(e) => { setFormYear(""); setForm({ ...form, experience_id: e.target.value, edition_id: "" }); }}>
+                    <option value="">—</option>
+                    {experiences.map((exp) => <option key={exp.id} value={exp.id}>{exp.title}</option>)}
+                  </select>
+                </div>
+                <div><label className={labelClass}>Year</label>
+                  <select className={inputClass} value={selYear} onChange={(e) => { const y = e.target.value; setFormYear(y); setForm((f) => { const ed = editionMap.get(f.edition_id); return ed && String(ed.year ?? "") !== y && y !== "" ? { ...f, edition_id: "" } : f; }); }}>
+                    <option value="">All</option>
+                    {yearOptions.map((y) => <option key={y} value={String(y)}>{y}</option>)}
+                  </select>
+                </div>
+                <div><label className={labelClass}>Edition</label>
+                  <select className={inputClass} value={form.edition_id} onChange={(e) => setForm({ ...form, edition_id: e.target.value })}>
+                    <option value="">—</option>
+                    {editionOpts.map((ed) => <option key={ed.id} value={ed.id}>{selYear ? (ed.label || ed.year || "—") : [ed.year, ed.label].filter(Boolean).join(" · ") || "—"}{form.experience_id ? "" : ` — ${ed.exp_experiences?.title || ""}`}</option>)}
+                  </select>
+                </div>
+              </div>
+            );
+          })()}
+          {/* mirrors the website flow: the customer picks LEVEL first, then the stay */}
+          <div className="grid grid-cols-3 gap-4 mb-4">
+            <div><label className={labelClass}>Level<PublicBadge note="Step 1 on the website — the Advanced/Beginner choice customers make first" /></label>
               <select className={inputClass} value={form.category} onChange={(e) => setForm({ ...form, category: e.target.value })}>
                 {PKG_CATEGORIES.map((c) => <option key={c} value={c}>{c ? c[0].toUpperCase() + c.slice(1) : "None"}</option>)}
+              </select>
+            </div>
+            <div><label className={labelClass}>Hotel<PublicBadge note="Step 2 on the website — drives the hotel name & photos in the accommodation choice" /></label>
+              <select className={inputClass} value={form.hotel_id} onChange={(e) => setForm({ ...form, hotel_id: e.target.value })}>
+                <option value="">No hotel / auto-detect</option>
+                {hotels.map((h) => <option key={h.id} value={h.id}>{h.name}</option>)}
               </select>
             </div>
             <div><label className={labelClass}>Status</label>
@@ -402,6 +424,12 @@ export default function PackagesPage() {
               </select>
             </div>
           </div>
+          <div className="grid grid-cols-4 gap-4 mb-4">
+            <div><label className={labelClass}>Sell (€)<PublicBadge note="The public package price" /></label><input type="number" className={inputClass} value={form.price} onChange={(e) => setForm({ ...form, price: e.target.value })} /></div>
+            <div><label className={labelClass}>Cost / person <span className="normal-case font-normal admin-faint">— auto: components buy total</span></label><input type="number" className={inputClass} value={form.cost_per_person} onChange={(e) => setForm({ ...form, cost_per_person: e.target.value })} placeholder="auto" title="Kept in sync with the components’ buy total on every component change" /></div>
+            <div><label className={labelClass}>Deposit</label><input type="number" className={inputClass} value={form.deposit} onChange={(e) => setForm({ ...form, deposit: e.target.value })} /></div>
+            <div><label className={labelClass}>Spots <span className="normal-case font-normal admin-faint">— auto from rooms</span></label><input type="number" className={inputClass} value={form.max_spots} onChange={(e) => setForm({ ...form, max_spots: e.target.value })} /></div>
+          </div>
           {/* Payment plan (Phase 2): deposit → downpayment → final. Needs migration 032. */}
           <div className="mb-4">
             <p className="text-[11px] font-bold uppercase tracking-wide admin-faint mb-1.5">Payment plan</p>
@@ -412,14 +440,7 @@ export default function PackagesPage() {
             </div>
             <p className="text-[11px] admin-faint mt-1.5">Downpayment is always due that many days after sign-up (the flight-booking window); the final balance that many days before the trip. A deposit, if set, also stays refundable for the same window.</p>
           </div>
-          <div className="grid grid-cols-[260px_1fr] gap-4 mb-4">
-            <div><label className={labelClass}>Hotel</label>
-              <select className={inputClass} value={form.hotel_id} onChange={(e) => setForm({ ...form, hotel_id: e.target.value })}>
-                <option value="">No hotel / auto-detect</option>
-                {hotels.map((h) => <option key={h.id} value={h.id}>{h.name}</option>)}
-              </select>
-              <p className="text-[11px] admin-faint mt-1">Drives the hotel name &amp; photos in the public booking step. Leave blank to auto-match by name.</p>
-            </div>
+          <div className="mb-4">
             <div><label className={labelClass}>Website list — manual override <span className="normal-case font-normal admin-faint">(optional)</span></label>
               <textarea className={`${inputClass} h-[120px] resize-y leading-relaxed`} value={form.includes} onChange={(e) => setForm({ ...form, includes: e.target.value })} placeholder={"Usually leave this BLANK — the website then lists the components ✓-checked below (their Website text).\nFill it only to fully hand-write the list, one line each."} />
               <p className="text-[11px] admin-faint mt-1"><b>Leave blank</b> → the website shows the components marked <b>Web ✓</b> below, using each component&apos;s Website text. Filling this overrides that list entirely.</p>
