@@ -27,6 +27,10 @@ type SendArgs = {
   division?: Division;
   /** Optional file attachments (Resend supports PDF, etc.). Best-effort — ignored if provider not configured. */
   attachments?: EmailAttachment[];
+  /** Explicitly human-triggered from the admin (a button press, e.g. the photo
+   *  reminder) — bypasses the lifecycle soft-launch hold, which only guards
+   *  AUTOMATED sends against half-migrated data. */
+  manual?: boolean;
 };
 
 type SendResult = { status: "sent" | "failed" | "skipped"; id?: string; error?: string };
@@ -59,7 +63,8 @@ export async function sendEmail(args: SendArgs): Promise<SendResult> {
   // Soft-launch guard: only sign-up/login mail goes out; all automated customer
   // lifecycle mail is held until EMAIL_LIFECYCLE_LIVE=true. Returns BEFORE any DB
   // write so no dedupe_key is burned — the send fires for real once enabled.
-  if (lifecycleSuppressed(templateKey)) {
+  // `manual` sends (an admin pressing a button) are deliberate and go out always.
+  if (!args.manual && lifecycleSuppressed(templateKey)) {
     return { status: "skipped", error: "soft launch: lifecycle email suppressed (set EMAIL_LIFECYCLE_LIVE=true to enable)" };
   }
 

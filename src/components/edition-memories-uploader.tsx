@@ -70,6 +70,35 @@ export function EditionMemoriesUploader({ editionId, initialVideoUrl }: { editio
       .then((d) => setBookings(Array.isArray(d?.participants) ? d.participants : []));
   }, [editionId]);
 
+  // "new photos are up" reminder — emails every participant their gallery link.
+  const [remind, setRemind] = useState<{ recipients: number; lastSent: string | null } | null>(null);
+  const [remindBusy, setRemindBusy] = useState(false);
+  const [remindMsg, setRemindMsg] = useState<string | null>(null);
+  useEffect(() => {
+    fetch(`/api/admin/editions/${editionId}/photo-reminder`)
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d) => { if (d && typeof d.recipients === "number") setRemind(d); })
+      .catch(() => {});
+  }, [editionId]);
+  async function sendPhotoReminder() {
+    if (!remind || remindBusy) return;
+    const when = remind.lastSent ? `\n\nLast reminder went out ${new Date(remind.lastSent).toLocaleDateString("en-GB", { day: "numeric", month: "short" })}.` : "";
+    if (!confirm(`Email all ${remind.recipients} participants that new photos are in their gallery?${when}`)) return;
+    setRemindBusy(true);
+    setRemindMsg(null);
+    try {
+      const res = await fetch(`/api/admin/editions/${editionId}/photo-reminder`, { method: "POST" });
+      const j = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(j.error || "Could not send");
+      setRemindMsg(j.sent > 0
+        ? `Sent to ${j.sent} rider${j.sent === 1 ? "" : "s"} ✓${j.skipped ? ` · ${j.skipped} already reminded today` : ""}`
+        : j.skipped ? `Everyone was already reminded today` : `Nothing sent`);
+      setRemind((r) => (r ? { ...r, lastSent: new Date().toISOString() } : r));
+    } catch (e) {
+      setRemindMsg(e instanceof Error ? e.message : "Could not send");
+    } finally { setRemindBusy(false); }
+  }
+
   const listFolder = useCallback(async (folder: string) => {
     const res = await fetch(`/api/admin/images?folder=${encodeURIComponent(folder)}`);
     const data = await res.json();
@@ -299,11 +328,28 @@ export function EditionMemoriesUploader({ editionId, initialVideoUrl }: { editio
           );
         })()}
 
-        <div className="flex items-center gap-3 mb-4">
+        <div className="flex flex-wrap items-center gap-3 mb-4">
           <input ref={fileInput} type="file" accept="image/*" multiple onChange={(e) => upload(e.target.files)} className="hidden" id="memories-file" />
           <label htmlFor="memories-file" className={`px-4 py-2 rounded-lg text-xs font-bold cursor-pointer transition-colors ${uploading ? "opacity-50 pointer-events-none" : ""} bg-[#0aa3c7] hover:bg-[#0aa3c7]/90 text-white`}>
             {uploading ? `Uploading ${progress?.done}/${progress?.total}…` : `Upload photos for ${scopeLabel}`}
           </label>
+
+          {/* "new photos are up" reminder — one press emails every participant their
+              gallery link (deduped per day, so a double click can't double-send) */}
+          {remind && remind.recipients > 0 && (
+            <div className="flex items-center gap-2.5 ml-auto">
+              {remindMsg
+                ? <span className="text-[11px] admin-faint">{remindMsg}</span>
+                : remind.lastSent && <span className="text-[11px] admin-faint">Last reminder {new Date(remind.lastSent).toLocaleDateString("en-GB", { day: "numeric", month: "short" })}</span>}
+              <button type="button" onClick={sendPhotoReminder} disabled={remindBusy}
+                title={`Emails all ${remind.recipients} participants of this week that new photos are in their gallery.`}
+                className="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg text-xs font-bold transition-colors disabled:opacity-50 admin-heading"
+                style={{ border: "1px solid var(--admin-border)" }}>
+                <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="2" y="4" width="20" height="16" rx="2.5" /><path d="m2 7 10 6 10-6" /></svg>
+                {remindBusy ? "Sending…" : `Notify riders — new photos (${remind.recipients})`}
+              </button>
+            </div>
+          )}
         </div>
 
         {loading ? (

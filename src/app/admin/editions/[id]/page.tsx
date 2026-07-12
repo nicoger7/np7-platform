@@ -974,7 +974,7 @@ export default function EditionDetailPage({
         return (
           <div className="max-w-[640px]">
             <h3 className="text-base font-bold admin-heading mb-1">Edition branding</h3>
-            <p className="text-xs admin-faint mb-4">The top image for <strong>this edition</strong> on the website + in this edition&apos;s emails. It&apos;s an optional <strong>override</strong> of the experience&apos;s Main image (set in Website Content → Media) — leave it to inherit {edition.exp_experiences?.title || "the experience"}&apos;s Main image.</p>
+            <p className="text-xs admin-faint mb-4">The cover for <strong>this edition</strong> in its participants&apos; member area (trip page + trips list), this edition&apos;s emails, and its invite-a-friend page. The <strong>public website keeps the experience&apos;s Main image</strong> (set in Website Content → Media) — this is an optional per-week <strong>override</strong>; leave it to inherit {edition.exp_experiences?.title || "the experience"}&apos;s Main image.</p>
             <div className="p-5 rounded-xl" style={{ border: "1px solid var(--admin-border)", backgroundColor: "var(--admin-surface)" }}>
               <label className={labelClass}>Hero image</label>
               <div className="flex items-start gap-4">
