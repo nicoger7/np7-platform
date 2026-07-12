@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import Link from "next/link";
 import { BOOKING_STATUS_LABELS, normalizeBookingStatus } from "@/lib/types";
+import { editionLabel } from "@/lib/edition-label";
 
 interface DashboardData {
   counts: { experiences: number; bookings: number; contacts: number; upcomingEditions: number };
@@ -209,7 +210,7 @@ export default function AdminDashboard() {
                 const left = ed.max_spots != null ? ed.max_spots - (ed.spots_taken ?? 0) : null;
                 return (
                   <Link key={ed.id} href={`/admin/editions/${ed.id}`} className="flex items-center gap-3 text-xs py-1.5 px-2 -mx-2 rounded-lg hover:bg-[var(--admin-surface-hover)]">
-                    <span className="flex-1 admin-heading truncate">{ed.exp_experiences?.title || "—"} <span className="admin-faint">· {ed.label || ed.year}</span></span>
+                    <span className="flex-1 admin-heading truncate">{ed.exp_experiences?.title || "—"} <span className="admin-faint">· {editionLabel(ed)}</span></span>
                     <span className="admin-muted w-20 text-right">{fmtDate(ed.date_start)}</span>
                     <span className={`w-20 text-right ${left != null && left <= 2 ? "text-amber-400" : "admin-faint"}`}>{left != null ? `${left} left` : "—"}</span>
                   </Link>

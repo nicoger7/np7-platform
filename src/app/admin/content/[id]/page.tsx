@@ -7,6 +7,7 @@ import { EditionGuidesEditor } from "@/components/edition-guides-editor";
 import { ReviewPlacementsEditor } from "@/components/edition-reviews-editor";
 import { BrandedTile } from "@/components/experience/branded-tile";
 import { placeFromLocation, flagFromLocation } from "@/lib/experience-tile";
+import { editionOptionLabel } from "@/lib/edition-label";
 
 type ProgramItem = { title: string; description: string };
 type FaqItem = { q: string; a: string };
@@ -358,7 +359,7 @@ export default function ContentEditorPage({ params }: { params: Promise<{ id: st
           ) : (
             <div className="space-y-4">
               <select className="admin-input w-full max-w-[280px] px-3 py-2 rounded-lg border text-sm" value={editionId} onChange={(e) => setEditionId(e.target.value)}>
-                {editions.map((ed) => <option key={ed.id} value={ed.id}>{ed.label || ed.year}</option>)}
+                {editions.map((ed) => <option key={ed.id} value={ed.id}>{editionOptionLabel(ed)}</option>)}
               </select>
               {editionId && <EditionGuidesEditor editionId={editionId} slug={slug} />}
             </div>

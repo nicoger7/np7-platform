@@ -5,6 +5,7 @@ import { SortableHeader } from "@/components/sortable-header";
 import { ColumnToggle, ColumnDef, buildGridTemplate, loadVisibleColumns } from "@/components/column-toggle";
 import { RowActions } from "@/components/row-actions";
 import { CostLinksEditor } from "@/components/admin/cost-links-editor";
+import { editionOptionLabel } from "@/lib/edition-label";
 
 interface ExpCost {
   id: string;
@@ -188,7 +189,7 @@ export default function ExpCostsPage() {
         </select>
         <select value={filterEdition} onChange={(e) => setFilterEdition(e.target.value)} className="admin-input text-sm px-3 py-1.5 rounded-lg">
           <option value="">All editions</option>
-          {editions.filter((ed) => !filterExp || ed.experience_id === filterExp).map((ed) => <option key={ed.id} value={ed.id}>{ed.label || ed.year}</option>)}
+          {editions.filter((ed) => !filterExp || ed.experience_id === filterExp).map((ed) => <option key={ed.id} value={ed.id}>{editionOptionLabel(ed)}</option>)}
         </select>
         <select value={filterStatus} onChange={(e) => setFilterStatus(e.target.value)} className="admin-input text-sm px-3 py-1.5 rounded-lg">
           <option value="">All statuses</option>
@@ -216,7 +217,7 @@ export default function ExpCostsPage() {
               <div><label className={labelClass}>Edition <span className="admin-faint">(optional)</span></label>
                 <select className={inputClass} value={form.edition_id} onChange={(e) => setForm({ ...form, edition_id: e.target.value })} disabled={!form.experience_id}>
                   <option value="">— all / experience-wide</option>
-                  {editions.filter((ed) => ed.experience_id === form.experience_id).map((ed) => <option key={ed.id} value={ed.id}>{ed.label || ed.year}</option>)}
+                  {editions.filter((ed) => ed.experience_id === form.experience_id).map((ed) => <option key={ed.id} value={ed.id}>{editionOptionLabel(ed)}</option>)}
                 </select>
               </div>
               <div><label className={labelClass}>Status</label>

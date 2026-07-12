@@ -3,9 +3,10 @@
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { ContactPicker, ContactLite } from "@/components/contact-picker";
+import { editionLabel, editionOptionLabel, editionSortKey } from "@/lib/edition-label";
 
 interface Exp { id: string; title: string; code: string | null }
-interface Ed { id: string; experience_id: string; year: number | null; label: string | null }
+interface Ed { id: string; experience_id: string; year: number | null; label: string | null; date_start: string | null; date_end: string | null }
 
 /** Create a booking: experience → edition → participant (search/create) → go. */
 export function NewBookingModal({ onClose }: { onClose: () => void }) {
@@ -29,11 +30,15 @@ export function NewBookingModal({ onClose }: { onClose: () => void }) {
     });
   }, []);
 
-  const edOptions = expId ? editions.filter((e) => e.experience_id === expId) : [];
+  // "Week I" gibt es in mehreren Jahren — sortiert nach Jahr und immer mit
+  // Jahr + Zeitraum beschriftet, sonst ist das Dropdown mehrdeutig.
+  const edOptions = (expId ? editions.filter((e) => e.experience_id === expId) : [])
+    .slice()
+    .sort((a, b) => editionSortKey(a).localeCompare(editionSortKey(b)));
   const exp = experiences.find((e) => e.id === expId);
   const ed = editions.find((e) => e.id === edId);
   const autoName = exp && contact
-    ? `${exp.code || exp.title}${ed?.year ? ` ${ed.year}` : ed?.label ? ` ${ed.label}` : ""} — ${contact.name}`
+    ? `${exp.code || exp.title}${ed ? ` ${editionLabel(ed)}` : ""} — ${contact.name}`
     : "";
 
   async function create() {
@@ -81,7 +86,7 @@ export function NewBookingModal({ onClose }: { onClose: () => void }) {
             <label className={labelClass}>Edition <span className="admin-faint">(optional)</span></label>
             <select className={inputClass} value={edId} onChange={(e) => setEdId(e.target.value)} disabled={!expId}>
               <option value="">No specific edition</option>
-              {edOptions.map((e) => <option key={e.id} value={e.id}>{e.label || e.year}</option>)}
+              {edOptions.map((e) => <option key={e.id} value={e.id}>{editionOptionLabel(e)}</option>)}
             </select>
           </div>
 

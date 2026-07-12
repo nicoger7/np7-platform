@@ -6,6 +6,7 @@ import { SortableHeader } from "@/components/sortable-header";
 import { ColumnToggle, ColumnDef, buildGridTemplate, loadVisibleColumns } from "@/components/column-toggle";
 import { NewBookingModal } from "@/components/new-booking-modal";
 import { normalizeBookingStatus } from "@/lib/types";
+import { editionLabel, editionSortKey } from "@/lib/edition-label";
 import { BookingDetailPane } from "./[id]/page";
 
 interface Booking {
@@ -222,8 +223,9 @@ function BookingsInner() {
           aVal = a.package?.name;
           bVal = b.package?.name;
         } else if (sortKey === "edition") {
-          aVal = a.edition?.label ?? a.edition?.year;
-          bVal = b.edition?.label ?? b.edition?.year;
+          // Jahr zuerst — "Week I" allein wäre über Jahre hinweg mehrdeutig
+          aVal = editionSortKey(a.edition);
+          bVal = editionSortKey(b.edition);
         } else {
           aVal = a[sortKey as keyof Booking];
           bVal = b[sortKey as keyof Booking];
@@ -345,7 +347,7 @@ function BookingsInner() {
                     <span className="text-sm font-medium admin-heading truncate flex-1">{b.contact?.name || b.name}</span>
                     <StatusBadge status={effStatus(b)} />
                   </div>
-                  <p className="text-xs admin-faint truncate mt-0.5">{b.experience?.title || "—"}{b.edition ? ` · ${b.edition.label || b.edition.year}` : ""}</p>
+                  <p className="text-xs admin-faint truncate mt-0.5">{b.experience?.title || "—"}{b.edition ? ` · ${editionLabel(b.edition)}` : ""}</p>
                 </div>
               );
             })}

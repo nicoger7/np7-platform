@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback } from "react";
 import ImagePickerModal from "@/components/image-picker-modal";
+import { editionLabel } from "@/lib/edition-label";
 
 interface Review {
   id: string;
@@ -144,7 +145,7 @@ export default function GuestReviewsPage() {
                 ) : (
                   <span className="px-2 py-0.5 rounded text-[10px] font-bold uppercase bg-gray-500/10 admin-faint" title="Hand-entered, not linked to a booking">Manual</span>
                 ))}
-                {selReview?.exp_experiences && <span className="text-[11px] admin-faint truncate">on {selReview.exp_experiences.title}{selReview.exp_editions ? ` · ${selReview.exp_editions.label || selReview.exp_editions.year}` : ""}</span>}
+                {selReview?.exp_experiences && <span className="text-[11px] admin-faint truncate">on {selReview.exp_experiences.title}{selReview.exp_editions ? ` · ${editionLabel(selReview.exp_editions)}` : ""}</span>}
               </div>
 
               <div className="grid sm:grid-cols-2 gap-4">
@@ -204,7 +205,7 @@ export default function GuestReviewsPage() {
                   ) : (
                     <span className="px-2 py-0.5 rounded text-[10px] font-bold uppercase bg-gray-500/10 admin-faint" title="Hand-entered, not linked to a booking">Manual</span>
                   )}
-                  {r.exp_experiences && <span className="text-[11px] admin-faint truncate">{r.exp_experiences.title}{r.exp_editions ? ` · ${r.exp_editions.label || r.exp_editions.year}` : ""}</span>}
+                  {r.exp_experiences && <span className="text-[11px] admin-faint truncate">{r.exp_experiences.title}{r.exp_editions ? ` · ${editionLabel(r.exp_editions)}` : ""}</span>}
                 </div>
                 <p className="text-sm admin-heading line-clamp-2">{r.quote || "—"}</p>
                 <p className="text-[11px] admin-faint mt-1">{r.author_name || "Anonymous"}{r.author_country ? ` · ${r.author_country}` : ""}</p>

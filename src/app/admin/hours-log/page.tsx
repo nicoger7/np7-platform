@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import { SortableHeader } from "@/components/sortable-header";
 import { ColumnToggle, ColumnDef, buildGridTemplate, loadVisibleColumns } from "@/components/column-toggle";
+import { editionOptionLabel } from "@/lib/edition-label";
 
 interface HoursEntry {
   id: string;
@@ -269,7 +270,7 @@ export default function HoursLogPage() {
             <div><label className={labelClass}>Edition <span className="admin-faint">(optional)</span></label>
               <select className={inputClass} value={form.edition_id} onChange={(e) => setForm({ ...form, edition_id: e.target.value })} disabled={!form.experience_id}>
                 <option value="">— experience-wide</option>
-                {editions.filter((ed) => ed.experience_id === form.experience_id).map((ed) => <option key={ed.id} value={ed.id}>{ed.label || ed.year}</option>)}
+                {editions.filter((ed) => ed.experience_id === form.experience_id).map((ed) => <option key={ed.id} value={ed.id}>{editionOptionLabel(ed)}</option>)}
               </select>
             </div>
             <div><label className={labelClass}>Description</label><input className={inputClass} value={form.entry} onChange={(e) => setForm({ ...form, entry: e.target.value })} /></div>

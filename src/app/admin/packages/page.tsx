@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback, useRef } from "react";
 import Link from "next/link";
 import { PackageComponentsEditor } from "@/components/package-components-editor";
 import { PublicBadge } from "@/components/admin/public-badge";
+import { editionLabel as edYearLabel } from "@/lib/edition-label";
 
 interface Package {
   id: string;
@@ -405,7 +406,7 @@ export default function PackagesPage() {
                 <div><label className={labelClass}>Edition</label>
                   <select className={inputClass} value={form.edition_id} onChange={(e) => setForm({ ...form, edition_id: e.target.value })}>
                     <option value="">—</option>
-                    {editionOpts.map((ed) => <option key={ed.id} value={ed.id}>{selYear ? (ed.label || ed.year || "—") : [ed.year, ed.label].filter(Boolean).join(" · ") || "—"}{form.experience_id ? "" : ` — ${ed.exp_experiences?.title || ""}`}</option>)}
+                    {editionOpts.map((ed) => <option key={ed.id} value={ed.id}>{edYearLabel(ed) || "—"}{form.experience_id ? "" : ` — ${ed.exp_experiences?.title || ""}`}</option>)}
                   </select>
                 </div>
               </div>
@@ -558,7 +559,7 @@ export default function PackagesPage() {
             <>
               <FilterPill small label="All editions" active={!filterEditionId} onClick={() => setFilterEditionId("")} />
               {editionOptions.map((ed) => (
-                <FilterPill key={ed.id} small label={String(ed.label || ed.year)} active={filterEditionId === ed.id} onClick={() => setFilterEditionId(ed.id)} />
+                <FilterPill key={ed.id} small label={edYearLabel(ed)} active={filterEditionId === ed.id} onClick={() => setFilterEditionId(ed.id)} />
               ))}
             </>
           )}

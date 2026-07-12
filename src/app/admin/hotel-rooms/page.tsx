@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback } from "react";
 import Link from "next/link";
+import { editionLabel } from "@/lib/edition-label";
 
 /**
  * Hotel Rooms — physical room (exp_rooms) + per-week occupancy (exp_hotel_rooms).
@@ -286,7 +287,7 @@ export default function HotelRoomsPage() {
         const rb = rangeOf(b);
         if (!rb) continue;
         if (ra.start < rb.end && rb.start < ra.end) {
-          const lbl = b.edition ? String(b.edition.label || b.edition.year) : "another week";
+          const lbl = b.edition ? editionLabel(b.edition) : "another week";
           map.set(a.id, [...(map.get(a.id) ?? []), { lbl, ok: !!a.hotel_confirmed || !!b.hotel_confirmed }]);
         }
       }
@@ -393,7 +394,7 @@ export default function HotelRoomsPage() {
                   {selUnitWeeks.length > 0 && <p className="text-[11px] admin-faint">Rooms are <b>allotment slots</b>, not real hotel room numbers. A week&apos;s stay defaults to the edition&apos;s dates — set check-in/out when a guest extends, and overlapping stays (even across editions) get flagged ⚠.</p>}
                   {[...selUnitWeeks].sort((a, b) => (a.edition?.year ?? 0) - (b.edition?.year ?? 0) || String(a.edition?.label ?? "").localeCompare(String(b.edition?.label ?? ""))).map((w) => {
                     const g = w.booking?.name ? w.booking.name.split(" — ")[0].split(" - ")[0] : null;
-                    const lbl = w.edition ? (w.edition.label || w.edition.year) : "—";
+                    const lbl = w.edition ? editionLabel(w.edition) : "—";
                     return (
                       <div key={w.id} className="flex items-center gap-2 px-3 py-2 rounded-lg" style={{ border: "1px solid var(--admin-border)" }}>
                         <span className={`inline-block px-2 py-0.5 rounded text-[10px] font-bold uppercase ${statusColor(w.status)}`}>{w.status}</span>
@@ -472,7 +473,7 @@ export default function HotelRoomsPage() {
           </select>
           <select value={filterEdition} onChange={(e) => setFilterEdition(e.target.value)} className="admin-input text-sm px-3 py-1.5 rounded-lg">
             <option value="">All weeks</option>
-            {filterEditions.map((ed) => <option key={ed.id} value={ed.id}>{filterYear ? (ed.label || ed.year) : [ed.year, ed.label].filter(Boolean).join(" · ")}</option>)}
+            {filterEditions.map((ed) => <option key={ed.id} value={ed.id}>{editionLabel(ed)}</option>)}
           </select>
           {(filterHotel || filterExperience || filterYear || filterEdition) && (
             <button onClick={() => { setFilterHotel(""); setFilterExperience(""); setFilterYear(""); setFilterEdition(""); }} className="text-xs admin-faint hover:admin-muted transition-colors">Clear filters</button>
@@ -506,7 +507,7 @@ export default function HotelRoomsPage() {
                             {weeks.length === 0 && <span className="text-[10px] admin-faint">no weeks yet</span>}
                             {weeks.map((w) => {
                               const guest = w.booking?.name ? w.booking.name.split(" — ")[0].split(" - ")[0] : null;
-                              const lbl = w.edition ? (w.edition.label || w.edition.year) : "—";
+                              const lbl = w.edition ? editionLabel(w.edition) : "—";
                               return (
                                 <button key={w.id} onClick={(e) => { e.stopPropagation(); startUnit(g.unit.id); startWeek(w); }} title={`${lbl}: ${guest || "free"}${w.partner_tag_along ? " (+" + w.partner_tag_along + ")" : ""}`}
                                   className={`px-1.5 py-0.5 rounded text-[10px] ${statusColor(w.status)} hover:opacity-80 transition-opacity`}>

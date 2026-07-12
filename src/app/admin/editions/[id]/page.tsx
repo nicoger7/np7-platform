@@ -15,6 +15,7 @@ import ImagePickerModal from "@/components/image-picker-modal";
 import { useAccess } from "@/lib/use-access";
 import { effectiveCanAccess, effectiveCanSeeField } from "@/lib/access";
 import { PublicBadge } from "@/components/admin/public-badge";
+import { editionLabel } from "@/lib/edition-label";
 
 // Edition detail sub-tabs. The order is reorderable by drag-and-drop and saved
 // per admin in localStorage (each team member keeps their own preferred order).
@@ -592,7 +593,7 @@ export default function EditionDetailPage({
                       className="flex items-center justify-between gap-3 px-3 py-2 text-sm admin-muted hover:admin-heading hover:bg-[var(--admin-surface-hover)] transition-colors"
                     >
                       <span className="min-w-0">
-                        <span className="block font-medium truncate">{e.exp_experiences?.title || "Edition"} — {e.label || e.year}</span>
+                        <span className="block font-medium truncate">{e.exp_experiences?.title || "Edition"} — {editionLabel(e)}</span>
                         <span className="block text-[11px] admin-faint">{formatDate(e.date_start)}</span>
                       </span>
                       <span className={`shrink-0 px-1.5 py-0.5 rounded text-[10px] font-bold uppercase ${e.status === "published" ? "bg-green-500/15 text-green-400" : "admin-surface admin-faint"}`}>{EDITION_STATUS_LABEL[e.status] ?? e.status}</span>
@@ -621,7 +622,7 @@ export default function EditionDetailPage({
           <div>
             <div className="flex items-center gap-2">
               <h1 className="text-2xl font-bold admin-heading">
-                {edition.exp_experiences?.title || "Edition"} — {edition.label || edition.year}
+                {edition.exp_experiences?.title || "Edition"} — {editionLabel(edition)}
               </h1>
               <span
                 className={`inline-block px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-[0.05em] ${
@@ -1220,7 +1221,7 @@ export default function EditionDetailPage({
                         <p className="px-3 py-3 text-xs admin-faint">No other editions.</p>
                       ) : allEditions.filter((e) => e.id !== id).map((e) => (
                         <button key={e.id} disabled={copyPkgBusy} onClick={() => copyPackagesFrom(e.id)} className="w-full text-left px-3 py-2 text-sm admin-muted hover:admin-heading hover:bg-[var(--admin-surface-hover)] transition-colors disabled:opacity-50">
-                          <span className="block truncate">{e.exp_experiences?.title || "Edition"} — {e.label || e.year}</span>
+                          <span className="block truncate">{e.exp_experiences?.title || "Edition"} — {editionLabel(e)}</span>
                         </button>
                       ))}
                     </div>

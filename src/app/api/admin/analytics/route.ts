@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase";
 import { isAttending, isFullyPaid, isLostStatus } from "@/lib/types";
+import { editionLabel } from "@/lib/edition-label";
 
 export const dynamic = "force-dynamic";
 
@@ -65,7 +66,7 @@ export async function GET() {
     return {
       id: e.id,
       title: e.exp_experiences?.title || "—",
-      label: e.label || (e.year ? String(e.year) : ""),
+      label: editionLabel(e),
       date_start: e.date_start,
       max_spots: max,
       spots_taken: taken,

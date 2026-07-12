@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import { SortableHeader } from "@/components/sortable-header";
 import { ColumnToggle, ColumnDef, buildGridTemplate, loadVisibleColumns } from "@/components/column-toggle";
 import { SearchableSelect } from "@/components/admin/searchable-select";
+import { editionLabel, editionOptionLabel } from "@/lib/edition-label";
 
 interface Experience {
   id: string;
@@ -57,7 +58,7 @@ function titleCase(s: string) {
 }
 function editionName(ed: { year: number; label: string | null } | null) {
   if (!ed) return "—";
-  return ed.label || String(ed.year);
+  return editionLabel(ed) || "—";
 }
 
 type SortDir = "asc" | "desc" | null;
@@ -344,7 +345,7 @@ export default function ComponentsPage() {
             placeholder="All editions"
             options={[
               { value: "", label: "All editions" },
-              ...formEditions.map((ed) => ({ value: ed.id, label: ed.label || String(ed.year) })),
+              ...formEditions.map((ed) => ({ value: ed.id, label: editionOptionLabel(ed) })),
             ]}
           />
         </div>
@@ -415,7 +416,7 @@ export default function ComponentsPage() {
         >
           <option value="">All editions</option>
           {filterEditionOptions.map((ed) => (
-            <option key={ed.id} value={ed.id}>{ed.label || ed.year}</option>
+            <option key={ed.id} value={ed.id}>{editionOptionLabel(ed)}</option>
           ))}
         </select>
         {(filterExperience || filterEdition) && (

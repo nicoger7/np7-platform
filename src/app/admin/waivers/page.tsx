@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { createAdminClient } from "@/lib/supabase";
+import { editionLabel } from "@/lib/edition-label";
 
 export const dynamic = "force-dynamic";
 
@@ -72,7 +73,7 @@ export default async function AdminWaiversPage() {
                 <span className="w-2 h-2 rounded-full bg-amber-400 shrink-0" />
                 <span className="text-sm font-semibold admin-heading flex-1 truncate">{who(b.contacts, b.name)}</span>
                 <span className="text-xs admin-muted truncate hidden sm:block">{b.exp_experiences?.title ?? "—"}</span>
-                <span className="text-xs admin-faint shrink-0">{b.exp_editions?.label ?? b.exp_editions?.year ?? ""} · {fmt(b.exp_editions?.date_start)}</span>
+                <span className="text-xs admin-faint shrink-0">{editionLabel(b.exp_editions)} · {fmt(b.exp_editions?.date_start)}</span>
               </Link>
             ))}
           </div>
