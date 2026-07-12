@@ -306,6 +306,20 @@ export function BookingDetailPane({ bookingId, onBack }: { bookingId: string; on
     }
   }
 
+  // Selecting a package pre-fills the agreed price with the package price —
+  // but a manually entered price sticks: we only overwrite when the current
+  // value is empty or still equals the previously selected package's price.
+  function handlePackageChange(pkgId: string | null) {
+    const prevPkg = packages.find((p) => p.id === booking?.package_id);
+    const nextPkg = packages.find((p) => p.id === pkgId);
+    update("package_id", pkgId);
+    const current = booking?.agreed_price;
+    const untouched = current == null || current === 0 || (prevPkg?.price != null && Number(current) === Number(prevPkg.price));
+    if (nextPkg?.price != null && untouched) {
+      update("agreed_price", Number(nextPkg.price));
+    }
+  }
+
   async function addAddon() {
     const body = {
       component_id: addonForm.component_id || null,
@@ -634,7 +648,7 @@ export function BookingDetailPane({ bookingId, onBack }: { bookingId: string; on
               <label className={labelClass}>Package <span className="admin-faint font-normal">· this week&apos;s options</span></label>
               <SearchSelect
                 value={booking.package_id}
-                onChange={(v) => update("package_id", v)}
+                onChange={handlePackageChange}
                 options={packages.map((pkg) => ({ value: pkg.id, label: cleanPackageName(pkg.name), hint: pkg.price ? `€${pkg.price}` : undefined }))}
                 placeholder="No package"
                 searchPlaceholder="Search packages…"
@@ -689,6 +703,7 @@ export function BookingDetailPane({ bookingId, onBack }: { bookingId: string; on
               value={booking.agreed_price || ""}
               onChange={(e) => update("agreed_price", e.target.value ? Number(e.target.value) : null)}
             />
+            <p className="text-[11px] admin-faint mt-1">Pre-filled from the selected package — type your own price to override (it sticks).</p>
           </div>
 
           {/* Computed: total paid + outstanding */}
@@ -771,8 +786,9 @@ export function BookingDetailPane({ bookingId, onBack }: { bookingId: string; on
           </div>
 
           <div>
-            <label className={labelClass}>Final invoice due</label>
+            <label className={labelClass}>Final invoice due <span className="admin-faint font-normal">· note only</span></label>
             <input className={`${inputClass} max-w-xs`} value={booking.final_invoice_due || ""} onChange={(e) => update("final_invoice_due", e.target.value || null)} placeholder="e.g. 2 weeks before trip" />
+            <p className="text-[11px] admin-faint mt-1">Free-text note carried over from the old Notion workflow — nothing computes from it. The actual deadline is calculated under Payment status from the package&apos;s payment settings.</p>
           </div>
 
           {/* Notes */}
