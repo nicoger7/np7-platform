@@ -69,7 +69,7 @@ interface Addon {
   component_id: string | null;
   status: string | null;
   source: string | null;
-  meta?: { checkIn?: string | null; checkOut?: string | null; nightsBefore?: number; nightsAfter?: number; nights?: number } | null;
+  meta?: { checkIn?: string | null; checkOut?: string | null; nightsBefore?: number; nightsAfter?: number; nights?: number; hotelConfirmed?: boolean } | null;
   exp_components: { id: string; name: string; category: string; unit_cost: number } | null;
 }
 
@@ -81,6 +81,7 @@ interface HotelRoom {
   status: string;
   check_in: string | null;
   check_out: string | null;
+  hotel_confirmed?: boolean;
 }
 
 interface BookingDocument {
@@ -336,7 +337,41 @@ export function BookingDetailPane({ bookingId, onBack }: { bookingId: string; on
       body: JSON.stringify({ addon_id: addonId, status: "confirmed", complimentary }),
     });
     if (res.ok) {
-      setBooking((prev) => prev ? { ...prev, addons: prev.addons.map((a) => a.id === addonId ? { ...a, status: "confirmed", price: complimentary ? 0 : a.price } : a) } : prev);
+      setBooking((prev) => {
+        if (!prev) return prev;
+        // customer-confirm of an extra-nights add-on implies hotel-confirmed too
+        const hasStay = !!(prev.addons.find((a) => a.id === addonId)?.meta?.checkIn || prev.addons.find((a) => a.id === addonId)?.meta?.checkOut);
+        return {
+          ...prev,
+          addons: prev.addons.map((a) => a.id === addonId ? { ...a, status: "confirmed", price: complimentary ? 0 : a.price, meta: hasStay ? { ...a.meta, hotelConfirmed: true } : a.meta } : a),
+          hotel_rooms: hasStay ? prev.hotel_rooms.map((r) => ({ ...r, hotel_confirmed: true })) : prev.hotel_rooms,
+        };
+      });
+    }
+  }
+
+  // Internal "the hotel OK'd this (overlapping) stay" — never notifies the guest.
+  async function hotelConfirmAddon(addonId: string, flag: boolean) {
+    const res = await fetch(`/api/admin/bookings/${id}/addons`, {
+      method: "PATCH", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ addon_id: addonId, hotel_confirmed: flag }),
+    });
+    if (res.ok) {
+      setBooking((prev) => prev ? {
+        ...prev,
+        addons: prev.addons.map((a) => a.id === addonId ? { ...a, meta: { ...a.meta, hotelConfirmed: flag } } : a),
+        hotel_rooms: prev.hotel_rooms.map((r) => ({ ...r, hotel_confirmed: flag })),
+      } : prev);
+    }
+  }
+
+  async function hotelConfirmRoom(roomId: string, flag: boolean) {
+    const res = await fetch(`/api/admin/hotel-rooms/${roomId}`, {
+      method: "PATCH", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ hotel_confirmed: flag }),
+    });
+    if (res.ok) {
+      setBooking((prev) => prev ? { ...prev, hotel_rooms: prev.hotel_rooms.map((r) => r.id === roomId ? { ...r, hotel_confirmed: flag } : r) } : prev);
     }
   }
 
@@ -1010,7 +1045,14 @@ export function BookingDetailPane({ bookingId, onBack }: { bookingId: string; on
                     </div>
                     {a.notes && <div className="text-xs admin-faint truncate">{a.notes}</div>}
                     {(a.meta?.checkIn || a.meta?.checkOut) && (
-                      <div className="text-xs text-[#0aa3c7] font-medium truncate">🛏 {formatDate(a.meta.checkIn ?? null)} → {formatDate(a.meta.checkOut ?? null)}{a.meta.nights ? ` · ${a.meta.nights} night${a.meta.nights !== 1 ? "s" : ""}` : ""}</div>
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <div className="text-xs text-[#0aa3c7] font-medium truncate">🛏 {formatDate(a.meta.checkIn ?? null)} → {formatDate(a.meta.checkOut ?? null)}{a.meta.nights ? ` · ${a.meta.nights} night${a.meta.nights !== 1 ? "s" : ""}` : ""}</div>
+                        {a.meta.hotelConfirmed ? (
+                          <button onClick={() => hotelConfirmAddon(a.id, false)} title="The hotel confirmed these dates with us (internal — the guest is never notified by this). Click to undo." className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-green-500/15 text-green-500 hover:opacity-75 transition-opacity">Hotel confirmed ✓</button>
+                        ) : (
+                          <button onClick={() => hotelConfirmAddon(a.id, true)} title="Mark that the hotel OK'd these dates (e.g. an overlap they'll cover). Internal only — does NOT confirm anything to the guest." className="text-[10px] font-medium px-1.5 py-0.5 rounded admin-faint hover:text-green-500 transition-colors" style={{ border: "1px dashed var(--admin-border)" }}>Hotel confirmed?</button>
+                        )}
+                      </div>
                     )}
                   </div>
                   <span className="text-xs admin-muted self-center capitalize">{a.exp_components?.category || "custom"}</span>
@@ -1059,6 +1101,11 @@ export function BookingDetailPane({ bookingId, onBack }: { bookingId: string; on
                   </span>
                   {room.check_in && (
                     <span className="text-xs admin-faint">{formatDate(room.check_in)} → {formatDate(room.check_out)}</span>
+                  )}
+                  {room.hotel_confirmed ? (
+                    <button onClick={() => hotelConfirmRoom(room.id, false)} title="The hotel confirmed this stay with us (internal). Click to undo." className="shrink-0 text-[10px] font-bold px-2 py-0.5 rounded bg-green-500/15 text-green-500 hover:opacity-75 transition-opacity">Hotel confirmed ✓</button>
+                  ) : (
+                    <button onClick={() => hotelConfirmRoom(room.id, true)} title="Mark that the hotel OK'd this stay — e.g. an overlap they'll cover. Internal only, the guest is not notified." className="shrink-0 text-[10px] font-medium px-2 py-0.5 rounded admin-faint hover:text-green-500 transition-colors" style={{ border: "1px dashed var(--admin-border)" }}>Hotel confirmed?</button>
                   )}
                 </div>
               ))}

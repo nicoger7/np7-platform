@@ -26,6 +26,7 @@ interface Occupancy {
   check_out: string | null;
   transfer_need: boolean;
   partner_tag_along: string | null;
+  hotel_confirmed?: boolean;
   comments: string | null;
   booking: { id: string; name: string; status: string; contact: { id: string; name: string; email: string } | null } | null;
   edition: { year: number; label: string | null } | null;
@@ -54,7 +55,7 @@ function formatDate(d: string | null) {
 }
 
 const emptyUnit = { name: "", hotel: "", room_type: "", room_number: "", comments: "", experience_ids: [] as string[] };
-const emptyWeek = { edition_id: "", booking_id: "", status: "available", check_in: "", check_out: "", transfer_need: false, partner_tag_along: "" };
+const emptyWeek = { edition_id: "", booking_id: "", status: "available", check_in: "", check_out: "", transfer_need: false, partner_tag_along: "", hotel_confirmed: false };
 
 export default function HotelRoomsPage() {
   const [occupancy, setOccupancy] = useState<Occupancy[]>([]);
@@ -206,7 +207,7 @@ export default function HotelRoomsPage() {
       return;
     }
     setWeekEditId(w.id);
-    setWeekForm({ edition_id: w.edition_id || "", booking_id: w.booking?.id || "", status: w.status, check_in: w.check_in || "", check_out: w.check_out || "", transfer_need: !!w.transfer_need, partner_tag_along: w.partner_tag_along || "" });
+    setWeekForm({ edition_id: w.edition_id || "", booking_id: w.booking?.id || "", status: w.status, check_in: w.check_in || "", check_out: w.check_out || "", transfer_need: !!w.transfer_need, partner_tag_along: w.partner_tag_along || "", hotel_confirmed: !!w.hotel_confirmed });
     // edition_id isn't always on the list row → fetch the full occupancy row
     fetch(`/api/admin/hotel-rooms/${w.id}`).then((x) => x.json()).then((full) => {
       if (full?.id) setWeekForm((f) => ({ ...f, edition_id: full.edition_id || f.edition_id, booking_id: full.booking_id || f.booking_id }));
@@ -221,15 +222,18 @@ export default function HotelRoomsPage() {
     const ed = weekForm.edition_id ? editionById.get(weekForm.edition_id) : null;
     const myStart = weekForm.check_in || ed?.date_start || null;
     const myEnd = weekForm.check_out || ed?.date_end || null;
-    if (myStart && myEnd) {
+    if (myStart && myEnd && !weekForm.hotel_confirmed) {
+      // hotel-confirmed overlaps are fine (the hotel covers the clash) — only
+      // warn about counterpart stays the hotel hasn't OK'd either
       const clash = selUnitWeeks.filter((w) => {
         if (weekEditId !== "new" && w.id === weekEditId) return false;
+        if (w.hotel_confirmed) return false;
         const r = rangeOf(w);
         return r && myStart < r.end && r.start < myEnd;
       });
       if (clash.length) {
         const who = clash.map((w) => `${w.edition ? (w.edition.label || w.edition.year) : "?"}${w.booking?.name ? ` (${w.booking.name.split(" — ")[0]})` : ""}`).join(", ");
-        if (!confirm(`These dates overlap this room's ${who}. The slot can't host both.\n\nSave anyway?`)) return;
+        if (!confirm(`These dates overlap this room's ${who}. The slot can't host both — unless the hotel covers it (then tick "Hotel confirmed").\n\nSave anyway?`)) return;
       }
     }
     setSavingWeek(true);
@@ -239,6 +243,7 @@ export default function HotelRoomsPage() {
       edition_id: weekForm.edition_id || null, booking_id: weekForm.booking_id || null, status: weekForm.status,
       check_in: weekForm.check_in || null, check_out: weekForm.check_out || null,
       transfer_need: weekForm.transfer_need, partner_tag_along: weekForm.partner_tag_along || null,
+      hotel_confirmed: weekForm.hotel_confirmed,
     };
     const res = weekEditId === "new"
       ? await fetch("/api/admin/hotel-rooms", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) })
@@ -270,7 +275,9 @@ export default function HotelRoomsPage() {
     return start && end ? { start, end } : null;
   };
   const weekConflicts = (() => {
-    const map = new Map<string, string[]>();
+    // ok = the hotel confirmed either side of the overlap → it's a managed
+    // overlap (they cover it from outside our allotment), not an error
+    const map = new Map<string, { lbl: string; ok: boolean }[]>();
     for (const a of selUnitWeeks) {
       const ra = rangeOf(a);
       if (!ra) continue;
@@ -280,7 +287,7 @@ export default function HotelRoomsPage() {
         if (!rb) continue;
         if (ra.start < rb.end && rb.start < ra.end) {
           const lbl = b.edition ? String(b.edition.label || b.edition.year) : "another week";
-          map.set(a.id, [...(map.get(a.id) ?? []), lbl]);
+          map.set(a.id, [...(map.get(a.id) ?? []), { lbl, ok: !!a.hotel_confirmed || !!b.hotel_confirmed }]);
         }
       }
     }
@@ -393,7 +400,15 @@ export default function HotelRoomsPage() {
                         <span className="text-sm admin-heading">{lbl}</span>
                         <span className="text-xs admin-muted truncate">{g ? (w.booking ? <Link href={`/admin/bookings/${w.booking.id}`} className="text-[#0aa3c7] hover:underline">{g}</Link> : g) : "free"}{w.partner_tag_along ? ` (+${w.partner_tag_along})` : ""}</span>
                         {w.check_in && <span className="text-[10px] admin-faint">{formatDate(w.check_in)} → {formatDate(w.check_out)}</span>}
-                        {(weekConflicts.get(w.id)?.length ?? 0) > 0 && <span className="text-[10px] font-bold text-amber-400" title="The stays overlap — this allotment slot can't host both. Adjust check-in/out or move a guest to another slot.">⚠ overlaps {weekConflicts.get(w.id)!.join(", ")}</span>}
+                        {(() => {
+                          const cf = weekConflicts.get(w.id) ?? [];
+                          if (!cf.length) return null;
+                          const names = cf.map((c) => c.lbl).join(", ");
+                          return cf.every((c) => c.ok)
+                            ? <span className="text-[10px] font-bold text-green-500" title="Overlap OK — the hotel confirmed it can host both stays.">✓ overlaps {names} — hotel confirmed</span>
+                            : <span className="text-[10px] font-bold text-amber-400" title="The stays overlap — adjust check-in/out, move a guest, or tick 'Hotel confirmed' once the hotel OKs covering it.">⚠ overlaps {names}</span>;
+                        })()}
+                        {w.hotel_confirmed && !(weekConflicts.get(w.id)?.length) && <span className="text-[10px] text-green-500/80" title="The hotel confirmed this stay with us (internal).">hotel ✓</span>}
                         <span className="ml-auto flex gap-1">
                           <button onClick={() => startWeek(w)} className="px-2 py-1 text-xs admin-muted hover:text-[var(--admin-accent)] transition-colors">Edit</button>
                           <button onClick={() => removeWeek(w.id)} className="px-2 py-1 text-xs text-red-400 hover:bg-red-500/10 rounded transition-colors">✕</button>
@@ -427,7 +442,8 @@ export default function HotelRoomsPage() {
                       <div><label className={labelClass}>Check-out</label><input type="date" key={`co-${weekEditId}`} className={inputClass} defaultValue={weekForm.check_out} onChange={(e) => setWeekForm((f) => ({ ...f, check_out: e.target.value }))} onBlur={(e) => setWeekForm((f) => ({ ...f, check_out: e.target.value }))} /></div>
                       <div><label className={labelClass}>Partner tagging along</label><input className={inputClass} value={weekForm.partner_tag_along} onChange={(e) => setWeekForm({ ...weekForm, partner_tag_along: e.target.value })} /></div>
                     </div>
-                    <label className="flex items-center gap-2 text-sm admin-muted cursor-pointer mb-3"><input type="checkbox" checked={weekForm.transfer_need} onChange={(e) => setWeekForm({ ...weekForm, transfer_need: e.target.checked })} className="w-4 h-4 accent-[#0aa3c7]" />Airport transfer needed</label>
+                    <label className="flex items-center gap-2 text-sm admin-muted cursor-pointer mb-2"><input type="checkbox" checked={weekForm.transfer_need} onChange={(e) => setWeekForm({ ...weekForm, transfer_need: e.target.checked })} className="w-4 h-4 accent-[#0aa3c7]" />Airport transfer needed</label>
+                    <label className="flex items-start gap-2 text-sm admin-muted cursor-pointer mb-3"><input type="checkbox" checked={weekForm.hotel_confirmed} onChange={(e) => setWeekForm({ ...weekForm, hotel_confirmed: e.target.checked })} className="w-4 h-4 mt-0.5 accent-[#22c55e]" /><span>Hotel confirmed this stay <span className="admin-faint">— the hotel OK&apos;d these dates with us (e.g. an overlap they&apos;ll cover). Internal only; overlap warnings relax. Confirming extra nights to the guest sets this automatically.</span></span></label>
                     <div className="flex gap-2">
                       <button onClick={saveWeek} disabled={savingWeek} className="px-4 py-2 bg-[var(--admin-accent)] hover:bg-[var(--admin-accent)]/90 disabled:opacity-40 text-[var(--admin-accent-contrast)] text-sm font-bold rounded-lg transition-colors">{savingWeek ? "Saving…" : weekEditId === "new" ? "Add" : "Update"}</button>
                       <button onClick={() => { setWeekEditId(null); setWeekForm(emptyWeek); }} className="px-4 py-2 admin-muted text-sm rounded-lg transition-colors">Cancel</button>

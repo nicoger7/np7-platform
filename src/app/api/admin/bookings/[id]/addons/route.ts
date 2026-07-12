@@ -4,6 +4,24 @@ import { sendEmail } from "@/lib/email/send";
 import { noteForStatus, type AddonStatus } from "@/lib/addons";
 import { resyncBookingBilling } from "@/lib/invoices/promote";
 
+// Flag (or clear) hotel_confirmed on the guest's room week-row — same row the
+// extra-nights extend targets. Best-effort: no room assigned yet is fine.
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+async function markRoomHotelConfirmed(client: any, bookingId: string, flag: boolean) {
+  try {
+    const { data: bk } = await client.from("exp_bookings").select("edition_id").eq("id", bookingId).maybeSingle();
+    let q = client.from("exp_hotel_rooms").select("id").eq("booking_id", bookingId).is("archived_at", null);
+    if (bk?.edition_id) q = q.eq("edition_id", bk.edition_id);
+    const { data: rows } = await q.limit(1);
+    if (!rows?.[0]) return;
+    await client.from("exp_hotel_rooms").update({
+      hotel_confirmed: flag,
+      hotel_confirmed_at: flag ? new Date().toISOString() : null,
+      updated_at: new Date().toISOString(),
+    }).eq("id", rows[0].id);
+  } catch (e) { console.error("[addons] hotel-confirmed sync failed:", e); }
+}
+
 // GET /api/admin/bookings/:id/addons — list add-ons for a booking
 export async function GET(
   _request: NextRequest,
@@ -64,6 +82,24 @@ export async function PATCH(
   const body = await request.json();
   if (!body.addon_id) return NextResponse.json({ error: "addon_id is required" }, { status: 400 });
 
+  // Backend-only "hotel confirmed": the hotel OK'd the (possibly overlapping)
+  // stay with us. Marks the add-on + the guest's room row — no member email, no
+  // billing change, no status change. Confirming to the CUSTOMER (below) also
+  // sets this; this alone never confirms anything to the customer.
+  if (body.hotel_confirmed !== undefined && body.status === undefined) {
+    const flag = body.hotel_confirmed === true;
+    const { data: cur, error: curErr } = await client
+      .from("exp_booking_addons").select("meta").eq("id", body.addon_id).eq("booking_id", id).maybeSingle();
+    if (curErr) return NextResponse.json({ error: curErr.message }, { status: 400 });
+    const meta = { ...(cur?.meta ?? {}), hotelConfirmed: flag, hotelConfirmedAt: flag ? new Date().toISOString() : null };
+    const { data: upd, error: updErr } = await client
+      .from("exp_booking_addons").update({ meta }).eq("id", body.addon_id).eq("booking_id", id)
+      .select("*, exp_components(name)").single();
+    if (updErr) return NextResponse.json({ error: updErr.message }, { status: 400 });
+    await markRoomHotelConfirmed(client, id, flag);
+    return NextResponse.json(upd);
+  }
+
   const status: AddonStatus = body.status === "declined" ? "declined" : "confirmed";
   const patch: Record<string, unknown> = { status };
   if (status === "confirmed") patch.confirmed_at = new Date().toISOString();
@@ -90,9 +126,15 @@ export async function PATCH(
   // cross-edition overlap warnings watch. Extend-only: never shrinks an existing
   // range; missing sides fall back to the edition's window.
   if (status === "confirmed") {
-    const meta = (data?.meta ?? {}) as { checkIn?: string | null; checkOut?: string | null };
+    const meta = (data?.meta ?? {}) as { checkIn?: string | null; checkOut?: string | null; hotelConfirmed?: boolean };
     const isDate = (v: unknown): v is string => typeof v === "string" && /^\d{4}-\d{2}-\d{2}$/.test(v);
     if (isDate(meta.checkIn) || isDate(meta.checkOut)) {
+      // customer-confirm implies the hotel side is settled → mark the add-on too
+      if (!meta.hotelConfirmed) {
+        const newMeta = { ...meta, hotelConfirmed: true, hotelConfirmedAt: new Date().toISOString() };
+        await client.from("exp_booking_addons").update({ meta: newMeta }).eq("id", body.addon_id);
+        data.meta = newMeta;
+      }
       after(async () => {
         try {
           const { data: bk2 } = await client.from("exp_bookings").select("edition_id").eq("id", id).maybeSingle();
@@ -115,9 +157,11 @@ export async function PATCH(
             const base = row.check_out ?? edEnd;
             roomPatch.check_out = !base || meta.checkOut > base ? meta.checkOut : base;
           }
-          if (Object.keys(roomPatch).length) {
-            await client.from("exp_hotel_rooms").update({ ...roomPatch, updated_at: new Date().toISOString() }).eq("id", row.id);
-          }
+          // Confirming to the customer implies the hotel side is settled too —
+          // set hotel_confirmed so any overlap this stay causes reads as OK'd.
+          roomPatch.hotel_confirmed = true;
+          roomPatch.hotel_confirmed_at = new Date().toISOString();
+          await client.from("exp_hotel_rooms").update({ ...roomPatch, updated_at: new Date().toISOString() }).eq("id", row.id);
         } catch (e) { console.error("[addons] room-dates sync failed:", e); }
       });
     }

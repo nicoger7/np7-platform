@@ -34,9 +34,20 @@ export async function PATCH(
   const { id } = await params;
   const body = await request.json();
 
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const patch: any = { ...body, updated_at: new Date().toISOString() };
+  // "Hotel confirmed" refers to specific dates — changing check-in/out without
+  // explicitly re-confirming resets the flag (the hotel OK'd the OLD dates).
+  if (("check_in" in body || "check_out" in body) && !("hotel_confirmed" in body)) {
+    const { data: cur } = await client.from("exp_hotel_rooms").select("check_in, check_out").eq("id", id).maybeSingle();
+    const changed = cur && (("check_in" in body && body.check_in !== cur.check_in) || ("check_out" in body && body.check_out !== cur.check_out));
+    if (changed) { patch.hotel_confirmed = false; patch.hotel_confirmed_at = null; }
+  }
+  if ("hotel_confirmed" in body) patch.hotel_confirmed_at = body.hotel_confirmed ? new Date().toISOString() : null;
+
   const { data, error } = await client
     .from("exp_hotel_rooms")
-    .update({ ...body, updated_at: new Date().toISOString() })
+    .update(patch)
     .eq("id", id)
     .select()
     .single();
