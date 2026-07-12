@@ -99,12 +99,14 @@ export function ShareSheet({ photo, photos, trip, onClose }: {
             {pickable.length > 0 && (
               <div className="min-w-0">
                 <p className="text-[11px] font-black uppercase tracking-wide text-[#b0791e] mb-2">Photo <span className="normal-case tracking-normal text-[#c3b9a6] font-medium">— tap to change</span></p>
-                <div className="flex gap-2 overflow-x-auto pb-1.5 -mx-0.5 px-0.5">
+                {/* Wrapping grid (NOT a horizontal scroll strip) — flows onto rows and
+                    caps its height, so it never drags the modal sideways. */}
+                <div className="flex flex-wrap gap-2 max-h-[168px] overflow-y-auto pr-0.5">
                   {pickable.map((p) => {
                     const on = p === activePhoto;
                     return (
                       <button key={p} type="button" onClick={() => setActivePhoto(p)} aria-label="Use this photo"
-                        className={`relative shrink-0 w-14 h-14 rounded-lg overflow-hidden transition-all ${on ? "ring-2 ring-[#f0a500] ring-offset-2 ring-offset-[#fffdf9]" : "ring-1 ring-black/10 opacity-65 hover:opacity-100"}`}>
+                        className={`relative w-12 h-12 rounded-lg overflow-hidden transition-all ${on ? "ring-2 ring-[#f0a500]" : "ring-1 ring-black/10 opacity-65 hover:opacity-100"}`}>
                         {/* eslint-disable-next-line @next/next/no-img-element */}
                         <img src={cdnImage(p, { width: 120 })} alt="" className="w-full h-full object-cover" />
                       </button>
