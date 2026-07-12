@@ -260,12 +260,21 @@ export default async function ExperienceDetailPage({ params }: Props) {
   for (const ed of allEditions) { packagesByEdition[ed.id] = []; claimedByEdition[ed.id] = new Set(); }
   const toReal = (p: PackageRow): RealPackage => {
     const x = parsePackageName(p.name);
-    const h = resolveHotel(p.id, p.name, x.accommodation);
     // Level: the package's Category field is the source of truth; the name-parse
     // ("… - Advanced – …") stays as fallback for legacy names.
     const level = p.category ? p.category[0].toUpperCase() + p.category.slice(1) : x.level;
+    // Accommodation label: with a Category set, names no longer need the
+    // "Level –" segment — if the name's first segment ISN'T the level word, the
+    // whole (code-stripped) name is the room label. Legacy "… - Advanced – Room"
+    // names keep working unchanged.
+    const stripped = p.name.replace(/^[A-Za-z0-9]+\s*-\s*/, "").trim();
+    const firstSeg = stripped.split("–")[0]?.trim().toLowerCase() ?? "";
+    const accommodation = p.category && firstSeg !== p.category.toLowerCase() && stripped
+      ? stripped
+      : x.accommodation;
+    const h = resolveHotel(p.id, p.name, accommodation);
     return {
-      id: p.id, level, accommodation: x.accommodation, price: p.price as number,
+      id: p.id, level, accommodation, price: p.price as number,
       hotelName: h?.name ?? null, hotelImage: h?.image_url ?? null, hotelImages: h?.images ?? null, hotelDescription: h?.description ?? null,
       // Manual list (exp_packages.includes) wins when filled; otherwise the list is
       // the components ✓-checked for the website, each shown with its Website text
