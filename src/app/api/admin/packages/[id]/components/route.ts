@@ -59,9 +59,14 @@ export async function PATCH(
   if (!body.component_id) {
     return NextResponse.json({ error: "component_id is required" }, { status: 400 });
   }
+  const patch: Record<string, unknown> = {};
+  if (body.quantity !== undefined) patch.quantity = body.quantity ?? 1;
+  if (body.notes !== undefined) patch.notes = body.notes ?? null;
+  if (body.show_on_website !== undefined) patch.show_on_website = !!body.show_on_website;
   const { data, error } = await client
     .from("exp_package_components")
-    .update({ quantity: body.quantity ?? 1, notes: body.notes ?? null })
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    .update(patch as any)
     .eq("package_id", id)
     .eq("component_id", body.component_id)
     .select("*, exp_components(id, name, category, unit_cost, sell_price)")

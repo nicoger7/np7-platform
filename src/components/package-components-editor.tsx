@@ -6,12 +6,15 @@ interface LinkedComponent {
   id: string;
   component_id: string;
   quantity: number;
+  /** Shown in the website's "What's included" list (text = the component's Website text). */
+  show_on_website?: boolean;
   exp_components: {
     id: string;
     name: string;
     category: string | null;
     unit_cost: number | null;
     sell_price: number | null;
+    description?: string | null;
   } | null;
 }
 
@@ -26,7 +29,7 @@ interface ComponentOption {
 const NEW_COMPONENT_CATEGORIES = ["coaching", "accommodation", "meals", "transport", "gear", "activity", "other"];
 
 /** Shared grid: name | cost | sell | margin | qty | remove */
-const COMP_GRID = "minmax(0,1fr) 92px 92px 92px 80px 28px";
+const COMP_GRID = "minmax(0,1fr) 92px 92px 92px 44px 80px 28px";
 
 function money(n: number | null | undefined) {
   return n != null ? `€${Number(n).toLocaleString()}` : "—";
@@ -41,7 +44,6 @@ export function PackageComponentsEditor({
   packageId,
   experienceId,
   editionId,
-  namePrefix,
   sellPrice,
   onChanged,
 }: {
@@ -50,8 +52,6 @@ export function PackageComponentsEditor({
   experienceId?: string | null;
   /** Narrow further to this edition's components (+ experience-wide + global) */
   editionId?: string | null;
-  /** e.g. "BON - " — prefilled when creating a new component */
-  namePrefix?: string;
   /** The package's current (manual) sell price — to show override status + a one-click sync. */
   sellPrice?: number | null;
   onChanged?: () => void;
@@ -62,7 +62,7 @@ export function PackageComponentsEditor({
   const [search, setSearch] = useState("");
   const [pickerOpen, setPickerOpen] = useState(false);
   const [showNewComp, setShowNewComp] = useState(false);
-  const [newComp, setNewComp] = useState({ name: namePrefix || "", category: "other", unit_cost: "", sell_price: "" });
+  const [newComp, setNewComp] = useState({ name: "", category: "other", unit_cost: "", sell_price: "" });
   const pickerRef = useRef<HTMLDivElement>(null);
   // "Copy from another package" (duplicate a whole component set)
   const [copyOpen, setCopyOpen] = useState(false);
@@ -131,6 +131,15 @@ export function PackageComponentsEditor({
     load(); onChanged?.();
   }
 
+  async function setWeb(componentId: string, on: boolean) {
+    await fetch(`/api/admin/packages/${packageId}/components`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ component_id: componentId, show_on_website: on }),
+    });
+    load(); onChanged?.();
+  }
+
   async function setQty(componentId: string, qty: number) {
     await fetch(`/api/admin/packages/${packageId}/components`, {
       method: "PATCH",
@@ -163,7 +172,7 @@ export function PackageComponentsEditor({
         body: JSON.stringify({ component_id: created.id, quantity: 1 }),
       });
       setShowNewComp(false);
-      setNewComp({ name: namePrefix || "", category: "other", unit_cost: "", sell_price: "" });
+      setNewComp({ name: "", category: "other", unit_cost: "", sell_price: "" });
       load(); onChanged?.();
     }
   }
@@ -313,6 +322,7 @@ export function PackageComponentsEditor({
             <span className="text-right">Cost</span>
             <span className="text-right">Sell</span>
             <span className="text-right">Margin</span>
+            <span className="text-center" title="Show in the website's What's-included list (text = the component's Website text)">Web</span>
             <span className="text-center">Qty</span>
             <span />
           </div>
@@ -333,6 +343,9 @@ export function PackageComponentsEditor({
                   <span className="admin-muted text-right tabular-nums whitespace-nowrap">{money(l.exp_components?.unit_cost)}</span>
                   <span className="admin-muted text-right tabular-nums whitespace-nowrap">{money(l.exp_components?.sell_price)}</span>
                   <span className={`text-right tabular-nums whitespace-nowrap font-medium ${margin < 0 ? "text-red-400" : "text-green-500"}`}>{money(margin)}</span>
+                  <label className="justify-self-center cursor-pointer" title={l.show_on_website ? `Shows on the website as: "${l.exp_components?.description || l.exp_components?.name || ""}"` : "Hidden from the website's What's-included list"}>
+                    <input type="checkbox" checked={!!l.show_on_website} onChange={(e) => setWeb(l.component_id, e.target.checked)} className="w-4 h-4 accent-[#0aa3c7]" />
+                  </label>
                   <input
                     type="number"
                     min={1}

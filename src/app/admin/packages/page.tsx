@@ -56,7 +56,7 @@ function money(n: number | null) {
 
 function editionLabel(ed: Edition) {
   const base = ed.exp_experiences?.title || "Unknown";
-  return `${base} — ${ed.label || ed.year}`;
+  return `${base} — ${[ed.year, ed.label].filter(Boolean).join(" · ")}`;
 }
 
 function StatusBadge({ status }: { status: string }) {
@@ -291,10 +291,39 @@ export default function PackagesPage() {
     load();
   }
 
-  // Edition choices inside the form follow the form's experience
-  const formEditionOptions = form.experience_id
+  // Edition choices inside the form follow the form's experience. Sorted newest
+  // year first and ALWAYS labelled with the year — "Week I" alone was ambiguous
+  // once 2026 and 2027 editions coexisted.
+  const formEditionOptions = (form.experience_id
     ? editions.filter((e) => e.experience_id === form.experience_id)
-    : editions;
+    : editions
+  ).slice().sort((a, b) => (b.year ?? 0) - (a.year ?? 0) || String(a.label ?? "").localeCompare(String(b.label ?? "")));
+
+  // Rooms → availability: the physical rooms backing this package.
+  const [rooms, setRooms] = useState<{ id: string; name: string | null; hotel: string | null; room_type: string | null; room_number: string | null }[]>([]);
+  const [pkgRoomIds, setPkgRoomIds] = useState<Set<string>>(new Set());
+  useEffect(() => {
+    if (!form.experience_id) { setRooms([]); return; }
+    fetch(`/api/admin/rooms?experience_id=${form.experience_id}`).then((r) => r.json())
+      .then((d) => setRooms(Array.isArray(d?.rooms) ? d.rooms : [])).catch(() => setRooms([]));
+  }, [form.experience_id]);
+  useEffect(() => {
+    if (!editId) { setPkgRoomIds(new Set()); return; }
+    fetch(`/api/admin/packages/${editId}/rooms`).then((r) => r.json())
+      .then((d) => setPkgRoomIds(new Set<string>(Array.isArray(d?.roomIds) ? d.roomIds : []))).catch(() => {});
+  }, [editId]);
+  function toggleRoom(roomId: string) {
+    if (!editId) return;
+    const next = new Set(pkgRoomIds);
+    if (next.has(roomId)) next.delete(roomId); else next.add(roomId);
+    setPkgRoomIds(next);
+    // room count drives availability — mirror it into Spots (saved on Update)
+    if (next.size > 0) setForm((f) => ({ ...f, max_spots: String(next.size) }));
+    fetch(`/api/admin/packages/${editId}/rooms`, {
+      method: "PUT", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ roomIds: [...next] }),
+    }).catch(() => {});
+  }
 
   const inputClass =
     "w-full px-3 py-2 admin-input border rounded-lg text-sm focus:outline-none focus:border-[var(--admin-accent)] focus:ring-1 focus:ring-[var(--admin-accent)] transition-colors";
@@ -348,7 +377,7 @@ export default function PackagesPage() {
             <div><label className={labelClass}>Edition</label>
               <select className={inputClass} value={form.edition_id} onChange={(e) => setForm({ ...form, edition_id: e.target.value })}>
                 <option value="">—</option>
-                {formEditionOptions.map((ed) => <option key={ed.id} value={ed.id}>{ed.label || ed.year}{form.experience_id ? "" : ` — ${ed.exp_experiences?.title || ""}`}</option>)}
+                {formEditionOptions.map((ed) => <option key={ed.id} value={ed.id}>{[ed.year, ed.label].filter(Boolean).join(" · ") || "—"}{form.experience_id ? "" : ` — ${ed.exp_experiences?.title || ""}`}</option>)}
               </select>
             </div>
           </div>
@@ -389,11 +418,41 @@ export default function PackagesPage() {
               </select>
               <p className="text-[11px] admin-faint mt-1">Drives the hotel name &amp; photos in the public booking step. Leave blank to auto-match by name.</p>
             </div>
-            <div><label className={labelClass}>What&apos;s included (website)</label>
-              <textarea className={`${inputClass} h-[120px] resize-y leading-relaxed`} value={form.includes} onChange={(e) => setForm({ ...form, includes: e.target.value })} placeholder={"One inclusion per line, e.g.\n6 days of pro coaching\nDaily video analysis\nAirport transfers on site"} />
-              <p className="text-[11px] admin-faint mt-1">Marketing list shown in the package box on the website — one per line. Independent of the cost components below; add anything you want to advertise. Leave blank to show the standard list.</p>
+            <div><label className={labelClass}>Website list — manual override <span className="normal-case font-normal admin-faint">(optional)</span></label>
+              <textarea className={`${inputClass} h-[120px] resize-y leading-relaxed`} value={form.includes} onChange={(e) => setForm({ ...form, includes: e.target.value })} placeholder={"Usually leave this BLANK — the website then lists the components ✓-checked below (their Website text).\nFill it only to fully hand-write the list, one line each."} />
+              <p className="text-[11px] admin-faint mt-1"><b>Leave blank</b> → the website shows the components marked <b>Web ✓</b> below, using each component&apos;s Website text. Filling this overrides that list entirely.</p>
             </div>
           </div>
+          {editId && (
+            <div className="mb-4">
+              <label className={labelClass}>Rooms → availability</label>
+              <p className="text-[11px] admin-faint mb-2">Tick the physical rooms this package sells — the count becomes the package&apos;s <b>Spots</b>. Saved instantly; press Update to store the synced spots.</p>
+              {rooms.length === 0 ? (
+                <p className="text-xs admin-faint">No rooms for this experience yet — add them on the Hotel Rooms page.</p>
+              ) : (
+                <div className="space-y-2.5">
+                  {[...new Set(rooms.map((r) => r.hotel || "No hotel"))].map((h) => (
+                    <div key={h}>
+                      <p className="text-[10px] font-bold uppercase tracking-[0.08em] admin-faint mb-1">{h}</p>
+                      <div className="flex flex-wrap gap-1.5">
+                        {rooms.filter((r) => (r.hotel || "No hotel") === h).map((r) => {
+                          const on = pkgRoomIds.has(r.id);
+                          return (
+                            <button key={r.id} type="button" onClick={() => toggleRoom(r.id)}
+                              className={`px-2.5 py-1.5 rounded-lg text-xs font-semibold transition-colors ${on ? "bg-[#0aa3c7] text-white" : "admin-muted hover:admin-heading"}`}
+                              style={on ? undefined : { border: "1px solid var(--admin-border)" }}>
+                              {on ? "✓ " : ""}{r.name || r.room_number || "Room"}{r.room_type ? ` · ${r.room_type}` : ""}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  ))}
+                  <p className="text-[11px] admin-faint">{pkgRoomIds.size > 0 ? `${pkgRoomIds.size} room${pkgRoomIds.size === 1 ? "" : "s"} assigned → Spots synced to ${pkgRoomIds.size}.` : "No rooms assigned — Spots stays manual."}</p>
+                </div>
+              )}
+            </div>
+          )}
           <div className="flex gap-2">
             <button onClick={save} disabled={!form.name} className="px-4 py-2 bg-[var(--admin-accent)] hover:bg-[var(--admin-accent)]/90 disabled:opacity-40 text-[var(--admin-accent-contrast)] text-sm font-bold rounded-lg transition-colors">{editId ? "Update" : "Create"}</button>
             <button onClick={() => { setShowNew(false); setEditId(null); }} className="px-4 py-2 admin-muted text-sm rounded-lg transition-colors">Cancel</button>
@@ -406,7 +465,6 @@ export default function PackagesPage() {
               packageId={editId}
               experienceId={form.experience_id || null}
               editionId={form.edition_id || null}
-              namePrefix={form.experience_id && expCodeById.get(form.experience_id) ? `${expCodeById.get(form.experience_id)} - ` : undefined}
               sellPrice={form.price ? Number(form.price) : null}
               onChanged={load}
             />

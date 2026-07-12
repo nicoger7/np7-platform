@@ -1196,8 +1196,7 @@ export default function EditionDetailPage({
                       packageId={pkgEditId}
                       experienceId={expId}
                       editionId={id}
-                      namePrefix={edition.exp_experiences?.code ? `${edition.exp_experiences.code} - ` : undefined}
-                      sellPrice={pkg?.price}
+                                            sellPrice={pkg?.price}
                       onChanged={loadPackages}
                     />
                   </div>

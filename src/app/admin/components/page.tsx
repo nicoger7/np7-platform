@@ -137,16 +137,10 @@ export default function ComponentsPage() {
   const expCodeById = new Map(experiences.map((e) => [e.id, e.code]));
   const formEditions = form.experience_id ? editions.filter((e) => e.experience_id === form.experience_id) : [];
 
-  // When picking an experience for a local component, prefill the name prefix (e.g. "BON - ")
+  // No name prefixing — the component is linked to its experience, the code in
+  // the name was redundant noise ("BON - …").
   function pickExperience(experience_id: string) {
-    const code = expCodeById.get(experience_id);
-    setForm((f) => {
-      const next = { ...f, is_global: false, experience_id, edition_id: "" };
-      if (code && (!f.name.trim() || /^[A-Z0-9]{2,6}\s-\s?$/.test(f.name))) {
-        next.name = `${code} - `;
-      }
-      return next;
-    });
+    setForm((f) => ({ ...f, is_global: false, experience_id, edition_id: "" }));
   }
 
   function handleSort(key: string) {
@@ -273,7 +267,7 @@ export default function ComponentsPage() {
         <div><label className={labelClass}>Sell Price (€)</label><input className={inputClass} type="number" step="0.01" value={form.sell_price} onChange={(e) => setForm({ ...form, sell_price: e.target.value })} placeholder="0.00" /></div>
       </div>
       <div className="grid grid-cols-2 gap-4 mb-4">
-        <div><label className={labelClass}>Description</label><input className={inputClass} value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} /></div>
+        <div><label className={labelClass}>Website text <span className="normal-case font-normal admin-faint">— how it appears in a package's &quot;What's included&quot;</span></label><input className={inputClass} value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} placeholder="e.g. Healthy lunch on the beach daily" /><p className="text-[11px] admin-faint mt-1">Shown for every package where this component is ✓-checked for the website. Blank = the component name is used.</p></div>
         <div><label className={labelClass}>Notes</label><input className={inputClass} value={form.notes} onChange={(e) => setForm({ ...form, notes: e.target.value })} /></div>
       </div>
       <div className="grid grid-cols-3 gap-4 mb-4">
