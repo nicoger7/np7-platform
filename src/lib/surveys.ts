@@ -38,6 +38,8 @@ export type Survey = {
   /** One-click interest mode: email buttons pre-register the answer; the page is
    *  an auto-saving confirmation, not a form. */
   quick: boolean;
+  /** Small gold line above the hero title. null = "By private invitation", "" = hidden. */
+  eyebrow: string | null;
   created_at: string;
   archived_at: string | null;
 };
@@ -93,6 +95,7 @@ function rowToSurvey(r: Record<string, unknown>): Survey {
     budget_max: r.budget_max != null ? Number(r.budget_max) : 8000,
     currency: String(r.currency ?? "EUR"),
     quick: r.quick === true,
+    eyebrow: (r.eyebrow as string | null) ?? null,
     created_at: String(r.created_at ?? ""),
     archived_at: (r.archived_at as string | null) ?? null,
   };
@@ -152,7 +155,7 @@ export async function createSurvey(input: Partial<Survey>): Promise<Survey | nul
 
 export async function updateSurvey(id: string, patch: Partial<Survey>): Promise<Survey | null> {
   const clean: Record<string, unknown> = { updated_at: new Date().toISOString() };
-  for (const k of ["title", "intro", "status", "destinations", "weeks", "budget_anchor", "budget_min", "budget_max", "currency", "quick"] as const) {
+  for (const k of ["title", "intro", "status", "destinations", "weeks", "budget_anchor", "budget_min", "budget_max", "currency", "quick", "eyebrow"] as const) {
     if (k in patch) clean[k] = patch[k];
   }
   const { data } = await db().from("exp_surveys").update(clean).eq("id", id).select("*").single();

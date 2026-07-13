@@ -38,7 +38,7 @@ export function SurveyAdmin({ initialSurvey, initialInvites }: { initialSurvey: 
         body: JSON.stringify({
           title: s.title, intro: s.intro, status: s.status, destinations: s.destinations, weeks: s.weeks,
           budget_anchor: s.budget_anchor, budget_min: s.budget_min, budget_max: s.budget_max, currency: s.currency,
-          quick: s.quick,
+          quick: s.quick, eyebrow: s.eyebrow,
         }),
       });
       if (res.ok) { setSavedAt(new Date().toLocaleTimeString()); router.refresh(); }
@@ -151,6 +151,10 @@ export function SurveyAdmin({ initialSurvey, initialInvites }: { initialSurvey: 
         <label className="block mb-3">
           <span className={lbl}>Title</span>
           <input className={`${input} mt-1 text-[16px] font-bold`} value={s.title} onChange={(e) => patch({ title: e.target.value })} />
+        </label>
+        <label className="block mb-3">
+          <span className={lbl}>Small line above the title <span className="font-normal normal-case opacity-70">— gold, uppercase. Empty = &ldquo;By private invitation&rdquo; · a single space hides it</span></span>
+          <input className={`${input} mt-1`} value={s.eyebrow ?? ""} onChange={(e) => patch({ eyebrow: e.target.value === "" ? null : e.target.value })} placeholder="By private invitation" />
         </label>
         <label className="block mb-3">
           <span className={lbl}>Intro (shown on the form + email)</span>

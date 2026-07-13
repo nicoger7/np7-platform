@@ -77,9 +77,11 @@ export default async function SurveyPage({ params, searchParams }: Props) {
         {heroImg.includes("/api/sat") && <span className="absolute bottom-1 right-2 z-20 text-[9px] font-medium text-white/50">Imagery © Esri</span>}
         <div className="absolute top-0 inset-x-0 h-[3px] z-10" style={{ background: "linear-gradient(90deg,#ffe08a,#f0a500 45%,#f47b20)" }} />
         <div className="relative z-10 mt-auto w-full max-w-[720px] mx-auto px-5 sm:px-8 pb-12 pt-16">
-          <span className="inline-flex items-center gap-2 text-[11px] font-black uppercase tracking-[0.24em]" style={{ color: "#ffd97a" }}>
-            <span aria-hidden>✦</span> By private invitation
-          </span>
+          {(survey.eyebrow ?? "By private invitation").trim() !== "" && (
+            <span className="inline-flex items-center gap-2 text-[11px] font-black uppercase tracking-[0.24em]" style={{ color: "#ffd97a" }}>
+              <span aria-hidden>✦</span> {survey.eyebrow ?? "By private invitation"}
+            </span>
+          )}
           <h1 className="text-4xl sm:text-[62px] font-black tracking-[-0.03em] mt-4 leading-[1.02]">{survey.title}</h1>
           {survey.intro && <p className="text-white/85 text-[16px] sm:text-[17.5px] leading-relaxed mt-5 max-w-[580px] whitespace-pre-line">{survey.intro}</p>}
           {firstName && <p className="text-[14px] mt-6 font-semibold" style={{ color: "#ffe0a0" }}>Hey {firstName} — you&apos;re one of just a handful of riders I&apos;m asking. 🤙</p>}
