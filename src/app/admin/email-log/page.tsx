@@ -5,6 +5,7 @@ import { useEffect, useRef, useState } from "react";
 type Row = {
   id: string; template_key: string | null; to_email: string; subject: string | null;
   status: string; error: string | null; created_at: string | null; sent_at: string | null;
+  opened_at?: string | null; last_event?: string | null;
 };
 
 const TONE: Record<string, string> = {
@@ -84,6 +85,12 @@ export default function EmailLogPage() {
               onClick={() => window.open(`/api/admin/email-log/${r.id}/preview`, "_blank")}
             >
               <span className={`shrink-0 text-[10px] font-bold uppercase px-2 py-0.5 rounded ${TONE[r.status] ?? "bg-gray-500/15 text-gray-400"}`}>{r.status}</span>
+              {/* Resend delivery events (webhook): opened wins; bounce/spam scream */}
+              {(r.last_event === "bounced" || r.last_event === "complained") ? (
+                <span className="shrink-0 text-[10px] font-bold uppercase px-2 py-0.5 rounded bg-red-500/15 text-red-400" title="Resend delivery event">{r.last_event}</span>
+              ) : r.opened_at ? (
+                <span className="shrink-0 text-[10px] font-bold uppercase px-2 py-0.5 rounded bg-green-500/15 text-green-500" title={`Opened ${new Date(r.opened_at).toLocaleString("en-GB", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })}`}>opened</span>
+              ) : null}
               <span className="shrink-0 admin-faint w-[150px] truncate font-mono text-[11px]">{r.template_key ?? "—"}</span>
               <span className="min-w-0 flex-1 truncate admin-heading">{r.subject ?? "—"}</span>
               <span className="shrink-0 admin-muted truncate max-w-[180px]">{r.to_email}</span>

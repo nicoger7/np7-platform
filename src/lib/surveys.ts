@@ -87,6 +87,10 @@ export type SurveyInvite = {
   response?: SurveyResponse | null;
   /** An invite email actually went out (from email_log). */
   emailed?: boolean;
+  /** Resend webhook: they opened the invite EMAIL (≠ opened_at, which = visited the page). */
+  emailOpenedAt?: string | null;
+  /** Latest delivery event: delivered / opened / bounced / complained. */
+  emailEvent?: string | null;
 };
 
 /** Readable, hard-to-guess token like `nico-3f9a2b`. */
@@ -197,10 +201,12 @@ export async function listInvites(surveyId: string): Promise<SurveyInvite[]> {
   const [{ data: contacts }, { data: responses }, { data: sends }] = await Promise.all([
     sb.from("contacts").select("id,name,email").in("id", contactIds),
     sb.from("exp_survey_responses").select("*").eq("survey_id", surveyId),
-    sb.from("email_log").select("dedupe_key").eq("template_key", "survey_invite").eq("status", "sent")
+    sb.from("email_log").select("dedupe_key, opened_at, last_event").eq("template_key", "survey_invite").eq("status", "sent")
       .in("dedupe_key", rows.map((r) => `survey_invite:${r.id}`)),
   ]);
-  const sentKeys = new Set(((sends ?? []) as { dedupe_key: string | null }[]).map((x) => x.dedupe_key));
+  const sendRows = (sends ?? []) as { dedupe_key: string | null; opened_at?: string | null; last_event?: string | null }[];
+  const sentKeys = new Set(sendRows.map((x) => x.dedupe_key));
+  const sendByKey = new Map(sendRows.map((x) => [x.dedupe_key, x]));
   const cById = new Map<string, Record<string, unknown>>(((contacts ?? []) as Record<string, unknown>[]).map((c) => [String(c.id), c]));
   const rById = new Map<string, SurveyResponse>(((responses ?? []) as Record<string, unknown>[]).map((r) => [String(r.invite_id), rowToResponse(r)]));
   return rows.map((r) => {
@@ -211,6 +217,8 @@ export async function listInvites(surveyId: string): Promise<SurveyInvite[]> {
       invited_at: String(r.invited_at ?? ""), opened_at: (r.opened_at as string | null) ?? null,
       contactName: (c?.name as string | null) ?? null, contactEmail: (c?.email as string | null) ?? null,
       emailed: sentKeys.has(`survey_invite:${r.id}`),
+      emailOpenedAt: sendByKey.get(`survey_invite:${r.id}`)?.opened_at ?? null,
+      emailEvent: sendByKey.get(`survey_invite:${r.id}`)?.last_event ?? null,
       response: rById.get(String(r.id)) ?? null,
     };
   });

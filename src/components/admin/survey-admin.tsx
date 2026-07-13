@@ -461,7 +461,7 @@ No emails yet — review the list, then press Send invites.`)) return;
   const [sendMsg, setSendMsg] = useState("");
   const [showMail, setShowMail] = useState(false);
   const [invOpen, setInvOpen] = useState(false);
-  const [invFilter, setInvFilter] = useState<"" | "invited" | "opened" | "completed">("");
+  const [invFilter, setInvFilter] = useState<string>("");
   const [invSearch, setInvSearch] = useState("");
   const unsent = invites.filter((i) => !i.emailed && i.contactEmail).length;
   async function sendAll() {
@@ -582,14 +582,15 @@ No emails yet — review the list, then press Send invites.`)) return;
         // Long lists stay usable: status pills filter, the list folds past 12.
         const counts = { invited: 0, opened: 0, completed: 0 } as Record<string, number>;
         for (const i of invites) counts[i.status] = (counts[i.status] ?? 0) + 1;
+        const mailOpened = invites.filter((i) => i.emailOpenedAt).length;
         const shown = invites.filter((i) =>
-          (!invFilter || i.status === invFilter) &&
+          (invFilter === "mail_opened" ? !!i.emailOpenedAt : (!invFilter || i.status === invFilter)) &&
           (!invSearch.trim() || (i.contactName ?? "").toLowerCase().includes(invSearch.trim().toLowerCase())));
         const list = invOpen ? shown : shown.slice(0, 12);
         return (
         <div className="mt-4 border-t border-[#f0e6d6] pt-3">
           <div className="flex flex-wrap items-center gap-1.5 mb-2.5">
-            {([["", `All (${invites.length})`], ["invited", `Invited (${counts.invited ?? 0})`], ["opened", `Opened (${counts.opened ?? 0})`], ["completed", `Completed (${counts.completed ?? 0})`]] as const).map(([v, lbl]) => (
+            {([["", `All (${invites.length})`], ["invited", `Invited (${counts.invited ?? 0})`], ["opened", `Opened page (${counts.opened ?? 0})`], ["completed", `Completed (${counts.completed ?? 0})`], ...(mailOpened ? [["mail_opened", `✉ Opened mail (${mailOpened})`]] as const : [])] as ReadonlyArray<readonly [string, string]>).map(([v, lbl]) => (
               <button key={v} onClick={() => setInvFilter(v)} className={`px-2.5 py-1 rounded-full text-[11.5px] font-bold transition-colors ${invFilter === v ? "bg-[#0aa3c7] text-white" : "bg-[#f2f8f9] text-[#5a6b72] hover:bg-[#e2f0f3]"}`}>{lbl}</button>
             ))}
             {invites.length > 12 && (
@@ -602,7 +603,9 @@ No emails yet — review the list, then press Send invites.`)) return;
             <div key={i.id} className="flex items-center gap-2.5 text-[13.5px]">
               <span className="min-w-0 flex-1 truncate text-[#00374a] font-semibold">{i.contactName || "Member"}</span>
               <span className={`shrink-0 text-[10.5px] font-bold uppercase tracking-wide px-2 py-0.5 rounded-full ${STATUS[i.status]}`}>{i.status}</span>
-              <span className={`shrink-0 text-[11px] font-bold ${i.emailed ? "text-[#0f6e56]" : "text-[#c9bda5]"}`} title={i.emailed ? "Invite email delivered to the outbox" : "No email sent yet — use Send invites"}>{i.emailed ? "✉ sent" : "✉ not sent"}</span>
+              <span className={`shrink-0 text-[11px] font-bold ${i.emailEvent === "bounced" || i.emailEvent === "complained" ? "text-[#c0392b]" : i.emailOpenedAt ? "text-[#0f6e56]" : i.emailed ? "text-[#6a7a80]" : "text-[#c9bda5]"}`}
+                title={i.emailEvent === "bounced" ? "The invite email BOUNCED — wrong address?" : i.emailEvent === "complained" ? "Marked as spam" : i.emailOpenedAt ? `They opened the email (${new Date(i.emailOpenedAt).toLocaleString("en-GB", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })})` : i.emailed ? "Delivered — not opened yet (tracking runs since 14 Jul)" : "No email sent yet — use Send invites"}>
+                {i.emailEvent === "bounced" ? "✉ bounced" : i.emailEvent === "complained" ? "✉ spam" : i.emailOpenedAt ? "✉ opened" : i.emailed ? "✉ sent" : "✉ not sent"}</span>
               <button onClick={() => copy(linkFor(i.token), i.id)} className="shrink-0 text-[12px] font-bold text-[#0aa3c7]">{copied === i.id ? "Copied!" : "Copy link"}</button>
               <button onClick={() => remove(i.id)} className="shrink-0 text-[12px] font-bold text-[#b6c2c7] hover:text-[#c0392b]">Remove</button>
             </div>
