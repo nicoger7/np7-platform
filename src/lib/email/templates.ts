@@ -141,7 +141,7 @@ export const TEMPLATES: Record<string, (v: EmailVars, opts?: LayoutOpts) => Buil
             (customBody ??
               (p(`I'm putting together a <strong>special, invite-only trip</strong> and I'd love your input to help shape it — where, when, and what you'd want out of it.`) +
               (v.surveyIntro ? p(`<em>${esc(v.surveyIntro)}</em>`) : ""))) +
-            (v.surveyLink ? emailButton("Take the 2-minute survey", v.surveyLink) : "") +
+            (v.surveyLink ? emailButton(v.surveyCtaText || "Take the 2-minute survey", v.surveyLink) : "") +
             p(`This link is just for you — no need to log in. Thanks for helping me build something great.<br>— Nico`),
       }),
     };
@@ -427,9 +427,17 @@ export function renderTemplate(
   headerImage?: string | null,
   headerPosition?: number | null
 ): Built {
-  if (dbOverride?.body) {
+  // survey_invite ignores a global BODY override: its text is edited per survey
+  // (exp_surveys.email_body) and its one-tap date buttons are built in code — a
+  // body saved in the template editor would silently strip them. Subject and
+  // header image overrides still apply.
+  if (dbOverride?.body && key !== "survey_invite") {
     const subject = dbOverride.subject_line ? interpolate(dbOverride.subject_line, vars) : (TEMPLATES[key]?.(vars).subject ?? "NP7 Experience");
     return { subject, html: emailLayout({ division, headerImage, headerPosition, bodyHtml: interpolate(dbOverride.body, vars) }) };
+  }
+  if (dbOverride?.subject_line && key === "survey_invite") {
+    const built = TEMPLATES[key](vars, { division, headerImage, headerPosition });
+    return { subject: interpolate(dbOverride.subject_line, vars), html: built.html };
   }
   const fn = TEMPLATES[key];
   if (!fn) throw new Error(`Unknown email template: ${key}. Known: ${FALLBACK_KEYS.join(", ")}`);

@@ -188,8 +188,12 @@ export function SurveyAdmin({ initialSurvey, initialInvites }: { initialSurvey: 
             <span className="block text-[12px] text-[#9aa6ac] leading-snug">The invite email gets a button per date that <b>already registers the answer</b>; the page just confirms it and lets them adjust. Only the trips&apos; dates are asked — budget &amp; wishes are skipped.</span>
           </span>
         </label>
-        {s.quick && (
+        {(s.quick || s.destinations.some((d) => d.start || d.end)) && (
           <div className="mt-3 ml-6 grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <label className="flex items-start gap-2 cursor-pointer sm:col-span-2">
+              <input type="checkbox" checked={s.email_date_buttons !== false} onChange={(e) => patch({ email_date_buttons: e.target.checked })} className="mt-0.5 w-4 h-4 accent-[#0aa3c7]" />
+              <span className="text-[12.5px] text-[#5a6a70]">One-tap <b>date buttons in the invite email</b> <span className="text-[#9aa6ac]">— tapping a date registers it instantly. Off: one &ldquo;open the survey&rdquo; button (its text = the Join button label below).</span></span>
+            </label>
             <label className="block">
               <span className={lbl}>Join button <span className="font-normal normal-case opacity-70">— page cards + email buttons · empty = just the date</span></span>
               <input className={`${input} mt-1`} value={s.cta_label ?? ""} onChange={(e) => patch({ cta_label: e.target.value || null })} placeholder="(none — the date stands alone)" />

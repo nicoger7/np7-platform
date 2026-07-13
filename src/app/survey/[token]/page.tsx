@@ -36,7 +36,8 @@ export default async function SurveyPage({ params, searchParams }: Props) {
   // One-click registration (quick surveys): the email button's link carries the
   // answer — save it BEFORE first paint, then bounce to a clean URL so a refresh
   // can't re-save and the page opens already in the "you're in" state.
-  if (!isPreview && pick && survey.quick && survey.status === "open" && response !== undefined) {
+  // (any survey with dated trips can carry one-tap email buttons — not just quick)
+  if (!isPreview && pick && survey.status === "open" && response !== undefined) {
     const valid = new Set(survey.destinations.map((d) => d.key));
     const existingPicks = response?.other_destinations ?? [];
     if (pick === "none") {
