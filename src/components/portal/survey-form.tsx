@@ -71,7 +71,7 @@ export function SurveyForm({ survey, token, contactName, existing, preview = fal
   const applicable: boolean[] = [];
   if (hasTrips || survey.destinations.length > 0) applicable.push(pickedTrips > 0);
   if (survey.budget_anchor != null) applicable.push(budgetOk != null);
-  applicable.push(lookingFor.trim().length > 0);
+  if (survey.ask_wishes !== false) applicable.push(lookingFor.trim().length > 0);
   const doneCount = applicable.filter(Boolean).length;
   const complete = doneCount === applicable.length;
   // start already part-filled — being invited is progress, not zero (endowed progress)
@@ -101,7 +101,10 @@ export function SurveyForm({ survey, token, contactName, existing, preview = fal
     window.addEventListener("scroll", onScroll, { passive: true });
     window.addEventListener("resize", onScroll);
     // reveal-on-enter
-    const io = new IntersectionObserver((es) => es.forEach((e) => e.isIntersecting && e.target.classList.add("sv-in")), { threshold: 0.12 });
+    // Reveal via a DATA attribute, not classList: React re-renders (e.g. picking
+    // a date recomputes the card's className) rewrite the class attribute and
+    // would wipe an observer-added class — the card would vanish mid-interaction.
+    const io = new IntersectionObserver((es) => es.forEach((e) => e.isIntersecting && ((e.target as HTMLElement).dataset.in = "1")), { threshold: 0.12 });
     root.querySelectorAll("[data-reveal]").forEach((el) => io.observe(el));
     return () => { window.removeEventListener("scroll", onScroll); window.removeEventListener("resize", onScroll); cancelAnimationFrame(raf); io.disconnect(); };
   }, [tripGroups.length]);
@@ -150,7 +153,7 @@ export function SurveyForm({ survey, token, contactName, existing, preview = fal
            slow/failed hydration never leaves the form blank. */
         [data-reveal]{transition:opacity .7s cubic-bezier(.2,.7,.2,1),transform .7s cubic-bezier(.2,.7,.2,1)}
         .sv-armed [data-reveal]{opacity:0;transform:translateY(22px)}
-        .sv-armed [data-reveal].sv-in{opacity:1;transform:none}
+        .sv-armed [data-reveal][data-in="1"]{opacity:1;transform:none}
         @media (prefers-reduced-motion: reduce){.sv-armed [data-reveal]{opacity:1;transform:none;transition:none}}
         @keyframes sv-pop{0%{transform:scale(.4);opacity:0}60%{transform:scale(1.15)}100%{transform:scale(1);opacity:1}}
         .sv-pop{animation:sv-pop .34s cubic-bezier(.2,.8,.3,1.2)}
@@ -175,7 +178,7 @@ export function SurveyForm({ survey, token, contactName, existing, preview = fal
         {hasTrips && (
           <section data-reveal>
             <p className={label}>Which trips would you join?</p>
-            <p className="text-[13.5px] text-[#8a97a0] mt-1 mb-4">Dates &amp; place are fixed — tick every window you&apos;d want in on. The more you pick, the more likely we run the ones you want.</p>
+            <p className="text-[13.5px] text-[#8a97a0] mt-1 mb-4">Tick every date that would work for you — the more you pick, the more likely we run the one you want.</p>
             <div className={many ? "grid sm:grid-cols-2 gap-3.5" : "space-y-4"}>
               {tripGroups.map((g, gi) => {
                 const anyOn = g.periods.some((p) => chosen.has(p.key));
@@ -298,13 +301,15 @@ export function SurveyForm({ survey, token, contactName, existing, preview = fal
           </section>
         )}
 
-        {/* ── Looking for ── */}
-        <section data-reveal className={card}>
-          <p className={label}>What are you looking for in this trip?</p>
-          <p className="text-[13px] text-[#8a97a0] mt-1 mb-3">Coaching, wind guarantee, a chill vibe, luxury, exploration… tell me what would make it perfect for you.</p>
-          <textarea value={lookingFor} onChange={(e) => setLookingFor(e.target.value)} rows={4} placeholder="In your words…"
-            className="w-full rounded-xl border border-[#d8e3e6] px-3.5 py-3 text-[15px] outline-none focus:border-[#00afdb] transition-colors resize-y" />
-        </section>
+        {/* ── Looking for — optional per survey (premium trips) ── */}
+        {survey.ask_wishes !== false && (
+          <section data-reveal className={card}>
+            <p className={label}>What are you looking for in this trip?</p>
+            <p className="text-[13px] text-[#8a97a0] mt-1 mb-3">Coaching, wind guarantee, a chill vibe, luxury, exploration… tell me what would make it perfect for you.</p>
+            <textarea value={lookingFor} onChange={(e) => setLookingFor(e.target.value)} rows={4} placeholder="In your words…"
+              className="w-full rounded-xl border border-[#d8e3e6] px-3.5 py-3 text-[15px] outline-none focus:border-[#00afdb] transition-colors resize-y" />
+          </section>
+        )}
 
         {err && <p className="text-[13px] text-[#c0392b] font-semibold">{err}</p>}
         <button type="button" onClick={submit} disabled={busy}

@@ -48,6 +48,8 @@ export type Survey = {
   show_decline: boolean;
   /** Custom invite-email text (replaces the standard pitch paragraphs). null = built-in copy. */
   email_body: string | null;
+  /** false = hide the "What are you looking for?" free-text card (classic form). */
+  ask_wishes: boolean;
   created_at: string;
   archived_at: string | null;
 };
@@ -108,6 +110,7 @@ function rowToSurvey(r: Record<string, unknown>): Survey {
     decline_label: (r.decline_label as string | null) ?? null,
     show_decline: r.show_decline !== false,
     email_body: (r.email_body as string | null) ?? null,
+    ask_wishes: r.ask_wishes !== false,
     created_at: String(r.created_at ?? ""),
     archived_at: (r.archived_at as string | null) ?? null,
   };
@@ -167,7 +170,7 @@ export async function createSurvey(input: Partial<Survey>): Promise<Survey | nul
 
 export async function updateSurvey(id: string, patch: Partial<Survey>): Promise<Survey | null> {
   const clean: Record<string, unknown> = { updated_at: new Date().toISOString() };
-  for (const k of ["title", "intro", "status", "destinations", "weeks", "budget_anchor", "budget_min", "budget_max", "currency", "quick", "eyebrow", "cta_label", "decline_label", "show_decline", "email_body"] as const) {
+  for (const k of ["title", "intro", "status", "destinations", "weeks", "budget_anchor", "budget_min", "budget_max", "currency", "quick", "eyebrow", "cta_label", "decline_label", "show_decline", "email_body", "ask_wishes"] as const) {
     if (k in patch) clean[k] = patch[k];
   }
   const { data } = await db().from("exp_surveys").update(clean).eq("id", id).select("*").single();

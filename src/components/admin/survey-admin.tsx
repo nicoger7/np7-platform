@@ -38,7 +38,7 @@ export function SurveyAdmin({ initialSurvey, initialInvites }: { initialSurvey: 
         body: JSON.stringify({
           title: s.title, intro: s.intro, status: s.status, destinations: s.destinations, weeks: s.weeks,
           budget_anchor: s.budget_anchor, budget_min: s.budget_min, budget_max: s.budget_max, currency: s.currency,
-          quick: s.quick, eyebrow: s.eyebrow, cta_label: s.cta_label, decline_label: s.decline_label, show_decline: s.show_decline, email_body: s.email_body,
+          quick: s.quick, eyebrow: s.eyebrow, cta_label: s.cta_label, decline_label: s.decline_label, show_decline: s.show_decline, email_body: s.email_body, ask_wishes: s.ask_wishes,
         }),
       });
       if (res.ok) { setSavedAt(new Date().toLocaleTimeString()); router.refresh(); }
@@ -174,6 +174,13 @@ export function SurveyAdmin({ initialSurvey, initialInvites }: { initialSurvey: 
             <span className="self-center ml-2 text-[12px] text-[#9aa6ac]">{s.status === "draft" ? "Not collecting — preview only" : s.status === "open" ? "Live & collecting" : "Closed to new answers"}</span>
           </div>
         </div>
+        <label className="flex items-start gap-2.5 mt-4 cursor-pointer">
+          <input type="checkbox" checked={s.ask_wishes !== false} onChange={(e) => patch({ ask_wishes: e.target.checked })} className="mt-0.5 w-4 h-4 accent-[#0aa3c7]" />
+          <span>
+            <span className="block text-[13.5px] font-bold text-[#0a2a33]">Ask &ldquo;What are you looking for?&rdquo;</span>
+            <span className="block text-[12px] text-[#9aa6ac] leading-snug">The free-text wishes card on the form — great for premium trips, noise for simple date polls. (Quick mode never shows it.)</span>
+          </span>
+        </label>
         <label className="flex items-start gap-2.5 mt-4 cursor-pointer">
           <input type="checkbox" checked={!!s.quick} onChange={(e) => patch({ quick: e.target.checked })} className="mt-0.5 w-4 h-4 accent-[#0aa3c7]" />
           <span>
