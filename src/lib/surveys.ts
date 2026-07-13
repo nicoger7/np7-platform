@@ -40,6 +40,12 @@ export type Survey = {
   quick: boolean;
   /** Small gold line above the hero title. null = "By private invitation", "" = hidden. */
   eyebrow: string | null;
+  /** Join-button label. null = "Count me in" (page) / "I'd join" (email buttons). */
+  cta_label: string | null;
+  /** Decline-button label (display only). null = "Can't make it this time". */
+  decline_label: string | null;
+  /** false = no opt-out button on the page, no decline link in the email. */
+  show_decline: boolean;
   created_at: string;
   archived_at: string | null;
 };
@@ -96,6 +102,9 @@ function rowToSurvey(r: Record<string, unknown>): Survey {
     currency: String(r.currency ?? "EUR"),
     quick: r.quick === true,
     eyebrow: (r.eyebrow as string | null) ?? null,
+    cta_label: (r.cta_label as string | null) ?? null,
+    decline_label: (r.decline_label as string | null) ?? null,
+    show_decline: r.show_decline !== false,
     created_at: String(r.created_at ?? ""),
     archived_at: (r.archived_at as string | null) ?? null,
   };
@@ -155,7 +164,7 @@ export async function createSurvey(input: Partial<Survey>): Promise<Survey | nul
 
 export async function updateSurvey(id: string, patch: Partial<Survey>): Promise<Survey | null> {
   const clean: Record<string, unknown> = { updated_at: new Date().toISOString() };
-  for (const k of ["title", "intro", "status", "destinations", "weeks", "budget_anchor", "budget_min", "budget_max", "currency", "quick", "eyebrow"] as const) {
+  for (const k of ["title", "intro", "status", "destinations", "weeks", "budget_anchor", "budget_min", "budget_max", "currency", "quick", "eyebrow", "cta_label", "decline_label", "show_decline"] as const) {
     if (k in patch) clean[k] = patch[k];
   }
   const { data } = await db().from("exp_surveys").update(clean).eq("id", id).select("*").single();
@@ -311,6 +320,31 @@ export async function submitResponse(token: string, answer: SurveyAnswer): Promi
   return { ok: true };
 }
 
+/** Build the survey_invite template vars for one recipient — shared by the real
+ *  send AND the admin email preview, so what you preview is what goes out. */
+export function surveyInviteVars(survey: Survey | null, contactName: string | null | undefined, url: string): Record<string, string> {
+  const vars: Record<string, string> = {
+    firstName: String(contactName ?? "").trim().split(/\s+/)[0] || "there",
+    surveyTitle: survey?.title || "a quick question from NP7",
+    surveyIntro: survey?.intro || "",
+    surveyLink: url,
+  };
+  // Quick surveys: the email buttons carry the answer (one tap on a date link
+  // pre-registers it; the page then confirms and lets them adjust).
+  if (survey?.quick) {
+    const fmt = (d: string) => new Date(d + "T00:00:00Z").toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric", timeZone: "UTC" });
+    const range = (a?: string | null, b?: string | null) => a && b ? `${+a.slice(8, 10)}–${fmt(b)}` : fmt((a ?? b)!);
+    const dated = survey.destinations.filter((d) => d.start || d.end);
+    const cta = (survey.cta_label ?? "").trim() || "I'd join";
+    vars.quickChoices = JSON.stringify(dated.map((d) => ({
+      label: `${cta} — ${range(d.start, d.end)}${dated.length > 1 && d.label ? ` (${d.label})` : ""}`,
+      url: `${url}?pick=${encodeURIComponent(d.key)}`,
+    })));
+    if (survey.show_decline) vars.quickDeclineUrl = `${url}?pick=none`;
+  }
+  return vars;
+}
+
 /** Send the branded invite email for one invite. Returns send status. */
 export async function sendSurveyInviteEmail(inviteId: string, url: string): Promise<"sent" | "skipped" | "failed"> {
   const sb = db();
@@ -321,24 +355,9 @@ export async function sendSurveyInviteEmail(inviteId: string, url: string): Prom
     getSurvey(String(inv.survey_id)),
   ]);
   if (!contact?.email) return "skipped";
-  const vars: Record<string, string> = {
-    firstName: String(contact.name ?? "").trim().split(/\s+/)[0] || "there",
-    surveyTitle: survey?.title || "a quick question from NP7",
-    surveyIntro: survey?.intro || "",
-    surveyLink: url,
-  };
+  const vars = surveyInviteVars(survey, contact.name as string | null, url);
   // Quick surveys: the email buttons carry the answer — one tap on a date link
   // pre-registers it (the page then confirms and lets them adjust).
-  if (survey?.quick) {
-    const fmt = (d: string) => new Date(d + "T00:00:00Z").toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric", timeZone: "UTC" });
-    const range = (a?: string | null, b?: string | null) => a && b ? `${+a.slice(8, 10)}\u2013${fmt(b)}` : fmt((a ?? b)!);
-    const dated = survey.destinations.filter((d) => d.start || d.end);
-    vars.quickChoices = JSON.stringify(dated.map((d) => ({
-      label: `I'd join \u2014 ${range(d.start, d.end)}${dated.length > 1 && d.label ? ` (${d.label})` : ""}`,
-      url: `${url}?pick=${encodeURIComponent(d.key)}`,
-    })));
-    vars.quickDeclineUrl = `${url}?pick=none`;
-  }
   const res = await sendEmail({
     to: contact.email,
     templateKey: "survey_invite",

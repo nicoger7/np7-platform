@@ -120,23 +120,27 @@ export function SurveyQuick({ survey, token, existing, preview = false, justSave
                   <span className="block text-[17px] sm:text-[19px] font-black tracking-[-0.01em] text-[#00374a]">{fmtRange(d.start, d.end)}</span>
                   <span className="block text-[13px] text-[#8a7a58] mt-0.5">{[d.label, d.location].filter(Boolean).join(" · ") || survey.title}</span>
                 </span>
-                <span className={`shrink-0 hidden sm:inline text-[12.5px] font-black uppercase tracking-wide ${on ? "text-[#1f9e57]" : "text-[#c9bda5] group-hover:text-[#f0a500]"}`}>{on ? "I'm in 🤙" : "Count me in"}</span>
+                <span className={`shrink-0 hidden sm:inline text-[12.5px] font-black uppercase tracking-wide ${on ? "text-[#1f9e57]" : "text-[#c9bda5] group-hover:text-[#f0a500]"}`}>{on ? "I'm in 🤙" : (survey.cta_label?.trim() || "Count me in")}</span>
               </span>
             </button>
           );
         })}
       </div>
 
-      {/* the honest out */}
-      <div className="flex items-center gap-3 my-6">
-        <span className="flex-1 h-px bg-[#ecdcbb]" />
-        <span className="text-[11px] font-bold uppercase tracking-[0.18em] text-[#c9bda5]">or</span>
-        <span className="flex-1 h-px bg-[#ecdcbb]" />
-      </div>
-      <button type="button" onClick={decline}
-        className={`w-full rounded-2xl border-2 border-dashed px-5 py-3.5 text-[14px] font-bold transition-colors ${declined ? "border-[#8a9aa0] bg-white text-[#3a4a50]" : "border-[#e2d8c6] text-[#8a9aa0] hover:border-[#8a9aa0] hover:text-[#3a4a50]"}`}>
-        {declined ? "✓ Can't make it this time" : "Can't make it this time"}
-      </button>
+      {/* the honest out — optional per survey */}
+      {(survey.show_decline !== false || declined) && (
+        <>
+          <div className="flex items-center gap-3 my-6">
+            <span className="flex-1 h-px bg-[#ecdcbb]" />
+            <span className="text-[11px] font-bold uppercase tracking-[0.18em] text-[#c9bda5]">or</span>
+            <span className="flex-1 h-px bg-[#ecdcbb]" />
+          </div>
+          <button type="button" onClick={decline}
+            className={`w-full rounded-2xl border-2 border-dashed px-5 py-3.5 text-[14px] font-bold transition-colors ${declined ? "border-[#8a9aa0] bg-white text-[#3a4a50]" : "border-[#e2d8c6] text-[#8a9aa0] hover:border-[#8a9aa0] hover:text-[#3a4a50]"}`}>
+            {declined ? `✓ ${survey.decline_label?.trim() || DECLINE_NOTE}` : (survey.decline_label?.trim() || DECLINE_NOTE)}
+          </button>
+        </>
+      )}
 
       {/* optional one-liner — appears once they've answered, so the first tap stays the only ask */}
       {answered && (

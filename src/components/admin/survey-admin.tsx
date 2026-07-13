@@ -38,7 +38,7 @@ export function SurveyAdmin({ initialSurvey, initialInvites }: { initialSurvey: 
         body: JSON.stringify({
           title: s.title, intro: s.intro, status: s.status, destinations: s.destinations, weeks: s.weeks,
           budget_anchor: s.budget_anchor, budget_min: s.budget_min, budget_max: s.budget_max, currency: s.currency,
-          quick: s.quick, eyebrow: s.eyebrow,
+          quick: s.quick, eyebrow: s.eyebrow, cta_label: s.cta_label, decline_label: s.decline_label, show_decline: s.show_decline,
         }),
       });
       if (res.ok) { setSavedAt(new Date().toLocaleTimeString()); router.refresh(); }
@@ -177,6 +177,22 @@ export function SurveyAdmin({ initialSurvey, initialInvites }: { initialSurvey: 
             <span className="block text-[12px] text-[#9aa6ac] leading-snug">The invite email gets a button per date that <b>already registers the answer</b>; the page just confirms it and lets them adjust. Only the trips&apos; dates are asked — budget &amp; wishes are skipped.</span>
           </span>
         </label>
+        {s.quick && (
+          <div className="mt-3 ml-6 grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <label className="block">
+              <span className={lbl}>Join button <span className="font-normal normal-case opacity-70">— page cards + email buttons</span></span>
+              <input className={`${input} mt-1`} value={s.cta_label ?? ""} onChange={(e) => patch({ cta_label: e.target.value || null })} placeholder="Count me in" />
+            </label>
+            <label className="block">
+              <span className={lbl}>Decline button</span>
+              <input className={`${input} mt-1`} value={s.decline_label ?? ""} onChange={(e) => patch({ decline_label: e.target.value || null })} placeholder="Can't make it this time" disabled={s.show_decline === false} />
+            </label>
+            <label className="flex items-start gap-2 cursor-pointer sm:col-span-2">
+              <input type="checkbox" checked={s.show_decline !== false} onChange={(e) => patch({ show_decline: e.target.checked })} className="mt-0.5 w-4 h-4 accent-[#0aa3c7]" />
+              <span className="text-[12.5px] text-[#5a6a70]">Offer a &ldquo;can&apos;t make it&rdquo; opt-out <span className="text-[#9aa6ac]">— off: no decline button on the page, no decline link in the email</span></span>
+            </label>
+          </div>
+        )}
       </div>
 
       {/* trips = a PLACE with one or more date windows */}
@@ -415,6 +431,7 @@ No emails yet — review the list, then press Send invites.`)) return;
   // Explicit send step: add → review the list (remove anyone) → press Send.
   const [sending, setSending] = useState(false);
   const [sendMsg, setSendMsg] = useState("");
+  const [showMail, setShowMail] = useState(false);
   const unsent = invites.filter((i) => !i.emailed && i.contactEmail).length;
   async function sendAll() {
     if (!unsent || sending) return;
@@ -444,6 +461,11 @@ No emails yet — review the list, then press Send invites.`)) return;
     <div className="rounded-2xl border border-[#e7ddcb] bg-white p-5">
       <div className="flex items-center justify-between gap-3">
         <span className="text-[12px] font-black uppercase tracking-[0.1em] text-[#0aa3c7]">Invite members</span>
+        <div className="flex items-center gap-2.5">
+          <button onClick={() => setShowMail((v) => !v)}
+            className="rounded-full border border-[#d8e3e6] text-[#0aa3c7] hover:bg-[#f2f8f9] text-[12.5px] font-bold px-4 py-1.5 transition-colors">
+            {showMail ? "Hide email preview" : "✉ Preview email"}
+          </button>
         {invites.length > 0 && (
           <div className="flex items-center gap-2.5">
             {sendMsg && <span className="text-[12px] font-semibold text-[#0f6e56]">{sendMsg}</span>}
@@ -457,7 +479,14 @@ No emails yet — review the list, then press Send invites.`)) return;
             )}
           </div>
         )}
+        </div>
       </div>
+      {showMail && (
+        <div className="mt-3 rounded-xl border border-[#e7ddcb] overflow-hidden bg-white">
+          <div className="px-3 py-1.5 text-[11px] text-[#9aa6ac] border-b border-[#efe8d8]">Exactly what recipients get — built from the <b>last saved</b> survey (save first if you just changed something). Buttons link to your team preview.</div>
+          <iframe title="Invite email preview" src={`/api/admin/surveys/${surveyId}/email-preview`} sandbox="" className="w-full h-[560px] bg-white" />
+        </div>
+      )}
       <div className="relative mt-2">
         <input className="w-full rounded-lg border border-[#d8e3e6] bg-white text-[#0a2a33] placeholder:text-[#9aa6ac] px-3 py-2 text-[14px] outline-none focus:border-[#0aa3c7]" value={term} onChange={(e) => search(e.target.value)} placeholder="Search members by name or email…" />
         {results.length > 0 && (
