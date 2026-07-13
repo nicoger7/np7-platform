@@ -52,6 +52,8 @@ export type Survey = {
   ask_wishes: boolean;
   /** One-tap date buttons in the invite email (any survey with dated trips). false = single survey button. */
   email_date_buttons: boolean;
+  /** Text of the single "open the survey" email button (email_date_buttons off). null = "Take the 2-minute survey". */
+  email_button_label: string | null;
   created_at: string;
   archived_at: string | null;
 };
@@ -114,6 +116,7 @@ function rowToSurvey(r: Record<string, unknown>): Survey {
     email_body: (r.email_body as string | null) ?? null,
     ask_wishes: r.ask_wishes !== false,
     email_date_buttons: r.email_date_buttons !== false,
+    email_button_label: (r.email_button_label as string | null) ?? null,
     created_at: String(r.created_at ?? ""),
     archived_at: (r.archived_at as string | null) ?? null,
   };
@@ -173,7 +176,7 @@ export async function createSurvey(input: Partial<Survey>): Promise<Survey | nul
 
 export async function updateSurvey(id: string, patch: Partial<Survey>): Promise<Survey | null> {
   const clean: Record<string, unknown> = { updated_at: new Date().toISOString() };
-  for (const k of ["title", "intro", "status", "destinations", "weeks", "budget_anchor", "budget_min", "budget_max", "currency", "quick", "eyebrow", "cta_label", "decline_label", "show_decline", "email_body", "ask_wishes", "email_date_buttons"] as const) {
+  for (const k of ["title", "intro", "status", "destinations", "weeks", "budget_anchor", "budget_min", "budget_max", "currency", "quick", "eyebrow", "cta_label", "decline_label", "show_decline", "email_body", "ask_wishes", "email_date_buttons", "email_button_label"] as const) {
     if (k in patch) clean[k] = patch[k];
   }
   const { data } = await db().from("exp_surveys").update(clean).eq("id", id).select("*").single();
@@ -353,9 +356,11 @@ export function surveyInviteVars(survey: Survey | null, contactName: string | nu
       url: `${url}?pick=${encodeURIComponent(d.key)}`,
     })));
     if (survey.show_decline) vars.quickDeclineUrl = `${url}?pick=none`;
-  } else if (cta) {
-    // single-button email: the pill text is editable too
-    vars.surveyCtaText = cta;
+  } else {
+    // single-button email: its text is its own field (falls back to the join
+    // label, then the template default "Take the 2-minute survey")
+    const btn = (survey?.email_button_label ?? "").trim() || cta;
+    if (btn) vars.surveyCtaText = btn;
   }
   return vars;
 }

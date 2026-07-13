@@ -38,7 +38,7 @@ export function SurveyAdmin({ initialSurvey, initialInvites }: { initialSurvey: 
         body: JSON.stringify({
           title: s.title, intro: s.intro, status: s.status, destinations: s.destinations, weeks: s.weeks,
           budget_anchor: s.budget_anchor, budget_min: s.budget_min, budget_max: s.budget_max, currency: s.currency,
-          quick: s.quick, eyebrow: s.eyebrow, cta_label: s.cta_label, decline_label: s.decline_label, show_decline: s.show_decline, email_body: s.email_body, ask_wishes: s.ask_wishes,
+          quick: s.quick, eyebrow: s.eyebrow, cta_label: s.cta_label, decline_label: s.decline_label, show_decline: s.show_decline, email_body: s.email_body, ask_wishes: s.ask_wishes, email_date_buttons: s.email_date_buttons, email_button_label: s.email_button_label,
         }),
       });
       if (res.ok) { setSavedAt(new Date().toLocaleTimeString()); router.refresh(); }
@@ -164,6 +164,23 @@ export function SurveyAdmin({ initialSurvey, initialInvites }: { initialSurvey: 
           <span className={lbl}>Invite email text <span className="font-normal normal-case opacity-70">— replaces the standard pitch between the greeting and the buttons; greeting, buttons, opt-out &amp; sign-off stay. Empty = built-in copy. Check it with ✉ Preview email below.</span></span>
           <textarea className={`${input} mt-1 min-h-[90px] resize-y`} value={s.email_body ?? ""} onChange={(e) => patch({ email_body: e.target.value || null })} placeholder={"I'm putting together " + (s.title || "this trip") + " and you're on my shortlist. Just tell me if you'd be in — one tap on a date below is all it takes."} />
         </label>
+        <label className="block mb-3">
+          <span className={lbl}>Email buttons</span>
+          <span className="mt-1.5 flex flex-wrap items-center gap-2">
+            <button type="button" onClick={() => patch({ email_date_buttons: true })}
+              className={`px-3 py-1.5 rounded-full text-[12.5px] font-bold transition-colors ${s.email_date_buttons !== false ? "bg-[#0aa3c7] text-white" : "bg-[#f2f8f9] text-[#5a6b72] hover:bg-[#e2f0f3]"}`}>
+              One per date — one-tap answers
+            </button>
+            <button type="button" onClick={() => patch({ email_date_buttons: false })}
+              className={`px-3 py-1.5 rounded-full text-[12.5px] font-bold transition-colors ${s.email_date_buttons === false ? "bg-[#0aa3c7] text-white" : "bg-[#f2f8f9] text-[#5a6b72] hover:bg-[#e2f0f3]"}`}>
+              One button — opens the survey
+            </button>
+            {s.email_date_buttons === false && (
+              <input className={`${input} !w-[260px]`} value={s.email_button_label ?? ""} onChange={(e) => patch({ email_button_label: e.target.value || null })} placeholder="Take the 2-minute survey" />
+            )}
+          </span>
+          <span className="block text-[11.5px] text-[#9aa6ac] mt-1">Many dates or places? Pick &ldquo;one button&rdquo; so the email stays short — people choose everything on the survey page instead.</span>
+        </label>
         <div>
           <span className={lbl}>Status</span>
           <div className="flex gap-1.5 mt-1.5">
@@ -190,10 +207,6 @@ export function SurveyAdmin({ initialSurvey, initialInvites }: { initialSurvey: 
         </label>
         {(s.quick || s.destinations.some((d) => d.start || d.end)) && (
           <div className="mt-3 ml-6 grid grid-cols-1 sm:grid-cols-2 gap-3">
-            <label className="flex items-start gap-2 cursor-pointer sm:col-span-2">
-              <input type="checkbox" checked={s.email_date_buttons !== false} onChange={(e) => patch({ email_date_buttons: e.target.checked })} className="mt-0.5 w-4 h-4 accent-[#0aa3c7]" />
-              <span className="text-[12.5px] text-[#5a6a70]">One-tap <b>date buttons in the invite email</b> <span className="text-[#9aa6ac]">— tapping a date registers it instantly. Off: one &ldquo;open the survey&rdquo; button (its text = the Join button label below).</span></span>
-            </label>
             <label className="block">
               <span className={lbl}>Join button <span className="font-normal normal-case opacity-70">— page cards + email buttons · empty = just the date</span></span>
               <input className={`${input} mt-1`} value={s.cta_label ?? ""} onChange={(e) => patch({ cta_label: e.target.value || null })} placeholder="(none — the date stands alone)" />
