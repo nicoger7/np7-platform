@@ -110,6 +110,8 @@ export type InvoiceData = {
     downpayment: number;
     currency: string;
     packageName: string | null;
+    /** The package's website-included components ("Web" checkmarks, using their Website text). */
+    packageIncludes?: string[] | null;
     notes?: string | null;
   };
   contact: {
@@ -346,6 +348,7 @@ function ProformaLines({ data }: { data: InvoiceData }) {
         <View style={s.col_desc}>
           <Text style={{ fontFamily: "Helvetica-Bold" }}>{description} – {securingLabel} (secures your spot)</Text>
           {packageDesc ? <Text style={s.smallText}>{packageDesc}</Text> : null}
+          {booking.packageIncludes?.length ? <Text style={s.smallText}>Incl. {booking.packageIncludes.join(" · ")}</Text> : null}
         </View>
         <Text style={s.col_period}>{servicePeriod(edition)}</Text>
         <Text style={s.col_amount}>{formatMoney(securing, currency)}</Text>
@@ -400,6 +403,7 @@ function DepositInvoiceLines({ data }: { data: InvoiceData }) {
         <View style={s.col_desc}>
           <Text style={{ fontFamily: "Helvetica-Bold" }}>{description} – Advance Payment (Deposit)</Text>
           {packageDesc ? <Text style={s.smallText}>{packageDesc}</Text> : null}
+          {booking.packageIncludes?.length ? <Text style={s.smallText}>Incl. {booking.packageIncludes.join(" · ")}</Text> : null}
         </View>
         <Text style={s.col_period}>{servicePeriod(edition)}</Text>
         <Text style={s.col_amount}>{formatMoney(booking.deposit, currency)}</Text>
@@ -468,6 +472,7 @@ function DownpaymentInvoiceLines({ data }: { data: InvoiceData }) {
         <View style={s.col_desc}>
           <Text style={{ fontFamily: "Helvetica-Bold" }}>{description} – Interim Payment (Down-Payment)</Text>
           {packageDesc ? <Text style={s.smallText}>{packageDesc}</Text> : null}
+          {booking.packageIncludes?.length ? <Text style={s.smallText}>Incl. {booking.packageIncludes.join(" · ")}</Text> : null}
         </View>
         <Text style={s.col_period}>{servicePeriod(edition)}</Text>
         <Text style={s.col_amount}>{formatMoney(downpayment, currency)}</Text>
@@ -542,6 +547,7 @@ function FinalInvoiceLines({ data }: { data: InvoiceData }) {
         <View style={s.col_desc}>
           <Text style={{ fontFamily: "Helvetica-Bold" }}>{description}</Text>
           {packageDesc ? <Text style={s.smallText}>{packageDesc}</Text> : null}
+          {booking.packageIncludes?.length ? <Text style={s.smallText}>Incl. {booking.packageIncludes.join(" · ")}</Text> : null}
         </View>
         <Text style={s.col_period}>{servicePeriod(edition)}</Text>
         <Text style={s.col_amount}>{formatMoney(booking.agreedPrice, currency)}</Text>

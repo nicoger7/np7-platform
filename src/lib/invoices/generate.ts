@@ -156,6 +156,7 @@ type ResolvedBooking = {
     downpayment_percent: number | null;
     final_days_before: number | null;
     deposit_refund_days: number | null;
+    includes: string[] | null;
   } | null;
 };
 
@@ -169,7 +170,7 @@ async function resolveBooking(bookingId: string): Promise<ResolvedBooking> {
        contacts(name, email, billing_address, billing_postal_code, billing_city, billing_country),
        exp_experiences(title, slug),
        exp_editions(label, year, date_start, date_end, deposit),
-       exp_packages(name, deposit, downpayment_percent, final_days_before, deposit_refund_days)`
+       exp_packages(name, deposit, downpayment_percent, final_days_before, deposit_refund_days, includes)`
     )
     .eq("id", bookingId)
     .maybeSingle();
@@ -182,6 +183,27 @@ async function resolveBooking(bookingId: string): Promise<ResolvedBooking> {
   }
   if (!data) throw new Error(`Booking not found: ${bookingId}`);
   return data as ResolvedBooking;
+}
+
+/** The package's website-included components — the same "Web" checkmarks +
+ *  Website text that drive the public included-list (migration 090). Shown on
+ *  invoices under the package name. Tolerant pre-migration → []. */
+async function packageIncludes(packageId: string | null): Promise<string[]> {
+  if (!packageId) return [];
+  try {
+    const db = getDb();
+    const { data, error } = await db
+      .from("exp_package_components")
+      .select("show_on_website, exp_components(name, description)")
+      .eq("package_id", packageId);
+    if (error) return [];
+    return ((data ?? []) as { show_on_website?: boolean | null; exp_components: { name: string | null; description: string | null } | null }[])
+      .filter((r) => r.show_on_website)
+      .map((r) => (r.exp_components?.description || r.exp_components?.name || "").trim())
+      .filter(Boolean);
+  } catch {
+    return [];
+  }
 }
 
 // ─── Compute deposit ──────────────────────────────────────────────────────────
@@ -323,6 +345,11 @@ export async function generateDocument(input: GenerateInput): Promise<DocumentRo
 
   if (!exp) throw new Error(`Booking ${bookingId} has no associated experience.`);
 
+  // Same rule as the public website's included-list: the manual "Website list"
+  // wins when set, else the components carrying the Web checkmark.
+  const manualIncludes = (pkg?.includes ?? []).map((s) => String(s).trim()).filter(Boolean);
+  const pkgIncludes = manualIncludes.length ? manualIncludes : await packageIncludes(booking.package_id ?? null);
+
   const invoiceData: InvoiceData = {
     type,
     company,
@@ -335,6 +362,7 @@ export async function generateDocument(input: GenerateInput): Promise<DocumentRo
       downpayment: downpaymentAmt,
       currency,
       packageName: pkg?.name ?? null,
+      packageIncludes: pkgIncludes,
       notes: booking.notes,
     },
     contact: {

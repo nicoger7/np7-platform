@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 type Row = {
   id: string; template_key: string | null; to_email: string; subject: string | null;
@@ -20,8 +20,21 @@ export default function EmailLogPage() {
   const [testTo, setTestTo] = useState("");
   const [testing, setTesting] = useState(false);
   const [testMsg, setTestMsg] = useState<{ ok: boolean; text: string } | null>(null);
-  // hover preview: which row, and where to pin the floating panel
+  // hover preview: which row, and where to pin the floating panel. The panel is
+  // INTERACTIVE (scrollable) — it stays open while the mouse is on the row OR
+  // the panel, and hides on a short delay so you can travel between the two.
   const [preview, setPreview] = useState<{ id: string; top: number } | null>(null);
+  const hideTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const showPreview = (id: string, clientY: number) => {
+    if (hideTimer.current) clearTimeout(hideTimer.current);
+    const h = 480, pad = 16;
+    setPreview({ id, top: Math.min(Math.max(clientY - h / 3, pad), window.innerHeight - h - pad) });
+  };
+  const keepPreview = () => { if (hideTimer.current) clearTimeout(hideTimer.current); };
+  const hidePreview = () => {
+    if (hideTimer.current) clearTimeout(hideTimer.current);
+    hideTimer.current = setTimeout(() => setPreview(null), 220);
+  };
 
   useEffect(() => {
     fetch("/api/admin/email-log").then((r) => r.json()).then((d) => setRows(d.rows ?? [])).finally(() => setLoading(false));
@@ -66,12 +79,8 @@ export default function EmailLogPage() {
               key={r.id}
               className="admin-surface admin-border border rounded-lg px-4 py-2.5 flex items-center gap-3 text-[13px] cursor-pointer hover:border-[var(--admin-accent)]/50 transition-colors"
               title="Hover to preview · click to open full size"
-              onMouseEnter={(e) => {
-                const h = 480, pad = 16;
-                const top = Math.min(Math.max(e.clientY - h / 3, pad), window.innerHeight - h - pad);
-                setPreview({ id: r.id, top });
-              }}
-              onMouseLeave={() => setPreview(null)}
+              onMouseEnter={(e) => showPreview(r.id, e.clientY)}
+              onMouseLeave={hidePreview}
               onClick={() => window.open(`/api/admin/email-log/${r.id}/preview`, "_blank")}
             >
               <span className={`shrink-0 text-[10px] font-bold uppercase px-2 py-0.5 rounded ${TONE[r.status] ?? "bg-gray-500/15 text-gray-400"}`}>{r.status}</span>
@@ -84,11 +93,14 @@ export default function EmailLogPage() {
         </div>
       )}
 
-      {/* floating hover preview — re-rendered from the logged variables */}
+      {/* floating hover preview — re-rendered from the logged variables.
+          Interactive: move the mouse onto it to scroll the whole email. */}
       {preview && (
         <div
-          className="hidden md:block fixed right-6 z-50 rounded-xl overflow-hidden shadow-2xl pointer-events-none"
+          className="hidden md:block fixed right-6 z-50 rounded-xl overflow-hidden shadow-2xl"
           style={{ top: preview.top, width: 380, height: 480, border: "1px solid var(--admin-border)", backgroundColor: "#fff" }}
+          onMouseEnter={keepPreview}
+          onMouseLeave={hidePreview}
         >
           <iframe title="Email preview" src={`/api/admin/email-log/${preview.id}/preview`} sandbox="" className="w-full h-full bg-white" />
         </div>
