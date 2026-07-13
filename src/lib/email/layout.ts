@@ -6,9 +6,11 @@ export type Division = "experience" | "hardware";
 
 /** The header image used when a template doesn't set its own — shown in the
  *  editor so it's always clear what the blank "default" will render. At send
- *  time an experience's own hero photo can override this per division. */
+ *  time an experience's own hero photo can override this per division.
+ *  NOT the video poster (a soft 720p first-frame of the hero scroll) — this is
+ *  the same Bonaire crew scene as the real HQ photograph, served from R2. */
 export const DEFAULT_HEADER_IMAGE: Record<Division, string | null> = {
-  experience: `${STORAGE}/hero/windsurf-hero-poster.jpg`,
+  experience: `${process.env.NEXT_PUBLIC_R2_CDN_URL || process.env.NEXT_PUBLIC_R2_PUBLIC_URL || "https://media.np-seven.com"}/hero/windsurf-hero-email.jpg`,
   hardware: null,
 };
 
