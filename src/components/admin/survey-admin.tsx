@@ -363,7 +363,7 @@ export function SurveyAdmin({ initialSurvey, initialInvites }: { initialSurvey: 
         </div>
       </div>
 
-      <InviteSection surveyId={s.id} surveyTitle={s.title} invites={invites} setInvites={setInvites} linkFor={linkFor} />
+      <InviteSection surveyId={s.id} surveyTitle={s.title} openToken={s.open_token} invites={invites} setInvites={setInvites} linkFor={linkFor} />
 
       <ResponsesSection survey={s} invites={invites} fmtMoney={fmtMoney} />
 
@@ -376,8 +376,8 @@ export function SurveyAdmin({ initialSurvey, initialInvites }: { initialSurvey: 
 
 // ---------------- invites ----------------
 type Picked = { id: string; name: string };
-function InviteSection({ surveyId, surveyTitle, invites, setInvites, linkFor }: {
-  surveyId: string; surveyTitle: string; invites: SurveyInvite[]; setInvites: (v: SurveyInvite[]) => void; linkFor: (t: string) => string;
+function InviteSection({ surveyId, surveyTitle, openToken, invites, setInvites, linkFor }: {
+  surveyId: string; surveyTitle: string; openToken: string | null; invites: SurveyInvite[]; setInvites: (v: SurveyInvite[]) => void; linkFor: (t: string) => string;
 }) {
   const [term, setTerm] = useState("");
   const [results, setResults] = useState<Picked[]>([]);
@@ -463,7 +463,7 @@ No emails yet — review the list, then press Send invites.`)) return;
   const [invOpen, setInvOpen] = useState(false);
   const [invFilter, setInvFilter] = useState<string>("");
   const [invSearch, setInvSearch] = useState("");
-  const unsent = invites.filter((i) => !i.emailed && i.contactEmail).length;
+  const unsent = invites.filter((i) => !i.emailed && i.contactEmail && i.source !== "open_link").length;
   async function sendAll() {
     if (!unsent || sending) return;
     if (!confirm(`Email the invite to ${unsent} ${unsent === 1 ? "person" : "people"} who haven't received it yet?`)) return;
@@ -576,6 +576,19 @@ Same invite email under the subject "${remSubject.trim() || `Quick reminder 🤙
           <iframe title="Invite email preview" src={`/api/admin/surveys/${surveyId}/email-preview`} sandbox="" className="w-full h-[560px] bg-white" />
         </div>
       )}
+      {openToken && (
+        <div className="mt-3 rounded-xl border border-[#d3e9ef] bg-[#f4fafc] px-3.5 py-2.5">
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="shrink-0 text-[11px] font-black uppercase tracking-[0.1em] text-[#0aa3c7]">🔗 Open link</span>
+            <code className="min-w-0 flex-1 truncate text-[12px] text-[#3a4a50]">{linkFor(openToken)}</code>
+            <button onClick={() => copy(linkFor(openToken), "open-link")}
+              className="shrink-0 rounded-full border border-[#0aa3c7] text-[#0aa3c7] text-[12px] font-bold px-3 py-1 hover:bg-[#eaf7fb] transition-colors">
+              {copied === "open-link" ? "Copied!" : "Copy"}
+            </button>
+          </div>
+          <p className="text-[11.5px] text-[#7a8f97] mt-1">Share it anywhere (WhatsApp, forums, …) — people leave their name + email, get their own personal link, and appear in the list below automatically.</p>
+        </div>
+      )}
       <div className="relative mt-2">
         <input className="w-full rounded-lg border border-[#d8e3e6] bg-white text-[#0a2a33] placeholder:text-[#9aa6ac] px-3 py-2 text-[14px] outline-none focus:border-[#0aa3c7]" value={term} onChange={(e) => search(e.target.value)} placeholder="Search members by name or email…" />
         {results.length > 0 && (
@@ -661,9 +674,9 @@ Same invite email under the subject "${remSubject.trim() || `Quick reminder 🤙
             <div key={i.id} className="flex items-center gap-2.5 text-[13.5px]">
               <span className="min-w-0 flex-1 truncate text-[#00374a] font-semibold">{i.contactName || "Member"}</span>
               <span className={`shrink-0 text-[10.5px] font-bold uppercase tracking-wide px-2 py-0.5 rounded-full ${STATUS[i.status]}`}>{i.status}</span>
-              <span className={`shrink-0 text-[11px] font-bold ${i.emailEvent === "bounced" || i.emailEvent === "complained" ? "text-[#c0392b]" : i.emailOpenedAt ? "text-[#0f6e56]" : i.emailed ? "text-[#6a7a80]" : "text-[#c9bda5]"}`}
-                title={i.emailEvent === "bounced" ? "The invite email BOUNCED — wrong address?" : i.emailEvent === "complained" ? "Marked as spam" : i.emailOpenedAt ? `They opened the email (${new Date(i.emailOpenedAt).toLocaleString("en-GB", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })})` : i.emailed ? "Delivered — not opened yet (tracking runs since 14 Jul)" : "No email sent yet — use Send invites"}>
-                {i.emailEvent === "bounced" ? "✉ bounced" : i.emailEvent === "complained" ? "✉ spam" : i.emailOpenedAt ? "✉ opened" : i.emailed ? "✉ sent" : "✉ not sent"}</span>
+              <span className={`shrink-0 text-[11px] font-bold ${i.emailEvent === "bounced" || i.emailEvent === "complained" ? "text-[#c0392b]" : i.emailOpenedAt ? "text-[#0f6e56]" : i.emailed ? "text-[#6a7a80]" : i.source === "open_link" ? "text-[#0aa3c7]" : "text-[#c9bda5]"}`}
+                title={i.emailEvent === "bounced" ? "The invite email BOUNCED — wrong address?" : i.emailEvent === "complained" ? "Marked as spam" : i.emailOpenedAt ? `They opened the email (${new Date(i.emailOpenedAt).toLocaleString("en-GB", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })})` : i.emailed ? "Delivered — not opened yet (tracking runs since 14 Jul)" : i.source === "open_link" ? "Joined themselves via the open link — no invite email needed" : "No email sent yet — use Send invites"}>
+                {i.emailEvent === "bounced" ? "✉ bounced" : i.emailEvent === "complained" ? "✉ spam" : i.emailOpenedAt ? "✉ opened" : i.emailed ? "✉ sent" : i.source === "open_link" ? "🔗 self-joined" : "✉ not sent"}</span>
               {i.remindedAt && (
                 <span className="shrink-0 text-[11px] font-bold text-[#b0791e]"
                   title={`Reminder sent ${new Date(i.remindedAt).toLocaleString("en-GB", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })}`}>↻</span>

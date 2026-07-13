@@ -13,7 +13,8 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
   const origin = new URL(request.url).origin;
 
   const invites = await listInvites(id);
-  const pending = invites.filter((i) => !i.emailed && i.contactEmail);
+  // open-link joiners invited themselves — never blast them the invite email
+  const pending = invites.filter((i) => !i.emailed && i.contactEmail && i.source !== "open_link");
   let sent = 0, skipped = 0, failed = 0;
   for (const inv of pending) {
     const r = await sendSurveyInviteEmail(inv.id, `${origin}/survey/${inv.token}`);

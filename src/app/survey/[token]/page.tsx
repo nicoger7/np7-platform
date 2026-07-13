@@ -1,10 +1,11 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
-import { getSurveyForToken, getSurvey, submitResponse } from "@/lib/surveys";
+import { getSurveyForToken, getSurvey, getSurveyByOpenToken, submitResponse } from "@/lib/surveys";
 import { getPortalUser, getTeamMember } from "@/lib/auth";
 import { SurveyForm } from "@/components/portal/survey-form";
 import { SurveyQuick } from "@/components/portal/survey-quick";
+import { SurveyJoin } from "@/components/portal/survey-join";
 import { satImage } from "@/lib/satellite";
 
 type Props = { params: Promise<{ token: string }>; searchParams: Promise<{ pick?: string; saved?: string }> };
@@ -21,6 +22,9 @@ export default async function SurveyPage({ params, searchParams }: Props) {
   const isPreview = token.startsWith(PREVIEW_PREFIX);
 
   let survey, contactName: string | null = null, response = null;
+  // The shareable OPEN link: same page, but the visitor introduces themselves
+  // first (name + email → their own personal invite link).
+  let isOpenLink = false;
   if (isPreview) {
     // Admin/team preview: render the final survey from its id, no invite needed.
     const team = await getTeamMember().catch(() => null);
@@ -29,15 +33,20 @@ export default async function SurveyPage({ params, searchParams }: Props) {
     if (!survey) notFound();
   } else {
     const data = await getSurveyForToken(token);
-    if (!data) notFound();
-    ({ survey, contactName, response } = data);
+    if (data) {
+      ({ survey, contactName, response } = data);
+    } else {
+      survey = await getSurveyByOpenToken(token);
+      if (!survey) notFound();
+      isOpenLink = true;
+    }
   }
 
   // One-click registration (quick surveys): the email button's link carries the
   // answer — save it BEFORE first paint, then bounce to a clean URL so a refresh
   // can't re-save and the page opens already in the "you're in" state.
   // (any survey with dated trips can carry one-tap email buttons — not just quick)
-  if (!isPreview && pick && survey.status === "open" && response !== undefined) {
+  if (!isPreview && !isOpenLink && pick && survey.status === "open" && response !== undefined) {
     const valid = new Set(survey.destinations.map((d) => d.key));
     const existingPicks = response?.other_destinations ?? [];
     if (pick === "none") {
@@ -99,6 +108,8 @@ export default async function SurveyPage({ params, searchParams }: Props) {
             <h2 className="text-[19px] font-black text-[#00374a]">This invitation has closed</h2>
             <p className="text-[14px] text-[#6a7a80] mt-2">Thanks for your interest — keep an eye on your inbox for what&apos;s next. 🌊</p>
           </div>
+        ) : isOpenLink ? (
+          <SurveyJoin openToken={token} />
         ) : (
           <>
             {survey.quick

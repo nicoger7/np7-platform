@@ -54,6 +54,9 @@ export type Survey = {
   email_date_buttons: boolean;
   /** Text of the single "open the survey" email button (email_date_buttons off). null = "Take the 2-minute survey". */
   email_button_label: string | null;
+  /** Shareable "open link" token (/survey/<open_token>): anyone with it joins by
+   *  leaving name + email and gets their own personal invite. */
+  open_token: string | null;
   created_at: string;
   archived_at: string | null;
 };
@@ -93,7 +96,16 @@ export type SurveyInvite = {
   emailEvent?: string | null;
   /** When the "Remind non-responders" round re-mailed them (one per invite). */
   remindedAt?: string | null;
+  /** null/'admin' = hand-picked; 'open_link' = self-registered via the shared link. */
+  source?: string | null;
 };
+
+/** Shareable open-link token, `join-` + 14 hex — visibly NOT a personal link. */
+export function generateOpenToken(): string {
+  let hex = "";
+  while (hex.length < 14) hex += Math.random().toString(16).slice(2);
+  return `join-${hex.slice(0, 14)}`;
+}
 
 /** Readable, hard-to-guess token like `nico-3f9a2b`. */
 export function generateSurveyToken(firstName?: string): string {
@@ -123,6 +135,7 @@ function rowToSurvey(r: Record<string, unknown>): Survey {
     ask_wishes: r.ask_wishes !== false,
     email_date_buttons: r.email_date_buttons !== false,
     email_button_label: (r.email_button_label as string | null) ?? null,
+    open_token: (r.open_token as string | null) ?? null,
     created_at: String(r.created_at ?? ""),
     archived_at: (r.archived_at as string | null) ?? null,
   };
@@ -176,6 +189,7 @@ export async function createSurvey(input: Partial<Survey>): Promise<Survey | nul
     budget_min: input.budget_min ?? 1000,
     budget_max: input.budget_max ?? 8000,
     currency: input.currency ?? "EUR",
+    open_token: generateOpenToken(),
   }).select("*").single();
   return data ? rowToSurvey(data) : null;
 }
@@ -232,6 +246,7 @@ export async function listInvites(surveyId: string): Promise<SurveyInvite[]> {
       emailOpenedAt: mailFor(r.id).openedAt,
       emailEvent: mailFor(r.id).event,
       remindedAt: (r.reminded_at as string | null) ?? null,
+      source: (r.source as string | null) ?? null,
       response: rById.get(String(r.id)) ?? null,
     };
   });
@@ -282,6 +297,52 @@ export async function addInvites(surveyId: string, contactIds: string[]): Promis
 
 export async function removeInvite(inviteId: string): Promise<void> {
   await db().from("exp_survey_invites").delete().eq("id", inviteId);
+}
+
+/** Open-link lookup: the survey behind a shareable `join-…` token. */
+export async function getSurveyByOpenToken(token: string): Promise<Survey | null> {
+  if (!token.startsWith("join-")) return null;
+  const { data } = await db().from("exp_surveys").select("*").eq("open_token", token).is("archived_at", null).maybeSingle();
+  return data ? rowToSurvey(data) : null;
+}
+
+/** Someone arrived via the open link and left name + email: find-or-create the
+ *  contact, find-or-create their invite, hand back their PERSONAL token — so
+ *  the same email always resumes its own saved answer, never a duplicate. */
+export async function joinSurveyByOpenToken(openToken: string, nameRaw: string, emailRaw: string): Promise<{ token: string } | { error: string }> {
+  const survey = await getSurveyByOpenToken(openToken);
+  if (!survey) return { error: "This link is no longer valid." };
+  if (survey.status === "closed") return { error: "This invitation has closed." };
+  const name = nameRaw.trim().replace(/\s+/g, " ").slice(0, 80);
+  const email = emailRaw.trim().toLowerCase().slice(0, 120);
+  if (!name) return { error: "Please tell us your name." };
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(email)) return { error: "That email address doesn't look right." };
+
+  const sb = db();
+  // Find the contact case-insensitively (escape ilike wildcards — emails may
+  // legally contain _). Checks the secondary address too, so a member who
+  // signed up under their other email doesn't get duplicated.
+  const pattern = email.replace(/[%_]/g, (m) => `\\${m}`);
+  let contactId: string | null = null;
+  for (const col of ["email", "email2"] as const) {
+    if (contactId) break;
+    const { data } = await sb.from("contacts").select("id").ilike(col, pattern).is("archived_at", null).limit(1);
+    contactId = data?.[0]?.id ?? null;
+  }
+  if (!contactId) {
+    const { data: created, error } = await sb.from("contacts").insert({ name, email, source: "survey_open_link" }).select("id").single();
+    if (error || !created) return { error: "Something went wrong — please try again." };
+    contactId = String(created.id);
+  }
+
+  const { data: existing } = await sb.from("exp_survey_invites").select("token").eq("survey_id", survey.id).eq("contact_id", contactId).maybeSingle();
+  if (existing?.token) return { token: String(existing.token) };
+  const { data: inv, error: invErr } = await sb.from("exp_survey_invites").insert({
+    survey_id: survey.id, contact_id: contactId,
+    token: generateSurveyToken(name.split(/\s+/)[0]), source: "open_link",
+  }).select("token").single();
+  if (invErr || !inv) return { error: "Something went wrong — please try again." };
+  return { token: String(inv.token) };
 }
 
 /** The member form's data for a token: the survey, who they are, and any
