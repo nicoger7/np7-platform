@@ -91,6 +91,8 @@ export type SurveyInvite = {
   emailOpenedAt?: string | null;
   /** Latest delivery event: delivered / opened / bounced / complained. */
   emailEvent?: string | null;
+  /** When the "Remind non-responders" round re-mailed them (one per invite). */
+  remindedAt?: string | null;
 };
 
 /** Readable, hard-to-guess token like `nico-3f9a2b`. */
@@ -202,11 +204,21 @@ export async function listInvites(surveyId: string): Promise<SurveyInvite[]> {
     sb.from("contacts").select("id,name,email").in("id", contactIds),
     sb.from("exp_survey_responses").select("*").eq("survey_id", surveyId),
     sb.from("email_log").select("dedupe_key, opened_at, last_event").eq("template_key", "survey_invite").eq("status", "sent")
-      .in("dedupe_key", rows.map((r) => `survey_invite:${r.id}`)),
+      .in("dedupe_key", rows.flatMap((r) => [`survey_invite:${r.id}`, `survey_remind:${r.id}`])),
   ]);
   const sendRows = (sends ?? []) as { dedupe_key: string | null; opened_at?: string | null; last_event?: string | null }[];
   const sentKeys = new Set(sendRows.map((x) => x.dedupe_key));
   const sendByKey = new Map(sendRows.map((x) => [x.dedupe_key, x]));
+  // ✉ badge merges invite + reminder sends: an open of EITHER counts, and a
+  // bounce/spam on either screams (same address — the signal is per person).
+  const mailFor = (inviteId: unknown) => {
+    const a = sendByKey.get(`survey_invite:${inviteId}`), b = sendByKey.get(`survey_remind:${inviteId}`);
+    const bad = [a, b].find((x) => x?.last_event === "bounced" || x?.last_event === "complained");
+    return {
+      openedAt: a?.opened_at ?? b?.opened_at ?? null,
+      event: bad?.last_event ?? ((a?.opened_at || b?.opened_at) ? "opened" : (a?.last_event ?? b?.last_event ?? null)),
+    };
+  };
   const cById = new Map<string, Record<string, unknown>>(((contacts ?? []) as Record<string, unknown>[]).map((c) => [String(c.id), c]));
   const rById = new Map<string, SurveyResponse>(((responses ?? []) as Record<string, unknown>[]).map((r) => [String(r.invite_id), rowToResponse(r)]));
   return rows.map((r) => {
@@ -217,8 +229,9 @@ export async function listInvites(surveyId: string): Promise<SurveyInvite[]> {
       invited_at: String(r.invited_at ?? ""), opened_at: (r.opened_at as string | null) ?? null,
       contactName: (c?.name as string | null) ?? null, contactEmail: (c?.email as string | null) ?? null,
       emailed: sentKeys.has(`survey_invite:${r.id}`),
-      emailOpenedAt: sendByKey.get(`survey_invite:${r.id}`)?.opened_at ?? null,
-      emailEvent: sendByKey.get(`survey_invite:${r.id}`)?.last_event ?? null,
+      emailOpenedAt: mailFor(r.id).openedAt,
+      emailEvent: mailFor(r.id).event,
+      remindedAt: (r.reminded_at as string | null) ?? null,
       response: rById.get(String(r.id)) ?? null,
     };
   });
@@ -395,5 +408,32 @@ export async function sendSurveyInviteEmail(inviteId: string, url: string): Prom
     // soft launch too, like every other manual send
     manual: true,
   });
+  return res.status;
+}
+
+/** Re-send the invite email as a REMINDER (fresh subject, same body + one-tap
+ *  buttons). One per invite — the dedupe key makes a second press a no-op —
+ *  and marks the invite reminded_at so the admin list shows the round. */
+export async function sendSurveyReminderEmail(inviteId: string, url: string, subject?: string): Promise<"sent" | "skipped" | "failed"> {
+  const sb = db();
+  const { data: inv } = await sb.from("exp_survey_invites").select("*").eq("id", inviteId).maybeSingle();
+  if (!inv) return "failed";
+  const [{ data: contact }, survey] = await Promise.all([
+    sb.from("contacts").select("name,email").eq("id", inv.contact_id).maybeSingle(),
+    getSurvey(String(inv.survey_id)),
+  ]);
+  if (!contact?.email) return "skipped";
+  const vars = surveyInviteVars(survey, contact.name as string | null, url);
+  const res = await sendEmail({
+    to: contact.email,
+    templateKey: "survey_invite",
+    vars,
+    dedupeKey: `survey_remind:${inviteId}`,
+    subjectOverride: subject?.trim() || `Quick reminder 🤙 — ${survey?.title ?? "your NP7 invite"}`,
+    manual: true,
+  });
+  if (res.status === "sent") {
+    await sb.from("exp_survey_invites").update({ reminded_at: new Date().toISOString() }).eq("id", inviteId);
+  }
   return res.status;
 }

@@ -31,6 +31,9 @@ type SendArgs = {
    *  reminder) — bypasses the lifecycle soft-launch hold, which only guards
    *  AUTOMATED sends against half-migrated data. */
   manual?: boolean;
+  /** Replaces the template's subject line (body untouched) — e.g. a survey
+   *  reminder re-sends the same email under a fresh subject. */
+  subjectOverride?: string;
 };
 
 type SendResult = { status: "sent" | "failed" | "skipped"; id?: string; error?: string };
@@ -114,7 +117,7 @@ export async function sendEmail(args: SendArgs): Promise<SendResult> {
   let html = "";
   try {
     const built = renderTemplate(templateKey, vars, useOverride, division, headerImage, headerPosition);
-    subject = built.subject;
+    subject = args.subjectOverride?.trim() || built.subject;
     html = built.html;
   } catch (e) {
     return { status: "failed", error: (e as Error).message };

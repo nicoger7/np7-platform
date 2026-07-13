@@ -363,7 +363,7 @@ export function SurveyAdmin({ initialSurvey, initialInvites }: { initialSurvey: 
         </div>
       </div>
 
-      <InviteSection surveyId={s.id} invites={invites} setInvites={setInvites} linkFor={linkFor} />
+      <InviteSection surveyId={s.id} surveyTitle={s.title} invites={invites} setInvites={setInvites} linkFor={linkFor} />
 
       <ResponsesSection survey={s} invites={invites} fmtMoney={fmtMoney} />
 
@@ -376,8 +376,8 @@ export function SurveyAdmin({ initialSurvey, initialInvites }: { initialSurvey: 
 
 // ---------------- invites ----------------
 type Picked = { id: string; name: string };
-function InviteSection({ surveyId, invites, setInvites, linkFor }: {
-  surveyId: string; invites: SurveyInvite[]; setInvites: (v: SurveyInvite[]) => void; linkFor: (t: string) => string;
+function InviteSection({ surveyId, surveyTitle, invites, setInvites, linkFor }: {
+  surveyId: string; surveyTitle: string; invites: SurveyInvite[]; setInvites: (v: SurveyInvite[]) => void; linkFor: (t: string) => string;
 }) {
   const [term, setTerm] = useState("");
   const [results, setResults] = useState<Picked[]>([]);
@@ -478,6 +478,37 @@ No emails yet — review the list, then press Send invites.`)) return;
     } finally { setSending(false); }
   }
 
+  // Remind non-responders: got the mail, silent, address not bouncing, not
+  // reminded before. Split warm/cold on the open pixel where we have it.
+  const remindable = invites.filter((i) =>
+    i.emailed && i.contactEmail && !i.response && i.status !== "completed" &&
+    i.emailEvent !== "bounced" && i.emailEvent !== "complained" && !i.remindedAt);
+  const remOpened = remindable.filter((i) => i.emailOpenedAt).length;
+  const [remindOpen, setRemindOpen] = useState(false);
+  const [remTarget, setRemTarget] = useState<"all" | "opened" | "unopened">("all");
+  const [remSubject, setRemSubject] = useState("");
+  const [reminding, setReminding] = useState(false);
+  const remCount = remTarget === "all" ? remindable.length : remTarget === "opened" ? remOpened : remindable.length - remOpened;
+  async function sendReminders() {
+    if (!remCount || reminding) return;
+    if (!confirm(`Send the reminder to ${remCount} ${remCount === 1 ? "person" : "people"}?
+
+Same invite email under the subject "${remSubject.trim() || `Quick reminder 🤙 — ${surveyTitle}`}". Each person gets at most ONE reminder — ever.`)) return;
+    setReminding(true); setSendMsg("");
+    try {
+      const res = await fetch(`/api/admin/surveys/${surveyId}/invites/remind`, {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ target: remTarget, subject: remSubject.trim() || undefined }),
+      });
+      const j = await res.json().catch(() => ({}));
+      if (!res.ok) { setSendMsg(j.error || "Couldn't send reminders."); return; }
+      setSendMsg(`Reminded ${j.sent}${j.failed ? ` · ${j.failed} failed` : ""} 🤙`);
+      setRemindOpen(false);
+      const list = await fetch(`/api/admin/surveys/${surveyId}/invites`).then((r) => r.json()).catch(() => null);
+      if (list?.invites) setInvites(list.invites);
+    } finally { setReminding(false); }
+  }
+
   async function remove(inviteId: string) {
     await fetch(`/api/admin/surveys/${surveyId}/invites?inviteId=${inviteId}`, { method: "DELETE" });
     setInvites(invites.filter((i) => i.id !== inviteId));
@@ -500,6 +531,12 @@ No emails yet — review the list, then press Send invites.`)) return;
         {invites.length > 0 && (
           <div className="flex items-center gap-2.5">
             {sendMsg && <span className="text-[12px] font-semibold text-[#0f6e56]">{sendMsg}</span>}
+            {remindable.length > 0 && (
+              <button onClick={() => setRemindOpen((v) => !v)}
+                className={`rounded-full border text-[12.5px] font-bold px-4 py-1.5 transition-colors ${remindOpen ? "border-[#b0791e] bg-[#fff3df] text-[#9a6b16]" : "border-[#e3cfa4] text-[#b0791e] hover:bg-[#fff8ec]"}`}>
+                ↻ Remind non-responders ({remindable.length})
+              </button>
+            )}
             {unsent > 0 ? (
               <button onClick={sendAll} disabled={sending}
                 className="rounded-full bg-[#0aa3c7] hover:bg-[#0891b2] text-white text-[12.5px] font-bold px-4 py-1.5 disabled:opacity-60 transition-colors">
@@ -512,6 +549,27 @@ No emails yet — review the list, then press Send invites.`)) return;
         )}
         </div>
       </div>
+      {remindOpen && (
+        <div className="mt-3 rounded-xl border border-[#e3cfa4] bg-[#fffbf2] p-4">
+          <p className="text-[12px] font-black uppercase tracking-[0.1em] text-[#b0791e]">Remind non-responders</p>
+          <p className="text-[12.5px] text-[#8a7a58] mt-1">Re-sends the same invite email (one-tap buttons included) under a fresh subject. Skips everyone who answered, bounced, or was already reminded — <b>max one reminder per person</b>.</p>
+          <div className="flex flex-wrap items-center gap-1.5 mt-3">
+            {([["all", `Everyone silent (${remindable.length})`], ["opened", `✉ Opened, no answer (${remOpened})`], ["unopened", `Never opened (${remindable.length - remOpened})`]] as const).map(([v, lbl]) => (
+              <button key={v} onClick={() => setRemTarget(v)}
+                className={`px-2.5 py-1 rounded-full text-[11.5px] font-bold transition-colors ${remTarget === v ? "bg-[#b0791e] text-white" : "bg-[#f7efdd] text-[#8a7a58] hover:bg-[#f0e3c6]"}`}>{lbl}</button>
+            ))}
+          </div>
+          {remOpened === 0 && <p className="text-[11.5px] text-[#a99a76] mt-1.5">Open tracking only runs for emails sent since 14 Jul — earlier sends all count as “never opened”.</p>}
+          <div className="flex flex-wrap items-center gap-2 mt-3">
+            <input value={remSubject} onChange={(e) => setRemSubject(e.target.value)} placeholder={`Quick reminder 🤙 — ${surveyTitle}`}
+              className="flex-1 min-w-[240px] rounded-lg border border-[#e3cfa4] bg-white text-[#0a2a33] placeholder:text-[#c2b28c] px-3 py-2 text-[13.5px] outline-none focus:border-[#b0791e]" />
+            <button onClick={sendReminders} disabled={!remCount || reminding}
+              className="rounded-full bg-[#b0791e] hover:bg-[#9a6b16] text-white text-[12.5px] font-bold px-4 py-2 disabled:opacity-40 transition-colors">
+              {reminding ? "Sending…" : `Send reminder (${remCount})`}
+            </button>
+          </div>
+        </div>
+      )}
       {showMail && (
         <div className="mt-3 rounded-xl border border-[#e7ddcb] overflow-hidden bg-white">
           <div className="px-3 py-1.5 text-[11px] text-[#9aa6ac] border-b border-[#efe8d8]">Exactly what recipients get — built from the <b>last saved</b> survey (save first if you just changed something). Buttons link to your team preview.</div>
@@ -606,6 +664,10 @@ No emails yet — review the list, then press Send invites.`)) return;
               <span className={`shrink-0 text-[11px] font-bold ${i.emailEvent === "bounced" || i.emailEvent === "complained" ? "text-[#c0392b]" : i.emailOpenedAt ? "text-[#0f6e56]" : i.emailed ? "text-[#6a7a80]" : "text-[#c9bda5]"}`}
                 title={i.emailEvent === "bounced" ? "The invite email BOUNCED — wrong address?" : i.emailEvent === "complained" ? "Marked as spam" : i.emailOpenedAt ? `They opened the email (${new Date(i.emailOpenedAt).toLocaleString("en-GB", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })})` : i.emailed ? "Delivered — not opened yet (tracking runs since 14 Jul)" : "No email sent yet — use Send invites"}>
                 {i.emailEvent === "bounced" ? "✉ bounced" : i.emailEvent === "complained" ? "✉ spam" : i.emailOpenedAt ? "✉ opened" : i.emailed ? "✉ sent" : "✉ not sent"}</span>
+              {i.remindedAt && (
+                <span className="shrink-0 text-[11px] font-bold text-[#b0791e]"
+                  title={`Reminder sent ${new Date(i.remindedAt).toLocaleString("en-GB", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })}`}>↻</span>
+              )}
               <button onClick={() => copy(linkFor(i.token), i.id)} className="shrink-0 text-[12px] font-bold text-[#0aa3c7]">{copied === i.id ? "Copied!" : "Copy link"}</button>
               <button onClick={() => remove(i.id)} className="shrink-0 text-[12px] font-bold text-[#b6c2c7] hover:text-[#c0392b]">Remove</button>
             </div>
