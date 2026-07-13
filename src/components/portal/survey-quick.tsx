@@ -105,9 +105,28 @@ export function SurveyQuick({ survey, token, existing, preview = false, justSave
         )}
       </div>
 
-      {/* the date cards — THE question */}
+      {/* the date cards — THE question. Grouped by place so each place's blurb
+          (written in the survey admin) introduces its dates. */}
       <div className="space-y-3">
-        {dated.map((d) => {
+        {(() => {
+          const groups: { id: string; label: string; blurb: string | null; rows: typeof dated }[] = [];
+          for (const d of dated) {
+            const gid = d.groupId ?? d.key;
+            let g = groups.find((x) => x.id === gid);
+            if (!g) { g = { id: gid, label: d.label, blurb: null, rows: [] }; groups.push(g); }
+            if (!g.blurb && d.blurb) g.blurb = d.blurb;
+            g.rows.push(d);
+          }
+          const multi = groups.length > 1;
+          return groups.map((g) => (
+            <div key={g.id} className="space-y-3">
+              {(g.blurb || multi) && (
+                <div className={multi ? "pt-2" : ""}>
+                  {multi && <p className="text-[13px] font-black uppercase tracking-[0.12em] text-[#b0791e]">{g.label}</p>}
+                  {g.blurb && <p className="text-[14px] text-[#6a7a80] leading-relaxed mt-1 max-w-[560px] mx-auto text-center">{g.blurb}</p>}
+                </div>
+              )}
+              {g.rows.map((d) => {
           const on = picks.has(d.key);
           return (
             <button key={d.key} type="button" onClick={() => toggle(d.key)}
@@ -124,7 +143,10 @@ export function SurveyQuick({ survey, token, existing, preview = false, justSave
               </span>
             </button>
           );
-        })}
+              })}
+            </div>
+          ));
+        })()}
       </div>
 
       {/* the honest out — optional per survey */}
