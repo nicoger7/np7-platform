@@ -9,9 +9,11 @@ export function bookingStatus(b: Pick<MemberBooking, "status" | "downpayment_rec
   const s = normalizeBookingStatus(b.status);
   if (s === "attended") return { label: "Completed", tone: "gray" };
   if (b.final_payment_received || s === "paid") return { label: "Fully paid", tone: "green" };
-  if (b.downpayment_received || s === "confirmed") return { label: "Deposit paid · balance open", tone: "blue" };
+  // deposit-neutral: most packages have NO deposit (explicit 0) — never claim
+  // one was paid. "Spot secured" is true in both configs.
+  if (b.downpayment_received || s === "confirmed") return { label: "Spot secured · balance open", tone: "blue" };
   if (s === "lost") return { label: "Cancelled", tone: "gray" };
-  if (s === "reserved") return { label: "Deposit pending", tone: "amber" };
+  if (s === "reserved") return { label: "Payment pending", tone: "amber" };
   return { label: "Spot not secured yet", tone: "amber" }; // lead
 }
 

@@ -95,7 +95,28 @@ export async function sendMemberMagicLink(opts: {
   const admin = createAdminClient();
   const email = opts.email.trim().toLowerCase();
   const userId = await findAuthUserByEmail(email);
-  if (!userId) return { sent: false }; // no account — caller still answers generically
+
+  if (!userId) {
+    // No account yet — but if this email belongs to a contact WITH a booking
+    // (e.g. an admin-created booking whose pro-forma email links the portal),
+    // activate the account on the spot: email ownership is proven by receiving
+    // the link, so this is exactly as safe as a normal magic-link login.
+    // Newsletter-only contacts stay account-less; caller answers generically.
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const db = admin as any;
+    const { data: contacts } = await db.from("contacts").select("id").ilike("email", email).is("archived_at", null).limit(3);
+    let bookingContact: string | null = null;
+    for (const c of (contacts ?? []) as { id: string }[]) {
+      const { count } = await db.from("exp_bookings").select("id", { count: "exact", head: true }).eq("contact_id", c.id);
+      if (count) { bookingContact = c.id; break; }
+    }
+    if (!bookingContact) return { sent: false };
+    const acct = await ensureMemberAccount({ contactId: bookingContact, email, origin: opts.origin, next: opts.next });
+    if ("error" in acct) return { sent: false };
+    const vars: EmailVars = { firstName: opts.firstName, activationLink: acct.link };
+    await sendEmail({ to: email, templateKey: "account_magic_link", vars, contactId: bookingContact });
+    return { sent: true };
+  }
 
   const { data: linkData, error } = await admin.auth.admin.generateLink({ type: "magiclink", email });
   const tokenHash = linkData?.properties?.hashed_token;

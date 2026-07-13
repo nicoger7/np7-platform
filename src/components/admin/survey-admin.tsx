@@ -38,7 +38,7 @@ export function SurveyAdmin({ initialSurvey, initialInvites }: { initialSurvey: 
         body: JSON.stringify({
           title: s.title, intro: s.intro, status: s.status, destinations: s.destinations, weeks: s.weeks,
           budget_anchor: s.budget_anchor, budget_min: s.budget_min, budget_max: s.budget_max, currency: s.currency,
-          quick: s.quick, eyebrow: s.eyebrow, cta_label: s.cta_label, decline_label: s.decline_label, show_decline: s.show_decline,
+          quick: s.quick, eyebrow: s.eyebrow, cta_label: s.cta_label, decline_label: s.decline_label, show_decline: s.show_decline, email_body: s.email_body,
         }),
       });
       if (res.ok) { setSavedAt(new Date().toLocaleTimeString()); router.refresh(); }
@@ -160,6 +160,10 @@ export function SurveyAdmin({ initialSurvey, initialInvites }: { initialSurvey: 
           <span className={lbl}>Intro (shown on the form + email)</span>
           <textarea className={`${input} mt-1 min-h-[70px] resize-y`} value={s.intro ?? ""} onChange={(e) => patch({ intro: e.target.value })} placeholder="e.g. I'm cooking up a small, special trip for a handful of riders…" />
         </label>
+        <label className="block mb-3">
+          <span className={lbl}>Invite email text <span className="font-normal normal-case opacity-70">— replaces the standard pitch between the greeting and the buttons; greeting, buttons, opt-out &amp; sign-off stay. Empty = built-in copy. Check it with ✉ Preview email below.</span></span>
+          <textarea className={`${input} mt-1 min-h-[90px] resize-y`} value={s.email_body ?? ""} onChange={(e) => patch({ email_body: e.target.value || null })} placeholder={"I'm putting together " + (s.title || "this trip") + " and you're on my shortlist. Just tell me if you'd be in — one tap on a date below is all it takes."} />
+        </label>
         <div>
           <span className={lbl}>Status</span>
           <div className="flex gap-1.5 mt-1.5">
@@ -180,8 +184,8 @@ export function SurveyAdmin({ initialSurvey, initialInvites }: { initialSurvey: 
         {s.quick && (
           <div className="mt-3 ml-6 grid grid-cols-1 sm:grid-cols-2 gap-3">
             <label className="block">
-              <span className={lbl}>Join button <span className="font-normal normal-case opacity-70">— page cards + email buttons</span></span>
-              <input className={`${input} mt-1`} value={s.cta_label ?? ""} onChange={(e) => patch({ cta_label: e.target.value || null })} placeholder="Count me in" />
+              <span className={lbl}>Join button <span className="font-normal normal-case opacity-70">— page cards + email buttons · empty = just the date</span></span>
+              <input className={`${input} mt-1`} value={s.cta_label ?? ""} onChange={(e) => patch({ cta_label: e.target.value || null })} placeholder="(none — the date stands alone)" />
             </label>
             <label className="block">
               <span className={lbl}>Decline button</span>

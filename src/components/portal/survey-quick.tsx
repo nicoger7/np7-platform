@@ -139,7 +139,10 @@ export function SurveyQuick({ survey, token, existing, preview = false, justSave
                   <span className="block text-[17px] sm:text-[19px] font-black tracking-[-0.01em] text-[#00374a]">{fmtRange(d.start, d.end)}</span>
                   <span className="block text-[13px] text-[#8a7a58] mt-0.5">{[d.label, d.location].filter(Boolean).join(" · ") || survey.title}</span>
                 </span>
-                <span className={`shrink-0 hidden sm:inline text-[12.5px] font-black uppercase tracking-wide ${on ? "text-[#1f9e57]" : "text-[#c9bda5] group-hover:text-[#f0a500]"}`}>{on ? "I'm in 🤙" : (survey.cta_label?.trim() || "Count me in")}</span>
+                {/* interest, not commitment — and an empty CTA means the date stands alone */}
+                {(on || survey.cta_label?.trim()) && (
+                  <span className={`shrink-0 hidden sm:inline text-[12.5px] font-black uppercase tracking-wide ${on ? "text-[#1f9e57]" : "text-[#c9bda5] group-hover:text-[#f0a500]"}`}>{on ? "Interested 🤙" : survey.cta_label?.trim()}</span>
+                )}
               </span>
             </button>
           );

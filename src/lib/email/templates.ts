@@ -117,6 +117,11 @@ export const TEMPLATES: Record<string, (v: EmailVars, opts?: LayoutOpts) => Buil
     let quick: { label: string; url: string }[] = [];
     try { quick = v.quickChoices ? JSON.parse(v.quickChoices) : []; } catch { /* fall back to the classic button */ }
     const isQuick = quick.length > 0;
+    // Custom email text (survey admin) replaces the standard pitch + intro
+    // paragraphs — greeting, buttons, opt-out and sign-off stay.
+    const customBody = v.emailBody
+      ? v.emailBody.split(/\n+/).map((line) => p(esc(line))).join("")
+      : null;
     return {
       subject: isQuick
         ? `${v.surveyTitle ?? "A special NP7 trip"} — would you join? One tap 🤙`
@@ -126,14 +131,16 @@ export const TEMPLATES: Record<string, (v: EmailVars, opts?: LayoutOpts) => Buil
         preheader: isQuick ? `One tap answers it — no forms, no login.` : `A private invite to help plan a special NP7 trip — 2 minutes.`,
         bodyHtml: isQuick
           ? p(`Hey ${esc(v.firstName || "there")} 🤙`) +
-            p(`I'm putting together <strong>${esc(v.surveyTitle || "a special, invite-only trip")}</strong> and you're on my shortlist. Just tell me if you'd be in — <strong>one tap on a date below is all it takes</strong> (it registers instantly, and you can change it after).`) +
-            (v.surveyIntro ? p(`<em>${esc(v.surveyIntro)}</em>`) : "") +
+            (customBody ??
+              (p(`I'm putting together <strong>${esc(v.surveyTitle || "a special, invite-only trip")}</strong> and you're on my shortlist. Just tell me if you'd be in — <strong>one tap on a date below is all it takes</strong> (it registers instantly, and you can change it after).`) +
+              (v.surveyIntro ? p(`<em>${esc(v.surveyIntro)}</em>`) : ""))) +
             quick.map((ch) => emailButton(ch.label, ch.url)).join("") +
             (v.quickDeclineUrl ? p(`Not this time? No hard feelings — <a href="${esc(v.quickDeclineUrl)}" style="color:#b0791e;font-weight:bold;">tap here</a> and I'll stop asking. 🤙`) : "") +
             p(`This link is personal to you — no login, no commitment, just a show of hands.<br>— Nico`)
           : p(`Hey ${esc(v.firstName || "there")} 🤙`) +
-            p(`I'm putting together a <strong>special, invite-only trip</strong> and I'd love your input to help shape it — where, when, and what you'd want out of it.`) +
-            (v.surveyIntro ? p(`<em>${esc(v.surveyIntro)}</em>`) : "") +
+            (customBody ??
+              (p(`I'm putting together a <strong>special, invite-only trip</strong> and I'd love your input to help shape it — where, when, and what you'd want out of it.`) +
+              (v.surveyIntro ? p(`<em>${esc(v.surveyIntro)}</em>`) : ""))) +
             (v.surveyLink ? emailButton("Take the 2-minute survey", v.surveyLink) : "") +
             p(`This link is just for you — no need to log in. Thanks for helping me build something great.<br>— Nico`),
       }),

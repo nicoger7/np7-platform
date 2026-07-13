@@ -46,6 +46,8 @@ export type Survey = {
   decline_label: string | null;
   /** false = no opt-out button on the page, no decline link in the email. */
   show_decline: boolean;
+  /** Custom invite-email text (replaces the standard pitch paragraphs). null = built-in copy. */
+  email_body: string | null;
   created_at: string;
   archived_at: string | null;
 };
@@ -105,6 +107,7 @@ function rowToSurvey(r: Record<string, unknown>): Survey {
     cta_label: (r.cta_label as string | null) ?? null,
     decline_label: (r.decline_label as string | null) ?? null,
     show_decline: r.show_decline !== false,
+    email_body: (r.email_body as string | null) ?? null,
     created_at: String(r.created_at ?? ""),
     archived_at: (r.archived_at as string | null) ?? null,
   };
@@ -164,7 +167,7 @@ export async function createSurvey(input: Partial<Survey>): Promise<Survey | nul
 
 export async function updateSurvey(id: string, patch: Partial<Survey>): Promise<Survey | null> {
   const clean: Record<string, unknown> = { updated_at: new Date().toISOString() };
-  for (const k of ["title", "intro", "status", "destinations", "weeks", "budget_anchor", "budget_min", "budget_max", "currency", "quick", "eyebrow", "cta_label", "decline_label", "show_decline"] as const) {
+  for (const k of ["title", "intro", "status", "destinations", "weeks", "budget_anchor", "budget_min", "budget_max", "currency", "quick", "eyebrow", "cta_label", "decline_label", "show_decline", "email_body"] as const) {
     if (k in patch) clean[k] = patch[k];
   }
   const { data } = await db().from("exp_surveys").update(clean).eq("id", id).select("*").single();
@@ -329,15 +332,17 @@ export function surveyInviteVars(survey: Survey | null, contactName: string | nu
     surveyIntro: survey?.intro || "",
     surveyLink: url,
   };
+  if (survey?.email_body?.trim()) vars.emailBody = survey.email_body.trim();
   // Quick surveys: the email buttons carry the answer (one tap on a date link
   // pre-registers it; the page then confirms and lets them adjust).
   if (survey?.quick) {
     const fmt = (d: string) => new Date(d + "T00:00:00Z").toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric", timeZone: "UTC" });
     const range = (a?: string | null, b?: string | null) => a && b ? `${+a.slice(8, 10)}–${fmt(b)}` : fmt((a ?? b)!);
     const dated = survey.destinations.filter((d) => d.start || d.end);
-    const cta = (survey.cta_label ?? "").trim() || "I'd join";
+    // No default prefix: an empty CTA means the button is JUST the date.
+    const cta = (survey.cta_label ?? "").trim();
     vars.quickChoices = JSON.stringify(dated.map((d) => ({
-      label: `${cta} — ${range(d.start, d.end)}${dated.length > 1 && d.label ? ` (${d.label})` : ""}`,
+      label: `${cta ? `${cta} — ` : ""}${range(d.start, d.end)}${dated.length > 1 && d.label ? ` (${d.label})` : ""}`,
       url: `${url}?pick=${encodeURIComponent(d.key)}`,
     })));
     if (survey.show_decline) vars.quickDeclineUrl = `${url}?pick=none`;
