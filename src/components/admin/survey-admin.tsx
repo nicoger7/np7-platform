@@ -447,6 +447,9 @@ No emails yet — review the list, then press Send invites.`)) return;
   const [sending, setSending] = useState(false);
   const [sendMsg, setSendMsg] = useState("");
   const [showMail, setShowMail] = useState(false);
+  const [invOpen, setInvOpen] = useState(false);
+  const [invFilter, setInvFilter] = useState<"" | "invited" | "opened" | "completed">("");
+  const [invSearch, setInvSearch] = useState("");
   const unsent = invites.filter((i) => !i.emailed && i.contactEmail).length;
   async function sendAll() {
     if (!unsent || sending) return;
@@ -562,9 +565,27 @@ No emails yet — review the list, then press Send invites.`)) return;
         </div>
       )}
 
-      {invites.length > 0 && (
-        <div className="mt-4 border-t border-[#f0e6d6] pt-3 space-y-1.5">
-          {invites.map((i) => (
+      {invites.length > 0 && (() => {
+        // Long lists stay usable: status pills filter, the list folds past 12.
+        const counts = { invited: 0, opened: 0, completed: 0 } as Record<string, number>;
+        for (const i of invites) counts[i.status] = (counts[i.status] ?? 0) + 1;
+        const shown = invites.filter((i) =>
+          (!invFilter || i.status === invFilter) &&
+          (!invSearch.trim() || (i.contactName ?? "").toLowerCase().includes(invSearch.trim().toLowerCase())));
+        const list = invOpen ? shown : shown.slice(0, 12);
+        return (
+        <div className="mt-4 border-t border-[#f0e6d6] pt-3">
+          <div className="flex flex-wrap items-center gap-1.5 mb-2.5">
+            {([["", `All (${invites.length})`], ["invited", `Invited (${counts.invited ?? 0})`], ["opened", `Opened (${counts.opened ?? 0})`], ["completed", `Completed (${counts.completed ?? 0})`]] as const).map(([v, lbl]) => (
+              <button key={v} onClick={() => setInvFilter(v)} className={`px-2.5 py-1 rounded-full text-[11.5px] font-bold transition-colors ${invFilter === v ? "bg-[#0aa3c7] text-white" : "bg-[#f2f8f9] text-[#5a6b72] hover:bg-[#e2f0f3]"}`}>{lbl}</button>
+            ))}
+            {invites.length > 12 && (
+              <input value={invSearch} onChange={(e) => setInvSearch(e.target.value)} placeholder="Filter by name…"
+                className="ml-auto w-[160px] rounded-lg border border-[#e2e9ec] bg-white text-[#0a2a33] placeholder:text-[#9aa6ac] px-2.5 py-1 text-[12.5px] outline-none focus:border-[#0aa3c7]" />
+            )}
+          </div>
+          <div className="space-y-1.5">
+          {list.map((i) => (
             <div key={i.id} className="flex items-center gap-2.5 text-[13.5px]">
               <span className="min-w-0 flex-1 truncate text-[#00374a] font-semibold">{i.contactName || "Member"}</span>
               <span className={`shrink-0 text-[10.5px] font-bold uppercase tracking-wide px-2 py-0.5 rounded-full ${STATUS[i.status]}`}>{i.status}</span>
@@ -573,8 +594,16 @@ No emails yet — review the list, then press Send invites.`)) return;
               <button onClick={() => remove(i.id)} className="shrink-0 text-[12px] font-bold text-[#b6c2c7] hover:text-[#c0392b]">Remove</button>
             </div>
           ))}
+          </div>
+          {shown.length > 12 && (
+            <button onClick={() => setInvOpen((o) => !o)} className="mt-2.5 w-full rounded-lg border border-dashed border-[#d8e3e6] py-1.5 text-[12.5px] font-bold text-[#0aa3c7] hover:bg-[#f2f8f9] transition-colors">
+              {invOpen ? "Show fewer" : `Show all ${shown.length}`}
+            </button>
+          )}
+          {shown.length === 0 && <p className="text-[12.5px] text-[#9aa6ac]">No invites match that filter.</p>}
         </div>
-      )}
+        );
+      })()}
     </div>
   );
 }
@@ -582,28 +611,66 @@ No emails yet — review the list, then press Send invites.`)) return;
 // ---------------- responses ----------------
 function ResponsesSection({ survey, invites, fmtMoney }: { survey: Survey; invites: SurveyInvite[]; fmtMoney: (n: number | null) => string }) {
   const responded = invites.filter((i) => i.response);
-  const destLabel = (key: string | null) => survey.destinations.find((d) => d.key === key)?.label ?? key ?? "—";
+
+  // Trips mode: every pick key IS a place+date window — results must show the
+  // DATES (two windows in the same place would otherwise both read "Tenerife").
+  const hasTrips = survey.destinations.some((d) => !!(d.start || d.end));
+  const byKey = new Map(survey.destinations.map((d) => [d.key, d]));
+  const fmtDay = (s: string) => new Date(s + "T00:00:00").toLocaleDateString("en-GB", { day: "numeric", month: "short" });
+  const fmtRange = (d?: { start?: string | null; end?: string | null }) => {
+    if (!d || (!d.start && !d.end)) return "dates TBC";
+    if (d.start && d.end) return `${fmtDay(d.start)} – ${fmtDay(d.end)} ${d.end.slice(0, 4)}`;
+    return fmtDay((d.start ?? d.end)!);
+  };
+  const placeOf = (d: { groupId?: string | null; label?: string | null; location?: string | null; key: string }) =>
+    (d.groupId ?? (d.label || d.location || d.key)) as string;
+  const placeNames = new Map<string, string>();
+  for (const d of survey.destinations) { const p = placeOf(d); if (!placeNames.has(p)) placeNames.set(p, (d.label || d.location || "Trip").trim()); }
+  const multiPlace = placeNames.size > 1;
+  const destLabel = (key: string | null) => {
+    const d = key ? byKey.get(key) : undefined;
+    if (!d) return key ?? "—";
+    if (hasTrips && (d.start || d.end)) return multiPlace ? `${(d.label || d.location || "").trim()} · ${fmtRange(d)}` : fmtRange(d);
+    return d.label ?? key ?? "—";
+  };
   const weekLabel = (key: string) => survey.weeks.find((w) => w.key === key)?.label ?? key;
+  const isDecline = (r: { other_destinations: string[]; looking_for: string | null }) =>
+    r.other_destinations.length === 0 && !!r.looking_for?.startsWith("Can't make it");
 
   // aggregates
   const destTop = new Map<string, number>();       // chosen as #1
-  const destInterest = new Map<string, number>();  // #1 OR "also up for"
+  const destInterest = new Map<string, number>();  // #1 OR "also up for" — in trips mode: per date window
+  const placeInterest = new Map<string, number>(); // trips mode: distinct people per PLACE
   const weekTally = new Map<string, number>();
   const anchor = survey.budget_anchor;
   const budOk = { yes: 0, maybe: 0, no: 0 };
+  let declines = 0;
   for (const i of responded) {
     const r = i.response!;
+    if (isDecline(r)) { declines++; continue; }
     if (r.top_destination) destTop.set(r.top_destination, (destTop.get(r.top_destination) ?? 0) + 1);
     const keys = new Set([r.top_destination, ...r.other_destinations].filter(Boolean) as string[]);
-    for (const k of keys) destInterest.set(k, (destInterest.get(k) ?? 0) + 1);
+    const myPlaces = new Set<string>();
+    for (const k of keys) {
+      destInterest.set(k, (destInterest.get(k) ?? 0) + 1);
+      const d = byKey.get(k);
+      if (d) myPlaces.add(placeOf(d));
+    }
+    for (const p of myPlaces) placeInterest.set(p, (placeInterest.get(p) ?? 0) + 1);
     for (const w of r.weeks) weekTally.set(w, (weekTally.get(w) ?? 0) + 1);
     if (r.budget_ok === "yes") budOk.yes++;
     else if (r.budget_ok === "maybe") budOk.maybe++;
     else if (r.budget_ok === "no") budOk.no++;
   }
-  const rankedDests = [...destInterest.entries()].sort((a, b) => b[1] - a[1]);
-  const topWeeks = [...weekTally.entries()].sort((a, b) => b[1] - a[1]);
+  const rankedDests = hasTrips
+    ? [...placeInterest.entries()].sort((a, b) => b[1] - a[1]).map(([p, n]) => [placeNames.get(p) ?? p, n] as [string, number])
+    : [...destInterest.entries()].sort((a, b) => b[1] - a[1]).map(([k, n]) => [destLabel(k), n] as [string, number]);
+  // trips mode: "best weeks" = the date windows, ranked
+  const topWeeks = hasTrips
+    ? [...destInterest.entries()].sort((a, b) => b[1] - a[1]).map(([k, n]) => [destLabel(k), n] as [string, number])
+    : [...weekTally.entries()].sort((a, b) => b[1] - a[1]).map(([k, n]) => [weekLabel(k), n] as [string, number]);
   const bestDest = rankedDests[0], bestWeek = topWeeks[0];
+  const topByLabel = new Map([...destTop.entries()].map(([k, n]) => [destLabel(k), n]));
   const budRated = budOk.yes + budOk.maybe + budOk.no;
 
   return (
@@ -617,9 +684,10 @@ function ResponsesSection({ survey, invites, fmtMoney }: { survey: Survey; invit
           <div className="rounded-xl bg-[#eefaf3] border border-[#bfe6d7] p-3.5 mt-3">
             <p className="text-[11px] font-bold uppercase tracking-wide text-[#0f6e56] mb-1">Planning takeaway</p>
             <p className="text-[13.5px] text-[#00374a] leading-relaxed">
-              {bestDest ? <><b>{destLabel(bestDest[0])}</b> leads — {bestDest[1]} interested{destTop.get(bestDest[0]) ? `, ${destTop.get(bestDest[0])} as #1` : ""}</> : "No destination data yet"}
-              {bestWeek ? <> · best week <b>{weekLabel(bestWeek[0])}</b> ({bestWeek[1]} free)</> : ""}
+              {bestDest ? <><b>{bestDest[0]}</b> leads — {bestDest[1]} interested{topByLabel.get(bestDest[0]) ? `, ${topByLabel.get(bestDest[0])} as #1` : ""}</> : "No destination data yet"}
+              {bestWeek ? <> · best {hasTrips ? "date" : "week"} <b>{bestWeek[0]}</b> ({bestWeek[1]} in)</> : ""}
               {anchor != null && budRated ? <> · budget <b>{budOk.yes} ok</b>{budOk.maybe ? `, ${budOk.maybe} maybe` : ""}{budOk.no ? `, ${budOk.no} no` : ""} at {fmtMoney(anchor)}</> : ""}
+              {declines ? <> · {declines} can&apos;t make it</> : ""}
               {" · "}{responded.length}/{invites.length} replied
             </p>
           </div>
@@ -628,11 +696,11 @@ function ResponsesSection({ survey, invites, fmtMoney }: { survey: Survey; invit
           <div className="grid sm:grid-cols-3 gap-3 mt-3">
             <div className="rounded-xl bg-[#f9fbfb] border border-[#eef3f4] p-3">
               <p className="text-[11px] font-bold uppercase tracking-wide text-[#9aa6ac] mb-1.5">Demand (incl. also-up-for)</p>
-              {rankedDests.length ? rankedDests.map(([k, n]) => <p key={k} className="text-[13px] text-[#00374a]"><b>{n}</b> · {destLabel(k)} <span className="text-[#9aa6ac]">{destTop.get(k) ? `(${destTop.get(k)}× #1)` : ""}</span></p>) : <p className="text-[13px] text-[#9aa6ac]">—</p>}
+              {rankedDests.length ? rankedDests.map(([lbl, n]) => <p key={lbl} className="text-[13px] text-[#00374a]"><b>{n}</b> · {lbl} <span className="text-[#9aa6ac]">{topByLabel.get(lbl) ? `(${topByLabel.get(lbl)}× #1)` : ""}</span></p>) : <p className="text-[13px] text-[#9aa6ac]">—</p>}
             </div>
             <div className="rounded-xl bg-[#f9fbfb] border border-[#eef3f4] p-3">
-              <p className="text-[11px] font-bold uppercase tracking-wide text-[#9aa6ac] mb-1.5">Best weeks</p>
-              {topWeeks.length ? topWeeks.map(([k, n]) => <p key={k} className="text-[13px] text-[#00374a]"><b>{n}</b> · {weekLabel(k)}</p>) : <p className="text-[13px] text-[#9aa6ac]">—</p>}
+              <p className="text-[11px] font-bold uppercase tracking-wide text-[#9aa6ac] mb-1.5">{hasTrips ? "Best dates" : "Best weeks"}</p>
+              {topWeeks.length ? topWeeks.map(([lbl, n]) => <p key={lbl} className="text-[13px] text-[#00374a]"><b>{n}</b> · {lbl}</p>) : <p className="text-[13px] text-[#9aa6ac]">—</p>}
             </div>
             <div className="rounded-xl bg-[#f9fbfb] border border-[#eef3f4] p-3">
               <p className="text-[11px] font-bold uppercase tracking-wide text-[#9aa6ac] mb-1.5">Budget{anchor != null ? ` · ${fmtMoney(anchor)}` : ""}</p>
@@ -650,10 +718,18 @@ function ResponsesSection({ survey, invites, fmtMoney }: { survey: Survey; invit
                 <div key={i.id} className="rounded-xl border border-[#f0e6d6] p-3.5">
                   <p className="text-[14px] font-bold text-[#00374a]">{i.contactName || "Member"}</p>
                   <div className="text-[13px] text-[#5a6b72] mt-1 space-y-0.5">
-                    <p><span className="text-[#9aa6ac]">Top pick:</span> <b>{destLabel(r.top_destination)}</b>{r.other_destinations.length ? ` · also: ${r.other_destinations.map(destLabel).join(", ")}` : ""}</p>
-                    <p><span className="text-[#9aa6ac]">Weeks:</span> {r.weeks.length ? r.weeks.map(weekLabel).join(", ") : "—"}</p>
-                    <p><span className="text-[#9aa6ac]">Budget:</span> {r.budget_ok === "yes" ? "👍 comfortable" : r.budget_ok === "maybe" ? "maybe" : r.budget_ok === "no" ? "too much" : "—"}</p>
-                    {r.looking_for && <p className="text-[#3a4a50] mt-1"><span className="text-[#9aa6ac]">Wants:</span> {r.looking_for}</p>}
+                    {isDecline(r) ? (
+                      <p className="text-[#a5432a] font-semibold">Can&apos;t make it this time{r.looking_for && r.looking_for.includes("—") ? ` — ${r.looking_for.split("—").slice(1).join("—").trim()}` : ""}</p>
+                    ) : hasTrips ? (
+                      <p><span className="text-[#9aa6ac]">In for:</span> <b>{r.other_destinations.length ? r.other_destinations.map(destLabel).join(", ") : "—"}</b></p>
+                    ) : (
+                      <>
+                        <p><span className="text-[#9aa6ac]">Top pick:</span> <b>{destLabel(r.top_destination)}</b>{r.other_destinations.length ? ` · also: ${r.other_destinations.map(destLabel).join(", ")}` : ""}</p>
+                        <p><span className="text-[#9aa6ac]">Weeks:</span> {r.weeks.length ? r.weeks.map(weekLabel).join(", ") : "—"}</p>
+                      </>
+                    )}
+                    {anchor != null && <p><span className="text-[#9aa6ac]">Budget:</span> {r.budget_ok === "yes" ? "👍 comfortable" : r.budget_ok === "maybe" ? "maybe" : r.budget_ok === "no" ? "too much" : "—"}</p>}
+                    {r.looking_for && !isDecline(r) && <p className="text-[#3a4a50] mt-1"><span className="text-[#9aa6ac]">Wants:</span> {r.looking_for}</p>}
                   </div>
                 </div>
               );
