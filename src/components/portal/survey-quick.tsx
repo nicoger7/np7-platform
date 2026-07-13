@@ -29,6 +29,7 @@ export function SurveyQuick({ survey, token, existing, preview = false, justSave
 }) {
   const dated = survey.destinations.filter((d) => d.start || d.end);
   const [picks, setPicks] = useState<Set<string>>(new Set(existing?.other_destinations ?? []));
+  const [topKey, setTopKey] = useState<string | null>(existing?.top_destination ?? null);
   const [declined, setDeclined] = useState(!!existing && (existing.other_destinations ?? []).length === 0 && !!existing.looking_for?.startsWith(DECLINE_NOTE));
   const [msg, setMsg] = useState(() => {
     const lf = existing?.looking_for ?? "";
@@ -45,14 +46,16 @@ export function SurveyQuick({ survey, token, existing, preview = false, justSave
   };
   useEffect(() => { if (justSaved) { if (flashTimer.current) clearTimeout(flashTimer.current); flashTimer.current = setTimeout(() => setFlash(null), 3200); } return () => { if (flashTimer.current) clearTimeout(flashTimer.current); }; }, [justSaved]);
 
-  async function persist(nextPicks: Set<string>, nextDeclined: boolean, nextMsg: string) {
+  async function persist(nextPicks: Set<string>, nextDeclined: boolean, nextMsg: string, nextTop: string | null) {
     if (preview) { showSaved(); return; }
     const looking_for = nextDeclined
       ? (nextMsg.trim() ? `${DECLINE_NOTE} — ${nextMsg.trim()}` : DECLINE_NOTE)
       : (nextMsg.trim() || null);
+    // the starred date is the top pick; a single pick is implicitly the favourite
+    const top = nextDeclined ? null : (nextTop && nextPicks.has(nextTop) ? nextTop : nextPicks.size === 1 ? [...nextPicks][0] : null);
     const res = await fetch(`/api/survey/${token}`, {
       method: "POST", headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ top_destination: null, other_destinations: nextDeclined ? [] : [...nextPicks], weeks: [], budget_ok: null, looking_for }),
+      body: JSON.stringify({ top_destination: top, other_destinations: nextDeclined ? [] : [...nextPicks], weeks: [], budget_ok: null, looking_for }),
     }).catch(() => null);
     showSaved(res?.ok ? "saved" : "error");
   }
@@ -60,12 +63,18 @@ export function SurveyQuick({ survey, token, existing, preview = false, justSave
   function toggle(key: string) {
     const next = new Set(picks);
     if (next.has(key)) next.delete(key); else next.add(key);
-    setPicks(next); setDeclined(false);
-    persist(next, false, msg);
+    const nextTop = topKey && next.has(topKey) ? topKey : null;
+    setPicks(next); setDeclined(false); setTopKey(nextTop);
+    persist(next, false, msg, nextTop);
+  }
+  function star(key: string) {
+    const nextTop = topKey === key ? null : key;
+    setTopKey(nextTop);
+    persist(picks, false, msg, nextTop);
   }
   function decline() {
-    setPicks(new Set()); setDeclined(true);
-    persist(new Set(), true, msg);
+    setPicks(new Set()); setDeclined(true); setTopKey(null);
+    persist(new Set(), true, msg, null);
   }
 
   // message autosave (debounced) — only once they've answered
@@ -73,7 +82,7 @@ export function SurveyQuick({ survey, token, existing, preview = false, justSave
   function onMsg(v: string) {
     setMsg(v);
     if (msgTimer.current) clearTimeout(msgTimer.current);
-    msgTimer.current = setTimeout(() => { if (answered) persist(picks, declined, v); }, 900);
+    msgTimer.current = setTimeout(() => { if (answered) persist(picks, declined, v, topKey); }, 900);
   }
 
   return (
@@ -95,7 +104,7 @@ export function SurveyQuick({ survey, token, existing, preview = false, justSave
         ) : picks.size > 0 ? (
           <>
             <h2 className="text-[24px] sm:text-[30px] font-black tracking-[-0.02em] text-[#1f9e57]">You&apos;re on the list 🌊</h2>
-            <p className="text-[14.5px] text-[#6a7a80] mt-2">No commitment — this just tells us who&apos;s keen. Tap to adjust anytime.</p>
+            <p className="text-[14.5px] text-[#6a7a80] mt-2">No commitment — this just tells us who&apos;s keen. Tap to adjust anytime.{picks.size >= 2 && !topKey ? <> <span className="font-semibold text-[#b0791e]">Star ⭐ your favourite.</span></> : null}</p>
           </>
         ) : (
           <>
@@ -142,6 +151,16 @@ export function SurveyQuick({ survey, token, existing, preview = false, justSave
                 {/* interest, not commitment — and an empty CTA means the date stands alone */}
                 {(on || survey.cta_label?.trim()) && (
                   <span className={`shrink-0 hidden sm:inline text-[12.5px] font-black uppercase tracking-wide ${on ? "text-[#1f9e57]" : "text-[#c9bda5] group-hover:text-[#f0a500]"}`}>{on ? "Interested 🤙" : survey.cta_label?.trim()}</span>
+                )}
+                {/* TOP-PICK star — only once there's a real choice (span: the card is a button) */}
+                {on && picks.size >= 2 && (
+                  <span role="button" tabIndex={0}
+                    onClick={(e) => { e.stopPropagation(); e.preventDefault(); star(d.key); }}
+                    onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.stopPropagation(); e.preventDefault(); star(d.key); } }}
+                    title={topKey === d.key ? "Your favourite — tap to unstar" : "Make this my favourite"}
+                    className={`shrink-0 grid place-items-center w-9 h-9 rounded-full text-[16px] transition-all ${topKey === d.key ? "bg-[#ffc42e] shadow-[0_4px_12px_rgba(240,165,0,0.4)] scale-105" : "border border-[#e2d8c6] opacity-60 hover:opacity-100"}`}>
+                    {topKey === d.key ? "⭐" : "☆"}
+                  </span>
                 )}
               </span>
             </button>

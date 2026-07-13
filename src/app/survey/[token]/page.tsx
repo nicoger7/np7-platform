@@ -46,7 +46,11 @@ export default async function SurveyPage({ params, searchParams }: Props) {
       redirect(`/survey/${token}?saved=1`);
     } else if (valid.has(pick)) {
       const merged = existingPicks.includes(pick) ? existingPicks : [...existingPicks, pick];
-      await submitResponse(token, { top_destination: null, other_destinations: merged, weeks: [], budget_ok: response?.budget_ok ?? null, looking_for: response?.looking_for?.startsWith("Can't make it") ? null : response?.looking_for ?? null });
+      // keep an existing star; a lone pick is implicitly the favourite
+      const top = response?.top_destination && merged.includes(response.top_destination)
+        ? response.top_destination
+        : merged.length === 1 ? merged[0] : null;
+      await submitResponse(token, { top_destination: top, other_destinations: merged, weeks: [], budget_ok: response?.budget_ok ?? null, looking_for: response?.looking_for?.startsWith("Can't make it") ? null : response?.looking_for ?? null });
       redirect(`/survey/${token}?saved=1`);
     }
   }

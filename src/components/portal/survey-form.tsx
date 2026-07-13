@@ -119,7 +119,11 @@ export function SurveyForm({ survey, token, contactName, existing, preview = fal
       const res = await fetch(`/api/survey/${token}`, {
         method: "POST", headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          top_destination: hasTrips ? null : topDest,
+          // trips mode: the starred date is the top pick; a single pick is
+          // implicitly the favourite
+          top_destination: hasTrips
+            ? (topDest && chosen.has(topDest) ? topDest : chosen.size === 1 ? [...chosen][0] : null)
+            : topDest,
           other_destinations: hasTrips ? chosenArr : [...alsoDest].filter((k) => k !== topDest),
           weeks: hasTrips ? [] : [...weeks],
           budget_ok: budgetOk, looking_for: lookingFor.trim() || null,
@@ -178,7 +182,7 @@ export function SurveyForm({ survey, token, contactName, existing, preview = fal
         {hasTrips && (
           <section data-reveal>
             <p className={label}>Which trips would you join?</p>
-            <p className="text-[13.5px] text-[#8a97a0] mt-1 mb-4">Tick every date that would work for you — the more you pick, the more likely we run the one you want.</p>
+            <p className="text-[13.5px] text-[#8a97a0] mt-1 mb-4">Tick every date that would work for you — the more you pick, the more likely we run the one you want.{chosen.size >= 2 ? <> <span className="font-semibold text-[#b0791e]">Star ⭐ your favourite.</span></> : null}</p>
             <div className={many ? "grid sm:grid-cols-2 gap-3.5" : "space-y-4"}>
               {tripGroups.map((g, gi) => {
                 const anyOn = g.periods.some((p) => chosen.has(p.key));
@@ -202,18 +206,43 @@ export function SurveyForm({ survey, token, contactName, existing, preview = fal
                   </div>
                 );
                 const shell = `group relative block w-full text-left overflow-hidden rounded-3xl border-2 transition-all duration-200 ${anyOn ? "border-[#f0a500] shadow-[0_16px_44px_rgba(240,165,0,0.24)] -translate-y-0.5" : "border-transparent shadow-[0_10px_30px_rgba(0,30,40,0.10)] hover:-translate-y-0.5"}`;
+                const singleKey = g.periods[0].key;
+                const singleTop = topDest === singleKey;
                 const Body = (
                   <div className="bg-white p-5">
+                    {/* single-date card: the star lives here (the card itself is a button,
+                        so this is a span — stopPropagation keeps the card from toggling) */}
+                    {single && anyOn && chosen.size >= 2 && (
+                      <span role="button" tabIndex={0}
+                        onClick={(e) => { e.stopPropagation(); e.preventDefault(); setTopDest(singleTop ? null : singleKey); }}
+                        onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.stopPropagation(); e.preventDefault(); setTopDest(singleTop ? null : singleKey); } }}
+                        title={singleTop ? "Your favourite — tap to unstar" : "Make this my favourite"}
+                        className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-[12.5px] font-bold mb-2 transition-all ${singleTop ? "bg-[#ffc42e] text-[#00374a] shadow-[0_4px_12px_rgba(240,165,0,0.4)]" : "border border-[#ecdcbb] text-[#8a6a1e] opacity-70 hover:opacity-100"}`}>
+                        {singleTop ? "⭐ My favourite" : "☆ Make this my favourite"}
+                      </span>
+                    )}
                     {g.blurb && <p className="text-[14px] text-[#5a6b72] leading-relaxed">{g.blurb}</p>}
                     {!single && (
                       <div className="flex flex-wrap gap-1.5 mt-3">
                         {g.periods.map((p) => {
                           const on = chosen.has(p.key);
+                          const isTop = topDest === p.key;
                           return (
-                            <button key={p.key} type="button" onClick={() => setChosen((s) => toggle(s, p.key))}
-                              className={`px-3.5 py-2 rounded-full text-[13px] font-bold transition-colors ${on ? "bg-[#f0a500] text-white" : "bg-[#fbf3e0] text-[#8a6a1e] border border-[#ecdcbb] hover:border-[#f2cf8a]"}`}>
-                              {on ? "✓ " : ""}{fmtWeek(p.start ?? null, p.end ?? null) || "Dates flexible"}
-                            </button>
+                            <span key={p.key} className="inline-flex items-center gap-1">
+                              <button type="button" onClick={() => { setChosen((s) => toggle(s, p.key)); if (isTop && on) setTopDest(null); }}
+                                className={`px-3.5 py-2 rounded-full text-[13px] font-bold transition-colors ${on ? "bg-[#f0a500] text-white" : "bg-[#fbf3e0] text-[#8a6a1e] border border-[#ecdcbb] hover:border-[#f2cf8a]"}`}>
+                                {on ? "✓ " : ""}{fmtWeek(p.start ?? null, p.end ?? null) || "Dates flexible"}
+                              </button>
+                              {/* the TOP-PICK star: only on selected dates, once there's a real choice */}
+                              {on && chosen.size >= 2 && (
+                                <button type="button" onClick={() => setTopDest(isTop ? null : p.key)}
+                                  title={isTop ? "Your favourite — tap to unstar" : "Make this my favourite"}
+                                  aria-label={isTop ? "Unstar this date" : "Star this date as favourite"}
+                                  className={`grid place-items-center w-8 h-8 rounded-full text-[15px] transition-all ${isTop ? "bg-[#ffc42e] shadow-[0_4px_12px_rgba(240,165,0,0.4)] scale-105" : "border border-[#ecdcbb] opacity-60 hover:opacity-100"}`}>
+                                  {isTop ? "⭐" : "☆"}
+                                </button>
+                              )}
+                            </span>
                           );
                         })}
                       </div>
@@ -222,7 +251,7 @@ export function SurveyForm({ survey, token, contactName, existing, preview = fal
                 );
                 return single ? (
                   <div key={g.key} data-reveal style={{ transitionDelay: `${gi * 60}ms` }}>
-                    <button type="button" onClick={() => setChosen((s) => toggle(s, g.periods[0].key))} className={shell}>{Banner}{Body}</button>
+                    <button type="button" onClick={() => { setChosen((s) => toggle(s, g.periods[0].key)); if (singleTop && anyOn) setTopDest(null); }} className={shell}>{Banner}{Body}</button>
                   </div>
                 ) : (
                   <div key={g.key} data-reveal style={{ transitionDelay: `${gi * 60}ms` }} className={shell}>{Banner}{Body}</div>

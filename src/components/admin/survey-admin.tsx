@@ -700,7 +700,7 @@ function ResponsesSection({ survey, invites, fmtMoney }: { survey: Survey; invit
             </div>
             <div className="rounded-xl bg-[#f9fbfb] border border-[#eef3f4] p-3">
               <p className="text-[11px] font-bold uppercase tracking-wide text-[#9aa6ac] mb-1.5">{hasTrips ? "Best dates" : "Best weeks"}</p>
-              {topWeeks.length ? topWeeks.map(([lbl, n]) => <p key={lbl} className="text-[13px] text-[#00374a]"><b>{n}</b> · {lbl}</p>) : <p className="text-[13px] text-[#9aa6ac]">—</p>}
+              {topWeeks.length ? topWeeks.map(([lbl, n]) => <p key={lbl} className="text-[13px] text-[#00374a]"><b>{n}</b> · {lbl} <span className="text-[#9aa6ac]">{hasTrips && topByLabel.get(lbl) ? `(${topByLabel.get(lbl)}× ⭐)` : ""}</span></p>) : <p className="text-[13px] text-[#9aa6ac]">—</p>}
             </div>
             <div className="rounded-xl bg-[#f9fbfb] border border-[#eef3f4] p-3">
               <p className="text-[11px] font-bold uppercase tracking-wide text-[#9aa6ac] mb-1.5">Budget{anchor != null ? ` · ${fmtMoney(anchor)}` : ""}</p>
@@ -721,7 +721,7 @@ function ResponsesSection({ survey, invites, fmtMoney }: { survey: Survey; invit
                     {isDecline(r) ? (
                       <p className="text-[#a5432a] font-semibold">Can&apos;t make it this time{r.looking_for && r.looking_for.includes("—") ? ` — ${r.looking_for.split("—").slice(1).join("—").trim()}` : ""}</p>
                     ) : hasTrips ? (
-                      <p><span className="text-[#9aa6ac]">In for:</span> <b>{r.other_destinations.length ? r.other_destinations.map(destLabel).join(", ") : "—"}</b></p>
+                      <p><span className="text-[#9aa6ac]">In for:</span> <b>{r.other_destinations.length ? r.other_destinations.map((k) => `${k === r.top_destination ? "⭐ " : ""}${destLabel(k)}`).join(", ") : "—"}</b></p>
                     ) : (
                       <>
                         <p><span className="text-[#9aa6ac]">Top pick:</span> <b>{destLabel(r.top_destination)}</b>{r.other_destinations.length ? ` · also: ${r.other_destinations.map(destLabel).join(", ")}` : ""}</p>
