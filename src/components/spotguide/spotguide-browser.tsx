@@ -14,7 +14,28 @@ import { RatingHeadline } from "./rating-panel";
  */
 const CORE_LEVELS = ["Beginner", "Intermediate", "Advanced", "Pro"];
 
+// Once the guide outgrows a flat country row, browsing drills down
+// continent → country → destination instead of endless pills.
+const DRILL_THRESHOLD = 15;
+const CONTINENT_OF: Record<string, string> = {
+  Germany: "Europe", Netherlands: "Europe", Italy: "Europe", Spain: "Europe", Norway: "Europe",
+  Croatia: "Europe", Turkey: "Europe", Greece: "Europe", France: "Europe", Portugal: "Europe",
+  Denmark: "Europe", Sweden: "Europe", Poland: "Europe", Austria: "Europe", Switzerland: "Europe",
+  "United Kingdom": "Europe", Ireland: "Europe",
+  "South Africa": "Africa", Madagascar: "Africa", Mauritius: "Africa", Morocco: "Africa",
+  Egypt: "Africa", "Cape Verde": "Africa", Kenya: "Africa",
+  "United States": "Americas", "Dutch Caribbean": "Americas", Bonaire: "Americas", Brazil: "Americas",
+  "Dominican Republic": "Americas", Aruba: "Americas", "Curaçao": "Americas", Venezuela: "Americas",
+  Canada: "Americas", Mexico: "Americas", Chile: "Americas", Peru: "Americas", "Costa Rica": "Americas",
+  Australia: "Oceania", "New Zealand": "Oceania", Fiji: "Oceania", "French Polynesia": "Oceania",
+  Japan: "Asia", Thailand: "Asia", Philippines: "Asia", Vietnam: "Asia", "Sri Lanka": "Asia",
+  Israel: "Asia", "United Arab Emirates": "Asia", Oman: "Asia", Indonesia: "Asia",
+};
+const CONTINENT_ORDER = ["Europe", "Africa", "Americas", "Asia", "Oceania", "Other"];
+const continentOf = (c: string | null) => (c && CONTINENT_OF[c]) || "Other";
+
 export function SpotguideBrowser({ dests, accent = "#00afdb", section = "experience" }: { dests: SpotguideDestinationCard[]; accent?: string; section?: "experience" | "hardware" }) {
+  const [continent, setContinent] = useState<string | null>(null);
   const [country, setCountry] = useState<string | null>(null);
   const [level, setLevel] = useState<string | null>(null);
   const [tags, setTags] = useState<Set<string>>(new Set());
@@ -29,7 +50,17 @@ export function SpotguideBrowser({ dests, accent = "#00afdb", section = "experie
   };
 
   // Facets — only render a group when it actually has ≥2 useful options.
-  const countries = useMemo(() => [...new Set(dests.map((d) => d.country).filter(Boolean) as string[])].sort(), [dests]);
+  const drill = dests.length > DRILL_THRESHOLD;
+  const continents = useMemo(() => {
+    const counts = new Map<string, number>();
+    for (const d of dests) counts.set(continentOf(d.country), (counts.get(continentOf(d.country)) ?? 0) + 1);
+    return CONTINENT_ORDER.filter((c) => counts.has(c)).map((c) => ({ name: c, count: counts.get(c)! }));
+  }, [dests]);
+  const countries = useMemo(
+    () => [...new Set(dests
+      .filter((d) => !drill || !continent || continentOf(d.country) === continent)
+      .map((d) => d.country).filter(Boolean) as string[])].sort(),
+    [dests, drill, continent]);
   const levelOpts = useMemo(() => CORE_LEVELS.filter((l) => dests.some((d) => fitsLevel(d, l))), [dests]);
   const tagOpts = useMemo(() => {
     const present = new Set(dests.flatMap((d) => d.tags));
@@ -37,12 +68,13 @@ export function SpotguideBrowser({ dests, accent = "#00afdb", section = "experie
   }, [dests]);
 
   const filtered = useMemo(() => dests.filter((d) =>
+    (!drill || !continent || continentOf(d.country) === continent) &&
     (!country || d.country === country) &&
     (!level || fitsLevel(d, level)) &&
     (tags.size === 0 || [...tags].every((t) => d.tags.includes(t)))
-  ), [dests, country, level, tags]);
+  ), [dests, drill, continent, country, level, tags]);
 
-  const active = !!country || !!level || tags.size > 0;
+  const active = !!continent || !!country || !!level || tags.size > 0;
   const toggleTag = (t: string) => setTags((s) => { const n = new Set(s); n.has(t) ? n.delete(t) : n.add(t); return n; });
 
   const pill = (on: boolean, onClick: () => void, label: string) => (
@@ -59,7 +91,13 @@ export function SpotguideBrowser({ dests, accent = "#00afdb", section = "experie
     <div>
       {hasFilters && (
         <div className="mb-6 flex flex-col gap-2.5">
-          {countries.length > 1 && (
+          {drill && continents.length > 1 && (
+            <div className="flex flex-wrap items-center gap-1.5">
+              <span className="text-[11px] font-bold uppercase tracking-wide text-[#9aa6ac] mr-1 w-14 shrink-0">Where</span>
+              {continents.map((c) => pill(continent === c.name, () => { setContinent(continent === c.name ? null : c.name); setCountry(null); }, `${c.name} (${c.count})`))}
+            </div>
+          )}
+          {countries.length > 1 && (!drill || !!continent) && (
             <div className="flex flex-wrap items-center gap-1.5">
               <span className="text-[11px] font-bold uppercase tracking-wide text-[#9aa6ac] mr-1 w-14 shrink-0">Country</span>
               {countries.map((c) => pill(country === c, () => setCountry(country === c ? null : c), c))}
@@ -80,7 +118,7 @@ export function SpotguideBrowser({ dests, accent = "#00afdb", section = "experie
           {active && (
             <div className="flex items-center gap-3 text-[12px]">
               <span className="text-[#9aa6ac]">{filtered.length} of {dests.length} destination{dests.length === 1 ? "" : "s"}</span>
-              <button type="button" onClick={() => { setCountry(null); setLevel(null); setTags(new Set()); }} className="font-semibold text-[#8a9aa0] underline hover:text-[#00374a]">Clear</button>
+              <button type="button" onClick={() => { setContinent(null); setCountry(null); setLevel(null); setTags(new Set()); }} className="font-semibold text-[#8a9aa0] underline hover:text-[#00374a]">Clear</button>
             </div>
           )}
         </div>

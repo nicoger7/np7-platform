@@ -7,6 +7,7 @@ import { resolveSection, SECTION_CHROME } from "@/lib/blog-section";
 import { SectionHeader } from "@/components/shared/section-header";
 import { BlogFooter } from "@/components/blog/blog-footer";
 import { SpotguideBrowser } from "@/components/spotguide/spotguide-browser";
+import { ProposedAreas } from "@/components/spotguide/proposed-areas";
 import { ContributeSpot } from "@/components/spotguide/contribute-spot";
 import { cdnImage } from "@/lib/img";
 import { flags } from "@/lib/flags";
@@ -94,6 +95,8 @@ export default async function SpotguideIndex({ searchParams }: { searchParams: P
               <SpotguideBrowser dests={dests} accent={chrome.accent} section={section} />
             </>
           )}
+          {/* members-only: rider-proposed areas awaiting their 3 confirms */}
+          <ProposedAreas accent={chrome.accent} section={section} />
         </div>
       </main>
       <BlogFooter section={section} showExperience={flags.showExperience} showHardware={flags.showHardware} />

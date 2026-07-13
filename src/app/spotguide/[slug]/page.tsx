@@ -17,6 +17,7 @@ import { MeteredContent } from "@/components/spotguide/metered-content";
 import { AddSpot } from "@/components/spotguide/add-spot";
 import { VerifySpots } from "@/components/spotguide/verify-spots";
 import { VerifyEdits } from "@/components/spotguide/verify-edits";
+import { VerifyDestination } from "@/components/spotguide/verify-destination";
 import { SpotMap } from "@/components/spotguide/spot-map";
 import { HeroVideo } from "@/components/experience/hero-video";
 import { flags } from "@/lib/flags";
@@ -106,6 +107,9 @@ export default async function SpotguideDestinationPage({ params, searchParams }:
           {heroPoster.includes("/api/sat") && <span className="absolute bottom-1 right-2 z-20 text-[9px] font-medium text-white/55">Imagery © Esri</span>}
           <div className="relative z-10 mt-auto w-full max-w-[1000px] mx-auto px-6 sm:px-8 pt-12 pb-11 sm:pt-16 sm:pb-14">
             <Link href={`/spotguide?from=${section}`} className="text-[12px] font-bold text-white/70 hover:text-white transition-colors">← Spotguide</Link>
+            {d.status === "draft" && (
+              <span className="block mt-3"><span className="inline-flex items-center gap-1.5 rounded-full bg-[#f0a500]/90 text-[#3a2a00] text-[11px] font-black uppercase tracking-[0.12em] px-3 py-1">Proposed area · members only · {d.verify?.confirms ?? 0}/3 confirms</span></span>
+            )}
             <h1 className="text-white text-4xl sm:text-6xl font-black tracking-[-0.03em] mt-3">{d.name}</h1>
             <p className="text-white/75 text-[15px] font-semibold mt-2">{[d.region, d.country].filter(Boolean).join(", ")}{lvl ? `  ·  ${lvl}` : ""}</p>
             {d.tagline && <p className="text-white/80 text-[17px] mt-4 max-w-[620px] leading-relaxed">{d.tagline}</p>}
@@ -201,6 +205,11 @@ export default async function SpotguideDestinationPage({ params, searchParams }:
               <h2 className="text-[13px] font-black uppercase tracking-[0.14em] text-[#9aa6ac] mb-3">Contribute</h2>
               <AddSpot destId={d.id} destName={d.name} accent={chrome.accent} />
             </section>
+            {/* Rider-proposed area: the verification ladder sits at the very bottom —
+                3 confirms (or a verified first spot, or NP7) make the area official. */}
+            {d.status === "draft" && d.verify && (
+              <VerifyDestination destId={d.id} name={d.name} initial={d.verify} isOwn={d.submitted_by === user?.contactId} accent={chrome.accent} />
+            )}
           </div>
         </SpotguideProvider>
       </main>

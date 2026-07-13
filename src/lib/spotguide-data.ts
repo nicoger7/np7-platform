@@ -48,6 +48,10 @@ export type SpotguideDestination = {
   lat: number | null; lng: number | null;
   np7_ratings: Record<string, number>; np7: number; member: RatingSummary;
   spots: PublicSpot[]; trips: SpotguideTrip[];
+  /** 'draft' = rider-proposed area, visible to members only, verifiable at the bottom. */
+  status: "draft" | "published";
+  submitted_by: string | null;
+  verify: { confirms: number; flags: number; mine: "confirm" | "flag" | null } | null;
 };
 
 // Satellite fallback for a photo-less destination/spot lives in src/lib/satellite.ts
@@ -114,7 +118,13 @@ export async function getSpotguideDestination(slug: string, viewerId?: string | 
     .select("*")
     .eq("slug", slug)
     .maybeSingle();
-  if (!d || d.spotguide_status !== "published") return null;
+  if (!d) return null;
+  const isDraft = d.spotguide_status !== "published";
+  // A rider-proposed area stays a DRAFT until verified — but it must be
+  // REACHABLE by members, or its first spots could never collect the
+  // verifications that publish both (chicken-and-egg). Admin-only drafts
+  // (no submitter) and anonymous visitors still get a 404.
+  if (isDraft && !(viewerId && d.submitted_by)) return null;
 
   const { data: spotRows } = await sb
     .from("spots")
@@ -184,7 +194,22 @@ export async function getSpotguideDestination(slug: string, viewerId?: string | 
     ownPending: ownPendingIds.has(s.id as string),
   }));
 
+  // Draft areas carry their verification tally (the bottom-of-page ladder).
+  let verify: SpotguideDestination["verify"] = null;
+  if (isDraft) {
+    const { data: dv } = await sb.from("destination_verifications").select("contact_id, kind").eq("destination_id", d.id);
+    const vrows = (dv ?? []) as { contact_id: string; kind: string }[];
+    verify = {
+      confirms: new Set(vrows.filter((r) => r.kind === "confirm").map((r) => r.contact_id)).size,
+      flags: new Set(vrows.filter((r) => r.kind === "flag").map((r) => r.contact_id)).size,
+      mine: (vrows.find((r) => r.contact_id === viewerId)?.kind as "confirm" | "flag" | undefined) ?? null,
+    };
+  }
+
   return {
+    status: isDraft ? "draft" : "published",
+    submitted_by: (d.submitted_by as string | null) ?? null,
+    verify,
     id: d.id, name: d.name, slug: d.slug, region: d.region, country: d.country,
     hero_image: d.hero_image, tagline: d.tagline, intro: d.intro,
     hero_video_url: d.hero_video_url ?? null,
