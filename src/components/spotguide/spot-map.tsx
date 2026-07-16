@@ -125,6 +125,18 @@ export function SpotMap({ spots, cluster = false, height = 420, linkLabel = "Vie
       layerRef.current = layer;
       markersRef.current = markers;
       boundsRef.current = layer.getBounds().pad(0.25);
+      // FILL the card: never zoom out past the point where the world tile band
+      // (±85°) is shorter than the container — that's what letterboxes water
+      // above/below. Min zoom = world height ≥ container height, and vertical
+      // panning stays inside the tiled band.
+      const coverZoom = () => {
+        const h = elRef.current?.clientHeight ?? 460;
+        map.setMinZoom(Math.max(1, Math.ceil(Math.log2(h / 256) * 2) / 2));
+      };
+      coverZoom();
+      map.setMaxBounds(L.latLngBounds(L.latLng(-85, -720), L.latLng(85, 720)));
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      (map as any).__coverZoom = coverZoom;
       map.fitBounds(boundsRef.current);
       if (spots.length === 1) map.setZoom(11);
     })();
@@ -154,7 +166,12 @@ export function SpotMap({ spots, cluster = false, height = 420, linkLabel = "Vie
   useEffect(() => {
     const map = mapRef.current;
     if (!map) return;
-    const t = setTimeout(() => { map.invalidateSize(); if (boundsRef.current) map.fitBounds(boundsRef.current); }, 60);
+    const t = setTimeout(() => {
+      map.invalidateSize();
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      (map as any).__coverZoom?.();
+      if (boundsRef.current) map.fitBounds(boundsRef.current);
+    }, 60);
     if (full) {
       map.scrollWheelZoom.enable(); // fullscreen = clearly a map context
       const onKey = (e: KeyboardEvent) => e.key === "Escape" && setFull(false);

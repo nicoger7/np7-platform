@@ -125,12 +125,13 @@ export function SpotguideBrowser({ dests, accent = "#00afdb", section = "experie
         <div className="mb-6 flex flex-col gap-2.5">
           {countryCounts.length > 1 && (
             <div className="flex flex-wrap items-center gap-1.5">
-              <span className="text-[11px] font-bold uppercase tracking-wide text-[#9aa6ac] mr-1 w-14 shrink-0">Where</span>
+              {/* label first, then the "All places" search (via flex order), then countries by popularity */}
+              <span className="[order:-2] text-[11px] font-bold uppercase tracking-wide text-[#9aa6ac] mr-1 w-14 shrink-0">Where</span>
               {quickCountries.map((c) => pill(country === c, () => { setCountry(country === c ? null : c); setWhereOpen(false); }, c))}
               {/* selected from the long tail keeps its own pill visible */}
               {country && !quickCountries.includes(country) && pill(true, () => setCountry(null), country)}
               {moreCountries.length > 0 && (
-                <div className="relative" ref={whereRef}>
+                <div className="relative [order:-1]" ref={whereRef}>
                   <button type="button" onClick={() => { setWhereOpen((o) => !o); setWhereQ(""); }}
                     className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[12.5px] font-semibold border transition-colors ${whereOpen ? "border-[#cdbfa2] bg-white" : "text-[#5a6b72] border-[#e6ddca] bg-white/70 hover:border-[#cdbfa2]"}`}>
                     <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><circle cx="11" cy="11" r="7" /><path d="M20 20l-3.5-3.5" /></svg>
