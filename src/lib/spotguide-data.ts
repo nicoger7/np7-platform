@@ -50,6 +50,8 @@ export type SpotguideDestination = {
   lat: number | null; lng: number | null;
   np7_ratings: Record<string, number>; np7: number; member: RatingSummary;
   spots: PublicSpot[]; trips: SpotguideTrip[];
+  /** Topic cluster: published magazine stories that mention this destination. */
+  articles: { slug: string; title: string; cover_image: string | null; category: string | null }[];
   /** 'draft' = rider-proposed area, visible to members only, verifiable at the bottom. */
   status: "draft" | "published";
   submitted_by: string | null;
@@ -228,10 +230,27 @@ export async function getSpotguideDestination(slug: string, viewerId?: string | 
     };
   }
 
+  // Topic cluster: stories that mention this destination by name (title/
+  // excerpt/content). Modest ilike — 3 links is all the cluster needs.
+  let articles: SpotguideDestination["articles"] = [];
+  if (d.name && String(d.name).length > 3) {
+    const pat = `%${String(d.name).replace(/[%_,()]/g, "")}%`;
+    const { data: arts } = await sb.from("exp_blog_posts")
+      .select("slug, title, cover_image, category")
+      .eq("status", "published")
+      // legacy spotguide-template posts redirect INTO the spotguide — linking
+      // them from here would just bounce the reader back
+      .neq("template", "spotguide")
+      .or(`title.ilike.${pat},excerpt.ilike.${pat},content.ilike.${pat}`)
+      .order("published_at", { ascending: false }).limit(3);
+    articles = (arts ?? []) as SpotguideDestination["articles"];
+  }
+
   return {
     status: isDraft ? "draft" : "published",
     submitted_by: (d.submitted_by as string | null) ?? null,
     verify,
+    articles,
     id: d.id, name: d.name, slug: d.slug, region: d.region, country: d.country,
     hero_image: d.hero_image, tagline: d.tagline, intro: d.intro,
     hero_video_url: d.hero_video_url ?? null,

@@ -122,9 +122,23 @@ export default async function BlogPostPage({ params }: Props) {
   // cover_focus ships with migration 071 — fall back until applied
   let { data: relRaw } = await fetchRelated(REL_COLS + ",cover_focus");
   if (!relRaw) ({ data: relRaw } = await fetchRelated(REL_COLS));
+  // topical first: same category beats same world beats recency — the reader
+  // who just finished a gear piece wants more gear, not whatever's newest
   const related = ((relRaw ?? []) as unknown as CardPost[])
-    .sort((a, b) => Number(b.world === post.world) - Number(a.world === post.world))
+    .sort((a, b) =>
+      (Number(b.category === post.category) - Number(a.category === post.category)) ||
+      (Number(b.world === post.world) - Number(a.world === post.world)))
     .slice(0, 3);
+
+  // Topic cluster: if this article talks about a destination we cover, link
+  // its spotguide page right under the story (readers get the next step;
+  // Google sees the article ↔ destination cluster).
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { data: allDests } = await (supabase as any).from("destinations")
+    .select("name, slug, region, country").eq("spotguide_status", "published");
+  const hay = `${post.title ?? ""} ${post.excerpt ?? ""} ${typeof post.content === "string" ? post.content : ""}`.toLowerCase();
+  const clusterDest = ((allDests ?? []) as { name: string; slug: string; region: string | null; country: string | null }[])
+    .find((d) => d.name && d.name.length > 3 && hay.includes(d.name.toLowerCase())) ?? null;
 
   const teaserSplit = splitForTeaser(post.content ?? "", 2);
 
@@ -264,6 +278,21 @@ export default async function BlogPostPage({ params }: Props) {
           )}
         </div>
       </article>
+
+      {/* ------------------------------------------------- TOPIC CLUSTER LINK */}
+      {clusterDest && (
+        <section className="max-w-[760px] mx-auto px-6 sm:px-8 pb-14 -mt-2">
+          <Link href={`/spotguide/${clusterDest.slug}`}
+            className="group flex items-center justify-between gap-4 rounded-2xl border border-[#e6ddca] bg-white px-6 py-5 hover:-translate-y-0.5 hover:shadow-[0_14px_36px_rgba(0,55,74,0.10)] transition-all">
+            <div>
+              <p className="text-[10.5px] font-black uppercase tracking-[0.18em] text-[#b0791e]">In the Spotguide</p>
+              <p className="text-[17px] font-black text-[#00374a] mt-0.5">{clusterDest.name}</p>
+              <p className="text-[12.5px] font-semibold text-[#6a7a80]">{[clusterDest.region, clusterDest.country].filter(Boolean).join(", ")} — conditions, season, spots &amp; local tips</p>
+            </div>
+            <span className="shrink-0 text-[#00afdb] font-black group-hover:translate-x-0.5 transition-transform">→</span>
+          </Link>
+        </section>
+      )}
 
       {/* ---------------------------------------------------------------- MORE */}
       {related.length > 0 && (

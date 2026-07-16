@@ -179,6 +179,25 @@ export default async function SpotguideDestinationPage({ params, searchParams }:
               </section>
             )}
 
+            {/* Topic cluster: magazine stories that mention this destination */}
+            {d.articles.length > 0 && (
+              <section>
+                <h2 className="text-[13px] font-black uppercase tracking-[0.14em] text-[#9aa6ac] mb-3">Stories about {d.name}</h2>
+                <div className="grid sm:grid-cols-3 gap-4">
+                  {d.articles.map((a) => (
+                    <Link key={a.slug} href={`/blog/${a.slug}`}
+                      className="group flex flex-col rounded-2xl overflow-hidden bg-white border border-[#f0e6d6] hover:-translate-y-0.5 hover:shadow-[0_14px_36px_rgba(0,55,74,0.10)] transition-all">
+                      {a.cover_image && <div className="aspect-video bg-cover bg-center" style={{ backgroundImage: `url('${a.cover_image}')` }} />}
+                      <div className="p-4">
+                        {a.category && <p className="text-[10px] font-black uppercase tracking-[0.14em] text-[#b0791e]">{a.category}</p>}
+                        <p className="text-[14.5px] font-extrabold text-[#00374a] leading-snug mt-0.5 group-hover:underline">{a.title}</p>
+                      </div>
+                    </Link>
+                  ))}
+                </div>
+              </section>
+            )}
+
             {/* The spots — metered for anonymous visitors, full for members */}
             <section>
               <h2 className="text-[13px] font-black uppercase tracking-[0.14em] text-[#9aa6ac] mb-3">The spots <span className="text-[#c3b9a6]">({d.spots.length})</span></h2>
