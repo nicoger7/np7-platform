@@ -2,7 +2,6 @@ import type { Metadata } from "next";
 import { cookies } from "next/headers";
 import { getSpotguideDestinations, getAllSpotguidePoints } from "@/lib/spotguide-data";
 import { MagazineTabs } from "@/components/blog/magazine-tabs";
-import { SpotMap } from "@/components/spotguide/spot-map";
 import { resolveSection, SECTION_CHROME } from "@/lib/blog-section";
 import { SectionHeader } from "@/components/shared/section-header";
 import { BlogFooter } from "@/components/blog/blog-footer";
@@ -87,12 +86,9 @@ export default async function SpotguideIndex({ searchParams }: { searchParams: P
               </div>
 
               {points.length > 0 && (
-                <div className="mb-10">
-                  <h2 className="text-[13px] font-black uppercase tracking-[0.14em] text-[#9aa6ac] mb-3">Where we ride <span className="text-[#c3b9a6]">({dests.length} destination{dests.length === 1 ? "" : "s"} · {points.length} spots)</span></h2>
-                  <SpotMap spots={mapPoints} cluster height={460} linkLabel="Explore the spots →" />
-                </div>
+                <h2 className="text-[13px] font-black uppercase tracking-[0.14em] text-[#9aa6ac] mb-3">Where we ride <span className="text-[#c3b9a6]">({dests.length} destination{dests.length === 1 ? "" : "s"} · {points.length} spots)</span></h2>
               )}
-              <SpotguideBrowser dests={dests} accent={chrome.accent} section={section} />
+              <SpotguideBrowser dests={dests} accent={chrome.accent} section={section} mapSpots={mapPoints} />
             </>
           )}
           {/* members-only: rider-proposed areas awaiting their 3 confirms */}

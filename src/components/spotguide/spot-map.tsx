@@ -17,11 +17,20 @@ export type MapSpot = {
  * count; zooming in splits them apart), scroll-zoom that only engages after a
  * click (so the page keeps scrolling normally), and a fullscreen "Enlarge" mode.
  */
-export function SpotMap({ spots, cluster = false, height = 420, linkLabel = "View spot →" }: { spots: MapSpot[]; cluster?: boolean; height?: number; linkLabel?: string }) {
+export function SpotMap({ spots, cluster = false, height = 420, linkLabel = "View spot →", focusDests = null }: {
+  spots: MapSpot[]; cluster?: boolean; height?: number; linkLabel?: string;
+  /** Destination slugs to focus on (filter sync): non-matching pins hide and the
+   *  map flies to the rest. null = show everything. */
+  focusDests?: string[] | null;
+}) {
   const elRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<LeafletMap | null>(null);
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const boundsRef = useRef<any>(null);
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const layerRef = useRef<any>(null);
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const markersRef = useRef<any[]>([]);
   const [full, setFull] = useState(false);
   const [zoomHint, setZoomHint] = useState(false);
 
@@ -32,7 +41,9 @@ export function SpotMap({ spots, cluster = false, height = 420, linkLabel = "Vie
       const L = (await import("leaflet")).default;
       if (cluster) await import("leaflet.markercluster");
       if (cancelled || !elRef.current || mapRef.current) return;
-      const map = L.map(elRef.current, { scrollWheelZoom: false, zoomControl: true });
+      // zoomSnap 0.5: fractional zoom lets fitBounds hug the pins instead of
+      // letterboxing a whole-world view (the grey band above the tile edge).
+      const map = L.map(elRef.current, { scrollWheelZoom: false, zoomControl: true, zoomSnap: 0.5, worldCopyJump: true });
       map.attributionControl.setPrefix('<a href="https://leafletjs.com" title="A JavaScript library for interactive maps">Leaflet</a>'); // strip Leaflet's default Ukraine-flag prefix
       mapRef.current = map;
 
@@ -74,8 +85,11 @@ export function SpotMap({ spots, cluster = false, height = 420, linkLabel = "Vie
             `<a href="/spotguide/${s.destSlug}" style="color:#00afdb;font-weight:700;font-size:12.5px;display:block;margin-top:8px;text-decoration:none">${linkLabel}</a></div>`
         );
         // stash the destination on the marker so clusters can label themselves
+        // and the focus filter can pick its pins
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         (m as any).__dest = s.destName ?? "";
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        (m as any).__destSlug = s.destSlug;
         return m;
       });
 
@@ -108,6 +122,8 @@ export function SpotMap({ spots, cluster = false, height = 420, linkLabel = "Vie
         : L.featureGroup();
       markers.forEach((m) => layer.addLayer(m));
       layer.addTo(map);
+      layerRef.current = layer;
+      markersRef.current = markers;
       boundsRef.current = layer.getBounds().pad(0.25);
       map.fitBounds(boundsRef.current);
       if (spots.length === 1) map.setZoom(11);
@@ -115,6 +131,24 @@ export function SpotMap({ spots, cluster = false, height = 420, linkLabel = "Vie
     return () => { cancelled = true; mapRef.current?.remove(); mapRef.current = null; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // Filter sync: show only the focused destinations' pins and fly to them.
+  useEffect(() => {
+    const map = mapRef.current, layer = layerRef.current;
+    if (!map || !layer) return;
+    const focus = focusDests ? new Set(focusDests) : null;
+    let any = false;
+    for (const m of markersRef.current) {
+      const keep = !focus || focus.has(m.__destSlug);
+      const has = layer.hasLayer(m);
+      if (keep && !has) layer.addLayer(m);
+      if (!keep && has) layer.removeLayer(m);
+      if (keep) any = true;
+    }
+    const target = any ? layer.getBounds().pad(0.25) : boundsRef.current;
+    if (target?.isValid?.()) map.flyToBounds(target, { duration: 0.8, maxZoom: 9 });
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [focusDests ? [...focusDests].sort().join("|") : null]);
 
   // Fullscreen: same map instance, the wrapper just changes shape.
   useEffect(() => {
@@ -135,7 +169,8 @@ export function SpotMap({ spots, cluster = false, height = 420, linkLabel = "Vie
   return (
     <div className={full ? "fixed inset-0 z-[120] bg-[#00131b]/60 backdrop-blur-sm p-3 sm:p-8" : "relative isolate"}>
       <div className={`relative overflow-hidden ${full ? "h-full rounded-2xl shadow-2xl" : "rounded-3xl border border-[#ece3d3] shadow-[0_10px_36px_rgba(0,55,74,0.1)]"}`}>
-        <div ref={elRef} className="relative z-0 w-full h-full" style={full ? undefined : { height }} />
+        {/* backdrop = CARTO voyager water, so any letterboxed edge reads as ocean, not grey */}
+        <div ref={elRef} className="relative z-0 w-full h-full" style={{ backgroundColor: "#d4e6ec", ...(full ? {} : { height }) }} />
         {/* soft edge blend into the cream page background */}
         {!full && (
           <div className="pointer-events-none absolute inset-0 z-[400] rounded-3xl" style={{ boxShadow: "inset 0 0 0 1px rgba(0,55,74,0.06), inset 0 16px 26px -20px rgba(255,247,236,0.95), inset 0 -16px 26px -20px rgba(255,247,236,0.95)" }} />
