@@ -14,13 +14,15 @@ export type Bft = (typeof BFT_THRESHOLDS)[number];
 /** Lower bound of each Beaufort force, in knots. "3+" = wind ≥ 7 kn, etc. */
 export const BEAUFORT_KN: Record<Bft, number> = { 3: 7, 4: 11, 5: 17, 6: 22, 7: 28 };
 
-/** Band colours, light→strong, matching the Windguru palette (cyan→magenta). */
+/** Band colours, light→strong. Same ordinal read as Windguru (cool → warm =
+ *  light → strong) but toned to the brand: misty cyan → sea teal → warm gold
+ *  → coral → deep berry, instead of neon primaries. */
 export const BFT_META: { bft: Bft; color: string; label: string }[] = [
-  { bft: 3, color: "#46cfe6", label: "3+ Bft" },
-  { bft: 4, color: "#5ccc2e", label: "4+ Bft" },
-  { bft: 5, color: "#ffd21e", label: "5+ Bft" },
-  { bft: 6, color: "#f25b27", label: "6+ Bft" },
-  { bft: 7, color: "#e0218a", label: "7+ Bft" },
+  { bft: 3, color: "#9ad6e3", label: "3+ Bft" },
+  { bft: 4, color: "#2fb3a0", label: "4+ Bft" },
+  { bft: 5, color: "#f0b429", label: "5+ Bft" },
+  { bft: 6, color: "#ee6f3f", label: "6+ Bft" },
+  { bft: 7, color: "#b43a6e", label: "7+ Bft" },
 ];
 
 export const MONTH_LABELS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];

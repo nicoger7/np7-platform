@@ -55,14 +55,15 @@ export default async function SpotguideIndex({ searchParams }: { searchParams: P
         {/* hero — SAME shell as the magazine (bg image, left align, shared tab bar)
             so switching Spotguide ⇄ Gear ⇄ Technique never shifts the pills */}
         <header className="relative text-white pt-16 pb-12 overflow-hidden" style={{ background: chrome.heroBackground }}>
-          <div className="absolute inset-0 bg-cover bg-center opacity-20 mix-blend-luminosity" style={{ backgroundImage: "url('/cdn/assets/hero/windsurf-hero-poster.jpg')" }} aria-hidden />
-          <div className="absolute inset-0" style={{ background: "linear-gradient(to bottom, transparent 45%, rgba(0,20,29,0.55) 100%)" }} aria-hidden />
+          {/* real crew photo (high-res), not the video screengrab */}
+          <div className="absolute inset-0 bg-cover bg-center opacity-30" style={{ backgroundImage: "url('https://media.np-seven.com/experiences/np7-bonaire/people/groups-hot-water-2025.jpg')" }} aria-hidden />
+          <div className="absolute inset-0" style={{ background: "linear-gradient(to bottom, rgba(0,20,29,0.25) 0%, transparent 40%, rgba(0,20,29,0.6) 100%)" }} aria-hidden />
           <div className="relative max-w-[1200px] mx-auto px-6 sm:px-8">
-            <p className="text-[11px] font-bold tracking-[0.25em] mb-3" style={{ color: chrome.eyebrow }}>THE SPOTGUIDE</p>
+            <p className="text-[11px] font-bold tracking-[0.25em] mb-3" style={{ color: chrome.eyebrow }}>THE SPOTGUIDE · A COMMUNITY PROJECT</p>
             <h1 className="text-4xl sm:text-6xl font-black tracking-[-0.03em]">Where to ride</h1>
             <span className="block h-1.5 w-28 rounded-full mt-4" style={{ background: chrome.stripe }} />
-            <p className="mt-5 text-[16px] sm:text-[18px] text-white/70 max-w-[600px] leading-relaxed">
-              Honest spot guides — rated by NP7 and the crew. Real conditions, the forecast that actually works, and the spots worth your time.
+            <p className="mt-5 text-[16px] sm:text-[18px] text-white/75 max-w-[640px] leading-relaxed">
+              The windsurf community, mapping its world. Riders everywhere sharing the spots they know best — home waters, honest ratings, and the local knowledge no forecast app can give you. Explore it, then add yours.
             </p>
             <div className="mt-8">
               <MagazineTabs active="spotguide" accent={chrome.accent} onAccent={chrome.onAccent} />
