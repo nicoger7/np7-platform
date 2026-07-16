@@ -37,6 +37,8 @@ export type PublicSpot = {
   crowdWindow: CrowdWindow; memberLevel: LevelConsensus; memberConditions: { shares: ConditionShare[]; raters: number };
   memberInfra: { shares: InfraShare[]; raters: number };
   ownPending?: boolean; // the viewer's own not-yet-public spot (badged "under review")
+  /** Contributor credit: riders who confirmed this spot's facts ("Jan K."), shown publicly. */
+  confirmedBy: { names: string[]; count: number };
 };
 
 export type SpotguideTrip = { id: string; title: string; slug: string; hero_image: string | null; tagline: string | null };
@@ -160,6 +162,25 @@ export async function getSpotguideDestination(slug: string, viewerId?: string | 
   const { data: sphotos } = spotIds.length
     ? await sb.from("spot_photos").select("id, spot_id, url, caption, source, sort_order").in("spot_id", spotIds).eq("status", "approved").order("sort_order")
     : { data: [] };
+
+  // Contributor credit — who confirmed each spot's facts. First name + last
+  // initial only ("Jan K."): public page, so never the full name.
+  const confirmsBySpot = new Map<string, { names: string[]; count: number }>();
+  if (spotIds.length) {
+    const { data: sv } = await sb.from("spot_verifications").select("spot_id, contact_id").eq("kind", "confirm").in("spot_id", spotIds);
+    const rows = (sv ?? []) as { spot_id: string; contact_id: string }[];
+    const contactIds = [...new Set(rows.map((r) => r.contact_id))];
+    const { data: cs } = contactIds.length ? await sb.from("contacts").select("id, name").in("id", contactIds) : { data: [] };
+    const credit = new Map<string, string>();
+    for (const c of (cs ?? []) as { id: string; name: string | null }[]) {
+      const parts = String(c.name ?? "").trim().split(/\s+/).filter(Boolean);
+      if (parts.length) credit.set(c.id, parts.length > 1 ? `${parts[0]} ${parts[parts.length - 1][0]}.` : parts[0]);
+    }
+    for (const spotId of new Set(rows.map((r) => r.spot_id))) {
+      const ids = [...new Set(rows.filter((r) => r.spot_id === spotId).map((r) => r.contact_id))];
+      confirmsBySpot.set(spotId, { names: ids.map((id) => credit.get(id)).filter(Boolean) as string[], count: ids.length });
+    }
+  }
   const photoIds = (sphotos ?? []).map((p: { id: string }) => p.id);
   const { data: pvotes } = photoIds.length
     ? await sb.from("spot_photo_votes").select("photo_id, value").in("photo_id", photoIds)
@@ -192,6 +213,7 @@ export async function getSpotguideDestination(slug: string, viewerId?: string | 
     memberConditions: conditionsTally(ratingsBySpot.get(s.id as string) ?? []),
     memberInfra: infraTally(ratingsBySpot.get(s.id as string) ?? []),
     ownPending: ownPendingIds.has(s.id as string),
+    confirmedBy: confirmsBySpot.get(s.id as string) ?? { names: [], count: 0 },
   }));
 
   // Draft areas carry their verification tally (the bottom-of-page ladder).

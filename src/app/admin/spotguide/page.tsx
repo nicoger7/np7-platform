@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback } from "react";
 import Link from "next/link";
 import { VERIFICATION_META, conditionLabel, type Verification } from "@/lib/spotguide";
+import { SpotIntake } from "@/components/admin/spot-intake";
 
 interface PendingSpot {
   id: string; name: string; destination_id: string; destinationName: string;
@@ -103,6 +104,8 @@ export default function SpotguideModeration() {
         <h1 className="text-2xl font-bold admin-heading mb-1">Spotguide — contributions</h1>
         <p className="text-sm admin-muted">Most of this runs itself: a spot goes public once 3 riders confirm it (or a local, or you), and its <span className="font-semibold">rider-proposed place auto-publishes with it</span>. The ones sorted to the top — <span className="text-red-400 font-semibold">🚩 Flagged</span> or <span className="text-amber-500 font-semibold">Needs you</span> (waiting too long) — are the ones worth your glance. You can NP7-verify (gold) any spot any time.</p>
       </div>
+
+      <SpotIntake />
 
       {jibe && (
         <div className="mb-8 rounded-xl p-4" style={{ border: "1px solid var(--admin-border)", backgroundColor: "var(--admin-surface)" }}>

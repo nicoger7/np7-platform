@@ -65,6 +65,17 @@ export function SpotsList({ spots, accent = "#00afdb" }: { spots: PublicSpot[]; 
                   </div>
                 )}
                 <div className="sm:hidden"><RatingHeadline np7={spot.np7} member={spot.member} accent={accent} /></div>
+                {/* Contributor credit — real riders vouched for this page. Trust for
+                    visitors, and the named locals tend to share "their" spot. */}
+                {spot.confirmedBy.count > 0 && (() => {
+                  const { names, count } = spot.confirmedBy;
+                  const shown = names.slice(0, 3);
+                  const extra = count - shown.length;
+                  const who = shown.length
+                    ? shown.join(", ") + (extra > 0 ? ` and ${extra} more ${extra === 1 ? "rider" : "riders"}` : "")
+                    : `${count} ${count === 1 ? "rider" : "riders"}`;
+                  return <p className="text-[12.5px] font-semibold text-[#0f6e56]">✓ Confirmed by {who} — riders who know this spot</p>;
+                })()}
                 {(() => {
                   // Hero = the chosen photo, else the crew's top-VOTED photo (spot.photos
                   // is score-sorted) — upvotes pick the hero when no one's set one.

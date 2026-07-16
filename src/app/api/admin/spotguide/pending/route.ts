@@ -12,7 +12,7 @@ export async function GET() {
   const { data: spots, error } = await db
     .from("spots")
     .select("id, name, destination_id, level, conditions, description, verification, created_at")
-    .eq("source", "member")
+    .in("source", ["member", "jibe"]) // jibe = AI-intake drafts awaiting review
     .neq("verification", "np7")
     .order("created_at", { ascending: false });
   if (error) {
