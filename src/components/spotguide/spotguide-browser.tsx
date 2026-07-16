@@ -124,16 +124,23 @@ export function SpotguideBrowser({ dests, accent = "#00afdb", section = "experie
       {hasFilters && (
         <div className="mb-6 flex flex-col gap-2.5">
           {countryCounts.length > 1 && (
-            <div className="flex flex-wrap items-center gap-1.5">
-              {/* label first, then the "All places" search (via flex order), then countries by popularity */}
+            /* ONE line, always: label + "All places" stay put, countries scroll
+               sideways on overflow — no ragged second row of orphan chips */
+            <div className="flex items-center gap-1.5 min-w-0">
               <span className="[order:-2] text-[11px] font-bold uppercase tracking-wide text-[#9aa6ac] mr-1 w-14 shrink-0">Where</span>
-              {quickCountries.map((c) => pill(country === c, () => { setCountry(country === c ? null : c); setWhereOpen(false); }, c))}
-              {/* selected from the long tail keeps its own pill visible */}
-              {country && !quickCountries.includes(country) && pill(true, () => setCountry(null), country)}
+              <div className="flex items-center gap-1.5 flex-nowrap overflow-x-auto min-w-0 py-0.5 [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden">
+                {quickCountries.map((c) => (
+                  <span key={c} className="shrink-0">{pill(country === c, () => { setCountry(country === c ? null : c); setWhereOpen(false); }, c)}</span>
+                ))}
+                {/* selected from the long tail keeps its own pill visible */}
+                {country && !quickCountries.includes(country) && <span className="shrink-0">{pill(true, () => setCountry(null), country)}</span>}
+              </div>
               {moreCountries.length > 0 && (
-                <div className="relative [order:-1]" ref={whereRef}>
+                <div className="relative [order:-1] shrink-0" ref={whereRef}>
+                  {/* highlighted whenever no country is picked — "All places" IS the current state */}
                   <button type="button" onClick={() => { setWhereOpen((o) => !o); setWhereQ(""); }}
-                    className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[12.5px] font-semibold border transition-colors ${whereOpen ? "border-[#cdbfa2] bg-white" : "text-[#5a6b72] border-[#e6ddca] bg-white/70 hover:border-[#cdbfa2]"}`}>
+                    className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[12.5px] font-semibold border transition-colors ${!country ? "text-white border-transparent" : whereOpen ? "border-[#cdbfa2] bg-white text-[#00374a]" : "text-[#5a6b72] border-[#e6ddca] bg-white/70 hover:border-[#cdbfa2]"}`}
+                    style={!country ? { backgroundColor: accent } : undefined}>
                     <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><circle cx="11" cy="11" r="7" /><path d="M20 20l-3.5-3.5" /></svg>
                     All places
                   </button>
