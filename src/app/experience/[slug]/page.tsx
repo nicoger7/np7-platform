@@ -2,6 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import type { Metadata } from "next";
 import { supabase } from "@/lib/supabase";
+import { getTeamMember } from "@/lib/auth";
 import { OceanHeader, NP7_LOGO } from "@/components/experience/ocean-header";
 import { Reveal } from "@/components/experience/reveal";
 import { Carousel } from "@/components/experience/carousel";
@@ -175,10 +176,16 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
 
 export default async function ExperienceDetailPage({ params }: Props) {
   const { slug } = await params;
-  const { data: raw } = await supabase
+  // Team members can preview drafts + off-website experiences (the admin
+  // "Preview page" button); the public only ever sees published ones.
+  const team = await getTeamMember().catch(() => null);
+  let query = supabase
     .from("exp_experiences")
     .select("id,title,location,currency,price,description,hero_image,gallery,airport_code,exp_editions(id,label,coaches,date_start,date_end,max_spots,spots_taken,deposit,status),exp_packages(id,name,price,status,edition_id,category,includes,exp_package_components(show_on_website,exp_components(name,description)))")
-    .eq("slug", slug).eq("status", "published").maybeSingle();
+    .eq("slug", slug);
+  if (!team) query = query.eq("status", "published");
+  const { data: rows } = await query.order("status", { ascending: false }).limit(1);
+  const raw = rows?.[0] ?? null;
 
   const experience = raw as unknown as Detail | null;
   if (!experience) notFound();
@@ -191,7 +198,7 @@ export default async function ExperienceDetailPage({ params }: Props) {
   // Active-but-off-website (invite-only) experiences aren't publicly reachable.
   // Tolerant: the website_visible column errors pre-migration → treated as visible.
   const { data: visRow } = await sb.from("exp_experiences").select("website_visible").eq("id", experience.id).maybeSingle();
-  if (visRow?.website_visible === false) notFound();
+  if (visRow?.website_visible === false && !team) notFound();
   // Split the fetch so the newer media columns (added in migration 013) can't
   // break the existing text content if they haven't been applied yet.
   const [{ data: baseRaw }, { data: mediaRaw }] = await Promise.all([

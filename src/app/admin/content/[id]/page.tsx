@@ -173,7 +173,11 @@ export default function ContentEditorPage({ params }: { params: Promise<{ id: st
           <p className="text-sm admin-muted mt-0.5">Public-page content · shown on the experience page</p>
         </div>
         {slug && (
-          <Link href={`/experience/${slug}`} target="_blank" className="shrink-0 text-[12px] font-semibold text-[#0aa3c7] hover:underline">View live ↗</Link>
+          <Link href={`/experience/${slug}`} target="_blank"
+            className="shrink-0 inline-flex items-center gap-2 rounded-full border border-[var(--admin-accent)] text-[var(--admin-accent)] text-[13px] font-bold px-4 py-2 hover:bg-[var(--admin-accent)]/10 transition-colors">
+            <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7z" /><circle cx="12" cy="12" r="3" /></svg>
+            Preview page ↗
+          </Link>
         )}
       </div>
 
