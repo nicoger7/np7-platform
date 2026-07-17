@@ -28,13 +28,20 @@ type Extracted = {
 export async function POST(request: NextRequest) {
   const auth = await requireTeamApi();
   if (!auth.ok) return auth.res;
-  const apiKey = process.env.ANTHROPIC_API_KEY;
-  if (!apiKey) {
-    return NextResponse.json({ error: "Add ANTHROPIC_API_KEY to the environment to enable AI intake." }, { status: 503 });
-  }
   const body = await request.json().catch(() => ({}));
   const text = typeof body?.text === "string" ? body.text.trim() : "";
   if (text.length < 20) return NextResponse.json({ error: "Paste a bit more text — at least a sentence or two about the spot." }, { status: 400 });
+
+  // No platform API key? jibe brings its own brain: queue the text and jibe
+  // structures it into a draft spot on its next (~4-hourly) spotguide run.
+  const apiKey = process.env.ANTHROPIC_API_KEY;
+  if (!apiKey) {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const qdb = createAdminClient() as any;
+    const { error } = await qdb.from("spot_intake_queue").insert({ text });
+    if (error) return NextResponse.json({ error: `Couldn't queue: ${error.message}` }, { status: 400 });
+    return NextResponse.json({ ok: true, queued: true });
+  }
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const db = createAdminClient() as any;

@@ -88,6 +88,14 @@ export async function GET() {
     !s.level || !(Array.isArray(s.conditions) && s.conditions.length) || !(Array.isArray(s.infrastructure) && s.infrastructure.length)).length;
   const toMerge = (rawEdits ?? []).filter((e: { field: string; status: string }) => e.field === "info" && e.status === "approved").length;
 
+  // Job C: raw intake texts waiting for jibe to structure into draft spots
+  // (tolerant: table ships with migration 107)
+  let toIntake = 0;
+  try {
+    const { count } = await db.from("spot_intake_queue").select("id", { count: "exact", head: true }).eq("status", "pending");
+    toIntake = count ?? 0;
+  } catch { /* pre-migration */ }
+
   // last heartbeat — jibe logs one jibe_runs row per run, even a no-op
   // (tolerant: table may not exist pre-migration 095)
   let lastRun: { ran_at: string; structured: number; merged: number; summary: string | null } | null = null;
@@ -97,5 +105,5 @@ export async function GET() {
     if (hb) lastRun = hb;
   } catch { /* pre-migration */ }
 
-  return NextResponse.json({ spots: out, photos: photos ?? [], proposedDests: proposedDests ?? [], edits, jibe: { toStructure, toMerge, lastRun } });
+  return NextResponse.json({ spots: out, photos: photos ?? [], proposedDests: proposedDests ?? [], edits, jibe: { toStructure, toMerge, toIntake, lastRun } });
 }

@@ -10,10 +10,11 @@ export function SpotIntake() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [result, setResult] = useState<{
-    spot: { id: string; name: string; destination_id: string };
-    destination: { id: string; name: string } | null;
-    extracted: { levels: string[]; conditions: string[]; infrastructure: string[]; lat: number | null; lng: number | null };
-    notes: string[];
+    queued?: boolean;
+    spot?: { id: string; name: string; destination_id: string };
+    destination?: { id: string; name: string } | null;
+    extracted?: { levels: string[]; conditions: string[]; infrastructure: string[]; lat: number | null; lng: number | null };
+    notes?: string[];
   } | null>(null);
 
   async function run() {
@@ -46,21 +47,27 @@ export function SpotIntake() {
         </button>
         {error && <span className="text-[12.5px] font-semibold text-red-400">{error}</span>}
       </div>
-      {result && (
+      {result?.queued && (
+        <div className="mt-3 rounded-lg border border-[#0aa3c7]/40 bg-[#0aa3c7]/10 px-3.5 py-3 text-[13px]">
+          <p className="font-bold admin-heading">Queued for jibe 🤙</p>
+          <p className="admin-muted text-[12px] mt-1">jibe structures new spots on its ~4-hourly spotguide run — the draft will appear in the review queue below once it&apos;s through. Paste the next one whenever.</p>
+        </div>
+      )}
+      {result?.spot && (
         <div className="mt-3 rounded-lg border border-[#2e7d5b]/40 bg-[#0f6e56]/10 px-3.5 py-3 text-[13px]">
           <p className="font-bold admin-heading">
             Draft created: {result.spot.name}
             {result.destination ? <> · new area &ldquo;{result.destination.name}&rdquo; (draft)</> : null}
           </p>
           <p className="admin-muted text-[12px] mt-1">
-            {[result.extracted.levels.join("/") || null,
-              result.extracted.conditions.join(", ") || null,
-              result.extracted.infrastructure.join(", ") || null,
-              result.extracted.lat != null ? `pin ${result.extracted.lat.toFixed(3)}, ${result.extracted.lng?.toFixed(3)}` : null,
+            {[result.extracted?.levels.join("/") || null,
+              result.extracted?.conditions.join(", ") || null,
+              result.extracted?.infrastructure.join(", ") || null,
+              result.extracted?.lat != null ? `pin ${result.extracted.lat.toFixed(3)}, ${result.extracted.lng?.toFixed(3)}` : null,
             ].filter(Boolean).join(" · ") || "No structured fields extracted — review the text fields."}
           </p>
-          {result.notes.length > 0 && (
-            <ul className="mt-1.5 text-[12px] text-amber-500 list-disc pl-4">{result.notes.map((n, i) => <li key={i}>{n}</li>)}</ul>
+          {(result.notes ?? []).length > 0 && (
+            <ul className="mt-1.5 text-[12px] text-amber-500 list-disc pl-4">{(result.notes ?? []).map((n, i) => <li key={i}>{n}</li>)}</ul>
           )}
           <Link href={`/admin/destinations/${result.spot.destination_id}`} className="inline-block mt-2 text-[12.5px] font-bold text-[#0aa3c7] hover:underline">
             Review &amp; publish in the destination editor →

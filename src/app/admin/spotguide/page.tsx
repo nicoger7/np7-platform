@@ -30,7 +30,7 @@ export default function SpotguideModeration() {
   const [proposedDests, setProposedDests] = useState<{ id: string; name: string; region: string | null }[]>([]);
   const [edits, setEdits] = useState<PendingEdit[]>([]);
   const [trust, setTrust] = useState<Grant[]>([]);
-  const [jibe, setJibe] = useState<{ toStructure: number; toMerge: number; lastRun?: { ran_at: string; structured: number; merged: number; summary: string | null } | null } | null>(null);
+  const [jibe, setJibe] = useState<{ toStructure: number; toMerge: number; toIntake?: number; lastRun?: { ran_at: string; structured: number; merged: number; summary: string | null } | null } | null>(null);
   const [members, setMembers] = useState<Member[]>([]);
   const [dests, setDests] = useState<{ id: string; name: string }[]>([]);
   const [q, setQ] = useState("");
@@ -130,6 +130,10 @@ export default function SpotguideModeration() {
             <div className="flex-1 rounded-lg px-3 py-2.5" style={{ border: "1px solid var(--admin-border)" }}>
               <div className="text-2xl font-bold admin-heading tabular-nums">{jibe.toMerge}</div>
               <div className="text-[11px] admin-faint">tips to fold in</div>
+            </div>
+            <div className="flex-1 rounded-lg px-3 py-2.5" style={{ border: "1px solid var(--admin-border)" }}>
+              <div className="text-2xl font-bold admin-heading tabular-nums">{jibe.toIntake ?? 0}</div>
+              <div className="text-[11px] admin-faint">intake texts to structure</div>
             </div>
           </div>
         </div>

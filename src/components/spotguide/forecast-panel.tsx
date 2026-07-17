@@ -12,9 +12,22 @@ import { ForecastVoter } from "./raters";
  */
 export function ForecastPanel({ spotId, np7Models, tally, accent = "#00afdb" }: { spotId: string; np7Models: string[]; tally: ForecastTally[]; accent?: string }) {
   const top = tally[0];
+  // Folded by default (like the wind statistics): the summary line already
+  // carries the answer — NP7's pick or the crowd favourite — so most riders
+  // never need to open it; the vote UI is one tap away.
+  const teaser = np7Models.length
+    ? `NP7 rides ${np7Models.map((id) => forecastLabel(id)).join(" + ")}`
+    : top ? `Riders trust ${top.label}` : "No votes yet — be the first";
   return (
-    <div className="rounded-xl bg-[#fdfaf3] border border-[#f0e9da] p-4">
-      <div className="text-[11px] font-bold uppercase tracking-[0.1em] text-[#9aa6ac] mb-2">Best forecast here</div>
+    <details className="group/fc rounded-xl bg-[#fdfaf3] border border-[#f0e9da] [&_summary::-webkit-details-marker]:hidden">
+      <summary className="flex items-center justify-between gap-3 p-4 cursor-pointer list-none select-none">
+        <span className="min-w-0 flex items-baseline gap-2.5 truncate">
+          <span className="shrink-0 text-[11px] font-bold uppercase tracking-[0.1em] text-[#9aa6ac]">Best forecast here</span>
+          <span className="truncate text-[12px] font-semibold text-[#6a7a80]">{teaser}</span>
+        </span>
+        <svg className="shrink-0 w-4 h-4 text-[#c0ccd0] transition-transform group-open/fc:rotate-180" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M6 9l6 6 6-6" /></svg>
+      </summary>
+      <div className="px-4 pb-4">
 
       {np7Models.length > 0 && (
         <div className="flex flex-wrap items-center gap-1.5 mb-3">
@@ -48,6 +61,7 @@ export function ForecastPanel({ spotId, np7Models, tally, accent = "#00afdb" }: 
 
       {/* vote right where the result shows — your pick is ticked, tap to change */}
       <ForecastVoter spotId={spotId} accent={accent} />
-    </div>
+      </div>
+    </details>
   );
 }
