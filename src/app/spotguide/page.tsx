@@ -56,7 +56,9 @@ export default async function SpotguideIndex({ searchParams }: { searchParams: P
             so switching Spotguide ⇄ Gear ⇄ Technique never shifts the pills */}
         <header className="relative text-white pt-16 pb-12 overflow-hidden" style={{ background: chrome.heroBackground }}>
           {/* real crew photo (high-res), not the video screengrab */}
-          <div className="absolute inset-0 bg-cover bg-center opacity-30" style={{ backgroundImage: "url('https://media.np-seven.com/experiences/np7-bonaire/people/groups-hot-water-2025.jpg')" }} aria-hidden />
+          {/* focal point held low (the crew sit in the lower third) so wide, short
+              heroes don't crop to empty sky and strand them at the bottom edge */}
+          <div className="absolute inset-0 bg-cover opacity-30" style={{ backgroundImage: "url('https://media.np-seven.com/experiences/np7-bonaire/people/groups-hot-water-2025.jpg')", backgroundPosition: "center 68%" }} aria-hidden />
           <div className="absolute inset-0" style={{ background: "linear-gradient(to bottom, rgba(0,20,29,0.25) 0%, transparent 40%, rgba(0,20,29,0.6) 100%)" }} aria-hidden />
           <div className="relative max-w-[1200px] mx-auto px-6 sm:px-8">
             <p className="text-[11px] font-bold tracking-[0.25em] mb-3" style={{ color: chrome.eyebrow }}>THE SPOTGUIDE · A COMMUNITY PROJECT</p>

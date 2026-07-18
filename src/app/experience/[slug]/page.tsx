@@ -16,6 +16,7 @@ import { GalleryStrip } from "@/components/experience/gallery-strip";
 import { Slideshow } from "@/components/experience/slideshow";
 import { EpicWeekScroll } from "@/components/experience/epic-week-scroll";
 import { SectionNav, type NavSection } from "@/components/experience/section-nav";
+import { flags } from "@/lib/flags";
 
 export const revalidate = 60;
 
@@ -584,6 +585,15 @@ export default async function ExperienceDetailPage({ params }: Props) {
               <span className="block text-[13px] font-semibold text-white/45 mt-2">— the NP7 promise, week after week</span>
             </p>
           </Reveal>
+          {/* the full philosophy lives on its own page — this section is the short version */}
+          {flags.showMethod && (
+            <Reveal>
+              <Link href="/method" className="group inline-flex items-center gap-2 mt-8 text-[14px] font-bold text-white/90 hover:text-white border-b border-white/25 hover:border-white/70 pb-0.5 transition-colors">
+                Read the full NP7 Method
+                <span className="transition-transform group-hover:translate-x-0.5">→</span>
+              </Link>
+            </Reveal>
+          )}
         </div>
       </section>
 
