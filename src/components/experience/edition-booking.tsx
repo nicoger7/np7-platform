@@ -1,7 +1,7 @@
 "use client";
 
-import { useState } from "react";
 import { PackagePicker, type RealPackage } from "./package-picker";
+import { useSelectedEdition } from "./selected-edition";
 
 export type EditionLite = {
   id: string;
@@ -37,7 +37,9 @@ export function EditionBooking({
   experienceTitle: string;
   heroImage?: string | null;
 }) {
-  const [sel, setSel] = useState(editions[0]?.id);
+  // The selected week is shared page-wide (see SelectedEditionProvider) so the
+  // crew section below follows whichever week you pick here.
+  const { id: sel, setId: setSel } = useSelectedEdition();
   const ed = editions.find((e) => e.id === sel) ?? editions[0];
   const packages = ed ? packagesByEdition[ed.id] ?? [] : [];
   const multi = editions.length > 1;
