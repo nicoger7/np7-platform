@@ -47,7 +47,7 @@ export function BrandedTile({
              the INNER handles the editor's zoom (grown past the box via a negative
              inset so backgroundPosition can pan in BOTH axes) + focal point. */}
       {photo && (
-        <div className="absolute inset-0 overflow-hidden transform-gpu [backface-visibility:hidden] transition-transform duration-500 ease-out group-hover:scale-[1.035]">
+        <div className="absolute inset-0 overflow-hidden transform-gpu [backface-visibility:hidden] transition-transform duration-[420ms] [transition-timing-function:cubic-bezier(0.22,1,0.36,1)] group-hover:scale-[1.03]">
           <div
             className="absolute bg-cover"
             style={{
