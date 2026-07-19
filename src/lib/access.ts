@@ -95,6 +95,7 @@ export const SECTIONS: Section[] = [
   { key: "event_content", label: "Event content", world: "experience", group: "Website", paths: ["/admin/content", "/api/admin/content"] },
   { key: "members", label: "Member management", world: "experience", group: "Website", paths: ["/admin/members", "/api/admin/members"] },
   { key: "magazine", label: "Magazine", world: "experience", group: "Website", paths: ["/admin/blog", "/api/admin/blog"] },
+  { key: "spotguide", label: "Spotguide", world: "experience", group: "Website", paths: ["/admin/spotguide", "/admin/spots", "/api/admin/spotguide", "/api/admin/spots"] },
   { key: "destinations", label: "Destinations", world: "experience", group: "Website", paths: ["/admin/destinations", "/api/admin/destinations"] },
   { key: "guest_reviews", label: "Guest reviews", world: "experience", group: "Website", paths: ["/admin/guest-reviews", "/api/admin/guest-reviews"] },
   { key: "waivers", label: "Waivers", world: "experience", group: "Website", paths: ["/admin/waivers", "/api/admin/waivers"] },

@@ -13,7 +13,7 @@ const DISCIPLINES = [
     color: "#00afdb",
     image: "https://media.np-seven.com/experiences/np7-alacati/action/alacati-experience-action-nico-2.jpg",
     hook: "The heart of everything we do — the sport we fell in love with and never stopped chasing.",
-    beats: ["Demanding", "Humbling", "Endlessly deep"],
+    beats: ["Pure freedom", "The planing rush", "Endlessly deep"],
     body: [
       "There is nothing like the moment the board lifts and you are planing, powered by nothing but the wind.",
       "It teaches you patience, how to read nature, how to stay calm when it turns wild — lessons that follow you well off the water. To us it is simply the best sport in the world, and every NP7 week is built around it.",
@@ -54,9 +54,13 @@ export function DisciplinesShowcase() {
           const on = d.key === active;
           return (
             <button key={d.key} type="button" onClick={() => setActive(d.key)} aria-expanded={on}
-              className={`group relative rounded-3xl overflow-hidden p-7 h-[190px] flex flex-col justify-end text-left text-white shadow-[0_24px_50px_rgba(0,20,30,0.28)] transition-all ${on ? "ring-2 ring-white/70 -translate-y-1" : "opacity-85 hover:opacity-100"}`}
+              className={`group relative rounded-3xl overflow-hidden p-7 h-[190px] flex flex-col justify-end text-left text-white shadow-[0_24px_50px_rgba(0,20,30,0.28)] transform-gpu transition-[transform,opacity,box-shadow] duration-[420ms] [transition-timing-function:cubic-bezier(0.22,1,0.36,1)] ${on ? "ring-2 ring-white/70 -translate-y-1" : "opacity-85 hover:opacity-100 hover:-translate-y-0.5"}`}
               style={{ background: `linear-gradient(160deg, ${d.color}, #00374a)` }}>
-              <div className="absolute inset-0 bg-cover bg-center transition-transform duration-700 group-hover:scale-105" style={{ backgroundImage: `url('${d.image}')` }} />
+              {/* GPU-promoted zoom wrapper — keeps the rounded clip stable on first
+                  hover (the "little squares" flicker was the un-promoted layer) */}
+              <div className="absolute inset-0 overflow-hidden transform-gpu [backface-visibility:hidden]">
+                <div className="absolute inset-0 bg-cover bg-center transform-gpu transition-transform duration-[420ms] [transition-timing-function:cubic-bezier(0.22,1,0.36,1)] group-hover:scale-[1.03]" style={{ backgroundImage: `url('${d.image}')` }} />
+              </div>
               <div className="absolute inset-0 mix-blend-multiply opacity-55" style={{ background: `linear-gradient(160deg, ${d.color}, #00374a)` }} />
               <div className="absolute inset-0 bg-gradient-to-t from-[#00131b]/80 via-transparent to-transparent" />
               <h3 className="relative text-2xl font-black tracking-[-0.02em]">{d.name}</h3>

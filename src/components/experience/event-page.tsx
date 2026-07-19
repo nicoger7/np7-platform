@@ -40,13 +40,16 @@ export async function EventPage({ event, isMember, paid }: { event: EventInfo; i
   const [{ data: content }, { data: exp }, { data: coachRows }] = await Promise.all([
     db.from("exp_content").select("location_about,hero_image,gallery").eq("experience_id", event.id).maybeSingle(),
     db.from("exp_experiences").select("whats_included").eq("id", event.id).maybeSingle(),
-    db.from("exp_coaches").select("name,role,bio,image_url,whatsapp_link").ilike("role", "%coach%").order("created_at"),
+    // HEAD coach only — the coach library is global (no per-event link), so
+    // listing arbitrary coaches would attribute the wrong people to an event.
+    // Nico fronts every event; per-event crews need an edition-coach link first.
+    db.from("exp_coaches").select("name,role,bio,image_url,whatsapp_link").ilike("role", "%head%").order("created_at"),
   ]);
   const hero = content?.hero_image || event.hero_image || "";
   const about = (content?.location_about || event.description || "").trim();
   const gallery = (Array.isArray(content?.gallery) ? content.gallery : []).filter(Boolean).slice(0, 6) as string[];
   const included = parseIncluded(exp?.whats_included).slice(0, 8);
-  const coaches = ((coachRows ?? []) as Coach[]).slice(0, 3);
+  const coaches = ((coachRows ?? []) as Coach[]).slice(0, 1);
 
   const price = event.price ?? 0;
   const { deposit, balance, refund } = eventPricing(price, event.depositPct, event.refundPct);

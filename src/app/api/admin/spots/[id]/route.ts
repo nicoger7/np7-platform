@@ -56,6 +56,14 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
   }
   if (error) return NextResponse.json({ error: error.message }, { status: 400 });
 
+  // A moderation DECISION (verify / approve / hide) resolves any open rider
+  // flags — otherwise `flagged` keeps pulling the spot back into the review
+  // queue forever, no matter what the admin chose. Riders can always re-flag
+  // later, which correctly resurfaces it.
+  if ("verification" in body || "status" in body) {
+    await db.from("spot_verifications").delete().eq("spot_id", id).eq("kind", "flag");
+  }
+
   // Verifying a spot (community/np7) auto-publishes its rider-proposed draft place.
   if (data && (data.verification === "community" || data.verification === "np7")) {
     await publishDestinationIfEarned(db, data.destination_id);

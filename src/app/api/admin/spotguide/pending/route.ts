@@ -16,7 +16,7 @@ export async function GET() {
   // or flagged at any verification level).
   const { data: spots, error } = await db
     .from("spots")
-    .select("id, name, destination_id, level, conditions, description, verification, created_at")
+    .select("id, name, destination_id, level, conditions, description, verification, status, created_at")
     .in("source", ["member", "jibe"]) // jibe = AI-intake drafts awaiting review
     .order("created_at", { ascending: false });
   if (error) {
@@ -49,10 +49,12 @@ export async function GET() {
     const flagged = flags > 0;
     const stuck = !flagged && ageDays >= STUCK_DAYS && confirms < COMMUNITY_VERIFY_THRESHOLD;
     return { ...s, destinationName: destName.get(s.destination_id as string) ?? "—", confirms, flags, flagReasons, ageDays, flagged, stuck };
-  }).filter((s: { flagged: boolean; verification: string }) =>
-    // Still needs a human: never decided yet, OR flagged by riders (a flag pulls
-    // a spot back for review even after it was approved / NP7-verified).
-    s.verification === "pending" || s.flagged
+  }).filter((s: { flagged: boolean; verification: string; status: string }) =>
+    // Still needs a human: undecided AND not hidden (Hide is a decision — it
+    // sticks), OR carrying open rider flags. Every admin decision clears the
+    // open flags (spots PATCH), so only a NEW flag pulls a spot back — including
+    // a hidden one, which is exactly when you'd want a second look.
+    (s.verification === "pending" && s.status !== "hidden") || s.flagged
   ).sort((a: { flagged: boolean; stuck: boolean; ageDays: number }, b: { flagged: boolean; stuck: boolean; ageDays: number }) =>
     (Number(b.flagged) - Number(a.flagged)) || (Number(b.stuck) - Number(a.stuck)) || (b.ageDays - a.ageDays));
   // Member-proposed new areas (destinations) awaiting NP7 publish.

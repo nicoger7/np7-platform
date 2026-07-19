@@ -24,13 +24,17 @@ export function CrewCarousel({
   weekLabels: Record<string, string>;
 }) {
   const { id } = useSelectedEdition();
-  const list = (id && coachesByEdition[id]?.length ? coachesByEdition[id] : fallback);
+  const hasOwnCrew = !!(id && coachesByEdition[id]?.length);
+  const list = hasOwnCrew ? coachesByEdition[id!] : fallback;
   const label = id ? weekLabels[id] : undefined;
   const multiWeek = Object.keys(weekLabels).length > 1;
 
   return (
     <>
-      {multiWeek && label && (
+      {/* Only claim "for Week X" when that week genuinely has its own assigned
+          crew — the fallback is another week's team, and naming the selected
+          week over it would misattribute coaches on a booking surface. */}
+      {multiWeek && label && hasOwnCrew && (
         <p className="text-[13.5px] text-[#5a6b72] -mt-5 mb-6">
           Your coaches for <span className="font-bold text-[#00374a]">{label}</span>
           <span className="text-[#9aa6ac]"> · pick another week above to see its team</span>

@@ -84,9 +84,12 @@ export const TILE_PLACEMENT_DEFAULTS: Required<TilePlacement> = {
   flagRight: -2, flagTop: -12, flagWidth: 42, flagRotate: 12, flagOpacity: 45, flagFade: 25,
 };
 
-/** Merge a (possibly partial / null) placement over the defaults. */
+/** Merge a (possibly partial / null) placement over the defaults.
+ *  The coach's HORIZONTAL position is locked (every tile lines up), so any
+ *  legacy saved `coachRight` is deliberately ignored here — otherwise tiles
+ *  customised before the lock would break the alignment it promises. */
 export function resolveTilePlacement(p?: TilePlacement | null): Required<TilePlacement> {
-  return { ...TILE_PLACEMENT_DEFAULTS, ...(p ?? {}) };
+  return { ...TILE_PLACEMENT_DEFAULTS, ...(p ?? {}), coachRight: TILE_PLACEMENT_DEFAULTS.coachRight };
 }
 
 /** The flag's fade mask for a given fade strength (higher = flag fades out more). */

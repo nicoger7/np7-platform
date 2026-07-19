@@ -14,6 +14,7 @@ export function EditionProgramEditor({ editionId, fallback }: { editionId: strin
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
+  const [error, setError] = useState("");
 
   useEffect(() => {
     setLoading(true); setSaved(false);
@@ -25,12 +26,23 @@ export function EditionProgramEditor({ editionId, fallback }: { editionId: strin
   }, [editionId]);
 
   async function save(next: Day[] | null) {
-    setSaving(true); setSaved(false);
-    await fetch(`/api/admin/editions/${editionId}`, {
-      method: "PATCH", headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ daily_program: next }),
-    }).catch(() => {});
-    setSaving(false); setSaved(true); setTimeout(() => setSaved(false), 2000);
+    setSaving(true); setSaved(false); setError("");
+    try {
+      const res = await fetch(`/api/admin/editions/${editionId}`, {
+        method: "PATCH", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ daily_program: next }),
+      });
+      if (!res.ok) {
+        const j = await res.json().catch(() => ({}));
+        setError(j.error || `Save failed (${res.status}) — your changes are NOT stored yet.`);
+        return;
+      }
+      setSaved(true); setTimeout(() => setSaved(false), 2000);
+    } catch {
+      setError("Save failed (network) — your changes are NOT stored yet.");
+    } finally {
+      setSaving(false);
+    }
   }
 
   if (loading) return <p className="text-xs admin-faint">Loading this week&apos;s program…</p>;
@@ -83,6 +95,7 @@ export function EditionProgramEditor({ editionId, fallback }: { editionId: strin
         </div>
       )}
       {saved && <p className="text-[12px] font-semibold text-green-500 mt-2">Saved</p>}
+      {error && <p className="text-[12px] font-semibold text-red-400 mt-2">{error}</p>}
     </div>
   );
 }
