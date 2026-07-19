@@ -5,7 +5,7 @@
 export const METHOD_EYEBROW = "THE NP7 METHOD";
 export const METHOD_HEADLINE = "The whole rider — not just the move.";
 export const METHOD_SUBHEAD =
-  "Great windsurfing was never one fix on the water — it's seven things moving together. The NP7 Method is Nico's proven system for building all of them, in you, across one week by the sea. It's the coaching approach he's refined teaching hundreds of thousands of windsurfers through YouTube and camps worldwide — now built around the whole rider, with every complex movement broken into clear, actionable steps, tailored to you.";
+  "Great windsurfing was never one fix on the water — it's seven things moving together. The NP7 Method is Nico's proven system for building all of them, in you, session after session by the sea. It's the coaching approach he's refined teaching hundreds of thousands of windsurfers through YouTube and camps worldwide — now built around the whole rider, with every complex movement broken into clear, actionable steps, tailored to you.";
 
 export type MethodDimension = { name: string; oneLiner: string; body: string };
 
@@ -21,10 +21,10 @@ export const METHOD_DIMENSIONS: MethodDimension[] = [
 
 export const METHOD_MOMENTUM_HEADING = "Momentum, not moments.";
 export const METHOD_MOMENTUM_BODY =
-  "Nobody transforms in a single moment on the water — real progress is momentum, and it builds. The day you book the week, you've already made the real decision: to get better. From there it compounds — morning focus into evening video, one session standing on the last. And because it's a week where windsurfing is the only topic — talked over breakfast, watched back at night, lived from sunrise to sunset with a crew who love it as much as you do — you're not squeezing in a lesson, you're fully immersed. That combination, momentum plus your crew, is exactly where the real jump happens.";
+  "Nobody transforms in a single moment on the water — real progress is momentum, and it builds. The moment you book, you've already made the real decision: to get better. From there it compounds — morning focus into evening video, one session standing on the last. And because windsurfing is the only topic — talked over breakfast, watched back at night, lived from sunrise to sunset with a crew who love it as much as you do — you're not squeezing in a lesson, you're fully immersed. That combination, momentum plus your crew, is exactly where the real jump happens.";
 
 export const METHOD_CLOSING =
-  "The best part is you can start living the Method today. Dig into the free technique articles, take one focus point into your very next session, and feel it work on your own local water. But the real leap — all seven dimensions at once, six days on the water, a hand-picked crew beside you and a coach in your corner — happens on a trip, where everything you've read turns into the way you actually ride. This is the week it all finally clicks. We'll see you on the water.";
+  "The best part is you can start living the Method today. Dig into the free technique articles, take one focus point into your very next session, and feel it work on your own local water. But the real leap — all seven dimensions at once, session after session, a hand-picked crew beside you and a coach in your corner — happens on a trip, where everything you've read turns into the way you actually ride. This is where it all finally clicks. We'll see you on the water.";
 
 // The daily coaching loop — the visualised "mechanism" (Ride → Film → Break it
 // down → One focus point → back to the water).
@@ -35,10 +35,11 @@ export const METHOD_LOOP: { label: string; note: string }[] = [
   { label: "One focus point", note: "The single thing for tomorrow" },
 ];
 
-// The week's momentum arc — booking is the commitment; the jump compounds.
+// The momentum arc — booking is the commitment; the jump compounds. Deliberately
+// day-free so it fits every format, from a one-day event to a full trip week.
 export const METHOD_WEEK: { k: string; label: string; sub: string }[] = [
   { k: "Book", label: "You commit", sub: "The real decision: to get better" },
-  { k: "Day 1", label: "Baseline", sub: "First sessions + your starting point on video" },
-  { k: "Day 3", label: "It clicks", sub: "Fundamentals lock in, fear fades" },
-  { k: "Day 6", label: "The jump", sub: "Everything moving together" },
+  { k: "First sessions", label: "Baseline", sub: "Your starting point, on video" },
+  { k: "It builds", label: "It clicks", sub: "Fundamentals lock in, fear fades" },
+  { k: "By the end", label: "The jump", sub: "Everything moving together" },
 ];

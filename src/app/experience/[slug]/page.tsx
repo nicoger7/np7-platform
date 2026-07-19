@@ -19,8 +19,7 @@ import { SectionNav, type NavSection } from "@/components/experience/section-nav
 import { MethodModal } from "@/components/experience/method-modal";
 import { ExplainerVideo } from "@/components/experience/explainer-video";
 import { TripOverlay } from "@/components/experience/trip-overlay";
-import { SpotDeepDive } from "@/components/experience/spot-deep-dive";
-import { getSpotguideDestination } from "@/lib/spotguide-data";
+import { DestinationDeepDive } from "@/components/experience/destination-deep-dive";
 
 export const revalidate = 60;
 
@@ -466,9 +465,8 @@ export default async function ExperienceDetailPage({ params }: Props) {
       if (dd && dd.status === "published" && dd.slug) destination = dd;
     }
   }
-  // Full Spotguide data for the in-page overlay — "Explore {spot}" must never
-  // navigate the booking visitor away; the deep-dive opens ON the trip instead.
-  const spotguide = destination?.slug ? await getSpotguideDestination(destination.slug).catch(() => null) : null;
+  // "Explore {spot}" never navigates the booking visitor away — the rich
+  // DESTINATION deep-dive opens ON the trip instead (DestinationDeepDive).
 
   // ONE preset for every experience: "The spot" always renders the same section —
   // the editor's location_about wins, otherwise the linked destination's own
@@ -702,25 +700,20 @@ export default async function ExperienceDetailPage({ params }: Props) {
                     {windProbability && <span className="text-[12.5px] font-bold text-[#00374a] bg-[#00afdb]/10 px-3.5 py-1.5 rounded-full">{windProbability} wind probability</span>}
                   </div>
                 )}
-                {spotguide ? (
-                  /* opens the Spotguide deep-dive ON the trip — zero navigation, zero funnel leak */
+                {destination?.slug && (
+                  /* opens the rich DESTINATION deep-dive ON the trip — zero navigation, zero funnel leak */
                   <div className="mt-7">
                     <TripOverlay
-                      label={`${destination!.name} · Spotguide`}
+                      label={`${destination.name} · The destination`}
                       triggerClassName="group inline-flex items-center gap-2 px-6 py-3 rounded-full text-[13.5px] font-bold text-white bg-[#00afdb] shadow-[0_4px_18px_rgba(0,175,219,0.3)] hover:bg-[#15c0ec] hover:-translate-y-0.5 transition-all"
                       trigger={<>
-                        Explore {destination!.name}
+                        Explore {destination.name}
                         <svg className="w-4 h-4 group-hover:translate-x-0.5 transition-transform" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M5 12h14M13 6l6 6-6 6" /></svg>
                       </>}>
-                      <SpotDeepDive d={spotguide} />
+                      <DestinationDeepDive slug={destination.slug} />
                     </TripOverlay>
                   </div>
-                ) : destination?.slug ? (
-                  <Link href={`/destinations/${destination.slug}`} className="group inline-flex items-center gap-2 mt-7 px-6 py-3 rounded-full text-[13.5px] font-bold text-white bg-[#00afdb] shadow-[0_4px_18px_rgba(0,175,219,0.3)] hover:bg-[#15c0ec] hover:-translate-y-0.5 transition-all">
-                    Explore {destination.name}
-                    <svg className="w-4 h-4 group-hover:translate-x-0.5 transition-transform" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M5 12h14M13 6l6 6-6 6" /></svg>
-                  </Link>
-                ) : null}
+                )}
               </div>
             </Reveal>
           </div>
@@ -746,9 +739,9 @@ export default async function ExperienceDetailPage({ params }: Props) {
                   </div>
                 </>;
                 const cls = "group relative block w-full rounded-3xl overflow-hidden min-h-[240px] flex items-end bg-[#00374a] shadow-[0_20px_50px_rgba(0,55,74,0.15)]";
-                return spotguide
-                  ? <TripOverlay label={`${destination.name} · Spotguide`} triggerClassName={cls} trigger={banner}><SpotDeepDive d={spotguide} /></TripOverlay>
-                  : <Link href={`/destinations/${destination.slug}`} className={cls}>{banner}</Link>;
+                return destination.slug
+                  ? <TripOverlay label={`${destination.name} · The destination`} triggerClassName={cls} trigger={banner}><DestinationDeepDive slug={destination.slug} /></TripOverlay>
+                  : <div className={cls}>{banner}</div>;
               })()}
             </Reveal>
           </div>

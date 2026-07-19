@@ -51,23 +51,25 @@ function CoachingLoop() {
         ))}
       </div>
       <p className="mt-3.5 text-[12.5px] font-bold text-[#0a7f9e] flex items-center gap-2">
-        <span aria-hidden className="inline-block">↻</span> Every day, building on the last — that&apos;s why a week beats a lesson.
+        <span aria-hidden className="inline-block">↻</span> Every session building on the last — that&apos;s why an experience beats a lesson.
       </p>
     </Reveal>
   );
 }
 
-/** The week-momentum arc — a rising line from "you commit" to "the jump". */
+/** The momentum arc — a connector line from "you commit" to "the jump".
+ *  Mobile = clean vertical timeline (left rail); desktop = horizontal line. */
 function WeekArc() {
   return (
-    <div className="mt-8 grid gap-3 sm:grid-cols-4 relative">
-      {/* rising connector line behind the nodes (desktop) */}
-      <div aria-hidden className="hidden sm:block absolute left-[12%] right-[12%] top-[38px] h-[3px] rounded-full" style={{ background: "linear-gradient(90deg,#8fe6f2,#00afdb)" }} />
+    <div className="mt-8 relative grid gap-6 sm:gap-3 sm:grid-cols-4">
+      {/* connector: vertical rail on mobile, horizontal line on desktop */}
+      <div aria-hidden className="sm:hidden absolute left-[16px] top-3 bottom-3 w-[3px] rounded-full" style={{ background: "linear-gradient(180deg,#8fe6f2,#00afdb)" }} />
+      <div aria-hidden className="hidden sm:block absolute left-[12%] right-[12%] top-[17px] h-[3px] rounded-full" style={{ background: "linear-gradient(90deg,#8fe6f2,#00afdb)" }} />
       {METHOD_WEEK.map((w, i) => (
-        <Reveal key={w.k} delay={i * 120} className="relative text-center sm:text-left">
-          <div className="flex sm:block items-center gap-3">
-            <span className="relative z-10 grid place-items-center w-9 h-9 rounded-full text-[11px] font-black text-[#00374a] shrink-0 mx-auto sm:mx-0" style={{ background: "linear-gradient(135deg,#ffe08a,#00afdb)", boxShadow: "0 0 0 4px rgba(0,55,74,0.9)" }}>{i + 1}</span>
-            <div className="mt-0 sm:mt-3 text-left">
+        <Reveal key={w.k} delay={i * 120} className="relative">
+          <div className="flex sm:block items-start gap-4">
+            <span className="relative z-10 grid place-items-center w-9 h-9 rounded-full text-[11px] font-black text-[#00374a] shrink-0" style={{ background: "linear-gradient(135deg,#ffe08a,#00afdb)", boxShadow: "0 0 0 4px rgba(0,55,74,0.9)" }}>{i + 1}</span>
+            <div className="sm:mt-3 pt-1 sm:pt-0">
               <p className="text-[11px] font-black uppercase tracking-[0.12em] text-[#8fe6f2]">{w.k}</p>
               <p className="text-[16px] font-extrabold text-white leading-tight">{w.label}</p>
               <p className="text-[12.5px] text-white/60 leading-snug mt-0.5">{w.sub}</p>

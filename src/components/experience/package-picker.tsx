@@ -181,9 +181,11 @@ export function PackagePicker({ packages, currency = "EUR", reserve, heroImage }
     setAccId(first?.id);
   };
 
+  // min-w-0 on the left column: without it the photo-thumb strip's intrinsic
+  // width propagates into the grid track and pushes the whole page wider on phones.
   return (
     <div className="grid lg:grid-cols-[1fr_minmax(330px,380px)] gap-6 lg:gap-8 items-start">
-      <div className="space-y-8">
+      <div className="space-y-8 min-w-0">
         {/* level */}
         <div>
           <p className="text-[11px] font-bold tracking-[0.2em] uppercase text-[#9aa6ac] mb-3">1 · Coaching level</p>
@@ -318,8 +320,11 @@ export function PackagePicker({ packages, currency = "EUR", reserve, heroImage }
                           {single ? fmt(cheapest.price) : `from ${fmt(cheapest.price)}`}
                         </span>
                       </span>
+                      {/* Collapsed = 2-line teaser (line-clamp needs -webkit-box, so no
+                          `block` here — it would override the clamp). Full text unfolds
+                          only on the chosen hotel. */}
                       {g.description && (
-                        <span className="block text-[12.5px] text-[#5a6b72] leading-snug mt-0.5 line-clamp-2">{g.description}</span>
+                        <span className={`text-[12.5px] text-[#5a6b72] leading-snug mt-0.5 ${groupActive ? "block" : "line-clamp-2"}`}>{g.description}</span>
                       )}
                       <span className="flex items-center gap-2 mt-1.5">
                         <Radio on={groupActive} />
@@ -379,9 +384,9 @@ export function PackagePicker({ packages, currency = "EUR", reserve, heroImage }
         <div className="p-7">
         <p className="text-[11px] font-bold tracking-[0.2em] uppercase text-white/40 mb-1">Your package</p>
         <h3 className="text-xl font-extrabold tracking-[-0.02em]">{level}</h3>
-        <p className="text-[13px] text-white/55 mb-1">{selected?.hotelName || selected?.accommodation}</p>
-        {selected?.hotelDescription && <p className="text-[12px] text-white/40 mb-4 leading-relaxed">{selected.hotelDescription}</p>}
-        {!selected?.hotelDescription && <div className="mb-4" />}
+        {/* name only — the full hotel description already lives on the chosen
+            hotel's card, showing it here too read as a duplicate */}
+        <p className="text-[13px] text-white/55 mb-4">{selected?.hotelName || selected?.accommodation}</p>
 
         <ul className="space-y-2 mb-6">
           {((selected?.includes && selected.includes.length ? selected.includes : DEFAULT_INCLUDES)).map((inc) => (
