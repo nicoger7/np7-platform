@@ -71,10 +71,12 @@ export function TilePlacementEditor({ content, value, onChange }: {
   const p = resolveTilePlacement(value);
   const set = (patch: Partial<TilePlacement>) => onChange({ ...value, ...patch });
 
-  // Drag on the canvas moves whichever element is active.
+  // Drag on the canvas moves whichever element is active. The COACH is
+  // horizontally locked (so every tile's coach lines up) — drag only nudges it
+  // vertically; use the Size slider for scale.
   const { ref, handlers } = useCanvasDrag((x, y) => {
     if (active === "photo") set({ photoX: x, photoY: y });
-    else if (active === "coach") set({ coachRight: clamp(100 - x, -15, 85), coachBottom: clamp(100 - y, -15, 60) });
+    else if (active === "coach") set({ coachBottom: clamp(100 - y, -15, 60) });
     else set({ flagRight: clamp(100 - x, -20, 70), flagTop: clamp(y - 60, -40, 35) });
   });
 
@@ -85,52 +87,54 @@ export function TilePlacementEditor({ content, value, onChange }: {
 
   const hasCoach = !!content.coachName;
   const hasFlag = !!content.flag;
+  const [showAll, setShowAll] = useState(false);
 
   return (
-    <div className="rounded-2xl border border-[var(--admin-border,#e3e9ec)] bg-[var(--admin-card,#fff)] p-4 sm:p-5">
+    <div className="rounded-2xl border border-[var(--admin-border,#e3e9ec)] bg-[var(--admin-card,#fff)] p-3.5 sm:p-4 max-w-[440px]">
       {/* element picker */}
-      <div className="flex flex-wrap items-center gap-2 mb-3">
-        <span className="text-[12px] font-bold uppercase tracking-[0.12em] text-[var(--admin-fg-muted,#7a8a90)] mr-1">Adjust</span>
-        {([["photo", "Photo crop"], ["coach", "Coach"], ["flag", "Flag"]] as [Elem, string][]).map(([k, lbl]) => {
+      <div className="flex flex-wrap items-center gap-1.5 mb-2.5">
+        <span className="text-[11px] font-bold uppercase tracking-[0.12em] text-[var(--admin-fg-muted,#7a8a90)] mr-0.5">Adjust</span>
+        {([["photo", "Photo"], ["coach", "Coach"], ["flag", "Flag"]] as [Elem, string][]).map(([k, lbl]) => {
           const disabled = (k === "coach" && !hasCoach) || (k === "flag" && !hasFlag);
           return (
             <button key={k} type="button" disabled={disabled} onClick={() => setActive(k)}
-              className={`text-[13px] font-bold px-3 py-1.5 rounded-full transition-colors disabled:opacity-40 disabled:cursor-not-allowed ${
+              className={`text-[12.5px] font-bold px-2.5 py-1 rounded-full transition-colors disabled:opacity-40 disabled:cursor-not-allowed ${
                 active === k ? "bg-[#00374a] text-white" : "bg-[var(--admin-chip,#eef3f5)] text-[var(--admin-fg,#0a2a33)] hover:bg-[#dfe8eb]"
               }`}>{lbl}</button>
           );
         })}
         <button type="button" onClick={() => onChange({})}
-          className="ml-auto text-[12px] font-semibold text-[#c0392b] hover:underline">Reset to default</button>
+          className="ml-auto text-[11.5px] font-semibold text-[#c0392b] hover:underline">Reset</button>
       </div>
 
       {/* editor canvas — drag to place the active element */}
       <div ref={ref} {...handlers}
-        className="group relative w-full rounded-xl overflow-hidden cursor-crosshair select-none touch-none ring-1 ring-black/5"
+        className="group relative w-full rounded-lg overflow-hidden cursor-crosshair select-none touch-none ring-1 ring-black/5"
         style={{ aspectRatio: "1.73" }}>
         <BrandedTile photo={content.photo} place={content.place} flag={content.flag}
           coachName={content.coachName} coachCutout={content.coachCutout} placement={value} />
-        {/* active-element marker */}
-        <span aria-hidden className="pointer-events-none absolute z-20 -translate-x-1/2 -translate-y-1/2 w-7 h-7 rounded-full border-2 border-white shadow-[0_0_0_2px_rgba(0,0,0,0.4)]"
+        <span aria-hidden className="pointer-events-none absolute z-20 -translate-x-1/2 -translate-y-1/2 w-6 h-6 rounded-full border-2 border-white shadow-[0_0_0_2px_rgba(0,0,0,0.4)]"
           style={{ left: `${marker.x}%`, top: `${marker.y}%`, background: "rgba(0,175,219,0.35)" }} />
-        <span className="pointer-events-none absolute top-2 left-2 z-20 text-[10px] font-bold uppercase tracking-[0.1em] text-white/90 bg-black/45 rounded px-2 py-0.5">
-          Drag to move the {active}
+        <span className="pointer-events-none absolute top-1.5 left-1.5 z-20 text-[9.5px] font-bold uppercase tracking-[0.08em] text-white/90 bg-black/45 rounded px-1.5 py-0.5">
+          Drag {active}{active === "coach" ? " up/down" : ""}
         </span>
       </div>
 
-      {/* per-element sliders */}
-      <div className="mt-4 grid gap-3 sm:grid-cols-2">
+      {/* per-element sliders — one compact column */}
+      <div className="mt-3 space-y-2">
         {active === "photo" && (
           <>
+            <Slider label="Zoom" value={p.photoZoom} min={100} max={200} suffix="%" onChange={(v) => set({ photoZoom: v })} />
             <Slider label="Horizontal" value={p.photoX} min={0} max={100} suffix="%" onChange={(v) => set({ photoX: v })} />
             <Slider label="Vertical" value={p.photoY} min={0} max={100} suffix="%" onChange={(v) => set({ photoY: v })} />
+            {p.photoZoom <= 100 && <p className="text-[11px] text-[var(--admin-fg-muted,#7a8a90)]">Tip: zoom in first to free up room to move the photo up/down.</p>}
           </>
         )}
         {active === "coach" && hasCoach && (
           <>
             <Slider label="Size" value={p.coachScale} min={45} max={120} suffix="%" onChange={(v) => set({ coachScale: v })} />
-            <Slider label="From right" value={p.coachRight} min={-15} max={60} suffix="%" onChange={(v) => set({ coachRight: v })} />
             <Slider label="From bottom" value={p.coachBottom} min={-15} max={50} suffix="%" onChange={(v) => set({ coachBottom: v })} />
+            <p className="text-[11px] text-[var(--admin-fg-muted,#7a8a90)]">The coach&apos;s side position is locked so every tile lines up.</p>
           </>
         )}
         {active === "flag" && hasFlag && (
@@ -144,22 +148,24 @@ export function TilePlacementEditor({ content, value, onChange }: {
         )}
       </div>
 
-      {/* multi-aspect preview — the same tile at the narrowest & widest shapes it
-          can take on the live site, so placement is safe on every screen */}
-      <div className="mt-5">
-        <p className="text-[12px] font-bold uppercase tracking-[0.12em] text-[var(--admin-fg-muted,#7a8a90)] mb-2">How it looks on every screen</p>
-        <div className="grid gap-3 sm:grid-cols-3">
+      {/* multi-aspect check — collapsed by default so the editor stays compact */}
+      <button type="button" onClick={() => setShowAll((s) => !s)}
+        className="mt-3 text-[11.5px] font-semibold text-[#0a7f9e] hover:underline">
+        {showAll ? "Hide" : "Check"} how it looks on every screen shape {showAll ? "▲" : "▼"}
+      </button>
+      {showAll && (
+        <div className="mt-2 grid grid-cols-3 gap-2">
           {PREVIEW_ASPECTS.map((a) => (
             <div key={a.label}>
-              <div className="group relative w-full rounded-lg overflow-hidden ring-1 ring-black/5" style={{ aspectRatio: String(a.r) }}>
+              <div className="group relative w-full rounded overflow-hidden ring-1 ring-black/5" style={{ aspectRatio: String(a.r) }}>
                 <BrandedTile photo={content.photo} place={content.place} flag={content.flag}
                   coachName={content.coachName} coachCutout={content.coachCutout} placement={value} />
               </div>
-              <p className="text-[11px] text-[var(--admin-fg-muted,#7a8a90)] mt-1"><span className="font-bold text-[var(--admin-fg,#0a2a33)]">{a.label}</span> · {a.note}</p>
+              <p className="text-[10px] text-[var(--admin-fg-muted,#7a8a90)] mt-0.5 leading-tight"><span className="font-bold text-[var(--admin-fg,#0a2a33)]">{a.label}</span></p>
             </div>
           ))}
         </div>
-      </div>
+      )}
     </div>
   );
 }

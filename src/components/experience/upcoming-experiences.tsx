@@ -106,9 +106,9 @@ export function UpcomingExperiences({ experiences, showSignature = false }: { ex
             <Reveal key={exp.id + (month ?? "")} delay={(i % 3) * 80} as="article">
               <Link
                 href={`/experience/${exp.slug}`}
-                className="group block bg-white rounded-[18px] overflow-hidden border border-white/10 shadow-[0_24px_50px_rgba(0,20,30,0.28)] hover:-translate-y-1.5 hover:shadow-[0_30px_60px_rgba(0,20,30,0.4)] transition-all duration-300 h-full"
+                className="group block bg-white rounded-[18px] overflow-hidden border border-white/10 shadow-[0_24px_50px_rgba(0,20,30,0.28)] hover:-translate-y-1.5 hover:shadow-[0_30px_60px_rgba(0,20,30,0.4)] transition-[transform,box-shadow] duration-300 ease-out transform-gpu h-full"
               >
-                <div className="relative h-[210px] bg-[#e9eef0] overflow-hidden">
+                <div className="relative h-[210px] bg-[#e9eef0] overflow-hidden transform-gpu">
                   {exp.tileAuto && exp.hero_image ? (
                     <BrandedTile
                       photo={exp.hero_image}

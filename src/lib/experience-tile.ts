@@ -66,6 +66,7 @@ export function flagSrc(code: string): string {
 export type TilePlacement = {
   photoX?: number;      // object-position X, 0–100 (default 50)
   photoY?: number;      // object-position Y, 0–100 (default 50)
+  photoZoom?: number;   // zoom %, 100 = cover; higher creates room to pan (default 100)
   coachRight?: number;  // % offset from the right edge (default 0; negative pushes off-screen)
   coachBottom?: number; // % offset from the bottom (default 0)
   coachScale?: number;  // coach height as % of the tile (default 82)
@@ -78,7 +79,7 @@ export type TilePlacement = {
 };
 
 export const TILE_PLACEMENT_DEFAULTS: Required<TilePlacement> = {
-  photoX: 50, photoY: 50,
+  photoX: 50, photoY: 50, photoZoom: 100,
   coachRight: 0, coachBottom: 0, coachScale: 82,
   flagRight: -2, flagTop: -12, flagWidth: 42, flagRotate: 12, flagOpacity: 45, flagFade: 25,
 };

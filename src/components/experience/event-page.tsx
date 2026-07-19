@@ -1,9 +1,19 @@
 import Link from "next/link";
 import { OceanHeader, NP7_LOGO } from "@/components/experience/ocean-header";
 import { EventTicket, type TicketDate } from "@/components/experience/event-ticket";
+import { MethodModal } from "@/components/experience/method-modal";
 import { createAdminClient } from "@/lib/supabase";
 import { eventPricing, type EventInfo } from "@/lib/events";
 import { eur } from "@/lib/stripe";
+
+type Coach = { name: string; role: string | null; bio: string | null; image_url: string | null; whatsapp_link: string | null };
+
+/** Split a free-text / array "what's included" into clean bullet lines. */
+function parseIncluded(v: unknown): string[] {
+  if (Array.isArray(v)) return v.map((x) => String(x ?? "").trim()).filter(Boolean);
+  if (typeof v === "string") return v.split(/\r?\n|·|;/).map((s) => s.replace(/^[-•\s]+/, "").trim()).filter(Boolean);
+  return [];
+}
 
 /** Compact date range, e.g. "Sat 23 Nov" or "23–24 Nov 2026". */
 function fmtRange(start: string, end: string | null): string {
@@ -27,10 +37,16 @@ function toTicketDate(d: EventInfo["dates"][number]): TicketDate {
 export async function EventPage({ event, isMember, paid }: { event: EventInfo; isMember: boolean; paid: boolean }) {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const db = createAdminClient() as any;
-  const { data: content } = await db.from("exp_content").select("location_about,hero_image,gallery").eq("experience_id", event.id).maybeSingle();
+  const [{ data: content }, { data: exp }, { data: coachRows }] = await Promise.all([
+    db.from("exp_content").select("location_about,hero_image,gallery").eq("experience_id", event.id).maybeSingle(),
+    db.from("exp_experiences").select("whats_included").eq("id", event.id).maybeSingle(),
+    db.from("exp_coaches").select("name,role,bio,image_url,whatsapp_link").ilike("role", "%coach%").order("created_at"),
+  ]);
   const hero = content?.hero_image || event.hero_image || "";
   const about = (content?.location_about || event.description || "").trim();
   const gallery = (Array.isArray(content?.gallery) ? content.gallery : []).filter(Boolean).slice(0, 6) as string[];
+  const included = parseIncluded(exp?.whats_included).slice(0, 8);
+  const coaches = ((coachRows ?? []) as Coach[]).slice(0, 3);
 
   const price = event.price ?? 0;
   const { deposit, balance, refund } = eventPricing(price, event.depositPct, event.refundPct);
@@ -75,6 +91,60 @@ export async function EventPage({ event, isMember, paid }: { event: EventInfo; i
             <p className="text-[16.5px] leading-[1.6] text-[#3a4a50] whitespace-pre-line [text-wrap:pretty]">{about}</p>
           ) : (
             <p className="text-[16.5px] leading-[1.6] text-[#3a4a50]">A focused NP7 session on the water. Bring your gear and your stoke — we&apos;ll handle the rest.</p>
+          )}
+
+          {/* THE COACHING — this is why an NP7 day is different from a normal session */}
+          <div className="mt-10 rounded-2xl bg-[#00374a] text-white p-6 sm:p-8 relative overflow-hidden">
+            <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_80%_10%,rgba(0,175,219,0.28),transparent_55%)]" aria-hidden />
+            <div className="relative">
+              <p className="text-[11px] font-black uppercase tracking-[0.2em] text-[#8fe6f2]">Coaching that changes your riding</p>
+              <h2 className="text-2xl sm:text-3xl font-black tracking-[-0.02em] mt-2">Not just a session — the NP7 Method</h2>
+              <p className="text-[15px] text-white/75 leading-relaxed mt-3 max-w-[560px]">
+                Every move broken into steps that click, video analysis so you see yourself, and a focus point you take home. It&apos;s the whole rider — technique, fundamentals, mindset and the fun that keeps you coming back.
+              </p>
+              <div className="mt-5"><MethodModal /></div>
+            </div>
+          </div>
+
+          {/* WHAT'S INCLUDED / services on the ground */}
+          {included.length > 0 && (
+            <div className="mt-10">
+              <p className="text-[11px] font-black uppercase tracking-[0.2em] text-[#0a7f9e]">What&apos;s included</p>
+              <h2 className="text-2xl font-black tracking-[-0.02em] text-[#00374a] mt-2">In your ticket</h2>
+              <ul className="mt-4 grid sm:grid-cols-2 gap-x-6 gap-y-2.5">
+                {included.map((it) => (
+                  <li key={it} className="flex items-start gap-2.5 text-[15px] text-[#3a4a50]">
+                    <svg className="mt-0.5 shrink-0 text-[#00afdb]" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{ width: 18, height: 18 }}><path d="M20 6L9 17l-5-5" /></svg>
+                    <span>{it}</span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+
+          {/* WHO'S COACHING */}
+          {coaches.length > 0 && (
+            <div className="mt-10">
+              <p className="text-[11px] font-black uppercase tracking-[0.2em] text-[#f47b20]">Your coach{coaches.length > 1 ? "es" : ""}</p>
+              <h2 className="text-2xl font-black tracking-[-0.02em] text-[#00374a] mt-2">Who you&apos;ll ride with</h2>
+              <div className="mt-4 grid sm:grid-cols-2 gap-4">
+                {coaches.map((c) => (
+                  <div key={c.name} className="flex gap-4 items-center rounded-2xl border border-[#eef2f3] bg-white p-3.5">
+                    {c.image_url ? (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img src={c.image_url} alt={c.name} className="w-16 h-16 rounded-xl object-cover shrink-0" />
+                    ) : (
+                      <div className="w-16 h-16 rounded-xl shrink-0 grid place-items-center text-white font-black text-2xl" style={{ background: "linear-gradient(135deg,#ffc42e,#00afdb)" }}>{c.name[0]}</div>
+                    )}
+                    <div className="min-w-0">
+                      <p className="text-[16px] font-extrabold text-[#00374a] leading-tight">{c.name}</p>
+                      {c.role && <p className="text-[12px] font-bold uppercase tracking-wide text-[#00afdb]">{c.role}</p>}
+                      {c.bio && <p className="text-[12.5px] text-[#6a7a80] leading-snug mt-1 line-clamp-3">{c.bio}</p>}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
           )}
 
           {gallery.length > 0 && (

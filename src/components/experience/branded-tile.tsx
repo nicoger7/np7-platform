@@ -42,12 +42,22 @@ export function BrandedTile({
   const p = resolveTilePlacement(placement);
   return (
     <div className={`absolute inset-0 overflow-hidden ${className}`}>
-      {/* 1 — photo (focal point from placement.photoX/Y) */}
+      {/* 1 — photo. Two nested layers: the OUTER handles the subtle hover zoom
+             (GPU-promoted so the rounded clip never "flexes" on the first hover);
+             the INNER handles the editor's zoom (grown past the box via a negative
+             inset so backgroundPosition can pan in BOTH axes) + focal point. */}
       {photo && (
-        <div
-          className="absolute inset-0 bg-cover transition-transform duration-700 group-hover:scale-105"
-          style={{ backgroundImage: `url('${photo}')`, backgroundPosition: `${p.photoX}% ${p.photoY}%` }}
-        />
+        <div className="absolute inset-0 overflow-hidden transform-gpu [backface-visibility:hidden] transition-transform duration-500 ease-out group-hover:scale-[1.035]">
+          <div
+            className="absolute bg-cover"
+            style={{
+              backgroundImage: `url('${photo}')`,
+              backgroundPosition: `${p.photoX}% ${p.photoY}%`,
+              // grow the layer by (zoom-100)% on every side → room to pan
+              inset: `${-(p.photoZoom - 100) / 2}%`,
+            }}
+          />
+        </div>
       )}
 
       {/* 2 — sun-to-sea colour wash: warm gold/coral over teal, plus a
