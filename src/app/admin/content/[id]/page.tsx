@@ -7,6 +7,7 @@ import { EditionGuidesEditor } from "@/components/edition-guides-editor";
 import { ReviewPlacementsEditor } from "@/components/edition-reviews-editor";
 import { placeFromLocation, flagFromLocation, type TilePlacement } from "@/lib/experience-tile";
 import { TilePlacementEditor, HeroFocusPicker } from "@/components/admin/placement-editors";
+import { EventDatesEditor } from "@/components/admin/event-dates-editor";
 import { editionOptionLabel } from "@/lib/edition-label";
 
 type ProgramItem = { title: string; description: string };
@@ -43,6 +44,13 @@ export default function ContentEditorPage({ params }: { params: Promise<{ id: st
   const [heroVideoStart, setHeroVideoStart] = useState("");
   const [heroVideoEnd, setHeroVideoEnd] = useState("");
   const [explainerVideo, setExplainerVideo] = useState("");
+  // event settings (page_template flips the whole public layout to the slim event page)
+  const [pageTemplate, setPageTemplate] = useState<"full" | "event">("full");
+  const [eventMode, setEventMode] = useState<"fixed" | "standby">("fixed");
+  const [eventDepositPct, setEventDepositPct] = useState(20);
+  const [eventRefundPct, setEventRefundPct] = useState(15);
+  const [expPrice, setExpPrice] = useState<number | null>(null);
+  const [expCurrency, setExpCurrency] = useState("EUR");
   const [gallery, setGallery] = useState<string[]>([]);
   const [reviews, setReviews] = useState<Review[]>([]);
   const [picker, setPicker] = useState<PickerTarget | null>(null);
@@ -83,6 +91,12 @@ export default function ContentEditorPage({ params }: { params: Promise<{ id: st
         setHeroVideoStart(c.hero_video_start != null ? String(c.hero_video_start) : "");
         setHeroVideoEnd(c.hero_video_end != null ? String(c.hero_video_end) : "");
         setExplainerVideo(c.explainer_video_url ?? "");
+        setPageTemplate(c.page_template === "event" ? "event" : "full");
+        setEventMode(c.event_mode === "standby" ? "standby" : "fixed");
+        setEventDepositPct(typeof c.event_deposit_pct === "number" ? c.event_deposit_pct : 20);
+        setEventRefundPct(typeof c.event_refund_pct === "number" ? c.event_refund_pct : 15);
+        setExpPrice(typeof c._price === "number" ? c._price : null);
+        setExpCurrency(c._currency ?? "EUR");
         setGallery(Array.isArray(c.gallery) ? c.gallery : []);
         setReviews(Array.isArray(c.reviews) ? c.reviews : []);
         setLocationAbout(c.location_about ?? "");
@@ -133,6 +147,10 @@ export default function ContentEditorPage({ params }: { params: Promise<{ id: st
         tile_image: tileImage,
         tile_auto: tileAuto,
         card_placement: cardPlacement,
+        page_template: pageTemplate,
+        event_mode: eventMode,
+        event_deposit_pct: eventDepositPct,
+        event_refund_pct: eventRefundPct,
         hero_image: heroImage,
         hero_focus: heroFocus,
         hero_video_url: heroVideo,
@@ -192,7 +210,7 @@ export default function ContentEditorPage({ params }: { params: Promise<{ id: st
 
       {/* Section tabs */}
       <div className="flex flex-wrap items-center gap-1 mb-5" style={{ borderBottom: "1px solid var(--admin-border)" }}>
-        {[["media", "Media"], ["story", "Story"], ["program", "Program"], ["pretrip", "Pre-trip"], ["modules", "Per-edition"], ["reviews", "Reviews"], ["faq", "FAQ"]].map(([k, l]) => (
+        {[["media", "Media"], ["story", "Story"], ["program", "Program"], ["pretrip", "Pre-trip"], ["event", "Event"], ["modules", "Per-edition"], ["reviews", "Reviews"], ["faq", "FAQ"]].map(([k, l]) => (
           <button key={k} onClick={() => setTab(k)} className={`px-3.5 py-2 text-sm font-medium transition-colors border-b-2 -mb-[1px] ${tab === k ? "admin-heading border-[var(--admin-accent)]" : "admin-muted border-transparent"}`}>{l}</button>
         ))}
       </div>
@@ -385,6 +403,51 @@ export default function ContentEditorPage({ params }: { params: Promise<{ id: st
           <textarea value={preTripNote} onChange={(e) => setPreTripNote(e.target.value)} rows={5}
             placeholder="Stoked to have you! Here's what the week looks like, what the wind's been doing, and a couple of insider tips…"
             className="admin-input w-full px-3 py-2 rounded-md border text-sm outline-none resize-y" />
+        </Section>
+
+        {/* EVENT — slim ticket-first layout for short clinics (1–2 days, often locals) */}
+        <Section show={tab === "event"} title="Event mode" hint="Turn this experience into a slim EVENT page: a short clinic sold by the ticket, no accommodation or trip sales sections. The public page switches to the compact ticket layout.">
+          <label className="flex items-start gap-3 max-w-[520px] cursor-pointer select-none">
+            <input type="checkbox" checked={pageTemplate === "event"} onChange={(e) => setPageTemplate(e.target.checked ? "event" : "full")} className="mt-0.5 h-4 w-4 shrink-0 accent-[var(--admin-accent)]" />
+            <span>
+              <span className="block text-[13px] font-bold admin-heading">This is an event (use the slim ticket page)</span>
+              <span className="block text-xs admin-faint mt-0.5 leading-relaxed">Off = the full trip page. On = the compact event page (hero · short about · ticket box).</span>
+            </span>
+          </label>
+
+          {pageTemplate === "event" && (
+            <div className="mt-5 space-y-5">
+              {/* fixed vs standby */}
+              <div>
+                <p className="text-[12px] font-bold uppercase tracking-[0.12em] admin-faint mb-2">Booking model</p>
+                <div className="flex flex-wrap gap-2">
+                  {([["fixed", "Fixed date — pay 100% now"], ["standby", "Stand-by — deposit now, dates decided later"]] as [typeof eventMode, string][]).map(([k, l]) => (
+                    <button key={k} type="button" onClick={() => setEventMode(k)} className={`text-[13px] font-semibold px-3.5 py-2 rounded-lg border transition-colors ${eventMode === k ? "border-[var(--admin-accent)] bg-[var(--admin-accent)]/10 admin-heading" : "admin-border admin-muted"}`}>{l}</button>
+                  ))}
+                </div>
+              </div>
+
+              <p className="text-[12.5px] admin-muted">Ticket price: <strong className="admin-heading">{expPrice != null ? `${expCurrency === "EUR" ? "€" : expCurrency + " "}${expPrice.toLocaleString("en-US")}` : "— set it on the experience's Details page"}</strong></p>
+
+              {eventMode === "standby" && (
+                <div className="flex flex-wrap items-end gap-4">
+                  <label className="block"><span className="block text-xs admin-muted mb-1">Deposit %</span>
+                    <input type="number" min={0} max={100} value={eventDepositPct} onChange={(e) => setEventDepositPct(Number(e.target.value) || 0)} className="admin-input w-24 px-3 py-2 rounded-lg border text-sm outline-none" /></label>
+                  <label className="block"><span className="block text-xs admin-muted mb-1">Refund % <span className="admin-faint">(if their date doesn&apos;t run)</span></span>
+                    <input type="number" min={0} max={100} value={eventRefundPct} onChange={(e) => setEventRefundPct(Number(e.target.value) || 0)} className="admin-input w-24 px-3 py-2 rounded-lg border text-sm outline-none" /></label>
+                  <p className="text-[11.5px] admin-faint max-w-[240px] leading-relaxed">Deposit is non-refundable if any chosen date runs. We keep {Math.max(0, eventDepositPct - eventRefundPct)}% for fees on a no-run.</p>
+                </div>
+              )}
+
+              <div className="pt-2 border-t admin-border">
+                <p className="text-[12px] font-bold uppercase tracking-[0.12em] admin-faint mb-2">{eventMode === "standby" ? "Candidate dates" : "Event date"}</p>
+                <p className="text-xs admin-faint mb-3">{eventMode === "standby" ? "Add every possible date. When you know which one runs, hit “Confirm this date” — riders who picked it are asked to pay the balance, the rest are refunded." : "Add the confirmed date for this event."}</p>
+                <EventDatesEditor experienceId={id} mode={eventMode} />
+              </div>
+
+              <p className="text-[12px] admin-faint">Save this tab to apply the event settings, then use the dates panel above (it saves on its own).</p>
+            </div>
+          )}
         </Section>
 
         <Section show={tab === "modules"} title="Per-edition team" hint="Your team (head coach, coaches, co-coaches, trip assistant) can differ per week — pick an edition to manage it. (Reviews are managed once for the whole experience, in the Reviews tab.)">

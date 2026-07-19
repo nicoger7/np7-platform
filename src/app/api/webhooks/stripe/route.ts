@@ -144,6 +144,69 @@ async function onDepositPaid(bookingId: string, origin: string): Promise<void> {
   }).catch(() => {});
 }
 
+// ─── Event ticket payments (deposit / full / balance) ────────────────────────
+
+async function onEventPayment(
+  session: Record<string, unknown>,
+  kind: string,
+  bookingId: string,
+): Promise<void> {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const db = createAdminClient() as any;
+  const paymentIntent = typeof session["payment_intent"] === "string" ? (session["payment_intent"] as string) : null;
+  const amount = Number(session["amount_total"] ?? 0) / 100; // Stripe minor units → major
+
+  const { data: booking } = await db
+    .from("exp_bookings")
+    .select("id, contact_id, experience_id, status, downpayment_received, final_payment_received, exp_experiences(title), contacts(name,email)")
+    .eq("id", bookingId).maybeSingle();
+  if (!booking) return;
+
+  // Booking state per kind (idempotent).
+  const patch: Record<string, unknown> = { updated_at: new Date().toISOString() };
+  if (paymentIntent && kind === "event_deposit") patch.stripe_payment_intent = paymentIntent;
+  if (kind === "event_deposit") { patch.downpayment_received = true; patch.status = "reserved"; }
+  if (kind === "event_full") { patch.downpayment_received = true; patch.final_payment_received = true; patch.status = "paid"; }
+  if (kind === "event_balance") { patch.final_payment_received = true; patch.status = "paid"; }
+  await db.from("exp_bookings").update(patch).eq("id", bookingId);
+
+  // Record the money in exp_payments (drives admin reconciliation).
+  if (paymentIntent) {
+    const { data: dup } = await db.from("exp_payments").select("id").eq("reference", paymentIntent).maybeSingle();
+    if (!dup) {
+      await db.from("exp_payments").insert({
+        booking_id: bookingId,
+        contact_id: booking.contact_id,
+        experience_id: booking.experience_id,
+        amount,
+        type: kind === "event_deposit" ? "deposit" : "final",
+        method: "stripe",
+        direction: "revenue",
+        status: "paid",
+        reference: paymentIntent,
+        received_at: new Date().toISOString(),
+        notes: `Stripe ${kind.replace("event_", "")} · session ${session["id"] ?? ""}`,
+      }).then(undefined, () => {});
+    }
+  }
+
+  // Confirmation email — best-effort, deduped.
+  const contact = booking.contacts;
+  if (contact?.email) {
+    const firstName: string | undefined = (contact.name ?? "").split(" ")[0] || undefined;
+    const { sendEmail } = await import("@/lib/email/send");
+    const templateKey = kind === "event_deposit" ? "event_deposit_received" : "event_ticket_confirmed";
+    await sendEmail({
+      to: contact.email,
+      templateKey,
+      vars: { firstName, experienceTitle: booking.exp_experiences?.title },
+      bookingId,
+      contactId: booking.contact_id,
+      dedupeKey: `${templateKey}:${bookingId}`,
+    }).catch(() => {});
+  }
+}
+
 // ─── Route handler ────────────────────────────────────────────────────────────
 
 export const dynamic = "force-dynamic";
@@ -181,21 +244,26 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     const metadata = (session["metadata"] as Record<string, string> | null) ?? {};
     const bookingId = metadata["booking_id"];
 
-    if (bookingId && paymentStatus === "paid") {
-      // Check idempotency: skip if already processed
-      try {
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const db = createAdminClient() as any;
-        const { data: booking } = await db
-          .from("exp_bookings")
-          .select("id, downpayment_received")
-          .eq("id", bookingId)
-          .maybeSingle();
+    const kind = metadata["kind"] ?? "";
 
-        if (booking && !booking.downpayment_received) {
-          await onDepositPaid(bookingId, origin).catch((err) => {
-            console.error("[webhook] onDepositPaid error (non-fatal):", err);
+    if (bookingId && paymentStatus === "paid") {
+      try {
+        if (kind.startsWith("event_")) {
+          // Event tickets (deposit / full / balance) — record + confirm.
+          await onEventPayment(session, kind, bookingId).catch((err) => {
+            console.error("[webhook] onEventPayment error (non-fatal):", err);
           });
+        } else {
+          // Trip reserve deposit flow (idempotent).
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          const db = createAdminClient() as any;
+          const { data: booking } = await db
+            .from("exp_bookings").select("id, downpayment_received").eq("id", bookingId).maybeSingle();
+          if (booking && !booking.downpayment_received) {
+            await onDepositPaid(bookingId, origin).catch((err) => {
+              console.error("[webhook] onDepositPaid error (non-fatal):", err);
+            });
+          }
         }
       } catch (err) {
         // Non-fatal: log and still return 200 so Stripe doesn't retry infinitely

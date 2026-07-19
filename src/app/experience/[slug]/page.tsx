@@ -2,7 +2,9 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import type { Metadata } from "next";
 import { supabase } from "@/lib/supabase";
-import { getTeamMember } from "@/lib/auth";
+import { getTeamMember, getPortalUser } from "@/lib/auth";
+import { getEventForSlug } from "@/lib/events";
+import { EventPage } from "@/components/experience/event-page";
 import { OceanHeader, NP7_LOGO } from "@/components/experience/ocean-header";
 import { Reveal } from "@/components/experience/reveal";
 import { Carousel } from "@/components/experience/carousel";
@@ -23,7 +25,7 @@ import { DestinationDeepDive } from "@/components/experience/destination-deep-di
 
 export const revalidate = 60;
 
-type Props = { params: Promise<{ slug: string }> };
+type Props = { params: Promise<{ slug: string }>; searchParams?: Promise<{ paid?: string }> };
 
 /* -------- evergreen brand content (per-trip fields come from admin later) -------- */
 // Our own shots on our own CDN (R2) — no third-party hosting.
@@ -178,11 +180,23 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   return { title: { absolute: `${data.title} — NP7 Experience` }, description: data.description || `NP7 Experience in ${data.location}` };
 }
 
-export default async function ExperienceDetailPage({ params }: Props) {
+export default async function ExperienceDetailPage({ params, searchParams }: Props) {
   const { slug } = await params;
+  const { paid } = (await searchParams) ?? {};
   // Team members can preview drafts + off-website experiences (the admin
   // "Preview page" button); the public only ever sees published ones.
   const team = await getTeamMember().catch(() => null);
+
+  // EVENT experiences (page_template='event') get the slim ticket-first layout,
+  // not the full trip page. Resolved by the event lib (service-role read of the
+  // candidate dates); non-events return null and fall through.
+  const event = await getEventForSlug(slug).catch(() => null);
+  if (event) {
+    // Same visibility rules as trips: public only sees published + on-website.
+    if (!team && (event.status !== "published" || !event.websiteVisible)) notFound();
+    const member = await getPortalUser().catch(() => null);
+    return <EventPage event={event} isMember={!!member?.contactId} paid={paid === "1"} />;
+  }
   let query = supabase
     .from("exp_experiences")
     .select("id,title,location,currency,price,description,hero_image,gallery,airport_code,exp_editions(id,label,coaches,date_start,date_end,max_spots,spots_taken,deposit,status),exp_packages(id,name,price,status,edition_id,category,includes,exp_package_components(show_on_website,exp_components(name,description)))")

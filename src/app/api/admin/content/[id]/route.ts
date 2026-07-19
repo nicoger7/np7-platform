@@ -50,15 +50,16 @@ export async function GET(
 
   const [{ data: content, error }, { data: exp }] = await Promise.all([
     db.from("exp_content").select("*").eq("experience_id", id).maybeSingle(),
-    db.from("exp_experiences").select("hero_image,title,slug,location").eq("id", id).maybeSingle(),
+    db.from("exp_experiences").select("hero_image,title,slug,location,price,currency").eq("id", id).maybeSingle(),
   ]);
 
   if (error && !isMissing(error.message)) {
     return NextResponse.json({ error: error.message }, { status: 400 });
   }
 
-  // Tolerant: `tile_auto` (migration 069) may not exist yet — treat as off.
+  // Tolerant: `tile_auto` (069) + event fields (111) may not exist yet.
   const { data: exAuto } = await db.from("exp_experiences").select("tile_auto").eq("id", id).maybeSingle();
+  const { data: exEvent } = await db.from("exp_experiences").select("page_template,event_mode,event_deposit_pct,event_refund_pct").eq("id", id).maybeSingle();
 
   return NextResponse.json({
     experience_id: id,
@@ -66,9 +67,15 @@ export async function GET(
     ...(content ?? {}),
     tile_image: exp?.hero_image ?? "",
     tile_auto: !!exAuto?.tile_auto,
+    page_template: exEvent?.page_template ?? "full",
+    event_mode: exEvent?.event_mode ?? "fixed",
+    event_deposit_pct: exEvent?.event_deposit_pct ?? 20,
+    event_refund_pct: exEvent?.event_refund_pct ?? 15,
     _title: exp?.title ?? "",
     _slug: exp?.slug ?? "",
     _location: exp?.location ?? "",
+    _price: exp?.price ?? null,
+    _currency: exp?.currency ?? "EUR",
   });
 }
 
@@ -185,6 +192,16 @@ export async function PUT(
   // Auto-brand toggle (migration 069). Tolerant: ignore if the column is absent.
   if (typeof body.tile_auto === "boolean") {
     await db.from("exp_experiences").update({ tile_auto: body.tile_auto }).eq("id", id);
+  }
+  // Event settings (migration 111). page_template flips the whole public layout
+  // to the slim event page; the rest tune the standby deposit/refund maths.
+  {
+    const ev: Record<string, unknown> = {};
+    if (body.page_template === "event" || body.page_template === "full") ev.page_template = body.page_template;
+    if (body.event_mode === "fixed" || body.event_mode === "standby") ev.event_mode = body.event_mode;
+    if (typeof body.event_deposit_pct === "number") ev.event_deposit_pct = Math.max(0, Math.min(100, Math.round(body.event_deposit_pct)));
+    if (typeof body.event_refund_pct === "number") ev.event_refund_pct = Math.max(0, Math.min(100, Math.round(body.event_refund_pct)));
+    if (Object.keys(ev).length) await db.from("exp_experiences").update(ev).eq("id", id).then(undefined, () => {});
   }
 
   return NextResponse.json(data);
