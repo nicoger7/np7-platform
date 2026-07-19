@@ -347,7 +347,7 @@ export default async function ExperienceOverviewPage() {
             <Reveal>
               <p className="text-[11px] font-bold tracking-[0.25em] text-[#ffc42e] mb-4">THE NP7 VIBE</p>
               <h2 className="text-3xl sm:text-5xl font-black tracking-[-0.03em] mb-6 leading-[1.08]">You arrive solo.<br />You leave with a crew.</h2>
-              <p className="text-[17px] text-white/75 leading-relaxed">Small groups of good people, shared sunset sessions and beach dinners, and coaching from one of the world&apos;s best. Most riders come once — then rebook with the friends they made.</p>
+              <p className="text-[17px] text-white/75 leading-relaxed">Good people, shared sunset sessions and dinners together, and coaching from one of the world&apos;s best. Most riders come once — then rebook with the friends they made.</p>
               <Link href="#experiences" className="inline-block mt-9 px-8 py-4 rounded-full text-[14px] font-bold text-[#00374a] bg-white hover:-translate-y-0.5 transition-all">Find your trip</Link>
             </Reveal>
           </div>

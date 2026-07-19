@@ -74,7 +74,7 @@ const MOMENTS = [
 
 const FAQ: AccordionItem[] = [
   { title: "What's not included?", content: "Flights, airport transfers and dinners. Book your own flights (we'll guide you on the best arrival times), we're happy to arrange your airport transfer for you, and dinners are out together as a group — everyone covers their own." },
-  { title: "I'm travelling solo — will I fit in?", content: "Absolutely — most guests come alone. Small groups and shared meals mean you'll know everyone by day two." },
+  { title: "I'm travelling solo — will I fit in?", content: "Absolutely — most guests come alone. Shared meals and a friendly crew mean you'll know everyone by day two." },
   { title: "What level do I need to be?", content: "Anything from total beginner to semi-pro. We group by level so you're always with the right people." },
   { title: "Is gear included?", content: "Yes — pro windsurf gear rental is included in every package. Bring your own harness if you like." },
   { title: "Can I arrive earlier or leave later?", content: "Yes — you can add extra hotel nights with us at any time after booking. Just tell us your flight dates and we'll arrange it." },
@@ -620,7 +620,7 @@ export default async function ExperienceDetailPage({ params }: Props) {
             {[
               { icon: "wind", big: windProbability || "Trade winds", small: windProbability ? "wind probability in season" : "steady & reliable", sub: windRange || null },
               { icon: "star", big: "5.0", small: "guest rating", sub: "5-star reviews, week after week" },
-              { icon: "crew", big: "Small groups", small: "great crew", sub: "hand-picked, friendly vibe" },
+              { icon: "crew", big: "Good people", small: "great crew", sub: "hand-picked, friendly vibe" },
               { icon: "sun", big: "Plan B", small: "no-wind program", sub: "we make every day count" },
             ].map((s, i) => (
               <Reveal key={s.small} delay={i * 80}>
