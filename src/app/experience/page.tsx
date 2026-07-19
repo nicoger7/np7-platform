@@ -138,12 +138,42 @@ export default async function ExperienceOverviewPage() {
   const headCoachRow = coachList.find((c) => /head/i.test(String(c.role ?? ""))) ?? coachList[0];
   const headCoach = headCoachRow ? { name: headCoachRow.name as string, cutout: (headCoachRow.cutout_url ?? null) as string | null } : undefined;
 
+  // The TILE shows the week's HEAD COACH — not just anyone on the team. A week's
+  // crew is coaches + assistants (exp_edition_coaches); only the one whose role
+  // reads "head" fronts the card. Falls back to the library head coach.
+  const headCoachByEdition = new Map<string, { name: string; cutout: string | null }>();
+  {
+    const nextEdIds = experiences.map((e) => e.ed?.id).filter((x): x is string => !!x);
+    if (nextEdIds.length) {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const { data: ecRows } = await (supabase as any)
+        .from("exp_edition_coaches")
+        .select("edition_id,sort_order,name_override,role_override,exp_coaches(name,role,cutout_url)")
+        .in("edition_id", nextEdIds).order("sort_order");
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      for (const r of ((ecRows ?? []) as any[])) {
+        const role = String(r.role_override ?? r.exp_coaches?.role ?? "");
+        if (!/head/i.test(role)) continue;                    // head coach only
+        if (headCoachByEdition.has(r.edition_id)) continue;    // first wins (sort_order)
+        headCoachByEdition.set(r.edition_id, {
+          name: r.name_override ?? r.exp_coaches?.name ?? "",
+          cutout: r.exp_coaches?.cutout_url ?? null,
+        });
+      }
+    }
+  }
+
   // Card data for the month-filtered grid. `months` = every upcoming edition's
   // YYYY-MM, so the month chips reflect exactly what's bookable.
   const today = new Date().toISOString().slice(0, 10);
   const expCards: ExpCard[] = experiences.map((exp) => {
+    // 1) the week's assigned HEAD COACH → 2) a name typed in the edition's
+    // free-text coaches field → 3) the library's head coach.
     const named = leadCoach(exp.ed?.coaches);
-    const coach = (named ? coachByName.get(named.toLowerCase()) : undefined) ?? headCoach;
+    const coach =
+      (exp.ed?.id ? headCoachByEdition.get(exp.ed.id) : undefined) ??
+      (named ? coachByName.get(named.toLowerCase()) : undefined) ??
+      headCoach;
     return {
     id: exp.id,
     slug: exp.slug,

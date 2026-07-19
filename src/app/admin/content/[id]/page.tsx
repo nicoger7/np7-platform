@@ -8,6 +8,7 @@ import { ReviewPlacementsEditor } from "@/components/edition-reviews-editor";
 import { placeFromLocation, flagFromLocation, type TilePlacement } from "@/lib/experience-tile";
 import { TilePlacementEditor, HeroFocusPicker } from "@/components/admin/placement-editors";
 import { EventDatesEditor } from "@/components/admin/event-dates-editor";
+import { EditionProgramEditor } from "@/components/admin/edition-program-editor";
 import { editionOptionLabel } from "@/lib/edition-label";
 
 type ProgramItem = { title: string; description: string };
@@ -461,6 +462,14 @@ export default function ContentEditorPage({ params }: { params: Promise<{ id: st
               {editionId && <EditionGuidesEditor editionId={editionId} slug={slug} />}
             </div>
           )}
+        </Section>
+
+        <Section show={tab === "modules"} title="Per-edition day-by-day" hint="Optional. Most weeks run the same program (set it in the Program tab) — switch this on only for a week that genuinely differs. The public page shows it when that week is selected.">
+          {editions.length === 0 ? (
+            <p className="text-xs admin-faint">No editions yet — create one on the experience page.</p>
+          ) : editionId ? (
+            <EditionProgramEditor editionId={editionId} fallback={program} />
+          ) : null}
         </Section>
 
         <Section show={tab === "reviews"} title="Guest reviews" hint="Curate the approved participant reviews shown on the public experience page. Verified reviews are tied to a real booking.">

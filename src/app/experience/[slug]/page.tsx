@@ -7,6 +7,7 @@ import { getEventForSlug } from "@/lib/events";
 import { EventPage } from "@/components/experience/event-page";
 import { SelectedEditionProvider } from "@/components/experience/selected-edition";
 import { CrewCarousel, type Guide } from "@/components/experience/crew-carousel";
+import { ProgramForWeek, type ProgramDay } from "@/components/experience/program-for-week";
 import { OceanHeader, NP7_LOGO } from "@/components/experience/ocean-header";
 import { Reveal } from "@/components/experience/reveal";
 import { Carousel } from "@/components/experience/carousel";
@@ -415,14 +416,24 @@ export default async function ExperienceDetailPage({ params, searchParams }: Pro
   const highlights = (content?.highlights ?? []).filter((h) => h && h.trim());
   // Deliberately NO per-day photos — cycled gallery shots never matched the day
   // text and looked unprofessional (Nico, 2026-07-08). Text-only timeline.
-  const programItems: AccordionItem[] =
+  // The experience-level program is the default every week inherits…
+  const programFallback: ProgramDay[] =
     (content?.daily_program ?? []).length > 0
-      ? content!.daily_program!.map((p, i) => ({
-          eyebrow: `Day ${i + 1}`,
-          title: p.title?.trim() || `Day ${i + 1}`,
-          content: <span className="whitespace-pre-line">{p.description}</span>,
-        }))
-      : ITINERARY;
+      ? content!.daily_program!.map((p, i) => ({ title: p.title?.trim() || `Day ${i + 1}`, description: p.description ?? "" }))
+      : ITINERARY.map((it, i) => ({ title: it.title || `Day ${i + 1}`, description: typeof it.content === "string" ? it.content : "" }));
+  // …and a single week can override it (exp_editions.daily_program, migration 112).
+  const programByEdition: Record<string, ProgramDay[]> = {};
+  if (allEditions.length) {
+    const { data: edProg } = await sb.from("exp_editions").select("id,daily_program").in("id", allEditions.map((e) => e.id));
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    for (const r of ((edProg ?? []) as any[])) {
+      if (Array.isArray(r.daily_program) && r.daily_program.length) {
+        programByEdition[r.id] = r.daily_program.map((p: { title?: string; description?: string }, i: number) => ({
+          title: p.title?.trim() || `Day ${i + 1}`, description: p.description ?? "",
+        }));
+      }
+    }
+  }
   const faqItems: AccordionItem[] =
     (content?.faq ?? []).length > 0
       ? content!.faq!.map((f) => ({ title: f.q, content: <span className="whitespace-pre-line">{f.a}</span> }))
@@ -817,7 +828,14 @@ export default async function ExperienceDetailPage({ params, searchParams }: Pro
             <h2 className="text-3xl sm:text-5xl font-black tracking-[-0.03em] text-[#00374a] mb-3">Your perfect week in {place}</h2>
             <p className="text-[14.5px] text-[#7a8a90] leading-relaxed italic">This is what the ideal week looks like — the exact day-to-day depends on the wind. We chase the best conditions and adapt as we go.</p>
           </Reveal>
-          <Reveal><Accordion items={programItems} defaultOpen={0} variant="timeline" /></Reveal>
+          {/* follows the week picked in the booking block — a week can run its own plan */}
+          <Reveal>
+            <ProgramForWeek
+              programByEdition={programByEdition}
+              fallback={programFallback}
+              weekLabels={Object.fromEntries(editionsLite.map((e) => [e.id, e.label]))}
+            />
+          </Reveal>
         </div>
       </section>
 
