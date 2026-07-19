@@ -16,7 +16,11 @@ import { GalleryStrip } from "@/components/experience/gallery-strip";
 import { Slideshow } from "@/components/experience/slideshow";
 import { EpicWeekScroll } from "@/components/experience/epic-week-scroll";
 import { SectionNav, type NavSection } from "@/components/experience/section-nav";
-import { flags } from "@/lib/flags";
+import { MethodModal } from "@/components/experience/method-modal";
+import { ExplainerVideo } from "@/components/experience/explainer-video";
+import { TripOverlay } from "@/components/experience/trip-overlay";
+import { SpotDeepDive } from "@/components/experience/spot-deep-dive";
+import { getSpotguideDestination } from "@/lib/spotguide-data";
 
 export const revalidate = 60;
 
@@ -157,7 +161,7 @@ type ReviewRow = { name: string; country: string; quote: string; rating: number;
 type ContentRow = {
   location_about: string | null; week_info: string | null;
   daily_program: ProgramItem[] | null; highlights: string[] | null; faq: FaqRow[] | null;
-  hero_image: string | null; hero_video_url: string | null; gallery: string[] | null; reviews: ReviewRow[] | null;
+  hero_image: string | null; hero_video_url: string | null; explainer_video_url: string | null; gallery: string[] | null; reviews: ReviewRow[] | null;
   no_wind_program: string | null; wind_probability: string | null; wind_range: string | null;
 };
 type Detail = {
@@ -204,14 +208,20 @@ export default async function ExperienceDetailPage({ params }: Props) {
   // break the existing text content if they haven't been applied yet.
   const [{ data: baseRaw }, { data: mediaRaw }] = await Promise.all([
     sb.from("exp_content").select("location_about,week_info,daily_program,highlights,faq").eq("experience_id", experience.id).maybeSingle(),
-    sb.from("exp_content").select("hero_image,hero_video_url,gallery,reviews,no_wind_program,wind_probability,wind_range").eq("experience_id", experience.id).maybeSingle(),
+    sb.from("exp_content").select("hero_image,hero_video_url,explainer_video_url,gallery,reviews,no_wind_program,wind_probability,wind_range").eq("experience_id", experience.id).maybeSingle(),
   ]);
   const content = (baseRaw || mediaRaw ? { ...(baseRaw ?? {}), ...(mediaRaw ?? {}) } : null) as ContentRow | null;
 
   const today = new Date().toISOString().slice(0, 10);
-  const allEditions = (experience.exp_editions ?? []).filter((e) => e.status === "published")
+  // Only published AND not-yet-over editions are bookable. A past edition must
+  // never drive the page (it would read "fully booked" with stale dates/price);
+  // when only past/draft editions remain, the page falls through to a clean
+  // "dates coming soon" state.
+  const allEditions = (experience.exp_editions ?? [])
+    .filter((e) => e.status === "published" && (!e.date_end || e.date_end >= today))
     .sort((a, b) => ((a.date_start ?? "") < (b.date_start ?? "") ? -1 : 1));
   const multi = allEditions.length > 1;
+  const datesTBD = allEditions.length === 0; // published experience, no upcoming week yet
   // "primary" edition = soonest upcoming (drives hero defaults)
   const edition = allEditions.find((e) => e.date_start && e.date_start >= today) ?? allEditions[0];
   const securedByEd = await paidSpotsByEdition(allEditions.map((e) => e.id)); // spots left = paid only
@@ -256,7 +266,15 @@ export default async function ExperienceDetailPage({ params }: Props) {
     const linked = pkgHotelId[pkgId] ? hotelById.get(pkgHotelId[pkgId]) : null;
     if (linked) return linked;
     const hay = `${name} ${accommodation}`.toLowerCase();
-    return hotelsList.find((h) => h.name && hay.includes(h.name.toLowerCase())) ?? null;
+    // Full-name containment first; then any distinctive word of the hotel name
+    // ("Wanapa" in "Boutique Hotel Wanapa" still matches "WANAPA Double Deluxe"
+    // after a hotel rename — generic words never match on their own).
+    const generic = new Set(["hotel", "beach", "resort", "boutique", "house", "club", "room", "rooms", "surf", "the"]);
+    return (
+      hotelsList.find((h) => h.name && hay.includes(h.name.toLowerCase())) ??
+      hotelsList.find((h) => h.name?.toLowerCase().split(/\s+/).some((w) => w.length >= 5 && !generic.has(w) && hay.includes(w))) ??
+      null
+    );
   };
 
   // Packages per edition. A package WITHOUT an edition is SHARED — it applies
@@ -328,8 +346,14 @@ export default async function ExperienceDetailPage({ params }: Props) {
     };
   });
 
-  const allPrices = activePackages.map((p) => p.price as number);
-  const fromPrice = allPrices.length ? Math.min(...allPrices) : experience.price;
+  // "from" price = cheapest package that's actually bookable now: packages on
+  // an upcoming edition + shared (edition-less) packages. NOT past-edition
+  // packages, and NOT the legacy static exp.price (that's what showed a stale
+  // price from a finished trip).
+  const editionPrices = editionsLite.map((e) => e.fromPrice).filter((n): n is number => n != null);
+  const sharedPrices = visible.filter((p) => !p.edition_id).map((p) => p.price as number);
+  const priceCandidates = [...editionPrices, ...sharedPrices];
+  const fromPrice = priceCandidates.length ? Math.min(...priceCandidates) : null;
   const spotsLeft = edition ? spotsLeftFrom(edition.max_spots, securedByEd[edition.id] ?? 0) : null;
   const totalSpotsLeft = editionsLite.reduce((s, e) => s + (e.spotsLeft ?? 0), 0);
   // Sold out = every week that HAS a cap is full (uncapped weeks never count as
@@ -442,6 +466,9 @@ export default async function ExperienceDetailPage({ params }: Props) {
       if (dd && dd.status === "published" && dd.slug) destination = dd;
     }
   }
+  // Full Spotguide data for the in-page overlay — "Explore {spot}" must never
+  // navigate the booking visitor away; the deep-dive opens ON the trip instead.
+  const spotguide = destination?.slug ? await getSpotguideDestination(destination.slug).catch(() => null) : null;
 
   // ONE preset for every experience: "The spot" always renders the same section —
   // the editor's location_about wins, otherwise the linked destination's own
@@ -484,13 +511,19 @@ export default async function ExperienceDetailPage({ params }: Props) {
               ) : null}
             </div>
             <h1 className="text-4xl sm:text-6xl lg:text-7xl font-black text-white leading-[0.98] tracking-[-0.035em] mb-4 max-w-[840px]">{experience.title}</h1>
-            {(spanStart || edition) && (
+            {datesTBD ? (
+              <p className="text-[16px] sm:text-[17px] text-white/70 mb-6">Dates coming soon — new weeks are announced regularly.</p>
+            ) : (spanStart || edition) ? (
               <p className="text-[16px] sm:text-[17px] text-white/70 mb-6">
                 {multi ? `${fmtRange(spanStart, spanEnd)} · ${allEditions.length} weeks to choose from` : fmtRange(edition.date_start, edition.date_end)}
               </p>
-            )}
+            ) : null}
             <div className="flex flex-wrap items-center gap-3">
-              {soldOut ? (
+              {datesTBD ? (
+                <Link href={`mailto:experience@np-seven.com?subject=Interested: ${experience.title}`} className="px-7 py-4 rounded-full text-[14px] font-bold text-[#00374a] bg-white hover:-translate-y-0.5 transition-all">
+                  Register your interest
+                </Link>
+              ) : soldOut ? (
                 <Link href={`mailto:experience@np-seven.com?subject=Waitlist: ${experience.title}`} className="px-7 py-4 rounded-full text-[14px] font-bold text-[#00374a] bg-white hover:-translate-y-0.5 transition-all">
                   Fully booked · join the waitlist
                 </Link>
@@ -553,6 +586,8 @@ export default async function ExperienceDetailPage({ params }: Props) {
         weekInfo={weekInfo}
       />
       </div>
+      {/* Explainer video — Nico walks through the trip (hidden if no link) */}
+      <ExplainerVideo url={content?.explainer_video_url} title={`Nico walks you through ${experience.title.replace(/^NP7 (Experience )?/i, "")}`} />
       {/* 2 · THE NP7 TRAINING SYSTEM — the unique mechanism */}
       <section id="method" className="scroll-mt-28 py-16 sm:py-24 bg-[#00374a] text-white relative overflow-hidden">
         <Slideshow images={vibeImages} className="opacity-45" />
@@ -585,15 +620,10 @@ export default async function ExperienceDetailPage({ params }: Props) {
               <span className="block text-[13px] font-semibold text-white/45 mt-2">— the NP7 promise, week after week</span>
             </p>
           </Reveal>
-          {/* the full philosophy lives on its own page — this section is the short version */}
-          {flags.showMethod && (
-            <Reveal>
-              <Link href="/method" className="group inline-flex items-center gap-2 mt-8 text-[14px] font-bold text-white/90 hover:text-white border-b border-white/25 hover:border-white/70 pb-0.5 transition-colors">
-                Read the full NP7 Method
-                <span className="transition-transform group-hover:translate-x-0.5">→</span>
-              </Link>
-            </Reveal>
-          )}
+          {/* the full method opens as an overlay ON the trip — never navigate away */}
+          <Reveal className="mt-8">
+            <MethodModal />
+          </Reveal>
         </div>
       </section>
 
@@ -658,8 +688,7 @@ export default async function ExperienceDetailPage({ params }: Props) {
             <Reveal from="left">
               {(() => {
                 const spotImg = destination?.hero_image ?? galleryImgs[1] ?? heroMediaImage;
-                const inner = <div className="aspect-[16/9] md:aspect-[4/3] rounded-3xl bg-cover bg-center shadow-[0_20px_50px_rgba(0,55,74,0.12)] transition-transform duration-500 group-hover:scale-[1.02]" style={{ backgroundImage: `url('${spotImg}')` }} />;
-                return destination?.slug ? <Link href={`/destinations/${destination.slug}`} className="group block">{inner}</Link> : inner;
+                return <div className="aspect-[16/9] md:aspect-[4/3] rounded-3xl bg-cover bg-center shadow-[0_20px_50px_rgba(0,55,74,0.12)]" style={{ backgroundImage: `url('${spotImg}')` }} />;
               })()}
             </Reveal>
             <Reveal from="right">
@@ -673,12 +702,25 @@ export default async function ExperienceDetailPage({ params }: Props) {
                     {windProbability && <span className="text-[12.5px] font-bold text-[#00374a] bg-[#00afdb]/10 px-3.5 py-1.5 rounded-full">{windProbability} wind probability</span>}
                   </div>
                 )}
-                {destination?.slug && (
+                {spotguide ? (
+                  /* opens the Spotguide deep-dive ON the trip — zero navigation, zero funnel leak */
+                  <div className="mt-7">
+                    <TripOverlay
+                      label={`${destination!.name} · Spotguide`}
+                      triggerClassName="group inline-flex items-center gap-2 px-6 py-3 rounded-full text-[13.5px] font-bold text-white bg-[#00afdb] shadow-[0_4px_18px_rgba(0,175,219,0.3)] hover:bg-[#15c0ec] hover:-translate-y-0.5 transition-all"
+                      trigger={<>
+                        Explore {destination!.name}
+                        <svg className="w-4 h-4 group-hover:translate-x-0.5 transition-transform" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M5 12h14M13 6l6 6-6 6" /></svg>
+                      </>}>
+                      <SpotDeepDive d={spotguide} />
+                    </TripOverlay>
+                  </div>
+                ) : destination?.slug ? (
                   <Link href={`/destinations/${destination.slug}`} className="group inline-flex items-center gap-2 mt-7 px-6 py-3 rounded-full text-[13.5px] font-bold text-white bg-[#00afdb] shadow-[0_4px_18px_rgba(0,175,219,0.3)] hover:bg-[#15c0ec] hover:-translate-y-0.5 transition-all">
                     Explore {destination.name}
                     <svg className="w-4 h-4 group-hover:translate-x-0.5 transition-transform" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M5 12h14M13 6l6 6-6 6" /></svg>
                   </Link>
-                )}
+                ) : null}
               </div>
             </Reveal>
           </div>
@@ -690,18 +732,24 @@ export default async function ExperienceDetailPage({ params }: Props) {
         <section className="py-12 sm:py-16">
           <div className="max-w-[1100px] mx-auto px-6 sm:px-8">
             <Reveal>
-              <Link href={`/destinations/${destination.slug}`} className="group relative block rounded-3xl overflow-hidden min-h-[240px] flex items-end bg-[#00374a] shadow-[0_20px_50px_rgba(0,55,74,0.15)]">
-                {destination.hero_image && <div className="absolute inset-0 bg-cover bg-center scale-105 group-hover:scale-110 transition-transform duration-700" style={{ backgroundImage: `url('${destination.hero_image}')` }} />}
-                <div className="absolute inset-0 bg-gradient-to-t from-[#00374a] via-[#00374a]/40 to-transparent" />
-                <div className="relative p-7 sm:p-9 text-white max-w-[640px]">
-                  <p className="text-[11px] font-bold tracking-[0.25em] text-[#8fe6f2] mb-2">DISCOVER THE DESTINATION</p>
-                  <h2 className="text-2xl sm:text-3xl font-black tracking-[-0.02em]">{destination.name}</h2>
-                  {destination.tagline && <p className="text-[14.5px] text-white/80 mt-1.5">{destination.tagline}</p>}
-                  <span className="inline-flex items-center gap-1.5 text-[13px] font-bold mt-4 group-hover:gap-2.5 transition-all">Explore {destination.name}
-                    <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M5 12h14M13 6l6 6-6 6" /></svg>
-                  </span>
-                </div>
-              </Link>
+              {(() => {
+                const banner = <>
+                  {destination.hero_image && <div className="absolute inset-0 bg-cover bg-center scale-105 group-hover:scale-110 transition-transform duration-700" style={{ backgroundImage: `url('${destination.hero_image}')` }} />}
+                  <div className="absolute inset-0 bg-gradient-to-t from-[#00374a] via-[#00374a]/40 to-transparent" />
+                  <div className="relative p-7 sm:p-9 text-white max-w-[640px] text-left">
+                    <p className="text-[11px] font-bold tracking-[0.25em] text-[#8fe6f2] mb-2">DISCOVER THE DESTINATION</p>
+                    <h2 className="text-2xl sm:text-3xl font-black tracking-[-0.02em]">{destination.name}</h2>
+                    {destination.tagline && <p className="text-[14.5px] text-white/80 mt-1.5">{destination.tagline}</p>}
+                    <span className="inline-flex items-center gap-1.5 text-[13px] font-bold mt-4 group-hover:gap-2.5 transition-all">Explore {destination.name}
+                      <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M5 12h14M13 6l6 6-6 6" /></svg>
+                    </span>
+                  </div>
+                </>;
+                const cls = "group relative block w-full rounded-3xl overflow-hidden min-h-[240px] flex items-end bg-[#00374a] shadow-[0_20px_50px_rgba(0,55,74,0.15)]";
+                return spotguide
+                  ? <TripOverlay label={`${destination.name} · Spotguide`} triggerClassName={cls} trigger={banner}><SpotDeepDive d={spotguide} /></TripOverlay>
+                  : <Link href={`/destinations/${destination.slug}`} className={cls}>{banner}</Link>;
+              })()}
             </Reveal>
           </div>
         </section>
@@ -728,6 +776,7 @@ export default async function ExperienceDetailPage({ params }: Props) {
                 currency={experience.currency ?? undefined}
                 experienceId={experience.id}
                 experienceTitle={experience.title}
+                heroImage={heroMediaImage}
               />
             </Reveal>
           ) : (

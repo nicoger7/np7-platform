@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
-import { getSurveyForToken, getSurvey, getSurveyByOpenToken, submitResponse } from "@/lib/surveys";
+import { getSurveyForToken, getSurvey, getSurveyByOpenToken, joinSurveyAsMember, submitResponse } from "@/lib/surveys";
 import { getPortalUser, getTeamMember } from "@/lib/auth";
 import { SurveyForm } from "@/components/portal/survey-form";
 import { SurveyQuick } from "@/components/portal/survey-quick";
@@ -39,6 +39,13 @@ export default async function SurveyPage({ params, searchParams }: Props) {
       survey = await getSurveyByOpenToken(token);
       if (!survey) notFound();
       isOpenLink = true;
+      // Already logged in? Skip the name+email card — join with their account
+      // contact and bounce straight to their personal survey link.
+      const member = await getPortalUser().catch(() => null);
+      if (member?.contactId) {
+        const res = await joinSurveyAsMember(token, member.contactId);
+        if ("token" in res) redirect(`/survey/${res.token}`);
+      }
     }
   }
 

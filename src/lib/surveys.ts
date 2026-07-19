@@ -335,11 +335,27 @@ export async function joinSurveyByOpenToken(openToken: string, nameRaw: string, 
     contactId = String(created.id);
   }
 
-  const { data: existing } = await sb.from("exp_survey_invites").select("token").eq("survey_id", survey.id).eq("contact_id", contactId).maybeSingle();
+  return findOrCreateOpenInvite(survey.id, contactId, name.split(/\s+/)[0]);
+}
+
+/** A logged-in member clicked the open link — join with their account contact
+ *  directly, no name/email form. Returns their personal survey token. */
+export async function joinSurveyAsMember(openToken: string, contactId: string): Promise<{ token: string } | { error: string }> {
+  const survey = await getSurveyByOpenToken(openToken);
+  if (!survey) return { error: "This link is no longer valid." };
+  if (survey.status === "closed") return { error: "This invitation has closed." };
+  const { data: c } = await db().from("contacts").select("name").eq("id", contactId).maybeSingle();
+  return findOrCreateOpenInvite(survey.id, contactId, String(c?.name ?? "").split(/\s+/)[0]);
+}
+
+/** Find this contact's existing invite for the survey, or create one (open-link source). */
+async function findOrCreateOpenInvite(surveyId: string, contactId: string, firstName?: string): Promise<{ token: string } | { error: string }> {
+  const sb = db();
+  const { data: existing } = await sb.from("exp_survey_invites").select("token").eq("survey_id", surveyId).eq("contact_id", contactId).maybeSingle();
   if (existing?.token) return { token: String(existing.token) };
   const { data: inv, error: invErr } = await sb.from("exp_survey_invites").insert({
-    survey_id: survey.id, contact_id: contactId,
-    token: generateSurveyToken(name.split(/\s+/)[0]), source: "open_link",
+    survey_id: surveyId, contact_id: contactId,
+    token: generateSurveyToken(firstName), source: "open_link",
   }).select("token").single();
   if (invErr || !inv) return { error: "Something went wrong — please try again." };
   return { token: String(inv.token) };

@@ -40,6 +40,7 @@ export default function ContentEditorPage({ params }: { params: Promise<{ id: st
   const [heroVideo, setHeroVideo] = useState("");
   const [heroVideoStart, setHeroVideoStart] = useState("");
   const [heroVideoEnd, setHeroVideoEnd] = useState("");
+  const [explainerVideo, setExplainerVideo] = useState("");
   const [gallery, setGallery] = useState<string[]>([]);
   const [reviews, setReviews] = useState<Review[]>([]);
   const [picker, setPicker] = useState<PickerTarget | null>(null);
@@ -77,6 +78,7 @@ export default function ContentEditorPage({ params }: { params: Promise<{ id: st
         setHeroVideo(c.hero_video_url ?? "");
         setHeroVideoStart(c.hero_video_start != null ? String(c.hero_video_start) : "");
         setHeroVideoEnd(c.hero_video_end != null ? String(c.hero_video_end) : "");
+        setExplainerVideo(c.explainer_video_url ?? "");
         setGallery(Array.isArray(c.gallery) ? c.gallery : []);
         setReviews(Array.isArray(c.reviews) ? c.reviews : []);
         setLocationAbout(c.location_about ?? "");
@@ -130,6 +132,7 @@ export default function ContentEditorPage({ params }: { params: Promise<{ id: st
         hero_video_url: heroVideo,
         hero_video_start: heroVideoStart === "" ? null : Number(heroVideoStart),
         hero_video_end: heroVideoEnd === "" ? null : Number(heroVideoEnd),
+        explainer_video_url: explainerVideo.trim() || null,
         gallery,
         reviews,
         location_about: locationAbout,
@@ -270,6 +273,16 @@ export default function ContentEditorPage({ params }: { params: Promise<{ id: st
           ) : (
             <ImageField url={heroImage} onPick={() => setPicker({ kind: "hero" })} onClear={() => setHeroImage("")} ratio="aspect-[21/9]" />
           )}
+        </Section>
+
+        <Section show={tab === "media"} title="Explainer video" hint="A YouTube video where Nico walks through the whole trip. Shows a click-to-play section on the event page; leave empty to hide it entirely.">
+          <input
+            value={explainerVideo}
+            onChange={(e) => setExplainerVideo(e.target.value)}
+            placeholder="YouTube link (optional) — e.g. https://youtu.be/…"
+            className="admin-input w-full px-4 py-2.5 rounded-lg border text-sm outline-none"
+          />
+          {explainerVideo.trim() && <p className="text-[12px] admin-faint mt-2">▶ A &ldquo;Watch the trip&rdquo; section will show on the event page.</p>}
         </Section>
 
         <Section show={tab === "media"} title="Gallery" hint="ORDER MATTERS: the first 6 photos illustrate the 'Your epic week' sections in order — 1 confidence on the water · 2 control & speed · 3 better jibes · 4 knowledge/theory · 5 friends/group · 6 photo & video. Photos 7+ are extra flavour (slideshow + gallery strip).">

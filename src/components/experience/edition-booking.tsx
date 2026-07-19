@@ -28,12 +28,14 @@ export function EditionBooking({
   currency = "EUR",
   experienceId,
   experienceTitle,
+  heroImage,
 }: {
   editions: EditionLite[];
   packagesByEdition: Record<string, RealPackage[]>;
   currency?: string;
   experienceId: string;
   experienceTitle: string;
+  heroImage?: string | null;
 }) {
   const [sel, setSel] = useState(editions[0]?.id);
   const ed = editions.find((e) => e.id === sel) ?? editions[0];
@@ -166,6 +168,7 @@ export function EditionBooking({
           key={ed?.id}
           packages={packages}
           currency={currency}
+          heroImage={heroImage}
           reserve={{
             experienceId,
             experienceTitle,

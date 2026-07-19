@@ -33,6 +33,8 @@ type Props = {
   currency?: string;
   deposit?: number | null;
   reserve?: ReserveTarget;
+  /** Experience hero — the summary banner falls back to it for hotel-less ("Experience Only") packages. */
+  heroImage?: string | null;
 };
 
 /** Short "who's this for / what you'll learn" note per coaching level. */
@@ -73,7 +75,7 @@ type Quote = {
   milestones: { kind: string; label: string; amount: number; dueLabel: string; dueDate: string | null }[];
 };
 
-export function PackagePicker({ packages, currency = "EUR", reserve }: Props) {
+export function PackagePicker({ packages, currency = "EUR", reserve, heroImage }: Props) {
   const [showReserve, setShowReserve] = useState(false);
   // Active photo per hotel group (the expanded card shows a swappable banner —
   // photos stay at card size on purpose: sources aren't always hi-res, so no lightbox).
@@ -365,10 +367,11 @@ export function PackagePicker({ packages, currency = "EUR", reserve }: Props) {
 
       {/* summary */}
       <aside className="lg:sticky lg:top-24 rounded-3xl bg-[#00374a] text-white shadow-[0_20px_60px_rgba(0,55,74,0.25)] overflow-hidden">
-        {selected?.hotelImage && (
-          <div className="relative h-36 bg-cover bg-center" style={{ backgroundImage: `url('${selected.hotelImage}')` }}>
+        {/* hotel photo, or the experience hero as a fallback so "Experience Only" isn't a bare card */}
+        {(selected?.hotelImage || heroImage) && (
+          <div className="relative h-36 bg-cover bg-center" style={{ backgroundImage: `url('${selected?.hotelImage || heroImage}')` }}>
             <div className="absolute inset-0 bg-gradient-to-t from-[#00374a] via-[#00374a]/30 to-transparent" />
-            {selected.hotelName && (
+            {selected?.hotelName && (
               <span className="absolute bottom-3 left-7 text-[13px] font-bold text-white drop-shadow">{selected.hotelName}</span>
             )}
           </div>
