@@ -160,7 +160,7 @@ type ReviewRow = { name: string; country: string; quote: string; rating: number;
 type ContentRow = {
   location_about: string | null; week_info: string | null;
   daily_program: ProgramItem[] | null; highlights: string[] | null; faq: FaqRow[] | null;
-  hero_image: string | null; hero_video_url: string | null; explainer_video_url: string | null; gallery: string[] | null; reviews: ReviewRow[] | null;
+  hero_image: string | null; hero_focus: string | null; hero_video_url: string | null; explainer_video_url: string | null; gallery: string[] | null; reviews: ReviewRow[] | null;
   no_wind_program: string | null; wind_probability: string | null; wind_range: string | null;
 };
 type Detail = {
@@ -207,7 +207,7 @@ export default async function ExperienceDetailPage({ params }: Props) {
   // break the existing text content if they haven't been applied yet.
   const [{ data: baseRaw }, { data: mediaRaw }] = await Promise.all([
     sb.from("exp_content").select("location_about,week_info,daily_program,highlights,faq").eq("experience_id", experience.id).maybeSingle(),
-    sb.from("exp_content").select("hero_image,hero_video_url,explainer_video_url,gallery,reviews,no_wind_program,wind_probability,wind_range").eq("experience_id", experience.id).maybeSingle(),
+    sb.from("exp_content").select("hero_image,hero_focus,hero_video_url,explainer_video_url,gallery,reviews,no_wind_program,wind_probability,wind_range").eq("experience_id", experience.id).maybeSingle(),
   ]);
   const content = (baseRaw || mediaRaw ? { ...(baseRaw ?? {}), ...(mediaRaw ?? {}) } : null) as ContentRow | null;
 
@@ -483,7 +483,7 @@ export default async function ExperienceDetailPage({ params }: Props) {
         {heroVideoUrl ? (
           <HeroVideo url={heroVideoUrl} start={heroVideoStart} end={heroVideoEnd} poster={heroMediaImage} />
         ) : (
-          <div className="absolute inset-0 bg-cover bg-center scale-105" style={{ backgroundImage: `url('${heroMediaImage}')` }} />
+          <div className="absolute inset-0 bg-cover scale-105" style={{ backgroundImage: `url('${heroMediaImage}')`, backgroundPosition: content?.hero_focus || "center" }} />
         )}
         {/* darken toward the bottom for the title/CTA, fade to clear at the top so the photo reads */}
         <div className="absolute inset-0 bg-gradient-to-t from-[#00374a] via-[#00374a]/55 to-transparent" />

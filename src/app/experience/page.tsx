@@ -9,6 +9,7 @@ import { Reveal } from "@/components/experience/reveal";
 import { Carousel } from "@/components/experience/carousel";
 import { UpcomingExperiences, type ExpCard } from "@/components/experience/upcoming-experiences";
 import { paidSpotsByEdition, spotsLeftFrom } from "@/lib/availability";
+import type { TilePlacement } from "@/lib/experience-tile";
 
 export const metadata: Metadata = {
   title: { absolute: "NP7 Experience — Premium Watersports Travel" },
@@ -117,6 +118,13 @@ export default async function ExperienceOverviewPage() {
   const { data: autoRows } = await (supabase as any).from("exp_experiences").select("id,tile_auto").eq("status", "published");
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const autoIds = new Set(((autoRows ?? []) as any[]).filter((e) => e.tile_auto === true).map((e) => e.id as string));
+  // Per-experience card placement overrides (migration 110). Tolerant: the
+  // column may not exist yet → empty map → every tile uses the built-in layout.
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { data: placementRows } = await (supabase as any).from("exp_content").select("experience_id,card_placement");
+  const placementByExp = new Map<string, TilePlacement>();
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  for (const r of ((placementRows ?? []) as any[])) if (r.card_placement && typeof r.card_placement === "object") placementByExp.set(r.experience_id, r.card_placement);
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const { data: coachRows } = await (supabase as any).from("exp_coaches").select("*");
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -151,6 +159,7 @@ export default async function ExperienceOverviewPage() {
     tileAuto: autoIds.has(exp.id),
     coachName: coach?.name ?? named,
     coachCutout: coach?.cutout ?? null,
+    placement: placementByExp.get(exp.id) ?? null,
     months: Array.from(
       new Set(
         (exp.exp_editions ?? [])

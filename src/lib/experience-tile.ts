@@ -53,3 +53,43 @@ export function flagFromLocation(location: string | null | undefined): FlagInfo 
 export function flagSrc(code: string): string {
   return `/flags/${code.toLowerCase()}.svg`;
 }
+
+// -- Tile placement (auto-brand card editor) ----------------------------------
+
+/**
+ * Optional per-experience overrides for how <BrandedTile> composites the photo,
+ * coach and flag. Every field is optional; missing ones fall back to
+ * TILE_PLACEMENT_DEFAULTS, which reproduce the original hardcoded layout exactly
+ * — so an experience with no saved placement renders identically to before.
+ * Stored as JSON in exp_content.card_placement.
+ */
+export type TilePlacement = {
+  photoX?: number;      // object-position X, 0–100 (default 50)
+  photoY?: number;      // object-position Y, 0–100 (default 50)
+  coachRight?: number;  // % offset from the right edge (default 0; negative pushes off-screen)
+  coachBottom?: number; // % offset from the bottom (default 0)
+  coachScale?: number;  // coach height as % of the tile (default 82)
+  flagRight?: number;   // % offset from the right edge (default -2)
+  flagTop?: number;     // % offset from the top (default -12)
+  flagWidth?: number;   // flag width as % of the tile (default 42)
+  flagRotate?: number;  // degrees (default 12)
+  flagOpacity?: number; // 0–100 (default 45)
+  flagFade?: number;    // fade-off strength 0–100 (default 25 ≈ the original mask)
+};
+
+export const TILE_PLACEMENT_DEFAULTS: Required<TilePlacement> = {
+  photoX: 50, photoY: 50,
+  coachRight: 0, coachBottom: 0, coachScale: 82,
+  flagRight: -2, flagTop: -12, flagWidth: 42, flagRotate: 12, flagOpacity: 45, flagFade: 25,
+};
+
+/** Merge a (possibly partial / null) placement over the defaults. */
+export function resolveTilePlacement(p?: TilePlacement | null): Required<TilePlacement> {
+  return { ...TILE_PLACEMENT_DEFAULTS, ...(p ?? {}) };
+}
+
+/** The flag's fade mask for a given fade strength (higher = flag fades out more). */
+export function flagFadeMask(fade: number): string {
+  const start = Math.max(0, Math.min(40, fade * 0.4)); // 0–40%
+  return `linear-gradient(104deg, transparent ${start}%, rgba(0,0,0,0.7) ${start + 30}%, #000 ${start + 60}%)`;
+}

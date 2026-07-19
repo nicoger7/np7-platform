@@ -1,4 +1,4 @@
-import { flagSrc, type FlagInfo } from "@/lib/experience-tile";
+import { flagSrc, flagFadeMask, resolveTilePlacement, type FlagInfo, type TilePlacement } from "@/lib/experience-tile";
 
 export type BrandedTileProps = {
   /** Raw hero photo (no baked-in text/graphics). */
@@ -13,6 +13,8 @@ export type BrandedTileProps = {
   coachCutout?: string | null;
   /** Small line under the place name. */
   subtitle?: string;
+  /** Optional focal/position overrides (from the placement editor). */
+  placement?: TilePlacement | null;
   className?: string;
 };
 
@@ -23,7 +25,9 @@ export type BrandedTileProps = {
  *   3. faded country flag drape (coach side, masked)
  *   4. gold place name + subtitle       5. coach cutout + "with NAME"
  *
- * Fills its parent (which controls size, rounding and overflow-hidden).
+ * Fills its parent (which controls size, rounding and overflow-hidden). The photo
+ * focal point, coach placement and flag placement/fade all come from `placement`
+ * (falling back to the original hardcoded layout when unset).
  */
 export function BrandedTile({
   photo,
@@ -32,15 +36,17 @@ export function BrandedTile({
   coachName,
   coachCutout,
   subtitle = "NP7 Windsurf Experience",
+  placement,
   className = "",
 }: BrandedTileProps) {
+  const p = resolveTilePlacement(placement);
   return (
     <div className={`absolute inset-0 overflow-hidden ${className}`}>
-      {/* 1 — photo */}
+      {/* 1 — photo (focal point from placement.photoX/Y) */}
       {photo && (
         <div
-          className="absolute inset-0 bg-cover bg-center transition-transform duration-700 group-hover:scale-105"
-          style={{ backgroundImage: `url('${photo}')` }}
+          className="absolute inset-0 bg-cover transition-transform duration-700 group-hover:scale-105"
+          style={{ backgroundImage: `url('${photo}')`, backgroundPosition: `${p.photoX}% ${p.photoY}%` }}
         />
       )}
 
@@ -74,10 +80,15 @@ export function BrandedTile({
           src={flagSrc(flag.code)}
           alt=""
           aria-hidden
-          className="pointer-events-none absolute right-[-2%] top-[-12%] h-[135%] w-[42%] rotate-[12deg] object-cover opacity-45"
+          className="pointer-events-none absolute h-[135%] object-cover"
           style={{
-            WebkitMaskImage: "linear-gradient(104deg, transparent 10%, rgba(0,0,0,0.7) 40%, #000 70%)",
-            maskImage: "linear-gradient(104deg, transparent 10%, rgba(0,0,0,0.7) 40%, #000 70%)",
+            right: `${p.flagRight}%`,
+            top: `${p.flagTop}%`,
+            width: `${p.flagWidth}%`,
+            transform: `rotate(${p.flagRotate}deg)`,
+            opacity: p.flagOpacity / 100,
+            WebkitMaskImage: flagFadeMask(p.flagFade),
+            maskImage: flagFadeMask(p.flagFade),
           }}
         />
       )}
@@ -101,16 +112,16 @@ export function BrandedTile({
         </p>
       </div>
 
-      {/* 5 — coach cutout + name (only when a coach is set) */}
+      {/* 5 — coach cutout + name (placement.coachRight / coachBottom / coachScale) */}
       {coachName && (
-        <div className="absolute right-0 bottom-0 top-0 z-10 flex items-end">
+        <div className="absolute top-0 z-10 flex items-end" style={{ right: `${p.coachRight}%`, bottom: `${p.coachBottom}%` }}>
           {coachCutout && (
             // eslint-disable-next-line @next/next/no-img-element
             <img
               src={coachCutout}
               alt={coachName}
-              className="h-[82%] w-auto max-w-none self-end object-contain object-bottom"
-              style={{ filter: "drop-shadow(-5px 5px 9px rgba(0,0,0,0.45))" }}
+              className="w-auto max-w-none self-end object-contain object-bottom"
+              style={{ height: `${p.coachScale}%`, filter: "drop-shadow(-5px 5px 9px rgba(0,0,0,0.45))" }}
             />
           )}
           <span className="absolute right-3 top-3 text-right leading-none">

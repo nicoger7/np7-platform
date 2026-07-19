@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useMemo, useState } from "react";
 import { Reveal } from "./reveal";
 import { BrandedTile } from "./branded-tile";
-import { placeFromLocation, flagFromLocation } from "@/lib/experience-tile";
+import { placeFromLocation, flagFromLocation, type TilePlacement } from "@/lib/experience-tile";
 import { cdn } from "@/lib/cdn";
 
 const SIG_IMG = cdn("hero/windsurf-hero-poster.jpg");
@@ -58,6 +58,8 @@ export type ExpCard = {
   tileAuto?: boolean;
   coachName?: string | null;
   coachCutout?: string | null;
+  /** Focal/position overrides for the branded tile (migration 110). */
+  placement?: TilePlacement | null;
 };
 
 const monthLabel = (ym: string) =>
@@ -114,6 +116,7 @@ export function UpcomingExperiences({ experiences, showSignature = false }: { ex
                       flag={flagFromLocation(exp.location)}
                       coachName={exp.coachName}
                       coachCutout={exp.coachCutout}
+                      placement={exp.placement}
                     />
                   ) : (
                     <>

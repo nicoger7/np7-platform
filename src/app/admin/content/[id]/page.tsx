@@ -5,8 +5,8 @@ import Link from "next/link";
 import ImagePickerModal from "@/components/image-picker-modal";
 import { EditionGuidesEditor } from "@/components/edition-guides-editor";
 import { ReviewPlacementsEditor } from "@/components/edition-reviews-editor";
-import { BrandedTile } from "@/components/experience/branded-tile";
-import { placeFromLocation, flagFromLocation } from "@/lib/experience-tile";
+import { placeFromLocation, flagFromLocation, type TilePlacement } from "@/lib/experience-tile";
+import { TilePlacementEditor, HeroFocusPicker } from "@/components/admin/placement-editors";
 import { editionOptionLabel } from "@/lib/edition-label";
 
 type ProgramItem = { title: string; description: string };
@@ -36,7 +36,9 @@ export default function ContentEditorPage({ params }: { params: Promise<{ id: st
   // images
   const [tileImage, setTileImage] = useState("");
   const [tileAuto, setTileAuto] = useState(false);
+  const [cardPlacement, setCardPlacement] = useState<TilePlacement>({});
   const [heroImage, setHeroImage] = useState("");
+  const [heroFocus, setHeroFocus] = useState<string | null>(null);
   const [heroVideo, setHeroVideo] = useState("");
   const [heroVideoStart, setHeroVideoStart] = useState("");
   const [heroVideoEnd, setHeroVideoEnd] = useState("");
@@ -74,7 +76,9 @@ export default function ContentEditorPage({ params }: { params: Promise<{ id: st
         setLocation(c._location ?? "");
         setTileImage(c.tile_image ?? "");
         setTileAuto(!!c.tile_auto);
+        setCardPlacement(c.card_placement && typeof c.card_placement === "object" ? c.card_placement : {});
         setHeroImage(c.hero_image ?? "");
+        setHeroFocus(c.hero_focus ?? null);
         setHeroVideo(c.hero_video_url ?? "");
         setHeroVideoStart(c.hero_video_start != null ? String(c.hero_video_start) : "");
         setHeroVideoEnd(c.hero_video_end != null ? String(c.hero_video_end) : "");
@@ -128,7 +132,9 @@ export default function ContentEditorPage({ params }: { params: Promise<{ id: st
       body: JSON.stringify({
         tile_image: tileImage,
         tile_auto: tileAuto,
+        card_placement: cardPlacement,
         hero_image: heroImage,
+        hero_focus: heroFocus,
         hero_video_url: heroVideo,
         hero_video_start: heroVideoStart === "" ? null : Number(heroVideoStart),
         hero_video_end: heroVideoEnd === "" ? null : Number(heroVideoEnd),
@@ -215,19 +221,22 @@ export default function ContentEditorPage({ params }: { params: Promise<{ id: st
             </span>
           </label>
 
-          {/* live preview — EXACTLY the component the public overview card renders */}
+          {/* interactive placement editor — drag the photo / coach / flag and see
+              it across every real tile shape (the public card is fluid-width) */}
           {tileAuto && tileImage && (
-            <div className="mt-4 max-w-[480px]">
-              <p className="text-xs admin-faint mb-2">Live preview — how the card renders on the website:</p>
-              <div className="relative aspect-[16/9] rounded-xl overflow-hidden group border admin-border">
-                <BrandedTile
-                  photo={tileImage}
-                  place={placeFromLocation(location).toUpperCase()}
-                  flag={flagFromLocation(location)}
-                  coachName={headCoach?.name}
-                  coachCutout={headCoach?.cutout}
-                />
-              </div>
+            <div className="mt-4 max-w-[620px]">
+              <p className="text-xs admin-faint mb-2">Fine-tune the card — drag to place the photo, coach and flag:</p>
+              <TilePlacementEditor
+                content={{
+                  photo: tileImage,
+                  place: placeFromLocation(location).toUpperCase(),
+                  flag: flagFromLocation(location),
+                  coachName: headCoach?.name ?? null,
+                  coachCutout: headCoach?.cutout ?? null,
+                }}
+                value={cardPlacement}
+                onChange={setCardPlacement}
+              />
             </div>
           )}
         </Section>
@@ -271,7 +280,15 @@ export default function ContentEditorPage({ params }: { params: Promise<{ id: st
               </div>
             </div>
           ) : (
-            <ImageField url={heroImage} onPick={() => setPicker({ kind: "hero" })} onClear={() => setHeroImage("")} ratio="aspect-[21/9]" />
+            <>
+              <ImageField url={heroImage} onPick={() => setPicker({ kind: "hero" })} onClear={() => setHeroImage("")} ratio="aspect-[21/9]" />
+              {heroImage && (
+                <div className="mt-4 max-w-[620px]">
+                  <p className="text-xs admin-faint mb-2">Focal point — where the hero stays centred as the screen reshapes it (wide on desktop, tall on phone):</p>
+                  <HeroFocusPicker image={heroImage} value={heroFocus} onChange={setHeroFocus} />
+                </div>
+              )}
+            </>
           )}
         </Section>
 

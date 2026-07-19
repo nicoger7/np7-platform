@@ -119,9 +119,11 @@ export async function PUT(
     highlights,
     faq,
     hero_image: typeof body.hero_image === "string" ? body.hero_image : "",
+    hero_focus: typeof body.hero_focus === "string" && body.hero_focus.trim() ? body.hero_focus : null,
     hero_video_url: typeof body.hero_video_url === "string" ? body.hero_video_url : "",
     hero_video_start: toSeconds(body.hero_video_start),
     hero_video_end: toSeconds(body.hero_video_end),
+    card_placement: body.card_placement && typeof body.card_placement === "object" ? body.card_placement : {},
     gallery,
     reviews,
     no_wind_program: typeof body.no_wind_program === "string" ? body.no_wind_program : "",
@@ -143,6 +145,14 @@ export async function PUT(
   if (error && /(packing_list|pre_trip_note)/.test(error.message || "")) {
     // eslint-disable-next-line @typescript-eslint/no-unused-vars
     const { packing_list: _p, pre_trip_note: _n, ...rest } = row;
+    ({ data, error } = await db.from("exp_content").upsert(rest, { onConflict: "experience_id" }).select().single());
+  }
+
+  // Pre-migration-110 fallback: if the placement columns don't exist yet, retry
+  // without them so content still saves.
+  if (error && /(card_placement|hero_focus)/.test(error.message || "")) {
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    const { card_placement: _cp, hero_focus: _hf, ...rest } = row;
     ({ data, error } = await db.from("exp_content").upsert(rest, { onConflict: "experience_id" }).select().single());
   }
 
