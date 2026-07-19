@@ -13,7 +13,11 @@ import { CommandPalette, type PaletteItem } from "@/components/admin/command-pal
 
 // ─── Environments ────────────────────────────────────────────────────────────
 
-type Environment = "experience" | "hardware" | "product-dev" | "analytics";
+// NOTE: "magazine" is a UI grouping only — deliberately NOT an RBAC world. Roles
+// like "NP7 Experience Media" grant the magazine/destinations SECTIONS inside the
+// experience world; making magazine a real world would have locked them out.
+// Entry is therefore decided by page access (see canEnterEnv).
+type Environment = "experience" | "hardware" | "magazine" | "product-dev" | "analytics";
 
 // `color` doubles as the admin accent for that world, mirroring the public site:
 // Experience = ocean cyan, Hardware = neon lime (black text on it). `accentContrast`
@@ -23,6 +27,7 @@ const environments: { id: Environment; label: string; shortLabel: string; color:
   // used for small brand accents in the chrome.
   { id: "experience", label: "NP7 Experience", shortLabel: "Experience", color: "#0aa3c7", accentContrast: "#ffffff", gradient: "linear-gradient(180deg,#ffc42e 0%,#f47b20 50%,#00afdb 100%)" },
   { id: "hardware", label: "NP7 Hardware", shortLabel: "Hardware", color: "#c2ff38", accentContrast: "#0a0a0a", gradient: "linear-gradient(180deg,#c2ff38 0%,#7bdb1e 50%,#ff2e88 100%)" },
+  { id: "magazine", label: "Magazine", shortLabel: "Magazine", color: "#f0a500", accentContrast: "#2a1a00", gradient: "linear-gradient(180deg,#ffd97a 0%,#f0a500 50%,#f47b20 100%)" },
   { id: "product-dev", label: "Product Development", shortLabel: "Product Dev", color: "#8b5cf6", accentContrast: "#ffffff", gradient: "linear-gradient(180deg,#a78bfa 0%,#8b5cf6 50%,#6d28d9 100%)" },
   { id: "analytics", label: "Analytics", shortLabel: "Analytics", color: "#10b981", accentContrast: "#06281d", gradient: "linear-gradient(180deg,#34d399 0%,#10b981 50%,#059669 100%)", ownerOnly: true },
 ];
@@ -48,8 +53,6 @@ const navByEnv: Record<Environment, NavGroup[]> = {
         { label: "Experiences", href: "/admin/experiences", icon: "compass" },
         { label: "Bookings", href: "/admin/bookings", icon: "inbox" },
         { label: "Contacts", href: "/admin/contacts", icon: "users" },
-        { label: "Trip Invites", href: "/admin/invites", icon: "gift" },
-        { label: "Interest Surveys", href: "/admin/surveys", icon: "checklist" },
         { label: "Signature Trips", href: "/admin/applications", icon: "star" },
         { label: "Hotel Rooms", href: "/admin/hotel-rooms", icon: "bed" },
         { label: "Hotels", href: "/admin/hotels", icon: "building" },
@@ -58,17 +61,40 @@ const navByEnv: Record<Environment, NavGroup[]> = {
       ],
     },
     {
+      label: "MEMBERS",
+      items: [
+        { label: "Member Management", href: "/admin/members", icon: "person" },
+        { label: "Progress Skills", href: "/admin/skills", icon: "checklist" },
+        { label: "Interest Surveys", href: "/admin/surveys", icon: "checklist" },
+        { label: "Trip Invites", href: "/admin/invites", icon: "gift" },
+      ],
+    },
+    {
       label: "WEBSITE",
       items: [
         { label: "File Storage", href: "/admin/images", icon: "image" },
         { label: "Event Content", href: "/admin/content", icon: "layers" },
-        { label: "Member Management", href: "/admin/members", icon: "person" },
-        { label: "Progress Skills", href: "/admin/skills", icon: "checklist" },
-        { label: "Magazine", href: "/admin/blog", icon: "pen" },
+        // also listed under the Magazine env — trip pages AND the Spotguide use it
         { label: "Destinations", href: "/admin/destinations", icon: "compass" },
-        { label: "Spotguide", href: "/admin/spotguide", icon: "compass" },
         { label: "Guest Reviews", href: "/admin/guest-reviews", icon: "star" },
-        { label: "Waivers", href: "/admin/waivers", icon: "file" },
+      ],
+    },
+    {
+      label: "MARKETING",
+      items: [
+        { label: "Campaigns", href: "/admin/campaigns", icon: "mail" },
+        { label: "Emails", href: "/admin/emails", icon: "flow" },
+        { label: "Email Templates", href: "/admin/email-templates", icon: "mail" },
+        { label: "Email Log", href: "/admin/email-log", icon: "mail" },
+      ],
+    },
+    {
+      label: "FINANCE",
+      items: [
+        { label: "Payments", href: "/admin/payments", icon: "receipt" },
+        { label: "Gift Vouchers", href: "/admin/vouchers", icon: "gift" },
+        { label: "Experience Costs", href: "/admin/exp-costs", icon: "chartline" },
+        { label: "Vendors", href: "/admin/vendors", icon: "truck" },
       ],
     },
     {
@@ -80,23 +106,21 @@ const navByEnv: Record<Environment, NavGroup[]> = {
       ],
     },
     {
-      label: "FINANCE",
+      label: "ADMINISTRATION",
       items: [
-        { label: "Payments", href: "/admin/payments", icon: "receipt" },
-        { label: "Gift Vouchers", href: "/admin/vouchers", icon: "gift" },
-        { label: "Experience Costs", href: "/admin/exp-costs", icon: "chartline" },
-        { label: "Vendors", href: "/admin/vendors", icon: "truck" },
+        { label: "Waivers", href: "/admin/waivers", icon: "file" },
         { label: "Documents", href: "/admin/documents", icon: "file" },
         { label: "Company Settings", href: "/admin/settings", icon: "cog" },
       ],
     },
+  ],
+  magazine: [
     {
-      label: "AUTOMATION",
+      label: "MAGAZINE",
       items: [
-        { label: "Emails", href: "/admin/emails", icon: "flow" },
-        { label: "Campaigns", href: "/admin/campaigns", icon: "mail" },
-        { label: "Email Templates", href: "/admin/email-templates", icon: "mail" },
-        { label: "Email Log", href: "/admin/email-log", icon: "mail" },
+        { label: "Magazine", href: "/admin/blog", icon: "pen" },
+        { label: "Spotguide", href: "/admin/spotguide", icon: "compass" },
+        { label: "Destinations", href: "/admin/destinations", icon: "compass" },
       ],
     },
   ],
@@ -128,6 +152,21 @@ const navByEnv: Record<Environment, NavGroup[]> = {
     },
   ],
 };
+
+/**
+ * Can this user open an environment?
+ *
+ * Real RBAC worlds delegate to the role's world grants. "magazine" is a UI-only
+ * grouping (its pages still live in the experience world), so it opens for anyone
+ * who can reach at least one page inside it — that keeps roles like
+ * "NP7 Experience Media" working without touching any role data.
+ */
+function canEnterEnv(access: EffectiveAccess, id: Environment): boolean {
+  if (id === "magazine") {
+    return (navByEnv.magazine ?? []).some((g) => g.items.some((i) => effectiveCanAccess(access, i.href)));
+  }
+  return effectiveCanEnterWorld(access, id as WorldId);
+}
 
 const sharedNavTop: NavGroup = {
   label: "HOME",
@@ -391,7 +430,7 @@ export default function AdminShell({
   const supabase = createClient();
   const [theme, setTheme] = useState<Theme>("dark");
   // Worlds this member may enter (restricted roles see fewer); default to the first.
-  const allowedEnvs = environments.filter((e) => effectiveCanEnterWorld(access, e.id as WorldId));
+  const allowedEnvs = environments.filter((e) => canEnterEnv(access, e.id));
   const [env, setEnv] = useState<Environment>(() => (allowedEnvs[0]?.id ?? "experience") as Environment);
   const [envMenuOpen, setEnvMenuOpen] = useState(false);
   const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
@@ -418,7 +457,7 @@ export default function AdminShell({
     const savedTheme = localStorage.getItem("np7-admin-theme") as Theme | null;
     if (savedTheme && themes[savedTheme]) setTheme(savedTheme);
     const savedEnv = localStorage.getItem("np7-admin-env") as Environment | null;
-    if (savedEnv && navByEnv[savedEnv] && effectiveCanEnterWorld(access, savedEnv as WorldId)) {
+    if (savedEnv && navByEnv[savedEnv] && canEnterEnv(access, savedEnv as Environment)) {
       setEnv(savedEnv);
     }
     try {
@@ -499,7 +538,7 @@ export default function AdminShell({
     const out: PaletteItem[] = [];
     const seen = new Set<string>();
     for (const e of environments) {
-      if (!effectiveCanEnterWorld(access, e.id as WorldId)) continue;
+      if (!canEnterEnv(access, e.id)) continue;
       const groups: NavGroup[] = [
         sharedNavTop,
         ...navByEnv[e.id],
@@ -626,7 +665,7 @@ export default function AdminShell({
                   border: "1px solid var(--admin-border)",
                 }}
               >
-                {environments.filter((e) => effectiveCanEnterWorld(access, e.id as WorldId)).map((e) => (
+                {environments.filter((e) => canEnterEnv(access, e.id)).map((e) => (
                   <button
                     key={e.id}
                     onClick={() => switchEnv(e.id)}

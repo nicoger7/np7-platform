@@ -9,11 +9,15 @@ export async function GET() {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const db = createAdminClient() as any;
 
+  // NOTE: we deliberately do NOT filter on `verification` here. A decision has
+  // to actually stick — "Approve (community)" used to leave the spot matching
+  // `verification != np7`, so it reappeared on every reload. Instead we pull all
+  // member/jibe spots and keep only what still needs a human below (undecided,
+  // or flagged at any verification level).
   const { data: spots, error } = await db
     .from("spots")
     .select("id, name, destination_id, level, conditions, description, verification, created_at")
     .in("source", ["member", "jibe"]) // jibe = AI-intake drafts awaiting review
-    .neq("verification", "np7")
     .order("created_at", { ascending: false });
   if (error) {
     if (/does not exist|schema cache/i.test(error.message)) return NextResponse.json({ error: "Run migration 062 first.", spots: [], photos: [] }, { status: 503 });
@@ -45,7 +49,11 @@ export async function GET() {
     const flagged = flags > 0;
     const stuck = !flagged && ageDays >= STUCK_DAYS && confirms < COMMUNITY_VERIFY_THRESHOLD;
     return { ...s, destinationName: destName.get(s.destination_id as string) ?? "—", confirms, flags, flagReasons, ageDays, flagged, stuck };
-  }).sort((a: { flagged: boolean; stuck: boolean; ageDays: number }, b: { flagged: boolean; stuck: boolean; ageDays: number }) =>
+  }).filter((s: { flagged: boolean; verification: string }) =>
+    // Still needs a human: never decided yet, OR flagged by riders (a flag pulls
+    // a spot back for review even after it was approved / NP7-verified).
+    s.verification === "pending" || s.flagged
+  ).sort((a: { flagged: boolean; stuck: boolean; ageDays: number }, b: { flagged: boolean; stuck: boolean; ageDays: number }) =>
     (Number(b.flagged) - Number(a.flagged)) || (Number(b.stuck) - Number(a.stuck)) || (b.ageDays - a.ageDays));
   // Member-proposed new areas (destinations) awaiting NP7 publish.
   const { data: proposedDests } = await db
