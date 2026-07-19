@@ -140,7 +140,7 @@ const GEAR_GUIDE: BlogTemplate = {
   world: "hardware",
   icon: "ruler",
   tagline: "Help riders choose the right gear — the factors, a sizing table, rules of thumb & mistakes.",
-  cta: { defaultLabel: "Shop the range" },
+  cta: { defaultLabel: "Learn it on a trip" }, // hardware shop offline — default gear CTAs to trips; flip back at launch
   fields: [
     { key: "subject", label: "Subject", kind: "text", slot: "hero", placeholder: "Windsurf fins" },
     { key: "outcome", label: "What you'll learn", kind: "text", slot: "hero", hint: "Shown under the title.", placeholder: "How to pick the right fin size for your board, sail and conditions." },
@@ -151,8 +151,8 @@ const GEAR_GUIDE: BlogTemplate = {
     { key: "sizingTable", label: "Sizing guide", kind: "pairs", slot: "body", hint: "Scenario → adjustment, e.g. Bigger sail → +1–2 cm." },
     { key: "mistakes", label: "Common mistakes", kind: "list", slot: "body", listStyle: "warn" },
     { key: "tips", label: "Pro tips", kind: "list", slot: "body", listStyle: "check" },
-    { key: "ctaUrl", label: "Shop link (URL)", kind: "text", slot: "body", hint: "Adds a button at the end.", placeholder: "/hardware" },
-    { key: "ctaLabel", label: "Button text", kind: "text", slot: "body", placeholder: "Shop the range" },
+    { key: "ctaUrl", label: "Link (URL)", kind: "text", slot: "body", hint: "Adds a button at the end.", placeholder: "/experience#experiences" },
+    { key: "ctaLabel", label: "Button text", kind: "text", slot: "body", placeholder: "Learn it on a trip" },
   ],
 };
 
@@ -163,7 +163,7 @@ const COMPARISON: BlogTemplate = {
   world: "hardware",
   icon: "compare",
   tagline: "Compare options head-to-head — each profiled, a side-by-side table, and which to pick.",
-  cta: { defaultLabel: "Shop the range" },
+  cta: { defaultLabel: "Learn it on a trip" }, // hardware shop offline — default gear CTAs to trips; flip back at launch
   fields: [
     { key: "subject", label: "Subject", kind: "text", slot: "hero", placeholder: "Freeride vs Freerace vs Race sails" },
     { key: "outcome", label: "What you'll decide", kind: "text", slot: "hero", hint: "Shown under the title.", placeholder: "Which sail type fits your level, conditions and priorities." },
@@ -172,8 +172,8 @@ const COMPARISON: BlogTemplate = {
     { key: "options", label: "The options", kind: "options", slot: "body", hint: "Each option — who it's for, pros & cons." },
     { key: "matrix", label: "Side by side", kind: "matrix", slot: "body", hint: "Attributes compared across the options." },
     { key: "recommendation", label: "How to choose", kind: "callout", slot: "body", placeholder: "Less is often more — pick the sail you'll actually enjoy rigging and sailing." },
-    { key: "ctaUrl", label: "Shop link (URL)", kind: "text", slot: "body", placeholder: "/hardware" },
-    { key: "ctaLabel", label: "Button text", kind: "text", slot: "body", placeholder: "Shop the range" },
+    { key: "ctaUrl", label: "Link (URL)", kind: "text", slot: "body", placeholder: "/experience#experiences" },
+    { key: "ctaLabel", label: "Button text", kind: "text", slot: "body", placeholder: "Learn it on a trip" },
   ],
 };
 
