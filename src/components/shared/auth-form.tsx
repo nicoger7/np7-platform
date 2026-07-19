@@ -12,7 +12,7 @@ export type Mode = "login" | "magic" | "register";
  * popup and on the /account/login fallback page. `initialMode` lets a caller
  * (e.g. the blog signup gate) open straight into "create account".
  */
-export function AuthForm({ onLoggedIn, compact = false, initialMode = "login" }: { onLoggedIn?: () => void; compact?: boolean; initialMode?: Mode }) {
+export function AuthForm({ onLoggedIn, compact = false, initialMode = "login", next: nextOverride }: { onLoggedIn?: () => void; compact?: boolean; initialMode?: Mode; /** Where to land after login (e.g. back to an open survey). Defaults to the page the form sits on. */ next?: string }) {
   const router = useRouter();
   const supabase = createClient();
 
@@ -27,7 +27,7 @@ export function AuthForm({ onLoggedIn, compact = false, initialMode = "login" }:
 
   function done() {
     if (onLoggedIn) return onLoggedIn();
-    router.push("/account");
+    router.push(nextOverride || "/account");
     router.refresh();
   }
 
@@ -37,7 +37,7 @@ export function AuthForm({ onLoggedIn, compact = false, initialMode = "login" }:
     // Return the member to the page they logged in FROM (not the account home),
     // unless they're already in the account area.
     const here = typeof window !== "undefined" ? window.location.pathname + window.location.search : "";
-    const next = here && !here.startsWith("/account") ? here : undefined;
+    const next = nextOverride || (here && !here.startsWith("/account") ? here : undefined);
     try {
       if (mode === "login") {
         const { error } = await supabase.auth.signInWithPassword({ email, password });

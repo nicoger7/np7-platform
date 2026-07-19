@@ -49,6 +49,13 @@ export function SurveyJoin({ openToken }: { openToken: string }) {
         {busy ? "One sec…" : "Continue to the dates →"}
       </button>
       <p className="text-[12px] text-[#9a8a6a] mt-3.5">Only used so we can count you in and get back to you about this trip — no newsletter, no spam.</p>
+      {/* Members skip the form entirely: log in → bounce back here → auto-join
+          with their account contact (server-side on this page). */}
+      <p className="text-[12.5px] text-[#9a8a6a] mt-4 pt-4 border-t border-[#f2e8d2]">
+        Have an NP7 account?{" "}
+        <a href={`/account/login?next=${encodeURIComponent(`/survey/${openToken}`)}`} className="font-bold text-[#b0791e] hover:underline">Log in</a>
+        {" "}— we&apos;ll fill in your details automatically.
+      </p>
     </form>
   );
 }

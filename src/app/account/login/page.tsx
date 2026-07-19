@@ -9,7 +9,10 @@ export const metadata = { title: "Log in — NP7" };
  * users, direct URL, and expired-link redirects. Same password-first form as
  * the popup, in the branded ocean shell.
  */
-export default function AccountLoginPage() {
+export default async function AccountLoginPage({ searchParams }: { searchParams: Promise<{ next?: string }> }) {
+  // Optional round-trip target (e.g. an open survey link) — internal paths only.
+  const { next } = await searchParams;
+  const safeNext = typeof next === "string" && /^\/(?!\/)/.test(next) ? next : undefined;
   return (
     <main className="min-h-[100svh] bg-[#00374a] flex items-center justify-center px-6 py-16">
       <div className="w-full max-w-[400px]">
@@ -21,7 +24,7 @@ export default function AccountLoginPage() {
         </div>
 
         <div className="bg-white rounded-2xl p-7">
-          <AuthForm />
+          <AuthForm next={safeNext} />
         </div>
 
         <p className="text-center text-[12px] text-white/40 mt-6">
