@@ -86,10 +86,10 @@ export const TEMPLATES: Record<string, (v: EmailVars, opts?: LayoutOpts) => Buil
     subject: `Your NP7 login link`,
     html: emailLayout({
       ...opts,
-      preheader: "Sign in to your NP7 trip account.",
+      preheader: "Sign in to your NP7 account.",
       bodyHtml:
         greet(v) +
-        p(`Here's your secure login link for your NP7 trip account. It expires shortly, so use it soon:`) +
+        p(`Here's your secure login link for your NP7 account. It expires shortly, so use it soon:`) +
         (v.activationLink ? emailButton("Log in to my account", v.activationLink) : "") +
         p(`If you didn't request this, you can safely ignore this email.`),
     }),
