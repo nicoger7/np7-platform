@@ -678,7 +678,8 @@ export default async function ExperienceDetailPage({ params, searchParams }: Pro
           </Reveal>
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
             {[
-              { icon: "wind", big: windProbability || "Trade winds", small: windProbability ? "wind probability in season" : "steady & reliable", sub: windRange || null },
+              // fallback is wind-system-neutral — "Trade winds" was wrong for Garda's thermal Ora
+              { icon: "wind", big: windProbability || "Reliable wind", small: windProbability ? "wind probability in season" : "planned around the forecast", sub: windRange || null },
               { icon: "star", big: "5.0", small: "guest rating", sub: "5-star reviews, week after week" },
               { icon: "crew", big: "Good people", small: "great crew", sub: "hand-picked, friendly vibe" },
               { icon: "sun", big: "Plan B", small: "no-wind program", sub: "we make every day count" },
