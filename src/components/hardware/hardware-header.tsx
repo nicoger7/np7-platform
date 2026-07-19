@@ -47,15 +47,18 @@ export function HardwareHeader({ variant = "overlay" }: { variant?: "overlay" | 
 
   return (
     <header
-      className={
-        docked
-          ? "sticky top-0 z-50 bg-black"
-          : `fixed top-0 inset-x-0 z-50 transition-colors duration-300 ${
-              scrolled ? "bg-black/80 backdrop-blur-lg border-b border-white/10" : "bg-transparent"
-            }`
-      }
+      className={docked ? "sticky top-0 z-50 bg-black" : "fixed top-0 inset-x-0 z-50"}
     >
-      <div className="max-w-[1200px] mx-auto px-5 sm:px-8 h-16 flex items-center justify-between gap-4">
+      {/* Frost on a separate opacity-animated layer — toggling backdrop-filter
+          on the header itself makes Safari blank out the BrandSwitch pill (its
+          own backdrop-blur) during fast scrolls to the top. */}
+      {!docked && (
+        <div
+          aria-hidden
+          className={`absolute inset-0 bg-black/80 backdrop-blur-lg border-b border-white/10 transition-opacity duration-300 ${scrolled ? "opacity-100" : "opacity-0"}`}
+        />
+      )}
+      <div className="relative max-w-[1200px] mx-auto px-5 sm:px-8 h-16 flex items-center justify-between gap-4">
         {/* LEFT — brand + primary nav */}
         <div className="flex items-center gap-3 sm:gap-4">
           <Link href="/" aria-label="NP7 home" className="shrink-0">
@@ -105,7 +108,7 @@ export function HardwareHeader({ variant = "overlay" }: { variant?: "overlay" | 
 
       {/* MOBILE menu panel */}
       {menuOpen && (
-        <div className="lg:hidden border-t border-white/10 bg-black">
+        <div className="relative lg:hidden border-t border-white/10 bg-black">
           <nav className="max-w-[1200px] mx-auto px-5 py-2 flex flex-col">
             {NAV.map((n, i) => (
               <Link key={i} href={n.href} onClick={() => setMenuOpen(false)} className="py-3.5 text-[13px] font-bold uppercase tracking-[0.12em] font-mono text-white/70 hover:text-[#c2ff38] border-b border-white/5">

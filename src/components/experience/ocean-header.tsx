@@ -75,15 +75,19 @@ export function OceanHeader({
 
   return (
     <header
-      className={
-        docked
-          ? "sticky top-0 z-50 bg-[#00374a]"
-          : `fixed top-0 inset-x-0 z-50 transition-all duration-300 ${
-              scrolled ? "bg-[#00374a]/80 backdrop-blur-lg" : "bg-transparent"
-            }`
-      }
+      className={docked ? "sticky top-0 z-50 bg-[#00374a]" : "fixed top-0 inset-x-0 z-50"}
     >
-      <div className="max-w-[1200px] mx-auto px-5 sm:px-8 h-16 flex items-center justify-between gap-4">
+      {/* Frosted bar as a SEPARATE layer whose OPACITY animates — never toggle
+          backdrop-filter on an ancestor: Safari rebuilds the filter region and
+          any descendant with its own backdrop-blur (the Experience⇄Hardware
+          pill) blanks out for a few frames during fast scrolls to the top. */}
+      {!docked && (
+        <div
+          aria-hidden
+          className={`absolute inset-0 bg-[#00374a]/80 backdrop-blur-lg transition-opacity duration-300 ${scrolled ? "opacity-100" : "opacity-0"}`}
+        />
+      )}
+      <div className="relative max-w-[1200px] mx-auto px-5 sm:px-8 h-16 flex items-center justify-between gap-4">
         {/* LEFT — brand + primary nav */}
         <div className="flex items-center gap-3 sm:gap-4">
           <Link href="/" aria-label="NP7 home" className="shrink-0">
@@ -137,9 +141,9 @@ export function OceanHeader({
         </div>
       </div>
 
-      {/* MOBILE menu panel */}
+      {/* MOBILE menu panel — `relative` so it stacks above the frost layer */}
       {menuOpen && (
-        <div className="lg:hidden border-t border-white/10 bg-[#00374a]">
+        <div className="relative lg:hidden border-t border-white/10 bg-[#00374a]">
           <nav className="max-w-[1200px] mx-auto px-5 py-2 flex flex-col">
             {visibleNav.map((n) => (
               <Link key={n.href} href={n.href} onClick={() => setMenuOpen(false)} className="py-3.5 text-[15px] font-semibold text-white/85 hover:text-white border-b border-white/5">
