@@ -55,6 +55,12 @@ export function BrandedTile({
               backgroundPosition: `${p.photoX}% ${p.photoY}%`,
               // grow the layer by (zoom-100)% on every side → room to pan
               inset: `${-(p.photoZoom - 100) / 2}%`,
+              // background-position only pans an axis where the cover-fitted
+              // image overflows the box — in these wide tiles that is usually
+              // just Y. The zoom headroom is therefore ALSO applied as a real
+              // translate, so panning works on both axes once zoomed in.
+              // Max shift = the grown margin, so the layer always covers the box.
+              transform: `translate(${(((50 - p.photoX) / 50) * ((p.photoZoom - 100) / 2) * 100) / p.photoZoom}%, ${(((50 - p.photoY) / 50) * ((p.photoZoom - 100) / 2) * 100) / p.photoZoom}%)`,
             }}
           />
         </div>

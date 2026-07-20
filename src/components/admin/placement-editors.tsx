@@ -1,6 +1,7 @@
 "use client";
 
-import { useRef, useState } from "react";
+import type React from "react";
+import { useLayoutEffect, useRef, useState } from "react";
 import { BrandedTile } from "@/components/experience/branded-tile";
 import { resolveTilePlacement, TILE_PLACEMENT_DEFAULTS, type FlagInfo, type TilePlacement } from "@/lib/experience-tile";
 
@@ -56,6 +57,35 @@ type TileContent = { photo: string | null; place: string; flag: FlagInfo | null;
 
 // The real tile is fixed-height / fluid-width: aspect ~1.3 (2-col) → ~2.8 (wide
 // 1-col). We preview the extremes so placement is safe on every screen.
+
+/**
+ * Renders the tile at real card size (360px wide) and scales it down to fit
+ * the preview slot — a tile dropped straight into a ~140px box would show its
+ * fixed-px typography comically oversized.
+ */
+function ScaledPreview({ r, children }: { r: number; children: React.ReactNode }) {
+  const ref = useRef<HTMLDivElement>(null);
+  const [w, setW] = useState(0);
+  useLayoutEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    const ro = new ResizeObserver(() => setW(el.clientWidth));
+    ro.observe(el);
+    setW(el.clientWidth);
+    return () => ro.disconnect();
+  }, []);
+  const DESIGN_W = 360;
+  return (
+    <div ref={ref} className="relative w-full rounded overflow-hidden ring-1 ring-black/5" style={{ aspectRatio: String(r) }}>
+      {w > 0 && (
+        <div className="group absolute top-0 left-0" style={{ width: DESIGN_W, height: DESIGN_W / r, transform: `scale(${w / DESIGN_W})`, transformOrigin: "top left" }}>
+          {children}
+        </div>
+      )}
+    </div>
+  );
+}
+
 const PREVIEW_ASPECTS = [
   { r: 1.35, label: "Narrow column", note: "tablet / 2-up" },
   { r: 1.73, label: "Standard", note: "desktop 3-up" },
@@ -157,10 +187,10 @@ export function TilePlacementEditor({ content, value, onChange }: {
         <div className="mt-2 grid grid-cols-3 gap-2">
           {PREVIEW_ASPECTS.map((a) => (
             <div key={a.label}>
-              <div className="group relative w-full rounded overflow-hidden ring-1 ring-black/5" style={{ aspectRatio: String(a.r) }}>
+              <ScaledPreview r={a.r}>
                 <BrandedTile photo={content.photo} place={content.place} flag={content.flag}
                   coachName={content.coachName} coachCutout={content.coachCutout} placement={value} />
-              </div>
+              </ScaledPreview>
               <p className="text-[10px] text-[var(--admin-fg-muted,#7a8a90)] mt-0.5 leading-tight"><span className="font-bold text-[var(--admin-fg,#0a2a33)]">{a.label}</span></p>
             </div>
           ))}
