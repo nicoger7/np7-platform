@@ -25,20 +25,28 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
   if (!packages.length) return NextResponse.json({ copied: 0 });
 
   let copied = 0;
+  let lastError: string | null = null;
   for (const p of packages) {
     const { id: srcId, created_at, updated_at, notion_id, slug, ...rest } = p as Record<string, unknown> & { id: string };
     void created_at; void updated_at; void notion_id; void slug;
+    // slug is NOT NULL + unique — derive a fresh one from the name (same
+    // recipe as the package duplicate route). Inserting null here made every
+    // copy fail silently, which read as "the button does nothing".
+    const name = String(rest.name ?? "package");
+    const freshSlug = `${name.toLowerCase().normalize("NFKD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 60)}-${Math.random().toString(36).slice(2, 6)}`;
     const { data: copy, error: cErr } = await db
       .from("exp_packages")
-      .insert({ ...rest, edition_id: targetEditionId, experience_id: target.experience_id, slug: null })
+      .insert({ ...rest, edition_id: targetEditionId, experience_id: target.experience_id, slug: freshSlug })
       .select("id")
       .single();
-    if (cErr || !copy) continue;
+    if (cErr || !copy) { lastError = cErr?.message ?? lastError; continue; }
     const { data: links } = await db.from("exp_package_components").select("component_id, quantity, notes").eq("package_id", srcId);
     if (links && links.length) {
       await db.from("exp_package_components").insert(links.map((l: Record<string, unknown>) => ({ ...l, package_id: copy.id })));
     }
     copied += 1;
   }
-  return NextResponse.json({ copied });
+  // partial/total failure is not a success — surface what went wrong
+  if (!copied && lastError) return NextResponse.json({ error: `Copy failed: ${lastError}` }, { status: 500 });
+  return NextResponse.json({ copied, ...(lastError ? { warning: `Some packages failed: ${lastError}` } : {}) });
 }
