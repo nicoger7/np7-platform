@@ -900,24 +900,14 @@ export default function EditionDetailPage({
           <div className="pt-4" style={{ borderTop: "1px solid var(--admin-border)" }}>
             <h3 className="text-xs font-bold tracking-[0.1em] admin-faint uppercase mb-4">Operations</h3>
             <div className="space-y-4">
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className={labelClass}>Coaches<PublicBadge note="Shown on the week card + the first name is the coach on the trip tile" /></label>
-                  <input
-                    className={inputClass}
-                    value={edition.coaches || ""}
-                    onChange={(e) => update("coaches", e.target.value || null)}
-                    placeholder="e.g. Nico, Sarah"
-                  />
-                </div>
-                <div>
-                  <label className={labelClass}>Notion ID</label>
-                  <input
-                    className={inputClass}
-                    value={edition.notion_id || ""}
-                    onChange={(e) => update("notion_id", e.target.value || null)}
-                  />
-                </div>
+              <div>
+                <label className={labelClass}>Coaches<PublicBadge note="Shown on the week card + the first name is the coach on the trip tile" /></label>
+                <input
+                  className={inputClass}
+                  value={edition.coaches || ""}
+                  onChange={(e) => update("coaches", e.target.value || null)}
+                  placeholder="e.g. Nico, Sarah"
+                />
               </div>
               <div className="grid grid-cols-3 gap-4">
                 <div>
