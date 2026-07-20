@@ -444,7 +444,12 @@ export default async function ExperienceDetailPage({ params, searchParams }: Pro
   // whichever week the visitor picks (SelectedEditionProvider → CrewCarousel).
   let guideItems: Guide[] = COACHES;
   const coachesByEdition: Record<string, Guide[]> = {};
-  const coachEdIds = allEditions.map((e) => e.id);
+  // include recent PAST published editions: between seasons (no upcoming week
+  // yet) the page should show the last real team, not the brand placeholders
+  const pastPublished = (experience.exp_editions ?? [])
+    .filter((e) => e.status === "published" && e.date_end && e.date_end < today)
+    .sort((a, b) => ((a.date_end ?? "") > (b.date_end ?? "") ? -1 : 1));
+  const coachEdIds = [...allEditions.map((e) => e.id), ...pastPublished.map((e) => e.id)];
   if (coachEdIds.length) {
     // whatsapp_link arrives in migration 027 — try with it, fall back without.
     const sel = (wa: boolean) => `edition_id,sort_order,name_override,role_override,bio_override,image_override,exp_coaches(name,role,bio,image_url${wa ? ",whatsapp_link" : ""})`;
@@ -463,6 +468,10 @@ export default async function ExperienceDetailPage({ params, searchParams }: Pro
     }
     // the default week's crew is the fallback (and what non-JS/first paint shows)
     if (edition?.id && coachesByEdition[edition.id]?.length) guideItems = coachesByEdition[edition.id];
+    else {
+      const lastReal = pastPublished.find((e) => coachesByEdition[e.id]?.length);
+      if (lastReal) guideItems = coachesByEdition[lastReal.id];
+    }
   }
 
   // Admin-curated participant reviews for this experience (fallback to legacy content.reviews).

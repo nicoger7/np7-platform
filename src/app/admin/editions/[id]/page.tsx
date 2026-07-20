@@ -282,8 +282,21 @@ export default function EditionDetailPage({
   const [copyPkgBusy, setCopyPkgBusy] = useState(false);
   async function copyPackagesFrom(fromEditionId: string) {
     setCopyPkgBusy(true);
-    await fetch(`/api/admin/editions/${id}/copy-packages`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ fromEditionId }) }).catch(() => {});
-    setCopyPkgBusy(false); setCopyPkgOpen(false); loadPackages();
+    // honest outcome — a silent no-op here cost real debugging time (copying
+    // from an edition that simply has no packages looks like a broken button)
+    let msg = "Copy failed — please try again.";
+    try {
+      const res = await fetch(`/api/admin/editions/${id}/copy-packages`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ fromEditionId }) });
+      const j = await res.json().catch(() => ({} as { copied?: number; error?: string }));
+      if (res.ok) {
+        msg = (j.copied ?? 0) > 0
+          ? `Copied ${j.copied} package${j.copied === 1 ? "" : "s"}.`
+          : "Nothing copied — that edition has no packages. Pick a previous-year edition that actually has some.";
+      } else if (j.error) msg = j.error;
+    } catch {}
+    setCopyPkgBusy(false); setCopyPkgOpen(false);
+    loadPackages();
+    alert(msg);
   }
 
   // Details-tab section show/hide (consistent with list-page column toggles)
