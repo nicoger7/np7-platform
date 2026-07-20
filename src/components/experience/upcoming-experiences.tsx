@@ -14,10 +14,14 @@ const SIG_IMG = cdn("hero/windsurf-hero-poster.jpg");
  *  from the regular (white-card) trips. Links to the public application page. */
 function SignatureTile() {
   return (
-    <Reveal as="article">
+    <Reveal as="article" className="h-full">
+      {/* same GPU-only hover as the trip cards: lift on the wrapper, hover
+          shadow as an opacity cross-fade layer (box-shadow never animates) */}
+      <div className="group relative h-full transform-gpu transition-transform duration-[420ms] [transition-timing-function:cubic-bezier(0.22,1,0.36,1)] hover:-translate-y-1.5">
+        <div aria-hidden className="absolute inset-0 rounded-[18px] shadow-[0_32px_62px_rgba(0,20,30,0.44)] opacity-0 group-hover:opacity-100 transition-opacity duration-[420ms] [transition-timing-function:cubic-bezier(0.22,1,0.36,1)]" />
       <Link
         href="/signature"
-        className="group block rounded-[18px] overflow-hidden border border-[#ffd97a]/25 shadow-[0_24px_50px_rgba(0,20,30,0.34)] hover:-translate-y-1.5 hover:shadow-[0_32px_62px_rgba(0,20,30,0.44)] transition-[transform,box-shadow] duration-[420ms] [transition-timing-function:cubic-bezier(0.22,1,0.36,1)] transform-gpu h-full"
+        className="relative block h-full rounded-[18px] overflow-hidden border border-[#ffd97a]/25 shadow-[0_24px_50px_rgba(0,20,30,0.34)]"
         style={{ background: "linear-gradient(165deg,#013443 0%,#01222d 100%)" }}
       >
         <div className="relative h-[210px] overflow-hidden transform-gpu">
@@ -38,6 +42,7 @@ function SignatureTile() {
           </div>
         </div>
       </Link>
+      </div>
     </Reveal>
   );
 }
@@ -103,10 +108,16 @@ export function UpcomingExperiences({ experiences, showSignature = false }: { ex
       ) : (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
           {filtered.map((exp, i) => (
-            <Reveal key={exp.id + (month ?? "")} delay={(i % 3) * 80} as="article">
+            <Reveal key={exp.id + (month ?? "")} delay={(i % 3) * 80} as="article" className="h-full">
+              {/* Hover animates transform + opacity ONLY (both GPU-composited).
+                  Animating box-shadow repaints the big soft blur every frame —
+                  that was the residual jank — so the hover shadow is a second
+                  layer whose OPACITY cross-fades under the card instead. */}
+              <div className="group relative h-full transform-gpu transition-transform duration-[420ms] [transition-timing-function:cubic-bezier(0.22,1,0.36,1)] hover:-translate-y-1.5">
+                <div aria-hidden className="absolute inset-0 rounded-[18px] shadow-[0_32px_62px_rgba(0,20,30,0.38)] opacity-0 group-hover:opacity-100 transition-opacity duration-[420ms] [transition-timing-function:cubic-bezier(0.22,1,0.36,1)]" />
               <Link
                 href={`/experience/${exp.slug}`}
-                className="group block bg-white rounded-[18px] overflow-hidden border border-white/10 shadow-[0_24px_50px_rgba(0,20,30,0.28)] hover:-translate-y-1.5 hover:shadow-[0_32px_62px_rgba(0,20,30,0.38)] transition-[transform,box-shadow] duration-[420ms] [transition-timing-function:cubic-bezier(0.22,1,0.36,1)] transform-gpu h-full"
+                className="relative block h-full bg-white rounded-[18px] overflow-hidden border border-white/10 shadow-[0_24px_50px_rgba(0,20,30,0.28)]"
               >
                 <div className="relative h-[210px] bg-[#e9eef0] overflow-hidden transform-gpu">
                   {exp.tileAuto && exp.hero_image ? (
@@ -144,6 +155,7 @@ export function UpcomingExperiences({ experiences, showSignature = false }: { ex
                   </div>
                 </div>
               </Link>
+              </div>
             </Reveal>
           ))}
           {showSignature && <SignatureTile />}
