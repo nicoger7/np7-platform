@@ -3,12 +3,6 @@
 import { useState, useEffect, useCallback } from "react";
 import { deriveInsights, type Insight } from "@/lib/analytics-insights";
 
-interface Analytics {
-  funnel: { reserved: number; depositPaid: number; balancePaid: number };
-  totals: { active: number; leads: number; lost: number; upcomingEditions: number };
-  revenue: { received: number; expected: number; outstanding: number };
-  editions: { id: string; title: string; label: string; date_start: string | null; max_spots: number; spots_taken: number; fill_pct: number | null; booked: number; received: number }[];
-}
 
 interface Behaviour {
   available: boolean;
@@ -47,9 +41,6 @@ const COUNTRY_NAMES: Record<string, string> = {
   SE: "Sweden", NO: "Norway", PL: "Poland", TR: "Turkey",
 };
 
-function money(n: number | null | undefined) {
-  return n != null ? `€${Number(n).toLocaleString("en-US")}` : "—";
-}
 function fmtDate(d: string | null) {
   return d ? new Date(d).toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" }) : "—";
 }
@@ -118,107 +109,14 @@ function InsightRow({ it }: { it: Insight }) {
 }
 
 export default function AnalyticsPage() {
-  const [tab, setTab] = useState<"business" | "behaviour">("business");
-
   return (
     <div>
       <h1 className="text-2xl font-bold admin-heading mb-1">Analytics</h1>
-      <p className="text-sm admin-muted mb-5">How the business and the website are doing — all from your own data.</p>
-
-      <div className="flex items-center gap-1 mb-6">
-        {([["business", "Business"], ["behaviour", "Visitor behaviour"]] as const).map(([k, label]) => (
-          <button
-            key={k}
-            onClick={() => setTab(k)}
-            className={`px-4 py-2 rounded-lg text-[13px] font-bold transition-colors ${tab === k ? "text-[var(--admin-accent-contrast)] bg-[var(--admin-accent)]" : "admin-muted"}`}
-            style={tab === k ? undefined : { border: "1px solid var(--admin-border)" }}
-          >
-            {label}
-          </button>
-        ))}
-      </div>
-
-      {tab === "business" ? <BusinessTab /> : <BehaviourTab />}
+      <p className="text-sm admin-muted mb-5">How visitors use the website — all from your own data. (Business numbers live in Payments and the dashboard.)</p>
+      <BehaviourTab />
     </div>
   );
 }
-
-function BusinessTab() {
-  const [d, setD] = useState<Analytics | null>(null);
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    fetch("/api/admin/analytics").then((r) => r.json()).then((data) => { setD(data); setLoading(false); });
-  }, []);
-
-  if (loading || !d) {
-    return <div className="flex items-center justify-center h-64"><p className="text-sm admin-faint">Loading…</p></div>;
-  }
-
-  const { funnel } = d;
-  const stages = [
-    { label: "Reserved", value: funnel.reserved, pct: 100 },
-    { label: "Deposit paid", value: funnel.depositPaid, pct: funnel.reserved ? Math.round((funnel.depositPaid / funnel.reserved) * 100) : 0 },
-    { label: "Balance paid", value: funnel.balancePaid, pct: funnel.reserved ? Math.round((funnel.balancePaid / funnel.reserved) * 100) : 0 },
-  ];
-
-  return (
-    <>
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
-        <Metric label="Revenue received" value={money(d.revenue.received)} accent />
-        <Metric label="Outstanding (owed)" value={money(d.revenue.outstanding)} />
-        <Metric label="Active bookings" value={String(d.totals.active)} />
-        <Metric label="Upcoming editions" value={String(d.totals.upcomingEditions)} />
-      </div>
-
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-        <Card title="Booking funnel" sub="Of everyone who reserved, how many secured and fully paid.">
-          <div className="space-y-3">
-            {stages.map((s) => (
-              <div key={s.label}>
-                <div className="flex items-center justify-between text-xs mb-1">
-                  <span className="admin-muted font-medium">{s.label}</span>
-                  <span className="admin-heading font-bold">{s.value} <span className="admin-faint font-normal">· {s.pct}%</span></span>
-                </div>
-                <div className="h-2.5 rounded-full overflow-hidden" style={{ backgroundColor: "var(--admin-bg)" }}>
-                  <div className="h-full rounded-full" style={{ width: `${s.pct}%`, backgroundColor: "#0aa3c7" }} />
-                </div>
-              </div>
-            ))}
-          </div>
-          <p className="text-[11px] admin-faint mt-4">Expected revenue {money(d.revenue.expected)} · received {money(d.revenue.received)} · {d.totals.lost} lost/cancelled</p>
-        </Card>
-
-        <Card title="Upcoming editions" sub="Fill rate & revenue per trip.">
-          {d.editions.length === 0 ? (
-            <p className="text-xs admin-faint">No upcoming editions.</p>
-          ) : (
-            <div className="space-y-3">
-              {d.editions.map((e) => (
-                <div key={e.id}>
-                  <div className="flex items-center justify-between text-xs mb-1 gap-2">
-                    <span className="admin-heading font-medium truncate">{e.title} <span className="admin-faint">· {e.label || fmtDate(e.date_start)}</span></span>
-                    <span className="admin-muted shrink-0">{e.spots_taken}/{e.max_spots || "—"}{e.fill_pct != null ? ` · ${e.fill_pct}%` : ""}</span>
-                  </div>
-                  <div className="h-2.5 rounded-full overflow-hidden" style={{ backgroundColor: "var(--admin-bg)" }}>
-                    <div className="h-full rounded-full" style={{ width: `${Math.min(100, e.fill_pct ?? 0)}%`, backgroundColor: (e.fill_pct ?? 0) >= 100 ? "#22c55e" : "#0aa3c7" }} />
-                  </div>
-                  <p className="text-[11px] admin-faint mt-1">booked {money(e.booked)} · received {money(e.received)}</p>
-                </div>
-              ))}
-            </div>
-          )}
-        </Card>
-      </div>
-    </>
-  );
-}
-
-const AREA_SEGMENTS: { id: "site" | "portal" | "all"; label: string }[] = [
-  { id: "site", label: "Public site" },
-  { id: "portal", label: "Member portal" },
-  { id: "all", label: "All" },
-];
 
 function BehaviourTab() {
   const [days, setDays] = useState(30);
