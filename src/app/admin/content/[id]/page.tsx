@@ -342,17 +342,17 @@ export default function ContentEditorPage({ params }: { params: Promise<{ id: st
         </Section>
 
         {/* TEXT */}
-        <Section show={tab === "story"} title="About the location" hint="The windsurf spot / destination. Line breaks are kept.">
+        <Section show={tab === "story"} title="About the location" hint="Shows as the text of \u2018The spot\u2019 section on the experience page. Leave empty and the linked destination\u2019s intro/tagline is used instead. Line breaks are kept.">
           <textarea value={locationAbout} onChange={(e) => setLocationAbout(e.target.value)} rows={5}
             placeholder="Bonaire is a flat-water paradise…" className="admin-input w-full px-4 py-3 rounded-lg border text-sm outline-none resize-y" />
         </Section>
 
-        <Section show={tab === "story"} title="About the week" hint="Extra context about how this trip runs.">
+        <Section show={tab === "story"} title="About the week" hint="Shows as the small paragraph under the intro of the \u2018Your week\u2019 scroll section \u2014 only when filled.">
           <textarea value={weekInfo} onChange={(e) => setWeekInfo(e.target.value)} rows={4}
             placeholder="A relaxed week built around the best wind windows…" className="admin-input w-full px-4 py-3 rounded-lg border text-sm outline-none resize-y" />
         </Section>
 
-        <Section show={tab === "story"} title="Wind certainty & no-wind program" hint="Shown in the 'you can count on it' band. The no-wind program varies per experience.">
+        <Section show={tab === "story"} title="Wind certainty & no-wind program" hint="Wind range + probability show in three places: the quick-facts bar, the \u2018You can count on it\u2019 band and the wind chip next to the spot section. The no-wind program gets its own card further down \u2014 only when filled.">
           <div className="grid sm:grid-cols-2 gap-3 mb-3">
             <input value={windProbability} onChange={(e) => setWindProbability(e.target.value)}
               placeholder="Wind probability — e.g. 85–95%" className="admin-input px-4 py-2.5 rounded-lg border text-sm outline-none" />
