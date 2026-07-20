@@ -24,7 +24,10 @@ function SignatureTile() {
         className="relative block h-full rounded-[18px] overflow-hidden border border-[#ffd97a]/25 shadow-[0_24px_50px_rgba(0,20,30,0.34)]"
         style={{ background: "linear-gradient(165deg,#013443 0%,#01222d 100%)" }}
       >
-        <div className="relative h-[210px] overflow-hidden transform-gpu">
+        {/* clip-path (compositor-applied) keeps the zooming image inside the
+            card's top radius — Safari lets composited children escape a plain
+            border-radius overflow clip */}
+        <div className="relative h-[210px] overflow-hidden [clip-path:inset(0_round_18px_18px_0_0)] transform-gpu">
           <div className="absolute inset-0 bg-cover bg-center opacity-55 group-hover:opacity-75 group-hover:scale-[1.03] transition-[transform,opacity] duration-[420ms] [transition-timing-function:cubic-bezier(0.22,1,0.36,1)]" style={{ backgroundImage: `url('${SIG_IMG}')` }} />
           <div className="absolute inset-0" style={{ background: "linear-gradient(180deg, rgba(1,26,34,0.3) 0%, rgba(1,26,34,0.85) 100%)" }} />
           <span className="absolute top-3 left-3 z-10 inline-flex items-center gap-1 text-[11px] font-black uppercase tracking-wide px-3 py-1.5 rounded-full text-[#3a2a05]" style={{ background: "linear-gradient(135deg,#ffe08a,#f0a500)" }}>✦ Invite only</span>
@@ -119,7 +122,9 @@ export function UpcomingExperiences({ experiences, showSignature = false }: { ex
                 href={`/experience/${exp.slug}`}
                 className="relative block h-full bg-white rounded-[18px] overflow-hidden border border-white/10 shadow-[0_24px_50px_rgba(0,20,30,0.28)]"
               >
-                <div className="relative h-[210px] bg-[#e9eef0] overflow-hidden transform-gpu">
+                {/* clip-path for the same Safari composited-child escape as on
+                    the Signature tile above */}
+                <div className="relative h-[210px] bg-[#e9eef0] overflow-hidden [clip-path:inset(0_round_18px_18px_0_0)] transform-gpu">
                   {exp.tileAuto && exp.hero_image ? (
                     <BrandedTile
                       photo={exp.hero_image}
