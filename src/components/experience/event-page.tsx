@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { HeroVideo } from "@/components/experience/hero-video";
 import { OceanHeader, NP7_LOGO } from "@/components/experience/ocean-header";
 import { EventTicket, type TicketDate } from "@/components/experience/event-ticket";
 import { MethodModal } from "@/components/experience/method-modal";
@@ -38,7 +39,7 @@ export async function EventPage({ event, isMember, paid }: { event: EventInfo; i
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const db = createAdminClient() as any;
   const [{ data: content }, { data: exp }, { data: coachRows }] = await Promise.all([
-    db.from("exp_content").select("location_about,hero_image,gallery").eq("experience_id", event.id).maybeSingle(),
+    db.from("exp_content").select("location_about,hero_image,gallery,hero_video_url,hero_video_start,hero_video_end").eq("experience_id", event.id).maybeSingle(),
     db.from("exp_experiences").select("whats_included").eq("id", event.id).maybeSingle(),
     // HEAD coach only — the coach library is global (no per-event link), so
     // listing arbitrary coaches would attribute the wrong people to an event.
@@ -46,6 +47,7 @@ export async function EventPage({ event, isMember, paid }: { event: EventInfo; i
     db.from("exp_coaches").select("name,role,bio,image_url,whatsapp_link").ilike("role", "%head%").order("created_at"),
   ]);
   const hero = content?.hero_image || event.hero_image || "";
+  const heroVideo = (content?.hero_video_url || "").trim();
   const about = (content?.location_about || event.description || "").trim();
   const gallery = (Array.isArray(content?.gallery) ? content.gallery : []).filter(Boolean).slice(0, 6) as string[];
   const included = parseIncluded(exp?.whats_included).slice(0, 8);
@@ -68,7 +70,11 @@ export async function EventPage({ event, isMember, paid }: { event: EventInfo; i
 
       {/* HERO — compact, event-forward */}
       <section className="relative min-h-[52vh] flex items-end bg-[#00374a] overflow-hidden">
-        {hero && <div className="absolute inset-0 bg-cover bg-center scale-105" style={{ backgroundImage: `url('${hero}')` }} />}
+        {heroVideo ? (
+          <HeroVideo url={heroVideo} start={content?.hero_video_start ?? null} end={content?.hero_video_end ?? null} poster={hero || null} />
+        ) : hero ? (
+          <div className="absolute inset-0 bg-cover bg-center scale-105" style={{ backgroundImage: `url('${hero}')` }} />
+        ) : null}
         <div className="absolute inset-0 bg-gradient-to-t from-[#00374a] via-[#00374a]/45 to-transparent" />
         <div className="relative z-10 w-full max-w-[1000px] mx-auto px-6 sm:px-8 pb-10 pt-24 text-white">
           <span className="inline-flex items-center gap-2 text-[11px] font-black uppercase tracking-[0.2em] text-[#ffd66b]">

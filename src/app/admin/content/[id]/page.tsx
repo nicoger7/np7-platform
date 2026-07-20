@@ -260,18 +260,17 @@ export default function ContentEditorPage({ params }: { params: Promise<{ id: st
           )}
         </Section>
 
-        <Section show={tab === "media"} title="Event hero" hint="The big image at the top of the event page. Paste a YouTube link for a video background, or pick an image. Video wins if both are set.">
+        <Section show={tab === "media"} title="Event hero" hint="The big image at the top of the page. Paste a YouTube link for a video background, or pick an image. Video wins if both are set \u2014 use Start/End to loop just a segment.">
           <input
             value={heroVideo}
             onChange={(e) => setHeroVideo(e.target.value)}
             placeholder="YouTube link (optional) — e.g. https://youtu.be/…"
             className="admin-input w-full px-4 py-2.5 rounded-lg border text-sm outline-none mb-3"
           />
-          {heroVideo.trim() ? (
-            <div className="admin-surface admin-border border rounded-xl p-3">
-              <p className="text-[13px] admin-muted mb-3">
-                ▶ Using YouTube video background. Clear the field above to use an image instead.
-              </p>
+          <div className={`admin-surface admin-border border rounded-xl p-3 mb-3 ${heroVideo.trim() ? "" : "opacity-50"}`}>
+            <p className="text-[13px] admin-muted mb-3">
+              {heroVideo.trim() ? "▶ Using YouTube video background. Clear the field above to use an image instead." : "Timestamps — paste a YouTube link above to activate the segment loop."}
+            </p>
               <div className="flex flex-wrap items-end gap-4">
                 <label className="block">
                   <span className="block text-xs admin-muted mb-1">Start <span className="admin-faint">(seconds)</span></span>
@@ -297,8 +296,8 @@ export default function ContentEditorPage({ params }: { params: Promise<{ id: st
                   Leave both empty to loop the whole clip. Set a window to loop just that segment.
                 </p>
               </div>
-            </div>
-          ) : (
+          </div>
+          {!heroVideo.trim() && (
             <>
               <ImageField url={heroImage} onPick={() => setPicker({ kind: "hero" })} onClear={() => setHeroImage("")} ratio="aspect-[21/9]" />
               {heroImage && (
