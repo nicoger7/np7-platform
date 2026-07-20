@@ -60,6 +60,10 @@ export default function ContentEditorPage({ params }: { params: Promise<{ id: st
   const [locationAbout, setLocationAbout] = useState("");
   const [weekInfo, setWeekInfo] = useState("");
   const [program, setProgram] = useState<ProgramItem[]>([]);
+  const [weekTitle, setWeekTitle] = useState("");
+  const [weekOutcomes, setWeekOutcomes] = useState<{ icon: string; t: string; d: string }[]>([]);
+  const [methodIntro, setMethodIntro] = useState("");
+  const [methodSteps, setMethodSteps] = useState<{ t: string; d: string; gameChanger: boolean }[]>([]);
   const [highlights, setHighlights] = useState<string[]>([]);
   const [faq, setFaq] = useState<FaqItem[]>([]);
   const [packingList, setPackingList] = useState("");
@@ -103,6 +107,10 @@ export default function ContentEditorPage({ params }: { params: Promise<{ id: st
         setLocationAbout(c.location_about ?? "");
         setWeekInfo(c.week_info ?? "");
         setProgram(Array.isArray(c.daily_program) ? c.daily_program : []);
+        setWeekTitle(c.week_title ?? "");
+        setWeekOutcomes(Array.isArray(c.week_outcomes) ? c.week_outcomes : []);
+        setMethodIntro(c.method_intro ?? "");
+        setMethodSteps(Array.isArray(c.method_steps) ? c.method_steps : []);
         setHighlights(Array.isArray(c.highlights) ? c.highlights : []);
         setFaq(Array.isArray(c.faq) ? c.faq : []);
         setWindProbability(c.wind_probability ?? "");
@@ -163,6 +171,10 @@ export default function ContentEditorPage({ params }: { params: Promise<{ id: st
         location_about: locationAbout,
         week_info: weekInfo,
         daily_program: program,
+        week_title: weekTitle,
+        week_outcomes: weekOutcomes,
+        method_intro: methodIntro,
+        method_steps: methodSteps,
         highlights,
         faq,
         wind_probability: windProbability,
@@ -260,7 +272,7 @@ export default function ContentEditorPage({ params }: { params: Promise<{ id: st
           )}
         </Section>
 
-        <Section show={tab === "media"} title="Event hero" hint="The big image at the top of the page. Paste a YouTube link for a video background, or pick an image. Video wins if both are set \u2014 use Start/End to loop just a segment.">
+        <Section show={tab === "media"} title="Event hero" hint="The big image at the top of the page. Paste a YouTube link for a video background, or pick an image. Video wins if both are set — use Start/End to loop just a segment.">
           <input
             value={heroVideo}
             onChange={(e) => setHeroVideo(e.target.value)}
@@ -341,17 +353,17 @@ export default function ContentEditorPage({ params }: { params: Promise<{ id: st
         </Section>
 
         {/* TEXT */}
-        <Section show={tab === "story"} title="About the location" hint="Shows as the text of \u2018The spot\u2019 section on the experience page. Leave empty and the linked destination\u2019s intro/tagline is used instead. Line breaks are kept.">
+        <Section show={tab === "story"} title="About the location" hint="Shows as the text of ‘The spot’ section on the experience page. Leave empty and the linked destination’s intro/tagline is used instead. Line breaks are kept.">
           <textarea value={locationAbout} onChange={(e) => setLocationAbout(e.target.value)} rows={5}
             placeholder="Bonaire is a flat-water paradise…" className="admin-input w-full px-4 py-3 rounded-lg border text-sm outline-none resize-y" />
         </Section>
 
-        <Section show={tab === "story"} title="About the week" hint="Shows as the small paragraph under the intro of the \u2018Your week\u2019 scroll section \u2014 only when filled.">
+        <Section show={tab === "story"} title="About the week" hint="Shows as the small paragraph under the intro of the ‘Your week’ scroll section — only when filled.">
           <textarea value={weekInfo} onChange={(e) => setWeekInfo(e.target.value)} rows={4}
             placeholder="A relaxed week built around the best wind windows…" className="admin-input w-full px-4 py-3 rounded-lg border text-sm outline-none resize-y" />
         </Section>
 
-        <Section show={tab === "story"} title="Wind certainty & no-wind program" hint="Wind range + probability show in three places: the quick-facts bar, the \u2018You can count on it\u2019 band and the wind chip next to the spot section. The no-wind program gets its own card further down \u2014 only when filled.">
+        <Section show={tab === "story"} title="Wind certainty & no-wind program" hint="Wind range + probability show in three places: the quick-facts bar, the ‘You can count on it’ band and the wind chip next to the spot section. The no-wind program gets its own card further down — only when filled.">
           <div className="grid sm:grid-cols-2 gap-3 mb-3">
             <input value={windProbability} onChange={(e) => setWindProbability(e.target.value)}
               placeholder="Wind probability — e.g. 85–95%" className="admin-input px-4 py-2.5 rounded-lg border text-sm outline-none" />
@@ -360,6 +372,55 @@ export default function ContentEditorPage({ params }: { params: Promise<{ id: st
           </div>
           <textarea value={noWindProgram} onChange={(e) => setNoWindProgram(e.target.value)} rows={3}
             placeholder="No-wind program — what happens on a rare light-wind day…" className="admin-input w-full px-4 py-3 rounded-lg border text-sm outline-none resize-y" />
+        </Section>
+
+        <Section show={tab === "story"} title="Your week — outcome cards" hint="The six cards in the ‘Your epic week’ section. Leave everything empty to keep the standard NP7 cards; add your own to replace them. The title replaces ‘The best week of your windsurf year’.">
+          <input value={weekTitle} onChange={(e) => setWeekTitle(e.target.value)}
+            placeholder="Section title — default: The best week of your windsurf year"
+            className="admin-input w-full px-4 py-2.5 rounded-lg border text-sm outline-none mb-3" />
+          <div className="space-y-3">
+            {weekOutcomes.map((o, i) => (
+              <div key={i} className="admin-surface admin-border border rounded-xl p-3.5">
+                <div className="flex items-center gap-2 mb-2">
+                  <select value={o.icon} onChange={(e) => setWeekOutcomes(weekOutcomes.map((x, j) => (j === i ? { ...x, icon: e.target.value } : x)))}
+                    className="admin-input px-2 py-2 rounded-md border text-sm outline-none">
+                    {["bolt", "gauge", "rotate", "idea", "globe", "camera"].map((ic) => <option key={ic} value={ic}>{ic}</option>)}
+                  </select>
+                  <input value={o.t} onChange={(e) => setWeekOutcomes(weekOutcomes.map((x, j) => (j === i ? { ...x, t: e.target.value } : x)))}
+                    placeholder="Card title (e.g. Real confidence on the water)" className="admin-input flex-1 px-3 py-2 rounded-md border text-sm outline-none" />
+                  <RowButtons onUp={() => setWeekOutcomes(move(weekOutcomes, i, -1))} onDown={() => setWeekOutcomes(move(weekOutcomes, i, 1))} onRemove={() => setWeekOutcomes(weekOutcomes.filter((_, j) => j !== i))} />
+                </div>
+                <textarea value={o.d} onChange={(e) => setWeekOutcomes(weekOutcomes.map((x, j) => (j === i ? { ...x, d: e.target.value } : x)))}
+                  rows={2} placeholder="One or two sentences…" className="admin-input w-full px-3 py-2 rounded-md border text-sm outline-none resize-y" />
+              </div>
+            ))}
+            <AddButton label="Add card" onClick={() => setWeekOutcomes([...weekOutcomes, { icon: "bolt", t: "", d: "" }])} />
+          </div>
+        </Section>
+
+        <Section show={tab === "story"} title="Coaching method" hint="The ‘NP7 training system’ band: intro + numbered steps. Leave empty to keep the standard method copy.">
+          <textarea value={methodIntro} onChange={(e) => setMethodIntro(e.target.value)} rows={3}
+            placeholder="Method intro — default: Nico’s proven coaching approach…"
+            className="admin-input w-full px-4 py-3 rounded-lg border text-sm outline-none resize-y mb-3" />
+          <div className="space-y-3">
+            {methodSteps.map((m, i) => (
+              <div key={i} className="admin-surface admin-border border rounded-xl p-3.5">
+                <div className="flex items-center gap-2 mb-2">
+                  <span className="text-[11px] font-bold admin-faint w-8">{String(i + 1).padStart(2, "0")}</span>
+                  <input value={m.t} onChange={(e) => setMethodSteps(methodSteps.map((x, j) => (j === i ? { ...x, t: e.target.value } : x)))}
+                    placeholder="Step title (e.g. Video analysis)" className="admin-input flex-1 px-3 py-2 rounded-md border text-sm outline-none" />
+                  <label className="flex items-center gap-1.5 text-[11px] admin-muted whitespace-nowrap">
+                    <input type="checkbox" checked={m.gameChanger} onChange={(e) => setMethodSteps(methodSteps.map((x, j) => (j === i ? { ...x, gameChanger: e.target.checked } : x)))} />
+                    game changer
+                  </label>
+                  <RowButtons onUp={() => setMethodSteps(move(methodSteps, i, -1))} onDown={() => setMethodSteps(move(methodSteps, i, 1))} onRemove={() => setMethodSteps(methodSteps.filter((_, j) => j !== i))} />
+                </div>
+                <textarea value={m.d} onChange={(e) => setMethodSteps(methodSteps.map((x, j) => (j === i ? { ...x, d: e.target.value } : x)))}
+                  rows={2} placeholder="What this step means for the guest…" className="admin-input w-full px-3 py-2 rounded-md border text-sm outline-none resize-y" />
+              </div>
+            ))}
+            <AddButton label="Add step" onClick={() => setMethodSteps([...methodSteps, { t: "", d: "", gameChanger: false }])} />
+          </div>
         </Section>
 
         <Section show={tab === "program"} title="Perfect week — daily program" hint="What a perfect week looks like. Note on the page tells guests the real schedule depends on the wind.">

@@ -164,6 +164,8 @@ type FaqRow = { q: string; a: string };
 type ReviewRow = { name: string; country: string; quote: string; rating: number; image: string };
 type ContentRow = {
   location_about: string | null; week_info: string | null;
+  week_title: string | null; week_outcomes: { icon?: string; t?: string; d?: string }[] | null;
+  method_intro: string | null; method_steps: { t?: string; d?: string; gameChanger?: boolean }[] | null;
   daily_program: ProgramItem[] | null; highlights: string[] | null; faq: FaqRow[] | null;
   hero_image: string | null; hero_focus: string | null; hero_video_url: string | null; explainer_video_url: string | null; gallery: string[] | null; reviews: ReviewRow[] | null;
   no_wind_program: string | null; wind_probability: string | null; wind_range: string | null;
@@ -223,7 +225,7 @@ export default async function ExperienceDetailPage({ params, searchParams }: Pro
   // Split the fetch so the newer media columns (added in migration 013) can't
   // break the existing text content if they haven't been applied yet.
   const [{ data: baseRaw }, { data: mediaRaw }] = await Promise.all([
-    sb.from("exp_content").select("location_about,week_info,daily_program,highlights,faq").eq("experience_id", experience.id).maybeSingle(),
+    sb.from("exp_content").select("location_about,week_info,daily_program,highlights,faq,week_title,week_outcomes,method_intro,method_steps").eq("experience_id", experience.id).maybeSingle(),
     sb.from("exp_content").select("hero_image,hero_focus,hero_video_url,explainer_video_url,gallery,reviews,no_wind_program,wind_probability,wind_range").eq("experience_id", experience.id).maybeSingle(),
   ]);
   const content = (baseRaw || mediaRaw ? { ...(baseRaw ?? {}), ...(mediaRaw ?? {}) } : null) as ContentRow | null;
@@ -410,6 +412,17 @@ export default async function ExperienceDetailPage({ params, searchParams }: Pro
   // editable website content (falls back to evergreen when empty)
   const locationAbout = content?.location_about?.trim() ?? "";
   const weekInfo = content?.week_info?.trim() ?? "";
+  // editable week cards + coaching method — DB wins, built-ins are the fallback
+  const weekTitle = content?.week_title?.trim() || "The best week of your windsurf year";
+  const customOutcomes = (Array.isArray(content?.week_outcomes) ? content!.week_outcomes! : [])
+    .filter((o) => (o?.t ?? "").trim())
+    .map((o) => ({ icon: o.icon || "bolt", t: o.t!, d: o.d ?? "" }));
+  const outcomeItems = customOutcomes.length ? customOutcomes : OUTCOMES;
+  const methodIntro = content?.method_intro?.trim() || METHOD_INTRO;
+  const customSteps = (Array.isArray(content?.method_steps) ? content!.method_steps! : [])
+    .filter((m) => (m?.t ?? "").trim())
+    .map((m, i) => ({ n: String(i + 1).padStart(2, "0"), t: m.t!, d: m.d ?? "", gameChanger: !!m.gameChanger }));
+  const methodSteps = customSteps.length ? customSteps : METHOD;
   const windProbability = content?.wind_probability?.trim() ?? "";
   const windRange = content?.wind_range?.trim() ?? "";
   const noWindProgram = content?.no_wind_program?.trim() ?? "";
@@ -617,10 +630,10 @@ export default async function ExperienceDetailPage({ params, searchParams }: Pro
       {/* 1 · THE DREAM — your epic week (pinned scroll through the outcomes) */}
       <div id="week" className="scroll-mt-28">
       <EpicWeekScroll
-        outcomes={OUTCOMES}
+        outcomes={outcomeItems}
         images={vibeImages}
         eyebrow="YOUR EPIC WEEK"
-        title="The best week of your windsurf year"
+        title={weekTitle}
         intro={experience.description || "One week, fully immersed in the sport you love — epic conditions, world-class coaching, and a crew that feels like old friends by day two."}
         weekInfo={weekInfo}
       />
@@ -637,10 +650,10 @@ export default async function ExperienceDetailPage({ params, searchParams }: Pro
           <Reveal className="max-w-[660px] mb-12">
             <p className="text-[11px] font-bold tracking-[0.25em] text-[#8fe6f2] mb-3">THE NP7 TRAINING SYSTEM</p>
             <h2 className="text-3xl sm:text-5xl font-black tracking-[-0.03em] mb-4">Coaching that actually changes your riding</h2>
-            <p className="text-[16px] text-white/60 leading-relaxed">{METHOD_INTRO}</p>
+            <p className="text-[16px] text-white/60 leading-relaxed">{methodIntro}</p>
           </Reveal>
           <div className="grid md:grid-cols-3 gap-5">
-            {METHOD.map((s, i) => (
+            {methodSteps.map((s, i) => (
               <Reveal key={s.n} delay={i * 110} className="h-full">
                 <div className={`h-full rounded-3xl p-7 border ${s.gameChanger ? "bg-[#00afdb]/15 border-[#00afdb]/50 shadow-[0_0_50px_rgba(0,175,219,0.15)]" : "bg-white/[0.04] border-white/10"}`}>
                   {s.gameChanger && (

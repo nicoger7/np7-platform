@@ -10,6 +10,10 @@ type Review = { name: string; country: string; quote: string; rating: number; im
 const EMPTY = {
   location_about: "",
   week_info: "",
+  week_title: "",
+  week_outcomes: [] as { icon: string; t: string; d: string }[],
+  method_intro: "",
+  method_steps: [] as { t: string; d: string; gameChanger: boolean }[],
   daily_program: [] as ProgramItem[],
   highlights: [] as string[],
   faq: [] as FaqItem[],
@@ -122,6 +126,16 @@ export async function PUT(
     experience_id: id,
     location_about: typeof body.location_about === "string" ? body.location_about : "",
     week_info: typeof body.week_info === "string" ? body.week_info : "",
+    week_title: typeof body.week_title === "string" ? body.week_title : "",
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    week_outcomes: Array.isArray(body.week_outcomes)
+      ? body.week_outcomes.map((o: any) => ({ icon: String(o?.icon ?? "bolt"), t: String(o?.t ?? ""), d: String(o?.d ?? "") })).filter((o: { t: string; d: string }) => o.t.trim() || o.d.trim())
+      : [],
+    method_intro: typeof body.method_intro === "string" ? body.method_intro : "",
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    method_steps: Array.isArray(body.method_steps)
+      ? body.method_steps.map((m: any) => ({ t: String(m?.t ?? ""), d: String(m?.d ?? ""), gameChanger: !!m?.gameChanger })).filter((m: { t: string; d: string }) => m.t.trim() || m.d.trim())
+      : [],
     daily_program: program,
     highlights,
     faq,
