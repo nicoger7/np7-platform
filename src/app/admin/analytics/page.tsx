@@ -118,6 +118,12 @@ export default function AnalyticsPage() {
   );
 }
 
+const AREA_SEGMENTS: { id: "site" | "portal" | "all"; label: string }[] = [
+  { id: "site", label: "Public site" },
+  { id: "portal", label: "Member portal" },
+  { id: "all", label: "All" },
+];
+
 function BehaviourTab() {
   const [days, setDays] = useState(30);
   const [area, setArea] = useState<"site" | "portal" | "all">("site");
