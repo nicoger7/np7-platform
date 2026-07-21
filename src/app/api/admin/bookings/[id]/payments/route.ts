@@ -85,3 +85,60 @@ export async function POST(
 
   return Response.json({ payment: data });
 }
+
+/**
+ * DELETE /api/admin/bookings/:id/payments?paymentId=…
+ *
+ * Allocation rows ONLY (reference `alloc#token:…` or legacy `alloc:…`) — real
+ * bank payments stay undeletable here. Removing one side of a pair removes the
+ * mirror too, so the money flows back to the source booking cleanly.
+ */
+export async function DELETE(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  try {
+    await requireAuth();
+  } catch {
+    return Response.json({ error: "Unauthorized" }, { status: 401 });
+  }
+  const { id } = await params;
+  const paymentId = new URL(request.url).searchParams.get("paymentId");
+  if (!paymentId) return Response.json({ error: "paymentId missing" }, { status: 400 });
+
+  const admin = getServiceClient();
+  const { data: row } = await admin
+    .from("exp_payments")
+    .select("id, booking_id, amount, reference, received_at")
+    .eq("id", paymentId)
+    .single();
+  if (!row || row.booking_id !== id) return Response.json({ error: "Payment not found" }, { status: 404 });
+  const ref: string = row.reference || "";
+  if (!/^alloc[#:]/.test(ref)) {
+    return Response.json({ error: "Only allocation rows can be removed here." }, { status: 400 });
+  }
+
+  const ids = [row.id];
+  const tok = ref.match(/^alloc#([a-z0-9]+):/);
+  if (tok) {
+    // token pair — both sides share the token
+    const { data: pair } = await admin.from("exp_payments").select("id").like("reference", `alloc#${tok[1]}:%`);
+    for (const p of pair ?? []) if (!ids.includes(p.id)) ids.push(p.id);
+  } else {
+    // legacy hand-made pair — find the opposite-signed mirror (same absolute
+    // amount, alloc: reference, same day when dates exist)
+    const { data: cands } = await admin
+      .from("exp_payments")
+      .select("id, amount, reference, received_at")
+      .like("reference", "alloc:%")
+      .neq("id", row.id);
+    const day = (v: string | null) => (v ? String(v).slice(0, 10) : null);
+    const mirror = (cands ?? []).find(
+      (c) =>
+        Math.abs(Number(c.amount) + Number(row.amount)) < 0.01 &&
+        (day(c.received_at) === null || day(row.received_at) === null || day(c.received_at) === day(row.received_at))
+    );
+    if (mirror) ids.push(mirror.id);
+  }
+
+  const { error } = await admin.from("exp_payments").delete().in("id", ids);
+  if (error) return Response.json({ error: error.message }, { status: 500 });
+  return Response.json({ removed: ids.length });
+}

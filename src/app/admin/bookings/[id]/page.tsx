@@ -169,6 +169,9 @@ export function BookingDetailPane({ bookingId, onBack }: { bookingId: string; on
   // New payment form
   const [showPaymentForm, setShowPaymentForm] = useState(false);
   const [paymentForm, setPaymentForm] = useState({ amount: "", type: "downpayment", direction: "revenue", status: "paid", method: "", reference: "", notes: "", document_id: "" });
+  // Group bookings: move a FREE amount of this booking's received money to a
+  // sibling booking (mirrored alloc pair) — no fixed percentage.
+  const [allocForm, setAllocForm] = useState<{ open: boolean; amount: string; toBookingId: string; busy: boolean; options: { id: string; name: string | null }[] }>({ open: false, amount: "", toBookingId: "", busy: false, options: [] });
 
   useEffect(() => {
     // Resilient loads: a restricted role may get 403 on some of these — never let
@@ -440,6 +443,41 @@ export function BookingDetailPane({ bookingId, onBack }: { bookingId: string; on
       setShowPaymentForm(false);
       setPaymentForm({ amount: "", type: "downpayment", direction: "revenue", status: "paid", method: "", reference: "", notes: "", document_id: "" });
     }
+  }
+
+  async function openAllocForm() {
+    if (!allocForm.open && booking?.edition_id && allocForm.options.length === 0) {
+      const r = await fetch(`/api/admin/bookings?edition_id=${booking.edition_id}`).then((x) => (x.ok ? x.json() : null)).catch(() => null);
+      const options = ((r?.bookings ?? []) as { id: string; name: string | null }[]).filter((b) => b.id !== id);
+      setAllocForm((f) => ({ ...f, open: true, options }));
+    } else {
+      setAllocForm((f) => ({ ...f, open: !f.open }));
+    }
+  }
+
+  async function submitAllocation() {
+    setAllocForm((f) => ({ ...f, busy: true }));
+    const res = await fetch(`/api/admin/bookings/${id}/allocate`, {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ toBookingId: allocForm.toBookingId, amount: Number(allocForm.amount) }),
+    });
+    const j = await res.json().catch(() => ({}));
+    if (res.ok) {
+      const mine = (j.payments ?? []).filter((p: Payment & { booking_id?: string }) => p.booking_id === id);
+      setBooking((prev) => prev ? { ...prev, payments: [...prev.payments, ...mine] } : prev);
+      setAllocForm((f) => ({ ...f, open: false, busy: false, amount: "", toBookingId: "" }));
+    } else {
+      setAllocForm((f) => ({ ...f, busy: false }));
+      alert(j.error || "Could not create the allocation.");
+    }
+  }
+
+  async function removeAllocation(paymentId: string) {
+    if (!confirm("Remove this allocation? Both sides of the pair are removed — the money goes back to the booking that actually paid.")) return;
+    const res = await fetch(`/api/admin/bookings/${id}/payments?paymentId=${paymentId}`, { method: "DELETE" });
+    const j = await res.json().catch(() => ({}));
+    if (res.ok) setBooking((prev) => prev ? { ...prev, payments: prev.payments.filter((p) => p.id !== paymentId) } : prev);
+    else alert(j.error || "Could not remove the allocation.");
   }
 
   // Load documents when tab activates
@@ -864,13 +902,54 @@ export function BookingDetailPane({ bookingId, onBack }: { bookingId: string; on
 
           <div className="flex justify-between items-center mb-4">
             <div className="text-xs admin-faint">Record a bank transfer, card payment or refund — and tie it to an invoice.</div>
-            <button
-              onClick={() => setShowPaymentForm(!showPaymentForm)}
-              className="px-3 py-1.5 bg-[var(--admin-accent)] hover:bg-[var(--admin-accent)]/90 text-[var(--admin-accent-contrast)] text-xs font-bold rounded-lg transition-colors"
-            >
-              Record Payment
-            </button>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={openAllocForm}
+                className="px-3 py-1.5 admin-surface admin-muted hover:admin-heading text-xs font-semibold rounded-lg transition-colors"
+                style={{ border: "1px solid var(--admin-border)" }}
+              >
+                Allocate to booking…
+              </button>
+              <button
+                onClick={() => setShowPaymentForm(!showPaymentForm)}
+                className="px-3 py-1.5 bg-[var(--admin-accent)] hover:bg-[var(--admin-accent)]/90 text-[var(--admin-accent-contrast)] text-xs font-bold rounded-lg transition-colors"
+              >
+                Record Payment
+              </button>
+            </div>
           </div>
+
+          {allocForm.open && (
+            <div className="mb-4 p-4 rounded-xl admin-surface" style={{ border: "1px solid var(--admin-border)" }}>
+              <p className="text-xs admin-muted mb-3">
+                Move part of this booking&apos;s received money to another booking in the same week —
+                <span className="admin-heading font-semibold"> any amount you type</span>, no fixed split.
+                It appears as a mirrored pair (−&nbsp;here, +&nbsp;there) and can be removed again with the ✕ on the row.
+              </p>
+              <div className="grid grid-cols-[140px_1fr_auto] gap-3 items-end">
+                <div>
+                  <label className={labelClass}>Amount (€) *</label>
+                  <input className={inputClass} type="number" step="0.01" min="0" value={allocForm.amount}
+                    onChange={(e) => setAllocForm((f) => ({ ...f, amount: e.target.value }))} />
+                </div>
+                <div>
+                  <label className={labelClass}>To booking *</label>
+                  <select className={inputClass} value={allocForm.toBookingId}
+                    onChange={(e) => setAllocForm((f) => ({ ...f, toBookingId: e.target.value }))}>
+                    <option value="">Pick a booking…</option>
+                    {allocForm.options.map((o) => <option key={o.id} value={o.id}>{o.name || o.id.slice(0, 8)}</option>)}
+                  </select>
+                </div>
+                <button
+                  onClick={submitAllocation}
+                  disabled={allocForm.busy || !allocForm.toBookingId || !(Number(allocForm.amount) > 0)}
+                  className="px-3 py-2 bg-[var(--admin-accent)] hover:bg-[var(--admin-accent)]/90 text-[var(--admin-accent-contrast)] text-xs font-bold rounded-lg transition-colors disabled:opacity-50"
+                >
+                  {allocForm.busy ? "Moving…" : "Move money"}
+                </button>
+              </div>
+            </div>
+          )}
 
           {showPaymentForm && (
             <div className="mb-4 p-4 rounded-xl admin-surface" style={{ border: "1px solid var(--admin-border)" }}>
@@ -975,7 +1054,13 @@ export function BookingDetailPane({ bookingId, onBack }: { bookingId: string; on
                   </span>
                   <span className="text-xs admin-muted self-center">{p.method || "—"}</span>
                   <span className="text-xs admin-muted self-center">{p.reference || "—"}</span>
-                  <span className="text-xs admin-muted self-center">{formatDate(p.received_at)}</span>
+                  <span className="text-xs admin-muted self-center flex items-center gap-2">
+                    {formatDate(p.received_at)}
+                    {/^alloc[#:]/.test(p.reference || "") && (
+                      <button onClick={() => removeAllocation(p.id)} title="Remove allocation (both sides of the pair)"
+                        className="w-5 h-5 grid place-items-center rounded text-red-400/70 hover:text-red-400 hover:bg-red-500/10 transition-colors">✕</button>
+                    )}
+                  </span>
                 </div>
               ))}
             </div>
