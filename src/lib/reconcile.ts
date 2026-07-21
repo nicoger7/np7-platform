@@ -67,10 +67,13 @@ export type BookingRecon = {
 export const round2 = (n: number) => Math.round(((n || 0) + Number.EPSILON) * 100) / 100;
 
 /** Signed contribution of a payment to "money received": refunds subtract, cost
- *  rows don't count, cancelled rows don't count. */
+ *  rows don't count, cancelled rows don't count. Add-on payments are money for
+ *  an EXTRA service on top of the trip price, so they don't count toward the
+ *  trip total/balance either (they're tracked as their own line). */
 export function paymentInflow(p: Pick<ReconPayment, "amount" | "type" | "direction" | "status">): number {
   if (p.direction === "cost") return 0;
   if (p.status === "cancelled") return 0;
+  if (p.type === "addon") return 0;
   const sign = p.type === "refund" ? -1 : 1;
   return sign * (Number(p.amount) || 0);
 }

@@ -841,6 +841,23 @@ export async function getBookingHotel(bookingId: string): Promise<HotelInfo | nu
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     hotel = hotels.find((h: any) => h.name && hay.includes(h.name.toLowerCase())) ?? null;
   }
+  // A guest whose package has no hotel (e.g. a partner who books as a beginner
+  // and shares someone else's room) still stays somewhere — resolve the hotel
+  // from the room they're assigned to (as the main guest OR a shared occupant).
+  if (!hotel) {
+    try {
+      const [{ data: r1 }, { data: r2 }] = await Promise.all([
+        db.from("exp_hotel_rooms").select("hotel").eq("booking_id", bookingId).not("hotel", "is", null).limit(1),
+        db.from("exp_hotel_rooms").select("hotel").contains("extra_booking_ids", [bookingId]).not("hotel", "is", null).limit(1),
+      ]);
+      const roomHotelName: string | null = r1?.[0]?.hotel ?? r2?.[0]?.hotel ?? null;
+      if (roomHotelName) {
+        const rn = roomHotelName.toLowerCase();
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        hotel = hotels.find((h: any) => h.name && h.name.toLowerCase() === rn) ?? hotels.find((h: any) => h.name && rn.includes(h.name.toLowerCase())) ?? null;
+      }
+    } catch { /* room table/column absent → no room fallback, that's fine */ }
+  }
   if (!hotel || (!hotel.image_url && !hotel.description)) return null;
   return { name: hotel.name, image_url: hotel.image_url ?? null, images: hotel.images ?? null, description: hotel.description ?? null, website: hotel.website ?? null };
 }

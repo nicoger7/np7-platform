@@ -130,6 +130,8 @@ interface Room {
   status: string;
   booking_id: string | null;
   booking: { id: string; name: string } | null;
+  extra_booking_ids: string[] | null;
+  partner_tag_along: string | null;
 }
 
 const BOOKING_STATUSES: Record<string, { label: string; color: string }> = {
@@ -268,7 +270,7 @@ export default function EditionDetailPage({
   const [costShow, setCostShow] = useState(false);
   const [pnl, setPnl] = useState<{ received: number; expected: number; costs: number; net: number; bookings: number; componentEstimate?: { total: number; bookings: number; breakdown: { name: string; qty: number; unitCost: number; total: number }[] } } | null>(null);
 
-  const emptyRoom = { name: "", hotel: "", room_type: "", room_number: "", status: "available", booking_id: "" };
+  const emptyRoom = { name: "", hotel: "", room_type: "", room_number: "", status: "available", booking_id: "", extra_booking_ids: [] as string[], partner_tag_along: "" };
   const [roomForm, setRoomForm] = useState(emptyRoom);
   const [roomEditId, setRoomEditId] = useState<string | null>(null);
   const [roomShow, setRoomShow] = useState(false);
@@ -435,6 +437,10 @@ export default function EditionDetailPage({
       room_number: roomForm.room_number || null,
       status: roomForm.status,
       booking_id: roomForm.booking_id || null,
+      // additional guests sharing this room (own booking, no room of their own)
+      extra_booking_ids: (roomForm.extra_booking_ids || []).filter((x) => x && x !== roomForm.booking_id),
+      // a companion with no booking at all (e.g. a partner just tagging along)
+      partner_tag_along: roomForm.partner_tag_along || null,
       edition_id: id,
       experience_id: expId,
     };
@@ -1419,9 +1425,14 @@ export default function EditionDetailPage({
               {rooms.map((room) => {
                 const active = room.id === roomEditId;
                 return (
-                  <button key={room.id} onClick={() => { setRoomEditId(room.id); setRoomShow(false); setRoomForm({ name: room.name, hotel: room.hotel || "", room_type: room.room_type || "", room_number: room.room_number || "", status: room.status, booking_id: room.booking_id || "" }); }} className="shrink-0 text-left px-3 py-2 rounded-lg transition-colors" style={{ background: active ? "var(--admin-accent)" : "var(--admin-surface)", border: "1px solid var(--admin-border)" }}>
+                  <button key={room.id} onClick={() => { setRoomEditId(room.id); setRoomShow(false); setRoomForm({ name: room.name, hotel: room.hotel || "", room_type: room.room_type || "", room_number: room.room_number || "", status: room.status, booking_id: room.booking_id || "", extra_booking_ids: room.extra_booking_ids ?? [], partner_tag_along: room.partner_tag_along ?? "" }); }} className="shrink-0 text-left px-3 py-2 rounded-lg transition-colors" style={{ background: active ? "var(--admin-accent)" : "var(--admin-surface)", border: "1px solid var(--admin-border)" }}>
                     <span className={`block text-xs font-semibold truncate ${active ? "text-[var(--admin-accent-contrast)]" : "admin-heading"}`}>{room.name}</span>
-                    <span className={`block text-[10px] mt-0.5 truncate ${active ? "text-[var(--admin-accent-contrast)]/80" : "admin-faint"}`}>{room.status}{room.booking?.name ? ` · ${room.booking.name}` : ""}</span>
+                    {(() => {
+                      const extra = (room.extra_booking_ids?.length ?? 0) + (room.partner_tag_along ? 1 : 0);
+                      return (
+                        <span className={`block text-[10px] mt-0.5 truncate ${active ? "text-[var(--admin-accent-contrast)]/80" : "admin-faint"}`}>{room.status}{room.booking?.name ? ` · ${room.booking.name}` : ""}{extra > 0 ? ` +${extra} sharing` : ""}</span>
+                      );
+                    })()}
                   </button>
                 );
               })}
@@ -1437,7 +1448,31 @@ export default function EditionDetailPage({
                 </div>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-4">
                   <div><label className={labelClass}>Room type</label><input className={inputClass} value={roomForm.room_type} onChange={(e) => setRoomForm({ ...roomForm, room_type: e.target.value })} placeholder="e.g. BON-WAN-Double Deluxe Balcony" /></div>
-                  <div><label className={labelClass}>Guest (booking)</label><select className={inputClass} value={roomForm.booking_id} onChange={(e) => setRoomForm({ ...roomForm, booking_id: e.target.value })}><option value="">Unassigned</option>{bookings.map((b) => <option key={b.id} value={b.id}>{b.name}</option>)}</select></div>
+                  <div><label className={labelClass}>Guest (booking) <span className="admin-faint font-normal">· main</span></label><select className={inputClass} value={roomForm.booking_id} onChange={(e) => setRoomForm({ ...roomForm, booking_id: e.target.value })}><option value="">Unassigned</option>{bookings.map((b) => <option key={b.id} value={b.id}>{b.name}</option>)}</select></div>
+                </div>
+                {/* Sharing: additional participants in the SAME room who have their
+                    own booking but no room of their own (e.g. a partner who books
+                    as a beginner without a hotel). */}
+                <div className="mb-4">
+                  <label className={labelClass}>Also in this room <span className="admin-faint font-normal">· sharing, no own room</span></label>
+                  {roomForm.extra_booking_ids.length > 0 && (
+                    <div className="flex flex-wrap gap-1.5 mb-2">
+                      {roomForm.extra_booking_ids.map((bid) => (
+                        <span key={bid} className="inline-flex items-center gap-1.5 text-[12px] font-semibold admin-heading rounded-full pl-2.5 pr-1.5 py-1" style={{ background: "var(--admin-bg)", border: "1px solid var(--admin-border)" }}>
+                          {bookings.find((b) => b.id === bid)?.name ?? "Guest"}
+                          <button type="button" onClick={() => setRoomForm({ ...roomForm, extra_booking_ids: roomForm.extra_booking_ids.filter((x) => x !== bid) })} className="w-4 h-4 grid place-items-center rounded-full text-red-400 hover:bg-red-500/10">×</button>
+                        </span>
+                      ))}
+                    </div>
+                  )}
+                  <select className={inputClass} value="" onChange={(e) => { const v = e.target.value; if (v) setRoomForm({ ...roomForm, extra_booking_ids: [...new Set([...roomForm.extra_booking_ids, v])] }); }}>
+                    <option value="">+ Add a guest sharing this room…</option>
+                    {bookings.filter((b) => b.id !== roomForm.booking_id && !roomForm.extra_booking_ids.includes(b.id)).map((b) => <option key={b.id} value={b.id}>{b.name}</option>)}
+                  </select>
+                </div>
+                <div className="mb-4">
+                  <label className={labelClass}>Partner tagging along <span className="admin-faint font-normal">· no booking at all</span></label>
+                  <input className={inputClass} value={roomForm.partner_tag_along} onChange={(e) => setRoomForm({ ...roomForm, partner_tag_along: e.target.value })} placeholder="e.g. Anna (guest's partner, not a participant)" />
                 </div>
                 <div className="flex gap-2">
                   <button onClick={saveRoom} disabled={!roomForm.name} className="px-4 py-2 bg-[var(--admin-accent)] hover:bg-[var(--admin-accent)]/90 disabled:opacity-40 text-[var(--admin-accent-contrast)] text-sm font-bold rounded-lg transition-colors">{roomEditId ? "Update" : "Create"}</button>
@@ -1478,7 +1513,7 @@ export default function EditionDetailPage({
                   onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = "var(--admin-surface-hover)")}
                   onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = "transparent")}
                 >
-                  <span className="text-sm font-medium admin-heading truncate self-center cursor-pointer" onClick={() => { setRoomEditId(room.id); setRoomShow(false); setRoomForm({ name: room.name, hotel: room.hotel || "", room_type: room.room_type || "", room_number: room.room_number || "", status: room.status, booking_id: room.booking_id || "" }); }}>{room.name}</span>
+                  <span className="text-sm font-medium admin-heading truncate self-center cursor-pointer" onClick={() => { setRoomEditId(room.id); setRoomShow(false); setRoomForm({ name: room.name, hotel: room.hotel || "", room_type: room.room_type || "", room_number: room.room_number || "", status: room.status, booking_id: room.booking_id || "", extra_booking_ids: room.extra_booking_ids ?? [], partner_tag_along: room.partner_tag_along ?? "" }); }}>{room.name}</span>
                   <span className="text-xs admin-muted self-center truncate">{room.room_type}</span>
                   <span className="text-xs admin-muted self-center">{room.hotel}</span>
                   <span className="self-center">

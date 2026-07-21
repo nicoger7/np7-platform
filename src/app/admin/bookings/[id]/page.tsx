@@ -1025,6 +1025,7 @@ export function BookingDetailPane({ bookingId, onBack }: { bookingId: string; on
                     <option value="downpayment">Downpayment</option>
                     <option value="final">Final</option>
                     <option value="partial">Partial</option>
+                    <option value="addon">Add-on / service</option>
                     <option value="refund">Refund</option>
                   </select>
                 </div>
@@ -1099,7 +1100,7 @@ export function BookingDetailPane({ bookingId, onBack }: { bookingId: string; on
                   <span className={`text-sm font-medium self-center ${p.type === "refund" || p.direction === "cost" ? "text-red-400" : "text-green-400"}`}>
                     {p.type === "refund" || p.direction === "cost" ? "-" : "+"}€{Number(p.amount).toLocaleString()}
                   </span>
-                  <span className="text-xs admin-muted self-center capitalize">{p.type}</span>
+                  <span className="text-xs admin-muted self-center capitalize" title={p.type === "addon" ? "Extra service — not counted against the trip balance" : undefined}>{p.type === "addon" ? "Add-on" : p.type}</span>
                   <span className="self-center">
                     <span className={`inline-block px-1.5 py-0.5 rounded text-[10px] font-bold uppercase ${
                       p.status === "paid" ? "bg-green-500/15 text-green-400" :
