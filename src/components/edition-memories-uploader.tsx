@@ -62,6 +62,32 @@ export function EditionMemoriesUploader({ editionId, initialVideoUrl }: { editio
     try { localStorage.setItem("np7-video-compress", compressUploads ? "on" : "off"); } catch {}
   }, [compressUploads]);
 
+  // Warn before closing/reloading the tab mid-upload. A browser can't keep a
+  // client upload running once the tab is CLOSED, so the best we can do is guard
+  // against losing the run by accident.
+  useEffect(() => {
+    if (!vidUp) return;
+    const warn = (e: BeforeUnloadEvent) => { e.preventDefault(); e.returnValue = ""; };
+    window.addEventListener("beforeunload", warn);
+    return () => window.removeEventListener("beforeunload", warn);
+  }, [vidUp]);
+
+  // Screen wake lock — a long batch (dozens of clips) would otherwise pause when
+  // the Mac dims / the display sleeps. Held for the whole run and re-acquired
+  // whenever the tab returns to the foreground (the lock auto-drops on tab-hide).
+  const wakeLockRef = useRef<WakeLockSentinel | null>(null);
+  async function acquireWakeLock() {
+    try {
+      if ("wakeLock" in navigator && document.visibilityState === "visible") {
+        wakeLockRef.current = await navigator.wakeLock.request("screen");
+      }
+    } catch { /* non-fatal — the upload runs regardless, just without a sleep guard */ }
+  }
+  function releaseWakeLock() {
+    wakeLockRef.current?.release().catch(() => {});
+    wakeLockRef.current = null;
+  }
+
   // Selection is per-scope; drop it whenever you switch who you're viewing.
   useEffect(() => { setSelected(new Set()); }, [scope]);
   const toggleSelect = (path: string) =>
@@ -236,44 +262,67 @@ export function EditionMemoriesUploader({ editionId, initialVideoUrl }: { editio
     // In-browser compressor (WebCodecs) — loaded on demand so the admin bundle
     // stays lean. On unsupported browsers we fall back to a raw upload.
     const compressor = await import("@/lib/video-compress").catch(() => null);
-    for (let i = 0; i < list.length; i++) {
-      const file = list[i];
-      const prog = (phase: "compress" | "upload") => (pct: number) => setVidUp({ name: file.name, pct, done: i, total: list.length, phase });
-      // Primary: compress HERE, upload only the small MP4 + poster. ANY compression
-      // problem (missing encoder, exotic codec, stall) downgrades this one file to a
-      // raw upload — the clip always lands, never an aborted batch.
-      let compressed: { mp4: Blob; poster: Blob | null } | null = null;
-      if (compressUploads && compressor?.canCompressInBrowser()) {
-        setVidUp({ name: file.name, pct: 0, done: i, total: list.length, phase: "compress" });
-        try {
-          compressed = await compressor.compressVideo(file, prog("compress"));
-        } catch (err) {
-          console.warn(`In-browser compression failed for ${file.name} — uploading raw instead.`, err);
+    // Keep the machine awake for the whole batch and re-grab the lock whenever
+    // the tab comes back to the foreground.
+    await acquireWakeLock();
+    const onVis = () => { if (document.visibilityState === "visible") acquireWakeLock(); };
+    document.addEventListener("visibilitychange", onVis);
+    const failed: string[] = [];
+    try {
+      for (let i = 0; i < list.length; i++) {
+        const file = list[i];
+        const prog = (phase: "compress" | "upload") => (pct: number) => setVidUp({ name: file.name, pct, done: i, total: list.length, phase });
+        // Primary: compress HERE, upload only the small MP4 + poster. ANY compression
+        // problem (missing encoder, exotic codec, stall) downgrades this one file to a
+        // raw upload — the clip always lands, never an aborted batch.
+        let compressed: { mp4: Blob; poster: Blob | null } | null = null;
+        if (compressUploads && compressor?.canCompressInBrowser()) {
+          setVidUp({ name: file.name, pct: 0, done: i, total: list.length, phase: "compress" });
+          try {
+            compressed = await compressor.compressVideo(file, prog("compress"));
+          } catch (err) {
+            console.warn(`In-browser compression failed for ${file.name} — uploading raw instead.`, err);
+          }
+        } else if (!compressUploads) {
+          // Toggle off: the file was compressed outside already — ship it AS-IS as
+          // the final web video (double compression visibly hurts quality). Only a
+          // poster frame is generated here, no re-encode.
+          const poster = compressor ? await compressor.extractPosterFrame(file).catch(() => null) : null;
+          compressed = { mp4: file, poster };
         }
-      } else if (!compressUploads) {
-        // Toggle off: the file was compressed outside already — ship it AS-IS as
-        // the final web video (double compression visibly hurts quality). Only a
-        // poster frame is generated here, no re-encode.
-        const poster = compressor ? await compressor.extractPosterFrame(file).catch(() => null) : null;
-        compressed = { mp4: file, poster };
+        // Retry the network step a few times — a single blip on an overnight batch
+        // shouldn't kill the run. Compression/poster already happened, so retries
+        // only re-attempt the upload PUT, never re-encode.
+        let ok = false; let lastErr: unknown = null;
+        for (let attempt = 0; attempt < 3 && !ok; attempt++) {
+          if (attempt > 0) await new Promise((r) => setTimeout(r, 1500 * attempt));
+          try {
+            if (compressed) {
+              const pre = await presign({ filename: file.name, contentType: "video/mp4", target: "video" });
+              setVidUp({ name: file.name, pct: 0, done: i, total: list.length, phase: "upload" });
+              await putToR2(pre.uploadUrl, compressed.mp4, "video/mp4", prog("upload"));
+              if (compressed.poster && pre.posterUploadUrl) await putToR2(pre.posterUploadUrl, compressed.poster, "image/jpeg").catch(() => {});
+            } else {
+              // Fallback: raw original → _vidraw/ (compressed later by the fallback script).
+              setVidUp({ name: file.name, pct: 0, done: i, total: list.length, phase: "upload" });
+              const pre = await presign({ filename: file.name, contentType: file.type });
+              await putToR2(pre.uploadUrl, file, file.type, prog("upload"));
+            }
+            ok = true;
+          } catch (e) { lastErr = e; }
+        }
+        if (!ok) { failed.push(file.name); console.warn(`Upload failed after retries: ${file.name}`, lastErr); }
       }
-      try {
-        if (compressed) {
-          const pre = await presign({ filename: file.name, contentType: "video/mp4", target: "video" });
-          setVidUp({ name: file.name, pct: 0, done: i, total: list.length, phase: "upload" });
-          await putToR2(pre.uploadUrl, compressed.mp4, "video/mp4", prog("upload"));
-          if (compressed.poster && pre.posterUploadUrl) await putToR2(pre.posterUploadUrl, compressed.poster, "image/jpeg").catch(() => {});
-        } else {
-          // Fallback: raw original → _vidraw/ (compressed later by the fallback script).
-          setVidUp({ name: file.name, pct: 0, done: i, total: list.length, phase: "upload" });
-          const pre = await presign({ filename: file.name, contentType: file.type });
-          await putToR2(pre.uploadUrl, file, file.type, prog("upload"));
-        }
-      } catch (e) { alert(e instanceof Error ? e.message : "Upload failed"); break; }
+    } finally {
+      document.removeEventListener("visibilitychange", onVis);
+      releaseWakeLock();
+      setVidUp(null);
+      if (vidInput.current) vidInput.current.value = "";
+      loadVideos();
     }
-    setVidUp(null);
-    if (vidInput.current) vidInput.current.value = "";
-    loadVideos();
+    if (failed.length) {
+      alert(`${failed.length} file${failed.length === 1 ? "" : "s"} didn't upload after retries:\n${failed.slice(0, 8).join("\n")}${failed.length > 8 ? "\n…" : ""}\n\nJust re-drop those files to finish — the ones that landed are already saved.`);
+    }
   }
 
   async function removeVideo(s: string) {
@@ -472,7 +521,7 @@ export function EditionMemoriesUploader({ editionId, initialVideoUrl }: { editio
                   <div className="h-full bg-[#0aa3c7] transition-[width] duration-150" style={{ width: `${vidUp.pct}%` }} />
                 </div>
                 <p className="text-[11px] admin-faint mt-1">
-                  {vidUp.phase === "compress" ? `Compressing in your browser — ${vidUp.pct}%` : `Uploading — ${vidUp.pct}%`} · keep this tab open.
+                  {vidUp.phase === "compress" ? `Compressing in your browser — ${vidUp.pct}%` : `Uploading ${vidUp.done + 1}/${vidUp.total} — ${vidUp.pct}%`}. Keep this tab open (you can switch away — it keeps going and survives sleep &amp; blips), just don&apos;t close it.
                 </p>
               </div>
             )}

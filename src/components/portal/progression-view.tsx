@@ -143,7 +143,7 @@ function TrackCard({ track, onLog, onUndo, busyId }: { track: Track } & LogHandl
   );
 }
 
-export function ProgressionView({ progression }: { progression: Progression }) {
+export function ProgressionView({ progression, avatarUrl, initials }: { progression: Progression; avatarUrl?: string | null; initials?: string }) {
   const { level, nextLevel, toNext, pct, mastered, ladder, coachCount, windcoachCount, tracks, side } = progression;
   const router = useRouter();
   const [active, setActive] = useState<string>(tracks[0]?.discipline ?? "side");
@@ -181,7 +181,12 @@ export function ProgressionView({ progression }: { progression: Progression }) {
         {/* Stack on mobile so a long status label never overlaps the big rank. */}
         <div className="flex flex-col sm:flex-row sm:items-center gap-2.5">
           <div className="flex items-center gap-3 min-w-0">
-            <div className="w-12 h-12 rounded-full grid place-items-center font-black text-[15px] shrink-0" style={{ background: "linear-gradient(145deg,#22c3ea,#00afdb)", color: TEAL }}>NP</div>
+            {avatarUrl ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img src={avatarUrl} alt="" className="w-12 h-12 rounded-full object-cover shrink-0 ring-2 ring-white/15" />
+            ) : (
+              <div className="w-12 h-12 rounded-full grid place-items-center font-black text-[15px] shrink-0" style={{ background: "linear-gradient(145deg,#22c3ea,#00afdb)", color: TEAL }}>{initials || "·"}</div>
+            )}
             <div className="min-w-0">
               <div className="text-[11px] font-bold uppercase tracking-[0.14em]" style={{ color: "#7fa6b3" }}>Your rank</div>
               <div className="text-[27px] font-black leading-none mt-0.5">{level}</div>

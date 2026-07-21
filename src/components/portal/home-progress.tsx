@@ -32,7 +32,7 @@ function TrackMini({ label, coach, windcoach, self, total, side = false }: { lab
   );
 }
 
-export function HomeProgress({ progression, selfLevel }: { progression: Progression; selfLevel?: string | null }) {
+export function HomeProgress({ progression, selfLevel, avatarUrl, initials }: { progression: Progression; selfLevel?: string | null; avatarUrl?: string | null; initials?: string }) {
   const { level, nextLevel, toNext, pct, mastered, ladder, coachCount, windcoachCount, tracks, side } = progression;
 
   // No verified rank yet → don't shame with "Beginner · 0": lead with their own
@@ -64,7 +64,12 @@ export function HomeProgress({ progression, selfLevel }: { progression: Progress
           collides with the big rank headline; side-by-side from sm up. */}
       <div className="flex flex-col sm:flex-row sm:items-center gap-2.5">
         <div className="flex items-center gap-3 min-w-0">
-          <span className="w-12 h-12 rounded-full grid place-items-center font-black text-[15px] shrink-0" style={{ background: "linear-gradient(145deg,#22c3ea,#00afdb)", color: "#00374a" }}>NP</span>
+          {avatarUrl ? (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img src={avatarUrl} alt="" className="w-12 h-12 rounded-full object-cover shrink-0 ring-2 ring-white/15" />
+          ) : (
+            <span className="w-12 h-12 rounded-full grid place-items-center font-black text-[15px] shrink-0" style={{ background: "linear-gradient(145deg,#22c3ea,#00afdb)", color: "#00374a" }}>{initials || "·"}</span>
+          )}
           <div className="min-w-0">
             <div className="text-[11px] font-bold uppercase tracking-[0.14em] text-[#7fa6b3]">Your rank</div>
             <div className="flex items-baseline gap-2 mt-0.5">

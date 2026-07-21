@@ -230,7 +230,7 @@ export default async function AccountHome() {
           {progression && (
             <div className="mt-6">
               <p className="text-[11px] font-bold tracking-[0.18em] uppercase text-[#9aa6ac] mb-3">Your progression</p>
-              <HomeProgress progression={progression} selfLevel={profile?.self_level ?? null} />
+              <HomeProgress progression={progression} selfLevel={profile?.self_level ?? null} avatarUrl={profile?.avatar_url ?? null} initials={initialsFrom(profile?.name)} />
             </div>
           )}
 
