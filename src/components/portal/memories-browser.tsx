@@ -33,14 +33,13 @@ export function MemoriesBrowser({ trips }: { trips: TripMemories[] }) {
             {open.total} photo{open.total === 1 ? "" : "s"}
           </span>
         </div>
+        {/* Photos first (members curate their own keepers here), then videos. */}
+        {open.total > 0 && <MemberGallery groups={open.groups} keeperBookingId={open.bookingId} />}
         {open.videos.length > 0 && (
-          <div className="mb-6">
-            <h3 className="text-[13px] font-bold uppercase tracking-wide text-[#9aa6ac] mb-2">Trip videos</h3>
-            <TripVideoGrid videos={open.videos} bookingId={open.bookingId} fallbackPoster={fallbackPoster} />
+          <div className="mt-6">
+            <TripVideoGrid videos={open.videos} bookingId={open.bookingId} fallbackPoster={fallbackPoster} title="Trip videos" />
           </div>
         )}
-        {/* Members curate their own keepers here (photos in the gallery, videos above). */}
-        {open.total > 0 && <MemberGallery groups={open.groups} keeperBookingId={open.bookingId} />}
       </div>
     );
   }

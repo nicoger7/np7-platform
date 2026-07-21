@@ -15,9 +15,12 @@ function StarIcon({ filled }: { filled: boolean }) {
  * media-fragment seek), so a preview always shows. Keeper stars work from the
  * grid and inside the player, and starred clips float to the top.
  */
-export function TripVideoGrid({ videos, bookingId, fallbackPoster }: { videos: TripVideo[]; bookingId: string; fallbackPoster?: string }) {
+const PREVIEW = 8; // videos shown before "Show all" (~2 grid rows)
+
+export function TripVideoGrid({ videos, bookingId, fallbackPoster, title = "Trip videos" }: { videos: TripVideo[]; bookingId: string; fallbackPoster?: string; title?: string }) {
   const [keepers, setKeepers] = useState<Set<string>>(new Set());
   const [openIdx, setOpenIdx] = useState<number | null>(null);
+  const [expanded, setExpanded] = useState(false);
 
   useEffect(() => {
     fetch(`/api/portal/memories/stars?bookingId=${bookingId}`)
@@ -39,11 +42,17 @@ export function TripVideoGrid({ videos, bookingId, fallbackPoster }: { videos: T
   // Keepers first — starred clips float to the top of the grid.
   const sorted = [...videos].sort((a, b) => (keepers.has(b.stem) ? 1 : 0) - (keepers.has(a.stem) ? 1 : 0));
   const open = openIdx != null ? sorted[openIdx] : null;
+  const hasMore = sorted.length > PREVIEW;
+  const visible = !expanded && hasMore ? sorted.slice(0, PREVIEW) : sorted;
 
   return (
     <div>
+      <div className="flex items-baseline justify-between gap-2 mb-2">
+        <h3 className="text-[13px] font-bold uppercase tracking-wide text-[#9aa6ac]">{title}</h3>
+        <span className="text-[12px] text-[#9aa6ac] tabular-nums">{sorted.length} video{sorted.length === 1 ? "" : "s"}</span>
+      </div>
       <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-2.5">
-        {sorted.map((v, i) => {
+        {visible.map((v, i) => {
           const kept = keepers.has(v.stem);
           return (
             <button key={v.stem} type="button" onClick={() => setOpenIdx(i)}
@@ -63,6 +72,12 @@ export function TripVideoGrid({ videos, bookingId, fallbackPoster }: { videos: T
           );
         })}
       </div>
+      {hasMore && (
+        <button type="button" onClick={() => setExpanded((v) => !v)} className="mt-2 inline-flex items-center gap-1.5 text-[13px] font-bold text-[#00afdb]">
+          {expanded ? "Show less" : `Show all ${sorted.length} videos`}
+          <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d={expanded ? "M18 15l-6-6-6 6" : "M6 9l6 6 6-6"} /></svg>
+        </button>
+      )}
       <p className="text-[11.5px] text-[#9aa6ac] mt-2">Videos stay for 3 months after the trip — star the ones you want to keep forever.</p>
 
       {open && openIdx != null && (

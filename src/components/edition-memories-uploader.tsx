@@ -119,7 +119,7 @@ export function EditionMemoriesUploader({ editionId, initialVideoUrl }: { editio
   async function sendPhotoReminder() {
     if (!remind || remindBusy) return;
     const when = remind.lastSent ? `\n\nLast reminder went out ${new Date(remind.lastSent).toLocaleDateString("en-GB", { day: "numeric", month: "short" })}.` : "";
-    if (!confirm(`Email all ${remind.recipients} participants that new photos are in their gallery?${when}`)) return;
+    if (!confirm(`Email all ${remind.recipients} participants that new photos or videos are in their gallery?${when}`)) return;
     setRemindBusy(true);
     setRemindMsg(null);
     try {
@@ -407,11 +407,11 @@ export function EditionMemoriesUploader({ editionId, initialVideoUrl }: { editio
                 ? <span className="text-[11px] admin-faint">{remindMsg}</span>
                 : remind.lastSent && <span className="text-[11px] admin-faint">Last reminder {new Date(remind.lastSent).toLocaleDateString("en-GB", { day: "numeric", month: "short" })}</span>}
               <button type="button" onClick={sendPhotoReminder} disabled={remindBusy}
-                title={`Emails all ${remind.recipients} participants of this week that new photos are in their gallery.`}
+                title={`Emails all ${remind.recipients} participants of this week that new photos or videos are in their gallery.`}
                 className="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg text-xs font-bold transition-colors disabled:opacity-50 admin-heading"
                 style={{ border: "1px solid var(--admin-border)" }}>
                 <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="2" y="4" width="20" height="16" rx="2.5" /><path d="m2 7 10 6 10-6" /></svg>
-                {remindBusy ? "Sending…" : `Notify riders — new photos (${remind.recipients})`}
+                {remindBusy ? "Sending…" : `Notify riders — new media (${remind.recipients})`}
               </button>
             </div>
           )}
