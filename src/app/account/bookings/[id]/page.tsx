@@ -2,13 +2,14 @@ import Link from "next/link";
 import { redirect, notFound } from "next/navigation";
 import type { Metadata } from "next";
 import { getPortalUser } from "@/lib/auth";
-import { getMemberBooking, getTripGalleryGroupsForBooking, getBookingPhotoSharing, getBookingPaid, getBookingHotel, getEditionCoaches, getMemoryDownloadsRemaining, getConfirmedAddonsTotal, getBookingFlights, getExperienceArrivalInfo, getCrewProfiles, getPreTripContent } from "@/lib/portal-data";
+import { getMemberBooking, getTripGalleryGroupsForBooking, getTripVideosForBooking, getBookingPhotoSharing, getBookingPaid, getBookingHotel, getEditionCoaches, getMemoryDownloadsRemaining, getConfirmedAddonsTotal, getBookingFlights, getExperienceArrivalInfo, getCrewProfiles, getPreTripContent } from "@/lib/portal-data";
 import { bookingStatus, fmtDates, money } from "@/lib/portal-status";
 import { isAttending } from "@/lib/types";
 import { PortalChrome } from "@/components/portal/portal-chrome";
 import { ExtraNightsButton } from "@/components/portal/extra-nights-button";
 import { MemberDocuments } from "@/components/portal/member-documents";
 import { MemberGallery } from "@/components/portal/member-gallery";
+import { TripVideoGrid } from "@/components/portal/trip-video-grid";
 import { PhotoSharingToggle } from "@/components/portal/photo-sharing-toggle";
 import { TripAddons } from "@/components/portal/trip-addons";
 import { PaymentPlan } from "@/components/portal/payment-plan";
@@ -37,7 +38,7 @@ export default async function BookingDetail({ params }: Props) {
   if (!b) notFound();
 
   const chip = bookingStatus(b);
-  const [galleryGroups, paid, hotel, coaches, downloadsRemaining, addonsTotal, flights, arrival, crew, photosShared, preTrip] = await Promise.all([
+  const [galleryGroups, paid, hotel, coaches, downloadsRemaining, addonsTotal, flights, arrival, crew, photosShared, preTrip, tripVideos] = await Promise.all([
     b.edition?.id ? getTripGalleryGroupsForBooking(b.edition.id, b.id).catch(() => []) : Promise.resolve([]),
     getBookingPaid(b.id).catch(() => 0),
     getBookingHotel(b.id).catch(() => null),
@@ -49,6 +50,7 @@ export default async function BookingDetail({ params }: Props) {
     b.edition?.id ? getCrewProfiles(b.edition.id, user.contactId).catch(() => ({ going: 0, sharing: 0, profiles: [] })) : Promise.resolve({ going: 0, sharing: 0, profiles: [] }),
     getBookingPhotoSharing(b.id).catch(() => true),
     b.experience_id ? getPreTripContent(b.experience_id).catch(() => ({ packingList: null, preTripNote: null })) : Promise.resolve({ packingList: null, preTripNote: null }),
+    b.edition?.id ? getTripVideosForBooking(b.edition.id, b.id).catch(() => []) : Promise.resolve([]),
   ]);
   const packingItems = (preTrip.packingList ?? "").split("\n").map((s) => s.trim()).filter(Boolean);
 
@@ -125,7 +127,7 @@ export default async function BookingDetail({ params }: Props) {
     : "You can cancel any time before the trip. Your 50% downpayment is refundable for 14 days after you pay it; after that it's kept as the cancellation fee. Once you've paid the full balance, that becomes the fee instead — with a goodwill credit voucher toward a future trip. Use ‘Cancel this trip’ above to start, or see our Terms for the full scale.");
 
   const photoCount = galleryGroups.reduce((n, g) => n + g.photos.length, 0);
-  const memoriesContent = (photoCount === 0 && !b.edition?.memories_video_url) ? (
+  const memoriesContent = (photoCount === 0 && !b.edition?.memories_video_url && tripVideos.length === 0) ? (
     <p className="text-[13.5px] text-[#9aa6ac]">Your photos &amp; video will appear here after the week.</p>
   ) : (
     <>
@@ -148,6 +150,8 @@ export default async function BookingDetail({ params }: Props) {
           <svg className="w-4 h-4" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z" /></svg>
           Watch your week&apos;s video</a>
       )}
+      {/* individual clips — the same grid (and keeper stars) as Account → Memories */}
+      <TripVideoGrid videos={tripVideos} bookingId={b.id} />
     </>
   );
 

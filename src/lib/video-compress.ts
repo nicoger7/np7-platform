@@ -111,3 +111,40 @@ export async function compressVideo(
     work.catch(() => {}); // don't surface late rejections after a stall bail-out
   }
 }
+
+/**
+ * Grab a poster frame from a video file WITHOUT WebCodecs — a hidden <video>
+ * element + canvas. Used when the uploader's "compress in browser" toggle is
+ * off (pre-compressed files upload as-is but still deserve a poster).
+ */
+export async function extractPosterFrame(file: File): Promise<Blob | null> {
+  const url = URL.createObjectURL(file);
+  try {
+    const video = document.createElement("video");
+    video.muted = true;
+    video.playsInline = true;
+    video.preload = "metadata";
+    video.src = url;
+    await new Promise<void>((resolve, reject) => {
+      const t = setTimeout(() => reject(new Error("poster: metadata timeout")), 10_000);
+      video.onloadedmetadata = () => { clearTimeout(t); resolve(); };
+      video.onerror = () => { clearTimeout(t); reject(new Error("poster: cannot decode")); };
+    });
+    video.currentTime = Math.min(1, (video.duration || 2) / 2);
+    await new Promise<void>((resolve, reject) => {
+      const t = setTimeout(() => reject(new Error("poster: seek timeout")), 10_000);
+      video.onseeked = () => { clearTimeout(t); resolve(); };
+      video.onerror = () => { clearTimeout(t); reject(new Error("poster: seek failed")); };
+    });
+    const canvas = document.createElement("canvas");
+    const scale = Math.min(1, 1280 / (video.videoWidth || 1280));
+    canvas.width = Math.round((video.videoWidth || 1280) * scale);
+    canvas.height = Math.round((video.videoHeight || 720) * scale);
+    canvas.getContext("2d")?.drawImage(video, 0, 0, canvas.width, canvas.height);
+    return await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, "image/jpeg", 0.82));
+  } catch {
+    return null;
+  } finally {
+    URL.revokeObjectURL(url);
+  }
+}

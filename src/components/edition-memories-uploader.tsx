@@ -51,6 +51,16 @@ export function EditionMemoriesUploader({ editionId, initialVideoUrl }: { editio
   const [vidLoading, setVidLoading] = useState(true);
   const [vidUp, setVidUp] = useState<{ name: string; pct: number; done: number; total: number; phase: "compress" | "upload" } | null>(null);
   const vidInput = useRef<HTMLInputElement>(null);
+  // Off = the files were already compressed outside (Handbrake etc.) — upload
+  // them EXACTLY as-is. Compressing twice visibly hurts quality. Remembered per
+  // browser so the choice sticks between sessions.
+  const [compressUploads, setCompressUploads] = useState<boolean>(() => {
+    if (typeof window === "undefined") return true;
+    return localStorage.getItem("np7-video-compress") !== "off";
+  });
+  useEffect(() => {
+    try { localStorage.setItem("np7-video-compress", compressUploads ? "on" : "off"); } catch {}
+  }, [compressUploads]);
 
   // Selection is per-scope; drop it whenever you switch who you're viewing.
   useEffect(() => { setSelected(new Set()); }, [scope]);
@@ -233,13 +243,19 @@ export function EditionMemoriesUploader({ editionId, initialVideoUrl }: { editio
       // problem (missing encoder, exotic codec, stall) downgrades this one file to a
       // raw upload — the clip always lands, never an aborted batch.
       let compressed: { mp4: Blob; poster: Blob | null } | null = null;
-      if (compressor?.canCompressInBrowser()) {
+      if (compressUploads && compressor?.canCompressInBrowser()) {
         setVidUp({ name: file.name, pct: 0, done: i, total: list.length, phase: "compress" });
         try {
           compressed = await compressor.compressVideo(file, prog("compress"));
         } catch (err) {
           console.warn(`In-browser compression failed for ${file.name} — uploading raw instead.`, err);
         }
+      } else if (!compressUploads) {
+        // Toggle off: the file was compressed outside already — ship it AS-IS as
+        // the final web video (double compression visibly hurts quality). Only a
+        // poster frame is generated here, no re-encode.
+        const poster = compressor ? await compressor.extractPosterFrame(file).catch(() => null) : null;
+        compressed = { mp4: file, poster };
       }
       try {
         if (compressed) {
@@ -422,11 +438,21 @@ export function EditionMemoriesUploader({ editionId, initialVideoUrl }: { editio
       <div className="rounded-xl p-4" style={{ border: "1px solid var(--admin-border)", backgroundColor: "var(--admin-surface)" }}>
         <h3 className="text-sm font-bold admin-heading">Trip videos</h3>
         <p className="text-xs admin-faint mt-0.5 mb-3">
-          Drop in the <span className="admin-muted">full-size clips straight off the camera</span> — they&apos;re
-          <span className="admin-muted"> compressed right here in your browser</span> before upload, so only the small
-          web version is ever stored (the giant original never leaves this machine).
+          {compressUploads ? (
+            <>Drop in the <span className="admin-muted">full-size clips straight off the camera</span> — they&apos;re
+            <span className="admin-muted"> compressed right here in your browser</span> before upload, so only the small
+            web version is ever stored (the giant original never leaves this machine).</>
+          ) : (
+            <>Files upload <span className="admin-muted">exactly as-is</span> — use this only for clips you&apos;ve
+            <span className="admin-muted"> already compressed yourself</span> (compressing twice hurts quality).</>
+          )}{" "}
           Same scope as photos: uploading to <span className="admin-muted">{scopeLabel}</span>.
         </p>
+        <label className="flex items-center gap-2 mb-3 text-xs admin-muted cursor-pointer select-none">
+          <input type="checkbox" checked={compressUploads} onChange={(e) => setCompressUploads(e.target.checked)} disabled={!!vidUp} />
+          Compress in browser before upload
+          <span className="admin-faint">— switch off for pre-compressed files</span>
+        </label>
 
         {!vidR2 ? (
           <p className="text-xs admin-faint">Video storage isn&apos;t switched on yet (R2 keys not set).</p>
