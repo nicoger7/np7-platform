@@ -130,11 +130,27 @@ export async function extractPosterFrame(file: File): Promise<Blob | null> {
       video.onloadedmetadata = () => { clearTimeout(t); resolve(); };
       video.onerror = () => { clearTimeout(t); reject(new Error("poster: cannot decode")); };
     });
-    video.currentTime = Math.min(1, (video.duration || 2) / 2);
+    // Seek ~1s in — the very first frames are often black (fade-in / gimbal
+    // settling), which is exactly what produced the identical black posters.
+    video.currentTime = Math.min(1, Math.max(0.1, (video.duration || 2) / 3));
     await new Promise<void>((resolve, reject) => {
       const t = setTimeout(() => reject(new Error("poster: seek timeout")), 10_000);
       video.onseeked = () => { clearTimeout(t); resolve(); };
       video.onerror = () => { clearTimeout(t); reject(new Error("poster: seek failed")); };
+    });
+    // `seeked` fires before the frame is actually painted — drawing now grabs a
+    // black canvas. Wait for a REAL presented frame (requestVideoFrameCallback),
+    // falling back to a couple of animation frames on browsers without it.
+    await new Promise<void>((resolve) => {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const v = video as any;
+      if (typeof v.requestVideoFrameCallback === "function") {
+        const done = () => resolve();
+        v.requestVideoFrameCallback(done);
+        setTimeout(done, 1_000); // safety net — never hang the upload
+      } else {
+        requestAnimationFrame(() => requestAnimationFrame(() => resolve()));
+      }
     });
     const canvas = document.createElement("canvas");
     const scale = Math.min(1, 1280 / (video.videoWidth || 1280));
