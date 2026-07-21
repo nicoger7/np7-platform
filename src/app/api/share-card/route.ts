@@ -203,7 +203,13 @@ export async function GET(req: NextRequest) {
       if (logoRes.ok) {
         const logoH = 118;
         const logo = await sharp(Buffer.from(await logoRes.arrayBuffer())).resize({ height: logoH }).png().toBuffer();
-        layers.push({ input: logo, top: B - 214 - titleBlockH - logoH - 18, left: 72 });
+        // With a title, the logo sits above the whole title block. Without one,
+        // there's nothing between the logo and the footer, so drop it to sit
+        // directly on top of "np-seven.com" instead of floating mid-card.
+        const logoTop = showTitle
+          ? B - 214 - titleBlockH - logoH - 18
+          : B - 62 - 24 - 22 - logoH; // footer baseline (B-62) − cap − gap − logo
+        layers.push({ input: logo, top: logoTop, left: 72 });
       }
     } catch { /* title still carries the card */ }
 
