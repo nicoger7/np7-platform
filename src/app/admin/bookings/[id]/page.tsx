@@ -172,6 +172,11 @@ export function BookingDetailPane({ bookingId, onBack }: { bookingId: string; on
   // Group bookings: move a FREE amount of this booking's received money to a
   // sibling booking (mirrored alloc pair) — no fixed percentage.
   const [allocForm, setAllocForm] = useState<{ open: boolean; amount: string; toBookingId: string; busy: boolean; options: { id: string; name: string | null }[] }>({ open: false, amount: "", toBookingId: "", busy: false, options: [] });
+  // Inline contact edit — Simona shouldn't get bounced to /admin/contacts just to
+  // fix a phone number; edit the contact right here on the booking.
+  const [contactEdit, setContactEdit] = useState(false);
+  const [contactForm, setContactForm] = useState<{ name: string; email: string; phone: string; country: string; level: string; tshirt_size: string; diet_allergies: string }>({ name: "", email: "", phone: "", country: "", level: "", tshirt_size: "", diet_allergies: "" });
+  const [contactBusy, setContactBusy] = useState(false);
 
   useEffect(() => {
     // Resilient loads: a restricted role may get 403 on some of these — never let
@@ -472,6 +477,31 @@ export function BookingDetailPane({ bookingId, onBack }: { bookingId: string; on
     }
   }
 
+  function startContactEdit() {
+    const c = booking?.contacts;
+    setContactForm({
+      name: c?.name ?? "", email: c?.email ?? "", phone: c?.phone ?? "", country: c?.country ?? "",
+      level: c?.level ?? "", tshirt_size: c?.tshirt_size ?? "", diet_allergies: c?.diet_allergies ?? "",
+    });
+    setContactEdit(true);
+  }
+  async function saveContact() {
+    if (!booking?.contact_id) return;
+    setContactBusy(true);
+    const res = await fetch(`/api/admin/contacts/${booking.contact_id}`, {
+      method: "PATCH", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(contactForm),
+    });
+    const j = await res.json().catch(() => ({}));
+    setContactBusy(false);
+    if (res.ok) {
+      setBooking((prev) => prev ? { ...prev, contacts: { ...(prev.contacts ?? {} as NonNullable<typeof prev.contacts>), ...contactForm } } : prev);
+      setContactEdit(false);
+    } else {
+      alert(j.error || "Could not save the contact.");
+    }
+  }
+
   async function removeAllocation(paymentId: string) {
     if (!confirm("Remove this allocation? Both sides of the pair are removed — the money goes back to the booking that actually paid.")) return;
     const res = await fetch(`/api/admin/bookings/${id}/payments?paymentId=${paymentId}`, { method: "DELETE" });
@@ -705,20 +735,21 @@ export function BookingDetailPane({ bookingId, onBack }: { bookingId: string; on
                   onChange={(cid) => update("contact_id", cid)}
                 />
               </div>
-              {booking.contact_id && (
-                <Link
-                  href={`/admin/contacts/${booking.contact_id}`}
-                  className="px-3 py-2.5 admin-surface admin-muted text-xs rounded-lg transition-colors flex items-center"
+              {booking.contact_id && booking.contacts && !contactEdit && (
+                <button
+                  type="button"
+                  onClick={startContactEdit}
+                  className="px-3 py-2.5 admin-surface admin-muted hover:admin-heading text-xs rounded-lg transition-colors flex items-center"
                   style={{ border: "1px solid var(--admin-border)" }}
                 >
-                  Edit →
-                </Link>
+                  Edit contact
+                </button>
               )}
             </div>
           </div>
 
-          {/* Contact info card */}
-          {booking.contacts && (
+          {/* Contact info — read-only card, or inline editor when editing */}
+          {booking.contacts && !contactEdit && (
             <div className="p-4 rounded-lg admin-surface" style={{ border: "1px solid var(--admin-border)" }}>
               <div className="text-xs font-bold admin-faint uppercase tracking-wider mb-2">Contact info</div>
               <div className="grid grid-cols-3 gap-3 text-xs">
@@ -728,6 +759,36 @@ export function BookingDetailPane({ bookingId, onBack }: { bookingId: string; on
                 <div><span className="admin-faint">Level:</span> <span className="admin-muted">{booking.contacts.level || "—"}</span></div>
                 <div><span className="admin-faint">T-shirt:</span> <span className="admin-muted">{booking.contacts.tshirt_size || "—"}</span></div>
                 <div><span className="admin-faint">Diet:</span> <span className="admin-muted">{booking.contacts.diet_allergies || "—"}</span></div>
+              </div>
+            </div>
+          )}
+          {booking.contacts && contactEdit && (
+            <div className="p-4 rounded-lg admin-surface" style={{ border: "1px solid var(--admin-border)" }}>
+              <div className="flex items-center justify-between mb-3">
+                <div className="text-xs font-bold admin-faint uppercase tracking-wider">Edit contact</div>
+                <div className="text-[11px] admin-faint">Saves to the contact — changing the email also updates their login.</div>
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div><label className={labelClass}>Name</label><input className={inputClass} value={contactForm.name} onChange={(e) => setContactForm({ ...contactForm, name: e.target.value })} /></div>
+                <div><label className={labelClass}>Email</label><input className={inputClass} type="email" value={contactForm.email} onChange={(e) => setContactForm({ ...contactForm, email: e.target.value })} /></div>
+                <div><label className={labelClass}>Phone</label><input className={inputClass} value={contactForm.phone} onChange={(e) => setContactForm({ ...contactForm, phone: e.target.value })} /></div>
+                <div><label className={labelClass}>Country</label><input className={inputClass} value={contactForm.country} onChange={(e) => setContactForm({ ...contactForm, country: e.target.value })} /></div>
+                <div><label className={labelClass}>Level</label><input className={inputClass} value={contactForm.level} onChange={(e) => setContactForm({ ...contactForm, level: e.target.value })} /></div>
+                <div><label className={labelClass}>T-shirt</label><input className={inputClass} value={contactForm.tshirt_size} onChange={(e) => setContactForm({ ...contactForm, tshirt_size: e.target.value })} /></div>
+                <div className="col-span-2"><label className={labelClass}>Diet / allergies</label><input className={inputClass} value={contactForm.diet_allergies} onChange={(e) => setContactForm({ ...contactForm, diet_allergies: e.target.value })} /></div>
+              </div>
+              <div className="flex items-center gap-2 mt-3">
+                <button type="button" onClick={saveContact} disabled={contactBusy}
+                  className="px-3 py-1.5 bg-[var(--admin-accent)] hover:bg-[var(--admin-accent)]/90 text-[var(--admin-accent-contrast)] text-xs font-bold rounded-lg transition-colors disabled:opacity-50">
+                  {contactBusy ? "Saving…" : "Save contact"}
+                </button>
+                <button type="button" onClick={() => setContactEdit(false)} disabled={contactBusy}
+                  className="px-3 py-1.5 admin-surface admin-muted hover:admin-heading text-xs font-semibold rounded-lg transition-colors" style={{ border: "1px solid var(--admin-border)" }}>
+                  Cancel
+                </button>
+                <Link href={`/admin/contacts/${booking.contact_id}`} className="ml-auto text-[11px] text-[#0aa3c7] hover:underline self-center">
+                  Full contact page →
+                </Link>
               </div>
             </div>
           )}
