@@ -704,15 +704,24 @@ export async function getTripVideosForBooking(editionId: string, viewerBookingId
       ? objs
       : objs.filter((o) => !o.key.includes(`/${editionId}/p/`));
     const posters = new Map(
-      scoped.filter((o) => /\.(jpe?g|png|webp)$/i.test(o.key)).map((o) => [o.key.replace(/\.[^.]+$/, ""), o.key] as const)
+      scoped.filter((o) => /\.(jpe?g|png|webp)$/i.test(o.key)).map((o) => [o.key.replace(/\.[^.]+$/, ""), o] as const)
     );
     for (const o of scoped) {
       if (!o.key.endsWith(".mp4")) continue;
       const base = o.key.replace(/\.[^.]+$/, "");
       if (seen.has(base)) continue;
       seen.add(base);
+      // Version the poster URL by its last-modified time. A regenerated poster
+      // keeps the same key, so without this the CDN keeps serving the stale
+      // (e.g. black) cached copy until its TTL expires — the ?v busts it.
+      const p = posters.get(base);
+      let posterUrl: string | null = null;
+      if (p) {
+        const v = p.lastModified ? Date.parse(p.lastModified) : NaN;
+        posterUrl = cdnUrlFor(p.key) + (Number.isFinite(v) ? `?v=${v}` : "");
+      }
       // stem = key minus the _video/ root + extension — the ref keepers use.
-      out.push({ url: cdnUrlFor(o.key), poster: posters.get(base) ? cdnUrlFor(posters.get(base)!) : null, stem: base.replace(/^_video\//, "") });
+      out.push({ url: cdnUrlFor(o.key), poster: posterUrl, stem: base.replace(/^_video\//, "") });
     }
   }
   return out;

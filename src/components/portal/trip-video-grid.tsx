@@ -46,11 +46,16 @@ export function TripVideoGrid({ videos, bookingId, fallbackPoster, title = "Trip
   const visible = !expanded && hasMore ? sorted.slice(0, PREVIEW) : sorted;
 
   return (
-    <div>
-      <div className="flex items-baseline justify-between gap-2 mb-2">
-        <h3 className="text-[13px] font-bold uppercase tracking-wide text-[#9aa6ac]">{title}</h3>
-        <span className="text-[12px] text-[#9aa6ac] tabular-nums">{sorted.length} video{sorted.length === 1 ? "" : "s"}</span>
+    <div className="rounded-xl border border-[#f0e6d6] bg-[#fffdf9] overflow-hidden">
+      {/* header matches the photo cards: a soft icon badge + title + count */}
+      <div className="flex items-center gap-2.5 px-4 py-3">
+        <span className="w-9 h-9 rounded-lg grid place-items-center bg-[#00afdb]/12 text-[#00afdb] shrink-0">
+          <svg className="w-[18px] h-[18px]" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="2" y="4" width="20" height="16" rx="3" /><path d="m10 9 5 3-5 3z" fill="currentColor" stroke="none" /></svg>
+        </span>
+        <h3 className="text-[15px] font-black tracking-[-0.01em] text-[#00374a]">{title}</h3>
+        <span className="ml-auto text-[13px] text-[#9aa6ac] tabular-nums">{sorted.length}</span>
       </div>
+      <div className="px-4 pb-4">
       <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-2.5">
         {visible.map((v, i) => {
           const kept = keepers.has(v.stem);
@@ -79,6 +84,7 @@ export function TripVideoGrid({ videos, bookingId, fallbackPoster, title = "Trip
         </button>
       )}
       <p className="text-[11.5px] text-[#9aa6ac] mt-2">Videos stay for 3 months after the trip — star the ones you want to keep forever.</p>
+      </div>
 
       {open && openIdx != null && (
         <Lightbox
