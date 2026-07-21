@@ -21,6 +21,7 @@ export function TripVideoGrid({ videos, bookingId, fallbackPoster, title = "Trip
   const [keepers, setKeepers] = useState<Set<string>>(new Set());
   const [openIdx, setOpenIdx] = useState<number | null>(null);
   const [expanded, setExpanded] = useState(false);
+  const cardRef = useRef<HTMLDivElement>(null); // scroll back here on "Show less"
 
   useEffect(() => {
     fetch(`/api/portal/memories/stars?bookingId=${bookingId}`)
@@ -46,7 +47,7 @@ export function TripVideoGrid({ videos, bookingId, fallbackPoster, title = "Trip
   const visible = !expanded && hasMore ? sorted.slice(0, PREVIEW) : sorted;
 
   return (
-    <div className="rounded-xl border border-[#f0e6d6] bg-[#fffdf9] overflow-hidden">
+    <div ref={cardRef} className="scroll-mt-24 rounded-xl border border-[#f0e6d6] bg-[#fffdf9] overflow-hidden">
       {/* header matches the photo cards: a soft icon badge + title + count */}
       <div className="flex items-center gap-2.5 px-4 py-3">
         <span className="w-9 h-9 rounded-lg grid place-items-center bg-[#00afdb]/12 text-[#00afdb] shrink-0">
@@ -78,7 +79,7 @@ export function TripVideoGrid({ videos, bookingId, fallbackPoster, title = "Trip
         })}
       </div>
       {hasMore && (
-        <button type="button" onClick={() => setExpanded((v) => !v)} className="mt-2 inline-flex items-center gap-1.5 text-[13px] font-bold text-[#00afdb]">
+        <button type="button" onClick={() => { if (expanded) requestAnimationFrame(() => cardRef.current?.scrollIntoView({ behavior: "smooth", block: "start" })); setExpanded((v) => !v); }} className="mt-2 inline-flex items-center gap-1.5 text-[13px] font-bold text-[#00afdb]">
           {expanded ? "Show less" : `Show all ${sorted.length} videos`}
           <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d={expanded ? "M18 15l-6-6-6 6" : "M6 9l6 6 6-6"} /></svg>
         </button>

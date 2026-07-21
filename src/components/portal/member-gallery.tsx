@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import type { GalleryGroup } from "@/lib/portal-data";
 import { cdnImage } from "@/lib/img";
 import { ShareSheet } from "./share-sheet";
@@ -44,6 +44,12 @@ export function MemberGallery({
   const [crewFilter, setCrewFilter] = useState<string | null>(null); // null = everyone
   const [crewExpanded, setCrewExpanded] = useState(false);
   const [remaining, setRemaining] = useState(downloadsRemaining ?? 0);
+  // Collapsing a big group leaves the viewport stranded far down the page — on
+  // "Show less" we scroll back to the top of that same group.
+  const mineRef = useRef<HTMLDivElement>(null);
+  const crewRef = useRef<HTMLDivElement>(null);
+  const scrollToTopOf = (ref: { current: HTMLDivElement | null }) =>
+    requestAnimationFrame(() => ref.current?.scrollIntoView({ behavior: "smooth", block: "start" }));
   const [share, setShare] = useState<string | null>(null); // photo url open in the share sheet
   const [zipping, setZipping] = useState(false);
   const [err, setErr] = useState("");
@@ -272,14 +278,14 @@ export function MemberGallery({
             const hasMore = g.photos.length > PREVIEW;
             const shown = !mineExpanded && hasMore ? g.photos.slice(0, PREVIEW) : g.photos;
             return (
-              <div key={g.key} className="rounded-xl border border-[#f0e6d6] bg-[#fffdf9] overflow-hidden">
+              <div key={g.key} ref={mineRef} className="scroll-mt-24 rounded-xl border border-[#f0e6d6] bg-[#fffdf9] overflow-hidden">
                 <div className="flex items-center gap-2.5 px-4 py-3">{header(g)}</div>
                 <div className="px-4 pb-4">
                   <div className="grid grid-cols-3 sm:grid-cols-4 gap-2 sm:gap-2.5">
                     {shown.map((src, i) => thumb(src, offsets[gi] + i))}
                   </div>
                   {hasMore && (
-                    <button type="button" onClick={() => setMineExpanded((v) => !v)} className="mt-1 inline-flex items-center gap-1.5 text-[13px] font-bold text-[#00afdb]">
+                    <button type="button" onClick={() => { if (mineExpanded) scrollToTopOf(mineRef); setMineExpanded((v) => !v); }} className="mt-1 inline-flex items-center gap-1.5 text-[13px] font-bold text-[#00afdb]">
                       {mineExpanded ? "Show less" : `Show all ${g.photos.length} photos`}
                       <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d={mineExpanded ? "M18 15l-6-6-6 6" : "M6 9l6 6 6-6"} /></svg>
                     </button>
@@ -309,7 +315,7 @@ export function MemberGallery({
         {/* Everyone's photos — Week memories + every rider's shared gallery in
             one place, filterable by source. */}
         {crewEntries.length > 0 && (
-          <div className="rounded-xl border border-[#f0e6d6] bg-[#fffdf9] overflow-hidden">
+          <div ref={crewRef} className="scroll-mt-24 rounded-xl border border-[#f0e6d6] bg-[#fffdf9] overflow-hidden">
             <div className="flex items-center gap-2.5 px-4 py-3">
               <span className={iconWrap("everyone")}>{iconSvg("everyone")}</span>
               <span className="min-w-0 flex-1 block text-[14px] font-bold text-[#00374a] truncate">Everyone&apos;s photos</span>
@@ -351,7 +357,7 @@ export function MemberGallery({
                 {crewVisible.map((it) => thumb(it.src, it.absIdx))}
               </div>
               {crewFiltered.length > CREW_PREVIEW && (
-                <button type="button" onClick={() => setCrewExpanded((v) => !v)} className="mt-2 inline-flex items-center gap-1.5 text-[13px] font-bold text-[#00afdb]">
+                <button type="button" onClick={() => { if (crewExpanded) scrollToTopOf(crewRef); setCrewExpanded((v) => !v); }} className="mt-2 inline-flex items-center gap-1.5 text-[13px] font-bold text-[#00afdb]">
                   {crewExpanded ? "Show less" : `Show all ${crewFiltered.length} photos`}
                   <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d={crewExpanded ? "M18 15l-6-6-6 6" : "M6 9l6 6 6-6"} /></svg>
                 </button>
