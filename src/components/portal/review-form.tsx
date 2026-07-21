@@ -35,6 +35,8 @@ export function ReviewForm({ bookingId, gallery }: { bookingId: string; gallery:
     e.preventDefault();
     setError("");
     if (!quote.trim()) { setError("Please share a few words about your trip."); return; }
+    // A photo is required whenever the member actually has trip photos to pick from.
+    if (gallery.length > 0 && !photoUrl) { setError("Please pick one of your trip photos to add to your review."); return; }
     setBusy(true);
     try {
       const res = await fetch("/api/portal/reviews", {
@@ -107,23 +109,13 @@ export function ReviewForm({ bookingId, gallery }: { bookingId: string; gallery:
           className={`${field} resize-none leading-relaxed`} />
       </div>
 
-      {/* name + country */}
-      <div className="grid sm:grid-cols-2 gap-3">
-        <div>
-          <label className={label} htmlFor="name">Name</label>
-          <input id="name" value={name} onChange={(e) => setName(e.target.value)} placeholder="Your name" autoComplete="name" className={field} />
-        </div>
-        <div>
-          <label className={label} htmlFor="country">Country</label>
-          <input id="country" value={country} onChange={(e) => setCountry(e.target.value)} placeholder="e.g. Germany" autoComplete="country-name" className={field} />
-        </div>
-      </div>
-
-      {/* photo picker */}
+      {/* photo picker — before name/country so the submit button stays right
+          under the text fields. Required (pick one), and the grid scrolls inside
+          a fixed box so a big gallery never pushes the button far down. */}
       {gallery.length > 0 && (
         <div>
-          <span className={label}>Add one of your trip photos <span className="text-[#9aa6ac] font-medium normal-case tracking-normal">(optional)</span></span>
-          <div className="grid grid-cols-3 sm:grid-cols-4 gap-2">
+          <span className={label}>Add one of your trip photos <span className="text-[#9aa6ac] font-medium normal-case tracking-normal">(pick one)</span></span>
+          <div className="grid grid-cols-3 sm:grid-cols-4 gap-2 max-h-[290px] overflow-y-auto pr-0.5">
             {gallery.map((src) => {
               const selected = photoUrl === src;
               return (
@@ -141,6 +133,18 @@ export function ReviewForm({ bookingId, gallery }: { bookingId: string; gallery:
           </div>
         </div>
       )}
+
+      {/* name + country */}
+      <div className="grid sm:grid-cols-2 gap-3">
+        <div>
+          <label className={label} htmlFor="name">Name</label>
+          <input id="name" value={name} onChange={(e) => setName(e.target.value)} placeholder="Your name" autoComplete="name" className={field} />
+        </div>
+        <div>
+          <label className={label} htmlFor="country">Country</label>
+          <input id="country" value={country} onChange={(e) => setCountry(e.target.value)} placeholder="e.g. Germany" autoComplete="country-name" className={field} />
+        </div>
+      </div>
 
       {error && <p className="text-[13px] text-red-500">{error}</p>}
 
