@@ -496,7 +496,9 @@ export default function AdminShell({
     setEnv(newEnv);
     localStorage.setItem("np7-admin-env", newEnv);
     setEnvMenuOpen(false);
-    router.push("/admin");
+    // "/admin" is the FINANCE dashboard — analytics deliberately doesn't carry
+    // it, so entering that world lands on its own first page instead.
+    router.push(newEnv === "analytics" ? (navByEnv.analytics[0]?.items[0]?.href ?? "/admin/analytics") : "/admin");
   }
 
   async function handleLogout() {
@@ -526,7 +528,10 @@ export default function AdminShell({
     label: "GENERAL",
     items: env === "experience" ? [archiveItem] : [fileStorageItem, archiveItem],
   };
-  const allSections = [sharedNavTop, ...navByEnv[env], bottomGroup];
+  // Analytics is a pure visitor-behaviour world — the shared HOME → Dashboard is
+  // the finance dashboard (open revenue, unmatched payments), so it stays out of
+  // this environment entirely. Visitor behaviour is its home.
+  const allSections = [...(env === "analytics" ? [] : [sharedNavTop]), ...navByEnv[env], bottomGroup];
   // Hide nav the member's role can't reach (middleware enforces it server-side too).
   const sections = allSections
     .map((g) => ({ ...g, items: g.items.filter((i) => effectiveCanAccess(access, i.href)) }))
