@@ -81,9 +81,13 @@ export async function POST(req: Request) {
   try {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const db = createAdminClient() as any;
-    await db.from("analytics_events").insert(rows);
-  } catch {
-    /* table missing (pre-migration) or transient — never surface */
+    const { error } = await db.from("analytics_events").insert(rows);
+    // Never fail the visitor's request over analytics — but DO log it. A silently
+    // swallowed insert error (a column the table didn't have yet) once killed
+    // every tracking write for a month without a single visible symptom.
+    if (error) console.error("[track] analytics insert failed:", error.message);
+  } catch (e) {
+    console.error("[track] analytics insert threw:", e instanceof Error ? e.message : e);
   }
 
   return NextResponse.json({ ok: true });

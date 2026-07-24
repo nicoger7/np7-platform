@@ -112,7 +112,7 @@ export default function AnalyticsPage() {
   return (
     <div>
       <h1 className="text-2xl font-bold admin-heading mb-1">Analytics</h1>
-      <p className="text-sm admin-muted mb-5">How visitors use the website — all from your own data. (Business numbers live in Payments and the dashboard.)</p>
+      <p className="text-sm admin-muted mb-5">How visitors use the website — all from your own data.</p>
       <BehaviourTab />
     </div>
   );
@@ -143,8 +143,8 @@ function BehaviourTab() {
   if (!d.available) {
     return (
       <div className="rounded-xl p-8 text-center" style={{ backgroundColor: "var(--admin-surface)", border: "1px solid var(--admin-border)" }}>
-        <p className="text-sm admin-heading font-bold mb-1">Visitor tracking isn&apos;t live yet</p>
-        <p className="text-xs admin-faint max-w-md mx-auto">Apply migration <span className="font-mono">038_analytics_events</span> in Supabase. After that, first-party pageviews and the funnel (consent-gated, no third-party tools) will show up here.</p>
+        <p className="text-sm admin-heading font-bold mb-1">No visitor data to show</p>
+        <p className="text-xs admin-faint max-w-md mx-auto">Either nothing was tracked in this period, or the events table can&apos;t be read. Tracking is consent-gated (first-party only, no third-party tools) — visitors who decline analytics in the cookie banner are never recorded. Try a longer range first.</p>
       </div>
     );
   }
