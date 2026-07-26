@@ -72,16 +72,26 @@ export function SpotMap({ spots, cluster = false, height = 420, linkLabel = "Vie
         });
         // Richer card: thumbnail + a meta row (rating · spots · level) when the
         // caller supplies destination context; falls back to the plain card.
+        // The rating / spot count / level all describe the DESTINATION, not this
+        // one pin — shown under a spot's name they read as the spot's score. So
+        // the destination name leads the row and owns everything after it.
         const meta: string[] = [];
         if (s.rating && s.rating > 0) meta.push(`<span style="font-weight:700;color:#00374a">${s.ratingKind === "np7" ? "NP7 " : ""}★ ${s.rating.toFixed(1)}</span>`);
         if (s.spotCount) meta.push(`<span>${s.spotCount} spot${s.spotCount === 1 ? "" : "s"}</span>`);
         if (s.level) meta.push(`<span>${s.level}</span>`);
+        const destMeta = meta.length > 0;
         const m = L.marker([s.lat, s.lng], { icon }).bindPopup(
           `<div style="font-family:inherit;width:${s.thumb ? 200 : 158}px">` +
             (s.thumb ? `<div style="height:92px;border-radius:10px;background:#e8f1f3 center/cover no-repeat;background-image:url('${s.thumb}');margin-bottom:8px"></div>` : "") +
             `<strong style="color:#00374a;font-size:13.5px">${s.name}</strong>` +
-            (s.destName ? `<div style="color:#6a7a80;font-size:12px;margin-top:1px">${s.destName}</div>` : "") +
-            (meta.length ? `<div style="display:flex;gap:9px;flex-wrap:wrap;margin-top:6px;font-size:11.5px;color:#5a6b72">${meta.join("")}</div>` : "") +
+            // No destination stats → plain "which destination is this in?" line.
+            (s.destName && !destMeta ? `<div style="color:#6a7a80;font-size:12px;margin-top:1px">${s.destName}</div>` : "") +
+            (destMeta
+              ? `<div style="margin-top:6px;padding-top:6px;border-top:1px solid #e8eef0">` +
+                  (s.destName ? `<div style="color:#6a7a80;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.05em">${s.destName} — the destination</div>` : "") +
+                  `<div style="display:flex;gap:9px;flex-wrap:wrap;margin-top:3px;font-size:11.5px;color:#5a6b72">${meta.join("")}</div>` +
+                `</div>`
+              : "") +
             `<a href="/spotguide/${s.destSlug}" style="display:block;margin-top:10px;background:linear-gradient(90deg,#00afdb,#0891b2);color:#fff;font-weight:800;font-size:13px;text-align:center;padding:10px 14px;border-radius:999px;text-decoration:none;box-shadow:0 4px 12px rgba(0,175,219,0.35)">${linkLabel}</a></div>`
         );
         // stash the destination on the marker so clusters can label themselves
