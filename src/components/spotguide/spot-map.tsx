@@ -9,6 +9,7 @@ export type MapSpot = {
   lat: number; lng: number; name: string; destSlug: string; destName?: string; verification?: string;
   // Optional destination context for a richer popup card (index map only).
   thumb?: string | null; rating?: number; ratingKind?: "np7" | "member"; spotCount?: number; level?: string | null;
+  spotRating?: number; spotRatingKind?: "np7" | "member"; spotRatingCount?: number;
 };
 
 /**
@@ -84,6 +85,13 @@ export function SpotMap({ spots, cluster = false, height = 420, linkLabel = "Vie
           `<div style="font-family:inherit;width:${s.thumb ? 200 : 158}px">` +
             (s.thumb ? `<div style="height:92px;border-radius:10px;background:#e8f1f3 center/cover no-repeat;background-image:url('${s.thumb}');margin-bottom:8px"></div>` : "") +
             `<strong style="color:#00374a;font-size:13.5px">${s.name}</strong>` +
+            // The SPOT's own score, right under its name — NP7's if set, else the
+            // member average with its rater count.
+            (s.spotRating && s.spotRating > 0
+              ? `<div style="margin-top:2px;font-size:12px;font-weight:700;color:#00374a">${s.spotRatingKind === "np7" ? "NP7 " : ""}★ ${s.spotRating.toFixed(1)}` +
+                (s.spotRatingKind === "member" && s.spotRatingCount ? `<span style="font-weight:500;color:#8a9aa0"> · ${s.spotRatingCount} member${s.spotRatingCount === 1 ? "" : "s"}</span>` : "") +
+                `</div>`
+              : "") +
             // No destination stats → plain "which destination is this in?" line.
             (s.destName && !destMeta ? `<div style="color:#6a7a80;font-size:12px;margin-top:1px">${s.destName}</div>` : "") +
             (destMeta

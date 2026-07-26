@@ -269,7 +269,12 @@ export async function getSpotguideDestination(slug: string, viewerId?: string | 
   };
 }
 
-export type SpotMapPoint = { lat: number; lng: number; name: string; destSlug: string; destName: string; verification: string };
+export type SpotMapPoint = {
+  lat: number; lng: number; name: string; destSlug: string; destName: string; verification: string;
+  /** The SPOT's own score (NP7's if set, else the member average) — distinct
+      from the destination rating the index popup also shows. */
+  spotRating?: number; spotRatingKind?: "np7" | "member"; spotRatingCount?: number;
+};
 
 /** Every public spot with coordinates, across live destinations — for the map. */
 export async function getAllSpotguidePoints(): Promise<SpotMapPoint[]> {
@@ -279,15 +284,34 @@ export async function getAllSpotguidePoints(): Promise<SpotMapPoint[]> {
   const byId = new Map((dests as { id: string; name: string; slug: string | null }[]).map((d) => [d.id, d]));
   const { data: spots } = await sb
     .from("spots")
-    .select("name, lat, lng, destination_id, verification")
+    .select("id, name, lat, lng, destination_id, verification, np7_ratings")
     .in("destination_id", [...byId.keys()])
     .eq("status", "published").in("verification", ["community", "np7"])
     .not("lat", "is", null);
+  // Member ratings for these spots, in one query — the pin card shows the
+  // spot's OWN score, not just the destination's.
+  const spotIds = (spots ?? []).map((s: Record<string, unknown>) => s.id as string);
+  const ratingsBySpot = new Map<string, { ratings: unknown }[]>();
+  if (spotIds.length) {
+    const { data: rrows } = await sb.from("spot_ratings").select("spot_id, ratings").in("spot_id", spotIds);
+    for (const r of (rrows ?? []) as { spot_id: string; ratings: unknown }[]) {
+      ratingsBySpot.set(r.spot_id, [...(ratingsBySpot.get(r.spot_id) ?? []), r]);
+    }
+  }
   return (spots ?? [])
     .map((s: Record<string, unknown>) => {
       const d = byId.get(s.destination_id as string);
       if (!d?.slug) return null;
-      return { lat: s.lat as number, lng: s.lng as number, name: s.name as string, destSlug: d.slug, destName: d.name, verification: s.verification as string };
+      const np7 = np7Overall((s.np7_ratings as Record<string, number>) ?? {}, SPOT_CRITERIA_KEYS);
+      const member = summariseRatings(ratingsBySpot.get(s.id as string) ?? [], SPOT_CRITERIA_KEYS);
+      const spotRating = np7 > 0 ? np7 : member.overall;
+      return {
+        lat: s.lat as number, lng: s.lng as number, name: s.name as string,
+        destSlug: d.slug, destName: d.name, verification: s.verification as string,
+        ...(spotRating > 0
+          ? { spotRating, spotRatingKind: (np7 > 0 ? "np7" : "member") as "np7" | "member", spotRatingCount: member.count }
+          : {}),
+      };
     })
     .filter(Boolean) as SpotMapPoint[];
 }

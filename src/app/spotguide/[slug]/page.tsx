@@ -207,7 +207,15 @@ export default async function SpotguideDestinationPage({ params, searchParams }:
                 <>
                   {(() => {
                     const pts = d.spots.filter((s) => s.lat != null && s.lng != null)
-                      .map((s) => ({ lat: s.lat as number, lng: s.lng as number, name: s.name, destSlug: d.slug ?? "", verification: s.verification }));
+                      .map((s) => {
+                        // Each pin carries the spot's OWN rating (NP7's if set,
+                        // else the member average) — same rule as the index map.
+                        const spotRating = s.np7 > 0 ? s.np7 : s.member.overall;
+                        return {
+                          lat: s.lat as number, lng: s.lng as number, name: s.name, destSlug: d.slug ?? "", verification: s.verification,
+                          ...(spotRating > 0 ? { spotRating, spotRatingKind: (s.np7 > 0 ? "np7" : "member") as "np7" | "member", spotRatingCount: s.member.count } : {}),
+                        };
+                      });
                     return pts.length > 0 ? <div className="mb-5"><SpotMap spots={pts} cluster height={340} /></div> : null;
                   })()}
                   <MeteredContent accent={chrome.accent} spotCount={d.spots.length} destName={d.name}>
