@@ -54,15 +54,17 @@ export function DisciplinesShowcase() {
           const on = d.key === active;
           return (
             <button key={d.key} type="button" onClick={() => setActive(d.key)} aria-expanded={on}
-              className={`group relative rounded-3xl overflow-hidden p-7 h-[190px] flex flex-col justify-end text-left text-white shadow-[0_24px_50px_rgba(0,20,30,0.28)] transform-gpu transition-[transform,opacity,box-shadow] duration-[420ms] [transition-timing-function:cubic-bezier(0.22,1,0.36,1)] ${on ? "ring-2 ring-white/70 -translate-y-1" : "opacity-85 hover:opacity-100 hover:-translate-y-0.5"}`}
-              style={{ background: `linear-gradient(160deg, ${d.color}, #00374a)` }}>
-              {/* GPU-promoted zoom wrapper. The explicit clip-path is
-                  load-bearing: Safari lets a composited child escape a plain
-                  border-radius overflow clip (square corners peeking out), but
-                  a clip-path is applied on the compositor and cannot be
-                  escaped. Radius must match the button's rounded-3xl. */}
-              <div className="absolute inset-0 overflow-hidden rounded-[inherit] [clip-path:inset(0_round_1.5rem)] transform-gpu [backface-visibility:hidden]">
-                <div className="absolute inset-0 bg-cover bg-center transform-gpu transition-transform duration-[420ms] [transition-timing-function:cubic-bezier(0.22,1,0.36,1)] group-hover:scale-[1.03]" style={{ backgroundImage: `url('${d.image}')` }} />
+              className={`group relative rounded-3xl overflow-hidden p-7 h-[190px] flex flex-col justify-end text-left text-white shadow-[0_24px_50px_rgba(0,20,30,0.28)] transform-gpu transition-[transform,opacity,box-shadow] duration-[420ms] [transition-timing-function:cubic-bezier(0.22,1,0.36,1)] ${on ? "ring-2 ring-white/70 -translate-y-1" : "opacity-85 hover:opacity-100 hover:-translate-y-0.5"}`}>
+              {/* Zoom wrapper. Safari (WebKit) does NOT clip force-composited
+                  descendants by an ancestor's border-radius OR clip-path — so the
+                  inner image must not carry transform-gpu, and the radial-gradient
+                  mask forces WebKit to rasterize the clip onto every descendant
+                  (the canonical fix). Radius must match the button's rounded-3xl.
+                  The fallback gradient lives INSIDE the clip so no bright seam can
+                  peek out at the corners. */}
+              <div className="absolute inset-0 overflow-hidden rounded-[inherit] [clip-path:inset(0_round_1.5rem)]" style={{ WebkitMaskImage: "-webkit-radial-gradient(white, black)" }}>
+                <div className="absolute inset-0" style={{ background: `linear-gradient(160deg, ${d.color}, #00374a)` }} />
+                <div className="absolute inset-0 bg-cover bg-center transition-transform duration-[420ms] [transition-timing-function:cubic-bezier(0.22,1,0.36,1)] group-hover:scale-[1.03]" style={{ backgroundImage: `url('${d.image}')` }} />
               </div>
               <div className="absolute inset-0 mix-blend-multiply opacity-55" style={{ background: `linear-gradient(160deg, ${d.color}, #00374a)` }} />
               <div className="absolute inset-0 bg-gradient-to-t from-[#00131b]/80 via-transparent to-transparent" />

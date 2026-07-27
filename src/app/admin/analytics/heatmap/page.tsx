@@ -135,14 +135,34 @@ export default function HeatmapPage() {
   useEffect(() => { redraw(); }, [redraw]);
 
   const onFrameLoad = () => {
+    // The public site reveals content on scroll (IntersectionObserver +
+    // opacity-0/translate classes). Inside this preview iframe those observers
+    // never fire for anything outside the admin viewport, leaving the page
+    // blank. Same origin, so we can force the fully-revealed state — this is a
+    // static backdrop, not a live page.
+    const flatten = () => {
+      try {
+        const doc = iframeRef.current?.contentDocument;
+        if (!doc || doc.getElementById("np7-heatmap-reveal")) return;
+        const s = doc.createElement("style");
+        s.id = "np7-heatmap-reveal";
+        s.textContent = `
+          .opacity-0 { opacity: 1 !important; }
+          .translate-y-8, .-translate-y-8, .translate-x-8, .-translate-x-8 { transform: none !important; }
+        `;
+        doc.head.appendChild(s);
+      } catch { /* cross-origin — leave the page as-is */ }
+    };
     const measure = () => {
       try {
         const doc = iframeRef.current?.contentDocument;
         if (doc?.body) setFrameH(Math.max(doc.body.scrollHeight, doc.documentElement.scrollHeight));
       } catch { setFrameH(2400); }
     };
+    flatten();
     measure();
-    setTimeout(measure, 800); // catch late layout (images/fonts)
+    setTimeout(() => { flatten(); measure(); }, 800);  // catch late layout (images/fonts)
+    setTimeout(() => { flatten(); measure(); }, 2500); // …and late-mounting client components
   };
 
   const pill = (active: boolean) =>
@@ -209,7 +229,9 @@ export default function HeatmapPage() {
               src={path}
               onLoad={onFrameLoad}
               title="Page preview"
-              style={{ width, height: frameH || 1200, border: 0, display: "block", background: "#fff" }}
+              // pointer-events none: the preview is a backdrop — clicks must not
+              // navigate it (the canvas above already ignores clicks too)
+              style={{ width, height: frameH || 1200, border: 0, display: "block", background: "#fff", pointerEvents: "none" }}
             />
             <canvas ref={canvasRef} style={{ position: "absolute", top: 0, left: 0, width, height: frameH || 1200, pointerEvents: "none" }} />
           </div>
