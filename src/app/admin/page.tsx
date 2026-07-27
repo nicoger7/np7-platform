@@ -123,9 +123,10 @@ export default function AdminDashboard() {
 // ─── NP7 Hardware ────────────────────────────────────────────────────────────
 
 interface HardwareData {
-  counts: { products: number; published: number; drafts: number; stockUnits: number; openPos: number };
+  counts: { products: number; published: number; drafts: number; stockUnits: number; openPos: number; openOrders: number };
   finance: { inventoryValue: number } | null;
   inboundPipeline: { id: string; poNumber: string; status: string; expected: string | null; supplier: string | null; units: number; received: number }[];
+  latestOrders: { id: string; number: number; email: string; status: string; paymentStatus: string; fulfillmentStatus: string; total: number | null; placedAt: string }[];
   latestProducts: { id: string; name: string; category: string | null; status: string | null; price: number | null; updated_at: string | null; created_at: string | null }[];
   contentGaps: { productId: string; name: string; missing: string[] }[];
   slim?: boolean;
@@ -168,6 +169,7 @@ function HardwareDashboard() {
       {!slim && (
         <div className="grid grid-cols-2 lg:grid-cols-3 gap-4 mb-6">
           {d.finance && <StatCard label="Inventory value (landed)" value={amt(Math.round(d.finance.inventoryValue))} href="/admin/inventory" accent />}
+          <StatCard label="Open orders" value={d.counts.openOrders} href="/admin/orders" accent={d.counts.openOrders > 0} />
           <StatCard label="Open POs" value={d.counts.openPos} href="/admin/purchasing" />
         </div>
       )}
@@ -218,11 +220,19 @@ function HardwareDashboard() {
           )}
         </Panel>
 
-        <Panel title="Orders" href="/admin/orders">
-          <p className="text-xs admin-faint leading-relaxed">
-            The shop backend is in the works — once it ships, open orders, fulfillment status and
-            revenue land here.
-          </p>
+        <Panel title="Latest orders" href="/admin/orders">
+          {d.latestOrders.length === 0 ? <p className="text-xs admin-faint">No orders yet — web checkout is the next build step.</p> : (
+            <div className="space-y-1.5">
+              {d.latestOrders.map((o) => (
+                <Link key={o.id} href={`/admin/orders/${o.id}`} className="flex items-center gap-3 text-xs py-1.5 px-2 -mx-2 rounded-lg hover:bg-[var(--admin-surface-hover)]">
+                  <span className="font-mono admin-heading">#{o.number}</span>
+                  <span className="flex-1 admin-faint truncate">{o.email}</span>
+                  <span className={`${o.paymentStatus === "paid" ? "text-green-400" : o.paymentStatus === "awaiting" ? "text-amber-500" : "admin-muted"}`}>{o.paymentStatus.replace(/_/g, " ")}</span>
+                  {!slim && <span className="admin-muted w-16 text-right">{o.total != null ? (hideMoney ? "€ ••••" : `€${(o.total / 100).toLocaleString()}`) : "—"}</span>}
+                </Link>
+              ))}
+            </div>
+          )}
         </Panel>
 
         <QuickActions actions={[

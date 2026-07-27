@@ -33,6 +33,7 @@ export const ARCHIVE_ENTITIES: ArchiveEntity[] = [
   { key: "hw_suppliers", table: "hw_suppliers", label: "Supplier", plural: "Suppliers", titleCol: "name", subtitleCols: ["country"], href: (id) => `/admin/suppliers/${id}` },
   { key: "hw_pos", table: "hw_purchase_orders", label: "Purchase order", plural: "Purchase orders", titleCol: "po_number", subtitleCols: ["status"], href: (id) => `/admin/purchasing/${id}` },
   { key: "hw_inbound", table: "hw_inbound_shipments", label: "Inbound shipment", plural: "Inbound shipments", titleCol: "reference", subtitleCols: ["status"], href: (id) => `/admin/purchasing/shipments/${id}` },
+  { key: "hw_orders", table: "hw_orders", label: "Hardware order", plural: "Hardware orders", titleCol: "email", subtitleCols: ["status"], href: (id) => `/admin/orders/${id}` },
 ];
 
 export const ARCHIVE_BY_KEY: Record<string, ArchiveEntity> = Object.fromEntries(ARCHIVE_ENTITIES.map((e) => [e.key, e]));

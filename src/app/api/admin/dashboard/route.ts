@@ -183,6 +183,12 @@ async function hardwareDashboard(db: any, showMoney: boolean) {
     live(db.from("hw_products").select("id,name,images,description").eq("status", "published")),
   ]);
 
+  const [openOrders, latestOrders] = await Promise.all([
+    db.from("hw_orders").select("id", { count: "exact", head: true }).eq("status", "pending").is("archived_at", null),
+    db.from("hw_orders").select("id,display_number,email,status,payment_status,fulfillment_status,grand_total,placed_at,contacts(name)")
+      .is("archived_at", null).order("placed_at", { ascending: false }).limit(6),
+  ]);
+
   // Published products whose page still misses core website content
   // (mirrors the Experience "website photos missing" panel).
   type Gap = { productId: string; name: string; missing: string[] };
@@ -237,9 +243,16 @@ async function hardwareDashboard(db: any, showMoney: boolean) {
       drafts: drafts.count ?? 0,
       stockUnits,
       openPos: inboundPipeline.length,
+      openOrders: openOrders.count ?? 0,
     },
     finance: showMoney ? { inventoryValue } : null,
     inboundPipeline,
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    latestOrders: ((latestOrders.data ?? []) as any[]).map((o) => ({
+      id: o.id, number: o.display_number, email: o.contacts?.name ?? o.email,
+      status: o.status, paymentStatus: o.payment_status, fulfillmentStatus: o.fulfillment_status,
+      total: showMoney ? o.grand_total : null, placedAt: o.placed_at,
+    })),
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     latestProducts: (latest.data ?? []).map((p: any) => (showMoney ? p : { ...p, price: null })),
     contentGaps,

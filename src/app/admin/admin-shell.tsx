@@ -143,7 +143,7 @@ const navByEnv: Record<Environment, NavGroup[]> = {
     {
       label: "SELLING",
       items: [
-        { label: "Orders", href: "/admin/orders", icon: "truck", wip: true },
+        { label: "Orders", href: "/admin/orders", icon: "truck" },
       ],
     },
   ],

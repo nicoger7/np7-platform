@@ -164,6 +164,7 @@ export const SECTION_EXPOSES: Record<string, FieldKey[]> = {
   suppliers: ["costs"],
   purchasing: ["money", "costs"],
   inventory: ["costs"],
+  orders: ["money", "contact_pii"],
 };
 
 /** Which of those exposures are actually enforced (redacted) server-side today.

@@ -24,6 +24,34 @@ export const SHIPMENT_STATUS_COLOR: Record<string, string> = {
   closed: "admin-surface admin-faint",
 };
 
+export const ORDER_STATUS_COLOR: Record<string, string> = {
+  pending: "bg-blue-500/15 text-blue-400",
+  completed: "bg-green-500/15 text-green-400",
+  canceled: "bg-red-500/15 text-red-400",
+};
+
+export const PAYMENT_STATUS_COLOR: Record<string, string> = {
+  awaiting: "bg-amber-500/15 text-amber-500",
+  authorized: "bg-blue-500/15 text-blue-400",
+  paid: "bg-green-500/15 text-green-400",
+  partially_refunded: "bg-purple-500/15 text-purple-400",
+  refunded: "admin-surface admin-faint",
+  canceled: "admin-surface admin-faint",
+  failed: "bg-red-500/15 text-red-400",
+};
+
+export const FULFILLMENT_STATUS_COLOR: Record<string, string> = {
+  unfulfilled: "admin-surface admin-muted",
+  partially_fulfilled: "bg-amber-500/15 text-amber-500",
+  fulfilled: "bg-blue-500/15 text-blue-400",
+  partially_shipped: "bg-purple-500/15 text-purple-400",
+  shipped: "bg-purple-500/15 text-purple-400",
+  partially_delivered: "bg-green-500/15 text-green-400",
+  delivered: "bg-green-500/15 text-green-400",
+  partially_returned: "bg-red-500/15 text-red-400",
+  returned: "bg-red-500/15 text-red-400",
+};
+
 export function StatusBadge({ value, colors }: { value: string; colors: Record<string, string> }) {
   return (
     <span className={`inline-block px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-[0.05em] ${colors[value] ?? "admin-surface admin-muted"}`}>
