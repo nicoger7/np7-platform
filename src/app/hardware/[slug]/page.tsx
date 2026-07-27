@@ -1,8 +1,9 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import type { Metadata } from "next";
-import { supabase } from "@/lib/supabase";
+import { supabase, createAdminClient } from "@/lib/supabase";
 import { HardwareHeader } from "@/components/hardware/hardware-header";
+import { BuyBox, type BuyVariant } from "@/components/hardware/buy-box";
 import { FindYourFit } from "@/components/hardware/find-your-fit";
 import { EnquireForm } from "@/components/hardware/enquire-form";
 import { Reveal } from "@/components/experience/reveal";
@@ -244,15 +245,9 @@ function GalleryModule({ content }: { content: ProductContent | null }) {
   );
 }
 
-function BuyModule({ product }: { product: Product }) {
+function BuyModule({ product, buyVariants, productAvailable, image }: { product: Product; buyVariants: BuyVariant[]; productAvailable: number; image: string | null }) {
   const price = fmtPrice(product.price, product.currency ?? "EUR");
   const compareAt = fmtPrice(product.compare_at_price, product.currency ?? "EUR");
-  const stockLabel =
-    product.stock_count == null
-      ? null
-      : product.stock_count > 0
-        ? `${product.stock_count} in stock`
-        : "Sold out";
 
   return (
     <section id="buy" className="scroll-mt-20 py-20 sm:py-32 bg-[#0a0a0c] border-t border-white/10">
@@ -268,32 +263,29 @@ function BuyModule({ product }: { product: Product }) {
             {product.name}
           </h2>
           {price && (
-            <div className="flex items-baseline gap-3 mb-8">
+            <div className="flex items-baseline gap-3 mb-2">
               <span className="text-4xl font-black" style={{ color: HW_ACCENT }}>
                 {price}
               </span>
               {compareAt && (
                 <span className="text-[17px] text-white/35 line-through">{compareAt}</span>
               )}
-              {stockLabel && (
-                <span className="font-mono text-[11px] font-bold uppercase tracking-wider text-white/40 ml-2">
-                  {stockLabel}
-                </span>
-              )}
             </div>
           )}
 
-          <div className="flex flex-wrap items-start gap-4">
-            {/* Primary CTA — disabled */}
-            <button
-              disabled
-              className="px-8 py-4 rounded-full text-[14px] font-bold text-black/60 cursor-not-allowed"
-              style={{ backgroundColor: `${HW_ACCENT}55` }}
-              title="Online checkout coming soon"
-            >
-              Checkout coming soon
-            </button>
+          {/* Real add-to-cart — sizes, honest ledger availability, cart + checkout */}
+          <BuyBox
+            productId={product.id}
+            slug={product.slug}
+            name={product.name}
+            currency={product.currency ?? "EUR"}
+            price={product.price}
+            variants={buyVariants}
+            productAvailable={productAvailable}
+            image={image}
+          />
 
+          <div className="mt-8">
             {/* Secondary — enquire */}
             <EnquireForm productId={product.id} productName={product.name} />
           </div>
@@ -353,6 +345,31 @@ export default async function HardwareProductPage({ params }: Props) {
 
   const template = getTemplate(product.template);
 
+  // Variants + honest availability from the stock ledger (service client —
+  // RLS keeps these tables closed to the anon key). Sellable = HQ + 3PL.
+  let buyVariants: BuyVariant[] = [];
+  let productAvailable = 0;
+  try {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const admin = createAdminClient() as any;
+    const [{ data: variants }, { data: locs }] = await Promise.all([
+      admin.from("hw_variants").select("id,name,sku,rrp,lifecycle,archived_at,sort_order")
+        .eq("product_id", product.id).is("archived_at", null).order("sort_order").order("name"),
+      admin.from("hw_stock_locations").select("id,code").in("code", ["HQ", "3PL"]),
+    ]);
+    const sellableIds = (locs ?? []).map((l: { id: string }) => l.id);
+    const variantIds = (variants ?? []).map((v: { id: string }) => v.id);
+    const { data: levels } = variantIds.length
+      ? await admin.from("hw_stock_levels").select("variant_id,location_id,on_hand,reserved").in("variant_id", variantIds)
+      : { data: [] };
+    const availableOf = (variantId: string) => (levels ?? [])
+      .filter((lv: { variant_id: string; location_id: string }) => lv.variant_id === variantId && sellableIds.includes(lv.location_id))
+      .reduce((a: number, lv: { on_hand: number; reserved: number }) => a + lv.on_hand - lv.reserved, 0);
+    buyVariants = ((variants ?? []) as { id: string; name: string; sku: string; rrp: number | null; lifecycle: string }[])
+      .filter((v) => !["discontinued"].includes(v.lifecycle))
+      .map((v) => ({ id: v.id, name: v.name, sku: v.sku, price: v.rrp ?? product.price ?? 0, available: availableOf(v.id) }));
+  } catch { /* ledger not reachable — BuyBox falls back to sold-out + enquiry */ }
+
   function renderModule(key: ModuleKey) {
     switch (key) {
       case "hero":
@@ -370,7 +387,8 @@ export default async function HardwareProductPage({ params }: Props) {
       case "gallery":
         return <GalleryModule key="gallery" content={content} />;
       case "buy":
-        return <BuyModule key="buy" product={product!} />;
+        return <BuyModule key="buy" product={product!} buyVariants={buyVariants} productAvailable={productAvailable}
+          image={content?.hero_image?.trim() || product!.images?.[0] || null} />;
       default:
         return null;
     }

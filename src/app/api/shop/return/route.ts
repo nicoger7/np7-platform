@@ -64,11 +64,13 @@ export async function POST(request: NextRequest) {
     const ol = lineById.get(l.order_line_id);
     return `${l.quantity}× ${ol.title}${ol.variant_title ? ` ${ol.variant_title}` : ""}`;
   }).join(", ");
+  // Withdrawals get the formal Eingangsbestätigung; warranty claims their own ack.
+  const templateKey = type === "withdrawal" ? "withdrawal_received" : "hw_return_received";
   await sendEmail({
     to: order.email,
-    templateKey: "hw_return_received",
+    templateKey,
     division: "hardware",
-    dedupeKey: `hw_return_received:${ret.id}`,
+    dedupeKey: `${templateKey}:${ret.id}`,
     vars: {
       firstName: order.email.split("@")[0],
       orderNumber: `#${order.display_number}`,

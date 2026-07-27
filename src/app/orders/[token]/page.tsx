@@ -7,8 +7,14 @@ export const metadata = { title: "Your order · NP7", robots: { index: false } }
 // Tokenized order page — tracking + the withdrawal/return entry. No login;
 // the unguessable token in the confirmation email is the key. Server-rendered,
 // only customer-safe fields ever reach the page.
-export default async function OrderPage({ params }: { params: Promise<{ token: string }> }) {
+export default async function OrderPage({
+  params, searchParams,
+}: {
+  params: Promise<{ token: string }>;
+  searchParams: Promise<{ placed?: string }>;
+}) {
   const { token } = await params;
+  const { placed } = await searchParams;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const db = createAdminClient() as any;
 
@@ -57,6 +63,36 @@ export default async function OrderPage({ params }: { params: Promise<{ token: s
             {order.status === "canceled" ? " · canceled" : ""}
           </p>
         </header>
+
+        {/* Fresh-order celebration + payment instructions */}
+        {placed === "1" && order.payment_status === "awaiting" && (
+          <div className="rounded-2xl border border-[#c2ff38]/40 bg-[#c2ff38]/10 p-7 overflow-hidden relative">
+            <p className="font-mono text-[11px] font-bold tracking-[0.25em] uppercase text-[#c2ff38] mb-2">// ORDER PLACED</p>
+            <h2 className="text-3xl font-black mb-2">You&apos;re in. 🤙</h2>
+            <p className="text-sm text-white/80 leading-relaxed mb-5">
+              {(lines ?? [])[0]?.title ? <>The <strong>{(lines ?? [])[0].title}</strong> is officially yours — one transfer away from your first session on it.</> : <>Your gear is one transfer away from its first session.</>}
+            </p>
+            <div className="rounded-xl bg-black/40 border border-white/10 p-4 mb-5">
+              <p className="text-xs text-white/50 mb-1">Pay by bank transfer</p>
+              <p className="text-sm">
+                <strong>{money(order.grand_total)}</strong> · reference{" "}
+                <strong className="font-mono text-[#c2ff38]">NP7-{order.display_number}</strong>
+              </p>
+              <p className="text-xs text-white/50 mt-1">Bank details are in your confirmation email.</p>
+            </div>
+            <div className="grid sm:grid-cols-3 gap-3 text-[11px] text-white/60">
+              {[
+                ["1", "Your transfer lands"],
+                ["2", "We pack, check & ship — tracking here"],
+                ["3", "You ride it"],
+              ].map(([n, t]) => (
+                <p key={n} className="flex items-center gap-2">
+                  <span className="w-5 h-5 rounded-full bg-[#c2ff38] text-black font-black text-[10px] grid place-items-center shrink-0">{n}</span>{t}
+                </p>
+              ))}
+            </div>
+          </div>
+        )}
 
         {/* Progress */}
         {order.status !== "canceled" && (

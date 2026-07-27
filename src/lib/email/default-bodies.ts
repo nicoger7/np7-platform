@@ -31,6 +31,7 @@ export const DEFAULT_SUBJECTS: Record<string, string> = {
   photos_ready: "📸 Your photos from {{experienceTitle}} are here",
   addon_confirmed: "Confirmed: {{addonLabel}} — {{experienceTitle}}",
   hw_return_received: "We got your return request — order {{orderNumber}}",
+  hw_order_confirmation: "Order {{orderNumber}} confirmed — welcome to NP7 Hardware 🤙",
 };
 
 export const DEFAULT_BODIES: Record<string, string> = {
@@ -160,8 +161,27 @@ export const DEFAULT_BODIES: Record<string, string> = {
     BTN("View it in your trip", "bookingLink") +
     P("Any questions, just reply." + SIGN),
 
-  // Hardware: legal acknowledgement of a withdrawal/return declaration
-  // (Directive 2023/2673 — the customer must get a durable-medium confirmation).
+  // Hardware: formal acknowledgement of a WITHDRAWAL declaration (Directive
+  // 2023/2673 — durable-medium confirmation, German legal wording first).
+  withdrawal_received:
+    P("Guten Tag {{firstName}},") +
+    P("hiermit bestätigen wir den Eingang Ihres Widerrufs zur Bestellung <strong>{{orderNumber}}</strong> ({{items}}) am {{declaredDate}}. Diese E-Mail ist Ihre Eingangsbestätigung.") +
+    P("<strong>So geht es weiter:</strong> Wir melden uns mit den Rücksendeinformationen. Boards und sperrige Artikel bitte nicht selbst versenden — wir organisieren die Abholung.") +
+    P("Die Rückerstattung erfolgt innerhalb von 14 Tagen auf das ursprüngliche Zahlungsmittel.") +
+    P("<em>English: we confirm receipt of your withdrawal for order {{orderNumber}} on {{declaredDate}}. We'll send return instructions — don't ship bulky items yourself. Your refund goes to the original payment method within 14 days.</em>") +
+    BTN("Bestellung ansehen / View order", "orderLink") +
+    P("Bei Fragen einfach antworten." + SIGN),
+
+  // Hardware: web-shop order confirmation with bank-transfer instructions.
+  hw_order_confirmation:
+    P("Hey {{firstName}} 🤙") +
+    P("Your order <strong>{{orderNumber}}</strong> is in — total <strong>{{total}}</strong> (incl. VAT).") +
+    P("<strong>How to pay:</strong> bank transfer with reference <strong>{{paymentReference}}</strong>. Our bank details follow in a separate email — we pack and ship the moment your transfer lands.") +
+    P("Track your order, and if needed declare a return, right here:") +
+    BTN("View my order", "orderLink") +
+    P("14-day withdrawal right from delivery. Any questions, just reply." + SIGN),
+
+  // Hardware: acknowledgement of a WARRANTY claim (defect track).
   hw_return_received:
     P("Hey {{firstName}} 🤙") +
     P("We've received your return request for order <strong>{{orderNumber}}</strong> ({{items}}) on {{declaredDate}} — this email is your confirmation.") +

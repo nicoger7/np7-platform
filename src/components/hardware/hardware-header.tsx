@@ -5,6 +5,7 @@ import { useEffect, useState } from "react";
 import { BrandSwitch } from "@/components/experience/brand-switch";
 import { NP7_LOGO } from "@/components/experience/ocean-header";
 import { MemberButton } from "@/components/shared/member-button";
+import { CartBadge } from "@/components/hardware/cart";
 
 const NAV = [
   { label: "Boards", href: "#products" },
@@ -86,6 +87,14 @@ export function HardwareHeader({ variant = "overlay" }: { variant?: "overlay" | 
             className="hidden sm:inline-block shrink-0 px-5 py-2.5 rounded-full text-[12.5px] font-bold text-black bg-[#c2ff38] shadow-[0_0_24px_rgba(194,255,56,0.45)] hover:bg-[#d4ff66] hover:-translate-y-0.5 transition-all"
           >
             Shop gear
+          </Link>
+          {/* cart — appears once something is in it */}
+          <Link href="/hardware/cart" aria-label="Cart" className="shrink-0 flex items-center text-white/70 hover:text-[#c2ff38] transition-colors">
+            <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <circle cx="9" cy="21" r="1" /><circle cx="20" cy="21" r="1" />
+              <path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6" />
+            </svg>
+            <CartBadge />
           </Link>
           {/* account lives in the far-right corner, after the CTA */}
           <MemberButton section="hardware" />

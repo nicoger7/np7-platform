@@ -2,10 +2,93 @@
 // these so the hw_order_events trail stays complete — emails/3PL will consume
 // events later, never poll mutable state.
 
-import { EU_COUNTRIES, deriveFulfillmentStatus, derivePaymentStatus, type PaymentStatus } from "./orders";
+import { EU_COUNTRIES, computeLine, deriveFulfillmentStatus, derivePaymentStatus, toCents, type PaymentStatus } from "./orders";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type Db = any;
+
+export type CreateOrderInput = {
+  email: string;
+  phone?: string | null;
+  country: string;
+  channel: "admin" | "web";
+  lines: { variant_id: string; quantity: number; unit_price_eur?: string | number }[];
+  notes?: string | null;
+  contact_id?: string | null;
+  shipping_address?: Record<string, unknown> | null;
+  billing_address?: Record<string, unknown> | null;
+  /** Admin may type a price; the web shop NEVER trusts client prices. */
+  allowPriceOverride: boolean;
+};
+
+/** Shared order creation (admin entry + web checkout): server-side pricing from
+ *  the catalog, destination VAT, snapshotted lines, created event. Returns the
+ *  order + inserted lines, or an error with an HTTP-ish status. */
+export async function createOrderCore(db: Db, input: CreateOrderInput): Promise<
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  { order: any; lines: any[]; error?: undefined; status?: undefined } | { error: string; status: number; order?: never; lines?: never }
+> {
+  const variantIds = input.lines.map((l) => l.variant_id).filter(Boolean);
+  if (!variantIds.length) return { error: "at least one line is required", status: 400 };
+  const { data: variants } = await db.from("hw_variants")
+    .select("id,sku,name,rrp,lifecycle,archived_at,hw_products(name,price,status)").in("id", variantIds);
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const byId = new Map(((variants ?? []) as any[]).map((v) => [v.id, v]));
+
+  const country = (input.country || "DE").toUpperCase();
+  const tax = await resolveTax(db, country);
+
+  const lines = [];
+  let subtotalNet = 0, taxTotal = 0, grandTotal = 0;
+  for (const l of input.lines) {
+    const v = byId.get(l.variant_id);
+    if (!v || v.archived_at) return { error: "unknown variant on a line", status: 400 };
+    if (input.channel === "web" && (v.hw_products?.status !== "published" || ["discontinued"].includes(v.lifecycle))) {
+      return { error: `${v.sku} is not available in the shop.`, status: 409 };
+    }
+    const qty = Math.max(1, Number(l.quantity) || 1);
+    const grossDefault = v.rrp ?? v.hw_products?.price ?? 0;
+    const unitGross = input.allowPriceOverride && l.unit_price_eur != null && l.unit_price_eur !== ""
+      ? toCents(l.unit_price_eur)
+      : toCents(grossDefault);
+    if (!unitGross) return { error: `${v.sku} has no price — set an RRP first.`, status: 400 };
+    const t = computeLine(qty, unitGross, tax.rate);
+    subtotalNet += t.totalNet; taxTotal += t.taxAmount; grandTotal += t.totalGross;
+    lines.push({
+      variant_id: v.id, sku: v.sku, title: v.hw_products?.name ?? v.name, variant_title: v.name,
+      quantity: qty, unit_price_net: t.unitNet, unit_price_gross: unitGross,
+      tax_rate: tax.rate, tax_amount: t.taxAmount, total_gross: t.totalGross,
+    });
+  }
+
+  // Link an existing contact by email so orders surface in the CRM.
+  let contactId = input.contact_id ?? null;
+  if (!contactId) {
+    const { data: contact } = await db.from("contacts").select("id").ilike("email", input.email).maybeSingle();
+    contactId = contact?.id ?? null;
+  }
+
+  const { data: order, error } = await db.from("hw_orders").insert({
+    email: input.email, contact_id: contactId, phone: input.phone ?? null,
+    tax_country: country, tax_treatment: tax.treatment,
+    tax_breakdown: [{ rate: tax.rate, net: subtotalNet, tax: taxTotal }],
+    subtotal_net: subtotalNet, tax_total: taxTotal, grand_total: grandTotal,
+    shipping_address: input.shipping_address ?? null, billing_address: input.billing_address ?? null,
+    notes: input.notes ?? null, sales_channel: input.channel,
+  }).select().single();
+  if (error) return { error: error.message, status: 400 };
+
+  const withOrder = lines.map((l) => ({ ...l, order_id: order.id }));
+  const { data: insertedLines, error: lineErr } = await db.from("hw_order_lines").insert(withOrder).select();
+  if (lineErr) {
+    await db.from("hw_orders").delete().eq("id", order.id);
+    return { error: lineErr.message, status: 400 };
+  }
+  await logOrderEvent(db, order.id, "order_created", input.channel === "web" ? "customer" : "admin", {
+    channel: input.channel, grand_total: grandTotal,
+  });
+  return { order, lines: insertedLines };
+}
 
 export async function logOrderEvent(db: Db, orderId: string, type: string, actor = "admin", payload: Record<string, unknown> = {}) {
   await db.from("hw_order_events").insert({ order_id: orderId, type, actor, payload });
