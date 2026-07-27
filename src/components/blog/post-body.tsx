@@ -1,5 +1,6 @@
 import React from "react";
 import { cdnImage } from "@/lib/img";
+import { ZoomImage } from "@/components/blog/zoom-image";
 
 /**
  * Minimal markdown renderer for blog posts. Supports the subset documented in
@@ -145,8 +146,7 @@ export function PostBody({ content }: { content: string }) {
           case "img":
             return (
               <figure key={i} className="py-2">
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img src={cdnImage(b.src, { width: 1100 })} alt={b.alt} className="w-full rounded-2xl" loading="lazy" />
+                <ZoomImage src={cdnImage(b.src, { width: 1100 })} zoomSrc={cdnImage(b.src, { width: 2000 })} alt={b.alt} />
                 {b.alt && <figcaption className="text-[12px] text-[#8a9aa0] text-center mt-2.5">{b.alt}</figcaption>}
               </figure>
             );

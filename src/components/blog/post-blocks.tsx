@@ -22,6 +22,7 @@ import {
 } from "@/lib/blog-templates";
 import { SpotsAccordion, type SpotNote } from "./spots-accordion";
 import { SpotsMap } from "./spots-map";
+import { ZoomImage } from "./zoom-image";
 import { cdnImage } from "@/lib/img";
 
 /** Keys handled by the dedicated CTA band, not the generic block loop. */
@@ -209,8 +210,7 @@ function Block({ field, theme, data, slug, notesBySpot }: { field: TemplateField
                   {s.description && <p className="text-[15.5px] text-[#5a6b72] leading-relaxed whitespace-pre-line">{s.description}</p>}
                   {s.image && (
                     <figure className="mt-3">
-                      {/* eslint-disable-next-line @next/next/no-img-element */}
-                      <img src={cdnImage(s.image, { width: 1100 })} alt={s.title || `Step ${i + 1}`} className="w-full rounded-xl border border-[#ece3d3]" loading="lazy" />
+                      <ZoomImage src={cdnImage(s.image, { width: 1100 })} zoomSrc={cdnImage(s.image, { width: 2000 })} alt={s.title || `Step ${i + 1}`} />
                     </figure>
                   )}
                 </div>
@@ -246,8 +246,7 @@ function Block({ field, theme, data, slug, notesBySpot }: { field: TemplateField
       if (!src) return null;
       return (
         <figure className="py-1">
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src={cdnImage(src, { width: 1100 })} alt={field.label} className="w-full rounded-2xl" loading="lazy" />
+          <ZoomImage src={cdnImage(src, { width: 1100 })} zoomSrc={cdnImage(src, { width: 2000 })} alt={field.label} />
         </figure>
       );
     }
@@ -390,8 +389,7 @@ function Chapters({ chapters, theme }: { chapters: Chapter[]; theme: WorldTheme 
             </div>
             {c.image && (
               <figure className="mb-5">
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img src={cdnImage(c.image, { width: 1200 })} alt={c.title || `Chapter ${i + 1}`} className="w-full rounded-2xl" loading="lazy" />
+                <ZoomImage src={cdnImage(c.image, { width: 1200 })} zoomSrc={cdnImage(c.image, { width: 2000 })} alt={c.title || `Chapter ${i + 1}`} />
               </figure>
             )}
             {c.intro && <p className="text-[16px] sm:text-[17px] text-[#5a6b72] leading-relaxed whitespace-pre-line">{c.intro}</p>}
