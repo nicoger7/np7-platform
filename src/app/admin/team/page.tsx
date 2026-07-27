@@ -3,8 +3,8 @@
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import {
-  WORLDS, SECTIONS, FIELDS, builtinAccess, normalizeAccess, mergeAccess,
-  type RoleAccess, type WorldId, type SectionLevel, type FieldKey,
+  WORLDS, SECTIONS, FIELDS, builtinAccess, normalizeAccess, mergeAccess, normalizeLevel, OWNER_ONLY_SECTIONS,
+  type RoleAccess, type WorldId, type SectionLevel, type FieldKey, type AccessLevel,
 } from "@/lib/access";
 
 /**
@@ -26,6 +26,7 @@ interface TeamMember {
   total_hours: number;
   total_cost: number | null;
   role_ids?: string[] | null;
+  access_level?: string | null; // legacy tier — governs members WITHOUT a role
 }
 
 type RoleRow = { id: string; name: string; description?: string | null; system_key?: string | null; is_system?: boolean; access?: unknown };
@@ -62,25 +63,34 @@ function initials(name: string): string {
   return name.split(/\s+/).filter(Boolean).slice(0, 2).map((p) => p[0]!.toUpperCase()).join("") || "?";
 }
 
-/** One-glance access summary for a member. */
-function summarize(roleIds: string[], roles: RoleRow[]) {
-  const eff = effectiveFor(roleIds, roles);
+/** One-glance access summary for a member. Members without a (valid) role are
+ *  governed by their legacy TIER (access_level: owner OR manager — matches
+ *  admin-auth.ts), not blanket "full access". */
+function summarize(roleIds: string[], roles: RoleRow[], accessLevel: string | null | undefined) {
+  let eff = effectiveFor(roleIds, roles);
+  let tier: AccessLevel | null = null;
   if (!eff) {
-    // Legacy fallback: no role assigned → Owner tier (full access).
-    return { eff: null, worlds: WORLDS.map((w) => w.id) as WorldId[], edit: SECTIONS.length, view: 0, hidden: [] as FieldKey[], fallback: true, ownerOverride: false };
+    tier = normalizeLevel(accessLevel);
+    eff = builtinAccess(tier); // owner = everything; manager = no Finance/Team/Analytics
   }
-  const levels = SECTIONS.map((s) => (eff.worlds.includes(s.world) ? (eff.sections[s.key] ?? "none") : "none"));
+  const levels = SECTIONS.map((s) => (eff!.worlds.includes(s.world) ? (eff!.sections[s.key] ?? "none") : "none"));
   const edit = levels.filter((l) => l === "edit").length;
   const view = levels.filter((l) => l === "view").length;
-  const hidden = FIELDS.map((f) => f.key).filter((k) => !eff.worlds.some((w) => eff.fields[w]?.[k] === true));
+  // Sensitive-data claim is only made for the Experience world — the one where
+  // redaction is actually enforced today (REDACTION_COVERAGE) — never as a
+  // cross-world union that could overstate visibility.
+  const hiddenExp = eff.worlds.includes("experience")
+    ? FIELDS.map((f) => f.key).filter((k) => eff!.fields.experience?.[k] !== true)
+    : [];
   const ownerOverride = roleIds.length > 1 && roles.some((r) => roleIds.includes(r.id) && r.system_key === "owner");
-  return { eff, worlds: eff.worlds, edit, view, hidden, fallback: false, ownerOverride };
+  return { eff, tier, worlds: eff.worlds, edit, view, hiddenExp, hasExperience: eff.worlds.includes("experience"), ownerOverride };
 }
 
 export default function TeamPage() {
   const [members, setMembers] = useState<TeamMember[]>([]);
   const [roles, setRoles] = useState<RoleRow[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [membersLoading, setMembersLoading] = useState(true);
+  const [rolesState, setRolesState] = useState<"loading" | "ok" | "error">("loading");
   const [drawerId, setDrawerId] = useState<string | null>(null); // member whose access is being edited
   const [draftRoleIds, setDraftRoleIds] = useState<string[]>([]);
   const [savingAccess, setSavingAccess] = useState(false);
@@ -89,10 +99,17 @@ export default function TeamPage() {
   const [showNew, setShowNew] = useState(false);
 
   function load() {
-    fetch("/api/admin/team").then((r) => r.json()).then((d) => { setMembers(Array.isArray(d) ? d : []); setLoading(false); });
-    fetch("/api/admin/roles").then((r) => r.json()).then((d) => setRoles(d.roles ?? [])).catch(() => {});
+    fetch("/api/admin/team").then((r) => r.json()).then((d) => { setMembers(Array.isArray(d) ? d : []); setMembersLoading(false); });
+    // The access summaries depend on the roles catalog — a failed roles fetch
+    // must surface as an error, never render everyone as "full access".
+    setRolesState((s) => (s === "ok" ? s : "loading"));
+    fetch("/api/admin/roles")
+      .then((r) => { if (!r.ok) throw new Error(String(r.status)); return r.json(); })
+      .then((d) => { setRoles(d.roles ?? []); setRolesState("ok"); })
+      .catch(() => setRolesState("error"));
   }
   useEffect(load, []);
+  const loading = membersLoading || rolesState === "loading";
 
   const drawerMember = members.find((m) => m.id === drawerId) || null;
 
@@ -105,36 +122,54 @@ export default function TeamPage() {
   async function saveAccess() {
     if (!drawerId) return;
     setSavingAccess(true); setAccessErr("");
-    const res = await fetch(`/api/admin/team/${drawerId}`, {
-      method: "PATCH", headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ role_ids: draftRoleIds }),
-    });
-    setSavingAccess(false);
-    if (!res.ok) { const e = await res.json().catch(() => ({})); setAccessErr(e.error || "Could not save."); return; }
-    setMembers((ms) => ms.map((m) => (m.id === drawerId ? { ...m, role_ids: [...draftRoleIds] } : m)));
-    setDrawerId(null);
+    try {
+      const res = await fetch(`/api/admin/team/${drawerId}`, {
+        method: "PATCH", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ role_ids: draftRoleIds }),
+      });
+      if (!res.ok) { const e = await res.json().catch(() => ({})); setAccessErr(e.error || "Could not save."); return; }
+      setMembers((ms) => ms.map((m) => (m.id === drawerId ? { ...m, role_ids: [...draftRoleIds] } : m)));
+      setDrawerId(null);
+    } catch {
+      setAccessErr("Network error — couldn't reach the server.");
+    } finally {
+      setSavingAccess(false);
+    }
   }
 
   async function sendInvite(m: TeamMember) {
     if (!m.email) return;
     setInviteState((s) => ({ ...s, [m.id]: "sending" }));
-    const res = await fetch(`/api/admin/team/${m.id}/invite`, { method: "POST" });
-    if (res.ok) {
-      setInviteState((s) => ({ ...s, [m.id]: "sent" }));
-      setTimeout(() => setInviteState((s) => ({ ...s, [m.id]: undefined })), 3000);
-    } else {
+    try {
+      const res = await fetch(`/api/admin/team/${m.id}/invite`, { method: "POST" });
+      if (res.ok) {
+        setInviteState((s) => ({ ...s, [m.id]: "sent" }));
+        setTimeout(() => setInviteState((s) => ({ ...s, [m.id]: undefined })), 3000);
+      } else {
+        setInviteState((s) => ({ ...s, [m.id]: undefined }));
+        const j = await res.json().catch(() => ({}));
+        alert(j.error || "Could not send the invite.");
+      }
+    } catch {
       setInviteState((s) => ({ ...s, [m.id]: undefined }));
-      const j = await res.json().catch(() => ({}));
-      alert(j.error || "Could not send the invite.");
+      alert("Network error — couldn't send the invite.");
     }
   }
 
   async function toggleActive(m: TeamMember) {
     setMembers((ms) => ms.map((x) => (x.id === m.id ? { ...x, active: !m.active } : x)));
-    const res = await fetch(`/api/admin/team/${m.id}`, {
-      method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ active: !m.active }),
-    });
-    if (!res.ok) load(); // revert on failure
+    try {
+      const res = await fetch(`/api/admin/team/${m.id}`, {
+        method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ active: !m.active }),
+      });
+      if (!res.ok) load(); // revert on failure
+    } catch { load(); }
+  }
+
+  async function handleDuplicate(m: TeamMember) {
+    try {
+      await fetch(`/api/admin/team/${m.id}/duplicate`, { method: "POST" });
+    } finally { load(); }
   }
 
   async function handleDelete(m: TeamMember) {
@@ -143,11 +178,20 @@ export default function TeamPage() {
     load();
   }
 
-  // Does anyone (besides `exceptId` with `ids`) still hold the Owner role?
+  // Does anyone (besides `exceptId` with draft `ids`) still hold owner-level
+  // access? Only ACTIVE members count (inactive can't log in), and role-less
+  // members count only if their legacy tier is actually "owner".
   const ownerRoleId = roles.find((r) => r.system_key === "owner")?.id;
+  function memberIsOwner(m: TeamMember): boolean {
+    if (!m.active) return false;
+    const ids = m.role_ids ?? [];
+    if (ownerRoleId && ids.includes(ownerRoleId)) return true;
+    // No valid role → tier fallback governs (deleted-role ids resolve here too).
+    return effectiveFor(ids, roles) === null && normalizeLevel(m.access_level) === "owner";
+  }
   function otherOwnerExists(exceptId: string, ids: string[]): boolean {
     if (ownerRoleId && ids.includes(ownerRoleId)) return true;
-    return members.some((m) => m.id !== exceptId && ((m.role_ids ?? []).includes(ownerRoleId ?? "") || (m.role_ids ?? []).length === 0));
+    return members.some((m) => m.id !== exceptId && memberIsOwner(m));
   }
 
   const sorted = useMemo(
@@ -174,6 +218,13 @@ export default function TeamPage() {
         </div>
       </div>
 
+      {rolesState === "error" && !loading && (
+        <div className="mb-4 p-3 rounded-lg text-xs flex items-center justify-between gap-3" style={{ border: "1px solid rgba(239,68,68,0.45)", background: "rgba(239,68,68,0.08)", color: "#ef4444" }}>
+          <span>Couldn&apos;t load the roles catalog — access summaries can&apos;t be shown reliably right now.</span>
+          <button onClick={load} className="px-2.5 py-1 rounded-lg font-bold shrink-0" style={{ border: "1px solid rgba(239,68,68,0.45)" }}>Retry</button>
+        </div>
+      )}
+
       {loading ? (
         <div className="py-12 text-center text-sm admin-faint">Loading…</div>
       ) : members.length === 0 ? (
@@ -183,9 +234,10 @@ export default function TeamPage() {
       ) : (
         <div className="grid sm:grid-cols-2 xl:grid-cols-3 gap-4">
           {sorted.map((m) => {
-            const s = summarize(m.role_ids ?? [], roles);
+            const s = summarize(m.role_ids ?? [], roles, m.access_level);
             const memberRoles = roles.filter((r) => (m.role_ids ?? []).includes(r.id));
             const inv = inviteState[m.id];
+            const rolesOk = rolesState === "ok";
             return (
               <div key={m.id} className={`rounded-xl p-4 flex flex-col gap-3 transition-opacity ${m.active ? "" : "opacity-55"}`} style={{ border: "1px solid var(--admin-border)", backgroundColor: "var(--admin-surface)" }}>
                 {/* Who */}
@@ -204,18 +256,25 @@ export default function TeamPage() {
 
                 {/* Access roles */}
                 <div className="flex flex-wrap items-center gap-1.5">
-                  {memberRoles.length === 0 ? (
-                    <span className="px-2 py-0.5 rounded text-[10px] font-bold" style={{ background: "rgba(245,158,11,0.15)", color: "#f59e0b" }}>No role → full access</span>
+                  {!rolesOk ? (
+                    <span className="px-2 py-0.5 rounded text-[10px] font-bold admin-faint" style={{ border: "1px dashed var(--admin-border)" }}>Access info unavailable</span>
+                  ) : memberRoles.length === 0 ? (
+                    s.tier === "manager" ? (
+                      <span className="px-2 py-0.5 rounded text-[10px] font-bold" style={{ background: "rgba(10,163,199,0.13)", color: "#0aa3c7" }}>No role → Manager tier</span>
+                    ) : (
+                      <span className="px-2 py-0.5 rounded text-[10px] font-bold" style={{ background: "rgba(245,158,11,0.15)", color: "#f59e0b" }}>No role → Owner (everything)</span>
+                    )
                   ) : (
                     memberRoles.map((r) => {
                       const c = roleChipStyle(r);
                       return <span key={r.id} className="px-2 py-0.5 rounded text-[10px] font-bold" style={{ background: c.bg, color: c.fg }}>{r.name}</span>;
                     })
                   )}
-                  {s.ownerOverride && <span className="text-[10px] font-semibold" style={{ color: "#f59e0b" }} title="Owner grants everything — the other roles change nothing.">⚠ Owner overrides</span>}
+                  {rolesOk && s.ownerOverride && <span className="text-[10px] font-semibold" style={{ color: "#f59e0b" }} title="Owner grants everything — the other roles change nothing.">⚠ Owner overrides</span>}
                 </div>
 
                 {/* What they can reach */}
+                {rolesOk && (
                 <div className="rounded-lg px-3 py-2.5 space-y-1.5" style={{ background: "var(--admin-surface-hover)" }}>
                   <div className="flex flex-wrap gap-1.5">
                     {WORLDS.map((w) => {
@@ -229,20 +288,22 @@ export default function TeamPage() {
                     })}
                   </div>
                   <p className="text-[11px] admin-muted">
-                    {s.fallback ? (
+                    {s.tier === "owner" ? (
                       <>Everything — all areas, all data <span className="admin-faint">(Owner fallback)</span></>
                     ) : (
                       <>
                         {s.edit > 0 && <><strong className="admin-heading">{s.edit}</strong> area{s.edit !== 1 ? "s" : ""} edit</>}
                         {s.view > 0 && <>{s.edit > 0 ? " · " : ""}<strong className="admin-heading">{s.view}</strong> view-only</>}
                         {s.edit === 0 && s.view === 0 && <>No areas granted</>}
-                        {s.hidden.length > 0
-                          ? <span style={{ color: "#f59e0b" }}> · hides {s.hidden.map((h) => HIDDEN_LABEL[h]).join(", ")}</span>
-                          : (s.edit > 0 || s.view > 0) && <span className="admin-faint"> · sees all sensitive data</span>}
+                        {s.tier === "manager" && <span className="admin-faint"> (legacy Manager tier)</span>}
+                        {s.hasExperience && (s.hiddenExp.length > 0
+                          ? <span style={{ color: "#f59e0b" }}> · hides {s.hiddenExp.map((h) => HIDDEN_LABEL[h]).join(", ")}</span>
+                          : (s.edit > 0 || s.view > 0) && <span className="admin-faint"> · sees all sensitive data</span>)}
                       </>
                     )}
                   </p>
                 </div>
+                )}
 
                 {/* Actions */}
                 <div className="flex items-center gap-2 mt-auto pt-1">
@@ -252,7 +313,7 @@ export default function TeamPage() {
                   <button onClick={() => sendInvite(m)} disabled={!m.email || inv === "sending"} title={m.email ? `Email a login link to ${m.email}` : "Add an email on the profile first"} className="px-3 py-1.5 text-xs font-semibold rounded-lg transition-colors admin-muted hover:text-[var(--admin-accent)] disabled:opacity-35" style={{ border: "1px solid var(--admin-border)" }}>
                     {inv === "sending" ? "Sending…" : inv === "sent" ? "Sent ✓" : "Invite"}
                   </button>
-                  <CardMenu member={m} onToggleActive={() => toggleActive(m)} onDelete={() => handleDelete(m)} />
+                  <CardMenu member={m} onToggleActive={() => toggleActive(m)} onDuplicate={() => handleDuplicate(m)} onDelete={() => handleDelete(m)} />
                 </div>
 
                 {(m.total_hours > 0 || m.rate_per_hour != null) && (
@@ -293,21 +354,26 @@ export default function TeamPage() {
 
 /* ─── Card ⋯ menu (click-toggled so it works on touch) ───────────────────── */
 
-function CardMenu({ member, onToggleActive, onDelete }: { member: TeamMember; onToggleActive: () => void; onDelete: () => void }) {
+function CardMenu({ member, onToggleActive, onDuplicate, onDelete }: { member: TeamMember; onToggleActive: () => void; onDuplicate: () => void; onDelete: () => void }) {
   const [open, setOpen] = useState(false);
   useEffect(() => {
     if (!open) return;
+    // No stopPropagation on the trigger, so opening one menu lets this
+    // document listener close any other open menu at the same time.
     const close = () => setOpen(false);
+    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") setOpen(false); };
     document.addEventListener("click", close);
-    return () => document.removeEventListener("click", close);
+    document.addEventListener("keydown", onKey);
+    return () => { document.removeEventListener("click", close); document.removeEventListener("keydown", onKey); };
   }, [open]);
   return (
     <div className="relative">
-      <button onClick={(e) => { e.stopPropagation(); setOpen((v) => !v); }} className="px-2 py-1.5 text-xs rounded-lg admin-faint hover:admin-muted transition-colors" style={{ border: "1px solid var(--admin-border)" }} aria-label="More actions" aria-expanded={open}>⋯</button>
+      <button onClick={() => setOpen((v) => !v)} className="px-2 py-1.5 text-xs rounded-lg admin-faint hover:admin-muted transition-colors" style={{ border: "1px solid var(--admin-border)" }} aria-label="More actions" aria-expanded={open}>⋯</button>
       {open && (
         <div className="absolute right-0 top-full mt-1 z-20 rounded-lg overflow-hidden min-w-[150px]" style={{ border: "1px solid var(--admin-border)", background: "var(--admin-surface)", boxShadow: "0 8px 24px rgba(0,0,0,0.18)" }}>
           <Link href={`/admin/team/${member.id}`} className="block px-3 py-2 text-xs admin-muted hover:bg-[var(--admin-surface-hover)]">Open profile</Link>
           <button onClick={onToggleActive} className="block w-full text-left px-3 py-2 text-xs admin-muted hover:bg-[var(--admin-surface-hover)]">{member.active ? "Deactivate" : "Reactivate"}</button>
+          <button onClick={onDuplicate} className="block w-full text-left px-3 py-2 text-xs admin-muted hover:bg-[var(--admin-surface-hover)]">Duplicate</button>
           <button onClick={onDelete} className="block w-full text-left px-3 py-2 text-xs text-red-400 hover:bg-red-500/10">Delete…</button>
         </div>
       )}
@@ -390,11 +456,15 @@ function AccessDrawer({ member, roles, draftRoleIds, setDraftRoleIds, saving, er
             ⚠ <strong>Owner</strong> grants everything — the other selected roles change nothing. Remove Owner to actually limit {first}.
           </p>
         )}
-        {draftRoleIds.length === 0 && (
+        {draftRoleIds.length === 0 && (normalizeLevel(member.access_level) === "owner" ? (
           <p className="text-[11px] px-3 py-2 rounded-lg" style={{ border: "1px solid rgba(245,158,11,0.45)", background: "rgba(245,158,11,0.08)", color: "#f59e0b" }}>
             ⚠ No role selected — {first} falls back to <strong>full Owner access</strong>. Pick at least one role to limit them.
           </p>
-        )}
+        ) : (
+          <p className="text-[11px] px-3 py-2 rounded-lg admin-muted" style={{ border: "1px solid var(--admin-border)" }}>
+            No role selected — {first} falls back to the legacy <strong>Manager</strong> tier (everything except Finance, Company settings, Team admin and Analytics).
+          </p>
+        ))}
         {noOwnerLeft && roles.length > 0 && (
           <p className="text-[11px] px-3 py-2 rounded-lg" style={{ border: "1px solid rgba(239,68,68,0.45)", background: "rgba(239,68,68,0.08)", color: "#ef4444" }}>
             ⚠ After this change nobody on the team holds <strong>Owner</strong> — make sure you keep owner access for yourself.
@@ -418,14 +488,18 @@ function AccessDrawer({ member, roles, draftRoleIds, setDraftRoleIds, saving, er
                   );
                 })}
               </div>
-              {(() => {
-                const hidden = FIELDS.map((f) => f.key).filter((k) => !eff.worlds.some((w) => eff.fields[w]?.[k] === true));
-                return hidden.length ? (
-                  <p className="text-[11px]" style={{ color: "#f59e0b" }}>Hidden: {hidden.map((h) => HIDDEN_LABEL[h]).join(", ")}</p>
-                ) : (
-                  <p className="text-[11px] admin-faint">Sees all sensitive data (prices, costs, personal data).</p>
+              {/* Sensitive data, stated PER WORLD — a union claim could overstate
+                  what a multi-world role sees where redaction actually runs. */}
+              {WORLDS.filter((w) => eff.worlds.includes(w.id)).map((w) => {
+                const hiddenW = FIELDS.map((f) => f.key).filter((k) => eff.fields[w.id]?.[k] !== true);
+                return (
+                  <p key={w.id} className="text-[11px]" style={hiddenW.length ? { color: "#f59e0b" } : undefined}>
+                    <span className={hiddenW.length ? "" : "admin-faint"}>
+                      {WORLD_SHORT[w.id]}: {hiddenW.length ? `hides ${hiddenW.map((h) => HIDDEN_LABEL[h]).join(", ")}` : "all sensitive data visible"}
+                    </span>
+                  </p>
                 );
-              })()}
+              })}
               {/* Per-world area detail */}
               {WORLDS.filter((w) => eff.worlds.includes(w.id)).map((w) => {
                 const granted = SECTIONS.filter((s) => s.world === w.id && (eff.sections[s.key] ?? "none") !== "none");
@@ -490,7 +564,10 @@ function NewMemberPanel({ roles, onClose, onCreated }: { roles: RoleRow[]; onClo
   }, [onClose]);
 
   const eff = effectiveFor(roleIds, roles);
-  const hidden = eff ? FIELDS.map((f) => f.key).filter((k) => !eff.worlds.some((w) => eff.fields[w]?.[k] === true)) : [];
+  // Sensitive-data claim only for the Experience world (where redaction is enforced).
+  const hidden = eff?.worlds.includes("experience")
+    ? FIELDS.map((f) => f.key).filter((k) => eff.fields.experience?.[k] !== true)
+    : [];
 
   async function create() {
     if (!form.name.trim()) { setErr("Give them a name."); return; }
@@ -550,6 +627,7 @@ function NewMemberPanel({ roles, onClose, onCreated }: { roles: RoleRow[]; onClo
             <div><label className={labelClass}>Phone</label><input className={inputClass} value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })} /></div>
             <div><label className={labelClass}>Rate €/h</label><input className={inputClass} type="number" step="0.01" value={form.rate_per_hour} onChange={(e) => setForm({ ...form, rate_per_hour: e.target.value })} /></div>
           </div>
+          <div className="sm:col-span-2"><label className={labelClass}>Notes</label><input className={inputClass} value={form.notes} onChange={(e) => setForm({ ...form, notes: e.target.value })} placeholder="Anything the team should know" /></div>
         </div>
 
         <p className="text-xs font-bold admin-heading mb-2">Access</p>
@@ -579,7 +657,9 @@ function NewMemberPanel({ roles, onClose, onCreated }: { roles: RoleRow[]; onClo
             ? <>⚠ <strong style={{ color: "#f59e0b" }}>Full access</strong> — no role selected means the Owner fallback (everything, incl. finance).</>
             : <>
                 Can enter <strong className="admin-heading">{eff.worlds.map((w) => WORLD_SHORT[w]).join(", ") || "no worlds"}</strong>
-                {hidden.length > 0 ? <span style={{ color: "#f59e0b" }}> · hides {hidden.map((h) => HIDDEN_LABEL[h]).join(", ")}</span> : " · sees all sensitive data"}
+                {eff.worlds.includes("experience") && (hidden.length > 0
+                  ? <span style={{ color: "#f59e0b" }}> · hides {hidden.map((h) => HIDDEN_LABEL[h]).join(", ")} in Experience</span>
+                  : " · sees all sensitive data in Experience")}
               </>}
         </p>
 
