@@ -1,4 +1,4 @@
-import { NextResponse } from "next/server";
+import { NextResponse, after } from "next/server";
 import { createAdminClient } from "@/lib/supabase";
 
 /**
@@ -31,6 +31,72 @@ function refHost(referrer: unknown): string | null {
 
 const DEVICES = new Set(["mobile", "tablet", "desktop"]);
 
+/**
+ * Cross-site mirror: Nico's nicoprien.com admin aggregates web analytics for
+ * both properties (site switcher in its dashboard). We forward a copy of every
+ * event server-side — the visitor's browser makes zero extra requests, and the
+ * one existing consent gate keeps deciding what reaches this route at all.
+ * Best-effort: a dead collector must never affect our own tracking.
+ */
+const MIRROR_ENDPOINT = "https://admin.nicoprien.com/api/public/track";
+
+type Row = ReturnType<typeof buildRow>;
+
+function buildRow(ev: Record<string, unknown>, country: string | null) {
+  const device = clip(ev.device, 12);
+  let meta: Record<string, unknown> = {};
+  if (ev.meta && typeof ev.meta === "object" && !Array.isArray(ev.meta)) {
+    // keep meta small + string-ish
+    meta = Object.fromEntries(
+      Object.entries(ev.meta as Record<string, unknown>)
+        .slice(0, 12)
+        .map(([k, v]) => [k.slice(0, 40), typeof v === "string" ? v.slice(0, 200) : v])
+    );
+  }
+  return {
+    session_id: clip(ev.sessionId, 60) || "anon",
+    visitor_id: clip(ev.visitorId, 60),
+    event: clip(ev.event, 40) || "pageview",
+    path: clip(ev.path, 300),
+    referrer_host: refHost(ev.referrer),
+    utm_source: clip(ev.utmSource, 80),
+    utm_medium: clip(ev.utmMedium, 80),
+    utm_campaign: clip(ev.utmCampaign, 120),
+    device: device && DEVICES.has(device) ? device : null,
+    experience_slug: clip(ev.experienceSlug, 120),
+    country: country ? country.slice(0, 2).toUpperCase() : null,
+    authed: ev.authed === true,
+    meta,
+  };
+}
+
+async function mirrorToNicoprienAdmin(rows: Row[], referrers: (string | null)[]) {
+  await Promise.allSettled(
+    rows.map((r, i) => {
+      const payload = {
+        site: "np-seven",
+        event: r.event,
+        sessionId: r.session_id,
+        visitorId: r.visitor_id,
+        path: r.path,
+        referrer: referrers[i] || undefined,
+        utmSource: r.utm_source || undefined,
+        utmMedium: r.utm_medium || undefined,
+        utmCampaign: r.utm_campaign || undefined,
+        device: r.device || undefined,
+        meta: Object.keys(r.meta).length ? r.meta : undefined,
+      };
+      // text/plain mirrors the collector's own sendBeacon clients
+      return fetch(MIRROR_ENDPOINT, {
+        method: "POST",
+        headers: { "Content-Type": "text/plain" },
+        body: JSON.stringify(payload),
+        signal: AbortSignal.timeout(4000),
+      });
+    })
+  );
+}
+
 export async function POST(req: Request) {
   let body: Record<string, unknown> = {};
   try {
@@ -47,36 +113,20 @@ export async function POST(req: Request) {
 
   // A batch of events, or a single event.
   const raw = Array.isArray(body.events) ? body.events : [body];
-  const rows = raw.slice(0, EVENTS_MAX).map((e) => {
-    const ev = (e ?? {}) as Record<string, unknown>;
-    const device = clip(ev.device, 12);
-    let meta: Record<string, unknown> = {};
-    if (ev.meta && typeof ev.meta === "object" && !Array.isArray(ev.meta)) {
-      // keep meta small + string-ish
-      meta = Object.fromEntries(
-        Object.entries(ev.meta as Record<string, unknown>)
-          .slice(0, 12)
-          .map(([k, v]) => [k.slice(0, 40), typeof v === "string" ? v.slice(0, 200) : v])
-      );
-    }
-    return {
-      session_id: clip(ev.sessionId, 60) || "anon",
-      visitor_id: clip(ev.visitorId, 60),
-      event: clip(ev.event, 40) || "pageview",
-      path: clip(ev.path, 300),
-      referrer_host: refHost(ev.referrer),
-      utm_source: clip(ev.utmSource, 80),
-      utm_medium: clip(ev.utmMedium, 80),
-      utm_campaign: clip(ev.utmCampaign, 120),
-      device: device && DEVICES.has(device) ? device : null,
-      experience_slug: clip(ev.experienceSlug, 120),
-      country: country ? country.slice(0, 2).toUpperCase() : null,
-      authed: ev.authed === true,
-      meta,
-    };
-  });
+  const evs = raw.slice(0, EVENTS_MAX).map((e) => (e ?? {}) as Record<string, unknown>);
+  const rows = evs.map((ev) => buildRow(ev, country));
+  // full referrers only travel to the mirror — our own table stores just the host
+  const referrers = evs.map((ev) => clip(ev.referrer, 400));
 
   if (!rows.length) return NextResponse.json({ ok: true });
+
+  after(async () => {
+    try {
+      await mirrorToNicoprienAdmin(rows, referrers);
+    } catch (e) {
+      console.error("[track] mirror to nicoprien admin failed:", e instanceof Error ? e.message : e);
+    }
+  });
 
   try {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
