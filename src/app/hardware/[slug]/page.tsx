@@ -11,7 +11,7 @@ import { NP7_LOGO } from "@/components/experience/ocean-header";
 import { getTemplate } from "@/lib/hardware/templates";
 import type { ModuleKey } from "@/lib/hardware/templates";
 import type { Product, ProductContent, SpecRow, FitSegment } from "@/lib/hardware/types";
-import { LIME, PINK, BLUE, INK, INK_SOFT, SAND, SAND_DEEP, sandGrainOverlay } from "@/components/hardware/theme";
+import { LIME, PINK, BONE, INK, INK_SOFT, SAND, SAND_DEEP, sandGrainOverlay } from "@/components/hardware/theme";
 
 export const revalidate = 60;
 
@@ -71,7 +71,7 @@ function HeroModule({
         <div
           className="absolute inset-0"
           style={{
-            background: `radial-gradient(ellipse at 60% 40%, ${LIME}14, transparent 60%), #0c0c0e`,
+            background: `radial-gradient(ellipse at 60% 40%, ${PINK}16, transparent 60%), #0c0c0e`,
           }}
         />
       )}
@@ -98,7 +98,7 @@ function HeroModule({
           {content?.tagline && (
             <p
               className="text-[15px] font-bold mb-6 max-w-[560px]"
-              style={{ color: LIME }}
+              style={{ color: PINK }}
             >
               {content.tagline}
             </p>
@@ -106,7 +106,7 @@ function HeroModule({
           <div className="flex flex-wrap items-center gap-4 mt-6">
             {price && (
               <div className="flex items-baseline gap-2">
-                <span className="text-3xl font-black" style={{ color: LIME }}>
+                <span className="text-3xl font-black" style={{ color: BONE }}>
                   {price}
                 </span>
                 {compareAt && (
@@ -189,7 +189,7 @@ function SpecsModule({
 
   if (allRows.length === 0) return null;
 
-  // Sand bench, carbon plates: bright rough ground, dark spec cells, blue data.
+  // Sand bench, carbon plates: bright rough ground, dark data cells.
   return (
     <section className="relative py-16 sm:py-24" style={{ backgroundColor: SAND_DEEP, color: INK }}>
       <div className="absolute inset-0 pointer-events-none" style={sandGrainOverlay} aria-hidden />
@@ -197,7 +197,7 @@ function SpecsModule({
         <Reveal>
           <p
             className="font-mono text-[11px] font-bold tracking-[0.25em] uppercase mb-8"
-            style={{ color: BLUE }}
+            style={{ color: PINK }}
           >
             // SPECS
           </p>
@@ -208,7 +208,7 @@ function SpecsModule({
                 <span className="block font-mono text-[10.5px] uppercase tracking-[0.12em] text-white/35 mb-1">
                   {row.label}
                 </span>
-                <span className="block text-[16px] font-extrabold" style={{ color: "#dfe9f5" }}>{row.value}</span>
+                <span className="block text-[16px] font-extrabold" style={{ color: BONE }}>{row.value}</span>
               </div>
             ))}
           </div>
@@ -227,8 +227,7 @@ function GalleryModule({ content }: { content: ProductContent | null }) {
       <div className="max-w-[1200px] mx-auto px-6 sm:px-8">
         <Reveal className="mb-10">
           <p
-            className="font-mono text-[11px] font-bold tracking-[0.25em] uppercase mb-3"
-            style={{ color: LIME }}
+            className="font-mono text-[11px] font-bold tracking-[0.25em] uppercase mb-3 text-white/40"
           >
             // GALLERY
           </p>
@@ -256,12 +255,13 @@ function BuyModule({ product, buyVariants, productAvailable, image }: { product:
   const compareAt = fmtPrice(product.compare_at_price, product.currency ?? "EUR");
 
   return (
-    <section id="buy" className="scroll-mt-20 py-20 sm:py-32 bg-[#0a0a0c] border-t border-white/10">
-      <div className="max-w-[760px] mx-auto px-6 sm:px-8">
+    <section id="buy" className="scroll-mt-20 relative py-20 sm:py-32 bg-[#0a0a0c] border-t border-white/10 overflow-hidden">
+      {/* the fade — heat rising into the buy moment */}
+      <div className="absolute inset-0" style={{ background: `radial-gradient(ellipse at 30% 130%, ${PINK}1f, transparent 55%), radial-gradient(ellipse at 85% 140%, rgba(255,59,48,0.10), transparent 50%)` }} aria-hidden />
+      <div className="relative max-w-[760px] mx-auto px-6 sm:px-8">
         <Reveal>
           <p
-            className="font-mono text-[11px] font-bold tracking-[0.25em] uppercase mb-3"
-            style={{ color: LIME }}
+            className="font-mono text-[11px] font-bold tracking-[0.25em] uppercase mb-3 text-white/40"
           >
             // BUY
           </p>
@@ -270,7 +270,7 @@ function BuyModule({ product, buyVariants, productAvailable, image }: { product:
           </h2>
           {price && (
             <div className="flex items-baseline gap-3 mb-2">
-              <span className="text-4xl font-black" style={{ color: LIME }}>
+              <span className="text-4xl font-black" style={{ color: BONE }}>
                 {price}
               </span>
               {compareAt && (

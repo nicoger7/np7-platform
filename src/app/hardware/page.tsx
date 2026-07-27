@@ -5,7 +5,7 @@ import { WorkshopHero } from "@/components/hardware/workshop-hero";
 import { HardwareHeader } from "@/components/hardware/hardware-header";
 import { NP7_LOGO } from "@/components/experience/ocean-header";
 import { Reveal } from "@/components/experience/reveal";
-import { BLUE, RED, INK, INK_SOFT, SAND, sandGrainOverlay, carbonWeave } from "@/components/hardware/theme";
+import { BONE, RED, INK, INK_SOFT, SAND, sandGrainOverlay, carbonWeave } from "@/components/hardware/theme";
 
 export const metadata: Metadata = {
   title: { absolute: "NP7 Hardware — Custom Windsurf Boards & Fins" },
@@ -31,16 +31,16 @@ type Product = {
 
 /* placeholder catalogue — wired to hw_products when populated. Boards & fins only. */
 const FALLBACK_PRODUCTS: Product[] = [
-  { name: "NP7 Freeride 120", slug: null, category: "Board", type: "board", price: 2490, specs: ["120 L", "247 cm", "Carbon"], accent: LIME, stock: "In stock" },
-  { name: "NP7 Slalom 110", slug: null, category: "Board", type: "board", price: 2990, specs: ["110 L", "227 cm", "Pre-preg"], accent: PINK, stock: "Made to order" },
-  { name: "NP7 Wave 92", slug: null, category: "Board", type: "board", price: 2690, specs: ["92 L", "228 cm", "Carbon"], accent: LIME, stock: "In stock" },
-  { name: "Slalom Fin 38", slug: null, category: "Fin", type: "fin", price: 189, specs: ["38 cm", "Tuttle", "G10"], accent: PINK, stock: "In stock" },
-  { name: "Wave Fin 22", slug: null, category: "Fin", type: "fin", price: 119, specs: ["22 cm", "US Box"], accent: LIME, stock: "In stock" },
-  { name: "Weed Fin 30", slug: null, category: "Fin", type: "fin", price: 149, specs: ["30 cm", "Power Box"], accent: PINK, stock: "In stock" },
+  { name: "NP7 Freeride 120", slug: null, category: "Board", type: "board", price: 2490, specs: ["120 L", "247 cm", "Carbon"], accent: BONE, stock: "In stock" },
+  { name: "NP7 Slalom 110", slug: null, category: "Board", type: "board", price: 2990, specs: ["110 L", "227 cm", "Pre-preg"], accent: BONE, stock: "Made to order" },
+  { name: "NP7 Wave 92", slug: null, category: "Board", type: "board", price: 2690, specs: ["92 L", "228 cm", "Carbon"], accent: BONE, stock: "In stock" },
+  { name: "Slalom Fin 38", slug: null, category: "Fin", type: "fin", price: 189, specs: ["38 cm", "Tuttle", "G10"], accent: BONE, stock: "In stock" },
+  { name: "Wave Fin 22", slug: null, category: "Fin", type: "fin", price: 119, specs: ["22 cm", "US Box"], accent: BONE, stock: "In stock" },
+  { name: "Weed Fin 30", slug: null, category: "Fin", type: "fin", price: 149, specs: ["30 cm", "Power Box"], accent: BONE, stock: "In stock" },
 ];
 
 const CATEGORIES = [
-  { name: "Boards", tag: "Freeride · Slalom · Wave", accent: BLUE },
+  { name: "Boards", tag: "Freeride · Slalom · Wave", accent: BONE },
   { name: "Fins", tag: "Slalom · Wave · Weed", accent: PINK },
   { name: "Custom", tag: "Shaped to your specs", accent: RED },
 ];
@@ -92,7 +92,7 @@ export default async function HardwarePage() {
           type: /fin/i.test(p.category ?? "") ? "fin" : "board",
           price: p.price ?? 0,
           specs: Array.isArray(p.specs) ? (p.specs as string[]).slice(0, 3) : [],
-          accent: [LIME, PINK, BLUE][i % 3],
+          accent: BONE,
         }))
       : FALLBACK_PRODUCTS;
 
@@ -115,8 +115,8 @@ export default async function HardwarePage() {
           {/* veredelung stripe */}
           <Reveal from="none" delay={150}>
             <div className="flex items-center gap-1.5 mt-4 mb-6">
-              <span className="h-1.5 w-16 rounded-full" style={{ background: LIME, boxShadow: `0 0 14px ${LIME}` }} />
-              <span className="h-1.5 w-6 rounded-full" style={{ background: PINK, boxShadow: `0 0 14px ${PINK}` }} />
+              <span className="h-1.5 w-16 rounded-full" style={{ background: PINK, boxShadow: `0 0 14px ${PINK}` }} />
+              <span className="h-1.5 w-6 rounded-full" style={{ background: RED, boxShadow: `0 0 14px ${RED}` }} />
             </div>
           </Reveal>
           <Reveal from="up" delay={200}>
@@ -176,8 +176,10 @@ export default async function HardwarePage() {
       </section>
 
       {/* PRODUCTS — shop + showcase */}
-      <section id="products" className="scroll-mt-20 relative py-20 sm:py-28 border-y border-white/10 bg-[#0a0a0c]">
+      <section id="products" className="scroll-mt-20 relative py-20 sm:py-28 border-y border-white/10 bg-[#0a0a0c] overflow-hidden">
         <div className="absolute inset-0 opacity-[0.5]" style={{ backgroundImage: "repeating-linear-gradient(45deg,rgba(255,255,255,0.02) 0 2px,transparent 2px 8px)" }} aria-hidden />
+        {/* soft heat fading up from below — color as atmosphere, not objects */}
+        <div className="absolute inset-0" style={{ background: `radial-gradient(ellipse at 20% 135%, ${PINK}14, transparent 50%)` }} aria-hidden />
         <div className="relative max-w-[1200px] mx-auto px-6 sm:px-8">
           <Reveal className="flex items-end justify-between mb-12 gap-4">
             <div>
@@ -211,7 +213,7 @@ export default async function HardwarePage() {
                       </span>
                     </div>
                   </div>
-                  <span className="absolute inset-x-0 bottom-0 h-[2px] scale-x-0 group-hover:scale-x-100 origin-left transition-transform duration-300" style={{ background: p.accent }} />
+                  <span className="absolute inset-x-0 bottom-0 h-[2px] scale-x-0 group-hover:scale-x-100 origin-left transition-transform duration-300" style={{ background: PINK }} />
                 </div>
               );
               return (
@@ -242,7 +244,7 @@ export default async function HardwarePage() {
                 <div className="relative grid grid-cols-2 gap-6">
                   {STATS.map((s, i) => (
                     <div key={s.label}>
-                      <div className="text-3xl sm:text-4xl font-black tracking-[-0.02em]" style={{ color: [LIME, PINK, BLUE, LIME][i] }}>{s.n}</div>
+                      <div className="text-3xl sm:text-4xl font-black tracking-[-0.02em]" style={{ color: BONE }}>{s.n}</div>
                       <div className="font-mono text-[11px] uppercase tracking-[0.1em] text-white/45 mt-1">{s.label}</div>
                     </div>
                   ))}
@@ -251,7 +253,7 @@ export default async function HardwarePage() {
             </Reveal>
             <Reveal from="right">
               <div>
-                <p className="font-mono text-[11px] font-bold tracking-[0.25em] uppercase mb-3" style={{ color: BLUE }}>// THE WORKSHOP</p>
+                <p className="font-mono text-[11px] font-bold tracking-[0.25em] uppercase mb-3" style={{ color: PINK }}>// THE WORKSHOP</p>
                 <h2 className="text-3xl sm:text-5xl font-black tracking-[-0.02em] mb-6 leading-[1.05]">Shaped on the bench.<br />Not stamped in a mould.</h2>
                 <p className="text-[16px] leading-relaxed mb-4" style={{ color: INK_SOFT }}>Every NP7 board and fin starts with a session and a sketch. Nico rides, tests and refines, then shapes and hand-finishes each piece — carbon dust, sweat and all.</p>
                 <p className="text-[16px] leading-relaxed mb-8" style={{ color: INK_SOFT }}>Raw performance, finished with the details that make it yours. No committees, no compromises.</p>
