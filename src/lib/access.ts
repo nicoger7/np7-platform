@@ -112,8 +112,11 @@ export const SECTIONS: Section[] = [
   // Experience · Automation
   { key: "emails", label: "Emails & templates", world: "experience", group: "Automation", paths: ["/admin/emails", "/admin/email-templates", "/admin/email-log", "/admin/campaigns", "/api/admin/emails", "/api/admin/email-templates", "/api/admin/email-log", "/api/admin/campaigns"] },
   // Hardware
-  { key: "products", label: "Products", world: "hardware", group: "Hardware", paths: ["/admin/products", "/api/admin/products"] },
+  { key: "products", label: "Products", world: "hardware", group: "Hardware", paths: ["/admin/products", "/api/admin/products", "/api/admin/variants"] },
   { key: "orders", label: "Orders", world: "hardware", group: "Hardware", paths: ["/admin/orders", "/api/admin/orders"] },
+  { key: "inventory", label: "Inventory", world: "hardware", group: "Hardware", paths: ["/admin/inventory", "/api/admin/inventory"] },
+  { key: "purchasing", label: "Purchasing", world: "hardware", group: "Hardware", paths: ["/admin/purchasing", "/api/admin/purchasing", "/api/admin/inbound"] },
+  { key: "suppliers", label: "Suppliers", world: "hardware", group: "Hardware", paths: ["/admin/suppliers", "/api/admin/suppliers"] },
   // Analytics
   { key: "analytics", label: "Business analytics", world: "analytics", group: "Analytics", paths: ["/admin/analytics", "/api/admin/analytics"] },
 ];
@@ -157,6 +160,10 @@ export const SECTION_EXPOSES: Record<string, FieldKey[]> = {
   documents: ["money"],
   packages: ["money", "costs"],
   components: ["costs"],
+  // Hardware supply chain: factory costs + landed costs are margin-sensitive.
+  suppliers: ["costs"],
+  purchasing: ["money", "costs"],
+  inventory: ["costs"],
 };
 
 /** Which of those exposures are actually enforced (redacted) server-side today.

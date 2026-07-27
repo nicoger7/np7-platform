@@ -167,11 +167,17 @@ async function hardwareDashboard(db: any, showMoney: boolean) {
     return q;
   };
 
-  const [total, published, drafts, stockRows, latest, contentRows] = await Promise.all([
+  const [total, published, drafts, levelRows, receiptRows, poRows, latest, contentRows] = await Promise.all([
     head(),
     head((q: any) => q.eq("status", "published")),
     head((q: any) => q.eq("status", "draft")),
-    live(db.from("hw_products").select("stock_count")),
+    // Physical stock only — the ledger's derived levels, not a mutable column.
+    db.from("hw_stock_levels").select("variant_id,on_hand, hw_stock_locations!inner(is_virtual)")
+      .eq("hw_stock_locations.is_virtual", false),
+    db.from("hw_receipts").select("variant_id,unit_landed_cost,received_at").order("received_at", { ascending: false }),
+    live(db.from("hw_purchase_orders").select("id,po_number,status,expected_receipt_date,currency,hw_suppliers(name),hw_po_lines(qty_ordered,qty_received)"))
+      .not("status", "in", "(draft,closed,cancelled)")
+      .order("expected_receipt_date", { ascending: true, nullsFirst: false }).limit(8),
     live(db.from("hw_products").select("id,name,category,status,price,updated_at,created_at"))
       .order("updated_at", { ascending: false, nullsFirst: false }).limit(6),
     live(db.from("hw_products").select("id,name,images,description").eq("status", "published")),
@@ -200,8 +206,28 @@ async function hardwareDashboard(db: any, showMoney: boolean) {
     }
   } catch { /* content table not ready — leave empty */ }
 
-  const stockUnits = ((stockRows.data ?? []) as { stock_count: number | null }[])
-    .reduce((a, r) => a + (Number(r.stock_count) || 0), 0);
+  // Stock units + value at latest landed cost (receipts come newest-first).
+  const latestCost = new Map<string, number>();
+  for (const r of (receiptRows.data ?? []) as { variant_id: string; unit_landed_cost: number | null }[]) {
+    if (r.unit_landed_cost != null && !latestCost.has(r.variant_id)) latestCost.set(r.variant_id, Number(r.unit_landed_cost));
+  }
+  let stockUnits = 0;
+  let inventoryValue = 0;
+  for (const lv of (levelRows.data ?? []) as { variant_id: string; on_hand: number }[]) {
+    stockUnits += lv.on_hand;
+    inventoryValue += lv.on_hand * (latestCost.get(lv.variant_id) ?? 0);
+  }
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const inboundPipeline = ((poRows.data ?? []) as any[]).map((po) => ({
+    id: po.id,
+    poNumber: po.po_number,
+    status: po.status,
+    expected: po.expected_receipt_date,
+    supplier: po.hw_suppliers?.name ?? null,
+    units: (po.hw_po_lines ?? []).reduce((a: number, l: { qty_ordered: number }) => a + l.qty_ordered, 0),
+    received: (po.hw_po_lines ?? []).reduce((a: number, l: { qty_received: number }) => a + l.qty_received, 0),
+  }));
 
   return NextResponse.json({
     world: "hardware",
@@ -210,7 +236,10 @@ async function hardwareDashboard(db: any, showMoney: boolean) {
       published: published.count ?? 0,
       drafts: drafts.count ?? 0,
       stockUnits,
+      openPos: inboundPipeline.length,
     },
+    finance: showMoney ? { inventoryValue } : null,
+    inboundPipeline,
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     latestProducts: (latest.data ?? []).map((p: any) => (showMoney ? p : { ...p, price: null })),
     contentGaps,

@@ -127,9 +127,22 @@ const navByEnv: Record<Environment, NavGroup[]> = {
   ],
   hardware: [
     {
-      label: "HARDWARE",
+      label: "CATALOG",
       items: [
         { label: "Products", href: "/admin/products", icon: "box" },
+        { label: "Inventory", href: "/admin/inventory", icon: "layers" },
+      ],
+    },
+    {
+      label: "SUPPLY",
+      items: [
+        { label: "Purchasing", href: "/admin/purchasing", icon: "receipt" },
+        { label: "Suppliers", href: "/admin/suppliers", icon: "building" },
+      ],
+    },
+    {
+      label: "SELLING",
+      items: [
         { label: "Orders", href: "/admin/orders", icon: "truck", wip: true },
       ],
     },

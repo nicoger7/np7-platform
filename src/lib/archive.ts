@@ -29,6 +29,10 @@ export const ARCHIVE_ENTITIES: ArchiveEntity[] = [
   { key: "room_units", table: "exp_rooms", label: "Room (physical)", plural: "Rooms (physical)", titleCol: "name", subtitleCols: ["hotel", "room_type"] },
   { key: "vendors", table: "vendors", label: "Vendor", plural: "Vendors", titleCol: "name", subtitleCols: ["category"] },
   { key: "products", table: "hw_products", label: "Product", plural: "Products", titleCol: "title", subtitleCols: ["status"], href: (id) => `/admin/products/${id}` },
+  { key: "hw_variants", table: "hw_variants", label: "Product variant", plural: "Product variants", titleCol: "name", subtitleCols: ["sku"] },
+  { key: "hw_suppliers", table: "hw_suppliers", label: "Supplier", plural: "Suppliers", titleCol: "name", subtitleCols: ["country"], href: (id) => `/admin/suppliers/${id}` },
+  { key: "hw_pos", table: "hw_purchase_orders", label: "Purchase order", plural: "Purchase orders", titleCol: "po_number", subtitleCols: ["status"], href: (id) => `/admin/purchasing/${id}` },
+  { key: "hw_inbound", table: "hw_inbound_shipments", label: "Inbound shipment", plural: "Inbound shipments", titleCol: "reference", subtitleCols: ["status"], href: (id) => `/admin/purchasing/shipments/${id}` },
 ];
 
 export const ARCHIVE_BY_KEY: Record<string, ArchiveEntity> = Object.fromEntries(ARCHIVE_ENTITIES.map((e) => [e.key, e]));

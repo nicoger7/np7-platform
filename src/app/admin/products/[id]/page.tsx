@@ -192,10 +192,27 @@ function ImageField({
 
 interface Variant {
   id: string;
-  label: string;
-  stock_count: number | null;
-  reserved_count: number | null;
+  name: string;
+  sku: string;
+  ean: string | null;
+  rrp: number | null;
+  weight_g: number | null;
+  box_l_mm: number | null;
+  box_w_mm: number | null;
+  box_h_mm: number | null;
+  hs_code: string | null;
+  country_of_origin: string | null;
+  preferential_origin: boolean;
+  serialized: boolean;
+  lifecycle: string;
 }
+
+const emptyVariantForm = () => ({
+  id: "", name: "", sku: "", ean: "", rrp: "", weight_g: "",
+  box_l_mm: "", box_w_mm: "", box_h_mm: "", hs_code: "",
+  country_of_origin: "", preferential_origin: false, serialized: false,
+  lifecycle: "active",
+});
 
 // ─── Inquiry types ──────────────────────────────────────────────────────────
 
@@ -251,12 +268,7 @@ export default function ProductDetailPage({
 
   // Variants
   const [variants, setVariants] = useState<Variant[]>([]);
-  const [variantForm, setVariantForm] = useState({
-    id: "",
-    label: "",
-    stock_count: "",
-    reserved_count: "",
-  });
+  const [variantForm, setVariantForm] = useState(emptyVariantForm());
   const [showVariantForm, setShowVariantForm] = useState(false);
 
   // Inquiries
@@ -410,34 +422,31 @@ export default function ProductDetailPage({
   // ── Variant CRUD ─────────────────────────────────────────────────────────
 
   async function saveVariant() {
-    const body = {
-      label: variantForm.label,
-      stock_count: variantForm.stock_count ? Number(variantForm.stock_count) : null,
-      reserved_count: variantForm.reserved_count ? Number(variantForm.reserved_count) : null,
-    };
-    if (variantForm.id) {
-      await fetch(`/api/admin/products/${id}/variants`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ variant_id: variantForm.id, ...body }),
-      });
-    } else {
-      await fetch(`/api/admin/products/${id}/variants`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(body),
-      });
+    const { id: variantId, ...body } = variantForm;
+    const res = variantId
+      ? await fetch(`/api/admin/variants/${variantId}`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(body),
+        })
+      : await fetch(`/api/admin/products/${id}/variants`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(body),
+        });
+    if (!res.ok) {
+      const d = await res.json().catch(() => ({}));
+      alert(d.error || "Could not save variant");
+      return;
     }
     setShowVariantForm(false);
-    setVariantForm({ id: "", label: "", stock_count: "", reserved_count: "" });
+    setVariantForm(emptyVariantForm());
     loadVariants();
   }
 
   async function deleteVariant(variantId: string) {
-    if (!confirm("Delete this variant?")) return;
-    await fetch(`/api/admin/products/${id}/variants?variant_id=${variantId}`, {
-      method: "DELETE",
-    });
+    if (!confirm("Archive this variant?")) return;
+    await fetch(`/api/admin/variants/${variantId}`, { method: "DELETE" });
     loadVariants();
   }
 
@@ -1192,11 +1201,12 @@ export default function ProductDetailPage({
         <div>
           <div className="flex justify-between items-center mb-4">
             <p className="text-xs admin-faint">
-              {variants.length} variant{variants.length !== 1 ? "s" : ""}
+              {variants.length} variant{variants.length !== 1 ? "s" : ""} · stock lives in{" "}
+              <Link href="/admin/inventory" className="text-[var(--admin-accent)] hover:underline">Inventory</Link>
             </p>
             <button
               onClick={() => {
-                setVariantForm({ id: "", label: "", stock_count: "", reserved_count: "" });
+                setVariantForm(emptyVariantForm());
                 setShowVariantForm(true);
               }}
               className="px-3 py-1.5 bg-[var(--admin-accent)] hover:bg-[var(--admin-accent)]/90 text-[var(--admin-accent-contrast)] text-xs font-bold rounded-lg transition-colors"
@@ -1213,52 +1223,85 @@ export default function ProductDetailPage({
               <h3 className="text-sm font-bold admin-heading mb-3">
                 {variantForm.id ? "Edit Variant" : "New Variant"}
               </h3>
-              <div className="grid grid-cols-3 gap-3 mb-3">
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-3">
                 <div>
-                  <label className={labelClass}>Label *</label>
-                  <input
-                    className={inputClass}
-                    value={variantForm.label}
-                    onChange={(e) => setVariantForm({ ...variantForm, label: e.target.value })}
-                    placeholder="e.g. 95L"
-                  />
+                  <label className={labelClass}>Name *</label>
+                  <input className={inputClass} value={variantForm.name}
+                    onChange={(e) => setVariantForm({ ...variantForm, name: e.target.value })}
+                    placeholder="e.g. 95L" />
                 </div>
                 <div>
-                  <label className={labelClass}>Stock</label>
-                  <input
-                    type="number"
-                    className={inputClass}
-                    value={variantForm.stock_count}
-                    onChange={(e) =>
-                      setVariantForm({ ...variantForm, stock_count: e.target.value })
-                    }
-                  />
+                  <label className={labelClass}>SKU *</label>
+                  <input className={inputClass} value={variantForm.sku}
+                    onChange={(e) => setVariantForm({ ...variantForm, sku: e.target.value })}
+                    placeholder="NP7-BRD-FRX-95" />
                 </div>
                 <div>
-                  <label className={labelClass}>Reserved</label>
-                  <input
-                    type="number"
-                    className={inputClass}
-                    value={variantForm.reserved_count}
-                    onChange={(e) =>
-                      setVariantForm({ ...variantForm, reserved_count: e.target.value })
-                    }
-                  />
+                  <label className={labelClass}>EAN (GS1)</label>
+                  <input className={inputClass} value={variantForm.ean}
+                    onChange={(e) => setVariantForm({ ...variantForm, ean: e.target.value })} />
                 </div>
+                <div>
+                  <label className={labelClass}>RRP €</label>
+                  <input type="number" className={inputClass} value={variantForm.rrp}
+                    onChange={(e) => setVariantForm({ ...variantForm, rrp: e.target.value })} />
+                </div>
+                <div>
+                  <label className={labelClass}>Boxed weight (g)</label>
+                  <input type="number" className={inputClass} value={variantForm.weight_g}
+                    onChange={(e) => setVariantForm({ ...variantForm, weight_g: e.target.value })} />
+                </div>
+                <div>
+                  <label className={labelClass}>Box L×W×H (mm)</label>
+                  <div className="flex gap-1">
+                    {(["box_l_mm", "box_w_mm", "box_h_mm"] as const).map((k) => (
+                      <input key={k} type="number" className={inputClass} value={variantForm[k]}
+                        onChange={(e) => setVariantForm({ ...variantForm, [k]: e.target.value })} />
+                    ))}
+                  </div>
+                </div>
+                <div>
+                  <label className={labelClass}>HS code</label>
+                  <input className={inputClass} value={variantForm.hs_code}
+                    onChange={(e) => setVariantForm({ ...variantForm, hs_code: e.target.value })}
+                    placeholder="9506 21 00" />
+                </div>
+                <div>
+                  <label className={labelClass}>Country of origin</label>
+                  <input className={inputClass} value={variantForm.country_of_origin}
+                    onChange={(e) => setVariantForm({ ...variantForm, country_of_origin: e.target.value })}
+                    placeholder="TH" />
+                </div>
+                <div>
+                  <label className={labelClass}>Lifecycle</label>
+                  <select className={inputClass} value={variantForm.lifecycle}
+                    onChange={(e) => setVariantForm({ ...variantForm, lifecycle: e.target.value })}>
+                    {["draft", "active", "phase_out", "discontinued"].map((l) => (
+                      <option key={l} value={l}>{l.replace("_", " ")}</option>
+                    ))}
+                  </select>
+                </div>
+                <label className="flex items-center gap-2 text-xs admin-muted self-end pb-2">
+                  <input type="checkbox" checked={variantForm.serialized}
+                    onChange={(e) => setVariantForm({ ...variantForm, serialized: e.target.checked })} />
+                  Serialized (boards/masts)
+                </label>
+                <label className="flex items-center gap-2 text-xs admin-muted self-end pb-2">
+                  <input type="checkbox" checked={variantForm.preferential_origin}
+                    onChange={(e) => setVariantForm({ ...variantForm, preferential_origin: e.target.checked })} />
+                  Preferential origin (0% duty)
+                </label>
               </div>
               <div className="flex gap-2">
                 <button
                   onClick={saveVariant}
-                  disabled={!variantForm.label}
+                  disabled={!variantForm.name || !variantForm.sku}
                   className="px-4 py-2 bg-[var(--admin-accent)] hover:bg-[var(--admin-accent)]/90 disabled:opacity-40 text-[var(--admin-accent-contrast)] text-sm font-bold rounded-lg transition-colors"
                 >
                   {variantForm.id ? "Update" : "Create"}
                 </button>
                 <button
-                  onClick={() => {
-                    setShowVariantForm(false);
-                    setVariantForm({ id: "", label: "", stock_count: "", reserved_count: "" });
-                  }}
+                  onClick={() => { setShowVariantForm(false); setVariantForm(emptyVariantForm()); }}
                   className="px-4 py-2 admin-muted text-sm rounded-lg"
                 >
                   Cancel
@@ -1274,54 +1317,54 @@ export default function ProductDetailPage({
           ) : (
             <div className="rounded-xl admin-tablecard" style={{ border: "1px solid var(--admin-border)" }}>
               <div
-                className="grid grid-cols-[1fr_90px_90px_40px] gap-4 px-5 py-3 admin-surface"
+                className="grid grid-cols-[1fr_150px_110px_80px_90px_40px] gap-4 px-5 py-3 admin-surface"
                 style={{ borderBottom: "1px solid var(--admin-border)" }}
               >
-                <span className="text-[10px] font-bold tracking-[0.1em] admin-faint uppercase">Label</span>
-                <span className="text-[10px] font-bold tracking-[0.1em] admin-faint uppercase">Stock</span>
-                <span className="text-[10px] font-bold tracking-[0.1em] admin-faint uppercase">Reserved</span>
+                <span className="text-[10px] font-bold tracking-[0.1em] admin-faint uppercase">Name</span>
+                <span className="text-[10px] font-bold tracking-[0.1em] admin-faint uppercase">SKU</span>
+                <span className="text-[10px] font-bold tracking-[0.1em] admin-faint uppercase hidden sm:block">EAN</span>
+                <span className="text-[10px] font-bold tracking-[0.1em] admin-faint uppercase">RRP</span>
+                <span className="text-[10px] font-bold tracking-[0.1em] admin-faint uppercase">Lifecycle</span>
                 <span />
               </div>
               {variants.map((v) => (
                 <div
                   key={v.id}
-                  className="grid grid-cols-[1fr_90px_90px_40px] gap-4 px-5 py-3.5 transition-colors group"
+                  className="grid grid-cols-[1fr_150px_110px_80px_90px_40px] gap-4 px-5 py-3.5 transition-colors group"
                   style={{ borderBottom: "1px solid var(--admin-border)" }}
-                  onMouseEnter={(e) =>
-                    (e.currentTarget.style.backgroundColor = "var(--admin-surface-hover)")
-                  }
-                  onMouseLeave={(e) =>
-                    (e.currentTarget.style.backgroundColor = "transparent")
-                  }
+                  onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = "var(--admin-surface-hover)")}
+                  onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = "transparent")}
                 >
                   <span
-                    className="text-sm font-medium admin-heading self-center cursor-pointer"
+                    className="text-sm font-medium admin-heading self-center cursor-pointer truncate"
                     onClick={() => {
                       setVariantForm({
-                        id: v.id,
-                        label: v.label,
-                        stock_count: v.stock_count?.toString() ?? "",
-                        reserved_count: v.reserved_count?.toString() ?? "",
+                        id: v.id, name: v.name, sku: v.sku, ean: v.ean ?? "",
+                        rrp: v.rrp?.toString() ?? "", weight_g: v.weight_g?.toString() ?? "",
+                        box_l_mm: v.box_l_mm?.toString() ?? "", box_w_mm: v.box_w_mm?.toString() ?? "",
+                        box_h_mm: v.box_h_mm?.toString() ?? "", hs_code: v.hs_code ?? "",
+                        country_of_origin: v.country_of_origin ?? "",
+                        preferential_origin: v.preferential_origin, serialized: v.serialized,
+                        lifecycle: v.lifecycle,
                       });
                       setShowVariantForm(true);
                     }}
                   >
-                    {v.label}
+                    {v.name}
+                    {v.serialized && (
+                      <span className="ml-2 text-[9px] font-bold uppercase px-1.5 py-0.5 rounded bg-[var(--admin-accent-weak)] text-[var(--admin-accent)]">serial</span>
+                    )}
                   </span>
-                  <span className="text-xs admin-muted self-center">{v.stock_count ?? "—"}</span>
-                  <span className="text-xs admin-muted self-center">{v.reserved_count ?? "—"}</span>
+                  <span className="text-xs admin-muted self-center font-mono truncate">{v.sku}</span>
+                  <span className="text-xs admin-muted self-center truncate hidden sm:block">{v.ean ?? "—"}</span>
+                  <span className="text-xs admin-muted self-center">{v.rrp != null ? `€${Number(v.rrp).toLocaleString()}` : "—"}</span>
+                  <span className="text-xs admin-muted self-center capitalize">{v.lifecycle.replace("_", " ")}</span>
                   <button
                     onClick={() => deleteVariant(v.id)}
                     className="self-center opacity-0 group-hover:opacity-100 admin-faint hover:text-red-400 transition-all"
-                    title="Delete"
+                    title="Archive"
                   >
-                    <svg
-                      className="w-4 h-4"
-                      viewBox="0 0 24 24"
-                      fill="none"
-                      stroke="currentColor"
-                      strokeWidth="2"
-                    >
+                    <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                       <path d="M3 6h18M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a2 2 0 012-2h4a2 2 0 012 2v2" />
                     </svg>
                   </button>

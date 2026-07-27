@@ -123,11 +123,18 @@ export default function AdminDashboard() {
 // ─── NP7 Hardware ────────────────────────────────────────────────────────────
 
 interface HardwareData {
-  counts: { products: number; published: number; drafts: number; stockUnits: number };
+  counts: { products: number; published: number; drafts: number; stockUnits: number; openPos: number };
+  finance: { inventoryValue: number } | null;
+  inboundPipeline: { id: string; poNumber: string; status: string; expected: string | null; supplier: string | null; units: number; received: number }[];
   latestProducts: { id: string; name: string; category: string | null; status: string | null; price: number | null; updated_at: string | null; created_at: string | null }[];
   contentGaps: { productId: string; name: string; missing: string[] }[];
   slim?: boolean;
 }
+
+const PO_DASH_COLOR: Record<string, string> = {
+  issued: "text-blue-400", confirmed: "text-blue-400", in_production: "text-amber-500",
+  ready_to_ship: "text-amber-500", shipped: "text-purple-400", partially_received: "text-green-400",
+};
 
 const HW_STATUS_COLOR: Record<string, string> = {
   published: "text-green-400", draft: "text-amber-400", archived: "admin-faint",
@@ -151,14 +158,38 @@ function HardwareDashboard() {
     <div>
       <DashboardHeader eye={slim ? undefined : { hidden: hideMoney, onToggle: toggleHideMoney }} />
 
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-4">
         <StatCard label="Products" value={d.counts.products} href="/admin/products" />
         <StatCard label="On website" value={d.counts.published} href="/admin/products?status=published" />
         <StatCard label="Drafts" value={d.counts.drafts} href="/admin/products?status=draft" />
-        <StatCard label="Stock units" value={d.counts.stockUnits} accent />
+        <StatCard label="Stock units" value={d.counts.stockUnits} href="/admin/inventory" accent />
       </div>
 
+      {!slim && (
+        <div className="grid grid-cols-2 lg:grid-cols-3 gap-4 mb-6">
+          {d.finance && <StatCard label="Inventory value (landed)" value={amt(Math.round(d.finance.inventoryValue))} href="/admin/inventory" accent />}
+          <StatCard label="Open POs" value={d.counts.openPos} href="/admin/purchasing" />
+        </div>
+      )}
+
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+        {/* Inbound pipeline — what lands when */}
+        <Panel title={`Inbound pipeline${d.inboundPipeline.length ? ` (${d.inboundPipeline.length})` : ""}`} href="/admin/purchasing">
+          {d.inboundPipeline.length === 0 ? <p className="text-xs admin-faint">No open purchase orders.</p> : (
+            <div className="space-y-1.5">
+              {d.inboundPipeline.map((po) => (
+                <Link key={po.id} href={`/admin/purchasing/${po.id}`} className="flex items-center gap-3 text-xs py-1.5 px-2 -mx-2 rounded-lg hover:bg-[var(--admin-surface-hover)]">
+                  <span className="font-mono admin-heading">{po.poNumber}</span>
+                  <span className="flex-1 admin-faint truncate">{po.supplier ?? ""}</span>
+                  <span className={`${PO_DASH_COLOR[po.status] ?? "admin-muted"} capitalize`}>{po.status.replace(/_/g, " ")}</span>
+                  <span className="admin-muted w-14 text-right">{po.received}/{po.units}</span>
+                  <span className="admin-faint w-16 text-right">{fmtDate(po.expected)}</span>
+                </Link>
+              ))}
+            </div>
+          )}
+        </Panel>
+
         <Panel title="Latest products" href="/admin/products">
           {d.latestProducts.length === 0 ? <p className="text-xs admin-faint">No products yet.</p> : (
             <div className="space-y-1.5">
@@ -196,7 +227,9 @@ function HardwareDashboard() {
 
         <QuickActions actions={[
           { label: "Products", href: "/admin/products" },
-          { label: "Orders", href: "/admin/orders" },
+          { label: "Inventory", href: "/admin/inventory" },
+          { label: "Purchasing", href: "/admin/purchasing" },
+          { label: "Suppliers", href: "/admin/suppliers" },
           { label: "File storage", href: "/admin/images" },
           { label: "Archive", href: "/admin/archive" },
         ]} />

@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase";
+import { notArchived } from "@/lib/archive";
 
 // GET /api/admin/products/:id/variants — list variants for a product
 export async function GET(
@@ -14,10 +15,11 @@ export async function GET(
     .from("hw_variants")
     .select("*")
     .eq("product_id", id)
-    .order("label");
+    .order("sort_order")
+    .order("name");
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
-  return NextResponse.json(data ?? []);
+  return NextResponse.json(notArchived(data));
 }
 
 // POST /api/admin/products/:id/variants — create a variant
@@ -30,72 +32,36 @@ export async function POST(
   const { id } = await params;
   const body = await request.json();
 
-  const row = {
-    product_id: id,
-    label: body.label ?? "",
-    stock_count: body.stock_count != null ? Number(body.stock_count) : null,
-    reserved_count: body.reserved_count != null ? Number(body.reserved_count) : null,
-  };
+  if (!body.name || !body.sku) {
+    return NextResponse.json({ error: "name and sku are required" }, { status: 400 });
+  }
 
+  const num = (v: unknown) => (v === "" || v == null ? null : Number(v));
   const { data, error } = await client
     .from("hw_variants")
-    .insert(row)
+    .insert({
+      product_id: id,
+      name: String(body.name),
+      sku: String(body.sku).trim().toUpperCase(),
+      ean: body.ean || null,
+      attributes: body.attributes ?? {},
+      weight_g: num(body.weight_g),
+      box_l_mm: num(body.box_l_mm),
+      box_w_mm: num(body.box_w_mm),
+      box_h_mm: num(body.box_h_mm),
+      hs_code: body.hs_code || null,
+      customs_description: body.customs_description || null,
+      country_of_origin: body.country_of_origin || null,
+      preferential_origin: !!body.preferential_origin,
+      customs_value: num(body.customs_value),
+      serialized: !!body.serialized,
+      rrp: num(body.rrp),
+      lifecycle: body.lifecycle || "active",
+      sort_order: num(body.sort_order) ?? 0,
+    })
     .select("*")
     .single();
 
   if (error) return NextResponse.json({ error: error.message }, { status: 400 });
   return NextResponse.json(data, { status: 201 });
-}
-
-// PATCH /api/admin/products/:id/variants — update a variant (body must include variant_id)
-export async function PATCH(
-  request: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
-) {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const client = createAdminClient() as any;
-  // id is not used for the update itself but ensures we're in the right product scope
-  await params;
-  const body = await request.json();
-
-  if (!body.variant_id) {
-    return NextResponse.json({ error: "variant_id is required" }, { status: 400 });
-  }
-
-  const update: Record<string, unknown> = {};
-  if ("label" in body) update.label = body.label;
-  if ("stock_count" in body)
-    update.stock_count = body.stock_count != null ? Number(body.stock_count) : null;
-  if ("reserved_count" in body)
-    update.reserved_count = body.reserved_count != null ? Number(body.reserved_count) : null;
-
-  const { data, error } = await client
-    .from("hw_variants")
-    .update(update)
-    .eq("id", body.variant_id)
-    .select("*")
-    .single();
-
-  if (error) return NextResponse.json({ error: error.message }, { status: 400 });
-  return NextResponse.json(data);
-}
-
-// DELETE /api/admin/products/:id/variants?variant_id= — delete a variant
-export async function DELETE(
-  request: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
-) {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const client = createAdminClient() as any;
-  await params;
-  const { searchParams } = new URL(request.url);
-  const variantId = searchParams.get("variant_id");
-
-  if (!variantId) {
-    return NextResponse.json({ error: "variant_id is required" }, { status: 400 });
-  }
-
-  const { error } = await client.from("hw_variants").delete().eq("id", variantId);
-  if (error) return NextResponse.json({ error: error.message }, { status: 400 });
-  return NextResponse.json({ success: true });
 }
