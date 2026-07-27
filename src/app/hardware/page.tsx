@@ -5,6 +5,7 @@ import { WorkshopHero } from "@/components/hardware/workshop-hero";
 import { HardwareHeader } from "@/components/hardware/hardware-header";
 import { NP7_LOGO } from "@/components/experience/ocean-header";
 import { Reveal } from "@/components/experience/reveal";
+import { BLUE, RED, INK, INK_SOFT, SAND, sandGrainOverlay, carbonWeave } from "@/components/hardware/theme";
 
 export const metadata: Metadata = {
   title: { absolute: "NP7 Hardware — Custom Windsurf Boards & Fins" },
@@ -39,9 +40,9 @@ const FALLBACK_PRODUCTS: Product[] = [
 ];
 
 const CATEGORIES = [
-  { name: "Boards", tag: "Freeride · Slalom · Wave", accent: LIME },
+  { name: "Boards", tag: "Freeride · Slalom · Wave", accent: BLUE },
   { name: "Fins", tag: "Slalom · Wave · Weed", accent: PINK },
-  { name: "Custom", tag: "Shaped to your specs", accent: "#ffae3a" },
+  { name: "Custom", tag: "Shaped to your specs", accent: RED },
 ];
 
 const STATS = [
@@ -91,7 +92,7 @@ export default async function HardwarePage() {
           type: /fin/i.test(p.category ?? "") ? "fin" : "board",
           price: p.price ?? 0,
           specs: Array.isArray(p.specs) ? (p.specs as string[]).slice(0, 3) : [],
-          accent: i % 2 === 0 ? LIME : PINK,
+          accent: [LIME, PINK, BLUE][i % 3],
         }))
       : FALLBACK_PRODUCTS;
 
@@ -147,25 +148,30 @@ export default async function HardwarePage() {
         <style>{`@keyframes mq{from{transform:translateX(0)}to{transform:translateX(-50%)}}.marquee-track{display:inline-block;animation:mq 34s linear infinite}@media (prefers-reduced-motion:reduce){.marquee-track{animation:none}}`}</style>
       </div>
 
-      {/* CATEGORIES */}
-      <section className="max-w-[1200px] mx-auto px-6 sm:px-8 py-20 sm:py-28">
-        <Reveal className="mb-12">
-          <p className="font-mono text-[11px] font-bold tracking-[0.25em] uppercase text-white/40 mb-3">// THE RANGE</p>
-          <h2 className="text-3xl sm:text-5xl font-black tracking-[-0.02em]">Boards &amp; fins</h2>
-        </Reveal>
-        <div className="grid sm:grid-cols-3 gap-5">
-          {CATEGORIES.map((c, i) => (
-            <Reveal key={c.name} delay={i * 90}>
-              <Link href="#products" className="group relative block rounded-2xl border border-white/10 bg-[#141416] p-8 h-[200px] overflow-hidden hover:border-white/25 transition-colors">
-                <span className="absolute -bottom-7 -right-2 text-[120px] font-black leading-none opacity-[0.05] select-none" aria-hidden>{i + 1}</span>
-                <div className="relative">
-                  <span className="block w-10 h-1 rounded-full mb-5" style={{ background: c.accent }} />
-                  <h3 className="text-2xl font-black tracking-[-0.01em]">{c.name}</h3>
-                  <p className="font-mono text-[12px] text-white/45 mt-2">{c.tag}</p>
-                </div>
-              </Link>
-            </Reveal>
-          ))}
+      {/* CATEGORIES — bright sanded-blank break in the carbon */}
+      <section className="relative" style={{ backgroundColor: SAND, color: INK }}>
+        <div className="absolute inset-0 pointer-events-none" style={sandGrainOverlay} aria-hidden />
+        <div className="relative max-w-[1200px] mx-auto px-6 sm:px-8 py-20 sm:py-28">
+          <Reveal className="mb-12">
+            <p className="font-mono text-[11px] font-bold tracking-[0.25em] uppercase mb-3" style={{ color: PINK }}>// THE RANGE</p>
+            <h2 className="text-3xl sm:text-5xl font-black tracking-[-0.02em]">Boards &amp; fins</h2>
+          </Reveal>
+          <div className="grid sm:grid-cols-3 gap-5">
+            {CATEGORIES.map((c, i) => (
+              <Reveal key={c.name} delay={i * 90}>
+                <Link href="#products" className="group relative block rounded-2xl p-8 h-[200px] overflow-hidden transition-all hover:-translate-y-1"
+                  style={{ backgroundColor: "#0c0c0e", border: "1px solid rgba(22,21,16,0.35)", boxShadow: "0 14px 30px rgba(22,21,16,0.18)" }}>
+                  <div className="absolute inset-0" style={carbonWeave} aria-hidden />
+                  <span className="absolute -bottom-7 -right-2 text-[120px] font-black leading-none text-white opacity-[0.05] select-none" aria-hidden>{i + 1}</span>
+                  <div className="relative">
+                    <span className="block w-10 h-1 rounded-full mb-5" style={{ background: c.accent, boxShadow: `0 0 12px ${c.accent}66` }} />
+                    <h3 className="text-2xl font-black tracking-[-0.01em] text-white">{c.name}</h3>
+                    <p className="font-mono text-[12px] text-white/45 mt-2">{c.tag}</p>
+                  </div>
+                </Link>
+              </Reveal>
+            ))}
+          </div>
         </div>
       </section>
 
@@ -224,37 +230,41 @@ export default async function HardwarePage() {
         </div>
       </section>
 
-      {/* WORKSHOP story */}
-      <section id="workshop" className="scroll-mt-20 max-w-[1200px] mx-auto px-6 sm:px-8 py-24 sm:py-32">
-        <div className="grid lg:grid-cols-[1.1fr_1fr] gap-12 lg:gap-20 items-center">
-          <Reveal from="left">
-            <div className="relative rounded-3xl border border-white/10 bg-[#121214] p-8 sm:p-10 overflow-hidden">
-              <div className="absolute inset-0 opacity-[0.5]" style={{ backgroundImage: "repeating-linear-gradient(45deg,rgba(255,255,255,0.025) 0 2px,transparent 2px 8px),repeating-linear-gradient(-45deg,rgba(255,255,255,0.025) 0 2px,transparent 2px 8px)" }} aria-hidden />
-              <div className="relative grid grid-cols-2 gap-6">
-                {STATS.map((s) => (
-                  <div key={s.label}>
-                    <div className="text-3xl sm:text-4xl font-black tracking-[-0.02em]" style={{ color: LIME }}>{s.n}</div>
-                    <div className="font-mono text-[11px] uppercase tracking-[0.1em] text-white/45 mt-1">{s.label}</div>
-                  </div>
-                ))}
+      {/* WORKSHOP story — sanded ground, a carbon block on the bench */}
+      <section id="workshop" className="scroll-mt-20 relative" style={{ backgroundColor: SAND, color: INK }}>
+        <div className="absolute inset-0 pointer-events-none" style={sandGrainOverlay} aria-hidden />
+        <div className="relative max-w-[1200px] mx-auto px-6 sm:px-8 py-24 sm:py-32">
+          <div className="grid lg:grid-cols-[1.1fr_1fr] gap-12 lg:gap-20 items-center">
+            <Reveal from="left">
+              <div className="relative rounded-3xl bg-[#121214] p-8 sm:p-10 overflow-hidden"
+                style={{ border: "1px solid rgba(22,21,16,0.35)", boxShadow: "0 20px 40px rgba(22,21,16,0.22)" }}>
+                <div className="absolute inset-0 opacity-[0.5]" style={carbonWeave} aria-hidden />
+                <div className="relative grid grid-cols-2 gap-6">
+                  {STATS.map((s, i) => (
+                    <div key={s.label}>
+                      <div className="text-3xl sm:text-4xl font-black tracking-[-0.02em]" style={{ color: [LIME, PINK, BLUE, LIME][i] }}>{s.n}</div>
+                      <div className="font-mono text-[11px] uppercase tracking-[0.1em] text-white/45 mt-1">{s.label}</div>
+                    </div>
+                  ))}
+                </div>
               </div>
-            </div>
-          </Reveal>
-          <Reveal from="right">
-            <div>
-              <p className="font-mono text-[11px] font-bold tracking-[0.25em] uppercase text-white/40 mb-3">// THE WORKSHOP</p>
-              <h2 className="text-3xl sm:text-5xl font-black tracking-[-0.02em] mb-6 leading-[1.05]">Shaped on the bench.<br />Not stamped in a mould.</h2>
-              <p className="text-[16px] text-white/55 leading-relaxed mb-4">Every NP7 board and fin starts with a session and a sketch. Nico rides, tests and refines, then shapes and hand-finishes each piece — carbon dust, sweat and all.</p>
-              <p className="text-[16px] text-white/55 leading-relaxed mb-8">Raw performance, finished with the details that make it yours. No committees, no compromises.</p>
-              <Link href="#products" className="inline-block px-7 py-4 rounded-full text-[14px] font-bold text-black bg-[#c6ff3a] hover:-translate-y-0.5 transition-all">Shop the range</Link>
-            </div>
-          </Reveal>
+            </Reveal>
+            <Reveal from="right">
+              <div>
+                <p className="font-mono text-[11px] font-bold tracking-[0.25em] uppercase mb-3" style={{ color: BLUE }}>// THE WORKSHOP</p>
+                <h2 className="text-3xl sm:text-5xl font-black tracking-[-0.02em] mb-6 leading-[1.05]">Shaped on the bench.<br />Not stamped in a mould.</h2>
+                <p className="text-[16px] leading-relaxed mb-4" style={{ color: INK_SOFT }}>Every NP7 board and fin starts with a session and a sketch. Nico rides, tests and refines, then shapes and hand-finishes each piece — carbon dust, sweat and all.</p>
+                <p className="text-[16px] leading-relaxed mb-8" style={{ color: INK_SOFT }}>Raw performance, finished with the details that make it yours. No committees, no compromises.</p>
+                <Link href="#products" className="inline-block px-7 py-4 rounded-full text-[14px] font-bold text-black bg-[#161510] hover:-translate-y-0.5 transition-all" style={{ color: LIME }}>Shop the range</Link>
+              </div>
+            </Reveal>
+          </div>
         </div>
       </section>
 
-      {/* CUSTOM CTA */}
+      {/* CUSTOM CTA — the hot end of the palette */}
       <section className="relative border-t border-white/10 py-24 overflow-hidden bg-[#0a0a0c]">
-        <div className="absolute inset-0" style={{ background: "radial-gradient(ellipse at 50% 120%, rgba(255,46,136,0.12), transparent 60%)" }} aria-hidden />
+        <div className="absolute inset-0" style={{ background: "radial-gradient(ellipse at 35% 130%, rgba(255,46,136,0.18), transparent 55%), radial-gradient(ellipse at 75% 130%, rgba(255,59,48,0.14), transparent 55%)" }} aria-hidden />
         <div className="relative max-w-[640px] mx-auto px-6 text-center">
           <h2 className="text-3xl sm:text-5xl font-black tracking-[-0.02em] mb-5">Build yours.</h2>
           <p className="text-[17px] text-white/55 mb-9">Your weight, your style, your spots. Tell us how you ride and we&apos;ll shape it.</p>

@@ -11,7 +11,7 @@ import { NP7_LOGO } from "@/components/experience/ocean-header";
 import { getTemplate } from "@/lib/hardware/templates";
 import type { ModuleKey } from "@/lib/hardware/templates";
 import type { Product, ProductContent, SpecRow, FitSegment } from "@/lib/hardware/types";
-import { HW_ACCENT } from "@/lib/hardware/types";
+import { LIME, PINK, BLUE, INK, INK_SOFT, SAND, SAND_DEEP, sandGrainOverlay } from "@/components/hardware/theme";
 
 export const revalidate = 60;
 
@@ -71,7 +71,7 @@ function HeroModule({
         <div
           className="absolute inset-0"
           style={{
-            background: `radial-gradient(ellipse at 60% 40%, ${HW_ACCENT}18, transparent 60%), #0c0c0e`,
+            background: `radial-gradient(ellipse at 60% 40%, ${LIME}14, transparent 60%), #0c0c0e`,
           }}
         />
       )}
@@ -98,7 +98,7 @@ function HeroModule({
           {content?.tagline && (
             <p
               className="text-[15px] font-bold mb-6 max-w-[560px]"
-              style={{ color: HW_ACCENT }}
+              style={{ color: LIME }}
             >
               {content.tagline}
             </p>
@@ -106,7 +106,7 @@ function HeroModule({
           <div className="flex flex-wrap items-center gap-4 mt-6">
             {price && (
               <div className="flex items-baseline gap-2">
-                <span className="text-3xl font-black" style={{ color: HW_ACCENT }}>
+                <span className="text-3xl font-black" style={{ color: LIME }}>
                   {price}
                 </span>
                 {compareAt && (
@@ -117,7 +117,7 @@ function HeroModule({
             <a
               href="#buy"
               className="px-7 py-3.5 rounded-full text-[14px] font-bold text-black hover:-translate-y-0.5 transition-all"
-              style={{ backgroundColor: HW_ACCENT }}
+              style={{ backgroundColor: LIME }}
             >
               Buy / Enquire
             </a>
@@ -133,17 +133,19 @@ function OverviewModule({ content }: { content: ProductContent | null }) {
   if (!text) return null;
   const highlights = (content?.highlights ?? []).filter((h) => h?.trim());
 
+  // Bright "sanded blank" break in the carbon — rough grain, ink type, pink heat.
   return (
-    <section className="py-16 sm:py-24">
-      <div className="max-w-[1100px] mx-auto px-6 sm:px-8">
+    <section className="relative py-16 sm:py-24" style={{ backgroundColor: SAND, color: INK }}>
+      <div className="absolute inset-0 pointer-events-none" style={sandGrainOverlay} aria-hidden />
+      <div className="relative max-w-[1100px] mx-auto px-6 sm:px-8">
         <Reveal className="max-w-[760px]">
           <p
             className="font-mono text-[11px] font-bold tracking-[0.25em] uppercase mb-3"
-            style={{ color: HW_ACCENT }}
+            style={{ color: PINK }}
           >
             // OVERVIEW
           </p>
-          <p className="text-[17px] sm:text-[19px] text-white/75 leading-relaxed whitespace-pre-line">
+          <p className="text-[17px] sm:text-[19px] leading-relaxed whitespace-pre-line" style={{ color: INK_SOFT }}>
             {text}
           </p>
         </Reveal>
@@ -153,9 +155,10 @@ function OverviewModule({ content }: { content: ProductContent | null }) {
               {highlights.map((h) => (
                 <span
                   key={h}
-                  className="inline-flex items-center gap-1.5 text-[12.5px] font-semibold text-white/85 px-3.5 py-1.5 rounded-full border border-white/10 bg-white/[0.06]"
+                  className="inline-flex items-center gap-1.5 text-[12.5px] font-bold px-3.5 py-1.5 rounded-full"
+                  style={{ border: "1px solid rgba(22,21,16,0.18)", backgroundColor: "rgba(255,255,255,0.5)", color: INK }}
                 >
-                  <span style={{ color: HW_ACCENT }}>✦</span>
+                  <span style={{ color: PINK }}>✦</span>
                   {h}
                 </span>
               ))}
@@ -186,23 +189,26 @@ function SpecsModule({
 
   if (allRows.length === 0) return null;
 
+  // Sand bench, carbon plates: bright rough ground, dark spec cells, blue data.
   return (
-    <section className="py-16 sm:py-24 border-y border-white/10 bg-[#0a0a0c]">
-      <div className="max-w-[1100px] mx-auto px-6 sm:px-8">
+    <section className="relative py-16 sm:py-24" style={{ backgroundColor: SAND_DEEP, color: INK }}>
+      <div className="absolute inset-0 pointer-events-none" style={sandGrainOverlay} aria-hidden />
+      <div className="relative max-w-[1100px] mx-auto px-6 sm:px-8">
         <Reveal>
           <p
             className="font-mono text-[11px] font-bold tracking-[0.25em] uppercase mb-8"
-            style={{ color: HW_ACCENT }}
+            style={{ color: BLUE }}
           >
             // SPECS
           </p>
-          <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-px bg-white/[0.07] rounded-2xl overflow-hidden border border-white/10">
+          <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-px rounded-2xl overflow-hidden"
+            style={{ backgroundColor: "rgba(22,21,16,0.25)", border: "1px solid rgba(22,21,16,0.3)" }}>
             {allRows.map((row) => (
               <div key={row.label} className="bg-[#0c0c0e] p-5">
                 <span className="block font-mono text-[10.5px] uppercase tracking-[0.12em] text-white/35 mb-1">
                   {row.label}
                 </span>
-                <span className="block text-[16px] font-extrabold text-white">{row.value}</span>
+                <span className="block text-[16px] font-extrabold" style={{ color: "#dfe9f5" }}>{row.value}</span>
               </div>
             ))}
           </div>
@@ -222,7 +228,7 @@ function GalleryModule({ content }: { content: ProductContent | null }) {
         <Reveal className="mb-10">
           <p
             className="font-mono text-[11px] font-bold tracking-[0.25em] uppercase mb-3"
-            style={{ color: HW_ACCENT }}
+            style={{ color: LIME }}
           >
             // GALLERY
           </p>
@@ -255,7 +261,7 @@ function BuyModule({ product, buyVariants, productAvailable, image }: { product:
         <Reveal>
           <p
             className="font-mono text-[11px] font-bold tracking-[0.25em] uppercase mb-3"
-            style={{ color: HW_ACCENT }}
+            style={{ color: LIME }}
           >
             // BUY
           </p>
@@ -264,7 +270,7 @@ function BuyModule({ product, buyVariants, productAvailable, image }: { product:
           </h2>
           {price && (
             <div className="flex items-baseline gap-3 mb-2">
-              <span className="text-4xl font-black" style={{ color: HW_ACCENT }}>
+              <span className="text-4xl font-black" style={{ color: LIME }}>
                 {price}
               </span>
               {compareAt && (
@@ -379,7 +385,7 @@ export default async function HardwareProductPage({ params }: Props) {
       case "find_your_fit":
         return (
           <div key="find_your_fit" className="bg-[#0c0c0e] text-white">
-            <FindYourFit segments={content?.find_your_fit ?? []} accent={HW_ACCENT} />
+            <FindYourFit segments={content?.find_your_fit ?? []} accent={LIME} />
           </div>
         );
       case "specs":
