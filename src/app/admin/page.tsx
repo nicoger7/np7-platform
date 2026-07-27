@@ -4,6 +4,287 @@ import { useState, useEffect } from "react";
 import Link from "next/link";
 import { BOOKING_STATUS_LABELS, normalizeBookingStatus } from "@/lib/types";
 import { editionLabel } from "@/lib/edition-label";
+import { useAdminEnv } from "./env-context";
+
+// Each admin world renders its OWN dashboard (Experience ops, Hardware catalog,
+// Magazine editorial, Product Dev placeholder) — numbers never leak across
+// worlds. The world comes from the shell's switcher via AdminEnvContext, so
+// toggling worlds while on /admin swaps the dashboard in place.
+
+function money(n: number | null | undefined) {
+  return n != null ? `€${Number(n).toLocaleString("en-US")}` : "—";
+}
+function fmtDate(d: string | null) {
+  if (!d) return "—";
+  return new Date(d).toLocaleDateString("en-GB", { day: "2-digit", month: "short" });
+}
+
+// Privacy toggle (like a banking app) — mask the € figures. Persisted per-browser.
+// Safe lazy init: window guard for SSR, and money only renders after the loading gate.
+function useHideMoney(): [boolean, () => void] {
+  const [hideMoney, setHideMoney] = useState<boolean>(() => {
+    if (typeof window === "undefined") return false;
+    try { return localStorage.getItem("np7-admin-hide-money") === "1"; } catch { return false; }
+  });
+  function toggle() {
+    setHideMoney((v) => { const n = !v; try { localStorage.setItem("np7-admin-hide-money", n ? "1" : "0"); } catch { /* ignore */ } return n; });
+  }
+  return [hideMoney, toggle];
+}
+
+function MoneyEye({ hidden, onToggle }: { hidden: boolean; onToggle: () => void }) {
+  return (
+    <button
+      onClick={onToggle}
+      title={hidden ? "Show amounts" : "Hide amounts"}
+      aria-pressed={hidden}
+      className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors admin-muted"
+      style={{ border: "1px solid var(--admin-border)" }}
+    >
+      {hidden ? (
+        <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M9.88 9.88a3 3 0 1 0 4.24 4.24M10.73 5.08A10.43 10.43 0 0 1 12 5c7 0 10 7 10 7a13.16 13.16 0 0 1-1.67 2.68M6.61 6.61A13.5 13.5 0 0 0 2 12s3 7 10 7a9.74 9.74 0 0 0 5.39-1.61M2 2l20 20" /></svg>
+      ) : (
+        <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7z" /><circle cx="12" cy="12" r="3" /></svg>
+      )}
+      {hidden ? "Show €" : "Hide €"}
+    </button>
+  );
+}
+
+function DashboardHeader({ eye }: { eye?: { hidden: boolean; onToggle: () => void } }) {
+  return (
+    <div className="flex items-center justify-between mb-6">
+      <h1 className="text-2xl font-bold admin-heading">Dashboard</h1>
+      {/* Privacy eye only for roles that can see money at all — for restricted
+          roles there are no € figures on the page, and even showing the toggle
+          (or masked ••••) would advertise that something is being hidden. */}
+      {eye && <MoneyEye hidden={eye.hidden} onToggle={eye.onToggle} />}
+    </div>
+  );
+}
+
+function Loading() {
+  return <div className="flex items-center justify-center h-64"><p className="text-sm admin-faint">Loading dashboard…</p></div>;
+}
+
+// Accent follows the active world (Experience cyan / Hardware lime / Magazine
+// amber) via the shell's --admin-accent, so every world's dashboard is branded.
+function StatCard({ label, value, href, accent }: { label: string; value: string | number; href?: string; accent?: boolean }) {
+  const body = (
+    <div
+      className="rounded-xl p-5 h-full transition-colors"
+      style={{ backgroundColor: "var(--admin-surface)", border: "1px solid var(--admin-border)" }}
+      onMouseEnter={(e) => href && (e.currentTarget.style.borderColor = "var(--admin-accent)")}
+      onMouseLeave={(e) => href && (e.currentTarget.style.borderColor = "var(--admin-border)")}
+    >
+      <p className="text-[11px] font-bold tracking-[0.12em] uppercase mb-2" style={{ color: "var(--admin-text-faint)" }}>{label}</p>
+      <p className="text-3xl font-black" style={{ color: accent ? "var(--admin-accent)" : "var(--admin-text)" }}>{value}</p>
+    </div>
+  );
+  return href ? <Link href={href}>{body}</Link> : body;
+}
+
+function Panel({ title, href, children }: { title: string; href?: string; children: React.ReactNode }) {
+  return (
+    <div className="rounded-xl p-5" style={{ backgroundColor: "var(--admin-surface)", border: "1px solid var(--admin-border)" }}>
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between mb-3">
+        <h2 className="text-sm font-bold admin-heading">{title}</h2>
+        {href && <Link href={href} className="text-xs hover:underline" style={{ color: "var(--admin-accent)" }}>View all →</Link>}
+      </div>
+      {children}
+    </div>
+  );
+}
+
+function QuickActions({ actions }: { actions: { label: string; href: string }[] }) {
+  return (
+    <Panel title="Quick actions">
+      <div className="grid grid-cols-2 gap-2">
+        {actions.map((a) => (
+          <Link key={a.href} href={a.href} className="text-xs admin-muted hover:text-[var(--admin-accent)] py-2 px-3 rounded-lg transition-colors" style={{ border: "1px solid var(--admin-border)" }}>
+            {a.label}
+          </Link>
+        ))}
+      </div>
+    </Panel>
+  );
+}
+
+// ─── World dispatcher ────────────────────────────────────────────────────────
+
+export default function AdminDashboard() {
+  const env = useAdminEnv();
+  if (env === "hardware") return <HardwareDashboard />;
+  if (env === "magazine") return <MagazineDashboard />;
+  if (env === "product-dev") return <ProductDevDashboard />;
+  return <ExperienceDashboard />;
+}
+
+// ─── NP7 Hardware ────────────────────────────────────────────────────────────
+
+interface HardwareData {
+  counts: { products: number; published: number; drafts: number; stockUnits: number };
+  latestProducts: { id: string; name: string; category: string | null; status: string | null; price: number | null; updated_at: string | null; created_at: string | null }[];
+  contentGaps: { productId: string; name: string; missing: string[] }[];
+  slim?: boolean;
+}
+
+const HW_STATUS_COLOR: Record<string, string> = {
+  published: "text-green-400", draft: "text-amber-400", archived: "admin-faint",
+};
+
+function HardwareDashboard() {
+  const [d, setD] = useState<HardwareData | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [hideMoney, toggleHideMoney] = useHideMoney();
+
+  useEffect(() => {
+    fetch("/api/admin/dashboard?world=hardware").then((r) => r.json()).then((data) => { setD(data); setLoading(false); });
+  }, []);
+
+  if (loading || !d) return <Loading />;
+
+  const slim = !!d.slim;
+  const amt = (n: number | null | undefined) => (hideMoney ? "€ ••••" : money(n));
+
+  return (
+    <div>
+      <DashboardHeader eye={slim ? undefined : { hidden: hideMoney, onToggle: toggleHideMoney }} />
+
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+        <StatCard label="Products" value={d.counts.products} href="/admin/products" />
+        <StatCard label="On website" value={d.counts.published} href="/admin/products?status=published" />
+        <StatCard label="Drafts" value={d.counts.drafts} href="/admin/products?status=draft" />
+        <StatCard label="Stock units" value={d.counts.stockUnits} accent />
+      </div>
+
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+        <Panel title="Latest products" href="/admin/products">
+          {d.latestProducts.length === 0 ? <p className="text-xs admin-faint">No products yet.</p> : (
+            <div className="space-y-1.5">
+              {d.latestProducts.map((p) => (
+                <Link key={p.id} href={`/admin/products/${p.id}`} className="flex items-center gap-3 text-xs py-1.5 px-2 -mx-2 rounded-lg hover:bg-[var(--admin-surface-hover)]">
+                  <span className="flex-1 admin-heading truncate">{p.name}</span>
+                  <span className="admin-faint truncate hidden sm:block max-w-[120px]">{p.category || ""}</span>
+                  <span className={`${HW_STATUS_COLOR[p.status ?? "draft"] || "admin-muted"} w-20 text-right`}>{p.status ?? "draft"}</span>
+                  {!slim && <span className="admin-muted w-16 text-right">{amt(p.price)}</span>}
+                </Link>
+              ))}
+            </div>
+          )}
+        </Panel>
+
+        <Panel title={`Website content missing${d.contentGaps.length ? ` (${d.contentGaps.length})` : ""}`} href="/admin/products">
+          {d.contentGaps.length === 0 ? <p className="text-xs admin-faint">Every published product has a hero, gallery &amp; overview. 🎉</p> : (
+            <div className="space-y-1.5">
+              {d.contentGaps.map((c) => (
+                <Link key={c.productId} href={`/admin/products/${c.productId}`} className="flex items-center gap-3 text-xs py-1.5 px-2 -mx-2 rounded-lg hover:bg-[var(--admin-surface-hover)]">
+                  <span className="flex-1 admin-heading truncate">{c.name}</span>
+                  <span className="shrink-0 admin-faint">missing {c.missing.join(" + ")}</span>
+                </Link>
+              ))}
+            </div>
+          )}
+        </Panel>
+
+        <Panel title="Orders" href="/admin/orders">
+          <p className="text-xs admin-faint leading-relaxed">
+            The shop backend is in the works — once it ships, open orders, fulfillment status and
+            revenue land here.
+          </p>
+        </Panel>
+
+        <QuickActions actions={[
+          { label: "Products", href: "/admin/products" },
+          { label: "Orders", href: "/admin/orders" },
+          { label: "File storage", href: "/admin/images" },
+          { label: "Archive", href: "/admin/archive" },
+        ]} />
+      </div>
+    </div>
+  );
+}
+
+// ─── Magazine ────────────────────────────────────────────────────────────────
+
+interface MagazineData {
+  counts: { posts: number; published: number; drafts: number; destinations: number };
+  latestPosts: { id: string; title: string; status: string | null; category: string | null; published_at: string | null; updated_at: string | null }[];
+}
+
+function MagazineDashboard() {
+  const [d, setD] = useState<MagazineData | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    fetch("/api/admin/dashboard?world=magazine").then((r) => r.json()).then((data) => { setD(data); setLoading(false); });
+  }, []);
+
+  if (loading || !d) return <Loading />;
+
+  return (
+    <div>
+      <DashboardHeader />
+
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+        <StatCard label="Posts" value={d.counts.posts} href="/admin/blog" />
+        <StatCard label="Published" value={d.counts.published} accent />
+        <StatCard label="Drafts" value={d.counts.drafts} href="/admin/blog" />
+        <StatCard label="Destinations" value={d.counts.destinations} href="/admin/destinations" />
+      </div>
+
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+        <Panel title="Latest posts" href="/admin/blog">
+          {d.latestPosts.length === 0 ? <p className="text-xs admin-faint">No posts yet.</p> : (
+            <div className="space-y-1.5">
+              {d.latestPosts.map((p) => (
+                <Link key={p.id} href={`/admin/blog/${p.id}`} className="flex items-center gap-3 text-xs py-1.5 px-2 -mx-2 rounded-lg hover:bg-[var(--admin-surface-hover)]">
+                  <span className="flex-1 admin-heading truncate">{p.title}</span>
+                  <span className="admin-faint truncate hidden sm:block max-w-[100px]">{p.category || ""}</span>
+                  <span className={`${p.status === "published" ? "text-green-400" : "text-amber-400"} w-20 text-right`}>{p.status ?? "draft"}</span>
+                  <span className="admin-faint w-12 text-right">{fmtDate(p.published_at || p.updated_at)}</span>
+                </Link>
+              ))}
+            </div>
+          )}
+        </Panel>
+
+        <QuickActions actions={[
+          { label: "Magazine", href: "/admin/blog" },
+          { label: "Spotguide", href: "/admin/spotguide" },
+          { label: "Destinations", href: "/admin/destinations" },
+        ]} />
+      </div>
+    </div>
+  );
+}
+
+// ─── Product Development ─────────────────────────────────────────────────────
+
+function ProductDevDashboard() {
+  return (
+    <div>
+      <DashboardHeader />
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+        <Panel title="Product development">
+          <p className="text-xs admin-faint leading-relaxed mb-3">
+            Boards and Reviews are in the works — prototypes, test feedback and review rounds will
+            live here.
+          </p>
+          <div className="grid grid-cols-2 gap-2">
+            {[{ label: "Boards", href: "/admin/boards" }, { label: "Reviews", href: "/admin/reviews" }].map((a) => (
+              <Link key={a.href} href={a.href} className="text-xs admin-muted hover:text-[var(--admin-accent)] py-2 px-3 rounded-lg transition-colors" style={{ border: "1px solid var(--admin-border)" }}>
+                {a.label}
+              </Link>
+            ))}
+          </div>
+        </Panel>
+      </div>
+    </div>
+  );
+}
+
+// ─── NP7 Experience ──────────────────────────────────────────────────────────
 
 interface DashboardData {
   counts: { experiences: number; bookings: number; contacts: number; upcomingEditions: number };
@@ -18,66 +299,21 @@ interface DashboardData {
   contentGaps?: { experienceId: string; title: string; missing: string[] }[];
 }
 
-function money(n: number | null | undefined) {
-  return n != null ? `€${Number(n).toLocaleString("en-US")}` : "—";
-}
-function fmtDate(d: string | null) {
-  if (!d) return "—";
-  return new Date(d).toLocaleDateString("en-GB", { day: "2-digit", month: "short" });
-}
-
-function StatCard({ label, value, href, accent }: { label: string; value: string | number; href?: string; accent?: boolean }) {
-  const body = (
-    <div
-      className="rounded-xl p-5 h-full transition-colors"
-      style={{ backgroundColor: "var(--admin-surface)", border: "1px solid var(--admin-border)" }}
-      onMouseEnter={(e) => href && (e.currentTarget.style.borderColor = "#0aa3c7")}
-      onMouseLeave={(e) => href && (e.currentTarget.style.borderColor = "var(--admin-border)")}
-    >
-      <p className="text-[11px] font-bold tracking-[0.12em] uppercase mb-2" style={{ color: "var(--admin-text-faint)" }}>{label}</p>
-      <p className="text-3xl font-black" style={{ color: accent ? "#0aa3c7" : "var(--admin-text)" }}>{value}</p>
-    </div>
-  );
-  return href ? <Link href={href}>{body}</Link> : body;
-}
-
-function Panel({ title, href, children }: { title: string; href?: string; children: React.ReactNode }) {
-  return (
-    <div className="rounded-xl p-5" style={{ backgroundColor: "var(--admin-surface)", border: "1px solid var(--admin-border)" }}>
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between mb-3">
-        <h2 className="text-sm font-bold admin-heading">{title}</h2>
-        {href && <Link href={href} className="text-xs text-[#0aa3c7] hover:underline">View all →</Link>}
-      </div>
-      {children}
-    </div>
-  );
-}
-
 const STATUS_COLOR: Record<string, string> = {
   paid: "text-green-400", attended: "text-green-400", confirmed: "text-blue-400",
   reserved: "text-amber-400", lead: "admin-muted", lost: "admin-faint",
 };
 
-export default function AdminDashboard() {
+function ExperienceDashboard() {
   const [d, setD] = useState<DashboardData | null>(null);
   const [loading, setLoading] = useState(true);
-  // Privacy toggle (like a banking app) — mask the € figures. Persisted per-browser.
-  // Safe lazy init: window guard for SSR, and money only renders after the loading gate.
-  const [hideMoney, setHideMoney] = useState<boolean>(() => {
-    if (typeof window === "undefined") return false;
-    try { return localStorage.getItem("np7-admin-hide-money") === "1"; } catch { return false; }
-  });
-  function toggleHideMoney() {
-    setHideMoney((v) => { const n = !v; try { localStorage.setItem("np7-admin-hide-money", n ? "1" : "0"); } catch { /* ignore */ } return n; });
-  }
+  const [hideMoney, toggleHideMoney] = useHideMoney();
 
   useEffect(() => {
     fetch("/api/admin/dashboard").then((r) => r.json()).then((data) => { setD(data); setLoading(false); });
   }, []);
 
-  if (loading || !d) {
-    return <div className="flex items-center justify-center h-64"><p className="text-sm admin-faint">Loading dashboard…</p></div>;
-  }
+  if (loading || !d) return <Loading />;
 
   // Mask money everywhere on the dashboard when the eye is toggled off.
   const amt = (n: number | null | undefined) => (hideMoney ? "€ ••••" : money(n));
@@ -124,26 +360,7 @@ export default function AdminDashboard() {
 
   return (
     <div>
-      <div className="flex items-center justify-between mb-6">
-        <h1 className="text-2xl font-bold admin-heading">Dashboard</h1>
-        {/* Privacy eye only for roles that can see money at all — for restricted
-            roles there are no € figures on the page, and even showing the toggle
-            (or masked ••••) would advertise that something is being hidden. */}
-        {!slim && <button
-          onClick={toggleHideMoney}
-          title={hideMoney ? "Show amounts" : "Hide amounts"}
-          aria-pressed={hideMoney}
-          className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors admin-muted"
-          style={{ border: "1px solid var(--admin-border)" }}
-        >
-          {hideMoney ? (
-            <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M9.88 9.88a3 3 0 1 0 4.24 4.24M10.73 5.08A10.43 10.43 0 0 1 12 5c7 0 10 7 10 7a13.16 13.16 0 0 1-1.67 2.68M6.61 6.61A13.5 13.5 0 0 0 2 12s3 7 10 7a9.74 9.74 0 0 0 5.39-1.61M2 2l20 20" /></svg>
-          ) : (
-            <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7z" /><circle cx="12" cy="12" r="3" /></svg>
-          )}
-          {hideMoney ? "Show €" : "Hide €"}
-        </button>}
-      </div>
+      <DashboardHeader eye={slim ? undefined : { hidden: hideMoney, onToggle: toggleHideMoney }} />
 
       {/* Counters */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-4">
@@ -243,22 +460,14 @@ export default function AdminDashboard() {
 
         {/* Quick links — full-access roles only (most targets are gated). */}
         {!slim && (
-        <Panel title="Quick actions">
-          <div className="grid grid-cols-2 gap-2">
-            {[
-              { label: "New booking", href: "/admin/bookings" },
-              { label: "New experience", href: "/admin/experiences/new" },
-              { label: "Payments", href: "/admin/payments" },
-              { label: "Documents", href: "/admin/documents" },
-              { label: "Pipeline rules", href: "/admin/pipeline-rules" },
-              { label: "Guest reviews", href: "/admin/guest-reviews" },
-            ].map((a) => (
-              <Link key={a.href} href={a.href} className="text-xs admin-muted hover:text-[#0aa3c7] py-2 px-3 rounded-lg transition-colors" style={{ border: "1px solid var(--admin-border)" }}>
-                {a.label}
-              </Link>
-            ))}
-          </div>
-        </Panel>
+        <QuickActions actions={[
+          { label: "New booking", href: "/admin/bookings" },
+          { label: "New experience", href: "/admin/experiences/new" },
+          { label: "Payments", href: "/admin/payments" },
+          { label: "Documents", href: "/admin/documents" },
+          { label: "Pipeline rules", href: "/admin/pipeline-rules" },
+          { label: "Guest reviews", href: "/admin/guest-reviews" },
+        ]} />
         )}
       </div>
     </div>

@@ -1,13 +1,15 @@
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase";
 import { createClient } from "@/lib/supabase/server";
 import { getActiveTeamMember, getEffectiveAccess } from "@/lib/admin-auth";
-import { effectiveCanSeeField } from "@/lib/access";
+import { effectiveCanAccess, effectiveCanEnterWorld, effectiveCanSeeField } from "@/lib/access";
 import { normalizeBookingStatus } from "@/lib/types";
 
 // GET /api/admin/dashboard — one aggregated payload for the ops dashboard.
-// Middleware already gates this to active team members.
-export async function GET() {
+// Each admin world gets its OWN payload (`?world=hardware|magazine`); the
+// default is the Experience ops dashboard. Middleware already gates this to
+// active team members.
+export async function GET(request: NextRequest) {
   // Finance figures are owner-only — don't even send them to managers.
   // A role-based member additionally needs the `money` field grant to see ANY
   // money (booking prices, add-on prices) — so a photographer sees no numbers.
@@ -21,6 +23,24 @@ export async function GET() {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const db = createAdminClient() as any;
   const today = new Date().toISOString().slice(0, 10);
+
+  const world = request.nextUrl.searchParams.get("world");
+  if (world === "hardware") {
+    // Same world-entry rule the sidebar uses — no hardware numbers for roles
+    // that can't open the hardware world at all.
+    if (access && !effectiveCanEnterWorld(access, "hardware")) {
+      return NextResponse.json({ error: "forbidden" }, { status: 403 });
+    }
+    return hardwareDashboard(db, showMoney);
+  }
+  if (world === "magazine") {
+    // Magazine is a UI-only grouping (not an RBAC world) — entry mirrors the
+    // shell: reachable if the role can open the blog admin.
+    if (access && !effectiveCanAccess(access, "/admin/blog")) {
+      return NextResponse.json({ error: "forbidden" }, { status: 403 });
+    }
+    return magazineDashboard(db);
+  }
 
   const head = (table: string, build?: (q: any) => any) => {
     let q = db.from(table).select("id", { count: "exact", head: true });
@@ -131,5 +151,95 @@ export async function GET() {
     slim: !showMoney,
     photoTasks,
     contentGaps,
+  });
+}
+
+// ── NP7 Hardware world ───────────────────────────────────────────────────────
+// Products-centric for now: catalog counts, freshest edits, and website-content
+// gaps. Orders KPIs join once the shop backend exists.
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+async function hardwareDashboard(db: any, showMoney: boolean) {
+  const live = (q: any) => q.is("archived_at", null);
+  const head = (build?: (q: any) => any) => {
+    let q = db.from("hw_products").select("id", { count: "exact", head: true });
+    q = live(q);
+    if (build) q = build(q);
+    return q;
+  };
+
+  const [total, published, drafts, stockRows, latest, contentRows] = await Promise.all([
+    head(),
+    head((q: any) => q.eq("status", "published")),
+    head((q: any) => q.eq("status", "draft")),
+    live(db.from("hw_products").select("stock_count")),
+    live(db.from("hw_products").select("id,name,category,status,price,updated_at,created_at"))
+      .order("updated_at", { ascending: false, nullsFirst: false }).limit(6),
+    live(db.from("hw_products").select("id,name,images,description").eq("status", "published")),
+  ]);
+
+  // Published products whose page still misses core website content
+  // (mirrors the Experience "website photos missing" panel).
+  type Gap = { productId: string; name: string; missing: string[] };
+  const contentGaps: Gap[] = [];
+  try {
+    const products = (contentRows.data ?? []) as { id: string; name: string; images: string[] | null; description: string | null }[];
+    const ids = products.map((p) => p.id);
+    const { data: content } = ids.length
+      ? await db.from("hw_product_content").select("product_id,hero_image,gallery,overview").in("product_id", ids)
+      : { data: [] };
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const byProduct = new Map(((content ?? []) as any[]).map((c) => [c.product_id, c]));
+    for (const p of products) {
+      const c = byProduct.get(p.id);
+      const missing: string[] = [];
+      if (!(c?.hero_image || p.images?.[0])) missing.push("hero image");
+      const gallery = (Array.isArray(c?.gallery) && c.gallery.length ? c.gallery : p.images) ?? [];
+      if (gallery.filter(Boolean).length === 0) missing.push("gallery");
+      if (!(c?.overview || p.description)) missing.push("overview");
+      if (missing.length) contentGaps.push({ productId: p.id, name: p.name, missing });
+    }
+  } catch { /* content table not ready — leave empty */ }
+
+  const stockUnits = ((stockRows.data ?? []) as { stock_count: number | null }[])
+    .reduce((a, r) => a + (Number(r.stock_count) || 0), 0);
+
+  return NextResponse.json({
+    world: "hardware",
+    counts: {
+      products: total.count ?? 0,
+      published: published.count ?? 0,
+      drafts: drafts.count ?? 0,
+      stockUnits,
+    },
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    latestProducts: (latest.data ?? []).map((p: any) => (showMoney ? p : { ...p, price: null })),
+    contentGaps,
+    slim: !showMoney,
+  });
+}
+
+// ── Magazine world ───────────────────────────────────────────────────────────
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+async function magazineDashboard(db: any) {
+  const [total, published, destinations, latest] = await Promise.all([
+    db.from("exp_blog_posts").select("id", { count: "exact", head: true }),
+    db.from("exp_blog_posts").select("id", { count: "exact", head: true }).eq("status", "published"),
+    db.from("destinations").select("id", { count: "exact", head: true }),
+    db.from("exp_blog_posts").select("id,title,status,category,published_at,updated_at")
+      .order("updated_at", { ascending: false, nullsFirst: false }).limit(6),
+  ]);
+
+  const posts = total.count ?? 0;
+  const publishedCount = published.count ?? 0;
+  return NextResponse.json({
+    world: "magazine",
+    counts: {
+      posts,
+      published: publishedCount,
+      // status is draft-by-default (may be null) — count by subtraction.
+      drafts: Math.max(0, posts - publishedCount),
+      destinations: destinations.count ?? 0,
+    },
+    latestPosts: latest.data ?? [],
   });
 }

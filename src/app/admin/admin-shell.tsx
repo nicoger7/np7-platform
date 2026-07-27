@@ -10,6 +10,7 @@ import { AccountSwitcher } from "@/components/admin/account-switcher";
 import { AdminInstallPrompt } from "@/components/pwa/admin-install-prompt";
 import { ActiveTimeHeartbeat } from "@/components/admin/active-time-heartbeat";
 import { CommandPalette, type PaletteItem } from "@/components/admin/command-palette";
+import { AdminEnvContext, type AdminEnv } from "./env-context";
 
 // ─── Environments ────────────────────────────────────────────────────────────
 
@@ -17,7 +18,7 @@ import { CommandPalette, type PaletteItem } from "@/components/admin/command-pal
 // like "NP7 Experience Media" grant the magazine/destinations SECTIONS inside the
 // experience world; making magazine a real world would have locked them out.
 // Entry is therefore decided by page access (see canEnterEnv).
-type Environment = "experience" | "hardware" | "magazine" | "product-dev" | "analytics";
+type Environment = AdminEnv;
 
 // `color` doubles as the admin accent for that world, mirroring the public site:
 // Experience = ocean cyan, Hardware = neon lime (black text on it). `accentContrast`
@@ -826,7 +827,9 @@ export default function AdminShell({
       </aside>
 
       {/* Main content */}
-      <main className="flex-1 min-w-0 p-4 sm:p-6 lg:p-8 overflow-auto">{children}</main>
+      <main className="flex-1 min-w-0 p-4 sm:p-6 lg:p-8 overflow-auto">
+        <AdminEnvContext.Provider value={env}>{children}</AdminEnvContext.Provider>
+      </main>
 
       {paletteOpen && (
         <CommandPalette
