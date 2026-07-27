@@ -56,7 +56,11 @@
 
 ### Hardware shop (`/hardware`)
 - 🟢 Product pages + per-product Find-Your-Fit (phase 1)
-- ⚪ **Checkout (phase 2)** — not started
+- 🟢 Per-world admin dashboard (Hardware world shows its own KPIs, 2026-07-27)
+- 🟡 **Hardware backend** — full blueprint researched & written 2026-07-27:
+  `docs/hardware-backend-blueprint.md` (+ 3 deep-research reports in `docs/research/`).
+  Phases: 1 catalog/suppliers/POs/inventory-ledger → 2 D2C checkout+orders+3PL+returns
+  → 3 B2B dealer portal → 4 scale. Checkout (old "phase 2") is now part of blueprint Phase 2.
 
 ### Member area (`/account`)
 - 🟢 Auth, bookings, cart, gear, profile
