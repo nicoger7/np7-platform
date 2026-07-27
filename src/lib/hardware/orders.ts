@@ -83,6 +83,26 @@ export function derivePaymentStatus(
   return refunded >= captured ? "refunded" : "partially_refunded";
 }
 
+// ── Returns / withdrawal ─────────────────────────────────────────────────────
+
+export const RETURN_STATUSES = ["requested", "approved", "in_transit", "received", "resolved", "rejected"] as const;
+export type ReturnStatus = (typeof RETURN_STATUSES)[number];
+
+export const RETURN_REASONS = [
+  { code: "changed_mind", label: "Changed my mind" },
+  { code: "wrong_size", label: "Wrong size / volume" },
+  { code: "not_as_expected", label: "Not as expected" },
+  { code: "damaged_in_transit", label: "Arrived damaged" },
+  { code: "defect", label: "Defect / warranty claim" },
+  { code: "other", label: "Other" },
+] as const;
+
+export const RETURN_CONDITIONS = [
+  { code: "a_stock", label: "A-stock (like new)" },
+  { code: "b_stock", label: "B-stock (used, sellable)" },
+  { code: "scrap", label: "Scrap / write off" },
+] as const;
+
 /** EU membership drives tax treatment: DE domestic, EU destination-VAT (OSS), else export. */
 export const EU_COUNTRIES = new Set([
   "AT", "BE", "BG", "HR", "CY", "CZ", "DE", "DK", "EE", "ES", "FI", "FR", "GR", "HU",

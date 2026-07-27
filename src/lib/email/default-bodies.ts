@@ -29,6 +29,7 @@ export const DEFAULT_SUBJECTS: Record<string, string> = {
   post_trip_thank_you: "What a week 🤙 thank you — {{experienceTitle}}",
   photos_ready: "📸 Your photos from {{experienceTitle}} are here",
   addon_confirmed: "Confirmed: {{addonLabel}} — {{experienceTitle}}",
+  hw_return_received: "We got your return request — order {{orderNumber}}",
 };
 
 export const DEFAULT_BODIES: Record<string, string> = {
@@ -156,5 +157,15 @@ export const DEFAULT_BODIES: Record<string, string> = {
     P("Good news — we've confirmed <strong>{{addonLabel}}</strong> for your trip to <strong>{{experienceTitle}}</strong>.") +
     P("It adds <strong>{{addonPrice}}</strong> to your balance, bringing your remaining balance to <strong>{{balance}}</strong> — payable by bank transfer with the rest.") +
     BTN("View it in your trip", "bookingLink") +
+    P("Any questions, just reply." + SIGN),
+
+  // Hardware: legal acknowledgement of a withdrawal/return declaration
+  // (Directive 2023/2673 — the customer must get a durable-medium confirmation).
+  hw_return_received:
+    P("Hey {{firstName}} 🤙") +
+    P("We've received your return request for order <strong>{{orderNumber}}</strong> ({{items}}) on {{declaredDate}} — this email is your confirmation.") +
+    P("<strong>What happens next:</strong> we'll review it and send you return instructions. Boards and other bulky gear: don't organize shipping yourself — we'll arrange the pickup.") +
+    P("Once the gear is back and checked, your refund goes to the original payment method within 14 days.") +
+    BTN("View your order", "orderLink") +
     P("Any questions, just reply." + SIGN),
 };

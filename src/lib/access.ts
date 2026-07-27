@@ -116,6 +116,7 @@ export const SECTIONS: Section[] = [
   { key: "product_pages", label: "Product pages (website)", world: "hardware", group: "Hardware", paths: ["/admin/product-pages", "/api/admin/products"] },
   { key: "orders", label: "Orders", world: "hardware", group: "Hardware", paths: ["/admin/orders", "/api/admin/orders"] },
   { key: "inventory", label: "Inventory", world: "hardware", group: "Hardware", paths: ["/admin/inventory", "/api/admin/inventory"] },
+  { key: "returns", label: "Returns", world: "hardware", group: "Hardware", paths: ["/admin/returns", "/api/admin/returns"] },
   { key: "purchasing", label: "Purchasing", world: "hardware", group: "Hardware", paths: ["/admin/purchasing", "/api/admin/purchasing", "/api/admin/inbound"] },
   { key: "suppliers", label: "Suppliers", world: "hardware", group: "Hardware", paths: ["/admin/suppliers", "/api/admin/suppliers"] },
   // Analytics
@@ -166,6 +167,7 @@ export const SECTION_EXPOSES: Record<string, FieldKey[]> = {
   purchasing: ["money", "costs"],
   inventory: ["costs"],
   orders: ["money", "contact_pii"],
+  returns: ["money", "contact_pii"],
 };
 
 /** Which of those exposures are actually enforced (redacted) server-side today.
