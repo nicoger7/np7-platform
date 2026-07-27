@@ -14,6 +14,16 @@ function describe(el: HTMLElement): string {
   if (el.dataset?.track) return `[${el.dataset.track}]`;
   const aria = el.getAttribute?.("aria-label");
   if (aria) return `${tag} "${aria.trim().slice(0, 40)}"`;
+  // form fields and images have no text content — their placeholder/alt is the
+  // label a human recognises ("input.w-full" tells nobody anything)
+  if (tag === "input" || tag === "textarea" || tag === "select") {
+    const hint = el.getAttribute("placeholder") || el.getAttribute("name") || el.getAttribute("type");
+    if (hint) return `${tag} "${hint.trim().slice(0, 40)}"`;
+  }
+  if (tag === "img") {
+    const alt = el.getAttribute("alt");
+    if (alt) return `img "${alt.trim().slice(0, 40)}"`;
+  }
   const text = (el.textContent || "").replace(/\s+/g, " ").trim();
   if (text) return `${tag} "${text.slice(0, 40)}"`;
   if (el.id) return `${tag}#${el.id}`;
@@ -114,11 +124,14 @@ export function AnalyticsTracker() {
       // page-relative Y (includes scroll) so heatmaps can place clicks on the full page
       const yd = Math.round(((window.scrollY + e.clientY) / Math.max(1, document.documentElement.scrollHeight)) * 100);
 
-      // rage: 3+ clicks within 800ms inside a ~40px radius
+      // rage: 3+ clicks within 800ms inside a ~40px radius. Form fields are
+      // exempt — double/triple-clicking to select text in an input is normal
+      // behaviour, not frustration (it was our #1 false positive).
+      const inField = !!el.closest("input,textarea,select,[contenteditable=true]");
       const now = Date.now();
       recent.push({ t: now, x: e.clientX, y: e.clientY });
       recent = recent.filter((r) => now - r.t < 800);
-      if (recent.length >= 3 && now - lastRage > 1500 && rages < 15) {
+      if (!inField && recent.length >= 3 && now - lastRage > 1500 && rages < 15) {
         const near = recent.filter((r) => Math.hypot(r.x - e.clientX, r.y - e.clientY) < 40);
         if (near.length >= 3) { lastRage = now; rages++; recent = []; track("rage_click", { target: describe(el), xpct, ypct, yd }); }
       }

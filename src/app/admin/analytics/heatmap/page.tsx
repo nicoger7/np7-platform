@@ -27,6 +27,11 @@ function palette(): Uint8ClampedArray {
 
 let PAL: Uint8ClampedArray | null = null;
 
+/** Individual dots stop at this many points — beyond it, only the density wash. */
+const MARKER_MAX = 400;
+
+const TYPE_COLOR: Record<string, string> = { click: "#00c2e8", dead_click: "#ffb020", rage_click: "#ff2d2d" };
+
 /** Density heatmap: accumulate soft radial dots, then colour by intensity. */
 function drawHeatmap(canvas: HTMLCanvasElement, points: Point[], w: number, h: number, radius: number) {
   canvas.width = w; canvas.height = h;
@@ -35,13 +40,17 @@ function drawHeatmap(canvas: HTMLCanvasElement, points: Point[], w: number, h: n
   ctx.clearRect(0, 0, w, h);
   if (!points.length || h <= 0) return;
 
+  // With few points the old fixed intensity painted near-invisible washes (a
+  // lone click ≈ a faint blue blob — indistinguishable on a blue hero). Scale
+  // per-point intensity to the sample size so small data still reads.
+  const core = points.length < 40 ? 0.45 : points.length < 200 ? 0.28 : 0.16;
   const tmp = document.createElement("canvas");
   tmp.width = w; tmp.height = h;
   const t = tmp.getContext("2d")!;
   for (const p of points) {
     const x = (p.x / 100) * w, y = (p.y / 100) * h;
     const rg = t.createRadialGradient(x, y, 0, x, y, radius);
-    rg.addColorStop(0, "rgba(0,0,0,0.16)");
+    rg.addColorStop(0, `rgba(0,0,0,${core})`);
     rg.addColorStop(1, "rgba(0,0,0,0)");
     t.fillStyle = rg;
     t.fillRect(x - radius, y - radius, radius * 2, radius * 2);
@@ -58,6 +67,21 @@ function drawHeatmap(canvas: HTMLCanvasElement, points: Point[], w: number, h: n
     }
   }
   ctx.putImageData(img, 0, 0);
+
+  // At low volume, also mark every click as a crisp white-ringed dot (coloured
+  // by type) — guaranteed visible on any page background, dark heroes included.
+  if (points.length <= MARKER_MAX) {
+    for (const p of points) {
+      const x = (p.x / 100) * w, y = (p.y / 100) * h;
+      ctx.beginPath();
+      ctx.arc(x, y, 5, 0, Math.PI * 2);
+      ctx.fillStyle = TYPE_COLOR[p.t] || TYPE_COLOR.click;
+      ctx.fill();
+      ctx.lineWidth = 2;
+      ctx.strokeStyle = "rgba(255,255,255,0.95)";
+      ctx.stroke();
+    }
+  }
 }
 
 export default function HeatmapPage() {
@@ -158,6 +182,18 @@ export default function HeatmapPage() {
 
         <span className="text-xs admin-faint ml-auto">{loading ? "Loading…" : `${count.toLocaleString("en-US")} clicks`}</span>
       </div>
+
+      {count > 0 && count <= MARKER_MAX && !loading && (
+        <div className="flex items-center gap-4 mb-3 text-[11px] admin-faint">
+          <span className="font-bold uppercase tracking-wide">Each dot = one click</span>
+          {(["click", "dead_click", "rage_click"] as const).map((k) => (
+            <span key={k} className="inline-flex items-center gap-1.5">
+              <span className="inline-block w-2.5 h-2.5 rounded-full border border-white" style={{ backgroundColor: TYPE_COLOR[k], boxShadow: "0 0 0 1px rgba(0,0,0,0.15)" }} />
+              {TYPE_LABEL[k === "click" ? "click" : k]}
+            </span>
+          ))}
+        </div>
+      )}
 
       {/* Viewer */}
       {!path ? (
