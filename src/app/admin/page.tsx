@@ -207,11 +207,11 @@ function HardwareDashboard() {
           )}
         </Panel>
 
-        <Panel title={`Website content missing${d.contentGaps.length ? ` (${d.contentGaps.length})` : ""}`} href="/admin/products">
+        <Panel title={`Website content missing${d.contentGaps.length ? ` (${d.contentGaps.length})` : ""}`} href="/admin/product-pages">
           {d.contentGaps.length === 0 ? <p className="text-xs admin-faint">Every published product has a hero, gallery &amp; overview. 🎉</p> : (
             <div className="space-y-1.5">
               {d.contentGaps.map((c) => (
-                <Link key={c.productId} href={`/admin/products/${c.productId}`} className="flex items-center gap-3 text-xs py-1.5 px-2 -mx-2 rounded-lg hover:bg-[var(--admin-surface-hover)]">
+                <Link key={c.productId} href={`/admin/product-pages/${c.productId}`} className="flex items-center gap-3 text-xs py-1.5 px-2 -mx-2 rounded-lg hover:bg-[var(--admin-surface-hover)]">
                   <span className="flex-1 admin-heading truncate">{c.name}</span>
                   <span className="shrink-0 admin-faint">missing {c.missing.join(" + ")}</span>
                 </Link>
@@ -236,12 +236,12 @@ function HardwareDashboard() {
         </Panel>
 
         <QuickActions actions={[
+          { label: "Product pages", href: "/admin/product-pages" },
           { label: "Products", href: "/admin/products" },
           { label: "Inventory", href: "/admin/inventory" },
           { label: "Purchasing", href: "/admin/purchasing" },
           { label: "Suppliers", href: "/admin/suppliers" },
-          { label: "File storage", href: "/admin/images" },
-          { label: "Archive", href: "/admin/archive" },
+          { label: "Orders", href: "/admin/orders" },
         ]} />
       </div>
     </div>

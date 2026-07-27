@@ -127,6 +127,13 @@ const navByEnv: Record<Environment, NavGroup[]> = {
   ],
   hardware: [
     {
+      label: "WEBSITE",
+      items: [
+        { label: "Product Pages", href: "/admin/product-pages", icon: "pen" },
+        { label: "File Storage", href: "/admin/images", icon: "image" },
+      ],
+    },
+    {
       label: "CATALOG",
       items: [
         { label: "Products", href: "/admin/products", icon: "box" },
@@ -536,11 +543,11 @@ export default function AdminShell({
     "--admin-gradient": activeEnvConfig.gradient,
   };
   const vars = { ...themes[theme], ...accentVars };
-  // Archive always sits last; File Storage joins it except on experience (which
-  // already lists it under WEBSITE).
+  // Archive always sits last; File Storage joins it except on envs that
+  // already list it under WEBSITE (experience + hardware).
   const bottomGroup: NavGroup = {
     label: "GENERAL",
-    items: env === "experience" ? [archiveItem] : [fileStorageItem, archiveItem],
+    items: ["experience", "hardware"].includes(env) ? [archiveItem] : [fileStorageItem, archiveItem],
   };
   // Analytics is a pure visitor-behaviour world — the shared HOME → Dashboard is
   // the finance dashboard (open revenue, unmatched payments), so it stays out of
@@ -561,7 +568,7 @@ export default function AdminShell({
       const groups: NavGroup[] = [
         sharedNavTop,
         ...navByEnv[e.id],
-        { label: "GENERAL", items: e.id === "experience" ? [archiveItem] : [fileStorageItem, archiveItem] },
+        { label: "GENERAL", items: ["experience", "hardware"].includes(e.id) ? [archiveItem] : [fileStorageItem, archiveItem] },
       ];
       for (const g of groups) {
         for (const it of g.items) {
