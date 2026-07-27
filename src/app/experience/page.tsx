@@ -395,10 +395,11 @@ export default async function ExperienceOverviewPage() {
               </Link>
               <span>© 2026 NP7 Experience · Nico Prien (GER-7)</span>
             </div>
-            <div className="flex gap-5">
+            <div className="flex flex-wrap gap-5">
               <Link href="/hardware" className="hover:text-white transition-colors">Hardware</Link>
               <Link href="#" className="hover:text-white transition-colors">Instagram</Link>
               <Link href="#" className="hover:text-white transition-colors">YouTube</Link>
+              <Link href="/widerruf" className="text-white/70 underline underline-offset-2 hover:text-white transition-colors">Vertrag widerrufen</Link>
             </div>
           </div>
         </section>

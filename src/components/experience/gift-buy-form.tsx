@@ -202,6 +202,15 @@ export function GiftBuyForm({ experiences, packages = [] }: { experiences: Exp[]
         Paid by bank transfer — we&apos;ll activate the voucher and email the printable PDF once it arrives. The voucher is pure value: it doesn&apos;t hold a spot, and it&apos;s used when the recipient books an available trip.
       </div>
 
+      {/* Art. 246a EGBGB pre-contract info: withdrawal right + existence and
+          placement of the online withdrawal function (§ 356a BGB). */}
+      <p className="text-[12px] text-[#8a9aa0] leading-relaxed">
+        Für den Gutscheinkauf gilt das gesetzliche 14-tägige Widerrufsrecht — Details in der{" "}
+        <a href="/widerrufsbelehrung" className="underline hover:text-[#00374a]">Widerrufsbelehrung</a>. Sie können Ihren
+        Widerruf auch online über unsere <a href="/widerruf" className="underline hover:text-[#00374a]">Widerrufsfunktion</a> erklären.{" "}
+        <em>The statutory 14-day right of withdrawal applies to voucher purchases.</em>
+      </p>
+
       {error && <p className="text-[13px] text-red-500">{error}</p>}
       <button onClick={submit} disabled={busy} className="w-full px-7 py-4 rounded-full text-[15px] font-bold text-white bg-[#00afdb] hover:bg-[#15c0ec] disabled:opacity-60 transition-all">
         {busy ? "Creating…" : `Gift ${fmtVoucherMoney(amount, currency)}`}

@@ -133,6 +133,11 @@ export function EventTicket({
         {busy ? "One sec…" : mode === "standby" ? `Secure my spot — ${depositLabel}` : `Book my ticket — ${priceLabel}`}
       </button>
       <p className="text-[11.5px] text-[#9aa6ac] text-center mt-2.5">Secure payment via Stripe.</p>
+      {/* Art. 246a § 1 Abs. 3 EGBGB: fixed-date leisure services carry NO
+          statutory withdrawal right — the consumer must be told. */}
+      <p className="text-[11px] text-[#9aa6ac] text-center mt-1.5">
+        Fixed-date event: no statutory right of withdrawal (§ 312g Abs. 2 Nr. 9 BGB) — our refundable-deposit policy applies instead.
+      </p>
     </form>
   );
 }

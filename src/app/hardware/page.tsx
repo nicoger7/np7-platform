@@ -272,10 +272,11 @@ export default async function HardwarePage() {
             </Link>
             <span>© 2026 NP7 HARDWARE · GER-7</span>
           </div>
-          <div className="flex gap-5 uppercase tracking-wider">
+          <div className="flex flex-wrap gap-5 uppercase tracking-wider">
             <Link href="/experience" className="hover:text-[#c6ff3a] transition-colors">Experience</Link>
             <Link href="#" className="hover:text-[#c6ff3a] transition-colors">Instagram</Link>
             <Link href="#" className="hover:text-[#c6ff3a] transition-colors">YouTube</Link>
+            <Link href="/widerruf" className="text-white/70 underline underline-offset-2 hover:text-[#c6ff3a] transition-colors">Vertrag widerrufen</Link>
           </div>
         </div>
       </footer>

@@ -307,6 +307,26 @@ export const TEMPLATES: Record<string, (v: EmailVars, opts?: LayoutOpts) => Buil
     }),
   }),
 
+  // § 356a Abs. 4 BGB acknowledgment: neutral receipt wording (the substantive
+  // validity is examined afterwards — never say "accepted"), echoing the content
+  // of the declaration plus the date and time of receipt. German first — the
+  // statutory context is German consumer law.
+  withdrawal_received: (v, opts) => ({
+    subject: `Eingangsbestätigung — Ihr Widerruf ist eingegangen`,
+    html: emailLayout({
+      ...opts,
+      preheader: "Bestätigung des Eingangs Ihrer Widerrufserklärung.",
+      bodyHtml:
+        p(`Guten Tag ${esc(v.name || "")},`) +
+        p(`hiermit bestätigen wir den <strong>Eingang</strong> Ihrer Widerrufserklärung über unsere Online-Widerrufsfunktion auf np-seven.com.`) +
+        p(`<strong>Inhalt Ihrer Erklärung:</strong><br>Name: ${esc(v.name || "")}<br>Vertrag / Bestell- bzw. Gutscheinnummer: ${esc(v.contractRef || "")}${v.note ? `<br>Ihre Anmerkung: ${esc(v.note)}` : ""}`) +
+        p(`<strong>Eingegangen am:</strong> ${esc(v.receivedDate || "")} um ${esc(v.receivedTime || "")} Uhr (deutsche Zeit).`) +
+        p(`Wir prüfen Ihre Erklärung und melden uns zeitnah mit den nächsten Schritten (z.&nbsp;B. zur Rückabwicklung). Diese Bestätigung dokumentiert nur den Eingang.`) +
+        p(`<em>English: this confirms RECEIPT of your withdrawal declaration submitted via our online withdrawal function, including its content and the date and time of receipt. We'll follow up shortly.</em>`) +
+        p(`— NP7 GmbH`),
+    }),
+  }),
+
   voucher_gift: (v, opts) => ({
     subject: `🎁 You've been gifted an NP7 windsurf trip${v.fromName ? ` by ${v.fromName}` : ""}`,
     html: emailLayout({

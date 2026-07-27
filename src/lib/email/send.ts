@@ -47,7 +47,9 @@ type SendResult = { status: "sent" | "failed" | "skipped"; id?: string; error?: 
 // trip_invite is member-triggered and transactional (the member explicitly sends
 // it to a friend) — like the magic link, it carries no automated lifecycle data,
 // so it's allowed during the soft launch.
-const SOFT_LAUNCH_ALLOWED = new Set(["account_magic_link", "reservation_received", "trip_invite", "voucher_purchased", "voucher_gift", "cancellation_confirmed", "invoice_sent", "payment_shortfall_reminder"]);
+// withdrawal_received is the § 356a BGB acknowledgment — consumer-triggered and
+// legally required, so it must go out even during the soft launch.
+const SOFT_LAUNCH_ALLOWED = new Set(["account_magic_link", "reservation_received", "trip_invite", "voucher_purchased", "voucher_gift", "cancellation_confirmed", "invoice_sent", "payment_shortfall_reminder", "withdrawal_received"]);
 function lifecycleSuppressed(templateKey: string): boolean {
   const live = process.env.EMAIL_LIFECYCLE_LIVE === "true" || process.env.EMAIL_LIFECYCLE_LIVE === "1";
   return !live && !SOFT_LAUNCH_ALLOWED.has(templateKey);

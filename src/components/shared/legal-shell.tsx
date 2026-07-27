@@ -5,6 +5,7 @@ const LEGAL_LINKS = [
   { href: "/impressum", label: "Impressum" },
   { href: "/privacy", label: "Privacy" },
   { href: "/terms", label: "Terms" },
+  { href: "/widerrufsbelehrung", label: "Widerrufsbelehrung" },
 ];
 
 /**
@@ -35,6 +36,9 @@ export function LegalShell({ title, updated, children }: { title: string; update
           {LEGAL_LINKS.map((l) => (
             <Link key={l.href} href={l.href} className="hover:text-[#00374a] transition-colors">{l.label}</Link>
           ))}
+          {/* § 356a BGB: the withdrawal function must be highlighted, not buried
+              among the other legal links — hence the accented pill. */}
+          <Link href="/widerruf" className="px-2.5 py-1 rounded-full font-semibold text-[#00afdb] border border-[#00afdb]/40 hover:bg-[#00afdb]/10 transition-colors">Vertrag widerrufen</Link>
         </div>
       </footer>
 

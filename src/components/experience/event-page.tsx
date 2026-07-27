@@ -195,7 +195,10 @@ export async function EventPage({ event, isMember, paid }: { event: EventInfo; i
             <Link href="/"><img src={NP7_LOGO} alt="NP7" className="h-7 w-auto invert opacity-90" /></Link>
             <span>© 2026 NP7 Experience</span>
           </div>
-          <Link href="/experience" className="hover:text-white transition-colors">All experiences →</Link>
+          <div className="flex flex-wrap items-center gap-5">
+            <Link href="/widerruf" className="text-white/70 underline underline-offset-2 hover:text-white transition-colors">Vertrag widerrufen</Link>
+            <Link href="/experience" className="hover:text-white transition-colors">All experiences →</Link>
+          </div>
         </div>
       </footer>
     </main>
