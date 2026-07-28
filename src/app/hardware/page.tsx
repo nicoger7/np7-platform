@@ -1,6 +1,6 @@
 import Link from "next/link";
 import type { Metadata } from "next";
-import { supabase } from "@/lib/supabase";
+import { supabase, createAdminClient } from "@/lib/supabase";
 import { WorkshopHero } from "@/components/hardware/workshop-hero";
 import { HardwareHeader } from "@/components/hardware/hardware-header";
 import { NP7_LOGO } from "@/components/experience/ocean-header";
@@ -28,6 +28,7 @@ type Product = {
   specs: string[];
   accent: string;
   stock?: string;
+  image?: string | null;
 };
 
 /* placeholder catalogue — wired to hw_products when populated. Boards & fins only. */
@@ -79,10 +80,25 @@ function FinGlyph({ accent }: { accent: string }) {
 export default async function HardwarePage() {
   const { data } = await supabase
     .from("hw_products")
-    .select("name,slug,category,price,year,specs")
+    .select("id,name,slug,category,price,year,specs,images")
     .eq("status", "published");
 
-  const dbProducts = (data ?? []) as Array<{ name: string; slug: string | null; category: string | null; price: number | null; specs: unknown }>;
+  // The tile picture: hw_products.images first, else the product page's hero
+  // (hw_product_content.hero_image) — same source the fins page uses, so a
+  // product photographed once shows up everywhere without re-uploading.
+  const heroByProduct: Record<string, string> = {};
+  try {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const admin = createAdminClient() as any;
+    const { data: contents } = await admin.from("hw_product_content").select("product_id,hero_image,gallery");
+    for (const c of (contents ?? []) as { product_id: string; hero_image: string | null; gallery: unknown }[]) {
+      const gallery = (Array.isArray(c.gallery) ? c.gallery : []).filter((g): g is string => typeof g === "string" && !!g);
+      const img = c.hero_image || gallery[0] || null;
+      if (img) heroByProduct[c.product_id] = img;
+    }
+  } catch { /* no content rows yet — tiles fall back to the glyph */ }
+
+  const dbProducts = (data ?? []) as Array<{ id: string; name: string; slug: string | null; category: string | null; price: number | null; specs: unknown; images: string[] | null }>;
   const products: Product[] =
     dbProducts.length > 0
       ? dbProducts.map((p, i) => ({
@@ -93,6 +109,7 @@ export default async function HardwarePage() {
           price: p.price ?? 0,
           specs: Array.isArray(p.specs) ? (p.specs as string[]).slice(0, 3) : [],
           accent: BONE,
+          image: (p.images && p.images[0]) || heroByProduct[p.id] || null,
         }))
       : FALLBACK_PRODUCTS;
 
@@ -186,8 +203,11 @@ export default async function HardwarePage() {
             {products.map((p, i) => {
               const cardInner = (
                 <div className="group relative rounded-2xl border border-white/10 bg-[#141416] overflow-hidden hover:-translate-y-1 transition-all duration-300 h-full">
-                  <div className="relative h-44 grid place-items-center bg-[radial-gradient(circle_at_50%_30%,rgba(255,255,255,0.05),transparent_70%)]">
-                    {p.type === "fin" ? <FinGlyph accent={p.accent} /> : <BoardGlyph accent={p.accent} />}
+                  <div className="relative h-44 grid place-items-center overflow-hidden bg-[radial-gradient(circle_at_50%_30%,rgba(255,255,255,0.05),transparent_70%)]">
+                    {p.image ? (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img src={p.image} alt={p.name} className="absolute inset-0 w-full h-full object-cover transition-transform duration-500 group-hover:scale-[1.05]" />
+                    ) : p.type === "fin" ? <FinGlyph accent={p.accent} /> : <BoardGlyph accent={p.accent} />}
                     <span className="absolute top-3 left-3 font-mono text-[10px] uppercase tracking-[0.15em] text-white/40">{p.category}</span>
                     {p.stock && <span className="absolute top-3 right-3 font-mono text-[10px] text-white/35">{p.stock}</span>}
                   </div>
