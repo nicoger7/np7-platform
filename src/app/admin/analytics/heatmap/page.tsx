@@ -121,25 +121,29 @@ export default function HeatmapPage() {
     return () => { alive = false; };
   }, [path, device, type, days]);
 
+  // The canvas bitmap, its CSS size and the iframe height must all come from the
+  // SAME number — drawing from a live re-measure while CSS keeps an older frameH
+  // squashed the dots so they stopped tracking the page on scroll.
   const redraw = useCallback(() => {
-    const iframe = iframeRef.current, canvas = canvasRef.current;
-    if (!iframe || !canvas) return;
-    let h = frameH;
-    try {
-      const doc = iframe.contentDocument;
-      if (doc?.body) h = Math.max(doc.body.scrollHeight, doc.documentElement.scrollHeight);
-    } catch { /* cross-origin (shouldn't happen, same origin) */ }
-    if (h > 0) drawHeatmap(canvas, points, width, h, device === "mobile" ? 15 : 22);
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    drawHeatmap(canvas, points, width, frameH || 1200, device === "mobile" ? 15 : 22);
   }, [points, width, device, frameH]);
 
   useEffect(() => { redraw(); }, [redraw]);
+
+  const syncTimer = useRef<number | null>(null);
+  useEffect(() => () => { if (syncTimer.current) window.clearInterval(syncTimer.current); }, []);
 
   const onFrameLoad = () => {
     // The public site reveals content on scroll (IntersectionObserver +
     // opacity-0/translate classes). Inside this preview iframe those observers
     // never fire for anything outside the admin viewport, leaving the page
     // blank. Same origin, so we can force the fully-revealed state — this is a
-    // static backdrop, not a live page.
+    // static backdrop, not a live page. Viewport-height sections are pinned to a
+    // fixed height: inside this full-page-tall iframe, 100vh = the whole page,
+    // which otherwise balloons the layout on every measure (feedback loop →
+    // stretched blank space at the bottom).
     const flatten = () => {
       try {
         const doc = iframeRef.current?.contentDocument;
@@ -149,6 +153,12 @@ export default function HeatmapPage() {
         s.textContent = `
           .opacity-0 { opacity: 1 !important; }
           .translate-y-8, .-translate-y-8, .translate-x-8, .-translate-x-8 { transform: none !important; }
+          .h-screen, [class*="h-[100vh]"], [class*="h-[100svh]"], [class*="h-[100dvh]"],
+          [class*="h-[82vh]"], [class*="h-[85vh]"], [class*="h-[90vh]"] { height: 820px !important; }
+          .min-h-screen, [class*="min-h-[100"], [class*="min-h-screen"] { min-height: 820px !important; }
+          /* inline vh styles (e.g. the 795vh scroll-story hero) — stylesheet
+             !important outranks non-important inline styles */
+          [style*="vh"] { height: 820px !important; min-height: 0 !important; }
         `;
         doc.head.appendChild(s);
       } catch { /* cross-origin — leave the page as-is */ }
@@ -156,13 +166,22 @@ export default function HeatmapPage() {
     const measure = () => {
       try {
         const doc = iframeRef.current?.contentDocument;
-        if (doc?.body) setFrameH(Math.max(doc.body.scrollHeight, doc.documentElement.scrollHeight));
+        if (!doc?.body) return;
+        const h = Math.min(40000, Math.max(doc.body.scrollHeight, doc.documentElement.scrollHeight));
+        setFrameH((prev) => (Math.abs(prev - h) > 4 ? h : prev));
       } catch { setFrameH(2400); }
     };
+    // Sync until the page settles (fonts, images, maps, late client mounts) —
+    // vh sections are pinned, so repeated measuring converges instead of growing.
+    if (syncTimer.current) window.clearInterval(syncTimer.current);
     flatten();
     measure();
-    setTimeout(() => { flatten(); measure(); }, 800);  // catch late layout (images/fonts)
-    setTimeout(() => { flatten(); measure(); }, 2500); // …and late-mounting client components
+    let runs = 0;
+    syncTimer.current = window.setInterval(() => {
+      flatten();
+      measure();
+      if (++runs >= 8 && syncTimer.current) { window.clearInterval(syncTimer.current); syncTimer.current = null; }
+    }, 1500);
   };
 
   const pill = (active: boolean) =>

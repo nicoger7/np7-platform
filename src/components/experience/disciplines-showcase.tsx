@@ -62,12 +62,15 @@ export function DisciplinesShowcase() {
                   (the canonical fix). Radius must match the button's rounded-3xl.
                   The fallback gradient lives INSIDE the clip so no bright seam can
                   peek out at the corners. */}
-              <div className="absolute inset-0 overflow-hidden rounded-[inherit] [clip-path:inset(0_round_1.5rem)]" style={{ WebkitMaskImage: "-webkit-radial-gradient(white, black)" }}>
+              <div className="absolute inset-0 overflow-hidden rounded-[inherit] [clip-path:inset(1px_round_23px)]" style={{ WebkitMaskImage: "-webkit-radial-gradient(white, black)" }}>
                 <div className="absolute inset-0" style={{ background: `linear-gradient(160deg, ${d.color}, #00374a)` }} />
                 <div className="absolute inset-0 bg-cover bg-center transition-transform duration-[420ms] [transition-timing-function:cubic-bezier(0.22,1,0.36,1)] group-hover:scale-[1.03]" style={{ backgroundImage: `url('${d.image}')` }} />
+                {/* overlays live INSIDE the clip: mix-blend forces its own
+                    compositing layer in WebKit, which escapes the button's
+                    rounded clip on hover (square corner ghosts) if left outside */}
+                <div className="absolute inset-0 mix-blend-multiply opacity-55" style={{ background: `linear-gradient(160deg, ${d.color}, #00374a)` }} />
+                <div className="absolute inset-0 bg-gradient-to-t from-[#00131b]/80 via-transparent to-transparent" />
               </div>
-              <div className="absolute inset-0 mix-blend-multiply opacity-55" style={{ background: `linear-gradient(160deg, ${d.color}, #00374a)` }} />
-              <div className="absolute inset-0 bg-gradient-to-t from-[#00131b]/80 via-transparent to-transparent" />
               <h3 className="relative text-2xl font-black tracking-[-0.02em]">{d.name}</h3>
               <p className="relative text-[13px] font-semibold text-white/80 mt-1">{d.tag}</p>
             </button>
