@@ -399,7 +399,7 @@ export default async function ExperienceOverviewPage() {
               <Link href="/hardware" className="hover:text-white transition-colors">Hardware</Link>
               <Link href="#" className="hover:text-white transition-colors">Instagram</Link>
               <Link href="#" className="hover:text-white transition-colors">YouTube</Link>
-              <Link href="/widerruf" className="text-white/70 underline underline-offset-2 hover:text-white transition-colors">Vertrag widerrufen</Link>
+              <Link href="/widerruf" className="text-white/70 underline underline-offset-2 hover:text-white transition-colors">Withdraw from contract</Link>
             </div>
           </div>
         </section>

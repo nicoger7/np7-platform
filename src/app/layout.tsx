@@ -1,12 +1,16 @@
 import type { Metadata, Viewport } from "next";
-import { Inter, Anton } from "next/font/google";
+import { Poppins, Anton } from "next/font/google";
 import "./globals.css";
 import { CookieConsent } from "@/components/shared/cookie-consent";
 import { AnalyticsTracker } from "@/components/analytics/tracker";
 import { MetaPixel } from "@/components/analytics/meta-pixel";
 
-const inter = Inter({
+// Body face: Poppins — the brand's rounded, warm "oceany" sans (already the
+// share-card font), replacing the techy neutral Inter. Kept on the same CSS
+// variable so every downstream rule keeps working.
+const poppins = Poppins({
   subsets: ["latin"],
+  weight: ["300", "400", "500", "600", "700", "800", "900"],
   variable: "--font-inter",
 });
 
@@ -72,7 +76,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en" className={`${inter.variable} ${anton.variable} antialiased`}>
+    <html lang="en" className={`${poppins.variable} ${anton.variable} antialiased`}>
       <body className="min-h-screen flex flex-col">
         {children}
         <AnalyticsTracker />

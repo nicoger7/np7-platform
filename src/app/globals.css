@@ -8,7 +8,7 @@
   --color-accent-dark: #087a95;
   --color-surface: #f7f7f7;
   --color-border: #ebebeb;
-  --font-sans: 'Inter', system-ui, -apple-system, sans-serif;
+  --font-sans: var(--font-inter), 'Poppins', system-ui, -apple-system, sans-serif;
 
   /* NP7 Experience — ocean brand palette (from the logo) */
   --color-ocean: #00afdb;

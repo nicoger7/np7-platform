@@ -955,7 +955,7 @@ export default async function ExperienceDetailPage({ params, searchParams }: Pro
             <span>© 2026 NP7 Experience</span>
           </div>
           <div className="flex flex-wrap items-center gap-5">
-            <Link href="/widerruf" className="text-white/70 underline underline-offset-2 hover:text-white transition-colors">Vertrag widerrufen</Link>
+            <Link href="/widerruf" className="text-white/70 underline underline-offset-2 hover:text-white transition-colors">Withdraw from contract</Link>
             <Link href="/experience" className="hover:text-white transition-colors">← All experiences</Link>
           </div>
         </div>

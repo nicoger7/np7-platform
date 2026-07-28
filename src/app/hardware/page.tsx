@@ -6,6 +6,7 @@ import { HardwareHeader } from "@/components/hardware/hardware-header";
 import { NP7_LOGO } from "@/components/experience/ocean-header";
 import { Reveal } from "@/components/experience/reveal";
 import { BONE, RED, INK, INK_SOFT, SAND, sandGrainOverlay, carbonWeave } from "@/components/hardware/theme";
+import { SandingSurface } from "@/components/hardware/sanding-surface";
 
 export const metadata: Metadata = {
   title: { absolute: "NP7 Hardware — Custom Windsurf Boards & Fins" },
@@ -142,6 +143,7 @@ export default async function HardwarePage() {
       {/* CATEGORIES — bright sanded-blank break in the carbon */}
       <section className="relative" style={{ backgroundColor: SAND, color: INK }}>
         <div className="absolute inset-0 pointer-events-none" style={sandGrainOverlay} aria-hidden />
+        <SandingSurface />
         <div className="relative max-w-[1200px] mx-auto px-6 sm:px-8 py-20 sm:py-28">
           <Reveal className="mb-12">
             <p className="font-mono text-[11px] font-bold tracking-[0.25em] uppercase mb-3" style={{ color: PINK }}>// THE RANGE</p>
@@ -279,7 +281,7 @@ export default async function HardwarePage() {
             <Link href="/experience" className="hover:text-[#c6ff3a] transition-colors">Experience</Link>
             <Link href="#" className="hover:text-[#c6ff3a] transition-colors">Instagram</Link>
             <Link href="#" className="hover:text-[#c6ff3a] transition-colors">YouTube</Link>
-            <Link href="/widerruf" className="text-white/70 underline underline-offset-2 hover:text-[#c6ff3a] transition-colors">Vertrag widerrufen</Link>
+            <Link href="/widerruf" className="text-white/70 underline underline-offset-2 hover:text-[#c6ff3a] transition-colors">Withdraw from contract</Link>
           </div>
         </div>
       </footer>

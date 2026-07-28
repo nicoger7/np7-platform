@@ -52,6 +52,8 @@ export async function PATCH(
   // Array/jsonb fields
   if ("images" in body) update.images = body.images;
   if ("specs" in body) update.specs = body.specs;
+  // per-product fin-selector tuning (admin builder) — object or null to reset
+  if ("selector_tuning" in body) update.selector_tuning = body.selector_tuning && typeof body.selector_tuning === "object" ? body.selector_tuning : null;
 
   const { data, error } = await client
     .from("hw_products")

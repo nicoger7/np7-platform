@@ -418,7 +418,7 @@ export default async function HardwareProductPage({ params }: Props) {
               <img src={NP7_LOGO} alt="NP7" className="h-5 w-auto invert opacity-70 hover:opacity-100 transition-opacity" />
             </Link>
             <span>© 2026 NP7 HARDWARE · GER-7</span>
-            <Link href="/widerruf" className="text-white/70 underline underline-offset-2 hover:text-[#c6ff3a] transition-colors normal-case">Vertrag widerrufen</Link>
+            <Link href="/widerruf" className="text-white/70 underline underline-offset-2 hover:text-[#c6ff3a] transition-colors normal-case">Withdraw from contract</Link>
           </div>
           <div className="flex items-center gap-5 uppercase tracking-wider">
             <Link href="/hardware" className="hover:text-[#c6ff3a] transition-colors">

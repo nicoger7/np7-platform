@@ -7,6 +7,7 @@ import { variantSizeCm } from "@/lib/hardware/fin-selector";
 import { Reveal } from "@/components/experience/reveal";
 import { NP7_LOGO } from "@/components/experience/ocean-header";
 import { GRAIN, PINK, sandGrainOverlay, carbonWeave } from "@/components/hardware/theme";
+import { SandingSurface } from "@/components/hardware/sanding-surface";
 
 export const metadata: Metadata = {
   title: { absolute: "Fins — NP7 Hardware" },
@@ -23,7 +24,10 @@ type FinProduct = {
   currency: string | null;
   subtitle: string | null;
   images: string[] | null;
+  selector_tuning: unknown;
 };
+
+type FinMedia = { hero: string | null; alt: string | null; stats: { label: string; value: string }[] };
 
 function FinGlyph() {
   return (
@@ -41,14 +45,16 @@ export default async function FinsPage() {
   const sb = supabase as any;
   const { data } = await sb
     .from("hw_products")
-    .select("id,name,slug,category,price,currency,subtitle,images")
+    .select("id,name,slug,category,price,currency,subtitle,images,selector_tuning")
     .eq("status", "published")
     .ilike("category", "%fin%")
     .order("name");
   const fins = (data ?? []) as FinProduct[];
 
-  // size variants (service role — same server-side pattern as the product page)
+  // size variants + page content (photos, specs) — service role, same
+  // server-side pattern as the product page
   const sizesByProduct: Record<string, number[]> = {};
+  const mediaByProduct: Record<string, FinMedia> = {};
   if (fins.length > 0) {
     try {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -63,7 +69,18 @@ export default async function FinsPage() {
         if (cm != null) (sizesByProduct[v.product_id] ??= []).push(cm);
       }
       for (const k of Object.keys(sizesByProduct)) sizesByProduct[k].sort((a, b) => a - b);
-    } catch { /* variants stay empty — the page degrades honestly */ }
+      const { data: contents } = await admin
+        .from("hw_product_content")
+        .select("product_id,hero_image,gallery,spec_rows")
+        .in("product_id", fins.map((f) => f.id));
+      for (const c of (contents ?? []) as { product_id: string; hero_image: string | null; gallery: unknown; spec_rows: unknown }[]) {
+        const gallery = (Array.isArray(c.gallery) ? c.gallery : []).filter((g): g is string => typeof g === "string" && !!g);
+        const stats = (Array.isArray(c.spec_rows) ? c.spec_rows : [])
+          .filter((r): r is { label: string; value: string } => !!r && typeof (r as { label?: unknown }).label === "string" && typeof (r as { value?: unknown }).value === "string")
+          .slice(0, 3);
+        mediaByProduct[c.product_id] = { hero: c.hero_image || null, alt: gallery[0] || null, stats };
+      }
+    } catch { /* variants/media stay empty — the page degrades honestly */ }
   }
 
   const selectorFins: SelectorFin[] = fins.map((f) => ({
@@ -71,6 +88,7 @@ export default async function FinsPage() {
     slug: f.slug,
     price: f.price != null ? Number(f.price) : null,
     sizes: sizesByProduct[f.id] ?? [],
+    tuning: f.selector_tuning ?? null,
   }));
 
   return (
@@ -93,9 +111,7 @@ export default async function FinsPage() {
           {/* disciplines — slalom rides first, the rest is in the shaping queue */}
           <div className="mt-9 flex flex-wrap items-center gap-2.5">
             <span className="px-4 py-2 rounded-full font-mono text-[12px] font-bold uppercase tracking-[0.12em] text-black bg-white">Slalom</span>
-            {["Wave", "Freeride", "Weed"].map((d) => (
-              <span key={d} className="px-4 py-2 rounded-full font-mono text-[12px] font-bold uppercase tracking-[0.12em] text-white/30 border border-white/12">{d} — in the queue</span>
-            ))}
+            <span className="px-4 py-2 rounded-full font-mono text-[12px] font-bold uppercase tracking-[0.12em] text-white/30 border border-white/12">Freerace — in the queue</span>
           </div>
         </div>
       </section>
@@ -103,6 +119,7 @@ export default async function FinsPage() {
       {/* THE RANGE — sanded primer, shop tiles from the live catalogue */}
       <section id="range" className="relative py-16 sm:py-24" style={{ background: "#e4e4e0" }}>
         <div aria-hidden className="absolute inset-0 pointer-events-none" style={sandGrainOverlay} />
+        <SandingSurface />
         <div className="relative max-w-[1200px] mx-auto px-6 sm:px-8">
           <Reveal>
             <div className="flex items-end justify-between gap-4 mb-10">
@@ -121,15 +138,28 @@ export default async function FinsPage() {
               {fins.map((f, i) => (
                 <Reveal key={f.id} delay={i * 80}>
                   <Link href={f.slug ? `/hardware/${f.slug}` : "#"} className="group block rounded-2xl overflow-hidden bg-white border border-[rgba(20,20,18,0.1)] hover:-translate-y-1 hover:shadow-[0_24px_50px_rgba(20,20,18,0.14)] transition-all">
-                    <div className="relative h-[240px] grid place-items-center bg-[#efeeea] overflow-hidden">
+                    <div className="relative h-[300px] grid place-items-center bg-[#efeeea] overflow-hidden">
                       <div aria-hidden className="absolute inset-0" style={{ backgroundImage: GRAIN, opacity: 0.12 }} />
-                      {f.images && f.images[0] ? (
+                      {(() => {
+                        const m = mediaByProduct[f.id];
+                        const primary = (f.images && f.images[0]) || m?.hero || null;
+                        if (!primary) return <FinGlyph />;
+                        // one photo, gentle zoom — the stats strip is the hover payoff
                         // eslint-disable-next-line @next/next/no-img-element
-                        <img src={f.images[0]} alt={f.name} className="relative h-full w-full object-cover transition-transform duration-500 group-hover:scale-[1.03]" />
-                      ) : (
-                        <FinGlyph />
-                      )}
+                        return <img src={primary} alt={f.name} className="absolute inset-0 h-full w-full object-cover transition-transform duration-500 group-hover:scale-[1.05]" />;
+                      })()}
                       <span className="absolute top-4 left-4 font-mono text-[10px] font-bold tracking-[0.2em] uppercase text-[rgba(20,20,18,0.4)]">Slalom</span>
+                      {/* key stats surface on hover */}
+                      {(mediaByProduct[f.id]?.stats.length ?? 0) > 0 && (
+                        <div className="absolute inset-x-0 bottom-0 translate-y-full group-hover:translate-y-0 transition-transform duration-400 bg-[#141412]/88 backdrop-blur-sm px-4 py-3 grid grid-cols-3 gap-2">
+                          {mediaByProduct[f.id].stats.map((s) => (
+                            <div key={s.label} className="min-w-0">
+                              <p className="text-[9px] font-bold uppercase tracking-[0.14em] text-white/45 truncate">{s.label}</p>
+                              <p className="text-[12px] font-bold text-white truncate">{s.value}</p>
+                            </div>
+                          ))}
+                        </div>
+                      )}
                     </div>
                     <div className="p-5">
                       <p className="text-[17px] font-black text-[#141412] tracking-[-0.01em]">{f.name}</p>
@@ -175,7 +205,7 @@ export default async function FinsPage() {
           </div>
           <div className="flex flex-wrap gap-5 uppercase tracking-wider">
             <Link href="/hardware" className="hover:text-[#c6ff3a] transition-colors">Hardware</Link>
-            <Link href="/widerruf" className="text-white/70 underline underline-offset-2 hover:text-[#c6ff3a] transition-colors normal-case">Vertrag widerrufen</Link>
+            <Link href="/widerruf" className="text-white/70 underline underline-offset-2 hover:text-[#c6ff3a] transition-colors normal-case">Withdraw from contract</Link>
           </div>
         </div>
       </footer>

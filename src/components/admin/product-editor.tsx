@@ -19,6 +19,7 @@ import {
   emptyFit,
 } from "@/lib/hardware/types";
 import { TEMPLATE_OPTIONS } from "@/lib/hardware/templates";
+import { FinTuningEditor } from "@/components/admin/fin-tuning-editor";
 
 // ─── Helpers ───────────────────────────────────────────────────────────────
 
@@ -573,6 +574,9 @@ export default function ProductEditor({
       ════════════════════════════════════════════ */}
       {tab === "details" && (
         <div className="max-w-[720px] space-y-5">
+          {/fin/i.test(product.category ?? "") && (
+            <FinTuningEditor productId={id} initial={(product as unknown as Record<string, unknown>).selector_tuning} />
+          )}
           {/* Name + slug */}
           <div className="grid grid-cols-2 gap-4">
             <div>
