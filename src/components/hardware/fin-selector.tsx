@@ -80,10 +80,12 @@ export function FinSelector({ fins }: { fins: SelectorFin[] }) {
   const label = "text-[11px] font-semibold tracking-[0.06em] uppercase text-white/45";
   const readout = "text-[15px] font-bold text-white tabular-nums";
 
+  // 3×2 grid instead of free wrap — six chips always land as two tidy rows
+  // (wave/freestyle/freewave on top, the race side below), never 5+1
   const boardTypePicker = (compact = false) => (
-    <div className={`flex flex-wrap ${compact ? "gap-1.5" : "gap-2"} ${compact ? "mt-2.5" : "mt-3"}`}>
+    <div className={`grid grid-cols-3 ${compact ? "gap-1.5 mt-2.5 max-w-[400px]" : "gap-2 mt-3 max-w-[460px]"}`}>
       {BOARD_TYPES.map((b) => (
-        <button key={b} type="button" onClick={() => setBoardType(b)} className={seg(boardType === b)}>{b}</button>
+        <button key={b} type="button" onClick={() => setBoardType(b)} className={`${seg(boardType === b)} w-full text-center`}>{b}</button>
       ))}
     </div>
   );
