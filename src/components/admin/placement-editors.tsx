@@ -225,9 +225,14 @@ export function HeroFocusPicker({ image, value, onChange }: {
         <span className="text-[12px] font-bold uppercase tracking-[0.12em] text-[var(--admin-fg-muted,#7a8a90)]">Drag to set the focal point</span>
         <button type="button" onClick={() => onChange(null)} className="text-[12px] font-semibold text-[#c0392b] hover:underline">Center</button>
       </div>
+      {/* The canvas shows the FULL image, static — the old cover-cropped canvas
+          panned underneath the pointer while dragging (its background-position
+          was the value being edited), so the dot drifted away from the feature
+          you aimed at. Point at the pixel; the crops below preview the result. */}
       <div ref={ref} {...handlers}
-        className="relative w-full rounded-xl overflow-hidden cursor-crosshair select-none touch-none bg-cover ring-1 ring-black/5"
-        style={{ aspectRatio: "2.2", backgroundImage: `url('${image}')`, backgroundPosition: `${fx}% ${fy}%` }}>
+        className="relative w-full rounded-xl overflow-hidden cursor-crosshair select-none touch-none ring-1 ring-black/5 bg-[#0b0b0c]">
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img src={image} alt="" draggable={false} className="block w-full h-auto pointer-events-none select-none" />
         <span aria-hidden className="pointer-events-none absolute z-10 -translate-x-1/2 -translate-y-1/2 w-8 h-8 rounded-full border-2 border-white shadow-[0_0_0_2px_rgba(0,0,0,0.45)]"
           style={{ left: `${fx}%`, top: `${fy}%`, background: "rgba(0,175,219,0.3)" }} />
       </div>
