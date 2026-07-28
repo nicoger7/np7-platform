@@ -1,10 +1,15 @@
 "use client";
 
-import { useState, useEffect, useRef, use } from "react";
+import { useState, useEffect, useMemo, useRef, use } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import BusinessCaseCard from "@/components/business-case-card";
 import { normalizeBookingStatus } from "@/lib/types";
+
+/** Bookings sort order: the money-secured end of the pipeline first, dead last. */
+const BK_PRIORITY: Record<string, number> = {
+  paid: 0, attended: 1, confirmed: 2, reserved: 3, lead: 4, lost: 5,
+};
 import { PackageComponentsEditor } from "@/components/package-components-editor";
 import { EditionMemoriesUploader } from "@/components/edition-memories-uploader";
 import { ContactPicker, ContactLite } from "@/components/contact-picker";
@@ -280,6 +285,27 @@ export default function EditionDetailPage({
   const [bookingContact, setBookingContact] = useState<ContactLite | null>(null);
   const [bookingShow, setBookingShow] = useState(false);
   const [selBooking, setSelBooking] = useState<string | null>(null);
+  // Bookings sort — money-secured first by default (fully paid on top, lost last)
+  const [bkSort, setBkSort] = useState<"status" | "name" | "fly_in" | "price" | "paid">("status");
+  const [bkDir, setBkDir] = useState<"asc" | "desc">("asc");
+  const sortedBookings = useMemo(() => {
+    const dir = bkDir === "asc" ? 1 : -1;
+    const paidRank = (b: Booking) => (b.final_payment_received ? 0 : b.downpayment_received ? 1 : 2);
+    return [...bookings].sort((a, b) => {
+      let d = 0;
+      if (bkSort === "status") d = (BK_PRIORITY[normalizeBookingStatus(a.status)] ?? 9) - (BK_PRIORITY[normalizeBookingStatus(b.status)] ?? 9);
+      else if (bkSort === "name") d = (a.name ?? "").localeCompare(b.name ?? "");
+      else if (bkSort === "price") d = Number(b.agreed_price ?? 0) - Number(a.agreed_price ?? 0); // biggest first
+      else if (bkSort === "paid") d = paidRank(a) - paidRank(b);
+      else if (bkSort === "fly_in") {
+        // empty fly-in dates always sink to the bottom
+        const av = a.fly_in || "", bv = b.fly_in || "";
+        if (!av !== !bv) return av ? -1 : 1;
+        d = av.localeCompare(bv);
+      }
+      return (d !== 0 ? d : (a.name ?? "").localeCompare(b.name ?? "")) * dir;
+    });
+  }, [bookings, bkSort, bkDir]);
   const [copyPkgOpen, setCopyPkgOpen] = useState(false);
   const [copyPkgBusy, setCopyPkgBusy] = useState(false);
   async function copyPackagesFrom(fromEditionId: string) {
@@ -1105,14 +1131,16 @@ export default function EditionDetailPage({
           ) : (
             <div className="rounded-xl admin-tablecard" style={{ border: "1px solid var(--admin-border)" }}>
               <div className="grid grid-cols-[1fr_130px_90px_90px_60px_40px] gap-4 px-5 py-3 admin-surface" style={{ borderBottom: "1px solid var(--admin-border)" }}>
-                <span className="text-[10px] font-bold tracking-[0.1em] admin-faint uppercase">Name</span>
-                <span className="text-[10px] font-bold tracking-[0.1em] admin-faint uppercase">Status</span>
-                <span className="text-[10px] font-bold tracking-[0.1em] admin-faint uppercase">Fly In</span>
-                <span className="text-[10px] font-bold tracking-[0.1em] admin-faint uppercase">Price</span>
-                <span className="text-[10px] font-bold tracking-[0.1em] admin-faint uppercase">Paid</span>
+                {([["name", "Name"], ["status", "Status"], ["fly_in", "Fly In"], ["price", "Price"], ["paid", "Paid"]] as const).map(([key, label]) => (
+                  <button key={key} type="button"
+                    onClick={() => { if (bkSort === key) setBkDir((d) => (d === "asc" ? "desc" : "asc")); else { setBkSort(key); setBkDir("asc"); } }}
+                    className={`text-left text-[10px] font-bold tracking-[0.1em] uppercase transition-colors ${bkSort === key ? "text-[var(--admin-accent)]" : "admin-faint hover:admin-muted"}`}>
+                    {label}{bkSort === key ? (bkDir === "asc" ? " ↑" : " ↓") : ""}
+                  </button>
+                ))}
                 <span></span>
               </div>
-              {bookings.map((b) => (
+              {sortedBookings.map((b) => (
                 <div
                   key={b.id}
                   className="grid grid-cols-[1fr_130px_90px_90px_60px_40px] gap-4 px-5 py-3.5 transition-colors group"
