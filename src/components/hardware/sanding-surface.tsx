@@ -3,7 +3,7 @@
 import { useEffect, useRef } from "react";
 
 /**
- * The workshop "sanding" effect for primer sections: real 2×2 twill CARBON
+ * The workshop "sanding" effect for primer sections: UNIDIRECTIONAL carbon
  * lies under the primer, and the cursor sands the coat off.
  *
  * Three layers so it behaves like actual sanding:
@@ -16,50 +16,10 @@ import { useEffect, useRef } from "react";
  */
 
 const PRIMER = "#e4e4e0";
-const CELL = 22;          // twill cell size (px)
+const FIBRE_ANGLE = -12;  // degrees — the tows all run this way (UD, not woven)
 const BRUSH = 26;         // sanding head radius
 const WEAR_ALPHA = 0.05;  // permanent erosion per pass (accumulates)
 const FRESH_FADE = 0.045; // how fast the bright scratch calms down
-
-/** One 2×2 twill tile: neighbouring blocks run their tows perpendicular. */
-function carbonTile(): HTMLCanvasElement {
-  const c = document.createElement("canvas");
-  c.width = CELL * 2;
-  c.height = CELL * 2;
-  const g = c.getContext("2d")!;
-  g.fillStyle = "#0b0b0d";
-  g.fillRect(0, 0, CELL * 2, CELL * 2);
-
-  const block = (bx: number, by: number, dir: 1 | -1) => {
-    g.save();
-    g.beginPath();
-    g.rect(bx, by, CELL, CELL);
-    g.clip();
-    // each block catches light differently — that's what reads as "woven"
-    const grad = g.createLinearGradient(bx, by, bx + CELL, by + CELL);
-    grad.addColorStop(0, dir > 0 ? "#1a1a1e" : "#0c0c0f");
-    grad.addColorStop(1, dir > 0 ? "#0c0c0f" : "#1a1a1e");
-    g.fillStyle = grad;
-    g.fillRect(bx, by, CELL, CELL);
-    // the tows: fine parallel filaments at ±45°
-    g.translate(bx + CELL / 2, by + CELL / 2);
-    g.rotate((dir * Math.PI) / 4);
-    g.lineWidth = 1;
-    for (let i = -CELL; i <= CELL; i += 2) {
-      g.strokeStyle = i % 4 === 0 ? "rgba(255,255,255,0.07)" : "rgba(0,0,0,0.4)";
-      g.beginPath();
-      g.moveTo(-CELL, i);
-      g.lineTo(CELL, i);
-      g.stroke();
-    }
-    g.restore();
-  };
-  block(0, 0, 1);
-  block(CELL, 0, -1);
-  block(0, CELL, -1);
-  block(CELL, CELL, 1);
-  return c;
-}
 
 export function SandingSurface() {
   const carbonRef = useRef<HTMLCanvasElement>(null);
@@ -81,23 +41,74 @@ export function SandingSurface() {
     const wear = document.createElement("canvas");
     const fctx = fresh.getContext("2d")!;
     const wctx = wear.getContext("2d")!;
-    const pattern = ctx.createPattern(carbonTile(), "repeat")!;
+
+    // Retina: draw at device pixels. Rendering the weave at CSS px and letting
+    // the browser upscale it turned the twill into a blurry moiré.
+    const S = Math.min(window.devicePixelRatio || 1, 2);
 
     let raf = 0;
     let idle = 0;
     let running = false;
 
+    /** UNIDIRECTIONAL carbon: continuous parallel tows, laid at one angle.
+     *  Drawn full-size (not a repeating tile) so the filaments run edge to edge
+     *  like real UD, with a random-walk so they cluster into bundles rather
+     *  than reading as regular stripes. */
     const paintCarbon = () => {
+      const w = carbon.width;
+      const h = carbon.height;
       cctx.setTransform(1, 0, 0, 1, 0, 0);
-      cctx.fillStyle = pattern;
-      cctx.fillRect(0, 0, carbon.width, carbon.height);
-      // clear-coat gloss so it reads as laminated, not flat fabric
-      const gloss = cctx.createLinearGradient(0, 0, carbon.width * 0.6, carbon.height);
-      gloss.addColorStop(0, "rgba(255,255,255,0.10)");
-      gloss.addColorStop(0.45, "rgba(255,255,255,0.02)");
-      gloss.addColorStop(1, "rgba(0,0,0,0.25)");
+      cctx.fillStyle = "#0a0a0c";
+      cctx.fillRect(0, 0, w, h);
+      if (w === 0 || h === 0) return;
+
+      const diag = Math.ceil(Math.hypot(w, h));
+      const off = document.createElement("canvas");
+      off.width = diag;
+      off.height = diag;
+      const o = off.getContext("2d");
+      if (!o) return;
+      o.fillStyle = "#0b0b0e";
+      o.fillRect(0, 0, diag, diag);
+
+      // the tows — a smoothed random walk clusters filaments into bundles
+      const step = Math.max(1, Math.round(1.2 * S));
+      let v = 0;
+      for (let y = 0; y < diag; y += step) {
+        v = v * 0.72 + (Math.random() - 0.5);
+        const light = Math.max(-1, Math.min(1, v));
+        o.fillStyle = light > 0
+          ? `rgba(255,255,255,${(0.02 + light * 0.075).toFixed(3)})`
+          : `rgba(0,0,0,${(0.05 + -light * 0.3).toFixed(3)})`;
+        o.fillRect(0, y, diag, step);
+      }
+      // a whisper of sheen along the fibres — wide soft bands read as blur,
+      // so this stays tight and faint
+      for (let i = 0; i < 5; i++) {
+        const y = Math.random() * diag;
+        const spread = 7 * S;
+        const band = o.createLinearGradient(0, y - spread, 0, y + spread);
+        band.addColorStop(0, "rgba(255,255,255,0)");
+        band.addColorStop(0.5, "rgba(255,255,255,0.05)");
+        band.addColorStop(1, "rgba(255,255,255,0)");
+        o.fillStyle = band;
+        o.fillRect(0, y - spread, diag, spread * 2);
+      }
+
+      // lay the fibres down at the sheet angle
+      cctx.save();
+      cctx.translate(w / 2, h / 2);
+      cctx.rotate((FIBRE_ANGLE * Math.PI) / 180);
+      cctx.drawImage(off, -diag / 2, -diag / 2);
+      cctx.restore();
+
+      // clear-coat depth ACROSS the fibres
+      const gloss = cctx.createLinearGradient(0, 0, w * 0.8, h);
+      gloss.addColorStop(0, "rgba(255,255,255,0.03)");
+      gloss.addColorStop(0.5, "rgba(255,255,255,0)");
+      gloss.addColorStop(1, "rgba(0,0,0,0.16)");
       cctx.fillStyle = gloss;
-      cctx.fillRect(0, 0, carbon.width, carbon.height);
+      cctx.fillRect(0, 0, w, h);
       carbon.style.opacity = "1";
     };
 
@@ -116,8 +127,8 @@ export function SandingSurface() {
 
     const resize = () => {
       const r = section.getBoundingClientRect();
-      const w = Math.round(r.width);
-      const h = Math.round(r.height);
+      const w = Math.round(r.width * S);
+      const h = Math.round(r.height * S);
       for (const c of [carbon, coat, fresh, wear]) { c.width = w; c.height = h; }
       paintCarbon();
       rebuild();
@@ -140,13 +151,14 @@ export function SandingSurface() {
       target.translate(x, y);
       target.rotate(angle);
       target.scale(1.7, 0.55); // long with the stroke, thin across it
-      const g = target.createRadialGradient(0, 0, 0, 0, 0, BRUSH);
+      const R = BRUSH * S;
+      const g = target.createRadialGradient(0, 0, 0, 0, 0, R);
       g.addColorStop(0, `rgba(0,0,0,${strength})`);
       g.addColorStop(0.65, `rgba(0,0,0,${strength * 0.35})`);
       g.addColorStop(1, "rgba(0,0,0,0)");
       target.fillStyle = g;
       target.beginPath();
-      target.arc(0, 0, BRUSH, 0, Math.PI * 2);
+      target.arc(0, 0, R, 0, Math.PI * 2);
       target.fill();
       target.restore();
     };
@@ -157,10 +169,10 @@ export function SandingSurface() {
       fctx.translate(x, y);
       fctx.rotate(angle);
       for (let i = 0; i < 3; i++) {
-        const off = (Math.random() - 0.5) * 22;
-        const len = 26 + Math.random() * 40;
+        const off = (Math.random() - 0.5) * 22 * S;
+        const len = (26 + Math.random() * 40) * S;
         fctx.fillStyle = `rgba(0,0,0,${0.16 + Math.random() * 0.16})`;
-        fctx.fillRect(-len / 2, off, len, 0.8 + Math.random() * 0.7);
+        fctx.fillRect(-len / 2, off, len, (0.8 + Math.random() * 0.7) * S);
       }
       fctx.restore();
     };
@@ -170,12 +182,12 @@ export function SandingSurface() {
       const dx = x - last.x;
       const dy = y - last.y;
       const dist = Math.hypot(dx, dy);
-      if (dist < 1.2) return;             // micro-jitter: don't stamp at all
-      if (dist >= 3 || !hasAngle) {       // only a real move sets the direction
+      if (dist < 1.2 * S) return;         // micro-jitter: don't stamp at all
+      if (dist >= 3 * S || !hasAngle) {   // only a real move sets the direction
         angle = Math.atan2(dy, dx);
         hasAngle = true;
       }
-      const steps = Math.max(1, Math.min(12, Math.round(dist / 7)));
+      const steps = Math.max(1, Math.min(12, Math.round(dist / (7 * S))));
       for (let i = 1; i <= steps; i++) {
         const px = last.x + (dx * i) / steps;
         const py = last.y + (dy * i) / steps;
@@ -200,7 +212,7 @@ export function SandingSurface() {
 
     const onMove = (e: PointerEvent) => {
       const r = section.getBoundingClientRect();
-      sand(e.clientX - r.left, e.clientY - r.top);
+      sand((e.clientX - r.left) * S, (e.clientY - r.top) * S);
       if (!running) { running = true; raf = requestAnimationFrame(tick); }
     };
     const onLeave = () => { last = null; hasAngle = false; };

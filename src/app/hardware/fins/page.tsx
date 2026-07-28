@@ -7,7 +7,6 @@ import { variantSizeCm } from "@/lib/hardware/fin-selector";
 import { Reveal } from "@/components/experience/reveal";
 import { NP7_LOGO } from "@/components/experience/ocean-header";
 import { GRAIN, PINK, sandGrainOverlay, carbonWeave } from "@/components/hardware/theme";
-import { SandingSurface } from "@/components/hardware/sanding-surface";
 
 export const metadata: Metadata = {
   title: { absolute: "Fins — NP7 Hardware" },
@@ -124,7 +123,6 @@ export default async function FinsPage() {
       {/* THE RANGE — sanded primer, shop tiles from the live catalogue */}
       <section id="range" className="relative py-16 sm:py-24" style={{ background: "#e4e4e0" }}>
         <div aria-hidden className="absolute inset-0 pointer-events-none" style={sandGrainOverlay} />
-        <SandingSurface />
         <div className="relative max-w-[1200px] mx-auto px-6 sm:px-8">
           <Reveal>
             <div className="flex items-end justify-between gap-4 mb-10">
