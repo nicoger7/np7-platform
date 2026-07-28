@@ -421,7 +421,7 @@ export default async function HardwareProductPage({ params }: Props) {
 
       {/* Footer */}
       <footer className="border-t border-white/10 bg-black py-10">
-        <div className="max-w-[1200px] mx-auto px-6 sm:px-8 flex flex-col sm:flex-row items-center justify-between gap-4 text-[12px] text-white/40 font-mono">
+        <div className="max-w-[1200px] mx-auto px-6 sm:px-8 flex flex-col sm:flex-row items-center justify-between gap-4 text-[12px] text-white/40">
           <div className="flex items-center gap-3 shrink-0">
             <Link href="/" aria-label="NP7 home">
               {/* eslint-disable-next-line @next/next/no-img-element */}

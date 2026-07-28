@@ -115,8 +115,8 @@ export default async function FinsPage() {
           </div>
           {/* disciplines — slalom rides first, the rest is in the shaping queue */}
           <div className="mt-8 flex flex-wrap items-center gap-2.5">
-            <span className="px-4 py-2 rounded-full font-mono text-[12px] font-bold uppercase tracking-[0.12em] text-black bg-white">Slalom</span>
-            <span className="px-4 py-2 rounded-full font-mono text-[12px] font-bold uppercase tracking-[0.12em] text-white/30 border border-white/12">Freerace — in the queue</span>
+            <span className="px-4 py-2 rounded-full text-[12px] font-bold uppercase tracking-[0.12em] text-black bg-white">Slalom</span>
+            <span className="px-4 py-2 rounded-full text-[12px] font-bold uppercase tracking-[0.12em] text-white/30 border border-white/12">Freerace — in the queue</span>
           </div>
         </div>
       </section>
@@ -132,7 +132,7 @@ export default async function FinsPage() {
                 <p className="font-mono text-[11px] font-bold tracking-[0.25em] uppercase text-[rgba(20,20,18,0.45)]">// SLALOM</p>
                 <h2 className="text-3xl sm:text-5xl font-black tracking-[-0.02em] uppercase text-[#141412] mt-2">The range</h2>
               </div>
-              <span className="font-mono text-[12px] text-[rgba(20,20,18,0.45)]">{fins.length} fin{fins.length !== 1 ? "s" : ""}</span>
+              <span className="text-[12px] text-[rgba(20,20,18,0.45)]">{fins.length} fin{fins.length !== 1 ? "s" : ""}</span>
             </div>
           </Reveal>
 
@@ -153,7 +153,7 @@ export default async function FinsPage() {
                         // eslint-disable-next-line @next/next/no-img-element
                         return <img src={primary} alt={f.name} className="absolute inset-0 h-full w-full object-cover transition-transform duration-500 group-hover:scale-[1.05]" />;
                       })()}
-                      <span className="absolute top-4 left-4 font-mono text-[10px] font-bold tracking-[0.2em] uppercase text-[rgba(20,20,18,0.4)]">Slalom</span>
+                      <span className="absolute top-4 left-4 text-[10px] font-bold tracking-[0.2em] uppercase text-[rgba(20,20,18,0.4)]">Slalom</span>
                       {/* key stats surface on hover */}
                       {(mediaByProduct[f.id]?.stats.length ?? 0) > 0 && (
                         <div className="absolute inset-x-0 bottom-0 translate-y-full group-hover:translate-y-0 transition-transform duration-400 bg-[#141412]/88 backdrop-blur-sm px-4 py-3 grid grid-cols-3 gap-2">
@@ -178,7 +178,7 @@ export default async function FinsPage() {
                       )}
                       <div className="flex items-center justify-between mt-4">
                         <span className="text-[18px] font-black text-[#141412]">{f.price != null ? `€${Number(f.price).toLocaleString("en-US")}` : "—"}</span>
-                        <span className="font-mono text-[11.5px] font-bold uppercase tracking-[0.14em] text-[rgba(20,20,18,0.5)] group-hover:text-[#141412] transition-colors">View →</span>
+                        <span className="text-[11.5px] font-bold uppercase tracking-[0.14em] text-[rgba(20,20,18,0.5)] group-hover:text-[#141412] transition-colors">View →</span>
                       </div>
                     </div>
                   </Link>
@@ -200,7 +200,7 @@ export default async function FinsPage() {
 
       {/* footer — same chrome as the rest of the hardware world */}
       <footer className="border-t border-white/10 bg-black py-10">
-        <div className="max-w-[1200px] mx-auto px-6 sm:px-8 flex flex-col sm:flex-row items-center justify-between gap-4 text-[12px] text-white/40 font-mono">
+        <div className="max-w-[1200px] mx-auto px-6 sm:px-8 flex flex-col sm:flex-row items-center justify-between gap-4 text-[12px] text-white/40">
           <div className="flex items-center gap-3 shrink-0">
             <Link href="/" aria-label="NP7 home">
               {/* eslint-disable-next-line @next/next/no-img-element */}

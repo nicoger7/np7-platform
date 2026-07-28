@@ -19,7 +19,7 @@ const NAV = [
 
 const leftNav = NAV.filter((n) => n.side !== "right");
 const rightNav = NAV.filter((n) => n.side === "right");
-const navLink = "text-[12px] font-bold uppercase tracking-[0.12em] text-white/55 hover:text-[#c2ff38] transition-colors font-mono";
+const navLink = "text-[12px] font-bold uppercase tracking-[0.12em] text-white/55 hover:text-[#c2ff38] transition-colors";
 
 /**
  * Hardware header — black/techy counterpart to the ocean header.
