@@ -15,7 +15,7 @@ export type BuyVariant = {
 };
 
 export function BuyBox({
-  productId, slug, name, currency, price, variants, productAvailable, image = null,
+  productId, slug, name, currency, price, variants, productAvailable, image = null, noun = "board",
 }: {
   productId: string;
   slug: string;
@@ -24,6 +24,7 @@ export function BuyBox({
   price: number | null;       // product-level price when no variants
   variants: BuyVariant[];
   productAvailable: number;   // availability when no variants exist
+  noun?: string;              // "board" | "fin" — copy adapts to the product type
   image?: string | null;
 }) {
   const cart = useCart();
@@ -88,7 +89,7 @@ export function BuyBox({
       {!soldOut && available <= 5 && (
         <p className="text-xs text-amber-400 mt-2">Only {available} left</p>
       )}
-      <p className="text-[11px] text-white/40 mt-2">incl. VAT · free EU shipping on boards · 14-day withdrawal right</p>
+      <p className="text-[11px] text-white/40 mt-2">incl. VAT ·{noun === "board" ? " free EU shipping on boards ·" : ""} 14-day withdrawal right</p>
     </div>
   );
 }

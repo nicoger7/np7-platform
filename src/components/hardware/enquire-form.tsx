@@ -6,11 +6,13 @@ import { HW_ACCENT } from "@/lib/hardware/types";
 type Props = {
   productId: string;
   productName: string;
+  /** "board" | "fin" — the copy adapts to the product type */
+  noun?: string;
 };
 
 type Status = "idle" | "loading" | "success" | "error";
 
-export function EnquireForm({ productId, productName }: Props) {
+export function EnquireForm({ productId, productName, noun = "board" }: Props) {
   const [open, setOpen] = useState(false);
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
@@ -43,7 +45,7 @@ export function EnquireForm({ productId, productName }: Props) {
         <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
           <path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z" />
         </svg>
-        Enquire about this board
+        Enquire about this {noun}
       </button>
     );
   }
@@ -71,7 +73,7 @@ export function EnquireForm({ productId, productName }: Props) {
       <div className="flex items-start justify-between gap-4 mb-2">
         <div>
           <p className="font-mono text-[11px] font-bold tracking-[0.2em] uppercase text-white/40">ENQUIRY</p>
-          <p className="text-[16px] font-black text-white">Enquire about this board</p>
+          <p className="text-[16px] font-black text-white">Enquire about this {noun}</p>
         </div>
         <button
           type="button"

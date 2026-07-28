@@ -8,10 +8,11 @@ import { MemberButton } from "@/components/shared/member-button";
 import { CartBadge } from "@/components/hardware/cart";
 
 const NAV = [
-  { label: "Boards", href: "#products" },
-  { label: "Fins", href: "#products" },
-  { label: "Shop", href: "#products" },
-  { label: "Workshop", href: "#workshop" },
+  // absolute paths so the links also work from /hardware/* subpages
+  { label: "Boards", href: "/hardware#products" },
+  { label: "Fins", href: "/hardware/fins" },
+  { label: "Shop", href: "/hardware#products" },
+  { label: "Workshop", href: "/hardware#workshop" },
   // right-aligned, next to the account button + CTA
   { label: "Magazine", href: "/blog", side: "right" as const },
   { label: "About", href: "/about?from=hardware", side: "right" as const },

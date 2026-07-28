@@ -253,6 +253,8 @@ function GalleryModule({ content }: { content: ProductContent | null }) {
 function BuyModule({ product, buyVariants, productAvailable, image }: { product: Product; buyVariants: BuyVariant[]; productAvailable: number; image: string | null }) {
   const price = fmtPrice(product.price, product.currency ?? "EUR");
   const compareAt = fmtPrice(product.compare_at_price, product.currency ?? "EUR");
+  // copy adapts to the product type — no "board" wording on a fin
+  const noun = /fin/i.test(product.category ?? "") ? "fin" : "board";
 
   return (
     <section id="buy" className="scroll-mt-20 relative py-20 sm:py-32 bg-[#0a0a0c] border-t border-white/10 overflow-hidden">
@@ -289,11 +291,12 @@ function BuyModule({ product, buyVariants, productAvailable, image }: { product:
             variants={buyVariants}
             productAvailable={productAvailable}
             image={image}
+            noun={noun}
           />
 
           <div className="mt-8">
             {/* Secondary — enquire */}
-            <EnquireForm productId={product.id} productName={product.name} />
+            <EnquireForm productId={product.id} productName={product.name} noun={noun} />
           </div>
 
           <p className="text-[13px] text-white/35 mt-5">

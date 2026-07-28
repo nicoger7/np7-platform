@@ -52,7 +52,6 @@ const STATS = [
   { n: "1-of-1", label: "Custom builds" },
 ];
 
-const MARQUEE = "CUSTOM SHAPED · CARBON · HAND-FINISHED · FINS & BOARDS · MADE IN GERMANY · GER-7 · ";
 
 function BoardGlyph({ accent }: { accent: string }) {
   return (
@@ -139,14 +138,6 @@ export default async function HardwarePage() {
           </div>
         </div>
       </WorkshopHero>
-
-      {/* MARQUEE */}
-      <div className="relative overflow-hidden border-y border-white/10 bg-black py-3">
-        <div className="marquee-track whitespace-nowrap font-mono text-[12.5px] font-bold tracking-[0.22em] uppercase text-white/55">
-          {[0, 1].map((k) => (<span key={k}>{MARQUEE.repeat(3)}</span>))}
-        </div>
-        <style>{`@keyframes mq{from{transform:translateX(0)}to{transform:translateX(-50%)}}.marquee-track{display:inline-block;animation:mq 34s linear infinite}@media (prefers-reduced-motion:reduce){.marquee-track{animation:none}}`}</style>
-      </div>
 
       {/* CATEGORIES — bright sanded-blank break in the carbon */}
       <section className="relative" style={{ backgroundColor: SAND, color: INK }}>
