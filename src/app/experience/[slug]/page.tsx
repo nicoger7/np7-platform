@@ -235,8 +235,11 @@ export default async function ExperienceDetailPage({ params, searchParams }: Pro
   // never drive the page (it would read "fully booked" with stale dates/price);
   // when only past/draft editions remain, the page falls through to a clean
   // "dates coming soon" state.
+  // Team preview renders the page as it WILL look live: draft weeks count too.
+  // The public only ever sees published editions.
+  const editionVisible = (s: string | null) => (team ? s === "published" || s === "draft" : s === "published");
   const allEditions = (experience.exp_editions ?? [])
-    .filter((e) => e.status === "published" && (!e.date_end || e.date_end >= today))
+    .filter((e) => editionVisible(e.status) && (!e.date_end || e.date_end >= today))
     .sort((a, b) => ((a.date_start ?? "") < (b.date_start ?? "") ? -1 : 1));
   const multi = allEditions.length > 1;
   const datesTBD = allEditions.length === 0; // published experience, no upcoming week yet
@@ -254,7 +257,7 @@ export default async function ExperienceDetailPage({ params, searchParams }: Pro
     : null;
 
   // group active packages by edition so each week only shows its own (no dupes)
-  const activePackages = (experience.exp_packages ?? []).filter((p) => p.status === "active" && p.price != null);
+  const activePackages = (experience.exp_packages ?? []).filter((p) => (team ? p.status === "active" || p.status === "draft" : p.status === "active") && p.price != null);
 
   // Resolve each package's hotel for the booking step (name + preview photo).
   // Tolerant: hotels media columns + exp_packages.hotel_id arrive in migration 023,
@@ -961,6 +964,11 @@ export default async function ExperienceDetailPage({ params, searchParams }: Pro
         </div>
       </footer>
 
+      {team && (
+        <div className="fixed bottom-4 left-4 z-[60] rounded-full bg-[#00374a] text-white/90 text-[11.5px] font-bold px-3.5 py-2 shadow-lg border border-white/15">
+          Team preview — drafts included, the public may see less
+        </div>
+      )}
       <StickyCta title={experience.title} priceFrom={fromPrice ?? 0} spotsLeft={multi ? totalSpotsLeft : spotsLeft} target="#packages" soldOut={soldOut} />
     </SelectedEditionProvider>
   );
