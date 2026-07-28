@@ -83,7 +83,7 @@ export function FinSelector({ fins }: { fins: SelectorFin[] }) {
   // 3×2 grid instead of free wrap — six chips always land as two tidy rows
   // (wave/freestyle/freewave on top, the race side below), never 5+1
   const boardTypePicker = (compact = false) => (
-    <div className={`grid grid-cols-3 ${compact ? "gap-1.5 mt-2.5 max-w-[400px]" : "gap-2 mt-3 max-w-[460px]"}`}>
+    <div className={`grid grid-cols-2 sm:grid-cols-3 ${compact ? "gap-1.5 mt-2.5 max-w-[400px]" : "gap-2 mt-3 max-w-[460px]"}`}>
       {BOARD_TYPES.map((b) => (
         <button key={b} type="button" onClick={() => setBoardType(b)} className={`${seg(boardType === b)} w-full text-center`}>{b}</button>
       ))}
