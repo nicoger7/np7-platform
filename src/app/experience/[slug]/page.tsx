@@ -952,9 +952,9 @@ export default async function ExperienceDetailPage({ params, searchParams }: Pro
         <div className="max-w-[1200px] mx-auto px-6 sm:px-8 flex items-center justify-between gap-4 text-[12px]">
           <div className="flex items-center gap-3">
             <Link href="/" aria-label="NP7 home">{/* eslint-disable-next-line @next/next/no-img-element */}<img src={NP7_LOGO} alt="NP7" className="h-5 w-auto invert opacity-70" /></Link>
-            <span>© 2026 NP7 Experience</span>
+            <span className="whitespace-nowrap">© 2026 NP7 Experience</span>
           </div>
-          <div className="flex flex-wrap items-center gap-5">
+          <div className="flex flex-wrap items-center justify-center sm:justify-end gap-x-5 gap-y-2">
             <Link href="/widerruf" className="text-white/70 underline underline-offset-2 hover:text-white transition-colors">Withdraw from contract</Link>
             <Link href="/experience" className="hover:text-white transition-colors">← All experiences</Link>
           </div>

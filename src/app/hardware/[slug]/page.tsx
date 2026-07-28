@@ -77,6 +77,16 @@ function HeroModule({
       )}
       <div className="relative w-full max-w-[1200px] mx-auto px-6 sm:px-8 pb-16 pt-32">
         <Reveal from="up">
+          {/* back to the category — never strand someone inside a product */}
+          {(() => {
+            const fin = /fin/i.test(product.category ?? "");
+            return (
+              <Link href={fin ? "/hardware/fins" : "/hardware#products"}
+                className="inline-flex items-center gap-1.5 font-mono text-[11px] font-bold tracking-[0.15em] uppercase text-white/50 hover:text-white transition-colors mb-5">
+                ← {fin ? "Fins" : "The range"}
+              </Link>
+            );
+          })()}
           <div className="flex flex-wrap items-center gap-2 mb-4">
             <span className="font-mono text-[10px] font-bold tracking-[0.2em] uppercase text-white/50">
               {product.category}
@@ -412,12 +422,12 @@ export default async function HardwareProductPage({ params }: Props) {
       {/* Footer */}
       <footer className="border-t border-white/10 bg-black py-10">
         <div className="max-w-[1200px] mx-auto px-6 sm:px-8 flex flex-col sm:flex-row items-center justify-between gap-4 text-[12px] text-white/40 font-mono">
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-3 shrink-0">
             <Link href="/" aria-label="NP7 home">
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img src={NP7_LOGO} alt="NP7" className="h-5 w-auto invert opacity-70 hover:opacity-100 transition-opacity" />
             </Link>
-            <span>© 2026 NP7 HARDWARE · GER-7</span>
+            <span className="whitespace-nowrap">© 2026 NP7 HARDWARE · GER-7</span>
             <Link href="/widerruf" className="text-white/70 underline underline-offset-2 hover:text-[#c6ff3a] transition-colors normal-case">Withdraw from contract</Link>
           </div>
           <div className="flex items-center gap-5 uppercase tracking-wider">

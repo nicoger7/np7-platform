@@ -393,9 +393,9 @@ export default async function ExperienceOverviewPage() {
                 {/* eslint-disable-next-line @next/next/no-img-element */}
                 <img src={NP7_LOGO} alt="NP7" className="h-5 w-auto invert opacity-70 hover:opacity-100 transition-opacity" />
               </Link>
-              <span>© 2026 NP7 Experience · Nico Prien (GER-7)</span>
+              <span className="whitespace-nowrap">© 2026 NP7 Experience · Nico Prien (GER-7)</span>
             </div>
-            <div className="flex flex-wrap gap-5">
+            <div className="flex flex-wrap justify-center sm:justify-end gap-x-5 gap-y-2">
               <Link href="/hardware" className="hover:text-white transition-colors">Hardware</Link>
               <Link href="#" className="hover:text-white transition-colors">Instagram</Link>
               <Link href="#" className="hover:text-white transition-colors">YouTube</Link>

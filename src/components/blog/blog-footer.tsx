@@ -20,9 +20,9 @@ export function BlogFooter({
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img src={NP7_LOGO} alt="NP7" className="h-5 w-auto invert opacity-70 hover:opacity-100 transition-opacity" />
           </Link>
-          <span>© 2026 NP7 GmbH · Nico Prien (GER-7)</span>
+          <span className="whitespace-nowrap">© 2026 NP7 GmbH · Nico Prien (GER-7)</span>
         </div>
-        <div className="flex items-center gap-5">
+        <div className="flex flex-wrap items-center justify-center sm:justify-end gap-x-5 gap-y-2">
           <Link href="/blog" className="hover:text-white transition-colors">Magazine</Link>
           {showExperience && <Link href="/experience" className="hover:text-white transition-colors">Experience</Link>}
           {showHardware && <Link href="/hardware" className="hover:text-white transition-colors">Hardware</Link>}

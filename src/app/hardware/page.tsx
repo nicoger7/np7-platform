@@ -270,14 +270,14 @@ export default async function HardwarePage() {
       {/* FOOTER */}
       <footer className="border-t border-white/10 bg-black py-10">
         <div className="max-w-[1200px] mx-auto px-6 sm:px-8 flex flex-col sm:flex-row items-center justify-between gap-4 text-[12px] text-white/40 font-mono">
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-3 shrink-0">
             <Link href="/" aria-label="NP7 home">
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img src={NP7_LOGO} alt="NP7" className="h-5 w-auto invert opacity-70 hover:opacity-100 transition-opacity" />
             </Link>
-            <span>© 2026 NP7 HARDWARE · GER-7</span>
+            <span className="whitespace-nowrap">© 2026 NP7 HARDWARE · GER-7</span>
           </div>
-          <div className="flex flex-wrap gap-5 uppercase tracking-wider">
+          <div className="flex flex-wrap justify-center sm:justify-end gap-x-5 gap-y-2 uppercase tracking-wider">
             <Link href="/experience" className="hover:text-[#c6ff3a] transition-colors">Experience</Link>
             <Link href="#" className="hover:text-[#c6ff3a] transition-colors">Instagram</Link>
             <Link href="#" className="hover:text-[#c6ff3a] transition-colors">YouTube</Link>
