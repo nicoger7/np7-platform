@@ -108,8 +108,13 @@ export default async function FinsPage() {
           <p className="mt-6 text-[16px] sm:text-[18px] text-white/60 max-w-[520px] font-medium">
             Cut, foiled and wet-sanded on the bench — the dust barely settled. Every fin tested at GER-7 race pace before it ships.
           </p>
+          <div className="mt-8">
+            <a href="#selector" className="inline-flex items-center gap-2 px-7 py-3.5 rounded-full text-[14px] font-bold text-black hover:-translate-y-0.5 transition-all" style={{ backgroundColor: "#c6ff3a" }}>
+              Find your fin →
+            </a>
+          </div>
           {/* disciplines — slalom rides first, the rest is in the shaping queue */}
-          <div className="mt-9 flex flex-wrap items-center gap-2.5">
+          <div className="mt-8 flex flex-wrap items-center gap-2.5">
             <span className="px-4 py-2 rounded-full font-mono text-[12px] font-bold uppercase tracking-[0.12em] text-black bg-white">Slalom</span>
             <span className="px-4 py-2 rounded-full font-mono text-[12px] font-bold uppercase tracking-[0.12em] text-white/30 border border-white/12">Freerace — in the queue</span>
           </div>

@@ -11,7 +11,6 @@ const NAV = [
   // absolute paths so the links also work from /hardware/* subpages
   { label: "Boards", href: "/hardware#products", sub: "Freeride · slalom · wave — shaped on the bench" },
   { label: "Fins", href: "/hardware/fins", sub: "Slalom fins + the fin selector" },
-  { label: "Shop", href: "/hardware#products", sub: "The full range, ready to ride" },
   { label: "Workshop", href: "/hardware#workshop", sub: "Inside the build — carbon, layups, hand-finish" },
   // right-aligned, next to the account button + CTA
   { label: "Magazine", href: "/blog", side: "right" as const, sub: "Guides, tests & technique" },
@@ -62,13 +61,13 @@ export function HardwareHeader({ variant = "overlay" }: { variant?: "overlay" | 
       )}
       <div className="relative max-w-[1200px] mx-auto px-5 sm:px-8 h-16 flex items-center justify-between gap-4">
         {/* LEFT — brand + primary nav */}
-        <div className="flex items-center gap-3 sm:gap-4">
+        <div className="flex items-center gap-2 sm:gap-4 min-w-0">
           <Link href="/" aria-label="NP7 home" className="shrink-0">
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img src={NP7_LOGO} alt="NP7" className="h-6 w-auto invert" />
           </Link>
           <span className="w-px h-6 bg-white/20 hidden sm:block" />
-          <BrandSwitch active="hardware" />
+          <div className="origin-left max-[430px]:scale-[0.84] shrink-0"><BrandSwitch active="hardware" /></div>
           <nav className="hidden lg:flex items-center gap-7 ml-1">
             {leftNav.map((n, i) => (
               <Link key={i} href={n.href} className={navLink}>{n.label}</Link>

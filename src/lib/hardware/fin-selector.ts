@@ -15,12 +15,16 @@
 export type WindBand = "light" | "medium" | "strong";
 export type RiderLevel = "intermediate" | "advanced" | "pro";
 
+export type RaceBoardType = "freeride" | "freerace" | "slalom";
+
 export type FinInputs = {
   weightKg: number;
   level: RiderLevel;
   wind: WindBand;
   boardWidthCm: number;
   sailSqm: number;
+  /** high-end (slalom) carries the narrowest sail window; freeride the widest */
+  boardType?: RaceBoardType;
 };
 
 export type FinTuning = {
@@ -100,6 +104,22 @@ export function normalizeTuning(raw: unknown): FinTuning {
   };
 }
 
+/** How much each level TIGHTENS the sail window (m² off the base slacks).
+ *  Calibrated to Nico's pro-slalom windows: 63 cm → 5.3–7.0 · 72 → 6.5–8.0. */
+const LEVEL_WINDOW_TIGHTEN: Record<RiderLevel, { up: number; down: number }> = {
+  intermediate: { up: 0, down: 0 },
+  advanced: { up: 0.5, down: 0.2 },
+  pro: { up: 1.0, down: 0.4 },
+};
+
+/** How much each board family WIDENS the window — high-end slalom is the
+ *  reference (narrowest); freeride tolerates the most. */
+const BOARD_WINDOW_WIDEN: Record<RaceBoardType, number> = {
+  slalom: 0,
+  freerace: 0.25,
+  freeride: 0.5,
+};
+
 export type FinResult = {
   /** the single number the tool recommends, rounded to 0.5 cm */
   idealCm: number;
@@ -110,6 +130,9 @@ export type FinResult = {
   hardMaxCm: number;
   /** plain-language "why" lines, one per factor that moved the number */
   notes: string[];
+  /** the sail window that suits THIS rider/board — narrows with level & pedigree */
+  sailOkLo: number;
+  sailOkHi: number;
   /** set when board and sail sizes don't belong together */
   comboWarning: string | null;
 };
@@ -135,7 +158,9 @@ export function recommendFin(i: FinInputs, t: FinTuning = DEFAULT_TUNING): FinRe
 
   // the rule: fine-tuning never moves more than adjRange off the middle,
   // and the result never leaves the hard band for this board width
-  const adj = clamp(-t.adjRange, t.adjRange, sailAdj + weightAdj + windAdj + levelAdj);
+  const rawAdj = sailAdj + weightAdj + windAdj + levelAdj;
+  const adj = clamp(-t.adjRange, t.adjRange, rawAdj);
+  const capped = Math.abs(rawAdj) > t.adjRange;
   const ideal = round05(clamp(Math.max(24, hardMin), Math.min(52, hardMax), middle + adj));
 
   const notes: string[] = [
@@ -149,16 +174,20 @@ export function recommendFin(i: FinInputs, t: FinTuning = DEFAULT_TUNING): FinRe
   if (Math.abs(weightAdj) >= 0.25) notes.push(`${i.weightKg} kg: ${weightAdj > 0 ? "+" : "−"}${round05(Math.abs(weightAdj))} for your weight`);
   if (windAdj !== 0) notes.push(windAdj > 0 ? `+${windAdj} for light-wind lift & early planing` : `−${Math.abs(windAdj)} for strong-wind control`);
   if (levelAdj !== 0) notes.push(levelAdj > 0 ? `+${levelAdj} — a touch more fin makes planing and upwind easier` : `−${Math.abs(levelAdj)} — pro trim for top-end control`);
+  if (capped) notes.push(`Your factors add up to ${rawAdj > 0 ? "+" : "−"}${round05(Math.abs(rawAdj))} — capped at ${rawAdj > 0 ? "+" : "−"}${t.adjRange} off the middle, so further tweaks won't move the number here`);
   notes.push(`Never below ${hardMin} or above ${hardMax} on this board`);
 
-  const comboLo = typicalSail - t.comboSlackDown;
-  const comboHi = typicalSail + t.comboSlackUp;
+  // the OK sail window narrows as level and board pedigree rise
+  const tighten = LEVEL_WINDOW_TIGHTEN[i.level];
+  const widen = BOARD_WINDOW_WIDEN[i.boardType ?? "slalom"];
+  const comboLo = typicalSail - Math.max(0.5, t.comboSlackDown - tighten.down + widen);
+  const comboHi = typicalSail + Math.max(0, t.comboSlackUp - tighten.up + widen);
   const comboWarning =
     i.sailSqm > comboHi || i.sailSqm < comboLo
-      ? `Unusual combo — a ${i.boardWidthCm} cm board usually carries ${comboLo.toFixed(1)}–${comboHi.toFixed(1)} m². The number still computes, but double-check the pairing.`
+      ? `Unusual combo — a ${i.boardWidthCm} cm ${i.boardType ?? "slalom"} board at your level usually carries ${comboLo.toFixed(1)}–${comboHi.toFixed(1)} m². The number still computes, but double-check the pairing.`
       : null;
 
-  return { idealCm: ideal, middleCm: round05(middle), hardMinCm: hardMin, hardMaxCm: hardMax, notes, comboWarning };
+  return { idealCm: ideal, middleCm: round05(middle), hardMinCm: hardMin, hardMaxCm: hardMax, sailOkLo: Math.round(comboLo * 10) / 10, sailOkHi: Math.round(comboHi * 10) / 10, notes, comboWarning };
 }
 
 /** Parse a fin length in cm out of a variant name/attributes ("38", "38 cm", "SL-38"). */

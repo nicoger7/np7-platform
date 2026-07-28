@@ -3,8 +3,8 @@
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import {
-  recommendFin, typicalSailFor, normalizeTuning,
-  type FinInputs, type RiderLevel, type WindBand,
+  recommendFin, normalizeTuning,
+  type FinInputs, type RiderLevel, type WindBand, type RaceBoardType,
 } from "@/lib/hardware/fin-selector";
 
 const LIME = "#c6ff3a";
@@ -63,7 +63,8 @@ export function FinSelector({ fins }: { fins: SelectorFin[] }) {
 
   const fin = fins[0] ?? null;
   const tuning = useMemo(() => normalizeTuning(fin?.tuning), [fin]);
-  const result = useMemo(() => recommendFin(inputs, tuning), [inputs, tuning]);
+  const raceType: RaceBoardType = HAS_FINS[boardType] ? (boardType as RaceBoardType) : "slalom";
+  const result = useMemo(() => recommendFin({ ...inputs, boardType: raceType }, tuning), [inputs, raceType, tuning]);
   const nearest = useMemo(() => {
     if (!fin || fin.sizes.length === 0) return null;
     return fin.sizes.reduce((best, s) => (Math.abs(s - result.idealCm) < Math.abs(best - result.idealCm) ? s : best), fin.sizes[0]);
@@ -180,7 +181,7 @@ export function FinSelector({ fins }: { fins: SelectorFin[] }) {
                 </div>
                 <input type="range" min={4.5} max={10} step={0.1} value={inputs.sailSqm} onChange={(e) => set("sailSqm", Number(e.target.value))}
                   className="w-full mt-2 accent-white" aria-label="Sail size in square metres" />
-                <p className="text-[11.5px] text-white/35 mt-1">typical for this board: ~{typicalSailFor(inputs.boardWidthCm, tuning).toFixed(1)} m²</p>
+                <p className="text-[11.5px] text-white/35 mt-1">usual range for this setup: {result.sailOkLo.toFixed(1)}–{result.sailOkHi.toFixed(1)} m²</p>
               </div>
               <div>
                 <p className={label}>Wind</p>

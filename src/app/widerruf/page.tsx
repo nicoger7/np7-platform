@@ -5,11 +5,13 @@ import Link from "next/link";
 import { LegalShell } from "@/components/shared/legal-shell";
 
 /**
- * Online-Widerrufsfunktion (§ 356a BGB). Two statutory steps:
+ * Online withdrawal function (§ 356a BGB). Two statutory steps:
  *   1) statement — name, contract identification, email for the acknowledgment
- *   2) a separate confirmation control labelled exactly "Widerruf bestätigen"
+ *   2) a separate confirmation control ("Confirm withdrawal" — the directive's
+ *      English wording; the German statutory label is shown alongside)
  * Reachable without any login; the acknowledgment email documents content +
- * date + time of receipt.
+ * date + time of receipt. Page copy is English-first to match the site, with
+ * the statutory German kept where it carries legal weight.
  */
 export default function WiderrufPage() {
   const [step, setStep] = useState<1 | 2 | 3>(1);
@@ -29,11 +31,11 @@ export default function WiderrufPage() {
         body: JSON.stringify({ ...form, name: form.name.trim(), contractRef: form.contractRef.trim(), email: form.email.trim(), note: form.note.trim() }),
       });
       const j = await res.json().catch(() => ({}));
-      if (!res.ok) { setError(j.error || "Das hat leider nicht geklappt. Bitte versuchen Sie es erneut."); return; }
+      if (!res.ok) { setError(j.error || "That didn't work — please try again."); return; }
       setReceivedAt(j.receivedAt || null);
       setStep(3);
     } catch {
-      setError("Netzwerkfehler — bitte versuchen Sie es erneut oder senden Sie Ihren Widerruf per E-Mail (Adresse im Impressum).");
+      setError("Network error — please try again, or send your withdrawal by email (address in the Impressum).");
     } finally {
       setBusy(false);
     }
@@ -43,31 +45,31 @@ export default function WiderrufPage() {
   const label = "block text-[13px] font-semibold text-[#00374a] mb-1.5";
 
   return (
-    <LegalShell title="Vertrag widerrufen">
+    <LegalShell title="Withdraw from contract">
       <p>
-        Hier können Sie Verträge mit der NP7 GmbH, für die ein gesetzliches Widerrufsrecht besteht
-        (z.&nbsp;B. den Kauf eines Wertgutscheins), online widerrufen — ohne Anmeldung und ohne Angabe
-        von Gründen. Details: <Link href="/widerrufsbelehrung">Widerrufsbelehrung</Link>.
-        {" "}<em>English: withdraw from a contract with NP7 GmbH online — no login, no reasons required.</em>
+        Withdraw from a contract with NP7 GmbH that carries a statutory right of withdrawal
+        (e.g. a gift-voucher purchase) — online, no login, no reasons required
+        (<em>gesetzliche Online-Widerrufsfunktion, § 356a BGB</em>).
+        Details: <Link href="/widerrufsbelehrung">withdrawal policy</Link>.
       </p>
 
       {step === 1 && (
         <div className="mt-8 space-y-4 max-w-[480px]">
           <div>
-            <label className={label}>Ihr Name / your name *</label>
+            <label className={label}>Your name *</label>
             <input className={input} value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} autoComplete="name" />
           </div>
           <div>
-            <label className={label}>Bestell-, Gutschein- oder Buchungsnummer — oder die E-Mail-Adresse der Bestellung *</label>
-            <input className={input} value={form.contractRef} onChange={(e) => setForm({ ...form, contractRef: e.target.value })} placeholder="z. B. Gutschein-Code oder Bestellnummer" />
-            <p className="text-[12px] text-[#8a9aa0] mt-1">Order / voucher number, or the email you ordered with — anything that identifies the contract.</p>
+            <label className={label}>Order, voucher or booking number — or the email you ordered with *</label>
+            <input className={input} value={form.contractRef} onChange={(e) => setForm({ ...form, contractRef: e.target.value })} placeholder="e.g. voucher code or order number" />
+            <p className="text-[12px] text-[#8a9aa0] mt-1">Anything that identifies the contract.</p>
           </div>
           <div>
-            <label className={label}>E-Mail für die Eingangsbestätigung / email for the confirmation *</label>
+            <label className={label}>Email for the confirmation *</label>
             <input className={input} type="email" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} autoComplete="email" />
           </div>
           <div>
-            <label className={label}>Anmerkung <span className="font-normal text-[#8a9aa0]">(optional — nie erforderlich)</span></label>
+            <label className={label}>Note <span className="font-normal text-[#8a9aa0]">(optional — never required)</span></label>
             <textarea className={`${input} min-h-[70px] resize-y`} value={form.note} onChange={(e) => setForm({ ...form, note: e.target.value })} />
           </div>
           {/* Honeypot — hidden from real visitors */}
@@ -77,7 +79,7 @@ export default function WiderrufPage() {
             disabled={!canContinue}
             className="px-7 py-3.5 rounded-full text-[15px] font-bold text-white bg-[#00374a] hover:bg-[#00475f] disabled:opacity-40 transition-colors"
           >
-            Weiter zur Bestätigung
+            Continue to confirmation
           </button>
         </div>
       )}
@@ -85,15 +87,16 @@ export default function WiderrufPage() {
       {step === 2 && (
         <div className="mt-8 max-w-[480px]">
           <div className="note">
-            <strong>Bitte prüfen / please check:</strong>
+            <strong>Please check:</strong>
             <br />Name: {form.name.trim()}
-            <br />Vertrag: {form.contractRef.trim()}
-            <br />Bestätigung an: {form.email.trim()}
-            {form.note.trim() ? <><br />Anmerkung: {form.note.trim()}</> : null}
+            <br />Contract: {form.contractRef.trim()}
+            <br />Confirmation to: {form.email.trim()}
+            {form.note.trim() ? <><br />Note: {form.note.trim()}</> : null}
           </div>
           <p className="text-[13.5px]">
-            Mit Klick auf <strong>„Widerruf bestätigen"</strong> geben Sie Ihre Widerrufserklärung ab.
-            Sie erhalten unverzüglich eine Eingangsbestätigung per E-Mail mit Datum und Uhrzeit des Eingangs.
+            Clicking <strong>&ldquo;Confirm withdrawal&rdquo;</strong> submits your withdrawal declaration
+            (<em>Widerruf bestätigen</em>). You&apos;ll immediately receive an acknowledgment email with
+            the date and time of receipt.
           </p>
           {error && <p className="text-[13.5px] text-red-500 mb-3">{error}</p>}
           <div className="flex flex-wrap items-center gap-3 mt-4">
@@ -102,9 +105,9 @@ export default function WiderrufPage() {
               disabled={busy}
               className="px-8 py-4 rounded-full text-[16px] font-bold text-white bg-[#00afdb] hover:bg-[#15c0ec] disabled:opacity-60 transition-colors"
             >
-              {busy ? "Wird gesendet…" : "Widerruf bestätigen"}
+              {busy ? "Sending…" : "Confirm withdrawal"}
             </button>
-            <button onClick={() => { setStep(1); setError(""); }} className="text-[14px] text-[#8a9aa0] hover:text-[#00374a] transition-colors">← Zurück / back</button>
+            <button onClick={() => { setStep(1); setError(""); }} className="text-[14px] text-[#8a9aa0] hover:text-[#00374a] transition-colors">← Back</button>
           </div>
         </div>
       )}
@@ -112,16 +115,15 @@ export default function WiderrufPage() {
       {step === 3 && (
         <div className="mt-8 max-w-[520px]">
           <div className="note" style={{ background: "#effaf5", borderColor: "#cdeeda" }}>
-            <strong>Ihr Widerruf ist eingegangen.</strong>
+            <strong>Your withdrawal has been received.</strong>
             {receivedAt && (
-              <> Eingang: {new Date(receivedAt).toLocaleDateString("de-DE", { day: "2-digit", month: "2-digit", year: "numeric", timeZone: "Europe/Berlin" })}
-                {" um "}
-                {new Date(receivedAt).toLocaleTimeString("de-DE", { hour: "2-digit", minute: "2-digit", timeZone: "Europe/Berlin" })} Uhr.</>
+              <> Received: {new Date(receivedAt).toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric", timeZone: "Europe/Berlin" })}
+                {" at "}
+                {new Date(receivedAt).toLocaleTimeString("de-DE", { hour: "2-digit", minute: "2-digit", timeZone: "Europe/Berlin" })} (German time).</>
             )}
-            {" "}Die Eingangsbestätigung mit allen Details ist auf dem Weg an {form.email.trim()}.
-            <br /><em>English: your withdrawal was received — the confirmation email with date and time is on its way.</em>
+            {" "}The acknowledgment email with all details is on its way to {form.email.trim()}.
           </div>
-          <p className="text-[13.5px]">Wir prüfen Ihre Erklärung und melden uns zeitnah zur Rückabwicklung.</p>
+          <p className="text-[13.5px]">We&apos;ll review your declaration and get back to you shortly about the refund.</p>
         </div>
       )}
     </LegalShell>
