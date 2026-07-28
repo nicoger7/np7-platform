@@ -130,6 +130,14 @@ export function SandingSurface() {
       const w = Math.round(r.width * S);
       const h = Math.round(r.height * S);
       for (const c of [carbon, coat, fresh, wear]) { c.width = w; c.height = h; }
+      // A canvas is a REPLACED element: `inset-0` does NOT stretch it, so it
+      // takes its layout size from the backing store — at S=2 that made the
+      // whole surface render twice as large and the sanding drift away from
+      // the cursor. Pin the CSS size to the section.
+      for (const c of [carbon, coat]) {
+        c.style.width = `${r.width}px`;
+        c.style.height = `${r.height}px`;
+      }
       paintCarbon();
       rebuild();
     };
