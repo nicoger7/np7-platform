@@ -41,9 +41,9 @@ const FALLBACK_PRODUCTS: Product[] = [
 ];
 
 const CATEGORIES = [
-  { name: "Boards", tag: "Freeride · Slalom · Wave", accent: BONE },
-  { name: "Fins", tag: "Slalom · Wave · Weed", accent: PINK },
-  { name: "Custom", tag: "Shaped to your specs", accent: RED },
+  { name: "Boards", tag: "Freeride · Slalom · Wave", accent: BONE, href: "#products" },
+  { name: "Fins", tag: "Slalom · fin selector", accent: PINK, href: "/hardware/fins" },
+  { name: "Custom", tag: "Shaped to your specs", accent: RED, href: "#workshop" },
 ];
 
 const STATS = [
@@ -152,7 +152,7 @@ export default async function HardwarePage() {
           <div className="grid sm:grid-cols-3 gap-5">
             {CATEGORIES.map((c, i) => (
               <Reveal key={c.name} delay={i * 90}>
-                <Link href="#products" className="group relative block rounded-2xl p-8 h-[200px] overflow-hidden transition-all hover:-translate-y-1"
+                <Link href={c.href} className="group relative block rounded-2xl p-8 h-[200px] overflow-hidden transition-all hover:-translate-y-1"
                   style={{ backgroundColor: "#0c0c0e", border: "1px solid rgba(22,21,16,0.35)", boxShadow: "0 14px 30px rgba(22,21,16,0.18)" }}>
                   <div className="absolute inset-0" style={carbonWeave} aria-hidden />
                   <span className="absolute -bottom-7 -right-2 text-[120px] font-black leading-none text-white opacity-[0.05] select-none" aria-hidden>{i + 1}</span>

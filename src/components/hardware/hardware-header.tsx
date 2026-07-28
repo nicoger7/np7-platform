@@ -9,13 +9,13 @@ import { CartBadge } from "@/components/hardware/cart";
 
 const NAV = [
   // absolute paths so the links also work from /hardware/* subpages
-  { label: "Boards", href: "/hardware#products" },
-  { label: "Fins", href: "/hardware/fins" },
-  { label: "Shop", href: "/hardware#products" },
-  { label: "Workshop", href: "/hardware#workshop" },
+  { label: "Boards", href: "/hardware#products", sub: "Freeride · slalom · wave — shaped on the bench" },
+  { label: "Fins", href: "/hardware/fins", sub: "Slalom fins + the fin selector" },
+  { label: "Shop", href: "/hardware#products", sub: "The full range, ready to ride" },
+  { label: "Workshop", href: "/hardware#workshop", sub: "Inside the build — carbon, layups, hand-finish" },
   // right-aligned, next to the account button + CTA
-  { label: "Magazine", href: "/blog", side: "right" as const },
-  { label: "About", href: "/about?from=hardware", side: "right" as const },
+  { label: "Magazine", href: "/blog", side: "right" as const, sub: "Guides, tests & technique" },
+  { label: "About", href: "/about?from=hardware", side: "right" as const, sub: "Nico Prien — GER-7" },
 ];
 
 const leftNav = NAV.filter((n) => n.side !== "right");
@@ -116,16 +116,19 @@ export function HardwareHeader({ variant = "overlay" }: { variant?: "overlay" | 
         </div>
       </div>
 
-      {/* MOBILE menu panel */}
+      {/* MOBILE menu panel — an overview, not a bare link list: every entry
+          carries a one-line descriptor so you know where it takes you */}
       {menuOpen && (
         <div className="relative lg:hidden border-t border-white/10 bg-black">
-          <nav className="max-w-[1200px] mx-auto px-5 py-2 flex flex-col">
+          <nav className="max-w-[1200px] mx-auto px-5 py-3 flex flex-col gap-1.5">
             {NAV.map((n, i) => (
-              <Link key={i} href={n.href} onClick={() => setMenuOpen(false)} className="py-3.5 text-[13px] font-bold uppercase tracking-[0.12em] font-mono text-white/70 hover:text-[#c2ff38] border-b border-white/5">
-                {n.label}
+              <Link key={i} href={n.href} onClick={() => setMenuOpen(false)}
+                className="rounded-xl px-4 py-3 border border-white/8 bg-white/[0.03] hover:border-white/25 transition-colors">
+                <span className="block text-[15px] font-bold text-white">{n.label}</span>
+                {n.sub && <span className="block text-[12px] text-white/45 mt-0.5">{n.sub}</span>}
               </Link>
             ))}
-            <Link href="#products" onClick={() => setMenuOpen(false)} className="mt-3 mb-1 inline-flex justify-center px-5 py-3 rounded-full text-[14px] font-bold text-black bg-[#c2ff38] shadow-[0_0_24px_rgba(194,255,56,0.45)]">
+            <Link href="/hardware#products" onClick={() => setMenuOpen(false)} className="mt-2 mb-1 inline-flex justify-center px-5 py-3.5 rounded-full text-[14.5px] font-bold text-black bg-[#c2ff38] shadow-[0_0_24px_rgba(194,255,56,0.45)]">
               Shop gear
             </Link>
           </nav>
