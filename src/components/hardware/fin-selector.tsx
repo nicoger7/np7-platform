@@ -78,6 +78,19 @@ export function FinSelector({ fins }: { fins: SelectorFin[] }) {
     }`;
 
   const label = "text-[11px] font-semibold tracking-[0.06em] uppercase text-white/45";
+  /** The Regler itself — visible track (filled white to the thumb). */
+  const Range = ({ min, max, step = 1, value, onChange, ariaLabel }: {
+    min: number; max: number; step?: number; value: number; onChange: (v: number) => void; ariaLabel: string;
+  }) => {
+    const pct = ((value - min) / (max - min)) * 100;
+    return (
+      <input type="range" min={min} max={max} step={step} value={value}
+        onChange={(e) => onChange(Number(e.target.value))}
+        aria-label={ariaLabel}
+        className="np7-range mt-2.5"
+        style={{ backgroundImage: `linear-gradient(to right, #fff ${pct}%, rgba(255,255,255,0.2) ${pct}%)` }} />
+    );
+  };
   const readout = "text-[15px] font-bold text-white tabular-nums";
 
   // 3×2 grid instead of free wrap — six chips always land as two tidy rows
@@ -127,8 +140,7 @@ export function FinSelector({ fins }: { fins: SelectorFin[] }) {
             </div>
             <div>
               <p className={label}>02 · Your weight — <span className="normal-case">{inputs.weightKg} kg</span></p>
-              <input type="range" min={50} max={115} step={1} value={inputs.weightKg} onChange={(e) => set("weightKg", Number(e.target.value))}
-                className="w-full mt-3 accent-white" aria-label="Your weight in kilograms" />
+              <Range min={50} max={115} value={inputs.weightKg} onChange={(v) => set("weightKg", v)} ariaLabel="Your weight in kilograms" />
             </div>
             <div>
               <p className={label}>03 · Your level</p>
@@ -173,16 +185,14 @@ export function FinSelector({ fins }: { fins: SelectorFin[] }) {
                   <p className={label}>Board width</p>
                   <p className={readout}>{inputs.boardWidthCm} cm</p>
                 </div>
-                <input type="range" min={55} max={95} step={1} value={inputs.boardWidthCm} onChange={(e) => set("boardWidthCm", Number(e.target.value))}
-                  className="w-full mt-2 accent-white" aria-label="Board width in centimetres" />
+                <Range min={55} max={95} value={inputs.boardWidthCm} onChange={(v) => set("boardWidthCm", v)} ariaLabel="Board width in centimetres" />
               </div>
               <div>
                 <div className="flex items-baseline justify-between">
                   <p className={label}>Sail size</p>
                   <p className={readout}>{inputs.sailSqm.toFixed(1)} m²</p>
                 </div>
-                <input type="range" min={4.5} max={10} step={0.1} value={inputs.sailSqm} onChange={(e) => set("sailSqm", Number(e.target.value))}
-                  className="w-full mt-2 accent-white" aria-label="Sail size in square metres" />
+                <Range min={4.5} max={10} step={0.1} value={inputs.sailSqm} onChange={(v) => set("sailSqm", v)} ariaLabel="Sail size in square metres" />
                 <p className="text-[11.5px] text-white/35 mt-1">usual range for this setup: {result.sailOkLo.toFixed(1)}–{result.sailOkHi.toFixed(1)} m²</p>
               </div>
               <div>
@@ -199,8 +209,7 @@ export function FinSelector({ fins }: { fins: SelectorFin[] }) {
                     <p className={label}>Weight</p>
                     <p className={readout}>{inputs.weightKg} kg</p>
                   </div>
-                  <input type="range" min={50} max={115} step={1} value={inputs.weightKg} onChange={(e) => set("weightKg", Number(e.target.value))}
-                    className="w-full mt-2 accent-white" aria-label="Your weight in kilograms" />
+                  <Range min={50} max={115} value={inputs.weightKg} onChange={(v) => set("weightKg", v)} ariaLabel="Your weight in kilograms" />
                 </div>
                 <div>
                   <p className={label}>Level</p>

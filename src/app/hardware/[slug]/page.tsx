@@ -82,8 +82,8 @@ function HeroModule({
             const fin = /fin/i.test(product.category ?? "");
             return (
               <Link href={fin ? "/hardware/fins" : "/hardware#products"}
-                className="inline-flex items-center gap-1.5 font-mono text-[11px] font-bold tracking-[0.15em] uppercase text-white/50 hover:text-white transition-colors mb-5">
-                ← {fin ? "Fins" : "The range"}
+                className="inline-flex items-center gap-2 rounded-full border border-white/25 bg-white/[0.08] backdrop-blur-sm px-4 py-2 text-[13px] font-bold text-white/90 hover:bg-white/15 hover:border-white/50 hover:-translate-x-0.5 transition-all mb-6">
+                <span aria-hidden>←</span> Back to {fin ? "fins" : "the range"}
               </Link>
             );
           })()}
