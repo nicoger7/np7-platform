@@ -24,9 +24,12 @@ interface Experience {
 const STATUS_LABEL: Record<string, string> = { published: "Active", draft: "Draft", archived: "Archived" };
 
 interface Edition {
+  id: string;
   experience_id: string;
   year: number;
   status: string;
+  label?: string | null;
+  date_start?: string | null;
 }
 
 type ViewMode = "list" | "tile";
@@ -68,26 +71,38 @@ function OffWebsiteBadge() {
   );
 }
 
-function EditionPills({ editions }: { editions: Edition[] }) {
+/** Year chips — each one opens that edition directly. They live inside the
+ *  card/row button, so the click must not also trigger the parent. */
+function EditionPills({ editions, onOpen }: { editions: Edition[]; onOpen?: (id: string) => void }) {
   if (!editions || editions.length === 0) {
     return <span className="text-xs admin-faint">—</span>;
   }
   return (
     <div className="flex flex-wrap gap-1">
-      {editions.map((ed, i) => (
-        <span
-          key={`${ed.year}-${i}`}
-          className={`inline-block px-1.5 py-0.5 rounded text-[10px] font-medium ${
-            ed.status === "published"
-              ? "bg-[var(--admin-accent)]/15 text-[#0aa3c7]"
-              : ed.status === "archived"
-              ? "bg-gray-500/15 text-gray-400"
-              : "bg-amber-500/15 text-amber-400"
-          }`}
-        >
-          {ed.year}
-        </span>
-      ))}
+      {editions.map((ed, i) => {
+        const open = onOpen && ed.id ? (e: React.MouseEvent | React.KeyboardEvent) => { e.stopPropagation(); e.preventDefault(); onOpen(ed.id); } : undefined;
+        return (
+          <span
+            key={ed.id ?? `${ed.year}-${i}`}
+            {...(open ? {
+              role: "link" as const,
+              tabIndex: 0,
+              onClick: open,
+              onKeyDown: (e: React.KeyboardEvent) => { if (e.key === "Enter" || e.key === " ") open(e); },
+              title: `Open ${ed.label || ed.year}${ed.date_start ? ` · ${ed.date_start}` : ""}`,
+            } : {})}
+            className={`inline-block px-1.5 py-0.5 rounded text-[10px] font-medium transition-all ${open ? "cursor-pointer hover:ring-1 hover:ring-current hover:-translate-y-px" : ""} ${
+              ed.status === "published"
+                ? "bg-[var(--admin-accent)]/15 text-[#0aa3c7]"
+                : ed.status === "archived"
+                ? "bg-gray-500/15 text-gray-400"
+                : "bg-amber-500/15 text-amber-400"
+            }`}
+          >
+            {ed.year}
+          </span>
+        );
+      })}
     </div>
   );
 }
@@ -194,7 +209,7 @@ export default function ExperiencesPage() {
         <span className="text-sm font-medium admin-heading truncate">{exp.title}</span>
         {visibleColumns.has("location") && <span className="text-xs admin-muted truncate self-center">{exp.location}</span>}
         {visibleColumns.has("hotel") && <span className="text-xs admin-faint truncate self-center">{exp.hotel || "—"}</span>}
-        {visibleColumns.has("editions") && <span className="self-center"><EditionPills editions={editionsFor(exp.id)} /></span>}
+        {visibleColumns.has("editions") && <span className="self-center"><EditionPills editions={editionsFor(exp.id)} onOpen={(id) => router.push(`/admin/editions/${id}`)} /></span>}
         {visibleColumns.has("status") && <span className="self-center flex items-center gap-1.5"><StatusBadge status={exp.status} />{exp.status === "published" && exp.website_visible === false && <OffWebsiteBadge />}</span>}
       </button>
     );
@@ -357,7 +372,7 @@ export default function ExperiencesPage() {
                     <span className="text-xs admin-faint">
                       {expEditions.length === 0 ? "No editions" : `${expEditions.length} edition${expEditions.length !== 1 ? "s" : ""}`}
                     </span>
-                    <EditionPills editions={expEditions} />
+                    <EditionPills editions={expEditions} onOpen={(id) => router.push(`/admin/editions/${id}`)} />
                   </div>
                 </div>
               </button>
