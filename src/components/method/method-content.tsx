@@ -4,8 +4,32 @@ import { createContext, useContext, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import {
   METHOD_DIMENSIONS, METHOD_MOMENTUM_HEADING, METHOD_MOMENTUM_BODY, METHOD_CLOSING,
-  METHOD_SUBHEAD, METHOD_LOOP, METHOD_WEEK,
+  METHOD_SUBHEAD, METHOD_LOOP, METHOD_WEEK, type MethodDimension,
 } from "@/lib/np7-method";
+
+// sun → sea accent rhythm across the dimension cards
+const DIM_ACCENTS = ["#ffc42e", "#f47b20", "#00afdb"];
+
+/** One dimension as a scannable card: number, name, one-liner — the full
+ *  editorial body folds out on demand, so nothing is lost, just layered. */
+function DimensionCard({ d, i }: { d: MethodDimension; i: number }) {
+  const [open, setOpen] = useState(false);
+  const accent = DIM_ACCENTS[i % DIM_ACCENTS.length];
+  return (
+    <div className="h-full rounded-2xl bg-white border border-[#eee2cc] p-5 sm:p-6 relative overflow-hidden">
+      <span aria-hidden className="absolute left-0 top-0 bottom-0 w-[4px]" style={{ background: `linear-gradient(180deg, ${accent}, ${accent}55)` }} />
+      <div className="flex items-baseline gap-3">
+        <span className="text-[30px] font-black leading-none tabular-nums" style={{ color: accent }}>{String(i + 1).padStart(2, "0")}</span>
+        <h3 className="text-[19px] sm:text-[21px] font-extrabold text-[#00374a] tracking-[-0.02em]">{d.name}</h3>
+      </div>
+      <p className="text-[14.5px] font-bold text-[#0a7f9e] mt-2 leading-snug">{d.oneLiner}</p>
+      <p className={`text-[13.5px] text-[#4a5a60] leading-relaxed mt-2.5 ${open ? "" : "line-clamp-2"}`}>{d.body}</p>
+      <button type="button" onClick={() => setOpen((v) => !v)} aria-expanded={open} className="mt-2 text-[12px] font-bold text-[#b0791e] hover:text-[#8a5c12] transition-colors">
+        {open ? "Less ↑" : "The full story ↓"}
+      </button>
+    </div>
+  );
+}
 
 // Scroll-reveal is a nicety for the full page (window scroll). Inside the modal
 // the scroll container isn't the window, so a viewport-root observer never
@@ -58,15 +82,20 @@ function CoachingLoop() {
 }
 
 /** The momentum arc — a connector line from "you commit" to "the jump".
- *  Mobile = clean vertical timeline (left rail); desktop = horizontal line. */
+ *  Mobile = clean vertical timeline (left rail); desktop = per-segment lines
+ *  that run from each circle to the next (a single absolute line assumed
+ *  centered columns and visibly missed the left-aligned circles). */
 function WeekArc() {
   return (
     <div className="mt-8 relative grid gap-6 sm:gap-3 sm:grid-cols-4">
-      {/* connector: vertical rail on mobile, horizontal line on desktop */}
+      {/* connector: vertical rail on mobile */}
       <div aria-hidden className="sm:hidden absolute left-[16px] top-3 bottom-3 w-[3px] rounded-full" style={{ background: "linear-gradient(180deg,#8fe6f2,#00afdb)" }} />
-      <div aria-hidden className="hidden sm:block absolute left-[12%] right-[12%] top-[17px] h-[3px] rounded-full" style={{ background: "linear-gradient(90deg,#8fe6f2,#00afdb)" }} />
       {METHOD_WEEK.map((w, i) => (
         <Reveal key={w.k} delay={i * 120} className="relative">
+          {/* desktop segment: from this circle's right edge to the next circle */}
+          {i < METHOD_WEEK.length - 1 && (
+            <span aria-hidden className="hidden sm:block absolute top-[17px] left-11 -right-3 h-[3px] rounded-full" style={{ background: "linear-gradient(90deg,#8fe6f2,#00afdb)" }} />
+          )}
           <div className="flex sm:block items-start gap-4">
             <span className="relative z-10 grid place-items-center w-9 h-9 rounded-full text-[11px] font-black text-[#00374a] shrink-0" style={{ background: "linear-gradient(135deg,#ffe08a,#00afdb)", boxShadow: "0 0 0 4px rgba(0,55,74,0.9)" }}>{i + 1}</span>
             <div className="sm:mt-3 pt-1 sm:pt-0">
@@ -101,22 +130,26 @@ export function MethodContent({ variant = "page" }: { variant?: "page" | "modal"
           <h2 className="text-2xl sm:text-4xl font-black tracking-[-0.03em] text-[#00374a] mt-2 max-w-[620px]">Great windsurfing is seven things moving together</h2>
         </Reveal>
 
-        <div className="mt-11 sm:mt-14 flex flex-col gap-11 sm:gap-14">
+        {/* Card grid — one glance per dimension: number, name, one-liner. The
+            full story folds out per card, so the page reads visual-first
+            without losing a word of the copy. */}
+        <div className="mt-9 sm:mt-11 grid sm:grid-cols-2 gap-4 sm:gap-5">
           {METHOD_DIMENSIONS.map((d, i) => (
-            <div key={d.name}>
-              <Reveal className="grid sm:grid-cols-[auto_1fr] gap-4 sm:gap-8">
-                <span className="text-[44px] sm:text-[52px] font-black leading-none text-[#00afdb]/25 tabular-nums sm:w-24 shrink-0">{String(i + 1).padStart(2, "0")}</span>
-                <div>
-                  <h3 className="text-[22px] sm:text-[26px] font-extrabold text-[#00374a] tracking-[-0.02em]">{d.name}</h3>
-                  <p className="text-[15px] sm:text-[16.5px] font-bold text-[#0a7f9e] mt-1.5">{d.oneLiner}</p>
-                  <p className="text-[14.5px] sm:text-[15.5px] text-[#4a5a60] leading-relaxed mt-3 max-w-[640px]">{d.body}</p>
-                </div>
-              </Reveal>
-              {/* the coaching loop rides under Technique — it's the mechanism behind it */}
-              {i === 0 && <div className="sm:pl-[calc(6rem+2rem)]"><CoachingLoop /></div>}
-            </div>
+            <Reveal key={d.name} delay={i * 60}>
+              <DimensionCard d={d} i={i} />
+            </Reveal>
           ))}
+          {/* the coaching loop fills the 8th cell — the mechanism beside the dimensions */}
+          <Reveal delay={7 * 60} className="sm:col-span-1">
+            <div className="h-full rounded-2xl p-5 sm:p-6 flex flex-col justify-center text-white" style={{ background: "linear-gradient(150deg, #0a7f9e, #00374a)" }}>
+              <p className="text-[11px] font-black uppercase tracking-[0.16em] text-[#8fe6f2]">The mechanism</p>
+              <p className="text-[19px] font-black tracking-[-0.01em] mt-1.5 leading-snug">Ride → film → break it down → one focus point.</p>
+              <p className="text-[13px] text-white/70 mt-2 leading-snug">See how a day compounds ↓</p>
+            </div>
+          </Reveal>
         </div>
+
+        <CoachingLoop />
       </section>
 
       {/* MOMENTUM + the week arc (dark band) */}
