@@ -42,8 +42,10 @@ export function SpotsList({ spots, accent = "#00afdb" }: { spots: PublicSpot[]; 
               <div className="min-w-0 flex-1">
                 <div className="flex items-center gap-2">
                   <span className="text-[16px] sm:text-[17px] font-extrabold text-[#00374a] truncate">{spot.name}</span>
-                  {spot.ownPending ? (
-                    <span className="shrink-0 text-[10px] font-bold uppercase tracking-wide px-1.5 py-0.5 rounded bg-amber-500/15 text-amber-600">Under review · only you</span>
+                  {spot.ownPending || spot.teamPending ? (
+                    <span className="shrink-0 text-[10px] font-bold uppercase tracking-wide px-1.5 py-0.5 rounded bg-amber-500/15 text-amber-600">
+                      {spot.ownPending ? "Under review · only you" : "Under review · member-submitted"}
+                    </span>
                   ) : (
                     <span className="shrink-0 text-[10px] font-bold uppercase tracking-wide px-1.5 py-0.5 rounded" style={{ backgroundColor: `${vm.color}1f`, color: vm.color }}>{vm.short}</span>
                   )}
@@ -62,6 +64,11 @@ export function SpotsList({ spots, accent = "#00afdb" }: { spots: PublicSpot[]; 
                 {spot.ownPending && (
                   <div className="rounded-xl border border-amber-300/60 bg-amber-50 px-4 py-3 text-[13.5px] text-amber-900 leading-relaxed">
                     <span className="font-bold">Under review — only you can see this.</span> Once a few riders confirm your spot it goes live for everyone. Keep adding what you know below — conditions, wind, photos — it all carries over.
+                  </div>
+                )}
+                {spot.teamPending && (
+                  <div className="rounded-xl border border-amber-300/60 bg-amber-50 px-4 py-3 text-[13.5px] text-amber-900 leading-relaxed">
+                    <span className="font-bold">Member-submitted — not public yet.</span> It goes live once riders confirm it in <span className="font-semibold">Help verify</span> below. You see it because you&apos;re on the team.
                   </div>
                 )}
                 <div className="sm:hidden"><RatingHeadline np7={spot.np7} member={spot.member} accent={accent} /></div>

@@ -36,7 +36,8 @@ export type PublicSpot = {
   // crowd-aggregated member facts
   crowdWindow: CrowdWindow; memberLevel: LevelConsensus; memberConditions: { shares: ConditionShare[]; raters: number };
   memberInfra: { shares: InfraShare[]; raters: number };
-  ownPending?: boolean; // the viewer's own not-yet-public spot (badged "under review")
+  ownPending?: boolean; // the viewer's OWN not-yet-public spot (badged "under review · only you")
+  teamPending?: boolean; // someone else's pending spot, visible because the viewer is team
   /** Contributor credit: riders who confirmed this spot's facts ("Jan K."), shown publicly. */
   confirmedBy: { names: string[]; count: number };
 };
@@ -146,6 +147,7 @@ export async function getSpotguideDestination(slug: string, viewerId?: string | 
   //  …and the TEAM sees every pending spot on the area, so a contribution is
   //  reachable from the destination it belongs to — not only from the queue.
   const ownPendingIds = new Set<string>();
+  const teamPendingIds = new Set<string>();
   if (viewerId || isTeam) {
     let q = sb.from("spots").select("*")
       .eq("destination_id", d.id)
@@ -153,8 +155,11 @@ export async function getSpotguideDestination(slug: string, viewerId?: string | 
     if (!isTeam) q = q.eq("submitted_by", viewerId);
     const { data: mine } = await q.order("name");
     const have = new Set(spots.map((s: { id: string }) => s.id));
-    const extra = ((mine ?? []) as { id: string }[]).filter((m) => !have.has(m.id));
-    for (const m of extra) ownPendingIds.add(m.id);
+    const extra = ((mine ?? []) as { id: string; submitted_by?: string | null }[]).filter((m) => !have.has(m.id));
+    for (const m of extra) {
+      if (viewerId && m.submitted_by === viewerId) ownPendingIds.add(m.id);
+      else teamPendingIds.add(m.id); // a member's spot, shown because you're team
+    }
     spots = [...spots, ...extra];
   }
   const spotIds = spots.map((s: { id: string }) => s.id);
@@ -219,6 +224,7 @@ export async function getSpotguideDestination(slug: string, viewerId?: string | 
     memberConditions: conditionsTally(ratingsBySpot.get(s.id as string) ?? []),
     memberInfra: infraTally(ratingsBySpot.get(s.id as string) ?? []),
     ownPending: ownPendingIds.has(s.id as string),
+    teamPending: teamPendingIds.has(s.id as string),
     confirmedBy: confirmsBySpot.get(s.id as string) ?? { names: [], count: 0 },
   }));
 
