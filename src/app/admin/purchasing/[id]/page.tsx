@@ -9,6 +9,7 @@ import {
   type PoStatus,
 } from "@/lib/hardware/ops";
 import { StatusBadge, PO_STATUS_COLOR } from "@/components/admin/hw-status";
+import { HelpHint } from "@/components/admin/help-hint";
 
 interface VariantRef { id: string; name: string; sku: string; hw_products: { id: string; name: string } | null }
 interface Line {
@@ -250,11 +251,11 @@ function PoDetailInner({ id }: { id: string }) {
             <input type="date" className={inputClass} value={meta.ex_factory_planned} onChange={(e) => setMeta({ ...meta, ex_factory_planned: e.target.value })} onBlur={saveMeta} /></div>
           <div><label className={labelClass}>Expected receipt</label>
             <input type="date" className={inputClass} value={meta.expected_receipt_date} onChange={(e) => setMeta({ ...meta, expected_receipt_date: e.target.value })} onBlur={saveMeta} /></div>
-          <div><label className={labelClass}>Incoterm</label>
+          <div><label className={labelClass}>Incoterm<HelpHint term="incoterm" /></label>
             <select className={inputClass} value={meta.incoterm} onChange={(e) => setMeta({ ...meta, incoterm: e.target.value })} onBlur={saveMeta}>
               <option value="">—</option>{["FOB", "EXW", "CIF", "DAP", "DDP"].map((c) => <option key={c}>{c}</option>)}
             </select></div>
-          <div><label className={labelClass}>Payment terms</label>
+          <div><label className={labelClass}>Payment terms<HelpHint term="payment_terms" /></label>
             <input className={inputClass} value={meta.payment_terms} onChange={(e) => setMeta({ ...meta, payment_terms: e.target.value })} onBlur={saveMeta} placeholder="30/70 T/T" /></div>
           <div><label className={labelClass}>Order value</label>
             <p className="text-sm font-bold admin-heading pt-2">{po.currency} {Math.round(orderValue).toLocaleString()}</p></div>
@@ -432,7 +433,7 @@ function PoDetailInner({ id }: { id: string }) {
         <div>
           <div className="mb-4 p-4 rounded-xl" style={{ border: "1px solid var(--admin-border)", backgroundColor: "var(--admin-surface)" }}>
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 items-end">
-              <div><label className={labelClass}>Type</label>
+              <div><label className={labelClass}>Type<HelpHint term="psi" /></label>
                 <select className={inputClass} value={newQc.type} onChange={(e) => setNewQc({ ...newQc, type: e.target.value })}>
                   {QC_TYPES.map((t) => <option key={t} value={t}>{t} — {QC_TYPE_LABELS[t]}</option>)}
                 </select></div>

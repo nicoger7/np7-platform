@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import { HelpHint } from "@/components/admin/help-hint";
 
 interface SupplierRow {
   id: string; name: string; country: string | null; currency: string;
@@ -92,7 +93,7 @@ export default function SuppliersPage() {
               </select>
             </div>
             <div>
-              <label className={labelClass}>Incoterm</label>
+              <label className={labelClass}>Incoterm<HelpHint term="incoterm" align="right" /></label>
               <select className={inputClass} value={form.default_incoterm} onChange={(e) => setForm({ ...form, default_incoterm: e.target.value })}>
                 {["FOB", "EXW", "CIF", "DAP", "DDP"].map((c) => <option key={c}>{c}</option>)}
               </select>

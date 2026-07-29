@@ -4,6 +4,7 @@ import { useState, useEffect, use } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { fmtAmount } from "@/lib/hardware/ops";
+import { HelpHint } from "@/components/admin/help-hint";
 
 interface VariantOption {
   id: string; sku: string; name: string;
@@ -123,11 +124,11 @@ export default function SupplierDetailPage({ params }: { params: Promise<{ id: s
             <select className={inputClass} value={form.currency} onChange={(e) => setForm({ ...form, currency: e.target.value })}>
               {["USD", "EUR", "CNY", "THB", "VND"].map((c) => <option key={c}>{c}</option>)}
             </select></div>
-          <div><label className={labelClass}>Default incoterm</label>
+          <div><label className={labelClass}>Default incoterm<HelpHint term="incoterm" /></label>
             <select className={inputClass} value={form.default_incoterm} onChange={(e) => setForm({ ...form, default_incoterm: e.target.value })}>
               <option value="">—</option>{["FOB", "EXW", "CIF", "DAP", "DDP"].map((c) => <option key={c}>{c}</option>)}
             </select></div>
-          <div><label className={labelClass}>Payment terms</label>
+          <div><label className={labelClass}>Payment terms<HelpHint term="payment_terms" /></label>
             <input className={inputClass} value={form.default_payment_terms} onChange={(e) => setForm({ ...form, default_payment_terms: e.target.value })} placeholder="30/70 T/T" /></div>
           <div><label className={labelClass}>Contact</label>
             <input className={inputClass} value={form.contact_name} onChange={(e) => setForm({ ...form, contact_name: e.target.value })} /></div>
@@ -163,9 +164,9 @@ export default function SupplierDetailPage({ params }: { params: Promise<{ id: s
               </select></div>
             <div><label className={labelClass}>Unit cost ({form.currency})</label>
               <input type="number" className={inputClass} value={addForm.unit_cost} onChange={(e) => setAddForm({ ...addForm, unit_cost: e.target.value })} /></div>
-            <div><label className={labelClass}>MOQ</label>
+            <div><label className={labelClass}>MOQ<HelpHint term="moq" /></label>
               <input type="number" className={inputClass} value={addForm.moq} onChange={(e) => setAddForm({ ...addForm, moq: e.target.value })} /></div>
-            <div><label className={labelClass}>Lead time (days)</label>
+            <div><label className={labelClass}>Lead time (days)<HelpHint term="lead_time" /></label>
               <input type="number" className={inputClass} value={addForm.lead_time_days} onChange={(e) => setAddForm({ ...addForm, lead_time_days: e.target.value })} /></div>
             <div><label className={labelClass}>Factory item code</label>
               <input className={inputClass} value={addForm.supplier_item_code} onChange={(e) => setAddForm({ ...addForm, supplier_item_code: e.target.value })} /></div>

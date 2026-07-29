@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { SHIPMENT_TRANSITIONS, COST_KINDS, COST_KIND_LABELS, type ShipmentStatus } from "@/lib/hardware/ops";
 import { StatusBadge, SHIPMENT_STATUS_COLOR } from "@/components/admin/hw-status";
+import { HelpHint } from "@/components/admin/help-hint";
 
 interface ShipLine {
   id: string; po_line_id: string; qty: number;
@@ -188,7 +189,7 @@ export default function ShipmentDetailPage({ params }: { params: Promise<{ id: s
             <select className={inputClass} value={meta.mode} onChange={(e) => setMeta({ ...meta, mode: e.target.value })} onBlur={saveMeta}>
               {["sea", "air", "rail", "road"].map((m) => <option key={m}>{m}</option>)}
             </select></div>
-          <div><label className={labelClass}>Incoterm</label>
+          <div><label className={labelClass}>Incoterm<HelpHint term="incoterm" /></label>
             <select className={inputClass} value={meta.incoterm} onChange={(e) => setMeta({ ...meta, incoterm: e.target.value })} onBlur={saveMeta}>
               <option value="">—</option>{["FOB", "EXW", "CIF", "DAP", "DDP"].map((c) => <option key={c}>{c}</option>)}
             </select></div>
@@ -265,7 +266,7 @@ export default function ShipmentDetailPage({ params }: { params: Promise<{ id: s
       )}
 
       {/* Costs worksheet */}
-      <h2 className="text-sm font-bold admin-heading mb-3">Landed-cost worksheet · €{Math.round(costTotalEur).toLocaleString()}</h2>
+      <h2 className="text-sm font-bold admin-heading mb-3 flex items-center">Landed-cost worksheet · €{Math.round(costTotalEur).toLocaleString()}<HelpHint term="landed_cost" /></h2>
       <div className="mb-4 p-4 rounded-xl" style={{ border: "1px solid var(--admin-border)", backgroundColor: "var(--admin-surface)" }}>
         <div className="grid grid-cols-2 sm:grid-cols-5 gap-3 items-end">
           <div><label className={labelClass}>Kind</label>
