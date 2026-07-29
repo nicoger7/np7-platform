@@ -68,7 +68,7 @@ export function SpotsList({ spots, accent = "#00afdb" }: { spots: PublicSpot[]; 
                 )}
                 {spot.teamPending && (
                   <div className="rounded-xl border border-amber-300/60 bg-amber-50 px-4 py-3 text-[13.5px] text-amber-900 leading-relaxed">
-                    <span className="font-bold">Member-submitted — not public yet.</span> It goes live once riders confirm it in <span className="font-semibold">Help verify</span> below. You see it because you&apos;re on the team.
+                    <span className="font-bold">Member-submitted — not public yet.</span> It goes live once riders confirm it in <span className="font-semibold">Help verify</span>{" "}below. You see it because you&apos;re on the team.
                   </div>
                 )}
                 <div className="sm:hidden"><RatingHeadline np7={spot.np7} member={spot.member} accent={accent} /></div>
