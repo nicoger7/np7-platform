@@ -26,6 +26,8 @@ function timeAgo(iso: string): string {
 
 export default function SpotguideModeration() {
   const [spots, setSpots] = useState<PendingSpot[]>([]);
+  const [hiddenSpots, setHiddenSpots] = useState<PendingSpot[]>([]);
+  const [showHidden, setShowHidden] = useState(false);
   const [photos, setPhotos] = useState<PendingPhoto[]>([]);
   const [proposedDests, setProposedDests] = useState<{ id: string; name: string; region: string | null }[]>([]);
   const [edits, setEdits] = useState<PendingEdit[]>([]);
@@ -43,7 +45,7 @@ export default function SpotguideModeration() {
     fetch("/api/admin/spotguide/trust").then((r) => r.json()).then((d) => setTrust(d.grants ?? [])).catch(() => {});
   }, []);
   const load = useCallback(() => {
-    fetch("/api/admin/spotguide/pending").then((r) => r.json()).then((d) => { setSpots(d.spots ?? []); setPhotos(d.photos ?? []); setProposedDests(d.proposedDests ?? []); setEdits(d.edits ?? []); setJibe(d.jibe ?? null); setLoading(false); });
+    fetch("/api/admin/spotguide/pending").then((r) => r.json()).then((d) => { setSpots(d.spots ?? []); setHiddenSpots(d.hiddenSpots ?? []); setPhotos(d.photos ?? []); setProposedDests(d.proposedDests ?? []); setEdits(d.edits ?? []); setJibe(d.jibe ?? null); setLoading(false); });
     reloadTrust();
   }, [reloadTrust]);
   useEffect(() => { load(); }, [load]);
@@ -89,6 +91,15 @@ export default function SpotguideModeration() {
     await fetch(`/api/admin/spotguide/photos/${id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ status }) });
     setBusy(null);
     setPhotos((list) => list.filter((p) => p.id !== id));
+  }
+
+  /** Hiding a spot takes it out of the queue; this hands it back to the riders. */
+  async function restore(id: string) {
+    await fetch("/api/admin/spotguide/pending", {
+      method: "PATCH", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ id, status: "published" }),
+    }).catch(() => {});
+    setHiddenSpots((list) => list.filter((s) => s.id !== id));
   }
 
   async function act(id: string, patch: Record<string, string>) {
@@ -315,6 +326,26 @@ export default function SpotguideModeration() {
                     {g.destinationName && <span className="text-[11px] admin-faint">· {g.destinationName}</span>}
                   </div>
                   <button onClick={() => revokeTrust(g.id)} disabled={busy === g.id} className="px-2.5 py-1 rounded text-[11px] font-semibold text-red-400/70 hover:text-red-400 disabled:opacity-50 shrink-0">Revoke</button>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
+      {hiddenSpots.length > 0 && (
+        <div className="mt-8">
+          <button type="button" onClick={() => setShowHidden((v) => !v)}
+            className="text-xs font-bold admin-muted hover:admin-heading transition-colors">
+            {showHidden ? "▾" : "▸"} Hidden contributions ({hiddenSpots.length})
+          </button>
+          {showHidden && (
+            <div className="mt-2 space-y-1.5">
+              <p className="text-[11px] admin-faint mb-1">Hidden spots leave the queue — restore one to hand it back to the riders for confirmation.</p>
+              {hiddenSpots.map((s) => (
+                <div key={s.id} className="flex items-center gap-3 px-3 py-2 rounded-lg" style={{ border: "1px solid var(--admin-border)" }}>
+                  <span className="text-xs font-bold admin-heading truncate flex-1">{s.name}<span className="admin-faint font-normal"> · {s.destinationName}</span></span>
+                  <button onClick={() => restore(s.id)} className="px-3 py-1.5 rounded-lg text-xs font-semibold text-[#0aa3c7] hover:underline">Restore</button>
                 </div>
               ))}
             </div>

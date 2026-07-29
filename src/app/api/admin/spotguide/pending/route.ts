@@ -38,7 +38,7 @@ export async function GET() {
   // early on, when there's no community yet, this catches everything so nothing
   // rots). The rest just wait for the crowd. Needs-attention sorts to the top.
   const STUCK_DAYS = 3;
-  const out = (spots ?? []).map((s: Record<string, unknown>) => {
+  const mapped = (spots ?? []).map((s: Record<string, unknown>) => {
     const vs = (verifs ?? []).filter((v: { spot_id: string }) => v.spot_id === s.id);
     const confirms = vs.filter((v: { kind: string }) => v.kind === "confirm").length;
     const flags = vs.filter((v: { kind: string }) => v.kind === "flag").length;
@@ -49,7 +49,12 @@ export async function GET() {
     const flagged = flags > 0;
     const stuck = !flagged && ageDays >= STUCK_DAYS && confirms < COMMUNITY_VERIFY_THRESHOLD;
     return { ...s, destinationName: destName.get(s.destination_id as string) ?? "—", confirms, flags, flagReasons, ageDays, flagged, stuck };
-  }).filter((s: { flagged: boolean; verification: string; status: string }) =>
+  });
+  // Hidden contributions vanish from the queue by design — but then there is no
+  // way back to them, which is how a spot ends up unfindable after a Hide.
+  // Return them separately so the UI can offer a restore.
+  const hidden = mapped.filter((s: { status: string }) => s.status === "hidden");
+  const queue = mapped.filter((s: { flagged: boolean; verification: string; status: string }) =>
     // Still needs a human: undecided AND not hidden (Hide is a decision — it
     // sticks), OR carrying open rider flags. Every admin decision clears the
     // open flags (spots PATCH), so only a NEW flag pulls a spot back — including
@@ -115,5 +120,5 @@ export async function GET() {
     if (hb) lastRun = hb;
   } catch { /* pre-migration */ }
 
-  return NextResponse.json({ spots: out, photos: photos ?? [], proposedDests: proposedDests ?? [], edits, jibe: { toStructure, toMerge, toIntake, lastRun } });
+  return NextResponse.json({ spots: queue, hiddenSpots: hidden, photos: photos ?? [], proposedDests: proposedDests ?? [], edits, jibe: { toStructure, toMerge, toIntake, lastRun } });
 }
