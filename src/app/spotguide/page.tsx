@@ -90,7 +90,7 @@ export default async function SpotguideIndex({ searchParams }: { searchParams: P
               </div>
 
               {points.length > 0 && (
-                <h2 className="text-[13px] font-black uppercase tracking-[0.14em] text-[#9aa6ac] mb-3">Where we ride <span className="text-[#c3b9a6]">({dests.length} destination{dests.length === 1 ? "" : "s"} · {points.length} spots)</span></h2>
+                <h2 className="text-[13px] font-black uppercase tracking-[0.14em] text-[#9aa6ac] mb-3">Where we ride <span className="text-[#c3b9a6]">({dests.length} destination{dests.length === 1 ? "" : "s"} · {points.filter((p) => p.verification !== "pending").length} spots{points.some((p) => p.verification === "pending") ? ` · ${points.filter((p) => p.verification === "pending").length} to verify` : ""})</span></h2>
               )}
               <SpotguideBrowser dests={dests} accent={chrome.accent} section={section} mapSpots={mapPoints} />
             </>
