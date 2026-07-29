@@ -204,6 +204,12 @@ export function TilePlacementEditor({ content, value, onChange }: {
    HERO focal-point picker — drag to choose the crop centre; previews at the
    widest (desktop) and tallest (phone) shapes the hero takes.
 ════════════════════════════════════════════════════════════════════════════ */
+export const TILE_ASPECTS = [
+  { r: 1.7, label: "Shop card", note: "landing grid" },
+  { r: 1.25, label: "Fins card", note: "range page" },
+  { r: 0.85, label: "Phone card", note: "tall" },
+];
+
 const HERO_ASPECTS = [
   { r: 2.4, label: "Desktop", note: "wide banner" },
   { r: 1.5, label: "Tablet", note: "" },
@@ -211,8 +217,11 @@ const HERO_ASPECTS = [
 ];
 
 /** hero_focus is a CSS object-position string, e.g. "50% 40%" (null = center). */
-export function HeroFocusPicker({ image, value, onChange }: {
+export function HeroFocusPicker({ image, value, onChange, aspects = HERO_ASPECTS, label = "Drag to set the focal point" }: {
   image: string | null; value: string | null; onChange: (v: string | null) => void;
+  /** the real shapes this image gets cropped to — previewed under the canvas */
+  aspects?: { r: number; label: string; note: string }[];
+  label?: string;
 }) {
   const [fx, fy] = parseFocus(value);
   const { ref, handlers } = useCanvasDrag((x, y) => onChange(`${x}% ${y}%`));
@@ -222,7 +231,7 @@ export function HeroFocusPicker({ image, value, onChange }: {
   return (
     <div className="rounded-2xl border border-[var(--admin-border,#e3e9ec)] bg-[var(--admin-card,#fff)] p-4 sm:p-5">
       <div className="flex items-center justify-between mb-3">
-        <span className="text-[12px] font-bold uppercase tracking-[0.12em] text-[var(--admin-fg-muted,#7a8a90)]">Drag to set the focal point</span>
+        <span className="text-[12px] font-bold uppercase tracking-[0.12em] text-[var(--admin-fg-muted,#7a8a90)]">{label}</span>
         <button type="button" onClick={() => onChange(null)} className="text-[12px] font-semibold text-[#c0392b] hover:underline">Center</button>
       </div>
       {/* The canvas shows the FULL image, static — the old cover-cropped canvas
@@ -237,7 +246,7 @@ export function HeroFocusPicker({ image, value, onChange }: {
           style={{ left: `${fx}%`, top: `${fy}%`, background: "rgba(0,175,219,0.3)" }} />
       </div>
       <div className="mt-4 grid grid-cols-3 gap-3">
-        {HERO_ASPECTS.map((a) => (
+        {aspects.map((a) => (
           <div key={a.label}>
             <div className="w-full rounded-lg overflow-hidden bg-cover ring-1 ring-black/5"
               style={{ aspectRatio: String(a.r), backgroundImage: `url('${image}')`, backgroundPosition: `${fx}% ${fy}%` }} />

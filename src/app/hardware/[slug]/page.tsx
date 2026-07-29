@@ -348,6 +348,8 @@ export default async function HardwareProductPage({ params }: Props) {
       content = {
         hero_image: rawContent.hero_image ?? null,
         hero_focus: rawContent.hero_focus ?? null,
+        tile_image: rawContent.tile_image ?? null,
+        tile_focus: rawContent.tile_focus ?? null,
         hero_video_url: rawContent.hero_video_url ?? null,
         gallery: Array.isArray(rawContent.gallery) ? rawContent.gallery : [],
         tagline: rawContent.tagline ?? null,

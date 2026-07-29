@@ -30,6 +30,9 @@ export type ProductContent = {
   hero_image: string | null;
   /** CSS object-position for the hero, e.g. "50% 40%" (null = centre) */
   hero_focus: string | null;
+  /** the card/tile crop — falls back to the hero image + focus when empty */
+  tile_image: string | null;
+  tile_focus: string | null;
   hero_video_url: string | null;
   gallery: string[];
   tagline: string | null;

@@ -26,7 +26,7 @@ type FinProduct = {
   selector_tuning: unknown;
 };
 
-type FinMedia = { hero: string | null; alt: string | null; stats: { label: string; value: string }[] };
+type FinMedia = { hero: string | null; alt: string | null; focus: string | null; stats: { label: string; value: string }[] };
 
 function FinGlyph() {
   return (
@@ -70,14 +70,19 @@ export default async function FinsPage() {
       for (const k of Object.keys(sizesByProduct)) sizesByProduct[k].sort((a, b) => a - b);
       const { data: contents } = await admin
         .from("hw_product_content")
-        .select("product_id,hero_image,gallery,spec_rows")
+        .select("product_id,tile_image,tile_focus,hero_image,hero_focus,gallery,spec_rows")
         .in("product_id", fins.map((f) => f.id));
-      for (const c of (contents ?? []) as { product_id: string; hero_image: string | null; gallery: unknown; spec_rows: unknown }[]) {
+      for (const c of (contents ?? []) as { product_id: string; tile_image: string | null; tile_focus: string | null; hero_image: string | null; hero_focus: string | null; gallery: unknown; spec_rows: unknown }[]) {
         const gallery = (Array.isArray(c.gallery) ? c.gallery : []).filter((g): g is string => typeof g === "string" && !!g);
         const stats = (Array.isArray(c.spec_rows) ? c.spec_rows : [])
           .filter((r): r is { label: string; value: string } => !!r && typeof (r as { label?: unknown }).label === "string" && typeof (r as { value?: unknown }).value === "string")
           .slice(0, 3);
-        mediaByProduct[c.product_id] = { hero: c.hero_image || null, alt: gallery[0] || null, stats };
+        mediaByProduct[c.product_id] = {
+          hero: c.tile_image || c.hero_image || null,
+          alt: gallery[0] || null,
+          focus: (c.tile_image ? c.tile_focus : c.tile_focus || c.hero_focus) || null,
+          stats,
+        };
       }
     } catch { /* variants/media stay empty — the page degrades honestly */ }
   }
@@ -149,7 +154,7 @@ export default async function FinsPage() {
                         if (!primary) return <FinGlyph />;
                         // one photo, gentle zoom — the stats strip is the hover payoff
                         // eslint-disable-next-line @next/next/no-img-element
-                        return <img src={primary} alt={f.name} className="absolute inset-0 h-full w-full object-cover transition-transform duration-500 group-hover:scale-[1.05]" />;
+                        return <img src={primary} alt={f.name} className="absolute inset-0 h-full w-full object-cover transition-transform duration-500 group-hover:scale-[1.05]" style={{ objectPosition: m?.focus || "center" }} />;
                       })()}
                       <span className="absolute top-4 left-4 text-[10px] font-bold tracking-[0.2em] uppercase text-[rgba(20,20,18,0.4)]">Slalom</span>
                       {/* key stats surface on hover */}

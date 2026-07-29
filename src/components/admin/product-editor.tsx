@@ -20,7 +20,7 @@ import {
 } from "@/lib/hardware/types";
 import { TEMPLATE_OPTIONS } from "@/lib/hardware/templates";
 import { FinTuningEditor } from "@/components/admin/fin-tuning-editor";
-import { HeroFocusPicker } from "@/components/admin/placement-editors";
+import { HeroFocusPicker, TILE_ASPECTS } from "@/components/admin/placement-editors";
 import { EanField } from "@/components/admin/ean-field";
 
 // ─── Helpers ───────────────────────────────────────────────────────────────
@@ -238,12 +238,15 @@ type Tab = "details" | "media" | "story" | "specs" | "fit" | "variants" | "inqui
 
 type PickerTarget =
   | { kind: "hero" }
+  | { kind: "tile" }
   | { kind: "gallery" }
   | { kind: "fit"; index: number };
 
 const emptyContent = (): ProductContent => ({
   hero_image: null,
   hero_focus: null,
+  tile_image: null,
+  tile_focus: null,
   hero_video_url: null,
   gallery: [],
   tagline: null,
@@ -309,6 +312,8 @@ export default function ProductEditor({
         setContent({
           hero_image: d.hero_image ?? null,
           hero_focus: d.hero_focus ?? null,
+          tile_image: d.tile_image ?? null,
+          tile_focus: d.tile_focus ?? null,
           hero_video_url: d.hero_video_url ?? null,
           gallery: Array.isArray(d.gallery) ? d.gallery : [],
           tagline: d.tagline ?? null,
@@ -419,6 +424,8 @@ export default function ProductEditor({
     if (!picker) return;
     if (picker.kind === "hero") {
       updateContent("hero_image", url);
+    } else if (picker.kind === "tile") {
+      updateContent("tile_image", url);
     } else if (picker.kind === "gallery") {
       updateContent("gallery", [...content.gallery, url]);
     } else if (picker.kind === "fit") {
@@ -805,6 +812,32 @@ export default function ProductEditor({
               />
             </section>
           )}
+
+          {/* Card / tile — its own crop, because a wide hero rarely works small */}
+          <section>
+            <h2 className="text-[15px] font-bold admin-heading">Card image</h2>
+            <p className="text-xs admin-faint mb-3 mt-0.5">The photo on shop cards and the fins range. Leave empty to reuse the hero — a card is narrow, so its own shot (or at least its own framing) usually looks better.</p>
+            <ImageField
+              url={content.tile_image || ""}
+              onPick={() => setPicker({ kind: "tile" })}
+              onClear={() => updateContent("tile_image", null)}
+              ratio="aspect-[4/3]"
+            />
+            {(content.tile_image || content.hero_image) && (
+              <div className="mt-4">
+                <HeroFocusPicker
+                  image={content.tile_image || content.hero_image}
+                  value={(content.tile_image ? content.tile_focus : content.tile_focus ?? content.hero_focus) ?? null}
+                  onChange={(v) => updateContent("tile_focus", v)}
+                  aspects={TILE_ASPECTS}
+                  label="Drag to frame the card"
+                />
+                {!content.tile_image && (
+                  <p className="text-[11px] admin-faint mt-2">Framing the hero photo for card use — it doesn&apos;t change the hero itself.</p>
+                )}
+              </div>
+            )}
+          </section>
         </div>
       )}
 

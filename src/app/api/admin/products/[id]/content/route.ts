@@ -5,6 +5,8 @@ import type { SpecRow, FitSegment } from "@/lib/hardware/types";
 const EMPTY = {
   hero_image: null as string | null,
   hero_focus: null as string | null,
+  tile_image: null as string | null,
+  tile_focus: null as string | null,
   hero_video_url: null as string | null,
   gallery: [] as string[],
   tagline: null as string | null,
@@ -105,6 +107,8 @@ export async function PUT(
     product_id: id,
     hero_image: typeof body.hero_image === "string" ? body.hero_image : null,
     hero_focus: typeof body.hero_focus === "string" && body.hero_focus.trim() ? body.hero_focus.trim() : null,
+    tile_image: typeof body.tile_image === "string" && body.tile_image.trim() ? body.tile_image.trim() : null,
+    tile_focus: typeof body.tile_focus === "string" && body.tile_focus.trim() ? body.tile_focus.trim() : null,
     hero_video_url: typeof body.hero_video_url === "string" ? body.hero_video_url : null,
     gallery,
     tagline: typeof body.tagline === "string" ? body.tagline : null,
