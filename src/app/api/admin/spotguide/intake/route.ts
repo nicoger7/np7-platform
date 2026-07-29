@@ -45,9 +45,35 @@ export async function POST(request: NextRequest) {
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const db = createAdminClient() as any;
-  const { data: dests } = await db.from("destinations").select("id, name, region, country").order("name");
-  const destList = ((dests ?? []) as { id: string; name: string; region: string | null; country: string | null }[])
-    .map((d) => `${d.id} — ${d.name}${d.region ? `, ${d.region}` : ""}${d.country ? ` (${d.country})` : ""}`).join("\n");
+  const { data: dests } = await db.from("destinations").select("id, name, region, country, lat, lng").order("name");
+  type DestRow = { id: string; name: string; region: string | null; country: string | null; lat: number | null; lng: number | null };
+  const destRows = (dests ?? []) as DestRow[];
+  // An area's centre: its own coordinates, else the average of its spots — the
+  // model can't judge "is this the same area?" from names alone (Strand Horst
+  // IS the Veluwemeer), so it gets geography too.
+  const { data: destSpots } = await db.from("spots").select("destination_id, lat, lng").not("lat", "is", null);
+  const centres = new Map<string, { lat: number; lng: number }>();
+  for (const d of destRows) if (d.lat != null && d.lng != null) centres.set(d.id, { lat: d.lat, lng: d.lng });
+  const acc = new Map<string, { lat: number; lng: number; n: number }>();
+  for (const s of (destSpots ?? []) as { destination_id: string; lat: number; lng: number }[]) {
+    const a = acc.get(s.destination_id) ?? { lat: 0, lng: 0, n: 0 };
+    acc.set(s.destination_id, { lat: a.lat + s.lat, lng: a.lng + s.lng, n: a.n + 1 });
+  }
+  for (const [id, a] of acc) if (!centres.has(id) && a.n > 0) centres.set(id, { lat: a.lat / a.n, lng: a.lng / a.n });
+  const destList = destRows
+    .map((d) => {
+      const c = centres.get(d.id);
+      return `${d.id} — ${d.name}${d.region ? `, ${d.region}` : ""}${d.country ? ` (${d.country})` : ""}${c ? ` [~${c.lat.toFixed(3)}, ${c.lng.toFixed(3)}]` : ""}`;
+    }).join("\n");
+
+  /** km between two coordinates (haversine) */
+  const kmBetween = (aLat: number, aLng: number, bLat: number, bLng: number) => {
+    const R = 6371, rad = (x: number) => (x * Math.PI) / 180;
+    const dLat = rad(bLat - aLat), dLng = rad(bLng - aLng);
+    const h = Math.sin(dLat / 2) ** 2 + Math.cos(rad(aLat)) * Math.cos(rad(bLat)) * Math.sin(dLng / 2) ** 2;
+    return 2 * R * Math.asin(Math.sqrt(h));
+  };
+  const NEARBY_KM = 30; // same riding area, not a new destination
 
   const client = new Anthropic({ apiKey });
   const msg = await client.messages.create({
@@ -69,7 +95,7 @@ export async function POST(request: NextRequest) {
   },
   "notes": ["anything uncertain or worth a human check"]
 }
-Rules: extract only what the text supports (well-known spot coordinates from general knowledge are OK — note it). destination = the AREA (e.g. "Tarifa"), spot = the specific launch. If neither an existing destination fits nor the area is clear, propose new_destination.
+Rules: extract only what the text supports (well-known spot coordinates from general knowledge are OK — note it). destination = the AREA (e.g. "Tarifa"), spot = the specific launch. Each existing destination below carries its approximate centre in [lat, lng] — if the spot lies within roughly 30 km of one, it belongs to THAT area: match it, do not propose a new one (a named beach on a lake is a SPOT of that lake, not its own area). Only propose new_destination when the spot is genuinely far from every existing area, or no coordinates can be determined.
 
 Existing destinations:
 ${destList}`,
@@ -91,8 +117,27 @@ ${destList}`,
   const infrastructure = (parsed.spot.infrastructure ?? []).filter((t) => (INFRASTRUCTURE_TAGS as readonly string[]).includes(t));
 
   // destination: matched, or a new DRAFT area (invisible until published)
-  let destinationId = parsed.destination_id && (dests ?? []).some((d: { id: string }) => d.id === parsed.destination_id) ? parsed.destination_id : null;
+  let destinationId = parsed.destination_id && destRows.some((d) => d.id === parsed.destination_id) ? parsed.destination_id : null;
   let createdDestination = null;
+  const autoNotes: string[] = [];
+  // Geography beats the model: if the pin sits inside an existing area, use it —
+  // this is what stopped a lake's own beach from becoming a second destination.
+  const pLat = parsed.spot.lat, pLng = parsed.spot.lng;
+  if (typeof pLat === "number" && typeof pLng === "number") {
+    let best: { id: string; name: string; km: number } | null = null;
+    for (const d of destRows) {
+      const c = centres.get(d.id);
+      if (!c) continue;
+      const km = kmBetween(pLat, pLng, c.lat, c.lng);
+      if (!best || km < best.km) best = { id: d.id, name: d.name, km };
+    }
+    if (best && best.km <= NEARBY_KM && best.id !== destinationId) {
+      autoNotes.push(destinationId
+        ? `Re-matched to ${best.name} — the pin is ${best.km.toFixed(0)} km from its centre.`
+        : `Matched to the existing area ${best.name} (${best.km.toFixed(0)} km away) instead of proposing a new one.`);
+      destinationId = best.id;
+    }
+  }
   if (!destinationId) {
     const nd = parsed.new_destination;
     if (!nd?.name) return NextResponse.json({ error: "No destination match and no new area proposed.", notes: parsed.notes ?? [] }, { status: 422 });
@@ -128,6 +173,6 @@ ${destList}`,
     spot: spotRow,
     destination: createdDestination,
     extracted: { levels, conditions, infrastructure, lat: parsed.spot.lat, lng: parsed.spot.lng },
-    notes: parsed.notes ?? [],
+    notes: [...autoNotes, ...(parsed.notes ?? [])],
   });
 }
