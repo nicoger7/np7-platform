@@ -113,7 +113,7 @@ export async function getSpotguideDestinations(): Promise<SpotguideDestinationCa
 }
 
 /** A destination page: the destination + its public spots, each fully rated. */
-export async function getSpotguideDestination(slug: string, viewerId?: string | null): Promise<SpotguideDestination | null> {
+export async function getSpotguideDestination(slug: string, viewerId?: string | null, isTeam = false): Promise<SpotguideDestination | null> {
   const sb = db();
   const { data: d } = await sb
     .from("destinations")
@@ -143,11 +143,15 @@ export async function getSpotguideDestination(slug: string, viewerId?: string | 
   // A logged-in member also sees their OWN not-yet-public spots here (badged
   // "under review"), so they can keep enriching a spot they just added until the
   // community verifies it — instead of it vanishing the moment they submit.
+  //  …and the TEAM sees every pending spot on the area, so a contribution is
+  //  reachable from the destination it belongs to — not only from the queue.
   const ownPendingIds = new Set<string>();
-  if (viewerId) {
-    const { data: mine } = await sb.from("spots").select("*")
-      .eq("destination_id", d.id).eq("submitted_by", viewerId)
-      .eq("status", "published").eq("verification", "pending").order("name");
+  if (viewerId || isTeam) {
+    let q = sb.from("spots").select("*")
+      .eq("destination_id", d.id)
+      .eq("status", "published").eq("verification", "pending");
+    if (!isTeam) q = q.eq("submitted_by", viewerId);
+    const { data: mine } = await q.order("name");
     const have = new Set(spots.map((s: { id: string }) => s.id));
     const extra = ((mine ?? []) as { id: string }[]).filter((m) => !have.has(m.id));
     for (const m of extra) ownPendingIds.add(m.id);

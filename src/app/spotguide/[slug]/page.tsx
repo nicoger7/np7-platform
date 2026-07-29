@@ -2,7 +2,7 @@ import Link from "next/link";
 import type { Metadata } from "next";
 import { cookies } from "next/headers";
 import { notFound } from "next/navigation";
-import { getPortalUser } from "@/lib/auth";
+import { getPortalUser, getTeamMember } from "@/lib/auth";
 import { getSpotguideDestination } from "@/lib/spotguide-data";
 import { satImage } from "@/lib/satellite";
 import { levelRangeLabel, DESTINATION_CRITERIA } from "@/lib/spotguide";
@@ -49,8 +49,12 @@ export const dynamic = "force-dynamic";
 export default async function SpotguideDestinationPage({ params, searchParams }: Props) {
   const { slug } = await params;
   const { from } = await searchParams;
-  const [user, store] = await Promise.all([getPortalUser().catch(() => null), cookies()]);
-  const d = await getSpotguideDestination(slug, user?.contactId ?? null);
+  const [user, store, team] = await Promise.all([
+    getPortalUser().catch(() => null),
+    cookies(),
+    getTeamMember().catch(() => null),
+  ]);
+  const d = await getSpotguideDestination(slug, user?.contactId ?? null, !!team);
   if (!d) notFound();
 
   const loggedIn = !!user;
