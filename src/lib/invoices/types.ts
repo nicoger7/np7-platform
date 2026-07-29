@@ -55,6 +55,8 @@ export type CompanySettings = {
   terms_url: string | null;
   sicherungsschein_insurer: string | null;
   sicherungsschein_number: string | null;
+  /** GS1 company prefix (hardware) — GTINs are derived from it. */
+  gs1_prefix: string | null;
 };
 
 /** A stored/generated document (documents row). */

@@ -22,6 +22,7 @@ const EMPTY: CompanySettings = {
   website: null,
   vat_id: null,
   tax_number: null,
+  gs1_prefix: null,
   register_info: null,
   managing_director: null,
   iban: null,
@@ -201,6 +202,17 @@ export default function CompanySettingsPage() {
                 <label className={labelClass}>Tax number (Steuernr.)</label>
                 <input className={inputClass} value={form.tax_number || ""} onChange={(e) => update("tax_number", e.target.value || null)} />
               </div>
+              {division === "hardware" && (
+                <div className="col-span-2">
+                  <label className={labelClass}>GS1 company prefix</label>
+                  <input className={inputClass} value={form.gs1_prefix || ""} onChange={(e) => update("gs1_prefix", e.target.value.replace(/\D/g, "") || null)} placeholder="e.g. 426012345" />
+                  <p className="text-[11px] admin-faint mt-1 leading-relaxed">
+                    From your GS1 Germany licence. Product EANs are issued from this prefix — a shorter
+                    prefix means more numbers. Leave empty until you&apos;ve registered; EANs can&apos;t be
+                    invented, retailers verify who owns them.
+                  </p>
+                </div>
+              )}
             </div>
           </div>
 

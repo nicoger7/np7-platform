@@ -117,6 +117,7 @@ async function resolveCompanySettings(division: string): Promise<CompanySettings
     terms_url: null,
     sicherungsschein_insurer: null,
     sicherungsschein_number: null,
+    gs1_prefix: null,
   };
 }
 

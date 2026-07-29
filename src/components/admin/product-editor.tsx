@@ -20,6 +20,7 @@ import {
 } from "@/lib/hardware/types";
 import { TEMPLATE_OPTIONS } from "@/lib/hardware/templates";
 import { FinTuningEditor } from "@/components/admin/fin-tuning-editor";
+import { EanField } from "@/components/admin/ean-field";
 
 // ─── Helpers ───────────────────────────────────────────────────────────────
 
@@ -1226,11 +1227,13 @@ export default function ProductEditor({
                     onChange={(e) => setVariantForm({ ...variantForm, sku: e.target.value })}
                     placeholder="NP7-BRD-FRX-95" />
                 </div>
-                <div>
-                  <label className={labelClass}>EAN (GS1)</label>
-                  <input className={inputClass} value={variantForm.ean}
-                    onChange={(e) => setVariantForm({ ...variantForm, ean: e.target.value })} />
-                </div>
+                <EanField
+                  variantId={variantForm.id || null}
+                  value={variantForm.ean}
+                  onChange={(v) => setVariantForm({ ...variantForm, ean: v })}
+                  labelClass={labelClass}
+                  inputClass={inputClass}
+                />
                 <div>
                   <label className={labelClass}>RRP €</label>
                   <input type="number" className={inputClass} value={variantForm.rrp}
