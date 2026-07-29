@@ -21,7 +21,7 @@ export type SpotguideDestinationCard = {
   id: string; name: string; slug: string | null; region: string | null; country: string | null;
   hero_image: string | null; image: string; tagline: string | null;
   level_min: string | null; level_max: string | null; tags: string[];
-  spotCount: number; np7: number; member: RatingSummary;
+  spotCount: number; toVerifyCount: number; np7: number; member: RatingSummary;
 };
 
 export type PublicSpot = {
@@ -83,10 +83,15 @@ export async function getSpotguideDestinations(): Promise<SpotguideDestinationCa
   const ids = dests.map((d) => d.id as string);
 
   const [{ data: spots }, { data: dratings }] = await Promise.all([
-    sb.from("spots").select("destination_id, hero_image").in("destination_id", ids).eq("status", "published").in("verification", ["community", "np7"]).order("sort_order"),
+    sb.from("spots").select("destination_id, hero_image, verification").in("destination_id", ids).eq("status", "published").in("verification", ["community", "np7", "pending"]).order("sort_order"),
     sb.from("destination_ratings").select("destination_id, ratings").in("destination_id", ids),
   ]);
-  const spotsByDest = groupBy((spots ?? []) as { destination_id: string; hero_image: string | null }[], (s) => s.destination_id);
+  const allSpots = (spots ?? []) as { destination_id: string; hero_image: string | null; verification: string }[];
+  // Public spots drive the card's photo + count; spots still waiting on rider
+  // confirmations are counted separately ("N to verify") so a fresh area is
+  // honestly represented instead of reading as empty.
+  const spotsByDest = groupBy(allSpots.filter((s) => s.verification !== "pending"), (s) => s.destination_id);
+  const pendingByDest = groupBy(allSpots.filter((s) => s.verification === "pending"), (s) => s.destination_id);
   const ratingRows = groupBy((dratings ?? []) as { destination_id: string; ratings: unknown }[], (r) => r.destination_id);
 
   return dests.map((d: Record<string, unknown>) => {
@@ -107,6 +112,7 @@ export async function getSpotguideDestinations(): Promise<SpotguideDestinationCa
     level_min: d.level_min as string | null, level_max: d.level_max as string | null,
     tags: Array.isArray(d.tags) ? (d.tags as string[]) : [],
     spotCount: (spotsByDest.get(id)?.length) ?? 0,
+    toVerifyCount: (pendingByDest.get(id)?.length) ?? 0,
     np7: np7Overall(d.np7_ratings, DESTINATION_CRITERIA_KEYS),
     member: summariseRatings(ratingRows.get(id) ?? [], DESTINATION_CRITERIA_KEYS),
     };
@@ -296,7 +302,7 @@ export async function getAllSpotguidePoints(): Promise<SpotMapPoint[]> {
     .from("spots")
     .select("id, name, lat, lng, destination_id, verification, np7_ratings")
     .in("destination_id", [...byId.keys()])
-    .eq("status", "published").in("verification", ["community", "np7"])
+    .eq("status", "published").in("verification", ["community", "np7", "pending"])
     .not("lat", "is", null);
   // Member ratings for these spots, in one query — the pin card shows the
   // spot's OWN score, not just the destination's.

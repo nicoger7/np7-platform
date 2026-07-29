@@ -8,7 +8,7 @@ import { attachBaseLayers } from "@/lib/leaflet-base";
 export type MapSpot = {
   lat: number; lng: number; name: string; destSlug: string; destName?: string; verification?: string;
   // Optional destination context for a richer popup card (index map only).
-  thumb?: string | null; rating?: number; ratingKind?: "np7" | "member"; spotCount?: number; level?: string | null;
+  thumb?: string | null; rating?: number; ratingKind?: "np7" | "member"; spotCount?: number; toVerifyCount?: number; level?: string | null;
   spotRating?: number; spotRatingKind?: "np7" | "member"; spotRatingCount?: number;
 };
 
@@ -65,7 +65,10 @@ export function SpotMap({ spots, cluster = false, height = 420, linkLabel = "Vie
       const teardrop = (fill: string) =>
         `position:relative;width:26px;height:26px;border-radius:50% 50% 50% 0;transform:rotate(-45deg);background:${fill};border:2.5px solid #fff;box-shadow:0 3px 9px rgba(0,55,74,.4)`;
       const markers = spots.map((s) => {
-        const fill = s.verification === "community" ? "#1f9e57" : "linear-gradient(135deg,#ffc42e,#f47b20,#00afdb)";
+        // pending = proposed but unconfirmed: a hollow amber pin, visibly
+        // different from a verified spot so the map never overstates itself
+        const pending = s.verification === "pending";
+        const fill = pending ? "#f0a500" : s.verification === "community" ? "#1f9e57" : "linear-gradient(135deg,#ffc42e,#f47b20,#00afdb)";
         const icon = L.divIcon({
           className: "",
           html: `<div style="${teardrop(fill)}"><div style="transform:rotate(45deg);width:100%;height:100%;display:flex;align-items:center;justify-content:center"><span style="width:7px;height:7px;border-radius:50%;background:#fff;display:block"></span></div></div>`,
@@ -79,12 +82,14 @@ export function SpotMap({ spots, cluster = false, height = 420, linkLabel = "Vie
         const meta: string[] = [];
         if (s.rating && s.rating > 0) meta.push(`<span style="font-weight:700;color:#00374a">${s.ratingKind === "np7" ? "NP7 " : ""}★ ${s.rating.toFixed(1)}</span>`);
         if (s.spotCount) meta.push(`<span>${s.spotCount} spot${s.spotCount === 1 ? "" : "s"}</span>`);
+        if (s.toVerifyCount) meta.push(`<span style="color:#b0791e;font-weight:700">${s.toVerifyCount} to verify</span>`);
         if (s.level) meta.push(`<span>${s.level}</span>`);
         const destMeta = meta.length > 0;
         const m = L.marker([s.lat, s.lng], { icon }).bindPopup(
           `<div style="font-family:inherit;width:${s.thumb ? 200 : 158}px">` +
             (s.thumb ? `<div style="height:92px;border-radius:10px;background:#e8f1f3 center/cover no-repeat;background-image:url('${s.thumb}');margin-bottom:8px"></div>` : "") +
             `<strong style="color:#00374a;font-size:13.5px">${s.name}</strong>` +
+            (pending ? `<div style="margin-top:2px;font-size:11px;font-weight:800;text-transform:uppercase;letter-spacing:.06em;color:#b0791e">Proposed · needs confirming</div>` : "") +
             // The SPOT's own score, right under its name — NP7's if set, else the
             // member average with its rater count.
             (s.spotRating && s.spotRating > 0

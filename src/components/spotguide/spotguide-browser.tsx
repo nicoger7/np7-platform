@@ -218,7 +218,12 @@ export function SpotguideBrowser({ dests, accent = "#00afdb", section = "experie
                 <div className="p-4 flex flex-col gap-2.5">
                   <RatingHeadline np7={d.np7} member={d.member} accent={accent} />
                   <div className="flex items-center gap-x-3 gap-y-1 flex-wrap text-[12px] font-semibold text-[#6a7a80]">
-                    <span>{d.spotCount} spot{d.spotCount === 1 ? "" : "s"}</span>
+                    <span>
+                      {d.spotCount} spot{d.spotCount === 1 ? "" : "s"}
+                      {d.toVerifyCount > 0 && (
+                        <span className="text-[#b0791e] font-bold"> · {d.toVerifyCount} to verify</span>
+                      )}
+                    </span>
                     {lvl && <><span className="text-[#d8cdbb]">·</span><span>{lvl}</span></>}
                   </div>
                   {d.tags.length > 0 && (

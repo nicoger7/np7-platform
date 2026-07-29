@@ -44,6 +44,7 @@ export default async function SpotguideIndex({ searchParams }: { searchParams: P
       rating: d.np7 > 0 ? d.np7 : d.member.count > 0 ? d.member.overall : 0,
       ratingKind: (d.np7 > 0 ? "np7" : "member") as "np7" | "member",
       spotCount: d.spotCount,
+      toVerifyCount: d.toVerifyCount,
       level,
     };
   });
