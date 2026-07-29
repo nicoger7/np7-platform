@@ -3,6 +3,15 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import ImageCropModal from "@/components/image-crop-modal";
 import FolderPickerModal from "@/components/folder-picker-modal";
+import { useAdminEnv } from "@/app/admin/env-context";
+
+/** The two media worlds. Files stay where they are — these are real folders you
+ *  browse into, and the world you're working in decides where you land (and
+ *  therefore where an upload goes) without locking you out of the other. */
+const WORLDS = [
+  { id: "experience", label: "NP7 Experience", folder: "experience" },
+  { id: "hardware", label: "NP7 Hardware", folder: "hardware" },
+] as const;
 
 interface FileItem {
   name: string;
@@ -22,8 +31,12 @@ function formatSize(bytes: number) {
 }
 
 export default function ImagesPage() {
+  const adminEnv = useAdminEnv();
+  // Hardware admins land in the hardware folder, Experience admins in theirs;
+  // both can still step out to the other world or the shared root.
+  const homeFolder = adminEnv === "hardware" ? "hardware" : "experience";
   const [files, setFiles] = useState<FileItem[]>([]);
-  const [folder, setFolder] = useState("");
+  const [folder, setFolder] = useState(homeFolder);
   const [loading, setLoading] = useState(true);
   const [uploading, setUploading] = useState(false);
   const [dragOver, setDragOver] = useState(false);
@@ -52,6 +65,9 @@ export default function ImagesPage() {
   useEffect(() => {
     setSelected(new Set());
   }, [folder]);
+
+  // Switching the admin world moves you to that world's media folder.
+  useEffect(() => { setFolder(homeFolder); }, [homeFolder]);
 
   async function uploadFiles(fileArr: File[], targetFolder: string) {
     setUploading(true);
@@ -251,6 +267,25 @@ export default function ImagesPage() {
             }
           }}
         />
+      </div>
+
+      {/* World switch — a real folder split, not a filter */}
+      <div className="flex flex-wrap items-center gap-1.5 mb-4">
+        {WORLDS.map((w) => {
+          const active = folder === w.folder || folder.startsWith(`${w.folder}/`);
+          return (
+            <button key={w.id} type="button" onClick={() => setFolder(w.folder)}
+              className={`px-3.5 py-1.5 rounded-lg text-xs font-bold transition-colors ${active ? "text-[var(--admin-accent-contrast)] bg-[var(--admin-accent)]" : "admin-muted"}`}
+              style={active ? undefined : { border: "1px solid var(--admin-border)" }}>
+              {w.label}
+            </button>
+          );
+        })}
+        <button type="button" onClick={() => setFolder("")}
+          className={`px-3.5 py-1.5 rounded-lg text-xs font-semibold transition-colors ${folder === "" ? "admin-heading" : "admin-faint hover:admin-muted"}`}
+          style={{ border: "1px solid var(--admin-border)" }}>
+          Shared / everything
+        </button>
       </div>
 
       {/* Breadcrumbs */}

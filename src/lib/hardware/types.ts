@@ -28,6 +28,8 @@ export type SpecRow = { label: string; value: string };
 /** Per-product website content (hw_product_content). */
 export type ProductContent = {
   hero_image: string | null;
+  /** CSS object-position for the hero, e.g. "50% 40%" (null = centre) */
+  hero_focus: string | null;
   hero_video_url: string | null;
   gallery: string[];
   tagline: string | null;

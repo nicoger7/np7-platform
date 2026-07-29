@@ -20,6 +20,7 @@ import {
 } from "@/lib/hardware/types";
 import { TEMPLATE_OPTIONS } from "@/lib/hardware/templates";
 import { FinTuningEditor } from "@/components/admin/fin-tuning-editor";
+import { HeroFocusPicker } from "@/components/admin/placement-editors";
 import { EanField } from "@/components/admin/ean-field";
 
 // ─── Helpers ───────────────────────────────────────────────────────────────
@@ -233,7 +234,7 @@ interface Inquiry {
 
 // ─── Main page ──────────────────────────────────────────────────────────────
 
-type Tab = "details" | "content" | "fit" | "variants" | "inquiries";
+type Tab = "details" | "media" | "story" | "specs" | "fit" | "variants" | "inquiries";
 
 type PickerTarget =
   | { kind: "hero" }
@@ -242,6 +243,7 @@ type PickerTarget =
 
 const emptyContent = (): ProductContent => ({
   hero_image: null,
+  hero_focus: null,
   hero_video_url: null,
   gallery: [],
   tagline: null,
@@ -262,9 +264,9 @@ export default function ProductEditor({
 }) {
   const router = useRouter();
 
-  const tabs: readonly Tab[] = surface === "backend" ? ["details", "variants", "inquiries"] : ["content", "fit"];
+  const tabs: readonly Tab[] = surface === "backend" ? ["details", "variants", "inquiries"] : ["media", "story", "specs", "fit"];
   const listHref = surface === "backend" ? "/admin/products" : "/admin/product-pages";
-  const [tab, setTab] = useState<Tab>(surface === "backend" ? "details" : "content");
+  const [tab, setTab] = useState<Tab>(surface === "backend" ? "details" : "media");
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
@@ -306,6 +308,7 @@ export default function ProductEditor({
       .then((d) => {
         setContent({
           hero_image: d.hero_image ?? null,
+          hero_focus: d.hero_focus ?? null,
           hero_video_url: d.hero_video_url ?? null,
           gallery: Array.isArray(d.gallery) ? d.gallery : [],
           tagline: d.tagline ?? null,
@@ -331,7 +334,7 @@ export default function ProductEditor({
   }
 
   useEffect(() => {
-    if (tab === "content" || tab === "fit") loadContent();
+    if (tab === "media" || tab === "story" || tab === "specs" || tab === "fit") loadContent();
     if (tab === "variants") loadVariants();
     if (tab === "inquiries") loadInquiries();
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -492,7 +495,7 @@ export default function ProductEditor({
 
   const slug = product.slug;
 
-  const isSaveableTab = tab === "details" || tab === "content" || tab === "fit";
+  const isSaveableTab = tab === "details" || tab === "media" || tab === "story" || tab === "specs" || tab === "fit";
   const saveHandler = tab === "details" ? handleSaveDetails : handleSaveContent;
 
   return (
@@ -718,7 +721,7 @@ export default function ProductEditor({
       {/* ════════════════════════════════════════════
           CONTENT TAB
       ════════════════════════════════════════════ */}
-      {tab === "content" && (
+      {tab === "media" && (
         <div className="max-w-[720px] space-y-7">
           {/* Hero */}
           <section>
@@ -790,6 +793,23 @@ export default function ProductEditor({
             </div>
           </section>
 
+          {/* Framing — one photo, every shape it appears in */}
+          {content.hero_image && (
+            <section>
+              <h2 className="text-[15px] font-bold admin-heading">Framing</h2>
+              <p className="text-xs admin-faint mb-3 mt-0.5">Drag to set what stays centred as the hero reshapes — wide on desktop, tall on phone. The previews below are the real shapes.</p>
+              <HeroFocusPicker
+                image={content.hero_image}
+                value={content.hero_focus ?? null}
+                onChange={(v) => updateContent("hero_focus", v)}
+              />
+            </section>
+          )}
+        </div>
+      )}
+
+      {tab === "story" && (
+        <div className="max-w-[720px] space-y-7">
           {/* Tagline */}
           <section>
             <h2 className="text-[15px] font-bold admin-heading">Tagline</h2>
@@ -851,6 +871,11 @@ export default function ProductEditor({
             </div>
           </section>
 
+        </div>
+      )}
+
+      {tab === "specs" && (
+        <div className="max-w-[720px] space-y-7">
           {/* Spec rows */}
           <section>
             <h2 className="text-[15px] font-bold admin-heading">Specifications</h2>

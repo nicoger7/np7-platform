@@ -62,8 +62,8 @@ function HeroModule({
       {heroImg ? (
         <>
           <div
-            className="absolute inset-0 bg-cover bg-center scale-105"
-            style={{ backgroundImage: `url('${heroImg}')` }}
+            className="absolute inset-0 bg-cover scale-105"
+            style={{ backgroundImage: `url('${heroImg}')`, backgroundPosition: content?.hero_focus || "center" }}
           />
           <div className="absolute inset-0 bg-gradient-to-t from-[#0c0c0e] via-black/40 to-black/20" />
         </>
@@ -347,6 +347,7 @@ export default async function HardwareProductPage({ params }: Props) {
     if (rawContent) {
       content = {
         hero_image: rawContent.hero_image ?? null,
+        hero_focus: rawContent.hero_focus ?? null,
         hero_video_url: rawContent.hero_video_url ?? null,
         gallery: Array.isArray(rawContent.gallery) ? rawContent.gallery : [],
         tagline: rawContent.tagline ?? null,
