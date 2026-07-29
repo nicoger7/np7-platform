@@ -26,7 +26,9 @@ export function VerifySpots({ destId, accent = "#00afdb" }: { destId: string; ac
   const [spots, setSpots] = useState<Pending[]>([]);
   const [fieldVerify, setFieldVerify] = useState(false); // per-field level/conditions votes (migration 066)
   const [busy, setBusy] = useState<string | null>(null);
-  const [open, setOpen] = useState(false); // folded by default so the page stays short
+  // Open when something is actually waiting: folded-by-default made the whole
+  // verification loop invisible — riders never saw there was anything to confirm.
+  const [open, setOpen] = useState(true);
   const [flagFor, setFlagFor] = useState<string | null>(null); // spotId being flagged → ask why
   const [flagNote, setFlagNote] = useState("");
 
