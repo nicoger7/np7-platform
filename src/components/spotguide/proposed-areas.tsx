@@ -32,7 +32,9 @@ export function ProposedAreas({ accent = "#00afdb", section = "experience" }: { 
       <p className="text-[13px] text-[#6a7a80] mt-1.5">New areas members added. Know one? Open it and confirm — <b>3 rider confirms</b> (or one verified spot) put it in the guide.</p>
       <div className="mt-4 grid sm:grid-cols-2 lg:grid-cols-3 gap-3">
         {items.map((p) => (
-          <Link key={p.id} href={`/spotguide/${p.slug}?from=${section}`}
+          // proposed areas live on their own members-only, uncached route —
+          // /spotguide/[slug] is prerendered and cannot resolve a viewer
+          <Link key={p.id} href={`/spotguide/proposed/${p.slug}?from=${section}`}
             className="group rounded-xl border border-[#ece3d3] bg-white px-4 py-3 hover:-translate-y-0.5 hover:shadow-[0_10px_26px_rgba(120,90,20,0.10)] transition-all">
             <p className="text-[15px] font-extrabold text-[#00374a] group-hover:underline">{p.name}</p>
             <p className="text-[12px] text-[#8a7a58]">{[p.region, p.country].filter(Boolean).join(", ") || "—"}</p>

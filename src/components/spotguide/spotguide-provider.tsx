@@ -4,6 +4,7 @@ import { createContext, useContext, useEffect, useState, useCallback } from "rea
 import { AuthModal } from "@/components/shared/auth-modal";
 import { hasAuthCookie } from "@/lib/has-auth-cookie";
 import type { RatingSummary, ForecastTally } from "@/lib/spotguide";
+import type { PublicSpot } from "@/lib/spotguide-data";
 
 export type SpotFacts = { ratings: Record<string, number>; levels: string[]; conditions: string[]; infrastructure: string[]; wind_window: Record<string, string> };
 type SpotMine = { ratings?: Record<string, number>; model?: string; level?: string | null; levels?: string[]; conditions?: string[]; infrastructure?: string[]; wind_window?: Record<string, string> };
@@ -12,6 +13,9 @@ type Ctx = {
   loggedIn: boolean;
   mineDest: Record<string, number> | null;
   mineSpot: (spotId: string) => SpotMine | undefined;
+  /** Pending spots only THIS viewer may see (own +, for team, everyone's).
+   *  The page is CDN-cached, so these arrive here instead of in the server render. */
+  pendingSpots: PublicSpot[];
   /** Open the auth modal; defaults to "register" (join), pass "login" for returning members. */
   needAuth: (mode?: "login" | "register") => void;
   saveSpot: (spotId: string, facts: SpotFacts) => Promise<boolean>;
@@ -30,6 +34,7 @@ export function SpotguideProvider({ destId, initialLoggedIn = false, children }:
   const [loggedIn, setLoggedIn] = useState(initialLoggedIn);
   const [mineDest, setMineDest] = useState<Record<string, number> | null>(null);
   const [mineSpots, setMineSpots] = useState<Record<string, SpotMine>>({});
+  const [pendingSpots, setPendingSpots] = useState<PublicSpot[]>([]);
   const [auth, setAuth] = useState<false | "login" | "register">(false);
 
   // Every spotguide page mounted this and asked the server "who am I?" — a
@@ -44,7 +49,14 @@ export function SpotguideProvider({ destId, initialLoggedIn = false, children }:
     if (!destId) { setLoggedIn(true); return; }
     fetch(`/api/portal/spotguide/mine?dest=${destId}`)
       .then((r) => r.json())
-      .then((d) => { setLoggedIn(!!d.loggedIn); if (d.loggedIn) { setMineDest(d.dest ?? null); setMineSpots(d.spots ?? {}); } })
+      .then((d) => {
+        setLoggedIn(!!d.loggedIn);
+        if (d.loggedIn) {
+          setMineDest(d.dest ?? null);
+          setMineSpots(d.spots ?? {});
+          setPendingSpots(Array.isArray(d.pendingSpots) ? d.pendingSpots : []);
+        }
+      })
       .catch(() => {});
   }, [destId, initialLoggedIn]);
   useEffect(() => { load(); }, [load]);
@@ -81,7 +93,7 @@ export function SpotguideProvider({ destId, initialLoggedIn = false, children }:
   };
 
   return (
-    <SpotguideCtx.Provider value={{ loggedIn, mineDest, mineSpot: (id) => mineSpots[id], needAuth, saveSpot, voteForecast, saveDest }}>
+    <SpotguideCtx.Provider value={{ loggedIn, mineDest, mineSpot: (id) => mineSpots[id], pendingSpots, needAuth, saveSpot, voteForecast, saveDest }}>
       {children}
       {auth && (
         <AuthModal

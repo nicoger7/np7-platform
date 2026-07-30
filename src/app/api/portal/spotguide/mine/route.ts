@@ -1,11 +1,18 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getPortalUser } from "@/lib/auth";
+import { getTeamMember } from "@/lib/auth";
 import { createAdminClient } from "@/lib/supabase";
+import { getViewerPendingSpots } from "@/lib/spotguide-data";
 
 /**
  * GET /api/portal/spotguide/mine?dest=<destinationId> — the logged-in member's
  * OWN ratings + forecast votes for a destination and its spots, so the public
  * page can pre-fill "your rating". Anonymous → { loggedIn:false }.
+ *
+ * Also carries `pendingSpots`: the not-yet-public spots this viewer may see —
+ * their own ("under review · only you") and, for team members, everyone's.
+ * The destination page is CDN-cached and so renders with no idea who is reading;
+ * this is where viewer-specific spots come from now.
  */
 export async function GET(request: NextRequest) {
   const user = await getPortalUser();
@@ -31,5 +38,12 @@ export async function GET(request: NextRequest) {
   for (const r of sr ?? []) spots[r.spot_id] = { ...(spots[r.spot_id] ?? {}), ratings: r.ratings ?? {}, level: r.level ?? null, levels: (r.levels?.length ? r.levels : r.level ? [r.level] : []), conditions: r.conditions ?? [], wind_window: r.wind_window ?? {} };
   for (const v of sv ?? []) spots[v.spot_id] = { ...(spots[v.spot_id] ?? {}), model: v.model };
 
-  return NextResponse.json({ loggedIn: true, dest: dr?.ratings ?? null, spots });
+  // Team members see EVERY pending spot on the area, members only their own —
+  // the same rule the page applied server-side before it was cached.
+  const team = await getTeamMember().catch(() => null);
+  const pendingSpots = destId
+    ? await getViewerPendingSpots(destId, user.contactId, !!team).catch(() => [])
+    : [];
+
+  return NextResponse.json({ loggedIn: true, dest: dr?.ratings ?? null, spots, pendingSpots });
 }

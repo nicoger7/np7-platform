@@ -1,7 +1,8 @@
 "use client";
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import type { PublicSpot } from "@/lib/spotguide-data";
+import { useSpotguide } from "./spotguide-provider";
 import {
   SPOT_CRITERIA, conditionLabel, bestWinds, windWindowHasValue,
   levelRangeLabel, VERIFICATION_META, type Verification,
@@ -17,7 +18,19 @@ import { SuggestEdit } from "./suggest-edit";
 
 /** Foldable list of a destination's spots. Collapsed = name + key chips +
     score; expanded = photo, wind rose, ratings, forecast, infrastructure. */
-export function SpotsList({ spots, accent = "#00afdb" }: { spots: PublicSpot[]; accent?: string }) {
+export function SpotsList({ spots: published, accent = "#00afdb" }: { spots: PublicSpot[]; accent?: string }) {
+  // The server render is the same for everyone (the page is CDN-cached), so a
+  // viewer's not-yet-public spots — their own, or all of them for the team —
+  // are merged in here from the provider. Anonymous visitors get an empty list,
+  // which is exactly what the cached HTML already showed.
+  const { pendingSpots } = useSpotguide();
+  const spots = useMemo(() => {
+    if (!pendingSpots.length) return published;
+    const have = new Set(published.map((s) => s.id));
+    const extra = pendingSpots.filter((s) => !have.has(s.id));
+    return extra.length ? [...published, ...extra] : published;
+  }, [published, pendingSpots]);
+
   const [open, setOpen] = useState<string[]>(spots.length === 1 ? [spots[0].id] : []);
   const toggle = (id: string) => setOpen((o) => (o.includes(id) ? o.filter((x) => x !== id) : [...o, id]));
 

@@ -119,6 +119,138 @@ export async function getSpotguideDestinations(): Promise<SpotguideDestinationCa
   });
 }
 
+/**
+ * Turn raw `spots` rows into fully-rated PublicSpots: member ratings, forecast
+ * tallies, photos (score-sorted), crowd facts and contributor credit.
+ *
+ * Extracted so the destination page and the viewer's own pending-spot feed
+ * (getViewerPendingSpots, below) shape a spot IDENTICALLY — the destination
+ * page is CDN-cached now, so a member's not-yet-public spot arrives separately
+ * through the portal API and must not render as a lesser citizen.
+ */
+async function shapeSpots(
+  spots: Record<string, unknown>[],
+  ownPendingIds: Set<string>,
+  teamPendingIds: Set<string>,
+): Promise<PublicSpot[]> {
+  const sb = db();
+  const spotIds = spots.map((s) => s.id as string);
+
+  const [{ data: sratings }, { data: svotes }] = await Promise.all([
+    spotIds.length ? sb.from("spot_ratings").select("*").in("spot_id", spotIds) : Promise.resolve({ data: [] }),
+    spotIds.length ? sb.from("spot_forecast_votes").select("spot_id, model").in("spot_id", spotIds) : Promise.resolve({ data: [] }),
+  ]);
+  const { data: sphotos } = spotIds.length
+    ? await sb.from("spot_photos").select("id, spot_id, url, caption, source, sort_order").in("spot_id", spotIds).eq("status", "approved").order("sort_order")
+    : { data: [] };
+
+  // Contributor credit — who confirmed each spot's facts. First name + last
+  // initial only ("Jan K."): public page, so never the full name.
+  const confirmsBySpot = new Map<string, { names: string[]; count: number }>();
+  if (spotIds.length) {
+    const { data: sv } = await sb.from("spot_verifications").select("spot_id, contact_id").eq("kind", "confirm").in("spot_id", spotIds);
+    const rows = (sv ?? []) as { spot_id: string; contact_id: string }[];
+    const contactIds = [...new Set(rows.map((r) => r.contact_id))];
+    const { data: cs } = contactIds.length ? await sb.from("contacts").select("id, name").in("id", contactIds) : { data: [] };
+    const credit = new Map<string, string>();
+    for (const c of (cs ?? []) as { id: string; name: string | null }[]) {
+      const parts = String(c.name ?? "").trim().split(/\s+/).filter(Boolean);
+      if (parts.length) credit.set(c.id, parts.length > 1 ? `${parts[0]} ${parts[parts.length - 1][0]}.` : parts[0]);
+    }
+    for (const spotId of new Set(rows.map((r) => r.spot_id))) {
+      const ids = [...new Set(rows.filter((r) => r.spot_id === spotId).map((r) => r.contact_id))];
+      confirmsBySpot.set(spotId, { names: ids.map((id) => credit.get(id)).filter(Boolean) as string[], count: ids.length });
+    }
+  }
+  const photoIds = (sphotos ?? []).map((p: { id: string }) => p.id);
+  const { data: pvotes } = photoIds.length
+    ? await sb.from("spot_photo_votes").select("photo_id, value").in("photo_id", photoIds)
+    : { data: [] };
+  const scoreByPhoto = new Map<string, number>();
+  for (const v of (pvotes ?? []) as { photo_id: string; value: number }[]) scoreByPhoto.set(v.photo_id, (scoreByPhoto.get(v.photo_id) ?? 0) + (v.value || 0));
+
+  const ratingsBySpot = groupBy((sratings ?? []) as { spot_id: string; ratings: unknown; level?: string | null; conditions?: string[] | null; infrastructure?: string[] | null; wind_window?: unknown }[], (r) => r.spot_id);
+  const votesBySpot = groupBy((svotes ?? []) as { spot_id: string; model: string }[], (r) => r.spot_id);
+  const photosBySpot = groupBy((sphotos ?? []) as { id: string; spot_id: string; url: string; caption: string | null; source: string }[], (r) => r.spot_id);
+
+  return spots.map((s: Record<string, unknown>) => ({
+    id: s.id as string, name: s.name as string, slug: s.slug as string | null,
+    lat: (s.lat as number) ?? null, lng: (s.lng as number) ?? null, level: (s.level as string) ?? null,
+    levels: Array.isArray(s.levels) && (s.levels as string[]).length ? (s.levels as string[]) : ((s.level as string) ? [s.level as string] : []),
+    conditions: (s.conditions as string[]) ?? [], wind_window: (s.wind_window as Record<string, string>) ?? {},
+    infrastructure: (s.infrastructure as string[]) ?? [], np7_forecast_models: (s.np7_forecast_models as string[]) ?? [],
+    hero_image: (s.hero_image as string) ?? null, hero_focus: (s.hero_focus as string) ?? null, gallery: (s.gallery as string[]) ?? [],
+    summary: (s.summary as string) ?? null, description: (s.description as string) ?? null,
+    np7_ratings: (s.np7_ratings as Record<string, number>) ?? {}, verification: s.verification as string,
+    wind_stats: (s.wind_stats as WindStats) ?? null,
+    photos: (photosBySpot.get(s.id as string) ?? [])
+      .map((p) => ({ id: p.id, url: p.url, caption: p.caption, source: p.source, score: scoreByPhoto.get(p.id) ?? 0 }))
+      .sort((a, b) => b.score - a.score),
+    np7: np7Overall(s.np7_ratings, SPOT_CRITERIA_KEYS),
+    member: summariseRatings(ratingsBySpot.get(s.id as string) ?? [], SPOT_CRITERIA_KEYS),
+    forecast: tallyForecastVotes(votesBySpot.get(s.id as string) ?? []),
+    crowdWindow: crowdWindow(ratingsBySpot.get(s.id as string) ?? []),
+    memberLevel: levelConsensus(ratingsBySpot.get(s.id as string) ?? []),
+    memberConditions: conditionsTally(ratingsBySpot.get(s.id as string) ?? []),
+    memberInfra: infraTally(ratingsBySpot.get(s.id as string) ?? []),
+    ownPending: ownPendingIds.has(s.id as string),
+    teamPending: teamPendingIds.has(s.id as string),
+    confirmedBy: confirmsBySpot.get(s.id as string) ?? { names: [], count: 0 },
+  }));
+}
+
+/**
+ * The pending spots on a destination that THIS viewer may see: their own
+ * ("under review · only you") plus, for team members, everyone's.
+ *
+ * The destination page is CDN-cached and therefore renders with no idea who is
+ * reading, so this is fetched client-side through /api/portal/spotguide/mine
+ * and merged into the list. Returns [] for anonymous visitors.
+ */
+export async function getViewerPendingSpots(
+  destinationId: string,
+  viewerId: string | null,
+  isTeam = false,
+): Promise<PublicSpot[]> {
+  if (!viewerId && !isTeam) return [];
+  const sb = db();
+  let q = sb.from("spots").select("*")
+    .eq("destination_id", destinationId)
+    .eq("status", "published").eq("verification", "pending");
+  if (!isTeam) q = q.eq("submitted_by", viewerId);
+  const { data } = await q.order("name");
+  const rows = (data ?? []) as Record<string, unknown>[];
+  if (!rows.length) return [];
+  const own = new Set<string>();
+  const team = new Set<string>();
+  for (const r of rows) {
+    if (viewerId && r.submitted_by === viewerId) own.add(r.id as string);
+    else team.add(r.id as string); // someone else's, visible because you're team
+  }
+  return shapeSpots(rows, own, team);
+}
+
+/**
+ * Is this area published, or a rider-proposed draft?
+ *
+ * A cheap slug lookup the destination page runs BEFORE deciding whether to
+ * resolve the viewer. A published area renders the same for everyone and can be
+ * CDN-cached; a draft is members-only, so its render must touch a request API to
+ * stay per-request dynamic and out of the shared cache. Reading the DB is not a
+ * request API, so asking this question does not itself opt the page out.
+ */
+export async function getDestinationVisibility(slug: string): Promise<{ exists: boolean; isDraft: boolean }> {
+  const { data } = await db().from("destinations").select("spotguide_status").eq("slug", slug).maybeSingle();
+  if (!data) return { exists: false, isDraft: false };
+  return { exists: true, isDraft: data.spotguide_status !== "published" };
+}
+
+/** Every published destination slug — the ISR prerender list for /spotguide/[slug]. */
+export async function getPublishedDestinationSlugs(): Promise<string[]> {
+  const { data } = await db().from("destinations").select("slug").eq("spotguide_status", "published");
+  return ((data ?? []) as { slug: string | null }[]).map((d) => d.slug).filter((s): s is string => !!s);
+}
+
 /** A destination page: the destination + its public spots, each fully rated. */
 export async function getSpotguideDestination(slug: string, viewerId?: string | null, isTeam = false): Promise<SpotguideDestination | null> {
   const sb = db();
@@ -170,69 +302,12 @@ export async function getSpotguideDestination(slug: string, viewerId?: string | 
   }
   const spotIds = spots.map((s: { id: string }) => s.id);
 
-  const [{ data: sratings }, { data: svotes }, { data: dratings }, { data: trips }] = await Promise.all([
-    spotIds.length ? sb.from("spot_ratings").select("*").in("spot_id", spotIds) : Promise.resolve({ data: [] }),
-    spotIds.length ? sb.from("spot_forecast_votes").select("spot_id, model").in("spot_id", spotIds) : Promise.resolve({ data: [] }),
+  const [{ data: dratings }, { data: trips }] = await Promise.all([
     sb.from("destination_ratings").select("ratings").eq("destination_id", d.id),
     sb.from("exp_experiences").select("id, title, slug, hero_image, tagline, status").eq("destination_id", d.id).eq("status", "published"),
   ]);
-  const { data: sphotos } = spotIds.length
-    ? await sb.from("spot_photos").select("id, spot_id, url, caption, source, sort_order").in("spot_id", spotIds).eq("status", "approved").order("sort_order")
-    : { data: [] };
 
-  // Contributor credit — who confirmed each spot's facts. First name + last
-  // initial only ("Jan K."): public page, so never the full name.
-  const confirmsBySpot = new Map<string, { names: string[]; count: number }>();
-  if (spotIds.length) {
-    const { data: sv } = await sb.from("spot_verifications").select("spot_id, contact_id").eq("kind", "confirm").in("spot_id", spotIds);
-    const rows = (sv ?? []) as { spot_id: string; contact_id: string }[];
-    const contactIds = [...new Set(rows.map((r) => r.contact_id))];
-    const { data: cs } = contactIds.length ? await sb.from("contacts").select("id, name").in("id", contactIds) : { data: [] };
-    const credit = new Map<string, string>();
-    for (const c of (cs ?? []) as { id: string; name: string | null }[]) {
-      const parts = String(c.name ?? "").trim().split(/\s+/).filter(Boolean);
-      if (parts.length) credit.set(c.id, parts.length > 1 ? `${parts[0]} ${parts[parts.length - 1][0]}.` : parts[0]);
-    }
-    for (const spotId of new Set(rows.map((r) => r.spot_id))) {
-      const ids = [...new Set(rows.filter((r) => r.spot_id === spotId).map((r) => r.contact_id))];
-      confirmsBySpot.set(spotId, { names: ids.map((id) => credit.get(id)).filter(Boolean) as string[], count: ids.length });
-    }
-  }
-  const photoIds = (sphotos ?? []).map((p: { id: string }) => p.id);
-  const { data: pvotes } = photoIds.length
-    ? await sb.from("spot_photo_votes").select("photo_id, value").in("photo_id", photoIds)
-    : { data: [] };
-  const scoreByPhoto = new Map<string, number>();
-  for (const v of (pvotes ?? []) as { photo_id: string; value: number }[]) scoreByPhoto.set(v.photo_id, (scoreByPhoto.get(v.photo_id) ?? 0) + (v.value || 0));
-
-  const ratingsBySpot = groupBy((sratings ?? []) as { spot_id: string; ratings: unknown; level?: string | null; conditions?: string[] | null; infrastructure?: string[] | null; wind_window?: unknown }[], (r) => r.spot_id);
-  const votesBySpot = groupBy((svotes ?? []) as { spot_id: string; model: string }[], (r) => r.spot_id);
-  const photosBySpot = groupBy((sphotos ?? []) as { id: string; spot_id: string; url: string; caption: string | null; source: string }[], (r) => r.spot_id);
-
-  const publicSpots: PublicSpot[] = spots.map((s: Record<string, unknown>) => ({
-    id: s.id as string, name: s.name as string, slug: s.slug as string | null,
-    lat: (s.lat as number) ?? null, lng: (s.lng as number) ?? null, level: (s.level as string) ?? null,
-    levels: Array.isArray(s.levels) && (s.levels as string[]).length ? (s.levels as string[]) : ((s.level as string) ? [s.level as string] : []),
-    conditions: (s.conditions as string[]) ?? [], wind_window: (s.wind_window as Record<string, string>) ?? {},
-    infrastructure: (s.infrastructure as string[]) ?? [], np7_forecast_models: (s.np7_forecast_models as string[]) ?? [],
-    hero_image: (s.hero_image as string) ?? null, hero_focus: (s.hero_focus as string) ?? null, gallery: (s.gallery as string[]) ?? [],
-    summary: (s.summary as string) ?? null, description: (s.description as string) ?? null,
-    np7_ratings: (s.np7_ratings as Record<string, number>) ?? {}, verification: s.verification as string,
-    wind_stats: (s.wind_stats as WindStats) ?? null,
-    photos: (photosBySpot.get(s.id as string) ?? [])
-      .map((p) => ({ id: p.id, url: p.url, caption: p.caption, source: p.source, score: scoreByPhoto.get(p.id) ?? 0 }))
-      .sort((a, b) => b.score - a.score),
-    np7: np7Overall(s.np7_ratings, SPOT_CRITERIA_KEYS),
-    member: summariseRatings(ratingsBySpot.get(s.id as string) ?? [], SPOT_CRITERIA_KEYS),
-    forecast: tallyForecastVotes(votesBySpot.get(s.id as string) ?? []),
-    crowdWindow: crowdWindow(ratingsBySpot.get(s.id as string) ?? []),
-    memberLevel: levelConsensus(ratingsBySpot.get(s.id as string) ?? []),
-    memberConditions: conditionsTally(ratingsBySpot.get(s.id as string) ?? []),
-    memberInfra: infraTally(ratingsBySpot.get(s.id as string) ?? []),
-    ownPending: ownPendingIds.has(s.id as string),
-    teamPending: teamPendingIds.has(s.id as string),
-    confirmedBy: confirmsBySpot.get(s.id as string) ?? { names: [], count: 0 },
-  }));
+  const publicSpots = await shapeSpots(spots, ownPendingIds, teamPendingIds);
 
   // Draft areas carry their verification tally (the bottom-of-page ladder).
   let verify: SpotguideDestination["verify"] = null;
