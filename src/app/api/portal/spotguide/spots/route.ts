@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse, after } from "next/server";
 import { getPortalUser } from "@/lib/auth";
 import { createAdminClient } from "@/lib/supabase";
+import { revalidateDestinationById } from "@/lib/revalidate-public";
 import { slugifySpot, asWindWindow, CONDITIONS, LEVELS } from "@/lib/spotguide";
 import { fetchWindStatsBoth } from "@/lib/wind-stats";
 import { getStanding } from "@/lib/spotguide-trust";
@@ -135,5 +136,7 @@ export async function POST(request: NextRequest) {
       } catch { /* the wind-stats cron will retry */ }
     });
   }
+  // the new spot (badged "under review") must show on the cached index at once
+  await revalidateDestinationById(db, destinationId, { alsoMagazine: true });
   return NextResponse.json({ ok: true, id: data.id }, { status: 201 });
 }

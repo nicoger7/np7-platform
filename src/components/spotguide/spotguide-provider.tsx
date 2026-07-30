@@ -2,6 +2,7 @@
 
 import { createContext, useContext, useEffect, useState, useCallback } from "react";
 import { AuthModal } from "@/components/shared/auth-modal";
+import { hasAuthCookie } from "@/lib/has-auth-cookie";
 import type { RatingSummary, ForecastTally } from "@/lib/spotguide";
 
 export type SpotFacts = { ratings: Record<string, number>; levels: string[]; conditions: string[]; infrastructure: string[]; wind_window: Record<string, string> };
@@ -31,12 +32,21 @@ export function SpotguideProvider({ destId, initialLoggedIn = false, children }:
   const [mineSpots, setMineSpots] = useState<Record<string, SpotMine>>({});
   const [auth, setAuth] = useState<false | "login" | "register">(false);
 
+  // Every spotguide page mounted this and asked the server "who am I?" — a
+  // function invocation on the busiest public route, for an answer that is
+  // already knowable client-side for the ~everyone who is anonymous.
+  //   · no auth cookie (and the server didn't say otherwise) ⇒ provably a guest
+  //   · destId "" (the index-level provider) ⇒ /mine has no ratings to return
+  //     for it anyway, so the cookie IS the whole answer
+  // A real member on a destination page still fetches — they have ratings to load.
   const load = useCallback(() => {
+    if (!initialLoggedIn && !hasAuthCookie()) { setLoggedIn(false); return; }
+    if (!destId) { setLoggedIn(true); return; }
     fetch(`/api/portal/spotguide/mine?dest=${destId}`)
       .then((r) => r.json())
       .then((d) => { setLoggedIn(!!d.loggedIn); if (d.loggedIn) { setMineDest(d.dest ?? null); setMineSpots(d.spots ?? {}); } })
       .catch(() => {});
-  }, [destId]);
+  }, [destId, initialLoggedIn]);
   useEffect(() => { load(); }, [load]);
 
   const needAuth = useCallback((mode: "login" | "register" = "register") => setAuth(mode), []);

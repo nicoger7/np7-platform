@@ -3,6 +3,7 @@ import { createAdminClient } from "@/lib/supabase";
 import { fetchWindStatsBoth } from "@/lib/wind-stats";
 import { summariseRatings, tallyForecastVotes, SPOT_CRITERIA_KEYS } from "@/lib/spotguide";
 import { publishDestinationIfEarned } from "@/lib/spotguide-trust";
+import { revalidateSpotguide } from "@/lib/revalidate-public";
 
 const COLS = [
   "name", "slug", "lat", "lng", "level", "levels", "conditions", "wind_window",
@@ -85,6 +86,14 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
       } catch { /* the wind-stats cron will retry */ }
     });
   }
+  // A spot edit changes its destination's public page (and the counts on the
+  // index), both ISR'd — resolve the slug so only that page is invalidated.
+  // A publish/verify decision can add or remove a spot from the guide, which is
+  // structural enough to reach the magazine's destination clusters.
+  const { data: dest } = await db.from("destinations").select("slug").eq("id", data.destination_id).maybeSingle();
+  revalidateSpotguide(dest?.slug ?? null, {
+    alsoMagazine: "status" in body || "verification" in body || "name" in body || "slug" in body,
+  });
   return NextResponse.json(data);
 }
 
@@ -93,7 +102,13 @@ export async function DELETE(_req: NextRequest, { params }: { params: Promise<{ 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const db = createAdminClient() as any;
   const { id } = await params;
+  // read the parent destination before the row goes, so its page can refresh
+  const { data: gone } = await db.from("spots").select("destination_id").eq("id", id).maybeSingle();
   const { error } = await db.from("spots").delete().eq("id", id);
   if (error) return NextResponse.json({ error: error.message }, { status: 400 });
+  const { data: dest } = gone?.destination_id
+    ? await db.from("destinations").select("slug").eq("id", gone.destination_id).maybeSingle()
+    : { data: null as { slug?: string | null } | null };
+  revalidateSpotguide(dest?.slug ?? null, { alsoMagazine: true });
   return NextResponse.json({ success: true });
 }

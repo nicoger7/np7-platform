@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getPortalUser } from "@/lib/auth";
 import { createAdminClient } from "@/lib/supabase";
+import { revalidateDestinationById } from "@/lib/revalidate-public";
 import {
   SPOT_CRITERIA_KEYS, DESTINATION_CRITERIA_KEYS, summariseRatings,
   LEVELS, CONDITIONS, INFRASTRUCTURE_TAGS, asWindWindow, windWindowHasValue,
@@ -83,5 +84,9 @@ export async function POST(request: NextRequest) {
     });
   }
   const { data: rows } = await db.from(table).select("ratings").eq(fk, id);
+  // A destination rating moves the headline score on the cached index. (Spot
+  // ratings only surface on /spotguide/[slug], which is force-dynamic, so there
+  // is nothing cached to refresh for those.)
+  if (target === "destination") await revalidateDestinationById(db, id);
   return NextResponse.json({ ok: true, summary: summariseRatings(rows ?? [], keys), mine: { ratings } });
 }

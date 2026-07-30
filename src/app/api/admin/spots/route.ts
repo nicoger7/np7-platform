@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase";
+import { revalidateSpotguide } from "@/lib/revalidate-public";
 import { slugifySpot } from "@/lib/spotguide";
 
 // GET /api/admin/spots?destination_id=… — list a destination's spots (all statuses)
@@ -45,5 +46,8 @@ export async function POST(request: NextRequest) {
     }
     return NextResponse.json({ error: error.message }, { status: 400 });
   }
+  // a new spot changes its destination page and the index's spot counts
+  const { data: dest } = await db.from("destinations").select("slug").eq("id", body.destination_id).maybeSingle();
+  revalidateSpotguide(dest?.slug ?? null, { alsoMagazine: true });
   return NextResponse.json(data, { status: 201 });
 }

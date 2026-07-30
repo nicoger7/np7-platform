@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getPortalUser } from "@/lib/auth";
 import { createAdminClient } from "@/lib/supabase";
+import { revalidateDestinationById } from "@/lib/revalidate-public";
 import { COMMUNITY_VERIFY_THRESHOLD } from "@/lib/spotguide";
 import { getStanding } from "@/lib/spotguide-trust";
 
@@ -50,5 +51,7 @@ export async function POST(request: NextRequest) {
       published = true;
     }
   }
+  // the 3rd confirm publishes a rider-proposed area — it has to appear now
+  if (published) await revalidateDestinationById(db, destinationId, { alsoMagazine: true });
   return NextResponse.json({ ok: true, confirms, flags, published });
 }

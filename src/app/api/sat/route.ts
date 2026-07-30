@@ -5,6 +5,14 @@ import { r2Enabled, r2CdnBase, r2Has, uploadToR2 } from "@/lib/r2";
 export const runtime = "nodejs";
 
 /**
+ * `max-age` alone only fills the visitor's OWN browser cache, so every new
+ * visitor re-invoked this function for an image that never changes. `s-maxage`
+ * lets the CDN answer instead — safe because the R2 key below is derived purely
+ * from the coordinates and size, so a given URL can only ever mean one image.
+ */
+const SAT_CACHE = "public, max-age=604800, s-maxage=31536000, immutable";
+
+/**
  * Cached satellite imagery. `satImage(lat,lng)` points here; we generate the Esri
  * export ONCE, store it in R2, and serve every later hit straight from our CDN —
  * so visitors get an instant image and Esri is hit once per location, not once per
@@ -31,7 +39,7 @@ export async function GET(req: NextRequest) {
 
   // Already cached → redirect to the CDN (browsers cache the redirect for a week).
   if (await r2Has(key)) {
-    return new Response(null, { status: 302, headers: { Location: cachedUrl, "Cache-Control": "public, max-age=604800" } });
+    return new Response(null, { status: 302, headers: { Location: cachedUrl, "Cache-Control": SAT_CACHE } });
   }
 
   // First hit for this location: fetch Esri, stream it back now, cache in R2 after.
@@ -40,7 +48,7 @@ export async function GET(req: NextRequest) {
     if (!res.ok) return Response.redirect(esri, 302);
     const buf = Buffer.from(await res.arrayBuffer());
     after(async () => { try { await uploadToR2(buf, key, "image/jpeg"); } catch { /* it'll retry next miss */ } });
-    return new Response(buf, { headers: { "Content-Type": "image/jpeg", "Cache-Control": "public, max-age=604800" } });
+    return new Response(buf, { headers: { "Content-Type": "image/jpeg", "Cache-Control": SAT_CACHE } });
   } catch {
     return Response.redirect(esri, 302);
   }

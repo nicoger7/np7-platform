@@ -2,6 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import type { Metadata } from "next";
 import { supabase, createAdminClient } from "@/lib/supabase";
+import { flags } from "@/lib/flags";
 import { OceanHeader } from "@/components/experience/ocean-header";
 import { NP7_EXPERIENCE_LOGO, SUN_TO_SEA } from "@/components/shared/brand";
 import { Reveal } from "@/components/experience/reveal";
@@ -81,6 +82,11 @@ async function getDestination(slug: string): Promise<{ destination: Destination;
 }
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
+  // The layout 404s this whole segment until SHOW_EXPERIENCE is on — but a layout
+  // short-circuits AFTER metadata and the page body have already run, so every
+  // crawler hit on a dead /destinations/… URL was paying a full render (measured:
+  // 42 kB of Bonaire markup behind an HTTP 404). Bail before touching the DB.
+  if (!flags.showExperience) return { title: "Destination — NP7" };
   const { slug } = await params;
   const res = await getDestination(slug).catch(() => null);
   if (!res) return { title: "Destination — NP7" };
@@ -89,6 +95,8 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
 }
 
 export default async function DestinationPage({ params }: Props) {
+  // Same guard as generateMetadata above — 404 before any query or render work.
+  if (!flags.showExperience) notFound();
   const { slug } = await params;
   const res = await getDestination(slug).catch(() => null);
   if (!res) notFound();

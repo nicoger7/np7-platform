@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase";
+import { revalidateSpotguide } from "@/lib/revalidate-public";
 
 const COLS = [
   "name", "slug", "region", "country", "hero_image", "tagline", "intro",
@@ -51,6 +52,11 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
     ({ data, error } = await db.from("destinations").update(patch).eq("id", id).select("*").single());
   }
   if (error) return NextResponse.json({ error: error.message }, { status: 400 });
+  // A rename / re-slug / publish-state change also alters the destination names
+  // and links that magazine posts render, so those get flushed too; a ratings or
+  // photo tweak stays inside the spotguide.
+  const structural = ["name", "slug", "spotguide_status", "status", "region", "country"].some((k) => k in body);
+  revalidateSpotguide(data?.slug ?? null, { alsoMagazine: structural });
   return NextResponse.json(data);
 }
 
@@ -59,7 +65,10 @@ export async function DELETE(_req: NextRequest, { params }: { params: Promise<{ 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const db = createAdminClient() as any;
   const { id } = await params;
+  // grab the slug while the row still exists, so its page can be invalidated
+  const { data: gone } = await db.from("destinations").select("slug").eq("id", id).maybeSingle();
   const { error } = await db.from("destinations").delete().eq("id", id);
   if (error) return NextResponse.json({ error: error.message }, { status: 400 });
+  revalidateSpotguide(gone?.slug ?? null, { alsoMagazine: true });
   return NextResponse.json({ success: true });
 }

@@ -26,9 +26,31 @@ import { type SpotNote } from "@/components/blog/spots-accordion";
 import { PostBody, splitForTeaser } from "@/components/blog/post-body";
 import { SignupGate } from "@/components/blog/signup-gate";
 
-export const revalidate = 60;
+export const revalidate = 3600;
 
 type Props = { params: Promise<{ slug: string }> };
+
+/**
+ * Prerender the freely-readable posts so they serve from the CDN instead of
+ * costing a full server render per hit (they were `no-store` in production —
+ * `revalidate` above was dead code because the render always reached a request
+ * API). Members-only posts are deliberately LEFT OUT: an unlisted param is
+ * rendered on demand and then ISR-cached, so a gated post must keep touching a
+ * request API to stay per-request dynamic — which is exactly what the
+ * conditional `getPortalUser()` below guarantees. Never list a gated slug here.
+ * Admin writes call revalidatePath, so publishing is still immediate.
+ */
+export async function generateStaticParams() {
+  const { data } = await supabase
+    .from("exp_blog_posts")
+    .select("slug, template")
+    .eq("status", "published")
+    .eq("members_only", false);
+  return ((data ?? []) as { slug: string; template: string | null }[])
+    // the legacy spotguide template redirects to /spotguide/… — nothing to cache
+    .filter((p) => p.slug && p.template !== "spotguide")
+    .map((p) => ({ slug: p.slug }));
+}
 
 type Post = {
   id: string;
@@ -103,7 +125,12 @@ export default async function BlogPostPage({ params }: Props) {
     redirect(slug ? `/spotguide/${slug}` : "/spotguide");
   }
 
-  const member = await getPortalUser().catch(() => null);
+  // Only a gated post needs to know WHO is reading. Resolving the member on a
+  // free post read cookies() for a value the gate below can never use
+  // (`members_only === false` ⇒ never gated), and that one call opted every
+  // post out of ISR. Skipping it is what makes the free posts cacheable — and
+  // keeping it for gated posts is what keeps THEM out of the shared cache.
+  const member = post.members_only === false ? null : await getPortalUser().catch(() => null);
   const gated = post.members_only !== false && !member;
 
   const heroFields = fieldsForSlot(template, "hero");

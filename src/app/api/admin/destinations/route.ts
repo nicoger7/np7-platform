@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase";
+import { revalidateSpotguide } from "@/lib/revalidate-public";
 
 function slugify(s: string) {
   return s.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
@@ -39,5 +40,6 @@ export async function POST(request: NextRequest) {
     }
     return NextResponse.json({ error: error.message }, { status: 400 });
   }
+  revalidateSpotguide(data?.slug ?? null, { alsoMagazine: true });
   return NextResponse.json(data, { status: 201 });
 }

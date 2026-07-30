@@ -3,7 +3,7 @@ import { getLegalEntity } from "@/lib/legal";
 import { LegalShell } from "@/components/shared/legal-shell";
 
 export const metadata: Metadata = { title: "Impressum — NP7", robots: { index: true } };
-export const revalidate = 300;
+export const revalidate = 86400;
 
 export default async function ImpressumPage() {
   const e = await getLegalEntity();

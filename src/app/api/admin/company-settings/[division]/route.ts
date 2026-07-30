@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase";
 import type { CompanySettings } from "@/lib/invoices/types";
 import { DIVISIONS } from "@/lib/invoices/types";
+import { revalidateLegal } from "@/lib/revalidate-public";
 
 // Admin routes are gated by middleware; no per-route auth check needed.
 
@@ -131,6 +132,11 @@ export async function PUT(
     }
     return NextResponse.json({ error: error.message }, { status: 400 });
   }
+
+  // Impressum / privacy / terms / Widerrufsbelehrung all render getLegalEntity()
+  // → company_settings, and they are cached for a day. A legal page must never
+  // sit on a stale address or VAT id, so push the change out immediately.
+  if (division === "experience") revalidateLegal();
 
   return NextResponse.json(data);
 }

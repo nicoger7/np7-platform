@@ -4,6 +4,11 @@ import { flags } from "@/lib/flags";
 
 const SITE = "https://www.np-seven.com";
 
+// Without this the sitemap is baked at build time, so a new post or destination
+// never reaches Google until the next deploy. An hour, matching the pages it
+// lists; admin writes also invalidate it (src/lib/revalidate-public.ts).
+export const revalidate = 3600;
+
 /**
  * DB-driven sitemap: magazine (index + tab routes + every published post) and
  * the spotguide (index + every destination). Experience surfaces join

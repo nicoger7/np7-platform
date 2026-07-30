@@ -30,9 +30,15 @@ const WORLDS = [
 ];
 
 export default async function AboutPage({ searchParams }: { searchParams: Promise<{ from?: string }> }) {
-  const { from } = await searchParams;
-  // `?from=` (carried by the header link) wins over the np7_section cookie.
-  const section = resolveSection(from ?? (await cookies()).get("np7_section")?.value);
+  // `?from=` (carried by the header link) wins over the np7_section cookie — but
+  // only once Hardware is live. Reading either is a request API, which opted this
+  // page out of prerendering; with one visible world there is nothing to switch
+  // between, and today the layout 404s here anyway — so that per-request render
+  // was being paid to produce a 404. Same guard as /spotguide and /blog.
+  const from = flags.showHardware ? (await searchParams).from : undefined;
+  const section = flags.showHardware
+    ? resolveSection(from ?? (await cookies()).get("np7_section")?.value)
+    : "experience";
   const chrome = SECTION_CHROME[section];
 
   return (

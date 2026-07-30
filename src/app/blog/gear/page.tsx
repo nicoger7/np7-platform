@@ -7,7 +7,7 @@ export const metadata: Metadata = {
   alternates: { canonical: "/blog/gear" },
 };
 
-export const revalidate = 60;
+export const revalidate = 3600;
 
 export default function BlogGearTab() {
   return <BlogIndexView world="hardware" />;

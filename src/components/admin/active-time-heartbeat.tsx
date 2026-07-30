@@ -5,10 +5,15 @@ import { useEffect } from "react";
 /**
  * Tracks the signed-in member's *active* time in the admin. While the tab is
  * focused and there's been activity in the last 5 min, it pings the server every
- * ~3 min; the server accumulates the gaps (idle excluded). Renders nothing.
+ * ~4 min; the server accumulates the gaps (idle excluded). Renders nothing.
  * No-ops gracefully if the active-time table isn't there yet.
+ *
+ * PING_MS must stay comfortably UNDER the server's IDLE_SECONDS (5 min, in
+ * /api/admin/active-time): it only credits a gap of `0 < gap <= IDLE_SECONDS`,
+ * so a cadence at or past 5 min silently records zero time forever. 4 min keeps
+ * a minute of slack for timer drift while costing a third fewer invocations.
  */
-const PING_MS = 3 * 60 * 1000;   // heartbeat cadence
+const PING_MS = 4 * 60 * 1000;   // heartbeat cadence — see the ceiling above
 const IDLE_MS = 5 * 60 * 1000;   // mirror the server idle window
 
 export function ActiveTimeHeartbeat() {

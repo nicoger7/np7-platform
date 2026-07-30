@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import { AuthModal } from "./auth-modal";
 import { createClient } from "@/lib/supabase/client";
+import { hasAuthCookie } from "@/lib/has-auth-cookie";
 
 type Me = { loggedIn: boolean; firstName?: string; lastName?: string; avatarUrl?: string | null };
 
@@ -30,6 +31,9 @@ export function MemberButton({
 
   useEffect(() => {
     let alive = true;
+    // This header sits on every public page, so the call ran for every visitor.
+    // No auth cookie ⇒ the answer is "guest"; don't pay a server invocation for it.
+    if (!hasAuthCookie()) { setMe({ loggedIn: false }); return; }
     fetch("/api/portal/me")
       .then((r) => r.json())
       .then((d) => { if (alive) setMe(d); })

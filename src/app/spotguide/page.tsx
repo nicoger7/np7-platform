@@ -16,7 +16,7 @@ export const metadata: Metadata = {
   description: "Honest windsurf spot guides, rated by NP7 and the crew. Real conditions, the forecast that works, and where to ride — destination by destination.",
   alternates: { canonical: "/spotguide" },
 };
-export const revalidate = 60;
+export const revalidate = 3600;
 
 export default async function SpotguideIndex({ searchParams }: { searchParams: Promise<{ from?: string }> }) {
   // Cookie + ?from only when Hardware is live — either would opt this page out of

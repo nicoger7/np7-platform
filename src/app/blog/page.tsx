@@ -8,7 +8,7 @@ export const metadata: Metadata = {
   alternates: { canonical: "/blog" },
 };
 
-export const revalidate = 60;
+export const revalidate = 3600;
 
 // The world tabs are real routes (/blog/spotguide, /blog/gear, /blog/technique)
 // rather than ?world= params, so each tab — including this "All" landing — is

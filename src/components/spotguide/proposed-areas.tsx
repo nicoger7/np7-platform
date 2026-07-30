@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
+import { hasAuthCookie } from "@/lib/has-auth-cookie";
 
 /**
  * Members-only strip at the very bottom of the spotguide index: rider-proposed
@@ -14,6 +15,9 @@ export function ProposedAreas({ accent = "#00afdb", section = "experience" }: { 
   const [items, setItems] = useState<Proposed[]>([]);
 
   useEffect(() => {
+    // The endpoint 401s for anonymous visitors, who are almost everyone here —
+    // don't spend a server invocation to be told that.
+    if (!hasAuthCookie()) return;
     fetch("/api/portal/spotguide/proposed")
       .then((r) => (r.ok ? r.json() : null))
       .then((d) => setItems(d?.proposed ?? []))

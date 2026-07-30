@@ -773,7 +773,12 @@ export default function AdminShell({
                     <Link
                       key={item.href}
                       href={item.href}
-                      prefetch
+                      // Every admin page is server-rendered, and an explicit
+                      // `prefetch` (=true) makes the router fetch a FULL render
+                      // of each visible nav item — ~12 free server renders per
+                      // sidebar paint, repeated on every refresh. The default
+                      // sends router state only. Cost, not latency, decides here.
+                      prefetch={false}
                       className="admin-navlink relative flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm transition-all duration-150 will-change-transform"
                       style={{
                         backgroundColor: active ? "var(--admin-active)" : "transparent",

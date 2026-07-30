@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getPortalUser } from "@/lib/auth";
 import { createAdminClient } from "@/lib/supabase";
+import { revalidateDestinationById } from "@/lib/revalidate-public";
 import { COMMUNITY_VERIFY_THRESHOLD } from "@/lib/spotguide";
 import { getStanding, publishDestinationIfEarned } from "@/lib/spotguide-trust";
 
@@ -79,6 +80,10 @@ export async function POST(request: NextRequest) {
       await db.from("spots").update({ status: "hidden", updated_at: new Date().toISOString() }).eq("id", spotId);
       hidden = true;
     }
+  }
+  // a promotion or a community hide changes what the public guide lists
+  if (verification !== spot.verification || hidden) {
+    await revalidateDestinationById(db, spot.destination_id, { alsoMagazine: true });
   }
   return NextResponse.json({ ok: true, category: "location", confirms, flags, verification, hidden });
 }

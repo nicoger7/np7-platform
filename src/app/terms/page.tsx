@@ -3,7 +3,7 @@ import { getLegalEntity } from "@/lib/legal";
 import { LegalShell } from "@/components/shared/legal-shell";
 
 export const metadata: Metadata = { title: "Terms — NP7", robots: { index: true } };
-export const revalidate = 300;
+export const revalidate = 86400;
 
 export default async function TermsPage() {
   const e = await getLegalEntity();

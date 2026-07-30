@@ -4,7 +4,7 @@ import { getLegalEntity, addressLine } from "@/lib/legal";
 import { LegalShell } from "@/components/shared/legal-shell";
 
 export const metadata: Metadata = { title: "Widerrufsbelehrung — NP7", robots: { index: true } };
-export const revalidate = 300;
+export const revalidate = 86400;
 
 /**
  * Statutory withdrawal instruction (Muster-Widerrufsbelehrung, Anlage 1 EGBGB,

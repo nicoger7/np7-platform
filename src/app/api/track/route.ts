@@ -66,8 +66,23 @@ function buildRow(ev: Record<string, unknown>, country: string | null) {
     experience_slug: clip(ev.experienceSlug, 120),
     country: country ? country.slice(0, 2).toUpperCase() : null,
     authed: ev.authed === true,
+    ts: occurredAt(ev.age),
     meta,
   };
+}
+
+/**
+ * When the events arrive batched, letting the column default to now() would
+ * stamp every row in the batch with the SAME instant — which destroys the
+ * ordering that entry/exit-page and drop-off analysis reads. The client sends
+ * `age`: how many ms ago the event happened, measured as a DURATION on the
+ * client, so a skewed device clock can't shift the row. Absent or implausible →
+ * fall back to now.
+ */
+function occurredAt(age: unknown): string {
+  const ms = typeof age === "number" && Number.isFinite(age) ? age : 0;
+  if (ms <= 0 || ms > 30 * 60 * 1000) return new Date().toISOString();
+  return new Date(Date.now() - ms).toISOString();
 }
 
 async function mirrorToNicoprienAdmin(rows: Row[], referrers: (string | null)[]) {

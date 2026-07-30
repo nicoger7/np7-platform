@@ -3,7 +3,7 @@ import { getLegalEntity, addressLine } from "@/lib/legal";
 import { LegalShell } from "@/components/shared/legal-shell";
 
 export const metadata: Metadata = { title: { absolute: "Privacy Policy — NP7" }, robots: { index: true } };
-export const revalidate = 300;
+export const revalidate = 86400;
 
 export default async function PrivacyPage() {
   const e = await getLegalEntity();

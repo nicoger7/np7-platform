@@ -56,6 +56,10 @@ export function AddSpot({ destId, destName, destinations, accent = "#00afdb" }: 
     });
     setBusy(false);
     if (res.ok) { setDone(true); setOpen(false); router.refresh(); /* re-fetch so the new spot shows here, badged "under review" */ }
+    // An expired or revoked session looks logged-in on the client, so a bare
+    // error message here was a dead end ("please sign in" with nothing to click).
+    // Offer the login modal instead — the typed spot survives, it's still in state.
+    else if (res.status === 401) { sg.needAuth("login"); }
     else { const j = await res.json().catch(() => ({})); setError(j.error ?? "Could not submit."); }
   }
 
