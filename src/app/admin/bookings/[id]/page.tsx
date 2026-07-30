@@ -6,6 +6,7 @@ import Link from "next/link";
 import { ContactPicker } from "@/components/contact-picker";
 import { SearchSelect } from "@/components/admin/search-select";
 import { type DocumentType, formatMoney } from "@/lib/invoices/types";
+import { parseAmount, formatAmount } from "@/lib/parse-amount";
 import { normalizeBookingStatus } from "@/lib/types";
 import { effectiveAddonStatus } from "@/lib/addons";
 import { describePrice } from "@/lib/pricing";
@@ -426,8 +427,10 @@ export function BookingDetailPane({ bookingId, onBack }: { bookingId: string; on
   }
 
   async function addPayment() {
+    const amount = parseAmount(paymentForm.amount);
+    if (amount === null || amount === 0) return;
     const body = {
-      amount: Number(paymentForm.amount),
+      amount,
       type: paymentForm.type,
       direction: paymentForm.direction || "revenue",
       status: paymentForm.status || "paid",
@@ -464,7 +467,7 @@ export function BookingDetailPane({ bookingId, onBack }: { bookingId: string; on
     setAllocForm((f) => ({ ...f, busy: true }));
     const res = await fetch(`/api/admin/bookings/${id}/allocate`, {
       method: "POST", headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ toBookingId: allocForm.toBookingId, amount: Number(allocForm.amount) }),
+      body: JSON.stringify({ toBookingId: allocForm.toBookingId, amount: parseAmount(allocForm.amount) ?? 0 }),
     });
     const j = await res.json().catch(() => ({}));
     if (res.ok) {
@@ -521,6 +524,7 @@ export function BookingDetailPane({ bookingId, onBack }: { bookingId: string; on
 
   const totalPaid = booking.payments.reduce((sum, p) => sum + Number(p.amount), 0);
   const outstanding = booking.agreed_price ? Math.max(0, Number(booking.agreed_price) - totalPaid) : 0;
+  const parsedPayAmount = parseAmount(paymentForm.amount);
   // Custom-price vs the package list (+ confirmed add-ons): discount / match / "as discussed".
   const confirmedAddonsTotal = booking.addons
     .filter((a) => effectiveAddonStatus(a) === "confirmed")
@@ -972,7 +976,16 @@ export function BookingDetailPane({ bookingId, onBack }: { bookingId: string; on
                 Allocate to booking…
               </button>
               <button
-                onClick={() => setShowPaymentForm(!showPaymentForm)}
+                onClick={() => {
+                  const opening = !showPaymentForm;
+                  setShowPaymentForm(opening);
+                  // Opening it: start from what is actually owed. That's the
+                  // amount being recorded almost every time, and it saves
+                  // retyping a figure whose formatting is easy to get wrong.
+                  if (opening && !paymentForm.amount && outstanding > 0) {
+                    setPaymentForm((f) => ({ ...f, amount: String(outstanding), type: totalPaid > 0 ? "final" : f.type }));
+                  }
+                }}
                 className="px-3 py-1.5 bg-[var(--admin-accent)] hover:bg-[var(--admin-accent)]/90 text-[var(--admin-accent-contrast)] text-xs font-bold rounded-lg transition-colors"
               >
                 Record Payment
@@ -990,7 +1003,7 @@ export function BookingDetailPane({ bookingId, onBack }: { bookingId: string; on
               <div className="grid grid-cols-[140px_1fr_auto] gap-3 items-end">
                 <div>
                   <label className={labelClass}>Amount (€) *</label>
-                  <input className={inputClass} type="number" step="0.01" min="0" value={allocForm.amount}
+                  <input className={inputClass} type="text" inputMode="decimal" placeholder="3.845 or 3845" value={allocForm.amount}
                     onChange={(e) => setAllocForm((f) => ({ ...f, amount: e.target.value }))} />
                 </div>
                 <div>
@@ -1003,7 +1016,7 @@ export function BookingDetailPane({ bookingId, onBack }: { bookingId: string; on
                 </div>
                 <button
                   onClick={submitAllocation}
-                  disabled={allocForm.busy || !allocForm.toBookingId || !(Number(allocForm.amount) > 0)}
+                  disabled={allocForm.busy || !allocForm.toBookingId || !((parseAmount(allocForm.amount) ?? 0) > 0)}
                   className="px-3 py-2 bg-[var(--admin-accent)] hover:bg-[var(--admin-accent)]/90 text-[var(--admin-accent-contrast)] text-xs font-bold rounded-lg transition-colors disabled:opacity-50"
                 >
                   {allocForm.busy ? "Moving…" : "Move money"}
@@ -1017,7 +1030,20 @@ export function BookingDetailPane({ bookingId, onBack }: { bookingId: string; on
               <div className="grid grid-cols-3 gap-3 mb-3">
                 <div>
                   <label className={labelClass}>Amount (€) *</label>
-                  <input className={inputClass} type="number" step="0.01" value={paymentForm.amount} onChange={(e) => setPaymentForm({ ...paymentForm, amount: e.target.value })} />
+                  {/* Text, not type="number": the balance above is printed as
+                      "€3.845", and pasting that back into a number input made the
+                      whole field invalid — the browser reports an empty value, so
+                      Add greyed out with nothing to explain it. parseAmount also
+                      stops "3.845" being read as three euros eighty-five. */}
+                  <input className={inputClass} type="text" inputMode="decimal" placeholder="3.845 or 3845"
+                    value={paymentForm.amount} onChange={(e) => setPaymentForm({ ...paymentForm, amount: e.target.value })} />
+                  {/* Say out loud what will be stored — the notation is ambiguous
+                      and a silent misread here is a wrong ledger. */}
+                  {paymentForm.amount.trim() !== "" && (
+                    parsedPayAmount === null
+                      ? <p className="text-[11px] text-amber-500 mt-1">Not a number — try 3845 or 3.845</p>
+                      : <p className="text-[11px] admin-faint mt-1">Records €{formatAmount(parsedPayAmount)}</p>
+                  )}
                 </div>
                 <div>
                   <label className={labelClass}>Type</label>
@@ -1074,7 +1100,9 @@ export function BookingDetailPane({ bookingId, onBack }: { bookingId: string; on
                 </div>
               )}
               <div className="flex gap-2">
-                <button onClick={addPayment} disabled={!paymentForm.amount} className="px-3 py-1.5 bg-[var(--admin-accent)] hover:bg-[var(--admin-accent)]/90 disabled:opacity-40 text-[var(--admin-accent-contrast)] text-xs font-bold rounded-lg">
+                <button onClick={addPayment} disabled={parsedPayAmount === null || parsedPayAmount === 0}
+                  title={parsedPayAmount === null ? "Type an amount first" : parsedPayAmount === 0 ? "An amount of 0 records nothing" : undefined}
+                  className="px-3 py-1.5 bg-[var(--admin-accent)] hover:bg-[var(--admin-accent)]/90 disabled:opacity-40 text-[var(--admin-accent-contrast)] text-xs font-bold rounded-lg">
                   Add
                 </button>
                 <button onClick={() => setShowPaymentForm(false)} className="px-3 py-1.5 admin-muted text-xs rounded-lg">Cancel</button>

@@ -165,6 +165,7 @@ function BookingsInner() {
   const [view, setView] = useState<ViewMode>("table");
   const [filterStatus, setFilterStatus] = useState<string>("");
   const [filterExperience, setFilterExperience] = useState<string>("");
+  const [search, setSearch] = useState("");
   const [showNew, setShowNew] = useState(false);
   const [sortKey, setSortKey] = useState<string | null>(null);
   const [sortDir, setSortDir] = useState<SortDir>(null);
@@ -198,9 +199,21 @@ function BookingsInner() {
     ).values()
   );
 
+  // Free-text search across the fields you'd actually recognise someone by —
+  // booking name, contact name, email, phone, and the trip they're on. Every
+  // term has to match somewhere, so "frank garda" narrows instead of widening.
+  const terms = search.toLowerCase().split(/\s+/).filter(Boolean);
   const filtered = bookings.filter((b) => {
     if (filterStatus && effStatus(b) !== filterStatus) return false;
     if (filterExperience && b.experience?.id !== filterExperience) return false;
+    if (terms.length) {
+      const hay = [
+        b.name, b.contact?.name, b.contact?.email, b.contact?.phone,
+        b.experience?.title, b.experience?.location, b.package?.name,
+        b.edition?.label, b.edition?.year,
+      ].filter(Boolean).join(" ").toLowerCase();
+      if (!terms.every((t) => hay.includes(t))) return false;
+    }
     return true;
   });
 
@@ -251,7 +264,10 @@ function BookingsInner() {
         <div>
           <h1 className="text-2xl font-bold admin-heading mb-1">Bookings</h1>
           <p className="text-sm admin-muted">
-            {bookings.length} booking{bookings.length !== 1 ? "s" : ""} across all experiences
+            {/* while searching/filtering, say what you're actually looking at */}
+            {filtered.length === bookings.length
+              ? `${bookings.length} booking${bookings.length !== 1 ? "s" : ""} across all experiences`
+              : `${filtered.length} of ${bookings.length} booking${bookings.length !== 1 ? "s" : ""}`}
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-2 sm:gap-3">
@@ -300,7 +316,25 @@ function BookingsInner() {
       </div>
 
       {/* Filters */}
-      <div className="flex items-center gap-3 mb-5">
+      <div className="flex items-center gap-3 mb-5 flex-wrap">
+        <div className="relative">
+          <svg className="w-4 h-4 admin-faint absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+            <circle cx="11" cy="11" r="7" /><path d="m20 20-3.5-3.5" />
+          </svg>
+          <input
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder="Search name, email, phone, trip…"
+            className="admin-input text-sm pl-9 pr-8 py-1.5 rounded-lg w-[260px]"
+          />
+          {search && (
+            <button onClick={() => setSearch("")} aria-label="Clear search"
+              className="absolute right-2 top-1/2 -translate-y-1/2 w-5 h-5 grid place-items-center rounded admin-faint hover:admin-heading">
+              <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><path d="M18 6L6 18M6 6l12 12" /></svg>
+            </button>
+          )}
+        </div>
+
         <select value={filterStatus} onChange={(e) => setFilterStatus(e.target.value)} className="admin-input text-sm px-3 py-1.5 rounded-lg">
           <option value="">All Statuses</option>
           {STATUSES.map((s) => (
@@ -317,9 +351,9 @@ function BookingsInner() {
           </select>
         )}
 
-        {(filterStatus || filterExperience) && (
+        {(filterStatus || filterExperience || search) && (
           <button
-            onClick={() => { setFilterStatus(""); setFilterExperience(""); }}
+            onClick={() => { setFilterStatus(""); setFilterExperience(""); setSearch(""); }}
             className="text-xs admin-faint hover:admin-muted transition-colors"
           >
             Clear filters
