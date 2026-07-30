@@ -217,41 +217,88 @@ const HERO_ASPECTS = [
 ];
 
 /** hero_focus is a CSS object-position string, e.g. "50% 40%" (null = center). */
-export function HeroFocusPicker({ image, value, onChange, aspects = HERO_ASPECTS, label = "Drag to set the focal point" }: {
+/** Where a `cover` crop of ratio `r` actually lands on the full image, in % of it. */
+function coverBox(imgAspect: number, r: number, fx: number, fy: number) {
+  if (imgAspect > r) {
+    const w = r / imgAspect;                       // full height, sides cut
+    return { left: (fx / 100) * (1 - w) * 100, top: 0, w: w * 100, h: 100 };
+  }
+  const h = imgAspect / r;                         // full width, top/bottom cut
+  return { left: 0, top: (fy / 100) * (1 - h) * 100, w: 100, h: h * 100 };
+}
+
+export function HeroFocusPicker({ image, value, onChange, aspects = HERO_ASPECTS, label = "Drag to set the focal point", onCrop, emptyHint = "Upload a hero image above to set its focal point." }: {
   image: string | null; value: string | null; onChange: (v: string | null) => void;
   /** the real shapes this image gets cropped to — previewed under the canvas */
   aspects?: { r: number; label: string; note: string }[];
   label?: string;
+  /** offered when framing alone can't save the shot — opens the real cropper */
+  onCrop?: () => void;
+  emptyHint?: string;
 }) {
   const [fx, fy] = parseFocus(value);
   const { ref, handlers } = useCanvasDrag((x, y) => onChange(`${x}% ${y}%`));
+  // which shape the crop box on the big canvas is showing
+  const [shape, setShape] = useState(0);
+  const [imgAspect, setImgAspect] = useState<number | null>(null);
   if (!image) {
-    return <p className="text-[13px] text-[var(--admin-fg-muted,#7a8a90)]">Upload a hero image above to set its focal point.</p>;
+    return <p className="text-[13px] text-[var(--admin-fg-muted,#7a8a90)]">{emptyHint}</p>;
   }
+  const target = aspects[Math.min(shape, aspects.length - 1)];
+  const box = imgAspect ? coverBox(imgAspect, target.r, fx, fy) : null;
   return (
     <div className="rounded-2xl border border-[var(--admin-border,#e3e9ec)] bg-[var(--admin-card,#fff)] p-4 sm:p-5">
-      <div className="flex items-center justify-between mb-3">
+      <div className="flex items-center justify-between gap-3 mb-3">
         <span className="text-[12px] font-bold uppercase tracking-[0.12em] text-[var(--admin-fg-muted,#7a8a90)]">{label}</span>
-        <button type="button" onClick={() => onChange(null)} className="text-[12px] font-semibold text-[#c0392b] hover:underline">Center</button>
+        <div className="flex items-center gap-3 shrink-0">
+          {onCrop && (
+            <button type="button" onClick={onCrop} className="text-[12px] font-bold text-[var(--admin-fg,#0a2a33)] hover:underline">Crop the photo…</button>
+          )}
+          <button type="button" onClick={() => onChange(null)} className="text-[12px] font-semibold text-[#c0392b] hover:underline">Center</button>
+        </div>
       </div>
+
+      {/* Which shape to judge against — the box on the canvas follows this. */}
+      <div className="flex flex-wrap gap-1.5 mb-3">
+        {aspects.map((a, i) => (
+          <button key={a.label} type="button" onClick={() => setShape(i)}
+            className={`px-2.5 py-1 rounded-full text-[11.5px] font-bold transition-colors ${
+              i === shape
+                ? "bg-[var(--admin-accent)] text-[var(--admin-accent-contrast)]"
+                : "text-[var(--admin-fg-muted,#7a8a90)] border border-[var(--admin-border,#e3e9ec)] hover:text-[var(--admin-fg,#0a2a33)]"
+            }`}>{a.label}</button>
+        ))}
+      </div>
+
       {/* The canvas shows the FULL image, static — the old cover-cropped canvas
           panned underneath the pointer while dragging (its background-position
           was the value being edited), so the dot drifted away from the feature
-          you aimed at. Point at the pixel; the crops below preview the result. */}
+          you aimed at. Point at the pixel; the lit rectangle is what survives. */}
       <div ref={ref} {...handlers}
         className="relative w-full rounded-xl overflow-hidden cursor-crosshair select-none touch-none ring-1 ring-black/5 bg-[#0b0b0c]">
         {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img src={image} alt="" draggable={false} className="block w-full h-auto pointer-events-none select-none" />
+        <img src={image} alt="" draggable={false} className="block w-full h-auto pointer-events-none select-none"
+          onLoad={(e) => {
+            const el = e.currentTarget;
+            if (el.naturalWidth && el.naturalHeight) setImgAspect(el.naturalWidth / el.naturalHeight);
+          }} />
+        {/* everything outside the crop is dimmed by the ring-shadow, clipped by the parent */}
+        {box && (
+          <span aria-hidden className="pointer-events-none absolute border-2 border-white/95"
+            style={{ left: `${box.left}%`, top: `${box.top}%`, width: `${box.w}%`, height: `${box.h}%`,
+                     boxShadow: "0 0 0 9999px rgba(0,0,0,0.55)" }} />
+        )}
         <span aria-hidden className="pointer-events-none absolute z-10 -translate-x-1/2 -translate-y-1/2 w-8 h-8 rounded-full border-2 border-white shadow-[0_0_0_2px_rgba(0,0,0,0.45)]"
           style={{ left: `${fx}%`, top: `${fy}%`, background: "rgba(0,175,219,0.3)" }} />
       </div>
       <div className="mt-4 grid grid-cols-3 gap-3">
-        {aspects.map((a) => (
-          <div key={a.label}>
-            <div className="w-full rounded-lg overflow-hidden bg-cover ring-1 ring-black/5"
-              style={{ aspectRatio: String(a.r), backgroundImage: `url('${image}')`, backgroundPosition: `${fx}% ${fy}%` }} />
+        {aspects.map((a, i) => (
+          <button key={a.label} type="button" onClick={() => setShape(i)} className="text-left">
+            <div className="w-full rounded-lg overflow-hidden bg-cover ring-1 transition-all"
+              style={{ aspectRatio: String(a.r), backgroundImage: `url('${image}')`, backgroundPosition: `${fx}% ${fy}%`,
+                       ...(i === shape ? { boxShadow: "0 0 0 2px var(--admin-accent)" } : {}) }} />
             <p className="text-[11px] text-[var(--admin-fg-muted,#7a8a90)] mt-1"><span className="font-bold text-[var(--admin-fg,#0a2a33)]">{a.label}</span>{a.note ? ` · ${a.note}` : ""}</p>
-          </div>
+          </button>
         ))}
       </div>
     </div>

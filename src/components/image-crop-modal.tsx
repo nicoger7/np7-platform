@@ -9,7 +9,13 @@ interface ImageCropModalProps {
   fileName: string;
   filePath: string;
   onClose: () => void;
-  onSaved: () => void;
+  /** the saved file's public URL — callers that hold a URL (not a file row) re-point their field at it */
+  onSaved: (url?: string) => void;
+  /** ratio buttons; defaults to the generic set used by File Storage */
+  presets?: { label: string; aspect: number | undefined }[];
+  title?: string;
+  /** hide "Replace original" where overwriting would break other pages using the same photo */
+  allowReplace?: boolean;
 }
 
 function getCroppedBlob(
@@ -55,6 +61,9 @@ export default function ImageCropModal({
   filePath,
   onClose,
   onSaved,
+  presets = PRESETS,
+  title = "Crop Image",
+  allowReplace = true,
 }: ImageCropModalProps) {
   const [crop, setCrop] = useState<Crop>();
   const [completedCrop, setCompletedCrop] = useState<PixelCrop>();
@@ -79,10 +88,11 @@ export default function ImageCropModal({
     formData.append("file", new File([blob], fileName, { type: "image/png" }));
     formData.append("folder", folder);
 
-    await fetch("/api/admin/images", { method: "POST", body: formData });
+    const res = await fetch("/api/admin/images", { method: "POST", body: formData });
+    const saved = res.ok ? await res.json().catch(() => null) : null;
 
     setSaving(false);
-    onSaved();
+    onSaved(saved?.url ?? undefined);
   }
 
   async function handleSaveAsNew() {
@@ -101,10 +111,11 @@ export default function ImageCropModal({
     formData.append("file", new File([blob], newName, { type: "image/png" }));
     formData.append("folder", folder);
 
-    await fetch("/api/admin/images", { method: "POST", body: formData });
+    const res = await fetch("/api/admin/images", { method: "POST", body: formData });
+    const saved = res.ok ? await res.json().catch(() => null) : null;
 
     setSaving(false);
-    onSaved();
+    onSaved(saved?.url ?? undefined);
   }
 
   return (
@@ -113,7 +124,7 @@ export default function ImageCropModal({
         {/* Header */}
         <div className="flex items-center justify-between p-5" style={{ borderBottom: "1px solid var(--admin-border)" }}>
           <div>
-            <h2 className="text-lg font-bold admin-heading">Crop Image</h2>
+            <h2 className="text-lg font-bold admin-heading">{title}</h2>
             <p className="text-xs admin-muted mt-0.5">{fileName}</p>
           </div>
           <button
@@ -132,7 +143,7 @@ export default function ImageCropModal({
         {/* Aspect ratio presets */}
         <div className="flex items-center gap-2 px-5 py-3" style={{ borderBottom: "1px solid var(--admin-border)" }}>
           <span className="text-xs admin-faint mr-1">Ratio:</span>
-          {PRESETS.map((preset) => (
+          {presets.map((preset) => (
             <button
               key={preset.label}
               onClick={() => {
@@ -142,7 +153,7 @@ export default function ImageCropModal({
               }}
               className={`px-3 py-1 rounded-md text-xs font-medium transition-colors ${
                 aspect === preset.aspect
-                  ? "bg-[#0aa3c7] text-white"
+                  ? "bg-[var(--admin-accent)] text-[var(--admin-accent-contrast)]"
                   : "admin-surface admin-muted"
               }`}
             >
@@ -180,22 +191,29 @@ export default function ImageCropModal({
           >
             Cancel
           </button>
+          {/* Replace stays the primary action in File Storage (the habit there);
+              where overwriting would hit other pages using the same photo the
+              caller drops it, and the copy becomes primary. */}
           <div className="flex gap-3">
             <button
               onClick={handleSaveAsNew}
               disabled={!completedCrop || saving}
-              className="px-4 py-2 admin-surface disabled:opacity-30 admin-heading text-sm font-medium rounded-lg transition-colors"
-              style={{ border: "1px solid var(--admin-border)" }}
+              className={allowReplace
+                ? "px-4 py-2 admin-surface disabled:opacity-30 admin-heading text-sm font-medium rounded-lg transition-colors"
+                : "px-4 py-2 bg-[var(--admin-accent)] hover:opacity-90 disabled:opacity-30 text-[var(--admin-accent-contrast)] text-sm font-bold rounded-lg transition-colors"}
+              style={allowReplace ? { border: "1px solid var(--admin-border)" } : undefined}
             >
-              Save as copy
+              {saving && !allowReplace ? "Saving..." : "Save as copy"}
             </button>
-            <button
-              onClick={handleSave}
-              disabled={!completedCrop || saving}
-              className="px-4 py-2 bg-[#0aa3c7] hover:bg-[#0aa3c7]/90 disabled:opacity-30 text-white text-sm font-bold rounded-lg transition-colors"
-            >
-              {saving ? "Saving..." : "Replace original"}
-            </button>
+            {allowReplace && (
+              <button
+                onClick={handleSave}
+                disabled={!completedCrop || saving}
+                className="px-4 py-2 bg-[var(--admin-accent)] hover:opacity-90 disabled:opacity-30 text-[var(--admin-accent-contrast)] text-sm font-bold rounded-lg transition-colors"
+              >
+                {saving ? "Saving..." : "Replace original"}
+              </button>
+            )}
           </div>
         </div>
       </div>

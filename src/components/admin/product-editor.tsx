@@ -8,6 +8,7 @@ import { useState, useEffect } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import ImagePickerModal from "@/components/image-picker-modal";
+import ImageCropModal from "@/components/image-crop-modal";
 import {
   Product,
   ProductContent,
@@ -31,6 +32,39 @@ function slugify(name: string) {
     .replace(/[^a-z0-9]+/g, "-")
     .replace(/^-|-$/g, "");
 }
+
+/** A media URL back to the storage key the cropper uploads next to.
+ *  R2 URLs are `<cdn>/<key>`; older Supabase ones carry a bucket prefix we drop
+ *  so a crop can't land in a `storage/v1/object/...` junk folder. */
+function storageRef(url: string): { name: string; path: string } {
+  const fallback = { name: "image.jpg", path: "hardware/products/image.jpg" };
+  try {
+    let p = decodeURIComponent(new URL(url, "https://media.np-seven.com").pathname).replace(/^\/+/, "");
+    const sb = p.match(/storage\/v1\/object\/(?:public\/)?[^/]+\/(.+)$/);
+    if (sb) p = sb[1];
+    const name = p.split("/").pop();
+    if (!name) return fallback;
+    return { name, path: p };
+  } catch {
+    return fallback;
+  }
+}
+
+/** Ratios the product photos are actually shown at. */
+const HERO_CROP_PRESETS = [
+  { label: "Free", aspect: undefined },
+  { label: "21:9 hero", aspect: 21 / 9 },
+  { label: "16:9", aspect: 16 / 9 },
+  { label: "4:3", aspect: 4 / 3 },
+  { label: "1:1", aspect: 1 },
+];
+const TILE_CROP_PRESETS = [
+  { label: "Free", aspect: undefined },
+  { label: "Shop card", aspect: 1.7 },
+  { label: "Fins card", aspect: 1.25 },
+  { label: "Phone card", aspect: 0.85 },
+  { label: "1:1", aspect: 1 },
+];
 
 function StatusBadge({ status }: { status: string | null }) {
   const s = status ?? "draft";
@@ -139,11 +173,14 @@ function ImageField({
   onPick,
   onClear,
   ratio,
+  onCrop,
 }: {
   url: string;
   onPick: () => void;
   onClear: () => void;
   ratio: string;
+  /** opens the real cropper on this photo (File Storage's tool, reused here) */
+  onCrop?: () => void;
 }) {
   if (url) {
     return (
@@ -154,6 +191,14 @@ function ImageField({
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img src={url} alt="" className="w-full h-full object-cover" />
         <div className="absolute top-2 right-2 flex gap-1.5">
+          {onCrop && (
+            <button
+              onClick={onCrop}
+              className="px-2.5 py-1 rounded-md text-[11px] font-bold bg-black/60 text-white hover:bg-black/80"
+            >
+              Crop
+            </button>
+          )}
           <button
             onClick={onPick}
             className="px-2.5 py-1 rounded-md text-[11px] font-bold bg-black/60 text-white hover:bg-black/80"
@@ -292,6 +337,8 @@ export default function ProductEditor({
 
   // Image picker
   const [picker, setPicker] = useState<PickerTarget | null>(null);
+  // Real cropping — File Storage's tool, opened on the hero or the card photo
+  const [cropping, setCropping] = useState<{ kind: "hero" | "tile"; url: string } | null>(null);
 
   // ── Loaders ──────────────────────────────────────────────────────────────
 
@@ -729,23 +776,66 @@ export default function ProductEditor({
           CONTENT TAB
       ════════════════════════════════════════════ */}
       {tab === "media" && (
-        <div className="max-w-[720px] space-y-7">
-          {/* Hero */}
+        <div className="max-w-[720px] space-y-9">
+          {/* ── Hero: the photo, then its framing, then the video that replaces
+                 it. Framing used to sit below the gallery, three sections away
+                 from the image it frames. ── */}
           <section>
             <h2 className="text-[15px] font-bold admin-heading">Hero image</h2>
-            <p className="text-xs admin-faint mb-3 mt-0.5">Main banner shown at the top of the product page.</p>
+            <p className="text-xs admin-faint mb-3 mt-0.5">Main banner at the top of the product page.</p>
             <ImageField
               url={content.hero_image || ""}
               onPick={() => setPicker({ kind: "hero" })}
               onClear={() => updateContent("hero_image", null)}
+              onCrop={content.hero_image ? () => setCropping({ kind: "hero", url: content.hero_image! }) : undefined}
               ratio="aspect-[21/9]"
             />
+            {content.hero_image && (
+              <div className="mt-4">
+                <HeroFocusPicker
+                  image={content.hero_image}
+                  value={content.hero_focus ?? null}
+                  onChange={(v) => updateContent("hero_focus", v)}
+                  label="Hero framing — drag the point that must stay in shot"
+                  onCrop={() => setCropping({ kind: "hero", url: content.hero_image! })}
+                />
+                <p className="text-[11px] admin-faint mt-2">The hero reshapes with the screen — wide on desktop, tall on a phone. Framing keeps your point centred; crop when the photo itself needs cutting.</p>
+              </div>
+            )}
+          </section>
+
+          {/* Card / tile — its own crop, because a wide hero rarely works small */}
+          <section>
+            <h2 className="text-[15px] font-bold admin-heading">Card image</h2>
+            <p className="text-xs admin-faint mb-3 mt-0.5">The photo on shop cards and the fins range. Leave empty to reuse the hero — a card is narrow, so its own shot (or at least its own framing) usually looks better.</p>
+            <ImageField
+              url={content.tile_image || ""}
+              onPick={() => setPicker({ kind: "tile" })}
+              onClear={() => updateContent("tile_image", null)}
+              onCrop={content.tile_image ? () => setCropping({ kind: "tile", url: content.tile_image! }) : undefined}
+              ratio="aspect-[4/3]"
+            />
+            {(content.tile_image || content.hero_image) && (
+              <div className="mt-4">
+                <HeroFocusPicker
+                  image={content.tile_image || content.hero_image}
+                  value={(content.tile_image ? content.tile_focus : content.tile_focus ?? content.hero_focus) ?? null}
+                  onChange={(v) => updateContent("tile_focus", v)}
+                  aspects={TILE_ASPECTS}
+                  label="Card framing — drag to frame the card"
+                  onCrop={() => setCropping({ kind: "tile", url: (content.tile_image || content.hero_image)! })}
+                />
+                {!content.tile_image && (
+                  <p className="text-[11px] admin-faint mt-2">Framing the hero photo for card use — it doesn&apos;t change the hero itself. Cropping here saves a copy and makes it the card image.</p>
+                )}
+              </div>
+            )}
           </section>
 
           {/* Hero video */}
           <section>
             <h2 className="text-[15px] font-bold admin-heading">Hero video URL</h2>
-            <p className="text-xs admin-faint mb-3 mt-0.5">YouTube link for a video hero (overrides hero image).</p>
+            <p className="text-xs admin-faint mb-3 mt-0.5">YouTube link for a video hero (overrides the hero image).</p>
             <input
               className={inputClass}
               value={content.hero_video_url || ""}
@@ -800,44 +890,6 @@ export default function ProductEditor({
             </div>
           </section>
 
-          {/* Framing — one photo, every shape it appears in */}
-          {content.hero_image && (
-            <section>
-              <h2 className="text-[15px] font-bold admin-heading">Framing</h2>
-              <p className="text-xs admin-faint mb-3 mt-0.5">Drag to set what stays centred as the hero reshapes — wide on desktop, tall on phone. The previews below are the real shapes.</p>
-              <HeroFocusPicker
-                image={content.hero_image}
-                value={content.hero_focus ?? null}
-                onChange={(v) => updateContent("hero_focus", v)}
-              />
-            </section>
-          )}
-
-          {/* Card / tile — its own crop, because a wide hero rarely works small */}
-          <section>
-            <h2 className="text-[15px] font-bold admin-heading">Card image</h2>
-            <p className="text-xs admin-faint mb-3 mt-0.5">The photo on shop cards and the fins range. Leave empty to reuse the hero — a card is narrow, so its own shot (or at least its own framing) usually looks better.</p>
-            <ImageField
-              url={content.tile_image || ""}
-              onPick={() => setPicker({ kind: "tile" })}
-              onClear={() => updateContent("tile_image", null)}
-              ratio="aspect-[4/3]"
-            />
-            {(content.tile_image || content.hero_image) && (
-              <div className="mt-4">
-                <HeroFocusPicker
-                  image={content.tile_image || content.hero_image}
-                  value={(content.tile_image ? content.tile_focus : content.tile_focus ?? content.hero_focus) ?? null}
-                  onChange={(v) => updateContent("tile_focus", v)}
-                  aspects={TILE_ASPECTS}
-                  label="Drag to frame the card"
-                />
-                {!content.tile_image && (
-                  <p className="text-[11px] admin-faint mt-2">Framing the hero photo for card use — it doesn&apos;t change the hero itself.</p>
-                )}
-              </div>
-            )}
-          </section>
         </div>
       )}
 
@@ -1497,6 +1549,34 @@ export default function ProductEditor({
           defaultFolder={slug ? `products/${slug}` : undefined}
           onSelect={applyPicked}
           onClose={() => setPicker(null)}
+        />
+      )}
+
+      {/* ── Crop modal ── the same tool as File Storage. Replacing the original
+             is hidden here: the photo is shared with the gallery and other
+             pages, so a crop saves a copy and this field points at it. ── */}
+      {cropping && (
+        <ImageCropModal
+          src={cropping.url}
+          fileName={storageRef(cropping.url).name}
+          filePath={storageRef(cropping.url).path}
+          title={cropping.kind === "hero" ? "Crop the hero photo" : "Crop the card photo"}
+          presets={cropping.kind === "hero" ? HERO_CROP_PRESETS : TILE_CROP_PRESETS}
+          allowReplace={false}
+          onClose={() => setCropping(null)}
+          onSaved={(url) => {
+            if (url) {
+              // a crop is already framed — reset the focal point for that slot
+              if (cropping.kind === "hero") {
+                updateContent("hero_image", url);
+                updateContent("hero_focus", null);
+              } else {
+                updateContent("tile_image", url);
+                updateContent("tile_focus", null);
+              }
+            }
+            setCropping(null);
+          }}
         />
       )}
     </div>
