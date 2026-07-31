@@ -96,10 +96,21 @@ export async function getPortalUser(opts: { allowPreview?: boolean } = {}): Prom
   return { userId: user.id, email: user.email ?? contact.email ?? "", contactId: contact.id, name: contact.name };
 }
 
-export async function requirePortalApi():
+export async function requirePortalApi(opts: { allowPreview?: boolean } = {}):
   Promise<{ ok: true; user: PortalUser } | { ok: false; res: NextResponse }> {
-  // Never impersonate on the shared API guard — writes act as the real user.
-  const user = await getPortalUser({ allowPreview: false });
+  // Impersonation is OFF by default: a write must always act as the real user.
+  //
+  // READ handlers may opt in with { allowPreview: true }. Without it the admin's
+  // "Member view" was only ever half-true — server-rendered content came from the
+  // previewed member, but anything the portal fetched client-side ran as the
+  // ADMIN, so it 404'd or came back empty. Add-ons were the visible symptom:
+  // GET /api/portal/bookings/<id>/addons returned "Booking not found" because
+  // ownedBooking() compared the booking to the admin's own contact id.
+  //
+  // The impersonation itself is already tightly scoped in viewAsPreviewUser():
+  // it needs the admin-set cookie, an ACTIVE team member, and a non-`document`
+  // fetch — so it cannot leak into the admin's own top-level browsing.
+  const user = await getPortalUser({ allowPreview: opts.allowPreview === true });
   if (!user) return { ok: false, res: NextResponse.json({ error: "Unauthorized" }, { status: 401 }) };
   return { ok: true, user };
 }

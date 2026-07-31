@@ -395,6 +395,66 @@ export default function ExperienceDetailPage({
             </div>
           </div>
 
+          {/* Status + website visibility live at the TOP: they're the first
+              thing you check when you open a template and the last thing you
+              want to hunt for at the bottom of a long form. Side by side, so
+              lifting them costs one row rather than two screens. */}
+          <div className="grid md:grid-cols-2 gap-4 items-start">
+          {/* Status — operational lifecycle. "Active" = published value; whether it
+              shows on the public website is a SEPARATE toggle below. */}
+          <div>
+            <label className={labelClass}>Template Status</label>
+            <p className="text-xs admin-faint mb-2">Is this experience live for the team? <span className="admin-muted">Active</span> means it&apos;s running and taking bookings (per-year status is set on each edition). Showing it on the public website is a separate switch.</p>
+            <div className="flex gap-2">
+              {[
+                { value: "draft", label: "Draft" },
+                { value: "published", label: "Active" },
+                { value: "archived", label: "Archived" },
+              ].map((s) => (
+                <button
+                  key={s.value}
+                  onClick={() => update("status", s.value)}
+                  className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+                    exp.status === s.value
+                      ? s.value === "published"
+                        ? "bg-green-500/20 text-green-400 border border-green-500/30"
+                        : s.value === "archived"
+                        ? "bg-red-500/20 text-red-400 border border-red-500/30"
+                        : "admin-heading border"
+                      : "admin-surface admin-faint border"
+                  }`}
+                  style={{
+                    borderColor: exp.status === s.value && s.value === "draft" ? "var(--admin-input-border)" :
+                                 exp.status !== s.value ? "var(--admin-border)" : undefined,
+                  }}
+                >
+                  {s.label}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Public website visibility — independent of Active. An active experience
+              can be invite-only (off the public site), e.g. Madagascar. */}
+          <div>
+            <label className={labelClass}>Public website</label>
+            <p className="text-xs admin-faint mb-2">Show this experience on the public site &amp; gift options. Turn off for active-but-invite-only trips — it stays fully live in admin.</p>
+            <button
+              onClick={() => update("website_visible", exp.website_visible === false)}
+              className="inline-flex items-center gap-2.5 px-4 py-2 rounded-lg text-sm font-medium border transition-colors"
+              style={{ borderColor: "var(--admin-border)", backgroundColor: "var(--admin-surface)" }}
+            >
+              <span
+                className="relative inline-block w-9 h-5 rounded-full transition-colors"
+                style={{ backgroundColor: exp.website_visible === false ? "var(--admin-input-border)" : "#0aa3c7" }}
+              >
+                <span className="absolute top-0.5 w-4 h-4 rounded-full bg-white transition-all" style={{ left: exp.website_visible === false ? "2px" : "18px" }} />
+              </span>
+              <span className="admin-heading">{exp.website_visible === false ? "Off website (invite-only)" : "Shown on website"}</span>
+            </button>
+          </div>
+          </div>
+
           {/* Title, Slug, Code */}
           <div className="grid grid-cols-[1fr_1fr_120px] gap-4">
             <div>
@@ -587,60 +647,6 @@ export default function ExperienceDetailPage({
           <div className="rounded-lg p-3 text-xs admin-faint" style={{ border: "1px dashed var(--admin-border)" }}>
             <span className="font-medium admin-muted">Main image</span> (hero + listing card) is managed in{" "}
             <span className="admin-muted">Website → Event Content → Media</span>, the single source for all imagery.
-          </div>
-
-          {/* Status — operational lifecycle. "Active" = published value; whether it
-              shows on the public website is a SEPARATE toggle below. */}
-          <div>
-            <label className={labelClass}>Template Status</label>
-            <p className="text-xs admin-faint mb-2">Is this experience live for the team? <span className="admin-muted">Active</span> means it&apos;s running and taking bookings (per-year status is set on each edition). Showing it on the public website is a separate switch.</p>
-            <div className="flex gap-2">
-              {[
-                { value: "draft", label: "Draft" },
-                { value: "published", label: "Active" },
-                { value: "archived", label: "Archived" },
-              ].map((s) => (
-                <button
-                  key={s.value}
-                  onClick={() => update("status", s.value)}
-                  className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
-                    exp.status === s.value
-                      ? s.value === "published"
-                        ? "bg-green-500/20 text-green-400 border border-green-500/30"
-                        : s.value === "archived"
-                        ? "bg-red-500/20 text-red-400 border border-red-500/30"
-                        : "admin-heading border"
-                      : "admin-surface admin-faint border"
-                  }`}
-                  style={{
-                    borderColor: exp.status === s.value && s.value === "draft" ? "var(--admin-input-border)" :
-                                 exp.status !== s.value ? "var(--admin-border)" : undefined,
-                  }}
-                >
-                  {s.label}
-                </button>
-              ))}
-            </div>
-          </div>
-
-          {/* Public website visibility — independent of Active. An active experience
-              can be invite-only (off the public site), e.g. Madagascar. */}
-          <div>
-            <label className={labelClass}>Public website</label>
-            <p className="text-xs admin-faint mb-2">Show this experience on the public site &amp; gift options. Turn off for active-but-invite-only trips — it stays fully live in admin.</p>
-            <button
-              onClick={() => update("website_visible", exp.website_visible === false)}
-              className="inline-flex items-center gap-2.5 px-4 py-2 rounded-lg text-sm font-medium border transition-colors"
-              style={{ borderColor: "var(--admin-border)", backgroundColor: "var(--admin-surface)" }}
-            >
-              <span
-                className="relative inline-block w-9 h-5 rounded-full transition-colors"
-                style={{ backgroundColor: exp.website_visible === false ? "var(--admin-input-border)" : "#0aa3c7" }}
-              >
-                <span className="absolute top-0.5 w-4 h-4 rounded-full bg-white transition-all" style={{ left: exp.website_visible === false ? "2px" : "18px" }} />
-              </span>
-              <span className="admin-heading">{exp.website_visible === false ? "Off website (invite-only)" : "Shown on website"}</span>
-            </button>
           </div>
 
         </div>

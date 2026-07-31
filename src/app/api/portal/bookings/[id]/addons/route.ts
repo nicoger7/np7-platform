@@ -14,7 +14,7 @@ async function ownedBooking(db: ReturnType<typeof createAdminClient>, id: string
 
 // GET → { available: [bookable components], mine: [this booking's add-ons] }
 export async function GET(_request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
-  const auth = await requirePortalApi();
+  const auth = await requirePortalApi({ allowPreview: true });
   if (!auth.ok) return auth.res;
   const { id } = await params;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any

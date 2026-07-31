@@ -3,12 +3,29 @@ import { createAdminClient } from "@/lib/supabase";
 import { sendEmail } from "@/lib/email/send";
 
 /**
- * Admin-confirmed cancellation. Cancellations are ALWAYS confirmed by the team
- * (never auto): this sets the booking to "lost", stamps a note, and emails the
- * member a confirmation. Refunds/credits are handled personally — not here.
+ * Cancel a booking. Never automatic — a human always does this.
+ *
+ * Body: { initiator: "customer" | "np7", reason?: string, sendEmail?: boolean }
+ *
+ * Two different events, deliberately not merged: a customer REQUEST that we
+ * confirm, and a cancellation WE make (no-show, non-payment, trip pulled). They
+ * leave different notes, and the confirmation email only makes sense for the
+ * first — so the caller says explicitly whether to send it. Older callers that
+ * post no body still get the previous behaviour (customer request + email).
+ *
+ * Sets the booking to "lost" and stamps the record. Refunds/credits are handled
+ * personally, not here.
  */
 export async function POST(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
+  const body = await request.json().catch(() => ({} as Record<string, unknown>));
+  const initiator = body.initiator === "np7" ? "np7" : "customer";
+  const reason = typeof body.reason === "string" ? body.reason.trim().slice(0, 300) : "";
+  // default true keeps the old one-button behaviour for any caller without a body
+  const sendMail = body.sendEmail !== false;
+  if (initiator === "np7" && !reason) {
+    return NextResponse.json({ error: "A reason is required when NP7 cancels the booking." }, { status: 400 });
+  }
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const db = createAdminClient() as any;
 
@@ -20,13 +37,19 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
   if (!b) return NextResponse.json({ error: "Not found" }, { status: 404 });
 
   const stamp = new Date().toISOString().slice(0, 16).replace("T", " ");
-  const note = `[CANCELLATION CONFIRMED ${stamp} by team]`;
+  // Say WHO ended the booking. Filing an NP7-side cancellation as "confirmed"
+  // reads, months later, as though the customer had asked for it.
+  const note = initiator === "np7"
+    ? `[CANCELLED BY NP7 ${stamp}] ${reason}`
+    : `[CANCELLATION CONFIRMED ${stamp} by team — customer request]`;
   const notes = b.notes ? `${b.notes}\n${note}` : note;
   const { error } = await db.from("exp_bookings").update({ status: "lost", notes }).eq("id", id);
   if (error) return NextResponse.json({ error: error.message }, { status: 400 });
 
-  // Email the member (best-effort — never fails the cancellation).
-  if (b.contacts?.email) {
+  // Email the member (best-effort — never fails the cancellation), and only
+  // when the team asked for it. NOTE: cancellation_confirmed is on the
+  // soft-launch allowlist, so this really does reach the customer today.
+  if (sendMail && b.contacts?.email) {
     const s = b.exp_editions?.date_start as string | null;
     const e = b.exp_editions?.date_end as string | null;
     const fmt = (x: string) => new Date(x).toLocaleDateString("en-GB", { day: "numeric", month: "short" });
@@ -41,5 +64,5 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     }).catch(() => {});
   }
 
-  return NextResponse.json({ ok: true });
+  return NextResponse.json({ ok: true, initiator, emailed: sendMail && !!b.contacts?.email });
 }

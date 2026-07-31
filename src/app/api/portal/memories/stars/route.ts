@@ -19,7 +19,7 @@ async function ownedBooking(bookingId: string, contactId: string) {
 
 // GET /api/portal/memories/stars?bookingId=  → the member's keepers for that trip
 export async function GET(request: NextRequest) {
-  const auth = await requirePortalApi();
+  const auth = await requirePortalApi({ allowPreview: true });
   if (!auth.ok) return auth.res;
   const bookingId = request.nextUrl.searchParams.get("bookingId");
   if (!bookingId) return NextResponse.json({ error: "bookingId required" }, { status: 400 });

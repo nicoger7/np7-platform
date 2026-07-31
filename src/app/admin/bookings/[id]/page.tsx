@@ -12,6 +12,7 @@ import { effectiveAddonStatus } from "@/lib/addons";
 import { describePrice } from "@/lib/pricing";
 import { reconcileBooking, suggestInvoices, type ReconInvoice, type ReconPayment } from "@/lib/reconcile";
 import { computePaymentPlan, dueUrgency, type MilestoneKind } from "@/lib/payments";
+import { CancelBookingModal } from "@/components/admin/cancel-booking-modal";
 
 /**
  * Go back to where you came from — without leaving this page on the history
@@ -189,6 +190,7 @@ export function BookingDetailPane({ bookingId, onBack }: { bookingId: string; on
   // fix a phone number; edit the contact right here on the booking.
   const [contactEdit, setContactEdit] = useState(false);
   const [contactForm, setContactForm] = useState<{ name: string; email: string; phone: string; country: string; level: string; tshirt_size: string; diet_allergies: string }>({ name: "", email: "", phone: "", country: "", level: "", tshirt_size: "", diet_allergies: "" });
+  const [cancelOpen, setCancelOpen] = useState(false);
   const [contactBusy, setContactBusy] = useState(false);
 
   useEffect(() => {
@@ -309,11 +311,19 @@ export function BookingDetailPane({ bookingId, onBack }: { bookingId: string; on
     router.push("/admin/bookings");
   }
 
-  async function handleConfirmCancellation() {
-    if (!confirm("Confirm this cancellation? The booking is set to Lost and the member gets a cancellation email. (Refunds/credits are handled separately.)")) return;
-    const res = await fetch(`/api/admin/bookings/${id}/cancel`, { method: "POST" });
-    if (res.ok) { setBooking((prev) => (prev ? { ...prev, status: "lost" } : prev)); alert("Cancellation confirmed — the member has been emailed."); }
-    else { const j = await res.json().catch(() => ({})); alert(j.error || "Could not confirm the cancellation."); }
+  async function cancelBooking(args: { initiator: "customer" | "np7"; reason: string; sendEmail: boolean }) {
+    const res = await fetch(`/api/admin/bookings/${id}/cancel`, {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(args),
+    });
+    const j = await res.json().catch(() => ({}));
+    if (res.ok) {
+      setBooking((prev) => (prev ? { ...prev, status: "lost" } : prev));
+      setCancelOpen(false);
+      alert(j.emailed ? "Booking cancelled — the customer has been emailed." : "Booking cancelled. No email was sent.");
+    } else {
+      alert(j.error || "Could not cancel the booking.");
+    }
   }
 
   async function handleExperienceChange(expId: string) {
@@ -651,8 +661,8 @@ export function BookingDetailPane({ bookingId, onBack }: { bookingId: string; on
             </div>
           </div>
           {booking.status !== "lost" && (
-            <button onClick={handleConfirmCancellation} className="px-3 py-2 text-xs text-amber-500/80 hover:text-amber-400 transition-colors">
-              Confirm cancellation
+            <button onClick={() => setCancelOpen(true)} className="px-3 py-2 text-xs text-amber-500/80 hover:text-amber-400 transition-colors">
+              Cancel booking…
             </button>
           )}
           <button onClick={handleDelete} className="px-3 py-2 text-xs text-red-400/60 hover:text-red-400 transition-colors">
@@ -1434,6 +1444,13 @@ export function BookingDetailPane({ bookingId, onBack }: { bookingId: string; on
             </div>
           )}
         </div>
+      )}
+      {cancelOpen && booking && (
+        <CancelBookingModal
+          bookingName={booking.name || "this booking"}
+          onClose={() => setCancelOpen(false)}
+          onConfirm={cancelBooking}
+        />
       )}
     </div>
   );

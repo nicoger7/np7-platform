@@ -20,7 +20,7 @@ const RANK_TO_SELECTOR: Record<string, "intermediate" | "advanced" | "pro"> = {
 };
 
 export async function GET() {
-  const auth = await requirePortalApi();
+  const auth = await requirePortalApi({ allowPreview: true });
   if (!auth.ok) return auth.res;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const db = createAdminClient() as any;

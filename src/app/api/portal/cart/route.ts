@@ -11,7 +11,7 @@ export const dynamic = "force-dynamic";
  * render today and swap to live data later without any UI change.
  */
 export async function GET() {
-  const auth = await requirePortalApi();
+  const auth = await requirePortalApi({ allowPreview: true });
   if (!auth.ok) return auth.res;
   return NextResponse.json({ items: [], count: 0, currency: "EUR", subtotal: 0 });
 }
