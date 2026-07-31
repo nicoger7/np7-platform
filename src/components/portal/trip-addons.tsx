@@ -5,9 +5,9 @@ import { effectiveAddonStatus } from "@/lib/addons";
 import { hasFlightDetails, type FlightInfo } from "@/lib/flights";
 import type { ArrivalInfo } from "@/lib/portal-data";
 
-type Available = { id: string; name: string; category: string | null; description: string | null; sell_price: number | null };
+type Available = { id: string; name: string; category: string | null; description: string | null; sell_price: number | null; payment_mode?: string | null; payment_note?: string | null };
 type AddonMeta = { checkIn?: string | null; checkOut?: string | null; nightsBefore?: number; nightsAfter?: number; nights?: number };
-type Mine = { id: string; component_id: string | null; label: string; price: number | null; status?: string | null; notes?: string | null; meta?: AddonMeta | null };
+type Mine = { id: string; component_id: string | null; label: string; price: number | null; status?: string | null; notes?: string | null; meta?: AddonMeta | null; payment_mode?: string | null; payment_note?: string | null };
 
 const nightsBetween = (a?: string | null, b?: string | null) => (a && b ? Math.round((Date.parse(b) - Date.parse(a)) / 86400000) : 0);
 const fmtDay = (d?: string | null) => (d ? new Date(d + "T00:00:00Z").toLocaleDateString("en-GB", { day: "numeric", month: "short", timeZone: "UTC" }) : "");
@@ -248,7 +248,16 @@ export function TripAddons({ bookingId, depositPaid, hasDeposit, securingLabel, 
             <div className="min-w-0 flex-1">
               {hotel && <p className="text-[10.5px] font-bold uppercase tracking-[0.1em] text-[#9aa6ac] leading-none mb-1">{hotel}</p>}
               <p className="text-[14.5px] font-bold text-[#00374a] leading-tight">{title}</p>
-              {a.sell_price != null && <p className="text-[12.5px] text-[#5a6b72] mt-0.5"><span className="font-bold text-[#00374a]">{money(a.sell_price)}</span></p>}
+              {/* A pay-direct extra is arranged by us but settled with the
+                  provider — showing an NP7 price would imply we'll bill it. */}
+              {a.payment_mode === "direct" ? (
+                <p className="text-[12.5px] text-[#5a6b72] mt-0.5">
+                  <span className="font-bold text-[#00374a]">Nothing to pay now</span>
+                  {a.payment_note ? <span className="block text-[12px] mt-0.5">{a.payment_note}</span> : <span className="block text-[12px] mt-0.5">We arrange it — you settle it directly.</span>}
+                </p>
+              ) : (
+                a.sell_price != null && <p className="text-[12.5px] text-[#5a6b72] mt-0.5"><span className="font-bold text-[#00374a]">{money(a.sell_price)}</span></p>
+              )}
               {a.description && <p className="text-[12px] text-[#9aa6ac] mt-0.5 truncate">{a.description}</p>}
             </div>
             <button onClick={() => request(a.id)} disabled={busy === a.id}
@@ -393,7 +402,7 @@ export function TripAddons({ bookingId, depositPaid, hasDeposit, securingLabel, 
                           <div className="min-w-0">
                             <span className="font-semibold text-[#00374a] block leading-tight">
                               {hotel && <span className="text-[10.5px] font-bold uppercase tracking-[0.08em] text-[#9aa6ac] mr-1.5">{hotel}</span>}
-                              {title}{m.price ? ` · ${money(m.price)}` : ""}
+                              {title}{m.payment_mode === "direct" ? " · pay directly" : m.price ? ` · ${money(m.price)}` : ""}
                             </span>
                             {(m.meta?.checkIn || m.meta?.checkOut) && (
                               <span className="text-[12px] text-[#8a9aa0]">{fmtDay(m.meta.checkIn)} → {fmtDay(m.meta.checkOut)}</span>

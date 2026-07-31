@@ -43,9 +43,12 @@ const round2 = (n: number) => Math.round((n + Number.EPSILON) * 100) / 100;
     portal-data so plan and invoices agree. */
 export async function confirmedAddonsTotal(bookingId: string): Promise<number> {
   const db = getDb();
-  const { data } = await db.from("exp_booking_addons").select("price,status,notes").eq("booking_id", bookingId);
-  return round2(((data ?? []) as { price: number | null; status?: string | null; notes?: string | null }[])
+  const { data } = await db.from("exp_booking_addons").select("price,status,notes,payment_mode").eq("booking_id", bookingId);
+  return round2(((data ?? []) as { price: number | null; status?: string | null; notes?: string | null; payment_mode?: string | null }[])
     .filter((a) => effectiveAddonStatus(a) === "confirmed")
+    // pay-direct add-ons are arranged by us but settled with the provider — they
+    // are not revenue and must never appear on an NP7 invoice
+    .filter((a) => a.payment_mode !== "direct")
     .reduce((s, a) => s + (Number(a.price) || 0), 0));
 }
 

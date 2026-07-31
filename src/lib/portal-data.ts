@@ -783,9 +783,12 @@ export async function getMemoryDownloadsRemaining(bookingId: string): Promise<nu
 export async function getConfirmedAddonsTotal(bookingId: string): Promise<number> {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const db = createAdminClient() as any;
-  const { data } = await db.from("exp_booking_addons").select("price,status,notes").eq("booking_id", bookingId);
+  const { data } = await db.from("exp_booking_addons").select("price,status,notes,payment_mode").eq("booking_id", bookingId);
   return (data ?? [])
     .filter((a: { status?: string | null; notes?: string | null }) => effectiveAddonStatus(a) === "confirmed")
+    // 'direct' = we arranged it, the guest pays the provider. It is not our
+    // money and must never reach the trip total, an invoice or a balance.
+    .filter((a: { payment_mode?: string | null }) => a.payment_mode !== "direct")
     .reduce((s: number, a: { price: number | null }) => s + (Number(a.price) || 0), 0);
 }
 

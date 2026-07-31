@@ -29,6 +29,8 @@ interface Component {
   unit_cost: number | null;
   sell_price: number | null;
   addon_available: boolean;
+  payment_mode?: string | null;
+  payment_note?: string | null;
   scope: string | null;
   notes: string | null;
   is_global: boolean;
@@ -106,7 +108,7 @@ export default function ComponentsPage() {
   );
   const emptyForm = {
     name: "", category: "coaching", description: "", unit_cost: "", sell_price: "",
-    addon_available: false, notes: "", is_global: true, experience_id: "", edition_id: "",
+    addon_available: false, payment_mode: "np7", payment_note: "", notes: "", is_global: true, experience_id: "", edition_id: "",
     hotel_id: "", room_type: "",
   };
   const [form, setForm] = useState(emptyForm);
@@ -202,6 +204,8 @@ export default function ComponentsPage() {
       unit_cost: c.unit_cost?.toString() || "",
       sell_price: c.sell_price?.toString() || "",
       addon_available: c.addon_available || false,
+      payment_mode: c.payment_mode || "np7",
+      payment_note: c.payment_note || "",
       notes: c.notes || "",
       is_global: c.is_global,
       experience_id: c.experience_id || "",
@@ -230,6 +234,8 @@ export default function ComponentsPage() {
       unit_cost: form.unit_cost ? Number(form.unit_cost) : null,
       sell_price: form.sell_price ? Number(form.sell_price) : null,
       addon_available: form.addon_available,
+      payment_mode: form.payment_mode,
+      payment_note: form.payment_mode === "direct" ? (form.payment_note.trim() || null) : null,
       notes: form.notes || null,
       is_global: form.is_global,
       experience_id: form.is_global ? null : form.experience_id || null,
@@ -319,6 +325,36 @@ export default function ComponentsPage() {
             <input type="checkbox" checked={form.addon_available} onChange={(e) => setForm({ ...form, addon_available: e.target.checked })} className="w-4 h-4 accent-[#0aa3c7]" />
             <span className="text-sm admin-muted">Add-on available</span>
           </label>
+
+          {form.addon_available && (
+            <div className="mt-3 rounded-xl p-3.5" style={{ border: "1px solid var(--admin-border)", backgroundColor: "var(--admin-surface)" }}>
+              <label className={labelClass}>Who takes the money?</label>
+              <div className="flex flex-wrap gap-2 mt-1.5">
+                {[
+                  { v: "np7", t: "We charge it", d: "Goes on their invoice and the trip total." },
+                  { v: "direct", t: "They pay directly", d: "We arrange it, they settle with the provider." },
+                ].map((o) => (
+                  <button key={o.v} type="button" onClick={() => setForm({ ...form, payment_mode: o.v })}
+                    className={`flex-1 min-w-[210px] text-left rounded-lg p-2.5 border transition-colors ${form.payment_mode === o.v ? "border-[var(--admin-accent)] bg-[var(--admin-accent)]/10" : "admin-surface"}`}
+                    style={form.payment_mode === o.v ? undefined : { borderColor: "var(--admin-border)" }}>
+                    <span className="block text-[13px] font-bold admin-heading">{o.t}</span>
+                    <span className="block text-[11px] admin-faint mt-0.5">{o.d}</span>
+                  </button>
+                ))}
+              </div>
+              {form.payment_mode === "direct" && (
+                <div className="mt-3">
+                  <label className={labelClass}>How they pay <span className="text-[10px] admin-faint">— shown to the guest</span></label>
+                  <input className={inputClass} value={form.payment_note}
+                    onChange={(e) => setForm({ ...form, payment_note: e.target.value })}
+                    placeholder="e.g. Pay the driver in cash on arrival — €95 for up to 3 people" />
+                  <p className="text-[11px] admin-faint mt-1">
+                    Nothing is invoiced and nothing joins the trip total. The Sell price stays as your own reference.
+                  </p>
+                </div>
+              )}
+            </div>
+          )}
         </div>
       </div>
       {/* One control for scope: Global, or a specific experience (+ optional edition). */}

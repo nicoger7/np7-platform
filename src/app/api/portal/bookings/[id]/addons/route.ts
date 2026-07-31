@@ -23,7 +23,7 @@ export async function GET(_request: NextRequest, { params }: { params: Promise<{
   if (!booking) return NextResponse.json({ error: "Booking not found" }, { status: 404 });
 
   const expId = booking.experience_id;
-  let availQ = db.from("exp_components").select("id,name,category,description,sell_price,experience_id,is_global").eq("addon_available", true);
+  let availQ = db.from("exp_components").select("id,name,category,description,sell_price,experience_id,is_global,payment_mode,payment_note").eq("addon_available", true);
   if (expId) availQ = availQ.or(`experience_id.eq.${expId},experience_id.is.null,is_global.eq.true`);
   const { data: available } = await availQ;
 
@@ -75,7 +75,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
   const component_id = body.component_id;
   if (!component_id) return NextResponse.json({ error: "Missing component" }, { status: 400 });
 
-  const { data: comp } = await db.from("exp_components").select("id,name,category,sell_price,addon_available").eq("id", component_id).maybeSingle();
+  const { data: comp } = await db.from("exp_components").select("id,name,category,sell_price,addon_available,payment_mode,payment_note").eq("id", component_id).maybeSingle();
   if (!comp || !comp.addon_available) return NextResponse.json({ error: "Not available" }, { status: 400 });
 
   // avoid duplicate active requests for the same component
@@ -112,9 +112,12 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
   }
 
   const note = noteForStatus("requested");
+  // Stamp HOW it gets paid onto the booking row, alongside price — the terms the
+  // guest agreed to must not change later because someone edited the component.
+  const payMode = comp.payment_mode === "direct" ? "direct" : "np7";
   const error = await insertAddon(
     db,
-    { booking_id: id, component_id, label, price, status: "requested", source: "member", requested_at: new Date().toISOString(), notes: note, meta },
+    { booking_id: id, component_id, label, price, status: "requested", source: "member", requested_at: new Date().toISOString(), notes: note, meta, payment_mode: payMode, payment_note: comp.payment_note ?? null },
     { booking_id: id, component_id, label, price, notes: note },
   );
   if (error) return NextResponse.json({ error: error.message }, { status: 400 });
