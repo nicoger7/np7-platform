@@ -10,6 +10,9 @@ interface Component {
   sell_price: number | null;
   is_global: boolean;
   experience_id: string | null;
+  addon_available?: boolean | null;
+  payment_mode?: string | null;
+  payment_note?: string | null;
 }
 
 const CATEGORIES = ["coaching", "accommodation", "meals", "transport", "gear", "activity", "other"];
@@ -93,6 +96,7 @@ export function ExperienceComponentsManager({
 
   function Row({ c, editable }: { c: Component; editable: boolean }) {
     const margin = (Number(c.sell_price) || 0) - (Number(c.unit_cost) || 0);
+    const payDirect = c.payment_mode === "direct";
     return (
       <div
         className="grid items-center gap-2 px-2 py-1.5 text-xs rounded-md transition-colors"
@@ -100,9 +104,22 @@ export function ExperienceComponentsManager({
         onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = "var(--admin-surface-hover)")}
         onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = "transparent")}
       >
-        <span className="admin-heading truncate" title={c.name}>{c.name}</span>
+        <a href={`/admin/components?id=${c.id}`} className="admin-heading truncate hover:text-[var(--admin-accent)] transition-colors"
+          title={`${c.name} — open to edit name, website text, add-on & payment settings`}>
+          {c.name}
+          {c.addon_available ? <span className="ml-1.5 text-[9.5px] font-bold uppercase tracking-[0.06em] admin-faint">add-on</span> : null}
+        </a>
         <span className="admin-faint capitalize truncate">{c.category || "—"}</span>
-        {editable ? (
+        {payDirect ? (
+          // We neither pay nor charge for these, so both prices are 0 — which on
+          // its own is indistinguishable from "free/included". Say what it is.
+          <span className="col-span-2 text-right">
+            <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[10.5px] font-bold bg-amber-500/15 text-amber-500"
+              title={c.payment_note || "The guest settles this directly with the provider — nothing invoiced."}>
+              Guest pays provider
+            </span>
+          </span>
+        ) : editable ? (
           <>
             <input
               type="number" defaultValue={c.unit_cost ?? ""} placeholder="buy"
@@ -121,7 +138,9 @@ export function ExperienceComponentsManager({
             <span className="admin-faint font-mono text-right tabular-nums">{money(c.sell_price)}</span>
           </>
         )}
-        <span className={`font-mono text-right tabular-nums ${margin < 0 ? "text-red-400" : "text-green-400/80"}`}>{money(margin)}</span>
+        <span className={`font-mono text-right tabular-nums ${payDirect ? "admin-faint" : margin < 0 ? "text-red-400" : "text-green-400/80"}`}>
+          {payDirect ? "—" : money(margin)}
+        </span>
         {editable ? (
           <button onClick={() => remove(c.id)} className="admin-faint hover:text-red-400 transition-colors justify-self-center" title="Delete">
             <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M18 6L6 18M6 6l12 12" /></svg>
@@ -138,7 +157,7 @@ export function ExperienceComponentsManager({
       <div className="flex items-center justify-between mb-3">
         <div>
           <h3 className="text-sm font-bold admin-heading">Components</h3>
-          <p className="text-xs admin-faint mt-0.5">Building blocks for this experience&apos;s packages. Buy/sell editable inline.</p>
+          <p className="text-xs admin-faint mt-0.5">Buy/sell edit inline; click a name for everything else (website text, add-on, who takes the money).</p>
         </div>
         <button onClick={() => { setForm(emptyNew); setShowNew((v) => !v); }} className="px-3 py-1.5 bg-[#0aa3c7] hover:bg-[#0aa3c7]/90 text-white text-xs font-bold rounded-lg transition-colors">
           {showNew ? "Cancel" : "+ New component"}

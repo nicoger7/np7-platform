@@ -101,6 +101,17 @@ export default function ComponentsPage() {
   const [filterEdition, setFilterEdition] = useState("");
   const [showNew, setShowNew] = useState(false);
   const [editId, setEditId] = useState<string | null>(null);
+  // Deep link from the experience's Components tab: /admin/components?id=<id>
+  // opens that component's editor directly, so the row there can lead to the
+  // FULL component rather than only its two price fields.
+  useEffect(() => {
+    if (typeof window === "undefined" || components.length === 0) return;
+    const want = new URLSearchParams(window.location.search).get("id");
+    if (!want) return;
+    const c = components.find((x) => x.id === want);
+    if (c) startEdit(c);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [components]);
   const [sortKey, setSortKey] = useState<string | null>(null);
   const [sortDir, setSortDir] = useState<SortDir>(null);
   const [visibleColumns, setVisibleColumns] = useState<Set<string>>(

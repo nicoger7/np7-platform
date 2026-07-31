@@ -70,6 +70,7 @@ export type ReadinessItem = {
 export type EditionReadiness = {
   editionId: string;
   startDate: string | null;
+  inherited: { packingList: string | null; preTripNote: string | null };
   daysToStart: number | null;
   items: ReadinessItem[];
   blockingMissing: number;
@@ -80,6 +81,12 @@ export type EditionReadiness = {
 export async function resolveEditionContent(editionId: string): Promise<{
   startDate: string | null;
   values: Record<ContentKey, string | null>;
+  /** what the EXPERIENCE level holds, so the edition editor can show what it
+   *  would fall back to — you cannot judge whether to override something you
+   *  cannot see. */
+  inherited: { packingList: string | null; preTripNote: string | null };
+  /** which level supplied the value actually in use */
+  source: Record<ContentKey, "edition" | "experience" | null>;
 }> {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const db = createAdminClient() as any;
@@ -88,7 +95,14 @@ export async function resolveEditionContent(editionId: string): Promise<{
     .select("id, date_start, experience_id, pre_trip_note, packing_list, whatsapp_group_link")
     .eq("id", editionId)
     .maybeSingle();
-  if (!ed) return { startDate: null, values: { packingList: null, preTripNote: null, whatsappLink: null } };
+  if (!ed) {
+    return {
+      startDate: null,
+      values: { packingList: null, preTripNote: null, whatsappLink: null },
+      inherited: { packingList: null, preTripNote: null },
+      source: { packingList: null, preTripNote: null, whatsappLink: null },
+    };
+  }
 
   let expContent: { packing_list?: string | null; pre_trip_note?: string | null } = {};
   if (ed.experience_id) {
@@ -104,6 +118,10 @@ export async function resolveEditionContent(editionId: string): Promise<{
     const v = (typeof a === "string" && a.trim()) || (typeof b === "string" && b.trim()) || "";
     return v || null;
   };
+  const trim = (v: unknown) => (typeof v === "string" && v.trim() ? v.trim() : null);
+  const from = (edVal: unknown, expVal: unknown): "edition" | "experience" | null =>
+    trim(edVal) ? "edition" : trim(expVal) ? "experience" : null;
+
   return {
     startDate: ed.date_start ?? null,
     values: {
@@ -112,13 +130,22 @@ export async function resolveEditionContent(editionId: string): Promise<{
       preTripNote: pick(ed.pre_trip_note, expContent.pre_trip_note),
       whatsappLink: pick(ed.whatsapp_group_link, null),
     },
+    inherited: {
+      packingList: trim(expContent.packing_list),
+      preTripNote: trim(expContent.pre_trip_note),
+    },
+    source: {
+      packingList: from(ed.packing_list, expContent.packing_list),
+      preTripNote: from(ed.pre_trip_note, expContent.pre_trip_note),
+      whatsappLink: from(ed.whatsapp_group_link, null),
+    },
   };
 }
 
 const DAY = 86_400_000;
 
 export async function getEditionReadiness(editionId: string, now = new Date()): Promise<EditionReadiness> {
-  const { startDate, values } = await resolveEditionContent(editionId);
+  const { startDate, values, inherited } = await resolveEditionContent(editionId);
   const daysToStart = startDate
     ? Math.ceil((new Date(startDate).getTime() - now.getTime()) / DAY)
     : null;
@@ -162,6 +189,7 @@ export async function getEditionReadiness(editionId: string, now = new Date()): 
   return {
     editionId,
     startDate,
+    inherited,
     daysToStart,
     items,
     blockingMissing: items.filter((i) => !i.present && i.blocks.length > 0).length,

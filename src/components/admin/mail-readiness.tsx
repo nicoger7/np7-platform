@@ -6,7 +6,7 @@ type Item = {
   key: string; label: string; where: string; present: boolean;
   blocks: string[]; degrades: string[]; dueDate: string | null; daysLeft: number | null; overdue: boolean;
 };
-type Readiness = { startDate: string | null; daysToStart: number | null; items: Item[]; blockingMissing: number; softMissing: number };
+type Readiness = { startDate: string | null; daysToStart: number | null; items: Item[]; blockingMissing: number; softMissing: number; inherited: { packingList: string | null; preTripNote: string | null } };
 
 /**
  * What this edition still needs before its scheduled mails go out.
@@ -15,7 +15,7 @@ type Readiness = { startDate: string | null; daysToStart: number | null; items: 
  * description of the rules — it is the rules. A red row here is a mail that
  * will actually be held back tonight.
  */
-export function MailReadiness({ editionId }: { editionId: string }) {
+export function MailReadiness({ editionId, onInherited }: { editionId: string; onInherited?: (v: { packingList: string | null; preTripNote: string | null }) => void }) {
   const [r, setR] = useState<Readiness | null>(null);
   const [err, setErr] = useState(false);
 
@@ -23,9 +23,10 @@ export function MailReadiness({ editionId }: { editionId: string }) {
     let alive = true;
     fetch(`/api/admin/editions/${editionId}/readiness`)
       .then((res) => (res.ok ? res.json() : Promise.reject()))
-      .then((d) => { if (alive) setR(d); })
+      .then((d) => { if (alive) { setR(d); onInherited?.(d.inherited ?? { packingList: null, preTripNote: null }); } })
       .catch(() => { if (alive) setErr(true); });
     return () => { alive = false; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [editionId]);
 
   if (err) return null;

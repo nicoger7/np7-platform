@@ -250,6 +250,7 @@ export default function EditionDetailPage({
   const [brandInEmails, setBrandInEmails] = useState(true);
   const [brandNote, setBrandNote] = useState("");
   const [brandPacking, setBrandPacking] = useState("");
+  const [inheritedPacking, setInheritedPacking] = useState<string | null>(null);
   const [brandSaving, setBrandSaving] = useState(false);
   const [brandSaved, setBrandSaved] = useState(false);
   async function saveBranding() {
@@ -1067,12 +1068,25 @@ export default function EditionDetailPage({
               <div className="mt-4">
                 <label className="block text-xs font-medium admin-muted mb-1.5">Packing list for this week <span className="admin-faint font-normal">(optional)</span></label>
                 <textarea value={brandPacking} onChange={(e) => setBrandPacking(e.target.value)} rows={5}
-                  placeholder="One item per line. Overrides the experience packing list in the pre-trip email — leave blank to use that. The pre-trip mail is HELD BACK if neither exists."
+                  placeholder="One item per line — 5.0 sail, harness, booties, reef shoes…"
                   className="admin-input w-full px-3 py-2 rounded-lg border text-sm outline-none resize-y" />
+                {/* You cannot decide whether to write a week-specific list without
+                    seeing the one it would replace. So show it. */}
+                <div className="text-[11px] admin-faint mt-1.5 leading-relaxed">
+                  {brandPacking.trim() ? (
+                    <>The pre-trip email for <b className="admin-muted">this week only</b> uses what you type here. The experience&apos;s own list is left untouched — it just isn&apos;t used for this edition.</>
+                  ) : inheritedPacking ? (
+                    <>Blank, so this week uses the <b className="admin-muted">experience packing list</b>:
+                      <span className="block mt-1 p-2 rounded admin-surface whitespace-pre-line max-h-24 overflow-y-auto" style={{ border: "1px solid var(--admin-border)" }}>{inheritedPacking}</span>
+                    </>
+                  ) : (
+                    <span className="text-amber-500">Blank — and the experience has no list either, so the pre-trip email is held back. Write one here for this week, or one on the experience for every year.</span>
+                  )}
+                </div>
               </div>
 
               <div className="mt-4">
-                <MailReadiness editionId={id} />
+                <MailReadiness editionId={id} onInherited={(v) => setInheritedPacking(v.packingList)} />
               </div>
 
               <div className="flex gap-2 mt-4">
