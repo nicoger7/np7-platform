@@ -21,6 +21,7 @@ import { useAccess } from "@/lib/use-access";
 import { effectiveCanAccess, effectiveCanSeeField } from "@/lib/access";
 import { PublicBadge } from "@/components/admin/public-badge";
 import { editionLabel } from "@/lib/edition-label";
+import { MailReadiness } from "@/components/admin/mail-readiness";
 
 // Edition detail sub-tabs. The order is reorderable by drag-and-drop and saved
 // per admin in localStorage (each team member keeps their own preferred order).
@@ -248,6 +249,7 @@ export default function EditionDetailPage({
   const [brandScope, setBrandScope] = useState<"edition" | "all">("edition");
   const [brandInEmails, setBrandInEmails] = useState(true);
   const [brandNote, setBrandNote] = useState("");
+  const [brandPacking, setBrandPacking] = useState("");
   const [brandSaving, setBrandSaving] = useState(false);
   const [brandSaved, setBrandSaved] = useState(false);
   async function saveBranding() {
@@ -258,12 +260,12 @@ export default function EditionDetailPage({
       // Share the photo across the whole experience (website + all editions), and
       // clear this edition's override so it inherits the new shared hero.
       await fetch(`/api/admin/experiences/${edition.experience_id}`, { method: "PATCH", headers: H, body: JSON.stringify({ hero_image: brandImg || null }) }).catch(() => {});
-      await fetch(`/api/admin/editions/${id}`, { method: "PATCH", headers: H, body: JSON.stringify({ hero_image: null, hero_in_emails: brandInEmails, pre_trip_note: brandNote || null }) }).catch(() => {});
+      await fetch(`/api/admin/editions/${id}`, { method: "PATCH", headers: H, body: JSON.stringify({ hero_image: null, hero_in_emails: brandInEmails, pre_trip_note: brandNote || null, packing_list: brandPacking || null }) }).catch(() => {});
     } else {
-      await fetch(`/api/admin/editions/${id}`, { method: "PATCH", headers: H, body: JSON.stringify({ hero_image: brandImg || null, hero_in_emails: brandInEmails, pre_trip_note: brandNote || null }) }).catch(() => {});
+      await fetch(`/api/admin/editions/${id}`, { method: "PATCH", headers: H, body: JSON.stringify({ hero_image: brandImg || null, hero_in_emails: brandInEmails, pre_trip_note: brandNote || null, packing_list: brandPacking || null }) }).catch(() => {});
     }
     const d = await fetch(`/api/admin/editions/${id}`).then((r) => r.json()).catch(() => null);
-    if (d && !d.error) { setEdition(d); setBrandImg(d.hero_image || ""); setBrandInEmails(d.hero_in_emails !== false); setBrandNote(d.pre_trip_note ?? ""); setBrandScope("edition"); }
+    if (d && !d.error) { setEdition(d); setBrandImg(d.hero_image || ""); setBrandInEmails(d.hero_in_emails !== false); setBrandNote(d.pre_trip_note ?? ""); setBrandPacking(d.packing_list ?? ""); setBrandScope("edition"); }
     setBrandSaving(false); setBrandSaved(true); setTimeout(() => setBrandSaved(false), 2000);
   }
 
@@ -387,7 +389,7 @@ export default function EditionDetailPage({
         setEdition(d);
         setBrandImg(d.hero_image || "");
         setBrandInEmails(d.hero_in_emails !== false);
-        setBrandNote(d.pre_trip_note ?? "");
+        setBrandNote(d.pre_trip_note ?? ""); setBrandPacking(d.packing_list ?? "");
         setLoading(false);
       });
   }, [id]);
@@ -1060,6 +1062,17 @@ export default function EditionDetailPage({
                 <textarea value={brandNote} onChange={(e) => setBrandNote(e.target.value)} rows={4}
                   placeholder="A personal message just for this week — weather, who's coming, an insider tip. Overrides the experience-level note in the pre-trip emails. Leave blank to use the experience note."
                   className="admin-input w-full px-3 py-2 rounded-lg border text-sm outline-none resize-y" />
+              </div>
+
+              <div className="mt-4">
+                <label className="block text-xs font-medium admin-muted mb-1.5">Packing list for this week <span className="admin-faint font-normal">(optional)</span></label>
+                <textarea value={brandPacking} onChange={(e) => setBrandPacking(e.target.value)} rows={5}
+                  placeholder="One item per line. Overrides the experience packing list in the pre-trip email — leave blank to use that. The pre-trip mail is HELD BACK if neither exists."
+                  className="admin-input w-full px-3 py-2 rounded-lg border text-sm outline-none resize-y" />
+              </div>
+
+              <div className="mt-4">
+                <MailReadiness editionId={id} />
               </div>
 
               <div className="flex gap-2 mt-4">

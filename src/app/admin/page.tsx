@@ -5,6 +5,7 @@ import Link from "next/link";
 import { BOOKING_STATUS_LABELS, normalizeBookingStatus } from "@/lib/types";
 import { editionLabel } from "@/lib/edition-label";
 import { useAdminEnv } from "./env-context";
+import { MailGapsBanner } from "@/components/admin/mail-gaps-banner";
 
 // Each admin world renders its OWN dashboard (Experience ops, Hardware catalog,
 // Magazine editorial, Product Dev placeholder) — numbers never leak across
@@ -404,6 +405,10 @@ function ExperienceDashboard() {
   return (
     <div>
       <DashboardHeader eye={slim ? undefined : { hidden: hideMoney, onToggle: toggleHideMoney }} />
+
+      {/* Trips whose scheduled mails are being held back for missing content.
+          Renders nothing when there is nothing to say. */}
+      <MailGapsBanner />
 
       {/* Counters */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-4">

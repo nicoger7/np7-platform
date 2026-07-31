@@ -3,6 +3,7 @@ import { createAdminClient } from "@/lib/supabase";
 import { sendEmail } from "@/lib/email/send";
 import { getMemoryPhotosForBooking } from "@/lib/portal-data";
 import { computePaymentPlan, dueUrgency, balanceDue } from "@/lib/payments";
+import { mailContentReady } from "@/lib/email/readiness";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
@@ -89,17 +90,26 @@ export async function GET(req: NextRequest) {
   // tolerant of migration 051) so a missing column can never break the main run.
   const expIds = [...new Set((bookings ?? []).map((b: { experience_id?: string | null }) => b.experience_id).filter(Boolean))] as string[];
   const edIds = [...new Set((bookings ?? []).map((b: { edition_id?: string | null }) => b.edition_id).filter(Boolean))] as string[];
+  // Mails held back because their required content is missing — reported on the
+  // run so a skip is visible instead of a silent non-send.
+  const held: { template: string; bookingId: string; editionId: string | null; missing: string[] }[] = [];
   const content = new Map<string, { packing_list?: string | null; pre_trip_note?: string | null }>();
   const editionNotes = new Map<string, string>();
+  const editionPacking = new Map<string, string>();
   if (expIds.length) {
     const { data: rows } = await db.from("exp_content").select("experience_id,packing_list,pre_trip_note").in("experience_id", expIds);
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     for (const r of (rows ?? []) as any[]) content.set(r.experience_id, { packing_list: r.packing_list, pre_trip_note: r.pre_trip_note });
   }
   if (edIds.length) {
-    const { data: eds } = await db.from("exp_editions").select("id,pre_trip_note").in("id", edIds);
+    // packing_list is migration 125 — select("*") so a not-yet-migrated column
+    // can't break the whole run, exactly as the note handling already does.
+    const { data: eds } = await db.from("exp_editions").select("*").in("id", edIds);
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    for (const e of (eds ?? []) as any[]) if (e.pre_trip_note) editionNotes.set(e.id, e.pre_trip_note);
+    for (const e of (eds ?? []) as any[]) {
+      if (e.pre_trip_note) editionNotes.set(e.id, e.pre_trip_note);
+      if (e.packing_list) editionPacking.set(e.id, e.packing_list);
+    }
   }
 
   // Which bookings already have a signed waiver (so we only remind the rest).
@@ -180,10 +190,21 @@ export async function GET(req: NextRequest) {
       tripLink: `${origin}/account/bookings/${b.id}`,
       // pre-trip content: edition note overrides the experience note; packing list is per-experience
       preTripNote: (editionNotes.get(b.edition_id ?? "") || c.pre_trip_note || "") || undefined,
-      packingList: (c.packing_list || "") || undefined,
+      // edition list overrides the experience list, same rule as the note
+      packingList: (editionPacking.get(b.edition_id ?? "") || c.packing_list || "") || undefined,
     };
-    const send = (templateKey: string, dedupeKey: string) =>
-      sendEmail({ to: email, templateKey, vars, bookingId: b.id, dedupeKey });
+    const send = async (templateKey: string, dedupeKey: string) => {
+      // Templates degrade silently — an empty packing list just drops the
+      // section — so a mail whose REQUIRED content is missing would go out
+      // hollow and unlogged. Hold it instead: the dedupe key is untouched, so
+      // it sends for real on a later run once the content exists.
+      const ready = mailContentReady(templateKey, vars);
+      if (!ready.ok) {
+        held.push({ template: templateKey, bookingId: b.id, editionId: b.edition_id ?? null, missing: ready.missing });
+        return { status: "skipped" as const, error: `content missing: ${ready.missing.join(", ")}` };
+      }
+      return sendEmail({ to: email, templateKey, vars, bookingId: b.id, dedupeKey });
+    };
 
     // 1 · securing payment still pending — up to two gentle nudges (+2d, +5d)
     if (leadLive && !depositPaid && awaitingDeposit && (daysToStart == null || daysToStart > 3)) {
@@ -240,5 +261,10 @@ export async function GET(req: NextRequest) {
     }
   }
 
-  return NextResponse.json({ ok: true, ...out });
+  return NextResponse.json({
+    ok: true,
+    ...out,
+    heldForContent: held.length,
+    held: held.slice(0, 50), // enough to act on without an unbounded payload
+  });
 }
