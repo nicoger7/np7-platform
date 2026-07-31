@@ -13,6 +13,7 @@ import { describePrice } from "@/lib/pricing";
 import { reconcileBooking, suggestInvoices, type ReconInvoice, type ReconPayment } from "@/lib/reconcile";
 import { computePaymentPlan, dueUrgency, type MilestoneKind } from "@/lib/payments";
 import { CancelBookingModal } from "@/components/admin/cancel-booking-modal";
+import { sumReceived, sumExpected, paidState } from "@/lib/payment-totals";
 
 /**
  * Go back to where you came from — without leaving this page on the history
@@ -191,6 +192,8 @@ export function BookingDetailPane({ bookingId, onBack }: { bookingId: string; on
   const [contactEdit, setContactEdit] = useState(false);
   const [contactForm, setContactForm] = useState<{ name: string; email: string; phone: string; country: string; level: string; tshirt_size: string; diet_allergies: string }>({ name: "", email: "", phone: "", country: "", level: "", tshirt_size: "", diet_allergies: "" });
   const [cancelOpen, setCancelOpen] = useState(false);
+  const [editingRow, setEditingRow] = useState<string | null>(null);
+  const [rowEdit, setRowEdit] = useState({ amount: "", type: "final", status: "paid", method: "", reference: "" });
   const [contactBusy, setContactBusy] = useState(false);
 
   useEffect(() => {
@@ -527,6 +530,30 @@ export function BookingDetailPane({ bookingId, onBack }: { bookingId: string; on
     }
   }
 
+  // ── Payment row editing ───────────────────────────────────────────────────
+  // A wrong row (a pending one that never arrived, a typo'd amount) used to be
+  // untouchable from the booking it belongs to. Now it is fixable in place.
+  async function savePaymentRow(paymentId: string) {
+    const amount = parseAmount(rowEdit.amount);
+    if (amount === null) { alert("Amount is not a number."); return; }
+    const res = await fetch(`/api/admin/bookings/${id}/payments`, {
+      method: "PATCH", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ paymentId, amount, type: rowEdit.type, status: rowEdit.status, method: rowEdit.method, reference: rowEdit.reference }),
+    });
+    const j = await res.json().catch(() => ({}));
+    if (!res.ok) { alert(j.error || "Could not save the payment."); return; }
+    setBooking((prev) => prev ? { ...prev, payments: prev.payments.map((x) => x.id === paymentId ? { ...x, ...j.payment } : x) } : prev);
+    setEditingRow(null);
+  }
+
+  async function deletePaymentRow(p: { id: string; amount: number | string | null }) {
+    if (!confirm(`Delete this payment of €${Number(p.amount).toLocaleString()}?\n\nThe row is removed from the ledger. This cannot be undone.`)) return;
+    const res = await fetch(`/api/admin/bookings/${id}/payments?paymentId=${p.id}`, { method: "DELETE" });
+    const j = await res.json().catch(() => ({}));
+    if (!res.ok) { alert(j.error || "Could not delete the payment."); return; }
+    setBooking((prev) => prev ? { ...prev, payments: prev.payments.filter((x) => x.id !== p.id) } : prev);
+  }
+
   async function removeAllocation(paymentId: string) {
     if (!confirm("Remove this allocation? Both sides of the pair are removed — the money goes back to the booking that actually paid.")) return;
     const res = await fetch(`/api/admin/bookings/${id}/payments?paymentId=${paymentId}`, { method: "DELETE" });
@@ -544,7 +571,10 @@ export function BookingDetailPane({ bookingId, onBack }: { bookingId: string; on
   if (loading) return <div className="text-sm admin-faint">Loading...</div>;
   if (!booking) return <div className="text-sm text-red-400">Booking not found</div>;
 
-  const totalPaid = booking.payments.reduce((sum, p) => sum + Number(p.amount), 0);
+  // Received = 'paid' rows only. Pending is shown separately below so it informs
+  // without inflating what the customer actually owes.
+  const totalPaid = sumReceived(booking.payments);
+  const totalPending = sumExpected(booking.payments);
   const outstanding = booking.agreed_price ? Math.max(0, Number(booking.agreed_price) - totalPaid) : 0;
   const parsedPayAmount = parseAmount(paymentForm.amount);
   // Custom-price vs the package list (+ confirmed add-ons): discount / match / "as discussed".
@@ -848,6 +878,11 @@ export function BookingDetailPane({ bookingId, onBack }: { bookingId: string; on
                 value={totalPaid > 0 ? `€${totalPaid.toLocaleString()}` : "€0"}
                 readOnly
               />
+              {/* Pending is money we EXPECT. Named separately so it informs
+                  without being mistaken for cash in the bank. */}
+              {totalPending > 0 && (
+                <p className="text-[11px] text-amber-500 mt-1.5">+€{totalPending.toLocaleString()} pending — not counted as received</p>
+              )}
             </div>
             <div className="rounded-lg p-3 bg-[var(--admin-accent)]/5" style={{ border: "1px solid rgba(10,163,199,0.15)" }}>
               <label className={`${labelClass} flex items-center gap-2`}>
@@ -1171,15 +1206,64 @@ export function BookingDetailPane({ bookingId, onBack }: { bookingId: string; on
                   </span>
                   <span className="text-xs admin-muted self-center">{p.method || "—"}</span>
                   <span className="text-xs admin-muted self-center">{p.reference || "—"}</span>
-                  <span className="text-xs admin-muted self-center flex items-center gap-2">
+                  <span className="text-xs admin-muted self-center flex items-center gap-1.5">
                     {formatDate(p.received_at)}
-                    {/^alloc[#:]/.test(p.reference || "") && (
+                    {/^alloc[#:]/.test(p.reference || "") ? (
                       <button onClick={() => removeAllocation(p.id)} title="Remove allocation (both sides of the pair)"
                         className="w-5 h-5 grid place-items-center rounded text-red-400/70 hover:text-red-400 hover:bg-red-500/10 transition-colors">✕</button>
+                    ) : (
+                      <>
+                        <button
+                          onClick={() => { setEditingRow(p.id); setRowEdit({ amount: String(p.amount ?? ""), type: p.type || "final", status: p.status || "paid", method: p.method || "", reference: p.reference || "" }); }}
+                          title="Edit this payment"
+                          className="w-5 h-5 grid place-items-center rounded admin-faint hover:text-[var(--admin-accent)] hover:bg-[var(--admin-accent)]/10 transition-colors">
+                          <svg className="w-3 h-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 20h9" /><path d="M16.5 3.5a2.1 2.1 0 013 3L7 19l-4 1 1-4z" /></svg>
+                        </button>
+                        <button onClick={() => deletePaymentRow(p)} title="Delete this payment"
+                          className="w-5 h-5 grid place-items-center rounded text-red-400/60 hover:text-red-400 hover:bg-red-500/10 transition-colors">✕</button>
+                      </>
                     )}
                   </span>
                 </div>
               ))}
+            </div>
+          )}
+          {editingRow && (
+            <div className="mt-3 p-4 rounded-xl admin-surface" style={{ border: "1px solid var(--admin-border)" }}>
+              <p className="text-xs admin-faint mb-3">Editing a payment — a <b className="admin-heading">pending</b> row is money we expect, not money we have.</p>
+              <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
+                <div>
+                  <label className={labelClass}>Amount (€)</label>
+                  <input className={inputClass} type="text" inputMode="decimal" value={rowEdit.amount} onChange={(e) => setRowEdit({ ...rowEdit, amount: e.target.value })} />
+                  {rowEdit.amount.trim() !== "" && (parseAmount(rowEdit.amount) === null
+                    ? <p className="text-[11px] text-amber-500 mt-1">Not a number</p>
+                    : <p className="text-[11px] admin-faint mt-1">€{formatAmount(parseAmount(rowEdit.amount)!)}</p>)}
+                </div>
+                <div>
+                  <label className={labelClass}>Type</label>
+                  <select className={inputClass} value={rowEdit.type} onChange={(e) => setRowEdit({ ...rowEdit, type: e.target.value })}>
+                    {["downpayment", "final", "partial", "addon", "refund"].map((t) => <option key={t} value={t}>{t}</option>)}
+                  </select>
+                </div>
+                <div>
+                  <label className={labelClass}>Status</label>
+                  <select className={inputClass} value={rowEdit.status} onChange={(e) => setRowEdit({ ...rowEdit, status: e.target.value })}>
+                    {["pending", "paid", "overdue", "cancelled"].map((t) => <option key={t} value={t}>{t}</option>)}
+                  </select>
+                </div>
+                <div>
+                  <label className={labelClass}>Method</label>
+                  <input className={inputClass} value={rowEdit.method} onChange={(e) => setRowEdit({ ...rowEdit, method: e.target.value })} />
+                </div>
+                <div>
+                  <label className={labelClass}>Reference</label>
+                  <input className={inputClass} value={rowEdit.reference} onChange={(e) => setRowEdit({ ...rowEdit, reference: e.target.value })} />
+                </div>
+              </div>
+              <div className="flex gap-2 mt-3">
+                <button onClick={() => savePaymentRow(editingRow)} className="px-3 py-1.5 bg-[var(--admin-accent)] text-[var(--admin-accent-contrast)] text-xs font-bold rounded-lg">Save payment</button>
+                <button onClick={() => setEditingRow(null)} className="px-3 py-1.5 admin-muted text-xs rounded-lg">Cancel</button>
+              </div>
             </div>
           )}
         </div>

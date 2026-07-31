@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase";
 import { getRequestAccess } from "@/lib/admin-auth";
 import { effectiveCanSeeField } from "@/lib/access";
+import { sumReceived, sumExpected, paidState } from "@/lib/payment-totals";
 
 /** Null out the money fields on a booking for roles that can't see prices/payments. */
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -53,19 +54,25 @@ export async function GET(request: NextRequest) {
   // Calculate payment info per booking
   const bookingIds = (data || []).map((b) => b.id);
   let payments: Record<string, number> = {};
+  const pendingByBooking: Record<string, number> = {};
 
   if (bookingIds.length > 0) {
     const { data: paymentData } = await client
       .from("exp_payments")
-      .select("booking_id, amount")
+      .select("booking_id, amount, direction, type, status")
       .in("booking_id", bookingIds);
 
     if (paymentData) {
+      // group first, then total through the one shared rule — a pending or
+      // cancelled row is not money in the bank (see lib/payment-totals)
+      const byBooking = new Map<string, typeof paymentData>();
       for (const p of paymentData) {
-        if (p.booking_id) {
-          payments[p.booking_id] =
-            (payments[p.booking_id] || 0) + Number(p.amount);
-        }
+        if (!p.booking_id) continue;
+        byBooking.set(p.booking_id, [...(byBooking.get(p.booking_id) ?? []), p]);
+      }
+      for (const [bid, rows] of byBooking) {
+        payments[bid] = sumReceived(rows);
+        pendingByBooking[bid] = sumExpected(rows);
       }
     }
   }
@@ -73,6 +80,10 @@ export async function GET(request: NextRequest) {
   let bookings = (data || []).map((b) => ({
     ...b,
     total_paid: payments[b.id] || 0,
+    total_pending: pendingByBooking[b.id] || 0,
+    // the ✓ / ½ / — indicator, derived from the ledger rather than the two
+    // hand-ticked booleans nobody kept in sync after the Notion import
+    paid_state: paidState(payments[b.id] || 0, b.agreed_price),
     outstanding: b.agreed_price
       ? Math.max(0, Number(b.agreed_price) - (payments[b.id] || 0))
       : 0,

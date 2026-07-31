@@ -32,7 +32,8 @@ export async function GET() {
   const receivedByBooking: Record<string, number> = {};
   let receivedTotal = 0;
   for (const p of payments) {
-    if (p.status === "cancelled" || p.status === "refunded" || p.status === "void") continue;
+    // only settled money counts as revenue — pending is a plan, not income
+    if (p.status !== "paid") continue;
     if (p.direction === "out" || p.direction === "outgoing") continue;
     const amt = Number(p.amount) || 0;
     if (p.booking_id) receivedByBooking[p.booking_id] = (receivedByBooking[p.booking_id] || 0) + amt;

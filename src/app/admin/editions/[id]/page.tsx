@@ -103,6 +103,10 @@ interface Booking {
   fly_out: string | null;
   downpayment_received: boolean;
   final_payment_received: boolean;
+  /** derived from the ledger by the API — the ✓ / ½ / — indicator */
+  paid_state?: "none" | "part" | "full";
+  total_paid?: number;
+  total_pending?: number;
 }
 
 interface Package {
@@ -290,7 +294,7 @@ export default function EditionDetailPage({
   const [bkDir, setBkDir] = useState<"asc" | "desc">("asc");
   const sortedBookings = useMemo(() => {
     const dir = bkDir === "asc" ? 1 : -1;
-    const paidRank = (b: Booking) => (b.final_payment_received ? 0 : b.downpayment_received ? 1 : 2);
+    const paidRank = (b: Booking) => (b.paid_state === "full" ? 0 : b.paid_state === "part" ? 1 : 2);
     return [...bookings].sort((a, b) => {
       let d = 0;
       if (bkSort === "status") d = (BK_PRIORITY[normalizeBookingStatus(a.status)] ?? 9) - (BK_PRIORITY[normalizeBookingStatus(b.status)] ?? 9);
@@ -1158,12 +1162,16 @@ export default function EditionDetailPage({
                     {b.agreed_price ? `€${Number(b.agreed_price).toLocaleString()}` : "—"}
                   </span>
                   <span className="self-center">
-                    {b.final_payment_received ? (
-                      <span className="text-green-400 text-xs font-medium">✓</span>
-                    ) : b.downpayment_received ? (
-                      <span className="text-amber-400 text-xs font-medium">½</span>
+                    {/* From the payments themselves, not the hand-ticked
+                        downpayment/final booleans — those drifted out of sync
+                        with the money and could show ½ on a booking that had
+                        never paid a cent. */}
+                    {b.paid_state === "full" ? (
+                      <span className="text-green-400 text-xs font-medium" title={`€${(b.total_paid ?? 0).toLocaleString()} received`}>✓</span>
+                    ) : b.paid_state === "part" ? (
+                      <span className="text-amber-400 text-xs font-medium" title={`€${(b.total_paid ?? 0).toLocaleString()} received of €${Number(b.agreed_price ?? 0).toLocaleString()}`}>½</span>
                     ) : (
-                      <span className="admin-faint text-xs">—</span>
+                      <span className="admin-faint text-xs" title={b.total_pending ? `€${b.total_pending.toLocaleString()} expected, nothing received yet` : "nothing received"}>—</span>
                     )}
                   </span>
                   <button onClick={() => deleteBooking(b.id)} className="self-center opacity-0 group-hover:opacity-100 admin-faint hover:text-red-400 transition-all" title="Delete">

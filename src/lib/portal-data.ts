@@ -8,6 +8,7 @@ import {
 } from "@/lib/member-profile";
 import { deriveSuggestedLevel, type SkillTag } from "@/lib/member-level";
 import { buildProgression, type CatalogSkill, type Achievement, type Progression } from "@/lib/progression";
+import { sumReceived } from "@/lib/payment-totals";
 
 /* Server-only data access for the member portal. Always scoped to the
    member's own contactId (the caller verifies the session first). */
@@ -756,12 +757,10 @@ export async function getAllMemberMemories(contactId: string): Promise<TripMemor
 export async function getBookingPaid(bookingId: string): Promise<number> {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const db = createAdminClient() as any;
-  const { data } = await db.from("exp_payments").select("amount,direction,type").eq("booking_id", bookingId);
-  // Count money in (revenue / legacy-null), minus refunds; exclude cost rows.
-  return (data ?? [])
-    .filter((p: { direction: string | null }) => p.direction !== "cost")
-    .reduce((s: number, p: { amount: number | null; type: string | null }) =>
-      s + (p.type === "refund" ? -1 : 1) * (Number(p.amount) || 0), 0);
+  const { data } = await db.from("exp_payments").select("amount,direction,type,status").eq("booking_id", bookingId);
+  // Only money that actually arrived — see lib/payment-totals. Counting pending
+  // and cancelled rows here is what let a booking read as paid on nothing.
+  return sumReceived(data ?? []);
 }
 
 /** Members can download the full photo package a limited number of times. */

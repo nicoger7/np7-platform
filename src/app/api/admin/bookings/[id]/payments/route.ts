@@ -111,8 +111,14 @@ export async function DELETE(request: NextRequest, { params }: { params: Promise
     .single();
   if (!row || row.booking_id !== id) return Response.json({ error: "Payment not found" }, { status: 404 });
   const ref: string = row.reference || "";
+  // A plain payment row deletes on its own. (Allocations below are a mirrored
+  // PAIR and must always go together, or money appears or vanishes on the other
+  // booking.) Correcting the ledger from the booking it belongs to is the whole
+  // point — a wrong row used to be untouchable from here.
   if (!/^alloc[#:]/.test(ref)) {
-    return Response.json({ error: "Only allocation rows can be removed here." }, { status: 400 });
+    const { error } = await admin.from("exp_payments").delete().eq("id", row.id);
+    if (error) return Response.json({ error: error.message }, { status: 400 });
+    return Response.json({ ok: true, removed: 1 });
   }
 
   const ids = [row.id];
@@ -141,4 +147,45 @@ export async function DELETE(request: NextRequest, { params }: { params: Promise
   const { error } = await admin.from("exp_payments").delete().in("id", ids);
   if (error) return Response.json({ error: error.message }, { status: 500 });
   return Response.json({ removed: ids.length });
+}
+
+
+/** Edit one payment row. Allocation rows are mirrored pairs and stay read-only:
+ *  changing one side alone would silently move money on another booking. */
+export async function PATCH(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  try {
+    await requireAuth();
+  } catch {
+    return Response.json({ error: "Unauthorized" }, { status: 401 });
+  }
+  const { id } = await params;
+  const body = await request.json().catch(() => ({} as Record<string, unknown>));
+  const paymentId = typeof body.paymentId === "string" ? body.paymentId : null;
+  if (!paymentId) return Response.json({ error: "paymentId missing" }, { status: 400 });
+
+  const admin = getServiceClient();
+  const { data: row } = await admin
+    .from("exp_payments")
+    .select("id, booking_id, reference")
+    .eq("id", paymentId)
+    .single();
+  if (!row || row.booking_id !== id) return Response.json({ error: "Payment not found" }, { status: 404 });
+  if (/^alloc[#:]/.test(row.reference || "")) {
+    return Response.json({ error: "Allocation rows are a mirrored pair — remove it and re-allocate instead." }, { status: 400 });
+  }
+
+  const patch: Record<string, unknown> = {};
+  if (body.amount !== undefined) {
+    const n = Number(body.amount);
+    if (!Number.isFinite(n)) return Response.json({ error: "Amount must be a number." }, { status: 400 });
+    patch.amount = n;
+  }
+  for (const f of ["type", "status", "direction", "method", "reference", "notes", "document_id"] as const) {
+    if (body[f] !== undefined) patch[f] = body[f] === "" ? null : body[f];
+  }
+  if (!Object.keys(patch).length) return Response.json({ error: "Nothing to change." }, { status: 400 });
+
+  const { data, error } = await admin.from("exp_payments").update(patch).eq("id", paymentId).select().single();
+  if (error) return Response.json({ error: error.message }, { status: 400 });
+  return Response.json({ payment: data });
 }
