@@ -37,6 +37,21 @@ export async function PATCH(
   const { id } = await params;
   const body = await request.json();
 
+  // The DB check constraint only accepts lower-case sizes ('xs'…'xxl'), and a
+  // CLEARED field arrives as "" which is not NULL and so also fails. Every form
+  // that edits a contact hits this route, so normalise here rather than in each
+  // one — the booking-side panel was sending "L" and getting a raw Postgres
+  // constraint error thrown at the user.
+  if ("tshirt_size" in body) {
+    const t = String(body.tshirt_size ?? "").trim().toLowerCase();
+    body.tshirt_size = ["xs", "s", "m", "l", "xl", "xxl"].includes(t) ? t : null;
+  }
+  // Same shape of problem: an empty string is not a valid "no value" for the
+  // optional text columns that carry their own constraints.
+  for (const f of ["level", "country"]) {
+    if (f in body && typeof body[f] === "string" && body[f].trim() === "") body[f] = null;
+  }
+
   // Never let a PII-redacted view overwrite PII with blanked-out values, and
   // never persist the synthetic redaction flag.
   delete body.pii_redacted;

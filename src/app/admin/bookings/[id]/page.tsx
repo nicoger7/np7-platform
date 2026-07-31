@@ -790,7 +790,12 @@ export function BookingDetailPane({ bookingId, onBack }: { bookingId: string; on
                 <div><label className={labelClass}>Phone</label><input className={inputClass} value={contactForm.phone} onChange={(e) => setContactForm({ ...contactForm, phone: e.target.value })} /></div>
                 <div><label className={labelClass}>Country</label><input className={inputClass} value={contactForm.country} onChange={(e) => setContactForm({ ...contactForm, country: e.target.value })} /></div>
                 <div><label className={labelClass}>Level</label><input className={inputClass} value={contactForm.level} onChange={(e) => setContactForm({ ...contactForm, level: e.target.value })} /></div>
-                <div><label className={labelClass}>T-shirt</label><input className={inputClass} value={contactForm.tshirt_size} onChange={(e) => setContactForm({ ...contactForm, tshirt_size: e.target.value })} /></div>
+                <div><label className={labelClass}>T-shirt</label>
+                  <select className={inputClass} value={(contactForm.tshirt_size || "").toLowerCase()}
+                    onChange={(e) => setContactForm({ ...contactForm, tshirt_size: e.target.value })}>
+                    <option value="">—</option>
+                    {["xs", "s", "m", "l", "xl", "xxl"].map((sz) => <option key={sz} value={sz}>{sz.toUpperCase()}</option>)}
+                  </select></div>
                 <div className="col-span-2"><label className={labelClass}>Diet / allergies</label><input className={inputClass} value={contactForm.diet_allergies} onChange={(e) => setContactForm({ ...contactForm, diet_allergies: e.target.value })} /></div>
               </div>
               <div className="flex items-center gap-2 mt-3">
