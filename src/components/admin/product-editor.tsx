@@ -339,6 +339,8 @@ export default function ProductEditor({
   const [picker, setPicker] = useState<PickerTarget | null>(null);
   // Real cropping — File Storage's tool, opened on the hero or the card photo
   const [cropping, setCropping] = useState<{ kind: "hero" | "tile"; url: string } | null>(null);
+  // Which persona the Find-Your-Fit tab is editing (the tab strip mirrors the live chips)
+  const [fitIdx, setFitIdx] = useState(0);
 
   // ── Loaders ──────────────────────────────────────────────────────────────
 
@@ -549,6 +551,7 @@ export default function ProductEditor({
 
   const slug = product.slug;
 
+  const activeFit = Math.min(fitIdx, Math.max(0, content.find_your_fit.length - 1));
   const isSaveableTab = tab === "details" || tab === "media" || tab === "story" || tab === "specs" || tab === "fit";
   const saveHandler = tab === "details" ? handleSaveDetails : handleSaveContent;
 
@@ -1026,9 +1029,37 @@ export default function ProductEditor({
       {tab === "fit" && (
         <div className="max-w-[860px] space-y-6">
           <p className="text-xs admin-faint">
-            Each card is a persona. Users click chips to switch between them. Save via the button above.
+            Each card is a persona. Users click chips to switch between them — and so do you, here. Save via the button above.
           </p>
-          {content.find_your_fit.map((fit, i) => (
+
+          {/* The editor mirrors the live page: one strip of persona chips, and
+              only the selected persona's fields below. Stacking every persona
+              made this tab a several-thousand-pixel scroll where you couldn't
+              see the one you were editing. */}
+          {content.find_your_fit.length > 0 && (
+            <div className="flex flex-wrap items-center gap-2">
+              {content.find_your_fit.map((f, i) => (
+                <button
+                  key={f.id}
+                  type="button"
+                  onClick={() => setFitIdx(i)}
+                  className={`px-3.5 py-1.5 rounded-full text-[13px] font-bold transition-colors ${
+                    i === activeFit
+                      ? "bg-[var(--admin-accent)] text-[var(--admin-accent-contrast)]"
+                      : "admin-surface admin-muted hover:admin-heading"
+                  }`}
+                  style={i === activeFit ? undefined : { border: "1px solid var(--admin-border)" }}
+                >
+                  {f.chip?.trim() || `Persona ${i + 1}`}
+                </button>
+              ))}
+              <span className="text-[11px] admin-faint ml-1">
+                {content.find_your_fit.length} persona{content.find_your_fit.length !== 1 ? "s" : ""}
+              </span>
+            </div>
+          )}
+
+          {content.find_your_fit.map((fit, i) => i !== activeFit ? null : (
             <div
               key={fit.id}
               className="rounded-xl p-5 space-y-4"
@@ -1036,31 +1067,31 @@ export default function ProductEditor({
             >
               {/* Card header */}
               <div className="flex items-center justify-between">
-                <span className="text-sm font-bold admin-heading">Persona {i + 1}</span>
+                <span className="text-sm font-bold admin-heading">{fit.chip?.trim() || `Persona ${i + 1}`} <span className="admin-faint font-normal">· {i + 1} of {content.find_your_fit.length}</span></span>
                 <div className="flex items-center gap-1">
                   <IconBtn
-                    onClick={() =>
-                      updateContent("find_your_fit", move(content.find_your_fit, i, -1))
-                    }
-                    label="Move up"
+                    onClick={() => {
+                      updateContent("find_your_fit", move(content.find_your_fit, i, -1));
+                      if (i > 0) setFitIdx(i - 1); // follow the persona, don't jump to its neighbour
+                    }}
+                    label="Move left"
                   >
                     <path d="M18 15l-6-6-6 6" />
                   </IconBtn>
                   <IconBtn
-                    onClick={() =>
-                      updateContent("find_your_fit", move(content.find_your_fit, i, 1))
-                    }
-                    label="Move down"
+                    onClick={() => {
+                      updateContent("find_your_fit", move(content.find_your_fit, i, 1));
+                      if (i < content.find_your_fit.length - 1) setFitIdx(i + 1);
+                    }}
+                    label="Move right"
                   >
                     <path d="M6 9l6 6 6-6" />
                   </IconBtn>
                   <IconBtn
-                    onClick={() =>
-                      updateContent(
-                        "find_your_fit",
-                        content.find_your_fit.filter((_, j) => j !== i)
-                      )
-                    }
+                    onClick={() => {
+                      updateContent("find_your_fit", content.find_your_fit.filter((_, j) => j !== i));
+                      setFitIdx(Math.max(0, i - 1));
+                    }}
                     label="Remove"
                     danger
                   >
@@ -1288,9 +1319,10 @@ export default function ProductEditor({
 
           <AddButton
             label="Add persona"
-            onClick={() =>
-              updateContent("find_your_fit", [...content.find_your_fit, emptyFit()])
-            }
+            onClick={() => {
+              updateContent("find_your_fit", [...content.find_your_fit, emptyFit()]);
+              setFitIdx(content.find_your_fit.length); // open the one you just made
+            }}
           />
         </div>
       )}
