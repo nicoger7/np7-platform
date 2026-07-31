@@ -13,6 +13,18 @@ import { describePrice } from "@/lib/pricing";
 import { reconcileBooking, suggestInvoices, type ReconInvoice, type ReconPayment } from "@/lib/reconcile";
 import { computePaymentPlan, dueUrgency, type MilestoneKind } from "@/lib/payments";
 
+/**
+ * Go back to where you came from — without leaving this page on the history
+ * stack. `router.push(backHref)` looked right (the arrow landed on the member
+ * you opened the contact from) but it ADDS an entry, so the browser's own Back
+ * button then returned you straight to the contact you had just left, and you
+ * were stuck in a two-page loop. Replacing the entry unwinds it properly.
+ */
+function goBack(router: { replace: (href: string) => void }, backHref: string) {
+  router.replace(backHref);
+}
+
+
 // Package names carry an edition code prefix (e.g. "BON001 - Advanced – …") baked
 // into the string. Inside an edition-scoped list that prefix is redundant noise,
 // so strip a leading "CODE - " for display.
@@ -601,7 +613,7 @@ export function BookingDetailPane({ bookingId, onBack }: { bookingId: string; on
       {/* Header */}
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between mb-6">
         <div className="flex items-center gap-3">
-          <button onClick={() => (onBack ? onBack() : router.push(backHref))} className="admin-faint transition-colors" aria-label="Back">
+          <button onClick={() => (onBack ? onBack() : goBack(router, backHref))} className="admin-faint transition-colors" aria-label="Back">
             <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
               <path d="M19 12H5M12 19l-7-7 7-7" />
             </svg>
