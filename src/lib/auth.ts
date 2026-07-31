@@ -13,7 +13,8 @@ import { createAdminClient } from "@/lib/supabase";
  */
 
 /** Admin "view as member" read-only preview cookie (set by the Member view tab). */
-export const VIEW_AS_COOKIE = "np7_view_as";
+export { VIEW_AS_COOKIE, PREVIEW_PARAM } from "@/lib/preview-const";
+import { VIEW_AS_COOKIE, PREVIEW_PARAM } from "@/lib/preview-const";
 
 export type TeamMember = { userId: string; email: string; teamMemberId: string; role: string | null };
 export type PortalUser = { userId: string; email: string; contactId: string; name: string; preview?: boolean };
@@ -34,7 +35,20 @@ async function viewAsPreviewUser(realUserId: string): Promise<PortalUser | null>
   const store = await cookies();
   const viewAs = store.get(VIEW_AS_COOKIE)?.value;
   if (!viewAs) return null;
-  if ((await headers()).get("sec-fetch-dest") === "document") return null; // admin's own top-level tab
+
+  // The cookie is ambient — it rides along on EVERY request to the site, so on
+  // its own it made the admin's ordinary browsing resolve as the previewed
+  // member (and survived a logout, so the next login landed back in their
+  // account). Requiring the preview marker fixes that: it is present only on
+  // URLs the preview iframe itself loads, and on the Referer of fetches those
+  // pages make. Normal browsing never carries it.
+  const h = await headers();
+  if (h.get("sec-fetch-dest") === "document") return null; // admin's own top-level tab
+  const url = h.get("x-np7-pathname") ?? "";
+  const referer = h.get("referer") ?? "";
+  const marked = url.includes(PREVIEW_PARAM) || referer.includes(PREVIEW_PARAM);
+  if (!marked) return null;
+
   if (!(await getTeamMember())) return null; // only active team members may preview
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const admin = createAdminClient() as any;

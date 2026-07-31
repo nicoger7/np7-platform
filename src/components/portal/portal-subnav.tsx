@@ -5,6 +5,14 @@ import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 
+/** Signing out must also end any admin member-preview. The view-as cookie
+ *  outlived the session, so logging back in dropped you straight into the
+ *  previewed customer's account again. */
+async function endPreviewSession() {
+  try { await fetch("/api/portal/end-preview", { method: "POST" }); } catch { /* best effort */ }
+}
+
+
 type Tone = "ocean" | "hardware";
 type Tab = { href: string; label: string; exact?: boolean; flag?: "gear"; icon?: IconName };
 
@@ -60,6 +68,7 @@ export function PortalSubnav({ tone, showGear = false }: { tone: Tone; showGear?
     // No-op inside an admin "view as member" preview — otherwise the team member
     // would sign out their own session from the iframe.
     if (typeof document !== "undefined" && document.cookie.includes("np7_preview=1")) return;
+    await endPreviewSession();
     await createClient().auth.signOut();
     router.push("/account/login");
     router.refresh();

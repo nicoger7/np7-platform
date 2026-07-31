@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { PREVIEW_PARAM } from "@/lib/preview-const";
 
 const SECTIONS: { key: string; label: string; path: string }[] = [
   { key: "home", label: "Home", path: "/account" },
@@ -66,7 +67,7 @@ export function MemberPortalPreview({ contactId }: { contactId: string }) {
         ) : (
           <iframe
             key={contactId}
-            src={path}
+            src={`${path}${path.includes("?") ? "&" : "?"}${PREVIEW_PARAM}=1`}
             title="Member portal preview"
             className="w-full block"
             style={{ height: "78vh", colorScheme: "light", border: "none" }}

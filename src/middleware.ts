@@ -34,6 +34,10 @@ async function effectiveAccessFor(member: { level: ReturnType<typeof normalizeLe
 
 export async function middleware(request: NextRequest) {
   const path = request.nextUrl.pathname;
+  // Full path INCLUDING the query, for every matched route — the member-preview
+  // guard needs to see the `__np7_preview` marker on the iframe's own document
+  // request, where there is no useful Referer to read it from.
+  const pathWithQuery = path + request.nextUrl.search;
 
   // ── Remember the active sub-site so the member portal keeps that section's
   //    header. Public Experience/Hardware pages need no auth, so set the cookie
@@ -50,7 +54,7 @@ export async function middleware(request: NextRequest) {
     // Expose the path to RSC layouts (so the Experience layout can keep
     // /experience/gift open while the rest of the site is hidden).
     const requestHeaders = new Headers(request.headers);
-    requestHeaders.set("x-np7-pathname", path);
+    requestHeaders.set("x-np7-pathname", pathWithQuery);
     const res = NextResponse.next({ request: { headers: requestHeaders } });
     if (section && request.cookies.get("np7_section")?.value !== section) {
       res.cookies.set("np7_section", section, { path: "/", maxAge: 60 * 60 * 24 * 30, sameSite: "lax" });
@@ -58,7 +62,10 @@ export async function middleware(request: NextRequest) {
     return res; // public pages — no auth round-trip
   }
 
-  let supabaseResponse = NextResponse.next({ request });
+  // /account and /admin come through here — they need the same header.
+  const authedHeaders = new Headers(request.headers);
+  authedHeaders.set("x-np7-pathname", pathWithQuery);
+  let supabaseResponse = NextResponse.next({ request: { headers: authedHeaders } });
 
   const supabase = createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,

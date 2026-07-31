@@ -29,6 +29,7 @@ export default async function AccountHome() {
     // out, to avoid a redirect loop with the login page.
     if (await getTeamMember()) redirect("/admin");
     const supabase = await createClient();
+    try { await fetch("/api/portal/end-preview", { method: "POST" }); } catch { /* best effort */ }
     await supabase.auth.signOut();
     redirect("/account/login");
   }

@@ -7,6 +7,14 @@ import { AuthModal } from "./auth-modal";
 import { createClient } from "@/lib/supabase/client";
 import { hasAuthCookie } from "@/lib/has-auth-cookie";
 
+/** Signing out must also end any admin member-preview. The view-as cookie
+ *  outlived the session, so logging back in dropped you straight into the
+ *  previewed customer's account again. */
+async function endPreviewSession() {
+  try { await fetch("/api/portal/end-preview", { method: "POST" }); } catch { /* best effort */ }
+}
+
+
 type Me = { loggedIn: boolean; firstName?: string; lastName?: string; avatarUrl?: string | null };
 
 /**
@@ -75,6 +83,7 @@ export function MemberButton({
 
   async function logout() {
     setMenuOpen(false);
+    await endPreviewSession();
     await createClient().auth.signOut();
     setMe({ loggedIn: false });
     router.push("/");
