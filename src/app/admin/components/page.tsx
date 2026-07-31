@@ -325,38 +325,40 @@ export default function ComponentsPage() {
             <input type="checkbox" checked={form.addon_available} onChange={(e) => setForm({ ...form, addon_available: e.target.checked })} className="w-4 h-4 accent-[#0aa3c7]" />
             <span className="text-sm admin-muted">Add-on available</span>
           </label>
-
-          {form.addon_available && (
-            <div className="mt-3 rounded-xl p-3.5" style={{ border: "1px solid var(--admin-border)", backgroundColor: "var(--admin-surface)" }}>
-              <label className={labelClass}>Who takes the money?</label>
-              <div className="flex flex-wrap gap-2 mt-1.5">
-                {[
-                  { v: "np7", t: "We charge it", d: "Goes on their invoice and the trip total." },
-                  { v: "direct", t: "They pay directly", d: "We arrange it, they settle with the provider." },
-                ].map((o) => (
-                  <button key={o.v} type="button" onClick={() => setForm({ ...form, payment_mode: o.v })}
-                    className={`flex-1 min-w-[210px] text-left rounded-lg p-2.5 border transition-colors ${form.payment_mode === o.v ? "border-[var(--admin-accent)] bg-[var(--admin-accent)]/10" : "admin-surface"}`}
-                    style={form.payment_mode === o.v ? undefined : { borderColor: "var(--admin-border)" }}>
-                    <span className="block text-[13px] font-bold admin-heading">{o.t}</span>
-                    <span className="block text-[11px] admin-faint mt-0.5">{o.d}</span>
-                  </button>
-                ))}
-              </div>
-              {form.payment_mode === "direct" && (
-                <div className="mt-3">
-                  <label className={labelClass}>How they pay <span className="text-[10px] admin-faint">— shown to the guest</span></label>
-                  <input className={inputClass} value={form.payment_note}
-                    onChange={(e) => setForm({ ...form, payment_note: e.target.value })}
-                    placeholder="e.g. Pay the driver in cash on arrival — €95 for up to 3 people" />
-                  <p className="text-[11px] admin-faint mt-1">
-                    Nothing is invoiced and nothing joins the trip total. The Sell price stays as your own reference.
-                  </p>
-                </div>
-              )}
+        </div>
+      </div>
+      {/* Payment mode belongs under the "Add-on available" row it depends on —
+          full width, not squeezed into that checkbox's grid column. */}
+      {form.addon_available && (
+        <div className="mb-4 max-w-xl rounded-xl p-4" style={{ border: "1px solid var(--admin-border)", backgroundColor: "var(--admin-surface)" }}>
+          <label className={labelClass}>Who takes the money?</label>
+          <div className="grid sm:grid-cols-2 gap-2.5 mt-2">
+            {[
+              { v: "np7", t: "We charge it", d: "Goes on their invoice and the trip total." },
+              { v: "direct", t: "They pay directly", d: "We arrange it, they settle with the provider." },
+            ].map((o) => (
+              <button key={o.v} type="button" onClick={() => setForm({ ...form, payment_mode: o.v })}
+                className={`text-left rounded-lg p-3 border transition-colors ${form.payment_mode === o.v ? "border-[var(--admin-accent)] bg-[var(--admin-accent)]/10" : "admin-surface hover:border-[var(--admin-accent)]/40"}`}
+                style={form.payment_mode === o.v ? undefined : { borderColor: "var(--admin-border)" }}>
+                <span className="block text-[13px] font-bold admin-heading">{o.t}</span>
+                <span className="block text-[11.5px] admin-faint mt-0.5 leading-snug">{o.d}</span>
+              </button>
+            ))}
+          </div>
+          {form.payment_mode === "direct" && (
+            <div className="mt-3.5">
+              <label className={labelClass}>How they pay <span className="text-[10px] admin-faint font-normal">— shown to the guest</span></label>
+              <input className={inputClass} value={form.payment_note}
+                onChange={(e) => setForm({ ...form, payment_note: e.target.value })}
+                placeholder="Pay the driver in cash on arrival — €95 for up to 3 people" />
+              <p className="text-[11px] admin-faint mt-1.5">
+                Nothing is invoiced and nothing joins the trip total. Sell price stays as your own reference.
+              </p>
             </div>
           )}
         </div>
-      </div>
+      )}
+
       {/* One control for scope: Global, or a specific experience (+ optional edition). */}
       <div className="grid grid-cols-2 gap-4 mb-4 max-w-xl">
         <div>
