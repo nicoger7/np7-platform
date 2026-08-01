@@ -1,7 +1,20 @@
 import Link from "next/link";
 import { createAdminClient } from "@/lib/supabase";
 import { renderTemplate } from "@/lib/email/templates";
-import { AUTOMATIONS, lifecycleLive } from "@/lib/email/automations";
+import { AUTOMATIONS, lifecycleLive, type TriggerSource } from "@/lib/email/automations";
+
+/**
+ * The three ways a mail gets sent, in the order that matters operationally:
+ * the ones that run without you, then the ones that wait for you.
+ */
+const GROUPS: { source: TriggerSource; title: string; blurb: string }[] = [
+  { source: "guest", title: "The guest sets these off",
+    blurb: "Fires the moment they sign up, pay or invite a friend. Nobody at NP7 is involved — it goes out at 3am if that's when they book." },
+  { source: "scheduled", title: "The schedule sets these off",
+    blurb: "The nightly job works the date out from the trip and sends them. Nothing to press — which is why the content has to be in place before the date arrives." },
+  { source: "staff", title: "You set these off",
+    blurb: "These only leave the building when someone here clicks send, confirm or settle in the admin. Nothing happens on its own." },
+];
 
 export const dynamic = "force-dynamic";
 export const metadata = { title: "Emails — NP7 Admin" };
@@ -84,9 +97,20 @@ export default async function EmailsHubPage() {
         ))}
       </div>
 
-      {/* Cards — small previews; click any to edit */}
-      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
-        {cards.map((c) => (
+      {/* Grouped by WHO sets the mail off. "Live vs paused" answers whether it
+          can send; this answers whether anyone has to do anything for it to. */}
+      {GROUPS.map((g) => {
+        const inGroup = cards.filter((c) => c.source === g.source);
+        if (!inGroup.length) return null;
+        return (
+          <div key={g.source} className="mb-8">
+            <div className="flex items-baseline gap-2.5 mb-1 flex-wrap">
+              <h2 className="text-[15px] font-bold admin-heading">{g.title}</h2>
+              <span className="text-[11px] admin-faint font-semibold">{inGroup.length}</span>
+            </div>
+            <p className="text-[12px] admin-muted mb-3.5">{g.blurb}</p>
+            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+              {inGroup.map((c) => (
           <Link key={c.key} href={`/admin/email-templates?edit=${c.key}`} className="group rounded-xl overflow-hidden flex flex-col transition-all hover:-translate-y-0.5" style={{ border: "1px solid var(--admin-border)", backgroundColor: "var(--admin-surface)" }}>
             <div className="p-3.5">
               <div className="flex items-center justify-between gap-2 mb-1">
@@ -109,8 +133,11 @@ export default async function EmailsHubPage() {
               </div>
             </div>
           </Link>
-        ))}
-      </div>
+              ))}
+            </div>
+          </div>
+        );
+      })}
 
       <p className="text-xs admin-faint mt-6">Click any email to edit its wording &amp; photo. Sent emails are logged in <Link href="/admin/email-log" className="text-[#0aa3c7] hover:underline">Email Log</Link>.</p>
     </div>
