@@ -55,6 +55,7 @@ export function SurveyForm({ survey, token, contactName, existing, preview = fal
       location: rows.find((r) => r.location)?.location ?? null,
       blurb: rows.find((r) => r.blurb)?.blurb ?? null,
       image: tripImage(rows),
+      focus: rows.find((r) => r.image)?.focus ?? null,
       periods: [...rows].sort((a, b) => (a.start || "").localeCompare(b.start || "")),
     })).sort((a, b) => (a.periods[0].start || "").localeCompare(b.periods[0].start || ""));
   })();
@@ -190,7 +191,7 @@ export function SurveyForm({ survey, token, contactName, existing, preview = fal
                 const Banner = (
                   <div className={`relative overflow-hidden bg-[#0a2a33] ${many ? "h-40" : "h-52 sm:h-60"}`}>
                     {g.image
-                      ? <div data-zoom className="absolute inset-0 bg-cover bg-center will-change-transform" style={{ backgroundImage: `url('${g.image}')` }} />
+                      ? <div data-zoom className="absolute inset-0 bg-cover will-change-transform" style={{ backgroundImage: `url('${g.image}')`, backgroundPosition: `50% ${g.focus ?? 50}%` }} />
                       : <div className="absolute inset-0" style={{ background: "linear-gradient(135deg,#0f6f86,#00afdb 55%,#1aa3c7)" }} />}
                     <div className="absolute inset-0" style={{ background: "linear-gradient(180deg, rgba(0,30,40,0.15) 0%, rgba(0,28,38,0.15) 45%, rgba(0,26,36,0.92) 100%)" }} />
                     {single && (g.periods[0].start || g.periods[0].end) && (

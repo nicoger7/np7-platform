@@ -299,9 +299,38 @@ export function SurveyAdmin({ initialSurvey, initialInvites }: { initialSurvey: 
                   <div className="flex flex-wrap items-center gap-2 pt-1">
                     {first.image ? (
                       <>
-                        {/* eslint-disable-next-line @next/next/no-img-element */}
-                        <img src={first.image} alt="" className="w-16 h-12 rounded-lg object-cover border border-[#e2d8c6]" />
+                        {/* Drag the photo up or down to reframe it — the survey
+                            banner is short and wide, so a tall photo lands
+                            wherever the middle happens to be. Same gesture as
+                            the email header editor. */}
+                        <div
+                          title="Drag up or down to reframe"
+                          onPointerDown={(e) => {
+                            const el = e.currentTarget;
+                            el.setPointerCapture(e.pointerId);
+                            const startY = e.clientY;
+                            const startFocus = first.focus ?? 50;
+                            const h = el.getBoundingClientRect().height || 48;
+                            const move = (ev: PointerEvent) => {
+                              const next = Math.min(100, Math.max(0, Math.round(startFocus - ((ev.clientY - startY) / h) * 100)));
+                              setGroup(g.key, { focus: next });
+                            };
+                            const up = () => { el.removeEventListener("pointermove", move); el.removeEventListener("pointerup", up); };
+                            el.addEventListener("pointermove", move);
+                            el.addEventListener("pointerup", up);
+                          }}
+                          className="relative w-28 h-12 rounded-lg overflow-hidden border border-[#e2d8c6] cursor-ns-resize touch-none"
+                        >
+                          {/* eslint-disable-next-line @next/next/no-img-element */}
+                          <img src={first.image} alt="" draggable={false}
+                            className="w-full h-full object-cover select-none"
+                            style={{ objectPosition: `50% ${first.focus ?? 50}%` }} />
+                          <span className="absolute inset-x-0 bottom-0 text-[9px] font-bold text-white/90 bg-black/35 text-center leading-[13px]">drag ↕</span>
+                        </div>
                         <button onClick={() => setPicker(g.key)} className="text-[12px] font-bold text-[#0aa3c7]">Change photo</button>
+                        {(first.focus ?? 50) !== 50 && (
+                          <button onClick={() => setGroup(g.key, { focus: 50 })} className="text-[12px] font-bold admin-muted hover:text-[#0aa3c7]">Recentre</button>
+                        )}
                         <button onClick={() => setGroup(g.key, { image: null })} className="text-[12px] font-bold text-[#c0392b]">Remove</button>
                       </>
                     ) : (

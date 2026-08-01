@@ -118,16 +118,16 @@ export function SurveyQuick({ survey, token, existing, preview = false, justSave
           (written in the survey admin) introduces its dates. */}
       <div className="space-y-3">
         {(() => {
-          const groups: { id: string; label: string; blurb: string | null; image: string | null; rows: typeof dated }[] = [];
+          const groups: { id: string; label: string; blurb: string | null; image: string | null; focus: number | null; rows: typeof dated }[] = [];
           for (const d of dated) {
             const gid = d.groupId ?? d.key;
             let g = groups.find((x) => x.id === gid);
-            if (!g) { g = { id: gid, label: d.label, blurb: null, image: null, rows: [] }; groups.push(g); }
+            if (!g) { g = { id: gid, label: d.label, blurb: null, image: null, focus: null, rows: [] }; groups.push(g); }
             if (!g.blurb && d.blurb) g.blurb = d.blurb;
             // Each place carries its own photo. The hero can only show one, so
             // without this the second destination's picture was uploaded and
             // then never seen by anyone.
-            if (!g.image && d.image) g.image = d.image;
+            if (!g.image && d.image) { g.image = d.image; g.focus = d.focus ?? null; }
             g.rows.push(d);
           }
           const multi = groups.length > 1;
@@ -140,7 +140,8 @@ export function SurveyQuick({ survey, token, existing, preview = false, justSave
                   {multi && g.image && (
                     <div className="rounded-2xl overflow-hidden mb-3 h-36 sm:h-44 bg-[#f3ece0]">
                       {/* eslint-disable-next-line @next/next/no-img-element */}
-                      <img src={g.image} alt={g.label} className="w-full h-full object-cover" />
+                      <img src={g.image} alt={g.label} className="w-full h-full object-cover"
+                        style={{ objectPosition: `50% ${g.focus ?? 50}%` }} />
                     </div>
                   )}
                   {multi && <p className="text-[13px] font-black uppercase tracking-[0.12em] text-[#b0791e]">{g.label}</p>}

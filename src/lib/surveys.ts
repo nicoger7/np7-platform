@@ -20,7 +20,10 @@ function db(): DB { return createAdminClient() as DB; }
 // One row = a place on ONE date window. Several rows sharing a `groupId` (or, for
 // older data, the same label) are the same place with multiple date windows — the
 // admin edits them as one card; the member form shows one card with period pills.
-export type SurveyDestination = { key: string; groupId?: string | null; label: string; location?: string | null; start?: string | null; end?: string | null; blurb?: string | null; image?: string | null; lat?: number | null; lng?: number | null };
+export type SurveyDestination = { key: string; groupId?: string | null; label: string; location?: string | null; start?: string | null; end?: string | null; blurb?: string | null; image?: string | null;
+  /** vertical focal point 0–100 for the banner crop; 50 = centred */
+  focus?: number | null;
+  lat?: number | null; lng?: number | null };
 export type SurveyWeek = { key: string; label: string; start: string | null; end: string | null };
 export type SurveyStatus = "draft" | "open" | "closed";
 
