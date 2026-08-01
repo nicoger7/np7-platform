@@ -46,7 +46,15 @@ async function viewAsPreviewUser(realUserId: string): Promise<PortalUser | null>
   if (h.get("sec-fetch-dest") === "document") return null; // admin's own top-level tab
   const url = h.get("x-np7-pathname") ?? "";
   const referer = h.get("referer") ?? "";
-  const marked = url.includes(PREVIEW_PARAM) || referer.includes(PREVIEW_PARAM);
+  // The URL/Referer marker only survives ONE hop: portal links carry no query
+  // string, so a fetch made from a page the preview navigated TO had an
+  // unmarked Referer and silently answered as the admin — which is why a
+  // previewed trip showed "No optional extras". The header is the same marker,
+  // remembered client-side for the life of the iframe (see preview-client.ts).
+  const marked =
+    url.includes(PREVIEW_PARAM) ||
+    referer.includes(PREVIEW_PARAM) ||
+    h.get("x-np7-preview") === "1";
   if (!marked) return null;
 
   if (!(await getTeamMember())) return null; // only active team members may preview

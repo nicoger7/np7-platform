@@ -7,6 +7,7 @@ import { MemberButton } from "@/components/shared/member-button";
 import { flags } from "@/lib/flags";
 import { PortalSubnav } from "./portal-subnav";
 import { MemberInstallPrompt } from "@/components/pwa/member-install-prompt";
+import { PreviewBridge } from "./preview-bridge";
 
 /**
  * Portal chrome — adapts to whether the public site is live yet.
@@ -70,6 +71,9 @@ export async function PortalChrome({ section }: { section?: "experience" | "hard
         </header>
       )}
       <PortalSubnav tone={resolved === "hardware" ? "hardware" : "ocean"} showGear={flags.showGear} showCart={flags.showCart} />
+      {/* Keeps the admin preview resolving as the member once you navigate
+          deeper than the iframe's entry URL (see preview-client.ts). */}
+      <PreviewBridge />
       <MemberInstallPrompt env={resolved} />
     </>
   );

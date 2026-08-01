@@ -5,14 +5,17 @@
  * video is often a better brief than anything anyone would retype. This turns
  * a pasted link into text the intake can structure.
  *
- * Three ways to get there, best first, because none is guaranteed:
- *   1. YouTube Data API — reliable, needs YOUTUBE_API_KEY.
- *   2. The watch page — keyless and works today, but it is scraping: YouTube
- *      can change the markup whenever it likes.
- *   3. oEmbed — always works, but only gives a title.
+ * No API key involved, by design. Two keyless paths:
+ *   1. The watch page — carries the full description. Verified working, but it
+ *      IS scraping and YouTube owns that markup.
+ *   2. oEmbed — always answers, but only gives a title.
  *
- * Every path can come back thin, so the caller shows the admin what was found
- * and lets them edit it BEFORE anything is extracted. No silent black box.
+ * When both come back thin the answer isn't a key, it's jibe: the caller hands
+ * the link to the intake queue and jibe watches the video on its next run,
+ * exactly as it already does for free text it can't structure on the spot.
+ *
+ * What we DO get is shown to the admin and editable BEFORE anything is
+ * extracted. No silent black box.
  */
 
 /** Video id from any YouTube URL shape (watch, youtu.be, embed, shorts). */
@@ -30,7 +33,7 @@ export type VideoText = {
   description: string;
   channel: string | null;
   /** which path produced it — surfaced so a thin result is explainable */
-  via: "api" | "page" | "oembed";
+  via: "page" | "oembed";
 };
 
 /** Undo the JSON string escaping used inside the watch page's inline JSON. */
@@ -46,29 +49,7 @@ export async function fetchVideoText(url: string): Promise<VideoText | { error: 
   const id = youtubeId(url);
   if (!id) return { error: "That doesn't look like a YouTube link." };
 
-  // 1 — the supported route
-  const key = process.env.YOUTUBE_API_KEY;
-  if (key) {
-    try {
-      const r = await fetch(
-        `https://www.googleapis.com/youtube/v3/videos?part=snippet&id=${id}&key=${key}`,
-        { cache: "no-store" },
-      );
-      const j = await r.json();
-      const sn = j?.items?.[0]?.snippet;
-      if (sn) {
-        return {
-          id,
-          title: String(sn.title ?? ""),
-          description: String(sn.description ?? ""),
-          channel: sn.channelTitle ? String(sn.channelTitle) : null,
-          via: "api",
-        };
-      }
-    } catch { /* fall through */ }
-  }
-
-  // 2 — scrape the watch page
+  // 1 — the watch page
   try {
     const r = await fetch(`https://www.youtube.com/watch?v=${id}&hl=en`, {
       cache: "no-store",
@@ -95,7 +76,7 @@ export async function fetchVideoText(url: string): Promise<VideoText | { error: 
     }
   } catch { /* fall through */ }
 
-  // 3 — title only, but it always answers
+  // 2 — title only, but it always answers
   try {
     const r = await fetch(
       `https://www.youtube.com/oembed?url=https://www.youtube.com/watch?v=${id}&format=json`,

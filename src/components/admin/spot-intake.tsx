@@ -32,6 +32,8 @@ export function SpotIntake() {
       });
       const j = await res.json().catch(() => ({}));
       if (!res.ok) { setError(j.error || "Couldn't read that video."); return; }
+      // Couldn't read it here — jibe took the link and will watch it itself.
+      if (j.queued) { setResult({ queued: true }); setVideoUrl(""); return; }
       const block = [j.title, j.description].filter(Boolean).join("\n\n");
       setText((prev) => (prev.trim() ? `${prev.trim()}\n\n${block}` : block));
       setPulled({ title: j.title || "", channel: j.channel ?? null, via: j.via, chars: block.length });

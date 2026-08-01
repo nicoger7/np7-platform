@@ -2,17 +2,18 @@ import Link from "next/link";
 import { createAdminClient } from "@/lib/supabase";
 import { renderTemplate } from "@/lib/email/templates";
 import { AUTOMATIONS, lifecycleLive, type TriggerSource } from "@/lib/email/automations";
+import { EmailGroupTabs } from "@/components/admin/email-group-tabs";
 
 /**
  * The three ways a mail gets sent, in the order that matters operationally:
  * the ones that run without you, then the ones that wait for you.
  */
-const GROUPS: { source: TriggerSource; title: string; blurb: string }[] = [
-  { source: "guest", title: "The guest sets these off",
+const GROUPS: { source: TriggerSource; title: string; blurb: string; tab: string }[] = [
+  { source: "guest", tab: "The guest triggers", title: "The guest sets these off",
     blurb: "Fires the moment they sign up, pay or invite a friend. Nobody at NP7 is involved — it goes out at 3am if that's when they book." },
-  { source: "scheduled", title: "The schedule sets these off",
+  { source: "scheduled", tab: "The schedule triggers", title: "The schedule sets these off",
     blurb: "The nightly job works the date out from the trip and sends them. Nothing to press — which is why the content has to be in place before the date arrives." },
-  { source: "staff", title: "You set these off",
+  { source: "staff", tab: "You trigger", title: "You set these off",
     blurb: "These only leave the building when someone here clicks send, confirm or settle in the admin. Nothing happens on its own." },
 ];
 
@@ -97,47 +98,9 @@ export default async function EmailsHubPage() {
         ))}
       </div>
 
-      {/* Grouped by WHO sets the mail off. "Live vs paused" answers whether it
-          can send; this answers whether anyone has to do anything for it to. */}
-      {GROUPS.map((g) => {
-        const inGroup = cards.filter((c) => c.source === g.source);
-        if (!inGroup.length) return null;
-        return (
-          <div key={g.source} className="mb-8">
-            <div className="flex items-baseline gap-2.5 mb-1 flex-wrap">
-              <h2 className="text-[15px] font-bold admin-heading">{g.title}</h2>
-              <span className="text-[11px] admin-faint font-semibold">{inGroup.length}</span>
-            </div>
-            <p className="text-[12px] admin-muted mb-3.5">{g.blurb}</p>
-            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
-              {inGroup.map((c) => (
-          <Link key={c.key} href={`/admin/email-templates?edit=${c.key}`} className="group rounded-xl overflow-hidden flex flex-col transition-all hover:-translate-y-0.5" style={{ border: "1px solid var(--admin-border)", backgroundColor: "var(--admin-surface)" }}>
-            <div className="p-3.5">
-              <div className="flex items-center justify-between gap-2 mb-1">
-                <div className="flex items-center gap-2 min-w-0">
-                  <span className="shrink-0 text-[9px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded bg-[var(--admin-accent)]/15 text-[#0aa3c7]">{c.stage}</span>
-                  <h3 className="text-[13px] font-bold admin-heading truncate group-hover:text-[#0aa3c7] transition-colors">{c.name}</h3>
-                </div>
-                {c.isLive ? (
-                  <span className="shrink-0 inline-flex items-center gap-1 text-[9px] font-bold px-1.5 py-0.5 rounded-full bg-green-500/15 text-green-400"><span className="w-1 h-1 rounded-full bg-green-400" />LIVE</span>
-                ) : (
-                  <span className="shrink-0 inline-flex items-center gap-1 text-[9px] font-bold px-1.5 py-0.5 rounded-full bg-amber-400/15 text-amber-300"><span className="w-1 h-1 rounded-full bg-amber-300" />PAUSED</span>
-                )}
-              </div>
-              <p className="text-[11px] admin-muted truncate">{c.trigger}{c.hasOverride && <span className="ml-1.5 text-[#0aa3c7]">· edited</span>}</p>
-            </div>
-            <div className="relative bg-white border-t" style={{ borderColor: "var(--admin-border)" }}>
-              <iframe title={`${c.name} preview`} srcDoc={c.html} sandbox="" className="w-full h-[200px] pointer-events-none" />
-              <div className="absolute inset-x-0 bottom-0 flex justify-center pb-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                <span className="text-[10px] font-bold text-[var(--admin-accent-contrast)] bg-[var(--admin-accent)] rounded-full px-2.5 py-1 shadow-lg">Click to edit →</span>
-              </div>
-            </div>
-          </Link>
-              ))}
-            </div>
-          </div>
-        );
-      })}
+      {/* Tabs, not one scroll: each card renders a live iframe preview, so all
+          23 at once was a very long page. */}
+      <EmailGroupTabs cards={cards} groups={GROUPS} />
 
       <p className="text-xs admin-faint mt-6">Click any email to edit its wording &amp; photo. Sent emails are logged in <Link href="/admin/email-log" className="text-[#0aa3c7] hover:underline">Email Log</Link>.</p>
     </div>
