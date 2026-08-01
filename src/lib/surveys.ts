@@ -456,9 +456,16 @@ export function surveyInviteVars(survey: Survey | null, contactName: string | nu
     const fmt = (d: string) => new Date(d + "T00:00:00Z").toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric", timeZone: "UTC" });
     const range = (a?: string | null, b?: string | null) => a && b ? `${+a.slice(8, 10)}–${fmt(b)}` : fmt((a ?? b)!);
     // No default prefix: an empty CTA means the button is JUST the date.
+    // With more than one place, the place becomes a HEADING and the buttons
+    // carry only their dates. Repeating "(Lake Garda)" on every button made a
+    // flat list of eight where the eye had to parse each label to work out
+    // which trip it belonged to.
+    const places = new Set(dated.map((d) => d.label).filter(Boolean));
+    const grouped = places.size > 1;
     vars.quickChoices = JSON.stringify(dated.map((d) => ({
-      label: `${cta ? `${cta} — ` : ""}${range(d.start, d.end)}${dated.length > 1 && d.label ? ` (${d.label})` : ""}`,
+      label: `${cta ? `${cta} — ` : ""}${range(d.start, d.end)}${!grouped && dated.length > 1 && d.label ? ` (${d.label})` : ""}`,
       url: `${url}?pick=${encodeURIComponent(d.key)}`,
+      group: grouped ? (d.label ?? null) : null,
     })));
     if (survey.show_decline) vars.quickDeclineUrl = `${url}?pick=none`;
   } else {

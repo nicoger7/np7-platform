@@ -114,7 +114,7 @@ export const TEMPLATES: Record<string, (v: EmailVars, opts?: LayoutOpts) => Buil
   survey_invite: (v, opts) => {
     // Quick mode: one button per date — tapping it ALREADY registers the answer
     // (the link carries it; the page just confirms). Plus an honest opt-out link.
-    let quick: { label: string; url: string }[] = [];
+    let quick: { label: string; url: string; group?: string | null }[] = [];
     try { quick = v.quickChoices ? JSON.parse(v.quickChoices) : []; } catch { /* fall back to the classic button */ }
     const isQuick = quick.length > 0;
     // Custom email text (survey admin) replaces the standard pitch + intro
@@ -134,7 +134,23 @@ export const TEMPLATES: Record<string, (v: EmailVars, opts?: LayoutOpts) => Buil
             (customBody ??
               (p(`I'm putting together <strong>${esc(v.surveyTitle || "a special, invite-only trip")}</strong> and you're on my shortlist. Just tell me if you'd be in — <strong>one tap on a date below is all it takes</strong> (it registers instantly, and you can change it after).`) +
               (v.surveyIntro ? p(`<em>${esc(v.surveyIntro)}</em>`) : ""))) +
-            quick.map((ch) => emailButton(ch.label, ch.url)).join("") +
+            // Buttons grouped under their place when there is more than one, so
+            // the reader scans two short lists instead of one long ambiguous one.
+            (() => {
+              const groups: { name: string | null; items: typeof quick }[] = [];
+              for (const ch of quick) {
+                const g = groups.find((x) => x.name === (ch.group ?? null));
+                if (g) g.items.push(ch);
+                else groups.push({ name: ch.group ?? null, items: [ch] });
+              }
+              return groups
+                .map((g) =>
+                  (g.name
+                    ? `<p style="margin:22px 0 8px;font-size:12px;font-weight:800;letter-spacing:.12em;text-transform:uppercase;color:#b0791e;">${esc(g.name)}</p>`
+                    : "") + g.items.map((ch) => emailButton(ch.label, ch.url)).join(""),
+                )
+                .join("");
+            })() +
             (v.quickDeclineUrl ? p(`Not this time? No hard feelings — <a href="${esc(v.quickDeclineUrl)}" style="color:#b0791e;font-weight:bold;">tap here</a> and I'll stop asking. 🤙`) : "") +
             p(`This link is personal to you — no login, no commitment, just a show of hands.<br>— Nico`)
           : p(`Hey ${esc(v.firstName || "there")} 🤙`) +
