@@ -97,6 +97,10 @@ export default function ImagePickerModal({ onSelect, onClose, defaultFolder }: I
   const [progress, setProgress] = useState<{ done: number; total: number } | null>(null);
   const [selected, setSelected] = useState<string | null>(null);
   const [query, setQuery] = useState("");
+  // Friendly names for the UUID folders we've walked through, so the
+  // breadcrumb can read "Bonaire 2026 / Participants / Dennis Robinson"
+  // instead of three raw UUIDs.
+  const [crumbLabels, setCrumbLabels] = useState<Record<string, string>>({});
   const [error, setError] = useState("");
   const [dragOver, setDragOver] = useState(false);
   const [dest, setDest] = useState(defaultFolder || ""); // where NEW uploads land — always shown, changeable
@@ -180,10 +184,15 @@ export default function ImagePickerModal({ onSelect, onClose, defaultFolder }: I
 
   // What to show
   const q = query.trim().toLowerCase();
+  // A search is always global. The box says "Search all images", and searching
+  // inside the one folder you're already looking at is the one thing nobody
+  // needs — so a query takes over the folder view instead of silently
+  // filtering a list it was never applied to.
+  const searching = q.length > 0;
   const allImages = all.filter((f) => !q || f.path.toLowerCase().includes(q));
-  const folders = view === "folders" ? folderFiles.filter((f) => f.isFolder) : [];
+  const folders = view === "folders" && !searching ? folderFiles.filter((f) => f.isFolder) : [];
   const folderImages = view === "folders" ? folderFiles.filter((f) => !f.isFolder && f.type?.startsWith("image/")) : [];
-  const grid = view === "all" ? allImages : folderImages;
+  const grid = view === "all" || searching ? allImages : folderImages;
   const breadcrumbs = folder ? folder.split("/").filter(Boolean) : [];
 
   const tabBtn = (active: boolean) =>
@@ -254,17 +263,27 @@ export default function ImagePickerModal({ onSelect, onClose, defaultFolder }: I
         {/* Folder breadcrumbs (folders view only) */}
         {view === "folders" && (
           <div className="flex items-center gap-1.5 text-sm px-5 py-2.5 flex-wrap" style={{ borderBottom: "1px solid var(--admin-border)" }}>
-            <button onClick={() => setFolder("")} className={folder ? "admin-muted" : "admin-heading font-medium"}>assets</button>
-            {breadcrumbs.map((crumb, i) => {
-              const path = breadcrumbs.slice(0, i + 1).join("/");
-              const isLast = i === breadcrumbs.length - 1;
-              return (
-                <span key={path} className="flex items-center gap-1.5">
-                  <span className="admin-faint">/</span>
-                  <button onClick={() => setFolder(path)} className={isLast ? "admin-heading font-medium" : "admin-muted"}>{crumb}</button>
-                </span>
-              );
-            })}
+            {searching ? (
+              <span className="admin-muted">Searching everywhere for <span className="admin-heading font-medium">“{query.trim()}”</span> — clear the box to browse folders again.</span>
+            ) : (
+              <>
+                <button onClick={() => setFolder("")} className={folder ? "admin-muted" : "admin-heading font-medium"}>assets</button>
+                {breadcrumbs.map((crumb, i) => {
+                  const path = breadcrumbs.slice(0, i + 1).join("/");
+                  const isLast = i === breadcrumbs.length - 1;
+                  // Memory folders are keyed by UUID, so the raw crumb is
+                  // unreadable. We learned the friendly name when this folder
+                  // was a tile — use it, and keep the UUID on hover.
+                  const nice = crumbLabels[path];
+                  return (
+                    <span key={path} className="flex items-center gap-1.5">
+                      <span className="admin-faint">/</span>
+                      <button onClick={() => setFolder(path)} title={nice ? crumb : undefined} className={isLast ? "admin-heading font-medium" : "admin-muted"}>{nice ?? crumb}</button>
+                    </span>
+                  );
+                })}
+              </>
+            )}
           </div>
         )}
 
@@ -286,7 +305,7 @@ export default function ImagePickerModal({ onSelect, onClose, defaultFolder }: I
               {folders.length > 0 && (
                 <div className="grid grid-cols-3 sm:grid-cols-5 lg:grid-cols-7 gap-3 mb-5">
                   {folders.map((item) => (
-                    <button key={item.path} onClick={() => setFolder(item.path)} title={item.label ? `${item.label} (${item.name})` : item.name} className="flex flex-col items-center gap-1.5 p-3 rounded-xl transition-colors hover:bg-[var(--admin-surface-hover)]" style={{ border: "1px solid var(--admin-border)" }}>
+                    <button key={item.path} onClick={() => { if (item.label) setCrumbLabels((m) => ({ ...m, [item.path]: item.label! })); setFolder(item.path); }} title={item.label ? `${item.label} (${item.name})` : item.name} className="flex flex-col items-center gap-1.5 p-3 rounded-xl transition-colors hover:bg-[var(--admin-surface-hover)]" style={{ border: "1px solid var(--admin-border)" }}>
                       <svg className="w-7 h-7 admin-faint" viewBox="0 0 24 24" fill="currentColor"><path d="M2 6a2 2 0 012-2h5l2 2h9a2 2 0 012 2v10a2 2 0 01-2 2H4a2 2 0 01-2-2V6z" /></svg>
                       <span className="text-[11px] admin-muted truncate max-w-full">{item.label ?? item.name}</span>
                     </button>
