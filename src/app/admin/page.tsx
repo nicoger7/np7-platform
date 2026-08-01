@@ -345,6 +345,13 @@ interface DashboardData {
     paused: boolean;
     mails: { templateKey: string; label: string; editionId: string; editionTitle: string; sendDate: string; daysAway: number; recipients: number; missing: string[] }[];
   };
+  readiness?: {
+    id: string; title: string; slug: string | null; websiteVisible: boolean; published: boolean;
+    nextStart: string | null;
+    missing: { label: string; where: string }[];
+    generic: { label: string; where: string }[];
+    done: number; total: number;
+  }[];
 }
 
 const STATUS_COLOR: Record<string, string> = {
@@ -452,6 +459,41 @@ function ExperienceDashboard() {
           )}
         </Panel>
         )}
+
+        {/* Before it goes public — what still needs writing. Only experiences
+            with a trip coming up or already on the website: a checklist that
+            includes every idle draft is a checklist nobody reads. */}
+        {!slim && (() => {
+          const relevant = (d.readiness ?? []).filter((r) => r.nextStart || r.websiteVisible);
+          const todo = relevant.filter((r) => r.missing.length || r.generic.length);
+          return (
+            <Panel title={`Before it goes public${todo.length ? ` (${todo.length})` : ""}`} href="/admin/content">
+              {!relevant.length ? (
+                <p className="text-xs admin-faint">No experiences on the website or with a trip coming up.</p>
+              ) : !todo.length ? (
+                <p className="text-xs text-green-500">Every live experience has its own copy. Nothing generic left.</p>
+              ) : (
+                <div className="space-y-2">
+                  {todo.slice(0, 5).map((r) => (
+                    <Link key={r.id} href={`/admin/content/${r.id}`}
+                      className="block text-xs py-1.5 px-2 -mx-2 rounded-lg hover:bg-[var(--admin-surface-hover)]">
+                      <span className="flex items-center gap-2">
+                        <span className="flex-1 admin-heading truncate">{r.title}</span>
+                        <span className="shrink-0 admin-faint">{r.done}/{r.total}</span>
+                      </span>
+                      <span className="block admin-muted mt-0.5 leading-relaxed">
+                        {r.missing.length > 0 && <span>{r.missing.length} to write: {r.missing.slice(0, 3).map((m) => m.label).join(", ")}{r.missing.length > 3 ? "…" : ""}</span>}
+                        {r.missing.length > 0 && r.generic.length > 0 && <span className="admin-faint"> · </span>}
+                        {r.generic.length > 0 && <span className="text-amber-500">{r.generic.length} still generic: {r.generic.slice(0, 2).map((g) => g.label).join(", ")}{r.generic.length > 2 ? "…" : ""}</span>}
+                      </span>
+                    </Link>
+                  ))}
+                  {todo.length > 5 && <p className="text-[11px] admin-faint pt-0.5">+{todo.length - 5} more</p>}
+                </div>
+              )}
+            </Panel>
+          );
+        })()}
 
         {/* Mails going out soon — the scheduled ones nobody triggers, so the
             only way to catch a problem is to see it before the send date. */}

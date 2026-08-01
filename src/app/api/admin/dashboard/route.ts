@@ -5,6 +5,7 @@ import { getActiveTeamMember, getEffectiveAccess } from "@/lib/admin-auth";
 import { effectiveCanAccess, effectiveCanEnterWorld, effectiveCanSeeField } from "@/lib/access";
 import { normalizeBookingStatus } from "@/lib/types";
 import { getUpcomingMails } from "@/lib/email/upcoming";
+import { getExperienceReadiness } from "@/lib/experience-readiness";
 
 // GET /api/admin/dashboard — one aggregated payload for the ops dashboard.
 // Each admin world gets its OWN payload (`?world=hardware|magazine`); the
@@ -136,6 +137,11 @@ export async function GET(request: NextRequest) {
   let upcomingMails: Awaited<ReturnType<typeof getUpcomingMails>> = { paused: true, mails: [] };
   try { upcomingMails = await getUpcomingMails(); } catch { /* leave empty */ }
 
+  // What still needs writing before an experience goes public. Tolerant — a
+  // checklist is never worth failing the dashboard over.
+  let readiness: Awaited<ReturnType<typeof getExperienceReadiness>> = [];
+  try { readiness = await getExperienceReadiness(); } catch { /* leave empty */ }
+
   return NextResponse.json({
     counts: {
       experiences: expCount.count ?? 0,
@@ -158,6 +164,7 @@ export async function GET(request: NextRequest) {
     photoTasks,
     contentGaps,
     upcomingMails,
+    readiness,
   });
 }
 
