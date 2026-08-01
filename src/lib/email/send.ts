@@ -1,5 +1,6 @@
 import { createAdminClient } from "@/lib/supabase";
 import { CANNOT_DISABLE } from "@/lib/email/automations";
+import { resolveHeaderImage } from "./header-image";
 import { renderTemplate, type EmailVars } from "./templates";
 import { SENDERS, type Division } from "./layout";
 
@@ -96,36 +97,12 @@ export async function sendEmail(args: SendArgs): Promise<SendResult> {
 
   const useOverride = override && override.active !== false ? override : null;
 
-  // Header image: experience-tied mails use that experience's hero photo (the one
-  // on its public page); general mails fall back to the template's admin image,
-  // then the division default (handled inside emailLayout).
-  let headerImage: string | undefined;
-  let expId = experienceId || undefined;
-  let editionId: string | undefined;
-  if (bookingId) {
-    const { data: bk } = await db.from("exp_bookings").select("experience_id, edition_id").eq("id", bookingId).maybeSingle();
-    if (!expId) expId = bk?.experience_id || undefined;
-    editionId = bk?.edition_id || undefined;
-  }
-  // Per-edition hero override (migration 047) wins when the edition opts into emails.
-  // select("*") so the not-yet-migrated hero_image column can't error the query.
-  if (editionId) {
-    const { data: ed } = await db.from("exp_editions").select("*").eq("id", editionId).maybeSingle();
-    if (ed?.hero_image && ed.hero_in_emails !== false) headerImage = ed.hero_image;
-  }
-  if (!headerImage && expId) {
-    const { data: content } = await db.from("exp_content").select("hero_image").eq("experience_id", expId).maybeSingle();
-    headerImage = content?.hero_image || undefined;
-    if (!headerImage) {
-      const { data: exp } = await db.from("exp_experiences").select("hero_image").eq("id", expId).maybeSingle();
-      headerImage = exp?.hero_image || undefined;
-    }
-  }
-  // Per-division header override (migration 046): Hardware uses its own image +
-  // focal point; Experience uses header_image / header_position.
-  const ovImage = division === "hardware" ? useOverride?.header_image_hardware : useOverride?.header_image;
-  const headerPosition: number | undefined = (division === "hardware" ? useOverride?.header_position_hardware : useOverride?.header_position) ?? undefined;
-  if (!headerImage) headerImage = ovImage || undefined;
+  // Header image: this week's hero, else the experience's, else the template's,
+  // else the division default. Shared with the email-log preview so the log
+  // can't show a different photo from the one that actually went out.
+  const { headerImage, headerPosition } = await resolveHeaderImage({
+    bookingId, experienceId, division, override: useOverride,
+  });
 
   let subject = "";
   let html = "";

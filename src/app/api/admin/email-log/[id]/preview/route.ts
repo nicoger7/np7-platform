@@ -1,6 +1,7 @@
 import { NextRequest } from "next/server";
 import { createAdminClient } from "@/lib/supabase";
 import { renderTemplate, TEMPLATES } from "@/lib/email/templates";
+import { resolveHeaderImage } from "@/lib/email/header-image";
 
 // (Auth enforced by middleware, like the email-log list.)
 
@@ -49,7 +50,13 @@ export async function GET(_request: NextRequest, { params }: { params: Promise<{
   const logged = (row.vars ?? null) as Record<string, string> | null;
   const vars = { ...SAMPLE, ...(logged ?? {}) };
   try {
-    const built = renderTemplate(key, vars, useOverride, "experience", useOverride?.header_image || undefined, useOverride?.header_position ?? undefined);
+    // Resolve the header exactly as the send did — from THIS row's booking, so a
+    // trip mail previews with its week's hero. Passing only the template image
+    // here made every trip email look like it went out with the house banner.
+    const { headerImage, headerPosition } = await resolveHeaderImage({
+      bookingId: row.booking_id, division: "experience", override: useOverride,
+    });
+    const built = renderTemplate(key, vars, useOverride, "experience", headerImage, headerPosition);
     const banner = logged ? "" : note("Approximate preview — sent before variable logging, shown with sample data.");
     return htmlRes(banner + built.html);
   } catch (e) {
