@@ -97,11 +97,20 @@ function fmtRange(start?: string | null, end?: string | null) {
   const day = (d: Date) => d.toLocaleDateString("en-GB", { day: "numeric", month: "long" });
   return e ? `${day(s)} – ${day(e)} ${(e ?? s).getFullYear()}` : `${day(s)} ${s.getFullYear()}`;
 }
-function fmtShort(start?: string | null, end?: string | null) {
+/**
+ * Short date range. The year is usually noise — every week on the page belongs
+ * to the same season — but it is the ONLY thing separating "17 Aug – 23 Aug"
+ * from "16 Aug – 22 Aug" when an experience runs the same August week in two
+ * different years. Pass `withYear` then. A range straddling New Year always
+ * carries both years, since that one is ambiguous on its own.
+ */
+function fmtShort(start?: string | null, end?: string | null, withYear = false) {
   if (!start) return "TBD";
   const s = new Date(start), e = end ? new Date(end) : null;
   const day = (d: Date) => d.toLocaleDateString("en-GB", { day: "numeric", month: "short" });
-  return e ? `${day(s)} – ${day(e)}` : day(s);
+  if (!e) return withYear ? `${day(s)} ${s.getFullYear()}` : day(s);
+  if (s.getFullYear() !== e.getFullYear()) return `${day(s)} ${s.getFullYear()} – ${day(e)} ${e.getFullYear()}`;
+  return withYear ? `${day(s)} – ${day(e)} ${e.getFullYear()}` : `${day(s)} – ${day(e)}`;
 }
 function money(n: number | null | undefined, currency: string | null) {
   if (n == null) return null;
@@ -351,13 +360,20 @@ export default async function ExperienceDetailPage({ params, searchParams }: Pro
     }
   }
 
+  // An experience that runs the same week in consecutive years (Alaçatı: 17–23
+  // Aug 2026 and 16–22 Aug 2027) renders two near-identical date ranges. Show
+  // the year on every week then — and don't call them "Week 1 / Week 2", which
+  // reads as two weeks of one season rather than two seasons.
+  const editionYears = new Set(allEditions.map((ed) => ed.date_start?.slice(0, 4)).filter(Boolean));
+  const multiYear = editionYears.size > 1;
+
   const editionsLite: EditionLite[] = allEditions.map((ed, i) => {
     const pks = packagesByEdition[ed.id] ?? [];
     return {
       id: ed.id,
-      label: ed.label?.trim() || `Week ${i + 1}`,
+      label: ed.label?.trim() || (multiYear && ed.date_start ? ed.date_start.slice(0, 4) : `Week ${i + 1}`),
       dateRange: fmtRange(ed.date_start, ed.date_end),
-      shortRange: fmtShort(ed.date_start, ed.date_end),
+      shortRange: fmtShort(ed.date_start, ed.date_end, multiYear),
       spotsLeft: spotsLeftFrom(ed.max_spots, securedByEd[ed.id] ?? 0),
       fromPrice: pks.length ? Math.min(...pks.map((p) => p.price)) : null,
       deposit: ed.deposit,
