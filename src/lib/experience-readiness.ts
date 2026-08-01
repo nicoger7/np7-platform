@@ -51,12 +51,22 @@ export async function getExperienceReadiness(): Promise<ExperienceReadiness[]> {
 
   const { data: exps } = await db
     .from("exp_experiences")
-    .select("id, title, slug, status, website_visible, archived_at")
+    .select("id, title, slug, status, website_visible, archived_at, destination_id")
     .is("archived_at", null)
     .order("title");
   if (!exps?.length) return [];
 
   const ids = exps.map((e: { id: string }) => e.id);
+  // "The spot" section falls back to the linked destination's intro/tagline, so
+  // an empty location_about is only a gap when there is nothing to fall back on.
+  const destIds = [...new Set((exps as { destination_id: string | null }[]).map((e) => e.destination_id).filter(Boolean))] as string[];
+  const destHasText = new Set<string>();
+  if (destIds.length) {
+    const { data: dests } = await db.from("destinations").select("id, intro, tagline").in("id", destIds);
+    for (const d of (dests ?? []) as { id: string; intro: string | null; tagline: string | null }[]) {
+      if ((d.intro ?? "").trim() || (d.tagline ?? "").trim()) destHasText.add(d.id);
+    }
+  }
   const [{ data: contents }, { data: editions }, { data: placements }] = await Promise.all([
     db.from("exp_content").select("*").in("experience_id", ids),
     db.from("exp_editions").select("experience_id, date_start, status, archived_at").in("experience_id", ids),
@@ -82,7 +92,7 @@ export async function getExperienceReadiness(): Promise<ExperienceReadiness[]> {
   }
 
   const out: ExperienceReadiness[] = [];
-  for (const e of exps as { id: string; title: string; slug: string | null; status: string | null; website_visible: boolean | null }[]) {
+  for (const e of exps as { id: string; title: string; slug: string | null; status: string | null; website_visible: boolean | null; destination_id: string | null }[]) {
     const c = contentBy.get(e.id) ?? {};
     const has = (v: unknown) => typeof v === "string" && v.trim().length > 0;
     const missing: ReadinessCheck[] = [];
@@ -90,7 +100,8 @@ export async function getExperienceReadiness(): Promise<ExperienceReadiness[]> {
 
     // ── empty ────────────────────────────────────────────────────────────
     if (!has(c.hero_image)) missing.push({ label: "Hero photo", where: `${WHERE_CONTENT} → Media` });
-    if (!has(c.location_about)) missing.push({ label: "About the spot", where: WHERE_CONTENT });
+    const spotCovered = has(c.location_about) || (!!e.destination_id && destHasText.has(e.destination_id));
+    if (!spotCovered) missing.push({ label: "About the spot", where: WHERE_CONTENT });
     if (!has(c.week_info)) missing.push({ label: "Your week", where: WHERE_CONTENT });
     if (!has(c.wind_range) && !has(c.wind_probability)) missing.push({ label: "Wind facts", where: WHERE_CONTENT });
     // Blocks the pre-trip email outright, not just the page.

@@ -85,13 +85,14 @@ function StatCard({ label, value, href, accent }: { label: string; value: string
   return href ? <Link href={href}>{body}</Link> : body;
 }
 
-function Panel({ title, href, children }: { title: string; href?: string; children: React.ReactNode }) {
+function Panel({ title, href, linkLabel, subtitle, children }: { title: string; href?: string; linkLabel?: string; subtitle?: string; children: React.ReactNode }) {
   return (
     <div className="rounded-xl p-5" style={{ backgroundColor: "var(--admin-surface)", border: "1px solid var(--admin-border)" }}>
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between mb-3">
         <h2 className="text-sm font-bold admin-heading">{title}</h2>
-        {href && <Link href={href} className="text-xs hover:underline" style={{ color: "var(--admin-accent)" }}>View all →</Link>}
+        {href && <Link href={href} className="text-xs hover:underline" style={{ color: "var(--admin-accent)" }}>{linkLabel ?? "View all"} →</Link>}
       </div>
+      {subtitle && <p className="text-[11px] admin-faint -mt-1.5 mb-2.5">{subtitle}</p>}
       {children}
     </div>
   );
@@ -467,7 +468,12 @@ function ExperienceDashboard() {
           const relevant = (d.readiness ?? []).filter((r) => r.nextStart || r.websiteVisible);
           const todo = relevant.filter((r) => r.missing.length || r.generic.length);
           return (
-            <Panel title={`Before it goes public${todo.length ? ` (${todo.length})` : ""}`} href="/admin/content">
+            <Panel
+              title={`Before it goes public${todo.length ? ` (${todo.length})` : ""}`}
+              href="/admin/content"
+              linkLabel="Website content"
+              subtitle="The number on the right is how many of the 11 checks each experience passes."
+            >
               {!relevant.length ? (
                 <p className="text-xs admin-faint">No experiences on the website or with a trip coming up.</p>
               ) : !todo.length ? (
@@ -479,7 +485,7 @@ function ExperienceDashboard() {
                       className="block text-xs py-1.5 px-2 -mx-2 rounded-lg hover:bg-[var(--admin-surface-hover)]">
                       <span className="flex items-center gap-2">
                         <span className="flex-1 admin-heading truncate">{r.title}</span>
-                        <span className="shrink-0 admin-faint">{r.done}/{r.total}</span>
+                        <span className="shrink-0 admin-faint" title={`${r.done} of ${r.total} checks done — ${r.missing.length} to write, ${r.generic.length} still generic`}>{r.done}/{r.total}</span>
                       </span>
                       <span className="block admin-muted mt-0.5 leading-relaxed">
                         {r.missing.length > 0 && <span>{r.missing.length} to write: {r.missing.slice(0, 3).map((m) => m.label).join(", ")}{r.missing.length > 3 ? "…" : ""}</span>}
