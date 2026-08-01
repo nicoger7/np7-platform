@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { createAdminClient } from "@/lib/supabase";
 import { renderTemplate } from "@/lib/email/templates";
-import { AUTOMATIONS, lifecycleLive, type TriggerSource } from "@/lib/email/automations";
+import { AUTOMATIONS, lifecycleLive, CANNOT_DISABLE, type TriggerSource } from "@/lib/email/automations";
 import { EmailGroupTabs } from "@/components/admin/email-group-tabs";
 
 /**
@@ -50,7 +50,7 @@ export default async function EmailsHubPage() {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const db = createAdminClient() as any;
   const { data: overrides } = await db.from("email_templates").select("*");
-  type Ov = { template_key: string | null; subject_line?: string | null; body?: string | null; active?: boolean | null; header_image?: string | null };
+  type Ov = { template_key: string | null; subject_line?: string | null; body?: string | null; active?: boolean | null; header_image?: string | null; enabled?: boolean | null };
   const overrideByKey = new Map<string, Ov>();
   for (const o of (overrides || []) as Ov[]) {
     if (o.template_key) overrideByKey.set(o.template_key, o);
@@ -60,11 +60,20 @@ export default async function EmailsHubPage() {
     const ov = overrideByKey.get(a.key);
     const useOv = ov && ov.active !== false ? ov : null;
     const built = renderTemplate(a.key, SAMPLE, useOv, a.division, useOv?.header_image || undefined);
-    return { ...a, html: built.html, subject: built.subject, isLive: a.kind === "transactional" || live, hasOverride: !!ov?.body && ov?.active !== false };
+    return {
+      ...a,
+      html: built.html,
+      subject: built.subject,
+      isLive: a.kind === "transactional" || live,
+      hasOverride: !!ov?.body && ov?.active !== false,
+      // No row yet means nobody has switched it off — default on.
+      enabled: ov?.enabled !== false,
+      locked: CANNOT_DISABLE.has(a.key),
+    };
   });
 
-  const liveCount = cards.filter((c) => c.isLive).length;
-  const pausedCount = cards.length - liveCount;
+  const onCount = cards.filter((c) => c.enabled).length;
+  const offCount = cards.length - onCount;
 
   return (
     <div>
@@ -74,8 +83,8 @@ export default async function EmailsHubPage() {
           <p className="text-sm admin-muted">Every email the system can send, what triggers it, and whether it&apos;s live right now.</p>
         </div>
         <div className="flex items-center gap-2 text-xs">
-          <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-green-500/10 text-green-400 font-bold"><span className="w-1.5 h-1.5 rounded-full bg-green-400" />{liveCount} live</span>
-          <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-amber-400/10 text-amber-300 font-bold"><span className="w-1.5 h-1.5 rounded-full bg-amber-300" />{pausedCount} paused</span>
+          <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-green-500/10 text-green-400 font-bold"><span className="w-1.5 h-1.5 rounded-full bg-green-400" />{onCount} on</span>
+          {offCount > 0 && <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg admin-muted font-bold" style={{ border: "1px solid var(--admin-border)" }}>{offCount} switched off</span>}
         </div>
       </div>
 
@@ -102,7 +111,7 @@ export default async function EmailsHubPage() {
           23 at once was a very long page. */}
       <EmailGroupTabs cards={cards} groups={GROUPS} />
 
-      <p className="text-xs admin-faint mt-6">Click any email to edit its wording &amp; photo. Sent emails are logged in <Link href="/admin/email-log" className="text-[#0aa3c7] hover:underline">Email Log</Link>.</p>
+      <p className="text-xs admin-faint mt-6">Click any email to edit its wording &amp; photo; use the switch to stop one sending. Sent emails are logged in <Link href="/admin/email-log" className="text-[#0aa3c7] hover:underline">Email Log</Link>.</p>
     </div>
   );
 }

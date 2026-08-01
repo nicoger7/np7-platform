@@ -62,6 +62,16 @@ export const AUTOMATIONS: Automation[] = [
   { key: "addon_confirmed", name: "Add-on confirmed", stage: "Add-ons", trigger: "When you confirm a requested add-on", division: "experience", kind: "lifecycle" , source: "staff" },
 ];
 
+/**
+ * Emails with no off switch.
+ *
+ * The magic link IS the way a member signs in. Switching it off would lock
+ * people out of their own account with nothing on screen to explain why, and
+ * the person best placed to notice — the member — has no way to report it. A
+ * switch whose failure mode is silent lockout is not worth having.
+ */
+export const CANNOT_DISABLE = new Set(["account_magic_link"]);
+
 /** Whether the automated lifecycle pipeline is switched on (env, server-only). */
 export function lifecycleLive(): boolean {
   return process.env.EMAIL_LIFECYCLE_LIVE === "true" || process.env.EMAIL_LIFECYCLE_LIVE === "1";

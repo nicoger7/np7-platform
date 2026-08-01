@@ -1,4 +1,5 @@
 import { createAdminClient } from "@/lib/supabase";
+import { CANNOT_DISABLE } from "@/lib/email/automations";
 import { renderTemplate, type EmailVars } from "./templates";
 import { SENDERS, type Division } from "./layout";
 
@@ -82,6 +83,17 @@ export async function sendEmail(args: SendArgs): Promise<SendResult> {
     .select("*")
     .eq("template_key", templateKey)
     .maybeSingle();
+  // Per-email master switch. Off means off — including a manual press, because
+  // an admin who switched this mail off doesn't want it leaving by another door.
+  // Returns before any DB write, so the dedupe key stays unburned and the mail
+  // can still fire for real if it's switched back on in time.
+  //
+  // CANNOT_DISABLE is the exception: the magic link IS how members sign in, so
+  // switching it off would lock them out of their own account with no clue why.
+  if (override?.enabled === false && !CANNOT_DISABLE.has(templateKey)) {
+    return { status: "skipped", error: `"${templateKey}" is switched off in Emails` };
+  }
+
   const useOverride = override && override.active !== false ? override : null;
 
   // Header image: experience-tied mails use that experience's hero photo (the one
