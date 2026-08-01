@@ -338,7 +338,7 @@ interface DashboardData {
   recentEmails: { template_key: string; to_email: string | null; status: string | null; subject: string | null; sent_at: string | null; created_at: string }[];
   overdueTodos: number;
   finance: { openRevenue: number; unmatchedPayments: number } | null;
-  pendingAddons: { id: string; bookingId: string; label: string; price: number | null; bookingName: string }[];
+  pendingAddons: { id: string; bookingId: string; label: string; price: number | null; bookingName: string; payDirect?: boolean }[];
   slim?: boolean;
   photoTasks?: { editionId: string; label: string; total: number; missing: { id: string; name: string }[] }[];
   contentGaps?: { experienceId: string; title: string; missing: string[] }[];
@@ -364,6 +364,36 @@ function ExperienceDashboard() {
   const [d, setD] = useState<DashboardData | null>(null);
   const [loading, setLoading] = useState(true);
   const [hideMoney, toggleHideMoney] = useHideMoney();
+  const [confirming, setConfirming] = useState<string | null>(null);
+
+  /**
+   * Confirm an add-on without leaving the dashboard.
+   *
+   * Asks first, because this is one click away from a row you were only
+   * glancing at — and it tells you exactly what it will do, since the two
+   * outcomes differ: a normal add-on gets charged, a pay-direct one is arranged
+   * and never invoiced. Same rule as the booking page; disagreeing here would
+   * bill a guest for money we never collect.
+   */
+  async function quickConfirmAddon(a: { id: string; bookingId: string; label: string; bookingName: string; price: number | null; payDirect?: boolean }) {
+    const what = a.payDirect
+      ? `Confirm "${a.label}" for ${a.bookingName}?\n\nThey pay the supplier directly — nothing will be invoiced.`
+      : `Confirm "${a.label}" for ${a.bookingName}?\n\nThis adds ${a.price ? `€${Number(a.price).toLocaleString("en-US")}` : "its price"} to what they owe.`;
+    if (!window.confirm(what)) return;
+    setConfirming(a.id);
+    try {
+      const res = await fetch(`/api/admin/bookings/${a.bookingId}/addons`, {
+        method: "PATCH", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ addon_id: a.id, status: "confirmed", complimentary: !!a.payDirect }),
+      });
+      if (res.ok) {
+        setD((prev) => prev ? { ...prev, pendingAddons: prev.pendingAddons.filter((x) => x.id !== a.id) } : prev);
+      } else {
+        const j = await res.json().catch(() => ({}));
+        alert(j.error || "Couldn't confirm that add-on.");
+      }
+    } finally { setConfirming(null); }
+  }
 
   useEffect(() => {
     fetch("/api/admin/dashboard").then((r) => r.json()).then((data) => { setD(data); setLoading(false); });
@@ -450,11 +480,21 @@ function ExperienceDashboard() {
           {d.pendingAddons.length === 0 ? <p className="text-xs admin-faint">No add-on requests waiting.</p> : (
             <div className="space-y-1.5">
               {d.pendingAddons.map((a) => (
-                <Link key={a.id} href={`/admin/bookings/${a.bookingId}?tab=addons`} className="flex items-center gap-3 text-xs py-1.5 px-2 -mx-2 rounded-lg hover:bg-[var(--admin-surface-hover)]">
-                  <span className="flex-1 admin-heading truncate">{a.bookingName} <span className="admin-faint">· {a.label}</span></span>
-                  <span className="shrink-0 text-[9px] font-bold uppercase px-1.5 py-0.5 rounded bg-amber-500/15 text-amber-500">Requested</span>
-                  <span className="admin-muted w-16 text-right">{amt(a.price)}</span>
-                </Link>
+                <div key={a.id} className="flex items-center gap-3 text-xs py-1.5 px-2 -mx-2 rounded-lg hover:bg-[var(--admin-surface-hover)]">
+                  <Link href={`/admin/bookings/${a.bookingId}?tab=addons`} className="flex-1 min-w-0 admin-heading truncate">
+                    {a.bookingName} <span className="admin-faint">· {a.label}</span>
+                  </Link>
+                  {a.payDirect
+                    ? <span className="shrink-0 text-[9px] font-bold uppercase px-1.5 py-0.5 rounded bg-amber-500/15 text-amber-500" title="The guest pays the supplier — nothing is invoiced">Pays supplier</span>
+                    : <span className="admin-muted w-14 text-right shrink-0">{amt(a.price)}</span>}
+                  <button
+                    onClick={() => quickConfirmAddon(a)}
+                    disabled={confirming === a.id}
+                    className="shrink-0 text-[11px] font-bold px-2.5 py-1 rounded-md bg-[var(--admin-accent)] text-[var(--admin-accent-contrast)] hover:bg-[var(--admin-accent)]/90 disabled:opacity-50 transition-colors"
+                  >
+                    {confirming === a.id ? "…" : "Confirm"}
+                  </button>
+                </div>
               ))}
             </div>
           )}
