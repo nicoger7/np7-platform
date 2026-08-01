@@ -22,21 +22,22 @@ import { effectiveCanAccess, effectiveCanSeeField } from "@/lib/access";
 import { PublicBadge } from "@/components/admin/public-badge";
 import { editionLabel } from "@/lib/edition-label";
 import { MailReadiness } from "@/components/admin/mail-readiness";
+import { EditionMailing } from "@/components/admin/edition-mailing";
 
 // Edition detail sub-tabs. The order is reorderable by drag-and-drop and saved
 // per admin in localStorage (each team member keeps their own preferred order).
-const DEFAULT_TABS = ["details", "branding", "bookings", "levels", "packages", "memories", "costs", "rooms", "notes"] as const;
+const DEFAULT_TABS = ["details", "branding", "mailing", "bookings", "levels", "packages", "memories", "costs", "rooms", "notes"] as const;
 type EditionTab = (typeof DEFAULT_TABS)[number];
 const TAB_ORDER_KEY = "np7_edition_tab_order";
 const TAB_LABEL: Record<EditionTab, string> = {
-  details: "Details", branding: "Branding", bookings: "Bookings", levels: "Levels", packages: "Packages",
+  details: "Details", branding: "Branding", mailing: "Mailing", bookings: "Bookings", levels: "Levels", packages: "Packages",
   memories: "Memories", costs: "Costs", rooms: "Hotel Rooms", notes: "Notes",
 };
 // Each tab's data comes from a section's API — hide the tab if the role can't
 // reach it (otherwise it shows but 404s on click). The edition's own tabs map to
 // the experiences section the member already has to be here.
 const TAB_PATH: Record<EditionTab, string> = {
-  details: "/admin/editions", branding: "/admin/editions", levels: "/admin/editions",
+  details: "/admin/editions", branding: "/admin/editions", mailing: "/admin/editions", levels: "/admin/editions",
   memories: "/admin/editions", notes: "/admin/editions",
   bookings: "/admin/bookings", packages: "/admin/packages", costs: "/admin/exp-costs", rooms: "/admin/hotel-rooms",
 };
@@ -1012,6 +1013,8 @@ export default function EditionDetailPage({
       )}
 
       {/* ── Branding tab — per-edition hero image ── */}
+      {tab === "mailing" && <EditionMailing editionId={id} />}
+
       {tab === "branding" && (() => {
         const inherited = edition.exp_experiences?.hero_image || null;
         const shown = brandImg || inherited;
