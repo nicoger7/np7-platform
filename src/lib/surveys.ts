@@ -54,6 +54,8 @@ export type Survey = {
   /** false = hide the "What are you looking for?" free-text card (classic form). */
   ask_wishes: boolean;
   /** One-tap date buttons in the invite email (any survey with dated trips). false = single survey button. */
+  /** Subject line of the invite email. null = the built-in one. */
+  email_subject: string | null;
   email_date_buttons: boolean;
   /** Text of the single "open the survey" email button (email_date_buttons off). null = "Take the 2-minute survey". */
   email_button_label: string | null;
@@ -136,6 +138,7 @@ function rowToSurvey(r: Record<string, unknown>): Survey {
     show_decline: r.show_decline !== false,
     email_body: (r.email_body as string | null) ?? null,
     ask_wishes: r.ask_wishes !== false,
+    email_subject: (r.email_subject as string | null) ?? null,
     email_date_buttons: r.email_date_buttons !== false,
     email_button_label: (r.email_button_label as string | null) ?? null,
     open_token: (r.open_token as string | null) ?? null,
@@ -199,7 +202,7 @@ export async function createSurvey(input: Partial<Survey>): Promise<Survey | nul
 
 export async function updateSurvey(id: string, patch: Partial<Survey>): Promise<Survey | null> {
   const clean: Record<string, unknown> = { updated_at: new Date().toISOString() };
-  for (const k of ["title", "intro", "status", "destinations", "weeks", "budget_anchor", "budget_min", "budget_max", "currency", "quick", "eyebrow", "cta_label", "decline_label", "show_decline", "email_body", "ask_wishes", "email_date_buttons", "email_button_label"] as const) {
+  for (const k of ["title", "intro", "status", "destinations", "weeks", "budget_anchor", "budget_min", "budget_max", "currency", "quick", "eyebrow", "cta_label", "decline_label", "show_decline", "email_body", "ask_wishes", "email_date_buttons", "email_button_label", "email_subject"] as const) {
     if (k in patch) clean[k] = patch[k];
   }
   const { data } = await db().from("exp_surveys").update(clean).eq("id", id).select("*").single();
@@ -443,6 +446,7 @@ export function surveyInviteVars(survey: Survey | null, contactName: string | nu
     surveyLink: url,
   };
   if (survey?.email_body?.trim()) vars.emailBody = survey.email_body.trim();
+  if (survey?.email_subject?.trim()) vars.surveySubject = survey.email_subject.trim();
   const cta = (survey?.cta_label ?? "").trim();
   // One-tap date buttons: each button's link carries the answer (pre-registers
   // it; the page opens with it selected).

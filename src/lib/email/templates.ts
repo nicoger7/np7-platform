@@ -12,6 +12,8 @@ export type EmailVars = {
   activationLink?: string;
   bookingLink?: string;
   whatsappLink?: string;
+  /** admin-set subject for a survey invite; empty = the built-in one */
+  surveySubject?: string;
   reviewLink?: string;
   joinLink?: string;
   /** Newline-separated packing list (rendered as a checklist). */
@@ -123,12 +125,19 @@ export const TEMPLATES: Record<string, (v: EmailVars, opts?: LayoutOpts) => Buil
       ? v.emailBody.split(/\n+/).map((line) => p(esc(line))).join("")
       : null;
     return {
-      subject: isQuick
-        ? `${v.surveyTitle ?? "A special NP7 trip"} — would you join? One tap 🤙`
-        : `A quick one for you — ${v.surveyTitle ?? "help shape a special NP7 trip"} 🌊`,
+      // An explicit subject from the admin always wins. Otherwise: name the trip
+      // and ask the question — the old non-quick fallback opened "A quick one
+      // for you" and previewed as "a private invite", which is simply wrong for
+      // a survey behind a shareable open link.
+      subject: v.surveySubject?.trim()
+        || (isQuick
+          ? `${v.surveyTitle ?? "A special NP7 trip"} — would you join? One tap 🤙`
+          : `${v.surveyTitle ?? "A special NP7 trip"} — would you join? 🌊`),
       html: emailLayout({
         ...opts,
-        preheader: isQuick ? `One tap answers it — no forms, no login.` : `A private invite to help plan a special NP7 trip — 2 minutes.`,
+        preheader: isQuick
+          ? `One tap answers it — no forms, no login.`
+          : `Two minutes to help pick the week — no forms, no login.`,
         bodyHtml: isQuick
           ? p(`Hey ${esc(v.firstName || "there")} 🤙`) +
             (customBody ??

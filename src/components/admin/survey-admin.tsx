@@ -179,6 +179,10 @@ export function SurveyAdmin({ initialSurvey, initialInvites }: { initialSurvey: 
           <textarea className={`${input} mt-1 min-h-[70px] resize-y`} value={s.intro ?? ""} onChange={(e) => patch({ intro: e.target.value })} placeholder="e.g. I'm cooking up a small, special trip for a handful of riders…" />
         </label>
         <label className="block mb-3">
+          <span className={lbl}>Email subject <span className="font-normal normal-case opacity-70">— what lands in the inbox. Empty = built in from the survey title.</span></span>
+          <input className={`${input} mt-1 mb-3`} value={s.email_subject ?? ""} onChange={(e) => patch({ email_subject: e.target.value === "" ? null : e.target.value })} placeholder={`${s.title} — would you join? 🤙`} />
+        </label>
+        <label className="block mb-3">
           <span className={lbl}>Invite email text <span className="font-normal normal-case opacity-70">— replaces the standard pitch between the greeting and the buttons; greeting, buttons, opt-out &amp; sign-off stay. Empty = built-in copy. Check it with ✉ Preview email below.</span></span>
           <textarea className={`${input} mt-1 min-h-[90px] resize-y`} value={s.email_body ?? ""} onChange={(e) => patch({ email_body: e.target.value || null })} placeholder={"I'm putting together " + (s.title || "this trip") + " and you're on my shortlist. Just tell me if you'd be in — one tap on a date below is all it takes."} />
         </label>
@@ -720,6 +724,7 @@ Same invite email under the subject "${remSubject.trim() || `Quick reminder 🤙
       {showMail && (
         <div className="mt-3 rounded-xl border border-[#e7ddcb] overflow-hidden bg-white">
           <div className="px-3 py-1.5 text-[11px] text-[#9aa6ac] border-b border-[#efe8d8]">Exactly what recipients get — built from the <b>last saved</b> survey (save first if you just changed something). Buttons link to your team preview.</div>
+          <MailMeta surveyId={surveyId} />
           <iframe title="Invite email preview" src={`/api/admin/surveys/${surveyId}/email-preview`} sandbox="" className="w-full h-[560px] bg-white" />
         </div>
       )}
@@ -881,6 +886,32 @@ Same invite email under the subject "${remSubject.trim() || `Quick reminder 🤙
 }
 
 // ---------------- responses ----------------
+/** The two lines everyone reads before opening anything: subject, then the
+ *  inbox preview line. Both live outside the rendered body, so the preview
+ *  iframe alone never showed them. */
+function MailMeta({ surveyId }: { surveyId: string }) {
+  const [meta, setMeta] = useState<{ subject: string; preheader: string } | null>(null);
+  useEffect(() => {
+    let alive = true;
+    fetch(`/api/admin/surveys/${surveyId}/email-preview?meta=1`)
+      .then((r) => r.json()).then((d) => { if (alive) setMeta(d); }).catch(() => {});
+    return () => { alive = false; };
+  }, [surveyId]);
+  if (!meta) return null;
+  return (
+    <div className="px-4 py-3 border-b border-[#e2e9ec] bg-[#fbfdfe]">
+      <p className="text-[11px] font-black uppercase tracking-[0.1em] text-[#9aa6ac]">Subject</p>
+      <p className="text-[14px] font-bold text-[#0a2a33] break-words">{meta.subject}</p>
+      {meta.preheader && (
+        <>
+          <p className="text-[11px] font-black uppercase tracking-[0.1em] text-[#9aa6ac] mt-2">Inbox preview line</p>
+          <p className="text-[13px] text-[#6a7a80] break-words">{meta.preheader}</p>
+        </>
+      )}
+    </div>
+  );
+}
+
 function ResponsesSection({ survey, invites, fmtMoney }: { survey: Survey; invites: SurveyInvite[]; fmtMoney: (n: number | null) => string }) {
   const responded = invites.filter((i) => i.response);
 

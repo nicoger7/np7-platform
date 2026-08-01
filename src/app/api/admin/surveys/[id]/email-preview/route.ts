@@ -25,6 +25,15 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
   const useOverride = override && override.active !== false ? override : null;
 
   const built = renderTemplate("survey_invite", vars, useOverride, "experience", useOverride?.header_image || undefined, useOverride?.header_position ?? undefined);
+
+  // ?meta=1 → just the subject and the inbox preview line. They live outside the
+  // rendered body, so the iframe alone never showed them — you were composing an
+  // email without being able to read the two lines everyone sees first.
+  if (new URL(request.url).searchParams.get("meta") === "1") {
+    const preheader = built.html.match(/<div[^>]*style="[^"]*display:\s*none[^"]*"[^>]*>([\s\S]*?)<\/div>/i)?.[1]?.replace(/<[^>]+>/g, "").replace(/&[a-z]+;/gi, " ").trim() ?? "";
+    return Response.json({ subject: built.subject, preheader });
+  }
+
   return new Response(built.html, {
     headers: { "Content-Type": "text/html; charset=utf-8", "Cache-Control": "private, no-store" },
   });
