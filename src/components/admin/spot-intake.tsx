@@ -9,6 +9,9 @@ export function SpotIntake() {
   const [text, setText] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
+  const [videoUrl, setVideoUrl] = useState("");
+  const [pulling, setPulling] = useState(false);
+  const [pulled, setPulled] = useState<{ title: string; channel: string | null; via: string; chars: number } | null>(null);
   const [result, setResult] = useState<{
     queued?: boolean;
     spot?: { id: string; name: string; destination_id: string };
@@ -16,6 +19,25 @@ export function SpotIntake() {
     extracted?: { levels: string[]; conditions: string[]; infrastructure: string[]; lat: number | null; lng: number | null };
     notes?: string[];
   } | null>(null);
+
+  /** Pull a video's title + description INTO the box rather than straight into
+   *  the AI — a description is half spot knowledge and half timestamps and
+   *  sponsor copy, and only you can tell which at a glance. */
+  async function pullFromVideo() {
+    if (pulling || !videoUrl.trim()) return;
+    setPulling(true); setError(""); setPulled(null);
+    try {
+      const res = await fetch("/api/admin/youtube", {
+        method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ url: videoUrl }),
+      });
+      const j = await res.json().catch(() => ({}));
+      if (!res.ok) { setError(j.error || "Couldn't read that video."); return; }
+      const block = [j.title, j.description].filter(Boolean).join("\n\n");
+      setText((prev) => (prev.trim() ? `${prev.trim()}\n\n${block}` : block));
+      setPulled({ title: j.title || "", channel: j.channel ?? null, via: j.via, chars: block.length });
+      setVideoUrl("");
+    } finally { setPulling(false); }
+  }
 
   async function run() {
     if (busy || text.trim().length < 20) return;
@@ -37,6 +59,28 @@ export function SpotIntake() {
         <span className="px-2 py-0.5 rounded text-[10px] font-bold uppercase bg-[#0aa3c7]/15 text-[#0aa3c7]">draft only</span>
       </div>
       <p className="text-[12.5px] admin-muted mb-3">Paste anything — a rider&apos;s WhatsApp message, a forum paragraph, your own notes. It becomes a structured <b>draft</b> spot (matched to an existing area, or a new draft area), waiting for your review. Nothing goes public by itself.</p>
+      {/* YouTube insert — the description under a spot video is usually a
+          better brief than anything anyone would retype. */}
+      <div className="flex items-center gap-2 mb-2">
+        <input value={videoUrl} onChange={(e) => setVideoUrl(e.target.value)}
+          onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); pullFromVideo(); } }}
+          placeholder="Or paste a YouTube link — youtu.be/…"
+          className="flex-1 min-w-0 rounded-lg px-3 py-2 text-[13px] admin-input admin-border border outline-none"
+          style={{ backgroundColor: "var(--admin-input-bg)" }} />
+        <button onClick={pullFromVideo} disabled={pulling || !videoUrl.trim()}
+          className="shrink-0 px-3 py-2 rounded-lg text-[13px] font-bold admin-border border admin-heading hover:bg-[var(--admin-surface-hover)] disabled:opacity-40 transition-colors">
+          {pulling ? "Reading…" : "Pull text"}
+        </button>
+      </div>
+      {pulled && (
+        <p className="text-[12px] admin-muted mb-2">
+          Added <b className="admin-heading">{pulled.title || "video"}</b>
+          {pulled.channel ? ` · ${pulled.channel}` : ""} — {pulled.chars} characters.{" "}
+          {pulled.via === "oembed"
+            ? <span className="text-amber-500">Only the title came through (no description available) — add the details yourself below.</span>
+            : "Check it below, trim what isn't about the spot, then structure it."}
+        </p>
+      )}
       <textarea value={text} onChange={(e) => setText(e.target.value)} rows={4}
         placeholder={`e.g. "El Cabezo in El Médano works best on SW 5-7bft, medium to big waves, rocky entry at low tide, parking right at the beach, gets crowded on weekends…"`}
         className="w-full rounded-lg px-3 py-2 text-[13.5px] admin-input admin-border border outline-none" style={{ backgroundColor: "var(--admin-input-bg)" }} />
