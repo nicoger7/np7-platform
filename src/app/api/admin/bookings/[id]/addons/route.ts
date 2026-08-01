@@ -32,7 +32,7 @@ export async function GET(
 
   const { data, error } = await client
     .from("exp_booking_addons")
-    .select("*, exp_components(id, name, category, unit_cost)")
+    .select("*, exp_components(id, name, category, unit_cost, payment_mode, payment_note)")
     .eq("booking_id", id);
 
   if (error) {
@@ -60,7 +60,7 @@ export async function POST(
       price: body.price || null,
       notes: body.notes || null,
     })
-    .select("*, exp_components(id, name, category, unit_cost)")
+    .select("*, exp_components(id, name, category, unit_cost, payment_mode, payment_note)")
     .single();
 
   if (error) {

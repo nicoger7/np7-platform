@@ -85,7 +85,7 @@ interface Addon {
   status: string | null;
   source: string | null;
   meta?: { checkIn?: string | null; checkOut?: string | null; nightsBefore?: number; nightsAfter?: number; nights?: number; hotelConfirmed?: boolean } | null;
-  exp_components: { id: string; name: string; category: string; unit_cost: number } | null;
+  exp_components: { id: string; name: string; category: string; unit_cost: number; payment_mode?: string | null; payment_note?: string | null } | null;
 }
 
 interface HotelRoom {
@@ -1336,6 +1336,9 @@ export function BookingDetailPane({ bookingId, onBack }: { bookingId: string; on
                 const eff = effectiveAddonStatus(a);
                 if (eff === "declined") return null; // "no add-ons needed" marker — not shown to the team
                 const requested = eff === "requested";
+                // "Pay the supplier direct" add-ons: we arrange them, no money
+                // moves through NP7, so no invoice and no payment row.
+                const payDirect = a.exp_components?.payment_mode === "direct";
                 const isMember = a.source === "member" || (a.notes ?? "").startsWith("member:");
                 return (
                 <div key={a.id} className="grid grid-cols-[1fr_110px_90px_120px] gap-3 px-5 py-3" style={{ borderBottom: "1px solid var(--admin-border)" }}>
@@ -1358,13 +1361,24 @@ export function BookingDetailPane({ bookingId, onBack }: { bookingId: string; on
                     )}
                   </div>
                   <span className="text-xs admin-muted self-center capitalize">{a.exp_components?.category || "custom"}</span>
-                  <span className="text-xs admin-muted self-center">{a.price ? `€${Number(a.price).toLocaleString()}` : "—"}</span>
+                  <span className="text-xs self-center">
+                    {payDirect
+                      ? <span className="text-[11px] font-semibold text-amber-500" title={a.exp_components?.payment_note || "The guest pays the supplier directly — nothing is invoiced by NP7."}>Pays supplier</span>
+                      : <span className="admin-muted">{a.price ? `€${Number(a.price).toLocaleString()}` : "—"}</span>}
+                  </span>
                   <div className="flex items-center justify-end gap-2 self-center">
                     {requested && (
+                      payDirect ? (
+                        // We arrange it, the guest settles with the supplier. Charging
+                        // it here would bill them twice, and "No charge" would claim
+                        // it's free — so neither of the usual buttons is the truth.
+                        <button onClick={() => confirmAddon(a.id, true)} title="We arrange it; the guest pays the supplier. Nothing is added to their invoice." className="text-[11px] font-bold px-2.5 py-1 rounded-md bg-[var(--admin-accent)] text-[var(--admin-accent-contrast)] hover:bg-[var(--admin-accent)]/90 transition-colors">Confirm</button>
+                      ) : (
                       <>
                         <button onClick={() => confirmAddon(a.id, false)} title="Adds the price to what they owe" className="text-[11px] font-bold px-2.5 py-1 rounded-md bg-[var(--admin-accent)] text-[var(--admin-accent-contrast)] hover:bg-[var(--admin-accent)]/90 transition-colors">Confirm &amp; charge</button>
                         <button onClick={() => confirmAddon(a.id, true)} title="Include it at no extra charge (price → €0)" className="text-[11px] font-medium px-2.5 py-1 rounded-md admin-surface hover:opacity-80 transition-opacity" style={{ border: "1px solid var(--admin-border)" }}>No charge</button>
                       </>
+                      )
                     )}
                     <button onClick={() => removeAddon(a.id)} className="text-xs admin-faint hover:text-red-400 transition-colors">
                       <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M18 6L6 18M6 6l12 12" /></svg>
