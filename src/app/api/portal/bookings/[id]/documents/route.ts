@@ -74,5 +74,38 @@ export async function GET(
     })
   );
 
-  return NextResponse.json({ documents: rows });
+  /**
+   * The signed waiver belongs here too.
+   *
+   * It lives in `exp_waiver_signatures`, not `documents`, so it never appeared
+   * on this tab — a guest could sign a liability waiver and then have no way to
+   * read back what they agreed to. It has no PDF and no file in storage (the
+   * signature is a data URL on the row), so it is surfaced as a virtual entry
+   * pointing at the waiver page rather than a signed storage URL.
+   */
+  let waiverRow: Record<string, unknown> | null = null;
+  try {
+    const { data: sig } = await dbAny
+      .from("exp_waiver_signatures")
+      .select("id, signed_at, signed_name, version")
+      .eq("booking_id", id)
+      .maybeSingle();
+    if (sig) {
+      waiverRow = {
+        id: `waiver:${sig.id}`,
+        type: "waiver",
+        invoice_number: null,
+        title: "Signed waiver",
+        amount: null,
+        currency: null,
+        issued_at: sig.signed_at,
+        status: "signed",
+        signedUrl: `/account/bookings/${id}/waiver`,
+        downloadUrl: null,
+        meta: { signedName: sig.signed_name, version: sig.version },
+      };
+    }
+  } catch { /* table not there yet — the rest of the tab still works */ }
+
+  return NextResponse.json({ documents: waiverRow ? [waiverRow, ...rows] : rows });
 }

@@ -18,6 +18,7 @@ import { createAdminClient } from "@/lib/supabase";
 
 /** When each scheduled mail fires, in days BEFORE the edition start date. */
 export const SEND_SCHEDULE = {
+  crew_forming: 60,
   pre_trip_info: 21,
   pre_trip_excitement: 12,
   waiver_reminder: 14,
@@ -39,6 +40,9 @@ export type ContentKey = "packingList" | "preTripNote" | "whatsappLink";
  *   warnings on the panel and never hold a mail back.
  */
 export const MAIL_REQUIREMENTS: Record<string, { blocking: ContentKey[]; soft: ContentKey[]; label: string }> = {
+  // The whole mail is "join the chat" — without a link there is nothing to join,
+  // so it holds rather than going out hollow.
+  crew_forming: { blocking: ["whatsappLink"], soft: [], label: "Crew forming (group chat)" },
   pre_trip_info: { blocking: ["packingList"], soft: ["preTripNote"], label: "Pre-trip info (packing)" },
   pre_trip_excitement: { blocking: [], soft: ["whatsappLink"], label: "Excitement beat" },
   pre_trip_final: { blocking: [], soft: ["whatsappLink"], label: "Final countdown" },

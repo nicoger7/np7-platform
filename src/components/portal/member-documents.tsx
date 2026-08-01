@@ -10,6 +10,7 @@ type DocumentType =
   | "booking_confirmation"
   | "credit_note"
   | "sicherungsschein"
+  | "waiver"
   | "other";
 
 interface BookingDocument {
@@ -33,6 +34,7 @@ const TYPE_LABELS: Record<DocumentType, string> = {
   booking_confirmation: "Booking confirmation",
   credit_note: "Credit note",
   sicherungsschein: "Insolvency-protection certificate",
+  waiver: "Signed waiver",
   other: "Document",
 };
 

@@ -248,6 +248,32 @@ export const TEMPLATES: Record<string, (v: EmailVars, opts?: LayoutOpts) => Buil
     }),
   }),
 
+  /**
+   * Two months out, when the group chat is still useful.
+   *
+   * The chat link used to appear only in "Final details" at ~3 days, by which
+   * point everyone has already booked flights alone. Opening it at 60 days is
+   * the point of the mail, so it holds back rather than sending a crew email
+   * with no crew to join.
+   */
+  crew_forming: (v, opts) => ({
+    subject: `Your crew for ${v.experienceTitle ?? "your NP7 trip"} is coming together 🤙`,
+    html: emailLayout({
+      ...opts,
+      preheader: "Meet the people you'll be riding with — the group chat is open.",
+      bodyHtml:
+        greet(v) +
+        p(`<strong>${esc(v.experienceTitle || "Your trip")}</strong>${v.dates ? " (" + esc(v.dates) + ")" : ""} is about two months away, and the crew is taking shape.`) +
+        p(`This is the good bit: people start comparing flights, sorting shared transfers, and arguing about sail sizes long before anyone lands.`) +
+        (v.whatsappLink
+          ? p(`<strong>Come and say hi:</strong>`) + emailButton("Join the group chat", v.whatsappLink)
+          : "") +
+        p(`No rush on anything else — your packing list and arrival details follow closer to the trip.`) +
+        (v.bookingLink ? emailButton("Open my trip details", v.bookingLink) : "") +
+        p(`See you on the water.<br>— Nico & the NP7 team`),
+    }),
+  }),
+
   pre_trip_info: (v, opts) => ({
     subject: `Getting ready for ${v.experienceTitle ?? "your NP7 trip"} 🌊`,
     html: emailLayout({

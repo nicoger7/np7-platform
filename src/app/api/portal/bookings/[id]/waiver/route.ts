@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase";
 import { getPortalUser } from "@/lib/auth";
-import { WAIVER_VERSION } from "@/lib/waiver";
+import { WAIVER_VERSION, DEFAULT_WAIVER, renderWaiver, waiverCompanyVars } from "@/lib/waiver";
 
 /**
  * POST /api/portal/bookings/[id]/waiver  { name, signature?, agree }
@@ -21,11 +21,43 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const db = createAdminClient() as any;
-  const { data: booking } = await db.from("exp_bookings").select("id, contact_id").eq("id", id).maybeSingle();
+  const { data: booking } = await db
+    .from("exp_bookings")
+    .select("id, contact_id, exp_experiences(title, waiver_text), exp_editions(date_start, date_end), contacts(name)")
+    .eq("id", id)
+    .maybeSingle();
   if (!booking || booking.contact_id !== user.contactId) return NextResponse.json({ error: "Not found." }, { status: 404 });
 
   const ip = req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ?? null;
   const ua = req.headers.get("user-agent") ?? null;
+
+  /**
+   * Store the EXACT wording they agreed to, not just a version number.
+   *
+   * The waiver is editable per experience, so the text on screen today may not
+   * be the text on screen next season. Keeping only `version` meant that after
+   * any edit there was no way to show what a given person actually accepted —
+   * which is the one question a waiver exists to answer. Rendered here from the
+   * same inputs the signing page used, so what we keep is what they read.
+   */
+  let waiverText: string | null = null;
+  try {
+    const { data: cs } = await db.from("company_settings").select("*").eq("division", "experience").maybeSingle();
+    const fullName = String(booking.contacts?.name ?? name).trim();
+    const [firstName, ...rest] = fullName.split(/\s+/);
+    const ed = booking.exp_editions;
+    const fmt = (d?: string | null) => (d ? new Date(d).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" }) : "");
+    waiverText = renderWaiver(booking.exp_experiences?.waiver_text || DEFAULT_WAIVER, {
+      ...waiverCompanyVars(cs),
+      firstName: firstName || "",
+      lastName: rest.join(" "),
+      experienceTitle: booking.exp_experiences?.title ?? "your trip",
+      dates: ed ? [fmt(ed.date_start), fmt(ed.date_end)].filter(Boolean).join(" – ") : "",
+      signedDate: new Date().toLocaleDateString("en-GB", { day: "numeric", month: "long", year: "numeric" }),
+    });
+  } catch {
+    /* never block a signature over the archive copy — version still identifies it */
+  }
 
   // NB: experience_id is intentionally omitted — it's derivable from booking_id
   // and isn't present on every applied schema version. booking_id is the key.
@@ -35,6 +67,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     version: WAIVER_VERSION,
     signed_name: name,
     signature_image: typeof body.signature === "string" ? body.signature : null,
+    waiver_text: waiverText,
     signed_at: new Date().toISOString(),
     ip,
     user_agent: ua,

@@ -124,7 +124,7 @@ export async function GET(req: NextRequest) {
 
   const out = {
     evaluated: (bookings ?? []).length,
-    nudge: 0, last_chance: 0, released: 0, balance: 0, balance_paid: 0, pretrip: 0, excitement: 0, pretrip_final: 0, post_trip: 0, waiver: 0, photos: 0,
+    nudge: 0, last_chance: 0, released: 0, balance: 0, balance_paid: 0, crew: 0, pretrip: 0, excitement: 0, pretrip_final: 0, post_trip: 0, waiver: 0, photos: 0,
   };
   const bump = (k: keyof typeof out, r: { status: string }) => { if (r.status === "sent") (out[k] as number)++; };
 
@@ -245,6 +245,11 @@ export async function GET(req: NextRequest) {
     // 4 · pre-trip — planning + packing (~21d), an excitement beat (~10d), final
     //     countdown (~3d). Paid guests only.
     if (tripLive && depositPaid && daysToStart != null) {
+      // Crew chat opens two months out, while flights and transfers are still
+      // being planned. Bounded below at 22 so someone who books six weeks before
+      // the trip doesn't receive "two months to go" — they go straight into the
+      // pre-trip flow instead.
+      if (daysToStart <= 60 && daysToStart > 21) bump("crew", await send("crew_forming", `crew_forming:${b.id}`));
       if (daysToStart <= 21 && daysToStart > 12) bump("pretrip", await send("pre_trip_info", `pre_trip_info:${b.id}`));
       if (daysToStart <= 12 && daysToStart > 3) bump("excitement", await send("pre_trip_excitement", `pre_trip_excitement:${b.id}`));
       if (daysToStart <= 3 && daysToStart >= 0) bump("pretrip_final", await send("pre_trip_final", `pre_trip_final:${b.id}`));

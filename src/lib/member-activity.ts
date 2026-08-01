@@ -79,9 +79,11 @@ export async function getMemberActivity(limit = 120): Promise<ActivityItem[]> {
   }
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   for (const w of (waivers.data ?? []) as any[]) {
+    // Link to the signature itself, not the booking — "signed the waiver" should
+    // open the waiver.
     push({ id: `waiver:${w.id}`, at: w.signed_at ?? w.created_at, kind: "trip", action: "Signed the waiver",
       subject: null, contactId: w.contact_id, contactName: nameOf(w),
-      href: w.booking_id ? `/admin/bookings/${w.booking_id}` : null });
+      href: `/admin/waivers/${w.id}` });
   }
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   for (const a of (addons.data ?? []) as any[]) {
