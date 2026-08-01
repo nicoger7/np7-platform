@@ -7,7 +7,7 @@ import { SpotguideTrust } from "@/components/admin/spotguide-trust";
 import { MemberPortalPreview } from "@/components/admin/member-portal-preview";
 
 interface MemberData {
-  contact: { id: string; name: string; email: string | null; phone: string | null; country: string | null; level: string | null; auth_user_id?: string | null };
+  contact: { id: string; name: string; email: string | null; phone: string | null; country: string | null; level: string | null; auth_user_id?: string | null; email_bounced_at?: string | null; email_bounce_reason?: string | null };
   bookings: { id: string; name: string | null; status: string | null; agreed_price: number | null; created_at: string; exp_experiences: { title: string } | null; exp_editions: { label: string | null; year: number | null } | null }[];
   payments: { id: string; amount: number | null; direction: string | null; status: string | null; type: string | null; date: string | null; reference: string | null }[];
   emails: { template_key: string; subject: string | null; status: string | null; to_email?: string | null; provider_id?: string | null; sent_at: string | null; created_at: string }[];
@@ -67,7 +67,15 @@ export function MemberDetailPane({ contactId, initialTab = "overview", onBack }:
           <span className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase ${c.auth_user_id ? "bg-green-500/15 text-green-400" : "bg-gray-500/15 text-gray-400"}`}>{c.auth_user_id ? "Member" : "Guest"}</span>
         </div>
         <p className="text-sm admin-muted mt-0.5">{[c.email, c.phone, c.country, c.level].filter(Boolean).join(" · ") || "—"}</p>
-        <Link href={`/admin/contacts/${c.id}?from=${from}`} className="text-xs text-[#0aa3c7] hover:underline">Edit contact →</Link>
+        {/* A dead address fails silently: every mail still says "sent". Say it
+            where you look at the person, not only in the Email Log. */}
+        {c.email_bounced_at && (
+          <p className="mt-1.5 inline-block rounded-lg px-2.5 py-1 text-[12px] font-bold bg-red-500/12 text-red-400">
+            ✕ Email {c.email_bounce_reason === "complained" ? "marked as spam" : "bounced"} on{" "}
+            {new Date(c.email_bounced_at).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" })} — this address isn&apos;t receiving mail.
+          </p>
+        )}
+        <Link href={`/admin/contacts/${c.id}?from=${from}`} className="text-xs text-[#0aa3c7] hover:underline block">Edit contact →</Link>
       </div>
 
       <div className="flex items-center gap-1 mb-5 border-b" style={{ borderColor: "var(--admin-border)" }}>
@@ -111,7 +119,7 @@ export function MemberDetailPane({ contactId, initialTab = "overview", onBack }:
               ))}
             </div>
           )}
-          <p className="text-[11px] admin-faint mt-3 leading-relaxed">&ldquo;Sent&rdquo; means our email provider (Resend) <strong>accepted</strong> the message — it&rsquo;s not a delivery or read receipt. Check the Resend dashboard for delivery/bounce status.</p>
+          <p className="text-[11px] admin-faint mt-3 leading-relaxed">&ldquo;Sent&rdquo; means Resend <strong>accepted</strong> the message. Actual delivery comes back later as a webhook — see <Link href="/admin/email-log" className="text-[#0aa3c7] hover:underline">Email Log</Link>, where &ldquo;Didn&rsquo;t arrive&rdquo; lists everything that bounced or failed.</p>
         </Panel>
       ) : (
       <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">

@@ -73,7 +73,13 @@ function audienceQuery(db: any, f: AudienceFilters, select: string, opts?: { cou
     .select(select, opts?.count ? { count: "exact" } : undefined)
     .eq("marketing_opt_in", true)
     .not("email", "is", null)
-    .is("archived_at", null);
+    .is("archived_at", null)
+    // Addresses that hard-bounced or reported us as spam are dropped from every
+    // bulk audience. Mailing a dead address repeatedly is what wrecks a sender
+    // reputation, and it costs quota to achieve nothing. Transactional mail
+    // (magic link, invoice) still tries — blocking someone's own login because
+    // their inbox was full last month is the worse failure.
+    .is("email_bounced_at", null);
   if (f.segment === "newsletter") q = q.contains("tags", ["maillist"]);
   else if (f.segment === "crm") q = q.or("tags.is.null,tags.not.cs.{maillist}");
   if (f.tags && f.tags.length) q = q.overlaps("tags", f.tags);

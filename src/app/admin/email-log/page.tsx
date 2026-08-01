@@ -18,6 +18,12 @@ const TONE: Record<string, string> = {
 export default function EmailLogPage() {
   const [rows, setRows] = useState<Row[]>([]);
   const [loading, setLoading] = useState(true);
+  /**
+   * "Sent" and "arrived" are different events, and only the first was easy to
+   * see. A bounce already showed a red badge, but finding it meant scrolling
+   * 149 rows — so after a send nobody discovered the one address that failed.
+   */
+  const [view, setView] = useState<"all" | "problem" | "opened" | "delivered">("all");
   const [testTo, setTestTo] = useState("");
   const [testing, setTesting] = useState(false);
   const [testMsg, setTestMsg] = useState<{ ok: boolean; text: string } | null>(null);
@@ -71,11 +77,46 @@ export default function EmailLogPage() {
         {testMsg && <p className={`text-[12px] mt-2 ${testMsg.ok ? "text-green-500" : "text-red-400"}`}>{testMsg.text}</p>}
       </div>
 
+      {(() => {
+        const problem = (r: Row) => r.status === "failed" || r.last_event === "bounced" || r.last_event === "complained";
+        const counts = {
+          all: rows.length,
+          problem: rows.filter(problem).length,
+          delivered: rows.filter((r) => r.last_event === "delivered" || r.last_event === "opened" || r.opened_at).length,
+          opened: rows.filter((r) => !!r.opened_at).length,
+        };
+        return (
+          <div className="flex items-center gap-1.5 flex-wrap mb-4">
+            {([
+              ["all", "Everything"],
+              ["problem", "Didn't arrive"],
+              ["delivered", "Delivered"],
+              ["opened", "Opened"],
+            ] as const).map(([k, label]) => (
+              <button key={k} onClick={() => setView(k)}
+                className={`px-3.5 py-1.5 rounded-lg text-[12.5px] font-bold transition-colors ${
+                  view === k ? "bg-[var(--admin-accent)] text-[var(--admin-accent-contrast)]"
+                    : k === "problem" && counts.problem > 0 ? "text-red-400 border border-red-400/40"
+                    : "admin-muted hover:admin-heading"}`}
+                style={view === k || (k === "problem" && counts.problem > 0) ? undefined : { border: "1px solid var(--admin-border)" }}>
+                {label} <span className={view === k ? "opacity-70" : "admin-faint"}>{counts[k]}</span>
+              </button>
+            ))}
+          </div>
+        );
+      })()}
+
       {loading ? <p className="text-sm admin-faint">Loading…</p> : rows.length === 0 ? (
         <p className="text-sm admin-faint">No emails yet.</p>
       ) : (
         <div className="grid gap-1.5">
-          {rows.map((r) => (
+          {rows.filter((r) => {
+            const problem = r.status === "failed" || r.last_event === "bounced" || r.last_event === "complained";
+            if (view === "problem") return problem;
+            if (view === "opened") return !!r.opened_at;
+            if (view === "delivered") return r.last_event === "delivered" || r.last_event === "opened" || !!r.opened_at;
+            return true;
+          }).map((r) => (
             <div
               key={r.id}
               className="admin-surface admin-border border rounded-lg px-4 py-2.5 flex items-center gap-3 text-[13px] cursor-pointer hover:border-[var(--admin-accent)]/50 transition-colors"
@@ -90,6 +131,8 @@ export default function EmailLogPage() {
                 <span className="shrink-0 text-[10px] font-bold uppercase px-2 py-0.5 rounded bg-red-500/15 text-red-400" title="Resend delivery event">{r.last_event}</span>
               ) : r.opened_at ? (
                 <span className="shrink-0 text-[10px] font-bold uppercase px-2 py-0.5 rounded bg-green-500/15 text-green-500" title={`Opened ${new Date(r.opened_at).toLocaleString("en-GB", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })}`}>opened</span>
+              ) : r.last_event === "delivered" ? (
+                <span className="shrink-0 text-[10px] font-bold uppercase px-2 py-0.5 rounded bg-[var(--admin-accent)]/15 text-[#0aa3c7]" title="Resend confirmed delivery">delivered</span>
               ) : null}
               <span className="shrink-0 admin-faint w-[150px] truncate font-mono text-[11px]">{r.template_key ?? "—"}</span>
               <span className="min-w-0 flex-1 truncate admin-heading">{r.subject ?? "—"}</span>

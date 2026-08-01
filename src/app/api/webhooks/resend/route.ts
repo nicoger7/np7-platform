@@ -37,5 +37,26 @@ export async function POST(request: NextRequest) {
     patch.last_event = event;
   }
   if (Object.keys(patch).length) await db.from("email_log").update(patch).eq("id", row.id);
+
+  /**
+   * A hard bounce is a fact about the ADDRESS, not about one email — so mark
+   * the contact, not just the log row. Otherwise the next campaign mails the
+   * same dead inbox and nobody finds out until someone goes looking.
+   *
+   * A later successful delivery clears it: people fix full mailboxes and
+   * typos, and a permanent mark on a working address is worse than none.
+   */
+  if (event === "bounced" || event === "complained" || event === "delivered" || event === "opened") {
+    try {
+      const { data: full } = await db.from("email_log").select("contact_id, to_email").eq("id", row.id).maybeSingle();
+      const bounced = event === "bounced" || event === "complained";
+      const patchC = bounced
+        ? { email_bounced_at: body?.created_at ?? new Date().toISOString(), email_bounce_reason: event }
+        : { email_bounced_at: null, email_bounce_reason: null };
+      if (full?.contact_id) await db.from("contacts").update(patchC).eq("id", full.contact_id);
+      else if (full?.to_email) await db.from("contacts").update(patchC).ilike("email", full.to_email);
+    } catch { /* delivery tracking must never break the webhook */ }
+  }
+
   return NextResponse.json({ ok: true });
 }
