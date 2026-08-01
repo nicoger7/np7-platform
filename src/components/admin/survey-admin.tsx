@@ -18,6 +18,13 @@ const uid = () => Math.random().toString(36).slice(2, 9);
 const STATUSES: SurveyStatus[] = ["draft", "open", "closed"];
 const PREVIEW_PREFIX = "preview-"; // team-only preview link (matches /survey/[token])
 
+/** The built-in invite pitch, as plain text — the same words the email uses
+ *  when this field is left blank. Exposed so it can be inserted and edited. */
+function defaultInviteBody(title: string): string {
+  return `I'm putting together ${title || "a special, invite-only trip"} and you're on my shortlist.\n`
+    + `Just tell me if you'd be in — one tap on a date below is all it takes (it registers instantly, and you can change it after).`;
+}
+
 export function SurveyAdmin({ initialSurvey, initialInvites }: { initialSurvey: Survey; initialInvites: SurveyInvite[] }) {
   const router = useRouter();
   const [s, setS] = useState<Survey>(initialSurvey);
@@ -171,7 +178,7 @@ export function SurveyAdmin({ initialSurvey, initialInvites }: { initialSurvey: 
           <input className={`${input} mt-1 text-[16px] font-bold`} value={s.title} onChange={(e) => patch({ title: e.target.value })} />
         </label>
         <label className="block mb-3">
-          <span className={lbl}>Small line above the title <span className="font-normal normal-case opacity-70">— gold, uppercase. Empty = &ldquo;By private invitation&rdquo; · a single space hides it</span></span>
+          <span className={lbl}>Small line above the title <span className="font-normal normal-case opacity-70">— gold, uppercase. Also becomes the browser-tab title. Empty = &ldquo;By private invitation&rdquo; · a single space hides it</span></span>
           <input className={`${input} mt-1`} value={s.eyebrow ?? ""} onChange={(e) => patch({ eyebrow: e.target.value === "" ? null : e.target.value })} placeholder="By private invitation" />
         </label>
         <label className="block mb-3">
@@ -183,7 +190,15 @@ export function SurveyAdmin({ initialSurvey, initialInvites }: { initialSurvey: 
           <input className={`${input} mt-1 mb-3`} value={s.email_subject ?? ""} onChange={(e) => patch({ email_subject: e.target.value === "" ? null : e.target.value })} placeholder={`${s.title} — would you join? 🤙`} />
         </label>
         <label className="block mb-3">
-          <span className={lbl}>Invite email text <span className="font-normal normal-case opacity-70">— replaces the standard pitch between the greeting and the buttons; greeting, buttons, opt-out &amp; sign-off stay. Empty = built-in copy. Check it with ✉ Preview email below.</span></span>
+          <span className={lbl}>Invite email text <span className="font-normal normal-case opacity-70">— replaces the standard pitch between the greeting and the buttons; greeting, buttons, opt-out &amp; sign-off stay. Empty = the built-in copy below. Check it with ✉ Preview email below.</span></span>
+          {/* A default you can't see is a default you can't change. Drop the
+              built-in wording into the box so it can be edited rather than
+              guessed at, or blanked to go back to it. */}
+          <button type="button"
+            onClick={() => patch({ email_body: defaultInviteBody(s.title) })}
+            className="mt-1 mb-1 text-[12px] font-bold text-[#0aa3c7] hover:underline">
+            ↧ Insert the default wording
+          </button>
           <textarea className={`${input} mt-1 min-h-[90px] resize-y`} value={s.email_body ?? ""} onChange={(e) => patch({ email_body: e.target.value || null })} placeholder={"I'm putting together " + (s.title || "this trip") + " and you're on my shortlist. Just tell me if you'd be in — one tap on a date below is all it takes."} />
         </label>
         <label className="block mb-3">
