@@ -116,8 +116,19 @@ export function EmailGroupTabs({ cards, groups }: { cards: EmailCard[]; groups: 
                   <p className="text-[11px] admin-muted truncate">{c.trigger}{c.hasOverride && <span className="ml-1.5 text-[#0aa3c7]">· edited</span>}</p>
                 </Link>
               </div>
-              <Link href={`/admin/emails/${c.key}`} className="relative bg-white border-t block" style={{ borderColor: "var(--admin-border)" }}>
-                <iframe title={`${c.name} preview`} srcDoc={c.html} sandbox="" loading="lazy" className="w-full h-[200px] pointer-events-none" />
+              {/* The email's header photo is ~200px tall, so a 200px window showed
+                  the banner and nothing else — every card looked identical and
+                  told you nothing. Render at half scale so the greeting, the
+                  first paragraph and the button land inside the same box. */}
+              <Link href={`/admin/emails/${c.key}`} className="relative bg-white border-t block overflow-hidden h-[230px]" style={{ borderColor: "var(--admin-border)" }}>
+                <iframe
+                  title={`${c.name} preview`}
+                  srcDoc={c.html}
+                  sandbox=""
+                  loading="lazy"
+                  className="pointer-events-none border-0"
+                  style={{ width: "200%", height: "920px", transform: "scale(0.5)", transformOrigin: "top left" }}
+                />
                 <div className="absolute inset-x-0 bottom-0 flex justify-center pb-2 opacity-0 group-hover:opacity-100 transition-opacity">
                   <span className="text-[10px] font-bold text-[var(--admin-accent-contrast)] bg-[var(--admin-accent)] rounded-full px-2.5 py-1 shadow-lg">Click to edit →</span>
                 </div>
