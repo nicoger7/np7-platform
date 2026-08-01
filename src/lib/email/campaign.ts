@@ -1,5 +1,6 @@
 import { createHmac, createHash } from "crypto";
 import { createAdminClient } from "@/lib/supabase";
+import { contactIdsFromBookings, hasBookingFilter, type BookingFilters } from "./audience-bookings";
 import { emailLayout, normalizeEmailBody, SENDERS, type Division } from "./layout";
 
 /**
@@ -16,9 +17,16 @@ import { emailLayout, normalizeEmailBody, SENDERS, type Division } from "./layou
 
 export type AudienceFilters = {
   segment?: "all" | "newsletter" | "crm";
-  tags?: string[];        // any-of
-  locations?: string[];   // any-of, matches experience_locations
-  countries?: string[];   // any-of
+  tags?: string[];         // any-of
+  excludeTags?: string[];  // none-of — e.g. everyone EXCEPT the imported maillist
+  locations?: string[];    // any-of, matches experience_locations
+  countries?: string[];    // any-of
+  /**
+   * Who actually booked what. Tags are hand-maintained and drift (Garda's 2026
+   * guests are tagged `Clinic`, not `Experience Participant`); bookings are
+   * written by the act of booking and can't fall out of date.
+   */
+  bookings?: BookingFilters;
 };
 
 export type Campaign = {
@@ -59,7 +67,7 @@ export function unsubscribeUrl(contactId: string): string {
 // ── audience ─────────────────────────────────────────────────────────────────
 /** Base query: the saved filter + the always-enforced consent restrictions. */
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-function audienceQuery(db: any, f: AudienceFilters, select: string, opts?: { count?: boolean }) {
+function audienceQuery(db: any, f: AudienceFilters, select: string, opts?: { count?: boolean; ids?: string[] | null }) {
   let q = db
     .from("contacts")
     .select(select, opts?.count ? { count: "exact" } : undefined)
@@ -69,18 +77,33 @@ function audienceQuery(db: any, f: AudienceFilters, select: string, opts?: { cou
   if (f.segment === "newsletter") q = q.contains("tags", ["maillist"]);
   else if (f.segment === "crm") q = q.or("tags.is.null,tags.not.cs.{maillist}");
   if (f.tags && f.tags.length) q = q.overlaps("tags", f.tags);
+  if (f.excludeTags && f.excludeTags.length) q = q.not("tags", "ov", `{${f.excludeTags.join(",")}}`);
   if (f.locations && f.locations.length) q = q.overlaps("experience_locations", f.locations);
   if (f.countries && f.countries.length) q = q.in("country", f.countries);
+  // Booking-derived ids are resolved by the caller (async) and intersected here.
+  // An empty array means "filtered on bookings and matched nobody" — which must
+  // narrow to zero, never widen to everyone.
+  if (opts?.ids) q = q.in("id", opts.ids.length ? opts.ids : ["00000000-0000-0000-0000-000000000000"]);
   return q;
 }
 
 export async function countAudience(f: AudienceFilters): Promise<{ count: number; sample: { name: string; email: string }[] }> {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const db = createAdminClient() as any;
-  const { count, error } = await audienceQuery(db, f, "id", { count: true }).limit(1);
+  const ids = hasBookingFilter(f.bookings) ? await contactIdsFromBookings(f.bookings!) : null;
+  const { count, error } = await audienceQuery(db, f, "id", { count: true, ids }).limit(1);
   if (error) throw new Error(error.message);
-  const { data: sample } = await audienceQuery(db, f, "name,email").order("created_at", { ascending: false }).limit(5);
+  const { data: sample } = await audienceQuery(db, f, "name,email", { ids }).order("created_at", { ascending: false }).limit(5);
   return { count: count ?? 0, sample: sample ?? [] };
+}
+
+/** Every contact id in the audience — used to stage survey invites. */
+export async function audienceContactIds(f: AudienceFilters): Promise<string[]> {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const db = createAdminClient() as any;
+  const ids = hasBookingFilter(f.bookings) ? await contactIdsFromBookings(f.bookings!) : null;
+  const { data } = await audienceQuery(db, f, "id", { ids }).limit(5000);
+  return ((data ?? []) as { id: string }[]).map((c) => c.id);
 }
 
 // ── rendering ────────────────────────────────────────────────────────────────
