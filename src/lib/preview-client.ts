@@ -34,9 +34,18 @@ export function isPreview(): boolean {
 
 /**
  * Tag every same-origin portal request with the marker, once, for the life of
- * the iframe. Wrapping `fetch` centrally beats editing 27 call sites — and
- * means a fetch added later can't quietly reintroduce the bug.
+ * the iframe. Wrapping `fetch` centrally beats editing call sites — and means a
+ * fetch added later can't quietly reintroduce the bug.
+ *
+ * This has to cover PAGE NAVIGATION as well as data, not just `/api/portal/`.
+ * Clicking a trip inside the preview is an RSC fetch for
+ * `/account/bookings/<id>`, and if that request isn't marked the page resolves
+ * as the admin, the booking isn't theirs, and the trip page calls notFound() —
+ * a bare 404 inside the preview frame. Tagging only the API calls fixed the
+ * add-on list but left the navigation broken.
  */
+const PREVIEW_PATHS = ["/account", "/api/portal/"];
+
 export function installPreviewFetch(): void {
   if (typeof window === "undefined") return;
   if (!window.location.search.includes(PREVIEW_PARAM)) return;
@@ -48,9 +57,12 @@ export function installPreviewFetch(): void {
   window.fetch = (input: RequestInfo | URL, init: RequestInit = {}) => {
     let path = "";
     try {
-      path = typeof input === "string" ? input : input instanceof URL ? input.pathname : input.url;
+      const raw = typeof input === "string" ? input : input instanceof URL ? input.href : input.url;
+      const u = new URL(raw, window.location.origin);
+      // Same-origin only — never leak the marker to a third party.
+      if (u.origin === window.location.origin) path = u.pathname;
     } catch { /* leave blank — untagged is the safe default */ }
-    if (!path.includes("/api/portal/")) return original(input, init);
+    if (!path || !PREVIEW_PATHS.some((p) => path.startsWith(p))) return original(input, init);
     const headers = new Headers(init.headers);
     headers.set("x-np7-preview", "1");
     return original(input, { ...init, headers });
