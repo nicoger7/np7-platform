@@ -1,7 +1,7 @@
 import { NextRequest } from "next/server";
 import sharp from "sharp";
 import { parse as parseFont, type Font } from "opentype.js";
-import { getPortalUser } from "@/lib/auth";
+import { getTeamMember, getPortalUser } from "@/lib/auth";
 
 export const runtime = "nodejs";
 
@@ -76,10 +76,15 @@ function tp(font: Font, raw: string, x: number, y: number, size: number, fill: s
  * GET /api/share-card?photo=<our-media-url>&title=&sub=&caption=&format=story|post|square
  */
 export async function GET(req: NextRequest) {
-  // Members only — the share button lives in a logged-in member's gallery. Stops
-  // the (CPU-heavy) generator being hammered by anonymous traffic.
-  const user = await getPortalUser().catch(() => null);
-  if (!user) return new Response("sign in", { status: 401 });
+  // Members OR team. The share button lives in a logged-in member's gallery, and
+  // the same generator now backs the admin's "share this survey" card — no point
+  // maintaining two of these. Still gated: it's CPU-heavy, so anonymous traffic
+  // can't hammer it.
+  const [user, team] = await Promise.all([
+    getPortalUser().catch(() => null),
+    getTeamMember().catch(() => null),
+  ]);
+  if (!user && !team) return new Response("sign in", { status: 401 });
 
   const sp = req.nextUrl.searchParams;
   const photo = sp.get("photo") || "";

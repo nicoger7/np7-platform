@@ -134,8 +134,10 @@ export const TEMPLATES: Record<string, (v: EmailVars, opts?: LayoutOpts) => Buil
             (customBody ??
               (p(`I'm putting together <strong>${esc(v.surveyTitle || "a special, invite-only trip")}</strong> and you're on my shortlist. Just tell me if you'd be in — <strong>one tap on a date below is all it takes</strong> (it registers instantly, and you can change it after).`) +
               (v.surveyIntro ? p(`<em>${esc(v.surveyIntro)}</em>`) : ""))) +
-            // Buttons grouped under their place when there is more than one, so
-            // the reader scans two short lists instead of one long ambiguous one.
+            // Dates as compact chips that wrap, not full-width buttons stacked
+            // with 22px of air each: seven of those was a page and a half of
+            // scrolling for what is meant to be a one-tap question. Grouped
+            // under the place, with a gold rule to carry the NP7 warmth.
             (() => {
               const groups: { name: string | null; items: typeof quick }[] = [];
               for (const ch of quick) {
@@ -143,14 +145,16 @@ export const TEMPLATES: Record<string, (v: EmailVars, opts?: LayoutOpts) => Buil
                 if (g) g.items.push(ch);
                 else groups.push({ name: ch.group ?? null, items: [ch] });
               }
+              const chip = (label: string, url: string) =>
+                `<a href="${url}" target="_blank" style="display:inline-block;margin:0 8px 10px 0;padding:12px 20px;border-radius:999px;background:#ffffff;border:2px solid #0aa3c7;color:#00374a;font-size:15px;font-weight:800;text-decoration:none;white-space:nowrap;">${esc(label)}</a>`;
+              const head = (name: string) =>
+                `<p style="margin:26px 0 4px;font-size:12px;font-weight:800;letter-spacing:.14em;text-transform:uppercase;color:#b0791e;">${esc(name)}</p>` +
+                `<div style="height:3px;width:46px;background:linear-gradient(90deg,#ffc42e,#f0774a);border-radius:2px;margin:0 0 12px;"></div>`;
               return groups
-                .map((g) =>
-                  (g.name
-                    ? `<p style="margin:22px 0 8px;font-size:12px;font-weight:800;letter-spacing:.12em;text-transform:uppercase;color:#b0791e;">${esc(g.name)}</p>`
-                    : "") + g.items.map((ch) => emailButton(ch.label, ch.url)).join(""),
-                )
+                .map((g) => (g.name ? head(g.name) : "") + g.items.map((ch) => chip(ch.label, ch.url)).join(""))
                 .join("");
             })() +
+            p(`<span style="color:#8a97a0;font-size:13.5px;">Tap as many as work for you — nothing is booked, it just tells me where the crew is leaning. 🤙</span>`) +
             (v.quickDeclineUrl ? p(`Not this time? No hard feelings — <a href="${esc(v.quickDeclineUrl)}" style="color:#b0791e;font-weight:bold;">tap here</a> and I'll stop asking. 🤙`) : "") +
             p(`This link is personal to you — no login, no commitment, just a show of hands.<br>— Nico`)
           : p(`Hey ${esc(v.firstName || "there")} 🤙`) +

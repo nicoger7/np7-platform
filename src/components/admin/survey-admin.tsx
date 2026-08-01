@@ -4,6 +4,7 @@ import { useState, useMemo, useEffect } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import ImagePickerModal from "@/components/image-picker-modal";
+import { SurveyStoryShare } from "@/components/admin/survey-story-share";
 import type { Survey, SurveyInvite, SurveyDestination, SurveyWeek, SurveyStatus } from "@/lib/surveys";
 
 /**
@@ -113,6 +114,9 @@ export function SurveyAdmin({ initialSurvey, initialInvites }: { initialSurvey: 
     setRow(r.key, p);
   };
   const [picker, setPicker] = useState<string | null>(null); // group key whose image picker is open
+  /** The editor grew past a screen and a half. Four tabs, in the order you
+   *  actually work: write it, set the dates, invite people, read the answers. */
+  const [tab, setTab] = useState<"setup" | "trips" | "invites" | "responses">("setup");
   const [geoBusy, setGeoBusy] = useState<string | null>(null);
   // Drop a pin from the place name → coords power the satellite fallback when there's no photo.
   async function locate(gid: string) {
@@ -146,7 +150,21 @@ export function SurveyAdmin({ initialSurvey, initialInvites }: { initialSurvey: 
         <button onClick={save} disabled={saving} className="rounded-full bg-[#0aa3c7] text-white text-[13px] font-bold px-5 py-2 hover:bg-[#0891b2] disabled:opacity-50">{saving ? "Saving…" : "Save"}</button>
       </div>
 
-      {/* settings */}
+      <div className="flex items-center gap-1.5 flex-wrap" role="tablist">
+        {([
+          ["setup", "Setup"],
+          ["trips", "Trips & dates"],
+          ["invites", `Invites${invites.length ? ` (${invites.length})` : ""}`],
+          ["responses", "Responses"],
+        ] as const).map(([k, label]) => (
+          <button key={k} role="tab" aria-selected={tab === k} onClick={() => setTab(k)}
+            className={`px-3.5 py-1.5 rounded-lg text-[12.5px] font-bold transition-colors ${tab === k ? "bg-[#0aa3c7] text-white" : "text-[#6a7a80] hover:text-[#0a2a33] border border-[#e2d8c6]"}`}>
+            {label}
+          </button>
+        ))}
+      </div>
+
+      {tab === "setup" && (
       <div className={card}>
         <label className="block mb-3">
           <span className={lbl}>Title</span>
@@ -223,6 +241,9 @@ export function SurveyAdmin({ initialSurvey, initialInvites }: { initialSurvey: 
         )}
       </div>
 
+      )}
+
+      {tab === "trips" && (<>
       {/* trips = a PLACE with one or more date windows */}
       <div className={card}>
         <div className="flex items-center justify-between mb-2">
@@ -392,9 +413,26 @@ export function SurveyAdmin({ initialSurvey, initialInvites }: { initialSurvey: 
         </div>
       </div>
 
-      <InviteSection surveyId={s.id} surveyTitle={s.title} openToken={s.open_token} invites={invites} setInvites={setInvites} linkFor={linkFor} />
+      </>)}
 
-      <ResponsesSection survey={s} invites={invites} fmtMoney={fmtMoney} />
+      {tab === "invites" && (<>
+        <div className={card}>
+          <p className={lbl}>Share it as a story</p>
+          <p className="text-[12.5px] text-[#6a7a80] mt-1 mb-2.5">
+            A branded graphic for Instagram or WhatsApp — the open link goes in the sticker.
+          </p>
+          <SurveyStoryShare
+            photos={[...new Map(s.destinations.filter((d) => d.image).map((d) => [d.image!, { url: d.image!, label: d.label || "Trip" }])).values()]}
+            defaultTitle={s.title}
+            defaultSub={s.eyebrow?.trim() || ""}
+          />
+        </div>
+        <InviteSection surveyId={s.id} surveyTitle={s.title} openToken={s.open_token} invites={invites} setInvites={setInvites} linkFor={linkFor} />
+      </>)}
+
+      {tab === "responses" && (
+        <ResponsesSection survey={s} invites={invites} fmtMoney={fmtMoney} />
+      )}
 
       <div className="pt-2">
         <button onClick={archive} className="text-[13px] font-bold text-[#c0392b] hover:underline">Archive survey</button>
