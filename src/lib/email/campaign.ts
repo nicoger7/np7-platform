@@ -161,6 +161,11 @@ export async function sendCampaignChunk(campaignId: string, chunkSize = 600): Pr
   const filters: AudienceFilters = campaign.audience || {};
   if (!campaign.body || !campaign.subject) throw new Error("Campaign needs a subject and a body before sending.");
 
+  // Resolve booking-derived ids ONCE, and pass them to every page of the send.
+  // countAudience() applies them; if the send loop below doesn't, a campaign
+  // filtered to 20 past guests would report 20 and then mail the entire
+  // newsletter. Same filters, same rows, every time.
+  const audienceIds = hasBookingFilter(filters.bookings) ? await contactIdsFromBookings(filters.bookings!) : null;
   const { count: total } = await countAudience(filters);
   const { subject: shellSubject, html: shellHtml } = renderCampaignShell(campaign);
   const { from, replyTo } = SENDERS[campaign.division] ?? SENDERS.experience;
@@ -176,7 +181,7 @@ export async function sendCampaignChunk(campaignId: string, chunkSize = 600): Pr
   // Walk the audience from the start each run — claiming dedupes, so previously
   // handled pages cost one cheap upsert that returns nothing.
   for (let offset = 0; offset < total && sent + failed < chunkSize; offset += PAGE) {
-    const { data: contacts, error: pErr } = await audienceQuery(db, filters, "id,name,email")
+    const { data: contacts, error: pErr } = await audienceQuery(db, filters, "id,name,email", { ids: audienceIds })
       .order("id", { ascending: true })
       .range(offset, offset + PAGE - 1);
     if (pErr) throw new Error(pErr.message);
