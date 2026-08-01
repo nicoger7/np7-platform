@@ -442,10 +442,17 @@ export function surveyInviteVars(survey: Survey | null, contactName: string | nu
   if (survey?.email_body?.trim()) vars.emailBody = survey.email_body.trim();
   const cta = (survey?.cta_label ?? "").trim();
   // One-tap date buttons: each button's link carries the answer (pre-registers
-  // it; the page opens with it selected). Any survey with dated trips can use
-  // them — quick mode always does, classic mode via email_date_buttons.
+  // it; the page opens with it selected).
+  //
+  // `email_date_buttons` decides this on its own — quick mode used to force the
+  // buttons on and silently ignore the setting, so choosing "one button" in the
+  // admin changed nothing. That is exactly backwards for the case the option
+  // exists for: this survey has EIGHT options across two places, which is a very
+  // long email. Quick mode governs the PAGE (one tap, no budget or wishes); the
+  // email's shape is its own choice. Default is still true, so nothing changes
+  // for surveys that never touched it.
   const dated = survey?.destinations.filter((d) => d.start || d.end) ?? [];
-  if (survey && dated.length && (survey.quick || survey.email_date_buttons !== false)) {
+  if (survey && dated.length && survey.email_date_buttons !== false) {
     const fmt = (d: string) => new Date(d + "T00:00:00Z").toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric", timeZone: "UTC" });
     const range = (a?: string | null, b?: string | null) => a && b ? `${+a.slice(8, 10)}–${fmt(b)}` : fmt((a ?? b)!);
     // No default prefix: an empty CTA means the button is JUST the date.
