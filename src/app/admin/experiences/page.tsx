@@ -71,12 +71,39 @@ function OffWebsiteBadge() {
   );
 }
 
+const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+
+/**
+ * What a chip says when several editions share a year.
+ *
+ * Bonaire runs three weeks each December, so three identical "2026" chips told
+ * you nothing — you had to hover each one to find the week you wanted. Hovering
+ * is the tell that the label is wrong, so make the label carry the difference
+ * instead: the week's own name where there is one ("Week II" → II), otherwise
+ * the month it starts in. The year shrinks to two digits to make room, and the
+ * status colour still groups them.
+ */
+function chipLabel(ed: Edition, sameYearCount: number): string {
+  if (sameYearCount <= 1) return String(ed.year ?? "—");
+  const yy = String(ed.year ?? "").slice(2);
+  // "Week II" / "W2" → "II" / "2"; anything already short is used as-is.
+  const stripped = (ed.label ?? "").replace(/^\s*(week|woche|w)\s*/i, "").trim();
+  const disc = stripped && stripped.length <= 4 && stripped !== String(ed.year)
+    ? stripped
+    : ed.date_start
+      ? MONTHS[new Date(ed.date_start).getUTCMonth()] ?? ""
+      : "";
+  return disc ? `${yy} · ${disc}` : String(ed.year ?? "—");
+}
+
 /** Year chips — each one opens that edition directly. They live inside the
  *  card/row button, so the click must not also trigger the parent. */
 function EditionPills({ editions, onOpen }: { editions: Edition[]; onOpen?: (id: string) => void }) {
   if (!editions || editions.length === 0) {
     return <span className="text-xs admin-faint">—</span>;
   }
+  const perYear = new Map<number | string, number>();
+  for (const e of editions) perYear.set(e.year ?? "?", (perYear.get(e.year ?? "?") ?? 0) + 1);
   return (
     <div className="flex flex-wrap gap-1">
       {editions.map((ed, i) => {
@@ -89,7 +116,7 @@ function EditionPills({ editions, onOpen }: { editions: Edition[]; onOpen?: (id:
               tabIndex: 0,
               onClick: open,
               onKeyDown: (e: React.KeyboardEvent) => { if (e.key === "Enter" || e.key === " ") open(e); },
-              title: `Open ${ed.label || ed.year}${ed.date_start ? ` · ${ed.date_start}` : ""}`,
+              title: `Open ${ed.label || ed.year}${ed.date_start ? ` · ${ed.date_start}` : ""}${ed.status ? ` · ${ed.status}` : ""}`,
             } : {})}
             className={`inline-block px-1.5 py-0.5 rounded text-[10px] font-medium transition-all ${open ? "cursor-pointer hover:ring-1 hover:ring-current hover:-translate-y-px" : ""} ${
               ed.status === "published"
@@ -99,7 +126,7 @@ function EditionPills({ editions, onOpen }: { editions: Edition[]; onOpen?: (id:
                 : "bg-amber-500/15 text-amber-400"
             }`}
           >
-            {ed.year}
+            {chipLabel(ed, perYear.get(ed.year ?? "?") ?? 1)}
           </span>
         );
       })}
