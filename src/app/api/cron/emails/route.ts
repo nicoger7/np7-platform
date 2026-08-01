@@ -4,6 +4,7 @@ import { sendEmail } from "@/lib/email/send";
 import { getMemoryPhotosForBooking } from "@/lib/portal-data";
 import { computePaymentPlan, dueUrgency, balanceDue } from "@/lib/payments";
 import { mailContentReady } from "@/lib/email/readiness";
+import { recordHold } from "@/lib/email/holds";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
@@ -201,6 +202,13 @@ export async function GET(req: NextRequest) {
       const ready = mailContentReady(templateKey, vars);
       if (!ready.ok) {
         held.push({ template: templateKey, bookingId: b.id, editionId: b.edition_id ?? null, missing: ready.missing });
+        // Persist it: the send windows are bounded on BOTH sides, so once this
+        // one closes the mail can never fire again on its own. The hold is what
+        // lets you fill the content in late and still choose to send.
+        await recordHold({
+          templateKey, bookingId: b.id, editionId: b.edition_id ?? null,
+          dedupeKey, missing: ready.missing,
+        });
         return { status: "skipped" as const, error: `content missing: ${ready.missing.join(", ")}` };
       }
       return sendEmail({ to: email, templateKey, vars, bookingId: b.id, dedupeKey });
