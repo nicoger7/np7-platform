@@ -10,8 +10,28 @@ import { satImage } from "@/lib/satellite";
 
 type Props = { params: Promise<{ token: string }>; searchParams: Promise<{ pick?: string; saved?: string }> };
 
-// Hidden, invite-only — never indexed, never linked publicly.
-export const metadata: Metadata = { robots: { index: false, follow: false }, title: "NP7 — a private invitation" };
+/**
+ * Hidden, invite-only — never indexed, never linked publicly.
+ *
+ * The browser-tab title follows the survey's own gold line, which already
+ * defaults to "By private invitation" and is editable in the admin. It used to
+ * be hard-coded, so an open-link survey anyone could share still announced
+ * itself as a private invitation. Discretion stays the default; if a survey
+ * says something else on the page, the tab says it too.
+ */
+export async function generateMetadata({ params }: Props): Promise<Metadata> {
+  const base: Metadata = { robots: { index: false, follow: false } };
+  try {
+    const { token } = await params;
+    const survey = token.startsWith(PREVIEW_PREFIX)
+      ? await getSurvey(token.slice(PREVIEW_PREFIX.length))
+      : (await getSurveyForToken(token))?.survey ?? (await getSurveyByOpenToken(token));
+    const label = (survey?.eyebrow ?? "").trim();
+    return { ...base, title: `NP7 — ${label || "a private invitation"}` };
+  } catch {
+    return { ...base, title: "NP7 — a private invitation" };
+  }
+}
 export const dynamic = "force-dynamic";
 
 const PREVIEW_PREFIX = "preview-";

@@ -251,6 +251,7 @@ export default function EditionDetailPage({
   const [brandNote, setBrandNote] = useState("");
   const [brandPacking, setBrandPacking] = useState("");
   const [inheritedPacking, setInheritedPacking] = useState<string | null>(null);
+  const [inheritedNote, setInheritedNote] = useState<string | null>(null);
   const [brandSaving, setBrandSaving] = useState(false);
   const [brandSaved, setBrandSaved] = useState(false);
   async function saveBranding() {
@@ -1063,6 +1064,19 @@ export default function EditionDetailPage({
                 <textarea value={brandNote} onChange={(e) => setBrandNote(e.target.value)} rows={4}
                   placeholder="A personal message just for this week — weather, who's coming, an insider tip. Overrides the experience-level note in the pre-trip emails. Leave blank to use the experience note."
                   className="admin-input w-full px-3 py-2 rounded-lg border text-sm outline-none resize-y" />
+                {/* Same reasoning as the packing list below: you can't judge
+                    whether to override something you can't see. */}
+                <div className="text-[11px] admin-faint mt-1.5 leading-relaxed">
+                  {brandNote.trim() ? (
+                    <>The pre-trip emails for <b className="admin-muted">this week only</b> use what you type here. The experience&apos;s own note is left untouched — it just isn&apos;t used for this edition.</>
+                  ) : inheritedNote ? (
+                    <>Blank, so this week uses the <b className="admin-muted">experience pre-trip note</b>:
+                      <span className="block mt-1 p-2 rounded admin-surface whitespace-pre-line max-h-24 overflow-y-auto" style={{ border: "1px solid var(--admin-border)" }}>{inheritedNote}</span>
+                    </>
+                  ) : (
+                    <>Blank — and the experience has no note either, so the pre-trip emails simply leave that paragraph out. Optional: nothing is held back for it.</>
+                  )}
+                </div>
               </div>
 
               <div className="mt-4">
@@ -1086,7 +1100,7 @@ export default function EditionDetailPage({
               </div>
 
               <div className="mt-4">
-                <MailReadiness editionId={id} onInherited={(v) => setInheritedPacking(v.packingList)} />
+                <MailReadiness editionId={id} onInherited={(v) => { setInheritedPacking(v.packingList); setInheritedNote(v.preTripNote); }} />
               </div>
 
               <div className="flex gap-2 mt-4">
