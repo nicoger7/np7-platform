@@ -118,12 +118,16 @@ export function SurveyQuick({ survey, token, existing, preview = false, justSave
           (written in the survey admin) introduces its dates. */}
       <div className="space-y-3">
         {(() => {
-          const groups: { id: string; label: string; blurb: string | null; rows: typeof dated }[] = [];
+          const groups: { id: string; label: string; blurb: string | null; image: string | null; rows: typeof dated }[] = [];
           for (const d of dated) {
             const gid = d.groupId ?? d.key;
             let g = groups.find((x) => x.id === gid);
-            if (!g) { g = { id: gid, label: d.label, blurb: null, rows: [] }; groups.push(g); }
+            if (!g) { g = { id: gid, label: d.label, blurb: null, image: null, rows: [] }; groups.push(g); }
             if (!g.blurb && d.blurb) g.blurb = d.blurb;
+            // Each place carries its own photo. The hero can only show one, so
+            // without this the second destination's picture was uploaded and
+            // then never seen by anyone.
+            if (!g.image && d.image) g.image = d.image;
             g.rows.push(d);
           }
           const multi = groups.length > 1;
@@ -131,8 +135,18 @@ export function SurveyQuick({ survey, token, existing, preview = false, justSave
             <div key={g.id} className="space-y-3">
               {(g.blurb || multi) && (
                 <div className={multi ? "pt-2" : ""}>
+                  {/* Each place gets its own photo when there's more than one —
+                      otherwise the hero above is already showing it. */}
+                  {multi && g.image && (
+                    <div className="rounded-2xl overflow-hidden mb-3 h-36 sm:h-44 bg-[#f3ece0]">
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img src={g.image} alt={g.label} className="w-full h-full object-cover" />
+                    </div>
+                  )}
                   {multi && <p className="text-[13px] font-black uppercase tracking-[0.12em] text-[#b0791e]">{g.label}</p>}
-                  {g.blurb && <p className="text-[14px] text-[#6a7a80] leading-relaxed mt-1 max-w-[560px] mx-auto text-center">{g.blurb}</p>}
+                  {/* Left, like the eyebrow above it and the cards below — it was
+                      centred, which made every group read as three alignments. */}
+                  {g.blurb && <p className="text-[14px] text-[#6a7a80] leading-relaxed mt-1">{g.blurb}</p>}
                 </div>
               )}
               {g.rows.map((d) => {
