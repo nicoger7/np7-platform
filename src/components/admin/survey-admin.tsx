@@ -422,6 +422,86 @@ function InviteSection({ surveyId, surveyTitle, openToken, invites, setInvites, 
   const [tagBusy, setTagBusy] = useState(false);
   const [tagFocus, setTagFocus] = useState(false);
   const [tagOptions, setTagOptions] = useState<{ tag: string; count: number }[]>([]);
+
+  /**
+   * Audience by BOOKING, not by tag.
+   *
+   * Tags drift: 19 of the 20 Lake Garda 2026 guests carry `Clinic`, a leftover
+   * from the Notion import, so "everyone tagged Experience Participant" left
+   * almost every Garda guest out of a survey about Garda. Bookings are written
+   * by the act of booking and can't fall out of date.
+   */
+  type AudOpts = {
+    experiences: { id: string; title: string }[];
+    editions: { id: string; experienceId: string; label: string; year: number | null; dateStart: string | null }[];
+    statuses: string[];
+  };
+  const [audOpts, setAudOpts] = useState<AudOpts>({ experiences: [], editions: [], statuses: [] });
+  const [audExp, setAudExp] = useState("");
+  const [audYear, setAudYear] = useState("");
+  // Defaults to people who actually came. "lead" only ever enquired — a very
+  // different audience, so it is opt-in rather than swept along.
+  const [audStatuses, setAudStatuses] = useState<string[]>(["attended", "paid", "confirmed"]);
+  const [audCount, setAudCount] = useState<number | null>(null);
+  const [audBusy, setAudBusy] = useState(false);
+
+  useEffect(() => {
+    fetch("/api/admin/audience").then((r) => r.json()).then(setAudOpts).catch(() => {});
+  }, []);
+
+  const audFilters = useMemo(() => ({
+    bookings: {
+      experienceIds: audExp ? [audExp] : undefined,
+      years: audYear ? [Number(audYear)] : undefined,
+      statuses: audStatuses.length ? audStatuses : undefined,
+    },
+  }), [audExp, audYear, audStatuses]);
+
+  const audActive = !!(audExp || audYear);
+  useEffect(() => {
+    if (!audActive) { setAudCount(null); return; }
+    const ctrl = new AbortController();
+    const t = setTimeout(() => {
+      fetch("/api/admin/audience", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ filters: audFilters }), signal: ctrl.signal,
+      }).then((r) => r.json()).then((d) => setAudCount(typeof d.count === "number" ? d.count : null)).catch(() => {});
+    }, 250);
+    return () => { clearTimeout(t); ctrl.abort(); };
+  }, [audFilters, audActive]);
+
+  const audYears = useMemo(() => {
+    const eds = audExp ? audOpts.editions.filter((e) => e.experienceId === audExp) : audOpts.editions;
+    return [...new Set(eds.map((e) => e.year).filter((y): y is number => y != null))].sort((a, b) => b - a);
+  }, [audOpts.editions, audExp]);
+
+  async function addByBooking() {
+    if (audBusy || !audActive) return;
+    setAudBusy(true); setMsg("");
+    try {
+      const r = await fetch("/api/admin/audience", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ filters: audFilters, ids: true }),
+      }).then((x) => x.json()).catch(() => null);
+      const ids: string[] = Array.isArray(r?.ids) ? r.ids : [];
+      const fresh = ids.filter((id) => !invitedIds.has(id));
+      const label = [audOpts.experiences.find((e) => e.id === audExp)?.title, audYear].filter(Boolean).join(" ") || "that filter";
+      if (!fresh.length) {
+        setMsg(ids.length ? `All ${ids.length} from ${label} are already on the list.` : `Nobody matches ${label}.`);
+        return;
+      }
+      if (!confirm(`Add ${fresh.length} ${fresh.length === 1 ? "person" : "people"} who booked ${label} to the invite list?\n\nNo emails yet — review the list, then press Send invites.`)) return;
+      const res = await fetch(`/api/admin/surveys/${surveyId}/invites`, {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ contactIds: fresh, sendEmail: false }),
+      });
+      const j = await res.json().catch(() => ({}));
+      if (!res.ok) { setMsg(j.error || "Couldn't add."); return; }
+      const list = await fetch(`/api/admin/surveys/${surveyId}/invites`).then((x) => x.json()).catch(() => null);
+      if (list?.invites) setInvites(list.invites);
+      setMsg(`Added ${j.created?.length ?? fresh.length} who booked ${label} — press Send invites when ready.`);
+    } finally { setAudBusy(false); }
+  }
   useEffect(() => {
     fetch("/api/admin/contacts/tags").then((r) => r.json()).then((d) => setTagOptions(Array.isArray(d?.tags) ? d.tags : [])).catch(() => {});
   }, []);
@@ -627,6 +707,40 @@ Same invite email under the subject "${remSubject.trim() || `Quick reminder 🤙
           {tagBusy ? "Looking up…" : "Add everyone tagged"}
         </button>
         {!picked.length && msg && <span className="text-[12.5px] text-[#0f6e56] font-semibold">{msg}</span>}
+      </div>
+
+      {/* …or by what they actually booked. Tags are hand-maintained and drift;
+          a booking is written by the act of booking. */}
+      <div className="mt-2 flex flex-wrap items-center gap-2">
+        <span className="text-[12px] text-[#9aa6ac]">…or everyone who booked:</span>
+        <select value={audExp} onChange={(e) => setAudExp(e.target.value)} className="rounded-lg border border-[#d8e3e6] bg-white text-[#0a2a33] px-2.5 py-1.5 text-[13px] outline-none focus:border-[#0aa3c7]">
+          <option value="">Any experience</option>
+          {audOpts.experiences.map((e) => <option key={e.id} value={e.id}>{e.title}</option>)}
+        </select>
+        <select value={audYear} onChange={(e) => setAudYear(e.target.value)} className="rounded-lg border border-[#d8e3e6] bg-white text-[#0a2a33] px-2.5 py-1.5 text-[13px] outline-none focus:border-[#0aa3c7]">
+          <option value="">Any year</option>
+          {audYears.map((y) => <option key={y} value={y}>{y}</option>)}
+        </select>
+        <span className="flex flex-wrap items-center gap-1">
+          {["attended", "paid", "confirmed", "reserved", "lead"].map((st) => {
+            const on = audStatuses.includes(st);
+            return (
+              <button key={st} type="button"
+                onClick={() => setAudStatuses((cur) => on ? cur.filter((x) => x !== st) : [...cur, st])}
+                title={st === "lead" ? "Only ever enquired — never came" : undefined}
+                className={`rounded-full px-2.5 py-1 text-[12px] font-semibold transition-colors ${on ? "bg-[#0aa3c7] text-white" : "border border-[#d8e3e6] text-[#8a97a0] hover:text-[#0a2a33]"}`}>
+                {st}
+              </button>
+            );
+          })}
+        </span>
+        <button onClick={addByBooking} disabled={!audActive || audBusy || audCount === 0}
+          className="rounded-full border border-[#0aa3c7] text-[#0aa3c7] text-[12.5px] font-bold px-3.5 py-1.5 hover:bg-[#eaf7fb] disabled:opacity-40 transition-colors">
+          {audBusy ? "Adding…" : audCount != null ? `Add these ${audCount}` : "Add these"}
+        </button>
+        {audActive && audCount != null && (
+          <span className="text-[12px] text-[#8a97a0]">{audCount} match{audCount === 1 ? "" : "es"} · opted-in only</span>
+        )}
       </div>
 
       {picked.length > 0 && (
