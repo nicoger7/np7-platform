@@ -341,6 +341,10 @@ interface DashboardData {
   slim?: boolean;
   photoTasks?: { editionId: string; label: string; total: number; missing: { id: string; name: string }[] }[];
   contentGaps?: { experienceId: string; title: string; missing: string[] }[];
+  upcomingMails?: {
+    paused: boolean;
+    mails: { templateKey: string; label: string; editionId: string; editionTitle: string; sendDate: string; daysAway: number; recipients: number; missing: string[] }[];
+  };
 }
 
 const STATUS_COLOR: Record<string, string> = {
@@ -442,6 +446,39 @@ function ExperienceDashboard() {
                   <span className="flex-1 admin-heading truncate">{a.bookingName} <span className="admin-faint">· {a.label}</span></span>
                   <span className="shrink-0 text-[9px] font-bold uppercase px-1.5 py-0.5 rounded bg-amber-500/15 text-amber-500">Requested</span>
                   <span className="admin-muted w-16 text-right">{amt(a.price)}</span>
+                </Link>
+              ))}
+            </div>
+          )}
+        </Panel>
+        )}
+
+        {/* Mails going out soon — the scheduled ones nobody triggers, so the
+            only way to catch a problem is to see it before the send date. */}
+        {!slim && (
+        <Panel title={`Mails going out soon${d.upcomingMails?.mails.length ? ` (${d.upcomingMails.mails.length})` : ""}`} href="/admin/emails">
+          {d.upcomingMails?.paused && (
+            <p className="text-[11px] text-amber-500 mb-2">Lifecycle is paused — these are what <em>would</em> go out once you switch it on.</p>
+          )}
+          {!d.upcomingMails?.mails.length ? (
+            <p className="text-xs admin-faint">Nothing scheduled in the next 45 days.</p>
+          ) : (
+            <div className="space-y-1.5">
+              {d.upcomingMails.mails.slice(0, 8).map((m) => (
+                <Link key={`${m.editionId}:${m.templateKey}`} href={`/admin/editions/${m.editionId}?tab=branding`}
+                  className="flex items-center gap-3 text-xs py-1.5 px-2 -mx-2 rounded-lg hover:bg-[var(--admin-surface-hover)]">
+                  <span className={`shrink-0 w-14 text-right font-bold ${m.daysAway <= 3 ? "text-amber-500" : "admin-muted"}`}>
+                    {m.daysAway === 0 ? "today" : `${m.daysAway}d`}
+                  </span>
+                  <span className="flex-1 min-w-0">
+                    <span className="block admin-heading truncate">{m.label}</span>
+                    <span className="block admin-faint truncate">{m.editionTitle}</span>
+                  </span>
+                  {m.missing.length > 0 ? (
+                    <span className="shrink-0 text-[9px] font-bold uppercase px-1.5 py-0.5 rounded bg-amber-500/15 text-amber-500">Will be held</span>
+                  ) : (
+                    <span className="shrink-0 admin-muted">{m.recipients}&nbsp;guest{m.recipients === 1 ? "" : "s"}</span>
+                  )}
                 </Link>
               ))}
             </div>

@@ -4,6 +4,7 @@ import { createClient } from "@/lib/supabase/server";
 import { getActiveTeamMember, getEffectiveAccess } from "@/lib/admin-auth";
 import { effectiveCanAccess, effectiveCanEnterWorld, effectiveCanSeeField } from "@/lib/access";
 import { normalizeBookingStatus } from "@/lib/types";
+import { getUpcomingMails } from "@/lib/email/upcoming";
 
 // GET /api/admin/dashboard — one aggregated payload for the ops dashboard.
 // Each admin world gets its OWN payload (`?world=hardware|magazine`); the
@@ -130,6 +131,11 @@ export async function GET(request: NextRequest) {
     }
   } catch { /* storage or tables not ready — leave empty */ }
 
+  // What the lifecycle cron is about to send. Tolerant: a forecast is never
+  // worth failing the whole dashboard over.
+  let upcomingMails: Awaited<ReturnType<typeof getUpcomingMails>> = { paused: true, mails: [] };
+  try { upcomingMails = await getUpcomingMails(); } catch { /* leave empty */ }
+
   return NextResponse.json({
     counts: {
       experiences: expCount.count ?? 0,
@@ -151,6 +157,7 @@ export async function GET(request: NextRequest) {
     slim: !showMoney,
     photoTasks,
     contentGaps,
+    upcomingMails,
   });
 }
 
