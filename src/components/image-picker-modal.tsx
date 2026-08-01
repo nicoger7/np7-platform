@@ -36,7 +36,19 @@ function formatSize(bytes: number) {
     huge original. */
 const UPLOAD_CAP = 3_800_000; // stay safely under Vercel's ~4.5 MB request-body limit
 
-async function downscaleImage(file: File, maxDim = 2000, quality = 0.82): Promise<File> {
+/**
+ * 2000px was too small for the places these photos actually land.
+ *
+ * A survey or experience hero is full-bleed, so on a retina laptop it needs
+ * roughly 3000 device pixels across — a 2000px source is already being upscaled
+ * before it starts, and the Garda survey hero (1280px after this pass) rendered
+ * visibly soft. Thumbnails and cards never noticed, which is why it went
+ * unspotted.
+ *
+ * 3000 at 0.86 still lands comfortably under the request-body cap, and R2 egress
+ * is free, so the extra weight costs storage only.
+ */
+async function downscaleImage(file: File, maxDim = 3000, quality = 0.86): Promise<File> {
   if (!file.type.startsWith("image/") || /svg|gif/i.test(file.type)) {
     if (file.size > UPLOAD_CAP) throw new Error(`This file is ${formatSize(file.size)} — over the ${(UPLOAD_CAP / 1e6).toFixed(1)} MB limit for this type. Export a smaller version.`);
     return file;
