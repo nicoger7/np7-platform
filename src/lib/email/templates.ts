@@ -40,10 +40,56 @@ export type EmailVars = {
 type Built = { subject: string; html: string };
 type LayoutOpts = { division?: Division; headerImage?: string | null; headerPosition?: number | null };
 
-const p = (s: string) => `<p style="margin:0 0 14px;">${s}</p>`;
-const greet = (v: EmailVars) => p(`Hey ${esc(v.firstName || "there")} 🤙`);
-/** A personal note from the host, rendered as a quote block (if set). */
-const note = (text?: string) => (text && text.trim() ? `<p style="margin:0 0 14px;padding:12px 14px;background:#f4f9fb;border-left:3px solid #00afdb;border-radius:4px;font-style:italic;color:#41566a;white-space:pre-line;">${esc(text.trim())}</p>` : "");
+const p = (s: string) => `<p style="margin:0 0 15px;">${s}</p>`;
+
+/**
+ * The greeting sets the tone, so it gets to be a line rather than body copy —
+ * bigger, in the brand deep-teal, with room under it.
+ */
+const greet = (v: EmailVars) =>
+  `<p style="margin:0 0 16px;font-size:21px;line-height:1.3;font-weight:800;color:#00374a;">Hey ${esc(v.firstName || "there")} 🤙</p>`;
+
+/** A short gold→coral rule. The brand's "sun to sea" warmth, used to break a
+ *  long email into parts without shouting a heading at people. */
+const rule = () =>
+  `<div style="height:3px;width:52px;background:#f47b20;background-image:linear-gradient(90deg,#ffc42e,#f47b20);border-radius:2px;margin:24px 0 16px;"></div>`;
+
+/** A small heading above a block — quiet, uppercase, gold. */
+const heading = (text: string) =>
+  `<p style="margin:22px 0 6px;font-size:12px;font-weight:800;letter-spacing:.14em;text-transform:uppercase;color:#b0791e;">${esc(text)}</p>`;
+
+/**
+ * Key facts as a card of label/value rows.
+ *
+ * Dates, amounts and package names were buried mid-sentence, so the one thing
+ * a reader scans for was the hardest thing to find. Table-based and inline-
+ * styled, so it survives Outlook.
+ */
+const facts = (rows: [string, string | undefined | null][]) => {
+  const live = rows.filter(([, v]) => v != null && String(v).trim() !== "");
+  if (!live.length) return "";
+  const cells = live
+    .map(
+      ([k, v], i) =>
+        `<tr>
+<td style="padding:${i ? "9px" : "0"} 0 0;font-size:12.5px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:#8aa0a8;width:40%;vertical-align:top;">${esc(k)}</td>
+<td style="padding:${i ? "9px" : "0"} 0 0;font-size:15px;font-weight:700;color:#00374a;vertical-align:top;">${esc(String(v))}</td>
+</tr>`,
+    )
+    .join("");
+  return `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin:4px 0 18px;background:#f5fafb;border:1px solid #e2eef1;border-radius:12px;"><tr><td style="padding:16px 18px;">
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0">${cells}</table>
+</td></tr></table>`;
+};
+
+/** A personal note from the host — a quote block with the warm accent, since it
+ *  is the one part of the mail written by a person rather than the system. */
+const note = (text?: string) =>
+  text && text.trim()
+    ? `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin:0 0 16px;"><tr>
+<td style="padding:14px 16px;background:#fffaf0;border-left:4px solid #f0a500;border-radius:4px;font-size:15px;line-height:1.6;color:#5a4a32;white-space:pre-line;">${esc(text.trim())}</td>
+</tr></table>`
+    : "";
 /** A newline-separated list rendered as a tidy checklist (if set). */
 const checklist = (text?: string) => {
   const items = (text || "").split(/\r?\n/).map((s) => s.trim()).filter(Boolean);
@@ -76,7 +122,8 @@ export const TEMPLATES: Record<string, (v: EmailVars, opts?: LayoutOpts) => Buil
       preheader: "Deposit received — activate your trip account.",
       bodyHtml:
         greet(v) +
-        p(`Your deposit is in — you're officially coming to <strong>${esc(v.experienceTitle || "")}${v.dates ? " (" + esc(v.dates) + ")" : ""}</strong>. Get ready for the week your jibes have been waiting for.`) +
+        p(`Your deposit is in — you're officially coming. Get ready for the week your jibes have been waiting for.`) +
+        facts([["Trip", v.experienceTitle], ["Dates", v.dates], ["Package", v.packageName], ["Balance to come", v.balance]]) +
         p(`We've created your personal <strong>trip account</strong> where you'll manage your booking, see your travel documents, update your details and find your memories after the week. Activate it here:`) +
         (v.activationLink ? emailButton("Activate my trip account", v.activationLink) : "") +
         p(`<strong>What's next:</strong> we'll contact you personally within a day or two to go through everything. The remaining balance is paid later by bank transfer — we'll send the invoice in good time.`) +
@@ -227,6 +274,7 @@ export const TEMPLATES: Record<string, (v: EmailVars, opts?: LayoutOpts) => Buil
       preheader: "Your remaining balance is now due by bank transfer.",
       bodyHtml:
         greet(v) +
+        facts([["Trip", v.experienceTitle], ["Dates", v.dates], ["Amount due", v.amount ?? v.balance], ["Due by", v.dueDate], ["Reference", v.reference]]) +
         p(`Your trip is getting close! The remaining balance${v.balance ? " of <strong>" + esc(v.balance) + "</strong>" : ""} for <strong>${esc(v.experienceTitle || "")}</strong> is now due by <strong>bank transfer</strong>.`) +
         p(`You'll find your invoice and bank details in your trip account:`) +
         (v.bookingLink ? emailButton("View my booking & invoice", v.bookingLink) : "") +
@@ -312,7 +360,7 @@ export const TEMPLATES: Record<string, (v: EmailVars, opts?: LayoutOpts) => Buil
         greet(v) +
         p(`Not long now until <strong>${esc(v.experienceTitle || "")}${v.dates ? " (" + esc(v.dates) + ")" : ""}</strong>! Time to start getting ready.`) +
         note(v.preTripNote) +
-        (v.packingList ? p(`<strong>What to bring:</strong>`) + checklist(v.packingList) : "") +
+        (v.packingList ? rule() + heading("What to bring") + checklist(v.packingList) : "") +
         p(`Your arrival info and group chat are in your trip account too:`) +
         (v.bookingLink ? emailButton("Open my trip details", v.bookingLink) : "") +
         p(`Can't wait to ride with you.<br>— Nico & the NP7 team`),

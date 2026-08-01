@@ -435,7 +435,12 @@ export function SurveyAdmin({ initialSurvey, initialInvites }: { initialSurvey: 
       </>)}
 
       {tab === "responses" && (
-        <ResponsesSection survey={s} invites={invites} fmtMoney={fmtMoney} />
+        <ResponsesSection survey={s} invites={invites} fmtMoney={fmtMoney}
+          onRemove={async (inviteId, who) => {
+            if (!confirm(`Remove ${who} from this survey?\n\nTheir answer goes with them.`)) return;
+            await fetch(`/api/admin/surveys/${s.id}/invites?inviteId=${inviteId}`, { method: "DELETE" });
+            setInvites((cur) => cur.filter((x) => x.id !== inviteId));
+          }} />
       )}
 
       <div className="pt-2">
@@ -912,7 +917,7 @@ function MailMeta({ surveyId }: { surveyId: string }) {
   );
 }
 
-function ResponsesSection({ survey, invites, fmtMoney }: { survey: Survey; invites: SurveyInvite[]; fmtMoney: (n: number | null) => string }) {
+function ResponsesSection({ survey, invites, fmtMoney, onRemove }: { survey: Survey; invites: SurveyInvite[]; fmtMoney: (n: number | null) => string; onRemove?: (inviteId: string, name: string) => void }) {
   const responded = invites.filter((i) => i.response);
 
   // Trips mode: every pick key IS a place+date window — results must show the
@@ -1019,7 +1024,16 @@ function ResponsesSection({ survey, invites, fmtMoney }: { survey: Survey; invit
               const r = i.response!;
               return (
                 <div key={i.id} className="rounded-xl border border-[#f0e6d6] p-3.5">
-                  <p className="text-[14px] font-bold text-[#00374a]">{i.contactName || "Member"}</p>
+                  <div className="flex items-start gap-3">
+                    <p className="text-[14px] font-bold text-[#00374a] flex-1">{i.contactName || "Member"}</p>
+                    {/* Removing someone lives on the Invites tab, which was fine
+                        when everything was one page. Reading an answer and
+                        acting on it shouldn't need a tab switch. */}
+                    {onRemove && (
+                      <button onClick={() => onRemove(i.id, i.contactName || "this person")}
+                        className="shrink-0 text-[12px] font-bold text-[#b6c2c7] hover:text-[#c0392b] transition-colors">Remove</button>
+                    )}
+                  </div>
                   <div className="text-[13px] text-[#5a6b72] mt-1 space-y-0.5">
                     {isDecline(r) ? (
                       <p className="text-[#a5432a] font-semibold">Can&apos;t make it this time{r.looking_for && r.looking_for.includes("—") ? ` — ${r.looking_for.split("—").slice(1).join("—").trim()}` : ""}</p>
