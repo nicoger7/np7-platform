@@ -5,6 +5,8 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { ExperienceComponentsManager } from "@/components/experience-components-manager";
 import { PublicBadge } from "@/components/admin/public-badge";
+import { GoLivePanel } from "@/components/admin/go-live-checklist";
+import type { ExperienceReport } from "@/lib/go-live";
 
 interface Experience {
   id: string;
@@ -101,6 +103,15 @@ export default function ExperienceDetailPage({
   const [exp, setExp] = useState<Experience | null>(null);
   const [editions, setEditions] = useState<Edition[]>([]);
   const [activeSection, setActiveSection] = useState("editions");
+  const [readiness, setReadiness] = useState<ExperienceReport | null>(null);
+  useEffect(() => {
+    if (activeSection !== "ready" || readiness) return;
+    fetch("/api/admin/go-live")
+      .then((r) => r.json())
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      .then((d) => setReadiness(((d.experiences ?? []) as any[]).find((x) => x.id === id) ?? null))
+      .catch(() => {});
+  }, [activeSection, readiness, id]);
   const [destinations, setDestinations] = useState<{ id: string; name: string }[]>([]);
   const [hotels, setHotels] = useState<Hotel[]>([]);
   const [showAddHotel, setShowAddHotel] = useState(false);
@@ -275,7 +286,7 @@ export default function ExperienceDetailPage({
 
       {/* Section tabs */}
       <div className="flex items-center gap-1 mb-6" style={{ borderBottom: "1px solid var(--admin-border)" }}>
-        {[["editions", "Editions"], ["template", "Template"], ["components", "Components"]].map(([key, label]) => (
+        {[["editions", "Editions"], ["ready", "Ready to sell"], ["template", "Template"], ["components", "Components"]].map(([key, label]) => (
           <button
             key={key}
             onClick={() => setActiveSection(key)}
@@ -287,6 +298,10 @@ export default function ExperienceDetailPage({
       </div>
 
       {/* ── Editions (tiles) ── */}
+      {/* Readiness for THIS experience and its weeks — the same rows as
+          /admin/go-live, rendered from the same component so they can't drift. */}
+      {activeSection === "ready" && <GoLivePanel report={readiness} />}
+
       <div className={`mb-8 ${activeSection === "editions" ? "" : "hidden"}`}>
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between mb-3">
           <h2 className="text-sm font-bold admin-heading">
