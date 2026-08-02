@@ -210,6 +210,7 @@ export async function DestinationView({
                         const spotRating = s.np7 > 0 ? s.np7 : s.member.overall;
                         return {
                           lat: s.lat as number, lng: s.lng as number, name: s.name, destSlug: d.slug ?? "", verification: s.verification,
+                          anchor: `spot-${s.id}`,
                           ...(spotRating > 0 ? { spotRating, spotRatingKind: (s.np7 > 0 ? "np7" : "member") as "np7" | "member", spotRatingCount: s.member.count } : {}),
                         };
                       });

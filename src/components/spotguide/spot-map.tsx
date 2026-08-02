@@ -6,7 +6,11 @@ import "leaflet/dist/leaflet.css";
 import { attachBaseLayers } from "@/lib/leaflet-base";
 
 export type MapSpot = {
-  lat: number; lng: number; name: string; destSlug: string; destName?: string; verification?: string;
+  lat: number; lng: number; name: string; destSlug: string;
+  /** Anchor id of this spot's row in the list below (destination page only).
+   *  Present → the popup jumps to and opens that row instead of navigating to
+   *  the destination you are already looking at. */
+  anchor?: string; destName?: string; verification?: string;
   // Optional destination context for a richer popup card (index map only).
   thumb?: string | null; rating?: number; ratingKind?: "np7" | "member"; spotCount?: number; toVerifyCount?: number; level?: string | null;
   spotRating?: number; spotRatingKind?: "np7" | "member"; spotRatingCount?: number;
@@ -105,7 +109,7 @@ export function SpotMap({ spots, cluster = false, height = 420, linkLabel = "Vie
                   `<div style="display:flex;gap:9px;flex-wrap:wrap;margin-top:3px;font-size:11.5px;color:#5a6b72">${meta.join("")}</div>` +
                 `</div>`
               : "") +
-            `<a href="/spotguide/${s.destSlug}" style="display:block;margin-top:10px;background:linear-gradient(90deg,#00afdb,#0891b2);color:#fff;font-weight:800;font-size:13px;text-align:center;padding:10px 14px;border-radius:999px;text-decoration:none;box-shadow:0 4px 12px rgba(0,175,219,0.35)">${linkLabel}</a></div>`
+            `<a href="${s.anchor ? `#${s.anchor}` : `/spotguide/${s.destSlug}`}" style="display:block;margin-top:10px;background:linear-gradient(90deg,#00afdb,#0891b2);color:#fff;font-weight:800;font-size:13px;text-align:center;padding:10px 14px;border-radius:999px;text-decoration:none;box-shadow:0 4px 12px rgba(0,175,219,0.35)">${linkLabel}</a></div>`
         );
         // stash the destination on the marker so clusters can label themselves
         // and the focus filter can pick its pins

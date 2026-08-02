@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import type { PublicSpot } from "@/lib/spotguide-data";
 import { useSpotguide } from "./spotguide-provider";
 import {
@@ -34,6 +34,30 @@ export function SpotsList({ spots: published, accent = "#00afdb" }: { spots: Pub
   const [open, setOpen] = useState<string[]>(spots.length === 1 ? [spots[0].id] : []);
   const toggle = (id: string) => setOpen((o) => (o.includes(id) ? o.filter((x) => x !== id) : [...o, id]));
 
+  /**
+   * `#spot-<id>` opens that spot and scrolls to it.
+   *
+   * The map's popup button used to link to the destination — which, from the
+   * destination page, reloaded the page you were already on. Now it points
+   * here. Also makes a single spot linkable: paste the URL and it opens folded
+   * out on the right one.
+   */
+  useEffect(() => {
+    const jump = () => {
+      const id = window.location.hash.replace(/^#spot-/, "");
+      if (!id || id === window.location.hash) return;
+      if (!spots.some((sp) => sp.id === id)) return;
+      setOpen((o) => (o.includes(id) ? o : [...o, id]));
+      // after the row expands, not before, or we scroll to where it used to be
+      requestAnimationFrame(() => {
+        document.getElementById(`spot-${id}`)?.scrollIntoView({ behavior: "smooth", block: "start" });
+      });
+    };
+    jump();
+    window.addEventListener("hashchange", jump);
+    return () => window.removeEventListener("hashchange", jump);
+  }, [spots]);
+
   return (
     <div className="space-y-3">
       {spots.map((spot, i) => {
@@ -48,7 +72,15 @@ export function SpotsList({ spots: published, accent = "#00afdb" }: { spots: Pub
           winds.length ? `Best: ${winds.join(", ")}` : "",
         ].filter(Boolean);
         return (
-          <div key={spot.id} className="rounded-2xl border border-[#ece3d3] bg-white overflow-hidden">
+          <div key={spot.id} id={`spot-${spot.id}`}
+            className={`rounded-2xl bg-white overflow-hidden scroll-mt-24 transition-all ${isOpen ? "mb-7" : ""}`}
+            style={isOpen
+              // Open: an accent rail down the full height plus a lifted shadow.
+              // The rail is the thing that actually works — your eye can follow
+              // one continuous edge from the title to the last button and see
+              // where it stops.
+              ? { border: `1px solid ${accent}55`, borderLeft: `4px solid ${accent}`, boxShadow: "0 8px 28px -12px rgba(0,55,74,0.28)" }
+              : { border: "1px solid #ece3d3" }}>
             <button type="button" onClick={() => toggle(spot.id)} aria-expanded={isOpen}
               className="w-full flex items-center gap-3 sm:gap-4 px-5 py-4 text-left hover:bg-[#fdfaf3] transition-colors">
               <span className="shrink-0 grid place-items-center w-7 h-7 rounded-full text-[13px] font-black" style={{ backgroundColor: `${accent}1a`, color: accent }}>{i + 1}</span>
@@ -175,6 +207,15 @@ export function SpotsList({ spots: published, accent = "#00afdb" }: { spots: Pub
                 <SpotContribute spotId={spot.id} accent={accent} np7Ratings={spot.np7_ratings} />
                 <SuggestEdit spotId={spot.id} accent={accent}
                   current={{ name: spot.name, lat: spot.lat, lng: spot.lng }} />
+
+                {/* The end of this spot, said out loud. Without it the last
+                    button just ran into the next spot's card. */}
+                <button type="button" onClick={() => toggle(spot.id)}
+                  className="w-full flex items-center justify-center gap-2 pt-4 text-[12.5px] font-bold text-[#9aa6ac] hover:text-[#00374a] transition-colors"
+                  style={{ borderTop: "1px solid #f0e9da" }}>
+                  <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M18 15l-6-6-6 6" /></svg>
+                  Close {spot.name}
+                </button>
               </div>
             </div>
           </div>
