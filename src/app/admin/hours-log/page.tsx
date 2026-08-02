@@ -163,7 +163,7 @@ export default function HoursLogPage() {
     // date + hours + entry are NOT NULL in the DB — don't let a silent 400 eat the log
     if (!form.date) { alert("Pick a date for this entry."); return; }
     if (!form.hours || Number(form.hours) <= 0) { alert("Enter the hours worked."); return; }
-    const body = { date: form.date, hours: Number(form.hours), category: form.category || null, entry: form.entry.trim() || "Untitled", employee_id: form.employee_id || null, experience_id: form.experience_id || null, edition_id: form.experience_id ? (form.edition_id || null) : null, notes: form.notes || null, is_general: form.is_general, processed_at: form.processed_at || null };
+    const body = { date: form.date, hours: Number(form.hours), category: form.category || null, entry: form.entry.trim() || "Untitled", employee_id: form.employee_id || null, experience_id: form.experience_id || null, edition_id: form.experience_id ? (form.edition_id || null) : null, notes: form.notes || null, is_general: form.is_general };
     const res = editId
       ? await fetch(`/api/admin/hours-log/${editId}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) })
       : await fetch("/api/admin/hours-log", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
@@ -281,7 +281,16 @@ export default function HoursLogPage() {
           </div>
           <div className="grid grid-cols-3 gap-4 mb-4">
             <div><label className={labelClass}>Notes</label><input className={inputClass} value={form.notes} onChange={(e) => setForm({ ...form, notes: e.target.value })} /></div>
-            <div><label className={labelClass}>Processed on</label><input className={inputClass} type="date" value={form.processed_at} onChange={(e) => setForm({ ...form, processed_at: e.target.value })} /></div>
+            {/* Read-only: this is the ledger the nightly costing run keeps.
+                Clearing it would make the hour eligible again and the run adds
+                to the existing actual, so the edition would be charged twice.
+                Not a field to leave lying around next to Notes. */}
+            <div>
+              <label className={labelClass}>Costed on</label>
+              <p className="px-3 py-2 text-sm rounded-lg admin-surface admin-muted" style={{ border: "1px solid var(--admin-border)" }}>
+                {form.processed_at ? formatDate(form.processed_at) : <span className="admin-faint">not yet — the nightly run picks it up</span>}
+              </p>
+            </div>
             <div className="flex items-end pb-2">
               <label className="flex items-center gap-2 cursor-pointer">
                 <input type="checkbox" checked={form.is_general} onChange={(e) => setForm({ ...form, is_general: e.target.checked })} className="w-4 h-4 accent-[#0aa3c7]" />
