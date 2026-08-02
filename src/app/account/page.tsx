@@ -4,7 +4,7 @@ import type { Metadata } from "next";
 import { getPortalUser, getTeamMember } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 import { getMemberBookings, getMemberBannerImages, getMemberProfile, getMemberProgression } from "@/lib/portal-data";
-import { fmtDates, needsDownpayment } from "@/lib/portal-status";
+import { fmtDates, needsDownpayment, paymentStageLabel } from "@/lib/portal-status";
 import { hasFlightDetails, type FlightInfo } from "@/lib/flights";
 import { firstNameInitial, initialsFrom } from "@/lib/member-profile";
 import { PortalChrome } from "@/components/portal/portal-chrome";
@@ -111,7 +111,7 @@ export default async function AccountHome() {
         ...(hasAttended || profile.avatar_url
           ? [{ key: "photo", label: "Add a profile photo", hint: "Pick one from your trip photos", done: !!profile.avatar_url, href: "/account/profile" } as SetupStep]
           : []),
-        { key: "handle", label: "Pick your @handle", hint: "Your name on the crew & spotguide", done: !!profile.username, href: "/account/profile" },
+        { key: "handle", label: "Pick your @handle", hint: "Your name on the crew & spotguide", done: !!profile.username, href: "/account/profile", inline: "handle" },
       ]
     : [];
 
@@ -196,7 +196,7 @@ export default async function AccountHome() {
                       {/* "Your trip so far" — compact endowment recap of what's already set up */}
                       {!secure && (() => {
                         const done = [
-                          "Spot secured",
+                          paymentStageLabel(b),
                           hasFlightDetails(b.flight_info as FlightInfo | null) ? "Flights added" : null,
                           b.wa_group ? "In the crew chat" : null,
                         ].filter(Boolean) as string[];

@@ -17,6 +17,21 @@ export function bookingStatus(b: Pick<MemberBooking, "status" | "downpayment_rec
   return { label: "Spot not secured yet", tone: "amber" }; // lead
 }
 
+/**
+ * The money stage in two or three words, for a chip.
+ *
+ * The home recap used to hardcode "Spot secured" for every booking that wasn't
+ * asking to be secured — so a fully-paid trip still read as if a balance were
+ * outstanding. Same inputs as bookingStatus(), so the two can't disagree.
+ */
+export function paymentStageLabel(b: Pick<MemberBooking, "status" | "downpayment_received" | "final_payment_received">): string | null {
+  const s = normalizeBookingStatus(b.status);
+  if (s === "attended") return "Trip completed";
+  if (b.final_payment_received || s === "paid") return "Fully paid";
+  if (b.downpayment_received || s === "confirmed") return "Spot secured";
+  return null; // nothing to celebrate yet
+}
+
 /** A booking whose spot isn't secured yet → show the "Secure your spot" CTA. */
 export function needsDownpayment(b: Pick<MemberBooking, "status" | "downpayment_received" | "final_payment_received">): boolean {
   if (b.downpayment_received || b.final_payment_received) return false;

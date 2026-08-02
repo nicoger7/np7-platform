@@ -3,7 +3,11 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 
-export type SetupStep = { key: string; label: string; hint?: string; done: boolean; href: string; accent?: boolean };
+export type SetupStep = {
+  key: string; label: string; hint?: string; done: boolean; href: string; accent?: boolean;
+  /** Finishable right here instead of on another page. */
+  inline?: "handle";
+};
 
 /**
  * "Get set up" — an endowed-progress onboarding strip for the member home.
@@ -102,6 +106,9 @@ export function SetupProgress({ steps }: { steps: SetupStep[] }) {
               <span className="text-[#9aa6ac] line-through decoration-[#d3dbde]">{s.label}</span>
             </div>
           ) : (
+            s.inline === "handle" ? (
+              <HandleStep key={s.key} step={s} />
+            ) : (
             <Link key={s.key} href={s.href} className="group flex items-center gap-3 px-1 py-1.5 rounded-lg hover:bg-[#f7fbfc] transition-colors">
               <span className={`shrink-0 w-5 h-5 rounded-full border-2 transition-colors ${s.accent ? "border-[#f47b20]" : "border-[#cdd6d9]"} group-hover:border-[#00afdb]`} />
               <span className="flex-1 min-w-0">
@@ -113,9 +120,101 @@ export function SetupProgress({ steps }: { steps: SetupStep[] }) {
                 <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M5 12h14M13 6l6 6-6 6" /></svg>
               </span>
             </Link>
-          )
+          ))
         )}
       </div>
     </section>
+  );
+}
+
+
+/**
+ * Pick a handle without leaving home.
+ *
+ * 30 of 41 members never finished this step. It linked to /account/profile, so
+ * completing it meant leaving the page you had just arrived on — and nobody
+ * comes back for a username. Ask for it here, in one field.
+ *
+ * And it stops asking. Three "not now"s and it hides for good: a checklist item
+ * that can't be dismissed stops being a checklist and starts being wallpaper.
+ */
+function HandleStep({ step }: { step: SetupStep }) {
+  const KEY = "np7:handle-prompt-dismissed";
+  const [open, setOpen] = useState(false);
+  const [value, setValue] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+  const [hidden, setHidden] = useState(false);
+  const [ready, setReady] = useState(false);
+
+  useEffect(() => {
+    try { setHidden(Number(window.localStorage.getItem(KEY) ?? "0") >= 3); } catch { /* private mode */ }
+    setReady(true);
+  }, []);
+
+  const dismiss = () => {
+    try {
+      const n = Number(window.localStorage.getItem(KEY) ?? "0") + 1;
+      window.localStorage.setItem(KEY, String(n));
+      if (n >= 3) setHidden(true);
+    } catch { /* ignore */ }
+    setOpen(false);
+  };
+
+  async function save() {
+    const handle = value.trim().replace(/^@/, "");
+    if (!handle) return;
+    setBusy(true); setErr(null);
+    try {
+      const r = await fetch("/api/portal/profile", {
+        method: "PATCH", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ username: handle }),
+      });
+      const j = await r.json().catch(() => ({}));
+      if (!r.ok) { setErr(j.error || "That one didn't work — try another."); return; }
+      window.location.reload(); // the step (and the progress bar) recompute server-side
+    } catch { setErr("Couldn't save just now."); }
+    finally { setBusy(false); }
+  }
+
+  if (!ready || hidden) return null;
+
+  if (!open) {
+    return (
+      <div className="flex items-center gap-3 px-1 py-1.5">
+        <span className="shrink-0 w-5 h-5 rounded-full border-2 border-[#cdd6d9]" />
+        <span className="flex-1 min-w-0">
+          <span className="block text-[13.5px] font-bold text-[#00374a]">{step.label}</span>
+          {step.hint && <span className="block text-[11.5px] text-[#9aa6ac] leading-snug">{step.hint}</span>}
+        </span>
+        <button onClick={() => setOpen(true)} className="shrink-0 text-[12.5px] font-bold text-white bg-[#00afdb] hover:bg-[#15c0ec] rounded-full px-3 py-1 transition-colors">
+          Pick one
+        </button>
+        <button onClick={dismiss} className="shrink-0 text-[12px] text-[#b6c2c7] hover:text-[#6a7a80] transition-colors" title="Hide this">
+          Not now
+        </button>
+      </div>
+    );
+  }
+
+  return (
+    <div className="px-1 py-2">
+      <p className="text-[13.5px] font-bold text-[#00374a] mb-1.5">{step.label}</p>
+      <div className="flex items-center gap-2">
+        <div className="flex items-center flex-1 min-w-0 rounded-xl border border-[#dde6e9] bg-white focus-within:border-[#00afdb] transition-colors">
+          <span className="pl-3 text-[15px] text-[#9aa6ac]">@</span>
+          <input autoFocus value={value} onChange={(e) => setValue(e.target.value)}
+            onKeyDown={(e) => { if (e.key === "Enter") save(); }}
+            placeholder="yourname" maxLength={30}
+            className="flex-1 min-w-0 px-1.5 py-2 text-[15px] text-[#0a2a33] outline-none bg-transparent" />
+        </div>
+        <button onClick={save} disabled={busy || !value.trim()}
+          className="shrink-0 text-[13px] font-bold text-white bg-[#00afdb] hover:bg-[#15c0ec] disabled:opacity-40 rounded-full px-4 py-2 transition-colors">
+          {busy ? "…" : "Save"}
+        </button>
+      </div>
+      {err && <p className="text-[12px] font-semibold text-[#c0392b] mt-1.5">{err}</p>}
+      <button onClick={dismiss} className="text-[12px] text-[#b6c2c7] hover:text-[#6a7a80] mt-1.5 transition-colors">Not now</button>
+    </div>
   );
 }
