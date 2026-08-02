@@ -48,6 +48,13 @@ const UPLOAD_CAP = 3_800_000; // stay safely under Vercel's ~4.5 MB request-body
  * 3000 at 0.86 still lands comfortably under the request-body cap, and R2 egress
  * is free, so the extra weight costs storage only.
  */
+/** Name the upload after what we actually encoded — a .webp that is really a
+    JPEG makes the server re-encode it a second time, losing quality twice. */
+function asFile(original: File, blob: Blob): File {
+  const ext = blob.type === "image/webp" ? ".webp" : ".jpg";
+  return new File([blob], original.name.replace(/\.[^.]+$/, "") + ext, { type: blob.type });
+}
+
 async function downscaleImage(file: File, maxDim = 3000, quality = 0.86): Promise<File> {
   if (!file.type.startsWith("image/") || /svg|gif/i.test(file.type)) {
     if (file.size > UPLOAD_CAP) throw new Error(`This file is ${formatSize(file.size)} — over the ${(UPLOAD_CAP / 1e6).toFixed(1)} MB limit for this type. Export a smaller version.`);
@@ -72,7 +79,17 @@ async function downscaleImage(file: File, maxDim = 3000, quality = 0.86): Promis
       const ctx = canvas.getContext("2d");
       if (!ctx) return null;
       ctx.drawImage(bitmap, 0, 0, w, h);
-      return new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, "image/webp", q));
+      const blob = await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, "image/webp", q));
+      // canvas.toBlob silently falls back to PNG when it can't encode the type
+      // asked for — and PNG ignores `q` entirely. A photo-sized PNG is ~10x a
+      // WebP, so the ladder below then shrinks the DIMENSIONS until the PNG
+      // fits, and a 60-megapixel original lands at 1280px for no good reason.
+      // JPEG is universally supported and does respect quality, so prefer it
+      // over an unrequested PNG.
+      if (blob && blob.type !== "image/webp") {
+        return new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, "image/jpeg", q));
+      }
+      return blob;
     };
 
     // Shrink progressively until it fits under the cap; keep the smallest attempt.
@@ -82,10 +99,10 @@ async function downscaleImage(file: File, maxDim = 3000, quality = 0.86): Promis
         const blob = await encode(dim, q);
         if (!blob) continue;
         if (!smallest || blob.size < smallest.size) smallest = blob;
-        if (blob.size <= UPLOAD_CAP) return new File([blob], file.name.replace(/\.[^.]+$/, "") + ".webp", { type: "image/webp" });
+        if (blob.size <= UPLOAD_CAP) return asFile(file, blob);
       }
     }
-    if (smallest) return new File([smallest], file.name.replace(/\.[^.]+$/, "") + ".webp", { type: "image/webp" });
+    if (smallest) return asFile(file, smallest);
     return file;
   } finally {
     bitmap.close?.();
