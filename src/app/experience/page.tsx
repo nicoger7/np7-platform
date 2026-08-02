@@ -91,7 +91,7 @@ export default async function ExperienceOverviewPage() {
   const { data } = await supabase
     .from("exp_experiences")
     .select(
-      "id,title,slug,location,price,currency,description,hero_image,destination_id,exp_editions(id,date_start,date_end,max_spots,spots_taken,status,active,coaches)"
+      "id,title,slug,location,price,currency,description,hero_image,destination_id,exp_packages(price,status,edition_id,website_visible),exp_editions(id,date_start,date_end,max_spots,spots_taken,status,active,coaches)"
     )
     .eq("status", "published");
 
@@ -101,6 +101,18 @@ export default async function ExperienceOverviewPage() {
   const { data: visRows } = await (supabase as any).from("exp_experiences").select("id,website_visible").eq("status", "published");
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const hiddenIds = new Set(((visRows ?? []) as any[]).filter((e) => e.website_visible === false).map((e) => e.id as string));
+
+  /** Lowest price among packages that are active, visible, and either shared or
+   *  on the edition being shown. */
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const cheapestPackagePrice = (exp: any): number | null => {
+    const edId = exp.ed?.id;
+    const prices = ((exp.exp_packages ?? []) as { price: number | null; status: string | null; edition_id: string | null; website_visible: boolean | null }[])
+      .filter((p) => p.price != null && p.status === "active" && p.website_visible !== false)
+      .filter((p) => !p.edition_id || p.edition_id === edId)
+      .map((p) => Number(p.price));
+    return prices.length ? Math.min(...prices) : null;
+  };
 
   const withEd = ((data as RawExperience[] | null) ?? []).filter((exp) => !hiddenIds.has(exp.id)).map((exp) => ({ ...exp, ed: nextEdition(exp.exp_editions) }));
   const securedByEd = await paidSpotsByEdition(withEd.map((x) => x.ed?.id)); // spots left = paid only
@@ -183,7 +195,12 @@ export default async function ExperienceOverviewPage() {
     hero_image: exp.hero_image,
     // no upcoming edition → no price (avoids showing a stale price from a
     // finished trip; the tile reads "Dates coming soon" instead)
-    priceLabel: exp.ed ? money(exp.price, exp.currency) : null,
+    // The cheapest package you can actually buy — not exp_experiences.price,
+    // which is a hand-typed legacy column nobody keeps in step with the
+    // packages. The detail page already derives it this way, which is how the
+    // grid ended up advertising Lake Garda at €1,490 against a €2,390 entry
+    // package. Fall back to the stored price only when there are no packages.
+    priceLabel: exp.ed ? money(cheapestPackagePrice(exp) ?? exp.price, exp.currency) : null,
     dateLabel: fmtRange(exp.ed?.date_start, exp.ed?.date_end),
     spotsLeft: exp.spotsLeft,
     tileAuto: autoIds.has(exp.id),
