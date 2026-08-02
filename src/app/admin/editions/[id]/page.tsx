@@ -30,6 +30,8 @@ import { EditionMailing } from "@/components/admin/edition-mailing";
 const DEFAULT_TABS = ["details", "branding", "mailing", "bookings", "arrivals", "levels", "packages", "memories", "costs", "rooms", "notes"] as const;
 type EditionTab = (typeof DEFAULT_TABS)[number];
 const TAB_ORDER_KEY = "np7_edition_tab_order";
+/** Occasional tabs — pinned right, past a divider, out of the working set. */
+const SIDE_TABS: readonly string[] = ["levels", "memories", "notes"];
 const TAB_LABEL: Record<EditionTab, string> = {
   details: "Details", branding: "Branding", mailing: "Mailing", bookings: "Bookings", arrivals: "Arrivals", levels: "Levels", packages: "Packages",
   memories: "Memories", costs: "Costs", rooms: "Hotel Rooms", notes: "Notes",
@@ -53,11 +55,31 @@ const EDITION_BK_COLUMNS: { key: string; label: string; width: string; always?: 
   { key: "status", label: "Status", width: "130px" },
   { key: "fly_in", label: "Fly In", width: "90px" },
   { key: "arr_time", label: "Arr. time", width: "80px", off: true },
-  { key: "arr_flight", label: "Flight", width: "100px", off: true },
+  { key: "arr_flight", label: "Arr. flight", width: "100px", off: true },
+  { key: "fly_out", label: "Fly Out", width: "90px", off: true },
+  { key: "dep_time", label: "Dep. time", width: "80px", off: true },
+  { key: "dep_flight", label: "Dep. flight", width: "100px", off: true },
   { key: "price", label: "Price", width: "90px" },
   { key: "paid", label: "Paid", width: "60px" },
 ];
 const EDITION_BK_KEY = "np7_edition_booking_cols";
+/**
+ * Arrivals columns. Arrival and departure are deliberately the same three —
+ * day, time, flight — because the first version showed arrival time in its own
+ * column and then crammed "Aug 23 · 20:00" into the departure cell, so the two
+ * halves of the same journey didn't line up or read alike.
+ */
+const ARRIVAL_COLUMNS: { key: string; label: string; width: string; always?: boolean; off?: boolean }[] = [
+  { key: "guest", label: "Guest", width: "1fr", always: true },
+  { key: "arr_time", label: "Arrives", width: "72px" },
+  { key: "arr_flight", label: "Flight", width: "96px" },
+  { key: "how", label: "How", width: "78px" },
+  { key: "dep_day", label: "Leaves", width: "84px" },
+  { key: "dep_time", label: "Time", width: "72px" },
+  { key: "dep_flight", label: "Flight", width: "96px", off: true },
+  { key: "room", label: "Room", width: "120px", off: true },
+];
+const ARRIVAL_COLS_KEY = "np7_edition_arrival_cols";
 const eur = (n: number | null | undefined, cur?: string | null) => `${cur === "EUR" || !cur ? "€" : cur + " "}${Number(n || 0).toLocaleString("en-US", { maximumFractionDigits: 0 })}`;
 
 interface Edition {
@@ -355,6 +377,19 @@ export default function EditionDetailPage({
       loadCosts();
     } finally { setHoursBusy(false); }
   }
+
+  const [arrCols, setArrCols] = useState<Set<string>>(() => new Set(ARRIVAL_COLUMNS.filter((c) => !c.off).map((c) => c.key)));
+  useEffect(() => {
+    try { const raw = window.localStorage.getItem(ARRIVAL_COLS_KEY); if (raw) setArrCols(new Set(JSON.parse(raw) as string[])); } catch { /* ignore */ }
+  }, []);
+  const toggleArrCol = (k: string) => setArrCols((prev) => {
+    const next = new Set(prev);
+    if (next.has(k)) next.delete(k); else next.add(k);
+    try { window.localStorage.setItem(ARRIVAL_COLS_KEY, JSON.stringify([...next])); } catch { /* ignore */ }
+    return next;
+  });
+  const arrShow = (k: string) => !!ARRIVAL_COLUMNS.find((c) => c.key === k)?.always || arrCols.has(k);
+  const arrGrid = ARRIVAL_COLUMNS.filter((c) => c.always || arrCols.has(c.key)).map((c) => c.width).join(" ");
 
   const [costForm, setCostForm] = useState(emptyCost);
   const [costEditId, setCostEditId] = useState<string | null>(null);
@@ -852,8 +887,8 @@ export default function EditionDetailPage({
       </div>
 
       {/* Tabs — drag to reorder (saved per admin) */}
-      <div className="flex gap-1 mb-6 flex-wrap" style={{ borderBottom: "1px solid var(--admin-border)" }}>
-        {tabOrder.map((t, i) => {
+      <div className="flex items-end gap-1 mb-6 flex-wrap" style={{ borderBottom: "1px solid var(--admin-border)" }}>
+        {tabOrder.filter((t) => !SIDE_TABS.includes(t)).map((t, i) => {
           if (access && !effectiveCanAccess(access, TAB_PATH[t])) return null; // role can't reach this tab's data
           const count = edition._counts?.[t as keyof typeof edition._counts];
           return (
@@ -881,6 +916,27 @@ export default function EditionDetailPage({
             </button>
           );
         })}
+
+        {/* Divider, then the occasional ones. Not draggable — their whole point
+            is being somewhere predictable, out of the way. */}
+        <span className="ml-auto flex items-end gap-1">
+          <span className="self-stretch w-px mx-2 my-1.5" style={{ background: "var(--admin-border)" }} />
+          {tabOrder.filter((t) => SIDE_TABS.includes(t)).map((t) => {
+            if (access && !effectiveCanAccess(access, TAB_PATH[t])) return null;
+            const count = edition._counts?.[t as keyof typeof edition._counts];
+            return (
+              <button key={t} onClick={() => selectTab(t)}
+                className={`px-3.5 py-2.5 text-sm transition-colors border-b-2 -mb-[1px] ${
+                  tab === t ? "admin-heading font-medium border-[var(--admin-accent)]" : "admin-faint hover:admin-muted border-transparent"
+                }`}>
+                {TAB_LABEL[t]}
+                {count != null && count > 0 && (
+                  <span className="ml-1.5 inline-flex items-center justify-center w-4 h-4 rounded-full bg-[var(--admin-accent)]/15 text-[#0aa3c7] text-[10px] font-bold">{count}</span>
+                )}
+              </button>
+            );
+          })}
+        </span>
       </div>
 
       {/* ── Details tab ── */}
@@ -1197,52 +1253,87 @@ export default function EditionDetailPage({
       })()}
 
       {/* ── Bookings tab (inline split: rail + booking detail pane) ── */}
-      {/* ── Arrivals ── who lands when, sorted by the clock. The data was
-           already being collected; it just had no home you would think to open
-           on the morning of a transfer run. ── */}
+      {/* ── Arrivals ── grouped by the day people land, because that is the
+           unit you actually plan a transfer run in. Arrival and departure share
+           the same three columns so the two halves of a journey line up. ── */}
       {tab === "arrivals" && (() => {
         const rows = bookings
           .filter((b) => !isLostStatus(b.status))
           .map((b) => {
-            const fi = ((b as unknown as { flight_info?: Record<string, string | null> }).flight_info
-              ?? parseFlightNote((b as unknown as { notes?: string | null }).notes) ?? {}) as Record<string, string | null>;
-            return { b, fi, date: fi.arrivalDate || b.fly_in || null, time: fi.arrivalTime || null };
+            const fi = bkFlight(b);
+            return { b, fi, day: fi.arrivalDate || b.fly_in || null, time: fi.arrivalTime || null };
           })
-          .sort((x, y) => `${x.date ?? "9"}${x.time ?? "99"}`.localeCompare(`${y.date ?? "9"}${y.time ?? "99"}`));
-        const known = rows.filter((r) => r.date).length;
+          .sort((x, y) => `${x.day ?? "9999"}${x.time ?? "99:99"}`.localeCompare(`${y.day ?? "9999"}${y.time ?? "99:99"}`));
+
+        const known = rows.filter((r) => r.day).length;
+        const days: { day: string | null; items: typeof rows }[] = [];
+        for (const r of rows) {
+          const last = days[days.length - 1];
+          if (last && last.day === r.day) last.items.push(r);
+          else days.push({ day: r.day, items: [r] });
+        }
+        const cell = "text-[12.5px] self-center truncate";
+
         return (
           <div>
-            <p className="text-xs admin-faint mb-4">
-              {known} of {rows.length} guests have told us when they arrive.
-              {known < rows.length && " The rest are chased by the pre-trip mail."}
-            </p>
+            <div className="flex items-center justify-between gap-3 mb-4">
+              <p className="text-xs admin-faint">
+                {known} of {rows.length} guests have told us when they arrive.
+                {known < rows.length && " The rest get chased by the pre-trip mail."}
+              </p>
+              <details className="relative shrink-0">
+                <summary className="list-none cursor-pointer select-none px-3 py-1.5 rounded-lg text-xs font-bold admin-muted hover:admin-heading transition-colors" style={{ border: "1px solid var(--admin-border)" }}>
+                  Columns
+                </summary>
+                <div className="absolute right-0 z-20 mt-1 w-48 rounded-xl p-2 shadow-lg admin-surface" style={{ border: "1px solid var(--admin-border)" }}>
+                  {ARRIVAL_COLUMNS.filter((c) => !c.always).map((c) => (
+                    <label key={c.key} className="flex items-center gap-2 px-2 py-1.5 rounded-lg text-[12.5px] admin-muted hover:admin-heading cursor-pointer">
+                      <input type="checkbox" checked={arrCols.has(c.key)} onChange={() => toggleArrCol(c.key)} className="accent-[var(--admin-accent)]" />
+                      {c.key.startsWith("dep_") ? `Leaves · ${c.label}` : c.label}
+                    </label>
+                  ))}
+                </div>
+              </details>
+            </div>
+
             <div className="rounded-xl admin-tablecard overflow-hidden" style={{ border: "1px solid var(--admin-border)" }}>
-              <div className="grid grid-cols-[1fr_100px_70px_110px_92px_110px] gap-3 px-4 py-3 admin-surface" style={{ borderBottom: "1px solid var(--admin-border)" }}>
-                {["Guest", "Arrives", "Time", "Flight", "How", "Leaves"].map((h) => (
-                  <span key={h} className="text-[10px] font-bold tracking-[0.1em] admin-faint uppercase">{h}</span>
+              <div className="grid gap-3 px-4 py-2.5 admin-surface" style={{ gridTemplateColumns: arrGrid, borderBottom: "1px solid var(--admin-border)" }}>
+                {ARRIVAL_COLUMNS.filter((c) => c.always || arrCols.has(c.key)).map((c) => (
+                  <span key={c.key} className="text-[10px] font-bold tracking-[0.1em] admin-faint uppercase">{c.label}</span>
                 ))}
               </div>
-              {rows.map(({ b, fi, date, time }) => {
-                const own = fi.arrivalMode === "own";
-                return (
-                  <Link key={b.id} href={`/admin/bookings/${b.id}`}
-                    className="grid grid-cols-[1fr_100px_70px_110px_92px_110px] gap-3 px-4 py-3 hover:bg-[var(--admin-surface-hover)] transition-colors"
-                    style={{ borderBottom: "1px solid var(--admin-border)" }}>
-                    <span className="text-[13px] admin-heading truncate self-center">{b.name}</span>
-                    <span className="text-xs admin-muted self-center">{formatDate(date)}</span>
-                    <span className={`text-xs self-center font-semibold ${time ? "admin-heading" : "admin-faint"}`}>{time || "—"}</span>
-                    <span className="text-xs admin-muted self-center font-mono truncate">{own ? "—" : (fi.arrivalFlightNo || "—")}</span>
-                    <span className="self-center">
-                      {own
-                        ? <span className="text-[10px] font-bold uppercase px-2 py-0.5 rounded bg-amber-500/15 text-amber-500">own way</span>
-                        : <span className="text-[10px] font-bold uppercase px-2 py-0.5 rounded bg-[var(--admin-accent)]/12 text-[#0aa3c7]">flying</span>}
-                    </span>
-                    <span className="text-xs admin-faint self-center">
-                      {formatDate(fi.departureDate || b.fly_out)}{fi.departureTime ? ` · ${fi.departureTime}` : ""}
-                    </span>
-                  </Link>
-                );
-              })}
+
+              {days.map(({ day, items }) => (
+                <div key={day ?? "unknown"}>
+                  <div className="flex items-baseline gap-2 px-4 py-1.5" style={{ backgroundColor: "var(--admin-surface)", borderBottom: "1px solid var(--admin-border)" }}>
+                    <span className="text-[11.5px] font-bold admin-heading">{day ? formatDate(day) : "No arrival date yet"}</span>
+                    <span className="text-[11px] admin-faint">{items.length} guest{items.length === 1 ? "" : "s"}</span>
+                  </div>
+                  {items.map(({ b, fi, time }) => {
+                    const own = fi.arrivalMode === "own";
+                    return (
+                      <Link key={b.id} href={`/admin/bookings/${b.id}`}
+                        className="grid gap-3 px-4 py-2.5 hover:bg-[var(--admin-surface-hover)] transition-colors"
+                        style={{ gridTemplateColumns: arrGrid, borderBottom: "1px solid var(--admin-border)" }}>
+                        <span className={`${cell} admin-heading`}>{(b.name || "").replace(/\s+—\s+.*$/, "")}</span>
+                        {arrShow("arr_time") && <span className={`${cell} ${time ? "admin-heading font-semibold" : "admin-faint"}`}>{time || "—"}</span>}
+                        {arrShow("arr_flight") && <span className={`${cell} admin-muted font-mono`}>{own ? "—" : (fi.arrivalFlightNo || "—")}</span>}
+                        {arrShow("how") && (
+                          <span className="self-center">
+                            {own
+                              ? <span className="text-[10px] font-bold uppercase px-1.5 py-0.5 rounded bg-amber-500/15 text-amber-500">own way</span>
+                              : <span className="text-[10px] font-bold uppercase px-1.5 py-0.5 rounded admin-surface admin-faint">flying</span>}
+                          </span>
+                        )}
+                        {arrShow("dep_day") && <span className={`${cell} admin-muted`}>{formatDate(fi.departureDate || b.fly_out)}</span>}
+                        {arrShow("dep_time") && <span className={`${cell} ${fi.departureTime ? "admin-muted" : "admin-faint"}`}>{fi.departureTime || "—"}</span>}
+                        {arrShow("dep_flight") && <span className={`${cell} admin-muted font-mono`}>{own ? "—" : (fi.departureFlightNo || "—")}</span>}
+                        {arrShow("room") && <span className={`${cell} admin-faint`}>{(b as unknown as { room_name?: string | null }).room_name || "—"}</span>}
+                      </Link>
+                    );
+                  })}
+                </div>
+              ))}
             </div>
           </div>
         );
@@ -1355,6 +1446,9 @@ export default function EditionDetailPage({
                   {bkShow("fly_in") && <span className="text-xs admin-muted self-center">{formatDate(b.fly_in)}</span>}
                   {bkShow("arr_time") && <span className="text-xs admin-muted self-center">{bkFlight(b).arrivalTime || "—"}</span>}
                   {bkShow("arr_flight") && <span className="text-xs admin-muted self-center font-mono truncate">{bkFlight(b).arrivalMode === "own" ? "own way" : (bkFlight(b).arrivalFlightNo || "—")}</span>}
+                  {bkShow("fly_out") && <span className="text-xs admin-muted self-center">{formatDate(bkFlight(b).departureDate || b.fly_out)}</span>}
+                  {bkShow("dep_time") && <span className="text-xs admin-muted self-center">{bkFlight(b).departureTime || "—"}</span>}
+                  {bkShow("dep_flight") && <span className="text-xs admin-muted self-center font-mono truncate">{bkFlight(b).arrivalMode === "own" ? "own way" : (bkFlight(b).departureFlightNo || "—")}</span>}
                   <span className="text-xs admin-muted self-center">
                     {b.agreed_price ? `€${Number(b.agreed_price).toLocaleString()}` : "—"}
                   </span>
