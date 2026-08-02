@@ -818,7 +818,7 @@ export function BookingDetailPane({ bookingId, onBack }: { bookingId: string; on
                 <div><span className="admin-faint">Phone:</span> <span className="admin-muted">{booking.contacts.phone || "—"}</span></div>
                 <div><span className="admin-faint">Country:</span> <span className="admin-muted">{booking.contacts.country || "—"}</span></div>
                 <div><span className="admin-faint">Level:</span> <span className="admin-muted">{booking.contacts.level || "—"}</span></div>
-                <div><span className="admin-faint">T-shirt:</span> <span className="admin-muted">{booking.contacts.tshirt_size || "—"}</span></div>
+                <div><span className="admin-faint">T-shirt:</span> <span className="admin-muted uppercase">{booking.contacts.tshirt_size || "—"}</span></div>
                 <div><span className="admin-faint">Diet:</span> <span className="admin-muted">{booking.contacts.diet_allergies || "—"}</span></div>
               </div>
             </div>

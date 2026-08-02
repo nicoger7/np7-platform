@@ -336,6 +336,26 @@ export default function EditionDetailPage({
     return ((r.flight_info as Record<string, string | null> | null) ?? parseFlightNote(r.notes ?? null) ?? {}) as Record<string, string | null>;
   };
 
+  // Hours → costs. Preview first, always: this writes confirmed money into the
+  // P&L and stamps the hours as spent, so you should see the number before it
+  // exists rather than after.
+  const [hoursPlan, setHoursPlan] = useState<{ lines: number; total: number; skipped: { name: string; hours: number; why: string }[] } | null>(null);
+  const [hoursBusy, setHoursBusy] = useState(false);
+  async function previewHours() {
+    setHoursBusy(true);
+    try { setHoursPlan(await fetch("/api/admin/hours-cost").then((r) => r.json())); }
+    finally { setHoursBusy(false); }
+  }
+  async function commitHours() {
+    if (!confirm(`Turn logged hours into costs?\n\n${hoursPlan?.lines} cost line(s), €${hoursPlan?.total?.toLocaleString()} in total, across every edition the hours belong to — not just this one.\n\nEach hour is only ever costed once.`)) return;
+    setHoursBusy(true);
+    try {
+      await fetch("/api/admin/hours-cost", { method: "POST" });
+      setHoursPlan(null);
+      loadCosts();
+    } finally { setHoursBusy(false); }
+  }
+
   const [costForm, setCostForm] = useState(emptyCost);
   const [costEditId, setCostEditId] = useState<string | null>(null);
   const [costShow, setCostShow] = useState(false);
@@ -1563,9 +1583,44 @@ export default function EditionDetailPage({
             <p className="text-xs admin-faint">{costs.length} cost item{costs.length !== 1 ? "s" : ""} for this edition</p>
             <div className="flex items-center gap-3">
               <Link href={`/admin/exp-costs?edition_id=${id}`} className="text-xs text-[#0aa3c7] hover:text-[#0aa3c7]/80 transition-colors">View all →</Link>
+              <button onClick={previewHours} disabled={hoursBusy} className="px-3 py-1.5 text-xs font-bold rounded-lg admin-muted hover:admin-heading transition-colors disabled:opacity-50" style={{ border: "1px solid var(--admin-border)" }}>
+                {hoursBusy ? "…" : "Cost the logged hours"}
+              </button>
               <button onClick={() => { setCostEditId(null); setCostForm(emptyCost); setCostShow(true); }} className="px-3 py-1.5 bg-[var(--admin-accent)] hover:bg-[var(--admin-accent)]/90 text-[var(--admin-accent-contrast)] text-xs font-bold rounded-lg transition-colors">New Cost</button>
             </div>
           </div>
+
+          {hoursPlan && (
+            <div className="rounded-xl p-4 mb-4" style={{ border: "1px solid rgb(245 158 11 / 0.45)", backgroundColor: "rgb(245 158 11 / 0.08)" }}>
+              {hoursPlan.lines === 0 ? (
+                <p className="text-[13px] admin-muted">No un-costed hours — every logged hour has already been turned into a cost.</p>
+              ) : (
+                <>
+                  <p className="text-[13px] admin-heading font-bold mb-1">
+                    {hoursPlan.lines} cost line{hoursPlan.lines === 1 ? "" : "s"} · €{hoursPlan.total.toLocaleString()}
+                  </p>
+                  <p className="text-[12.5px] admin-muted leading-relaxed">
+                    Across every edition the hours belong to, not only this one. Edition-tagged hours go to their own week;
+                    general hours split across the weeks that were still running that day. Each hour is costed once and
+                    marked, so pressing this twice changes nothing.
+                  </p>
+                </>
+              )}
+              {hoursPlan.skipped?.length > 0 && (
+                <p className="text-[12.5px] text-amber-600 mt-2">
+                  Skipped: {hoursPlan.skipped.map((s) => `${s.name} ${s.hours}h (${s.why})`).join(" · ")}
+                </p>
+              )}
+              <div className="flex gap-2 mt-3">
+                {hoursPlan.lines > 0 && (
+                  <button onClick={commitHours} disabled={hoursBusy} className="px-4 py-2 rounded-lg text-sm font-bold bg-[var(--admin-accent)] text-[var(--admin-accent-contrast)] disabled:opacity-50">
+                    {hoursBusy ? "Writing…" : "Add these costs"}
+                  </button>
+                )}
+                <button onClick={() => setHoursPlan(null)} className="px-4 py-2 text-sm admin-muted">Close</button>
+              </div>
+            </div>
+          )}
 
           {/* Master-detail: the list stays put and the editor opens beside it,
               so you keep your place instead of the form pushing 17 rows down. */}
