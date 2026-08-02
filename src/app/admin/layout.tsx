@@ -2,6 +2,7 @@ import type { Viewport } from "next";
 import { createClient } from "@/lib/supabase/server";
 import { getActiveTeamMember, getEffectiveAccess, getMemberRoleLabel } from "@/lib/admin-auth";
 import AdminShell from "./admin-shell";
+import { NumberInputGuard } from "@/components/number-input-guard";
 
 export const metadata = {
   title: "NP7 Admin",
@@ -38,5 +39,11 @@ export default async function AdminLayout({
     getMemberRoleLabel(member),
   ]);
 
-  return <AdminShell user={user!} access={access} roleLabel={roleLabel}>{children}</AdminShell>;
+  return (
+    <>
+      {/* Guards every number input in the admin against the scroll wheel. */}
+      <NumberInputGuard />
+      <AdminShell user={user!} access={access} roleLabel={roleLabel}>{children}</AdminShell>
+    </>
+  );
 }

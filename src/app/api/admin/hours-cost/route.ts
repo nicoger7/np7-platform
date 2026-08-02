@@ -14,6 +14,9 @@ export const dynamic = "force-dynamic";
  *
  * Rules:
  *  - Hours tagged to an edition cost that edition, at the person's own rate.
+ *  - The value lands in `actual_amount`. Labour can be estimated up front like
+ *    any other cost; the hours people actually logged are what really happened,
+ *    so they fill the actual and leave your estimate alone.
  *  - General hours (is_general) are split evenly across editions that hadn't
  *    finished when the work happened — that is what "overhead" means.
  *  - `hours_log.processed_at` is the ledger. A row is costed once; re-running is
@@ -115,23 +118,38 @@ export async function POST(_req: NextRequest) {
   const q = db as any;
   const { costs, skipped } = await plan(db);
 
-  let written = 0;
+  let written = 0, updated = 0;
   const stamp = new Date().toISOString();
   for (const c of costs) {
-    const { error } = await q.from("exp_costs").insert({
-      edition_id: c.edition_id,
-      item: c.item,
-      estimated_amount: c.estimated_amount,
-      // Hours worked are money already spent, not a guess.
-      status: "confirmed",
-      date: stamp.slice(0, 10),
-      notes: `From ${c.hoursIds.length} hour entr${c.hoursIds.length === 1 ? "y" : "ies"} · generated ${stamp.slice(0, 10)}`,
-    });
+    // Logged hours are the ACTUAL. You may have estimated labour up front on the
+    // same line; that estimate stays, and the real number fills in beside it.
+    // Re-running adds newly logged hours to the actual rather than duplicating
+    // the line.
+    const { data: existing } = await q.from("exp_costs")
+      .select("id, actual_amount").eq("edition_id", c.edition_id).eq("item", c.item).limit(1);
+    const prev = existing?.[0];
+    const note = `${c.hoursIds.length} hour entr${c.hoursIds.length === 1 ? "y" : "ies"} · updated ${stamp.slice(0, 10)}`;
+    const { error } = prev
+      ? await q.from("exp_costs").update({
+          actual_amount: Math.round(((Number(prev.actual_amount) || 0) + c.estimated_amount) * 100) / 100,
+          status: "confirmed",
+          notes: note,
+        }).eq("id", prev.id)
+      : await q.from("exp_costs").insert({
+          edition_id: c.edition_id,
+          item: c.item,
+          // No estimate of our own — you can type one in; the hours own the actual.
+          estimated_amount: null,
+          actual_amount: c.estimated_amount,
+          status: "confirmed",
+          date: stamp.slice(0, 10),
+          notes: note,
+        });
     if (error) continue;
-    written++;
+    if (prev) updated++; else written++;
     // Only stamp the hours once their cost row actually landed — a failed
     // insert must stay claimable, not vanish silently.
     await q.from("hours_log").update({ processed_at: stamp }).in("id", c.hoursIds);
   }
-  return NextResponse.json({ ok: true, written, skipped });
+  return NextResponse.json({ ok: true, written, updated, skipped });
 }

@@ -229,3 +229,24 @@ button:disabled { cursor: not-allowed; }
   width: 18px; height: 18px; border: 0; border-radius: 999px; background: #fff;
   box-shadow: 0 2px 10px rgba(0,0,0,0.55);
 }
+
+/* ─── Number inputs ───────────────────────────────────────────────────────────
+   The native spinner is a pair of 8-pixel arrows nobody can hit, it drags the
+   text off-centre, and — the actual bug — scrolling the page over a focused
+   number field silently changes the value. Money fields with a scroll-wheel
+   footgun are not worth keeping for arrows nobody uses.
+
+   Killed globally rather than per-input: there are 85 of them across 30 files,
+   and a rule here can't drift the way 85 call sites can. Keyboard ↑/↓ still
+   work — that is the accessible way to step a number and it is untouched. */
+input[type="number"]::-webkit-outer-spin-button,
+input[type="number"]::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+input[type="number"] {
+  -moz-appearance: textfield;
+  appearance: textfield;
+  /* Figures of equal width, so a column of amounts lines up on the decimal. */
+  font-variant-numeric: tabular-nums;
+}
