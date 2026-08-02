@@ -6,6 +6,7 @@ import Link from "next/link";
 import { ContactPicker } from "@/components/contact-picker";
 import { SearchSelect } from "@/components/admin/search-select";
 import { type DocumentType, formatMoney } from "@/lib/invoices/types";
+import { parseFlightNote } from "@/lib/flights";
 import { parseAmount, formatAmount } from "@/lib/parse-amount";
 import { normalizeBookingStatus } from "@/lib/types";
 import { effectiveAddonStatus } from "@/lib/addons";
@@ -42,6 +43,7 @@ interface BookingDetail {
   status: string;
   fly_in: string | null;
   fly_out: string | null;
+  flight_info?: Record<string, unknown> | null;
   traveling_with: string | null;
   wa_group: boolean;
   agreed_price: number | null;
@@ -912,6 +914,36 @@ export function BookingDetailPane({ bookingId, onBack }: { bookingId: string; on
             </div>
           </div>
 
+          {/* What the member actually entered. fly_in/fly_out are only the dates —
+              the times, flight numbers and "not flying" live in flight_info, and
+              were being collected and then shown nowhere. Read-only: it is the
+              guest's own answer, and editing it here would silently overwrite
+              what they told us. */}
+          {(() => {
+            const fi = (booking.flight_info ?? parseFlightNote(booking.notes) ?? {}) as Record<string, string | boolean | null>;
+            const has = ["arrivalTime", "arrivalFlightNo", "departureTime", "departureFlightNo"].some((k) => fi[k]);
+            if (!has && !fi.arrivalMode) return null;
+            const self = fi.arrivalMode === "own";
+            const line = (label: string, time?: unknown, no?: unknown) => (
+              <div className="flex items-baseline gap-2 text-[13px]">
+                <span className="admin-faint w-20 shrink-0">{label}</span>
+                <span className="admin-heading font-semibold">{(time as string) || "—"}</span>
+                {!self && <span className="admin-muted font-mono text-[12px]">{(no as string) || ""}</span>}
+              </div>
+            );
+            return (
+              <div className="rounded-xl p-3.5" style={{ border: "1px solid var(--admin-border)", backgroundColor: "var(--admin-surface)" }}>
+                <p className="text-[10px] font-bold tracking-[0.12em] uppercase admin-faint mb-2">
+                  Member entered {self && <span className="text-amber-500">· making their own way</span>}
+                </p>
+                <div className="space-y-1">
+                  {line(self ? "Arriving" : "Arrival", fi.arrivalTime, fi.arrivalFlightNo)}
+                  {line(self ? "Leaving" : "Departure", fi.departureTime, fi.departureFlightNo)}
+                </div>
+              </div>
+            );
+          })()}
+
           <div>
             <label className={labelClass}>Traveling with</label>
             <input className={inputClass} value={booking.traveling_with || ""} onChange={(e) => update("traveling_with", e.target.value || null)} placeholder="Partner, friend, etc." />
@@ -946,18 +978,15 @@ export function BookingDetailPane({ bookingId, onBack }: { bookingId: string; on
           </div>
 
           {/* WhatsApp — the one manual flag */}
-          <div>
-            <label className={checkboxClass}>
-              <input type="checkbox" checked={booking.wa_group} onChange={(e) => update("wa_group", e.target.checked)} className="accent-[#0aa3c7]" />
-              Added to WhatsApp group
-            </label>
-          </div>
-
-          <div>
-            <label className={labelClass}>Final invoice due <span className="admin-faint font-normal">· note only</span></label>
-            <input className={`${inputClass} max-w-xs`} value={booking.final_invoice_due || ""} onChange={(e) => update("final_invoice_due", e.target.value || null)} placeholder="e.g. 2 weeks before trip" />
-            <p className="text-[11px] admin-faint mt-1">Free-text note carried over from the old Notion workflow — nothing computes from it. The actual deadline is calculated under Payment status from the package&apos;s payment settings.</p>
-          </div>
+          {/* Removed: the "Added to WhatsApp group" tick and the "Final invoice
+              due" note.
+              wa_group is the MEMBER's own answer — they tick it in the portal —
+              so an admin control here could only overwrite what they said.
+              final_invoice_due was a free-text leftover from Notion that nothing
+              computed from; the real deadline comes from the package settings and
+              is shown under Payment status. Both columns stay in the DB (the
+              Notion sync still writes them) and both remain as optional columns
+              on the bookings list. */}
 
           {/* Notes */}
           <div>

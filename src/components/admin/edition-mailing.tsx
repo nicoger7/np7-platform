@@ -74,6 +74,10 @@ export function EditionMailing({ editionId }: { editionId: string }) {
         {d.guests > 0 && <> {d.securedGuests} of {d.guests} guests are secured; only those receive pre-trip mail.</>}
       </p>
 
+      {/* Readiness first: it decides whether anything on the timeline below can
+          actually go out. */}
+      <div className="mb-5"><MailReadiness editionId={editionId} /></div>
+
       {msg && <p className="text-[12.5px] font-semibold mb-3 admin-heading">{msg}</p>}
       <div className="rounded-xl overflow-hidden mb-4" style={{ border: "1px solid var(--admin-border)" }}>
         {d.scheduled.map((m, i) => {
@@ -137,10 +141,6 @@ export function EditionMailing({ editionId }: { editionId: string }) {
           </div>
         </div>
       )}
-
-      {/* The readiness checklist and any held mail — the same panel as before,
-          now beside the timeline it explains rather than buried under branding. */}
-      <MailReadiness editionId={editionId} />
 
       <p className="text-xs admin-faint mt-4">
         Every send is logged in <Link href="/admin/email-log" className="text-[#0aa3c7] hover:underline">Email Log</Link>.

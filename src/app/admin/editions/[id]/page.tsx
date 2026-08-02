@@ -1094,7 +1094,7 @@ export default function EditionDetailPage({
                   {brandNote.trim() ? (
                     <>The pre-trip emails for <b className="admin-muted">this week only</b> use what you type here. The experience&apos;s own note is left untouched — it just isn&apos;t used for this edition.</>
                   ) : inheritedNote ? (
-                    <>Blank, so this week uses the <b className="admin-muted">experience pre-trip note</b>:
+                    <><b className="admin-muted">This is what guests will get.</b> You haven&apos;t written a note for this week, so the pre-trip email sends the experience&apos;s standard note — type above to replace it for this week only:
                       <span className="block mt-1 p-2 rounded admin-surface whitespace-pre-line max-h-24 overflow-y-auto" style={{ border: "1px solid var(--admin-border)" }}>{inheritedNote}</span>
                     </>
                   ) : (
@@ -1114,7 +1114,7 @@ export default function EditionDetailPage({
                   {brandPacking.trim() ? (
                     <>The pre-trip email for <b className="admin-muted">this week only</b> uses what you type here. The experience&apos;s own list is left untouched — it just isn&apos;t used for this edition.</>
                   ) : inheritedPacking ? (
-                    <>Blank, so this week uses the <b className="admin-muted">experience packing list</b>:
+                    <><b className="admin-muted">This is what guests will get.</b> You haven&apos;t written a list for this week, so the pre-trip email sends the experience&apos;s standard list — type above to replace it for this week only:
                       <span className="block mt-1 p-2 rounded admin-surface whitespace-pre-line max-h-24 overflow-y-auto" style={{ border: "1px solid var(--admin-border)" }}>{inheritedPacking}</span>
                     </>
                   ) : (
@@ -1123,9 +1123,10 @@ export default function EditionDetailPage({
                 </div>
               </div>
 
-              <div className="mt-4">
-                <MailReadiness editionId={id} onInherited={(v) => { setInheritedPacking(v.packingList); setInheritedNote(v.preTripNote); }} />
-              </div>
+              {/* Headless: this still supplies the inherited packing list and
+                  note the editor above falls back to. The visible panel lives
+                  once, at the top of the Mailing tab. */}
+              <MailReadiness headless editionId={id} onInherited={(v) => { setInheritedPacking(v.packingList); setInheritedNote(v.preTripNote); }} />
 
               <div className="flex gap-2 mt-4">
                 <button onClick={saveBranding} disabled={brandSaving} className="px-4 py-2 bg-[var(--admin-accent)] hover:bg-[var(--admin-accent)]/90 disabled:opacity-50 text-[var(--admin-accent-contrast)] text-sm font-bold rounded-lg transition-colors">{brandSaving ? "Saving…" : brandSaved ? "Saved!" : "Save"}</button>

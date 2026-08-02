@@ -4,6 +4,7 @@ import { Suspense, useState, useEffect } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { SortableHeader } from "@/components/sortable-header";
 import { ColumnToggle, ColumnDef, buildGridTemplate, loadVisibleColumns } from "@/components/column-toggle";
+import { parseFlightNote } from "@/lib/flights";
 import { NewBookingModal } from "@/components/new-booking-modal";
 import { normalizeBookingStatus } from "@/lib/types";
 import { editionLabel, editionSortKey } from "@/lib/edition-label";
@@ -19,6 +20,7 @@ interface Booking {
   contact: { id: string; name: string; email: string; phone: string } | null;
   agreed_price: number | null;
   fly_in: string | null;
+  flight_info?: Record<string, unknown> | null;
   fly_out: string | null;
   traveling_with: string | null;
   total_paid: number;
@@ -101,6 +103,13 @@ const COLUMNS: ColumnDef[] = [
   { key: "status", label: "Status", width: "120px" },
   { key: "fly_in", label: "Fly In", width: "100px" },
   { key: "fly_out", label: "Fly Out", width: "100px" },
+  // The member enters times, flight numbers and "not flying" — fly_in/fly_out
+  // only ever held the dates. Off by default; the people who need them (airport
+  // runs, transfer planning) can switch them on.
+  { key: "arr_time", label: "Arr. time", width: "80px", defaultHidden: true },
+  { key: "arr_flight", label: "Arr. flight", width: "100px", defaultHidden: true },
+  { key: "dep_time", label: "Dep. time", width: "80px", defaultHidden: true },
+  { key: "dep_flight", label: "Dep. flight", width: "100px", defaultHidden: true },
   { key: "traveling_with", label: "Traveling With", width: "130px", defaultHidden: true },
   { key: "agreed_price", label: "Price", width: "100px" },
   { key: "total_paid", label: "Paid", width: "100px", defaultHidden: true },
@@ -455,6 +464,18 @@ function BookingsInner() {
               {visibleColumns.has("fly_out") && (
                 <span className="text-xs admin-muted self-center">{formatDate(b.fly_out)}</span>
               )}
+              {(["arr_time", "arr_flight", "dep_time", "dep_flight"] as const).map((k) => {
+                if (!visibleColumns.has(k)) return null;
+                const fi = (b.flight_info ?? parseFlightNote(b.notes) ?? {}) as Record<string, string | null>;
+                const field = { arr_time: "arrivalTime", arr_flight: "arrivalFlightNo", dep_time: "departureTime", dep_flight: "departureFlightNo" }[k];
+                const own = fi.arrivalMode === "own";
+                const v = fi[field];
+                return (
+                  <span key={k} className="text-xs admin-muted self-center truncate">
+                    {v || (own && k.endsWith("flight") ? <span className="admin-faint">own way</span> : "—")}
+                  </span>
+                );
+              })}
               {visibleColumns.has("traveling_with") && (
                 <span className="text-xs admin-muted truncate self-center">{b.traveling_with || "—"}</span>
               )}

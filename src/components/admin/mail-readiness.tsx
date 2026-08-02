@@ -17,7 +17,14 @@ type Readiness = { startDate: string | null; daysToStart: number | null; items: 
  */
 type Hold = { id: string; template: string; label: string; bookingId: string; missing: string[]; daysLate: number | null };
 
-export function MailReadiness({ editionId, onInherited }: { editionId: string; onInherited?: (v: { packingList: string | null; preTripNote: string | null }) => void }) {
+export function MailReadiness({ editionId, onInherited, headless = false }: {
+  editionId: string;
+  onInherited?: (v: { packingList: string | null; preTripNote: string | null }) => void;
+  /** Fetch and report, render nothing. Event Content needs the inherited
+   *  packing list and note this loads, but the panel itself now lives once,
+   *  at the top of the Mailing tab. */
+  headless?: boolean;
+}) {
   const [r, setR] = useState<Readiness | null>(null);
   const [err, setErr] = useState(false);
   const [holds, setHolds] = useState<Hold[]>([]);
@@ -57,10 +64,13 @@ export function MailReadiness({ editionId, onInherited }: { editionId: string; o
       .then((res) => (res.ok ? res.json() : Promise.reject()))
       .then((d) => { if (alive) { setR(d); onInherited?.(d.inherited ?? { packingList: null, preTripNote: null }); } })
       .catch(() => { if (alive) setErr(true); });
-    return () => { alive = false; };
+  return () => { alive = false; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [editionId]);
 
+  // Event Content mounts this headless: it wants the inherited values the
+  // effect above reports, not a second copy of the panel.
+  if (headless) return null;
   if (err) return null;
   if (!r) return <p className="text-xs admin-faint">Checking mail readiness…</p>;
 
