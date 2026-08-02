@@ -5,6 +5,7 @@ import { editionLabel } from "@/lib/edition-label";
 export const dynamic = "force-dynamic";
 
 type Sig = {
+  id: string;
   booking_id: string;
   signed_name: string | null;
   signed_at: string | null;
@@ -36,7 +37,7 @@ export default async function AdminWaiversPage() {
 
   const { data: sigsRaw } = await db
     .from("exp_waiver_signatures")
-    .select("booking_id, signed_name, signed_at, version, exp_bookings(name, status, contacts(name), exp_experiences(title), exp_editions(label, year, date_start, date_end))")
+    .select("id, booking_id, signed_name, signed_at, version, exp_bookings(name, status, contacts(name), exp_experiences(title), exp_editions(label, year, date_start, date_end))")
     .order("signed_at", { ascending: false });
   const sigs = (sigsRaw ?? []) as Sig[];
   const signedBookingIds = new Set(sigs.map((s) => s.booking_id));
@@ -88,7 +89,7 @@ export default async function AdminWaiversPage() {
         ) : (
           <div className="rounded-xl admin-tablecard" style={{ border: "1px solid var(--admin-border)" }}>
             {sigs.map((s, i) => (
-              <Link key={s.booking_id} href={`/admin/bookings/${s.booking_id}`} className="flex items-center gap-3 px-4 py-3 hover:bg-[var(--admin-surface-hover)] transition-colors" style={i ? { borderTop: "1px solid var(--admin-border)" } : undefined}>
+              <Link key={s.booking_id} href={`/admin/waivers/${s.id}`} className="flex items-center gap-3 px-4 py-3 hover:bg-[var(--admin-surface-hover)] transition-colors" style={i ? { borderTop: "1px solid var(--admin-border)" } : undefined}>
                 <span className="w-5 h-5 rounded-full bg-green-500/15 text-green-500 grid place-items-center text-[11px] font-bold shrink-0">✓</span>
                 <span className="text-sm font-semibold admin-heading flex-1 truncate">{s.signed_name || who(s.exp_bookings?.contacts ?? null, s.exp_bookings?.name ?? null)}</span>
                 <span className="text-xs admin-muted truncate hidden sm:block">{s.exp_bookings?.exp_experiences?.title ?? "—"}</span>

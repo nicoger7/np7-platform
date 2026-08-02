@@ -112,6 +112,9 @@ interface BookingDocument {
   paid_at: string | null;
   due_date: string | null;
   signedUrl: string | null;
+  /** Waivers: a signed record, not an issued document — open it, don't act on it. */
+  href?: string | null;
+  readOnly?: boolean;
 }
 
 interface AvailableComponent {
@@ -1496,7 +1499,7 @@ export function BookingDetailPane({ bookingId, onBack }: { bookingId: string; on
                     {doc.type.replace(/_/g, " ")}
                   </span>
                   <span className="text-sm font-medium admin-heading self-center">
-                    {formatMoney(doc.amount, doc.currency)}
+                    {doc.readOnly ? "—" : formatMoney(doc.amount, doc.currency)}
                   </span>
                   <span className="text-xs admin-faint self-center">
                     {new Date(doc.issued_at).toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "2-digit" })}
@@ -1509,6 +1512,11 @@ export function BookingDetailPane({ bookingId, onBack }: { bookingId: string; on
                     </span>
                   </span>
                   <div className="self-center flex items-center gap-2">
+                    {doc.readOnly && doc.href && (
+                      <a href={doc.href} className="text-xs text-[#0aa3c7] hover:text-[#0aa3c7]/80 transition-colors">
+                        Open
+                      </a>
+                    )}
                     {doc.signedUrl && (
                       <a
                         href={doc.signedUrl}
@@ -1519,7 +1527,7 @@ export function BookingDetailPane({ bookingId, onBack }: { bookingId: string; on
                         PDF
                       </a>
                     )}
-                    {doc.status !== "void" && doc.type !== "booking_confirmation" && (
+                    {!doc.readOnly && doc.status !== "void" && doc.type !== "booking_confirmation" && (
                       <button
                         onClick={() => sendInvoice(doc.id)}
                         title={doc.sent_at ? `Sent ${new Date(doc.sent_at).toLocaleDateString("en-GB")}` : "Email this invoice to the customer"}
@@ -1528,7 +1536,7 @@ export function BookingDetailPane({ bookingId, onBack }: { bookingId: string; on
                         {doc.sent_at ? "Resend" : "Send"}
                       </button>
                     )}
-                    {doc.status !== "void" && (
+                    {!doc.readOnly && doc.status !== "void" && (
                       <button
                         onClick={() => voidDocument(doc.id)}
                         className="text-xs text-red-400/50 hover:text-red-400 transition-colors"
