@@ -160,7 +160,14 @@ export async function GET(request: NextRequest) {
     readiness = (await runGoLiveChecks()).map((r) => {
       const outstanding = [
         ...r.checks.filter((c) => !c.ok).map((c) => ({ ...c, where: "" })),
-        ...r.editions.flatMap((ed) => ed.checks.filter((c) => !c.ok).map((c) => ({ ...c, where: ed.label }))),
+        ...r.editions.flatMap((ed) => ed.checks.filter((c) => !c.ok).map((c) => ({
+          ...c,
+          // Name the week the way the checklist does, not by a label that is
+          // often just the start date printed a second time.
+          where: ed.dateStart
+            ? new Date(ed.dateStart).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" })
+            : (ed.label ?? "a week"),
+        }))),
       ];
       const total = r.checks.length + r.editions.reduce((s, ed) => s + ed.checks.length, 0);
       return {

@@ -148,45 +148,109 @@ function Row({ c, showDone, onFix }: { c: CheckResult; showDone: boolean; onFix:
     : <Link href={c.href} className={cls}>{inner}</Link>;
 }
 
-/** One experience's rows — its own checks first, then each upcoming week's. */
+/** A trip week, written the way you'd say it: "17–23 Aug 2026". */
+function weekDates(start: string | null, end: string | null): string {
+  if (!start) return "Dates not set";
+  const s = new Date(start);
+  const e = end ? new Date(end) : null;
+  const D = (d: Date, opts: Intl.DateTimeFormatOptions) => d.toLocaleDateString("en-GB", opts);
+  if (!e) return D(s, { day: "numeric", month: "short", year: "numeric" });
+  const sameMonth = s.getMonth() === e.getMonth() && s.getFullYear() === e.getFullYear();
+  return sameMonth
+    ? `${s.getDate()}\u2013${D(e, { day: "numeric", month: "short", year: "numeric" })}`
+    : `${D(s, { day: "numeric", month: "short" })} \u2013 ${D(e, { day: "numeric", month: "short", year: "numeric" })}`;
+}
+
+/** How far through a group you are — the whole point of a checklist. */
+function Progress({ done, total }: { done: number; total: number }) {
+  const pct = total ? Math.round((done / total) * 100) : 100;
+  return (
+    <span className="flex items-center gap-2 shrink-0">
+      <span className="hidden sm:block w-14 h-1 rounded-full overflow-hidden" style={{ backgroundColor: "var(--admin-border)" }}>
+        <span className={`block h-full rounded-full ${pct === 100 ? "bg-green-500" : "bg-[#0aa3c7]"}`} style={{ width: `${pct}%` }} />
+      </span>
+      <span className={`text-[11px] font-bold tabular-nums ${pct === 100 ? "text-green-500" : "admin-faint"}`}>{done}/{total}</span>
+    </span>
+  );
+}
+
+/**
+ * One block of checks under its own header — the whole trip, or one week.
+ *
+ * Boxed rather than run together. A flat list with a small caption every few
+ * rows reads as one long column of unrelated complaints: you cannot see at a
+ * glance that six of these belong to the same week and three belong to the trip
+ * as a whole, which is precisely the distinction that tells you where to go.
+ */
+function Group({
+  title, meta, tone, checks, showDone, onFix, href,
+}: {
+  title: string; meta?: React.ReactNode; tone: "experience" | "edition";
+  checks: CheckResult[]; showDone: boolean; onFix: (f: CheckFix) => void; href?: string;
+}) {
+  const done = checks.filter((c) => c.ok).length;
+  const blockers = checks.filter((c) => !c.ok && c.severity === "blocker").length;
+  const visible = checks.filter((c) => !c.ok || showDone);
+
+  return (
+    <div className="rounded-xl overflow-hidden" style={{ border: "1px solid var(--admin-border)" }}>
+      <div className="flex items-center gap-2.5 px-3.5 py-2"
+        style={{ backgroundColor: "var(--admin-surface-hover)", borderBottom: visible.length ? "1px solid var(--admin-border)" : undefined }}>
+        <span className="flex-1 min-w-0 flex items-baseline gap-2 flex-wrap">
+          {href
+            ? <Link href={href} className="text-[12.5px] font-bold admin-heading hover:text-[#0aa3c7] transition-colors">{title}</Link>
+            : <span className={`text-[10px] font-bold tracking-[0.14em] uppercase ${tone === "experience" ? "text-[#0aa3c7]" : "admin-heading"}`}>{title}</span>}
+          {meta}
+        </span>
+        {blockers > 0 && (
+          <span className="shrink-0 text-[10px] font-bold px-1.5 py-0.5 rounded bg-red-500/15 text-red-400">{blockers} blocking</span>
+        )}
+        <Progress done={done} total={checks.length} />
+      </div>
+
+      {visible.length === 0
+        ? <p className="px-3.5 py-2 text-[12.5px] text-green-500">All done</p>
+        : <div className="py-1">{visible.map((c) => <Row key={c.id} c={c} showDone={showDone} onFix={onFix} />)}</div>}
+    </div>
+  );
+}
+
+/** One experience's rows — the trip itself first, then each upcoming week. */
 export function ExperienceChecks({
   report, showDone, onFix,
 }: { report: ExperienceReport; showDone: boolean; onFix: (f: CheckFix) => void }) {
-  const done = (list: CheckResult[]) => list.filter((c) => c.ok).length;
-
   return (
-    <div className="group">
-      <p className="text-[10px] font-bold tracking-[0.12em] uppercase admin-faint px-3 pt-3 pb-1">
-        The experience <span className="tracking-normal normal-case font-normal">· {done(report.checks)}/{report.checks.length} done</span>
-      </p>
-      {report.checks.every((c) => c.ok) && !showDone
-        ? <p className="px-3 py-1.5 text-[12.5px] text-green-500">Nothing outstanding</p>
-        : report.checks.map((c) => <Row key={c.id} c={c} showDone={showDone} onFix={onFix} />)}
+    <div className="group space-y-2.5 pt-3">
+      <Group
+        title="The whole trip"
+        meta={<span className="text-[11px] admin-faint">page, photos, terms \u2014 shared by every week</span>}
+        tone="experience"
+        checks={report.checks} showDone={showDone} onFix={onFix}
+      />
 
-      {report.editions.length === 0 && (
-        <p className="px-3 py-2 mt-2 text-[12.5px] text-amber-500">No upcoming weeks — add an edition before this can be sold.</p>
+      {report.editions.length === 0 ? (
+        <p className="rounded-xl px-3.5 py-2.5 text-[12.5px] text-amber-500" style={{ border: "1px solid var(--admin-border)" }}>
+          No upcoming weeks — add an edition before this can be sold.
+        </p>
+      ) : (
+        report.editions.map((ed) => (
+          <Group
+            key={ed.id}
+            href={`/admin/editions/${ed.id}`}
+            title={weekDates(ed.dateStart, ed.dateEnd)}
+            meta={
+              <>
+                {ed.label && <span className="text-[11px] admin-muted">{ed.label}</span>}
+                {ed.status && ed.status !== "published" && (
+                  <span className="text-[10px] font-bold uppercase px-1.5 py-0.5 rounded admin-faint" style={{ backgroundColor: "var(--admin-surface)" }}>{ed.status}</span>
+                )}
+              </>
+            }
+            tone="edition"
+            checks={ed.checks} showDone={showDone} onFix={onFix}
+          />
+        ))
       )}
-
-      {report.editions.map((ed) => (
-        <div key={ed.id} className="mt-1">
-          <p className="text-[10px] font-bold tracking-[0.12em] uppercase admin-faint px-3 pt-3 pb-1 flex items-center gap-2 flex-wrap">
-            <Link href={`/admin/editions/${ed.id}`} className="hover:text-[#0aa3c7] transition-colors">{ed.label}</Link>
-            {ed.dateStart && (
-              <span className="normal-case tracking-normal font-normal">
-                {new Date(ed.dateStart).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" })}
-              </span>
-            )}
-            {ed.status && ed.status !== "published" && (
-              <span className="normal-case tracking-normal font-normal admin-faint">· {ed.status}</span>
-            )}
-            <span className="normal-case tracking-normal font-normal">· {done(ed.checks)}/{ed.checks.length} done</span>
-            {ed.blockers > 0 && <span className="normal-case tracking-normal text-red-400">· {ed.blockers} blocking</span>}
-          </p>
-          {ed.checks.every((c) => c.ok) && !showDone
-            ? <p className="px-3 py-1.5 text-[12.5px] text-green-500">Ready</p>
-            : ed.checks.map((c) => <Row key={c.id} c={c} showDone={showDone} onFix={onFix} />)}
-        </div>
-      ))}
     </div>
   );
 }
@@ -253,16 +317,18 @@ export function GoLiveList({ reports, onRefresh }: { reports: ExperienceReport[]
                       {!e.websiteVisible && <span className="ml-2 text-[10px] font-bold uppercase px-1.5 py-0.5 rounded admin-surface admin-faint">draft</span>}
                     </span>
                     <span className="block text-[11.5px] admin-faint">
-                      {e.editions.length} upcoming week{e.editions.length === 1 ? "" : "s"} · {done}/{total} done
+                      {e.editions.length} upcoming week{e.editions.length === 1 ? "" : "s"}
+                      {e.nextStart && <> · next {new Date(e.nextStart).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" })}</>}
                     </span>
                   </span>
                   {e.blockers > 0 && <span className="shrink-0 text-[11px] font-bold px-2 py-0.5 rounded bg-red-500/15 text-red-400">{e.blockers} blocking</span>}
-                  {e.warnings > 0 && <span className="shrink-0 text-[11px] font-bold px-2 py-0.5 rounded bg-amber-500/15 text-amber-500">{e.warnings}</span>}
+                  {e.warnings > 0 && <span className="shrink-0 text-[11px] font-bold px-2 py-0.5 rounded bg-amber-500/15 text-amber-500">{e.warnings} to polish</span>}
                   {clean && <span className="shrink-0 text-[11px] font-bold px-2 py-0.5 rounded bg-green-500/15 text-green-500">ready</span>}
+                  <Progress done={done} total={total} />
                   <svg className={`shrink-0 w-4 h-4 admin-faint transition-transform ${isOpen ? "rotate-180" : ""}`} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M6 9l6 6 6-6" /></svg>
                 </button>
                 {isOpen && (
-                  <div className="px-3 pb-3" style={{ borderTop: "1px solid var(--admin-border)" }}>
+                  <div className="px-3 pb-3" style={{ borderTop: "1px solid var(--admin-border)", backgroundColor: "var(--admin-bg)" }}>
                     <ExperienceChecks report={e} showDone={showDone} onFix={setFix} />
                   </div>
                 )}
@@ -293,9 +359,7 @@ export function GoLivePanel({ report, onRefresh }: { report: ExperienceReport | 
         </p>
         <DoneToggle value={showDone} onChange={setShowDone} />
       </div>
-      <div className="rounded-xl px-3 pb-3" style={{ border: "1px solid var(--admin-border)", backgroundColor: "var(--admin-surface)" }}>
-        <ExperienceChecks report={report} showDone={showDone} onFix={setFix} />
-      </div>
+      <ExperienceChecks report={report} showDone={showDone} onFix={setFix} />
       <p className="text-xs admin-faint mt-3">
         Only weeks still ahead are checked. Every line opens the field that fixes it — the simple ones right here.{" "}
         <Link href="/admin/go-live" className="text-[#0aa3c7] hover:underline">All trips →</Link>

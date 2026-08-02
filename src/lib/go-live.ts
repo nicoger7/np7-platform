@@ -68,8 +68,11 @@ export type CheckResult = {
 
 export type EditionReport = {
   id: string;
-  label: string;
+  /** Only when it says something the dates don't — "2026-08-17" as a label is
+   *  the date twice over, so it is dropped rather than printed beside itself. */
+  label: string | null;
   dateStart: string | null;
+  dateEnd: string | null;
   status: string | null;
   checks: CheckResult[];
   blockers: number;
@@ -258,10 +261,15 @@ export async function runGoLiveChecks(): Promise<ExperienceReport[]> {
             fix: { table: "exp_editions", id: edId, column: "whatsapp_group_link", kind: "url", title: "Group chat link", help: "The WhatsApp invite link for this week's crew.", value: (ed.whatsapp_group_link as string) ?? null },
           }),
       ];
+      // A label that is just the start date is noise next to the formatted range.
+      const rawLabel = String(ed.label ?? "").trim();
+      const dateish = /^\d{4}-\d{2}-\d{2}$/.test(rawLabel)
+        || rawLabel === String(ed.date_start ?? "").slice(0, 10);
       return {
         id: edId,
-        label: String(ed.label ?? "") || (ed.date_start ? String(ed.date_start).slice(0, 10) : "Untitled"),
+        label: rawLabel && !dateish ? rawLabel : null,
         dateStart: (ed.date_start as string | null) ?? null,
+        dateEnd: (ed.date_end as string | null) ?? null,
         status: (ed.status as string | null) ?? null,
         checks,
         blockers: checks.filter((k) => !k.ok && k.severity === "blocker").length,
