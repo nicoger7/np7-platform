@@ -32,6 +32,27 @@ const fmt = (d: string | null) =>
 export function EditionMailing({ editionId }: { editionId: string }) {
   const [d, setD] = useState<Data | null>(null);
   const [loading, setLoading] = useState(true);
+  const [sending, setSending] = useState<string | null>(null);
+  const [msg, setMsg] = useState<string | null>(null);
+
+  /** Catch-up send for a mail whose window already passed. */
+  async function sendNow(key: string, name: string, guests: number) {
+    if (!confirm(`Send "${name}" now to ${guests} secured guest${guests === 1 ? "" : "s"}?\n\nIts window has passed, so this is a catch-up. Anyone who already got it is skipped automatically.`)) return;
+    setSending(key); setMsg(null);
+    try {
+      const r = await fetch(`/api/admin/editions/${editionId}/mailing`, {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ templateKey: key }),
+      });
+      const j = await r.json();
+      setMsg(r.ok ? `${name}: sent to ${j.sent}${j.skipped ? `, ${j.skipped} skipped` : ""}.` : (j.error || "Send failed."));
+      if (r.ok) {
+        const list = await fetch(`/api/admin/editions/${editionId}/mailing`).then((x) => x.json());
+        setD(list);
+      }
+    } catch { setMsg("Send failed."); }
+    finally { setSending(null); }
+  }
 
   useEffect(() => {
     let alive = true;
@@ -53,6 +74,7 @@ export function EditionMailing({ editionId }: { editionId: string }) {
         {d.guests > 0 && <> {d.securedGuests} of {d.guests} guests are secured; only those receive pre-trip mail.</>}
       </p>
 
+      {msg && <p className="text-[12.5px] font-semibold mb-3 admin-heading">{msg}</p>}
       <div className="rounded-xl overflow-hidden mb-4" style={{ border: "1px solid var(--admin-border)" }}>
         {d.scheduled.map((m, i) => {
           const gone = m.sent > 0;
@@ -75,6 +97,14 @@ export function EditionMailing({ editionId }: { editionId: string }) {
                 )}
               </span>
               <span className="shrink-0 text-right">
+                {/* A passed window used to be a dead end: the cron won't fire it
+                    any more and there was nothing to press. */}
+                {!gone && past && !blocked && (
+                  <button onClick={() => sendNow(m.key, m.name, d.securedGuests)} disabled={sending === m.key}
+                    className="block ml-auto mb-0.5 text-[12px] font-bold text-[#0aa3c7] hover:underline disabled:opacity-50">
+                    {sending === m.key ? "Sending…" : "Send now →"}
+                  </button>
+                )}
                 {gone ? (
                   <>
                     <span className="block text-[12.5px] font-bold text-green-500">Sent to {m.sent}</span>

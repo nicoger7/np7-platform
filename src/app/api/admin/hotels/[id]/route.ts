@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase";
 import { softDelete } from "@/lib/archive";
 
-const ALLOWED = ["name", "prefix", "location", "image_url", "images", "description", "website"];
+const ALLOWED = ["name", "prefix", "location", "image_url", "images", "description", "website", "maps_url"];
 // Columns added in migration 023 — strip & retry if not applied yet.
 const PENDING_OPTIONAL = ["image_url", "images", "description", "website"];
 

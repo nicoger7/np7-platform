@@ -1,5 +1,5 @@
 import { createAdminClient } from "@/lib/supabase";
-import { isAttending, normalizeBookingStatus } from "@/lib/types";
+import { isAttending, normalizeBookingStatus, isLostStatus } from "@/lib/types";
 import { effectiveAddonStatus } from "@/lib/addons";
 import { parseFlightNote, type FlightInfo } from "@/lib/flights";
 import {
@@ -244,7 +244,10 @@ export async function getCrewProfiles(editionId: string, viewerContactId: string
     .select("contact_id,status,downpayment_received,deposit_received,created_at")
     .eq("edition_id", editionId);
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const onEdition = (bookings ?? []).filter((b: any) => b.contact_id);
+  // A cancelled booking keeps its payment flags — they are history, and the
+  // refund hangs off them — so without the status check a cancelled guest still
+  // passes the "actually coming" test below and appears in the crew.
+  const onEdition = (bookings ?? []).filter((b: any) => b.contact_id && !isLostStatus(b.status));
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   if (!onEdition.some((b: any) => b.contact_id === viewerContactId)) return empty; // viewer isn't on this edition
 
@@ -828,7 +831,7 @@ export async function getExperienceArrivalInfo(experienceId: string): Promise<Ar
   return out;
 }
 
-export type HotelInfo = { name: string; image_url: string | null; images: string[] | null; description: string | null; website: string | null };
+export type HotelInfo = { name: string; image_url: string | null; images: string[] | null; description: string | null; website: string | null; location: string | null; maps_url: string | null };
 
 /** Resolve the hotel for a booking (by the package's hotel_id, else name match on the
     package title) and return its media. Tolerant of migration 023 being unapplied → null. */
@@ -843,7 +846,7 @@ export async function getBookingHotel(bookingId: string): Promise<HotelInfo | nu
     const { data: p } = await db.from("exp_packages").select("hotel_id").eq("id", bk.package_id).maybeSingle();
     hotelId = p?.hotel_id ?? null; // null if column missing pre-migration
   }
-  const { data: hotels } = await db.from("hotels").select("id,name,image_url,images,description,website");
+  const { data: hotels } = await db.from("hotels").select("id,name,image_url,images,description,website,location,maps_url");
   if (!Array.isArray(hotels)) return null; // media columns missing pre-migration → no stay module
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   let hotel = hotelId ? hotels.find((h: any) => h.id === hotelId) : null;
@@ -870,7 +873,7 @@ export async function getBookingHotel(bookingId: string): Promise<HotelInfo | nu
     } catch { /* room table/column absent → no room fallback, that's fine */ }
   }
   if (!hotel || (!hotel.image_url && !hotel.description)) return null;
-  return { name: hotel.name, image_url: hotel.image_url ?? null, images: hotel.images ?? null, description: hotel.description ?? null, website: hotel.website ?? null };
+  return { name: hotel.name, image_url: hotel.image_url ?? null, images: hotel.images ?? null, description: hotel.description ?? null, website: hotel.website ?? null, location: hotel.location ?? null, maps_url: hotel.maps_url ?? null };
 }
 
 export type CoachCard = { name: string; role: string; bio: string; image: string | null; whatsapp: string | null };

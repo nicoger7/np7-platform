@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { sendEmail } from "@/lib/email/send";
 import { requireTeamMember } from "@/lib/admin-auth";
 import { createAdminClient } from "@/lib/supabase";
 import { AUTOMATIONS } from "@/lib/email/automations";
@@ -91,4 +92,75 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
     scheduled,
     other,
   });
+}
+
+
+/**
+ * Send a scheduled mail now, after its window has passed.
+ *
+ * The cron only fires inside each mail's date window. Miss it — the pipeline was
+ * off, the guest booked late, content wasn't ready — and the mail simply never
+ * happens, which is what "Window passed" meant with no way to act on it. This is
+ * the manual catch-up.
+ *
+ * `manual: true` so the soft-launch guard doesn't swallow it: a human pressed
+ * this. The per-booking dedupe key still applies, so pressing twice is safe and
+ * nobody gets it twice.
+ */
+export async function POST(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  const denied = await requireTeamMember();
+  if (denied) return denied;
+  const { id } = await params;
+  const body = await request.json().catch(() => ({} as Record<string, unknown>));
+  const templateKey = typeof body.templateKey === "string" ? body.templateKey : "";
+  if (!templateKey) return NextResponse.json({ error: "No mail chosen." }, { status: 400 });
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const db = createAdminClient() as any;
+  const { values } = await resolveEditionContent(id);
+
+  // Refuse rather than send a hollow mail — same rule the held-mail path uses.
+  const missing = (MAIL_REQUIREMENTS[templateKey]?.blocking ?? []).filter((k) => !values[k]);
+  if (missing.length) {
+    return NextResponse.json({ error: `Still missing ${missing.join(", ")} — fill it in first.` }, { status: 400 });
+  }
+
+  const { data: bookings } = await db
+    .from("exp_bookings")
+    .select("id, status, downpayment_received, contact_id, contacts(name,email), exp_experiences(title), exp_editions(date_start,date_end,whatsapp_group_link)")
+    .eq("edition_id", id);
+
+  const origin = process.env.NEXT_PUBLIC_SITE_URL || "https://www.np-seven.com";
+  const fmt = (x: string) => new Date(x).toLocaleDateString("en-GB", { day: "numeric", month: "short" });
+  let sent = 0, skipped = 0;
+
+  // Pre-trip mail goes to secured guests only — the same rule the cron applies.
+  for (const b of (bookings ?? []) as Record<string, any>[]) {
+    const secured = b.downpayment_received || SECURED.includes(String(b.status));
+    const email = b.contacts?.email;
+    if (!secured || !email) { skipped++; continue; }
+    const s = b.exp_editions?.date_start as string | null;
+    const e = b.exp_editions?.date_end as string | null;
+    const res = await sendEmail({
+      to: email,
+      templateKey,
+      manual: true,
+      dedupeKey: `${templateKey}:${b.id}`,
+      vars: {
+        firstName: String(b.contacts?.name ?? "").split(" ")[0] || "there",
+        experienceTitle: b.exp_experiences?.title,
+        dates: s ? (e ? `${fmt(s)} – ${fmt(e)} ${new Date(e).getFullYear()}` : `${fmt(s)} ${new Date(s).getFullYear()}`) : undefined,
+        preTripNote: values.preTripNote ?? undefined,
+        packingList: values.packingList ?? undefined,
+        whatsappLink: b.exp_editions?.whatsapp_group_link ?? values.whatsappLink ?? undefined,
+        bookingLink: `${origin}/account`,
+        tripLink: `${origin}/account/bookings/${b.id}`,
+        waiverLink: `${origin}/account/bookings/${b.id}/waiver`,
+      },
+      bookingId: b.id,
+      contactId: b.contact_id,
+    });
+    if (res.status === "sent") sent++; else skipped++;
+  }
+  return NextResponse.json({ ok: true, sent, skipped });
 }

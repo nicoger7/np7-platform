@@ -13,6 +13,7 @@ interface Hotel {
   images: string[] | null;
   description: string | null;
   website: string | null;
+  maps_url: string | null;
 }
 
 type PickTarget = { id: string; kind: "primary" | "gallery" };
@@ -48,7 +49,7 @@ export default function HotelsPage() {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         name: h.name, prefix: h.prefix, location: h.location,
-        image_url: h.image_url, images: h.images, description: h.description, website: h.website,
+        image_url: h.image_url, images: h.images, description: h.description, website: h.website, maps_url: h.maps_url,
       }),
     });
     setSavingId(null);
@@ -159,6 +160,10 @@ export default function HotelsPage() {
                   <div><label className={labelClass}>Location</label><input className={inputClass} value={h.location ?? ""} onChange={(e) => h.id && setField(h.id, "location", e.target.value)} /></div>
                 </div>
                 <div className="col-span-2"><label className={labelClass}>Website</label><input className={inputClass} value={h.website ?? ""} onChange={(e) => h.id && setField(h.id, "website", e.target.value)} placeholder="https://…" /></div>
+                {/* Guests land at the airport and want one thing from this block:
+                    where is it. Leave it empty and the portal builds a Maps
+                    search from the name + location, which is usually right. */}
+                <div className="col-span-2"><label className={labelClass}>Google Maps link</label><input className={inputClass} value={h.maps_url ?? ""} onChange={(e) => h.id && setField(h.id, "maps_url", e.target.value)} placeholder="Paste a Maps link — or leave empty to search by name" /></div>
                 <div className="col-span-2"><label className={labelClass}>Short description<PublicBadge note="Shown under the hotel name in the public booking step" /></label><textarea className={`${inputClass} min-h-[56px] resize-y`} value={h.description ?? ""} onChange={(e) => h.id && setField(h.id, "description", e.target.value)} placeholder="One or two lines shown under the hotel name in the booking step." /></div>
               </div>
             </div>

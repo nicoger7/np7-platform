@@ -24,6 +24,7 @@ import { getInvitesForBooking, resolveRewards } from "@/lib/invites";
 import { computePaymentPlan } from "@/lib/payments";
 import { describePrice } from "@/lib/pricing";
 import { createAdminClient } from "@/lib/supabase";
+import { PackingChecklist } from "@/components/portal/packing-checklist";
 
 export const metadata: Metadata = { title: "My trip — NP7" };
 export const dynamic = "force-dynamic";
@@ -209,13 +210,13 @@ export default async function BookingDetail({ params }: Props) {
       cta: !fullyPaid && nextMilestone ? (depositPaid ? "Pay balance" : "Pay now") : undefined,
     },
     {
-      key: "flights", label: "Flights", tab: tripStarted ? undefined : "prep",
+      key: "flights", label: "Arrival", tab: tripStarted ? undefined : "prep",
       value: flightsAdded ? "Added" : "To add",
       sub: flightsAdded ? "tap to review" : "your times",
       tone: flightsAdded ? "green" : "amber",
       done: flightsAdded,
       attention: !flightsAdded && !tripStarted,
-      cta: !flightsAdded && !tripStarted ? "Add flights" : undefined,
+      cta: !flightsAdded && !tripStarted ? "Add arrival" : undefined,
     },
     {
       key: "waiver", label: "Waiver", tab: tripStarted ? undefined : "prep",
@@ -331,27 +332,26 @@ export default async function BookingDetail({ params }: Props) {
           <p className="text-[14px] text-[#3a4a50] leading-relaxed whitespace-pre-line">{preTrip.preTripNote}</p>
         </div>
       )}
-      {packingItems.length > 0 && (
-        <div>
-          <p className="text-[11px] font-bold tracking-[0.14em] uppercase text-[#9aa6ac] mb-2">What to bring</p>
-          <ul className="grid sm:grid-cols-2 gap-x-6 gap-y-2">
-            {packingItems.map((it, i) => (
-              <li key={i} className="flex items-start gap-2.5 text-[13.5px] text-[#3a4a50] leading-snug">
-                <span className="mt-[3px] w-3.5 h-3.5 rounded border border-[#c9d6da] shrink-0" />
-                <span>{it}</span>
-              </li>
-            ))}
-          </ul>
-          <p className="text-[12px] text-[#9aa6ac] mt-2.5">We&apos;ll remind you closer to departure — no need to memorise it.</p>
-        </div>
-      )}
+      {packingItems.length > 0 && <PackingChecklist bookingId={b.id} items={packingItems} />}
       {hotel && (
         <div>
           <p className="text-[11px] font-bold tracking-[0.14em] uppercase text-[#9aa6ac] mb-2">Your stay</p>
           {hotel.image_url && <div className="rounded-xl overflow-hidden mb-3 aspect-[16/9] bg-cover bg-center" style={{ backgroundImage: `url('${hotel.image_url}')` }} />}
           <p className="text-[15px] font-bold text-[#00374a]">{hotel.name}</p>
           {hotel.description && <p className="text-[13.5px] text-[#5a6b72] leading-relaxed mt-1.5 whitespace-pre-line">{hotel.description}</p>}
-          {hotel.website && <a href={hotel.website} target="_blank" className="inline-flex items-center gap-1.5 text-[13.5px] font-semibold text-[#00afdb] hover:underline mt-2">Hotel website ↗</a>}
+          <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5 mt-2">
+            {hotel.website && <a href={hotel.website} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1.5 text-[13.5px] font-semibold text-[#00afdb] hover:underline">Hotel website ↗</a>}
+            {(() => {
+              const maps = hotel.maps_url
+                || `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent([hotel.name, hotel.location].filter(Boolean).join(", "))}`;
+              return (
+                <a href={maps} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1.5 text-[13.5px] font-semibold text-[#00afdb] hover:underline">
+                  <svg viewBox="0 0 24 24" className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z" /><circle cx="12" cy="10" r="3" /></svg>
+                  Open in Maps ↗
+                </a>
+              );
+            })()}
+          </div>
         </div>
       )}
       {coaches.length > 0 && (

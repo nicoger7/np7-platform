@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useCallback } from "react";
 import { effectiveAddonStatus } from "@/lib/addons";
-import { hasFlightDetails, type FlightInfo } from "@/lib/flights";
+import { hasFlightDetails, isSelfArriving, type FlightInfo } from "@/lib/flights";
 import type { ArrivalInfo } from "@/lib/portal-data";
 
 type Available = { id: string; name: string; category: string | null; description: string | null; sell_price: number | null; payment_mode?: string | null; payment_note?: string | null };
@@ -291,7 +291,7 @@ export function TripAddons({ bookingId, depositPaid, hasDeposit, securingLabel, 
   // the package sets one), then extras. Labels adapt to the package so it never
   // says "deposit" when the securing payment is really the down-payment.
   const steps: { key: "flights" | "secure" | "extras" | "confirm" | "book" | "group"; t: string; d: string }[] = [
-    { key: "flights", t: "Check your flights", d: "Find arrival/departure times that fit the week — you've got time before the down-payment's due." },
+    { key: "flights", t: "Your arrival", d: "Tell us when you get in and head off — flying or not. Times that fit the week; no rush before the down-payment." },
     { key: "secure", t: securingLabel, d: depositPaid ? "Your spot is secured ✓" : `Pay the ${hasDeposit ? "deposit" : "down-payment"} to lock in your place — refundable for 14 days.` },
     { key: "extras", t: "Request extras", d: "Want extra nights, gear or more? Request them — or choose none." },
     { key: "confirm", t: "We confirm", d: "We'll confirm availability and add it to your trip." },
@@ -311,7 +311,7 @@ export function TripAddons({ bookingId, depositPaid, hasDeposit, securingLabel, 
         const open = (isFlights && showFlights) || (isExtras && showOffers) || (isGroup && showGroup);
         const toggle = isFlights ? () => setShowFlights((v) => !v) : isGroup ? () => setShowGroup((v) => !v) : () => setShowOffers((v) => !v);
         const subline = isFlights
-          ? (flightsSaved ? "Flight details added — tap to view or edit" : "Tap to add your flight details")
+          ? (flightsSaved ? "Arrival added — tap to view or edit" : "Tap to add your arrival & departure")
           : isGroup
           ? (joined ? "You're in the group ✓ — tap to open" : "Tap to open the group & mark yourself in")
           : isExtras
@@ -353,8 +353,8 @@ export function TripAddons({ bookingId, depositPaid, hasDeposit, securingLabel, 
             {open && isFlights && (
               <div className="px-4 pb-4 pt-3 border-t border-[#f3ede2]">
                 <div className="rounded-lg bg-[#eef6f8] p-3 mb-3 text-[13px] text-[#4a5b62] space-y-1.5">
-                  <p className="font-bold text-[#00374a]">You book your own flights</p>
-                  <p className="leading-snug">We don&apos;t book flights for you — choose times that fit the week and add them here. Happy to advise on the best arrival/departure if you&apos;re unsure.</p>
+                  <p className="font-bold text-[#00374a]">You book your own travel</p>
+                  <p className="leading-snug">We don&apos;t book travel for you — choose times that fit the week and add them here. Happy to advise on the best arrival/departure if you&apos;re unsure. Not flying? Tell us anyway, so we know when to expect you.</p>
                   {arrival?.airportCode && (
                     <p>Airport: <strong className="text-[#00374a]">{arrival.airportCode}</strong>{arrival.airportDistance ? ` · ${arrival.airportDistance}` : ""}</p>
                   )}
@@ -369,16 +369,39 @@ export function TripAddons({ bookingId, depositPaid, hasDeposit, securingLabel, 
                 </div>
                 {flightsSaved && !editingFlights ? (
                   <div className="space-y-2 text-[13.5px]">
-                    <FlightSummary label="Arrival" date={flights?.arrivalDate} time={flights?.arrivalTime} no={flights?.arrivalFlightNo} />
-                    <FlightSummary label="Departure" date={flights?.departureDate} time={flights?.departureTime} no={flights?.departureFlightNo} />
-                    <button onClick={() => { setFlightForm(flights ?? {}); setEditingFlights(true); }} className="text-[13px] font-bold text-[#00afdb] hover:underline mt-1">Edit flights</button>
+                    <FlightSummary label={isSelfArriving(flights) ? "Arriving" : "Arrival"} date={flights?.arrivalDate} time={flights?.arrivalTime} no={flights?.arrivalFlightNo} />
+                    <FlightSummary label={isSelfArriving(flights) ? "Leaving" : "Departure"} date={flights?.departureDate} time={flights?.departureTime} no={flights?.departureFlightNo} />
+                    {isSelfArriving(flights) && <p className="text-[12.5px] text-[#8a9aa0]">Making your own way here</p>}
+                    <button onClick={() => { setFlightForm(flights ?? {}); setEditingFlights(true); }} className="text-[13px] font-bold text-[#00afdb] hover:underline mt-1">Edit arrival</button>
                   </div>
                 ) : (
                   <div className="space-y-4">
-                    <FlightFields legend="Arrival" form={flightForm} setFF={setFF} keys={["arrivalDate", "arrivalTime", "arrivalFlightNo"]} />
-                    <FlightFields legend="Departure" form={flightForm} setFF={setFF} keys={["departureDate", "departureTime", "departureFlightNo"]} />
+                    {/* Not everyone flies — some drive, take the train, or are
+                        already in the country. They still need to tell us when
+                        they land on the doorstep. */}
+                    <div className="flex gap-1.5">
+                      {([["flying", "I'm flying"], ["own", "Making my own way"]] as const).map(([mode, label]) => {
+                        const active = (flightForm.arrivalMode ?? "flying") === mode;
+                        return (
+                          <button key={mode} type="button"
+                            onClick={() => setFF("arrivalMode" as keyof FlightInfo, mode)}
+                            className={`px-3.5 py-1.5 rounded-full text-[12.5px] font-bold transition-colors ${active ? "bg-[#00afdb] text-white" : "bg-[#f1f5f6] text-[#6a7a80] hover:text-[#00374a]"}`}>
+                            {label}
+                          </button>
+                        );
+                      })}
+                    </div>
+                    {isSelfArriving(flightForm) && (
+                      <p className="text-[12.5px] text-[#6a7a80] -mt-1">
+                        No flight number needed — just let us know when you&apos;ll arrive and head off, so we can plan transfers and the first evening around you.
+                      </p>
+                    )}
+                    <FlightFields legend={isSelfArriving(flightForm) ? "Arriving" : "Arrival"} form={flightForm} setFF={setFF}
+                      keys={["arrivalDate", "arrivalTime", "arrivalFlightNo"]} noFlightNo={isSelfArriving(flightForm)} />
+                    <FlightFields legend={isSelfArriving(flightForm) ? "Leaving" : "Departure"} form={flightForm} setFF={setFF}
+                      keys={["departureDate", "departureTime", "departureFlightNo"]} noFlightNo={isSelfArriving(flightForm)} />
                     <div className="flex gap-2">
-                      <button onClick={saveFlights} disabled={savingFlights} className="px-5 py-2.5 rounded-full text-[13px] font-bold text-white bg-[#00afdb] hover:bg-[#15c0ec] disabled:opacity-60">{savingFlights ? "Saving…" : flightsSaved ? "Save changes" : "Save my flights"}</button>
+                      <button onClick={saveFlights} disabled={savingFlights} className="px-5 py-2.5 rounded-full text-[13px] font-bold text-white bg-[#00afdb] hover:bg-[#15c0ec] disabled:opacity-60">{savingFlights ? "Saving…" : flightsSaved ? "Save changes" : "Save my arrival"}</button>
                       {flightsSaved && <button onClick={() => setEditingFlights(false)} className="px-5 py-2.5 rounded-full text-[13px] font-bold text-[#6a7a80] bg-[#f1f5f6]">Cancel</button>}
                     </div>
                   </div>
@@ -449,17 +472,21 @@ function FlightSummary({ label, date, time, no }: { label: string; date?: string
   );
 }
 
-function FlightFields({ legend, form, setFF, keys }: { legend: string; form: FlightInfo; setFF: (k: keyof FlightInfo, v: string) => void; keys: [keyof FlightInfo, keyof FlightInfo, keyof FlightInfo] }) {
+function FlightFields({ legend, form, setFF, keys, noFlightNo = false }: { legend: string; form: FlightInfo; setFF: (k: keyof FlightInfo, v: string) => void; keys: [keyof FlightInfo, keyof FlightInfo, keyof FlightInfo]; noFlightNo?: boolean }) {
   // w-full + min-w-0 so the native date/time pickers (which have a large
   // intrinsic min-width on iOS) shrink with the grid instead of overflowing.
   const input = "w-full min-w-0 px-3 py-2 rounded-lg border border-[#dde6e9] text-[14px] text-[#00374a] outline-none focus:border-[#00afdb]";
   return (
     <div>
       <p className="text-[11px] font-bold tracking-[0.12em] uppercase text-[#9aa6ac] mb-1.5">{legend}</p>
-      <div className="grid grid-cols-[1fr_90px_1fr] gap-2">
+      <div className={`grid gap-2 ${noFlightNo ? "grid-cols-[1fr_90px]" : "grid-cols-[1fr_90px_1fr]"}`}>
         <input type="date" value={(form[keys[0]] as string | null) ?? ""} onChange={(e) => setFF(keys[0], e.target.value)} className={input} />
         <input type="time" value={(form[keys[1]] as string | null) ?? ""} onChange={(e) => setFF(keys[1], e.target.value)} className={input} />
-        <input type="text" value={(form[keys[2]] as string | null) ?? ""} onChange={(e) => setFF(keys[2], e.target.value)} placeholder="Flight no." className={input} />
+        {/* Driving or taking the train: the time still matters for transfers and
+            the first evening — the flight number is the only part that doesn't. */}
+        {!noFlightNo && (
+          <input type="text" value={(form[keys[2]] as string | null) ?? ""} onChange={(e) => setFF(keys[2], e.target.value)} placeholder="Flight no." className={input} />
+        )}
       </div>
     </div>
   );

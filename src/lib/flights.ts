@@ -12,6 +12,12 @@ export type FlightInfo = {
   departureFlightNo?: string | null;
   /** Member has confirmed they've actually booked their flights. */
   booked?: boolean | null;
+  /**
+   * How they're getting there. "own" = driving, train, or already nearby — we
+   * still want the arrival date and time (transfers and the first evening are
+   * planned around it), just not a flight number.
+   */
+  arrivalMode?: "flying" | "own" | null;
 };
 
 export const FLIGHT_NOTE_PREFIX = "[flights]";
@@ -25,7 +31,12 @@ export function hasFlightDetails(info: FlightInfo | null | undefined): boolean {
 
 /** Anything at all set (details or booked) — used to decide whether to persist. */
 export function hasFlights(info: FlightInfo | null | undefined): boolean {
-  return !!info && (hasFlightDetails(info) || info.booked === true);
+  return !!info && (hasFlightDetails(info) || info.booked === true || !!info.arrivalMode);
+}
+
+/** Driving / train / already there — ask for times, not flight numbers. */
+export function isSelfArriving(info: FlightInfo | null | undefined): boolean {
+  return info?.arrivalMode === "own";
 }
 
 export function serializeFlightNote(info: FlightInfo): string {
@@ -59,5 +70,6 @@ export function sanitizeFlightInfo(raw: Record<string, unknown>): FlightInfo {
     out[f as string] = typeof v === "string" && v.trim() !== "" ? v.trim() : null;
   }
   if (typeof raw.booked === "boolean") out.booked = raw.booked;
+  if (raw.arrivalMode === "flying" || raw.arrivalMode === "own") out.arrivalMode = raw.arrivalMode;
   return out as FlightInfo;
 }
