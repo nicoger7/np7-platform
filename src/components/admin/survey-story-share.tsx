@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 
 /**
  * A shareable story graphic for a survey.
@@ -34,11 +34,29 @@ export function SurveyStoryShare({
   const [caption, setCaption] = useState("Help us pick the week");
   const [format, setFormat] = useState<(typeof FORMATS)[number]["key"]>("story");
 
+  // The renderer reports how far it had to stretch the source. Most of our older
+  // photos came off the old website at ~1024-1280px wide, and covering a
+  // 1080x1920 story from one means a 2x+ upscale — no encoder setting saves
+  // that. Say it here, before the card gets posted somewhere.
+  const [quality, setQuality] = useState<{ size: string; upscale: number } | null>(null);
+
   const src = useMemo(() => {
     if (!photo) return "";
     const q = new URLSearchParams({ photo, title, sub, caption, format });
     return `/api/share-card?${q.toString()}`;
   }, [photo, title, sub, caption, format]);
+
+  useEffect(() => {
+    if (!src) return;
+    let alive = true;
+    fetch(src, { method: "GET" }).then((r) => {
+      if (!alive) return;
+      const size = r.headers.get("X-Source-Size");
+      const up = Number(r.headers.get("X-Upscale") || "1");
+      if (size) setQuality({ size, upscale: up });
+    }).catch(() => {});
+    return () => { alive = false; };
+  }, [src]);
 
   const field = "w-full rounded-lg border border-[#d8e3e6] bg-white text-[#0a2a33] px-3 py-2 text-[13.5px] outline-none focus:border-[#0aa3c7]";
   const lbl = "text-[11px] font-black uppercase tracking-[0.1em] text-[#0aa3c7]";
@@ -85,6 +103,14 @@ export function SurveyStoryShare({
                 </button>
               ))}
             </div>
+            {quality && quality.upscale > 1.25 && (
+              <div className="rounded-lg px-3 py-2.5 text-[12px] leading-relaxed"
+                   style={{ background: "#fff6e8", border: "1px solid #f0c98a", color: "#7a4b12" }}>
+                <strong>This photo is too small for a sharp card.</strong> It&apos;s {quality.size}px and has to be
+                stretched {quality.upscale.toFixed(1)}× to fill the {format === "story" ? "story" : "card"}.
+                Pick a different photo, or upload the original — roughly 2400px on the long edge, portrait if you have it.
+              </div>
+            )}
             <a href={src} download={`np7-survey-${format}.jpg`}
               className="inline-block rounded-full bg-[#0aa3c7] text-white text-[12.5px] font-bold px-4 py-2 hover:bg-[#0891b2] transition-colors">
               Download

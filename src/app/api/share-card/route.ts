@@ -109,7 +109,24 @@ export async function GET(req: NextRequest) {
       loadFonts(),
     ]);
     if (!imgRes.ok) return new Response("photo unavailable", { status: 502 });
-    const base = await sharp(Buffer.from(await imgRes.arrayBuffer())).rotate().resize(W, H, { fit: "cover" }).toBuffer();
+
+    // How far we have to stretch the source to fill the card. Most of our older
+    // photos came off the Squarespace site at 1024-1280px, and a 1280x853
+    // landscape has to grow 2.25x to cover a 1080x1920 story — which is exactly
+    // what "the download is terrible quality" looks like. We can't invent
+    // detail, so we measure it and say so instead of shipping mush silently.
+    const src = sharp(Buffer.from(await imgRes.arrayBuffer())).rotate();
+    const meta = await src.metadata();
+    const upscale = meta.width && meta.height
+      ? Math.max(W / meta.width, H / meta.height)
+      : 1;
+
+    const base = await src
+      .resize(W, H, { fit: "cover", kernel: "lanczos3" })
+      // A mild sharpen buys back some of the softness an upscale costs. Scaled
+      // to how much we stretched: none at 1x, noticeable past 1.5x.
+      .sharpen(upscale > 1.15 ? { sigma: Math.min(1.4, 0.6 * upscale) } : { sigma: 0.5 })
+      .toBuffer();
     const { head, body } = fonts;
 
     // Title — guaranteed to fit: shrink a little first, then wrap onto two balanced
@@ -218,11 +235,23 @@ export async function GET(req: NextRequest) {
       }
     } catch { /* title still carries the card */ }
 
-    const out = await sharp(base).composite(layers).jpeg({ quality: 88 }).toBuffer();
+    // 4:4:4 chroma matters more than the quality number here: the card is mostly
+    // saturated brand colour against white vector text, and the default 4:2:0
+    // halves the colour resolution exactly where those edges are — it reads as
+    // fringing on the pill and the headline.
+    const out = await sharp(base).composite(layers)
+      .jpeg({ quality: 94, mozjpeg: true, chromaSubsampling: "4:4:4" })
+      .toBuffer();
     // no-store: cached cards from older card designs kept resurfacing in previews
     // ("works on some photos, not others"). The card is member-gated + personal and
     // takes ~1s to build — always render fresh, never let any cache serve a stale one.
-    return new Response(new Uint8Array(out), { headers: { "Content-Type": "image/jpeg", "Cache-Control": "private, no-store" } });
+    return new Response(new Uint8Array(out), { headers: {
+      "Content-Type": "image/jpeg",
+      "Cache-Control": "private, no-store",
+      // So the editor can warn BEFORE you download and post it somewhere.
+      "X-Source-Size": `${meta.width ?? 0}x${meta.height ?? 0}`,
+      "X-Upscale": upscale.toFixed(2),
+    } });
   } catch {
     return new Response("error", { status: 500 });
   }
