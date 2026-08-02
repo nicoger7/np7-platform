@@ -104,7 +104,12 @@ export const SECTIONS: Section[] = [
   { key: "magazine", label: "Magazine", world: "experience", group: "Website", paths: ["/admin/blog", "/api/admin/blog"] },
   { key: "spotguide", label: "Spotguide", world: "experience", group: "Website", paths: ["/admin/spotguide", "/admin/spots", "/api/admin/spotguide", "/api/admin/spots"] },
   { key: "destinations", label: "Destinations", world: "experience", group: "Website", paths: ["/admin/destinations", "/api/admin/destinations"] },
-  { key: "guest_reviews", label: "Guest reviews", world: "experience", group: "Website", paths: ["/admin/guest-reviews", "/api/admin/guest-reviews"] },
+  // /api/admin/reviews (exp_reviews) belongs here: it backs this page and, as a
+  // read-only pool, the edition Reviews tab. NOTE it can only live in ONE section —
+  // sectionForPath keeps the longest match and breaks ties on FIRST-wins, so
+  // listing a path under two sections does not OR their grants, it silently hands
+  // the path to whichever section appears earlier in this array.
+  { key: "guest_reviews", label: "Guest reviews", world: "experience", group: "Website", paths: ["/admin/guest-reviews", "/api/admin/guest-reviews", "/api/admin/reviews"] },
   { key: "waivers", label: "Waivers", world: "experience", group: "Website", paths: ["/admin/waivers", "/api/admin/waivers"] },
   // Experience · Team
   { key: "team", label: "Employees & roles", world: "experience", group: "Team", paths: ["/admin/team", "/admin/roles", "/api/admin/team", "/api/admin/roles"] },
@@ -143,8 +148,13 @@ export const SECTIONS: Section[] = [
   { key: "task_rules", label: "Task rules", world: "experience", group: "Automation", paths: ["/admin/task-rules", "/api/admin/task-rules"] },
   { key: "withdrawals", label: "Withdrawals (Widerruf)", world: "experience", group: "Finance", paths: ["/admin/widerrufe", "/api/admin/widerrufe"] },
   { key: "skills", label: "Progression skills", world: "experience", group: "Website", paths: ["/admin/skills", "/api/admin/skills"] },
-  { key: "boards", label: "Boards", world: "product-dev", group: "Product Dev", paths: ["/admin/boards"] },
-  { key: "product_reviews", label: "Product reviews", world: "product-dev", group: "Product Dev", paths: ["/admin/reviews", "/api/admin/reviews"] },
+  // `boards` and `product_reviews` used to sit here, pointing at two placeholder
+  // pages in the product-dev world. Both pages are gone (replaced by the real
+  // build-sheet section), and `product_reviews` also claimed /api/admin/reviews —
+  // which serves exp_reviews for the EXPERIENCE world's Guest Reviews page and
+  // the edition Reviews tab. Owning it from product-dev meant any role without
+  // the product-dev world got a 403 on both. That path now lives with
+  // guest_reviews, above, where its data actually belongs.
   { key: "analytics", label: "Business analytics", world: "analytics", group: "Analytics", paths: ["/admin/analytics", "/api/admin/analytics"] },
 ];
 

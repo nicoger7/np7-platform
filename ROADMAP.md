@@ -327,6 +327,10 @@ Model: project → construction → (mold + layup) → plies; process → steps;
   colour-coded for sign-off. Template refs and lengths are exact.
 - ⚪ Post-deploy: open `/admin/roles`, tick the Product Development world per custom role, and remove the
   stray Owner grants migration 049 handed out. Until then the RBAC work is inert.
+- ⚪ Post-deploy check: `e9a380f` granted the "Admin" custom role the old `product_reviews` section, which
+  owned `/api/admin/reviews`. That path moved to `guest_reviews` — confirm the Admin role has
+  `guest_reviews`, or Guest Reviews goes blank for it. Stored grants for the now-deleted `boards` /
+  `product_reviews` keys are harmless (unknown keys are ignored) and can be left alone.
 
 **Phase 2 — media lock ⚪.** `product-dev/` becomes a reserved storage root, filtered **unconditionally**
 (including for Owner) out of all five verbs of `/api/admin/images`, so R&D photos never appear in the 15
@@ -342,9 +346,33 @@ and the reverse citation index.
 **Phase 4 — board-test panel ⚪.** Migration `131`: `pd_prototypes`, `pd_test_sessions` (linked to real
 spotguide `spots`), `pd_test_recordings`. Record a voice memo on mobile → R2 via presigned PUT → jibe
 transcribes → Claude turns the transcript into a structured review.
-⚠ **The Claude API does not accept audio** — speech-to-text needs a separate engine. Plan: `whisper.cpp` on
-jibe's always-on box (which already runs ffmpeg for trip videos), handed off via the proven
-`spot_intake_queue` pattern. Needs `ANTHROPIC_API_KEY` + `CRON_SECRET` in Vercel (still unset).
+
+**The point is correlation, not record-keeping** (Nico, 2026-08-02): *"what configuration does a
+board/fin have — and exactly what does it feel like … within a few years you will be able to relate all
+to each other and then we can improve development."* That is a longitudinal dataset, and the one thing
+it can never be given retroactively is **comparability**. Three rules follow, and they are cheap now
+and impossible later:
+
+1. **The config side must be foreign keys, not prose.** A session points at a `pd_prototypes` row, which
+   points at a `pd_layups` row, which owns the 18 plies. That chain is what makes "this stiffness profile
+   feels loose off the back foot" a query rather than an anecdote. Anything free-text on the config side
+   (sail, board, mast, rider weight) still gets a typed column — a `sail_size_m2 numeric`, not a sentence.
+2. **The feel side must use stable, versioned axes.** `RATING_AXES` lives in git per project kind
+   (`src/lib/product-dev.ts`) exactly like `GEOMETRY_FIELDS`. Renaming or re-meaning an axis silently
+   breaks every comparison made before it, so axes are append-only and a retired one is marked, never
+   deleted or repurposed.
+3. **The verbatim transcript is ground truth and is never overwritten.** The structured review is a
+   derived view of it. When the two disagree, or when a question nobody thought to ask in 2026 becomes
+   important in 2030, the raw words are still there to re-extract from.
+
+Corollary: capture the **whole rig**, not just the part under test. A fin only "feels" like anything in
+combination with a board, a sail size and a rider weight in given conditions — a rating with no rig
+attached is noise in the dataset, so the session form makes the rig mandatory and the ratings optional.
+⚠ **The Claude API does not accept audio** — speech-to-text needs a separate engine. ✅ Decided: **jibe
+handles it**, on the always-on box that already runs ffmpeg for trip videos and the spotguide intake.
+Handoff is the proven `spot_intake_queue` shape + a `jibe_runs` row with `job = 'board-tests'`.
+Jibe brings its own Anthropic access, so the platform needs **no** new env vars for the queued path —
+`ANTHROPIC_API_KEY` would only buy instant in-request processing.
 
 ---
 
