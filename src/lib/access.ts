@@ -45,7 +45,10 @@ export function isOwnerOnlyPath(path: string): boolean {
 
 // Personal tools every active team member can always reach, regardless of role —
 // e.g. logging your OWN hours. (The APIs still restrict you to your own data.)
-const ALWAYS_AVAILABLE = ["/admin/hours-log", "/api/admin/hours-log", "/api/admin/active-time"];
+// Personal, not departmental: your own hours and your own to-dos. Everyone with
+// an admin account keeps these whatever their role grants. /admin/login is
+// obviously never gated — you are not signed in yet.
+const ALWAYS_AVAILABLE = ["/admin/hours-log", "/api/admin/hours-log", "/api/admin/active-time", "/admin/todos", "/api/admin/todos", "/admin/login"];
 export function isPersonalPath(path: string): boolean {
   return ALWAYS_AVAILABLE.some((p) => underPrefix(p, path));
 }
@@ -132,6 +135,16 @@ export const SECTIONS: Section[] = [
   { key: "pd_knowledge", label: "R&D build sheets", world: "product-dev", group: "Product Dev", paths: ["/admin/product-dev", "/api/admin/product-dev"] },
   { key: "pd_library", label: "R&D photo library", world: "product-dev", group: "Product Dev", paths: ["/admin/product-dev/library", "/api/admin/product-dev/media"] },
   // Analytics
+  { key: "member_activity", label: "Member activity", world: "experience", group: "Operations", paths: ["/admin/member-activity", "/api/admin/member-activity"] },
+  { key: "archive", label: "Archive (deleted records)", world: "experience", group: "Operations", paths: ["/admin/archive", "/api/admin/archive"] },
+  { key: "applications", label: "Signature-trip applications", world: "experience", group: "Operations", paths: ["/admin/applications"] },
+  { key: "surveys", label: "Interest surveys", world: "experience", group: "Automation", paths: ["/admin/surveys", "/api/admin/surveys"] },
+  { key: "pipeline_rules", label: "Pipeline rules", world: "experience", group: "Automation", paths: ["/admin/pipeline-rules", "/api/admin/pipeline-rules"] },
+  { key: "task_rules", label: "Task rules", world: "experience", group: "Automation", paths: ["/admin/task-rules", "/api/admin/task-rules"] },
+  { key: "withdrawals", label: "Withdrawals (Widerruf)", world: "experience", group: "Finance", paths: ["/admin/widerrufe", "/api/admin/widerrufe"] },
+  { key: "skills", label: "Progression skills", world: "experience", group: "Website", paths: ["/admin/skills", "/api/admin/skills"] },
+  { key: "boards", label: "Boards", world: "product-dev", group: "Product Dev", paths: ["/admin/boards"] },
+  { key: "product_reviews", label: "Product reviews", world: "product-dev", group: "Product Dev", paths: ["/admin/reviews", "/api/admin/reviews"] },
   { key: "analytics", label: "Business analytics", world: "analytics", group: "Analytics", paths: ["/admin/analytics", "/api/admin/analytics"] },
 ];
 
