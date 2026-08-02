@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { activeLaunch, launchPrice } from "@/lib/launch-price";
 import { createAdminClient } from "@/lib/supabase";
 import { sendEmail } from "@/lib/email/send";
 import { getPortalUser } from "@/lib/auth";
@@ -84,7 +85,7 @@ export async function POST(request: NextRequest) {
     db.from("exp_experiences").select("id,title,slug,currency").eq("id", experienceId).maybeSingle(),
     db.from("exp_packages").select("id,name,price,experience_id,edition_id,status").eq("id", packageId).maybeSingle(),
     editionId
-      ? db.from("exp_editions").select("id,label,date_start,date_end,experience_id,max_spots").eq("id", editionId).maybeSingle()
+      ? db.from("exp_editions").select("id,label,date_start,date_end,experience_id,max_spots,launch_discount_pct,launch_price_until").eq("id", editionId).maybeSingle()
       : Promise.resolve({ data: null }),
   ]);
 
@@ -132,8 +133,10 @@ export async function POST(request: NextRequest) {
       edition_id: editionId ?? null,
       package_id: pkg.id,
       status: "reserved",
-      agreed_price: pkg.price,
-      notes: `Website reservation · package: ${pkg.name} · phone: ${phone} · deposit €${DEPOSIT_EUR} via Stripe`,
+      // Recomputed here, not read from the page — the launch window can close
+      // between page load and reserve, and the server's clock decides.
+      agreed_price: launchPrice(pkg.price, activeLaunch(edition)),
+      notes: `Website reservation · package: ${pkg.name} · phone: ${phone} · deposit €${DEPOSIT_EUR} via Stripe${activeLaunch(edition) ? ` · launch price −${activeLaunch(edition)!.pct}%` : ""}`,
     })
     .select("id")
     .single();

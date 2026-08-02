@@ -75,7 +75,11 @@ type Quote = {
   milestones: { kind: string; label: string; amount: number; dueLabel: string; dueDate: string | null }[];
 };
 
-export function PackagePicker({ packages, currency = "EUR", reserve, heroImage }: Props) {
+export function PackagePicker({ packages, currency = "EUR", reserve, heroImage, launch }: Props & { launch?: { pct: number; until: string } | null }) {
+  // Launch price: display only — the reserve API recomputes it server-side, so
+  // a stale page can never charge a discount whose window has closed.
+  const lp = (n: number) => (launch ? Math.round(n * (1 - launch.pct / 100)) : n);
+  const launchUntil = launch ? new Date(launch.until + "T00:00:00Z").toLocaleDateString("en-GB", { day: "numeric", month: "short", timeZone: "UTC" }) : null;
   const [showReserve, setShowReserve] = useState(false);
   // Active photo per hotel group (the expanded card shows a swappable banner —
   // photos stay at card size on purpose: sources aren't always hi-res, so no lightbox).
@@ -252,7 +256,10 @@ export function PackagePicker({ packages, currency = "EUR", reserve, heroImage }
                           )}
                         </span>
                       </span>
-                      <span className="text-[14px] font-bold text-[#1f3138] shrink-0">{fmt(a.price)}</span>
+                      <span className="shrink-0 text-right">
+                        {launch && <span className="block text-[11px] text-[#9aa6ac] line-through">{fmt(a.price)}</span>}
+                        <span className="text-[14px] font-bold text-[#1f3138]">{fmt(lp(a.price))}</span>
+                      </span>
                     </button>
                   );
                 });
@@ -317,7 +324,7 @@ export function PackagePicker({ packages, currency = "EUR", reserve, heroImage }
                       <span className="flex items-center justify-between gap-3">
                         <span className="text-[15px] font-extrabold text-[#00374a] truncate">{g.hotelName}</span>
                         <span className="text-[13.5px] font-bold text-[#1f3138] shrink-0">
-                          {single ? fmt(cheapest.price) : `from ${fmt(cheapest.price)}`}
+                          {single ? fmt(lp(cheapest.price)) : `from ${fmt(lp(cheapest.price))}`}
                         </span>
                       </span>
                       {/* Collapsed = 2-line teaser (line-clamp needs -webkit-box, so no
@@ -355,7 +362,7 @@ export function PackagePicker({ packages, currency = "EUR", reserve, heroImage }
                               </span>
                             </span>
                             <span className={`text-[13.5px] shrink-0 tabular-nums ${active ? "font-bold text-[#00374a]" : "font-semibold text-[#5a6b72]"}`}>
-                              {fmt(a.price)}
+                              {launch ? <><s className="opacity-50 mr-1">{fmt(a.price)}</s>{fmt(lp(a.price))}</> : fmt(a.price)}
                             </span>
                           </button>
                         );
@@ -399,7 +406,16 @@ export function PackagePicker({ packages, currency = "EUR", reserve, heroImage }
 
         <div className="flex items-end justify-between border-t border-white/10 pt-5 mb-5">
           <span className="text-[13px] text-white/50">Total p.p.</span>
-          <span className="text-3xl font-black tracking-[-0.02em] tabular-nums">{selected ? fmt(selected.price) : "—"}</span>
+          <span className="text-3xl font-black tracking-[-0.02em] tabular-nums">
+            {selected ? (
+              launch
+                ? <><s className="text-[18px] font-bold text-[#9aa6ac] mr-2 align-middle">{fmt(selected.price)}</s>{fmt(lp(selected.price))}</>
+                : fmt(selected.price)
+            ) : "—"}
+          </span>
+          {launch && (
+            <span className="block text-[12px] font-bold text-[#ff8a3d] mt-0.5">Launch price · {launch.pct}% off until {launchUntil}</span>
+          )}
         </div>
 
         {/* How you pay — the REAL schedule from /api/register/quote (the invoice
@@ -447,7 +463,7 @@ export function PackagePicker({ packages, currency = "EUR", reserve, heroImage }
               packageId: selected.id,
               level,
               accommodation: selected.accommodation,
-              price: selected.price,
+              price: lp(selected.price),
               currency,
             } satisfies ReserveContext
           }

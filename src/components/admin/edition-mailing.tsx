@@ -16,6 +16,7 @@ type Scheduled = {
   key: string; name: string; trigger: string;
   whenKind: "date" | "condition";
   daysBefore: number | null; daysAfterEnd: number | null; dueAt: string | null; daysAway: number | null;
+  windowPassed: boolean;
   kind: "transactional" | "lifecycle";
   enabled: boolean; canDisable: boolean;
   missing: string[]; uses: Uses[]; sent: number; lastSent: string | null;
@@ -31,6 +32,11 @@ type Data = {
 
 const fmt = (d: string | null) =>
   d ? new Date(d).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" }) : "—";
+// For date-ONLY values ("2026-08-05"): new Date() makes that UTC midnight, so a
+// viewer west of UTC saw "4 Aug". Format in UTC and the date stays the date.
+// (fmt above stays local — lastSent is a real timestamp and local is correct.)
+const fmtDay = (d: string | null) =>
+  d ? new Date(d).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric", timeZone: "UTC" }) : "—";
 
 /**
  * Everything this week's guests get, on one timeline.
@@ -179,11 +185,13 @@ function MailRow({
 }) {
   const gone = m.sent > 0;
   const blocked = m.missing.length > 0;
-  const past = m.daysAway != null && m.daysAway < 0;
+  const past = m.windowPassed;
   const off = !m.enabled || (m.kind === "lifecycle" && !lifecycleLive);
-  const when = m.daysBefore != null ? `${m.daysBefore}d before`
-    : m.daysAfterEnd != null ? `${m.daysAfterEnd}d after`
-    : "when\u2026";
+  // A dateless mail says "when…" even if it carries a lead — a row reading
+  // "3d after" inside the "no send date" section contradicts its own section.
+  const when = m.whenKind !== "date" ? "when…"
+    : m.daysBefore != null ? `${m.daysBefore}d before`
+    : `${m.daysAfterEnd}d after`;
 
   return (
     <div style={{ borderTop: i ? "1px solid var(--admin-border)" : undefined, backgroundColor: "var(--admin-surface)" }}>
@@ -224,7 +232,7 @@ function MailRow({
           ) : m.whenKind === "date" ? (
             <>
               <span className="block text-[12.5px] admin-muted">{past ? "Window passed" : "Due"}</span>
-              <span className="block text-[11px] admin-faint">{fmt(m.dueAt)}</span>
+              <span className="block text-[11px] admin-faint">{fmtDay(m.dueAt)}</span>
             </>
           ) : (
             <span className="block text-[12.5px] admin-faint">Not yet</span>

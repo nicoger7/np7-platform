@@ -37,6 +37,22 @@ export const SEND_AFTER_END = {
   post_trip_thank_you: 3,
 } as const;
 
+/**
+ * When each dated window CLOSES, in days before the start (after the end for
+ * post-trip). The cron fires anywhere inside its window, not on the single due
+ * date — labelling a mail "Window passed" the day after its ideal date, while
+ * the cron still had weeks to fire it, told the admin to catch up a mail that
+ * needed no catching up.
+ */
+export const WINDOW_CLOSE = {
+  crew_forming: 21,
+  pre_trip_info: 12,
+  pre_trip_excitement: 3,
+  waiver_reminder: 2,
+  pre_trip_final: 0,
+} as const;
+export const WINDOW_CLOSE_AFTER_END = { post_trip_thank_you: 14 } as const;
+
 export type ContentKey = "packingList" | "preTripNote" | "whatsappLink" | "finalDetailsNote";
 
 /**

@@ -155,9 +155,10 @@ function weekDates(start: string | null, end: string | null): string {
   if (!start) return "Dates not set";
   const s = new Date(start);
   const e = end ? new Date(end) : null;
-  const D = (d: Date, opts: Intl.DateTimeFormatOptions) => d.toLocaleDateString("en-GB", opts);
+  // Date-only strings parse as UTC midnight — format in UTC or Bonaire sees yesterday.
+  const D = (d: Date, opts: Intl.DateTimeFormatOptions) => d.toLocaleDateString("en-GB", { ...opts, timeZone: "UTC" });
   if (!e) return D(s, { day: "numeric", month: "short", year: "numeric" });
-  const sameMonth = s.getMonth() === e.getMonth() && s.getFullYear() === e.getFullYear();
+  const sameMonth = s.getUTCMonth() === e.getUTCMonth() && s.getUTCFullYear() === e.getUTCFullYear();
   return sameMonth
     ? `${s.getDate()}\u2013${D(e, { day: "numeric", month: "short", year: "numeric" })}`
     : `${D(s, { day: "numeric", month: "short" })} \u2013 ${D(e, { day: "numeric", month: "short", year: "numeric" })}`;
@@ -316,11 +317,13 @@ export function GoLiveList({ reports, onRefresh }: { reports: ExperienceReport[]
                   <span className="flex-1 min-w-0">
                     <span className="block text-[14px] font-bold admin-heading truncate">
                       {e.title}
-                      {!e.websiteVisible && <span className="ml-2 text-[10px] font-bold uppercase px-1.5 py-0.5 rounded admin-surface admin-faint">draft</span>}
+                      {/* Only when it disagrees with the group heading: a published trip
+                        hidden from the site needs saying; a draft under "Draft" doesn't. */}
+                    {e.status === "published" && !e.websiteVisible && <span className="ml-2 text-[10px] font-bold uppercase px-1.5 py-0.5 rounded admin-surface admin-faint">not on website</span>}
                     </span>
                     <span className="block text-[11.5px] admin-faint">
                       {e.editions.length} upcoming week{e.editions.length === 1 ? "" : "s"}
-                      {e.nextStart && <> · next {new Date(e.nextStart).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" })}</>}
+                      {e.nextStart && <> · next {new Date(e.nextStart).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric", timeZone: "UTC" })}</>}
                     </span>
                   </span>
                   {e.blockers > 0 && <span className="shrink-0 text-[11px] font-bold px-2 py-0.5 rounded bg-red-500/15 text-red-400">{e.blockers} blocking</span>}

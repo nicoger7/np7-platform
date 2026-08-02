@@ -25,6 +25,7 @@ export type EditionLite = {
 export function EditionBooking({
   editions,
   packagesByEdition,
+  launchByEdition,
   currency = "EUR",
   experienceId,
   experienceTitle,
@@ -32,6 +33,7 @@ export function EditionBooking({
 }: {
   editions: EditionLite[];
   packagesByEdition: Record<string, RealPackage[]>;
+  launchByEdition?: Record<string, { pct: number; until: string } | null>;
   currency?: string;
   experienceId: string;
   experienceTitle: string;
@@ -170,6 +172,7 @@ export function EditionBooking({
           key={ed?.id}
           packages={packages}
           currency={currency}
+          launch={launchByEdition?.[ed?.id ?? ""] ?? null}
           heroImage={heroImage}
           reserve={{
             experienceId,

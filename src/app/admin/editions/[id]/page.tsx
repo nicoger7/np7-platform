@@ -112,6 +112,8 @@ interface Edition {
   pricing_details: string | null;
   payment_page_id: string | null;
   whatsapp_group_link: string | null;
+  launch_discount_pct: number | null;
+  launch_price_until: string | null;
   total_fixed_costs: number | null;
   estimated_costs: number | null;
   expected_revenue: number | null;
@@ -678,6 +680,8 @@ export default function EditionDetailPage({
         experience_code: edition.experience_code,
         payment_page_id: edition.payment_page_id,
         whatsapp_group_link: edition.whatsapp_group_link,
+        launch_discount_pct: edition.launch_discount_pct,
+        launch_price_until: edition.launch_price_until,
         active: edition.active,
         notion_id: edition.notion_id,
       }),
@@ -1063,6 +1067,33 @@ export default function EditionDetailPage({
                 onChange={(e) => update("slug", e.target.value || null)}
                 placeholder="auto-generated from experience"
               />
+            </div>
+          </div>
+
+          {/* Launch price — a time-boxed opening discount on every package of
+              this week. Two fields, edition-level, nothing per-package to sync;
+              clearing either switches it off. The reserve API recomputes the
+              price server-side, so a stale page can't keep the discount alive. */}
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className={labelClass}>Launch price — % off</label>
+              <input type="number" min={0} max={90} className={inputClass}
+                placeholder="e.g. 10"
+                value={edition.launch_discount_pct ?? ""}
+                onChange={(e) => update("launch_discount_pct", e.target.value ? Number(e.target.value) : null)} />
+            </div>
+            <div>
+              <label className={labelClass}>…until (last day it applies)</label>
+              <input type="date" className={inputClass}
+                value={edition.launch_price_until ?? ""}
+                onChange={(e) => update("launch_price_until", e.target.value || null)} />
+              <p className="text-[11px] admin-faint mt-1">
+                {edition.launch_discount_pct && edition.launch_price_until
+                  ? (edition.launch_price_until >= new Date().toISOString().slice(0, 10)
+                    ? `Live: every package of this week shows and charges ${edition.launch_discount_pct}% off through ${edition.launch_price_until}.`
+                    : "The window has passed — full price applies.")
+                  : "Both fields set = launch price on. Either empty = off."}
+              </p>
             </div>
           </div>
 

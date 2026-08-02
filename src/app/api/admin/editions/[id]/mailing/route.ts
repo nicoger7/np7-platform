@@ -3,7 +3,7 @@ import { sendEmail } from "@/lib/email/send";
 import { requireTeamMember } from "@/lib/admin-auth";
 import { createAdminClient } from "@/lib/supabase";
 import { AUTOMATIONS, CANNOT_DISABLE, lifecycleLive } from "@/lib/email/automations";
-import { SEND_SCHEDULE, SEND_AFTER_END, resolveEditionContent, MAIL_REQUIREMENTS, CONTENT_LABELS, type ContentKey } from "@/lib/email/readiness";
+import { SEND_SCHEDULE, SEND_AFTER_END, WINDOW_CLOSE, WINDOW_CLOSE_AFTER_END, resolveEditionContent, MAIL_REQUIREMENTS, CONTENT_LABELS, type ContentKey } from "@/lib/email/readiness";
 
 export const dynamic = "force-dynamic";
 
@@ -84,6 +84,17 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
         ? new Date(end + after * DAY).toISOString().slice(0, 10)
         : null;
     const daysAway = dueAt ? Math.round((new Date(dueAt).getTime() - today) / DAY) : null;
+    // Passed = the cron can no longer fire it, not "the ideal day went by".
+    // crew_forming has a 38-day window; calling it passed on day 2 of 39 told
+    // the admin to catch up a mail that needed no catching up.
+    const close = WINDOW_CLOSE[a.key as keyof typeof WINDOW_CLOSE];
+    const closeAfter = WINDOW_CLOSE_AFTER_END[a.key as keyof typeof WINDOW_CLOSE_AFTER_END];
+    const daysToStart = start != null ? Math.round((start - today) / DAY) : null;
+    const daysSinceEnd = end != null ? Math.round((today - end) / DAY) : null;
+    const windowPassed = dueAt != null && (
+      close != null ? (daysToStart != null && daysToStart <= close)
+      : closeAfter != null ? (daysSinceEnd != null && daysSinceEnd > closeAfter)
+      : (daysAway != null && daysAway < 0));
     const req = MAIL_REQUIREMENTS[a.key];
     const uses = [...(req?.blocking ?? []), ...(req?.soft ?? [])];
     return {
@@ -93,6 +104,7 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
       whenKind: dueAt != null ? "date" as const : "condition" as const,
       daysBefore: lead ?? null,
       daysAfterEnd: after ?? null,
+      windowPassed,
       dueAt,
       daysAway,
       kind: a.kind,
@@ -112,7 +124,13 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
       sent: sentByTemplate[a.key]?.sent ?? 0,
       lastSent: sentByTemplate[a.key]?.last ?? null,
     };
-  }).sort((x, y) => (y.daysBefore ?? (x.daysAfterEnd != null || y.daysAfterEnd != null ? -1000 : -999)) - (x.daysBefore ?? -999));
+  }).sort((x, y) => {
+    // One key per mail — the previous comparator consulted the OTHER side's
+    // fields in its fallback and contradicted itself between argument orders.
+    const k = (m: { daysBefore: number | null; daysAfterEnd: number | null }) =>
+      m.daysBefore ?? (m.daysAfterEnd != null ? -m.daysAfterEnd : -999);
+    return k(y) - k(x);
+  });
 
   // Mail that isn't on a schedule but still went to these guests.
   const other = Object.entries(sentByTemplate)
@@ -153,6 +171,14 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
   const templateKey = typeof body.templateKey === "string" ? body.templateKey : "";
   if (!templateKey) return NextResponse.json({ error: "No mail chosen." }, { status: 400 });
 
+  // Only the mails this panel actually schedules. The route took ANY key, so a
+  // crafted request could fire e.g. deposit_confirmation with half its vars
+  // missing — nothing in the UI offered that, which is exactly why the API
+  // must not accept it.
+  if (!(templateKey in SEND_SCHEDULE) && !(templateKey in SEND_AFTER_END)) {
+    return NextResponse.json({ error: "That mail isn't a scheduled one — it can't be catch-up sent from here." }, { status: 400 });
+  }
+
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const db = createAdminClient() as any;
   const { values } = await resolveEditionContent(id);
@@ -168,6 +194,18 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     .select("id, status, downpayment_received, contact_id, contacts(name,email), exp_experiences(title), exp_editions(date_start,date_end,whatsapp_group_link)")
     .eq("edition_id", id);
 
+  // The waiver reminder has a per-guest condition the dedupe key can't cover:
+  // a guest who signed on day one has no prior send row, so only this check
+  // keeps the catch-up from nagging people who already did the thing.
+  const signed = new Set<string>();
+  if (templateKey === "waiver_reminder") {
+    const ids = ((bookings ?? []) as { id: string }[]).map((b) => b.id);
+    if (ids.length) {
+      const { data: sigs } = await db.from("exp_waiver_signatures").select("booking_id").in("booking_id", ids);
+      for (const sg of (sigs ?? []) as { booking_id: string | null }[]) if (sg.booking_id) signed.add(sg.booking_id);
+    }
+  }
+
   const origin = process.env.NEXT_PUBLIC_SITE_URL || "https://www.np-seven.com";
   const fmt = (x: string) => new Date(x).toLocaleDateString("en-GB", { day: "numeric", month: "short" });
   let sent = 0, skipped = 0;
@@ -177,6 +215,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     const secured = b.downpayment_received || SECURED.includes(String(b.status));
     const email = b.contacts?.email;
     if (!secured || !email) { skipped++; continue; }
+    if (templateKey === "waiver_reminder" && signed.has(String(b.id))) { skipped++; continue; }
     const s = b.exp_editions?.date_start as string | null;
     const e = b.exp_editions?.date_end as string | null;
     const res = await sendEmail({

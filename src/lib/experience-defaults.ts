@@ -56,12 +56,27 @@ export const DEFAULT_FAQ: FaqItem[] = [
   { q: "How does booking work?", a: "Reserve your spot in seconds — just your name and contact details, nothing more. We then contact you personally to sort every detail, and you pay by invoice: a down-payment to secure your place, with the balance due before the trip." },
 ];
 
-/** Order-insensitive-ish deep compare via canonical JSON — good enough to spot
- *  "nobody has touched this", which is all we claim. One edited word and it
- *  correctly stops counting as the default. */
+/** Recursively sort object keys, so jsonb round-trips compare equal. Postgres
+ *  normalizes key order ({q,a} comes back {a,q}), which made a plain
+ *  JSON.stringify comparison NEVER match — the "still generic" checks sat
+ *  green on 13/13 experiences whose content was byte-identical to the default. */
+function canonical(v: unknown): unknown {
+  if (Array.isArray(v)) return v.map(canonical);
+  if (v && typeof v === "object") {
+    return Object.fromEntries(Object.keys(v as object).sort().map((k) => [k, canonical((v as Record<string, unknown>)[k])]));
+  }
+  return v;
+}
+
+/** "Nobody has touched this" — one edited word and it stops counting as the
+ *  default. Empty counts as default too: the page renders the built-in copy
+ *  when the field is null or [], which is exactly the situation the check
+ *  exists to surface. */
 export function sameAsDefault(value: unknown, def: unknown): boolean {
+  if (value == null) return true;
+  if (Array.isArray(value) && value.length === 0) return true;
   try {
-    return JSON.stringify(value) === JSON.stringify(def);
+    return JSON.stringify(canonical(value)) === JSON.stringify(canonical(def));
   } catch {
     return false;
   }

@@ -14,6 +14,7 @@ import { Carousel } from "@/components/experience/carousel";
 import { Accordion, type AccordionItem } from "@/components/experience/accordion";
 import { StickyCta } from "@/components/experience/sticky-cta";
 import { type RealPackage } from "@/components/experience/package-picker";
+import { activeLaunch } from "@/lib/launch-price";
 import { EditionBooking, type EditionLite } from "@/components/experience/edition-booking";
 import { HeroVideo } from "@/components/experience/hero-video";
 import { paidSpotsByEdition, spotsLeftFrom } from "@/lib/availability";
@@ -213,7 +214,7 @@ export default async function ExperienceDetailPage({ params, searchParams }: Pro
   }
   let query = supabase
     .from("exp_experiences")
-    .select("id,title,location,currency,price,description,hero_image,gallery,airport_code,exp_editions(id,label,coaches,date_start,date_end,max_spots,spots_taken,deposit,status),exp_packages(id,name,price,status,edition_id,category,includes,exp_package_components(show_on_website,exp_components(name,description)))")
+    .select("id,title,location,currency,price,description,hero_image,gallery,airport_code,exp_editions(id,label,coaches,date_start,date_end,max_spots,spots_taken,deposit,status,launch_discount_pct,launch_price_until),exp_packages(id,name,price,status,edition_id,category,includes,exp_package_components(show_on_website,exp_components(name,description)))")
     .eq("slug", slug);
   if (!team) query = query.eq("status", "published");
   const { data: rows } = await query.order("status", { ascending: false }).limit(1);
@@ -255,6 +256,9 @@ export default async function ExperienceDetailPage({ params, searchParams }: Pro
   // "primary" edition = soonest upcoming (drives hero defaults)
   const edition = allEditions.find((e) => e.date_start && e.date_start >= today) ?? allEditions[0];
   const securedByEd = await paidSpotsByEdition(allEditions.map((e) => e.id)); // spots left = paid only
+  // Launch price per week — computed server-side once; the picker only displays it.
+  const launchByEdition: Record<string, { pct: number; until: string } | null> = {};
+  for (const e of allEditions) launchByEdition[e.id] = activeLaunch(e as never);
 
   // Securing payment: deposit is explicit 0 across the board for now (no Stripe yet)
   // → there's no upfront deposit; the spot is reserved free and confirmed by the
@@ -840,6 +844,7 @@ export default async function ExperienceDetailPage({ params, searchParams }: Pro
               <EditionBooking
                 editions={editionsLite}
                 packagesByEdition={packagesByEdition}
+                launchByEdition={launchByEdition}
                 currency={experience.currency ?? undefined}
                 experienceId={experience.id}
                 experienceTitle={experience.title}
