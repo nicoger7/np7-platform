@@ -1,17 +1,29 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { MailReadiness } from "@/components/admin/mail-readiness";
 
+type Uses = {
+  key: "packingList" | "preTripNote" | "whatsappLink";
+  label: string;
+  blocking: boolean;
+  value: string | null;
+  source: "edition" | "experience" | null;
+  inherited: string | null;
+};
 type Scheduled = {
   key: string; name: string; trigger: string;
+  whenKind: "date" | "condition";
   daysBefore: number | null; dueAt: string | null; daysAway: number | null;
-  missing: string[]; sent: number; lastSent: string | null;
+  kind: "transactional" | "lifecycle";
+  enabled: boolean; canDisable: boolean;
+  missing: string[]; uses: Uses[]; sent: number; lastSent: string | null;
 };
 type Data = {
   startDate: string | null; endDate: string | null;
   guests: number; securedGuests: number;
+  lifecycleLive: boolean;
   content: { packingList: boolean; preTripNote: boolean; whatsappLink: boolean };
   scheduled: Scheduled[];
   other: { key: string; name: string; sent: number; last: string | null }[];
@@ -28,12 +40,33 @@ const fmt = (d: string | null) =>
  * "what has this week actually had from us?", had no answer anywhere. Ordered
  * by when each mail fires rather than by when it was sent, because that is how
  * you think about a trip that hasn't happened yet.
+ *
+ * Two things were unreadable here and are now fixed:
+ *  - The condition-driven mails have no date, so they rendered as "—" with
+ *    "Due —" beside them, sitting under the dated ones as if something had
+ *    failed. They are their own section now, with what sets each one off.
+ *  - The content a mail sends — packing list, pre-trip note, group link — was
+ *    edited two pages away. You only ever ask "what does the pre-trip mail
+ *    actually say?", so opening the mail is where you answer it, with the
+ *    inherited default shown next to your override.
  */
 export function EditionMailing({ editionId }: { editionId: string }) {
   const [d, setD] = useState<Data | null>(null);
   const [loading, setLoading] = useState(true);
   const [sending, setSending] = useState<string | null>(null);
   const [msg, setMsg] = useState<string | null>(null);
+  const [open, setOpen] = useState<Set<string>>(new Set());
+
+  const load = useCallback(async () => {
+    const x = await fetch(`/api/admin/editions/${editionId}/mailing`).then((r) => r.json());
+    setD(x);
+  }, [editionId]);
+
+  const toggle = (k: string) => setOpen((p) => {
+    const n = new Set(p);
+    if (n.has(k)) n.delete(k); else n.add(k);
+    return n;
+  });
 
   /** Catch-up send for a mail whose window already passed. */
   async function sendNow(key: string, name: string, guests: number) {
@@ -46,10 +79,7 @@ export function EditionMailing({ editionId }: { editionId: string }) {
       });
       const j = await r.json();
       setMsg(r.ok ? `${name}: sent to ${j.sent}${j.skipped ? `, ${j.skipped} skipped` : ""}.` : (j.error || "Send failed."));
-      if (r.ok) {
-        const list = await fetch(`/api/admin/editions/${editionId}/mailing`).then((x) => x.json());
-        setD(list);
-      }
+      if (r.ok) await load();
     } catch { setMsg("Send failed."); }
     finally { setSending(null); }
   }
@@ -66,6 +96,89 @@ export function EditionMailing({ editionId }: { editionId: string }) {
   if (loading) return <p className="text-sm admin-faint">Loading this week&apos;s mail…</p>;
   if (!d) return <p className="text-sm admin-faint">Couldn&apos;t load the mailing timeline.</p>;
 
+  const dated = d.scheduled.filter((m) => m.whenKind === "date");
+  const conditional = d.scheduled.filter((m) => m.whenKind === "condition");
+
+  const Row = ({ m, i }: { m: Scheduled; i: number }) => {
+    const gone = m.sent > 0;
+    const blocked = m.missing.length > 0;
+    const past = m.daysAway != null && m.daysAway < 0;
+    const isOpen = open.has(m.key);
+    const off = !m.enabled || (m.kind === "lifecycle" && !d.lifecycleLive);
+    return (
+      <div style={{ borderTop: i ? "1px solid var(--admin-border)" : undefined, backgroundColor: "var(--admin-surface)" }}>
+        <div className="flex items-start gap-3 px-4 py-3">
+          <button onClick={() => toggle(m.key)}
+            className={`shrink-0 w-16 text-right text-[12px] font-bold ${gone ? "text-green-500" : blocked ? "text-amber-500" : "admin-faint"}`}>
+            {m.whenKind === "date" ? `${m.daysBefore}d before` : "when…"}
+          </button>
+          <button onClick={() => toggle(m.key)} className="flex-1 min-w-0 text-left">
+            <span className="flex items-center gap-2">
+              <span className="text-[13.5px] font-bold admin-heading">{m.name}</span>
+              {off && (
+                <span className="shrink-0 text-[10px] font-bold uppercase px-1.5 py-0.5 rounded bg-[var(--admin-surface-hover)] admin-faint">
+                  {!m.enabled ? "off" : "paused"}
+                </span>
+              )}
+              <svg className={`w-3.5 h-3.5 admin-faint transition-transform ${isOpen ? "rotate-180" : ""}`} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M6 9l6 6 6-6" /></svg>
+            </span>
+            <span className="block text-[11.5px] admin-faint">{m.trigger}</span>
+            {blocked && !gone && (
+              <span className="block text-[11.5px] text-amber-500 mt-0.5">Held — needs {m.missing.join(", ")}</span>
+            )}
+          </button>
+          <span className="shrink-0 text-right">
+            {/* A passed window used to be a dead end: the cron won't fire it
+                any more and there was nothing to press. */}
+            {!gone && past && !blocked && m.whenKind === "date" && (
+              <button onClick={() => sendNow(m.key, m.name, d.securedGuests)} disabled={sending === m.key}
+                className="block ml-auto mb-0.5 text-[12px] font-bold text-[#0aa3c7] hover:underline disabled:opacity-50">
+                {sending === m.key ? "Sending…" : "Send now →"}
+              </button>
+            )}
+            {gone ? (
+              <>
+                <span className="block text-[12.5px] font-bold text-green-500">Sent to {m.sent}</span>
+                <span className="block text-[11px] admin-faint">{fmt(m.lastSent)}</span>
+              </>
+            ) : m.whenKind === "date" ? (
+              <>
+                <span className="block text-[12.5px] admin-muted">{past ? "Window passed" : "Due"}</span>
+                <span className="block text-[11px] admin-faint">{fmt(m.dueAt)}</span>
+              </>
+            ) : (
+              <span className="block text-[12.5px] admin-faint">Not yet</span>
+            )}
+          </span>
+        </div>
+
+        {isOpen && (
+          <div className="px-4 pb-4 pl-[76px]" style={{ borderTop: "1px solid var(--admin-border)" }}>
+            <p className="text-[12px] admin-muted pt-3 mb-3 max-w-[60ch]">
+              {m.whenKind === "date"
+                ? <>The nightly job works this out from the trip start date — {m.daysBefore} days before, which is {fmt(m.dueAt)}. Nobody presses anything.</>
+                : <>No date: the nightly job checks every night and sends it the first night the condition is true. That&apos;s why there&apos;s nothing to count down to.</>}
+              {" "}
+              {!m.enabled
+                ? <>It is <strong>switched off</strong> — nothing goes out until you turn it back on.</>
+                : m.kind === "lifecycle" && !d.lifecycleLive
+                  ? <>The switch is on, but the whole lifecycle pipeline is <strong>paused</strong>, so it is worked out and held.</>
+                  : <>It is <strong>live</strong>.</>}
+              {" "}
+              <Link href={`/admin/emails/${m.key}`} className="text-[#0aa3c7] hover:underline">Wording &amp; switch →</Link>
+            </p>
+
+            {m.uses.length === 0
+              ? <p className="text-[12px] admin-faint">This one writes itself — no content from you.</p>
+              : m.uses.map((u) => (
+                <ContentField key={u.key} editionId={editionId} use={u} onSaved={load} />
+              ))}
+          </div>
+        )}
+      </div>
+    );
+  };
+
   return (
     <div className="max-w-[860px]">
       <h3 className="text-base font-bold admin-heading mb-1">Mailing</h3>
@@ -79,52 +192,25 @@ export function EditionMailing({ editionId }: { editionId: string }) {
       <div className="mb-5"><MailReadiness editionId={editionId} /></div>
 
       {msg && <p className="text-[12.5px] font-semibold mb-3 admin-heading">{msg}</p>}
-      <div className="rounded-xl overflow-hidden mb-4" style={{ border: "1px solid var(--admin-border)" }}>
-        {d.scheduled.map((m, i) => {
-          const gone = m.sent > 0;
-          const blocked = m.missing.length > 0;
-          const past = m.daysAway != null && m.daysAway < 0;
-          return (
-            <div key={m.key}
-              className="flex items-start gap-3 px-4 py-3"
-              style={{ borderTop: i ? "1px solid var(--admin-border)" : undefined, backgroundColor: "var(--admin-surface)" }}>
-              <span className={`shrink-0 w-16 text-right text-[12px] font-bold ${gone ? "text-green-500" : blocked ? "text-amber-500" : "admin-faint"}`}>
-                {m.daysBefore != null ? `${m.daysBefore}d before` : "—"}
-              </span>
-              <span className="flex-1 min-w-0">
-                <Link href={`/admin/emails/${m.key}`} className="text-[13.5px] font-bold admin-heading hover:text-[#0aa3c7] transition-colors">{m.name}</Link>
-                <span className="block text-[11.5px] admin-faint truncate">{m.trigger}</span>
-                {blocked && !gone && (
-                  <span className="block text-[11.5px] text-amber-500 mt-0.5">
-                    Held — needs {m.missing.join(", ")}
-                  </span>
-                )}
-              </span>
-              <span className="shrink-0 text-right">
-                {/* A passed window used to be a dead end: the cron won't fire it
-                    any more and there was nothing to press. */}
-                {!gone && past && !blocked && (
-                  <button onClick={() => sendNow(m.key, m.name, d.securedGuests)} disabled={sending === m.key}
-                    className="block ml-auto mb-0.5 text-[12px] font-bold text-[#0aa3c7] hover:underline disabled:opacity-50">
-                    {sending === m.key ? "Sending…" : "Send now →"}
-                  </button>
-                )}
-                {gone ? (
-                  <>
-                    <span className="block text-[12.5px] font-bold text-green-500">Sent to {m.sent}</span>
-                    <span className="block text-[11px] admin-faint">{fmt(m.lastSent)}</span>
-                  </>
-                ) : (
-                  <>
-                    <span className="block text-[12.5px] admin-muted">{past ? "Window passed" : "Due"}</span>
-                    <span className="block text-[11px] admin-faint">{fmt(m.dueAt)}</span>
-                  </>
-                )}
-              </span>
-            </div>
-          );
-        })}
+
+      <p className="text-[11px] font-bold tracking-[0.12em] uppercase admin-faint mb-2">On a date, counted back from the trip</p>
+      <div className="rounded-xl overflow-hidden mb-5" style={{ border: "1px solid var(--admin-border)" }}>
+        {dated.map((m, i) => <Row key={m.key} m={m} i={i} />)}
       </div>
+
+      {conditional.length > 0 && (
+        <>
+          <p className="text-[11px] font-bold tracking-[0.12em] uppercase admin-faint mb-1">When something happens</p>
+          <p className="text-[12px] admin-muted mb-2 max-w-[62ch]">
+            These have no send date — the nightly job checks each night and sends the first night the condition is
+            true, per guest. So one guest can get a payment reminder while another never does. Nothing is wrong when
+            these show nothing.
+          </p>
+          <div className="rounded-xl overflow-hidden mb-4" style={{ border: "1px solid var(--admin-border)" }}>
+            {conditional.map((m, i) => <Row key={m.key} m={m} i={i} />)}
+          </div>
+        </>
+      )}
 
       {d.other.length > 0 && (
         <div className="mb-4">
@@ -146,6 +232,72 @@ export function EditionMailing({ editionId }: { editionId: string }) {
         Every send is logged in <Link href="/admin/email-log" className="text-[#0aa3c7] hover:underline">Email Log</Link>.
         Wording and on/off switches live in <Link href="/admin/emails" className="text-[#0aa3c7] hover:underline">Emails</Link>.
       </p>
+    </div>
+  );
+}
+
+/**
+ * One piece of content a mail pulls in — edited here, with what it falls back to.
+ *
+ * Empty is a legitimate answer for most of these: the experience-level version
+ * is used instead. Showing that text greyed out under the box is the difference
+ * between "nothing is set" and "this is what will go out".
+ */
+function ContentField({ editionId, use, onSaved }: { editionId: string; use: Uses; onSaved: () => void }) {
+  const [value, setValue] = useState(use.source === "edition" ? (use.value ?? "") : "");
+  const [saving, setSaving] = useState(false);
+  const [done, setDone] = useState(false);
+
+  const save = async () => {
+    setSaving(true); setDone(false);
+    try {
+      const r = await fetch(`/api/admin/editions/${editionId}/mailing`, {
+        method: "PATCH", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ key: use.key, value }),
+      });
+      if (r.ok) { setDone(true); onSaved(); }
+    } finally { setSaving(false); }
+  };
+
+  const multiline = use.key !== "whatsappLink";
+
+  return (
+    <div className="mb-3.5">
+      <p className="text-[12px] font-bold admin-heading mb-1 flex items-center gap-2">
+        {use.label}
+        {use.blocking
+          ? <span className="text-[10px] font-bold uppercase px-1.5 py-0.5 rounded bg-amber-500/15 text-amber-500">holds the mail</span>
+          : <span className="text-[10px] admin-faint font-normal">optional</span>}
+        {use.source === "experience" && <span className="text-[10px] admin-faint font-normal">using the experience&apos;s</span>}
+        {use.source === null && <span className="text-[10px] text-amber-500 font-normal">nothing set anywhere</span>}
+      </p>
+
+      {multiline ? (
+        <textarea value={value} onChange={(e) => { setValue(e.target.value); setDone(false); }} rows={4}
+          placeholder={use.inherited ? "Leave empty to use the experience's — shown below" : "Nothing here and nothing to fall back on"}
+          className="w-full rounded-lg px-3 py-2 text-[13px] outline-none focus:border-[#0aa3c7] resize-y"
+          style={{ border: "1px solid var(--admin-border)", backgroundColor: "var(--admin-bg)", color: "var(--admin-text)" }} />
+      ) : (
+        <input value={value} onChange={(e) => { setValue(e.target.value); setDone(false); }}
+          placeholder="https://chat.whatsapp.com/…"
+          className="w-full rounded-lg px-3 py-2 text-[13px] outline-none focus:border-[#0aa3c7]"
+          style={{ border: "1px solid var(--admin-border)", backgroundColor: "var(--admin-bg)", color: "var(--admin-text)" }} />
+      )}
+
+      <div className="flex items-center gap-2 mt-1.5">
+        <button onClick={save} disabled={saving}
+          className="text-[12px] font-bold px-3 py-1 rounded-lg bg-[#0aa3c7] text-white disabled:opacity-50">
+          {saving ? "Saving…" : "Save for this week"}
+        </button>
+        {done && <span className="text-[12px] text-green-500 font-semibold">Saved</span>}
+      </div>
+
+      {use.inherited && !value.trim() && (
+        <div className="mt-2 rounded-lg px-3 py-2" style={{ border: "1px dashed var(--admin-border)" }}>
+          <p className="text-[11px] font-bold admin-faint uppercase tracking-[0.1em] mb-1">What guests get instead</p>
+          <p className="text-[12px] admin-muted whitespace-pre-wrap line-clamp-6">{use.inherited}</p>
+        </div>
+      )}
     </div>
   );
 }

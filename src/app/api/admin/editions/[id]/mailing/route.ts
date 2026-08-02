@@ -2,8 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { sendEmail } from "@/lib/email/send";
 import { requireTeamMember } from "@/lib/admin-auth";
 import { createAdminClient } from "@/lib/supabase";
-import { AUTOMATIONS } from "@/lib/email/automations";
-import { SEND_SCHEDULE, resolveEditionContent, MAIL_REQUIREMENTS } from "@/lib/email/readiness";
+import { AUTOMATIONS, CANNOT_DISABLE, lifecycleLive } from "@/lib/email/automations";
+import { SEND_SCHEDULE, resolveEditionContent, MAIL_REQUIREMENTS, CONTENT_LABELS, type ContentKey } from "@/lib/email/readiness";
 
 export const dynamic = "force-dynamic";
 
@@ -26,7 +26,7 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const db = createAdminClient() as any;
 
-  const { startDate, values } = await resolveEditionContent(id);
+  const { startDate, values, inherited, source } = await resolveEditionContent(id);
   const { data: ed } = await db.from("exp_editions").select("date_start, date_end").eq("id", id).maybeSingle();
 
   const { data: bookings } = await db
@@ -58,20 +58,50 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
   const today = Date.now();
   const start = startDate ? new Date(startDate).getTime() : null;
 
+  // Whether each mail is switched on at all. A row saying "Due 5 Aug" while the
+  // template is off is a lie, and the switch lives two pages away.
+  const { data: templates } = await db.from("email_templates").select("template_key, enabled");
+  const enabledByKey = new Map<string, boolean>();
+  for (const t of (templates ?? []) as { template_key: string; enabled: boolean | null }[]) {
+    enabledByKey.set(t.template_key, t.enabled !== false);
+  }
+
   // The scheduled mails, in the order they fire, with what each still needs.
+  //
+  // Two very different things live under source: "scheduled". Some fire on a
+  // date worked out from the trip start — those have a lead in SEND_SCHEDULE.
+  // The rest fire when something becomes true (a payment lands, a deadline
+  // passes, photos appear), so they have no date at all and were rendering as a
+  // bare "—" with "Due —" next to it, which reads like something is broken.
+  // `whenKind` lets the panel keep them apart and say so.
   const scheduled = AUTOMATIONS.filter((a) => a.source === "scheduled").map((a) => {
     const lead = SEND_SCHEDULE[a.key as keyof typeof SEND_SCHEDULE];
     const dueAt = lead != null && start != null ? new Date(start - lead * DAY).toISOString().slice(0, 10) : null;
     const daysAway = dueAt ? Math.round((new Date(dueAt).getTime() - today) / DAY) : null;
-    const blocking = MAIL_REQUIREMENTS[a.key]?.blocking ?? [];
+    const req = MAIL_REQUIREMENTS[a.key];
+    const uses = [...(req?.blocking ?? []), ...(req?.soft ?? [])];
     return {
       key: a.key,
       name: a.name,
       trigger: a.trigger,
+      whenKind: lead != null ? "date" as const : "condition" as const,
       daysBefore: lead ?? null,
       dueAt,
       daysAway,
-      missing: blocking.filter((k) => !values[k]),
+      kind: a.kind,
+      enabled: enabledByKey.get(a.key) ?? true,
+      canDisable: !CANNOT_DISABLE.has(a.key),
+      missing: (req?.blocking ?? []).filter((k) => !values[k]),
+      // What this mail pulls in, so the row can be opened and filled in here
+      // rather than sending you to Event Content to guess which field it meant.
+      uses: uses.map((k) => ({
+        key: k,
+        label: CONTENT_LABELS[k].label,
+        blocking: (req?.blocking ?? []).includes(k),
+        value: values[k],
+        source: source[k],
+        inherited: k === "whatsappLink" ? null : inherited[k as "packingList" | "preTripNote"],
+      })),
       sent: sentByTemplate[a.key]?.sent ?? 0,
       lastSent: sentByTemplate[a.key]?.last ?? null,
     };
@@ -89,6 +119,7 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
     guests: rows.length,
     securedGuests: secured.length,
     content: { packingList: !!values.packingList, preTripNote: !!values.preTripNote, whatsappLink: !!values.whatsappLink },
+    lifecycleLive: lifecycleLive(),
     scheduled,
     other,
   });
@@ -163,4 +194,37 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     if (res.status === "sent") sent++; else skipped++;
   }
   return NextResponse.json({ ok: true, sent, skipped });
+}
+
+
+/**
+ * Save one of this week's content overrides, from the mail that uses it.
+ *
+ * The fields live on the edition (`pre_trip_note`, `packing_list`,
+ * `whatsapp_group_link`) and fall back to the experience — but you only ever
+ * think about them in terms of a mail: "what does the pre-trip mail actually
+ * say?". Editing them from the mail row means the answer and the edit are in
+ * the same place, with the inherited default visible next to it.
+ */
+const OVERRIDE_COLUMN: Record<ContentKey, string> = {
+  packingList: "packing_list",
+  preTripNote: "pre_trip_note",
+  whatsappLink: "whatsapp_group_link",
+};
+
+export async function PATCH(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  const denied = await requireTeamMember();
+  if (denied) return denied;
+  const { id } = await params;
+  const body = await request.json().catch(() => ({} as Record<string, unknown>));
+  const key = String(body.key ?? "") as ContentKey;
+  const column = OVERRIDE_COLUMN[key];
+  if (!column) return NextResponse.json({ error: "Unknown field." }, { status: 400 });
+
+  const raw = typeof body.value === "string" ? body.value.trim() : "";
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const db = createAdminClient() as any;
+  const { error } = await db.from("exp_editions").update({ [column]: raw || null }).eq("id", id);
+  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+  return NextResponse.json({ ok: true });
 }
