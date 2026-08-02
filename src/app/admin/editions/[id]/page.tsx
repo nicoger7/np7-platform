@@ -136,6 +136,7 @@ interface Room {
   id: string;
   name: string;
   hotel: string;
+  hotel_id?: string | null;
   room_type: string;
   room_number: string | null;
   status: string;
@@ -154,7 +155,24 @@ const BOOKING_STATUSES: Record<string, { label: string; color: string }> = {
   lost: { label: "Lost", color: "bg-red-500" },
 };
 
-const HOTELS = ["Sorobon", "Wanapa", "Playa Surf", "Hotel Paradiso", "Alacati", "REF", "REF II"];
+/**
+ * The room's hotel, from the hotels table.
+ *
+ * This was a hardcoded array of nicknames ("REF", "REF II", "Sorobon") that
+ * matched no hotel record, so a room could never tell you which hotel it was
+ * actually in — and "REF" was ambiguous across two REF hotels. Rooms now carry
+ * hotel_id; the legacy `hotel` text is still written so the Notion sync and
+ * older reads keep working.
+ */
+function useHotelOptions() {
+  const [hotels, setHotels] = useState<{ id: string; name: string; location: string | null }[]>([]);
+  useEffect(() => {
+    fetch("/api/admin/hotels").then((r) => r.json())
+      .then((d) => setHotels((d.hotels ?? d ?? []).filter((h: { archived_at?: string | null }) => !h.archived_at)))
+      .catch(() => {});
+  }, []);
+  return hotels;
+}
 const COST_STATUSES = ["estimate", "confirmed", "cancelled", "unlisted"];
 const ROOM_STATUSES = ["available", "assigned", "held"];
 const PKG_CATEGORIES = ["", "pro", "beginner", "mixed"];
@@ -284,8 +302,9 @@ export default function EditionDetailPage({
   const [costShow, setCostShow] = useState(false);
   const [pnl, setPnl] = useState<{ received: number; expected: number; costs: number; net: number; bookings: number; componentEstimate?: { total: number; bookings: number; breakdown: { name: string; qty: number; unitCost: number; total: number }[] } } | null>(null);
 
-  const emptyRoom = { name: "", hotel: "", room_type: "", room_number: "", status: "available", booking_id: "", extra_booking_ids: [] as string[], partner_tag_along: "" };
+  const emptyRoom = { name: "", hotel_id: "", hotel: "", room_type: "", room_number: "", status: "available", booking_id: "", extra_booking_ids: [] as string[], partner_tag_along: "" };
   const [roomForm, setRoomForm] = useState(emptyRoom);
+  const hotelOptions = useHotelOptions();
   const [roomEditId, setRoomEditId] = useState<string | null>(null);
   const [roomShow, setRoomShow] = useState(false);
 
@@ -467,6 +486,8 @@ export default function EditionDetailPage({
   async function saveRoom() {
     const body = {
       name: roomForm.name,
+      hotel_id: roomForm.hotel_id || null,
+      // legacy text kept in step with the link — the Notion sync still writes it
       hotel: roomForm.hotel || null,
       room_type: roomForm.room_type || null,
       room_number: roomForm.room_number || null,
@@ -1508,7 +1529,7 @@ export default function EditionDetailPage({
               {rooms.map((room) => {
                 const active = room.id === roomEditId;
                 return (
-                  <button key={room.id} onClick={() => { setRoomEditId(room.id); setRoomShow(false); setRoomForm({ name: room.name, hotel: room.hotel || "", room_type: room.room_type || "", room_number: room.room_number || "", status: room.status, booking_id: room.booking_id || "", extra_booking_ids: room.extra_booking_ids ?? [], partner_tag_along: room.partner_tag_along ?? "" }); }} className="shrink-0 text-left px-3 py-2 rounded-lg transition-colors" style={{ background: active ? "var(--admin-accent)" : "var(--admin-surface)", border: "1px solid var(--admin-border)" }}>
+                  <button key={room.id} onClick={() => { setRoomEditId(room.id); setRoomShow(false); setRoomForm({ name: room.name, hotel_id: room.hotel_id || "", hotel: room.hotel || "", room_type: room.room_type || "", room_number: room.room_number || "", status: room.status, booking_id: room.booking_id || "", extra_booking_ids: room.extra_booking_ids ?? [], partner_tag_along: room.partner_tag_along ?? "" }); }} className="shrink-0 text-left px-3 py-2 rounded-lg transition-colors" style={{ background: active ? "var(--admin-accent)" : "var(--admin-surface)", border: "1px solid var(--admin-border)" }}>
                     <span className={`block text-xs font-semibold truncate ${active ? "text-[var(--admin-accent-contrast)]" : "admin-heading"}`}>{room.name}</span>
                     {(() => {
                       const extra = (room.extra_booking_ids?.length ?? 0) + (room.partner_tag_along ? 1 : 0);
@@ -1525,7 +1546,7 @@ export default function EditionDetailPage({
                 <h3 className="text-base font-bold admin-heading mb-4">{roomEditId ? "Edit room" : "New room"}</h3>
                 <div className="mb-3"><label className={labelClass}>Name *</label><input className={inputClass} value={roomForm.name} onChange={(e) => setRoomForm({ ...roomForm, name: e.target.value })} /></div>
                 <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 mb-3">
-                  <div><label className={labelClass}>Hotel</label><select className={inputClass} value={roomForm.hotel} onChange={(e) => setRoomForm({ ...roomForm, hotel: e.target.value })}><option value="">—</option>{HOTELS.map((h) => <option key={h} value={h}>{h}</option>)}</select></div>
+                  <div><label className={labelClass}>Hotel</label><select className={inputClass} value={roomForm.hotel_id} onChange={(e) => setRoomForm({ ...roomForm, hotel_id: e.target.value, hotel: hotelOptions.find((h) => h.id === e.target.value)?.name ?? "" })}><option value="">—</option>{hotelOptions.map((h) => <option key={h.id} value={h.id}>{h.name}</option>)}</select></div>
                   <div><label className={labelClass}>Room #</label><input className={inputClass} value={roomForm.room_number} onChange={(e) => setRoomForm({ ...roomForm, room_number: e.target.value })} /></div>
                   <div><label className={labelClass}>Status</label><select className={inputClass} value={roomForm.status} onChange={(e) => setRoomForm({ ...roomForm, status: e.target.value })}>{ROOM_STATUSES.map((s) => <option key={s} value={s}>{s[0].toUpperCase() + s.slice(1)}</option>)}</select></div>
                 </div>
@@ -1596,7 +1617,7 @@ export default function EditionDetailPage({
                   onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = "var(--admin-surface-hover)")}
                   onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = "transparent")}
                 >
-                  <span className="text-sm font-medium admin-heading truncate self-center cursor-pointer" onClick={() => { setRoomEditId(room.id); setRoomShow(false); setRoomForm({ name: room.name, hotel: room.hotel || "", room_type: room.room_type || "", room_number: room.room_number || "", status: room.status, booking_id: room.booking_id || "", extra_booking_ids: room.extra_booking_ids ?? [], partner_tag_along: room.partner_tag_along ?? "" }); }}>{room.name}</span>
+                  <span className="text-sm font-medium admin-heading truncate self-center cursor-pointer" onClick={() => { setRoomEditId(room.id); setRoomShow(false); setRoomForm({ name: room.name, hotel_id: room.hotel_id || "", hotel: room.hotel || "", room_type: room.room_type || "", room_number: room.room_number || "", status: room.status, booking_id: room.booking_id || "", extra_booking_ids: room.extra_booking_ids ?? [], partner_tag_along: room.partner_tag_along ?? "" }); }}>{room.name}</span>
                   <span className="text-xs admin-muted self-center truncate">{room.room_type}</span>
                   <span className="text-xs admin-muted self-center">{room.hotel}</span>
                   <span className="self-center">

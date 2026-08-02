@@ -18,6 +18,7 @@ interface Occupancy {
   room_id: string | null;
   name: string;
   hotel: string | null;
+  hotel_id?: string | null;
   room_type: string | null;
   room_number: string | null;
   status: string;
@@ -38,6 +39,7 @@ interface RoomUnit {
   experience_id: string | null;
   experience_ids?: string[] | null;
   hotel: string | null;
+  hotel_id?: string | null;
   name: string;
   room_type: string | null;
   room_number: string | null;
@@ -47,7 +49,24 @@ interface RoomUnit {
 interface Experience { id: string; title: string; status?: string }
 type Edition = { id: string; label: string | null; year: number; experience_id: string; date_start?: string | null; date_end?: string | null };
 
-const HOTELS = ["Sorobon", "Wanapa", "Playa Surf", "Hotel Paradiso", "Alacati", "REF", "REF II"];
+/**
+ * The room's hotel, from the hotels table.
+ *
+ * This was a hardcoded array of nicknames ("REF", "REF II", "Sorobon") that
+ * matched no hotel record, so a room could never tell you which hotel it was
+ * actually in — and "REF" was ambiguous across two REF hotels. Rooms now carry
+ * hotel_id; the legacy `hotel` text is still written so the Notion sync and
+ * older reads keep working.
+ */
+function useHotelOptions() {
+  const [hotels, setHotels] = useState<{ id: string; name: string; location: string | null }[]>([]);
+  useEffect(() => {
+    fetch("/api/admin/hotels").then((r) => r.json())
+      .then((d) => setHotels((d.hotels ?? d ?? []).filter((h: { archived_at?: string | null }) => !h.archived_at)))
+      .catch(() => {});
+  }, []);
+  return hotels;
+}
 const STATUSES = ["available", "assigned", "held"];
 
 function formatDate(d: string | null) {
@@ -55,7 +74,7 @@ function formatDate(d: string | null) {
   return new Date(d).toLocaleDateString("en-US", { month: "short", day: "numeric" });
 }
 
-const emptyUnit = { name: "", hotel: "", room_type: "", room_number: "", comments: "", experience_ids: [] as string[] };
+const emptyUnit = { name: "", hotel_id: "", hotel: "", room_type: "", room_number: "", comments: "", experience_ids: [] as string[] };
 const emptyWeek = { edition_id: "", booking_id: "", status: "available", check_in: "", check_out: "", transfer_need: false, partner_tag_along: "", hotel_confirmed: false };
 
 export default function HotelRoomsPage() {
@@ -73,6 +92,7 @@ export default function HotelRoomsPage() {
   // physical-room editor
   const [selUnit, setSelUnit] = useState<string | "new" | null>(null);
   const [unitForm, setUnitForm] = useState(emptyUnit);
+  const hotelOptions = useHotelOptions();
   const [savingUnit, setSavingUnit] = useState(false);
   const [expPickerOpen, setExpPickerOpen] = useState(false);
   // per-week editor (inside a selected room)
@@ -171,14 +191,14 @@ export default function HotelRoomsPage() {
     if (id === "new") { setUnitForm({ ...emptyUnit, hotel: filterHotel || "", experience_ids: filterExperience ? [filterExperience] : [] }); return; }
     const g = groupMap[id];
     const u = g?.unit;
-    if (u) setUnitForm({ name: u.name, hotel: u.hotel || "", room_type: u.room_type || "", room_number: u.room_number || "", comments: u.comments || "", experience_ids: (u.experience_ids?.length ? u.experience_ids : u.experience_id ? [u.experience_id] : []) });
+    if (u) setUnitForm({ name: u.name, hotel_id: u.hotel_id || "", hotel: u.hotel || "", room_type: u.room_type || "", room_number: u.room_number || "", comments: u.comments || "", experience_ids: (u.experience_ids?.length ? u.experience_ids : u.experience_id ? [u.experience_id] : []) });
   }
   function closeUnit() { setSelUnit(null); setUnitForm(emptyUnit); setWeekEditId(null); setWeekForm(emptyWeek); }
 
   async function saveUnit() {
     if (!unitForm.name) return;
     setSavingUnit(true);
-    const body = { name: unitForm.name, hotel: unitForm.hotel || null, room_type: unitForm.room_type || null, room_number: unitForm.room_number || null, comments: unitForm.comments || null, experience_ids: unitForm.experience_ids };
+    const body = { name: unitForm.name, hotel_id: unitForm.hotel_id || null, hotel: unitForm.hotel || null, room_type: unitForm.room_type || null, room_number: unitForm.room_number || null, comments: unitForm.comments || null, experience_ids: unitForm.experience_ids };
     if (selUnit === "new") {
       const res = await fetch("/api/admin/rooms", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }).then((r) => r.json());
       await loadRooms();
@@ -239,7 +259,7 @@ export default function HotelRoomsPage() {
     }
     setSavingWeek(true);
     const body = {
-      room_id: u.id, experience_id: u.experience_id || null, name: u.name, hotel: u.hotel || null,
+      room_id: u.id, experience_id: u.experience_id || null, name: u.name, hotel_id: u.hotel_id || null, hotel: u.hotel || null,
       room_type: u.room_type || null, room_number: u.room_number || null,
       edition_id: weekForm.edition_id || null, booking_id: weekForm.booking_id || null, status: weekForm.status,
       check_in: weekForm.check_in || null, check_out: weekForm.check_out || null,
@@ -337,7 +357,7 @@ export default function HotelRoomsPage() {
               <p className="text-xs admin-faint mb-4">The physical room — name &amp; type apply to every week.</p>
               <div className="mb-3"><label className={labelClass}>Name * <span className="normal-case font-normal admin-faint">— our numbering, e.g. “Double Deluxe Patio 1”</span></label><input className={inputClass} value={unitForm.name} onChange={(e) => setUnitForm({ ...unitForm, name: e.target.value })} /></div>
               <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 mb-3">
-                <div><label className={labelClass}>Hotel</label><select className={inputClass} value={unitForm.hotel} onChange={(e) => setUnitForm({ ...unitForm, hotel: e.target.value })}><option value="">—</option>{HOTELS.map((h) => <option key={h} value={h}>{h}</option>)}</select></div>
+                <div><label className={labelClass}>Hotel</label><select className={inputClass} value={unitForm.hotel_id} onChange={(e) => setUnitForm({ ...unitForm, hotel_id: e.target.value, hotel: hotelOptions.find((x) => x.id === e.target.value)?.name ?? "" })}><option value="">—</option>{hotelOptions.map((h) => <option key={h.id} value={h.id}>{h.name}</option>)}</select></div>
                 <div><label className={labelClass}>Room # <span className="normal-case font-normal admin-faint">— the hotel’s own number, if any</span></label><input className={inputClass} value={unitForm.room_number} onChange={(e) => setUnitForm({ ...unitForm, room_number: e.target.value })} /></div>
                 <div className="relative"><label className={labelClass}>Experiences <span className="normal-case font-normal admin-faint">— all that use this room</span></label>
                   <button type="button" onClick={() => setExpPickerOpen((v) => !v)}
@@ -461,7 +481,7 @@ export default function HotelRoomsPage() {
         <div className="flex items-center gap-3 mb-5">
           <select value={filterHotel} onChange={(e) => setFilterHotel(e.target.value)} className="admin-input text-sm px-3 py-1.5 rounded-lg">
             <option value="">All Hotels</option>
-            {HOTELS.map((h) => <option key={h} value={h}>{h}</option>)}
+            {hotelOptions.map((h) => <option key={h.id} value={h.name}>{h.name}</option>)}
           </select>
           <select value={filterExperience} onChange={(e) => { setFilterExperience(e.target.value); setFilterEdition(""); }} className="admin-input text-sm px-3 py-1.5 rounded-lg">
             <option value="">All Experiences</option>

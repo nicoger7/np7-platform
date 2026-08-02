@@ -390,7 +390,7 @@ function ProductDevDashboard() {
 
         <QuickActions actions={[
           { label: "Projects", href: "/admin/product-dev/projects" },
-          { label: "Photo library", href: "/admin/product-dev/library" },
+          { label: "Media", href: "/admin/product-dev/library" },
         ]} />
       </div>
     </div>

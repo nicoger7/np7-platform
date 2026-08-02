@@ -138,7 +138,7 @@ export const SECTIONS: Section[] = [
   // sectionForPath is longest-prefix-wins, so /admin/product-dev/library lands
   // on pd_library while everything else under the prefix lands on pd_knowledge.
   { key: "pd_knowledge", label: "R&D build sheets", world: "product-dev", group: "Product Dev", paths: ["/admin/product-dev", "/api/admin/product-dev"] },
-  { key: "pd_library", label: "R&D photo library", world: "product-dev", group: "Product Dev", paths: ["/admin/product-dev/library", "/api/admin/product-dev/media"] },
+  { key: "pd_library", label: "R&D media", world: "product-dev", group: "Product Dev", paths: ["/admin/product-dev/library", "/api/admin/product-dev/media"] },
   // Analytics
   { key: "member_activity", label: "Member activity", world: "experience", group: "Operations", paths: ["/admin/member-activity", "/api/admin/member-activity"] },
   { key: "archive", label: "Archive (deleted records)", world: "experience", group: "Operations", paths: ["/admin/archive", "/api/admin/archive"] },

@@ -861,11 +861,17 @@ export async function getBookingHotel(bookingId: string): Promise<HotelInfo | nu
   if (!hotel) {
     try {
       const [{ data: r1 }, { data: r2 }] = await Promise.all([
-        db.from("exp_hotel_rooms").select("hotel").eq("booking_id", bookingId).not("hotel", "is", null).limit(1),
-        db.from("exp_hotel_rooms").select("hotel").contains("extra_booking_ids", [bookingId]).not("hotel", "is", null).limit(1),
+        db.from("exp_hotel_rooms").select("hotel,hotel_id").eq("booking_id", bookingId).limit(1),
+        db.from("exp_hotel_rooms").select("hotel,hotel_id").contains("extra_booking_ids", [bookingId]).limit(1),
       ]);
+      // Prefer the real link (migration 131). Name matching was the only option
+      // when rooms held free text, and it could not tell REF Carsi from REF
+      // Koyici — both rooms just said "REF".
+      const roomHotelId: string | null = r1?.[0]?.hotel_id ?? r2?.[0]?.hotel_id ?? null;
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      if (roomHotelId) hotel = hotels.find((h: any) => h.id === roomHotelId) ?? null;
       const roomHotelName: string | null = r1?.[0]?.hotel ?? r2?.[0]?.hotel ?? null;
-      if (roomHotelName) {
+      if (!hotel && roomHotelName) {
         const rn = roomHotelName.toLowerCase();
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         hotel = hotels.find((h: any) => h.name && h.name.toLowerCase() === rn) ?? hotels.find((h: any) => h.name && rn.includes(h.name.toLowerCase())) ?? null;

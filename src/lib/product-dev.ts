@@ -322,6 +322,33 @@ export function stepParams(step: Pick<PdProcessStep, "pressure_t_min" | "pressur
   ].filter((s): s is string => Boolean(s));
 }
 
+/**
+ * "200 g/m² unidirectional carbon" → "Carbon UD 200".
+ *
+ * The full name is right in a dropdown and useless in a table cell — at column
+ * width it truncates to "20", which is how the ply grid ended up looking like it
+ * held quantities instead of materials.
+ */
+const WEAVE_SHORT: Record<string, string> = {
+  plain: "plain", twill: "twill", uni: "UD", biax: "biax", triax: "triax", chopped: "chopped", none: "",
+};
+
+export function shortMaterialName(m: Pick<PdMaterial, "fibre" | "weave" | "gsm" | "form" | "name"> | undefined): string {
+  if (!m) return "—";
+  const fibre = m.fibre === "none" ? "" : m.fibre[0].toUpperCase() + m.fibre.slice(1);
+  const weave = WEAVE_SHORT[m.weave ?? "none"] ?? "";
+  const gsm = m.gsm ? String(m.gsm) : "";
+  const dry = m.form === "dry_fabric" ? " dry" : "";
+  const out = [fibre, weave, gsm].filter(Boolean).join(" ") + dry;
+  return out.trim() || m.name;
+}
+
+/** What a ply's orientation actually is, following the material's default. */
+export function plyOrientation(ply: Pick<PdPly, "orientation">, material: PdMaterial | undefined): { value: string; inherited: boolean } {
+  if (ply.orientation) return { value: ply.orientation, inherited: false };
+  return { value: material?.default_orientation ?? "—", inherited: true };
+}
+
 /** A source is stale once it is older than STALE_SOURCE_MONTHS — the dashboard
  *  lists these so provenance doesn't quietly decay into an optional field. */
 export function isStaleSource(receivedAt: string | null | undefined, now = new Date()): boolean {

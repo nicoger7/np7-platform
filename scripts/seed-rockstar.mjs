@@ -137,11 +137,10 @@ async function main() {
   }
   console.log(`✓ ${SOURCES.length} sources`);
 
-  // Constructions
+  // Constructions — Rockstar is the carbon fin. Glass and hybrid run only on the
+  // 9.1 mold, which is a different model (seeded separately at the end).
   const constructions = {};
   for (const [i, c] of [
-    ["glass", "100% fiberglass", null],
-    ["glass_carbon", "Fiberglass/carbon hybrid", "Very high proportion of fiberglass (no percentage was ever quoted)."],
     ["carbon", "Carbon", "Very high proportion of carbon (no percentage was ever quoted)."],
   ].entries()) {
     const [code, name, description] = c;
@@ -150,11 +149,11 @@ async function main() {
     });
     constructions[code] = row.id;
   }
-  console.log("✓ 3 constructions");
+  console.log("✓ 1 construction (carbon)");
 
-  // Molds — the three blade molds plus the supplied Tuttle base mold.
+  // Molds — the two thin blade molds plus the supplied Tuttle base mold.
   const molds = {};
-  for (const [name, dim] of [["8.3", 8.3], ["8.6", 8.6], ["9.1", 9.1]]) {
+  for (const [name, dim] of [["8.3", 8.3], ["8.6", 8.6]]) {
     const row = await upsert("pd_molds", { project_id: project.id, name }, {
       kind: "blade", key_dimension_mm: dim,
       key_dimension_label: "profile thickness at thickest point",
@@ -170,7 +169,7 @@ async function main() {
     source_id: sourceByRef["rockstar/phil-tuttle"],
   });
   molds["tuttle"] = tuttle.id;
-  console.log("✓ 4 molds");
+  console.log("✓ 3 molds (8.3, 8.6, Tuttle base)");
 
   // Materials were seeded by migration 129 — look up their ids by slug.
   const { data: materialRows, error: matErr } = await db.from("pd_materials").select("id,slug,name,diagram_color");
@@ -178,13 +177,17 @@ async function main() {
   const materials = Object.fromEntries(materialRows.map((m) => [m.slug, m]));
   if (!materials["carbon-ud-200"]) { console.error("✗ pd_materials is empty — apply migration 129 first."); process.exit(1); }
 
-  // Build sheets. FOUR rows, and the five (construction × mold) pairs that have
-  // no row are the record: carbon never uses the 9.1, glass never uses a thin mold.
+  // Build sheets. TWO rows: the Rockstar is the CARBON fin, and carbon runs on
+  // the two thinner molds only.
+  //
+  // Phil's email lists three constructions across three molds, but he was
+  // describing his whole production line, not this model — the 9.1 mold, and
+  // the fiberglass and hybrid constructions that run exclusively on it, belong
+  // to a DIFFERENT NP7 model. They are seeded as their own project below rather
+  // than being deleted, because the knowledge is real; it just isn't Rockstar.
   const MATRIX = [
     { construction: "carbon", mold: "8.3", name: "NP7 8.3 CARBON LAYUP", ref: null, reference: false },
     { construction: "carbon", mold: "8.6", name: "NP7 8.6 CARBON LAYUP 357", ref: "357", reference: true },
-    { construction: "glass", mold: "9.1", name: "NP7 9.1 GLASS LAYUP", ref: null, reference: false },
-    { construction: "glass_carbon", mold: "9.1", name: "NP7 9.1 HYBRID LAYUP", ref: null, reference: false },
   ];
   const layups = {};
   for (const m of MATRIX) {
@@ -198,7 +201,7 @@ async function main() {
       });
     layups[`${m.construction}/${m.mold}`] = row.id;
   }
-  console.log(`✓ ${MATRIX.length} build sheets (of 12 possible pairs — the 8 absences are the spec)`);
+  console.log(`✓ ${MATRIX.length} build sheets (carbon × both thin molds)`);
 
   // The 18 plies of 357.
   const layup357 = layups["carbon/8.6"];
@@ -281,6 +284,49 @@ async function main() {
     }
   }
   console.log(`✓ 2 process stages, ${STAGE1_STEPS.length + STAGE2_STEPS.length} steps`);
+
+  // ── The 9.1 model ───────────────────────────────────────────────────────────
+  // Phil's fiberglass and hybrid constructions run exclusively on the 9.1 mold,
+  // and that is a different NP7 model. Seeded as its own project so the tooling
+  // and construction knowledge survives, with the name left explicitly TBC —
+  // inventing a product name would be worse than leaving it obviously unfilled.
+  const thick = await upsert("pd_projects", { slug: "np7-fin-9-1" }, {
+    name: "NP7 fin — 9.1 mold (model name TBC)",
+    kind: "fin",
+    status: "concept",
+    summary: "The fiberglass and fiberglass/carbon constructions from Phil's line, which run exclusively on the 9.1 mm mold. Split out of the Rockstar project: Rockstar is the carbon fin on the 8.3 and 8.6 molds.",
+  });
+  const thickSources = {};
+  for (const s of SOURCES) {
+    const row = await upsert("pd_sources", { project_id: thick.id, external_ref: s.external_ref }, {
+      kind: "email", title: s.title, author_name: "Phil", recipient: "Ralph",
+      confidence: s.confidence, body: s.body,
+    });
+    thickSources[s.external_ref] = row.id;
+  }
+  const thickConstructions = {};
+  for (const [i, c] of [
+    ["glass", "100% fiberglass", null],
+    ["glass_carbon", "Fiberglass/carbon hybrid", "Very high proportion of fiberglass (no percentage was ever quoted)."],
+  ].entries()) {
+    const [code, name, description] = c;
+    const row = await upsert("pd_constructions", { project_id: thick.id, code }, {
+      name, description, sort_order: i + 1, source_id: thickSources["rockstar/phil-process"],
+    });
+    thickConstructions[code] = row.id;
+  }
+  const mold91 = await upsert("pd_molds", { project_id: thick.id, name: "9.1" }, {
+    kind: "blade", key_dimension_mm: 9.1,
+    key_dimension_label: "profile thickness at thickest point",
+    plate_material: "aluminium", plate_thickness_mm: 25, has_alignment_pins: true,
+    status: "in_use", source_id: thickSources["rockstar/phil-process"],
+  });
+  for (const [code, name] of [["glass", "NP7 9.1 GLASS LAYUP"], ["glass_carbon", "NP7 9.1 HYBRID LAYUP"]]) {
+    await upsert("pd_layups",
+      { project_id: thick.id, construction_id: thickConstructions[code], mold_id: mold91.id },
+      { name, revision: 1, resin_pct_min: 40, resin_pct_max: 45, geometry: {}, source_id: thickSources["rockstar/phil-process"] });
+  }
+  console.log("✓ 9.1 model: 2 constructions, 1 mold, 2 build sheets (plies not yet known)");
 
   // ── The transcription checksum ──────────────────────────────────────────────
   // Print the ply table back in the diagram's own colours. Hold this next to the

@@ -4,6 +4,7 @@ import { NextRequest, after } from "next/server";
 import { isActiveTeamMember } from "@/lib/admin-auth";
 import { resizeForStorage, makeThumb } from "@/lib/image-resize";
 import { r2Enabled, r2CdnBase, uploadToR2, deleteFromR2, keyFromR2Url, moveInR2 } from "@/lib/r2";
+import { isScopedPath, scopedRootFor, crossesScope } from "@/lib/media-scopes";
 
 export const runtime = "nodejs"; // sharp (image resize) needs the Node runtime
 const BUCKET = "assets";
@@ -66,6 +67,13 @@ export async function GET(request: NextRequest) {
   const sp = request.nextUrl.searchParams;
   const folder = sp.get("folder") || "";
   const recursive = sp.get("recursive") === "1";
+  // A scoped root is not part of this API's universe — asking for one directly
+  // is a probe, so it gets a gate rather than a confusingly empty list. Reads
+  // and writes for those roots live on the owning section's own route.
+  const scoped = scopedRootFor(folder);
+  if (scoped) {
+    return Response.json({ error: `"${scoped.root}" belongs to ${scoped.label} — open it from that section.` }, { status: 403 });
+  }
   const admin = getServiceClient();
   const baseUrl = `${process.env.NEXT_PUBLIC_SUPABASE_URL}/storage/v1/object/public/${BUCKET}`;
   const renderBase = `${process.env.NEXT_PUBLIC_SUPABASE_URL}/storage/v1/render/image/public/${BUCKET}`;
@@ -82,7 +90,11 @@ export async function GET(request: NextRequest) {
   // bucket can't hang the request.
   if (recursive) {
     const images: ListedFile[] = [];
-    const queue: string[] = [folder];
+    // Guarding the SEED matters as much as guarding the walk: the queue starts
+    // from the caller's own ?folder=, so `?recursive=1&folder=product-dev`
+    // would otherwise walk straight into a scoped root and return every object
+    // in it with public URLs attached.
+    const queue: string[] = isScopedPath(folder) ? [] : [folder];
     let visited = 0;
     const MAX_FOLDERS = 250;
     // Breadth-first, a LEVEL at a time rather than a folder at a time. The walk
@@ -104,7 +116,11 @@ export async function GET(request: NextRequest) {
           if (item.name === ".emptyFolderPlaceholder") continue;
           const path = prefix ? `${prefix}/${item.name}` : item.name;
           if (isFolderItem(item)) {
-            queue.push(path);
+            // Matches on segment 0, so this fires once per top-level folder.
+            // Bonus: the walk's shared budget (MAX_FOLDERS / 1500 images) stops
+            // being spent on R&D, so a big scoped tree can never silently
+            // truncate the Experience pickers.
+            if (!isScopedPath(path)) queue.push(path);
           } else if ((item.metadata?.mimetype || "").startsWith("image/")) {
             images.push({
               name: item.name, path, isFolder: false, url: pubUrl(path), thumbUrl: thumb(path),
@@ -134,6 +150,10 @@ export async function GET(request: NextRequest) {
 
   const files: ListedFile[] = all
     .filter((item) => item.name !== ".emptyFolderPlaceholder")
+    // At the bucket root this drops the scoped folders themselves, so they
+    // never appear as a folder to browse into — including in File Storage's
+    // "everything" view, with no edit to that page.
+    .filter((item) => !isScopedPath(folder ? `${folder}/${item.name}` : item.name))
     .map((item) => {
       const path = folder ? `${folder}/${item.name}` : item.name;
       const isFolder = isFolderItem(item);
@@ -172,6 +192,10 @@ export async function POST(request: NextRequest) {
   }
 
   const key = folder ? `${folder}/${file.name}` : file.name;
+
+  if (isScopedPath(key)) {
+    return Response.json({ error: "That folder belongs to another section — upload from there." }, { status: 403 });
+  }
 
   // Downscale big originals (10-20 MB phone photos) before storing -- the single
   // biggest lever on Storage egress, since everything downstream derives from this.
@@ -230,6 +254,10 @@ export async function PUT(request: NextRequest) {
     return Response.json({ error: "No folder name provided" }, { status: 400 });
   }
 
+  if (isScopedPath(folder)) {
+    return Response.json({ error: "That folder belongs to another section." }, { status: 403 });
+  }
+
   const admin = getServiceClient();
 
   const { error } = await admin.storage
@@ -260,6 +288,14 @@ export async function PATCH(request: NextRequest) {
 
   if (moves.length === 0) {
     return Response.json({ error: "Missing from/to paths" }, { status: 400 });
+  }
+
+  // A scoped root is a one-way box in BOTH directions: nothing drags out of it
+  // into experience/, and nothing drags into it from a picker that shouldn't
+  // know it exists.
+  const blocked = moves.find((m) => isScopedPath(m.from) || isScopedPath(m.to) || crossesScope(m.from, m.to));
+  if (blocked) {
+    return Response.json({ error: "That file belongs to another section — move it from there." }, { status: 403 });
   }
 
   const admin = getServiceClient();
@@ -305,6 +341,12 @@ export async function DELETE(request: NextRequest) {
     .map((u) => keyFromR2Url(u) ?? (u.startsWith(supaBase) ? u.slice(supaBase.length) : null))
     .filter((k): k is string => k !== null);
   const allKeys = Array.from(new Set([...paths, ...keysFromUrls]));
+
+  // Guarded AFTER the url → key resolution, or a scoped file passed as a CDN
+  // URL rather than a storage path would sail straight through.
+  if (allKeys.some(isScopedPath)) {
+    return Response.json({ error: "That file belongs to another section — delete it from there." }, { status: 403 });
+  }
 
   // -- Cloudflare R2 (best-effort -- the object may predate the R2 mirror) ----
   if (r2Enabled() && allKeys.length > 0) {
