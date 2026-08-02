@@ -48,7 +48,7 @@ export async function getMemberActivity(limit = 120): Promise<ActivityItem[]> {
   const [bookings, payments, waivers, addons, applications, ratings, photos, newSpots, edits, levels, orders] =
     await Promise.all([
       safe(() => db.from("exp_bookings").select("id, name, created_at, contact_id, contacts(name), exp_experiences(title)").order("created_at", { ascending: false }).limit(LIMIT_PER_SOURCE)),
-      safe(() => db.from("exp_payments").select("id, amount, paid_at, created_at, contact_id, booking_id, contacts(name)").order("created_at", { ascending: false }).limit(LIMIT_PER_SOURCE)),
+      safe(() => db.from("exp_payments").select("id, amount, received_at, created_at, contact_id, booking_id, contacts(name)").order("created_at", { ascending: false }).limit(LIMIT_PER_SOURCE)),
       safe(() => db.from("exp_waiver_signatures").select("id, signed_at, created_at, contact_id, booking_id, contacts(name)").order("created_at", { ascending: false }).limit(LIMIT_PER_SOURCE)),
       safe(() => db.from("exp_booking_addons").select("id, label, requested_at, booking_id, source, exp_bookings(name, contact_id, contacts(name))").not("requested_at", "is", null).order("requested_at", { ascending: false }).limit(LIMIT_PER_SOURCE)),
       safe(() => db.from("exp_trip_applications").select("id, name, created_at, contact_id").order("created_at", { ascending: false }).limit(LIMIT_PER_SOURCE)),
@@ -72,7 +72,7 @@ export async function getMemberActivity(limit = 120): Promise<ActivityItem[]> {
   }
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   for (const p of (payments.data ?? []) as any[]) {
-    push({ id: `payment:${p.id}`, at: p.paid_at ?? p.created_at, kind: "trip", action: "Payment recorded",
+    push({ id: `payment:${p.id}`, at: p.received_at ?? p.created_at, kind: "trip", action: "Payment recorded",
       subject: p.amount != null ? `€${Number(p.amount).toLocaleString("en-US")}` : null,
       contactId: p.contact_id, contactName: nameOf(p),
       href: p.booking_id ? `/admin/bookings/${p.booking_id}?tab=payments` : "/admin/payments" });
