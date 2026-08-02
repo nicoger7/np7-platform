@@ -74,6 +74,10 @@ export default async function EmailsHubPage() {
 
   const onCount = cards.filter((c) => c.enabled).length;
   const offCount = cards.length - onCount;
+  // Switched on AND actually permitted to leave the building. While the
+  // lifecycle is paused those are two different sets.
+  const sendingCount = cards.filter((c) => c.enabled && c.isLive).length;
+  const heldCount = cards.filter((c) => c.enabled && !c.isLive).length;
 
   return (
     <div>
@@ -83,19 +87,42 @@ export default async function EmailsHubPage() {
           <p className="text-sm admin-muted">Every email the system can send, what triggers it, and whether it&apos;s live right now.</p>
         </div>
         <div className="flex items-center gap-2 text-xs">
-          <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-green-500/10 text-green-400 font-bold"><span className="w-1.5 h-1.5 rounded-full bg-green-400" />{onCount} on</span>
+          {/* While the pipeline is paused, "25 on" is the loudest thing on the
+              page and the least true — a switched-on automation still sends
+              nothing. Count what actually reaches a guest. */}
+          {live ? (
+            <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-green-500/10 text-green-400 font-bold"><span className="w-1.5 h-1.5 rounded-full bg-green-400" />{onCount} sending</span>
+          ) : (
+            <>
+              <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-amber-500/15 text-amber-500 font-bold">{heldCount} held</span>
+              <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-green-500/10 text-green-400 font-bold"><span className="w-1.5 h-1.5 rounded-full bg-green-400" />{sendingCount} sending</span>
+            </>
+          )}
           {offCount > 0 && <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg admin-muted font-bold" style={{ border: "1px solid var(--admin-border)" }}>{offCount} switched off</span>}
         </div>
       </div>
 
-      {/* Status banner */}
-      <div className="rounded-xl p-4 mb-6 text-sm" style={{ border: "1px solid var(--admin-border)", backgroundColor: "var(--admin-surface)" }}>
-        {live ? (
+      {/* Status banner. A row of green switches reads as "these are running",
+          so when they aren't, this has to say so louder than they do. */}
+      {live ? (
+        <div className="rounded-xl p-4 mb-6 text-sm" style={{ border: "1px solid var(--admin-border)", backgroundColor: "var(--admin-surface)" }}>
           <p className="admin-muted"><strong className="admin-heading">Lifecycle pipeline is ON.</strong> All automations below send automatically at their trigger. The cutoff <code>EMAIL_PIPELINE_LIVE_FROM</code> still prevents emailing about trips before go-live.</p>
-        ) : (
-          <p className="admin-muted"><strong className="admin-heading">Soft launch — lifecycle paused.</strong> Only <strong>sign-up / login</strong> mail goes out. The other automations are <strong>held</strong> (nothing reaches customers) until you set <code>EMAIL_LIFECYCLE_LIVE=true</code> in Vercel. Nothing is lost — held emails fire correctly once you switch it on.</p>
-        )}
-      </div>
+        </div>
+      ) : (
+        <div className="rounded-xl p-4 mb-6 text-sm" style={{ border: "1px solid rgb(245 158 11 / 0.45)", backgroundColor: "rgb(245 158 11 / 0.08)" }}>
+          <p className="font-bold text-amber-500 mb-1.5">Ready, but not firing — {heldCount} automations are held.</p>
+          <p className="admin-muted leading-relaxed">
+            A green switch below means <strong className="admin-heading">this mail is allowed</strong>, not that it is going out.
+            The nightly job still works out who is due and then holds every one of them, so <strong className="admin-heading">nothing reaches a guest</strong>.
+            What does still send: <strong className="admin-heading">sign-up and login</strong> mail, and anything <strong className="admin-heading">you press send on</strong> yourself.
+          </p>
+          <p className="admin-muted leading-relaxed mt-2">
+            To go live set <code>EMAIL_LIFECYCLE_LIVE=true</code> in Vercel — and set{" "}
+            <code>EMAIL_PIPELINE_LIVE_FROM</code> to today&apos;s date <strong className="admin-heading">in the same change</strong>.
+            Without that cutoff, every past-due mail fires at once and guests hear about trips they came back from months ago.
+          </p>
+        </div>
+      )}
 
       {/* Lifecycle flow */}
       <div className="flex items-center gap-1.5 flex-wrap mb-6 text-[11px]">

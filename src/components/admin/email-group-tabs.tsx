@@ -97,16 +97,19 @@ export function EmailGroupTabs({ cards, groups }: { cards: EmailCard[]; groups: 
                     <span className="shrink-0 text-[9px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded bg-[var(--admin-accent)]/15 text-[#0aa3c7]">{c.stage}</span>
                     <h3 className="text-[13px] font-bold admin-heading truncate group-hover:text-[#0aa3c7] transition-colors">{c.name}</h3>
                   </Link>
-                  {/* The switch — the one control that decides whether this mail
-                      ever sends. Replaces the old LIVE/PAUSED badge, which
-                      looked per-mail but only mirrored one global flag. */}
+                  {/* Switched on but the pipeline is paused: the green switch
+                      alone would read as "this is going out". It isn't. */}
+                  {!isOff && !c.isLive && (
+                    <span className="shrink-0 text-[9px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded bg-amber-500/15 text-amber-500"
+                      title="Allowed, but held — the lifecycle pipeline is switched off, so this never leaves the building">held</span>
+                  )}
                   <button
                     onClick={() => !c.locked && toggle(c.key, isOff)}
                     disabled={c.locked || busy === c.key}
                     role="switch"
                     aria-checked={!isOff}
                     aria-label={`${isOff ? "Switch on" : "Switch off"} ${c.name}`}
-                    title={c.locked ? "Always on — this is how members sign in" : isOff ? "Switched off — this email never sends" : "On — sends at its trigger"}
+                    title={c.locked ? "Always on — this is how members sign in" : isOff ? "Switched off — this email never sends" : c.isLive ? "On — sends at its trigger" : "Allowed, but held: the lifecycle pipeline is off, so nothing goes out yet"}
                     className={`shrink-0 relative w-9 h-5 rounded-full transition-colors ${c.locked ? "cursor-not-allowed opacity-50" : "cursor-pointer"} ${isOff ? "bg-[var(--admin-border)]" : "bg-green-500"}`}
                   >
                     <span className={`absolute top-0.5 w-4 h-4 rounded-full bg-white shadow transition-all ${isOff ? "left-0.5" : "left-[18px]"}`} />
