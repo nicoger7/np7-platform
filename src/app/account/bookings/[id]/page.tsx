@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { defaultCancellationPolicy } from "@/lib/cancellation-policy";
 import { redirect, notFound } from "next/navigation";
 import type { Metadata } from "next";
 import { getPortalUser } from "@/lib/auth";
@@ -123,9 +124,7 @@ export default async function BookingDetail({ params }: Props) {
 
   // Cancellation copy — deposit-aware: many trips have no deposit (the 50%
   // downpayment is the first, 14-day-refundable payment), so don't mention one.
-  const cancellation = b.experience?.cancellation_policy || (depositMilestone
-    ? "You can cancel any time before the trip. Your deposit is refundable for 14 days after you pay it; after that it's kept as the cancellation fee. Once you've paid the 50% downpayment or the full balance, that amount becomes the fee — with a goodwill credit voucher toward a future trip. Use ‘Cancel this trip’ above to start, or see our Terms for the full scale."
-    : "You can cancel any time before the trip. Your 50% downpayment is refundable for 14 days after you pay it; after that it's kept as the cancellation fee. Once you've paid the full balance, that becomes the fee instead — with a goodwill credit voucher toward a future trip. Use ‘Cancel this trip’ above to start, or see our Terms for the full scale.");
+  const cancellation = b.experience?.cancellation_policy || defaultCancellationPolicy(!!depositMilestone);
 
   const photoCount = galleryGroups.reduce((n, g) => n + g.photos.length, 0);
   const memoriesContent = (photoCount === 0 && !b.edition?.memories_video_url && tripVideos.length === 0) ? (

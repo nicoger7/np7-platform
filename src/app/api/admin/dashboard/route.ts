@@ -5,7 +5,7 @@ import { getActiveTeamMember, getEffectiveAccess } from "@/lib/admin-auth";
 import { effectiveCanAccess, effectiveCanEnterWorld, effectiveCanSeeField } from "@/lib/access";
 import { normalizeBookingStatus } from "@/lib/types";
 import { getUpcomingMails } from "@/lib/email/upcoming";
-import { getExperienceReadiness } from "@/lib/experience-readiness";
+import { runGoLiveChecks } from "@/lib/go-live";
 
 // GET /api/admin/dashboard — one aggregated payload for the ops dashboard.
 // Each admin world gets its OWN payload (`?world=hardware|magazine`); the
@@ -146,10 +146,32 @@ export async function GET(request: NextRequest) {
   let upcomingMails: Awaited<ReturnType<typeof getUpcomingMails>> = { paused: true, mails: [] };
   try { upcomingMails = await getUpcomingMails(); } catch { /* leave empty */ }
 
-  // What still needs writing before an experience goes public. Tolerant — a
+  // What still stands between each trip and being sold. Same registry as
+  // "Ready to sell?" — the dashboard used to run its own, narrower checks, and
+  // the two disagreed. Slimmed here to what the panel actually renders, with
+  // each item keeping the link to the field that fixes it. Tolerant: a
   // checklist is never worth failing the dashboard over.
-  let readiness: Awaited<ReturnType<typeof getExperienceReadiness>> = [];
-  try { readiness = await getExperienceReadiness(); } catch { /* leave empty */ }
+  let readiness: {
+    id: string; title: string; status: string | null; websiteVisible: boolean; nextStart: string | null;
+    blockers: number; warnings: number; done: number; total: number;
+    outstanding: { label: string; detail: string; href: string; blocker: boolean; where: string }[];
+  }[] = [];
+  try {
+    readiness = (await runGoLiveChecks()).map((r) => {
+      const outstanding = [
+        ...r.checks.filter((c) => !c.ok).map((c) => ({ ...c, where: "" })),
+        ...r.editions.flatMap((ed) => ed.checks.filter((c) => !c.ok).map((c) => ({ ...c, where: ed.label }))),
+      ];
+      const total = r.checks.length + r.editions.reduce((s, ed) => s + ed.checks.length, 0);
+      return {
+        id: r.id, title: r.title, status: r.status, websiteVisible: r.websiteVisible, nextStart: r.nextStart,
+        blockers: r.blockers, warnings: r.warnings, done: total - outstanding.length, total,
+        outstanding: outstanding.map((c) => ({
+          label: c.label, detail: c.detail ?? "", href: c.href, blocker: c.severity === "blocker", where: c.where,
+        })),
+      };
+    });
+  } catch { /* leave empty */ }
 
   return NextResponse.json({
     counts: {

@@ -415,11 +415,9 @@ interface DashboardData {
     mails: { templateKey: string; label: string; editionId: string; editionTitle: string; sendDate: string; daysAway: number; recipients: number; missing: string[] }[];
   };
   readiness?: {
-    id: string; title: string; slug: string | null; websiteVisible: boolean; published: boolean;
-    nextStart: string | null;
-    missing: { label: string; where: string }[];
-    generic: { label: string; where: string }[];
-    done: number; total: number;
+    id: string; title: string; status: string | null; websiteVisible: boolean; nextStart: string | null;
+    blockers: number; warnings: number; done: number; total: number;
+    outstanding: { label: string; detail: string; href: string; blocker: boolean; where: string }[];
   }[];
 }
 
@@ -569,38 +567,48 @@ function ExperienceDashboard() {
         </Panel>
         )}
 
-        {/* Before it goes public — what still needs writing. Only experiences
-            with a trip coming up or already on the website: a checklist that
-            includes every idle draft is a checklist nobody reads. */}
+        {/* Before it goes public — the same checks as "Ready to sell?", so the
+            two can't disagree. Only trips already public or with a week coming
+            up: a checklist that includes every idle draft is one nobody reads.
+            Each line links at the field itself, not at the page it lives on. */}
         {!slim && (() => {
           const relevant = (d.readiness ?? []).filter((r) => r.nextStart || r.websiteVisible);
-          const todo = relevant.filter((r) => r.missing.length || r.generic.length);
+          const todo = relevant.filter((r) => r.outstanding.length);
           return (
             <Panel
               title={`Before it goes public${todo.length ? ` (${todo.length})` : ""}`}
-              href="/admin/content"
-              linkLabel="Website content"
-              subtitle="The number on the right is how many of the 11 checks each experience passes."
+              href="/admin/go-live"
+              linkLabel="Ready to sell?"
+              subtitle="Red is a blocker — a buyer would see it. The number on the right is how many checks each trip passes."
             >
               {!relevant.length ? (
                 <p className="text-xs admin-faint">No experiences on the website or with a trip coming up.</p>
               ) : !todo.length ? (
-                <p className="text-xs text-green-500">Every live experience has its own copy. Nothing generic left.</p>
+                <p className="text-xs text-green-500">Every live trip passes every check.</p>
               ) : (
-                <div className="space-y-2">
+                <div className="space-y-2.5">
                   {todo.slice(0, 5).map((r) => (
-                    <Link key={r.id} href={`/admin/content/${r.id}`}
-                      className="block text-xs py-1.5 px-2 -mx-2 rounded-lg hover:bg-[var(--admin-surface-hover)]">
-                      <span className="flex items-center gap-2">
-                        <span className="flex-1 admin-heading truncate">{r.title}</span>
-                        <span className="shrink-0 admin-faint" title={`${r.done} of ${r.total} checks done — ${r.missing.length} to write, ${r.generic.length} still generic`}>{r.done}/{r.total}</span>
-                      </span>
-                      <span className="block admin-muted mt-0.5 leading-relaxed">
-                        {r.missing.length > 0 && <span>{r.missing.length} to write: {r.missing.slice(0, 3).map((m) => m.label).join(", ")}{r.missing.length > 3 ? "…" : ""}</span>}
-                        {r.missing.length > 0 && r.generic.length > 0 && <span className="admin-faint"> · </span>}
-                        {r.generic.length > 0 && <span className="text-amber-500">{r.generic.length} still generic: {r.generic.slice(0, 2).map((g) => g.label).join(", ")}{r.generic.length > 2 ? "…" : ""}</span>}
-                      </span>
-                    </Link>
+                    <div key={r.id}>
+                      <Link href={`/admin/experiences/${r.id}?tab=ready`}
+                        className="flex items-center gap-2 text-xs py-1 px-2 -mx-2 rounded-lg hover:bg-[var(--admin-surface-hover)]">
+                        <span className="flex-1 admin-heading truncate font-semibold">{r.title}</span>
+                        {r.blockers > 0 && <span className="shrink-0 text-[10px] font-bold px-1.5 py-0.5 rounded bg-red-500/15 text-red-400">{r.blockers}</span>}
+                        <span className="shrink-0 admin-faint" title={`${r.done} of ${r.total} checks done`}>{r.done}/{r.total}</span>
+                      </Link>
+                      <div className="flex flex-wrap gap-x-1.5 gap-y-0.5 pl-2 mt-0.5">
+                        {r.outstanding.slice(0, 4).map((c, i) => (
+                          <Link key={`${c.label}${c.where}${i}`} href={c.href} title={c.detail}
+                            className={`text-[11px] leading-relaxed hover:underline ${c.blocker ? "text-red-400" : "text-amber-500"}`}>
+                            {c.label}{c.where ? <span className="admin-faint"> ({c.where})</span> : null}
+                          </Link>
+                        ))}
+                        {r.outstanding.length > 4 && (
+                          <Link href={`/admin/experiences/${r.id}?tab=ready`} className="text-[11px] admin-faint hover:underline">
+                            +{r.outstanding.length - 4} more
+                          </Link>
+                        )}
+                      </div>
+                    </div>
                   ))}
                   {todo.length > 5 && <p className="text-[11px] admin-faint pt-0.5">+{todo.length - 5} more</p>}
                 </div>

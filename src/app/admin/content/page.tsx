@@ -29,11 +29,20 @@ export default function ContentHubPage() {
       .finally(() => setLoading(false));
   }, []);
 
-  const filtered = experiences.filter(
-    (e) =>
-      e.title?.toLowerCase().includes(q.toLowerCase()) ||
-      (e.location ?? "").toLowerCase().includes(q.toLowerCase())
-  );
+  // Same order as the Experiences overview — active first, then draft, then
+  // archived. Alphabetical put unfinished drafts above the trips being sold.
+  const STATUS_ORDER = ["published", "draft", "archived"];
+  const rank = (st: string | null | undefined) => {
+    const i = STATUS_ORDER.indexOf(String(st ?? "draft"));
+    return i === -1 ? STATUS_ORDER.length : i;
+  };
+  const filtered = experiences
+    .filter(
+      (e) =>
+        e.title?.toLowerCase().includes(q.toLowerCase()) ||
+        (e.location ?? "").toLowerCase().includes(q.toLowerCase())
+    )
+    .sort((a, b) => rank(a.status) - rank(b.status) || (a.title ?? "").localeCompare(b.title ?? ""));
 
   return (
     <div className="p-6 sm:p-8 max-w-[1000px] mx-auto">

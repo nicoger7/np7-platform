@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, use } from "react";
+import { useCallback, useState, useEffect, use } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { ExperienceComponentsManager } from "@/components/experience-components-manager";
@@ -104,14 +104,17 @@ export default function ExperienceDetailPage({
   const [editions, setEditions] = useState<Edition[]>([]);
   const [activeSection, setActiveSection] = useState("editions");
   const [readiness, setReadiness] = useState<ExperienceReport | null>(null);
-  useEffect(() => {
-    if (activeSection !== "ready" || readiness) return;
+  const loadReadiness = useCallback(() => {
     fetch("/api/admin/go-live")
       .then((r) => r.json())
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       .then((d) => setReadiness(((d.experiences ?? []) as any[]).find((x) => x.id === id) ?? null))
       .catch(() => {});
-  }, [activeSection, readiness, id]);
+  }, [id]);
+  useEffect(() => {
+    if (activeSection !== "ready" || readiness) return;
+    loadReadiness();
+  }, [activeSection, readiness, loadReadiness]);
   const [destinations, setDestinations] = useState<{ id: string; name: string }[]>([]);
   const [hotels, setHotels] = useState<Hotel[]>([]);
   const [showAddHotel, setShowAddHotel] = useState(false);
@@ -300,7 +303,7 @@ export default function ExperienceDetailPage({
       {/* ── Editions (tiles) ── */}
       {/* Readiness for THIS experience and its weeks — the same rows as
           /admin/go-live, rendered from the same component so they can't drift. */}
-      {activeSection === "ready" && <GoLivePanel report={readiness} />}
+      {activeSection === "ready" && <GoLivePanel report={readiness} onRefresh={loadReadiness} />}
 
       <div className={`mb-8 ${activeSection === "editions" ? "" : "hidden"}`}>
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between mb-3">

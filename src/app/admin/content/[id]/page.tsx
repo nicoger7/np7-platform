@@ -77,7 +77,23 @@ export default function ContentEditorPage({ params }: { params: Promise<{ id: st
   // Per-edition modules (guides/reviews differ per week)
   const [editions, setEditions] = useState<{ id: string; year: number | null; label: string | null }[]>([]);
   const [editionId, setEditionId] = useState("");
+  const CONTENT_TABS = ["media", "story", "program", "pretrip", "event", "modules", "reviews", "faq"] as const;
   const [tab, setTab] = useState("media");
+
+  // Restore the tab from the URL and reflect changes back into it, so the
+  // readiness checklist can link straight at the field it is complaining about
+  // instead of dropping you on Media to go hunting.
+  useEffect(() => {
+    const t = new URLSearchParams(window.location.search).get("tab");
+    if (t && (CONTENT_TABS as readonly string[]).includes(t)) setTab(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+  function selectTab(t: string) {
+    setTab(t);
+    const url = new URL(window.location.href);
+    url.searchParams.set("tab", t);
+    window.history.replaceState(null, "", url.toString());
+  }
 
   useEffect(() => {
     fetch(`/api/admin/content/${id}`)
@@ -224,7 +240,7 @@ export default function ContentEditorPage({ params }: { params: Promise<{ id: st
       {/* Section tabs */}
       <div className="flex flex-wrap items-center gap-1 mb-5" style={{ borderBottom: "1px solid var(--admin-border)" }}>
         {[["media", "Media"], ["story", "Story"], ["program", "Program"], ["pretrip", "Pre-trip"], ["event", "Event"], ["modules", "Per-edition"], ["reviews", "Reviews"], ["faq", "FAQ"]].map(([k, l]) => (
-          <button key={k} onClick={() => setTab(k)} className={`px-3.5 py-2 text-sm font-medium transition-colors border-b-2 -mb-[1px] ${tab === k ? "admin-heading border-[var(--admin-accent)]" : "admin-muted border-transparent"}`}>{l}</button>
+          <button key={k} onClick={() => selectTab(k)} className={`px-3.5 py-2 text-sm font-medium transition-colors border-b-2 -mb-[1px] ${tab === k ? "admin-heading border-[var(--admin-accent)]" : "admin-muted border-transparent"}`}>{l}</button>
         ))}
       </div>
 
