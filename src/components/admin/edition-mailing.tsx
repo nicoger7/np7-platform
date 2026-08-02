@@ -15,7 +15,7 @@ type Uses = {
 type Scheduled = {
   key: string; name: string; trigger: string;
   whenKind: "date" | "condition";
-  daysBefore: number | null; dueAt: string | null; daysAway: number | null;
+  daysBefore: number | null; daysAfterEnd: number | null; dueAt: string | null; daysAway: number | null;
   kind: "transactional" | "lifecycle";
   enabled: boolean; canDisable: boolean;
   missing: string[]; uses: Uses[]; sent: number; lastSent: string | null;
@@ -99,86 +99,6 @@ export function EditionMailing({ editionId }: { editionId: string }) {
   const dated = d.scheduled.filter((m) => m.whenKind === "date");
   const conditional = d.scheduled.filter((m) => m.whenKind === "condition");
 
-  const Row = ({ m, i }: { m: Scheduled; i: number }) => {
-    const gone = m.sent > 0;
-    const blocked = m.missing.length > 0;
-    const past = m.daysAway != null && m.daysAway < 0;
-    const isOpen = open.has(m.key);
-    const off = !m.enabled || (m.kind === "lifecycle" && !d.lifecycleLive);
-    return (
-      <div style={{ borderTop: i ? "1px solid var(--admin-border)" : undefined, backgroundColor: "var(--admin-surface)" }}>
-        <div className="flex items-start gap-3 px-4 py-3">
-          <button onClick={() => toggle(m.key)}
-            className={`shrink-0 w-16 text-right text-[12px] font-bold ${gone ? "text-green-500" : blocked ? "text-amber-500" : "admin-faint"}`}>
-            {m.whenKind === "date" ? `${m.daysBefore}d before` : "when…"}
-          </button>
-          <button onClick={() => toggle(m.key)} className="flex-1 min-w-0 text-left">
-            <span className="flex items-center gap-2">
-              <span className="text-[13.5px] font-bold admin-heading">{m.name}</span>
-              {off && (
-                <span className="shrink-0 text-[10px] font-bold uppercase px-1.5 py-0.5 rounded bg-[var(--admin-surface-hover)] admin-faint">
-                  {!m.enabled ? "off" : "paused"}
-                </span>
-              )}
-              <svg className={`w-3.5 h-3.5 admin-faint transition-transform ${isOpen ? "rotate-180" : ""}`} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M6 9l6 6 6-6" /></svg>
-            </span>
-            <span className="block text-[11.5px] admin-faint">{m.trigger}</span>
-            {blocked && !gone && (
-              <span className="block text-[11.5px] text-amber-500 mt-0.5">Held — needs {m.missing.join(", ")}</span>
-            )}
-          </button>
-          <span className="shrink-0 text-right">
-            {/* A passed window used to be a dead end: the cron won't fire it
-                any more and there was nothing to press. */}
-            {!gone && past && !blocked && m.whenKind === "date" && (
-              <button onClick={() => sendNow(m.key, m.name, d.securedGuests)} disabled={sending === m.key}
-                className="block ml-auto mb-0.5 text-[12px] font-bold text-[#0aa3c7] hover:underline disabled:opacity-50">
-                {sending === m.key ? "Sending…" : "Send now →"}
-              </button>
-            )}
-            {gone ? (
-              <>
-                <span className="block text-[12.5px] font-bold text-green-500">Sent to {m.sent}</span>
-                <span className="block text-[11px] admin-faint">{fmt(m.lastSent)}</span>
-              </>
-            ) : m.whenKind === "date" ? (
-              <>
-                <span className="block text-[12.5px] admin-muted">{past ? "Window passed" : "Due"}</span>
-                <span className="block text-[11px] admin-faint">{fmt(m.dueAt)}</span>
-              </>
-            ) : (
-              <span className="block text-[12.5px] admin-faint">Not yet</span>
-            )}
-          </span>
-        </div>
-
-        {isOpen && (
-          <div className="px-4 pb-4 pl-[76px]" style={{ borderTop: "1px solid var(--admin-border)" }}>
-            <p className="text-[12px] admin-muted pt-3 mb-3 max-w-[60ch]">
-              {m.whenKind === "date"
-                ? <>The nightly job works this out from the trip start date — {m.daysBefore} days before, which is {fmt(m.dueAt)}. Nobody presses anything.</>
-                : <>No date: the nightly job checks every night and sends it the first night the condition is true. That&apos;s why there&apos;s nothing to count down to.</>}
-              {" "}
-              {!m.enabled
-                ? <>It is <strong>switched off</strong> — nothing goes out until you turn it back on.</>
-                : m.kind === "lifecycle" && !d.lifecycleLive
-                  ? <>The switch is on, but the whole lifecycle pipeline is <strong>paused</strong>, so it is worked out and held.</>
-                  : <>It is <strong>live</strong>.</>}
-              {" "}
-              <Link href={`/admin/emails/${m.key}`} className="text-[#0aa3c7] hover:underline">Wording &amp; switch →</Link>
-            </p>
-
-            {m.uses.length === 0
-              ? <p className="text-[12px] admin-faint">This one writes itself — no content from you.</p>
-              : m.uses.map((u) => (
-                <ContentField key={u.key} editionId={editionId} use={u} onSaved={load} />
-              ))}
-          </div>
-        )}
-      </div>
-    );
-  };
-
   return (
     <div className="max-w-[860px]">
       <h3 className="text-base font-bold admin-heading mb-1">Mailing</h3>
@@ -193,9 +113,12 @@ export function EditionMailing({ editionId }: { editionId: string }) {
 
       {msg && <p className="text-[12.5px] font-semibold mb-3 admin-heading">{msg}</p>}
 
-      <p className="text-[11px] font-bold tracking-[0.12em] uppercase admin-faint mb-2">On a date, counted back from the trip</p>
+      <p className="text-[11px] font-bold tracking-[0.12em] uppercase admin-faint mb-2">On a date, worked out from the trip</p>
       <div className="rounded-xl overflow-hidden mb-5" style={{ border: "1px solid var(--admin-border)" }}>
-        {dated.map((m, i) => <Row key={m.key} m={m} i={i} />)}
+        {dated.map((m, i) => (
+          <MailRow key={m.key} m={m} i={i} editionId={editionId} securedGuests={d.securedGuests} lifecycleLive={d.lifecycleLive}
+            isOpen={open.has(m.key)} onToggle={() => toggle(m.key)} sending={sending} onSendNow={sendNow} onSaved={load} />
+        ))}
       </div>
 
       {conditional.length > 0 && (
@@ -207,7 +130,10 @@ export function EditionMailing({ editionId }: { editionId: string }) {
             these show nothing.
           </p>
           <div className="rounded-xl overflow-hidden mb-4" style={{ border: "1px solid var(--admin-border)" }}>
-            {conditional.map((m, i) => <Row key={m.key} m={m} i={i} />)}
+            {conditional.map((m, i) => (
+              <MailRow key={m.key} m={m} i={i} editionId={editionId} securedGuests={d.securedGuests} lifecycleLive={d.lifecycleLive}
+                isOpen={open.has(m.key)} onToggle={() => toggle(m.key)} sending={sending} onSendNow={sendNow} onSaved={load} />
+            ))}
           </div>
         </>
       )}
@@ -232,6 +158,103 @@ export function EditionMailing({ editionId }: { editionId: string }) {
         Every send is logged in <Link href="/admin/email-log" className="text-[#0aa3c7] hover:underline">Email Log</Link>.
         Wording and on/off switches live in <Link href="/admin/emails" className="text-[#0aa3c7] hover:underline">Emails</Link>.
       </p>
+    </div>
+  );
+}
+
+/**
+ * One mail on the timeline.
+ *
+ * Declared at module scope on purpose. Nested inside EditionMailing it was a
+ * brand-new component type on every parent render, so React unmounted the whole
+ * row — including any open editor and its "Saved" confirmation — the instant the
+ * save refreshed the data. A stable key does not help; the type itself changes.
+ */
+function MailRow({
+  m, i, editionId, securedGuests, lifecycleLive, isOpen, onToggle, sending, onSendNow, onSaved,
+}: {
+  m: Scheduled; i: number; editionId: string; securedGuests: number; lifecycleLive: boolean;
+  isOpen: boolean; onToggle: () => void; sending: string | null;
+  onSendNow: (key: string, name: string, guests: number) => void; onSaved: () => void;
+}) {
+  const gone = m.sent > 0;
+  const blocked = m.missing.length > 0;
+  const past = m.daysAway != null && m.daysAway < 0;
+  const off = !m.enabled || (m.kind === "lifecycle" && !lifecycleLive);
+  const when = m.daysBefore != null ? `${m.daysBefore}d before`
+    : m.daysAfterEnd != null ? `${m.daysAfterEnd}d after`
+    : "when\u2026";
+
+  return (
+    <div style={{ borderTop: i ? "1px solid var(--admin-border)" : undefined, backgroundColor: "var(--admin-surface)" }}>
+      <div className="flex items-start gap-3 px-4 py-3">
+        <button onClick={onToggle}
+          className={`shrink-0 w-16 text-right text-[12px] font-bold ${gone ? "text-green-500" : blocked ? "text-amber-500" : "admin-faint"}`}>
+          {when}
+        </button>
+        <button onClick={onToggle} className="flex-1 min-w-0 text-left">
+          <span className="flex items-center gap-2">
+            <span className="text-[13.5px] font-bold admin-heading">{m.name}</span>
+            {off && (
+              <span className="shrink-0 text-[10px] font-bold uppercase px-1.5 py-0.5 rounded bg-[var(--admin-surface-hover)] admin-faint">
+                {!m.enabled ? "off" : "paused"}
+              </span>
+            )}
+            <svg className={`w-3.5 h-3.5 admin-faint transition-transform ${isOpen ? "rotate-180" : ""}`} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M6 9l6 6 6-6" /></svg>
+          </span>
+          <span className="block text-[11.5px] admin-faint">{m.trigger}</span>
+          {blocked && !gone && (
+            <span className="block text-[11.5px] text-amber-500 mt-0.5">Held \u2014 needs {m.missing.join(", ")}</span>
+          )}
+        </button>
+        <span className="shrink-0 text-right">
+          {/* A passed window used to be a dead end: the cron won't fire it any
+              more and there was nothing to press. */}
+          {!gone && past && !blocked && m.whenKind === "date" && (
+            <button onClick={() => onSendNow(m.key, m.name, securedGuests)} disabled={sending === m.key}
+              className="block ml-auto mb-0.5 text-[12px] font-bold text-[#0aa3c7] hover:underline disabled:opacity-50">
+              {sending === m.key ? "Sending\u2026" : "Send now \u2192"}
+            </button>
+          )}
+          {gone ? (
+            <>
+              <span className="block text-[12.5px] font-bold text-green-500">Sent to {m.sent}</span>
+              <span className="block text-[11px] admin-faint">{fmt(m.lastSent)}</span>
+            </>
+          ) : m.whenKind === "date" ? (
+            <>
+              <span className="block text-[12.5px] admin-muted">{past ? "Window passed" : "Due"}</span>
+              <span className="block text-[11px] admin-faint">{fmt(m.dueAt)}</span>
+            </>
+          ) : (
+            <span className="block text-[12.5px] admin-faint">Not yet</span>
+          )}
+        </span>
+      </div>
+
+      {isOpen && (
+        <div className="px-4 pb-4 pl-[76px]" style={{ borderTop: "1px solid var(--admin-border)" }}>
+          <p className="text-[12px] admin-muted pt-3 mb-3 max-w-[60ch]">
+            {m.daysBefore != null
+              ? <>The nightly job works this out from the trip start date \u2014 {m.daysBefore} days before, which is {fmt(m.dueAt)}. Nobody presses anything.</>
+              : m.daysAfterEnd != null
+                ? <>The nightly job counts {m.daysAfterEnd} days from the day the trip ends, which is {fmt(m.dueAt)}. Nobody presses anything.</>
+                : <>No date: the nightly job checks every night and sends it the first night the condition is true. That&apos;s why there&apos;s nothing to count down to.</>}
+            {" "}
+            {!m.enabled
+              ? <>It is <strong>switched off</strong> \u2014 nothing goes out until you turn it back on.</>
+              : m.kind === "lifecycle" && !lifecycleLive
+                ? <>The switch is on, but the whole lifecycle pipeline is <strong>paused</strong>, so it is worked out and held.</>
+                : <>It is <strong>live</strong>.</>}
+            {" "}
+            <Link href={`/admin/emails/${m.key}`} className="text-[#0aa3c7] hover:underline">Wording &amp; switch \u2192</Link>
+          </p>
+
+          {m.uses.length === 0
+            ? <p className="text-[12px] admin-faint">This one writes itself \u2014 no content from you.</p>
+            : m.uses.map((u) => <ContentField key={u.key} editionId={editionId} use={u} onSaved={onSaved} />)}
+        </div>
+      )}
     </div>
   );
 }

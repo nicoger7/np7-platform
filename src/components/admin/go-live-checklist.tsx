@@ -133,13 +133,15 @@ function Row({ c, showDone, onFix }: { c: CheckResult; showDone: boolean; onFix:
         {!c.ok && c.detail && <span className="block text-[12px] admin-faint leading-snug">{c.detail}</span>}
         {c.ok && c.okDetail && <span className="block text-[12px] admin-faint leading-snug">{c.okDetail}</span>}
       </span>
-      <span className="shrink-0 text-[11.5px] font-bold text-[#0aa3c7] opacity-0 group-hover:opacity-100 transition-opacity">
+      <span className="shrink-0 text-[11.5px] font-bold text-[#0aa3c7] opacity-0 group-hover/row:opacity-100 transition-opacity">
         {c.fix ? "Edit" : "Open →"}
       </span>
     </>
   );
 
-  const cls = "w-full text-left flex items-start gap-2.5 px-3 py-2 rounded-lg hover:bg-[var(--admin-surface-hover)] transition-colors";
+  // `group` goes HERE, on the row. On the wrapper it meant hovering anywhere
+  // in an experience lit up every row's hint at once.
+  const cls = "group/row w-full text-left flex items-start gap-2.5 px-3 py-2 rounded-lg hover:bg-[var(--admin-surface-hover)] transition-colors";
 
   // A plain field opens here; anything needing a picker, an upload or a child
   // table opens where it actually lives.
@@ -220,7 +222,7 @@ export function ExperienceChecks({
   report, showDone, onFix,
 }: { report: ExperienceReport; showDone: boolean; onFix: (f: CheckFix) => void }) {
   return (
-    <div className="group space-y-2.5 pt-3">
+    <div className="space-y-2.5 pt-3">
       <Group
         title="The whole trip"
         meta={<span className="text-[11px] admin-faint">page, photos, terms \u2014 shared by every week</span>}

@@ -90,9 +90,7 @@ export async function GET(request: NextRequest) {
   // Both are best-effort + tolerant (storage/columns may not exist yet).
   const COMMITTED = new Set(["confirmed", "paid", "attended"]);
   type PhotoTask = { editionId: string; label: string; total: number; missing: { id: string; name: string }[] };
-  type ContentGap = { experienceId: string; title: string; missing: string[] };
   const photoTasks: PhotoTask[] = [];
-  const contentGaps: ContentGap[] = [];
   try {
     const { data: startedEds } = await db.from("exp_editions")
       .select("id,label,year,date_start,status,exp_experiences(title)")
@@ -125,20 +123,6 @@ export async function GET(request: NextRequest) {
       });
     }
 
-    const { data: exps } = await db.from("exp_experiences").select("id,title,hero_image,gallery,status,website_visible").eq("status", "published");
-    const visible = ((exps ?? []) as any[]).filter((e) => e.website_visible !== false);
-    const ids = visible.map((e) => e.id);
-    const { data: content } = ids.length ? await db.from("exp_content").select("experience_id,hero_image,gallery").in("experience_id", ids) : { data: [] };
-    const cByExp = new Map(((content ?? []) as any[]).map((c) => [c.experience_id, c]));
-    for (const e of visible) {
-      const c = cByExp.get(e.id);
-      const hero = c?.hero_image || e.hero_image;
-      const gallery = (Array.isArray(c?.gallery) && c.gallery.length ? c.gallery : e.gallery) ?? [];
-      const missing: string[] = [];
-      if (!hero) missing.push("hero image");
-      if (!Array.isArray(gallery) || gallery.filter(Boolean).length === 0) missing.push("gallery");
-      if (missing.length) contentGaps.push({ experienceId: e.id, title: e.title, missing });
-    }
   } catch { /* storage or tables not ready — leave empty */ }
 
   // What the lifecycle cron is about to send. Tolerant: a forecast is never
@@ -208,7 +192,6 @@ export async function GET(request: NextRequest) {
     // A restricted (no-money) role gets a slimmed dashboard focused on photo work.
     slim: !showMoney,
     photoTasks,
-    contentGaps,
     upcomingMails,
     readiness,
   });

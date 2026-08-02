@@ -409,7 +409,6 @@ interface DashboardData {
   pendingAddons: { id: string; bookingId: string; label: string; price: number | null; bookingName: string; payDirect?: boolean }[];
   slim?: boolean;
   photoTasks?: { editionId: string; label: string; total: number; missing: { id: string; name: string }[] }[];
-  contentGaps?: { experienceId: string; title: string; missing: string[] }[];
   upcomingMails?: {
     paused: boolean;
     mails: { templateKey: string; label: string; editionId: string; editionTitle: string; sendDate: string; daysAway: number; recipients: number; missing: string[] }[];
@@ -471,7 +470,6 @@ function ExperienceDashboard() {
   const amt = (n: number | null | undefined) => (hideMoney ? "€ ••••" : money(n));
 
   const photoTasks = d.photoTasks ?? [];
-  const contentGaps = d.contentGaps ?? [];
   const slim = !!d.slim;
 
   const photoPanels = (
@@ -487,20 +485,6 @@ function ExperienceDashboard() {
                     <span className="shrink-0 text-[9px] font-bold uppercase px-1.5 py-0.5 rounded bg-amber-500/15 text-amber-500">{t.total} missing</span>
                   </div>
                   <p className="text-[11px] admin-faint mt-1 leading-relaxed">{t.missing.map((m) => m.name).join(", ")}{t.total > t.missing.length ? ` +${t.total - t.missing.length} more` : ""}</p>
-                </Link>
-              ))}
-            </div>
-          )}
-        </Panel>
-      )}
-      {(contentGaps.length > 0 || slim) && (
-        <Panel title={`Website photos missing${contentGaps.length ? ` (${contentGaps.length})` : ""}`} href="/admin/content">
-          {contentGaps.length === 0 ? <p className="text-xs admin-faint">Every on-website experience has a hero &amp; gallery. 🎉</p> : (
-            <div className="space-y-1.5">
-              {contentGaps.map((c) => (
-                <Link key={c.experienceId} href={`/admin/content/${c.experienceId}`} className="flex items-center gap-3 text-xs py-1.5 px-2 -mx-2 rounded-lg hover:bg-[var(--admin-surface-hover)]">
-                  <span className="flex-1 admin-heading truncate">{c.title}</span>
-                  <span className="shrink-0 admin-faint">missing {c.missing.join(" + ")}</span>
                 </Link>
               ))}
             </div>

@@ -102,7 +102,21 @@ export default function ExperienceDetailPage({
   const [saved, setSaved] = useState(false);
   const [exp, setExp] = useState<Experience | null>(null);
   const [editions, setEditions] = useState<Edition[]>([]);
+  const EXP_TABS = ["editions", "ready", "template", "components"];
   const [activeSection, setActiveSection] = useState("editions");
+  // Honour ?tab= — the readiness links from the dashboard and the checklist
+  // point straight at ?tab=ready, and without this they all landed on Editions.
+  useEffect(() => {
+    const t = new URLSearchParams(window.location.search).get("tab");
+    if (t && EXP_TABS.includes(t)) setActiveSection(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+  function selectSection(t: string) {
+    setActiveSection(t);
+    const url = new URL(window.location.href);
+    url.searchParams.set("tab", t);
+    window.history.replaceState(null, "", url.toString());
+  }
   const [readiness, setReadiness] = useState<ExperienceReport | null>(null);
   const loadReadiness = useCallback(() => {
     fetch("/api/admin/go-live")
@@ -292,7 +306,7 @@ export default function ExperienceDetailPage({
         {[["editions", "Editions"], ["ready", "Ready to sell"], ["template", "Template"], ["components", "Components"]].map(([key, label]) => (
           <button
             key={key}
-            onClick={() => setActiveSection(key)}
+            onClick={() => selectSection(key)}
             className={`px-4 py-2.5 text-sm font-medium transition-colors border-b-2 -mb-[1px] ${activeSection === key ? "admin-heading border-[var(--admin-accent)]" : "admin-muted border-transparent"}`}
           >
             {label}

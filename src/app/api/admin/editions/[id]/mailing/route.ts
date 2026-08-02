@@ -3,7 +3,7 @@ import { sendEmail } from "@/lib/email/send";
 import { requireTeamMember } from "@/lib/admin-auth";
 import { createAdminClient } from "@/lib/supabase";
 import { AUTOMATIONS, CANNOT_DISABLE, lifecycleLive } from "@/lib/email/automations";
-import { SEND_SCHEDULE, resolveEditionContent, MAIL_REQUIREMENTS, CONTENT_LABELS, type ContentKey } from "@/lib/email/readiness";
+import { SEND_SCHEDULE, SEND_AFTER_END, resolveEditionContent, MAIL_REQUIREMENTS, CONTENT_LABELS, type ContentKey } from "@/lib/email/readiness";
 
 export const dynamic = "force-dynamic";
 
@@ -57,6 +57,7 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
 
   const today = Date.now();
   const start = startDate ? new Date(startDate).getTime() : null;
+  const end = ed?.date_end ? new Date(ed.date_end).getTime() : null;
 
   // Whether each mail is switched on at all. A row saying "Due 5 Aug" while the
   // template is off is a lie, and the switch lives two pages away.
@@ -76,7 +77,12 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
   // `whenKind` lets the panel keep them apart and say so.
   const scheduled = AUTOMATIONS.filter((a) => a.source === "scheduled").map((a) => {
     const lead = SEND_SCHEDULE[a.key as keyof typeof SEND_SCHEDULE];
-    const dueAt = lead != null && start != null ? new Date(start - lead * DAY).toISOString().slice(0, 10) : null;
+    const after = SEND_AFTER_END[a.key as keyof typeof SEND_AFTER_END];
+    const dueAt = lead != null && start != null
+      ? new Date(start - lead * DAY).toISOString().slice(0, 10)
+      : after != null && end != null
+        ? new Date(end + after * DAY).toISOString().slice(0, 10)
+        : null;
     const daysAway = dueAt ? Math.round((new Date(dueAt).getTime() - today) / DAY) : null;
     const req = MAIL_REQUIREMENTS[a.key];
     const uses = [...(req?.blocking ?? []), ...(req?.soft ?? [])];
@@ -84,8 +90,9 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
       key: a.key,
       name: a.name,
       trigger: a.trigger,
-      whenKind: lead != null ? "date" as const : "condition" as const,
+      whenKind: dueAt != null ? "date" as const : "condition" as const,
       daysBefore: lead ?? null,
+      daysAfterEnd: after ?? null,
       dueAt,
       daysAway,
       kind: a.kind,
@@ -105,7 +112,7 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
       sent: sentByTemplate[a.key]?.sent ?? 0,
       lastSent: sentByTemplate[a.key]?.last ?? null,
     };
-  }).sort((x, y) => (y.daysBefore ?? -999) - (x.daysBefore ?? -999));
+  }).sort((x, y) => (y.daysBefore ?? (x.daysAfterEnd != null || y.daysAfterEnd != null ? -1000 : -999)) - (x.daysBefore ?? -999));
 
   // Mail that isn't on a schedule but still went to these guests.
   const other = Object.entries(sentByTemplate)

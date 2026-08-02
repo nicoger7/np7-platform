@@ -25,6 +25,18 @@ export const SEND_SCHEDULE = {
   pre_trip_final: 3,
 } as const;
 
+/**
+ * Mails timed from the END of the trip, in days after.
+ *
+ * Same nightly job, same arithmetic — the only difference from SEND_SCHEDULE is
+ * which end of the week it counts from. Leaving these out made a perfectly
+ * dated mail look condition-driven, and the panel then told Nico there was
+ * "no send date" for a mail that goes out three days after everyone flies home.
+ */
+export const SEND_AFTER_END = {
+  post_trip_thank_you: 3,
+} as const;
+
 export type ContentKey = "packingList" | "preTripNote" | "whatsappLink";
 
 /**

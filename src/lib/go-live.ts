@@ -120,7 +120,7 @@ export async function runGoLiveChecks(): Promise<ExperienceReport[]> {
     await Promise.all([
       db.from("exp_experiences").select("id,title,location,description,hero_image,gallery,price,website_visible,cancellation_policy,status,destination_id").is("archived_at", null),
       db.from("exp_content").select("*"),
-      db.from("exp_editions").select("id,experience_id,label,date_start,date_end,max_spots,status,deposit,whatsapp_group_link").is("archived_at", null),
+      db.from("exp_editions").select("id,experience_id,label,date_start,date_end,max_spots,status,deposit,whatsapp_group_link,packing_list").is("archived_at", null),
       db.from("exp_packages").select("id,experience_id,edition_id,name,price,status,website_visible,hotel_id").is("archived_at", null),
       db.from("exp_bookings").select("id,edition_id,status,downpayment_received,final_payment_received"),
       db.from("hotels").select("id,name,image_url,description").is("archived_at", null),
@@ -170,6 +170,8 @@ export async function runGoLiveChecks(): Promise<ExperienceReport[]> {
     const detail = `/admin/experiences/${id}`;
     const gallery = (e.gallery as unknown[] | null)?.length || (c.gallery as unknown[] | null)?.length || 0;
 
+    const eds = ((editions ?? []) as Row[]).filter((x) => String(x.experience_id) === id && stillAhead(x));
+
     const expChecks: CheckResult[] = [
       ok("tileImage", "Card & hero photo", "blocker", has(e.hero_image) || has(c.hero_image), `${content_}?tab=media`, "No image — the listing card and page hero are empty"),
       ok("location", "Location", "blocker", has(e.location), detail, "No place name on the card or page", {
@@ -188,7 +190,12 @@ export async function runGoLiveChecks(): Promise<ExperienceReport[]> {
         okDetail: has(e.cancellation_policy) ? "Own terms set for this trip" : "Standard EU terms — override only if this trip differs",
         fix: { table: "exp_experiences", id, column: "cancellation_policy", kind: "textarea", title: "Cancellation terms", help: "This is the short summary a guest reads on their trip page — not the full legal terms, which live on /terms and in the trip files. Leave it empty and every guest gets the standard wording below. Fill it in only when this trip genuinely differs (a charter, a non-refundable flight block).", value: (e.cancellation_policy as string) ?? null, fallback: defaultCancellationPolicy(false) },
       }),
-      ok("packingList", "Packing list", "warning", has(c.packing_list), `${content_}?tab=pretrip`, "The pre-trip email is held back without it", {
+      // A week can carry its own list, and the mail prefers it — so an experience
+      // with none is still covered when every upcoming week has one. Warning
+      // otherwise, because the weeks that don't are the ones that break.
+      ok("packingList", "Packing list", "warning",
+        has(c.packing_list) || (eds.length > 0 && eds.every((x) => has(x.packing_list))),
+        `${content_}?tab=pretrip`, "The pre-trip email is held back without it", {
         fix: { table: "exp_content", id, column: "packing_list", kind: "textarea", title: "Packing list", help: "One item per line. Shown in the member portal and the pre-trip email.", value: (c.packing_list as string) ?? null },
       }),
 
@@ -218,7 +225,6 @@ export async function runGoLiveChecks(): Promise<ExperienceReport[]> {
         `${content_}?tab=faq`, "Still the standard answers"),
     ];
 
-    const eds = ((editions ?? []) as Row[]).filter((x) => String(x.experience_id) === id && stillAhead(x));
     const edReports: EditionReport[] = eds.map((ed) => {
       const edId = String(ed.id);
       const base = `/admin/editions/${edId}`;
