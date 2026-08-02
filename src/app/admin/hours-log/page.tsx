@@ -45,7 +45,6 @@ const COLUMNS: ColumnDef[] = [
   { key: "booking", label: "Booking", width: "130px", defaultHidden: true },
   { key: "is_general", label: "General", width: "70px", defaultHidden: true },
   { key: "processed_at", label: "Processed", width: "90px", defaultHidden: true },
-  { key: "description", label: "Description", width: "1fr" },
   { key: "notes", label: "Notes", width: "140px", defaultHidden: true },
   { key: "_actions", label: "", width: "60px", required: true },
 ];
@@ -279,7 +278,6 @@ export default function HoursLogPage() {
                 {editions.filter((ed) => ed.experience_id === form.experience_id).map((ed) => <option key={ed.id} value={ed.id}>{editionOptionLabel(ed)}</option>)}
               </select>
             </div>
-            <div><label className={labelClass}>Description</label><input className={inputClass} value={form.entry} onChange={(e) => setForm({ ...form, entry: e.target.value })} /></div>
           </div>
           <div className="grid grid-cols-3 gap-4 mb-4">
             <div><label className={labelClass}>Notes</label><input className={inputClass} value={form.notes} onChange={(e) => setForm({ ...form, notes: e.target.value })} /></div>
@@ -345,9 +343,6 @@ export default function HoursLogPage() {
               )}
               {visibleColumns.has("processed_at") && (
                 <span className="text-xs admin-faint self-center">{formatDate(e.processed_at)}</span>
-              )}
-              {visibleColumns.has("description") && (
-                <span className="text-xs admin-faint self-center truncate">{e.entry || "—"}</span>
               )}
               {visibleColumns.has("notes") && (
                 <span className="text-xs admin-faint self-center truncate" title={e.notes || ""}>{e.notes || "—"}</span>

@@ -13,8 +13,12 @@ import { createAdminClient } from "@/lib/supabase";
  *  - The value lands in `actual_amount`. Labour can be estimated up front like
  *    any other cost; the hours people actually logged are what really happened,
  *    so they fill the actual and leave your estimate alone.
- *  - General hours (is_general) are split evenly across editions that hadn't
- *    finished when the work happened — that is what "overhead" means.
+ *  - Hours on an EXPERIENCE (no edition) split across that experience's weeks
+ *    that were still upcoming on the day the work happened.
+ *  - Hours on nothing are overhead: an equal share per experience that was live
+ *    or still ahead, then spread within each across its own upcoming weeks.
+ *    Equal per experience, not per edition — three Bonaire weeks must not pull
+ *    three times the overhead of one Alacati week.
  *  - `hours_log.processed_at` is the ledger. A row is costed once; re-running is
  *    safe and does nothing, which is what makes this safe to put on a button.
  *  - Someone with no rate_per_hour is skipped and reported, never costed at 0.
@@ -24,16 +28,16 @@ import { createAdminClient } from "@/lib/supabase";
 
 type Row = {
   id: string; hours: number | null; date: string | null; entry: string | null;
-  employee_id: string | null; edition_id: string | null; is_general: boolean | null;
+  employee_id: string | null; edition_id: string | null; experience_id: string | null; is_general: boolean | null;
 };
 
 export async function planHoursCosts(db: ReturnType<typeof createAdminClient>) {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const q = db as any;
   const [{ data: rows }, { data: team }, { data: editions }] = await Promise.all([
-    q.from("hours_log").select("id,hours,date,entry,employee_id,edition_id,is_general").is("processed_at", null),
+    q.from("hours_log").select("id,hours,date,entry,employee_id,edition_id,experience_id,is_general").is("processed_at", null),
     q.from("team_members").select("id,name,rate_per_hour"),
-    q.from("exp_editions").select("id,date_end").is("archived_at", null),
+    q.from("exp_editions").select("id,experience_id,date_end").is("archived_at", null),
   ]);
 
   const rate = new Map<string, number>();
@@ -43,10 +47,15 @@ export async function planHoursCosts(db: ReturnType<typeof createAdminClient>) {
     nameOf.set(t.id, t.name);
   }
 
-  const eds = (editions ?? []) as { id: string; date_end: string | null }[];
+  const eds = (editions ?? []) as { id: string; experience_id: string | null; date_end: string | null }[];
+  /** Editions that hadn't finished yet on the day the work happened — "upcoming
+   *  at that moment". An hour worked in March belongs to the weeks that were
+   *  still ahead in March, not to one that had already run. */
+  const upcomingOn = (on: string) => eds.filter((e) => !e.date_end || !on || e.date_end >= on);
+
   const costs: { edition_id: string; item: string; estimated_amount: number; hoursIds: string[] }[] = [];
   const skipped: { name: string; hours: number; why: string }[] = [];
-  const bucket = new Map<string, { amount: number; hours: number; ids: string[]; who: string }>();
+  const bucket = new Map<string, { amount: number; ids: string[]; who: string }>();
 
   for (const r of (rows ?? []) as Row[]) {
     const h = Number(r.hours) || 0;
@@ -55,38 +64,57 @@ export async function planHoursCosts(db: ReturnType<typeof createAdminClient>) {
     const rt = r.employee_id ? rate.get(r.employee_id) : undefined;
     if (rt == null) { skipped.push({ name: who, hours: h, why: "no hourly rate set" }); continue; }
 
-    // Which editions does this hour belong to?
-    let targets: string[];
+    const total = h * rt;
+    const on = r.date ?? "";
+    // What each edition gets from this one hour entry.
+    const share = new Map<string, number>();
+
     if (r.edition_id) {
-      targets = [r.edition_id];
-    } else if (r.is_general) {
-      // Overhead: spread across the editions that were still live that day.
-      const on = r.date ?? "";
-      const live = eds.filter((e) => !e.date_end || !on || e.date_end >= on).map((e) => e.id);
-      if (!live.length) { skipped.push({ name: who, hours: h, why: "general hours, no live edition to carry them" }); continue; }
-      targets = live;
+      // 1. Booked to a week → that week carries it.
+      share.set(r.edition_id, total);
+    } else if (r.experience_id) {
+      // 2. Booked to an experience → split across that experience's upcoming
+      //    weeks. Work on "Bonaire" benefits whichever Bonaire weeks are still
+      //    ahead, not the one that already ran.
+      const mine = upcomingOn(on).filter((e) => e.experience_id === r.experience_id);
+      if (!mine.length) { skipped.push({ name: who, hours: h, why: "experience has no upcoming edition" }); continue; }
+      for (const e of mine) share.set(e.id, total / mine.length);
     } else {
-      skipped.push({ name: who, hours: h, why: "not tied to an edition and not marked general" });
-      continue;
+      // 3. General → equal per EXPERIENCE that is live or still ahead, then
+      //    spread within each experience across its own upcoming weeks. Equal
+      //    per experience, not per edition: three Bonaire weeks shouldn't pull
+      //    three times the overhead of one Alacati week.
+      const live = upcomingOn(on).filter((e) => e.experience_id);
+      const byExp = new Map<string, string[]>();
+      for (const e of live) {
+        const list = byExp.get(e.experience_id!) ?? [];
+        list.push(e.id);
+        byExp.set(e.experience_id!, list);
+      }
+      if (!byExp.size) { skipped.push({ name: who, hours: h, why: "no active experience to carry general hours" }); continue; }
+      const perExperience = total / byExp.size;
+      for (const list of byExp.values()) {
+        for (const id of list) share.set(id, (share.get(id) ?? 0) + perExperience / list.length);
+      }
     }
 
-    const share = (h * rt) / targets.length;
-    for (const ed of targets) {
-      const month = (r.date ?? "").slice(0, 7);
-      const key = `${ed}|${who}|${month}|${r.edition_id ? "direct" : "overhead"}`;
-      const b = bucket.get(key) ?? { amount: 0, hours: 0, ids: [], who };
-      b.amount += share;
-      b.hours += h / targets.length;
+    const kind = r.edition_id ? "direct" : r.experience_id ? "experience" : "overhead";
+    const month = on.slice(0, 7);
+    for (const [ed, amount] of share) {
+      const key = `${ed}|${who}|${month}|${kind}`;
+      const b = bucket.get(key) ?? { amount: 0, ids: [], who };
+      b.amount += amount;
       b.ids.push(r.id);
       bucket.set(key, b);
     }
   }
 
+  const LABEL: Record<string, string> = { direct: "Labour", experience: "Labour (experience)", overhead: "Overhead labour" };
   for (const [key, b] of bucket) {
     const [edition_id, who, month, kind] = key.split("|");
     costs.push({
       edition_id,
-      item: `${kind === "direct" ? "Labour" : "Overhead labour"} — ${who}${month ? ` (${month})` : ""}`,
+      item: `${LABEL[kind]} — ${who}${month ? ` (${month})` : ""}`,
       estimated_amount: Math.round(b.amount * 100) / 100,
       hoursIds: b.ids,
     });
