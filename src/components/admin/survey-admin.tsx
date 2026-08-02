@@ -649,10 +649,25 @@ No emails yet — review the list, then press Send invites.`)) return;
     } finally { setSending(false); }
   }
 
+  /**
+   * A response row is not the same as an answer.
+   *
+   * Tapping a date in the email saves immediately, so un-tapping it on the page
+   * leaves a row with nothing in it — and the invite already marked completed.
+   * Those people had been dropped from the reminder list despite never telling
+   * us anything, which is the one group most worth chasing. A real "can't make
+   * it" sets looking_for and still counts as answered.
+   */
+  const answered = (i: { response?: { other_destinations?: string[] | null; top_destination?: string | null; looking_for?: string | null; budget_ok?: string | null } | null }) => {
+    const r = i.response;
+    if (!r) return false;
+    return (r.other_destinations?.length ?? 0) > 0 || !!r.top_destination || !!r.looking_for || !!r.budget_ok;
+  };
+
   // Remind non-responders: got the mail, silent, address not bouncing, not
   // reminded before. Split warm/cold on the open pixel where we have it.
   const remindable = invites.filter((i) =>
-    i.emailed && i.contactEmail && !i.response && i.status !== "completed" &&
+    i.emailed && i.contactEmail && !answered(i) &&
     i.emailEvent !== "bounced" && i.emailEvent !== "complained" && !i.remindedAt);
   const remOpened = remindable.filter((i) => i.emailOpenedAt).length;
   const [remindOpen, setRemindOpen] = useState(false);
@@ -1052,6 +1067,10 @@ function ResponsesSection({ survey, invites, fmtMoney, onRemove }: { survey: Sur
                   <div className="text-[13px] text-[#5a6b72] mt-1 space-y-0.5">
                     {isDecline(r) ? (
                       <p className="text-[#a5432a] font-semibold">Can&apos;t make it this time{r.looking_for && r.looking_for.includes("—") ? ` — ${r.looking_for.split("—").slice(1).join("—").trim()}` : ""}</p>
+                    ) : !r.other_destinations.length && !r.top_destination && !r.looking_for ? (
+                      // Not a decline and not an answer — they opened it and left
+                      // nothing. "In for: —" read like a deliberate opt-out.
+                      <p className="text-[#9a6b16]">Opened it but didn&apos;t pick anything — still worth a nudge</p>
                     ) : hasTrips ? (
                       <p><span className="text-[#9aa6ac]">In for:</span> <b>{r.other_destinations.length ? r.other_destinations.map((k) => `${k === r.top_destination ? "⭐ " : ""}${destLabel(k)}`).join(", ") : "—"}</b></p>
                     ) : (
