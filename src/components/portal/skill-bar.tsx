@@ -21,6 +21,13 @@ export function SkillBar({ coach, windcoach, self, total, dark = false, classNam
   );
 }
 
+/**
+ * Wind Coach verification isn't built yet. One flag for the whole progression
+ * UI so the banner and this legend can't drift apart — flip it when the
+ * integration ships.
+ */
+export const SHOW_WINDCOACH = false;
+
 /** Compact legend for the three fill states. */
 export function SkillBarLegend({ dark = false, className = "" }: { dark?: boolean; className?: string }) {
   const dot = (c: string) => <span className="inline-block w-2 h-2 rounded-full" style={{ background: c }} />;
@@ -29,7 +36,7 @@ export function SkillBarLegend({ dark = false, className = "" }: { dark?: boolea
   return (
     <div className={`flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] ${txt} ${className}`}>
       <span className="inline-flex items-center gap-1.5">{dot("#d4a017")} coach</span>
-      <span className="inline-flex items-center gap-1.5">{dot("#7b61c9")} Wind Coach</span>
+      {SHOW_WINDCOACH && <span className="inline-flex items-center gap-1.5">{dot("#7b61c9")} Wind Coach</span>}
       <span className="inline-flex items-center gap-1.5">{dot(grey)} self-rated</span>
     </div>
   );

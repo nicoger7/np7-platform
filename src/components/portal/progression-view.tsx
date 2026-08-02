@@ -4,7 +4,7 @@ import { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { RANKS, skillStateCounts, type Progression, type Track, type ProgressSkill } from "@/lib/progression";
-import { SkillBar } from "@/components/portal/skill-bar";
+import { SkillBar, SHOW_WINDCOACH } from "@/components/portal/skill-bar";
 
 /* The member "Progress" view — Freeride/Freerace/Slalom tracks. Rank (Beginner →
    Pro) is earned by MASTERING skills, so the headline is always "N skills to <next
@@ -224,11 +224,16 @@ export function ProgressionView({ progression, avatarUrl, initials }: { progress
         <span className="text-[12.5px] flex-1" style={{ color: GOLD_TX }}>Coach-verified on an NP7 trip is the gold standard — the surest way to climb the ranks.</span>
         <Link href="/experience" className="text-[12px] font-bold text-white rounded-full px-3 py-1.5 whitespace-nowrap" style={{ background: CYAN }}>Book a trip</Link>
       </div>
-      <a href={WINDCOACH_URL} target="_blank" rel="noopener" className="flex items-center gap-2.5 rounded-xl px-3 py-2.5 mt-2 hover:brightness-[0.99] transition-all" style={{ background: "#efeafb", border: "1px solid #ddd2f2" }}>
-        <span className="shrink-0"><Ico name="video" size={20} color={PURPLE} /></span>
-        <span className="text-[12.5px] flex-1" style={{ color: "#4a3b7a" }}>Between trips, keep progressing with <strong>Wind Coach</strong> — get your skills video-verified year-round.</span>
-        <span className="inline-flex items-center gap-1 text-[12px] font-bold text-white rounded-full px-3 py-1.5 whitespace-nowrap" style={{ background: PURPLE }}>Open Wind Coach ↗</span>
-      </a>
+      {/* Wind Coach verification isn't built yet — flip this to true when the
+          integration ships. Until then the banner promises a door that opens
+          onto nothing, which is worse than not mentioning it. */}
+      {SHOW_WINDCOACH && (
+        <a href={WINDCOACH_URL} target="_blank" rel="noopener" className="flex items-center gap-2.5 rounded-xl px-3 py-2.5 mt-2 hover:brightness-[0.99] transition-all" style={{ background: "#efeafb", border: "1px solid #ddd2f2" }}>
+          <span className="shrink-0"><Ico name="video" size={20} color={PURPLE} /></span>
+          <span className="text-[12.5px] flex-1" style={{ color: "#4a3b7a" }}>Between trips, keep progressing with <strong>Wind Coach</strong> — get your skills video-verified year-round.</span>
+          <span className="inline-flex items-center gap-1 text-[12px] font-bold text-white rounded-full px-3 py-1.5 whitespace-nowrap" style={{ background: PURPLE }}>Open Wind Coach ↗</span>
+        </a>
+      )}
 
       {/* discipline pills — the three CORE tracks drive your rank. Wave & Freestyle
           is a "side" track, set apart and lighter so it doesn't read as equal weight. */}
