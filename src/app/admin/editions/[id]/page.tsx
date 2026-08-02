@@ -1456,64 +1456,67 @@ export default function EditionDetailPage({
             </div>
           </div>
 
-          {(costShow || costEditId) && (
-            <div className="mb-4 p-4 rounded-xl" style={{ border: "1px solid var(--admin-border)", backgroundColor: "var(--admin-surface)" }}>
-              <h3 className="text-sm font-bold admin-heading mb-3">{costEditId ? "Edit Cost" : "New Cost"}</h3>
-              <div className="grid grid-cols-[1fr_120px_120px_140px_130px] gap-3 mb-3">
-                <div><label className={labelClass}>Item *</label><input className={inputClass} value={costForm.item} onChange={(e) => setCostForm({ ...costForm, item: e.target.value })} /></div>
-                <div><label className={labelClass}>Estimated ({currency})</label><input type="number" className={inputClass} value={costForm.estimated_amount} onChange={(e) => setCostForm({ ...costForm, estimated_amount: e.target.value })} /></div>
-                <div><label className={labelClass}>Actual ({currency})</label><input type="number" className={inputClass} value={costForm.actual_amount} onChange={(e) => setCostForm({ ...costForm, actual_amount: e.target.value })} /></div>
-                <div><label className={labelClass}>Date</label><input type="date" className={inputClass} value={costForm.date} onChange={(e) => setCostForm({ ...costForm, date: e.target.value })} /></div>
-                <div><label className={labelClass}>Status</label><select className={inputClass} value={costForm.status} onChange={(e) => setCostForm({ ...costForm, status: e.target.value })}>{COST_STATUSES.map((s) => <option key={s} value={s}>{s[0].toUpperCase() + s.slice(1)}</option>)}</select></div>
-              </div>
-              <div className="flex gap-2">
-                <button onClick={saveCost} disabled={!costForm.item} className="px-4 py-2 bg-[var(--admin-accent)] hover:bg-[var(--admin-accent)]/90 disabled:opacity-40 text-[var(--admin-accent-contrast)] text-sm font-bold rounded-lg transition-colors">{costEditId ? "Update" : "Create"}</button>
-                <button onClick={() => { setCostShow(false); setCostEditId(null); setCostForm(emptyCost); }} className="px-4 py-2 admin-muted text-sm rounded-lg transition-colors">Cancel</button>
-              </div>
-            </div>
-          )}
-
-          {costs.length === 0 ? (
-            <div className="text-center py-16">
-              <p className="text-sm admin-faint">No costs for this edition</p>
-            </div>
-          ) : (
-            <div className="rounded-xl admin-tablecard" style={{ border: "1px solid var(--admin-border)" }}>
-              <div className="grid grid-cols-[1fr_110px_110px_90px_90px_40px] gap-4 px-5 py-3 admin-surface" style={{ borderBottom: "1px solid var(--admin-border)" }}>
-                <span className="text-[10px] font-bold tracking-[0.1em] admin-faint uppercase">Item</span>
-                <span className="text-[10px] font-bold tracking-[0.1em] admin-faint uppercase">Estimated</span>
-                <span className="text-[10px] font-bold tracking-[0.1em] admin-faint uppercase">Actual</span>
-                <span className="text-[10px] font-bold tracking-[0.1em] admin-faint uppercase">Date</span>
-                <span className="text-[10px] font-bold tracking-[0.1em] admin-faint uppercase">Status</span>
-                <span></span>
-              </div>
-              {costs.map((c) => (
-                <div
-                  key={c.id}
-                  className="grid grid-cols-[1fr_110px_110px_90px_90px_40px] gap-4 px-5 py-3.5 transition-colors group"
-                  style={{ borderBottom: "1px solid var(--admin-border)" }}
-                  onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = "var(--admin-surface-hover)")}
-                  onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = "transparent")}
-                >
-                  <span className="text-sm admin-heading truncate self-center cursor-pointer" onClick={() => { setCostEditId(c.id); setCostShow(false); setCostForm({ item: c.item, estimated_amount: c.estimated_amount?.toString() || "", actual_amount: c.actual_amount?.toString() || "", date: c.date || "", status: c.status }); }}>{c.item}</span>
-                  <span className="text-xs admin-muted self-center">{c.estimated_amount ? `€${Number(c.estimated_amount).toLocaleString()}` : "—"}</span>
-                  <span className="text-xs admin-muted self-center">{c.actual_amount ? `€${Number(c.actual_amount).toLocaleString()}` : "—"}</span>
-                  <span className="text-xs admin-faint self-center">{formatDate(c.date)}</span>
-                  <span className="self-center">
-                    <span className={`inline-block px-2 py-0.5 rounded text-[10px] font-bold uppercase ${
-                      c.status === "confirmed" ? "bg-green-500/15 text-green-400" :
-                      c.status === "estimate" ? "bg-amber-500/15 text-amber-400" :
-                      c.status === "cancelled" ? "bg-red-500/15 text-red-400" :
-                      "admin-surface admin-muted"
-                    }`}>{c.status}</span>
-                  </span>
-                  <button onClick={() => deleteCost(c.id)} className="self-center opacity-0 group-hover:opacity-100 admin-faint hover:text-red-400 transition-all" title="Delete">
-                    <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M3 6h18M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a2 2 0 012-2h4a2 2 0 012 2v2" /></svg>
-                  </button>
+          {/* Master-detail: the list stays put and the editor opens beside it,
+              so you keep your place instead of the form pushing 17 rows down. */}
+          <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_360px] items-start">
+            {costs.length === 0 ? (
+              <div className="text-center py-16"><p className="text-sm admin-faint">No costs for this edition</p></div>
+            ) : (
+              <div className="rounded-xl admin-tablecard overflow-hidden" style={{ border: "1px solid var(--admin-border)" }}>
+                <div className="grid grid-cols-[1fr_100px_100px_86px_40px] gap-3 px-4 py-3 admin-surface" style={{ borderBottom: "1px solid var(--admin-border)" }}>
+                  {["Item", "Estimated", "Actual", "Status", ""].map((h, i) => (
+                    <span key={i} className="text-[10px] font-bold tracking-[0.1em] admin-faint uppercase">{h}</span>
+                  ))}
                 </div>
-              ))}
-            </div>
-          )}
+                {costs.map((c) => {
+                  const active = costEditId === c.id;
+                  return (
+                    <div key={c.id}
+                      onClick={() => { setCostEditId(c.id); setCostShow(false); setCostForm({ item: c.item, estimated_amount: c.estimated_amount?.toString() || "", actual_amount: c.actual_amount?.toString() || "", date: c.date || "", status: c.status }); }}
+                      className="grid grid-cols-[1fr_100px_100px_86px_40px] gap-3 px-4 py-3 transition-colors group cursor-pointer"
+                      style={{ borderBottom: "1px solid var(--admin-border)", backgroundColor: active ? "var(--admin-surface-hover)" : undefined, boxShadow: active ? "inset 3px 0 0 var(--admin-accent)" : undefined }}>
+                      <span className="text-[13px] admin-heading truncate self-center">{c.item}</span>
+                      <span className="text-xs admin-muted self-center">{c.estimated_amount ? `€${Number(c.estimated_amount).toLocaleString()}` : "—"}</span>
+                      <span className="text-xs admin-muted self-center">{c.actual_amount ? `€${Number(c.actual_amount).toLocaleString()}` : "—"}</span>
+                      <span className="self-center">
+                        <span className={`inline-block px-2 py-0.5 rounded text-[10px] font-bold uppercase ${
+                          c.status === "confirmed" ? "bg-green-500/15 text-green-400" :
+                          c.status === "estimate" ? "bg-amber-500/15 text-amber-400" :
+                          c.status === "cancelled" ? "bg-red-500/15 text-red-400" : "admin-surface admin-muted"
+                        }`}>{c.status}</span>
+                      </span>
+                      <button onClick={(e) => { e.stopPropagation(); deleteCost(c.id); }} className="self-center opacity-0 group-hover:opacity-100 admin-faint hover:text-red-400 transition-all" title="Delete">
+                        <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M3 6h18M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a2 2 0 012-2h4a2 2 0 012 2v2" /></svg>
+                      </button>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+
+            {(costShow || costEditId) ? (
+              <div className="rounded-xl p-4 lg:sticky lg:top-4" style={{ border: "1px solid var(--admin-border)", backgroundColor: "var(--admin-surface)" }}>
+                <h3 className="text-sm font-bold admin-heading mb-3">{costEditId ? "Edit cost" : "New cost"}</h3>
+                <div className="space-y-3">
+                  <div><label className={labelClass}>Item *</label><input className={inputClass} value={costForm.item} onChange={(e) => setCostForm({ ...costForm, item: e.target.value })} /></div>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div><label className={labelClass}>Estimated ({currency})</label><input type="number" className={inputClass} value={costForm.estimated_amount} onChange={(e) => setCostForm({ ...costForm, estimated_amount: e.target.value })} /></div>
+                    <div><label className={labelClass}>Actual ({currency})</label><input type="number" className={inputClass} value={costForm.actual_amount} onChange={(e) => setCostForm({ ...costForm, actual_amount: e.target.value })} /></div>
+                  </div>
+                  <div><label className={labelClass}>Date</label><input type="date" className={inputClass} value={costForm.date} onChange={(e) => setCostForm({ ...costForm, date: e.target.value })} /></div>
+                  <div><label className={labelClass}>Status</label><select className={inputClass} value={costForm.status} onChange={(e) => setCostForm({ ...costForm, status: e.target.value })}>{COST_STATUSES.map((st) => <option key={st} value={st}>{st[0].toUpperCase() + st.slice(1)}</option>)}</select></div>
+                </div>
+                <div className="flex gap-2 mt-4">
+                  <button onClick={saveCost} disabled={!costForm.item} className="px-4 py-2 bg-[var(--admin-accent)] hover:bg-[var(--admin-accent)]/90 disabled:opacity-40 text-[var(--admin-accent-contrast)] text-sm font-bold rounded-lg transition-colors">{costEditId ? "Update" : "Create"}</button>
+                  <button onClick={() => { setCostShow(false); setCostEditId(null); setCostForm(emptyCost); }} className="px-4 py-2 admin-muted text-sm rounded-lg transition-colors">Cancel</button>
+                </div>
+              </div>
+            ) : (
+              <div className="hidden lg:block rounded-xl p-6 text-center" style={{ border: "1px dashed var(--admin-border)" }}>
+                <p className="text-[13px] admin-faint">Pick a cost to edit it, or add a new one.</p>
+              </div>
+            )}
+          </div>
         </div>
       )}
 
