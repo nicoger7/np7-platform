@@ -7,6 +7,12 @@ import { useState } from "react";
 export function SurveyJoin({ openToken }: { openToken: string }) {
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
+  /**
+   * Answering a survey is not consent to be marketed to. Unticked by default,
+   * worded separately, and never a condition of taking part — otherwise it is
+   * not freely given and the whole list is unusable.
+   */
+  const [optIn, setOptIn] = useState(false);
   const [website, setWebsite] = useState(""); // honeypot — humans never see it
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
@@ -18,7 +24,7 @@ export function SurveyJoin({ openToken }: { openToken: string }) {
     try {
       const res = await fetch("/api/survey/join", {
         method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ token: openToken, name, email, website }),
+        body: JSON.stringify({ token: openToken, name, email, website, optIn }),
       });
       const j = await res.json().catch(() => ({}));
       if (!res.ok || !j.token) { setError(j.error || "Something went wrong — please try again."); return; }
@@ -42,6 +48,14 @@ export function SurveyJoin({ openToken }: { openToken: string }) {
       {/* honeypot: hidden from humans, tempting to bots */}
       <input className="absolute opacity-0 pointer-events-none h-0 w-0" tabIndex={-1} autoComplete="off" aria-hidden="true"
         value={website} onChange={(e) => setWebsite(e.target.value)} placeholder="Website" name="website" />
+      <label className="flex items-start gap-2.5 mt-4 cursor-pointer select-none">
+        <input type="checkbox" checked={optIn} onChange={(e) => setOptIn(e.target.checked)}
+          className="mt-0.5 w-4 h-4 shrink-0 accent-[#f0a500]" />
+        <span className="text-[13.5px] text-[#6a7a80] leading-relaxed">
+          Also keep me posted on NP7 trips — a handful of emails a year, unsubscribe any time.
+          <span className="block text-[12.5px] text-[#9aa6ac]">Optional. Your answer counts either way.</span>
+        </span>
+      </label>
       {error && <p className="text-[13px] font-semibold text-[#c0392b] mt-3">{error}</p>}
       <button type="submit" disabled={busy || !name.trim() || !email.trim()}
         className="mt-5 w-full sm:w-auto rounded-full px-8 py-3.5 text-[15px] font-black text-[#3a2a00] disabled:opacity-50 transition-transform active:scale-[0.98]"

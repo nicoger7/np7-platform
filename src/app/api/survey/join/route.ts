@@ -11,10 +11,11 @@ export async function POST(request: NextRequest) {
   const name = typeof body?.name === "string" ? body.name : "";
   const email = typeof body?.email === "string" ? body.email : "";
   const honeypot = typeof body?.website === "string" ? body.website : "";
+  const optIn = body?.optIn === true;
   if (honeypot.trim()) return NextResponse.json({ token: "thanks" }); // bot: pretend success, save nothing
   if (!token) return NextResponse.json({ error: "Missing link token." }, { status: 400 });
 
-  const res = await joinSurveyByOpenToken(token, name, email);
+  const res = await joinSurveyByOpenToken(token, name, email, optIn);
   if ("error" in res) return NextResponse.json({ error: res.error }, { status: 400 });
   return NextResponse.json({ token: res.token });
 }

@@ -315,7 +315,7 @@ export async function getSurveyByOpenToken(token: string): Promise<Survey | null
 /** Someone arrived via the open link and left name + email: find-or-create the
  *  contact, find-or-create their invite, hand back their PERSONAL token — so
  *  the same email always resumes its own saved answer, never a duplicate. */
-export async function joinSurveyByOpenToken(openToken: string, nameRaw: string, emailRaw: string): Promise<{ token: string } | { error: string }> {
+export async function joinSurveyByOpenToken(openToken: string, nameRaw: string, emailRaw: string, optIn = false): Promise<{ token: string } | { error: string }> {
   const survey = await getSurveyByOpenToken(openToken);
   if (!survey) return { error: "This link is no longer valid." };
   if (survey.status === "closed") return { error: "This invitation has closed." };
@@ -336,9 +336,24 @@ export async function joinSurveyByOpenToken(openToken: string, nameRaw: string, 
     contactId = data?.[0]?.id ?? null;
   }
   if (!contactId) {
-    const { data: created, error } = await sb.from("contacts").insert({ name, email, source: "survey_open_link" }).select("id").single();
+    const { data: created, error } = await sb.from("contacts").insert({
+      name, email, source: "survey_open_link",
+      // Ticked the optional box → a real, timestamped marketing consent. Left
+      // it → they are a survey respondent and nothing more, which is why they
+      // stay out of every campaign audience.
+      marketing_opt_in: optIn,
+      accepts_marketing: optIn,
+      marketing_opt_in_at: optIn ? new Date().toISOString() : null,
+    }).select("id").single();
     if (error || !created) return { error: "Something went wrong — please try again." };
     contactId = String(created.id);
+  } else if (optIn) {
+    // Existing contact who ticked: upgrade. Only ever upgrade — an unticked box
+    // is not a withdrawal, and silently clearing someone's consent because they
+    // answered a survey would be worse than never asking.
+    await sb.from("contacts")
+      .update({ marketing_opt_in: true, accepts_marketing: true, marketing_opt_in_at: new Date().toISOString() })
+      .eq("id", contactId).is("marketing_opt_in", false);
   }
 
   return findOrCreateOpenInvite(survey.id, contactId, name.split(/\s+/)[0]);
