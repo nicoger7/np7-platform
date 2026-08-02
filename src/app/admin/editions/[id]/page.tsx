@@ -30,10 +30,19 @@ import { EditionMailing } from "@/components/admin/edition-mailing";
 const DEFAULT_TABS = ["details", "branding", "mailing", "bookings", "arrivals", "levels", "packages", "memories", "costs", "rooms", "notes"] as const;
 type EditionTab = (typeof DEFAULT_TABS)[number];
 const TAB_ORDER_KEY = "np7_edition_tab_order";
-/** Occasional tabs — pinned right, past a divider, out of the working set. */
+/**
+ * Three groups, because the tabs do three different jobs.
+ *
+ * SETUP is the week as you configure it — what it is, what it costs, what goes
+ * out. PEOPLE is the week as it actually runs — who booked, where they sleep,
+ * when they land. SIDE is occasional reference. Eleven equal tabs made you read
+ * the whole row every time to find the two you wanted.
+ */
+const SETUP_TABS: readonly string[] = ["details", "branding", "mailing", "packages", "costs"];
+const PEOPLE_TABS: readonly string[] = ["bookings", "rooms", "arrivals"];
 const SIDE_TABS: readonly string[] = ["levels", "memories", "notes"];
 const TAB_LABEL: Record<EditionTab, string> = {
-  details: "Details", branding: "Branding", mailing: "Mailing", bookings: "Bookings", arrivals: "Travel", levels: "Levels", packages: "Packages",
+  details: "Details", branding: "Branding", mailing: "Mailing", bookings: "Bookings", arrivals: "Arrivals", levels: "Levels", packages: "Packages",
   memories: "Memories", costs: "Costs", rooms: "Hotel Rooms", notes: "Notes",
 };
 // Each tab's data comes from a section's API — hide the tab if the role can't
@@ -891,52 +900,51 @@ export default function EditionDetailPage({
       </div>
 
       {/* Tabs — drag to reorder (saved per admin) */}
-      <div className="flex items-end gap-1 mb-6 flex-wrap" style={{ borderBottom: "1px solid var(--admin-border)" }}>
-        {tabOrder.filter((t) => !SIDE_TABS.includes(t)).map((t, i) => {
-          if (access && !effectiveCanAccess(access, TAB_PATH[t])) return null; // role can't reach this tab's data
-          const count = edition._counts?.[t as keyof typeof edition._counts];
-          return (
-            <button
-              key={t}
-              draggable
-              onDragStart={() => { dragTab.current = i; }}
-              onDragOver={(e) => e.preventDefault()}
-              onDrop={() => { if (dragTab.current != null && dragTab.current !== i) reorderTabs(dragTab.current, i); dragTab.current = null; }}
-              onDragEnd={() => { dragTab.current = null; }}
-              onClick={() => selectTab(t)}
-              title="Drag to reorder"
-              className={`px-4 py-2.5 text-sm font-medium transition-colors border-b-2 -mb-[1px] cursor-grab active:cursor-grabbing ${
-                tab === t
-                  ? "admin-heading border-[var(--admin-accent)]"
-                  : "admin-muted border-transparent"
-              }`}
-            >
-              {TAB_LABEL[t]}
-              {count != null && count > 0 && (
-                <span className="ml-1.5 inline-flex items-center justify-center w-4 h-4 rounded-full bg-[var(--admin-accent)]/15 text-[#0aa3c7] text-[10px] font-bold">
-                  {count}
-                </span>
-              )}
-            </button>
-          );
-        })}
+      <div className="flex items-end gap-0.5 mb-6 flex-wrap" style={{ borderBottom: "1px solid var(--admin-border)" }}>
+        {([SETUP_TABS, PEOPLE_TABS] as const).map((group, gi) => (
+          <span key={gi} className="flex items-end">
+            {gi > 0 && <span className="self-stretch w-px mx-2.5 my-2" style={{ background: "var(--admin-border)" }} />}
+            {tabOrder.filter((t) => group.includes(t)).map((t, i) => {
+              if (access && !effectiveCanAccess(access, TAB_PATH[t])) return null;
+              const count = edition._counts?.[t as keyof typeof edition._counts];
+              return (
+                <button
+                  key={t}
+                  draggable
+                  onDragStart={() => { dragTab.current = tabOrder.indexOf(t); }}
+                  onDragOver={(e) => e.preventDefault()}
+                  onDrop={() => { const to = tabOrder.indexOf(t); if (dragTab.current != null && dragTab.current !== to) reorderTabs(dragTab.current, to); dragTab.current = null; }}
+                  onDragEnd={() => { dragTab.current = null; }}
+                  onClick={() => selectTab(t)}
+                  title="Drag to reorder within its group"
+                  className={`px-3.5 py-2.5 text-sm font-medium transition-colors border-b-2 -mb-[1px] cursor-grab active:cursor-grabbing ${
+                    tab === t ? "admin-heading border-[var(--admin-accent)]" : "admin-muted border-transparent hover:admin-heading"
+                  }`}
+                  style={{ marginLeft: i ? 2 : 0 }}
+                >
+                  {TAB_LABEL[t]}
+                  {count != null && count > 0 && (
+                    <span className="ml-1.5 inline-flex items-center justify-center w-4 h-4 rounded-full bg-[var(--admin-accent)]/15 text-[#0aa3c7] text-[10px] font-bold">{count}</span>
+                  )}
+                </button>
+              );
+            })}
+          </span>
+        ))}
 
-        {/* Divider, then the occasional ones. Not draggable — their whole point
-            is being somewhere predictable, out of the way. */}
-        <span className="ml-auto flex items-end gap-1">
-          <span className="self-stretch w-px mx-2 my-1.5" style={{ background: "var(--admin-border)" }} />
+        {/* Reference, not running the week — set apart so the eye skips it
+            unless you're looking for it. */}
+        <span className="ml-auto flex items-center gap-0.5 mb-1.5 rounded-lg px-1 py-0.5" style={{ backgroundColor: "var(--admin-surface)" }}>
           {tabOrder.filter((t) => SIDE_TABS.includes(t)).map((t) => {
             if (access && !effectiveCanAccess(access, TAB_PATH[t])) return null;
             const count = edition._counts?.[t as keyof typeof edition._counts];
             return (
               <button key={t} onClick={() => selectTab(t)}
-                className={`px-3.5 py-2.5 text-sm transition-colors border-b-2 -mb-[1px] ${
-                  tab === t ? "admin-heading font-medium border-[var(--admin-accent)]" : "admin-faint hover:admin-muted border-transparent"
+                className={`px-2.5 py-1 rounded-md text-[12.5px] transition-colors ${
+                  tab === t ? "admin-heading font-bold bg-[var(--admin-bg,var(--admin-surface-hover))]" : "admin-faint hover:admin-muted"
                 }`}>
                 {TAB_LABEL[t]}
-                {count != null && count > 0 && (
-                  <span className="ml-1.5 inline-flex items-center justify-center w-4 h-4 rounded-full bg-[var(--admin-accent)]/15 text-[#0aa3c7] text-[10px] font-bold">{count}</span>
-                )}
+                {count != null && count > 0 && <span className="ml-1 text-[10px] font-bold text-[#0aa3c7]">{count}</span>}
               </button>
             );
           })}
