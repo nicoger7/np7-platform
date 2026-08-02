@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import { makeNextTripCompare } from "@/lib/next-trip-order";
 import { SortableHeader } from "@/components/sortable-header";
 import { ColumnToggle, ColumnDef, buildGridTemplate, loadVisibleColumns } from "@/components/column-toggle";
 import { BrandedTile } from "@/components/experience/branded-tile";
@@ -202,9 +203,11 @@ export default function ExperiencesPage() {
     }
   }
 
+  // Default order inside each status group: the next trip first — this list is
+  // "what am I selling soonest", not the alphabet. A clicked header overrides.
   const sorted = sortKey && sortDir
     ? [...experiences].sort((a, b) => compareValues(a[sortKey as keyof Experience], b[sortKey as keyof Experience], sortDir))
-    : experiences;
+    : [...experiences].sort(makeNextTripCompare(editions));
 
   const gridTemplate = buildGridTemplate(COLUMNS, visibleColumns);
 

@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
+import { makeNextTripCompare, type DatedEdition } from "@/lib/next-trip-order";
 
 interface Experience {
   id: string;
@@ -13,36 +14,43 @@ interface Experience {
 
 export default function ContentHubPage() {
   const [experiences, setExperiences] = useState<Experience[]>([]);
+  const [editions, setEditions] = useState<DatedEdition[]>([]);
   const [loading, setLoading] = useState(true);
   const [q, setQ] = useState("");
 
   useEffect(() => {
-    fetch("/api/admin/experiences")
-      .then((r) => r.json())
-      .then((json) => {
+    Promise.all([
+      fetch("/api/admin/experiences").then((r) => r.json()),
+      // Editions carry the dates — "then by date" is the next trip's start.
+      fetch("/api/admin/editions").then((r) => r.json()).catch(() => []),
+    ])
+      .then(([json, eds]) => {
         const list: Experience[] = Array.isArray(json)
           ? json
           : json.experiences ?? json.data ?? [];
         setExperiences(list);
+        setEditions(Array.isArray(eds) ? eds : []);
       })
       .catch(() => setExperiences([]))
       .finally(() => setLoading(false));
   }, []);
 
   // Same order as the Experiences overview — active first, then draft, then
-  // archived. Alphabetical put unfinished drafts above the trips being sold.
+  // archived, and inside each group by the next trip's date. Alphabetical put
+  // unfinished drafts above the trips being sold.
   const STATUS_ORDER = ["published", "draft", "archived"];
   const rank = (st: string | null | undefined) => {
     const i = STATUS_ORDER.indexOf(String(st ?? "draft"));
     return i === -1 ? STATUS_ORDER.length : i;
   };
+  const byNextTrip = makeNextTripCompare(editions);
   const filtered = experiences
     .filter(
       (e) =>
         e.title?.toLowerCase().includes(q.toLowerCase()) ||
         (e.location ?? "").toLowerCase().includes(q.toLowerCase())
     )
-    .sort((a, b) => rank(a.status) - rank(b.status) || (a.title ?? "").localeCompare(b.title ?? ""));
+    .sort((a, b) => rank(a.status) - rank(b.status) || byNextTrip(a, b));
 
   return (
     <div className="p-6 sm:p-8 max-w-[1000px] mx-auto">
