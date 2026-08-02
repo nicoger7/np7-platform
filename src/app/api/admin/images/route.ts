@@ -85,24 +85,33 @@ export async function GET(request: NextRequest) {
     const queue: string[] = [folder];
     let visited = 0;
     const MAX_FOLDERS = 250;
+    // Breadth-first, a LEVEL at a time rather than a folder at a time. The walk
+    // used to await one list() per folder in sequence — with ~100 folders that
+    // is a hundred serial round-trips to Storage before the browser can request
+    // a single thumbnail, which is the whole of "the picker takes ages to open".
+    const FANOUT = 12;
     while (queue.length && visited < MAX_FOLDERS && images.length < 1500) {
-      const prefix = queue.shift()!;
-      visited++;
-      const { data, error } = await admin.storage
-        .from(BUCKET)
-        .list(prefix, { limit: 1000, sortBy: { column: "name", order: "asc" } });
-      if (error) continue;
-      for (const item of data || []) {
-        if (item.name === ".emptyFolderPlaceholder") continue;
-        const path = prefix ? `${prefix}/${item.name}` : item.name;
-        if (isFolderItem(item)) {
-          queue.push(path);
-        } else if ((item.metadata?.mimetype || "").startsWith("image/")) {
-          images.push({
-            name: item.name, path, isFolder: false, url: pubUrl(path), thumbUrl: thumb(path),
-            size: item.metadata?.size || 0, type: item.metadata?.mimetype || null,
-            updatedAt: item.updated_at,
-          });
+      const batch = queue.splice(0, FANOUT);
+      visited += batch.length;
+      const results = await Promise.all(batch.map(async (prefix) => {
+        const { data, error } = await admin.storage
+          .from(BUCKET)
+          .list(prefix, { limit: 1000, sortBy: { column: "name", order: "asc" } });
+        return { prefix, data: error ? [] : (data || []) };
+      }));
+      for (const { prefix, data } of results) {
+        for (const item of data) {
+          if (item.name === ".emptyFolderPlaceholder") continue;
+          const path = prefix ? `${prefix}/${item.name}` : item.name;
+          if (isFolderItem(item)) {
+            queue.push(path);
+          } else if ((item.metadata?.mimetype || "").startsWith("image/")) {
+            images.push({
+              name: item.name, path, isFolder: false, url: pubUrl(path), thumbUrl: thumb(path),
+              size: item.metadata?.size || 0, type: item.metadata?.mimetype || null,
+              updatedAt: item.updated_at,
+            });
+          }
         }
       }
     }

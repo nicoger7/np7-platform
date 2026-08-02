@@ -7,6 +7,7 @@ interface FileItem {
   path: string;
   isFolder: boolean;
   url: string | null;
+  thumbUrl?: string | null;
   size: number;
   type: string | null;
   updatedAt: string;
@@ -358,7 +359,12 @@ export default function ImagePickerModal({ onSelect, onClose, defaultFolder }: I
                       >
                         <div className="aspect-square overflow-hidden" style={{ backgroundColor: "var(--admin-bg)" }}>
                           {/* eslint-disable-next-line @next/next/no-img-element */}
-                          <img src={item.url!} alt={item.name} loading="lazy" className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105" />
+                          <img src={item.thumbUrl || item.url!} alt={item.name} loading="lazy" decoding="async"
+                            // A grid tile is ~200px. Pulling the full-size original for
+                            // each one meant megabytes per row; the thumbnail is ~50 KB.
+                            // Fall back to the original if a thumb was never generated.
+                            onError={(e) => { const img = e.currentTarget; if (item.url && img.src !== item.url) img.src = item.url; }}
+                            className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105" />
                         </div>
                         <div className="absolute inset-x-0 bottom-0 p-2 bg-gradient-to-t from-black/75 to-transparent opacity-0 group-hover:opacity-100 transition-opacity">
                           <p className="text-[11px] text-white font-medium truncate">{item.name}</p>

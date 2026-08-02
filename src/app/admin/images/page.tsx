@@ -18,6 +18,7 @@ interface FileItem {
   path: string;
   isFolder: boolean;
   url: string | null;
+  thumbUrl?: string | null;
   size: number;
   type: string | null;
   updatedAt: string;
@@ -504,8 +505,12 @@ export default function ImagesPage() {
                           {item.type?.startsWith("image/") ? (
                             // eslint-disable-next-line @next/next/no-img-element
                             <img
-                              src={item.url!}
+                              // Grid tile — the ~50 KB thumbnail, not the original.
+                              src={item.thumbUrl || item.url!}
                               alt={item.name}
+                              loading="lazy"
+                              decoding="async"
+                              onError={(e) => { const img = e.currentTarget; if (item.url && img.src !== item.url) img.src = item.url; }}
                               className="w-full h-full object-contain pointer-events-none"
                             />
                           ) : (
