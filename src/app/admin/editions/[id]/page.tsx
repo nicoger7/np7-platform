@@ -512,7 +512,7 @@ export default function EditionDetailPage({
 
   useEffect(() => {
     if (tab === "bookings") { loadBookings(); loadPackages(); }
-    if (tab === "arrivals") loadBookings();
+    if (tab === "arrivals") { loadBookings(); loadRooms(); }
     if (tab === "packages") { loadPackages(); loadBookings(); }
     if (tab === "costs") { loadCosts(); loadPnl(); }
     if (tab === "rooms") { loadRooms(); loadBookings(); }
@@ -1273,6 +1273,14 @@ export default function EditionDetailPage({
           else days.push({ day: r.day, items: [r] });
         }
         const cell = "text-[12.5px] self-center truncate";
+        // Their own room, or one they're sharing (extra_booking_ids) — the same
+        // two ways a guest can be housed that the portal already handles.
+        const roomFor = (bookingId: string) => {
+          const r = rooms.find((x) => x.booking_id === bookingId)
+            ?? rooms.find((x) => (x.extra_booking_ids ?? []).includes(bookingId));
+          if (!r) return null;
+          return [r.name, r.room_number ? `#${r.room_number}` : null].filter(Boolean).join(" ");
+        };
 
         return (
           <div>
@@ -1328,7 +1336,7 @@ export default function EditionDetailPage({
                         {arrShow("dep_day") && <span className={`${cell} admin-muted`}>{formatDate(fi.departureDate || b.fly_out)}</span>}
                         {arrShow("dep_time") && <span className={`${cell} ${fi.departureTime ? "admin-muted" : "admin-faint"}`}>{fi.departureTime || "—"}</span>}
                         {arrShow("dep_flight") && <span className={`${cell} admin-muted font-mono`}>{own ? "—" : (fi.departureFlightNo || "—")}</span>}
-                        {arrShow("room") && <span className={`${cell} admin-faint`}>{(b as unknown as { room_name?: string | null }).room_name || "—"}</span>}
+                        {arrShow("room") && <span className={`${cell} admin-faint`}>{roomFor(b.id) || "—"}</span>}
                       </Link>
                     );
                   })}
