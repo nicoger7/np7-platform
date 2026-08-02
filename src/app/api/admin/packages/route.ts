@@ -86,6 +86,18 @@ export async function POST(request: NextRequest) {
   const doInsert = (payload: Record<string, unknown>) =>
     client.from("exp_packages").insert(payload).select().single();
 
+  // slug is NOT NULL with no column default and no trigger — an insert without
+  // one is rejected outright, which is why "New package" never worked. Neither
+  // form collects a slug (nor should it), so derive it here. Same shape as the
+  // duplicate route, with a short suffix so two "All Inclusive" packages on
+  // different weeks can't collide.
+  if (!body.slug) {
+    const base = String(body.name ?? "package").toLowerCase()
+      .normalize("NFKD").replace(/[\u0300-\u036f]/g, "")
+      .replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 60) || "package";
+    body.slug = `${base}-${Math.random().toString(36).slice(2, 6)}`;
+  }
+
   let { data, error } = await doInsert(body);
   if (error && /column|schema cache|does not exist/i.test(error.message)) {
     const stripped = Object.fromEntries(Object.entries(body).filter(([k]) => !PENDING_OPTIONAL.includes(k)));

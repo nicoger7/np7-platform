@@ -549,10 +549,15 @@ export default function EditionDetailPage({
       edition_id: id,
       experience_id: expId,
     };
-    if (pkgEditId) {
-      await fetch(`/api/admin/packages/${pkgEditId}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
-    } else {
-      await fetch(`/api/admin/packages`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+    // Same trap as the Packages page: an unchecked POST closed the modal on a
+    // failure, so a package you thought you'd added simply didn't exist.
+    const res = pkgEditId
+      ? await fetch(`/api/admin/packages/${pkgEditId}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) })
+      : await fetch(`/api/admin/packages`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+    if (!res.ok) {
+      const j = await res.json().catch(() => ({}));
+      alert(j.error || `Couldn't save this package (${res.status}).`);
+      return;
     }
     setPkgShow(false); setPkgEditId(null); setPkgForm(emptyPkg); loadPackages();
   }

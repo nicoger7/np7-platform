@@ -275,10 +275,16 @@ export default function PackagesPage() {
       hotel_id: form.hotel_id || null,
       includes: form.includes.split("\n").map((s) => s.trim()).filter(Boolean),
     };
-    if (editId) {
-      await fetch(`/api/admin/packages/${editId}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
-    } else {
-      await fetch(`/api/admin/packages`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+    // Never close on a failure. This swallowed every create: the POST 400'd on
+    // the missing slug, nothing checked the response, and the modal closed as
+    // though a package had been made.
+    const res = editId
+      ? await fetch(`/api/admin/packages/${editId}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) })
+      : await fetch(`/api/admin/packages`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+    if (!res.ok) {
+      const j = await res.json().catch(() => ({}));
+      alert(j.error || `Couldn't save this package (${res.status}).`);
+      return;
     }
     setShowNew(false); setEditId(null); setForm(emptyForm); load();
   }
