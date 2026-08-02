@@ -73,6 +73,12 @@ export const round2 = (n: number) => Math.round(((n || 0) + Number.EPSILON) * 10
 export function paymentInflow(p: Pick<ReconPayment, "amount" | "type" | "direction" | "status">): number {
   if (p.direction === "cost") return 0;
   if (p.status === "cancelled") return 0;
+  // 'pending' is promised, not arrived. payment-totals.ts is explicit that only
+  // 'paid' is in the bank, and this file used to disagree — which let the
+  // invoice engine settle a pro-forma and mint a real, gapless German tax
+  // invoice against money nobody had received. Two functions summing the same
+  // ledger differently is the bug; this side was the wrong one.
+  if (p.status === "pending") return 0;
   if (p.type === "addon") return 0;
   const sign = p.type === "refund" ? -1 : 1;
   return sign * (Number(p.amount) || 0);

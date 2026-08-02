@@ -108,7 +108,12 @@ export async function getPortalUser(opts: { allowPreview?: boolean } = {}): Prom
 
   // first login after activation — link the contact by verified email
   if (!contact && user.email) {
-    const r = await admin.from("contacts").select("id, name, email, auth_user_id").eq("email", user.email).maybeSingle();
+    // Oldest match wins, case-insensitively. maybeSingle() ERRORS when two rows
+    // share an address, and a duplicate is not the signed-in member's problem —
+    // it locked them out of their own account entirely.
+    const r0 = await admin.from("contacts").select("id, name, email, auth_user_id")
+      .ilike("email", user.email).order("created_at", { ascending: true }).limit(1);
+    const r = { data: r0.data?.[0] ?? null };
     contact = r.data;
     if (contact && !contact.auth_user_id) {
       await admin.from("contacts").update({ auth_user_id: user.id }).eq("id", contact.id);

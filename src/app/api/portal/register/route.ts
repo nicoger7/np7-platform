@@ -30,7 +30,9 @@ export async function POST(request: NextRequest) {
 
   try {
     // find or create the contact
-    const { data: existing } = await db.from("contacts").select("id, name").eq("email", email).maybeSingle();
+    const { data: dupes } = await db.from("contacts").select("id, name")
+      .ilike("email", email).order("created_at", { ascending: true }).limit(1);
+    const existing = dupes?.[0] ?? null;
     let contactId = existing?.id as string | undefined;
     if (!contactId) {
       const { data: created } = await db

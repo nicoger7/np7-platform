@@ -97,7 +97,9 @@ export async function POST(request: NextRequest) {
   // Contact: member's own → reuse by email → create. Marketing consent is set
   // best-effort (column from migration 030) so registration never breaks on it.
   if (!contactId) {
-    const { data: existing } = await db.from("contacts").select("id").eq("email", email).maybeSingle();
+    const { data: dupes } = await db.from("contacts").select("id")
+      .ilike("email", email).order("created_at", { ascending: true }).limit(1);
+    const existing = dupes?.[0] ?? null;
     contactId = existing?.id;
     if (!contactId) {
       const { data: created, error: cErr } = await db

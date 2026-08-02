@@ -1,5 +1,5 @@
 import { createAdminClient } from "@/lib/supabase";
-import { isAttending } from "@/lib/types";
+import { isAttending, isLostStatus } from "@/lib/types";
 
 /**
  * Spot availability for the lean funnel: only a paid hold-deposit takes a spot.
@@ -20,6 +20,10 @@ export async function paidSpotsByEdition(editionIds: (string | null | undefined)
     .in("edition_id", ids);
   const out: Record<string, number> = {};
   for (const b of (data || []) as { edition_id: string | null; status: string | null; downpayment_received: boolean | null; final_payment_received: boolean | null }[]) {
+    // A cancelled booking keeps its payment flags (they are history, and the
+    // refund lives on them) — so without this check it holds its spot forever
+    // and the week looks fuller than it is.
+    if (isLostStatus(b.status)) continue;
     const secured = b.downpayment_received || b.final_payment_received || isAttending(b.status);
     if (secured && b.edition_id) out[b.edition_id] = (out[b.edition_id] || 0) + 1;
   }
