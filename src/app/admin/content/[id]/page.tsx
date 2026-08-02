@@ -2,6 +2,7 @@
 
 import { useEffect, useState, use } from "react";
 import Link from "next/link";
+import { DEFAULT_DAILY_PROGRAM, DEFAULT_FAQ, DEFAULT_METHOD_INTRO, DEFAULT_METHOD_STEPS, DEFAULT_OUTCOMES } from "@/lib/experience-defaults";
 import ImagePickerModal from "@/components/image-picker-modal";
 import { EditionGuidesEditor } from "@/components/edition-guides-editor";
 import { ReviewPlacementsEditor } from "@/components/edition-reviews-editor";
@@ -20,6 +21,18 @@ type PickerTarget =
   | { kind: "hero" }
   | { kind: "gallery" }
   | { kind: "review"; index: number };
+
+/** What the live page renders while a section is left empty — shown, not
+ *  described. "Leave empty to keep the standard copy" is only reassuring when
+ *  the standard copy is right there to read. */
+function DefaultBox({ children }: { children: React.ReactNode }) {
+  return (
+    <div className="mt-2.5 rounded-lg px-3.5 py-2.5" style={{ border: "1px dashed var(--admin-border)" }}>
+      <p className="text-[11px] font-bold admin-faint uppercase tracking-[0.1em] mb-1.5">Standard NP7 default — live while this is empty</p>
+      <div className="text-[12.5px] admin-muted leading-relaxed space-y-1.5">{children}</div>
+    </div>
+  );
+}
 
 export default function ContentEditorPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
@@ -398,7 +411,7 @@ export default function ContentEditorPage({ params }: { params: Promise<{ id: st
             placeholder="A relaxed week built around the best wind windows…" className="admin-input w-full px-4 py-3 rounded-lg border text-sm outline-none resize-y" />
         </Section>
 
-        <Section show={tab === "story"} title="Wind certainty & no-wind program" hint="Wind range + probability show in three places: the quick-facts bar, the ‘You can count on it’ band and the wind chip next to the spot section. The no-wind program gets its own card further down — only when filled.">
+        <Section show={tab === "story"} title="Wind certainty & no-wind program" hint="Wind range + probability show in three places: the quick-facts bar, the ‘You can count on it’ band and the wind chip next to the spot section. The no-wind program gets its own card further down. NO DEFAULT here: left empty, these simply don’t appear on the page.">
           <div className="grid sm:grid-cols-2 gap-3 mb-3">
             <input value={windProbability} onChange={(e) => setWindProbability(e.target.value)}
               placeholder="Wind probability — e.g. 85–95%" className="admin-input px-4 py-2.5 rounded-lg border text-sm outline-none" />
@@ -409,7 +422,7 @@ export default function ContentEditorPage({ params }: { params: Promise<{ id: st
             placeholder="No-wind program — what happens on a rare light-wind day…" className="admin-input w-full px-4 py-3 rounded-lg border text-sm outline-none resize-y" />
         </Section>
 
-        <Section show={tab === "story"} title="Your week — outcome cards" hint="The six cards in the ‘Your epic week’ section. Leave everything empty to keep the standard NP7 cards; add your own to replace them. The title replaces ‘The best week of your windsurf year’.">
+        <Section show={tab === "story"} title="Your week — outcome cards" hint="The six cards in the ‘Your epic week’ section. Leave everything empty to keep the standard NP7 cards; add your own to replace them. The title replaces ‘The best week of your windsurf year’. The cards’ PHOTOS are the first six gallery photos on the Media tab, in the same order — card 1 gets photo 1, and so on.">
           <input value={weekTitle} onChange={(e) => setWeekTitle(e.target.value)}
             placeholder="Section title — default: The best week of your windsurf year"
             className="admin-input w-full px-4 py-2.5 rounded-lg border text-sm outline-none mb-3" />
@@ -431,6 +444,13 @@ export default function ContentEditorPage({ params }: { params: Promise<{ id: st
             ))}
             <AddButton label="Add card" onClick={() => setWeekOutcomes([...weekOutcomes, { icon: "bolt", t: "", d: "" }])} />
           </div>
+          {weekOutcomes.length === 0 && (
+            <DefaultBox>
+              {DEFAULT_OUTCOMES.map((o, i) => (
+                <p key={i}><strong className="admin-heading">{o.t}</strong> — {o.d}</p>
+              ))}
+            </DefaultBox>
+          )}
         </Section>
 
         <Section show={tab === "story"} title="Coaching method" hint="The ‘NP7 training system’ band: intro + numbered steps. Leave empty to keep the standard method copy.">
@@ -456,6 +476,14 @@ export default function ContentEditorPage({ params }: { params: Promise<{ id: st
             ))}
             <AddButton label="Add step" onClick={() => setMethodSteps([...methodSteps, { t: "", d: "", gameChanger: false }])} />
           </div>
+                  {!methodIntro.trim() && methodSteps.length === 0 && (
+            <DefaultBox>
+              <p>{DEFAULT_METHOD_INTRO}</p>
+              {DEFAULT_METHOD_STEPS.map((m, i) => (
+                <p key={i}><strong className="admin-heading">{i + 1}. {m.t}</strong> — {m.d}{m.gameChanger ? " ★" : ""}</p>
+              ))}
+            </DefaultBox>
+          )}
         </Section>
 
         <Section show={tab === "program"} title="Perfect week — daily program" hint="What a perfect week looks like. Note on the page tells guests the real schedule depends on the wind.">
@@ -474,6 +502,13 @@ export default function ContentEditorPage({ params }: { params: Promise<{ id: st
             ))}
             <AddButton label="Add day" onClick={() => setProgram([...program, { title: "", description: "" }])} />
           </div>
+          {program.length === 0 && (
+            <DefaultBox>
+              {DEFAULT_DAILY_PROGRAM.map((d, i) => (
+                <p key={i}><strong className="admin-heading">Day {i + 1}: {d.title}</strong> — {d.description}</p>
+              ))}
+            </DefaultBox>
+          )}
         </Section>
 
         <Section show={tab === "program"} title="Highlights" hint="Short 'why this trip' bullets.">
@@ -612,6 +647,13 @@ export default function ContentEditorPage({ params }: { params: Promise<{ id: st
             ))}
             <AddButton label="Add question" onClick={() => setFaq([...faq, { q: "", a: "" }])} />
           </div>
+                  {faq.length === 0 && (
+            <DefaultBox>
+              {DEFAULT_FAQ.map((f, i) => (
+                <p key={i}><strong className="admin-heading">{f.q}</strong> — {f.a}</p>
+              ))}
+            </DefaultBox>
+          )}
         </Section>
       </div>
 

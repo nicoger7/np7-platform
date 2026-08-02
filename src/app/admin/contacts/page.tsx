@@ -2,6 +2,7 @@
 
 import { Suspense, useState, useEffect, useCallback } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
+import Link from "next/link";
 import { SortableHeader } from "@/components/sortable-header";
 import { ColumnToggle, ColumnDef, buildGridTemplate, loadVisibleColumns } from "@/components/column-toggle";
 import { ContactDetailPane } from "./[id]/page";
@@ -180,6 +181,11 @@ function ContactsInner() {
           </p>
         </div>
         <div className="flex items-center gap-3">
+          <Link href="/admin/contacts/duplicates"
+            className="px-4 py-2 text-sm font-bold rounded-lg transition-colors admin-muted hover:admin-heading"
+            style={{ border: "1px solid var(--admin-border)" }}>
+            Duplicates
+          </Link>
           <ColumnToggle
             columns={COLUMNS}
             visible={visibleColumns}

@@ -52,19 +52,19 @@ export function Accordion({
               key={i}
               className={
                 variant === "timeline"
-                  ? `relative pl-12 rounded-2xl transition-colors ${isOpen ? "bg-[#f4fafc] ring-1 ring-[#0aa3c7]/15 overflow-hidden" : ""} ${isOpen && item.image ? "md:pr-[264px] md:min-h-[176px]" : ""}`
+                  ? `relative pl-12 rounded-2xl overflow-hidden transition-all duration-300 ease-out ring-1 ${isOpen ? "bg-[#f4fafc] ring-[#0aa3c7]/15" : "bg-transparent ring-transparent"} ${item.image ? (isOpen ? "md:pr-[264px] md:min-h-[176px]" : "md:min-h-0") : ""}`
                   : "border border-[#ebebeb] rounded-2xl overflow-hidden"
               }
             >
               {/* photo = full-height right panel of the open card, fading into the
                   card background — a proper media card, no floating thumbnail */}
-              {variant === "timeline" && isOpen && item.image && (
+              {variant === "timeline" && item.image && (
                 // eslint-disable-next-line @next/next/no-img-element
                 <img
                   src={item.image}
                   alt=""
                   loading="lazy"
-                  className="hidden md:block absolute inset-y-0 right-0 w-[240px] object-cover"
+                  className={`hidden md:block absolute inset-y-0 right-0 w-[240px] object-cover transition-opacity duration-300 ${isOpen ? "opacity-100" : "opacity-0 pointer-events-none"}`}
                   style={{
                     WebkitMaskImage: "linear-gradient(to right, transparent 0%, #000 22%)",
                     maskImage: "linear-gradient(to right, transparent 0%, #000 22%)",
