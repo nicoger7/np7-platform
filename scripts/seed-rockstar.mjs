@@ -196,7 +196,17 @@ async function main() {
       {
         name: m.name, ref: m.ref, revision: 1, is_reference: m.reference,
         resin_pct_min: 40, resin_pct_max: 45,
+        // Rake 6° / back end 27 mm are PRINTED ON the 357 sheet itself
+        // ("NP7 8.6 · CARBON LAYUP 357 · RAKE 6° · BACK END 27 MM"), so they are
+        // recorded here verbatim — removing them would falsify the source
+        // document. But note the tension the Cobra drawings exposed: on the 9.1
+        // model, rake/back-end vary PER SIZE (37 TT vs 44 DTT) off one stack,
+        // which is what pd_project_sizes exists for. If Rockstar ever ships a
+        // second size, these two numbers migrate to size rows the same way.
         geometry: m.reference ? { rake_deg: 6, back_end_mm: 27, blade_length_cm: 38 } : {},
+        notes: m.reference
+          ? "Rake 6° and back end 27 mm are from the printed 357 sheet header. They describe the reference size — if more sizes appear, they belong on pd_project_sizes rows, not here."
+          : null,
         source_id: sourceByRef["rockstar/phil-process"],
       });
     layups[`${m.construction}/${m.mold}`] = row.id;

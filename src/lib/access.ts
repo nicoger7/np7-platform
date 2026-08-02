@@ -375,6 +375,16 @@ export function effectiveCanAccessSection(eff: EffectiveAccess, sectionKey: stri
   return roleSectionLevel(eff.access, sec.key) !== "none";
 }
 
+/** Can this member EDIT a section by key? The write-side twin of
+ *  effectiveCanAccessSection, for aggregating surfaces (the Archive) whose
+ *  mutations would otherwise accept a view-only grant. */
+export function effectiveCanEditSection(eff: EffectiveAccess, sectionKey: string): boolean {
+  const sec = SECTIONS.find((s) => s.key === sectionKey);
+  if (!sec) return true;
+  if (eff.kind === "tier") return canAccess(eff.level, sec.paths[0]);
+  return eff.access.worlds.includes(sec.world) && roleSectionLevel(eff.access, sec.key) === "edit";
+}
+
 /** Can this member edit (not just view) within `path`'s section? */
 export function effectiveCanEdit(eff: EffectiveAccess, path: string): boolean {
   if (isPersonalPath(path)) return true; // you can always log your own hours

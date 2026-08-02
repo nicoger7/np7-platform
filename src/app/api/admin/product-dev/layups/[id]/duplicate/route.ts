@@ -29,6 +29,15 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
   const { data: src, error: srcErr } = await db.from("pd_layups").select("*").eq("id", id).single();
   if (srcErr || !src) return NextResponse.json({ error: "Couldn't find the sheet to copy." }, { status: 404 });
 
+  // Read the source plies BEFORE creating anything. A failed read here used to
+  // be swallowed, which turned a transient error into a "successful" zero-ply
+  // copy — indistinguishable from copying a genuinely empty sheet, and the kind
+  // of silent loss someone only discovers mid-quote.
+  const { data: plies, error: plyErr } = await db.from("pd_layup_plies").select("*").eq("layup_id", id).order("ply_index");
+  if (plyErr) {
+    return NextResponse.json({ error: `Couldn't read the source plies — nothing was copied. (${plyErr.message})` }, { status: 502 });
+  }
+
   const { data: created, error } = await db.from("pd_layups").insert({
     project_id: src.project_id,
     construction_id: body.construction_id,
@@ -56,7 +65,6 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     );
   }
 
-  const { data: plies } = await db.from("pd_layup_plies").select("*").eq("layup_id", id).order("ply_index");
   const rows = (plies ?? []) as { ply_index: number; material_id: string; orientation: string | null; template_ref: string | null; length_cm: number | null; width_mm: number | null; stack: string | null; note: string | null }[];
 
   if (rows.length) {

@@ -332,6 +332,21 @@ Model: project → construction → (mold + layup) → plies; process → steps;
   `guest_reviews`, or Guest Reviews goes blank for it. Stored grants for the now-deleted `boards` /
   `product_reviews` keys are harmless (unknown keys are ignored) and can be left alone.
 
+**Layup suite (2026-08-02, local only — NOT pushed):** the Baukasten. Build sheets edit in two
+interchangeable modes — Numbers (table) and Graphic (drag-and-drop: material bricks in a palette, drag
+into the stack, drag a ply sideways to reorder, drag its tip to resize, click for the precise fields,
+stack split/merge, ⌘Z undo/redo, keyboard nudging). Pure gesture math in `src/lib/layup-ops.ts`
+(24 headless tests). Plus `pd_project_sizes` (migration `132`, ✅ applied): rake/back-end per SIZE —
+the Cobra 37 TT (27 mm/6°) vs 44 DTT (20 mm/4°) drawings proved they can't live on the layup. 931 +
+921 seeded with GLASS 770; house diagram colours (acid lemon / NP7 green). A 16-agent adversarial
+review confirmed 7 findings, all fixed: media route gated the wrong RBAC section (pd_knowledge instead
+of pd_library), archive POST accepted view-only roles for section-carrying entities (now requires
+edit), duplicate swallowed a source-read error into a "successful" empty copy, pointer capture died on
+the keyed reorder, stale inspector inputs could silently revert edits, unsaved sheets were lost on
+navigation (now guarded + beforeunload), dashboard world gate failed open on null access. One finding
+overruled with evidence reviewers lacked: rake 6°/27 mm stay on layup 357 because the printed sheet
+itself states them — provenance now annotated on the row.
+
 **Phase 2 — media lock ⚪.** `product-dev/` becomes a reserved storage root, filtered **unconditionally**
 (including for Owner) out of all five verbs of `/api/admin/images`, so R&D photos never appear in the 15
 Experience/Hardware picker mounts or File Storage. Reads go through `/api/admin/product-dev/media`.

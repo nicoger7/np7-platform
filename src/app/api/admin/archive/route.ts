@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase";
 import { ARCHIVE_ENTITIES, ARCHIVE_BY_KEY, missingArchivedCol } from "@/lib/archive";
 import { getRequestAccess } from "@/lib/admin-auth";
-import { effectiveCanAccessSection } from "@/lib/access";
+import { effectiveCanAccessSection, effectiveCanEditSection } from "@/lib/access";
 
 // Auth: middleware gates /api/admin. Archive + restore are allowed for any team
 // member; permanent delete lives at /api/admin/archive/purge (owner-only path).
@@ -54,12 +54,14 @@ export async function POST(req: NextRequest) {
   if (!ent || !id) return NextResponse.json({ error: "Unknown entity or id." }, { status: 400 });
   if (action !== "archive" && action !== "restore") return NextResponse.json({ error: "Invalid action." }, { status: 400 });
 
-  // Same gate as the list: without it a member who can't see a section could
-  // still archive or restore its rows by posting the entity key directly.
+  // Stricter than the list: archiving IS a write, so a section-carrying entity
+  // demands EDIT, not view. Otherwise a view-only R&D role could soft-delete
+  // the whole knowledge base through here — the exact mutation requirePdEdit
+  // refuses it on the section's own routes — or restore an owner's deletion.
   if (ent.section) {
     const access = await getRequestAccess();
-    if (!access || !effectiveCanAccessSection(access, ent.section)) {
-      return NextResponse.json({ error: "Not available for your role." }, { status: 403 });
+    if (!access || !effectiveCanEditSection(access, ent.section)) {
+      return NextResponse.json({ error: "Your role can view this section but not change it." }, { status: 403 });
     }
   }
 

@@ -113,7 +113,7 @@ export async function GET(request: NextRequest) {
 
 // POST — upload one file into the scoped root.
 export async function POST(request: NextRequest) {
-  const denied = await requirePdEdit();
+  const denied = await requirePdEdit("/api/admin/product-dev/media");
   if (denied) return denied;
 
   const form = await request.formData();
@@ -155,7 +155,7 @@ export async function POST(request: NextRequest) {
 
 // PUT — create a subfolder inside the root.
 export async function PUT(request: NextRequest) {
-  const denied = await requirePdEdit();
+  const denied = await requirePdEdit("/api/admin/product-dev/media");
   if (denied) return denied;
 
   const { folder } = await request.json().catch(() => ({ folder: "" }));
@@ -169,7 +169,7 @@ export async function PUT(request: NextRequest) {
 
 // DELETE — remove files, from R2 (+ its thumb) and the Supabase catalog.
 export async function DELETE(request: NextRequest) {
-  const denied = await requirePdEdit();
+  const denied = await requirePdEdit("/api/admin/product-dev/media");
   if (denied) return denied;
 
   const body = await request.json().catch(() => ({}));

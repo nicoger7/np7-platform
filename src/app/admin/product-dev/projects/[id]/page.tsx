@@ -1,6 +1,6 @@
 "use client";
 
-import { use, useEffect, useMemo, useState } from "react";
+import { use, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { PlyDiagram, PlyFins, PlyLegend, plyTotals } from "@/components/admin/ply-diagram";
@@ -81,6 +81,9 @@ export default function ProductDevProjectPage({ params }: { params: Promise<{ id
   const [d, setD] = useState<Bundle | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  // True while a build sheet holds unsaved edits. A ref, not state: navigation
+  // guards read it at click time and none of this should re-render the tree.
+  const sheetDirtyRef = useRef(false);
 
   function load() {
     fetch(`/api/admin/product-dev/projects/${id}`)
@@ -91,6 +94,7 @@ export default function ProductDevProjectPage({ params }: { params: Promise<{ id
   useEffect(() => { load(); }, [id]); // eslint-disable-line react-hooks/exhaustive-deps
 
   function setTab(next: string) {
+    if (sheetDirtyRef.current && !confirm("You have unsaved build-sheet changes. Leave and lose them?")) return;
     const q = new URLSearchParams(Array.from(sp.entries()));
     q.set("tab", next);
     router.replace(`/admin/product-dev/projects/${id}?${q.toString()}`, { scroll: false });
@@ -129,7 +133,7 @@ export default function ProductDevProjectPage({ params }: { params: Promise<{ id
 
       {tab === "overview" && <OverviewTab project={d} onSaved={load} />}
       {tab === "tooling" && <ToolingTab bundle={d} onChanged={load} />}
-      {tab === "layups" && <LayupsTab bundle={d} onChanged={load} />}
+      {tab === "layups" && <LayupsTab bundle={d} onChanged={load} dirtyRef={sheetDirtyRef} />}
     </div>
   );
 }
@@ -382,7 +386,7 @@ function SizesSection({ bundle, onChanged, setError }: { bundle: Bundle; onChang
 // by copying, and a stack can be pasted straight out of the supplier's email
 // rather than typed row by row.
 
-function LayupsTab({ bundle, onChanged }: { bundle: Bundle; onChanged: () => void }) {
+function LayupsTab({ bundle, onChanged, dirtyRef }: { bundle: Bundle; onChanged: () => void; dirtyRef: React.MutableRefObject<boolean> }) {
   const sp = useSearchParams();
   const router = useRouter();
   const selectedId = sp.get("layup") ?? bundle.layups[0]?.id ?? null;
@@ -404,6 +408,7 @@ function LayupsTab({ bundle, onChanged }: { bundle: Bundle; onChanged: () => voi
   const selected = bundle.layups.find((l) => l.id === selectedId) ?? null;
 
   function select(layupId: string) {
+    if (layupId !== selectedId && dirtyRef.current && !confirm("You have unsaved changes on this sheet. Switch and lose them?")) return;
     const q = new URLSearchParams(Array.from(sp.entries()));
     q.set("tab", "layups"); q.set("layup", layupId);
     router.replace(`/admin/product-dev/projects/${bundle.id}?${q.toString()}`, { scroll: false });
@@ -445,7 +450,7 @@ function LayupsTab({ bundle, onChanged }: { bundle: Bundle; onChanged: () => voi
               + New sheet
             </button>
           )}
-          <button onClick={() => setCompare(!compare)}
+          <button onClick={() => { if (!compare && dirtyRef.current && !confirm("You have unsaved changes on this sheet. Leave and lose them?")) return; setCompare(!compare); }}
             className="text-xs px-3 py-1.5 rounded-lg admin-muted hover:text-[var(--admin-accent)] whitespace-nowrap"
             style={{ border: "1px solid var(--admin-border)" }}>
             {compare ? "Single sheet" : "Compare all"}
@@ -479,6 +484,7 @@ function LayupsTab({ bundle, onChanged }: { bundle: Bundle; onChanged: () => voi
           {selected && (
             <BuildSheet
               key={selected.id}
+              dirtyRef={dirtyRef}
               layup={selected}
               project={bundle}
               construction={constructionById.get(selected.construction_id)}
@@ -608,10 +614,11 @@ function NewSheetCard({
 type DraftPly = Omit<PdPly, "created_at" | "updated_at">;
 
 function BuildSheet({
-  layup, project, construction, mold, plies, materials, maxLengthCm, onChanged,
+  layup, project, construction, mold, plies, materials, maxLengthCm, onChanged, dirtyRef,
 }: {
   layup: PdLayup; project: Bundle; construction?: PdConstruction; mold?: PdMold;
   plies: PdPly[]; materials: PdMaterial[]; maxLengthCm: number; onChanged: () => void;
+  dirtyRef: React.MutableRefObject<boolean>;
 }) {
   const [editing, setEditing] = useState(false);
   const [view, setView] = useSheetView();
@@ -636,6 +643,20 @@ function BuildSheet({
     header.resin_pct_max !== String(layup.resin_pct_max ?? "") ||
     JSON.stringify(header.geometry) !== JSON.stringify(layup.geometry ?? {});
   const dirty = pliesDirty || headerDirty;
+
+  // Publish the dirty state for the navigation guards (rail, compare, tabs),
+  // and hold the browser itself at the door: a reload or tab-close with a
+  // half-pasted stack is the same silent loss as a mis-click.
+  useEffect(() => {
+    dirtyRef.current = editing && dirty;
+    return () => { dirtyRef.current = false; };
+  }, [editing, dirty, dirtyRef]);
+  useEffect(() => {
+    if (!(editing && dirty)) return;
+    const warn = (e: BeforeUnloadEvent) => { e.preventDefault(); };
+    window.addEventListener("beforeunload", warn);
+    return () => window.removeEventListener("beforeunload", warn);
+  }, [editing, dirty]);
 
   function stripPly(p: DraftPly | PdPly) {
     return { m: p.material_id, o: p.orientation, t: p.template_ref, l: p.length_cm, s: p.stack, n: p.note };

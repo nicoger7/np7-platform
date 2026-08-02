@@ -47,7 +47,11 @@ export async function GET(request: NextRequest) {
     // A REAL RBAC world (it is in access.ts WORLDS), so entry goes through the
     // world grant — not the nav-derived path magazine uses. Owner-only for the
     // legacy tiers, which `effectiveCanAccess` on the section prefix enforces.
-    if (access && (!effectiveCanEnterWorld(access, "product-dev") || !effectiveCanAccess(access, "/admin/product-dev"))) {
+    // FAIL CLOSED on a null access: getEffectiveAccess never returns null for a
+    // resolvable member (tiers come back as {kind:"tier"}), so null means the
+    // member couldn't be resolved in-handler — the same state requirePdEdit
+    // refuses. R&D counts and layup names must not ride on that ambiguity.
+    if (!access || !effectiveCanEnterWorld(access, "product-dev") || !effectiveCanAccess(access, "/admin/product-dev")) {
       return NextResponse.json({ error: "forbidden" }, { status: 403 });
     }
     return productDevDashboard(db);

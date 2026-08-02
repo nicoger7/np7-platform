@@ -122,14 +122,19 @@ export function LayupBuilder<T extends BuilderPlyBase>({
 
   function onPlyDown(e: React.PointerEvent, id: string, index: number) {
     e.preventDefault();
-    (e.target as Element).setPointerCapture?.(e.pointerId);
+    // Capture on the SVG ROOT, not the ply's own <path>: the reorder preview
+    // re-slots the keyed <g> nodes mid-drag, and a captured element that gets
+    // moved/remounted by React's diff silently stops delivering events — the
+    // ply freezes half-dragged. The svg never remounts, and captured events
+    // fire its onPointerMove/Up handlers directly.
+    svgRef.current?.setPointerCapture?.(e.pointerId);
     setGesture({ kind: "ply", id, from: index, startX: e.clientX, startY: e.clientY, moved: false, target: index });
   }
 
   function onTipDown(e: React.PointerEvent, id: string, index: number) {
     e.preventDefault();
     e.stopPropagation();
-    (e.target as Element).setPointerCapture?.(e.pointerId);
+    svgRef.current?.setPointerCapture?.(e.pointerId); // same reasoning as onPlyDown
     setGesture({ kind: "resize", id, index, pxPerCm, liveLen: Number(plies[index]?.length_cm) || 1 });
   }
 
@@ -326,26 +331,26 @@ export function LayupBuilder<T extends BuilderPlyBase>({
           </label>
           <label className="text-[10px] admin-faint uppercase font-bold">Length cm
             <input type="number" step="0.1" className="block mt-1 w-20 text-xs admin-input border rounded px-1.5 py-1.5"
-              defaultValue={selected.length_cm ?? ""}
+              key={`len-${selected.length_cm}`} defaultValue={selected.length_cm ?? ""}
               onBlur={(e) => patchSelected({ length_cm: e.target.value === "" ? null : clampLength(Number(e.target.value)) })}
               onKeyDown={(e) => { if (e.key === "Enter") (e.target as HTMLInputElement).blur(); }} />
           </label>
           <label className="text-[10px] admin-faint uppercase font-bold">Orientation
             <input className="block mt-1 w-20 text-xs admin-input border rounded px-1.5 py-1.5"
-              defaultValue={selected.orientation ?? ""}
+              key={`ori-${selected.orientation}`} defaultValue={selected.orientation ?? ""}
               placeholder={matById.get(selected.material_id)?.default_orientation ?? ""}
               onBlur={(e) => patchSelected({ orientation: e.target.value || null })}
               onKeyDown={(e) => { if (e.key === "Enter") (e.target as HTMLInputElement).blur(); }} />
           </label>
           <label className="text-[10px] admin-faint uppercase font-bold">Template
             <input className="block mt-1 w-16 text-xs admin-input border rounded px-1.5 py-1.5"
-              defaultValue={selected.template_ref ?? ""}
+              key={`tpl-${selected.template_ref}`} defaultValue={selected.template_ref ?? ""}
               onBlur={(e) => patchSelected({ template_ref: e.target.value || null })}
               onKeyDown={(e) => { if (e.key === "Enter") (e.target as HTMLInputElement).blur(); }} />
           </label>
           <label className="text-[10px] admin-faint uppercase font-bold">Note
             <input className="block mt-1 w-40 text-xs admin-input border rounded px-1.5 py-1.5"
-              defaultValue={selected.note ?? ""}
+              key={`note-${selected.note}`} defaultValue={selected.note ?? ""}
               onBlur={(e) => patchSelected({ note: e.target.value || null })}
               onKeyDown={(e) => { if (e.key === "Enter") (e.target as HTMLInputElement).blur(); }} />
           </label>
