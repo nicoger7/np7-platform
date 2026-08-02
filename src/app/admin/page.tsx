@@ -621,7 +621,7 @@ function ExperienceDashboard() {
           ) : (
             <div className="space-y-1.5">
               {d.upcomingMails.mails.slice(0, 8).map((m) => (
-                <Link key={`${m.editionId}:${m.templateKey}`} href={`/admin/editions/${m.editionId}?tab=branding`}
+                <Link key={`${m.editionId}:${m.templateKey}`} href={`/admin/editions/${m.editionId}?tab=mailing`}
                   className="flex items-center gap-3 text-xs py-1.5 px-2 -mx-2 rounded-lg hover:bg-[var(--admin-surface-hover)]">
                   <span className={`shrink-0 w-14 text-right font-bold ${m.daysAway <= 3 ? "text-amber-500" : "admin-muted"}`}>
                     {m.daysAway === 0 ? "today" : `${m.daysAway}d`}
