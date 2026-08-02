@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { WindMiniChart } from "@/components/experience/wind-mini-chart";
 import { notFound } from "next/navigation";
 import type { Metadata } from "next";
 import { supabase } from "@/lib/supabase";
@@ -538,7 +539,7 @@ export default async function ExperienceDetailPage({ params, searchParams }: Pro
   {
     const { data: ed } = await sb.from("exp_experiences").select("destination_id").eq("id", experience.id).maybeSingle();
     if (ed?.destination_id) {
-      const { data: dd } = await sb.from("destinations").select("slug,name,region,country,tagline,intro,hero_image,status").eq("id", ed.destination_id).maybeSingle();
+      const { data: dd } = await sb.from("destinations").select("slug,name,region,country,tagline,intro,hero_image,status,wind_stats").eq("id", ed.destination_id).maybeSingle();
       if (dd && dd.status === "published" && dd.slug) destination = dd;
     }
   }
@@ -550,6 +551,19 @@ export default async function ExperienceDetailPage({ params, searchParams }: Pro
   // intro/tagline fills it. No per-experience layout divergence (Nico's rule);
   // only when there's no text anywhere does the compact banner stand in.
   const spotAbout = locationAbout || destination?.intro?.trim() || destination?.tagline?.trim() || "";
+
+  // Measured wind, not asserted wind: the destination's ERA5 climatology
+  // (accelerated read — see wind-stats.ts) gives the share of sailing-wind days
+  // for the trip's month. Where it exists it REPLACES the hand-typed
+  // wind_probability everywhere on the page; the manual field stays only as a
+  // fallback for destinations without coordinates.
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const windStats = ((destination as any)?.wind_stats ?? null) as import("@/lib/wind-stats").WindStats | null;
+  const tripMonth = edition?.date_start ? new Date(edition.date_start + "T00:00:00Z").getUTCMonth() + 1 : null;
+  const measuredPct = windStats && tripMonth
+    ? Math.round(Number((windStats.months?.find((m) => m.m === tripMonth)?.pct as Record<string, number> | undefined)?.["4"] ?? 0)) || null
+    : null;
+  const windDisplay = measuredPct != null ? `${measuredPct}%` : windProbability;
 
   return (
     <SelectedEditionProvider initialId={edition?.id ?? null}>
@@ -622,7 +636,7 @@ export default async function ExperienceDetailPage({ params, searchParams }: Pro
                 ? fmtShort(spanStart, spanEnd)
                 : fmtShort(edition?.date_start, edition?.date_end) },
             { icon: "pin", label: "Where", value: experience.location ?? "—" },
-            { icon: "wind", label: "Wind", value: windRange || (windProbability ? `Windy ${windProbability} of days` : "Reliable, steady wind") },
+            { icon: "wind", label: "Wind", value: windRange || (windDisplay ? `Sailing wind ${windDisplay} of days` : "Reliable, steady wind") },
             { icon: "plane", label: "Airport", value: experience.airport_code ?? "—" },
           ] as const).map((f) => (
             <div key={f.label} className="flex items-start gap-3">
@@ -724,7 +738,7 @@ export default async function ExperienceDetailPage({ params, searchParams }: Pro
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
             {[
               // fallback is wind-system-neutral — "Trade winds" was wrong for Garda's thermal Ora
-              { icon: "wind", big: windProbability || "Reliable wind", small: windProbability ? "wind probability in season" : "planned around the forecast", sub: windRange || null },
+              { icon: "wind", big: windDisplay || "Reliable wind", small: measuredPct != null ? "days with sailing wind — measured" : windProbability ? "wind probability in season" : "planned around the forecast", sub: windRange || null },
               { icon: "star", big: "5.0", small: "guest rating", sub: "5-star reviews, week after week" },
               { icon: "crew", big: "Good people", small: "great crew", sub: "hand-picked, friendly vibe" },
               { icon: "sun", big: "Plan B", small: "no-wind program", sub: "we make every day count" },
@@ -772,12 +786,13 @@ export default async function ExperienceDetailPage({ params, searchParams }: Pro
                 <p className="text-[11px] font-bold tracking-[0.25em] text-[#00afdb] mb-3">THE SPOT</p>
                 <h2 className="text-3xl sm:text-5xl font-black tracking-[-0.03em] text-[#00374a] mb-5">{place}</h2>
                 <p className="text-[16px] text-[#5a6b72] leading-relaxed whitespace-pre-line">{spotAbout}</p>
-                {(windRange || windProbability) && (
+                {(windRange || windDisplay) && (
                   <div className="flex flex-wrap gap-2 mt-6">
                     {windRange && <span className="text-[12.5px] font-bold text-[#00374a] bg-[#00afdb]/10 px-3.5 py-1.5 rounded-full">{windRange}</span>}
-                    {windProbability && <span className="text-[12.5px] font-bold text-[#00374a] bg-[#00afdb]/10 px-3.5 py-1.5 rounded-full">{windProbability} wind probability</span>}
+                    {windDisplay && <span className="text-[12.5px] font-bold text-[#00374a] bg-[#00afdb]/10 px-3.5 py-1.5 rounded-full">{measuredPct != null ? `${windDisplay} sailing-wind days` : `${windDisplay} wind probability`}</span>}
                   </div>
                 )}
+                {windStats && tripMonth && <WindMiniChart stats={windStats} centerMonth={tripMonth} />}
                 {destination?.slug && (
                   /* opens the rich DESTINATION deep-dive ON the trip — zero navigation, zero funnel leak */
                   <div className="mt-7">

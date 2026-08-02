@@ -413,8 +413,11 @@ export default function ContentEditorPage({ params }: { params: Promise<{ id: st
 
         <Section show={tab === "story"} title="Wind certainty & no-wind program" hint="Wind range + probability show in three places: the quick-facts bar, the ‘You can count on it’ band and the wind chip next to the spot section. The no-wind program gets its own card further down. NO DEFAULT here: left empty, these simply don’t appear on the page.">
           <div className="grid sm:grid-cols-2 gap-3 mb-3">
-            <input value={windProbability} onChange={(e) => setWindProbability(e.target.value)}
-              placeholder="Wind probability — e.g. 85–95%" className="admin-input px-4 py-2.5 rounded-lg border text-sm outline-none" />
+            <div className="px-4 py-3 rounded-lg text-[12.5px] admin-muted leading-snug" style={{ border: "1px dashed var(--admin-border)" }}>
+              <strong className="admin-heading">Wind probability is measured now.</strong> The page shows a small
+              3-month graph from Open-Meteo&apos;s ERA5 archive (accelerated model) for the destination&apos;s
+              coordinates, with the source printed under it — nothing to type, nothing to defend.
+            </div>
             <input value={windRange} onChange={(e) => setWindRange(e.target.value)}
               placeholder="Wind range — e.g. 12–25 knots" className="admin-input px-4 py-2.5 rounded-lg border text-sm outline-none" />
           </div>

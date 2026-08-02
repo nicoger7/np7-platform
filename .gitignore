@@ -45,3 +45,4 @@ next-env.d.ts
 
 # second-session dev server (npm run dev:preview) — own dist dir, own lock
 /.next-preview/
+wind-backfill-runner.mts

@@ -50,5 +50,22 @@ export async function GET(req: NextRequest) {
       updated++;
     } catch { /* skip a failing location, try again next run */ }
   }
-  return NextResponse.json({ ok: true, checked: spots?.length ?? 0, updated });
+  // Destinations too — the experience pages' wind graph reads from here. Same
+  // cadence, accelerated primary (the shoreline model under-reads the venturi
+  // spots the trips actually run at; the offshore sampling matches reality).
+  let destUpdated = 0;
+  {
+    let dq = db.from("destinations").select("id, lat, lng, wind_stats_at").not("lat", "is", null);
+    if (!force) dq = dq.or(`wind_stats_at.is.null,wind_stats_at.lt.${cutoff}`);
+    const { data: dests } = await dq.limit(3);
+    for (const d of (dests ?? []) as { id: string; lat: number; lng: number }[]) {
+      try {
+        const stats = await fetchWindStatsBoth(d.lat, d.lng, "accelerated");
+        await db.from("destinations").update({ wind_stats: stats, wind_stats_at: new Date().toISOString() }).eq("id", d.id);
+        destUpdated++;
+      } catch { /* next run */ }
+    }
+  }
+
+  return NextResponse.json({ ok: true, checked: spots?.length ?? 0, updated, destUpdated });
 }
