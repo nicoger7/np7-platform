@@ -1723,7 +1723,7 @@ export default function EditionDetailPage({
             <div className="flex items-center gap-3">
               <Link href={`/admin/exp-costs?edition_id=${id}`} className="text-xs text-[#0aa3c7] hover:text-[#0aa3c7]/80 transition-colors">View all →</Link>
               <button onClick={previewHours} disabled={hoursBusy} className="px-3 py-1.5 text-xs font-bold rounded-lg admin-muted hover:admin-heading transition-colors disabled:opacity-50" style={{ border: "1px solid var(--admin-border)" }}>
-                {hoursBusy ? "…" : "Cost the logged hours"}
+                {hoursBusy ? "…" : "Cost hours now"}
               </button>
               <button onClick={() => { setCostEditId(null); setCostForm(emptyCost); setCostShow(true); }} className="px-3 py-1.5 bg-[var(--admin-accent)] hover:bg-[var(--admin-accent)]/90 text-[var(--admin-accent-contrast)] text-xs font-bold rounded-lg transition-colors">New Cost</button>
             </div>
@@ -1732,16 +1732,18 @@ export default function EditionDetailPage({
           {hoursPlan && (
             <div className="rounded-xl p-4 mb-4" style={{ border: "1px solid rgb(245 158 11 / 0.45)", backgroundColor: "rgb(245 158 11 / 0.08)" }}>
               {hoursPlan.lines === 0 ? (
-                <p className="text-[13px] admin-muted">No un-costed hours — every logged hour has already been turned into a cost.</p>
+                <p className="text-[13px] admin-muted">Nothing to do — every logged hour is already costed. The nightly run keeps it that way.</p>
               ) : (
                 <>
                   <p className="text-[13px] admin-heading font-bold mb-1">
                     {hoursPlan.lines} cost line{hoursPlan.lines === 1 ? "" : "s"} · €{hoursPlan.total.toLocaleString()}
                   </p>
                   <p className="text-[12.5px] admin-muted leading-relaxed">
-                    Across every edition the hours belong to, not only this one. Edition-tagged hours go to their own week;
-                    general hours split across the weeks that were still running that day. Each hour is costed once and
-                    marked, so pressing this twice changes nothing.
+                    This runs on its own every night — the button is for when you have just logged hours and want the
+                    number now. Across every edition the hours belong to, not only this one: edition-tagged hours go to
+                    their own week, general hours split across the weeks still running that day. The value lands in
+                    <strong className="admin-heading"> Actual</strong>, so any estimate you typed stays. Each hour is
+                    counted once.
                   </p>
                 </>
               )}
