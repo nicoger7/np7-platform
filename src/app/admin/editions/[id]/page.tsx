@@ -33,7 +33,7 @@ const TAB_ORDER_KEY = "np7_edition_tab_order";
 /** Occasional tabs — pinned right, past a divider, out of the working set. */
 const SIDE_TABS: readonly string[] = ["levels", "memories", "notes"];
 const TAB_LABEL: Record<EditionTab, string> = {
-  details: "Details", branding: "Branding", mailing: "Mailing", bookings: "Bookings", arrivals: "Arrivals", levels: "Levels", packages: "Packages",
+  details: "Details", branding: "Branding", mailing: "Mailing", bookings: "Bookings", arrivals: "Travel", levels: "Levels", packages: "Packages",
   memories: "Memories", costs: "Costs", rooms: "Hotel Rooms", notes: "Notes",
 };
 // Each tab's data comes from a section's API — hide the tab if the role can't
@@ -71,12 +71,12 @@ const EDITION_BK_KEY = "np7_edition_booking_cols";
  */
 const ARRIVAL_COLUMNS: { key: string; label: string; width: string; always?: boolean; off?: boolean }[] = [
   { key: "guest", label: "Guest", width: "1fr", always: true },
-  { key: "arr_time", label: "Arrives", width: "72px" },
-  { key: "arr_flight", label: "Flight", width: "96px" },
+  { key: "time", label: "Time", width: "72px" },
+  { key: "flight", label: "Flight", width: "96px" },
   { key: "how", label: "How", width: "78px" },
-  { key: "dep_day", label: "Leaves", width: "84px" },
-  { key: "dep_time", label: "Time", width: "72px" },
-  { key: "dep_flight", label: "Flight", width: "96px", off: true },
+  { key: "other_day", label: "Other leg", width: "92px" },
+  { key: "other_time", label: "Time", width: "72px" },
+  { key: "other_flight", label: "Flight", width: "96px", off: true },
   { key: "room", label: "Room", width: "120px", off: true },
 ];
 const ARRIVAL_COLS_KEY = "np7_edition_arrival_cols";
@@ -390,6 +390,10 @@ export default function EditionDetailPage({
   });
   const arrShow = (k: string) => !!ARRIVAL_COLUMNS.find((c) => c.key === k)?.always || arrCols.has(k);
   const arrGrid = ARRIVAL_COLUMNS.filter((c) => c.always || arrCols.has(c.key)).map((c) => c.width).join(" ");
+
+  /** Which leg you're looking at. Same table, mirrored — grouped by the day of
+   *  whichever direction you picked, because that is the day you plan around. */
+  const [leg, setLeg] = useState<"in" | "out">("in");
 
   const [costForm, setCostForm] = useState(emptyCost);
   const [costEditId, setCostEditId] = useState<string | null>(null);
@@ -1253,15 +1257,26 @@ export default function EditionDetailPage({
       })()}
 
       {/* ── Bookings tab (inline split: rail + booking detail pane) ── */}
-      {/* ── Arrivals ── grouped by the day people land, because that is the
-           unit you actually plan a transfer run in. Arrival and departure share
-           the same three columns so the two halves of a journey line up. ── */}
+      {/* ── Travel ── the same table both ways round. Whichever leg you pick
+           is grouped by its own day and gets the primary columns; the other leg
+           trails as reference. Departure day is what you plan checkout and the
+           last transfer around, so it deserves the same treatment as arrival. ── */}
       {tab === "arrivals" && (() => {
+        const inbound = leg === "in";
         const rows = bookings
           .filter((b) => !isLostStatus(b.status))
           .map((b) => {
             const fi = bkFlight(b);
-            return { b, fi, day: fi.arrivalDate || b.fly_in || null, time: fi.arrivalTime || null };
+            const day = inbound ? (fi.arrivalDate || b.fly_in) : (fi.departureDate || b.fly_out);
+            return {
+              b, fi,
+              day: day || null,
+              time: (inbound ? fi.arrivalTime : fi.departureTime) || null,
+              flight: (inbound ? fi.arrivalFlightNo : fi.departureFlightNo) || null,
+              otherDay: (inbound ? (fi.departureDate || b.fly_out) : (fi.arrivalDate || b.fly_in)) || null,
+              otherTime: (inbound ? fi.departureTime : fi.arrivalTime) || null,
+              otherFlight: (inbound ? fi.departureFlightNo : fi.arrivalFlightNo) || null,
+            };
           })
           .sort((x, y) => `${x.day ?? "9999"}${x.time ?? "99:99"}`.localeCompare(`${y.day ?? "9999"}${y.time ?? "99:99"}`));
 
@@ -1273,59 +1288,73 @@ export default function EditionDetailPage({
           else days.push({ day: r.day, items: [r] });
         }
         const cell = "text-[12.5px] self-center truncate";
-        // Their own room, or one they're sharing (extra_booking_ids) — the same
-        // two ways a guest can be housed that the portal already handles.
         const roomFor = (bookingId: string) => {
           const r = rooms.find((x) => x.booking_id === bookingId)
             ?? rooms.find((x) => (x.extra_booking_ids ?? []).includes(bookingId));
-          if (!r) return null;
-          return [r.name, r.room_number ? `#${r.room_number}` : null].filter(Boolean).join(" ");
+          return r ? [r.name, r.room_number ? `#${r.room_number}` : null].filter(Boolean).join(" ") : null;
+        };
+        const label = (k: string) => {
+          const base = ARRIVAL_COLUMNS.find((c) => c.key === k)?.label ?? k;
+          if (k === "other_day") return inbound ? "Leaves" : "Arrives";
+          return base;
         };
 
         return (
           <div>
-            <div className="flex items-center justify-between gap-3 mb-4">
-              <p className="text-xs admin-faint">
-                {known} of {rows.length} guests have told us when they arrive.
-                {known < rows.length && " The rest get chased by the pre-trip mail."}
-              </p>
+            <div className="flex items-center justify-between gap-3 mb-4 flex-wrap">
+              <div className="flex items-center gap-1.5">
+                {([["in", "Arrivals"], ["out", "Departures"]] as const).map(([k, t]) => (
+                  <button key={k} onClick={() => setLeg(k)}
+                    className={`px-3.5 py-1.5 rounded-lg text-[12.5px] font-bold transition-colors ${
+                      leg === k ? "bg-[var(--admin-accent)] text-[var(--admin-accent-contrast)]" : "admin-muted hover:admin-heading"
+                    }`}
+                    style={leg === k ? undefined : { border: "1px solid var(--admin-border)" }}>
+                    {t}
+                  </button>
+                ))}
+              </div>
               <details className="relative shrink-0">
                 <summary className="list-none cursor-pointer select-none px-3 py-1.5 rounded-lg text-xs font-bold admin-muted hover:admin-heading transition-colors" style={{ border: "1px solid var(--admin-border)" }}>
                   Columns
                 </summary>
-                <div className="absolute right-0 z-20 mt-1 w-48 rounded-xl p-2 shadow-lg admin-surface" style={{ border: "1px solid var(--admin-border)" }}>
+                <div className="absolute right-0 z-20 mt-1 w-52 rounded-xl p-2 shadow-lg admin-surface" style={{ border: "1px solid var(--admin-border)" }}>
                   {ARRIVAL_COLUMNS.filter((c) => !c.always).map((c) => (
                     <label key={c.key} className="flex items-center gap-2 px-2 py-1.5 rounded-lg text-[12.5px] admin-muted hover:admin-heading cursor-pointer">
                       <input type="checkbox" checked={arrCols.has(c.key)} onChange={() => toggleArrCol(c.key)} className="accent-[var(--admin-accent)]" />
-                      {c.key.startsWith("dep_") ? `Leaves · ${c.label}` : c.label}
+                      {c.key.startsWith("other_") ? `${inbound ? "Leaves" : "Arrives"} · ${c.label}` : c.label}
                     </label>
                   ))}
                 </div>
               </details>
             </div>
 
+            <p className="text-xs admin-faint mb-3">
+              {known} of {rows.length} guests have told us when they {inbound ? "arrive" : "leave"}.
+              {known < rows.length && " The rest get chased by the pre-trip mail."}
+            </p>
+
             <div className="rounded-xl admin-tablecard overflow-hidden" style={{ border: "1px solid var(--admin-border)" }}>
               <div className="grid gap-3 px-4 py-2.5 admin-surface" style={{ gridTemplateColumns: arrGrid, borderBottom: "1px solid var(--admin-border)" }}>
                 {ARRIVAL_COLUMNS.filter((c) => c.always || arrCols.has(c.key)).map((c) => (
-                  <span key={c.key} className="text-[10px] font-bold tracking-[0.1em] admin-faint uppercase">{c.label}</span>
+                  <span key={c.key} className="text-[10px] font-bold tracking-[0.1em] admin-faint uppercase">{label(c.key)}</span>
                 ))}
               </div>
 
               {days.map(({ day, items }) => (
                 <div key={day ?? "unknown"}>
                   <div className="flex items-baseline gap-2 px-4 py-1.5" style={{ backgroundColor: "var(--admin-surface)", borderBottom: "1px solid var(--admin-border)" }}>
-                    <span className="text-[11.5px] font-bold admin-heading">{day ? formatDate(day) : "No arrival date yet"}</span>
+                    <span className="text-[11.5px] font-bold admin-heading">{day ? formatDate(day) : `No ${inbound ? "arrival" : "departure"} date yet`}</span>
                     <span className="text-[11px] admin-faint">{items.length} guest{items.length === 1 ? "" : "s"}</span>
                   </div>
-                  {items.map(({ b, fi, time }) => {
-                    const own = fi.arrivalMode === "own";
+                  {items.map((r) => {
+                    const own = r.fi.arrivalMode === "own";
                     return (
-                      <Link key={b.id} href={`/admin/bookings/${b.id}`}
+                      <Link key={r.b.id} href={`/admin/bookings/${r.b.id}`}
                         className="grid gap-3 px-4 py-2.5 hover:bg-[var(--admin-surface-hover)] transition-colors"
                         style={{ gridTemplateColumns: arrGrid, borderBottom: "1px solid var(--admin-border)" }}>
-                        <span className={`${cell} admin-heading`}>{(b.name || "").replace(/\s+—\s+.*$/, "")}</span>
-                        {arrShow("arr_time") && <span className={`${cell} ${time ? "admin-heading font-semibold" : "admin-faint"}`}>{time || "—"}</span>}
-                        {arrShow("arr_flight") && <span className={`${cell} admin-muted font-mono`}>{own ? "—" : (fi.arrivalFlightNo || "—")}</span>}
+                        <span className={`${cell} admin-heading`}>{(r.b.name || "").replace(/\s+[—-]\s+.*$/, "")}</span>
+                        {arrShow("time") && <span className={`${cell} ${r.time ? "admin-heading font-semibold" : "admin-faint"}`}>{r.time || "—"}</span>}
+                        {arrShow("flight") && <span className={`${cell} admin-muted font-mono uppercase`}>{own ? "—" : (r.flight || "—")}</span>}
                         {arrShow("how") && (
                           <span className="self-center">
                             {own
@@ -1333,10 +1362,10 @@ export default function EditionDetailPage({
                               : <span className="text-[10px] font-bold uppercase px-1.5 py-0.5 rounded admin-surface admin-faint">flying</span>}
                           </span>
                         )}
-                        {arrShow("dep_day") && <span className={`${cell} admin-muted`}>{formatDate(fi.departureDate || b.fly_out)}</span>}
-                        {arrShow("dep_time") && <span className={`${cell} ${fi.departureTime ? "admin-muted" : "admin-faint"}`}>{fi.departureTime || "—"}</span>}
-                        {arrShow("dep_flight") && <span className={`${cell} admin-muted font-mono`}>{own ? "—" : (fi.departureFlightNo || "—")}</span>}
-                        {arrShow("room") && <span className={`${cell} admin-faint`}>{roomFor(b.id) || "—"}</span>}
+                        {arrShow("other_day") && <span className={`${cell} admin-muted`}>{formatDate(r.otherDay)}</span>}
+                        {arrShow("other_time") && <span className={`${cell} ${r.otherTime ? "admin-muted" : "admin-faint"}`}>{r.otherTime || "—"}</span>}
+                        {arrShow("other_flight") && <span className={`${cell} admin-muted font-mono uppercase`}>{own ? "—" : (r.otherFlight || "—")}</span>}
+                        {arrShow("room") && <span className={`${cell} admin-faint`}>{roomFor(r.b.id) || "—"}</span>}
                       </Link>
                     );
                   })}
