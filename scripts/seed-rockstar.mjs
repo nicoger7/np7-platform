@@ -375,6 +375,18 @@ async function main() {
   }
   console.log(`✓ 9.1 model: 2 constructions, 1 mold, 2 build sheets, ${GLASS_931.length * 2} plies`);
 
+  // Sizes — the Cobra drawings. Rake stored as rake; the drawings state the
+  // trailing-edge angle (90° − rake), kept verbatim in notes.
+  for (const [i, s] of [
+    { label: "37 NP7 TT BOX", length_cm: 37, box: "TT", rake_deg: 6, back_end_mm: 27, notes: "Drawing states 84°." },
+    { label: "44 NP7 DTT BOX", length_cm: 44, box: "DTT", rake_deg: 4, back_end_mm: 20, notes: "Drawing states 86°." },
+  ].entries()) {
+    await upsert("pd_project_sizes", { project_id: thick.id, label: s.label }, {
+      ...s, sort_order: i + 1, source_id: thickSources["rockstar/cobra-brief"],
+    });
+  }
+  console.log("✓ 2 sizes on the 9.1 model (37 TT, 44 DTT)");
+
   // ── The transcription checksum ──────────────────────────────────────────────
   // Print the ply table back in the diagram's own colours. Hold this next to the
   // original drawing: the lengths and template refs came from text and are

@@ -107,7 +107,7 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
         blocking: (req?.blocking ?? []).includes(k),
         value: values[k],
         source: source[k],
-        inherited: k === "whatsappLink" ? null : inherited[k as "packingList" | "preTripNote"],
+        inherited: k === "whatsappLink" || k === "finalDetailsNote" ? null : inherited[k as "packingList" | "preTripNote"],
       })),
       sent: sentByTemplate[a.key]?.sent ?? 0,
       lastSent: sentByTemplate[a.key]?.last ?? null,
@@ -189,6 +189,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
         experienceTitle: b.exp_experiences?.title,
         dates: s ? (e ? `${fmt(s)} – ${fmt(e)} ${new Date(e).getFullYear()}` : `${fmt(s)} ${new Date(s).getFullYear()}`) : undefined,
         preTripNote: values.preTripNote ?? undefined,
+        finalDetailsNote: values.finalDetailsNote ?? undefined,
         packingList: values.packingList ?? undefined,
         whatsappLink: b.exp_editions?.whatsapp_group_link ?? values.whatsappLink ?? undefined,
         bookingLink: `${origin}/account`,
@@ -217,6 +218,7 @@ const OVERRIDE_COLUMN: Record<ContentKey, string> = {
   packingList: "packing_list",
   preTripNote: "pre_trip_note",
   whatsappLink: "whatsapp_group_link",
+  finalDetailsNote: "final_details_note",
 };
 
 export async function PATCH(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {

@@ -4,11 +4,12 @@ import { use, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { PlyDiagram, PlyFins, PlyLegend, plyTotals } from "@/components/admin/ply-diagram";
+import { LayupBuilder } from "@/components/admin/layup-builder";
 import {
   groupPliesByStack, plyOrientation, shortMaterialName,
   GEOMETRY_FIELDS, PD_KINDS, PD_MOLD_KINDS, PD_MOLD_STATUSES, PD_STATUSES,
   type PdConstruction, type PdKind, type PdLayup, type PdMaterial, type PdMold,
-  type PdPly, type PdProcess, type PdProcessStep, type PdProject, type PdSource,
+  type PdPly, type PdProcess, type PdProcessStep, type PdProject, type PdSize, type PdSource,
 } from "@/lib/product-dev";
 
 type Bundle = PdProject & {
@@ -20,6 +21,7 @@ type Bundle = PdProject & {
   steps: PdProcessStep[];
   sources: PdSource[];
   materials: PdMaterial[];
+  sizes?: PdSize[];
 };
 
 const TABS = [
@@ -279,7 +281,90 @@ function ToolingTab({ bundle, onChanged }: { bundle: Bundle; onChanged: () => vo
           ))}
         </div>
       </section>
+
+      <SizesSection bundle={bundle} onChanged={onChanged} setError={setError} />
     </div>
+  );
+}
+
+// ─── Sizes ───────────────────────────────────────────────────────────────────
+// Rake and back end live HERE, per sellable size — the 37 TT (27 mm / 6°) and
+// the 44 DTT (20 mm / 4°) come off the same ply stack, so the layup cannot
+// carry them. One blade, many fins.
+
+function SizesSection({ bundle, onChanged, setError }: { bundle: Bundle; onChanged: () => void; setError: (e: string) => void }) {
+  const sizes = bundle.sizes ?? [];
+  const [busy, setBusy] = useState(false);
+
+  async function addSize() {
+    const label = prompt('Size label (e.g. "37 NP7 TT BOX")');
+    if (!label) return;
+    setBusy(true); setError("");
+    const guessedLen = Number((label.match(/\d+(\.\d+)?/) ?? [])[0]) || null;
+    const res = await fetch("/api/admin/product-dev/sizes", {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ project_id: bundle.id, label, length_cm: guessedLen }),
+    });
+    setBusy(false);
+    if (res.ok) onChanged(); else setError((await res.json().catch(() => ({}))).error || "Couldn't add that size.");
+  }
+
+  async function patchSize(id: string, patch: Record<string, unknown>) {
+    const res = await fetch(`/api/admin/product-dev/sizes/${id}`, {
+      method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify(patch),
+    });
+    if (res.ok) onChanged(); else setError((await res.json().catch(() => ({}))).error || "Save failed.");
+  }
+
+  async function removeSize(s: PdSize) {
+    if (!confirm(`Remove size "${s.label}"?`)) return;
+    const res = await fetch(`/api/admin/product-dev/sizes/${s.id}`, { method: "DELETE" });
+    if (res.ok) onChanged(); else setError((await res.json().catch(() => ({}))).error || "Couldn't remove that.");
+  }
+
+  const cell = "text-xs admin-input border rounded px-1.5 py-1 w-full";
+  const numCell = (s: PdSize, key: "length_cm" | "rake_deg" | "back_end_mm") => (
+    <input className={cell} type="number" step="0.5" defaultValue={s[key] ?? ""}
+      onBlur={(e) => { const v = e.target.value === "" ? null : Number(e.target.value); if (v !== s[key]) patchSize(s.id, { [key]: v }); }}
+      onKeyDown={(e) => { if (e.key === "Enter") (e.target as HTMLInputElement).blur(); }} />
+  );
+
+  return (
+    <section className="lg:col-span-2">
+      <div className="flex items-center justify-between mb-3">
+        <h2 className="text-sm font-bold admin-heading">Sizes</h2>
+        <button onClick={addSize} disabled={busy} className="text-xs admin-muted hover:text-[var(--admin-accent)]">+ Add</button>
+      </div>
+      <p className="text-xs admin-faint mb-3 leading-relaxed max-w-2xl">
+        The sellable sizes, each with its own rake and back end — one pressed blade is trimmed into all of
+        them, which is why these numbers don&apos;t live on the build sheet. Supplier drawings often state
+        the trailing-edge angle instead: 84° drawn = rake 6°.
+      </p>
+      <div className="rounded-xl admin-tablecard" style={{ border: "1px solid var(--admin-border)" }}>
+        <div className="gap-3 px-4 py-2 admin-surface" style={{ display: "grid", gridTemplateColumns: "1.4fr 90px 80px 80px 90px 1fr 32px", borderBottom: "1px solid var(--admin-border)" }}>
+          {["Size", "Length cm", "Box", "Rake °", "Back end mm", "Notes", ""].map((h, i) => (
+            <span key={i} className="text-[10px] font-bold tracking-[0.08em] admin-faint uppercase">{h}</span>
+          ))}
+        </div>
+        {sizes.length === 0 ? (
+          <p className="px-4 py-5 text-xs admin-faint">No sizes yet — add the ones the partner quoted.</p>
+        ) : sizes.map((s) => (
+          <div key={s.id} className="gap-3 px-4 py-2 items-center" style={{ display: "grid", gridTemplateColumns: "1.4fr 90px 80px 80px 90px 1fr 32px", borderBottom: "1px solid var(--admin-border)" }}>
+            <span className="text-xs font-medium admin-heading truncate" title={s.label}>{s.label}</span>
+            {numCell(s, "length_cm")}
+            <input className={cell} defaultValue={s.box ?? ""} placeholder="TT"
+              onBlur={(e) => { const v = e.target.value || null; if (v !== s.box) patchSize(s.id, { box: v }); }}
+              onKeyDown={(e) => { if (e.key === "Enter") (e.target as HTMLInputElement).blur(); }} />
+            {numCell(s, "rake_deg")}
+            {numCell(s, "back_end_mm")}
+            <input className={cell} defaultValue={s.notes ?? ""}
+              onBlur={(e) => { const v = e.target.value || null; if (v !== s.notes) patchSize(s.id, { notes: v }); }}
+              onKeyDown={(e) => { if (e.key === "Enter") (e.target as HTMLInputElement).blur(); }} />
+            <button onClick={() => removeSize(s)} className="text-xs admin-faint hover:text-red-400">✕</button>
+          </div>
+        ))}
+      </div>
+    </section>
   );
 }
 
@@ -601,9 +686,13 @@ function BuildSheet({
     setEditing(false); setMsg("");
   }
 
-  const shown = editing ? draft : plies;
+  // Reindex by ARRAY order before anything reads ply_index: the Baukasten
+  // reorders rows, so a draft's stored indices go stale until save renumbers
+  // them — and groupPliesByStack sorts by ply_index, which would scramble the
+  // table mid-edit.
+  const shown = (editing ? draft : plies).map((p, i) => ({ ...p, ply_index: i + 1 }));
   const groups = groupPliesByStack(shown as PdPly[]);
-  const diagramPlies = shown.map((p, i) => ({ ...p, ply_index: i + 1, created_at: "", updated_at: "" })) as PdPly[];
+  const diagramPlies = shown.map((p) => ({ ...p, created_at: "", updated_at: "" })) as PdPly[];
 
   return (
     <div className="pb-20">
@@ -629,8 +718,9 @@ function BuildSheet({
           </p>
         </div>
         <div className="flex items-center gap-2">
-          {/* Editing forces Numbers — you can't type into a silhouette. */}
-          {!editing && <ViewToggle view={view} onChange={setView} />}
+          {/* The toggle stays available while editing: Numbers edits the table,
+              Graphic edits the Baukasten. Same draft either way. */}
+          <ViewToggle view={view} onChange={setView} />
           {!editing && (
             <button onClick={() => setEditing(true)}
               className="text-xs px-3 py-1.5 rounded-lg admin-muted hover:text-[var(--admin-accent)] whitespace-nowrap"
@@ -646,7 +736,16 @@ function BuildSheet({
         geometryFields={geometryFields} plyCount={shown.length}
       />
 
-      {view === "graphic" && !editing ? (
+      {view === "graphic" && editing ? (
+        <div className="mt-5">
+          <LayupBuilder
+            plies={draft}
+            materials={materials}
+            maxLengthCm={maxLengthCm}
+            onChange={setDraft}
+          />
+        </div>
+      ) : view === "graphic" ? (
         <div className="mt-5">
           <div className="p-4 rounded-xl" style={{ border: "1px solid var(--admin-border)", backgroundColor: "var(--admin-surface)" }}>
             <PlyFins plies={diagramPlies} materials={materials} maxLengthCm={maxLengthCm} />

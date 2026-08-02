@@ -122,6 +122,24 @@ export function PlyDiagram({
 }
 
 /**
+ * The fin silhouette, cut short by a ply's length: trailing edge (right) holds
+ * width most of the way down then sweeps in; leading edge (left) cuts away
+ * high; the tip rounds off narrow and slightly left of centre. Matched by eye
+ * against the printed layup sheets — a fatter, blunter shape reads as a bar
+ * chart with rounded corners rather than as a fin. Shared by the read-only
+ * diagram and the Baukasten so the two can never drift apart.
+ */
+export function finSilhouettePath(w: number, h: number): string {
+  return [
+    `M 0 0`,
+    `L ${w} 0`,
+    `C ${w * 0.98} ${h * 0.55}, ${w * 0.86} ${h * 0.88}, ${w * 0.42} ${h}`,
+    `C ${w * 0.22} ${h * 0.96}, ${w * 0.04} ${h * 0.66}, 0 ${h * 0.30}`,
+    `Z`,
+  ].join(" ");
+}
+
+/**
  * The house diagram — plies as fin silhouettes in a row, the way the layup
  * sheets have always been drawn.
  *
@@ -157,18 +175,7 @@ export function PlyFins({
   const width = ordered.length * COL + 16;
   const height = TOP + H + BOTTOM;
 
-  // The fin silhouette, cut short by this ply's length: trailing edge (right)
-  // holds width most of the way down then sweeps in; leading edge (left) cuts
-  // away high; the tip rounds off narrow and slightly left of centre. Matched by
-  // eye against the printed layup sheets — a fatter, blunter shape reads as a
-  // bar chart with rounded corners rather than as a fin.
-  const finPath = (h: number) => [
-    `M 0 0`,
-    `L ${W} 0`,
-    `C ${W * 0.98} ${h * 0.55}, ${W * 0.86} ${h * 0.88}, ${W * 0.42} ${h}`,
-    `C ${W * 0.22} ${h * 0.96}, ${W * 0.04} ${h * 0.66}, 0 ${h * 0.30}`,
-    `Z`,
-  ].join(" ");
+  const finPath = (h: number) => finSilhouettePath(W, h);
 
   return (
     <div className="overflow-x-auto">

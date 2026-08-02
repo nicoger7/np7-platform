@@ -96,6 +96,7 @@ export async function GET(req: NextRequest) {
   const held: { template: string; bookingId: string; editionId: string | null; missing: string[] }[] = [];
   const content = new Map<string, { packing_list?: string | null; pre_trip_note?: string | null }>();
   const editionNotes = new Map<string, string>();
+  const editionFinal = new Map<string, string>();
   const editionPacking = new Map<string, string>();
   if (expIds.length) {
     const { data: rows } = await db.from("exp_content").select("experience_id,packing_list,pre_trip_note").in("experience_id", expIds);
@@ -110,6 +111,7 @@ export async function GET(req: NextRequest) {
     for (const e of (eds ?? []) as any[]) {
       if (e.pre_trip_note) editionNotes.set(e.id, e.pre_trip_note);
       if (e.packing_list) editionPacking.set(e.id, e.packing_list);
+      if (e.final_details_note) editionFinal.set(e.id, e.final_details_note);
     }
   }
 
@@ -191,6 +193,7 @@ export async function GET(req: NextRequest) {
       tripLink: `${origin}/account/bookings/${b.id}`,
       // pre-trip content: edition note overrides the experience note; packing list is per-experience
       preTripNote: (editionNotes.get(b.edition_id ?? "") || c.pre_trip_note || "") || undefined,
+      finalDetailsNote: editionFinal.get(b.edition_id ?? "") || undefined,
       // edition list overrides the experience list, same rule as the note
       packingList: (editionPacking.get(b.edition_id ?? "") || c.packing_list || "") || undefined,
     };

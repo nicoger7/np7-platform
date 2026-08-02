@@ -20,6 +20,7 @@ export type EmailVars = {
   packingList?: string;
   /** Personal pre-trip note from the host. */
   preTripNote?: string;
+  finalDetailsNote?: string;
   waiverLink?: string;
   tripLink?: string;
   voucherCode?: string;
@@ -375,7 +376,6 @@ export const TEMPLATES: Record<string, (v: EmailVars, opts?: LayoutOpts) => Buil
       bodyHtml:
         greet(v) +
         p(`The countdown is on — <strong>${esc(v.experienceTitle || "your trip")}</strong>${v.dates ? " (" + esc(v.dates) + ")" : ""} is almost here. 🤩`) +
-        note(v.preTripNote) +
         p(`Picture it: warm water, steady wind, good people, and a coach right there with you all week. Get the boards waxed in your mind — this is going to be a good one.`) +
         p(`Your crew, your coaches and all the details are waiting in your trip account:`) +
         (v.bookingLink ? emailButton("Open my trip", v.bookingLink) : "") +
@@ -491,6 +491,7 @@ export const TEMPLATES: Record<string, (v: EmailVars, opts?: LayoutOpts) => Buil
       bodyHtml:
         greet(v) +
         p(`Just a few days to go until <strong>${esc(v.experienceTitle || "")}${v.dates ? " (" + esc(v.dates) + ")" : ""}</strong>! Here are your final details.`) +
+        note(v.finalDetailsNote) +
         p(`<strong>Before you fly:</strong> give your packing list one last check, and have your arrival & airport transfer info handy — it's all in your trip account.`) +
         (v.whatsappLink
           ? p(`<strong>Join your group chat</strong> so you're in the loop with the crew and our team on the ground:`) + emailButton("Join the group chat", v.whatsappLink)

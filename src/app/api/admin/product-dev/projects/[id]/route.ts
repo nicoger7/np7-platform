@@ -18,13 +18,14 @@ export async function GET(_request: NextRequest, { params }: { params: Promise<{
   const { data: project, error } = await db.from("pd_projects").select("*").eq("id", id).single();
   if (error) return NextResponse.json({ error: error.message }, { status: 404 });
 
-  const [constructions, molds, layups, processes, sources, materials] = await Promise.all([
+  const [constructions, molds, layups, processes, sources, materials, sizes] = await Promise.all([
     db.from("pd_constructions").select("*").eq("project_id", id).order("sort_order"),
     db.from("pd_molds").select("*").eq("project_id", id).order("kind").order("key_dimension_mm"),
     db.from("pd_layups").select("*").eq("project_id", id).order("name"),
     db.from("pd_processes").select("*").eq("project_id", id).order("stage_order"),
     db.from("pd_sources").select("*").eq("project_id", id).order("received_at", { ascending: false }),
     db.from("pd_materials").select("*").eq("active", true).order("name"),
+    db.from("pd_project_sizes").select("*").eq("project_id", id).order("length_cm"),
   ]);
 
   const layupRows = notArchived(layups.data) as { id: string }[];
@@ -49,6 +50,8 @@ export async function GET(_request: NextRequest, { params }: { params: Promise<{
     steps: steps.data ?? [],
     sources: notArchived(sources.data),
     materials: materials.data ?? [],
+    // Tolerant of migration 132 not being applied yet — no sizes, not an error.
+    sizes: sizes.data ?? [],
   });
 }
 

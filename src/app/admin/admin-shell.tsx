@@ -174,7 +174,6 @@ const navByEnv: Record<Environment, NavGroup[]> = {
       label: "ANALYTICS",
       items: [
         { label: "Visitor behaviour", href: "/admin/analytics", icon: "chart" },
-        { label: "Heatmaps", href: "/admin/analytics/heatmap", icon: "grid" },
       ],
     },
   ],

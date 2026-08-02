@@ -115,8 +115,8 @@ export async function runGoLiveChecks(): Promise<ExperienceReport[]> {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const db = createAdminClient() as any;
 
-  // One pass, eight queries — not one query per check per experience.
-  const [{ data: exps }, { data: content }, { data: editions }, { data: packages }, { data: bookings }, { data: hotels }, { data: destinations }, { data: placements }] =
+  // One pass, ten queries — not one query per check per experience.
+  const [{ data: exps }, { data: content }, { data: editions }, { data: packages }, { data: bookings }, { data: hotels }, { data: destinations }, { data: placements }, { data: pkgComponents }, { data: rooms }] =
     await Promise.all([
       db.from("exp_experiences").select("id,title,location,description,hero_image,gallery,price,website_visible,cancellation_policy,status,destination_id").is("archived_at", null),
       db.from("exp_content").select("*"),
@@ -126,6 +126,8 @@ export async function runGoLiveChecks(): Promise<ExperienceReport[]> {
       db.from("hotels").select("id,name,image_url,description").is("archived_at", null),
       db.from("destinations").select("id,intro,tagline"),
       db.from("exp_review_placements").select("experience_id"),
+      db.from("exp_package_components").select("package_id"),
+      db.from("exp_hotel_rooms").select("edition_id,booking_id,extra_booking_ids").is("archived_at", null),
     ]);
 
   type Row = Record<string, unknown>;
@@ -145,12 +147,33 @@ export async function runGoLiveChecks(): Promise<ExperienceReport[]> {
     reviewCount.set(String(pl.experience_id), (reviewCount.get(String(pl.experience_id)) ?? 0) + 1);
   }
 
-  const securedByEdition = new Map<string, number>();
+  // Secured guests per edition — the IDs, not just a count, because the beds
+  // check needs to know WHICH guests still sleep nowhere.
+  const securedIdsByEdition = new Map<string, string[]>();
   for (const b of (bookings ?? []) as Row[]) {
     if (!b.edition_id || isLostStatus(b.status as string)) continue;
     const counts = b.downpayment_received || b.final_payment_received
       || ["confirmed", "paid", "attended"].includes(String(b.status));
-    if (counts) securedByEdition.set(String(b.edition_id), (securedByEdition.get(String(b.edition_id)) ?? 0) + 1);
+    if (counts) {
+      const arr = securedIdsByEdition.get(String(b.edition_id)) ?? [];
+      arr.push(String(b.id));
+      securedIdsByEdition.set(String(b.edition_id), arr);
+    }
+  }
+
+  const componentLinks = new Map<string, number>();
+  for (const pc of (pkgComponents ?? []) as Row[]) {
+    componentLinks.set(String(pc.package_id), (componentLinks.get(String(pc.package_id)) ?? 0) + 1);
+  }
+
+  // Who has a bed: a room row names one booking plus any sharing partners.
+  const beddedByEdition = new Map<string, Set<string>>();
+  for (const rm of (rooms ?? []) as Row[]) {
+    if (!rm.edition_id) continue;
+    const set = beddedByEdition.get(String(rm.edition_id)) ?? new Set<string>();
+    if (rm.booking_id) set.add(String(rm.booking_id));
+    for (const x of (rm.extra_booking_ids as string[] | null) ?? []) set.add(String(x));
+    beddedByEdition.set(String(rm.edition_id), set);
   }
 
   const today = new Date().toISOString().slice(0, 10);
@@ -238,7 +261,14 @@ export async function runGoLiveChecks(): Promise<ExperienceReport[]> {
         const hotel = hotelById.get(h);
         return !hotel || !has(hotel.image_url) || !has(hotel.description);
       });
-      const secured = securedByEdition.get(edId) ?? 0;
+      const securedIds = securedIdsByEdition.get(edId) ?? [];
+      const secured = securedIds.length;
+      const noComponents = sellable.filter((pk) => !componentLinks.get(String(pk.id)));
+      // Beds only matter on trips that sleep people — a package with a hotel
+      // says this one does. Events without accommodation stay silent.
+      const sleeps = sellable.some((pk) => pk.hotel_id);
+      const bedded = beddedByEdition.get(edId) ?? new Set<string>();
+      const unbedded = securedIds.filter((bid) => !bedded.has(bid));
       const cap = ed.max_spots as number | null;
 
       const checks: CheckResult[] = [
@@ -257,6 +287,12 @@ export async function runGoLiveChecks(): Promise<ExperienceReport[]> {
           `${noHotel.length} package${noHotel.length === 1 ? "" : "s"} with no hotel — the trip page can't show where they stay`),
         ok("hotelContent", "Hotel has photo & description", "warning", thinHotels.length === 0, "/admin/hotels",
           `${thinHotels.length} hotel${thinHotels.length === 1 ? "" : "s"} missing a photo or description`),
+        ok("components", "Components linked", "warning", sellable.length === 0 || noComponents.length === 0, `${base}?tab=packages`,
+          `${noComponents.length} of ${sellable.length} sellable package${sellable.length === 1 ? "" : "s"} with no components — the included-list and the cost sheet run empty`,
+          { okDetail: sellable.length ? "Every sellable package has components" : undefined }),
+        ok("beds", "Beds assigned", "warning", !sleeps || secured === 0 || unbedded.length === 0, `${base}?tab=rooms`,
+          `${unbedded.length} of ${secured} secured guest${secured === 1 ? "" : "s"} with no bed yet`,
+          { okDetail: sleeps && secured > 0 ? `All ${secured} secured guests have a bed` : undefined }),
         ok("deposit", "Deposit decided", "warning", ed.deposit != null, `${base}?tab=details`,
           "Not set — the payment plan falls back to a €300 default nobody chose", {
             okDetail: Number(ed.deposit) === 0 ? "No deposit — 50% downpayment secures the spot" : `€${ed.deposit}`,

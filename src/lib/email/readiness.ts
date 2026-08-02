@@ -37,7 +37,7 @@ export const SEND_AFTER_END = {
   post_trip_thank_you: 3,
 } as const;
 
-export type ContentKey = "packingList" | "preTripNote" | "whatsappLink";
+export type ContentKey = "packingList" | "preTripNote" | "whatsappLink" | "finalDetailsNote";
 
 /**
  * What each mail needs.
@@ -57,7 +57,7 @@ export const MAIL_REQUIREMENTS: Record<string, { blocking: ContentKey[]; soft: C
   crew_forming: { blocking: ["whatsappLink"], soft: [], label: "Crew forming (group chat)" },
   pre_trip_info: { blocking: ["packingList"], soft: ["preTripNote"], label: "Pre-trip info (packing)" },
   pre_trip_excitement: { blocking: [], soft: ["whatsappLink"], label: "Excitement beat" },
-  pre_trip_final: { blocking: [], soft: ["whatsappLink"], label: "Final countdown" },
+  pre_trip_final: { blocking: [], soft: ["whatsappLink", "finalDetailsNote"], label: "Final countdown" },
   waiver_reminder: { blocking: [], soft: [], label: "Waiver reminder" },
 };
 
@@ -65,6 +65,7 @@ export const CONTENT_LABELS: Record<ContentKey, { label: string; where: string }
   packingList: { label: "Packing list", where: "Edition → Details, or the experience's Event Content" },
   preTripNote: { label: "Pre-trip note", where: "Edition → Details, or the experience's Event Content" },
   whatsappLink: { label: "WhatsApp group link", where: "Edition → Details" },
+  finalDetailsNote: { label: "Final-details note", where: "Edition → Mailing (the 3-days-before mail)" },
 };
 
 export type ReadinessItem = {
@@ -108,15 +109,15 @@ export async function resolveEditionContent(editionId: string): Promise<{
   const db = createAdminClient() as any;
   const { data: ed } = await db
     .from("exp_editions")
-    .select("id, date_start, experience_id, pre_trip_note, packing_list, whatsapp_group_link")
+    .select("id, date_start, experience_id, pre_trip_note, packing_list, whatsapp_group_link, final_details_note")
     .eq("id", editionId)
     .maybeSingle();
   if (!ed) {
     return {
       startDate: null,
-      values: { packingList: null, preTripNote: null, whatsappLink: null },
+      values: { packingList: null, preTripNote: null, whatsappLink: null, finalDetailsNote: null },
       inherited: { packingList: null, preTripNote: null },
-      source: { packingList: null, preTripNote: null, whatsappLink: null },
+      source: { packingList: null, preTripNote: null, whatsappLink: null, finalDetailsNote: null },
     };
   }
 
@@ -145,6 +146,9 @@ export async function resolveEditionContent(editionId: string): Promise<{
       packingList: pick(ed.packing_list, expContent.packing_list),
       preTripNote: pick(ed.pre_trip_note, expContent.pre_trip_note),
       whatsappLink: pick(ed.whatsapp_group_link, null),
+      // Edition-only on purpose: "final details" are this week's logistics —
+      // there is nothing meaningful to inherit from the experience.
+      finalDetailsNote: pick(ed.final_details_note, null),
     },
     inherited: {
       packingList: trim(expContent.packing_list),
@@ -154,6 +158,7 @@ export async function resolveEditionContent(editionId: string): Promise<{
       packingList: from(ed.packing_list, expContent.packing_list),
       preTripNote: from(ed.pre_trip_note, expContent.pre_trip_note),
       whatsappLink: from(ed.whatsapp_group_link, null),
+      finalDetailsNote: from(ed.final_details_note, null),
     },
   };
 }

@@ -129,6 +129,15 @@ export const PD_ENTITIES = {
     projectScoped: true,
     orderBy: { column: "stage_order" },
   },
+  // Sizes are child rows of a project (no archived_at — softDelete falls back
+  // to a hard delete via its missing-column tolerance, which is what we want).
+  sizes: {
+    table: "pd_project_sizes",
+    editable: ["project_id", "label", "length_cm", "box", "rake_deg", "back_end_mm", "sort_order", "notes", "source_id"],
+    required: ["project_id", "label"],
+    projectScoped: true,
+    orderBy: { column: "length_cm" },
+  },
 } as const satisfies Record<string, CrudConfig>;
 
 export type PdEntityKey = keyof typeof PD_ENTITIES;

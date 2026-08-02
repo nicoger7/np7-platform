@@ -256,6 +256,23 @@ export type PdPly = {
   updated_at: string;
 };
 
+/** A sellable size of the program — rake and back end live HERE, not on the
+ *  layup: the 37 TT and the 44 DTT run different geometry off the same stack. */
+export type PdSize = {
+  id: string;
+  project_id: string;
+  label: string;
+  length_cm: number | null;
+  box: string | null;
+  rake_deg: number | null;
+  back_end_mm: number | null;
+  sort_order: number;
+  notes: string | null;
+  source_id: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
 export type PdProcess = {
   id: string;
   project_id: string;
