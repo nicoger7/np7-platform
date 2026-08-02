@@ -52,6 +52,7 @@ const navByEnv: Record<Environment, NavGroup[]> = {
       label: "OPERATIONS",
       items: [
         { label: "Experiences", href: "/admin/experiences", icon: "compass" },
+        { label: "Ready to sell?", href: "/admin/go-live", icon: "checklist" },
         { label: "Bookings", href: "/admin/bookings", icon: "inbox" },
         { label: "Contacts", href: "/admin/contacts", icon: "users" },
         { label: "Signature Trips", href: "/admin/applications", icon: "star" },

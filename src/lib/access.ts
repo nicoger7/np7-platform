@@ -89,7 +89,7 @@ export type Section = {
 /** The admin sections a role can be granted, mirroring the sidebar nav. */
 export const SECTIONS: Section[] = [
   // Experience · Operations
-  { key: "experiences", label: "Experiences & editions", world: "experience", group: "Operations", paths: ["/admin/experiences", "/admin/editions", "/api/admin/experiences", "/api/admin/editions"] },
+  { key: "experiences", label: "Experiences & editions", world: "experience", group: "Operations", paths: ["/admin/experiences", "/admin/editions", "/admin/go-live", "/api/admin/experiences", "/api/admin/editions", "/api/admin/go-live"] },
   { key: "bookings", label: "Bookings", world: "experience", group: "Operations", paths: ["/admin/bookings", "/api/admin/bookings"] },
   { key: "contacts", label: "Contacts", world: "experience", group: "Operations", paths: ["/admin/contacts", "/api/admin/contacts"] },
   { key: "invites", label: "Trip invites", world: "experience", group: "Operations", paths: ["/admin/invites", "/api/admin/invites"] },
