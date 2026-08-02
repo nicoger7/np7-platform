@@ -54,7 +54,7 @@ export async function GET(
 
   const [{ data: content, error }, { data: exp }] = await Promise.all([
     db.from("exp_content").select("*").eq("experience_id", id).maybeSingle(),
-    db.from("exp_experiences").select("hero_image,title,slug,location,price,currency").eq("id", id).maybeSingle(),
+    db.from("exp_experiences").select("hero_image,title,slug,location,price,currency,destination_id").eq("id", id).maybeSingle(),
   ]);
 
   if (error && !isMissing(error.message)) {
@@ -64,6 +64,17 @@ export async function GET(
   // Tolerant: `tile_auto` (069) + event fields (111) may not exist yet.
   const { data: exAuto } = await db.from("exp_experiences").select("tile_auto").eq("id", id).maybeSingle();
   const { data: exEvent } = await db.from("exp_experiences").select("page_template,event_mode,event_deposit_pct,event_refund_pct").eq("id", id).maybeSingle();
+
+  // "The spot" falls back to the linked destination's own intro when this
+  // experience has no location_about — which is why that box can look empty
+  // while the live page reads perfectly well. Hand the fallback over so the
+  // editor can show it instead of implying nothing is set.
+  let destination: { name: string; slug: string | null; text: string } | null = null;
+  if (exp?.destination_id) {
+    const { data: d } = await db.from("destinations").select("id,name,slug,intro,tagline").eq("id", exp.destination_id).maybeSingle();
+    const text = (d?.intro ?? "").trim() || (d?.tagline ?? "").trim();
+    if (d) destination = { name: d.name, slug: d.slug ?? null, text };
+  }
 
   return NextResponse.json({
     experience_id: id,
@@ -80,6 +91,7 @@ export async function GET(
     _location: exp?.location ?? "",
     _price: exp?.price ?? null,
     _currency: exp?.currency ?? "EUR",
+    _destination: destination,
   });
 }
 

@@ -1,6 +1,7 @@
 import "server-only";
 import { createAdminClient } from "@/lib/supabase";
 import { isLostStatus } from "@/lib/types";
+import { defaultCancellationPolicy } from "@/lib/cancellation-policy";
 import {
   DEFAULT_DAILY_PROGRAM, DEFAULT_FAQ, DEFAULT_OUTCOMES, DEFAULT_WEEK_TITLE, sameAsDefault,
 } from "@/lib/experience-defaults";
@@ -45,6 +46,9 @@ export type CheckFix = {
   title: string;
   help?: string;
   value: string | number | null;
+  /** What guests get when this is left empty. Shown under the box — you cannot
+   *  judge whether to override something you cannot read. */
+  fallback?: string;
 };
 
 export type CheckResult = {
@@ -179,7 +183,7 @@ export async function runGoLiveChecks(): Promise<ExperienceReport[]> {
       // that genuinely differ.
       ok("cancellationPolicy", "Cancellation terms", "warning", true, detail, undefined, {
         okDetail: has(e.cancellation_policy) ? "Own terms set for this trip" : "Standard EU terms — override only if this trip differs",
-        fix: { table: "exp_experiences", id, column: "cancellation_policy", kind: "textarea", title: "Cancellation terms", help: "Leave empty to use the standard terms shown to every guest. Fill this in only when this trip's terms genuinely differ.", value: (e.cancellation_policy as string) ?? null },
+        fix: { table: "exp_experiences", id, column: "cancellation_policy", kind: "textarea", title: "Cancellation terms", help: "This is the short summary a guest reads on their trip page — not the full legal terms, which live on /terms and in the trip files. Leave it empty and every guest gets the standard wording below. Fill it in only when this trip genuinely differs (a charter, a non-refundable flight block).", value: (e.cancellation_policy as string) ?? null, fallback: defaultCancellationPolicy(false) },
       }),
       ok("packingList", "Packing list", "warning", has(c.packing_list), `${content_}?tab=pretrip`, "The pre-trip email is held back without it", {
         fix: { table: "exp_content", id, column: "packing_list", kind: "textarea", title: "Packing list", help: "One item per line. Shown in the member portal and the pre-trip email.", value: (c.packing_list as string) ?? null },

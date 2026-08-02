@@ -86,6 +86,13 @@ function FixBox({ fix, onClose, onSaved }: { fix: CheckFix; onClose: () => void;
           />
         )}
 
+        {fix.fallback && !value.trim() && (
+          <div className="mt-2.5 rounded-lg px-3 py-2" style={{ border: "1px dashed var(--admin-border)" }}>
+            <p className="text-[10px] font-bold admin-faint uppercase tracking-[0.1em] mb-1">What guests get if you leave this empty</p>
+            <p className="text-[12px] admin-muted leading-snug whitespace-pre-wrap">{fix.fallback}</p>
+          </div>
+        )}
+
         {error && <p className="text-[12.5px] text-red-400 mt-2">{error}</p>}
 
         <div className="flex items-center justify-end gap-2 mt-4">

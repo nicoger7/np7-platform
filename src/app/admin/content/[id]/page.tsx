@@ -34,6 +34,7 @@ export default function ContentEditorPage({ params }: { params: Promise<{ id: st
   const [location, setLocation] = useState("");
   // Head coach for the live tile preview — same fallback the public card uses.
   const [headCoach, setHeadCoach] = useState<{ name: string; cutout: string | null } | null>(null);
+  const [destination, setDestination] = useState<{ name: string; slug: string | null; text: string } | null>(null);
 
   // images
   const [tileImage, setTileImage] = useState("");
@@ -121,6 +122,7 @@ export default function ContentEditorPage({ params }: { params: Promise<{ id: st
         setGallery(Array.isArray(c.gallery) ? c.gallery : []);
         setReviews(Array.isArray(c.reviews) ? c.reviews : []);
         setLocationAbout(c.location_about ?? "");
+        setDestination(c._destination ?? null);
         setWeekInfo(c.week_info ?? "");
         setProgram(Array.isArray(c.daily_program) ? c.daily_program : []);
         setWeekTitle(c.week_title ?? "");
@@ -369,9 +371,26 @@ export default function ContentEditorPage({ params }: { params: Promise<{ id: st
         </Section>
 
         {/* TEXT */}
-        <Section show={tab === "story"} title="About the location" hint="Shows as the text of ‘The spot’ section on the experience page. Leave empty and the linked destination’s intro/tagline is used instead. Line breaks are kept.">
+        <Section show={tab === "story"} title="About the location" hint="The text of ‘The spot’ section on the experience page. Line breaks are kept.">
           <textarea value={locationAbout} onChange={(e) => setLocationAbout(e.target.value)} rows={5}
-            placeholder="Bonaire is a flat-water paradise…" className="admin-input w-full px-4 py-3 rounded-lg border text-sm outline-none resize-y" />
+            placeholder={destination?.text ? `Leave empty to keep using ${destination.name}'s own intro — shown below` : "Bonaire is a flat-water paradise…"}
+            className="admin-input w-full px-4 py-3 rounded-lg border text-sm outline-none resize-y" />
+          {/* An empty box here does NOT mean an empty page: the destination's own
+              intro fills the section. Showing it is the difference between
+              "nothing is set" and "this is what's live". */}
+          {!locationAbout.trim() && (destination?.text ? (
+            <div className="mt-2.5 rounded-lg px-3.5 py-2.5" style={{ border: "1px dashed var(--admin-border)" }}>
+              <p className="text-[11px] font-bold admin-faint uppercase tracking-[0.1em] mb-1">
+                Live on the page — from the destination {destination.name}
+              </p>
+              <p className="text-[12.5px] admin-muted whitespace-pre-wrap leading-relaxed">{destination.text}</p>
+              <a href="/admin/destinations" className="inline-block mt-2 text-[12px] font-bold text-[#0aa3c7] hover:underline">Edit it in Destinations →</a>
+            </div>
+          ) : (
+            <p className="text-[12.5px] text-amber-500 mt-2">
+              Nothing here and no destination text to fall back on — ‘The spot’ section is hidden on the live page.
+            </p>
+          ))}
         </Section>
 
         <Section show={tab === "story"} title="About the week" hint="Shows as the small paragraph under the intro of the ‘Your week’ scroll section — only when filled.">
