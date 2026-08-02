@@ -4,7 +4,7 @@ import { useState, useEffect, useMemo, useRef, use } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import BusinessCaseCard from "@/components/business-case-card";
-import { normalizeBookingStatus } from "@/lib/types";
+import { normalizeBookingStatus, isLostStatus } from "@/lib/types";
 
 /** Bookings sort order: the money-secured end of the pipeline first, dead last. */
 const BK_PRIORITY: Record<string, number> = {
@@ -22,15 +22,16 @@ import { effectiveCanAccess, effectiveCanSeeField } from "@/lib/access";
 import { PublicBadge } from "@/components/admin/public-badge";
 import { editionLabel } from "@/lib/edition-label";
 import { MailReadiness } from "@/components/admin/mail-readiness";
+import { parseFlightNote } from "@/lib/flights";
 import { EditionMailing } from "@/components/admin/edition-mailing";
 
 // Edition detail sub-tabs. The order is reorderable by drag-and-drop and saved
 // per admin in localStorage (each team member keeps their own preferred order).
-const DEFAULT_TABS = ["details", "branding", "mailing", "bookings", "levels", "packages", "memories", "costs", "rooms", "notes"] as const;
+const DEFAULT_TABS = ["details", "branding", "mailing", "bookings", "arrivals", "levels", "packages", "memories", "costs", "rooms", "notes"] as const;
 type EditionTab = (typeof DEFAULT_TABS)[number];
 const TAB_ORDER_KEY = "np7_edition_tab_order";
 const TAB_LABEL: Record<EditionTab, string> = {
-  details: "Details", branding: "Branding", mailing: "Mailing", bookings: "Bookings", levels: "Levels", packages: "Packages",
+  details: "Details", branding: "Branding", mailing: "Mailing", bookings: "Bookings", arrivals: "Arrivals", levels: "Levels", packages: "Packages",
   memories: "Memories", costs: "Costs", rooms: "Hotel Rooms", notes: "Notes",
 };
 // Each tab's data comes from a section's API — hide the tab if the role can't
@@ -39,8 +40,24 @@ const TAB_LABEL: Record<EditionTab, string> = {
 const TAB_PATH: Record<EditionTab, string> = {
   details: "/admin/editions", branding: "/admin/editions", mailing: "/admin/editions", levels: "/admin/editions",
   memories: "/admin/editions", notes: "/admin/editions",
-  bookings: "/admin/bookings", packages: "/admin/packages", costs: "/admin/exp-costs", rooms: "/admin/hotel-rooms",
+  bookings: "/admin/bookings", arrivals: "/admin/bookings", packages: "/admin/packages", costs: "/admin/exp-costs", rooms: "/admin/hotel-rooms",
 };
+/**
+ * The edition's booking table columns. Arrival time and flight number are off
+ * by default — most days you want the short table, and the day of a transfer
+ * run you want them. Same show/hide idea as the main Bookings page; kept local
+ * because this table is a different, smaller shape.
+ */
+const EDITION_BK_COLUMNS: { key: string; label: string; width: string; always?: boolean; off?: boolean }[] = [
+  { key: "name", label: "Name", width: "1fr", always: true },
+  { key: "status", label: "Status", width: "130px" },
+  { key: "fly_in", label: "Fly In", width: "90px" },
+  { key: "arr_time", label: "Arr. time", width: "80px", off: true },
+  { key: "arr_flight", label: "Flight", width: "100px", off: true },
+  { key: "price", label: "Price", width: "90px" },
+  { key: "paid", label: "Paid", width: "60px" },
+];
+const EDITION_BK_KEY = "np7_edition_booking_cols";
 const eur = (n: number | null | undefined, cur?: string | null) => `${cur === "EUR" || !cur ? "€" : cur + " "}${Number(n || 0).toLocaleString("en-US", { maximumFractionDigits: 0 })}`;
 
 interface Edition {
@@ -297,6 +314,28 @@ export default function EditionDetailPage({
   const [pkgShow, setPkgShow] = useState(false);
 
   const emptyCost = { item: "", estimated_amount: "", actual_amount: "", date: "", status: "estimate" };
+  const [bkCols, setBkCols] = useState<Set<string>>(() => new Set(EDITION_BK_COLUMNS.filter((c) => !c.off).map((c) => c.key)));
+  useEffect(() => {
+    try {
+      const raw = window.localStorage.getItem(EDITION_BK_KEY);
+      if (raw) setBkCols(new Set(JSON.parse(raw) as string[]));
+    } catch { /* ignore */ }
+  }, []);
+  const toggleBkCol = (k: string) => setBkCols((prev) => {
+    const next = new Set(prev);
+    if (next.has(k)) next.delete(k); else next.add(k);
+    try { window.localStorage.setItem(EDITION_BK_KEY, JSON.stringify([...next])); } catch { /* ignore */ }
+    return next;
+  });
+  const bkGrid = EDITION_BK_COLUMNS.filter((c) => c.always || bkCols.has(c.key)).map((c) => c.width).join(" ") + " 40px";
+  const bkShow = (k: string) => EDITION_BK_COLUMNS.find((c) => c.key === k)?.always || bkCols.has(k);
+  // The edition's Booking type predates flight_info; read it defensively rather
+  // than widen a type the list API may or may not populate.
+  const bkFlight = (b: unknown) => {
+    const r = b as { flight_info?: unknown; notes?: string | null };
+    return ((r.flight_info as Record<string, string | null> | null) ?? parseFlightNote(r.notes ?? null) ?? {}) as Record<string, string | null>;
+  };
+
   const [costForm, setCostForm] = useState(emptyCost);
   const [costEditId, setCostEditId] = useState<string | null>(null);
   const [costShow, setCostShow] = useState(false);
@@ -418,6 +457,7 @@ export default function EditionDetailPage({
 
   useEffect(() => {
     if (tab === "bookings") { loadBookings(); loadPackages(); }
+    if (tab === "arrivals") loadBookings();
     if (tab === "packages") { loadPackages(); loadBookings(); }
     if (tab === "costs") { loadCosts(); loadPnl(); }
     if (tab === "rooms") { loadRooms(); loadBookings(); }
@@ -1137,6 +1177,57 @@ export default function EditionDetailPage({
       })()}
 
       {/* ── Bookings tab (inline split: rail + booking detail pane) ── */}
+      {/* ── Arrivals ── who lands when, sorted by the clock. The data was
+           already being collected; it just had no home you would think to open
+           on the morning of a transfer run. ── */}
+      {tab === "arrivals" && (() => {
+        const rows = bookings
+          .filter((b) => !isLostStatus(b.status))
+          .map((b) => {
+            const fi = ((b as unknown as { flight_info?: Record<string, string | null> }).flight_info
+              ?? parseFlightNote((b as unknown as { notes?: string | null }).notes) ?? {}) as Record<string, string | null>;
+            return { b, fi, date: fi.arrivalDate || b.fly_in || null, time: fi.arrivalTime || null };
+          })
+          .sort((x, y) => `${x.date ?? "9"}${x.time ?? "99"}`.localeCompare(`${y.date ?? "9"}${y.time ?? "99"}`));
+        const known = rows.filter((r) => r.date).length;
+        return (
+          <div>
+            <p className="text-xs admin-faint mb-4">
+              {known} of {rows.length} guests have told us when they arrive.
+              {known < rows.length && " The rest are chased by the pre-trip mail."}
+            </p>
+            <div className="rounded-xl admin-tablecard overflow-hidden" style={{ border: "1px solid var(--admin-border)" }}>
+              <div className="grid grid-cols-[1fr_100px_70px_110px_92px_110px] gap-3 px-4 py-3 admin-surface" style={{ borderBottom: "1px solid var(--admin-border)" }}>
+                {["Guest", "Arrives", "Time", "Flight", "How", "Leaves"].map((h) => (
+                  <span key={h} className="text-[10px] font-bold tracking-[0.1em] admin-faint uppercase">{h}</span>
+                ))}
+              </div>
+              {rows.map(({ b, fi, date, time }) => {
+                const own = fi.arrivalMode === "own";
+                return (
+                  <Link key={b.id} href={`/admin/bookings/${b.id}`}
+                    className="grid grid-cols-[1fr_100px_70px_110px_92px_110px] gap-3 px-4 py-3 hover:bg-[var(--admin-surface-hover)] transition-colors"
+                    style={{ borderBottom: "1px solid var(--admin-border)" }}>
+                    <span className="text-[13px] admin-heading truncate self-center">{b.name}</span>
+                    <span className="text-xs admin-muted self-center">{formatDate(date)}</span>
+                    <span className={`text-xs self-center font-semibold ${time ? "admin-heading" : "admin-faint"}`}>{time || "—"}</span>
+                    <span className="text-xs admin-muted self-center font-mono truncate">{own ? "—" : (fi.arrivalFlightNo || "—")}</span>
+                    <span className="self-center">
+                      {own
+                        ? <span className="text-[10px] font-bold uppercase px-2 py-0.5 rounded bg-amber-500/15 text-amber-500">own way</span>
+                        : <span className="text-[10px] font-bold uppercase px-2 py-0.5 rounded bg-[var(--admin-accent)]/12 text-[#0aa3c7]">flying</span>}
+                    </span>
+                    <span className="text-xs admin-faint self-center">
+                      {formatDate(fi.departureDate || b.fly_out)}{fi.departureTime ? ` · ${fi.departureTime}` : ""}
+                    </span>
+                  </Link>
+                );
+              })}
+            </div>
+          </div>
+        );
+      })()}
+
       {tab === "bookings" && (
         <div>
           {selBooking ? (
@@ -1168,6 +1259,21 @@ export default function EditionDetailPage({
             <p className="text-xs admin-faint">{bookings.length} booking{bookings.length !== 1 ? "s" : ""} for this edition</p>
             <div className="flex items-center gap-3">
               <Link href={`/admin/bookings?edition_id=${id}`} className="text-xs text-[#0aa3c7] hover:text-[#0aa3c7]/80 transition-colors">View all →</Link>
+              {/* Columns — arrival time and flight number live here rather than
+                  always on: most days the short table is what you want. */}
+              <details className="relative">
+                <summary className="list-none cursor-pointer select-none px-3 py-1.5 rounded-lg text-xs font-bold admin-muted hover:admin-heading transition-colors" style={{ border: "1px solid var(--admin-border)" }}>
+                  Columns
+                </summary>
+                <div className="absolute right-0 z-20 mt-1 w-52 rounded-xl p-2 shadow-lg admin-surface" style={{ border: "1px solid var(--admin-border)" }}>
+                  {EDITION_BK_COLUMNS.filter((c) => !c.always).map((c) => (
+                    <label key={c.key} className="flex items-center gap-2 px-2 py-1.5 rounded-lg text-[12.5px] admin-muted hover:admin-heading cursor-pointer">
+                      <input type="checkbox" checked={bkCols.has(c.key)} onChange={() => toggleBkCol(c.key)} className="accent-[var(--admin-accent)]" />
+                      {c.label}
+                    </label>
+                  ))}
+                </div>
+              </details>
               <button onClick={() => setBookingShow((v) => !v)} className="px-3 py-1.5 bg-[var(--admin-accent)] hover:bg-[var(--admin-accent)]/90 text-[var(--admin-accent-contrast)] text-xs font-bold rounded-lg transition-colors">New Booking</button>
             </div>
           </div>
@@ -1203,27 +1309,32 @@ export default function EditionDetailPage({
             </div>
           ) : (
             <div className="rounded-xl admin-tablecard" style={{ border: "1px solid var(--admin-border)" }}>
-              <div className="grid grid-cols-[1fr_130px_90px_90px_60px_40px] gap-4 px-5 py-3 admin-surface" style={{ borderBottom: "1px solid var(--admin-border)" }}>
-                {([["name", "Name"], ["status", "Status"], ["fly_in", "Fly In"], ["price", "Price"], ["paid", "Paid"]] as const).map(([key, label]) => (
-                  <button key={key} type="button"
-                    onClick={() => { if (bkSort === key) setBkDir((d) => (d === "asc" ? "desc" : "asc")); else { setBkSort(key); setBkDir("asc"); } }}
-                    className={`text-left text-[10px] font-bold tracking-[0.1em] uppercase transition-colors ${bkSort === key ? "text-[var(--admin-accent)]" : "admin-faint hover:admin-muted"}`}>
-                    {label}{bkSort === key ? (bkDir === "asc" ? " ↑" : " ↓") : ""}
-                  </button>
-                ))}
+              <div className="grid gap-4 px-5 py-3 admin-surface" style={{ gridTemplateColumns: bkGrid, borderBottom: "1px solid var(--admin-border)" }}>
+                {EDITION_BK_COLUMNS.filter((c) => c.always || bkCols.has(c.key)).map(({ key, label }) => {
+                  const sortable = ["name", "status", "fly_in", "price", "paid"].includes(key);
+                  return sortable ? (
+                    <button key={key} type="button"
+                      onClick={() => { if (bkSort === key) setBkDir((d) => (d === "asc" ? "desc" : "asc")); else { setBkSort(key as never); setBkDir("asc"); } }}
+                      className={`text-left text-[10px] font-bold tracking-[0.1em] uppercase transition-colors ${bkSort === key ? "text-[var(--admin-accent)]" : "admin-faint hover:admin-muted"}`}>
+                      {label}{bkSort === key ? (bkDir === "asc" ? " ↑" : " ↓") : ""}
+                    </button>
+                  ) : <span key={key} className="text-[10px] font-bold tracking-[0.1em] uppercase admin-faint">{label}</span>;
+                })}
                 <span></span>
               </div>
               {sortedBookings.map((b) => (
                 <div
                   key={b.id}
-                  className="grid grid-cols-[1fr_130px_90px_90px_60px_40px] gap-4 px-5 py-3.5 transition-colors group"
-                  style={{ borderBottom: "1px solid var(--admin-border)" }}
+                  className="grid gap-4 px-5 py-3.5 transition-colors group"
+                  style={{ gridTemplateColumns: bkGrid, borderBottom: "1px solid var(--admin-border)" }}
                   onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = "var(--admin-surface-hover)")}
                   onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = "transparent")}
                 >
                   <span className="text-sm font-medium admin-heading truncate self-center cursor-pointer" onClick={() => setSelBooking(b.id)}>{b.name}</span>
-                  <span className="self-center cursor-pointer" onClick={() => setSelBooking(b.id)}><BookingStatusBadge status={b.status} /></span>
-                  <span className="text-xs admin-muted self-center">{formatDate(b.fly_in)}</span>
+                  {bkShow("status") && <span className="self-center cursor-pointer" onClick={() => setSelBooking(b.id)}><BookingStatusBadge status={b.status} /></span>}
+                  {bkShow("fly_in") && <span className="text-xs admin-muted self-center">{formatDate(b.fly_in)}</span>}
+                  {bkShow("arr_time") && <span className="text-xs admin-muted self-center">{bkFlight(b).arrivalTime || "—"}</span>}
+                  {bkShow("arr_flight") && <span className="text-xs admin-muted self-center font-mono truncate">{bkFlight(b).arrivalMode === "own" ? "own way" : (bkFlight(b).arrivalFlightNo || "—")}</span>}
                   <span className="text-xs admin-muted self-center">
                     {b.agreed_price ? `€${Number(b.agreed_price).toLocaleString()}` : "—"}
                   </span>
