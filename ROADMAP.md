@@ -307,7 +307,48 @@ roles + invite team. Shares the role model with §6 (media).
 
 ---
 
-## 9. Backlog / ideas
+## 9. Product Development — R&D build sheets  🟡 in progress — ⚪ NEW
+
+_The `product-dev` admin world (violet) existed but was empty. Everything NP7 knows about how its own
+gear is made lives in a supplier's inbox and a JPEG of a layup diagram — this makes it ours._
+
+**Phase 1 — build sheet 🟡 built, migration pending.** Migration `129` (9 `pd_*` tables), `src/lib/product-dev.ts`,
+RBAC + nav + archive wiring, 10 API route pairs, the projects list, the detail tabs, the 18-row ply editor,
+`<PlyDiagram>`, compare-across-molds, and `scripts/seed-rockstar.mjs`.
+Model: project → construction → (mold + layup) → plies; process → steps; every parameter cites a source.
+**The mold↔construction matrix is the set of `pd_layups` rows and the gaps between them** — 4 rows exist,
+8 pairs deliberately don't. Generalises to boards with no schema change (`GEOMETRY_FIELDS[kind]`).
+
+- 🔴 **Migration 129 not applied** — keychain access to the Supabase token is blocked, so it needs a
+  dashboard paste. Nothing works until then; the seed script refuses to run without it.
+- ⚪ Confirm with Phil: is the ply-9 → ply-10 length reset (30 → 36 cm) the two sides of the blade?
+  The `stack` column is seeded `a`/`b` on that inference.
+- ⚪ Per-ply materials are transcribed **by eye** from the diagram's colours — the seed prints them back
+  colour-coded for sign-off. Template refs and lengths are exact.
+- ⚪ Post-deploy: open `/admin/roles`, tick the Product Development world per custom role, and remove the
+  stray Owner grants migration 049 handed out. Until then the RBAC work is inert.
+
+**Phase 2 — media lock ⚪.** `product-dev/` becomes a reserved storage root, filtered **unconditionally**
+(including for Owner) out of all five verbs of `/api/admin/images`, so R&D photos never appear in the 15
+Experience/Hardware picker mounts or File Storage. Reads go through `/api/admin/product-dev/media`.
+⚠ This is discoverability, **not** access control — the `assets` bucket is public and there are four
+unauthenticated URL paths to any object. A private bucket is a later, more expensive call.
+
+**Phase 3 — builder + versioning ⚪.** Migration `130`: `pd_revisions`, an append-only jsonb snapshot per
+save that changes something, with a computed `change_summary` and optional named releases ("357-b — sent to
+Ralph"). Live rows stay editable; history is immutable. Plus the Sources tab with a **paste-an-email box**
+and the reverse citation index.
+
+**Phase 4 — board-test panel ⚪.** Migration `131`: `pd_prototypes`, `pd_test_sessions` (linked to real
+spotguide `spots`), `pd_test_recordings`. Record a voice memo on mobile → R2 via presigned PUT → jibe
+transcribes → Claude turns the transcript into a structured review.
+⚠ **The Claude API does not accept audio** — speech-to-text needs a separate engine. Plan: `whisper.cpp` on
+jibe's always-on box (which already runs ffmpeg for trip videos), handed off via the proven
+`spot_intake_queue` pattern. Needs `ANTHROPIC_API_KEY` + `CRON_SECRET` in Vercel (still unset).
+
+---
+
+## 10. Backlog / ideas
 _Dump ideas here; we triage into the sections above._
 
 - _(empty — add away)_
@@ -315,6 +356,13 @@ _Dump ideas here; we triage into the sections above._
 ---
 
 ## Changelog
+- 2026-08-02 — Added §9 Product Development. Phase 1 built on `dev`: migration 129 (9 `pd_*` tables),
+  the build-sheet model, RBAC/nav/archive wiring, the ply editor + diagram, and the Rockstar seed.
+  **Migration 129 is NOT applied** (keychain blocked → dashboard paste). Also closed a real leak found
+  on the way: `/admin/archive` is section-less and fails open, so it listed supplier, PO and order names
+  to every team member — `ArchiveEntity.section` now gates the list and the archive/restore POST.
+  Deleted the `/admin/boards` and `/admin/reviews` stubs (section-less, fail-open, and `/admin/reviews`
+  collided with the live `exp_reviews` API).
 - 2026-06-18 — Roadmap created from current repo state.
 - 2026-06-18 — Added website-behaviour analytics plan (Supabase build, both divisions).
 - 2026-06-18 — Added guest galleries/share, media pipeline (videographer portal + storage/CDN),

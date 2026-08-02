@@ -43,6 +43,15 @@ export async function GET(request: NextRequest) {
     }
     return magazineDashboard(db);
   }
+  if (world === "product-dev") {
+    // A REAL RBAC world (it is in access.ts WORLDS), so entry goes through the
+    // world grant — not the nav-derived path magazine uses. Owner-only for the
+    // legacy tiers, which `effectiveCanAccess` on the section prefix enforces.
+    if (access && (!effectiveCanEnterWorld(access, "product-dev") || !effectiveCanAccess(access, "/admin/product-dev"))) {
+      return NextResponse.json({ error: "forbidden" }, { status: 403 });
+    }
+    return productDevDashboard(db);
+  }
 
   const head = (table: string, build?: (q: any) => any) => {
     let q = db.from(table).select("id", { count: "exact", head: true });
@@ -305,5 +314,88 @@ async function magazineDashboard(db: any) {
       destinations: destinations.count ?? 0,
     },
     latestPosts: latest.data ?? [],
+  });
+}
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+async function productDevDashboard(db: any) {
+  const [projects, molds, layupRows, plyCount, steps, sources] = await Promise.all([
+    db.from("pd_projects").select("id", { count: "exact", head: true }).is("archived_at", null),
+    db.from("pd_molds").select("id", { count: "exact", head: true }).is("archived_at", null).eq("status", "in_use"),
+    db.from("pd_layups")
+      .select("id,project_id,name,ref,source_id,updated_at,pd_projects(name),pd_constructions(name),pd_molds(name)")
+      .is("archived_at", null)
+      .order("updated_at", { ascending: false })
+      .limit(50),
+    db.from("pd_layup_plies").select("id", { count: "exact", head: true }),
+    db.from("pd_process_steps")
+      .select("id,step_no,title,source_id,photos,temp_c_min,pressure_t_min,duration_min,pd_processes(name,project_id)")
+      .order("step_no"),
+    db.from("pd_sources").select("id,received_at").is("archived_at", null),
+  ]);
+
+  // The build sheets and steps are tiny tables (tens of rows), so the staleness
+  // join happens here rather than in SQL — no view, no extra round trip.
+  const staleIds = new Set<string>();
+  const knownIds = new Set<string>();
+  const cutoff = new Date();
+  cutoff.setMonth(cutoff.getMonth() - 12);
+  for (const s of (sources.data ?? []) as { id: string; received_at: string | null }[]) {
+    knownIds.add(s.id);
+    if (s.received_at && new Date(s.received_at) < cutoff) staleIds.add(s.id);
+  }
+  const reasonFor = (sourceId: string | null): "missing" | "stale" | null =>
+    !sourceId || !knownIds.has(sourceId) ? "missing" : staleIds.has(sourceId) ? "stale" : null;
+
+  type LayupRow = {
+    id: string; project_id: string; name: string; ref: string | null; source_id: string | null; updated_at: string;
+    pd_projects?: { name: string } | null; pd_constructions?: { name: string } | null; pd_molds?: { name: string } | null;
+  };
+  type StepRow = {
+    id: string; step_no: number; title: string; source_id: string | null; photos: unknown[] | null;
+    temp_c_min: number | null; pressure_t_min: number | null; duration_min: number | null;
+    pd_processes?: { name: string; project_id: string } | null;
+  };
+  const layups = (layupRows.data ?? []) as LayupRow[];
+  const stepRows = (steps.data ?? []) as StepRow[];
+
+  const provenanceGaps = [
+    ...layups.flatMap((l) => {
+      const reason = reasonFor(l.source_id);
+      return reason ? [{ id: l.id, projectId: l.project_id, kind: "layup" as const, label: l.name, where: l.pd_projects?.name ?? "", reason }] : [];
+    }),
+    // Only steps that actually STATE a parameter — a step with no numbers has
+    // nothing to defend, so flagging it would just train people to ignore this.
+    ...stepRows.flatMap((s) => {
+      const hasParam = s.temp_c_min != null || s.pressure_t_min != null || s.duration_min != null;
+      if (!hasParam || !s.pd_processes) return [];
+      const reason = reasonFor(s.source_id);
+      return reason ? [{ id: s.id, projectId: s.pd_processes.project_id, kind: "step" as const, label: `${s.step_no}. ${s.title}`, where: s.pd_processes.name, reason }] : [];
+    }),
+  ].slice(0, 8);
+
+  return NextResponse.json({
+    world: "product-dev",
+    counts: {
+      projects: projects.count ?? 0,
+      moldsInUse: molds.count ?? 0,
+      layups: layups.length,
+      plies: plyCount.count ?? 0,
+    },
+    recentLayups: layups.slice(0, 6).map((l) => ({
+      id: l.id,
+      projectId: l.project_id,
+      name: l.name,
+      ref: l.ref,
+      project: l.pd_projects?.name ?? "",
+      construction: l.pd_constructions?.name ?? null,
+      mold: l.pd_molds?.name ?? null,
+      updated_at: l.updated_at,
+    })),
+    provenanceGaps,
+    stepsMissingPhotos: stepRows
+      .filter((s) => s.pd_processes && (!Array.isArray(s.photos) || s.photos.length === 0))
+      .slice(0, 6)
+      .map((s) => ({ id: s.id, projectId: s.pd_processes!.project_id, label: `${s.step_no}. ${s.title}`, where: s.pd_processes!.name })),
   });
 }

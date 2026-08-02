@@ -16,6 +16,18 @@ export type ArchiveEntity = {
   titleCol: string;   // column shown as the row's title
   subtitleCols?: string[];
   href?: (id: string) => string; // admin detail link, if any
+  /**
+   * The SECTIONS key that owns this entity's data, when it isn't readable by
+   * every team member.
+   *
+   * /admin/archive is deliberately shared — anyone can archive and restore — but
+   * the list itself renders each row's title and subtitle, and for some entities
+   * those ARE the sensitive part: an R&D source's title names the partner, a
+   * layup's name is the spec reference, a supplier row is a factory relationship.
+   * Without this the archive is a side door around every world grant. Entities
+   * with no `section` stay visible to everyone, exactly as before.
+   */
+  section?: string;
 };
 
 export const ARCHIVE_ENTITIES: ArchiveEntity[] = [
@@ -30,10 +42,18 @@ export const ARCHIVE_ENTITIES: ArchiveEntity[] = [
   { key: "vendors", table: "vendors", label: "Vendor", plural: "Vendors", titleCol: "name", subtitleCols: ["category"] },
   { key: "products", table: "hw_products", label: "Product", plural: "Products", titleCol: "title", subtitleCols: ["status"], href: (id) => `/admin/products/${id}` },
   { key: "hw_variants", table: "hw_variants", label: "Product variant", plural: "Product variants", titleCol: "name", subtitleCols: ["sku"] },
-  { key: "hw_suppliers", table: "hw_suppliers", label: "Supplier", plural: "Suppliers", titleCol: "name", subtitleCols: ["country"], href: (id) => `/admin/suppliers/${id}` },
-  { key: "hw_pos", table: "hw_purchase_orders", label: "Purchase order", plural: "Purchase orders", titleCol: "po_number", subtitleCols: ["status"], href: (id) => `/admin/purchasing/${id}` },
-  { key: "hw_inbound", table: "hw_inbound_shipments", label: "Inbound shipment", plural: "Inbound shipments", titleCol: "reference", subtitleCols: ["status"], href: (id) => `/admin/purchasing/shipments/${id}` },
-  { key: "hw_orders", table: "hw_orders", label: "Hardware order", plural: "Hardware orders", titleCol: "email", subtitleCols: ["status"], href: (id) => `/admin/orders/${id}` },
+  { key: "hw_suppliers", table: "hw_suppliers", label: "Supplier", plural: "Suppliers", titleCol: "name", subtitleCols: ["country"], href: (id) => `/admin/suppliers/${id}`, section: "suppliers" },
+  { key: "hw_pos", table: "hw_purchase_orders", label: "Purchase order", plural: "Purchase orders", titleCol: "po_number", subtitleCols: ["status"], href: (id) => `/admin/purchasing/${id}`, section: "purchasing" },
+  { key: "hw_inbound", table: "hw_inbound_shipments", label: "Inbound shipment", plural: "Inbound shipments", titleCol: "reference", subtitleCols: ["status"], href: (id) => `/admin/purchasing/shipments/${id}`, section: "purchasing" },
+  { key: "hw_orders", table: "hw_orders", label: "Hardware order", plural: "Hardware orders", titleCol: "email", subtitleCols: ["status"], href: (id) => `/admin/orders/${id}`, section: "orders" },
+  // Product Development. All section-gated — the titles alone (partner names,
+  // layup references, mold designations) are the trade secret.
+  { key: "pd_projects", table: "pd_projects", label: "R&D project", plural: "R&D projects", titleCol: "name", subtitleCols: ["kind", "status"], href: (id) => `/admin/product-dev/projects/${id}`, section: "pd_knowledge" },
+  { key: "pd_constructions", table: "pd_constructions", label: "Construction", plural: "Constructions", titleCol: "name", section: "pd_knowledge" },
+  { key: "pd_molds", table: "pd_molds", label: "Mold", plural: "Molds", titleCol: "name", subtitleCols: ["kind", "status"], section: "pd_knowledge" },
+  { key: "pd_layups", table: "pd_layups", label: "Build sheet", plural: "Build sheets", titleCol: "name", subtitleCols: ["ref"], section: "pd_knowledge" },
+  { key: "pd_processes", table: "pd_processes", label: "Process", plural: "Processes", titleCol: "name", subtitleCols: ["method"], section: "pd_knowledge" },
+  { key: "pd_sources", table: "pd_sources", label: "R&D source", plural: "R&D sources", titleCol: "title", subtitleCols: ["kind", "author_name"], section: "pd_knowledge" },
 ];
 
 export const ARCHIVE_BY_KEY: Record<string, ArchiveEntity> = Object.fromEntries(ARCHIVE_ENTITIES.map((e) => [e.key, e]));

@@ -23,6 +23,10 @@ const OWNER_ONLY = [
   "/admin/settings", "/admin/team", "/admin/roles", "/admin/hours-log", "/admin/analytics",
   "/api/admin/payments", "/api/admin/exp-costs", "/api/admin/vendors", "/api/admin/documents",
   "/api/admin/company-settings", "/api/admin/team", "/api/admin/roles", "/api/admin/hours-log", "/api/admin/analytics",
+  // Product Development — the manufacturing IP. This list gates the legacy
+  // owner/manager TIERS; OWNER_ONLY_SECTIONS gates granular roles. Both are
+  // consulted, so a section that should be owner-only must appear in both.
+  "/admin/product-dev", "/api/admin/product-dev",
   // Permanent delete from the archive is owner-only (archive + restore are not).
   "/api/admin/archive/purge",
 ];
@@ -119,6 +123,14 @@ export const SECTIONS: Section[] = [
   { key: "returns", label: "Returns", world: "hardware", group: "Hardware", paths: ["/admin/returns", "/api/admin/returns"] },
   { key: "purchasing", label: "Purchasing", world: "hardware", group: "Hardware", paths: ["/admin/purchasing", "/api/admin/purchasing", "/api/admin/inbound"] },
   { key: "suppliers", label: "Suppliers", world: "hardware", group: "Hardware", paths: ["/admin/suppliers", "/api/admin/suppliers"] },
+  // Product Development. Registering these is NOT cosmetic: effectiveCanAccess
+  // FAILS OPEN for section-less paths (see sectionForPath below), so R&D routes
+  // shipped without an entry here are readable by every active team member —
+  // including the Photographer role, which is scoped to Experience by design.
+  // sectionForPath is longest-prefix-wins, so /admin/product-dev/library lands
+  // on pd_library while everything else under the prefix lands on pd_knowledge.
+  { key: "pd_knowledge", label: "R&D build sheets", world: "product-dev", group: "Product Dev", paths: ["/admin/product-dev", "/api/admin/product-dev"] },
+  { key: "pd_library", label: "R&D photo library", world: "product-dev", group: "Product Dev", paths: ["/admin/product-dev/library", "/api/admin/product-dev/media"] },
   // Analytics
   { key: "analytics", label: "Business analytics", world: "analytics", group: "Analytics", paths: ["/admin/analytics", "/api/admin/analytics"] },
 ];
@@ -250,9 +262,12 @@ export function mergeAccess(list: RoleAccess[]): RoleAccess {
   return out;
 }
 
-/** Sections only an Owner reaches (Finance, Company Settings, Team admin, Analytics) —
- *  the same set as the legacy owner-only paths, expressed as section keys. */
-export const OWNER_ONLY_SECTIONS = ["payments", "exp_costs", "vendors", "documents", "settings", "team", "hours_log", "analytics"];
+/** Sections only an Owner reaches (Finance, Company Settings, Team admin, Analytics,
+ *  R&D) — the same set as the legacy owner-only paths, expressed as section keys.
+ *  Product Development is here because the build sheets ARE the manufacturing IP
+ *  and the sources carry partners' personal contact details; `builtinAccess`
+ *  otherwise hands every world except Analytics to Manager automatically. */
+export const OWNER_ONLY_SECTIONS = ["payments", "exp_costs", "vendors", "documents", "settings", "team", "hours_log", "analytics", "pd_knowledge", "pd_library"];
 
 /** Built-in roles. Their access is computed live from the catalog (so Owner always
  *  covers new sections); stored in team_roles with a system_key (migrations 049/059). */
@@ -318,6 +333,21 @@ export function effectiveCanAccess(eff: EffectiveAccess, path: string): boolean 
   if (eff.kind === "tier") return canAccess(eff.level, path);
   const sec = sectionForPath(path);
   if (!sec) return true;
+  if (!eff.access.worlds.includes(sec.world)) return false;
+  return roleSectionLevel(eff.access, sec.key) !== "none";
+}
+
+/**
+ * Can this member reach a section by KEY (rather than by path)?
+ *
+ * For surfaces that aggregate rows from many sections into one shared page —
+ * the Archive is the only one today — and so can't ask the path-based question.
+ * Unknown keys are allowed, matching the fail-open rule for section-less paths.
+ */
+export function effectiveCanAccessSection(eff: EffectiveAccess, sectionKey: string): boolean {
+  const sec = SECTIONS.find((s) => s.key === sectionKey);
+  if (!sec) return true;
+  if (eff.kind === "tier") return canAccess(eff.level, sec.paths[0]);
   if (!eff.access.worlds.includes(sec.world)) return false;
   return roleSectionLevel(eff.access, sec.key) !== "none";
 }

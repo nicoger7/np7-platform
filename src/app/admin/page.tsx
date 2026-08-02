@@ -306,24 +306,92 @@ function MagazineDashboard() {
 
 // ─── Product Development ─────────────────────────────────────────────────────
 
+interface ProductDevData {
+  counts: { projects: number; moldsInUse: number; layups: number; plies: number };
+  recentLayups: { id: string; projectId: string; name: string; ref: string | null; project: string; construction: string | null; mold: string | null; updated_at: string }[];
+  /** Parameter-bearing rows with no citation, or one older than a year. This is
+   *  the panel that stops provenance decaying into an optional field. */
+  provenanceGaps: { id: string; projectId: string; kind: "layup" | "step"; label: string; where: string; reason: "missing" | "stale" }[];
+  stepsMissingPhotos: { id: string; projectId: string; label: string; where: string }[];
+  slim?: boolean;
+}
+
 function ProductDevDashboard() {
+  const [d, setD] = useState<ProductDevData | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    fetch("/api/admin/dashboard?world=product-dev")
+      .then((r) => r.json())
+      .then((data) => { setD(data?.error ? null : data); setLoading(false); })
+      .catch(() => setLoading(false));
+  }, []);
+
+  if (loading) return <div className="p-6 text-sm admin-muted">Loading…</div>;
+
+  const c = d?.counts;
   return (
     <div>
       <DashboardHeader />
+
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-4">
+        <StatCard label="Projects" value={c?.projects ?? 0} href="/admin/product-dev/projects" />
+        <StatCard label="Molds in use" value={c?.moldsInUse ?? 0} />
+        <StatCard label="Build sheets" value={c?.layups ?? 0} />
+        <StatCard label="Plies on file" value={c?.plies ?? 0} accent />
+      </div>
+
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-        <Panel title="Product development">
-          <p className="text-xs admin-faint leading-relaxed mb-3">
-            Boards and Reviews are in the works — prototypes, test feedback and review rounds will
-            live here.
-          </p>
-          <div className="grid grid-cols-2 gap-2">
-            {[{ label: "Boards", href: "/admin/boards" }, { label: "Reviews", href: "/admin/reviews" }].map((a) => (
-              <Link key={a.href} href={a.href} className="text-xs admin-muted hover:text-[var(--admin-accent)] py-2 px-3 rounded-lg transition-colors" style={{ border: "1px solid var(--admin-border)" }}>
-                {a.label}
-              </Link>
-            ))}
-          </div>
+        <Panel title="Recently changed build sheets" href="/admin/product-dev/projects">
+          {!d?.recentLayups?.length ? <p className="text-xs admin-faint">Nothing yet — start a project and add a layup.</p> : (
+            <div className="space-y-1.5">
+              {d.recentLayups.map((l) => (
+                <Link key={l.id} href={`/admin/product-dev/projects/${l.projectId}?tab=layups&layup=${l.id}`} className="flex items-center gap-3 text-xs py-1.5 px-2 -mx-2 rounded-lg hover:bg-[var(--admin-surface-hover)]">
+                  <span className="flex-1 admin-heading truncate">{l.name}</span>
+                  <span className="admin-faint truncate hidden sm:block max-w-[120px]">{[l.construction, l.mold].filter(Boolean).join(" · ")}</span>
+                  <span className="admin-faint w-16 text-right">{fmtDate(l.updated_at)}</span>
+                </Link>
+              ))}
+            </div>
+          )}
         </Panel>
+
+        <Panel
+          title="Parameters with no source"
+          subtitle="A cure temperature nobody can trace is a number you cannot defend in a quote."
+        >
+          {!d?.provenanceGaps?.length ? <p className="text-xs admin-faint">Everything is cited and current.</p> : (
+            <div className="space-y-1.5">
+              {d.provenanceGaps.map((g) => (
+                <Link key={`${g.kind}-${g.id}`} href={`/admin/product-dev/projects/${g.projectId}?tab=${g.kind === "layup" ? "layups" : "process"}`} className="flex items-center gap-3 text-xs py-1.5 px-2 -mx-2 rounded-lg hover:bg-[var(--admin-surface-hover)]">
+                  <span className="flex-1 admin-heading truncate">{g.label}</span>
+                  <span className="admin-faint truncate hidden sm:block max-w-[100px]">{g.where}</span>
+                  <span className={g.reason === "missing" ? "text-red-400 w-14 text-right" : "text-amber-400 w-14 text-right"}>
+                    {g.reason === "missing" ? "no source" : "stale"}
+                  </span>
+                </Link>
+              ))}
+            </div>
+          )}
+        </Panel>
+
+        <Panel title="Steps without photos">
+          {!d?.stepsMissingPhotos?.length ? <p className="text-xs admin-faint">Every step has a reference photo.</p> : (
+            <div className="space-y-1.5">
+              {d.stepsMissingPhotos.map((s) => (
+                <Link key={s.id} href={`/admin/product-dev/projects/${s.projectId}?tab=process`} className="flex items-center gap-3 text-xs py-1.5 px-2 -mx-2 rounded-lg hover:bg-[var(--admin-surface-hover)]">
+                  <span className="flex-1 admin-heading truncate">{s.label}</span>
+                  <span className="admin-faint truncate hidden sm:block max-w-[140px]">{s.where}</span>
+                </Link>
+              ))}
+            </div>
+          )}
+        </Panel>
+
+        <QuickActions actions={[
+          { label: "Projects", href: "/admin/product-dev/projects" },
+          { label: "Photo library", href: "/admin/product-dev/library" },
+        ]} />
       </div>
     </div>
   );
