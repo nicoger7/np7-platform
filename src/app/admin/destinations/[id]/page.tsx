@@ -8,6 +8,8 @@ import { LEVELS, DESTINATION_CRITERIA, DESTINATION_TAGS, VERIFICATION_META, type
 
 type Partner = { name: string; description: string; url: string; image?: string };
 interface Dest {
+  lat: number | null;
+  lng: number | null;
   id: string; name: string; slug: string | null; region: string | null; country: string | null;
   hero_image: string | null; tagline: string | null; intro: string | null;
   hero_video_url: string | null; hero_video_start: number | null; hero_video_end: number | null;
@@ -104,6 +106,16 @@ export default function DestinationEditor({ params }: { params: Promise<{ id: st
           <div><label className={labelClass}>Name</label><input className={inputClass} value={d.name} onChange={(e) => set("name", e.target.value)} /></div>
           <div><label className={labelClass}>Region</label><input className={inputClass} value={d.region ?? ""} onChange={(e) => set("region", e.target.value)} /></div>
           <div><label className={labelClass}>Country</label><input className={inputClass} value={d.country ?? ""} onChange={(e) => set("country", e.target.value)} /></div>
+          {/* Coordinates drive the measured wind graph on the trip pages: the
+              weekly cron computes Open-Meteo climatology for any destination
+              that has them. Without lat/lng there is no graph — and until this
+              field existed, a new destination could only get them via SQL. */}
+          <div><label className={labelClass}>Latitude</label><input type="number" step="any" className={inputClass} placeholder="e.g. 38.2440" value={d.lat ?? ""} onChange={(e) => set("lat", e.target.value === "" ? null : Number(e.target.value))} /></div>
+          <div>
+            <label className={labelClass}>Longitude</label>
+            <input type="number" step="any" className={inputClass} placeholder="e.g. 26.3900" value={d.lng ?? ""} onChange={(e) => set("lng", e.target.value === "" ? null : Number(e.target.value))} />
+            <p className="text-[11px] admin-faint mt-1">Right-click the spot in Google Maps → the numbers at the top. The wind graph appears after the next weekly refresh (Mondays), automatically.</p>
+          </div>
         </div>
 
         <div>

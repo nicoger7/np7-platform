@@ -98,7 +98,6 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
     }
   }
   const compAgg = new Map<string, { name: string; unit_cost: number; qty: number; total: number }>();
-  let componentTotal = 0;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   for (const b of attending as any[]) {
     for (const line of (pkgLines.get(b.package_id) ?? [])) {
@@ -106,12 +105,52 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
       ex.qty += line.quantity;
       ex.total += line.unit_cost * line.quantity;
       compAgg.set(line.component_id, ex);
-      componentTotal += line.unit_cost * line.quantity;
     }
   }
-  const componentBreakdown = [...compAgg.values()]
-    .map((c) => ({ name: c.name, qty: c.qty, unitCost: c.unit_cost, total: Math.round(c.total * 100) / 100 }))
-    .sort((a, b) => b.total - a.total);
+
+  // Confirmed add-ons feed the same lines — an extra rig week is more of the
+  // same component, not a separate species of cost.
+  try {
+    const { data: addons } = await db
+      .from("exp_booking_addons")
+      .select("component_id, quantity, status, booking_id, exp_components(id, name, unit_cost)")
+      .in("booking_id", bookingIds);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    for (const a of (addons ?? []) as any[]) {
+      if (String(a.status ?? "confirmed") === "requested") continue;
+      const c = a.exp_components;
+      if (!c) continue;
+      const qty = Number(a.quantity) || 1;
+      const ex = compAgg.get(c.id) ?? { name: c.name, unit_cost: Number(c.unit_cost) || 0, qty: 0, total: 0 };
+      ex.qty += qty;
+      ex.total += (Number(c.unit_cost) || 0) * qty;
+      compAgg.set(c.id, ex);
+    }
+  } catch { /* add-ons table optional */ }
+
+  // Actuals override estimates, line by line. An exp_costs row carrying a
+  // component_id IS that component's real bill — it already counts in `costs`
+  // above, so its estimate must not count again. Estimated lines keep
+  // contributing until their real number arrives.
+  const { data: actualRows } = await db
+    .from("exp_costs")
+    .select("component_id, actual_amount, estimated_amount")
+    .eq("edition_id", id)
+    .not("component_id", "is", null);
+  const actualBy = new Map<string, number>();
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  for (const r of (actualRows ?? []) as any[]) {
+    actualBy.set(String(r.component_id), Number(r.actual_amount ?? r.estimated_amount) || 0);
+  }
+
+  let componentTotal = 0;
+  const componentBreakdown = [...compAgg.entries()]
+    .map(([cid, c]) => {
+      const actual = actualBy.get(cid) ?? null;
+      if (actual == null) componentTotal += c.total; // only un-overridden estimates add here
+      return { componentId: cid, name: c.name, qty: c.qty, unitCost: c.unit_cost, total: Math.round(c.total * 100) / 100, actual };
+    })
+    .sort((a, b) => (b.actual ?? b.total) - (a.actual ?? a.total));
 
   return NextResponse.json({
     received: Math.round(received * 100) / 100,

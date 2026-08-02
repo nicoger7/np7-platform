@@ -409,7 +409,7 @@ export default function EditionDetailPage({
   const [costForm, setCostForm] = useState(emptyCost);
   const [costEditId, setCostEditId] = useState<string | null>(null);
   const [costShow, setCostShow] = useState(false);
-  const [pnl, setPnl] = useState<{ received: number; expected: number; costs: number; net: number; bookings: number; componentEstimate?: { total: number; bookings: number; breakdown: { name: string; qty: number; unitCost: number; total: number }[] } } | null>(null);
+  const [pnl, setPnl] = useState<{ received: number; expected: number; costs: number; net: number; bookings: number; componentEstimate?: { total: number; bookings: number; breakdown: { componentId: string; name: string; qty: number; unitCost: number; total: number; actual: number | null }[] } } | null>(null);
 
   const emptyRoom = { name: "", hotel_id: "", hotel: "", room_type: "", room_number: "", status: "available", booking_id: "", extra_booking_ids: [] as string[], partner_tag_along: "" };
   const [roomForm, setRoomForm] = useState(emptyRoom);
@@ -1738,19 +1738,42 @@ export default function EditionDetailPage({
           )}
 
           {/* Projected per-participant cost — auto-rolled from signed-up packages' components × cost price */}
-          {pnl?.componentEstimate && pnl.componentEstimate.total > 0 && (
+          {pnl?.componentEstimate && pnl.componentEstimate.breakdown.length > 0 && (
             <div className="rounded-xl admin-tablecard mb-5" style={{ border: "1px solid var(--admin-border)" }}>
               <div className="flex items-center justify-between px-5 py-3 admin-surface" style={{ borderBottom: "1px solid var(--admin-border)" }}>
-                <span className="text-[11px] font-bold tracking-[0.1em] admin-faint uppercase">Projected component cost · {pnl.componentEstimate.bookings} signed up</span>
-                <span className="text-sm font-bold text-amber-400">{eur(pnl.componentEstimate.total, currency)}</span>
+                <span className="text-[11px] font-bold tracking-[0.1em] admin-faint uppercase">Component costs · {pnl.componentEstimate.bookings} signed up</span>
+                <span className="text-sm font-bold text-amber-400">{eur(pnl.componentEstimate.breakdown.reduce((t, c) => t + (c.actual ?? c.total), 0), currency)}</span>
               </div>
+              {/* Estimate until the real bill lands: type the actual and it
+                  becomes a normal cost line (one per component per week);
+                  clear it and the estimate takes over again. Add-ons roll in. */}
               {pnl.componentEstimate.breakdown.map((c) => (
-                <div key={c.name} className="flex items-center justify-between gap-3 px-5 py-2 text-[13px]" style={{ borderBottom: "1px solid var(--admin-border)" }}>
-                  <span className="admin-heading truncate">{c.name}</span>
-                  <span className="admin-faint shrink-0">{c.qty} × {eur(c.unitCost, currency)} = <span className="admin-muted font-medium">{eur(c.total, currency)}</span></span>
+                <div key={c.componentId} className="flex items-center gap-3 px-5 py-2 text-[13px]" style={{ borderBottom: "1px solid var(--admin-border)" }}>
+                  <span className="admin-heading truncate flex-1">{c.name}</span>
+                  <span className={`shrink-0 ${c.actual != null ? "admin-faint line-through" : "admin-faint"}`}>
+                    {c.qty} × {eur(c.unitCost, currency)} = <span className={c.actual != null ? "" : "admin-muted font-medium"}>{eur(c.total, currency)}</span>
+                  </span>
+                  <span className="shrink-0 flex items-center gap-1.5">
+                    <input
+                      type="number" inputMode="decimal" placeholder="actual"
+                      defaultValue={c.actual ?? ""}
+                      onBlur={async (e) => {
+                        const v = e.target.value.trim();
+                        if ((c.actual == null && v === "") || (c.actual != null && Number(v) === c.actual)) return;
+                        await fetch(`/api/admin/editions/${id}/component-cost`, {
+                          method: "PUT", headers: { "Content-Type": "application/json" },
+                          body: JSON.stringify({ componentId: c.componentId, actual: v === "" ? null : Number(v) }),
+                        });
+                        loadPnl(); loadCosts();
+                      }}
+                      className="w-24 px-2 py-1 rounded-md text-right text-[12.5px] outline-none focus:border-[#0aa3c7]"
+                      style={{ border: "1px solid var(--admin-border)", backgroundColor: "var(--admin-bg)", color: "var(--admin-text)" }}
+                    />
+                    {c.actual != null && <span className="text-[10px] font-bold uppercase px-1.5 py-0.5 rounded bg-green-500/15 text-green-500">actual</span>}
+                  </span>
                 </div>
               ))}
-              <p className="px-5 py-2 text-[11px] admin-faint">Auto-rolled from each signed-up package&apos;s components × cost price. Add fixed costs (venue, transfers…) as cost lines below.</p>
+              <p className="px-5 py-2 text-[11px] admin-faint">Rolled from each signed-up package&apos;s components (+ confirmed add-ons) × cost price. Type the real bill in <em>actual</em> when it lands — it replaces the estimate in the P&amp;L and shows as a cost line. Clear it to go back to the estimate.</p>
             </div>
           )}
 
