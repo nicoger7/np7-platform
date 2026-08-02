@@ -5,6 +5,7 @@ import Link from "next/link";
 import { AdminMemberLevel } from "@/components/admin/admin-member-level";
 import { SpotguideTrust } from "@/components/admin/spotguide-trust";
 import { MemberPortalPreview } from "@/components/admin/member-portal-preview";
+import { ContactDetailPane } from "@/app/admin/contacts/[id]/page";
 
 interface MemberData {
   contact: { id: string; name: string; email: string | null; phone: string | null; country: string | null; level: string | null; auth_user_id?: string | null; email_bounced_at?: string | null; email_bounce_reason?: string | null };
@@ -38,14 +39,23 @@ export function MemberDetailPane({ contactId, initialTab = "overview", onBack }:
   const [d, setD] = useState<MemberData | null>(null);
   const [loading, setLoading] = useState(true);
   const [tab, setTab] = useState<"overview" | "level" | "preview" | "emails">(initialTab);
+  /**
+   * Editing a contact used to navigate to the contact page, and finishing there
+   * left you in Contacts — a different section from the one you started in.
+   * The contact editor is already a self-contained pane, so open it over the
+   * member instead: close and you are exactly where you were, with the member
+   * refreshed in case the edit changed their name or email.
+   */
+  const [editing, setEditing] = useState(false);
 
   // Refetch when the selected member changes (split view swaps contactId in place).
+  const [reloadKey, setReloadKey] = useState(0);
   useEffect(() => {
     let alive = true;
     setLoading(true); setD(null);
     fetch(`/api/admin/members/${contactId}`).then((r) => r.json()).then((x) => { if (alive) { setD(x.error ? null : x); setLoading(false); } });
     return () => { alive = false; };
-  }, [contactId]);
+  }, [contactId, reloadKey]);
   // Follow the parent's Level-view toggle.
   useEffect(() => { setTab(initialTab); }, [initialTab]);
 
@@ -56,8 +66,27 @@ export function MemberDetailPane({ contactId, initialTab = "overview", onBack }:
   if (!d) return <div className="py-16 text-center"><p className="text-sm admin-faint">Member not found</p></div>;
   const c = d.contact;
 
+  const editModal = editing ? (
+    <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto p-4 sm:p-8"
+      style={{ backgroundColor: "rgba(0,20,28,0.55)" }}
+      onClick={() => { setEditing(false); setReloadKey((k) => k + 1); }}>
+      <div className="admin-surface admin-border border rounded-2xl w-full max-w-[900px] my-4 shadow-2xl"
+        onClick={(e) => e.stopPropagation()}>
+        <div className="flex items-center justify-between px-5 py-3" style={{ borderBottom: "1px solid var(--admin-border)" }}>
+          <p className="text-sm font-bold admin-heading">Edit contact</p>
+          <button onClick={() => { setEditing(false); setReloadKey((k) => k + 1); }}
+            className="text-xs font-bold admin-muted hover:admin-heading transition-colors">Done ✕</button>
+        </div>
+        <div className="p-1">
+          <ContactDetailPane contactId={c.id} onBack={() => { setEditing(false); setReloadKey((k) => k + 1); }} />
+        </div>
+      </div>
+    </div>
+  ) : null;
+
   return (
     <div>
+      {editModal}
       <div className="mb-6">
         {onBack && (
           <button onClick={onBack} className="inline-flex items-center gap-1 text-xs admin-faint hover:admin-heading mb-1.5">← All members</button>
@@ -75,7 +104,7 @@ export function MemberDetailPane({ contactId, initialTab = "overview", onBack }:
             {new Date(c.email_bounced_at).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" })} — this address isn&apos;t receiving mail.
           </p>
         )}
-        <Link href={`/admin/contacts/${c.id}?from=${from}`} className="text-xs text-[#0aa3c7] hover:underline block">Edit contact →</Link>
+        <button onClick={() => setEditing(true)} className="text-xs text-[#0aa3c7] hover:underline block">Edit contact →</button>
       </div>
 
       <div className="flex items-center gap-1 mb-5 border-b" style={{ borderColor: "var(--admin-border)" }}>
