@@ -15,10 +15,36 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase";
 import { notArchived, softDelete } from "@/lib/archive";
-import { requirePdEdit } from "@/lib/product-dev";
+import { getRequestAccess } from "@/lib/admin-auth";
+import { effectiveCanEdit } from "@/lib/access";
 
 /** Every mutating handler in this section runs under the same section key. */
 const PD_PATH = "/api/admin/product-dev";
+
+/**
+ * Reject a mutating request from a member who only has *view* on this section.
+ *
+ * The middleware only ever calls `effectiveCanAccess`, so a role granted "view"
+ * on the R&D sections can otherwise still POST/PATCH/DELETE straight through the
+ * API — `effectiveCanEdit` exists but nothing upstream calls it.
+ *
+ * Lives here rather than in product-dev.ts because that module is imported by
+ * client components for its row types, and `getRequestAccess` reaches for
+ * `next/headers` — which fails the production build the moment it is pulled
+ * into a client bundle.
+ *
+ * Returns a response to return, or null to proceed.
+ */
+export async function requirePdEdit(path: string = PD_PATH): Promise<NextResponse | null> {
+  const access = await getRequestAccess();
+  // No resolvable member → middleware already rejected the request; a null here
+  // means the session vanished mid-flight, so fail closed rather than open.
+  if (!access) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  if (!effectiveCanEdit(access, path)) {
+    return NextResponse.json({ error: "You have view-only access to Product Development." }, { status: 403 });
+  }
+  return null;
+}
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 export type DB = any;

@@ -13,9 +13,11 @@
  * in jsonb. Same pattern as src/lib/blog-templates.ts owning template_data.
  */
 
-import { NextResponse } from "next/server";
-import { getRequestAccess } from "@/lib/admin-auth";
-import { effectiveCanEdit } from "@/lib/access";
+// NOTE: this module is imported by CLIENT components (the ply editor needs the
+// row types and the field catalogs), so it must stay free of server-only
+// imports. The write guard that used to live here now sits in
+// product-dev-api.ts, which only route handlers import — pulling
+// `next/headers` in through this file breaks the production build.
 
 // ─── Vocabularies (mirror the check constraints in migration 129) ────────────
 
@@ -350,25 +352,3 @@ export function groupPliesByStack(plies: PdPly[]): { stack: string | null; plies
   return out;
 }
 
-// ─── Write guard ─────────────────────────────────────────────────────────────
-
-/**
- * Reject a mutating request from a member who only has *view* on this section.
- *
- * The middleware only ever calls `effectiveCanAccess`, so a role granted "view"
- * on the R&D sections can otherwise still POST/PATCH/DELETE straight through the
- * API — `effectiveCanEdit` exists but nothing upstream calls it. Every non-GET
- * handler under /api/admin/product-dev calls this first.
- *
- * Returns a 403 response to return, or null to proceed.
- */
-export async function requirePdEdit(path: string): Promise<NextResponse | null> {
-  const access = await getRequestAccess();
-  // No resolvable member → middleware already rejected the request; a null here
-  // means the session vanished mid-flight, so fail closed rather than open.
-  if (!access) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  if (!effectiveCanEdit(access, path)) {
-    return NextResponse.json({ error: "You have view-only access to Product Development." }, { status: 403 });
-  }
-  return null;
-}
