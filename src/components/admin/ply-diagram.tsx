@@ -121,6 +121,96 @@ export function PlyDiagram({
   );
 }
 
+/**
+ * The house diagram — plies as fin silhouettes in a row, the way the layup
+ * sheets have always been drawn.
+ *
+ * This is not decoration. Read as bars you compare lengths; read as fins you see
+ * the SHAPE of the stack — where the wide plies stop, where a heavier cloth is
+ * dropped in, how fast the tip tapers. That is the thing people actually point
+ * at in a meeting, so it earns being a first-class view rather than an export.
+ *
+ * Each ply is drawn as a leading-edge curve down to a rounded tip, scaled by its
+ * length. Same rows, same colours as the table — one dataset, two readings.
+ */
+export function PlyFins({
+  plies, materials, maxLengthCm, showStackBreak = true,
+}: {
+  plies: PdPly[];
+  materials: PdMaterial[];
+  maxLengthCm?: number;
+  showStackBreak?: boolean;
+}) {
+  const byId = new Map(materials.map((m) => [m.id, m]));
+  const ordered = [...plies].sort((a, b) => a.ply_index - b.ply_index);
+  const longest = maxLengthCm ?? Math.max(1, ...ordered.map((p) => Number(p.length_cm) || 0));
+
+  if (!ordered.length) {
+    return <p className="text-xs admin-faint py-6 text-center">No plies yet.</p>;
+  }
+
+  const COL = 44;        // horizontal pitch between plies
+  const W = 30;          // widest part of a ply, at the root
+  const TOP = 26;        // room for the ply number
+  const H = 300;         // full-length ply height
+  const BOTTOM = 26;     // room for the length readout
+  const width = ordered.length * COL + 16;
+  const height = TOP + H + BOTTOM;
+
+  // The fin silhouette, cut short by this ply's length: trailing edge (right)
+  // holds width most of the way down then sweeps in; leading edge (left) cuts
+  // away high; the tip rounds off narrow and slightly left of centre. Matched by
+  // eye against the printed layup sheets — a fatter, blunter shape reads as a
+  // bar chart with rounded corners rather than as a fin.
+  const finPath = (h: number) => [
+    `M 0 0`,
+    `L ${W} 0`,
+    `C ${W * 0.98} ${h * 0.55}, ${W * 0.86} ${h * 0.88}, ${W * 0.42} ${h}`,
+    `C ${W * 0.22} ${h * 0.96}, ${W * 0.04} ${h * 0.66}, 0 ${h * 0.30}`,
+    `Z`,
+  ].join(" ");
+
+  return (
+    <div className="overflow-x-auto">
+      <svg width={width} height={height} viewBox={`0 0 ${width} ${height}`} role="img"
+        aria-label={`Layup diagram — ${ordered.length} plies drawn as fin outlines`}>
+        {/* Baseline the plies hang from, plus quiet depth guides. */}
+        <line x1={4} y1={TOP} x2={width - 8} y2={TOP} stroke="var(--admin-border-strong)" strokeWidth="1" />
+        {[0.25, 0.5, 0.75, 1].map((f) => (
+          <line key={f} x1={4} y1={TOP + H * f} x2={width - 8} y2={TOP + H * f}
+            stroke="var(--admin-border)" strokeWidth="0.5" />
+        ))}
+
+        {ordered.map((p, i) => {
+          const mat = byId.get(p.material_id);
+          const len = Number(p.length_cm) || 0;
+          const h = Math.max(12, (len / longest) * H);
+          const x = 8 + i * COL;
+          const prev = i > 0 ? ordered[i - 1] : null;
+          const isBreak = showStackBreak && prev && (p.stack ?? null) !== (prev.stack ?? null);
+          return (
+            <g key={p.id}>
+              {isBreak && (
+                <line x1={x - 7} y1={TOP - 6} x2={x - 7} y2={TOP + H + 6}
+                  stroke="var(--admin-border-strong)" strokeWidth="1" strokeDasharray="3 3" />
+              )}
+              <text x={x + W / 2} y={TOP - 10} textAnchor="middle" fontSize="12" fontWeight="600"
+                fill="currentColor" className="admin-muted">{p.ply_index}</text>
+              <g transform={`translate(${x} ${TOP})`}>
+                <path d={finPath(h)} fill={mat?.diagram_color || "var(--admin-border-strong)"}>
+                  <title>{`Ply ${p.ply_index} · ${mat?.name ?? "no material"} · ${len} cm`}</title>
+                </path>
+              </g>
+              <text x={x + W / 2} y={TOP + H + 16} textAnchor="middle" fontSize="11"
+                fill="currentColor" className="admin-muted tabular-nums">{len || "—"}</text>
+            </g>
+          );
+        })}
+      </svg>
+    </div>
+  );
+}
+
 /** The material key beneath the diagram — colour, name, orientation. */
 export function PlyLegend({ plies, materials }: { plies: PdPly[]; materials: PdMaterial[] }) {
   const used = new Set(plies.map((p) => p.material_id));

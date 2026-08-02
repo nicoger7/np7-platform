@@ -297,6 +297,20 @@ async function main() {
     summary: "The fiberglass and fiberglass/carbon constructions from Phil's line, which run exclusively on the 9.1 mm mold. Split out of the Rockstar project: Rockstar is the carbon fin on the 8.3 and 8.6 molds.",
   });
   const thickSources = {};
+  // Cobra is a second manufacturer being briefed on this model — a different
+  // conversation from Phil's, so it is its own source rather than an edit to his.
+  const cobra = await upsert("pd_sources", { project_id: thick.id, external_ref: "rockstar/cobra-brief" }, {
+    kind: "email", title: "Nico → Cobra (Thomas): thick-mold model brief, layups 931 + 921, TT and DTT boxes",
+    author_name: "Nico", recipient: "Thomas / Team Cobra", confidence: "quoted",
+    body: [
+      "Can you advise us on the timeline and process? Looking forward to receive quotes, both on production and sampling.",
+      "@Team Cobra, nice to meet you. Feel free to suggest production process improvements, where they make sense (e.g. wet vs prepreg etc.). We will always consider good suggestions.",
+      "For artwork or designs - do you have templates that are easy for you to work with?",
+      "Sorry for adding another CC. - it's Christian, who's partnering with us for the NP7 project. Want to keep him a bit in the loop. We have an NDA between us for this project already.",
+    ].join("\n\n"),
+    notes: "Attachments: GLASS LAYUP 931 and GLASS/CARB LAYUP 921 diagrams, plus 37 NP7 TT BOX (27 mm, 84°) and 44 NP7 DTT BOX (20 mm, 86°) drawings. Christian is under NDA on this project.",
+  });
+  thickSources["rockstar/cobra-brief"] = cobra.id;
   for (const s of SOURCES) {
     const row = await upsert("pd_sources", { project_id: thick.id, external_ref: s.external_ref }, {
       kind: "email", title: s.title, author_name: "Phil", recipient: "Ralph",
@@ -321,12 +335,45 @@ async function main() {
     plate_material: "aluminium", plate_thickness_mm: 25, has_alignment_pins: true,
     status: "in_use", source_id: thickSources["rockstar/phil-process"],
   });
-  for (const [code, name] of [["glass", "NP7 9.1 GLASS LAYUP"], ["glass_carbon", "NP7 9.1 HYBRID LAYUP"]]) {
-    await upsert("pd_layups",
-      { project_id: thick.id, construction_id: thickConstructions[code], mold_id: mold91.id },
-      { name, revision: 1, resin_pct_min: 40, resin_pct_max: 45, geometry: {}, source_id: thickSources["rockstar/phil-process"] });
+  // GLASS 770 only appears on the thick model's sheets, so it joins the catalog
+  // here rather than in migration 129's seed.
+  const glass770 = await upsert("pd_materials", { slug: "glass-770" }, {
+    name: "770 g/m² fiberglass", fibre: "glass", form: "prepreg", weave: "plain", gsm: 770,
+    default_orientation: "0/90", diagram_color: "#F7941E", notes: "Diagram colour: orange",
+  });
+  materials["glass-770"] = glass770;
+
+  // The two thick-mold stacks. Same 14 lengths — 921 is 931 with the first two
+  // glass plies swapped for ±45° carbon, which is exactly what "hybrid" means
+  // here and is visible at a glance once the sheets sit side by side.
+  const THICK_LENGTHS = [37, 37, 36.8, 36.9, 35.5, 33, 36, 32, 26, 25, 21, 17, 12, 7];
+  // Stack b starts at ply 7 — 33 cm then back up to 36, the same reset the 8.6 has.
+  const thickStack = (i) => (i < 6 ? "a" : "b");
+  const GLASS_931 = THICK_LENGTHS.map((len, i) => [i + 1, len, i === 5 || i === 8 ? "glass-770" : "glass-plain-350", thickStack(i)]);
+  const HYBRID_921 = GLASS_931.map(([n, len, slug, st]) => [n, len, n <= 2 ? "carbon-plain-200" : slug, st]);
+
+  const thickSheets = [
+    { code: "glass", name: "NP7 GLASS LAYUP 931", ref: "931", plies: GLASS_931 },
+    { code: "glass_carbon", name: "NP7 GLASS/CARB LAYUP 921", ref: "921", plies: HYBRID_921 },
+  ];
+  for (const s of thickSheets) {
+    const row = await upsert("pd_layups",
+      { project_id: thick.id, construction_id: thickConstructions[s.code], mold_id: mold91.id },
+      {
+        name: s.name, ref: s.ref, revision: 1, resin_pct_min: 40, resin_pct_max: 45,
+        // Rake and back end are recorded per SIZE, not here — the 37 TT and the
+        // 44 DTT run 84°/27 mm and 86°/20 mm off the same stack. See the note
+        // printed at the end of this script.
+        geometry: {},
+        source_id: thickSources["rockstar/cobra-brief"],
+      });
+    for (const [idx, len, slug, st] of s.plies) {
+      await upsert("pd_layup_plies", { layup_id: row.id, ply_index: idx }, {
+        material_id: materials[slug].id, length_cm: len, stack: st,
+      });
+    }
   }
-  console.log("✓ 9.1 model: 2 constructions, 1 mold, 2 build sheets (plies not yet known)");
+  console.log(`✓ 9.1 model: 2 constructions, 1 mold, 2 build sheets, ${GLASS_931.length * 2} plies`);
 
   // ── The transcription checksum ──────────────────────────────────────────────
   // Print the ply table back in the diagram's own colours. Hold this next to the
@@ -355,6 +402,13 @@ async function main() {
   console.log("\n  Note ply 9 → 10: 30 cm then back up to 36 cm. That reset is the second stack,");
   console.log("  not a typo. If Phil says the a/b split is wrong, fix `stack` before anything");
   console.log("  else is built on it.\n");
+
+  console.log("  ⚠ MODELLING GAP, not seeded: rake and back end are per SIZE, not per layup.");
+  console.log("    37 NP7 TT BOX  → 27 mm back end, 84° (rake 6°)");
+  console.log("    44 NP7 DTT BOX → 20 mm back end, 86° (rake 4°)");
+  console.log("    Both come off the same stack, so pd_layups.geometry can't hold them. They");
+  console.log("    need a sizes table (length, box type, rake, back end) hanging off the");
+  console.log("    project — left out rather than flattened into the wrong row.\n");
 }
 
 main().catch((e) => { console.error(e); process.exit(1); });

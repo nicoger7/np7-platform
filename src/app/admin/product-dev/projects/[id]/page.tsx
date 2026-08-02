@@ -3,7 +3,7 @@
 import { use, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
-import { PlyDiagram, PlyLegend, plyTotals } from "@/components/admin/ply-diagram";
+import { PlyDiagram, PlyFins, PlyLegend, plyTotals } from "@/components/admin/ply-diagram";
 import {
   groupPliesByStack, plyOrientation, shortMaterialName,
   GEOMETRY_FIELDS, PD_KINDS, PD_MOLD_KINDS, PD_MOLD_STATUSES, PD_STATUSES,
@@ -31,6 +31,44 @@ const TABS = [
 const inputClass = "w-full px-3 py-2 admin-input border rounded-lg text-sm focus:outline-none focus:border-[var(--admin-accent)] focus:ring-1 focus:ring-[var(--admin-accent)] transition-colors";
 const labelClass = "block text-xs font-medium admin-muted mb-1";
 const PLY_GRID = "60px minmax(120px,1.4fr) 92px 60px 76px minmax(80px,1fr) 28px";
+
+/**
+ * Numbers or picture — and it remembers which.
+ *
+ * The layup sheets have always been drawn as fin outlines, and that view answers
+ * a different question from the table: not "what is ply 9" but "what shape is
+ * this stack". Neither is the real one, so neither is a mode you have to keep
+ * re-choosing.
+ */
+type SheetView = "numbers" | "graphic";
+const VIEW_KEY = "np7-pd-sheet-view";
+
+function useSheetView(): [SheetView, (v: SheetView) => void] {
+  const [view, setView] = useState<SheetView>(() => {
+    if (typeof window === "undefined") return "numbers";
+    try { return localStorage.getItem(VIEW_KEY) === "graphic" ? "graphic" : "numbers"; } catch { return "numbers"; }
+  });
+  function set(v: SheetView) {
+    setView(v);
+    try { localStorage.setItem(VIEW_KEY, v); } catch { /* ignore */ }
+  }
+  return [view, set];
+}
+
+function ViewToggle({ view, onChange }: { view: SheetView; onChange: (v: SheetView) => void }) {
+  return (
+    <div className="inline-flex rounded-lg overflow-hidden" style={{ border: "1px solid var(--admin-border)" }}>
+      {(["numbers", "graphic"] as const).map((v) => (
+        <button key={v} onClick={() => onChange(v)}
+          aria-pressed={view === v}
+          className={`px-3 py-1.5 text-xs font-semibold transition-colors ${view === v ? "" : "admin-muted hover:admin-heading"}`}
+          style={view === v ? { backgroundColor: "var(--admin-accent)", color: "var(--admin-accent-contrast)" } : undefined}>
+          {v === "numbers" ? "Numbers" : "Graphic"}
+        </button>
+      ))}
+    </div>
+  );
+}
 
 export default function ProductDevProjectPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
@@ -491,6 +529,7 @@ function BuildSheet({
   plies: PdPly[]; materials: PdMaterial[]; maxLengthCm: number; onChanged: () => void;
 }) {
   const [editing, setEditing] = useState(false);
+  const [view, setView] = useSheetView();
   const [draft, setDraft] = useState<DraftPly[]>(plies);
   const [header, setHeader] = useState({
     name: layup.name, ref: layup.ref ?? "",
@@ -589,13 +628,17 @@ function BuildSheet({
             {construction?.name}{mold ? ` · ${mold.name} mm mold` : ""}{layup.ref ? ` · ref ${layup.ref}` : ""}
           </p>
         </div>
-        {!editing && (
-          <button onClick={() => setEditing(true)}
-            className="text-xs px-3 py-1.5 rounded-lg admin-muted hover:text-[var(--admin-accent)] whitespace-nowrap"
-            style={{ border: "1px solid var(--admin-border)" }}>
-            Edit sheet
-          </button>
-        )}
+        <div className="flex items-center gap-2">
+          {/* Editing forces Numbers — you can't type into a silhouette. */}
+          {!editing && <ViewToggle view={view} onChange={setView} />}
+          {!editing && (
+            <button onClick={() => setEditing(true)}
+              className="text-xs px-3 py-1.5 rounded-lg admin-muted hover:text-[var(--admin-accent)] whitespace-nowrap"
+              style={{ border: "1px solid var(--admin-border)" }}>
+              Edit sheet
+            </button>
+          )}
+        </div>
       </div>
 
       <SpecStrip
@@ -603,6 +646,28 @@ function BuildSheet({
         geometryFields={geometryFields} plyCount={shown.length}
       />
 
+      {view === "graphic" && !editing ? (
+        <div className="mt-5">
+          <div className="p-4 rounded-xl" style={{ border: "1px solid var(--admin-border)", backgroundColor: "var(--admin-surface)" }}>
+            <PlyFins plies={diagramPlies} materials={materials} maxLengthCm={maxLengthCm} />
+            <div className="flex flex-wrap items-end justify-between gap-4 mt-4 pt-4" style={{ borderTop: "1px solid var(--admin-border)" }}>
+              <PlyLegend plies={diagramPlies} materials={materials} />
+              <div className="text-right">
+                <p className="text-sm font-black admin-heading tracking-tight">NP7</p>
+                <p className="text-xs admin-muted uppercase tracking-wide">{layup.name}</p>
+              </div>
+            </div>
+          </div>
+          <dl className="flex flex-wrap gap-x-6 gap-y-1 mt-3">
+            {plyTotals(diagramPlies, materials).map((t) => (
+              <div key={t.label} className="flex items-baseline gap-1.5">
+                <dt className="text-[10px] font-bold tracking-[0.08em] admin-faint uppercase">{t.label}</dt>
+                <dd className="text-sm admin-heading tabular-nums font-semibold">{t.value}</dd>
+              </div>
+            ))}
+          </dl>
+        </div>
+      ) : (
       <div className="grid grid-cols-1 xl:grid-cols-[1fr_330px] gap-6 mt-5">
         <section>
           <div className="flex items-center justify-between mb-2">
@@ -723,6 +788,7 @@ function BuildSheet({
           </dl>
         </section>
       </div>
+      )}
 
       {/* One save bar, and only when there is something to save. */}
       {editing && (
@@ -899,27 +965,63 @@ function CompareSheets({
   bundle: Bundle; pliesByLayup: Map<string, PdPly[]>;
   constructionById: Map<string, PdConstruction>; moldById: Map<string, PdMold>; globalMax: number;
 }) {
+  const [view, setView] = useSheetView();
+
+  // Stacked when compared as fins: the sheets share a length scale, so 931 above
+  // 921 shows at a glance that they differ only in the first two plies.
+  if (view === "graphic") {
+    return (
+      <div>
+        <div className="flex justify-end mb-3"><ViewToggle view={view} onChange={setView} /></div>
+        <div className="space-y-5">
+          {bundle.layups.map((l) => {
+            const plies = pliesByLayup.get(l.id) ?? [];
+            return (
+              <div key={l.id} className="p-4 rounded-xl" style={{ border: "1px solid var(--admin-border)", backgroundColor: "var(--admin-surface)" }}>
+                <div className="flex items-baseline justify-between gap-3 mb-2">
+                  <h3 className="text-sm font-bold admin-heading">
+                    {l.name} {l.is_reference && <span className="text-[var(--admin-accent)]">★</span>}
+                  </h3>
+                  <p className="text-[11px] admin-faint">
+                    {constructionById.get(l.construction_id)?.name} · {moldById.get(l.mold_id)?.name} mm · {plies.length} plies
+                  </p>
+                </div>
+                {plies.length === 0
+                  ? <p className="text-xs admin-faint py-6 text-center">No plies yet</p>
+                  : <><PlyFins plies={plies} materials={bundle.materials} maxLengthCm={globalMax} />
+                      <PlyLegend plies={plies} materials={bundle.materials} /></>}
+              </div>
+            );
+          })}
+        </div>
+      </div>
+    );
+  }
+
   return (
-    <div className="flex gap-6 overflow-x-auto pb-2">
-      {bundle.layups.map((l) => {
-        const plies = pliesByLayup.get(l.id) ?? [];
-        return (
-          <div key={l.id} className="min-w-[290px] flex-shrink-0">
-            <h3 className="text-sm font-bold admin-heading">
-              {moldById.get(l.mold_id)?.name} mm {l.is_reference && <span className="text-[var(--admin-accent)]">★</span>}
-            </h3>
-            <p className="text-[11px] admin-faint mb-2">{constructionById.get(l.construction_id)?.name}</p>
-            {plies.length === 0
-              ? <p className="text-xs admin-faint py-6 text-center rounded-xl" style={{ border: "1px dashed var(--admin-border)" }}>No plies yet</p>
-              : <PlyDiagram plies={plies} materials={bundle.materials} maxLengthCm={globalMax} />}
-            <div className="flex flex-wrap gap-x-3 gap-y-1 mt-2">
-              {plyTotals(plies, bundle.materials).map((t) => (
-                <span key={t.label} className="text-[11px] admin-faint">{t.label}: <span className="admin-muted tabular-nums">{t.value}</span></span>
-              ))}
+    <div>
+      <div className="flex justify-end mb-3"><ViewToggle view={view} onChange={setView} /></div>
+      <div className="flex gap-6 overflow-x-auto pb-2">
+        {bundle.layups.map((l) => {
+          const plies = pliesByLayup.get(l.id) ?? [];
+          return (
+            <div key={l.id} className="min-w-[290px] flex-shrink-0">
+              <h3 className="text-sm font-bold admin-heading">
+                {moldById.get(l.mold_id)?.name} mm {l.is_reference && <span className="text-[var(--admin-accent)]">★</span>}
+              </h3>
+              <p className="text-[11px] admin-faint mb-2">{constructionById.get(l.construction_id)?.name}</p>
+              {plies.length === 0
+                ? <p className="text-xs admin-faint py-6 text-center rounded-xl" style={{ border: "1px dashed var(--admin-border)" }}>No plies yet</p>
+                : <PlyDiagram plies={plies} materials={bundle.materials} maxLengthCm={globalMax} />}
+              <div className="flex flex-wrap gap-x-3 gap-y-1 mt-2">
+                {plyTotals(plies, bundle.materials).map((t) => (
+                  <span key={t.label} className="text-[11px] admin-faint">{t.label}: <span className="admin-muted tabular-nums">{t.value}</span></span>
+                ))}
+              </div>
             </div>
-          </div>
-        );
-      })}
+          );
+        })}
+      </div>
     </div>
   );
 }
