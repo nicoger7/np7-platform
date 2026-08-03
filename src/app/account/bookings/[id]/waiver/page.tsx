@@ -25,7 +25,7 @@ export default async function WaiverPage({ params }: { params: Promise<{ id: str
 
   const [{ data: cs }, { data: sig }] = await Promise.all([
     db.from("company_settings").select("*").eq("division", "experience").maybeSingle(),
-    db.from("exp_waiver_signatures").select("signed_name, signed_at").eq("booking_id", id).maybeSingle(),
+    db.from("exp_waiver_signatures").select("signed_name, signed_at, document_url").eq("booking_id", id).maybeSingle(),
   ]);
 
   const fullName = String(booking.contacts?.name ?? user.name ?? "").trim();
@@ -41,5 +41,5 @@ export default async function WaiverPage({ params }: { params: Promise<{ id: str
   };
   const html = renderWaiver(booking.exp_experiences?.waiver_text || DEFAULT_WAIVER, vars);
 
-  return <SignWaiver bookingId={id} html={html} defaultName={fullName} signed={sig ? { name: sig.signed_name, at: sig.signed_at } : null} />;
+  return <SignWaiver bookingId={id} html={html} defaultName={fullName} signed={sig ? { name: sig.signed_name, at: sig.signed_at, documentUrl: sig.document_url ?? null } : null} />;
 }

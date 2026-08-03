@@ -7,7 +7,7 @@ export function SignWaiver({ bookingId, html, defaultName, signed }: {
   bookingId: string;
   html: string;
   defaultName: string;
-  signed: { name: string; at: string } | null;
+  signed: { name: string; at: string; documentUrl?: string | null } | null;
 }) {
   const [name, setName] = useState(defaultName);
   const [signature, setSignature] = useState<string | null>(null);
@@ -55,7 +55,15 @@ export function SignWaiver({ bookingId, html, defaultName, signed }: {
           <h1 className="text-2xl font-black text-[#00374a] mt-3 mb-4">Your signed waiver</h1>
           <div className="flex items-center gap-2.5 bg-green-50 border border-green-200 rounded-xl px-4 py-3 mb-5">
             <span className="shrink-0 w-7 h-7 rounded-full bg-green-500 text-white grid place-items-center text-[14px] font-bold">✓</span>
-            <p className="text-[13.5px] text-green-800"><strong>Signed by {signed.name}</strong> on {fmtSignedAt(signed.at)} — saved in your account and with our team.</p>
+            <p className="text-[13.5px] text-green-800 flex-1"><strong>Signed by {signed.name}</strong> on {fmtSignedAt(signed.at)} — saved in your account and with our team.</p>
+            {/* Their own copy. A waiver you can't take away with you is a
+                waiver you have to take our word for. */}
+            {signed.documentUrl && (
+              <a href={signed.documentUrl} target="_blank" rel="noopener noreferrer"
+                className="shrink-0 text-[13px] font-bold text-white bg-[#00afdb] rounded-full px-4 py-2">
+                Download PDF
+              </a>
+            )}
           </div>
           <div className="bg-white rounded-2xl border border-[#f0e6d6] p-6 sm:p-8">
             <div className="waiver-doc text-[13.5px] text-[#3a4a50] leading-relaxed" dangerouslySetInnerHTML={{ __html: html }} />

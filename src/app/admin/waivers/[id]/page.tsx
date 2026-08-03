@@ -35,6 +35,7 @@ export default async function AdminWaiverPage({ params }: { params: Promise<{ id
     ["Version", w.version != null ? `v${w.version}` : "—"],
     ["IP address", w.ip || w.ip_address || "—"],
     ["Browser", w.user_agent || "—"],
+    ["Document SHA-256", w.document_sha256 || "not fingerprinted (signed before migration 136)"],
   ];
 
   return (
@@ -43,7 +44,21 @@ export default async function AdminWaiverPage({ params }: { params: Promise<{ id
         <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m15 18-6-6 6-6" /></svg>
         All waivers
       </Link>
-      <h1 className="text-2xl font-bold admin-heading mb-1">Signed waiver</h1>
+      <div className="flex items-start justify-between gap-4 flex-wrap">
+        <h1 className="text-2xl font-bold admin-heading mb-1">Signed waiver</h1>
+        {/* The document itself — what you'd actually attach to an email or hand
+            to a lawyer. Older signatures have no PDF and say so. */}
+        {w.document_url ? (
+          <a href={w.document_url} target="_blank" rel="noopener noreferrer"
+            className="shrink-0 text-[13px] font-bold px-4 py-2 rounded-lg bg-[#0aa3c7] text-white">
+            Download PDF ↗
+          </a>
+        ) : (
+          <span className="shrink-0 text-[12px] admin-faint max-w-[26ch] text-right">
+            No PDF — signed before the document was generated.
+          </span>
+        )}
+      </div>
       <p className="text-sm admin-muted mb-5">
         {w.exp_bookings?.exp_experiences?.title ?? "Trip"}
         {w.exp_bookings?.id && <> · <Link href={`/admin/bookings/${w.exp_bookings.id}`} className="text-[#0aa3c7] hover:underline">open the booking →</Link></>}
