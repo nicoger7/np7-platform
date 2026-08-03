@@ -135,7 +135,7 @@ export async function GET(request: NextRequest) {
   try { upcomingMails = await getUpcomingMails(); } catch { /* leave empty */ }
 
   // What still stands between each trip and being sold. Same registry as
-  // "Ready to sell?" — the dashboard used to run its own, narrower checks, and
+  // The Launch check registry — the dashboard used to run its own, narrower checks, and
   // the two disagreed. Slimmed here to what the panel actually renders, with
   // each item keeping the link to the field that fixes it. Tolerant: a
   // checklist is never worth failing the dashboard over.

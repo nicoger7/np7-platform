@@ -112,7 +112,7 @@ export function CommunityProfile(p: Props) {
           )}
         </div>
 
-        <div className="flex-1 min-w-[220px] space-y-3">
+        <div className="flex-1 w-full min-w-0 sm:min-w-[220px] space-y-3">
           <div>
             <label className={label}>Display name</label>
             <p className="text-[15px] text-[#00374a] font-semibold">{displayName} <span className="text-[12px] font-normal text-[#9aa6ac]">· auto from your name</span></p>

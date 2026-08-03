@@ -551,7 +551,7 @@ function ExperienceDashboard() {
         </Panel>
         )}
 
-        {/* Before it goes public — the same checks as "Ready to sell?", so the
+        {/* Before it goes public — the same checks as the Launch check page, so the
             two can't disagree. Only trips already public or with a week coming
             up: a checklist that includes every idle draft is one nobody reads.
             Each line links at the field itself, not at the page it lives on. */}
@@ -562,7 +562,7 @@ function ExperienceDashboard() {
             <Panel
               title={`Before it goes public${todo.length ? ` (${todo.length})` : ""}`}
               href="/admin/go-live"
-              linkLabel="Ready to sell?"
+              linkLabel="Launch check"
               subtitle="Red is a blocker — a buyer would see it. The number on the right is how many checks each trip passes."
             >
               {!relevant.length ? (

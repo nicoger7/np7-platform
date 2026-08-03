@@ -303,7 +303,7 @@ export default function ExperienceDetailPage({
 
       {/* Section tabs */}
       <div className="flex items-center gap-1 mb-6" style={{ borderBottom: "1px solid var(--admin-border)" }}>
-        {[["editions", "Editions"], ["ready", "Ready to sell"], ["template", "Template"], ["components", "Components"]].map(([key, label]) => (
+        {[["editions", "Editions"], ["ready", "Launch check"], ["template", "Template"], ["components", "Components"]].map(([key, label]) => (
           <button
             key={key}
             onClick={() => selectSection(key)}

@@ -258,6 +258,24 @@ export function ExperienceChecks({
   );
 }
 
+
+/** What the two colours mean — asked for by name, and the distinction only
+ *  works if it is written down where you read the list. */
+function Legend() {
+  return (
+    <div className="flex items-center gap-4 flex-wrap text-[12px] admin-muted mb-4">
+      <span className="flex items-center gap-1.5">
+        <span className="w-1.5 h-1.5 rounded-full bg-red-500" />
+        <strong className="text-red-400 font-semibold">Red</strong> — stops the sale: a buyer sees something broken, or we take money against something incomplete.
+      </span>
+      <span className="flex items-center gap-1.5">
+        <span className="w-1.5 h-1.5 rounded-full bg-amber-500" />
+        <strong className="text-amber-500 font-semibold">Orange</strong> — sellable, but weaker: standard copy nobody has replaced, or a detail still missing.
+      </span>
+    </div>
+  );
+}
+
 /** Shared "show what's done" toggle. */
 function DoneToggle({ value, onChange }: { value: boolean; onChange: (v: boolean) => void }) {
   return (
@@ -301,10 +319,11 @@ export function GoLiveList({ reports, onRefresh, openId }: { reports: Experience
         <p className="text-sm admin-muted max-w-[60ch]">
           {totalBlockers === 0
             ? "Nothing is blocking any trip."
-            : <><strong className="text-red-400">{totalBlockers} blocker{totalBlockers === 1 ? "" : "s"}</strong> across {notReady} trip{notReady === 1 ? "" : "s"}. Red means a buyer would see something broken, or we would take money against something incomplete. Only weeks still ahead are counted.</>}
+            : <><strong className="text-red-400">{totalBlockers} blocker{totalBlockers === 1 ? "" : "s"}</strong> across {notReady} trip{notReady === 1 ? "" : "s"}. Only weeks still ahead are counted.</>}
         </p>
         <DoneToggle value={showDone} onChange={setShowDone} />
       </div>
+      <Legend />
 
       <div className="space-y-2.5">
         {reports.map((e, i) => {
@@ -374,6 +393,7 @@ export function GoLivePanel({ report, onRefresh }: { report: ExperienceReport | 
         </p>
         <DoneToggle value={showDone} onChange={setShowDone} />
       </div>
+      <Legend />
       <ExperienceChecks report={report} showDone={showDone} onFix={setFix} />
       <p className="text-xs admin-faint mt-3">
         Only weeks still ahead are checked. Every line opens the field that fixes it — the simple ones right here.{" "}

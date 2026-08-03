@@ -883,6 +883,19 @@ export default function EditionDetailPage({
               )}
             </div>
           )}
+          {/* The page copy lives on the EXPERIENCE, so editing it from a week
+              means leaving the week — a new tab keeps your place here. */}
+          {edition.experience_id && (
+            <a
+              href={`/admin/content/${edition.experience_id}`}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="px-3 py-2 text-xs admin-muted hover:admin-heading transition-colors whitespace-nowrap"
+              title="Edit this experience's website content — opens in a new tab"
+            >
+              Website content ↗
+            </a>
+          )}
           <button
             onClick={() => { setDupExpId(edition.experience_id); setDupTarget("existing"); setDupOpen(true); }}
             className="px-3 py-2 text-xs admin-muted hover:admin-heading transition-colors"

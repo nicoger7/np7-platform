@@ -29,7 +29,7 @@ export default function GoLivePage() {
 
   return (
     <div className="p-6 sm:p-8 max-w-[1000px] mx-auto">
-      <h1 className="text-2xl font-bold admin-heading mb-1">Ready to sell?</h1>
+      <h1 className="text-2xl font-bold admin-heading mb-1">Launch check</h1>
       {!data ? <p className="text-sm admin-faint mt-4">Checking every trip…</p> : <GoLiveList reports={data} onRefresh={load} openId={openId} />}
     </div>
   );
