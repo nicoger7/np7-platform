@@ -75,11 +75,13 @@ const navByEnv: Record<Environment, NavGroup[]> = {
     {
       label: "WEBSITE",
       items: [
-        { label: "File Storage", href: "/admin/images", icon: "image" },
         { label: "Event Content", href: "/admin/content", icon: "layers" },
         // also listed under the Magazine env — trip pages AND the Spotguide use it
         { label: "Destinations", href: "/admin/destinations", icon: "compass" },
         { label: "Guest Reviews", href: "/admin/guest-reviews", icon: "star" },
+        // Last: the raw file bucket is where you go to fix an image, not where
+        // you start — the pages that USE the images come first.
+        { label: "File Storage", href: "/admin/images", icon: "image" },
       ],
     },
     {
