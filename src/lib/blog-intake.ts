@@ -104,7 +104,7 @@ export async function draftMagazinePost(
   text: string,
 ): Promise<{ draft: BlogDraft } | { error: string }> {
   const apiKey = process.env.ANTHROPIC_API_KEY;
-  if (!apiKey) return { error: "No ANTHROPIC_API_KEY on this deployment — the text is queued for you to write up yourself." };
+  if (!apiKey) return { error: "Queued for jibe — it drafts these on its next run. Nothing to do." };
 
   const client = new Anthropic({ apiKey });
   let raw = "";

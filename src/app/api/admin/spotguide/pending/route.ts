@@ -73,12 +73,12 @@ export async function GET() {
   // confirms) + approved info notes awaiting a merge into the description.
   const { data: rawEdits } = await db
     .from("spot_edits")
-    .select("id, spot_id, contact_id, field, old_value, new_value, note, status, created_at")
+    .select("id, spot_id, contact_id, field, old_value, new_value, note, status, created_at, source")
     .in("status", ["pending", "approved"]).order("created_at", { ascending: false });
   let edits: Record<string, unknown>[] = [];
   if (rawEdits && rawEdits.length) {
     const eSpotIds = [...new Set(rawEdits.map((e: { spot_id: string }) => e.spot_id))];
-    const eContactIds = [...new Set(rawEdits.map((e: { contact_id: string }) => e.contact_id))];
+    const eContactIds = [...new Set(rawEdits.map((e: { contact_id: string | null }) => e.contact_id).filter(Boolean))] as string[];
     const [{ data: eSpots }, { data: eContacts }] = await Promise.all([
       db.from("spots").select("id, name").in("id", eSpotIds),
       db.from("contacts").select("id, name").in("id", eContactIds),
@@ -87,7 +87,10 @@ export async function GET() {
     const who = new Map((eContacts ?? []).map((c: { id: string; name: string }) => [c.id, c.name]));
     edits = rawEdits.map((e: Record<string, unknown>) => ({
       id: e.id, spotId: e.spot_id, spotName: spotName.get(e.spot_id as string) ?? "—",
-      proposer: who.get(e.contact_id as string) ?? "A member",
+      // A machine proposal is not a member's — say so, so it can be held to
+      // a different bar rather than blending into the community queue.
+      proposer: e.source === "jibe" ? "jibe (agent)" : who.get(e.contact_id as string) ?? "A member",
+      source: e.source ?? "member",
       field: e.field, fieldLabel: EDIT_FIELD_LABEL[e.field as EditableField] ?? e.field, status: e.status,
       from: humanEditValue(e.field as string, e.old_value), to: humanEditValue(e.field as string, e.new_value),
       note: e.note ?? null, created_at: e.created_at,
