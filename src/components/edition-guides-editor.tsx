@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
+import dynamic from "next/dynamic";
 import ImagePickerModal from "@/components/image-picker-modal";
 
 interface Coach {
@@ -25,6 +26,12 @@ interface GuideLink {
 }
 
 type PickerTarget = { coachId: string; mode: "template" | "override" | "cutout" };
+type StudioTarget = { coachId: string; photoUrl: string; name: string };
+
+const CoachPhotoStudio = dynamic(
+  () => import("@/components/admin/coach-photo-studio").then((m) => m.CoachPhotoStudio),
+  { ssr: false },
+);
 
 // Standard team roles (suggested in the role fields; free text still allowed).
 export const TEAM_ROLES = ["Head Coach", "Coach", "Co-Coach", "Trip Assistant"];
@@ -48,6 +55,7 @@ export function EditionGuidesEditor({ editionId, slug }: { editionId: string; sl
   const [newCoach, setNewCoach] = useState({ name: "", role: "", bio: "", image_url: "" });
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [picker, setPicker] = useState<PickerTarget | null>(null);
+  const [studio, setStudio] = useState<StudioTarget | null>(null);
 
   const load = useCallback(() => {
     Promise.all([
@@ -167,7 +175,18 @@ export function EditionGuidesEditor({ editionId, slug }: { editionId: string; sl
                       <div><label className={labelClass}>WhatsApp link <span className="admin-faint">(members can chat directly)</span></label><input className={`${inputClass} w-full`} defaultValue={lib?.whatsapp_link ?? ""} placeholder="wa.me/4368054000977" onBlur={(e) => { if (e.target.value !== (lib?.whatsapp_link ?? "")) patchTemplate(link.coach_id, { whatsapp_link: e.target.value || null }); }} /></div>
                       <div>
                         <label className={labelClass}>Photo</label>
-                        <button onClick={() => setPicker({ coachId: link.coach_id, mode: "template" })} className={`${inputClass} w-full text-left admin-muted`}>{link.exp_coaches?.image_url ? "Change photo…" : "Pick photo…"}</button>
+                        <div className="flex items-center gap-2">
+                          <button onClick={() => setPicker({ coachId: link.coach_id, mode: "template" })} className={`${inputClass} flex-1 text-left admin-muted`}>{link.exp_coaches?.image_url ? "Change photo…" : "Pick photo…"}</button>
+                          {/* Re-frame the photo you already picked, and cut the coach
+                              out of it — both were previously external-editor jobs. */}
+                          {link.exp_coaches?.image_url && (
+                            <button onClick={() => setStudio({ coachId: link.coach_id, photoUrl: link.exp_coaches!.image_url!, name: link.exp_coaches?.name ?? "Coach" })}
+                              className="text-[11px] font-bold text-[#0aa3c7] hover:underline px-1 whitespace-nowrap"
+                              title="Crop this photo, or generate the tile cutout from it">
+                              Crop / cut out
+                            </button>
+                          )}
+                        </div>
                       </div>
                       <div>
                         <label className={labelClass}>Tile cutout <span className="admin-faint font-normal normal-case">· transparent PNG, for auto-branded tiles</span></label>
@@ -179,6 +198,12 @@ export function EditionGuidesEditor({ editionId, slug }: { editionId: string; sl
                           <button onClick={() => setPicker({ coachId: link.coach_id, mode: "cutout" })} className={`${inputClass} flex-1 text-left admin-muted`}>{link.exp_coaches?.cutout_url ? "Change cutout…" : "Pick cutout…"}</button>
                           {link.exp_coaches?.cutout_url && <button onClick={() => patchTemplate(link.coach_id, { cutout_url: null })} className="text-[11px] admin-faint hover:text-red-400 px-1">clear</button>}
                         </div>
+                        {!link.exp_coaches?.cutout_url && link.exp_coaches?.image_url && (
+                          <button onClick={() => setStudio({ coachId: link.coach_id, photoUrl: link.exp_coaches!.image_url!, name: link.exp_coaches?.name ?? "Coach" })}
+                            className="text-[11px] font-bold text-[#0aa3c7] hover:underline mt-1">
+                            Generate it from the photo →
+                          </button>
+                        )}
                       </div>
                     </div>
                     {/* Override (this edition) */}
@@ -236,6 +261,18 @@ export function EditionGuidesEditor({ editionId, slug }: { editionId: string; sl
             setPicker(null);
           }}
           onClose={() => setPicker(null)}
+        />
+      )}
+
+      {/* Loaded on demand — it pulls in WASM for the segmentation model and
+          must not sit in the admin's initial bundle. */}
+      {studio && (
+        <CoachPhotoStudio
+          photoUrl={studio.photoUrl}
+          coachName={studio.name}
+          onPhoto={(url: string) => patchTemplate(studio.coachId, { image_url: url })}
+          onCutout={(url: string) => patchTemplate(studio.coachId, { cutout_url: url })}
+          onClose={() => setStudio(null)}
         />
       )}
     </div>
