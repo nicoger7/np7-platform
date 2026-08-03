@@ -9,6 +9,7 @@ import { EnquireForm } from "@/components/hardware/enquire-form";
 import { Reveal } from "@/components/experience/reveal";
 import { NP7_LOGO } from "@/components/experience/ocean-header";
 import { getTemplate } from "@/lib/hardware/templates";
+import { FOCUS_CLASS, FOCUS_CSS, focusVars, mergeFocus, parseFocus } from "@/lib/placement";
 import type { ModuleKey } from "@/lib/hardware/templates";
 import type { Product, ProductContent, SpecRow, FitSegment } from "@/lib/hardware/types";
 import { LIME, PINK, BONE, INK, INK_SOFT, SAND, SAND_DEEP, sandGrainOverlay } from "@/components/hardware/theme";
@@ -61,9 +62,12 @@ function HeroModule({
     <section className="relative min-h-[82vh] flex items-end bg-[#0c0c0e] overflow-hidden">
       {heroImg ? (
         <>
+          {/* framing per screen shape — the media queries pick, so ISR keeps
+              serving one html and nothing re-crops after paint */}
+          <style>{FOCUS_CSS}</style>
           <div
-            className="absolute inset-0 bg-cover scale-105"
-            style={{ backgroundImage: `url('${heroImg}')`, backgroundPosition: content?.hero_focus || "center" }}
+            className={`absolute inset-0 bg-cover scale-105 ${FOCUS_CLASS}`}
+            style={{ backgroundImage: `url('${heroImg}')`, ...focusVars(parseFocus(content?.hero_focus)) }}
           />
           <div className="absolute inset-0 bg-gradient-to-t from-[#0c0c0e] via-black/40 to-black/20" />
         </>
@@ -340,14 +344,16 @@ export default async function HardwareProductPage({ params }: Props) {
   try {
     const { data: rawContent } = await sb
       .from("hw_product_content")
-      .select("hero_image,hero_video_url,gallery,tagline,overview,highlights,spec_rows,find_your_fit")
+      .select("hero_image,hero_focus,hero_focus_shapes,hero_video_url,gallery,tagline,overview,highlights,spec_rows,find_your_fit")
       .eq("product_id", product.id)
       .maybeSingle();
 
     if (rawContent) {
       content = {
         hero_image: rawContent.hero_image ?? null,
-        hero_focus: rawContent.hero_focus ?? null,
+        // Per-shape framing travels inside the one string ProductContent has —
+        // parseFocus unpacks it where the hero is painted.
+        hero_focus: mergeFocus(rawContent.hero_focus, rawContent.hero_focus_shapes),
         tile_image: rawContent.tile_image ?? null,
         tile_focus: rawContent.tile_focus ?? null,
         hero_video_url: rawContent.hero_video_url ?? null,

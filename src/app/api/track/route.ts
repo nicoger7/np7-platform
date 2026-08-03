@@ -12,6 +12,42 @@ import { createAdminClient } from "@/lib/supabase";
 
 const EVENTS_MAX = 20;
 
+/* ── Who may write ─────────────────────────────────────────────────────────
+   The tracker component gates on the same two rules client-side, but half the
+   events on the site (reserve_start, register, voucher_buy, …) call track()
+   straight from their own components and never pass through it. This is the
+   gate they all share, and it can't be bypassed by a stale bundle.
+
+   HOST: NEXT_PUBLIC_SITE_URL is set on Vercel's Production scope only, so
+   preview deploys and local dev resolve to the fallback and never match their
+   own request host. Our own browsing used to land in the live dataset this way.
+
+   OPT-OUT: the np7_notrack cookie, set for 10 years by visiting
+   /?np7_notrack=1 (see components/analytics/tracker.tsx).                    */
+
+function hostOf(url: string | undefined, fallback: string): string {
+  try { return new URL(url || fallback).hostname.toLowerCase(); } catch { return fallback; }
+}
+const PROD_HOST = hostOf(process.env.NEXT_PUBLIC_SITE_URL, "www.np-seven.com");
+
+/** np-seven.com and www.np-seven.com are one site — the apex 308s to the www. */
+const bare = (h: string) => h.replace(/^www\./, "");
+
+/** Warn once per process: if this ever fires in production, tracking is dead
+ *  and the host expectation is wrong — the one failure mode worth shouting about. */
+let warnedHost = false;
+
+function accepted(req: Request): boolean {
+  if (/(?:^|;\s*)np7_notrack=1/.test(req.headers.get("cookie") || "")) return false;
+  const host = (req.headers.get("x-forwarded-host") || req.headers.get("host") || "").split(":")[0].toLowerCase();
+  if (bare(host) === bare(PROD_HOST)) return true;
+  if (!warnedHost) {
+    warnedHost = true;
+    console.warn(`[track] ignoring events from non-production host "${host}" (expected "${PROD_HOST}")`);
+  }
+  return false;
+}
+
 function clip(v: unknown, max: number): string | null {
   if (typeof v !== "string") return null;
   const s = v.trim();
@@ -113,6 +149,10 @@ async function mirrorToNicoprienAdmin(rows: Row[], referrers: (string | null)[])
 }
 
 export async function POST(req: Request) {
+  // Before any work, and before the mirror: our own dev/preview browsing and any
+  // opted-out teammate must not reach the table or nicoprien.com's collector.
+  if (!accepted(req)) return NextResponse.json({ ok: true });
+
   let body: Record<string, unknown> = {};
   try {
     body = await req.json();

@@ -51,15 +51,16 @@ export default async function SpotguideDestinationPage({ params }: Props) {
   if (!vis.exists || vis.isDraft) notFound();
 
   // Deliberately NO request APIs here — not `?from=`, not the np7_section
-  // cookie. Elsewhere those are gated on `flags.showHardware`, which is false in
-  // production today, so the page happens to be cacheable. That would be a
-  // booby trap on this route: the day SHOW_HARDWARE=true, reading a cookie in a
-  // render that has generateStaticParams turns any unlisted slug into a hard
-  // 500 ("Page changed from static to dynamic at runtime"). Caching here must
-  // not depend on a flag someone flips months from now.
+  // cookie. This route was right to refuse them: an unlisted slug renders
+  // through the STATIC path, where a request API bails the render out to
+  // `revalidate: 0` and Next throws "Page changed from static to dynamic at
+  // runtime" — a 500, not a dynamic render. (The magazine's post page assumed
+  // the opposite; its generateStaticParams comment now says so.)
   //
-  // Behaviour today is IDENTICAL (one visible world ⇒ always "experience").
-  // When Hardware launches, the world switch on this page has to move
-  // client-side — same problem the magazine and the spotguide index will have.
+  // The rest of the shared pages have caught up: they settle the world in the
+  // browser (section-world.tsx) instead of gating a cookie read on
+  // `flags.showHardware`, so nothing here has to change when SHOW_HARDWARE
+  // flips. DestinationView still pins its header to Experience on this route —
+  // it cannot know the reader's world, and must not try.
   return <DestinationView slug={slug} viewerId={null} isTeam={false} />;
 }

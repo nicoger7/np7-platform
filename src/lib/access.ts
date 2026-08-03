@@ -48,7 +48,17 @@ export function isOwnerOnlyPath(path: string): boolean {
 // Personal, not departmental: your own hours and your own to-dos. Everyone with
 // an admin account keeps these whatever their role grants. /admin/login is
 // obviously never gated — you are not signed in yet.
-const ALWAYS_AVAILABLE = ["/admin/hours-log", "/api/admin/hours-log", "/api/admin/active-time", "/admin/todos", "/api/admin/todos", "/admin/login"];
+//
+// The Academy is here for the same reason: being trained is not a departmental
+// grant, and a handbook a role can lock you out of is not a handbook. Reading
+// (`/read`) and your own completions (`/progress`, which resolves the member
+// from the session and never from the body) are personal; AUTHORING is not —
+// /api/admin/learning/courses and /lessons stay under the `learning` section
+// below, so writing the handbook still needs edit on it.
+const ALWAYS_AVAILABLE = [
+  "/admin/hours-log", "/api/admin/hours-log", "/api/admin/active-time", "/admin/todos", "/api/admin/todos", "/admin/login",
+  "/admin/learning", "/api/admin/learning/read", "/api/admin/learning/progress",
+];
 export function isPersonalPath(path: string): boolean {
   return ALWAYS_AVAILABLE.some((p) => underPrefix(p, path));
 }
@@ -114,6 +124,13 @@ export const SECTIONS: Section[] = [
   // Experience · Team
   { key: "team", label: "Employees & roles", world: "experience", group: "Team", paths: ["/admin/team", "/admin/roles", "/api/admin/team", "/api/admin/roles"] },
   { key: "hours_log", label: "Hours log", world: "experience", group: "Team", paths: ["/admin/hours-log", "/api/admin/hours-log"] },
+  // Academy. This grant means "may WRITE the handbook", not "may read it" —
+  // /admin/learning and the read/progress APIs are personal paths (above), so
+  // every active member reaches the courses whatever their role. Registering the
+  // authoring APIs here is what stops a view-only role from rewriting them:
+  // effectiveCanWrite fails closed on an unclaimed admin path, but only a
+  // section can express "reachable by all, editable by some".
+  { key: "learning", label: "Academy (write staff training)", world: "experience", group: "Team", paths: ["/admin/learning", "/api/admin/learning"] },
   // Experience · Finance
   { key: "payments", label: "Payments", world: "experience", group: "Finance", paths: ["/admin/payments", "/api/admin/payments"] },
   { key: "vouchers", label: "Gift vouchers", world: "experience", group: "Finance", paths: ["/admin/vouchers", "/api/admin/vouchers"] },

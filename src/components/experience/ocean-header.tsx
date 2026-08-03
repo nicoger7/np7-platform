@@ -34,6 +34,10 @@ const navLink = "text-[12.5px] font-semibold text-white/70 hover:text-white tran
  *
  * Left: the parent-brand NP7 mark + the Experience ⇄ Hardware switch.
  * Right: in-page nav, the shared member button, and the booking CTA.
+ *
+ * `sectionVariant` marks this header as one of the two the world-spanning pages
+ * ship side by side, so CSS can show the reader's (see section-world.tsx). Set
+ * it nowhere else — it would hide the header from hardware visitors.
  */
 export function OceanHeader({
   bookHref = "#experiences",
@@ -41,12 +45,14 @@ export function OceanHeader({
   showExperience = true,
   showHardware = true,
   showBlog = true,
+  sectionVariant,
 }: {
   bookHref?: string;
   variant?: "overlay" | "docked";
   showExperience?: boolean;
   showHardware?: boolean;
   showBlog?: boolean;
+  sectionVariant?: "experience";
 }) {
   const docked = variant === "docked";
   // The Experience⇄Hardware switch only makes sense once a public world is live —
@@ -75,6 +81,7 @@ export function OceanHeader({
 
   return (
     <header
+      data-np7-section={sectionVariant}
       className={docked ? "sticky top-0 z-50 bg-[#00374a]" : "fixed top-0 inset-x-0 z-50"}
     >
       {/* Frosted bar as a SEPARATE layer whose OPACITY animates — never toggle

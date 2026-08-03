@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase";
+import { mergeFocus, splitFocus } from "@/lib/placement";
 import type { SpecRow, FitSegment } from "@/lib/hardware/types";
 
 const EMPTY = {
@@ -46,6 +47,9 @@ export async function GET(
     product_id: id,
     ...EMPTY,
     ...(data ?? {}),
+    // The editor works on ONE focus value; per-shape framing rides in it as JSON
+    // and is split back over the two columns on save.
+    hero_focus: mergeFocus(data?.hero_focus, data?.hero_focus_shapes),
   });
 }
 
@@ -103,10 +107,15 @@ export async function PUT(
         .filter((f: FitSegment) => f.title.trim() || f.body.trim())
     : [];
 
+  // hero_focus keeps the desktop string on its own (the shop grid and the fins
+  // page drop it straight into CSS); tablet/phone overrides go to the sibling.
+  const focus = splitFocus(body.hero_focus);
+
   const row = {
     product_id: id,
     hero_image: typeof body.hero_image === "string" ? body.hero_image : null,
-    hero_focus: typeof body.hero_focus === "string" && body.hero_focus.trim() ? body.hero_focus.trim() : null,
+    hero_focus: focus.base,
+    hero_focus_shapes: focus.shapes,
     tile_image: typeof body.tile_image === "string" && body.tile_image.trim() ? body.tile_image.trim() : null,
     tile_focus: typeof body.tile_focus === "string" && body.tile_focus.trim() ? body.tile_focus.trim() : null,
     hero_video_url: typeof body.hero_video_url === "string" ? body.hero_video_url : null,
@@ -119,11 +128,18 @@ export async function PUT(
     updated_at: new Date().toISOString(),
   };
 
-  const { data, error } = await client
+  let { data, error } = await client
     .from("hw_product_content")
     .upsert(row, { onConflict: "product_id" })
     .select()
     .single();
+
+  // Pre-migration-137 fallback: per-shape framing degrades to the desktop value.
+  if (error && /hero_focus_shapes/.test(error.message || "")) {
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    const { hero_focus_shapes: _hfs, ...rest } = row;
+    ({ data, error } = await client.from("hw_product_content").upsert(rest, { onConflict: "product_id" }).select().single());
+  }
 
   if (error) {
     if (isMissing(error.message)) {

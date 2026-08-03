@@ -3,7 +3,7 @@ import { createAdminClient } from "@/lib/supabase";
 import { sendEmail } from "@/lib/email/send";
 import { getMemoryPhotosForBooking } from "@/lib/portal-data";
 import { computePaymentPlan, dueUrgency, balanceDue } from "@/lib/payments";
-import { mailContentReady } from "@/lib/email/readiness";
+import { mailContentReady, getSendTiming } from "@/lib/email/readiness";
 import { recordHold } from "@/lib/email/holds";
 
 export const dynamic = "force-dynamic";
@@ -22,8 +22,11 @@ export const maxDuration = 60;
  *   • balance invoice    — reminder the week it falls due (start − N days),
  *                          plus one overdue nudge; stop once paid
  *   • balance paid        — one confirmation
- *   • pre-trip            — planning (~21d) + final countdown (~3d, WhatsApp)
- *   • post-trip           — thank-you + review/photos (~3d after the week ends)
+ *   • pre-trip            — crew chat → planning → excitement → final countdown
+ *   • post-trip           — thank-you + review/photos once everyone is home
+ *
+ * The dated ones fire on the schedule in /admin/emails (getSendTiming), which is
+ * editable — this file never hard-codes a lead or a window boundary.
  *
  * The 96 Notion-migrated pipeline_rules remain the team-editable source of truth
  * in /admin/pipeline-rules; this runner sends the transactional sequence.
@@ -50,6 +53,23 @@ export async function GET(req: NextRequest) {
   const db = createAdminClient() as any;
   const now = Date.now();
   const DAY = 86400000;
+
+  // When the dated mails go out — built-in defaults plus whatever the admin set
+  // (migration 138), with the windows DERIVED from those leads. The windows
+  // used to be written out here as a chain (60→21→12→3), which meant every
+  // lead change needed a matching edit to its neighbour's boundary; miss it and
+  // a stretch of days fires nothing, with nobody any the wiser.
+  const timing = await getSendTiming();
+  /** Due on the lead day, still allowed until the next mail in the chain takes over. */
+  const dueBefore = (key: string, daysToStart: number | null) => {
+    const lead = timing.before[key], close = timing.windowClose[key];
+    return daysToStart != null && lead != null && close != null && daysToStart <= lead && daysToStart > close;
+  };
+  /** The same, counting forward from the last day of the trip. */
+  const dueAfterEnd = (key: string, daysSinceEnd: number | null) => {
+    const lead = timing.afterEnd[key], close = timing.windowCloseAfterEnd[key];
+    return daysSinceEnd != null && lead != null && close != null && daysSinceEnd >= lead && daysSinceEnd <= close;
+  };
 
   // ── Edition tile snapshot ───────────────────────────────────────────────────
   // Freeze a past edition's hero so its tile (member "My trips") stays put even if
@@ -245,26 +265,25 @@ export async function GET(req: NextRequest) {
       bump("balance_paid", await send("balance_paid_confirmation", `balance_paid_confirmation:${b.id}`));
     }
 
-    // 4 · pre-trip — planning + packing (~21d), an excitement beat (~10d), final
-    //     countdown (~3d). Paid guests only.
+    // 4 · pre-trip chain — crew chat, planning + packing, an excitement beat,
+    //     the final countdown. Paid guests only. Each mail hands over to the
+    //     next, so someone who books six weeks out never gets "two months to
+    //     go": they land straight in whichever window the date falls in.
     if (tripLive && depositPaid && daysToStart != null) {
-      // Crew chat opens two months out, while flights and transfers are still
-      // being planned. Bounded below at 22 so someone who books six weeks before
-      // the trip doesn't receive "two months to go" — they go straight into the
-      // pre-trip flow instead.
-      if (daysToStart <= 60 && daysToStart > 21) bump("crew", await send("crew_forming", `crew_forming:${b.id}`));
-      if (daysToStart <= 21 && daysToStart > 12) bump("pretrip", await send("pre_trip_info", `pre_trip_info:${b.id}`));
-      if (daysToStart <= 12 && daysToStart > 3) bump("excitement", await send("pre_trip_excitement", `pre_trip_excitement:${b.id}`));
-      if (daysToStart <= 3 && daysToStart >= 0) bump("pretrip_final", await send("pre_trip_final", `pre_trip_final:${b.id}`));
+      if (dueBefore("crew_forming", daysToStart)) bump("crew", await send("crew_forming", `crew_forming:${b.id}`));
+      if (dueBefore("pre_trip_info", daysToStart)) bump("pretrip", await send("pre_trip_info", `pre_trip_info:${b.id}`));
+      if (dueBefore("pre_trip_excitement", daysToStart)) bump("excitement", await send("pre_trip_excitement", `pre_trip_excitement:${b.id}`));
+      if (dueBefore("pre_trip_final", daysToStart)) bump("pretrip_final", await send("pre_trip_final", `pre_trip_final:${b.id}`));
     }
 
-    // 5 · waiver reminder — paid guests who haven't signed yet, ~14d → ~2d out
-    if (tripLive && depositPaid && !signedWaivers.has(b.id) && daysToStart != null && daysToStart <= 14 && daysToStart > 2) {
+    // 5 · waiver reminder — paid guests who haven't signed yet. Runs alongside
+    //     the chain above rather than inside it, and stops nagging near the trip.
+    if (tripLive && depositPaid && !signedWaivers.has(b.id) && dueBefore("waiver_reminder", daysToStart)) {
       bump("waiver", await send("waiver_reminder", `waiver_reminder:${b.id}`));
     }
 
-    // 6 · post-trip thank-you + review/photos (~3d after the week ends)
-    if (tripLive && depositPaid && daysSinceEnd != null && daysSinceEnd >= 3 && daysSinceEnd <= 14) {
+    // 6 · post-trip thank-you + review/photos, once everyone is home
+    if (tripLive && depositPaid && dueAfterEnd("post_trip_thank_you", daysSinceEnd)) {
       bump("post_trip", await send("post_trip_thank_you", `post_trip_thank_you:${b.id}`));
     }
 

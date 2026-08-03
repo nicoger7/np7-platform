@@ -1,9 +1,8 @@
 import Link from "next/link";
 import type { Metadata } from "next";
-import { cookies } from "next/headers";
 import { flags } from "@/lib/flags";
-import { resolveSection, SECTION_CHROME } from "@/lib/blog-section";
 import { SectionHeader } from "@/components/shared/section-header";
+import { SECTION_VARS } from "@/components/shared/section-world";
 import { BlogFooter } from "@/components/blog/blog-footer";
 
 export const metadata: Metadata = {
@@ -11,6 +10,9 @@ export const metadata: Metadata = {
   description:
     "NP7 is Nico Prien (GER-7): two worlds, one passion — premium watersports travel & coaching, and custom boards & fins shaped by hand.",
 };
+
+const secondaryCta =
+  "px-7 py-3.5 rounded-full text-[14px] font-bold border-[1.5px] border-white/50 text-white hover:bg-white/10 transition-all";
 
 const WORLDS = [
   {
@@ -29,17 +31,12 @@ const WORLDS = [
   },
 ];
 
-export default async function AboutPage({ searchParams }: { searchParams: Promise<{ from?: string }> }) {
-  // `?from=` (carried by the header link) wins over the np7_section cookie — but
-  // only once Hardware is live. Reading either is a request API, which opted this
-  // page out of prerendering; with one visible world there is nothing to switch
-  // between, and today the layout 404s here anyway — so that per-request render
-  // was being paid to produce a 404. Same guard as /spotguide and /blog.
-  const from = flags.showHardware ? (await searchParams).from : undefined;
-  const section = flags.showHardware
-    ? resolveSection(from ?? (await cookies()).get("np7_section")?.value)
-    : "experience";
-  const chrome = SECTION_CHROME[section];
+export default function AboutPage() {
+  // `?from=` (carried by the header link) and the np7_section cookie are both
+  // request APIs, and reading either one costs this page its prerender. The
+  // world is settled in the browser instead (section-world.tsx) — including the
+  // `?from=` precedence — so the chrome is CSS variables.
+  const chrome = SECTION_VARS;
 
   return (
     <>
@@ -105,14 +102,25 @@ export default async function AboutPage({ searchParams }: { searchParams: Promis
             <Link href="/blog" className="px-7 py-3.5 rounded-full text-[14px] font-bold bg-white transition-all hover:-translate-y-0.5" style={{ color: chrome.onAccent }}>
               Read the Magazine
             </Link>
-            <Link href={section === "hardware" ? "/hardware" : "/experience"} className="px-7 py-3.5 rounded-full text-[14px] font-bold border-[1.5px] border-white/50 text-white hover:bg-white/10 transition-all">
-              {section === "hardware" ? "Explore Hardware" : "Explore Experience"}
+            {/* one per world, the reader's shown by CSS — same reason as the
+                header: picking here would need the request */}
+            <Link href="/experience" data-np7-section="experience" className={secondaryCta}>
+              Explore Experience
             </Link>
+            {flags.showHardware && (
+              <Link href="/hardware" data-np7-section="hardware" className={secondaryCta}>
+                Explore Hardware
+              </Link>
+            )}
           </div>
         </div>
       </section>
 
-      <BlogFooter section={section} showExperience={flags.showExperience} showHardware={flags.showHardware} />
+      {/* the footer's own background comes from a server-picked section; the
+          wrapper lets the browser's world win instead (section-world.tsx) */}
+      <div className="np7-section-footer">
+        <BlogFooter showExperience={flags.showExperience} showHardware={flags.showHardware} />
+      </div>
     </>
   );
 }

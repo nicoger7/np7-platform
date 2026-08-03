@@ -3,7 +3,7 @@ import { sendEmail } from "@/lib/email/send";
 import { requireTeamMember, requireSectionEdit } from "@/lib/admin-auth";
 import { createAdminClient } from "@/lib/supabase";
 import { AUTOMATIONS, CANNOT_DISABLE, lifecycleLive } from "@/lib/email/automations";
-import { SEND_SCHEDULE, SEND_AFTER_END, WINDOW_CLOSE, WINDOW_CLOSE_AFTER_END, resolveEditionContent, MAIL_REQUIREMENTS, CONTENT_LABELS, type ContentKey } from "@/lib/email/readiness";
+import { listSendTiming, timingAnchor, resolveEditionContent, MAIL_REQUIREMENTS, CONTENT_LABELS, type ContentKey } from "@/lib/email/readiness";
 
 export const dynamic = "force-dynamic";
 
@@ -67,17 +67,23 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
     enabledByKey.set(t.template_key, t.enabled !== false);
   }
 
+  // The effective schedule — built-in defaults plus whatever the admin set on
+  // the Emails page. Read here rather than re-derived, so this panel and the
+  // cron can never disagree about when a mail goes out.
+  const timingBy = new Map((await listSendTiming()).map((t) => [t.key, t]));
+
   // The scheduled mails, in the order they fire, with what each still needs.
   //
   // Two very different things live under source: "scheduled". Some fire on a
-  // date worked out from the trip start — those have a lead in SEND_SCHEDULE.
+  // date worked out from the trip dates — those have a lead in the schedule.
   // The rest fire when something becomes true (a payment lands, a deadline
   // passes, photos appear), so they have no date at all and were rendering as a
   // bare "—" with "Due —" next to it, which reads like something is broken.
   // `whenKind` lets the panel keep them apart and say so.
   const scheduled = AUTOMATIONS.filter((a) => a.source === "scheduled").map((a) => {
-    const lead = SEND_SCHEDULE[a.key as keyof typeof SEND_SCHEDULE];
-    const after = SEND_AFTER_END[a.key as keyof typeof SEND_AFTER_END];
+    const t = timingBy.get(a.key);
+    const lead = t?.anchor === "before" ? t.days : undefined;
+    const after = t?.anchor === "afterEnd" ? t.days : undefined;
     const dueAt = lead != null && start != null
       ? new Date(start - lead * DAY).toISOString().slice(0, 10)
       : after != null && end != null
@@ -87,8 +93,8 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
     // Passed = the cron can no longer fire it, not "the ideal day went by".
     // crew_forming has a 38-day window; calling it passed on day 2 of 39 told
     // the admin to catch up a mail that needed no catching up.
-    const close = WINDOW_CLOSE[a.key as keyof typeof WINDOW_CLOSE];
-    const closeAfter = WINDOW_CLOSE_AFTER_END[a.key as keyof typeof WINDOW_CLOSE_AFTER_END];
+    const close = lead != null ? t?.windowClose : undefined;
+    const closeAfter = after != null ? t?.windowClose : undefined;
     const daysToStart = start != null ? Math.round((start - today) / DAY) : null;
     const daysSinceEnd = end != null ? Math.round((today - end) / DAY) : null;
     const windowPassed = dueAt != null && (
@@ -107,6 +113,10 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
       windowPassed,
       dueAt,
       daysAway,
+      // The lead is editable from this row (globally — it is one schedule for
+      // every trip), so the panel needs the default to offer a way back and the
+      // window to show what moving it does to the handover.
+      timing: t ? { anchor: t.anchor, days: t.days, defaultDays: t.defaultDays, windowClose: t.windowClose, overridden: t.overridden } : null,
       kind: a.kind,
       enabled: enabledByKey.get(a.key) ?? true,
       canDisable: !CANNOT_DISABLE.has(a.key),
@@ -177,7 +187,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
   // crafted request could fire e.g. deposit_confirmation with half its vars
   // missing — nothing in the UI offered that, which is exactly why the API
   // must not accept it.
-  if (!(templateKey in SEND_SCHEDULE) && !(templateKey in SEND_AFTER_END)) {
+  if (!timingAnchor(templateKey)) {
     return NextResponse.json({ error: "That mail isn't a scheduled one — it can't be catch-up sent from here." }, { status: 400 });
   }
 

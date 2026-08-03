@@ -62,13 +62,18 @@ export function deriveInsights(d: InsightsInput): Insight[] {
     });
   }
 
-  // Rage clicks — frustration / broken control.
+  // Rage clicks — frustration / broken control. The tracker collapses a burst
+  // into ONE event but then allows another every 1.5s, up to 15 per page, so a
+  // single visitor mis-tapping can produce a handful on their own: a count of 2
+  // said nothing and shouted "high" anyway. Report from 5, and reserve "high"
+  // for 10+ — the point where it's recurring across visits, the same bar the
+  // dead-click list above uses.
   for (const t of (b?.topRage ?? []).slice(0, 4)) {
-    if (t.count < 2) continue;
+    if (t.count < 5) continue;
     out.push({
       id: `rage:${t.path}:${t.target}`,
       area: areaForPath(t.path),
-      severity: "high",
+      severity: t.count >= 10 ? "high" : "medium",
       title: `People rage-click “${t.target}”`,
       action: `On ${t.path}, visitors click this over and over in frustration — it's likely broken, slow or unresponsive. Test it on a real device.`,
       metric: `${t.count} rage clicks`,

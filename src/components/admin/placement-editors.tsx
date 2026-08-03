@@ -4,6 +4,7 @@ import type React from "react";
 import { useLayoutEffect, useRef, useState } from "react";
 import { BrandedTile } from "@/components/experience/branded-tile";
 import { resolveTilePlacement, TILE_PLACEMENT_DEFAULTS, type FlagInfo, type TilePlacement } from "@/lib/experience-tile";
+import { encodeFocus, focusOf, focusPoint, hasOwnFocus, parseFocus, withFocus, type FocusShape } from "@/lib/placement";
 
 /* ────────────────────────────────────────────────────────────────────────────
    Shared drag helper: reports the pointer position as 0–100 % of an element,
@@ -201,22 +202,29 @@ export function TilePlacementEditor({ content, value, onChange }: {
 }
 
 /* ════════════════════════════════════════════════════════════════════════════
-   HERO focal-point picker — drag to choose the crop centre; previews at the
-   widest (desktop) and tallest (phone) shapes the hero takes.
+   HERO focal-point picker — drag to choose the crop centre, per screen shape.
+   The shape chips pick what you are EDITING: desktop is the base, tablet and
+   phone inherit it until you drag them somewhere of their own.
 ════════════════════════════════════════════════════════════════════════════ */
-export const TILE_ASPECTS = [
+
+/** A shape the image gets cropped to. `shape` set = it can be framed on its own. */
+type FocusAspect = { r: number; label: string; note: string; shape?: FocusShape };
+
+// No `shape` keys: these are three different SURFACES (two pages plus a phone
+// card), not three widths of one image, and their renderers still take a single
+// position — so this picker stays single-value until they read per-shape too.
+export const TILE_ASPECTS: FocusAspect[] = [
   { r: 1.7, label: "Shop card", note: "landing grid" },
   { r: 1.25, label: "Fins card", note: "range page" },
   { r: 0.85, label: "Phone card", note: "tall" },
 ];
 
-const HERO_ASPECTS = [
-  { r: 2.4, label: "Desktop", note: "wide banner" },
-  { r: 1.5, label: "Tablet", note: "" },
-  { r: 0.72, label: "Phone", note: "tall" },
+const HERO_ASPECTS: FocusAspect[] = [
+  { r: 2.4, label: "Desktop", note: "wide banner", shape: "desktop" },
+  { r: 1.5, label: "Tablet", note: "", shape: "tablet" },
+  { r: 0.72, label: "Phone", note: "tall", shape: "phone" },
 ];
 
-/** hero_focus is a CSS object-position string, e.g. "50% 40%" (null = center). */
 /** Where a `cover` crop of ratio `r` actually lands on the full image, in % of it. */
 function coverBox(imgAspect: number, r: number, fx: number, fy: number) {
   if (imgAspect > r) {
@@ -230,21 +238,32 @@ function coverBox(imgAspect: number, r: number, fx: number, fy: number) {
 export function HeroFocusPicker({ image, value, onChange, aspects = HERO_ASPECTS, label = "Drag to set the focal point", onCrop, emptyHint = "Upload a hero image above to set its focal point." }: {
   image: string | null; value: string | null; onChange: (v: string | null) => void;
   /** the real shapes this image gets cropped to — previewed under the canvas */
-  aspects?: { r: number; label: string; note: string }[];
+  aspects?: FocusAspect[];
   label?: string;
   /** offered when framing alone can't save the shot — opens the real cropper */
   onCrop?: () => void;
   emptyHint?: string;
 }) {
-  const [fx, fy] = parseFocus(value);
-  const { ref, handlers } = useCanvasDrag((x, y) => onChange(`${x}% ${y}%`));
-  // which shape the crop box on the big canvas is showing
+  // which shape is being edited (and, on the canvas, judged against)
   const [shape, setShape] = useState(0);
   const [imgAspect, setImgAspect] = useState<number | null>(null);
+
+  const focus = parseFocus(value);
+  const target = aspects[Math.min(shape, aspects.length - 1)];
+  const perShape = aspects.some((a) => a.shape);
+  // Surfaces without a shape key share one framing — everything edits `desktop`,
+  // and it leaves as the plain css string those renderers already understand.
+  const editing: FocusShape = target?.shape ?? "desktop";
+  const [fx, fy] = focusPoint(focus, editing);
+  const own = perShape && hasOwnFocus(focus, editing);
+
+  const write = (css: string | null) =>
+    onChange(perShape ? encodeFocus(withFocus(focus, editing, css)) : css);
+  const { ref, handlers } = useCanvasDrag((x, y) => write(`${x}% ${y}%`));
+
   if (!image) {
     return <p className="text-[13px] text-[var(--admin-fg-muted,#7a8a90)]">{emptyHint}</p>;
   }
-  const target = aspects[Math.min(shape, aspects.length - 1)];
   const box = imgAspect ? coverBox(imgAspect, target.r, fx, fy) : null;
   return (
     <div className="rounded-2xl border border-[var(--admin-border,#e3e9ec)] bg-[var(--admin-card,#fff)] p-4 sm:p-5">
@@ -254,21 +273,46 @@ export function HeroFocusPicker({ image, value, onChange, aspects = HERO_ASPECTS
           {onCrop && (
             <button type="button" onClick={onCrop} className="text-[12px] font-bold text-[var(--admin-fg,#0a2a33)] hover:underline">Crop the photo…</button>
           )}
-          <button type="button" onClick={() => onChange(null)} className="text-[12px] font-semibold text-[#c0392b] hover:underline">Center</button>
+          <button type="button" onClick={() => onChange(null)} className="text-[12px] font-semibold text-[#c0392b] hover:underline">
+            {perShape ? "Center all" : "Center"}
+          </button>
         </div>
       </div>
 
-      {/* Which shape to judge against — the box on the canvas follows this. */}
-      <div className="flex flex-wrap gap-1.5 mb-3">
-        {aspects.map((a, i) => (
-          <button key={a.label} type="button" onClick={() => setShape(i)}
-            className={`px-2.5 py-1 rounded-full text-[11.5px] font-bold transition-colors ${
-              i === shape
-                ? "bg-[var(--admin-accent)] text-[var(--admin-accent-contrast)]"
-                : "text-[var(--admin-fg-muted,#7a8a90)] border border-[var(--admin-border,#e3e9ec)] hover:text-[var(--admin-fg,#0a2a33)]"
-            }`}>{a.label}</button>
-        ))}
+      {/* Which shape you are framing. The dot marks the ones framed separately. */}
+      <div className="flex flex-wrap gap-1.5 mb-2">
+        {aspects.map((a, i) => {
+          const separate = perShape && !!a.shape && hasOwnFocus(focus, a.shape);
+          return (
+            <button key={a.label} type="button" onClick={() => setShape(i)}
+              className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11.5px] font-bold transition-colors ${
+                i === shape
+                  ? "bg-[var(--admin-accent)] text-[var(--admin-accent-contrast)]"
+                  : "text-[var(--admin-fg-muted,#7a8a90)] border border-[var(--admin-border,#e3e9ec)] hover:text-[var(--admin-fg,#0a2a33)]"
+              }`}>
+              {a.label}
+              {perShape && a.shape !== "desktop" && (
+                <span aria-hidden className={`w-1.5 h-1.5 rounded-full ${separate ? "bg-current" : "bg-current opacity-25"}`} />
+              )}
+            </button>
+          );
+        })}
       </div>
+
+      {perShape && (
+        <div className="flex items-start justify-between gap-3 mb-3 text-[11.5px] leading-snug">
+          <span className="text-[var(--admin-fg-muted,#7a8a90)]">
+            {editing === "desktop"
+              ? "Desktop sets the framing every other shape follows."
+              : own
+                ? `${target.label} is framed separately.`
+                : `${target.label} follows desktop — drag to frame it on its own.`}
+          </span>
+          {editing !== "desktop" && own && (
+            <button type="button" onClick={() => write(null)} className="shrink-0 font-semibold text-[#c0392b] hover:underline">Follow desktop</button>
+          )}
+        </div>
+      )}
 
       {/* The canvas shows the FULL image, static — the old cover-cropped canvas
           panned underneath the pointer while dragging (its background-position
@@ -292,23 +336,24 @@ export function HeroFocusPicker({ image, value, onChange, aspects = HERO_ASPECTS
           style={{ left: `${fx}%`, top: `${fy}%`, background: "rgba(0,175,219,0.3)" }} />
       </div>
       <div className="mt-4 grid grid-cols-3 gap-3">
-        {aspects.map((a, i) => (
-          <button key={a.label} type="button" onClick={() => setShape(i)} className="text-left">
-            <div className="w-full rounded-lg overflow-hidden bg-cover ring-1 transition-all"
-              style={{ aspectRatio: String(a.r), backgroundImage: `url('${image}')`, backgroundPosition: `${fx}% ${fy}%`,
-                       ...(i === shape ? { boxShadow: "0 0 0 2px var(--admin-accent)" } : {}) }} />
-            <p className="text-[11px] text-[var(--admin-fg-muted,#7a8a90)] mt-1"><span className="font-bold text-[var(--admin-fg,#0a2a33)]">{a.label}</span>{a.note ? ` · ${a.note}` : ""}</p>
-          </button>
-        ))}
+        {aspects.map((a, i) => {
+          const separate = perShape && !!a.shape && hasOwnFocus(focus, a.shape);
+          return (
+            <button key={a.label} type="button" onClick={() => setShape(i)} className="text-left">
+              <div className="w-full rounded-lg overflow-hidden bg-cover ring-1 transition-all"
+                style={{ aspectRatio: String(a.r), backgroundImage: `url('${image}')`,
+                         backgroundPosition: focusOf(focus, a.shape ?? "desktop") ?? "center",
+                         ...(i === shape ? { boxShadow: "0 0 0 2px var(--admin-accent)" } : {}) }} />
+              <p className="text-[11px] text-[var(--admin-fg-muted,#7a8a90)] mt-1">
+                <span className="font-bold text-[var(--admin-fg,#0a2a33)]">{a.label}</span>
+                {perShape && a.shape !== "desktop" ? (separate ? " · own framing" : " · follows desktop") : a.note ? ` · ${a.note}` : ""}
+              </p>
+            </button>
+          );
+        })}
       </div>
     </div>
   );
-}
-
-function parseFocus(v: string | null): [number, number] {
-  if (!v) return [50, 50];
-  const m = v.match(/(-?\d+(?:\.\d+)?)%?\s+(-?\d+(?:\.\d+)?)%?/);
-  return m ? [Number(m[1]), Number(m[2])] : [50, 50];
 }
 
 function clamp(v: number, min: number, max: number) { return Math.max(min, Math.min(max, Math.round(v))); }

@@ -11,6 +11,7 @@ import {
   type BlogTemplateId,
 } from "@/lib/blog-templates";
 import { BlogIcon } from "@/components/blog/blog-icons";
+import { BlogIntake } from "./blog-intake";
 
 interface BlogPost {
   id: string;
@@ -100,12 +101,16 @@ export default function BlogAdminPage() {
         </div>
       </div>
 
+      <div className="mt-5">
+        <BlogIntake />
+      </div>
+
       <input
         type="search"
         value={q}
         onChange={(e) => setQ(e.target.value)}
         placeholder="Search posts…"
-        className="admin-input w-full sm:w-80 mt-5 mb-6 px-4 py-2.5 rounded-lg border text-sm outline-none"
+        className="admin-input w-full sm:w-80 mb-6 px-4 py-2.5 rounded-lg border text-sm outline-none"
       />
 
       {loading ? (

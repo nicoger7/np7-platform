@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import type { Map as LeafletMap } from "leaflet";
 import "leaflet/dist/leaflet.css";
 import { attachBaseLayers } from "@/lib/leaflet-base";
+import { bindTwoFingerHint, bindZoomButtons, coarsePointer } from "./map-controls";
 
 export type MapSpot = {
   lat: number; lng: number; name: string; destSlug: string;
@@ -38,6 +39,18 @@ export function SpotMap({ spots, cluster = false, height = 420, linkLabel = "Vie
   const markersRef = useRef<any[]>([]);
   const [full, setFull] = useState(false);
   const [zoomHint, setZoomHint] = useState(false);
+  const [note, setNote] = useState<string | null>(null);
+  const noteTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const coarseRef = useRef(false);
+  const teardownRef = useRef<(() => void)[]>([]);
+
+  // One transient line for the moments the map owes an answer: a zoom button
+  // with nowhere left to go, a one-finger drag that scrolled the page instead.
+  const flash = (msg: string) => {
+    if (noteTimer.current) clearTimeout(noteTimer.current);
+    setNote(msg);
+    noteTimer.current = setTimeout(() => setNote(null), 2200);
+  };
 
   useEffect(() => {
     if (!elRef.current || spots.length === 0 || mapRef.current) return;
@@ -46,9 +59,16 @@ export function SpotMap({ spots, cluster = false, height = 420, linkLabel = "Vie
       const L = (await import("leaflet")).default;
       if (cluster) await import("leaflet.markercluster");
       if (cancelled || !elRef.current || mapRef.current) return;
+      const el = elRef.current;
+      // A phone's single finger belongs to the PAGE. `dragging:false` drops
+      // Leaflet's `leaflet-touch-drag` class, so the container keeps
+      // `touch-action: pan-x pan-y` and a one-finger drag scrolls straight past
+      // the map; two fingers still pan and pinch it via the touchZoom handler.
+      const coarse = coarsePointer();
+      coarseRef.current = coarse;
       // zoomSnap 0.5: fractional zoom lets fitBounds hug the pins instead of
       // letterboxing a whole-world view (the grey band above the tile edge).
-      const map = L.map(elRef.current, { scrollWheelZoom: false, zoomControl: true, zoomSnap: 0.5, worldCopyJump: true });
+      const map = L.map(el, { scrollWheelZoom: false, dragging: !coarse, touchZoom: true, zoomControl: true, zoomSnap: 0.5, worldCopyJump: true });
       map.attributionControl.setPrefix('<a href="https://leafletjs.com" title="A JavaScript library for interactive maps">Leaflet</a>'); // strip Leaflet's default Ukraine-flag prefix
       mapRef.current = map;
 
@@ -56,8 +76,12 @@ export function SpotMap({ spots, cluster = false, height = 420, linkLabel = "Vie
       // scrolling the page (the "zoom doesn't work well" fix).
       map.on("click focus", () => { map.scrollWheelZoom.enable(); setZoomHint(false); });
       map.on("mouseout blur", () => map.scrollWheelZoom.disable());
-      map.on("mouseover", () => { if (!map.scrollWheelZoom.enabled()) setZoomHint(true); });
-      map.on("mouseout", () => setZoomHint(false));
+      // Touch browsers fire a synthetic mouseover on tap — the hover hint would
+      // pop up on phones, where there is no wheel to talk about.
+      if (!coarse) {
+        map.on("mouseover", () => { if (!map.scrollWheelZoom.enabled()) setZoomHint(true); });
+        map.on("mouseout", () => setZoomHint(false));
+      }
 
       // `voyager_nolabels`: no country/place labels. Carto renders them in each
       // region's LOCAL language (Arabic, Chinese, "América do Sul"…), which looked
@@ -152,13 +176,22 @@ export function SpotMap({ spots, cluster = false, height = 420, linkLabel = "Vie
       layerRef.current = layer;
       markersRef.current = markers;
       boundsRef.current = layer.getBounds().pad(0.25);
-      // FILL the card: never zoom out past the point where the world tile band
+      // FILL the card: don't zoom out past the point where the world tile band
       // (±85°) is shorter than the container — that's what letterboxes water
       // above/below. Min zoom = world height ≥ container height, and vertical
       // panning stays inside the tiled band.
       const coverZoom = () => {
         const h = elRef.current?.clientHeight ?? 460;
-        map.setMinZoom(Math.max(1, Math.ceil(Math.log2(h / 256) * 2) / 2));
+        const fill = Math.max(1, Math.ceil(Math.log2(h / 256) * 2) / 2);
+        // Showing the spots outranks filling the card, though. A tall, narrow
+        // container (a phone in fullscreen) needs a wider view than the fill
+        // zoom allows: at 366×820 the fill rule floors the map at z2, where only
+        // 4 of the 6 spots fit on screen — behind a "−" that is dead on arrival.
+        // A band of ocean above and below beats losing a third of the map.
+        // Measured against a floor of 1 so the last floor can't ratchet the fit up.
+        map.setMinZoom(1);
+        const fitsAll = boundsRef.current ? map.getBoundsZoom(boundsRef.current) : fill;
+        map.setMinZoom(Math.min(fill, fitsAll));
       };
       coverZoom();
       map.setMaxBounds(L.latLngBounds(L.latLng(-85, -720), L.latLng(85, 720)));
@@ -166,8 +199,23 @@ export function SpotMap({ spots, cluster = false, height = 420, linkLabel = "Vie
       (map as any).__coverZoom = coverZoom;
       map.fitBounds(boundsRef.current);
       if (spots.length === 1) map.setZoom(11);
+
+      const zoomBtns = bindZoomButtons(map, el, (dir) =>
+        flash(dir === "out" ? "You're already showing the whole map" : "That's as close as the map goes")
+      );
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      (map as any).__syncZoom = zoomBtns.sync;
+      teardownRef.current.push(zoomBtns.dispose);
+      if (coarse) teardownRef.current.push(bindTwoFingerHint(map, el, () => flash("Use two fingers to move the map")));
     })();
-    return () => { cancelled = true; mapRef.current?.remove(); mapRef.current = null; };
+    return () => {
+      cancelled = true;
+      teardownRef.current.forEach((fn) => fn());
+      teardownRef.current = [];
+      if (noteTimer.current) clearTimeout(noteTimer.current);
+      mapRef.current?.remove();
+      mapRef.current = null;
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -198,14 +246,20 @@ export function SpotMap({ spots, cluster = false, height = 420, linkLabel = "Vie
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       (map as any).__coverZoom?.();
       if (boundsRef.current) map.fitBounds(boundsRef.current);
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      (map as any).__syncZoom?.();
     }, 60);
     if (full) {
       map.scrollWheelZoom.enable(); // fullscreen = clearly a map context
+      // The page can't scroll behind a fullscreen map, so the one finger is the
+      // map's again — no reason to ask for two.
+      map.dragging.enable();
       const onKey = (e: KeyboardEvent) => e.key === "Escape" && setFull(false);
       window.addEventListener("keydown", onKey);
       document.body.style.overflow = "hidden";
       return () => { clearTimeout(t); window.removeEventListener("keydown", onKey); document.body.style.overflow = ""; };
     }
+    if (coarseRef.current) map.dragging.disable(); // back in the page: one finger scrolls again
     return () => clearTimeout(t);
   }, [full]);
 
@@ -219,10 +273,12 @@ export function SpotMap({ spots, cluster = false, height = 420, linkLabel = "Vie
         {!full && (
           <div className="pointer-events-none absolute inset-0 z-[400] rounded-3xl" style={{ boxShadow: "inset 0 0 0 1px rgba(0,55,74,0.06), inset 0 16px 26px -20px rgba(255,247,236,0.95), inset 0 -16px 26px -20px rgba(255,247,236,0.95)" }} />
         )}
-        {/* click-to-zoom hint */}
-        {zoomHint && !full && (
-          <div className="pointer-events-none absolute inset-x-0 bottom-3 z-[500] flex justify-center">
-            <span className="rounded-full bg-[#00374a]/85 text-white text-[11.5px] font-bold px-3.5 py-1.5 backdrop-blur-sm">Click the map to zoom</span>
+        {/* what the map has to say: a flashed answer first, else the wheel hint */}
+        {(note || (zoomHint && !full)) && (
+          <div className="pointer-events-none absolute inset-x-0 bottom-3 z-[500] flex justify-center px-4">
+            <span className="rounded-full bg-[#00374a]/85 text-white text-[11.5px] font-bold px-3.5 py-1.5 backdrop-blur-sm text-center">
+              {note ?? "Click the map to zoom"}
+            </span>
           </div>
         )}
         {/* enlarge / close */}

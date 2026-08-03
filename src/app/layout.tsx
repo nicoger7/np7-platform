@@ -4,6 +4,8 @@ import "./globals.css";
 import { CookieConsent } from "@/components/shared/cookie-consent";
 import { AnalyticsTracker } from "@/components/analytics/tracker";
 import { MetaPixel } from "@/components/analytics/meta-pixel";
+import { SECTION_CSS, SECTION_SCRIPT } from "@/components/shared/section-world";
+import { SectionSync } from "@/components/shared/section-sync";
 
 // Body face: Poppins — the brand's rounded, warm "oceany" sans (already the
 // share-card font), replacing the techy neutral Inter. Kept on the same CSS
@@ -78,7 +80,13 @@ export default function RootLayout({
   return (
     <html lang="en" className={`${poppins.variable} ${anton.variable} antialiased`}>
       <body className="min-h-screen flex flex-col">
+        {/* Both run before any page markup is parsed, so the world-spanning
+            pages (Magazine, Spotguide, About) can be cached world-neutral and
+            still paint the reader's world on the first frame. */}
+        <script dangerouslySetInnerHTML={{ __html: SECTION_SCRIPT }} />
+        <style dangerouslySetInnerHTML={{ __html: SECTION_CSS }} />
         {children}
+        <SectionSync />
         <AnalyticsTracker />
         <MetaPixel />
         <CookieConsent />

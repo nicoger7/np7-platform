@@ -22,7 +22,12 @@ export function RatingHeadline({ np7, member, accent = "#00afdb" }: { np7: numbe
     <div className="flex flex-wrap items-center gap-x-5 gap-y-1.5">
       {np7 > 0 && (
         <span className="inline-flex items-center gap-1.5">
-          <span className="text-[10px] font-black uppercase tracking-[0.12em] px-1.5 py-0.5 rounded" style={{ backgroundColor: `${accent}1a`, color: accent }}>NP7</span>
+          {/* color-mix, not `${accent}1a`: the spotguide index now passes
+              `var(--np7-accent)` (the world is settled in the browser — see
+              section-world.tsx), and appending hex alpha to a var() reference
+              produces invalid CSS that silently drops the background. 10% ≈ the
+              old `1a`. */}
+          <span className="text-[10px] font-black uppercase tracking-[0.12em] px-1.5 py-0.5 rounded" style={{ backgroundColor: `color-mix(in srgb, ${accent} 10%, transparent)`, color: accent }}>NP7</span>
           <Stars value={np7} /><span className="text-[13px] font-bold text-[#00374a]">{np7.toFixed(1)}</span>
         </span>
       )}

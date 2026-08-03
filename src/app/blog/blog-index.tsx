@@ -1,11 +1,10 @@
 import Link from "next/link";
-import { cookies } from "next/headers";
 import { supabase } from "@/lib/supabase";
 import { flags } from "@/lib/flags";
 import { getTemplate, worldTheme, asSpots, parseCoords } from "@/lib/blog-templates";
 import { AllSpotsMap, type SpotPoint } from "@/components/blog/all-spots-map";
-import { resolveSection, SECTION_CHROME } from "@/lib/blog-section";
 import { SectionHeader } from "@/components/shared/section-header";
+import { SECTION_VARS } from "@/components/shared/section-world";
 import { BlogFooter } from "@/components/blog/blog-footer";
 import { BlogCard, type CardPost, fmtDate, readTime } from "@/components/blog/blog-card";
 import { MagazineTabs } from "@/components/blog/magazine-tabs";
@@ -15,8 +14,8 @@ import { cdnImage } from "@/lib/img";
  * Shared magazine index view. The world filter is a real ROUTE (/blog,
  * /blog/spotguide, /blog/gear, /blog/technique) instead of a ?world= query so
  * each tab is statically cacheable (ISR) — searchParams would force dynamic
- * rendering on every visit. Section chrome only reads the np7_section cookie
- * when Hardware is live (same reason: cookies() would kill ISR).
+ * rendering on every visit. Section chrome is CSS variables resolved in the
+ * browser for the same reason: reading np7_section here would kill ISR.
  */
 
 export type BlogWorld = "" | "experience" | "hardware" | "technique";
@@ -28,12 +27,7 @@ function teaser(p: CardPost) {
 }
 
 export async function BlogIndexView({ world: activeWorld }: { world: BlogWorld }) {
-  // Chrome follows the section cookie — but only once Hardware is live; with a
-  // single visible world it is always "experience" and the page stays static.
-  const section = flags.showHardware
-    ? resolveSection((await cookies()).get("np7_section")?.value)
-    : "experience";
-  const chrome = SECTION_CHROME[section];
+  const chrome = SECTION_VARS;
 
   const CARD_COLS = "slug,title,excerpt,cover_image,template,world,category,published_at,members_only,content";
   const fetchPosts = (cols: string) => {
@@ -79,7 +73,9 @@ export async function BlogIndexView({ world: activeWorld }: { world: BlogWorld }
         {/* A windsurf shot living quietly behind the gradient — texture, not a
             focal point (kept dark so the white headline stays crisp). */}
         <div className="absolute inset-0 bg-cover bg-center opacity-20 mix-blend-luminosity" style={{ backgroundImage: "url('/cdn/assets/hero/windsurf-hero-poster.jpg')" }} aria-hidden />
-        <div className="absolute inset-0" style={{ background: `linear-gradient(to bottom, transparent 45%, ${chrome.heroBackground.includes("gradient") ? "rgba(0,20,29,0.55)" : "transparent"} 100%)` }} aria-hidden />
+        {/* both worlds' hero backgrounds are gradients, so this darkening pass
+            always applied — it is no longer worth branching on */}
+        <div className="absolute inset-0" style={{ background: "linear-gradient(to bottom, transparent 45%, rgba(0,20,29,0.55) 100%)" }} aria-hidden />
         <div className="relative max-w-[1200px] mx-auto px-6 sm:px-8">
           <p className="text-[11px] font-bold tracking-[0.25em] mb-3" style={{ color: chrome.eyebrow }}>FROM THE WATER & THE WORKSHOP</p>
           <h1 className="text-4xl sm:text-6xl font-black tracking-[-0.03em]">The NP7 Magazine</h1>
@@ -132,7 +128,11 @@ export async function BlogIndexView({ world: activeWorld }: { world: BlogWorld }
         </div>
       </section>
 
-      <BlogFooter section={section} showExperience={flags.showExperience} showHardware={flags.showHardware} />
+      {/* the footer's own background comes from a server-picked section; the
+          wrapper lets the browser's world win instead (section-world.tsx) */}
+      <div className="np7-section-footer">
+        <BlogFooter showExperience={flags.showExperience} showHardware={flags.showHardware} />
+      </div>
     </>
   );
 }

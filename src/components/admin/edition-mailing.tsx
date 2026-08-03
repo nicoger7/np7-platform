@@ -12,11 +12,20 @@ type Uses = {
   source: "edition" | "experience" | null;
   inherited: string | null;
 };
+/** The editable lead — global, not per week. */
+type Timing = {
+  anchor: "before" | "afterEnd";
+  days: number;
+  defaultDays: number;
+  windowClose: number;
+  overridden: boolean;
+};
 type Scheduled = {
   key: string; name: string; trigger: string;
   whenKind: "date" | "condition";
   daysBefore: number | null; daysAfterEnd: number | null; dueAt: string | null; daysAway: number | null;
   windowPassed: boolean;
+  timing: Timing | null;
   kind: "transactional" | "lifecycle";
   enabled: boolean; canDisable: boolean;
   missing: string[]; uses: Uses[]; sent: number; lastSent: string | null;
@@ -258,11 +267,87 @@ function MailRow({
             <Link href={`/admin/emails/${m.key}`} className="text-[#0aa3c7] hover:underline">Wording &amp; switch →</Link>
           </p>
 
+          {m.timing && <TimingField t={m.timing} templateKey={m.key} onSaved={onSaved} />}
+
           {m.uses.length === 0
             ? <p className="text-[12px] admin-faint">This one writes itself — no content from you.</p>
             : m.uses.map((u) => <ContentField key={u.key} editionId={editionId} use={u} onSaved={onSaved} />)}
         </div>
       )}
+    </div>
+  );
+}
+
+/**
+ * When this mail goes out — edited from the row that shows it.
+ *
+ * "60d before" was a fact you could read and not change: the lead lived in
+ * code, so moving the packing list a week earlier was a deploy. It is one
+ * schedule for every trip, which the row has to say out loud — otherwise
+ * editing it here reads like a change to this week only, and the week after
+ * quietly gets it too.
+ *
+ * The whole panel reloads after a save because moving one mail moves its
+ * neighbour's handover: the row above would otherwise keep showing a window
+ * that no longer exists.
+ */
+function TimingField({ t, templateKey, onSaved }: { t: Timing; templateKey: string; onSaved: () => void }) {
+  const [value, setValue] = useState(String(t.days));
+  const [saving, setSaving] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+
+  const save = async (days: number | null) => {
+    setSaving(true); setErr(null);
+    try {
+      const r = await fetch("/api/admin/emails/timing", {
+        method: "PATCH", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ templateKey, days }),
+      });
+      const j = await r.json().catch(() => ({}));
+      if (!r.ok) { setErr(j.error || "Couldn't save that."); return; }
+      // The box has to follow the save, or "back to default" would leave the
+      // old number sitting in it next to a Save button offering to re-apply it.
+      setValue(String(days ?? t.defaultDays));
+      onSaved();
+    } catch { setErr("Couldn't save that."); }
+    finally { setSaving(false); }
+  };
+
+  const dirty = value.trim() !== "" && Number(value) !== t.days;
+  const lastDay = t.windowClose + 1;
+
+  return (
+    <div className="mb-4 rounded-lg px-3 py-2.5" style={{ border: "1px solid var(--admin-border)" }}>
+      <p className="text-[12px] font-bold admin-heading mb-1.5">When it goes out</p>
+      <div className="flex items-center gap-2 flex-wrap">
+        <input type="number" min={0} max={400} inputMode="numeric" value={value}
+          onChange={(e) => setValue(e.target.value)}
+          onKeyDown={(e) => { if (e.key === "Enter" && dirty) save(Number(value)); }}
+          className="w-16 rounded-lg px-2 py-1.5 text-[13px] text-right outline-none focus:border-[#0aa3c7]"
+          style={{ border: "1px solid var(--admin-border)", backgroundColor: "var(--admin-bg)", color: "var(--admin-text)" }} />
+        <span className="text-[12px] admin-muted">
+          {t.anchor === "before" ? "days before the trip starts" : "days after the trip ends"}
+        </span>
+        {dirty && (
+          <button onClick={() => save(Number(value))} disabled={saving}
+            className="text-[12px] font-bold px-3 py-1 rounded-lg bg-[#0aa3c7] text-white disabled:opacity-50">
+            {saving ? "Saving…" : "Save"}
+          </button>
+        )}
+        {t.overridden && !dirty && (
+          <button onClick={() => save(null)} disabled={saving}
+            className="text-[11.5px] admin-faint hover:text-[#0aa3c7] transition-colors">↺ Back to {t.defaultDays}d</button>
+        )}
+      </div>
+      <p className="text-[11.5px] admin-faint mt-1.5">
+        {t.anchor === "before"
+          ? (lastDay <= 0
+            ? `Keeps sending from ${t.days} days out until the trip starts.`
+            : `Keeps sending from ${t.days} to ${lastDay} days out, then the next mail takes over.`)
+          : `Keeps sending from ${t.days} to ${t.windowClose} days after the trip ends.`}
+        {" "}This is the schedule for <strong className="admin-muted">every trip</strong>, not just this week.
+      </p>
+      {err && <p className="text-[11.5px] text-red-400 mt-1">{err}</p>}
     </div>
   );
 }

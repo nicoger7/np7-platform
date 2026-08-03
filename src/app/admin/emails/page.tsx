@@ -2,7 +2,9 @@ import Link from "next/link";
 import { createAdminClient } from "@/lib/supabase";
 import { renderTemplate } from "@/lib/email/templates";
 import { AUTOMATIONS, lifecycleLive, CANNOT_DISABLE, type TriggerSource } from "@/lib/email/automations";
+import { listSendTiming } from "@/lib/email/readiness";
 import { EmailGroupTabs } from "@/components/admin/email-group-tabs";
+import { SendTiming } from "./send-timing";
 
 /**
  * The three ways a mail gets sent, in the order that matters operationally:
@@ -45,6 +47,7 @@ const SAMPLE: Record<string, string> = {
 
 export default async function EmailsHubPage() {
   const live = lifecycleLive();
+  const timingRows = await listSendTiming();
 
   // Reflect any saved copy override (same logic sendEmail uses), so previews match reality.
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -133,6 +136,11 @@ export default async function EmailsHubPage() {
           </span>
         ))}
       </div>
+
+      {/* The dates, above the wording: "when does the packing list go out?" is
+          asked far more often than "what does it say?", and until now the only
+          answer was in the code. */}
+      <SendTiming rows={timingRows} />
 
       {/* Tabs, not one scroll: each card renders a live iframe preview, so all
           23 at once was a very long page. */}

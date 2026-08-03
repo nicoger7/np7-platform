@@ -1,12 +1,10 @@
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import type { Metadata } from "next";
-import { cookies } from "next/headers";
 import { supabase } from "@/lib/supabase";
 import { getPortalUser } from "@/lib/auth";
 import { getCommunityAuthors, type AuthorBadge } from "@/lib/portal-data";
 import { flags } from "@/lib/flags";
-import { resolveSection } from "@/lib/blog-section";
 import { cdnImage } from "@/lib/img";
 import {
   getTemplate,
@@ -34,11 +32,20 @@ type Props = { params: Promise<{ slug: string }> };
  * Prerender the freely-readable posts so they serve from the CDN instead of
  * costing a full server render per hit (they were `no-store` in production —
  * `revalidate` above was dead code because the render always reached a request
- * API). Members-only posts are deliberately LEFT OUT: an unlisted param is
- * rendered on demand and then ISR-cached, so a gated post must keep touching a
- * request API to stay per-request dynamic — which is exactly what the
- * conditional `getPortalUser()` below guarantees. Never list a gated slug here.
- * Admin writes call revalidatePath, so publishing is still immediate.
+ * API). Admin writes call revalidatePath, so publishing is still immediate.
+ *
+ * Members-only posts are LEFT OUT, and must stay out — a gated render belongs
+ * to one reader and would otherwise land in the shared cache. But leaving them
+ * out does NOT make them dynamic, which an earlier comment here claimed: with
+ * `dynamicParams` at its default an unlisted slug still renders through the
+ * STATIC path, and the conditional `getPortalUser()` below (it reads cookies)
+ * bails that render out to `revalidate: 0`, which Next turns into a thrown
+ * "Page changed from static to dynamic at runtime" — a 500, not a per-request
+ * render. /spotguide/proposed/[slug] is the shape that works: a separate,
+ * force-dynamic route for the reader-specific variant. It has never fired only
+ * because the single gated post published so far carries the legacy `spotguide`
+ * template, and that redirects out below before the read — the next gated post
+ * on any other template 500s.
  */
 export async function generateStaticParams() {
   const { data } = await supabase
@@ -113,8 +120,6 @@ export default async function BlogPostPage({ params }: Props) {
 
   const template = getTemplate(post.template);
   const theme = worldTheme(post.world);
-  // Cookie only when Hardware is live — cookies() would opt this post page out of ISR.
-  const section = flags.showHardware ? resolveSection((await cookies()).get("np7_section")?.value) : "experience";
   const data: TemplateData = (post.template_data && typeof post.template_data === "object" ? post.template_data : {}) as TemplateData;
 
   // The old magazine spotguide template is superseded by the structured /spotguide
@@ -336,7 +341,11 @@ export default async function BlogPostPage({ params }: Props) {
         </section>
       )}
 
-      <BlogFooter section={section} showExperience={flags.showExperience} showHardware={flags.showHardware} />
+      {/* the footer's own background comes from a server-picked section; the
+          wrapper lets the browser's world win instead (section-world.tsx) */}
+      <div className="np7-section-footer">
+        <BlogFooter showExperience={flags.showExperience} showHardware={flags.showHardware} />
+      </div>
     </>
   );
 }

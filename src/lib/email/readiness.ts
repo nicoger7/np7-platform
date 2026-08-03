@@ -1,5 +1,6 @@
 import "server-only";
 import { createAdminClient } from "@/lib/supabase";
+import { AUTOMATIONS } from "@/lib/email/automations";
 
 /**
  * Is an edition's content ready for the mails it is about to send?
@@ -16,7 +17,13 @@ import { createAdminClient } from "@/lib/supabase";
  * cron will do.
  */
 
-/** When each scheduled mail fires, in days BEFORE the edition start date. */
+/**
+ * The BUILT-IN lead times, in days BEFORE the edition start date.
+ *
+ * These are defaults, not the truth: a row in `email_send_timing` (migration
+ * 138) replaces any of them, and everything that needs a real send date goes
+ * through `getSendTiming()` rather than reading this directly.
+ */
 export const SEND_SCHEDULE = {
   crew_forming: 60,
   pre_trip_info: 21,
@@ -38,20 +45,179 @@ export const SEND_AFTER_END = {
 } as const;
 
 /**
- * When each dated window CLOSES, in days before the start (after the end for
- * post-trip). The cron fires anywhere inside its window, not on the single due
- * date — labelling a mail "Window passed" the day after its ideal date, while
- * the cron still had weeks to fire it, told the admin to catch up a mail that
- * needed no catching up.
+ * Which mails hand over to each other.
+ *
+ * The cron fires anywhere inside a WINDOW, not on the single ideal day — a
+ * guest who books five weeks out must still get the pre-trip mail. Those
+ * windows used to be a second hand-written copy of the lead times
+ * (60→21→12→3), so editing one lead without editing its neighbour's boundary
+ * opened a stretch of days where nothing fired at all, silently.
+ *
+ * So the boundaries are derived instead (see `deriveWindows`): inside a chain
+ * the mails are sorted and each one's window runs until the next one opens,
+ * which makes a gap arithmetically impossible whatever leads are set.
+ *
+ * Why chains rather than one global sort: the waiver reminder runs ALONGSIDE
+ * the pre-trip chain, not in it (14→2 overlaps three of them by design — it is
+ * conditional on an unsigned waiver, so it is not "the mail of that week"). Put
+ * it in the same chain and it would cut the pre-trip mails in half. `floor` is
+ * where the last mail of a chain stops: -1 for the pre-trip chain means "still
+ * fires on the start day itself", 2 for the waiver means "stop nagging two
+ * days out".
  */
-export const WINDOW_CLOSE = {
-  crew_forming: 21,
-  pre_trip_info: 12,
-  pre_trip_excitement: 3,
-  waiver_reminder: 2,
-  pre_trip_final: 0,
-} as const;
-export const WINDOW_CLOSE_AFTER_END = { post_trip_thank_you: 14 } as const;
+const BEFORE_CHAINS: { keys: string[]; floor: number }[] = [
+  { keys: ["crew_forming", "pre_trip_info", "pre_trip_excitement", "pre_trip_final"], floor: -1 },
+  { keys: ["waiver_reminder"], floor: 2 },
+];
+/** Same idea counting forward from the last day of the trip. */
+const AFTER_CHAINS: { keys: string[]; ceiling: number }[] = [
+  { keys: ["post_trip_thank_you"], ceiling: 14 },
+];
+
+export type SendTiming = {
+  /** effective lead, in days before the trip starts */
+  before: Record<string, number>;
+  /** effective lead, in days after the trip ends */
+  afterEnd: Record<string, number>;
+  /** derived: the cron may fire while `daysToStart > close` (exclusive) */
+  windowClose: Record<string, number>;
+  /** derived: the cron may fire while `daysSinceEnd <= close` (inclusive) */
+  windowCloseAfterEnd: Record<string, number>;
+  /** which keys are running on an admin-set value rather than the built-in one */
+  overridden: string[];
+};
+
+/**
+ * Turn a set of leads into the windows the cron fires in.
+ *
+ * Pure, and the ONLY place a window boundary is decided. Within a chain the
+ * leads are sorted from earliest to latest; each mail's window closes exactly
+ * where the next mail's opens, so the chain tiles the run-up to the trip with
+ * no gap — whatever leads are set, and even if an edit reorders them.
+ *
+ * The clamp handles the one case sorting can't: two mails on the same day would
+ * leave the first with a window of no days at all, so it keeps its own due day
+ * and the other covers the rest. An overlap sends one mail twice on one day; a
+ * gap sends nothing, ever, and says nothing about it.
+ */
+export function deriveWindows(
+  before: Record<string, number>,
+  afterEnd: Record<string, number>,
+): { windowClose: Record<string, number>; windowCloseAfterEnd: Record<string, number> } {
+  const windowClose: Record<string, number> = {};
+  for (const chain of BEFORE_CHAINS) {
+    const ordered = chain.keys
+      .filter((k) => before[k] != null)
+      .sort((a, b) => before[b] - before[a]); // furthest out first
+    ordered.forEach((key, i) => {
+      const next = ordered[i + 1];
+      const close = next != null ? before[next] : chain.floor;
+      // A boundary at or past this mail's own lead would give it no days to
+      // fire in. Clamp so every mail keeps at least the day it is due.
+      windowClose[key] = Math.min(close, before[key] - 1);
+    });
+  }
+
+  const windowCloseAfterEnd: Record<string, number> = {};
+  for (const chain of AFTER_CHAINS) {
+    const ordered = chain.keys
+      .filter((k) => afterEnd[k] != null)
+      .sort((a, b) => afterEnd[a] - afterEnd[b]); // soonest after the trip first
+    ordered.forEach((key, i) => {
+      const next = ordered[i + 1];
+      const close = next != null ? afterEnd[next] - 1 : chain.ceiling;
+      windowCloseAfterEnd[key] = Math.max(close, afterEnd[key]);
+    });
+  }
+
+  return { windowClose, windowCloseAfterEnd };
+}
+
+/** Shape the admin UI saves and the resolver reads. */
+export type TimingOverrideRow = { template_key: string; days_before: number | null; days_after_end: number | null };
+
+/** The built-in schedule plus any saved overrides, with windows derived from the result. */
+export function applyTimingOverrides(rows: TimingOverrideRow[]): SendTiming {
+  const before: Record<string, number> = { ...SEND_SCHEDULE };
+  const afterEnd: Record<string, number> = { ...SEND_AFTER_END };
+  const overridden: string[] = [];
+  for (const r of rows) {
+    if (!r?.template_key) continue;
+    // An override only counts on the anchor the mail actually uses — a
+    // days_after_end on a pre-trip mail would otherwise invent a second date.
+    if (r.days_before != null && r.template_key in before) {
+      before[r.template_key] = r.days_before;
+      overridden.push(r.template_key);
+    } else if (r.days_after_end != null && r.template_key in afterEnd) {
+      afterEnd[r.template_key] = r.days_after_end;
+      overridden.push(r.template_key);
+    }
+  }
+  return { before, afterEnd, ...deriveWindows(before, afterEnd), overridden };
+}
+
+/**
+ * The effective schedule. One source of truth: the cron, the edition Mailing
+ * tab and the Emails page all call this, so what the admin reads is exactly
+ * what the nightly job will do.
+ */
+export async function getSendTiming(): Promise<SendTiming> {
+  try {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const db = createAdminClient() as any;
+    const { data } = await db.from("email_send_timing").select("template_key, days_before, days_after_end");
+    return applyTimingOverrides((data ?? []) as TimingOverrideRow[]);
+  } catch {
+    // Table not migrated yet — the built-in schedule is a complete answer.
+    return applyTimingOverrides([]);
+  }
+}
+
+/** Which anchor a mail counts from, or null if it has no send date at all. */
+export const timingAnchor = (key: string): "before" | "afterEnd" | null =>
+  key in SEND_SCHEDULE ? "before" : key in SEND_AFTER_END ? "afterEnd" : null;
+
+export type SendTimingRow = {
+  key: string;
+  name: string;
+  trigger: string;
+  anchor: "before" | "afterEnd";
+  days: number;
+  /** what it would be with nothing saved — the way back from a regretted number */
+  defaultDays: number;
+  windowClose: number;
+  overridden: boolean;
+};
+
+/**
+ * Every dated mail with its effective timing, in trip order.
+ *
+ * Both admin surfaces (the Emails page and the edition Mailing tab) render this
+ * exact list, so neither can drift from the other or from the cron.
+ */
+export async function listSendTiming(): Promise<SendTimingRow[]> {
+  const timing = await getSendTiming();
+  const overridden = new Set(timing.overridden);
+  return AUTOMATIONS.filter((a) => timingAnchor(a.key)).map((a) => {
+    const anchor = timingAnchor(a.key)!;
+    return {
+      key: a.key,
+      name: a.name,
+      trigger: a.trigger,
+      anchor,
+      days: anchor === "before" ? timing.before[a.key] : timing.afterEnd[a.key],
+      defaultDays: anchor === "before"
+        ? SEND_SCHEDULE[a.key as keyof typeof SEND_SCHEDULE]
+        : SEND_AFTER_END[a.key as keyof typeof SEND_AFTER_END],
+      windowClose: anchor === "before" ? timing.windowClose[a.key] : timing.windowCloseAfterEnd[a.key],
+      overridden: overridden.has(a.key),
+    };
+  }).sort((x, y) => {
+    // Trip order: furthest out first, post-trip last.
+    const k = (m: SendTimingRow) => (m.anchor === "before" ? m.days : -m.days);
+    return k(y) - k(x);
+  });
+}
 
 export type ContentKey = "packingList" | "preTripNote" | "whatsappLink" | "finalDetailsNote";
 
@@ -183,6 +349,9 @@ const DAY = 86_400_000;
 
 export async function getEditionReadiness(editionId: string, now = new Date()): Promise<EditionReadiness> {
   const { startDate, values, inherited } = await resolveEditionContent(editionId);
+  // The deadline shown to the admin has to be the deadline the cron works to,
+  // so it comes from the effective schedule and not the built-in constant.
+  const timing = await getSendTiming();
   const daysToStart = startDate
     ? Math.ceil((new Date(startDate).getTime() - now.getTime()) / DAY)
     : null;
@@ -193,7 +362,7 @@ export async function getEditionReadiness(editionId: string, now = new Date()): 
     let earliestLead: number | null = null;
 
     for (const [mail, req] of Object.entries(MAIL_REQUIREMENTS)) {
-      const lead = SEND_SCHEDULE[mail as keyof typeof SEND_SCHEDULE];
+      const lead = timing.before[mail];
       if (req.blocking.includes(key)) {
         blocks.push(req.label);
         if (lead != null) earliestLead = earliestLead == null ? lead : Math.max(earliestLead, lead);

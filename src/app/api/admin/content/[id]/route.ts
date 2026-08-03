@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase";
+import { mergeFocus, splitFocus } from "@/lib/placement";
 
 // The [id] segment is the experience_id that this content belongs to.
 
@@ -80,6 +81,9 @@ export async function GET(
     experience_id: id,
     ...EMPTY,
     ...(content ?? {}),
+    // The editor works on ONE focus value; per-shape framing rides in it as JSON
+    // and is split back over the two columns on save.
+    hero_focus: mergeFocus(content?.hero_focus, content?.hero_focus_shapes),
     tile_image: exp?.hero_image ?? "",
     tile_auto: !!exAuto?.tile_auto,
     page_template: exEvent?.page_template ?? "full",
@@ -134,6 +138,10 @@ export async function PUT(
         .filter((r: Review) => r.quote.trim() || r.name.trim())
     : [];
 
+  // hero_focus keeps the desktop string on its own (every legacy reader drops it
+  // straight into CSS); tablet/phone overrides go to the jsonb sibling.
+  const focus = splitFocus(body.hero_focus);
+
   const row = {
     experience_id: id,
     location_about: typeof body.location_about === "string" ? body.location_about : "",
@@ -152,7 +160,8 @@ export async function PUT(
     highlights,
     faq,
     hero_image: typeof body.hero_image === "string" ? body.hero_image : "",
-    hero_focus: typeof body.hero_focus === "string" && body.hero_focus.trim() ? body.hero_focus : null,
+    hero_focus: focus.base,
+    hero_focus_shapes: focus.shapes,
     hero_video_url: typeof body.hero_video_url === "string" ? body.hero_video_url : "",
     hero_video_start: toSeconds(body.hero_video_start),
     hero_video_end: toSeconds(body.hero_video_end),
@@ -181,11 +190,18 @@ export async function PUT(
     ({ data, error } = await db.from("exp_content").upsert(rest, { onConflict: "experience_id" }).select().single());
   }
 
+  // Pre-migration-137 fallback: per-shape framing degrades to the desktop value.
+  if (error && /hero_focus_shapes/.test(error.message || "")) {
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    const { hero_focus_shapes: _hfs, ...rest } = row;
+    ({ data, error } = await db.from("exp_content").upsert(rest, { onConflict: "experience_id" }).select().single());
+  }
+
   // Pre-migration-110 fallback: if the placement columns don't exist yet, retry
   // without them so content still saves.
   if (error && /(card_placement|hero_focus)/.test(error.message || "")) {
     // eslint-disable-next-line @typescript-eslint/no-unused-vars
-    const { card_placement: _cp, hero_focus: _hf, ...rest } = row;
+    const { card_placement: _cp, hero_focus: _hf, hero_focus_shapes: _hfs2, ...rest } = row;
     ({ data, error } = await db.from("exp_content").upsert(rest, { onConflict: "experience_id" }).select().single());
   }
 

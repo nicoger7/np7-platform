@@ -17,6 +17,7 @@ import { Accordion, type AccordionItem } from "@/components/experience/accordion
 import { StickyCta } from "@/components/experience/sticky-cta";
 import { type RealPackage } from "@/components/experience/package-picker";
 import { activeLaunch } from "@/lib/launch-price";
+import { FOCUS_CLASS, FOCUS_CSS, focusVars, parseFocus } from "@/lib/placement";
 import { EditionBooking, type EditionLite } from "@/components/experience/edition-booking";
 import { HeroVideo } from "@/components/experience/hero-video";
 import { paidSpotsByEdition, spotsLeftFrom } from "@/lib/availability";
@@ -179,7 +180,8 @@ type ContentRow = {
   week_title: string | null; week_outcomes: { icon?: string; t?: string; d?: string }[] | null;
   method_intro: string | null; method_steps: { t?: string; d?: string; gameChanger?: boolean }[] | null;
   daily_program: ProgramItem[] | null; highlights: string[] | null; faq: FaqRow[] | null;
-  hero_image: string | null; hero_focus: string | null; hero_video_url: string | null; explainer_video_url: string | null; gallery: string[] | null; reviews: ReviewRow[] | null;
+  hero_image: string | null; hero_focus: string | null; hero_focus_shapes: Record<string, string> | null;
+  hero_video_url: string | null; explainer_video_url: string | null; gallery: string[] | null; reviews: ReviewRow[] | null;
   no_wind_program: string | null; wind_probability: string | null; wind_range: string | null;
 };
 type Detail = {
@@ -238,7 +240,7 @@ export default async function ExperienceDetailPage({ params, searchParams }: Pro
   // break the existing text content if they haven't been applied yet.
   const [{ data: baseRaw }, { data: mediaRaw }] = await Promise.all([
     sb.from("exp_content").select("location_about,week_info,daily_program,highlights,faq,week_title,week_outcomes,method_intro,method_steps").eq("experience_id", experience.id).maybeSingle(),
-    sb.from("exp_content").select("hero_image,hero_focus,hero_video_url,explainer_video_url,gallery,reviews,no_wind_program,wind_probability,wind_range").eq("experience_id", experience.id).maybeSingle(),
+    sb.from("exp_content").select("hero_image,hero_focus,hero_focus_shapes,hero_video_url,explainer_video_url,gallery,reviews,no_wind_program,wind_probability,wind_range").eq("experience_id", experience.id).maybeSingle(),
   ]);
   const content = (baseRaw || mediaRaw ? { ...(baseRaw ?? {}), ...(mediaRaw ?? {}) } : null) as ContentRow | null;
 
@@ -576,7 +578,13 @@ export default async function ExperienceDetailPage({ params, searchParams }: Pro
         {heroVideoUrl ? (
           <HeroVideo url={heroVideoUrl} start={heroVideoStart} end={heroVideoEnd} poster={heroMediaImage} />
         ) : (
-          <div className="absolute inset-0 bg-cover scale-105" style={{ backgroundImage: `url('${heroMediaImage}')`, backgroundPosition: content?.hero_focus || "center" }} />
+          <>
+            {/* framing per screen shape — the media queries pick, so ISR keeps
+                serving one html and nothing re-crops after paint */}
+            <style>{FOCUS_CSS}</style>
+            <div className={`absolute inset-0 bg-cover scale-105 ${FOCUS_CLASS}`}
+              style={{ backgroundImage: `url('${heroMediaImage}')`, ...focusVars(parseFocus(content?.hero_focus, content?.hero_focus_shapes)) }} />
+          </>
         )}
         {/* darken toward the bottom for the title/CTA, fade to clear at the top so the photo reads */}
         <div className="absolute inset-0 bg-gradient-to-t from-[#00374a] via-[#00374a]/55 to-transparent" />

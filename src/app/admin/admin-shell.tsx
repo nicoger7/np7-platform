@@ -105,6 +105,9 @@ const navByEnv: Record<Environment, NavGroup[]> = {
     {
       label: "TEAM",
       items: [
+        // First in the group, and the only entry here everyone can open: the
+        // rest of TEAM is managing people, this is being one.
+        { label: "Academy", href: "/admin/learning", icon: "cap" },
         { label: "Employees", href: "/admin/team", icon: "person" },
         { label: "Roles", href: "/admin/roles", icon: "shield" },
         { label: "Hours Log", href: "/admin/hours-log", icon: "clock" },
@@ -393,6 +396,12 @@ const icons: Record<string, React.ReactNode> = {
     <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
       <path d="M12 20h9" />
       <path d="M16.5 3.5a2.12 2.12 0 013 3L7 19l-4 1 1-4L16.5 3.5z" />
+    </svg>
+  ),
+  cap: (
+    <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M22 9L12 4 2 9l10 5 10-5z" />
+      <path d="M6 11.5V17c0 1.1 2.7 2.5 6 2.5s6-1.4 6-2.5v-5.5" />
     </svg>
   ),
 };

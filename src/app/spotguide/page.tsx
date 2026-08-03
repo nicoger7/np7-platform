@@ -1,9 +1,8 @@
 import type { Metadata } from "next";
-import { cookies } from "next/headers";
 import { getSpotguideDestinations, getAllSpotguidePoints } from "@/lib/spotguide-data";
 import { MagazineTabs } from "@/components/blog/magazine-tabs";
-import { resolveSection, SECTION_CHROME } from "@/lib/blog-section";
 import { SectionHeader } from "@/components/shared/section-header";
+import { SECTION_VARS } from "@/components/shared/section-world";
 import { BlogFooter } from "@/components/blog/blog-footer";
 import { SpotguideBrowser } from "@/components/spotguide/spotguide-browser";
 import { ProposedAreas } from "@/components/spotguide/proposed-areas";
@@ -18,12 +17,11 @@ export const metadata: Metadata = {
 };
 export const revalidate = 3600;
 
-export default async function SpotguideIndex({ searchParams }: { searchParams: Promise<{ from?: string }> }) {
-  // Cookie + ?from only when Hardware is live — either would opt this page out of
-  // ISR, and with one visible world the section is always "experience" anyway.
-  const from = flags.showHardware ? (await searchParams).from : undefined;
-  const section = flags.showHardware ? resolveSection(from ?? (await cookies()).get("np7_section")?.value) : "experience";
-  const chrome = SECTION_CHROME[section];
+export default async function SpotguideIndex() {
+  // Neither `?from=` nor the np7_section cookie is read here — both are request
+  // APIs, and either one costs this page its ISR entry. The world is settled in
+  // the browser instead (section-world.tsx), so the chrome is CSS variables.
+  const chrome = SECTION_VARS;
   const [dests, points] = await Promise.all([getSpotguideDestinations(), getAllSpotguidePoints()]);
   // All real spot points, clustered by the map itself: zoomed out a destination
   // reads as ONE branded bubble (count + name), zooming in splits into spots —
@@ -51,7 +49,7 @@ export default async function SpotguideIndex({ searchParams }: { searchParams: P
 
   return (
     <>
-      <SectionHeader section={section} />
+      <SectionHeader />
       <main className="bg-[#fff7ec] min-h-[100svh]">
         {/* hero — SAME shell as the magazine (bg image, left align, shared tab bar)
             so switching Spotguide ⇄ Gear ⇄ Technique never shifts the pills */}
@@ -92,14 +90,21 @@ export default async function SpotguideIndex({ searchParams }: { searchParams: P
               {points.length > 0 && (
                 <h2 className="text-[13px] font-black uppercase tracking-[0.14em] text-[#9aa6ac] mb-3">Where we ride <span className="text-[#c3b9a6]">({dests.length} destination{dests.length === 1 ? "" : "s"} · {points.filter((p) => p.verification !== "pending").length} spots{points.some((p) => p.verification === "pending") ? ` · ${points.filter((p) => p.verification === "pending").length} to verify` : ""})</span></h2>
               )}
-              <SpotguideBrowser dests={dests} accent={chrome.accent} section={section} mapSpots={mapPoints} />
+              {/* no `section` — it only fed a `?from=` on the outgoing links, and
+                  this page no longer knows the reader's world. The destination
+                  pages fall back to the cookie, which is the same answer. */}
+              <SpotguideBrowser dests={dests} accent={chrome.accent} mapSpots={mapPoints} />
             </>
           )}
           {/* members-only: rider-proposed areas awaiting their 3 confirms */}
-          <ProposedAreas accent={chrome.accent} section={section} />
+          <ProposedAreas accent={chrome.accent} />
         </div>
       </main>
-      <BlogFooter section={section} showExperience={flags.showExperience} showHardware={flags.showHardware} />
+      {/* the footer's own background comes from a server-picked section; the
+          wrapper lets the browser's world win instead (section-world.tsx) */}
+      <div className="np7-section-footer">
+        <BlogFooter showExperience={flags.showExperience} showHardware={flags.showHardware} />
+      </div>
     </>
   );
 }

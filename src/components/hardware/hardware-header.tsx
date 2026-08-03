@@ -26,8 +26,18 @@ const navLink = "text-[12px] font-bold uppercase tracking-[0.12em] text-white/55
  * Main NP7 mark + Experience⇄Hardware switch, the shared member button, and a
  * neon-lime CTA. `variant="docked"` renders it always-solid and in-flow for the
  * member portal (no hero to float over).
+ *
+ * `sectionVariant` marks this header as one of the two the world-spanning pages
+ * ship side by side, so CSS can show the reader's (see section-world.tsx). Set
+ * it nowhere else — it would hide the header from everyone but them.
  */
-export function HardwareHeader({ variant = "overlay" }: { variant?: "overlay" | "docked" }) {
+export function HardwareHeader({
+  variant = "overlay",
+  sectionVariant,
+}: {
+  variant?: "overlay" | "docked";
+  sectionVariant?: "hardware";
+}) {
   const docked = variant === "docked";
   const [scrolled, setScrolled] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
@@ -48,6 +58,7 @@ export function HardwareHeader({ variant = "overlay" }: { variant?: "overlay" | 
 
   return (
     <header
+      data-np7-section={sectionVariant}
       className={docked ? "sticky top-0 z-50 bg-black" : "fixed top-0 inset-x-0 z-50"}
     >
       {/* Frost on a separate opacity-animated layer — toggling backdrop-filter
