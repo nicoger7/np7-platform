@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { PageHelp } from "@/components/admin/page-help";
 import { usePathname, useRouter } from "next/navigation";
 import { useState, useEffect, useRef } from "react";
 import { createClient } from "@/lib/supabase/client";
@@ -857,6 +858,9 @@ export default function AdminShell({
               )}
             </button>
           </div>
+          {/* The Academy lesson for wherever you are — reference material is only
+              read when it is offered at the moment of confusion. */}
+          <PageHelp />
           <button
             onClick={handleLogout}
             className="text-xs transition-colors"
