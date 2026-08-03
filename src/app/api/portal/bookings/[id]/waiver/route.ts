@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase";
 import { getPortalUser } from "@/lib/auth";
 import { WAIVER_VERSION, DEFAULT_WAIVER, renderWaiver, waiverCompanyVars } from "@/lib/waiver";
+import { after } from "next/server";
+import { r2Enabled, uploadToR2 } from "@/lib/r2";
 
 /**
  * POST /api/portal/bookings/[id]/waiver  { name, signature?, agree }
@@ -59,6 +61,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     /* never block a signature over the archive copy — version still identifies it */
   }
 
+  const signedAtIso = new Date().toISOString();
   // NB: experience_id is intentionally omitted — it's derivable from booking_id
   // and isn't present on every applied schema version. booking_id is the key.
   const { error } = await db.from("exp_waiver_signatures").upsert({
@@ -68,11 +71,44 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     signed_name: name,
     signature_image: typeof body.signature === "string" ? body.signature : null,
     waiver_text: waiverText,
-    signed_at: new Date().toISOString(),
+    signed_at: signedAtIso,
     ip,
     user_agent: ua,
   }, { onConflict: "booking_id" });
   if (error) return NextResponse.json({ error: error.message }, { status: 400 });
+
+  // Render the PDF AFTER responding — a signature must never fail because a
+  // document generator did. The row is already the legal record; the file is
+  // the readable, attachable form of it.
+  const signedAt = signedAtIso;
+  after(async () => {
+    if (!waiverText) return; // nothing archived = nothing honest to render
+    try {
+      const { renderWaiverPdf } = await import("@/lib/waiver-pdf");
+      const ed = booking.exp_editions;
+      const fmt = (d?: string | null) => (d ? new Date(d).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" }) : "");
+      const { data: cs } = await db.from("company_settings").select("legal_name, company_name").eq("division", "experience").maybeSingle();
+      const { pdf, hash } = await renderWaiverPdf({
+        waiverText,
+        signedName: name,
+        signatureImage: typeof body.signature === "string" ? body.signature : null,
+        signedAt,
+        ip, userAgent: ua,
+        version: WAIVER_VERSION,
+        experienceTitle: booking.exp_experiences?.title ?? "NP7 trip",
+        dates: ed ? [fmt(ed.date_start), fmt(ed.date_end)].filter(Boolean).join(" – ") : "",
+        bookingRef: id,
+        companyName: cs?.legal_name || cs?.company_name || "NP7",
+      });
+      const patch: Record<string, unknown> = { document_sha256: hash };
+      if (r2Enabled()) {
+        patch.document_url = await uploadToR2(pdf, `waivers/${id}.pdf`, "application/pdf");
+      }
+      await db.from("exp_waiver_signatures").update(patch).eq("booking_id", id);
+    } catch (e) {
+      console.error("waiver pdf failed (signature is still recorded)", e instanceof Error ? e.message : e);
+    }
+  });
 
   return NextResponse.json({ ok: true });
 }

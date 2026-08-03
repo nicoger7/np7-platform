@@ -80,14 +80,16 @@ export async function GET(
    * It lives in `exp_waiver_signatures`, not `documents`, so it never appeared
    * on this tab — a guest could sign a liability waiver and then have no way to
    * read back what they agreed to. It has no PDF and no file in storage (the
-   * signature is a data URL on the row), so it is surfaced as a virtual entry
-   * pointing at the waiver page rather than a signed storage URL.
+   * There IS a real PDF now (migration 136) — the archived text, the drawn
+   * signature and the evidence block. Link the file when it exists; the
+   * read-back page stays as the fallback for signatures taken before it, and
+   * while the render is still catching up.
    */
   let waiverRow: Record<string, unknown> | null = null;
   try {
     const { data: sig } = await dbAny
       .from("exp_waiver_signatures")
-      .select("id, signed_at, signed_name, version")
+      .select("id, signed_at, signed_name, version, document_url")
       .eq("booking_id", id)
       .maybeSingle();
     if (sig) {
@@ -100,8 +102,8 @@ export async function GET(
         currency: null,
         issued_at: sig.signed_at,
         status: "signed",
-        signedUrl: `/account/bookings/${id}/waiver`,
-        downloadUrl: null,
+        signedUrl: (sig.document_url as string | null) || `/account/bookings/${id}/waiver`,
+        downloadUrl: (sig.document_url as string | null) || null,
         meta: { signedName: sig.signed_name, version: sig.version },
       };
     }
