@@ -49,7 +49,7 @@ const OUTCOMES = [
   { icon: "gauge", t: "Control & speed", d: "Effortless, controlled, faster riding — from straight-line speed to clean transitions." },
   { icon: "rotate", t: "Better jibes", d: "The move everyone wants, broken into steps that finally click." },
   { icon: "idea", t: "A year's worth of knowledge", d: "Maneuver know-how, equipment insights, and your personal roadmap for what to work on next." },
-  { icon: "globe", t: "Friends from all over the world", d: "A small, hand-picked group of people who love this as much as you do." },
+  { icon: "globe", t: "Friends from all over the world", d: "A hand-picked crew of people who love this as much as you do." },
   { icon: "camera", t: "Your week on photo & video", d: "We shoot the whole week — you take the proof home." },
 ];
 

@@ -18,7 +18,7 @@ export const DEFAULT_WEEK_TITLE = "The best week of your windsurf year";
 /** The paragraph under the "Your week" intro. Every NP7 week works this way,
  *  so it reads as the standard promise until a trip has something truer. */
 export const DEFAULT_WEEK_INFO =
-  "Every day is built around the wind. We watch the forecast together, pick the best window, and spend it on the water with a coach beside you — video, feedback and a plan for tomorrow. When the wind takes a break, so do we: the island, the food, the people.";
+  "Every day is built around the wind. We watch the forecast together, pick the best window, and spend it on the water with a coach beside you — video, feedback and a plan for tomorrow. When the wind takes a break, so do we: the place, the food, the people.";
 
 export const DEFAULT_METHOD_INTRO =
   "Nico's proven coaching approach, developed teaching hundreds of thousands of windsurfers through YouTube and camps worldwide. Complex movements, broken into clear, actionable steps — tailored to you.";
@@ -33,7 +33,7 @@ export const DEFAULT_OUTCOMES: OutcomeItem[] = [
   { icon: "gauge", t: "Control & speed", d: "Effortless, controlled, faster riding — from straight-line speed to clean transitions." },
   { icon: "rotate", t: "Better jibes", d: "The move everyone wants, broken into steps that finally click." },
   { icon: "idea", t: "A year's worth of knowledge", d: "Maneuver know-how, equipment insights, and your personal roadmap for what to work on next." },
-  { icon: "globe", t: "Friends from all over the world", d: "A small, hand-picked group of people who love this as much as you do." },
+  { icon: "globe", t: "Friends from all over the world", d: "A hand-picked crew of people who love this as much as you do." },
   { icon: "camera", t: "Your week on photo & video", d: "We shoot the whole week — you take the proof home." },
 ];
 

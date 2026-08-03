@@ -94,11 +94,27 @@ async function enrichBrandedTiles(db: any, bookings: MemberBooking[]): Promise<v
   } catch { /* tolerant — no tile data → plain hero fallback */ }
 }
 
+/**
+ * A cancelled booking is not the member's trip.
+ *
+ * The portal had no status filter at all, so a guest whose place was released
+ * still saw a live trip: "Pay now", the prep checklist, "Sign your waiver",
+ * even a Cancel button for a booking already cancelled. Two of these sit on the
+ * week starting 17 Aug with real email addresses on them — one is the booking
+ * Nico asked about when he noticed Uwe still listed in the crew.
+ *
+ * They are hidden rather than shown-as-cancelled: every affordance on the trip
+ * page assumes an active booking, and a page full of disabled buttons is a
+ * worse answer than the trip simply not being there. Admin keeps the record.
+ */
+const isCancelled = (status: string | null | undefined) =>
+  isLostStatus(status) || String(status ?? "").toLowerCase() === "cancelled";
+
 export async function getMemberBookings(contactId: string): Promise<MemberBooking[]> {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const db = createAdminClient() as any;
   const { data } = await db.from("exp_bookings").select(SELECT).eq("contact_id", contactId).order("created_at", { ascending: false });
-  const bookings = (data ?? []).map(shape);
+  const bookings = (data ?? []).filter((b: { status?: string | null }) => !isCancelled(b.status)).map(shape);
   await enrichBrandedTiles(db, bookings);
   return bookings;
 }
@@ -107,7 +123,10 @@ export async function getMemberBooking(contactId: string, bookingId: string): Pr
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const db = createAdminClient() as any;
   const { data } = await db.from("exp_bookings").select(SELECT).eq("contact_id", contactId).eq("id", bookingId).maybeSingle();
-  return data ? shape(data) : null;
+  // Same rule on the direct link — a bookmarked URL must not reopen a
+  // cancelled trip with all its actions live.
+  if (!data || isCancelled(data.status)) return null;
+  return shape(data);
 }
 
 /** Images for the member-home banner slideshow: the member's own trip photos

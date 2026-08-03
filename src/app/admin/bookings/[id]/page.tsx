@@ -445,7 +445,15 @@ export function BookingDetailPane({ bookingId, onBack }: { bookingId: string; on
   }
 
   async function acceptShort() {
-    const note = window.prompt("Accept what's been paid as the full price?\n\nThe agreed price drops to the amount received and the booking reads as settled. Add a short note for the record:");
+    // Name the number. The prompt described the mechanism but never said what
+    // the price would BECOME — so the one irreversible detail was the one you
+    // couldn't see before agreeing to it.
+    const received = Number(recon?.paidTotal ?? 0);
+    const becomes = `€${received.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+    const note = window.prompt(
+      `Accept what's been paid as the full price?\n\n`
+      + `The trip price becomes ${becomes} (minus any confirmed add-ons) and the booking reads as settled.\n\n`
+      + `Add a short note for the record:`);
     if (note === null) return;
     const res = await fetch(`/api/admin/bookings/${id}/settle`, {
       method: "POST", headers: { "Content-Type": "application/json" },

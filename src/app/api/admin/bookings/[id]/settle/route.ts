@@ -32,6 +32,17 @@ export async function POST(request: NextRequest, { params }: RouteContext) {
   if (body.action === "accept_short") {
     // The trip price becomes what was actually paid → booking is settled.
     // total = agreed + add-ons, so agreed = paid − add-ons (never below 0).
+    //
+    // Refuse when NOTHING was paid. "Accept as settled" means "they paid a bit
+    // less, call it even"; on a booking with no payment it silently rewrites
+    // the trip to €0 and calls that settled — which reads in every report as a
+    // free trip rather than a no-show. If someone genuinely is comped, that is
+    // a price change made deliberately, not a settlement.
+    if (paid <= 0) {
+      return NextResponse.json({
+        error: "Nothing has been paid on this booking, so there's nothing to settle — accepting would set the trip price to €0. Mark it lost, or change the price deliberately if it really is a free spot.",
+      }, { status: 400 });
+    }
     const newAgreed = round2(Math.max(0, paid - addons));
     const updates: Record<string, unknown> = {
       agreed_price: newAgreed,
