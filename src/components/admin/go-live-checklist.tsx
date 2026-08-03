@@ -160,8 +160,8 @@ function weekDates(start: string | null, end: string | null): string {
   if (!e) return D(s, { day: "numeric", month: "short", year: "numeric" });
   const sameMonth = s.getUTCMonth() === e.getUTCMonth() && s.getUTCFullYear() === e.getUTCFullYear();
   return sameMonth
-    ? `${s.getDate()}\u2013${D(e, { day: "numeric", month: "short", year: "numeric" })}`
-    : `${D(s, { day: "numeric", month: "short" })} \u2013 ${D(e, { day: "numeric", month: "short", year: "numeric" })}`;
+    ? `${s.getDate()}–${D(e, { day: "numeric", month: "short", year: "numeric" })}`
+    : `${D(s, { day: "numeric", month: "short" })} – ${D(e, { day: "numeric", month: "short", year: "numeric" })}`;
 }
 
 /** How far through a group you are — the whole point of a checklist. */
@@ -226,7 +226,7 @@ export function ExperienceChecks({
     <div className="space-y-2.5 pt-3">
       <Group
         title="The whole trip"
-        meta={<span className="text-[11px] admin-faint">page, photos, terms \u2014 shared by every week</span>}
+        meta={<span className="text-[11px] admin-faint">page, photos, terms — shared by every week</span>}
         tone="experience"
         checks={report.checks} showDone={showDone} onFix={onFix}
       />
@@ -269,8 +269,18 @@ function DoneToggle({ value, onChange }: { value: boolean; onChange: (v: boolean
 }
 
 /** The whole list, one collapsible card per experience. */
-export function GoLiveList({ reports, onRefresh }: { reports: ExperienceReport[]; onRefresh: () => void }) {
+export function GoLiveList({ reports, onRefresh, openId }: { reports: ExperienceReport[]; onRefresh: () => void; openId?: string | null }) {
   const [open, setOpen] = useState<Set<string>>(new Set());
+  // Arriving from the dashboard: expand the trip that was clicked and bring it
+  // into view — a deep link that lands you at the top of a 13-card list has
+  // not really taken you anywhere.
+  useEffect(() => {
+    if (!openId) return;
+    setOpen((p) => new Set(p).add(openId));
+    requestAnimationFrame(() => {
+      document.getElementById(`trip-${openId}`)?.scrollIntoView({ block: "start", behavior: "smooth" });
+    });
+  }, [openId]);
   const [showDone, setShowDone] = useState(true);
   const [fix, setFix] = useState<CheckFix | null>(null);
 
@@ -308,7 +318,7 @@ export function GoLiveList({ reports, onRefresh }: { reports: ExperienceReport[]
           const total = e.checks.length + e.editions.reduce((s, x) => s + x.checks.length, 0);
           const done = total - e.blockers - e.warnings;
           return (
-            <div key={e.id}>
+            <div key={e.id} id={`trip-${e.id}`} className="scroll-mt-6">
               {groupLabel && (
                 <p className="text-[10px] font-bold tracking-[0.14em] uppercase admin-faint mt-5 mb-1.5 first:mt-0">{groupLabel}</p>
               )}

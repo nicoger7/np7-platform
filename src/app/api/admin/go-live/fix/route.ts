@@ -23,6 +23,7 @@ const ALLOWED: Record<string, "text" | "number"> = {
   "exp_editions.deposit": "number",
   "exp_editions.whatsapp_group_link": "text",
   "exp_content.packing_list": "text",
+  "exp_content.week_info": "text",
 };
 
 export async function PATCH(request: NextRequest) {

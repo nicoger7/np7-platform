@@ -212,7 +212,7 @@ function MailRow({
           </span>
           <span className="block text-[11.5px] admin-faint">{m.trigger}</span>
           {blocked && !gone && (
-            <span className="block text-[11.5px] text-amber-500 mt-0.5">Held \u2014 needs {m.missing.join(", ")}</span>
+            <span className="block text-[11.5px] text-amber-500 mt-0.5">Held — needs {m.missing.join(", ")}</span>
           )}
         </button>
         <span className="shrink-0 text-right">
@@ -221,7 +221,7 @@ function MailRow({
           {!gone && past && !blocked && m.whenKind === "date" && (
             <button onClick={() => onSendNow(m.key, m.name, securedGuests)} disabled={sending === m.key}
               className="block ml-auto mb-0.5 text-[12px] font-bold text-[#0aa3c7] hover:underline disabled:opacity-50">
-              {sending === m.key ? "Sending\u2026" : "Send now \u2192"}
+              {sending === m.key ? "Sending…" : "Send now →"}
             </button>
           )}
           {gone ? (
@@ -244,22 +244,22 @@ function MailRow({
         <div className="px-4 pb-4 pl-[76px]" style={{ borderTop: "1px solid var(--admin-border)" }}>
           <p className="text-[12px] admin-muted pt-3 mb-3 max-w-[60ch]">
             {m.daysBefore != null
-              ? <>The nightly job works this out from the trip start date \u2014 {m.daysBefore} days before, which is {fmt(m.dueAt)}. Nobody presses anything.</>
+              ? <>The nightly job works this out from the trip start date — {m.daysBefore} days before, which is {fmt(m.dueAt)}. Nobody presses anything.</>
               : m.daysAfterEnd != null
                 ? <>The nightly job counts {m.daysAfterEnd} days from the day the trip ends, which is {fmt(m.dueAt)}. Nobody presses anything.</>
                 : <>No date: the nightly job checks every night and sends it the first night the condition is true. That&apos;s why there&apos;s nothing to count down to.</>}
             {" "}
             {!m.enabled
-              ? <>It is <strong>switched off</strong> \u2014 nothing goes out until you turn it back on.</>
+              ? <>It is <strong>switched off</strong> — nothing goes out until you turn it back on.</>
               : m.kind === "lifecycle" && !lifecycleLive
                 ? <>The switch is on, but the whole lifecycle pipeline is <strong>paused</strong>, so it is worked out and held.</>
                 : <>It is <strong>live</strong>.</>}
             {" "}
-            <Link href={`/admin/emails/${m.key}`} className="text-[#0aa3c7] hover:underline">Wording &amp; switch \u2192</Link>
+            <Link href={`/admin/emails/${m.key}`} className="text-[#0aa3c7] hover:underline">Wording &amp; switch →</Link>
           </p>
 
           {m.uses.length === 0
-            ? <p className="text-[12px] admin-faint">This one writes itself \u2014 no content from you.</p>
+            ? <p className="text-[12px] admin-faint">This one writes itself — no content from you.</p>
             : m.uses.map((u) => <ContentField key={u.key} editionId={editionId} use={u} onSaved={onSaved} />)}
         </div>
       )}

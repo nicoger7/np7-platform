@@ -117,12 +117,12 @@ export const SECTIONS: Section[] = [
   // Experience · Finance
   { key: "payments", label: "Payments", world: "experience", group: "Finance", paths: ["/admin/payments", "/api/admin/payments"] },
   { key: "vouchers", label: "Gift vouchers", world: "experience", group: "Finance", paths: ["/admin/vouchers", "/api/admin/vouchers"] },
-  { key: "exp_costs", label: "Experience costs", world: "experience", group: "Finance", paths: ["/admin/exp-costs", "/api/admin/exp-costs"] },
+  { key: "exp_costs", label: "Experience costs", world: "experience", group: "Finance", paths: ["/admin/exp-costs", "/api/admin/exp-costs", "/api/admin/hours-cost"] },
   { key: "vendors", label: "Vendors", world: "experience", group: "Finance", paths: ["/admin/vendors", "/api/admin/vendors"] },
   { key: "documents", label: "Documents", world: "experience", group: "Finance", paths: ["/admin/documents", "/api/admin/documents"] },
   { key: "settings", label: "Company settings", world: "experience", group: "Finance", paths: ["/admin/settings", "/api/admin/company-settings"] },
   // Experience · Automation
-  { key: "emails", label: "Emails & templates", world: "experience", group: "Automation", paths: ["/admin/emails", "/admin/email-templates", "/admin/email-log", "/admin/campaigns", "/api/admin/emails", "/api/admin/email-templates", "/api/admin/email-log", "/api/admin/campaigns"] },
+  { key: "emails", label: "Emails & templates", world: "experience", group: "Automation", paths: ["/admin/emails", "/admin/email-templates", "/admin/email-log", "/admin/campaigns", "/api/admin/emails", "/api/admin/email-templates", "/api/admin/email-log", "/api/admin/campaigns", "/api/admin/audience"] },
   // Hardware
   { key: "products", label: "Products", world: "hardware", group: "Hardware", paths: ["/admin/products", "/api/admin/products", "/api/admin/variants"] },
   { key: "product_pages", label: "Product pages (website)", world: "hardware", group: "Hardware", paths: ["/admin/product-pages", "/api/admin/products"] },
@@ -358,6 +358,27 @@ export function effectiveCanAccess(eff: EffectiveAccess, path: string): boolean 
   if (!sec) return true;
   if (!eff.access.worlds.includes(sec.world)) return false;
   return roleSectionLevel(eff.access, sec.key) !== "none";
+}
+
+/**
+ * Can this member WRITE at `path`?
+ *
+ * Reach and write were the same question until now: the middleware ran
+ * effectiveCanAccess on every method, so anyone holding "view" on a section
+ * performed that section's writes. Only two routes checked the edit level for
+ * themselves — which meant a media role with emails=view could switch
+ * automations off and fire lifecycle mail at every secured guest.
+ *
+ * Fails CLOSED on an unclaimed admin path, unlike reach: a route nobody has
+ * classified is a route nobody has decided is safe to write.
+ */
+export function effectiveCanWrite(eff: EffectiveAccess, path: string): boolean {
+  if (isPersonalPath(path)) return true;
+  if (eff.kind === "tier") return canAccess(eff.level, path);
+  const sec = sectionForPath(path);
+  if (!sec) return false;
+  if (!eff.access.worlds.includes(sec.world)) return false;
+  return roleSectionLevel(eff.access, sec.key) === "edit";
 }
 
 /**

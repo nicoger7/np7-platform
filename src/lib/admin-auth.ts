@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase";
 import { createClient } from "@/lib/supabase/server";
-import { normalizeLevel, normalizeAccess, mergeAccess, builtinAccess, type AccessLevel, type EffectiveAccess } from "@/lib/access";
+import { normalizeLevel, normalizeAccess, mergeAccess, builtinAccess, roleSectionLevel, SECTIONS, type AccessLevel, type EffectiveAccess } from "@/lib/access";
 
 /**
  * Resolve the active team member behind an auth user and their access level.
@@ -107,6 +107,29 @@ export async function isActiveTeamMember(userId: string): Promise<boolean> {
  * Returns a 401/403 NextResponse to return early, or null when the caller is
  * an active team member.
  */
+/**
+ * Require EDIT on a named section, whatever the URL says.
+ *
+ * The middleware maps a path to a section, but some routes act on a section
+ * they don't live under: the edition Mailing tab sits at /api/admin/editions/…
+ * (section "experiences") while its POST sends real mail to every secured
+ * guest — an "emails" action wearing an experiences URL. Anyone with edit on
+ * the trip could fire it. Those routes ask here instead.
+ */
+export async function requireSectionEdit(sectionKey: string): Promise<NextResponse | null> {
+  const denied = await requireTeamMember();
+  if (denied) return denied;
+  const eff = await getRequestAccess();
+  if (!eff) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  if (eff.kind === "tier") return null; // legacy tiers keep their existing reach
+  const sec = SECTIONS.find((x) => x.key === sectionKey);
+  if (!sec) return null;
+  if (!eff.access.worlds.includes(sec.world) || roleSectionLevel(eff.access, sec.key) !== "edit") {
+    return NextResponse.json({ error: `You need edit access to ${sec.label}.` }, { status: 403 });
+  }
+  return null;
+}
+
 export async function requireTeamMember(): Promise<NextResponse | null> {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();

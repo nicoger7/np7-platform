@@ -573,7 +573,7 @@ function ExperienceDashboard() {
                 <div className="space-y-2.5">
                   {todo.slice(0, 5).map((r) => (
                     <div key={r.id}>
-                      <Link href={`/admin/experiences/${r.id}?tab=ready`}
+                      <Link href={`/admin/go-live?open=${r.id}`}
                         className="flex items-center gap-2 text-xs py-1 px-2 -mx-2 rounded-lg hover:bg-[var(--admin-surface-hover)]">
                         <span className="flex-1 admin-heading truncate font-semibold">{r.title}</span>
                         {r.blockers > 0 && <span className="shrink-0 text-[10px] font-bold px-1.5 py-0.5 rounded bg-red-500/15 text-red-400">{r.blockers}</span>}
@@ -587,7 +587,7 @@ function ExperienceDashboard() {
                           </Link>
                         ))}
                         {r.outstanding.length > 4 && (
-                          <Link href={`/admin/experiences/${r.id}?tab=ready`} className="text-[11px] admin-faint hover:underline">
+                          <Link href={`/admin/go-live?open=${r.id}`} className="text-[11px] admin-faint hover:underline">
                             +{r.outstanding.length - 4} more
                           </Link>
                         )}

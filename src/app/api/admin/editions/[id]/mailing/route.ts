@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { sendEmail } from "@/lib/email/send";
-import { requireTeamMember } from "@/lib/admin-auth";
+import { requireTeamMember, requireSectionEdit } from "@/lib/admin-auth";
 import { createAdminClient } from "@/lib/supabase";
 import { AUTOMATIONS, CANNOT_DISABLE, lifecycleLive } from "@/lib/email/automations";
 import { SEND_SCHEDULE, SEND_AFTER_END, WINDOW_CLOSE, WINDOW_CLOSE_AFTER_END, resolveEditionContent, MAIL_REQUIREMENTS, CONTENT_LABELS, type ContentKey } from "@/lib/email/readiness";
@@ -164,7 +164,9 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
  * nobody gets it twice.
  */
 export async function POST(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
-  const denied = await requireTeamMember();
+  // This URL lives under "experiences", but pressing it mails every secured
+  // guest — so it asks for edit on EMAILS, not on the trip.
+  const denied = await requireSectionEdit("emails");
   if (denied) return denied;
   const { id } = await params;
   const body = await request.json().catch(() => ({} as Record<string, unknown>));

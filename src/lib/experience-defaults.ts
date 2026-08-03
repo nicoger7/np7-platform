@@ -15,6 +15,11 @@
 
 export const DEFAULT_WEEK_TITLE = "The best week of your windsurf year";
 
+/** The paragraph under the "Your week" intro. Every NP7 week works this way,
+ *  so it reads as the standard promise until a trip has something truer. */
+export const DEFAULT_WEEK_INFO =
+  "Every day is built around the wind. We watch the forecast together, pick the best window, and spend it on the water with a coach beside you — video, feedback and a plan for tomorrow. When the wind takes a break, so do we: the island, the food, the people.";
+
 export const DEFAULT_METHOD_INTRO =
   "Nico's proven coaching approach, developed teaching hundreds of thousands of windsurfers through YouTube and camps worldwide. Complex movements, broken into clear, actionable steps — tailored to you.";
 

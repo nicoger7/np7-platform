@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { WindMiniChart } from "@/components/experience/wind-mini-chart";
+import { DEFAULT_WEEK_INFO } from "@/lib/experience-defaults";
 import { notFound } from "next/navigation";
 import type { Metadata } from "next";
 import { supabase } from "@/lib/supabase";
@@ -435,7 +436,8 @@ export default async function ExperienceDetailPage({ params, searchParams }: Pro
 
   // editable website content (falls back to evergreen when empty)
   const locationAbout = content?.location_about?.trim() ?? "";
-  const weekInfo = content?.week_info?.trim() ?? "";
+  // Falls back to the standard promise — the section used to vanish silently.
+  const weekInfo = content?.week_info?.trim() || DEFAULT_WEEK_INFO;
   // editable week cards + coaching method — DB wins, built-ins are the fallback
   const weekTitle = content?.week_title?.trim() || "The best week of your windsurf year";
   const customOutcomes = (Array.isArray(content?.week_outcomes) ? content!.week_outcomes! : [])

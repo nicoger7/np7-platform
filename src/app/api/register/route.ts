@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { activeLaunch, launchPrice } from "@/lib/launch-price";
 import { after } from "next/server";
 import { checkBotId } from "botid/server";
 import { createAdminClient } from "@/lib/supabase";
@@ -86,7 +87,7 @@ export async function POST(request: NextRequest) {
     db.from("exp_experiences").select("id,title,slug").eq("id", experienceId).maybeSingle(),
     db.from("exp_packages").select("id,name,price,experience_id,status").eq("id", packageId).maybeSingle(),
     editionId
-      ? db.from("exp_editions").select("id,label,experience_id,date_start").eq("id", editionId).maybeSingle()
+      ? db.from("exp_editions").select("id,label,experience_id,date_start,launch_discount_pct,launch_price_until").eq("id", editionId).maybeSingle()
       : Promise.resolve({ data: null }),
   ]);
   if (!exp || !pkg || pkg.experience_id !== exp.id || pkg.status !== "active") return bad("This package is no longer available.", 409);
@@ -119,7 +120,10 @@ export async function POST(request: NextRequest) {
     experience_id: exp.id,
     edition_id: editionId ?? null,
     package_id: pkg.id,
-    agreed_price: pkg.price,
+    // Recomputed from the server's clock, exactly as /api/reserve does — the
+    // picker advertises the launch price, and a signup that recorded full
+    // price would invoice the guest more than the page promised.
+    agreed_price: launchPrice(pkg.price, activeLaunch(edition)),
     notes: `Website registration · package: ${pkg.name}${body.inviteToken ? (body.intent === "info" ? " · friend invite (info request)" : " · friend invite") : ""}`,
   };
   const { data: booking, error: bErr } = await db

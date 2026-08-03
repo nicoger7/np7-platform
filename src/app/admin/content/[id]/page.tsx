@@ -2,7 +2,7 @@
 
 import { useEffect, useState, use } from "react";
 import Link from "next/link";
-import { DEFAULT_DAILY_PROGRAM, DEFAULT_FAQ, DEFAULT_METHOD_INTRO, DEFAULT_METHOD_STEPS, DEFAULT_OUTCOMES } from "@/lib/experience-defaults";
+import { DEFAULT_DAILY_PROGRAM, DEFAULT_FAQ, DEFAULT_METHOD_INTRO, DEFAULT_METHOD_STEPS, DEFAULT_OUTCOMES, DEFAULT_WEEK_INFO } from "@/lib/experience-defaults";
 import ImagePickerModal from "@/components/image-picker-modal";
 import { EditionGuidesEditor } from "@/components/edition-guides-editor";
 import { ReviewPlacementsEditor } from "@/components/edition-reviews-editor";
@@ -406,9 +406,12 @@ export default function ContentEditorPage({ params }: { params: Promise<{ id: st
           ))}
         </Section>
 
-        <Section show={tab === "story"} title="About the week" hint="Shows as the small paragraph under the intro of the ‘Your week’ scroll section — only when filled.">
+        <Section show={tab === "story"} title="About the week" hint="The small paragraph under the intro of the ‘Your week’ scroll section.">
           <textarea value={weekInfo} onChange={(e) => setWeekInfo(e.target.value)} rows={4}
             placeholder="A relaxed week built around the best wind windows…" className="admin-input w-full px-4 py-3 rounded-lg border text-sm outline-none resize-y" />
+          {!weekInfo.trim() && (
+            <DefaultBox><p>{DEFAULT_WEEK_INFO}</p></DefaultBox>
+          )}
         </Section>
 
         <Section show={tab === "story"} title="Wind certainty & no-wind program" hint="Wind range + probability show in three places: the quick-facts bar, the ‘You can count on it’ band and the wind chip next to the spot section. The no-wind program gets its own card further down. NO DEFAULT here: left empty, these simply don’t appear on the page.">

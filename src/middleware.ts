@@ -1,7 +1,7 @@
 import { createServerClient } from "@supabase/ssr";
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import { NextResponse, type NextRequest } from "next/server";
-import { normalizeLevel, normalizeAccess, mergeAccess, builtinAccess, effectiveCanAccess, type EffectiveAccess } from "@/lib/access";
+import { normalizeLevel, normalizeAccess, mergeAccess, builtinAccess, effectiveCanAccess, effectiveCanWrite, type EffectiveAccess } from "@/lib/access";
 
 function svc(): SupabaseClient {
   return createClient(
@@ -123,6 +123,12 @@ export async function middleware(request: NextRequest) {
       return isAdminApi
         ? NextResponse.json({ error: "Forbidden" }, { status: 403 })
         : redirect("/admin");
+    }
+    // Writes need the edit level, not just reach. This check was method-blind,
+    // so "view" on a section granted that section's writes everywhere — one
+    // media role could switch automations off and mass-mail secured guests.
+    if (!["GET", "HEAD", "OPTIONS"].includes(request.method) && !effectiveCanWrite(eff, path)) {
+      return NextResponse.json({ error: "You have view access here, not edit." }, { status: 403 });
     }
   }
 

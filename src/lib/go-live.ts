@@ -3,7 +3,7 @@ import { createAdminClient } from "@/lib/supabase";
 import { isLostStatus } from "@/lib/types";
 import { defaultCancellationPolicy } from "@/lib/cancellation-policy";
 import {
-  DEFAULT_DAILY_PROGRAM, DEFAULT_FAQ, DEFAULT_OUTCOMES, DEFAULT_WEEK_TITLE, sameAsDefault,
+  DEFAULT_DAILY_PROGRAM, DEFAULT_FAQ, DEFAULT_OUTCOMES, DEFAULT_WEEK_INFO, DEFAULT_WEEK_TITLE, sameAsDefault,
 } from "@/lib/experience-defaults";
 
 /**
@@ -230,8 +230,12 @@ export async function runGoLiveChecks(): Promise<ExperienceReport[]> {
       ok("locationAbout", "About the spot", "blocker",
         has(c.location_about) || (!!e.destination_id && destHasText.has(String(e.destination_id))),
         `${content_}?tab=story`, "The spot section is empty and there's no destination text behind it"),
-      ok("weekInfo", "Your week", "warning", has(c.week_info), `${content_}?tab=story`,
-        "The paragraph under the ‘Your week’ intro is blank"),
+      ok("weekInfo", "Your week", "warning", true, `${content_}?tab=story`, undefined, {
+        okDetail: has(c.week_info) ? "Own text" : "Standard NP7 paragraph — write your own to replace it",
+        fix: { table: "exp_content", id, column: "week_info", kind: "textarea", title: "About the week",
+          help: "The paragraph under the ‘Your week’ intro. Leave empty and every trip shows the standard promise below.",
+          value: (c.week_info as string) ?? null, fallback: DEFAULT_WEEK_INFO },
+      }),
       ok("windFacts", "Wind facts", "warning", has(c.wind_range) || has(c.wind_probability), `${content_}?tab=story`,
         "No wind range or probability — the quick-facts bar and the ‘You can count on it’ band have nothing"),
       ok("review", "A guest review", "warning", (reviewCount.get(id) ?? 0) > 0, "/admin/guest-reviews",
