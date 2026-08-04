@@ -115,19 +115,22 @@ export async function runGoLiveChecks(): Promise<ExperienceReport[]> {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const db = createAdminClient() as any;
 
-  // One pass, ten queries — not one query per check per experience.
-  const [{ data: exps }, { data: content }, { data: editions }, { data: packages }, { data: bookings }, { data: hotels }, { data: destinations }, { data: placements }, { data: pkgComponents }, { data: rooms }] =
+  // One pass, eleven queries — not one query per check per experience.
+  const [{ data: exps }, { data: content }, { data: editions }, { data: packages }, { data: bookings }, { data: hotels }, { data: destinations }, { data: placements }, { data: pkgComponents }, { data: physRooms }, { data: rooms }] =
     await Promise.all([
       db.from("exp_experiences").select("id,title,location,description,hero_image,gallery,price,website_visible,cancellation_policy,status,destination_id").is("archived_at", null),
       db.from("exp_content").select("*"),
       db.from("exp_editions").select("id,experience_id,label,date_start,date_end,max_spots,status,deposit,whatsapp_group_link,packing_list").is("archived_at", null),
-      db.from("exp_packages").select("id,experience_id,edition_id,name,price,status,website_visible,hotel_id").is("archived_at", null),
+      db.from("exp_packages").select("id,experience_id,edition_id,name,price,status,website_visible,hotel_id,room_type").is("archived_at", null),
       db.from("exp_bookings").select("id,edition_id,status,downpayment_received,final_payment_received"),
       db.from("hotels").select("id,name,image_url,description").is("archived_at", null),
       db.from("destinations").select("id,intro,tagline"),
       db.from("exp_review_placements").select("experience_id"),
       db.from("exp_package_components").select("package_id"),
-      db.from("exp_hotel_rooms").select("edition_id,booking_id,extra_booking_ids").is("archived_at", null),
+      db.from("exp_rooms").select("id,sleeps").is("archived_at", null),
+      // released_at filtered out: a room the hotel took back is not ours, and
+      // leaving it in would have it still vouching for the guests it once held.
+      db.from("exp_hotel_rooms").select("edition_id,booking_id,extra_booking_ids,room_id,hotel_id,room_type,name,released_at").is("archived_at", null).is("released_at", null),
     ]);
 
   type Row = Record<string, unknown>;
@@ -164,6 +167,26 @@ export async function runGoLiveChecks(): Promise<ExperienceReport[]> {
   const componentLinks = new Map<string, number>();
   for (const pc of (pkgComponents ?? []) as Row[]) {
     componentLinks.set(String(pc.package_id), (componentLinks.get(String(pc.package_id)) ?? 0) + 1);
+  }
+
+  // Beds live on the physical room. A room nobody has sized limits nothing, so
+  // its whole pool is untrustworthy — that is a gap to chase, not a number.
+  const sleepsByRoom = new Map<string, number | null>();
+  for (const r of (physRooms ?? []) as Row[]) sleepsByRoom.set(String(r.id), (r.sleeps as number | null) ?? null);
+  const bedGapByEdition = new Map<string, string[]>();
+  for (const rm of (rooms ?? []) as Row[]) {
+    if (!rm.edition_id) continue;
+    const sleeps = rm.room_id ? sleepsByRoom.get(String(rm.room_id)) ?? null : null;
+    if (sleeps == null) {
+      const arr = bedGapByEdition.get(String(rm.edition_id)) ?? [];
+      arr.push(String(rm.name ?? rm.room_type ?? "room"));
+      bedGapByEdition.set(String(rm.edition_id), arr);
+    }
+  }
+  const roomsByEdition = new Map<string, number>();
+  for (const rm of (rooms ?? []) as Row[]) {
+    if (!rm.edition_id) continue;
+    roomsByEdition.set(String(rm.edition_id), (roomsByEdition.get(String(rm.edition_id)) ?? 0) + 1);
   }
 
   // Who has a bed: a room row names one booking plus any sharing partners.
@@ -274,6 +297,12 @@ export async function runGoLiveChecks(): Promise<ExperienceReport[]> {
       const bedded = beddedByEdition.get(edId) ?? new Set<string>();
       const unbedded = securedIds.filter((bid) => !bedded.has(bid));
       const cap = ed.max_spots as number | null;
+      // Room-pool readiness. Both of these leave the hotel unable to limit
+      // anything, so a package sells straight past the last bed — quietly.
+      const bedGaps = bedGapByEdition.get(edId) ?? [];
+      const roomCount = roomsByEdition.get(edId) ?? 0;
+      const hotelPkgs = sellable.filter((pk) => pk.hotel_id);
+      const noRoomType = hotelPkgs.filter((pk) => !has(pk.room_type));
 
       const checks: CheckResult[] = [
         ok("dates", "Dates set", "blocker", has(ed.date_start) && has(ed.date_end), `${base}?tab=details`, "No dates — it can't be sold or scheduled"),
@@ -285,8 +314,20 @@ export async function runGoLiveChecks(): Promise<ExperienceReport[]> {
           pkgs.length ? `${pkgs.length} package${pkgs.length === 1 ? "" : "s"}, none active + visible + priced` : "No packages at all",
           { okDetail: `${sellable.length} on sale` }),
         ok("capacitySane", "Capacity vs bookings", "warning", cap == null || secured <= cap, `${base}?tab=details`,
-          `${secured} secured against a capacity of ${cap} — the page will say "fully booked"`,
-          { okDetail: cap != null ? `${secured}/${cap} secured` : undefined }),
+          `${secured} secured against a capacity of ${cap} — ${(secured - (cap ?? 0))} over. The page says "fully booked" either way, so if the cap is just stale you are turning people away for nothing.`,
+          {
+            okDetail: cap != null ? `${secured}/${cap} secured` : undefined,
+            fix: { table: "exp_editions", id: edId, column: "max_spots", kind: "number", title: "Max spots", help: "How many guests this week actually takes. Set it to the real number — the page reads 'fully booked' the moment bookings reach it.", value: cap },
+          }),
+        ok("bedCounts", "Bed counts set", "warning", bedGaps.length === 0, `${base}?tab=rooms`,
+          `${bedGaps.length} room${bedGaps.length === 1 ? "" : "s"} with no "sleeps" — ${bedGaps.slice(0, 3).join(", ")}${bedGaps.length > 3 ? "…" : ""}. Until it's set the hotel limits nothing and packages can sell past the last bed.`,
+          { okDetail: roomCount > 0 ? `All ${roomCount} rooms sized` : undefined }),
+        ok("roomsEntered", "Rooms entered", "warning", hotelPkgs.length === 0 || roomCount > 0, `${base}?tab=rooms`,
+          `Packages sell a hotel but no rooms are in the system for this week, so nothing limits how many we sell`,
+          { okDetail: hotelPkgs.length ? `${roomCount} rooms` : undefined }),
+        ok("roomTypes", "Packages know their room", "warning", noRoomType.length === 0, `${base}?tab=packages`,
+          `${noRoomType.length} package${noRoomType.length === 1 ? "" : "s"} name a hotel but not which room type they sell, so the beds don't limit them`,
+          { okDetail: hotelPkgs.length ? "Every hotel package has a room type" : undefined }),
         ok("packageHotel", "Packages have a hotel", "warning", noHotel.length === 0, `${base}?tab=packages`,
           `${noHotel.length} package${noHotel.length === 1 ? "" : "s"} with no hotel — the trip page can't show where they stay`),
         ok("hotelContent", "Hotel has photo & description", "warning", thinHotels.length === 0, "/admin/hotels",

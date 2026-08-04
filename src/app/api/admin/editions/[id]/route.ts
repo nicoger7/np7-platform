@@ -22,11 +22,11 @@ export async function GET(
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const adminClient = client as any;
 
-  // Confirmed = hold-deposit in & beyond — the real "spots taken". Lists both the
-  // lean (confirmed/paid/attended) and legacy values so the count is right pre-migration.
-  const CONFIRMED = ["confirmed", "paid", "attended", "downpayment_paid", "create_invoice"];
-
-  const [edition, bookingCount, confirmedCount, packageCount, costCount, roomCount] =
+  // "Spots taken" used to be counted here from statuses alone — one of four
+  // divergent definitions in the codebase, and the only one that ignored a paid
+  // deposit on a booking still sitting at 'reserved'. It now comes from
+  // exp_edition_pool (migration 143), the single SQL definition.
+  const [edition, bookingCount, pool, packageCount, costCount, roomCount] =
     await Promise.all([
       adminClient
         .from("exp_editions")
@@ -38,10 +38,10 @@ export async function GET(
         .select("id", { count: "exact", head: true })
         .eq("edition_id", id),
       adminClient
-        .from("exp_bookings")
-        .select("id", { count: "exact", head: true })
+        .from("exp_edition_pool")
+        .select("cap, used, free, over_cap")
         .eq("edition_id", id)
-        .in("status", CONFIRMED),
+        .maybeSingle(),
       adminClient
         .from("exp_packages")
         .select("id", { count: "exact", head: true })
@@ -94,7 +94,13 @@ export async function GET(
     public_visible: publicVisible,
     computed_price_from: showMoney && prices.length ? Math.min(...prices) : null,
     computed_price_to: showMoney && prices.length ? Math.max(...prices) : null,
-    confirmed_count: confirmedCount.count ?? 0,
+    confirmed_count: pool.data?.used ?? 0,
+    capacity: {
+      cap: pool.data?.cap ?? null,
+      used: pool.data?.used ?? 0,
+      free: pool.data?.free ?? null,
+      over: pool.data?.over_cap ?? 0,
+    },
     _counts: {
       bookings: bookingCount.count ?? 0,
       packages: packageCount.count ?? 0,

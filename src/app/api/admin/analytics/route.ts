@@ -18,7 +18,7 @@ export async function GET() {
   const [bookingsRes, paymentsRes, editionsRes] = await Promise.all([
     db.from("exp_bookings").select("id, status, agreed_price, downpayment_received, final_payment_received, edition_id"),
     db.from("exp_payments").select("amount, status, direction, booking_id"),
-    db.from("exp_editions").select("id, label, year, date_start, max_spots, spots_taken, exp_experiences(title)").gte("date_start", today).order("date_start", { ascending: true }).limit(12),
+    db.from("exp_editions").select("id, label, year, date_start, max_spots, exp_experiences(title)").gte("date_start", today).order("date_start", { ascending: true }).limit(12),
   ]);
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -63,7 +63,10 @@ export async function GET() {
   const editionsOut = editions.map((e) => {
     const agg = byEdition[e.id] || { booked: 0, received: 0, count: 0 };
     const max = Number(e.max_spots) || 0;
-    const taken = Number(e.spots_taken) || agg.count;
+    // Was `Number(e.spots_taken) || agg.count` — it PREFERRED the stored column,
+    // which nothing has written since the Notion import, so fill % was wrong for
+    // every edition with a non-zero frozen value. Counted for real now.
+    const taken = agg.count;
     return {
       id: e.id,
       title: e.exp_experiences?.title || "—",

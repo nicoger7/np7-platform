@@ -18,6 +18,8 @@ interface Package {
   downpayment_percent: number | null;
   final_days_before: number | null;
   max_spots: number | null;
+  room_type: string | null;
+  beds_per_booking: number | null;
   sort_order: number;
   status: string;
   category: string | null;
@@ -80,6 +82,10 @@ const emptyForm = {
   name: "", price: "", cost_per_person: "", deposit: "", max_spots: "",
   deposit_refund_days: "", downpayment_percent: "", final_days_before: "",
   category: "", status: "active", experience_id: "", edition_id: "", hotel_id: "", includes: "",
+  // The room pool: which room type at hotel_id this package sells, and how much
+  // of a room one sale takes. Without a room type the hotel limits nothing and
+  // the package sells past the last bed.
+  room_type: "", beds_per_booking: "1",
 };
 
 /** jsonb includes (array of strings / objects) → one-per-line text for the editor. */
@@ -252,6 +258,8 @@ export default function PackagesPage() {
       experience_id: p.experience_id || "",
       edition_id: p.edition_id || "",
       hotel_id: p.hotel_id || "",
+      room_type: p.room_type || "",
+      beds_per_booking: String(p.beds_per_booking ?? 1),
       includes: includesToText(p.includes),
     });
   }
@@ -273,6 +281,8 @@ export default function PackagesPage() {
       experience_id: form.experience_id || null,
       edition_id: form.edition_id || null,
       hotel_id: form.hotel_id || null,
+      room_type: form.room_type || null,
+      beds_per_booking: Number(form.beds_per_booking) || 1,
       includes: form.includes.split("\n").map((s) => s.trim()).filter(Boolean),
     };
     // Never close on a failure. This swallowed every create: the POST 400'd on
@@ -313,20 +323,14 @@ export default function PackagesPage() {
   const [formYear, setFormYear] = useState<string>("");
 
   // Rooms → availability: the physical rooms backing this package.
-  const [rooms, setRooms] = useState<{ id: string; name: string | null; hotel: string | null; room_type: string | null; room_number: string | null }[]>([]);
-  const [pkgRoomIds, setPkgRoomIds] = useState<Set<string>>(new Set());
+  const [rooms, setRooms] = useState<{ id: string; name: string | null; hotel: string | null; hotel_id: string | null; sleeps: number | null; room_type: string | null; room_number: string | null }[]>([]);
   useEffect(() => {
     if (!form.experience_id) { setRooms([]); return; }
     fetch(`/api/admin/rooms?experience_id=${form.experience_id}`).then((r) => r.json())
       .then((d) => setRooms(Array.isArray(d?.rooms) ? d.rooms : [])).catch(() => setRooms([]));
   }, [form.experience_id]);
-  useEffect(() => {
-    if (!editId) { setPkgRoomIds(new Set()); return; }
-    fetch(`/api/admin/packages/${editId}/rooms`).then((r) => r.json())
-      .then((d) => setPkgRoomIds(new Set<string>(Array.isArray(d?.roomIds) ? d.roomIds : []))).catch(() => {});
-  }, [editId]);
-  // Week scheduling: which physical rooms are operated (and still free) in the
-  // package's edition — from the room's Weeks & guests rows.
+  // Which physical rooms are actually operated in the package's edition — the
+  // week rows. Used only to say "not this week" on a room type we don't hold.
   const [occ, setOcc] = useState<{ room_id: string | null; status: string | null }[]>([]);
   useEffect(() => {
     if (!form.edition_id) { setOcc([]); return; }
@@ -334,20 +338,6 @@ export default function PackagesPage() {
       .then((d) => setOcc((Array.isArray(d) ? d : d?.rooms ?? d?.data ?? []).map((x: { room_id?: string | null; status?: string | null }) => ({ room_id: x.room_id ?? null, status: x.status ?? null }))))
       .catch(() => setOcc([]));
   }, [form.edition_id]);
-  // Toggle a whole ROOM TYPE (all its physical rooms) — the type's room count is
-  // what makes the package's availability.
-  function toggleRoomType(ids: string[]) {
-    if (!editId || ids.length === 0) return;
-    const next = new Set(pkgRoomIds);
-    const allOn = ids.every((id) => next.has(id));
-    for (const id of ids) { if (allOn) next.delete(id); else next.add(id); }
-    setPkgRoomIds(next);
-    if (next.size > 0) setForm((f) => ({ ...f, max_spots: String(next.size) }));
-    fetch(`/api/admin/packages/${editId}/rooms`, {
-      method: "PUT", headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ roomIds: [...next] }),
-    }).catch(() => {});
-  }
 
   const inputClass =
     "w-full px-3 py-2 admin-input border rounded-lg text-sm focus:outline-none focus:border-[var(--admin-accent)] focus:ring-1 focus:ring-[var(--admin-accent)] transition-colors";
@@ -444,7 +434,7 @@ export default function PackagesPage() {
             <div><label className={labelClass}>Sell (€)<PublicBadge note="The public package price" /></label><input type="number" className={inputClass} value={form.price} onChange={(e) => setForm({ ...form, price: e.target.value })} /></div>
             <div><label className={labelClass}>Cost / person <span className="normal-case font-normal admin-faint">— auto: components buy total</span></label><input type="number" className={inputClass} value={form.cost_per_person} onChange={(e) => setForm({ ...form, cost_per_person: e.target.value })} placeholder="auto" title="Kept in sync with the components’ buy total on every component change" /></div>
             <div><label className={labelClass}>Deposit</label><input type="number" className={inputClass} value={form.deposit} onChange={(e) => setForm({ ...form, deposit: e.target.value })} /></div>
-            <div><label className={labelClass}>Spots <span className="normal-case font-normal admin-faint">— auto from rooms</span></label><input type="number" className={inputClass} value={form.max_spots} onChange={(e) => setForm({ ...form, max_spots: e.target.value })} /></div>
+            <div><label className={labelClass}>Cap <span className="normal-case font-normal admin-faint">— optional</span></label><input type="number" className={inputClass} placeholder="no limit" value={form.max_spots} onChange={(e) => setForm({ ...form, max_spots: e.target.value })} title="This package's share of the week. Leave empty for no limit — it stops one package eating the whole trip. NOT the room limit: that is derived from the beds." /></div>
           </div>
           {/* Payment plan (Phase 2): deposit → downpayment → final. Needs migration 032. */}
           <div className="mb-4">
@@ -462,61 +452,92 @@ export default function PackagesPage() {
               <p className="text-[11px] admin-faint mt-1"><b>Leave blank</b> → the website shows the components marked <b>Web ✓</b> below, using each component&apos;s Website text. Filling this overrides that list entirely.</p>
             </div>
           </div>
-          {editId && (
-            <div className="mb-4">
-              <label className={labelClass}>Rooms &rarr; availability</label>
-              {(() => {
-                const hotelName = hotels.find((h) => h.id === form.hotel_id)?.name?.toLowerCase() ?? null;
-                if (!hotelName) return <p className="text-xs admin-faint mt-1">Choose a <b>Hotel</b> above first — then pick its room types here.</p>;
-                const hotelRooms = rooms.filter((r) => (r.hotel ?? "").toLowerCase() === hotelName);
-                if (hotelRooms.length === 0) return <p className="text-xs admin-faint mt-1">No rooms for this hotel yet — add them on the Hotel Rooms page.</p>;
-                const scheduled = new Set(occ.map((o) => o.room_id).filter(Boolean) as string[]);
-                const free = new Set(occ.filter((o) => (o.status ?? "").toLowerCase() === "available").map((o) => o.room_id).filter(Boolean) as string[]);
-                const editionAware = !!form.edition_id && occ.length > 0;
-                const byType = new Map<string, string[]>();
-                for (const r of hotelRooms) {
-                  const t = r.room_type || r.name || "Untyped";
-                  byType.set(t, [...(byType.get(t) ?? []), r.id]);
-                }
-                const strays = [...pkgRoomIds].filter((id) => !rooms.some((r) => r.id === id && (r.hotel ?? "").toLowerCase() === hotelName)).length;
+          {/* Where the guests sleep — the room pool.
+              This used to be a multi-select of individual rooms that also
+              auto-filled the Spots box with the ROOM count. Two things were
+              wrong with that: rooms are not spots (a double sleeps two), and the
+              links had to be redone every edition because they point at that
+              week's rooms. A room TYPE is edition-independent and needs no
+              upkeep, so one pick here holds for every year. */}
+          <div className="mb-4">
+            <label className={labelClass}>Where guests sleep</label>
+            {(() => {
+              // Match on hotel_id, not the legacy free text: exp_rooms.hotel
+              // holds nicknames ("REF") while hotels.name is the real name
+              // ("REF Carsi"), so the old comparison matched nothing for any
+              // active hotel and this whole picker was unreachable. The text
+              // compare stays as a fallback for rows migration 143 could not
+              // backfill unambiguously.
+              const hotelName = hotels.find((h) => h.id === form.hotel_id)?.name ?? null;
+              if (!form.hotel_id) {
                 return (
-                  <>
-                    <p className="text-[11px] admin-faint mb-2">One chip per <b>room type</b> — counting only rooms <b>scheduled for this edition</b> (their week rows on the Hotel Rooms page). The count becomes the package&apos;s <b>Spots</b>; &quot;free&quot; = not yet assigned to a booking. Packages sharing the same rooms (Advanced + Beginner) share this availability. Saved instantly; press Update to store the synced spots.</p>
-                    <div className="flex flex-wrap gap-1.5">
-                      {[...byType.entries()].map(([t, allIds]) => {
-                        // only rooms actually operated in THIS edition count (week rows)
-                        const ids = editionAware ? allIds.filter((id) => scheduled.has(id)) : allIds;
-                        const unscheduled = allIds.length - ids.length;
-                        const freeN = editionAware ? ids.filter((id) => free.has(id)).length : null;
-                        if (ids.length === 0) {
-                          return (
-                            <span key={t} className="px-3 py-1.5 rounded-lg text-xs font-semibold admin-faint opacity-60 cursor-not-allowed" style={{ border: "1px dashed var(--admin-border)" }}
-                              title="No week rows for this edition — schedule the rooms on the Hotel Rooms page first">
-                              {t} · not this week
-                            </span>
-                          );
-                        }
-                        const on = ids.every((id) => pkgRoomIds.has(id));
-                        const some = !on && ids.some((id) => pkgRoomIds.has(id));
-                        return (
-                          <button key={t} type="button" onClick={() => toggleRoomType(ids)}
-                            className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors ${on ? "bg-[#0aa3c7] text-white" : "admin-muted hover:admin-heading"}`}
-                            style={on ? undefined : { border: some ? "1px dashed #0aa3c7" : "1px solid var(--admin-border)" }}
-                            title={`${ids.length} room${ids.length === 1 ? "" : "s"} scheduled this edition${freeN != null ? ` · ${freeN} still free` : ""}${unscheduled > 0 ? ` · ${unscheduled} more exist but aren't scheduled this week` : ""}`}>
-                            {on ? "\u2713 " : ""}{t} <span className={on ? "opacity-80" : "admin-faint"}>· {ids.length}{freeN != null ? ` · ${freeN} free` : ""}</span>
-                          </button>
-                        );
-                      })}
-                    </div>
-                    <p className="text-[11px] admin-faint mt-2">
-                      {pkgRoomIds.size > 0 ? `${pkgRoomIds.size} room${pkgRoomIds.size === 1 ? "" : "s"} assigned \u2192 Spots synced to ${pkgRoomIds.size}.` : "No rooms assigned \u2014 Spots stays manual."}
-                      {strays > 0 && <span className="text-amber-400"> · {strays} assigned room{strays === 1 ? "" : "s"} belong to another hotel <button type="button" className="underline" onClick={() => { const keep = [...pkgRoomIds].filter((id) => rooms.some((r) => r.id === id && (r.hotel ?? "").toLowerCase() === hotelName)); const next = new Set(keep); setPkgRoomIds(next); if (next.size > 0) setForm((f) => ({ ...f, max_spots: String(next.size) })); fetch(`/api/admin/packages/${editId}/rooms`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ roomIds: keep }) }).catch(() => {}); }}>clear them</button></span>}
-                    </p>
-                  </>
+                  <p className="text-xs admin-faint mt-1">
+                    No hotel on this package, so only the week&apos;s Max spots limits it — right for
+                    &ldquo;Experience Only&rdquo; and no-hotel packages. Pick a <b>Hotel</b> above to sell a room.
+                  </p>
                 );
-              })()}
-            </div>
-          )}
+              }
+              const hotelRooms = rooms.filter((r) =>
+                r.hotel_id ? r.hotel_id === form.hotel_id
+                           : (r.hotel ?? "").toLowerCase() === (hotelName ?? "").toLowerCase());
+              const scheduled = new Set(occ.map((o) => o.room_id).filter(Boolean) as string[]);
+              const editionAware = !!form.edition_id && occ.length > 0;
+              const byType = new Map<string, typeof hotelRooms>();
+              for (const r of hotelRooms) {
+                const t = r.room_type || r.name || "Untyped";
+                byType.set(t, [...(byType.get(t) ?? []), r]);
+              }
+              if (byType.size === 0) {
+                return <p className="text-xs admin-faint mt-1">No rooms for {hotelName} yet — add them on the Hotel Rooms page. Until then the hotel limits nothing.</p>;
+              }
+              return (
+                <>
+                  <div className="flex flex-wrap gap-1.5">
+                    {[...byType.entries()].map(([t, rs]) => {
+                      const thisWeek = editionAware ? rs.filter((r) => scheduled.has(r.id)) : rs;
+                      const noBeds = thisWeek.filter((r) => r.sleeps == null).length;
+                      const beds = thisWeek.reduce((n, r) => n + (r.sleeps ?? 0), 0);
+                      const on = form.room_type === t;
+                      return (
+                        <button key={t} type="button"
+                          onClick={() => setForm({ ...form, room_type: on ? "" : t })}
+                          className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors ${on ? "bg-[#0aa3c7] text-white" : "admin-muted hover:admin-heading"}`}
+                          style={on ? undefined : { border: "1px solid var(--admin-border)" }}
+                          title={thisWeek.length === 0
+                            ? "No rooms of this type are scheduled for this edition"
+                            : noBeds > 0
+                              ? `${thisWeek.length} room(s) this week — ${noBeds} have no bed count set, so this pool cannot be counted yet`
+                              : `${thisWeek.length} room(s) this week · ${beds} beds`}>
+                          {on ? "\u2713 " : ""}{t}
+                          <span className={on ? "opacity-80" : "admin-faint"}>
+                            {" · "}{thisWeek.length === 0 ? "not this week" : noBeds > 0 ? `${thisWeek.length} rooms · beds not set` : `${beds} beds`}
+                          </span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                  <div className="mt-2.5 flex items-center gap-3 flex-wrap">
+                    <label className="text-xs admin-muted flex items-center gap-2">
+                      Beds per booking
+                      <select className="px-2 py-1 rounded-lg text-xs admin-input border"
+                        value={form.beds_per_booking}
+                        onChange={(e) => setForm({ ...form, beds_per_booking: e.target.value })}>
+                        <option value="1">1 — shares the room</option>
+                        <option value="2">2 — takes the whole room (single use)</option>
+                        <option value="3">3</option>
+                        <option value="4">4</option>
+                      </select>
+                    </label>
+                  </div>
+                  <p className="text-[11px] admin-faint mt-2">
+                    {form.room_type
+                      ? <>Selling <b>{form.room_type}</b>. Availability is the free beds of that type divided by beds per booking — packages sharing the type (Advanced + Beginner) share those beds. Nothing to redo next edition.</>
+                      : <>Nothing picked, so the hotel doesn&apos;t limit this package and it can be sold past the last bed.</>}
+                  </p>
+                </>
+              );
+            })()}
+          </div>
           <div className="flex gap-2">
             <button onClick={save} disabled={!form.name} className="px-4 py-2 bg-[var(--admin-accent)] hover:bg-[var(--admin-accent)]/90 disabled:opacity-40 text-[var(--admin-accent-contrast)] text-sm font-bold rounded-lg transition-colors">{editId ? "Update" : "Create"}</button>
             <button onClick={() => { setShowNew(false); setEditId(null); }} className="px-4 py-2 admin-muted text-sm rounded-lg transition-colors">Cancel</button>

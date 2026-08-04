@@ -20,7 +20,7 @@ import { activeLaunch } from "@/lib/launch-price";
 import { FOCUS_CLASS, FOCUS_CSS, focusVars, parseFocus } from "@/lib/placement";
 import { EditionBooking, type EditionLite } from "@/components/experience/edition-booking";
 import { HeroVideo } from "@/components/experience/hero-video";
-import { paidSpotsByEdition, spotsLeftFrom } from "@/lib/availability";
+import { availabilityFor } from "@/lib/availability";
 import { GalleryStrip } from "@/components/experience/gallery-strip";
 import { Slideshow } from "@/components/experience/slideshow";
 import { EpicWeekScroll } from "@/components/experience/epic-week-scroll";
@@ -259,7 +259,17 @@ export default async function ExperienceDetailPage({ params, searchParams }: Pro
   const datesTBD = allEditions.length === 0; // published experience, no upcoming week yet
   // "primary" edition = soonest upcoming (drives hero defaults)
   const edition = allEditions.find((e) => e.date_start && e.date_start >= today) ?? allEditions[0];
-  const securedByEd = await paidSpotsByEdition(allEditions.map((e) => e.id)); // spots left = paid only
+  /**
+   * Availability, per week AND per package.
+   *
+   * A week is limited by two things — its own cap and the beds behind each
+   * package's room type — so "spots left" is a per-package answer. It used to be
+   * one number per week, which meant a full hotel closed the whole week and took
+   * "Experience Only" (which has no beds to lose) down with it.
+   */
+  const availability = await availabilityFor(allEditions.map((e) => e.id));
+  const securedByEd: Record<string, number> = {};
+  for (const [edId, a] of availability) securedByEd[edId] = a.used;
   // Launch price per week — computed server-side once; the picker only displays it.
   const launchByEdition: Record<string, { pct: number; until: string } | null> = {};
   for (const e of allEditions) launchByEdition[e.id] = activeLaunch(e as never);
@@ -355,16 +365,22 @@ export default async function ExperienceDetailPage({ params, searchParams }: Pro
   };
   const pkgKey = (rp: RealPackage) => `${rp.level}::${rp.accommodation}`.toLowerCase();
   const visible = activePackages.filter((p) => !privatePkgIds.has(p.id)); // off-website = sold privately only
+  // A shared package sells different weeks with different hotels behind them,
+  // so availability is stamped per (package, week) — never on the package alone.
+  const withLeft = (rp: RealPackage, editionId: string): RealPackage => ({
+    ...rp,
+    spotsLeft: availability.get(editionId)?.packages.get(rp.id)?.spotsLeft ?? null,
+  });
   for (const p of visible.filter((p) => p.edition_id)) {
     if (!packagesByEdition[p.edition_id!]) continue;
     const rp = toReal(p);
-    packagesByEdition[p.edition_id!].push(rp);
+    packagesByEdition[p.edition_id!].push(withLeft(rp, p.edition_id!));
     claimedByEdition[p.edition_id!].add(pkgKey(rp));
   }
   for (const p of visible.filter((p) => !p.edition_id)) {
     const rp = toReal(p);
     for (const ed of allEditions) {
-      if (!claimedByEdition[ed.id].has(pkgKey(rp))) packagesByEdition[ed.id].push(rp);
+      if (!claimedByEdition[ed.id].has(pkgKey(rp))) packagesByEdition[ed.id].push(withLeft(rp, ed.id));
     }
   }
 
@@ -382,7 +398,8 @@ export default async function ExperienceDetailPage({ params, searchParams }: Pro
       label: ed.label?.trim() || (multiYear && ed.date_start ? ed.date_start.slice(0, 4) : `Week ${i + 1}`),
       dateRange: fmtRange(ed.date_start, ed.date_end),
       shortRange: fmtShort(ed.date_start, ed.date_end, multiYear),
-      spotsLeft: spotsLeftFrom(ed.max_spots, securedByEd[ed.id] ?? 0),
+      // The week is bookable while ANY package still has room.
+      spotsLeft: availability.get(ed.id)?.bestSpotsLeft ?? null,
       fromPrice: pks.length ? Math.min(...pks.map((p) => p.price)) : null,
       deposit: ed.deposit,
       coaches: ed.coaches,
@@ -399,7 +416,7 @@ export default async function ExperienceDetailPage({ params, searchParams }: Pro
   const sharedPrices = visible.filter((p) => !p.edition_id).map((p) => p.price as number);
   const priceCandidates = [...editionPrices, ...sharedPrices];
   const fromPrice = priceCandidates.length ? Math.min(...priceCandidates) : null;
-  const spotsLeft = edition ? spotsLeftFrom(edition.max_spots, securedByEd[edition.id] ?? 0) : null;
+  const spotsLeft = edition ? (availability.get(edition.id)?.bestSpotsLeft ?? null) : null;
   const totalSpotsLeft = editionsLite.reduce((s, e) => s + (e.spotsLeft ?? 0), 0);
   // Sold out = every week that HAS a cap is full (uncapped weeks never count as
   // sold out — spotsLeft is null for those, not 0).

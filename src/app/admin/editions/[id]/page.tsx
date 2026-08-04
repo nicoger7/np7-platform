@@ -24,6 +24,8 @@ import { editionLabel } from "@/lib/edition-label";
 import { MailReadiness } from "@/components/admin/mail-readiness";
 import { parseFlightNote, type FlightInfo } from "@/lib/flights";
 import { FlightEditor } from "@/components/admin/flight-editor";
+import { CapacityPanel, SpotsLeftCell, type CapacityData } from "@/components/admin/capacity-panel";
+import { PackageRoomPool } from "@/components/admin/package-room-pool";
 import { EditionMailing } from "@/components/admin/edition-mailing";
 
 // Edition detail sub-tabs. The order is reorderable by drag-and-drop and saved
@@ -178,6 +180,11 @@ interface Package {
   status: string;
   category: string | null;
   website_visible?: boolean | null;
+  hotel_id?: string | null;
+  /** Which room type at that hotel this package sells — the pool key. */
+  room_type?: string | null;
+  /** 1 = shares a room · 2 = takes the whole room (double for single use). */
+  beds_per_booking?: number | null;
 }
 
 interface Cost {
@@ -192,6 +199,10 @@ interface Cost {
 interface Room {
   id: string;
   name: string;
+  /** From the physical room (exp_rooms) — nobody has set most of these yet. */
+  sleeps?: number | null;
+  released_at?: string | null;
+  released_reason?: string | null;
   hotel: string;
   hotel_id?: string | null;
   room_type: string;
@@ -348,7 +359,7 @@ export default function EditionDetailPage({
   }
 
   // ── Inline CRUD form state ──
-  const emptyPkg = { name: "", price: "", cost_per_person: "", deposit: "", max_spots: "", category: "", status: "active", website_visible: true };
+  const emptyPkg = { name: "", price: "", cost_per_person: "", deposit: "", max_spots: "", category: "", status: "active", website_visible: true, room_type: "", beds_per_booking: "1" };
   const [pkgForm, setPkgForm] = useState(emptyPkg);
   const [pkgEditId, setPkgEditId] = useState<string | null>(null);
   const [pkgShow, setPkgShow] = useState(false);
@@ -454,7 +465,7 @@ export default function EditionDetailPage({
   const [costShow, setCostShow] = useState(false);
   const [pnl, setPnl] = useState<{ received: number; expected: number; costs: number; net: number; bookings: number; componentEstimate?: { total: number; bookings: number; breakdown: { componentId: string; name: string; qty: number; unitCost: number; total: number; actual: number | null }[] } } | null>(null);
 
-  const emptyRoom = { name: "", hotel_id: "", hotel: "", room_type: "", room_number: "", status: "available", booking_id: "", extra_booking_ids: [] as string[], partner_tag_along: "" };
+  const emptyRoom = { name: "", hotel_id: "", hotel: "", room_type: "", room_number: "", sleeps: "", status: "available", booking_id: "", extra_booking_ids: [] as string[], partner_tag_along: "" };
   const [roomForm, setRoomForm] = useState(emptyRoom);
   const hotelOptions = useHotelOptions();
   const [roomEditId, setRoomEditId] = useState<string | null>(null);
@@ -556,6 +567,22 @@ export default function EditionDetailPage({
   const loadRooms = () =>
     fetch(`/api/admin/hotel-rooms?edition_id=${id}`).then((r) => r.json()).then((d) => setRooms(d.rooms || []));
 
+  /**
+   * Capacity — derived, never stored, so it has to be refetched after anything
+   * that could move it: a bed count, a released room, a room assignment, a
+   * package's room type. Cheap (three view reads) and always right.
+   */
+  const [capacity, setCapacity] = useState<CapacityData | null>(null);
+  const [capLoading, setCapLoading] = useState(true);
+  const loadCapacity = () => {
+    setCapLoading(true);
+    return fetch(`/api/admin/editions/${id}/capacity`)
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d) => setCapacity(d))
+      .catch(() => {})
+      .finally(() => setCapLoading(false));
+  };
+
   useEffect(() => {
     fetch(`/api/admin/editions/${id}`)
       .then((r) => r.json())
@@ -566,17 +593,22 @@ export default function EditionDetailPage({
         setBrandNote(d.pre_trip_note ?? ""); setBrandPacking(d.packing_list ?? "");
         setLoading(false);
       });
+    loadCapacity();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id]);
 
   useEffect(() => {
     if (tab === "bookings") { loadBookings(); loadPackages(); }
     if (tab === "arrivals") { loadBookings(); loadRooms(); }
-    if (tab === "packages") { loadPackages(); loadBookings(); }
+    if (tab === "packages") { loadPackages(); loadBookings(); loadCapacity(); }
     if (tab === "costs") { loadCosts(); loadPnl(); }
-    if (tab === "rooms") { loadRooms(); loadBookings(); }
+    if (tab === "rooms") { loadRooms(); loadBookings(); loadCapacity(); }
     if (tab === "notes") loadNotes();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [tab, id]);
+
+  /** Availability per package, for the packages table. */
+  const availByPkg = new Map((capacity?.packages ?? []).map((p) => [p.package_id, p]));
 
   const expId = edition?.experience_id;
 
@@ -588,6 +620,10 @@ export default function EditionDetailPage({
       cost_per_person: pkgForm.cost_per_person ? Number(pkgForm.cost_per_person) : null,
       deposit: pkgForm.deposit ? Number(pkgForm.deposit) : null,
       max_spots: pkgForm.max_spots ? Number(pkgForm.max_spots) : null,
+      // The pool this package draws on. room_type null = the hotel doesn't
+      // limit it at all, which is honest but means it sells past the beds.
+      room_type: pkgForm.room_type || null,
+      beds_per_booking: Number(pkgForm.beds_per_booking) || 1,
       category: pkgForm.category || null,
       status: pkgForm.status,
       website_visible: pkgForm.website_visible,
@@ -649,6 +685,8 @@ export default function EditionDetailPage({
       hotel: roomForm.hotel || null,
       room_type: roomForm.room_type || null,
       room_number: roomForm.room_number || null,
+      // Written through to the physical room: a double is a double every week.
+      sleeps: roomForm.sleeps === "" ? null : Number(roomForm.sleeps),
       status: roomForm.status,
       booking_id: roomForm.booking_id || null,
       // additional guests sharing this room (own booking, no room of their own)
@@ -663,12 +701,36 @@ export default function EditionDetailPage({
     } else {
       await fetch(`/api/admin/hotel-rooms`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
     }
-    setRoomShow(false); setRoomEditId(null); setRoomForm(emptyRoom); loadRooms();
+    setRoomShow(false); setRoomEditId(null); setRoomForm(emptyRoom); loadRooms(); loadCapacity();
+  }
+
+  /**
+   * The hotel resold a room we were holding.
+   *
+   * It drops out of every bed count on the next render — no counter to adjust,
+   * nothing to recompute. Only ever an unsold room: once a guest books, the room
+   * is blocked at the hotel, and the API refuses a release with a guest in it.
+   */
+  async function releaseRoom(roomId: string, undo = false) {
+    const reason = undo ? null : (prompt("The hotel took this room back. Anything worth noting?") ?? "");
+    if (!undo && reason === null) return;
+    const res = await fetch(`/api/admin/hotel-rooms/${roomId}`, {
+      method: "PATCH", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(undo
+        ? { released_at: null, released_reason: null }
+        : { released_at: new Date().toISOString(), released_reason: reason || null }),
+    });
+    if (!res.ok) {
+      const j = await res.json().catch(() => ({}));
+      alert(j.error || "Couldn't record that.");
+      return;
+    }
+    loadRooms(); loadCapacity();
   }
   async function deleteRoom(roomId: string) {
     if (!confirm("Delete this room?")) return;
     await fetch(`/api/admin/hotel-rooms/${roomId}`, { method: "DELETE" });
-    loadRooms();
+    loadRooms(); loadCapacity();
   }
 
   // Auto booking name: "{experience code} {year} — {participant}"
@@ -776,9 +838,6 @@ export default function EditionDetailPage({
   }
 
   const currency = edition.currency || edition.exp_experiences?.currency || "EUR";
-  const spotsRemaining = edition.max_spots != null
-    ? Math.max(0, edition.max_spots - edition.confirmed_count)
-    : null;
   const priceRange =
     edition.computed_price_from == null && edition.computed_price_to == null
       ? "No packages yet"
@@ -1153,42 +1212,17 @@ export default function EditionDetailPage({
             </div>
           </div>
 
-          {/* Spots */}
-          <div className="grid grid-cols-3 gap-4">
-            <div>
-              <label className={labelClass}>Max spots</label>
-              <input
-                type="number"
-                className={inputClass}
-                value={edition.max_spots || ""}
-                onChange={(e) => update("max_spots", e.target.value ? Number(e.target.value) : null)}
-              />
-            </div>
-            <div className="rounded-lg p-2 bg-[var(--admin-accent)]/5" style={{ border: "1px solid rgba(10,163,199,0.15)" }}>
-              <label className={`${labelClass} flex items-center gap-2`}>
-                Spots taken
-                <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium bg-[var(--admin-accent)]/15 text-[#0aa3c7]">Confirmed</span>
-              </label>
-              <input
-                type="number"
-                className={`${inputClass} opacity-70 cursor-default`}
-                value={edition.confirmed_count}
-                readOnly
-              />
-            </div>
-            <div className="rounded-lg p-2 bg-[var(--admin-accent)]/5" style={{ border: "1px solid rgba(10,163,199,0.15)" }}>
-              <label className={`${labelClass} flex items-center gap-2`}>
-                Spots remaining
-                <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium bg-[var(--admin-accent)]/15 text-[#0aa3c7]">Auto</span>
-              </label>
-              <input
-                type="number"
-                className={`${inputClass} opacity-70 cursor-default`}
-                value={spotsRemaining ?? ""}
-                readOnly
-              />
-            </div>
-          </div>
+          {/* Capacity — one panel, not three boxes and a subtraction.
+              A week is limited by two things, and the old row only knew about
+              one of them: it showed "Spots taken 4" for Alaçatı while sixteen
+              people had paid, and nothing anywhere said the hotel had ten rooms.
+              Max spots stays editable; everything else is derived. */}
+          <CapacityPanel
+            data={capacity}
+            cap={edition.max_spots ?? null}
+            onCap={(v) => update("max_spots", v)}
+            loading={capLoading}
+          />
 
           {/* Operations */}
           {!hiddenSections.has("operations") && (
@@ -1668,7 +1702,7 @@ export default function EditionDetailPage({
               {packages.map((pkg) => {
                 const active = pkg.id === pkgEditId;
                 return (
-                  <button key={pkg.id} onClick={() => { setPkgEditId(pkg.id); setPkgShow(false); setPkgForm({ name: pkg.name, price: pkg.price?.toString() || "", cost_per_person: pkg.cost_per_person?.toString() || "", deposit: pkg.deposit?.toString() || "", max_spots: pkg.max_spots?.toString() || "", category: pkg.category || "", status: pkg.status, website_visible: pkg.website_visible !== false }); }} className="shrink-0 text-left px-3 py-2 rounded-lg transition-colors" style={{ background: active ? "var(--admin-accent)" : "var(--admin-surface)", border: "1px solid var(--admin-border)" }}>
+                  <button key={pkg.id} onClick={() => { setPkgEditId(pkg.id); setPkgShow(false); setPkgForm({ name: pkg.name, price: pkg.price?.toString() || "", cost_per_person: pkg.cost_per_person?.toString() || "", deposit: pkg.deposit?.toString() || "", max_spots: pkg.max_spots?.toString() || "", category: pkg.category || "", status: pkg.status, website_visible: pkg.website_visible !== false, room_type: pkg.room_type || "", beds_per_booking: String(pkg.beds_per_booking ?? 1) }); }} className="shrink-0 text-left px-3 py-2 rounded-lg transition-colors" style={{ background: active ? "var(--admin-accent)" : "var(--admin-surface)", border: "1px solid var(--admin-border)" }}>
                     <span className={`block text-xs font-semibold truncate ${active ? "text-[var(--admin-accent-contrast)]" : "admin-heading"}`}>{pkg.name}</span>
                     <span className={`block text-[10px] mt-0.5 truncate ${active ? "text-[var(--admin-accent-contrast)]/80" : "admin-faint"}`}>{pkg.price ? `€${Number(pkg.price).toLocaleString()}` : "—"} · {pkg.status}{pkg.website_visible === false ? " · private" : ""}</span>
                   </button>
@@ -1683,9 +1717,24 @@ export default function EditionDetailPage({
                   <div><label className={labelClass}>Sell price ({currency})</label><input type="number" className={inputClass} value={pkgForm.price} onChange={(e) => setPkgForm({ ...pkgForm, price: e.target.value })} /></div>
                   <div><label className={labelClass}>Cost / person</label><input type="number" className={inputClass} value={pkgForm.cost_per_person} onChange={(e) => setPkgForm({ ...pkgForm, cost_per_person: e.target.value })} placeholder="auto" /></div>
                   <div><label className={labelClass}>Deposit</label><input type="number" className={inputClass} value={pkgForm.deposit} onChange={(e) => setPkgForm({ ...pkgForm, deposit: e.target.value })} /></div>
-                  <div><label className={labelClass}>Spots</label><input type="number" className={inputClass} value={pkgForm.max_spots} onChange={(e) => setPkgForm({ ...pkgForm, max_spots: e.target.value })} /></div>
+                  <div><label className={labelClass} title="Optional ceiling on this package's share of the week">Cap</label><input type="number" className={inputClass} placeholder="no limit" value={pkgForm.max_spots} onChange={(e) => setPkgForm({ ...pkgForm, max_spots: e.target.value })} /></div>
                   <div className="col-span-2 sm:col-span-1"><label className={labelClass}>Category</label><select className={inputClass} value={pkgForm.category} onChange={(e) => setPkgForm({ ...pkgForm, category: e.target.value })}>{PKG_CATEGORIES.map((c) => <option key={c} value={c}>{c ? c[0].toUpperCase() + c.slice(1) : "None"}</option>)}</select></div>
                 </div>
+                {/* Where the guests sleep. Without this the hotel cannot limit
+                    the package, so it will happily sell past the last bed —
+                    which is exactly what has been happening. */}
+                <PackageRoomPool
+                  pools={capacity?.pools ?? []}
+                  hotelId={packages.find((p) => p.id === pkgEditId)?.hotel_id ?? null}
+                  roomType={pkgForm.room_type}
+                  bedsPerBooking={pkgForm.beds_per_booking}
+                  suggestFrom={pkgForm.name}
+                  onRoomType={(v) => setPkgForm({ ...pkgForm, room_type: v })}
+                  onBeds={(v) => setPkgForm({ ...pkgForm, beds_per_booking: v })}
+                  labelClass={labelClass}
+                  inputClass={inputClass}
+                />
+
                 <label className="flex items-start gap-2.5 mb-4 p-3 rounded-lg cursor-pointer" style={{ border: "1px solid var(--admin-border)" }}>
                   <input type="checkbox" checked={pkgForm.website_visible} onChange={(e) => setPkgForm({ ...pkgForm, website_visible: e.target.checked })} className="w-4 h-4 mt-0.5 accent-[#0aa3c7] shrink-0" />
                   <span>
@@ -1748,23 +1797,24 @@ export default function EditionDetailPage({
             </div>
           ) : (
             <div className="rounded-xl admin-tablecard" style={{ border: "1px solid var(--admin-border)" }}>
-              <div className="grid grid-cols-[1fr_100px_100px_70px_80px_70px] gap-4 px-5 py-3 admin-surface" style={{ borderBottom: "1px solid var(--admin-border)" }}>
+              <div className="grid grid-cols-[1fr_100px_100px_70px_120px_80px_70px] gap-4 px-5 py-3 admin-surface" style={{ borderBottom: "1px solid var(--admin-border)" }}>
                 <span className="text-[10px] font-bold tracking-[0.1em] admin-faint uppercase">Name</span>
                 <span className="text-[10px] font-bold tracking-[0.1em] admin-faint uppercase">Price</span>
                 <span className="text-[10px] font-bold tracking-[0.1em] admin-faint uppercase">Deposit</span>
-                <span className="text-[10px] font-bold tracking-[0.1em] admin-faint uppercase">Spots</span>
+                <span className="text-[10px] font-bold tracking-[0.1em] admin-faint uppercase" title="Optional ceiling on this package's share of the week">Cap</span>
+                <span className="text-[10px] font-bold tracking-[0.1em] admin-faint uppercase" title="Derived: the smallest of the week, the beds, and the cap">Left · why</span>
                 <span className="text-[10px] font-bold tracking-[0.1em] admin-faint uppercase">Status</span>
                 <span></span>
               </div>
               {packages.map((pkg) => (
                 <div
                   key={pkg.id}
-                  className="grid grid-cols-[1fr_100px_100px_70px_80px_70px] gap-4 px-5 py-3.5 transition-colors group"
+                  className="grid grid-cols-[1fr_100px_100px_70px_120px_80px_70px] gap-4 px-5 py-3.5 transition-colors group"
                   style={{ borderBottom: "1px solid var(--admin-border)" }}
                   onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = "var(--admin-surface-hover)")}
                   onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = "transparent")}
                 >
-                  <div className="min-w-0 self-center cursor-pointer" onClick={() => { setPkgEditId(pkg.id); setPkgShow(false); setPkgForm({ name: pkg.name, price: pkg.price?.toString() || "", cost_per_person: pkg.cost_per_person?.toString() || "", deposit: pkg.deposit?.toString() || "", max_spots: pkg.max_spots?.toString() || "", category: pkg.category || "", status: pkg.status, website_visible: pkg.website_visible !== false }); }}>
+                  <div className="min-w-0 self-center cursor-pointer" onClick={() => { setPkgEditId(pkg.id); setPkgShow(false); setPkgForm({ name: pkg.name, price: pkg.price?.toString() || "", cost_per_person: pkg.cost_per_person?.toString() || "", deposit: pkg.deposit?.toString() || "", max_spots: pkg.max_spots?.toString() || "", category: pkg.category || "", status: pkg.status, website_visible: pkg.website_visible !== false, room_type: pkg.room_type || "", beds_per_booking: String(pkg.beds_per_booking ?? 1) }); }}>
                     <div className="text-sm font-medium admin-heading truncate flex items-center gap-1.5">
                       {pkg.name}
                       {pkg.website_visible === false && <span className="shrink-0 inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[9px] font-bold uppercase tracking-[0.05em] bg-purple-500/15 text-purple-400" title="Private — not shown on the website">Private</span>}
@@ -1774,6 +1824,9 @@ export default function EditionDetailPage({
                   <span className="text-xs admin-muted self-center">{pkg.price ? `€${Number(pkg.price).toLocaleString()}` : "—"}</span>
                   <span className="text-xs admin-muted self-center">{pkg.deposit ? `€${Number(pkg.deposit).toLocaleString()}` : "—"}</span>
                   <span className="text-xs admin-muted self-center">{pkg.max_spots ?? "—"}</span>
+                  {/* Derived, never typed. A package reading "full · the hotel"
+                      next to a week that still has spots is the whole point. */}
+                  <span className="self-center min-w-0 truncate"><SpotsLeftCell a={availByPkg.get(pkg.id)} /></span>
                   <span className="self-center">
                     <span className={`inline-block px-2 py-0.5 rounded text-[10px] font-bold uppercase ${pkg.status === "active" ? "bg-green-500/15 text-green-400" : "bg-gray-500/15 text-gray-400"}`}>{pkg.status}</span>
                   </span>
@@ -1989,7 +2042,7 @@ export default function EditionDetailPage({
               {rooms.map((room) => {
                 const active = room.id === roomEditId;
                 return (
-                  <button key={room.id} onClick={() => { setRoomEditId(room.id); setRoomShow(false); setRoomForm({ name: room.name, hotel_id: room.hotel_id || "", hotel: room.hotel || "", room_type: room.room_type || "", room_number: room.room_number || "", status: room.status, booking_id: room.booking_id || "", extra_booking_ids: room.extra_booking_ids ?? [], partner_tag_along: room.partner_tag_along ?? "" }); }} className="shrink-0 text-left px-3 py-2 rounded-lg transition-colors" style={{ background: active ? "var(--admin-accent)" : "var(--admin-surface)", border: "1px solid var(--admin-border)" }}>
+                  <button key={room.id} onClick={() => { setRoomEditId(room.id); setRoomShow(false); setRoomForm({ name: room.name, hotel_id: room.hotel_id || "", hotel: room.hotel || "", room_type: room.room_type || "", room_number: room.room_number || "", sleeps: room.sleeps != null ? String(room.sleeps) : "", status: room.status, booking_id: room.booking_id || "", extra_booking_ids: room.extra_booking_ids ?? [], partner_tag_along: room.partner_tag_along ?? "" }); }} className="shrink-0 text-left px-3 py-2 rounded-lg transition-colors" style={{ background: active ? "var(--admin-accent)" : "var(--admin-surface)", border: "1px solid var(--admin-border)" }}>
                     <span className={`block text-xs font-semibold truncate ${active ? "text-[var(--admin-accent-contrast)]" : "admin-heading"}`}>{room.name}</span>
                     {(() => {
                       const extra = (room.extra_booking_ids?.length ?? 0) + (room.partner_tag_along ? 1 : 0);
@@ -2012,6 +2065,14 @@ export default function EditionDetailPage({
                 </div>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-4">
                   <div><label className={labelClass}>Room type</label><input className={inputClass} value={roomForm.room_type} onChange={(e) => setRoomForm({ ...roomForm, room_type: e.target.value })} placeholder="e.g. BON-WAN-Double Deluxe Balcony" /></div>
+                  {/* The one number the schema never had. Without it a room
+                      counts for nothing — better than counting for a guess. */}
+                  <div>
+                    <label className={labelClass}>Sleeps <span className="admin-faint font-normal">· people, not rooms</span></label>
+                    <input type="number" min={1} className={inputClass} value={roomForm.sleeps}
+                      onChange={(e) => setRoomForm({ ...roomForm, sleeps: e.target.value })}
+                      placeholder="not set — this room limits nothing" />
+                  </div>
                   <div><label className={labelClass}>Guest (booking) <span className="admin-faint font-normal">· main</span></label><select className={inputClass} value={roomForm.booking_id} onChange={(e) => setRoomForm({ ...roomForm, booking_id: e.target.value })}><option value="">Unassigned</option>{bookings.map((b) => <option key={b.id} value={b.id}>{b.name}</option>)}</select></div>
                 </div>
                 {/* Sharing: additional participants in the SAME room who have their
@@ -2061,10 +2122,11 @@ export default function EditionDetailPage({
             </div>
           ) : (
             <div className="rounded-xl admin-tablecard" style={{ border: "1px solid var(--admin-border)" }}>
-              <div className="grid grid-cols-[1fr_120px_110px_80px_110px_40px] gap-4 px-5 py-3 admin-surface" style={{ borderBottom: "1px solid var(--admin-border)" }}>
+              <div className="grid grid-cols-[1fr_120px_110px_78px_80px_110px_64px] gap-4 px-5 py-3 admin-surface" style={{ borderBottom: "1px solid var(--admin-border)" }}>
                 <span className="text-[10px] font-bold tracking-[0.1em] admin-faint uppercase">Room</span>
                 <span className="text-[10px] font-bold tracking-[0.1em] admin-faint uppercase">Type</span>
                 <span className="text-[10px] font-bold tracking-[0.1em] admin-faint uppercase">Hotel</span>
+                <span className="text-[10px] font-bold tracking-[0.1em] admin-faint uppercase" title="How many people this room takes. Unset rooms count for nothing.">Sleeps</span>
                 <span className="text-[10px] font-bold tracking-[0.1em] admin-faint uppercase">Status</span>
                 <span className="text-[10px] font-bold tracking-[0.1em] admin-faint uppercase">Guest</span>
                 <span></span>
@@ -2072,25 +2134,45 @@ export default function EditionDetailPage({
               {rooms.map((room) => (
                 <div
                   key={room.id}
-                  className="grid grid-cols-[1fr_120px_110px_80px_110px_40px] gap-4 px-5 py-3.5 transition-colors group"
+                  className="grid grid-cols-[1fr_120px_110px_78px_80px_110px_64px] gap-4 px-5 py-3.5 transition-colors group"
                   style={{ borderBottom: "1px solid var(--admin-border)" }}
                   onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = "var(--admin-surface-hover)")}
                   onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = "transparent")}
                 >
-                  <span className="text-sm font-medium admin-heading truncate self-center cursor-pointer" onClick={() => { setRoomEditId(room.id); setRoomShow(false); setRoomForm({ name: room.name, hotel_id: room.hotel_id || "", hotel: room.hotel || "", room_type: room.room_type || "", room_number: room.room_number || "", status: room.status, booking_id: room.booking_id || "", extra_booking_ids: room.extra_booking_ids ?? [], partner_tag_along: room.partner_tag_along ?? "" }); }}>{room.name}</span>
+                  <span className="text-sm font-medium admin-heading truncate self-center cursor-pointer" onClick={() => { setRoomEditId(room.id); setRoomShow(false); setRoomForm({ name: room.name, hotel_id: room.hotel_id || "", hotel: room.hotel || "", room_type: room.room_type || "", room_number: room.room_number || "", sleeps: room.sleeps != null ? String(room.sleeps) : "", status: room.status, booking_id: room.booking_id || "", extra_booking_ids: room.extra_booking_ids ?? [], partner_tag_along: room.partner_tag_along ?? "" }); }}>{room.name}</span>
                   <span className="text-xs admin-muted self-center truncate">{room.room_type}</span>
                   <span className="text-xs admin-muted self-center">{room.hotel}</span>
+                  {/* Beds, not rooms. A room with no count limits nothing, so
+                      say so rather than showing a reassuring dash. */}
+                  <span className="text-xs self-center">
+                    {room.sleeps != null
+                      ? <span className="admin-heading font-semibold">{room.sleeps}</span>
+                      : <span className="text-amber-500 font-semibold" title="Nobody has said how many people this room takes, so it limits nothing">not set</span>}
+                  </span>
                   <span className="self-center">
-                    <span className={`inline-block px-2 py-0.5 rounded text-[10px] font-bold uppercase ${
-                      room.status === "assigned" ? "bg-blue-500/15 text-blue-400" :
-                      room.status === "held" ? "bg-amber-500/15 text-amber-400" :
-                      "bg-green-500/15 text-green-400"
-                    }`}>{room.status}</span>
+                    {room.released_at ? (
+                      <span className="inline-block px-2 py-0.5 rounded text-[10px] font-bold uppercase bg-red-500/15 text-red-400" title={room.released_reason || "The hotel took this room back"}>released</span>
+                    ) : (
+                      <span className={`inline-block px-2 py-0.5 rounded text-[10px] font-bold uppercase ${
+                        room.status === "assigned" ? "bg-blue-500/15 text-blue-400" :
+                        room.status === "held" ? "bg-amber-500/15 text-amber-400" :
+                        "bg-green-500/15 text-green-400"
+                      }`}>{room.status}</span>
+                    )}
                   </span>
                   <span className="text-xs admin-muted self-center truncate">{room.booking?.name || "—"}</span>
-                  <button onClick={() => deleteRoom(room.id)} className="self-center opacity-0 group-hover:opacity-100 admin-faint hover:text-red-400 transition-all" title="Delete">
-                    <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M3 6h18M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a2 2 0 012-2h4a2 2 0 012 2v2" /></svg>
-                  </button>
+                  <span className="self-center flex items-center gap-1.5 justify-end opacity-0 group-hover:opacity-100 transition-opacity">
+                    <button onClick={() => releaseRoom(room.id, !!room.released_at)}
+                      className={`transition-colors ${room.released_at ? "text-red-400 hover:text-green-400" : "admin-faint hover:text-amber-500"}`}
+                      title={room.released_at ? "We got it back — put it back in the pool" : "The hotel took this room back"}>
+                      <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+                        {room.released_at ? <path d="M3 12a9 9 0 1 0 3-6.7L3 8" /> : <><path d="M18.4 5.6 5.6 18.4" /><circle cx="12" cy="12" r="9" /></>}
+                      </svg>
+                    </button>
+                    <button onClick={() => deleteRoom(room.id)} className="admin-faint hover:text-red-400 transition-colors" title="Delete">
+                      <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M3 6h18M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a2 2 0 012-2h4a2 2 0 012 2v2" /></svg>
+                    </button>
+                  </span>
                 </div>
               ))}
             </div>

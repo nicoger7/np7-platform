@@ -73,7 +73,10 @@ export async function GET(request: NextRequest) {
     head("contacts"),
     head("exp_editions", (q: any) => q.gte("date_start", today).eq("status", "published")),
     db.from("exp_bookings").select("id,name,status,agreed_price,created_at,exp_experiences(title)").order("created_at", { ascending: false }).limit(6),
-    db.from("exp_editions").select("id,label,year,date_start,date_end,max_spots,spots_taken,exp_experiences(title,slug)").gte("date_start", today).order("date_start", { ascending: true }).limit(6),
+    // spots_taken deliberately not selected: no writer exists for it, so the
+    // dashboard's "N left" was off by up to 13 heads on every live week. The
+    // real count is joined from exp_edition_pool below.
+    db.from("exp_editions").select("id,label,year,date_start,date_end,max_spots,exp_experiences(title,slug)").gte("date_start", today).order("date_start", { ascending: true }).limit(6),
     db.from("email_log").select("template_key,to_email,status,subject,sent_at,created_at").order("created_at", { ascending: false }).limit(6),
     head("todos", (q: any) => q.lt("due_date", today).not("status", "in", "(done,completed,cancelled,archived)")),
     // open revenue: not-yet-fully-paid live bookings
@@ -168,6 +171,20 @@ export async function GET(request: NextRequest) {
     });
   } catch { /* leave empty */ }
 
+  // Real occupancy per week, from the one SQL definition (migration 143).
+  const upcomingIds = (upcomingEditions.data ?? []).map((e: { id: string }) => e.id);
+  const { data: poolRows } = upcomingIds.length
+    ? await db.from("exp_edition_pool").select("edition_id, used, free").in("edition_id", upcomingIds)
+    : { data: [] };
+  const usedByEd = new Map<string, { used: number; free: number | null }>(
+    (poolRows ?? []).map((p: { edition_id: string; used: number; free: number | null }) => [p.edition_id, { used: p.used, free: p.free }])
+  );
+  const upcomingEditionsOut = (upcomingEditions.data ?? []).map((e: Record<string, unknown>) => ({
+    ...e,
+    spots_taken: usedByEd.get(e.id as string)?.used ?? 0,
+    spots_left: usedByEd.get(e.id as string)?.free ?? null,
+  }));
+
   return NextResponse.json({
     counts: {
       experiences: expCount.count ?? 0,
@@ -177,7 +194,7 @@ export async function GET(request: NextRequest) {
     },
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     latestBookings: (latestBookings.data ?? []).map((b: any) => (showMoney ? b : { ...b, agreed_price: null })),
-    upcomingEditions: upcomingEditions.data ?? [],
+    upcomingEditions: upcomingEditionsOut,
     recentEmails: recentEmails.data ?? [],
     overdueTodos: overdueTodos.count ?? 0,
     // eslint-disable-next-line @typescript-eslint/no-explicit-any

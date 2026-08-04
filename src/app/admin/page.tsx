@@ -402,7 +402,7 @@ function ProductDevDashboard() {
 interface DashboardData {
   counts: { experiences: number; bookings: number; contacts: number; upcomingEditions: number };
   latestBookings: { id: string; name: string | null; status: string | null; agreed_price: number | null; created_at: string; exp_experiences: { title: string } | null }[];
-  upcomingEditions: { id: string; label: string | null; year: number | null; date_start: string | null; date_end: string | null; max_spots: number | null; spots_taken: number | null; exp_experiences: { title: string; slug: string } | null }[];
+  upcomingEditions: { id: string; label: string | null; year: number | null; date_start: string | null; date_end: string | null; max_spots: number | null; spots_taken: number | null; spots_left: number | null; exp_experiences: { title: string; slug: string } | null }[];
   recentEmails: { template_key: string; to_email: string | null; status: string | null; subject: string | null; sent_at: string | null; created_at: string }[];
   overdueTodos: number;
   finance: { openRevenue: number; unmatchedPayments: number } | null;
@@ -657,7 +657,10 @@ function ExperienceDashboard() {
           {d.upcomingEditions.length === 0 ? <p className="text-xs admin-faint">No upcoming editions.</p> : (
             <div className="space-y-1.5">
               {d.upcomingEditions.map((ed) => {
-                const left = ed.max_spots != null ? ed.max_spots - (ed.spots_taken ?? 0) : null;
+                // Derived server-side now. The old subtraction used a stored
+                // column nothing writes, so this read "12 left" on a week that
+                // was thirteen people over its cap.
+                const left = ed.spots_left ?? null;
                 return (
                   <Link key={ed.id} href={`/admin/editions/${ed.id}`} className="flex items-center gap-3 text-xs py-1.5 px-2 -mx-2 rounded-lg hover:bg-[var(--admin-surface-hover)]">
                     <span className="flex-1 admin-heading truncate">{ed.exp_experiences?.title || "—"} <span className="admin-faint">· {editionLabel(ed)}</span></span>

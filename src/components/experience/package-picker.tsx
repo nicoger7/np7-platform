@@ -16,7 +16,19 @@ export type RealPackage = {
   hotelDescription?: string | null;
   /** Curated "what's included" list shown on the website (exp_packages.includes). */
   includes?: string[] | null;
+  /**
+   * Spots left on THIS package for THIS week — the smallest of the week's cap,
+   * the beds behind its room type, and its own cap. null = nothing limits it.
+   * 0 greys the option out; it never closes the week, because a full room type
+   * has no bearing on the packages that don't use it.
+   */
+  spotsLeft?: number | null;
 };
+
+/** A package whose own pool ran out. Shown, not hidden — a guest who can't get
+ *  a single room will often take a double, and a vanished option just reads as
+ *  fewer choices with no explanation. */
+export const isSoldOut = (p: { spotsLeft?: number | null }) => p.spotsLeft === 0;
 
 export type ReserveTarget = {
   experienceId: string;
@@ -110,11 +122,13 @@ export function PackagePicker({ packages, currency = "EUR", reserve, heroImage, 
     [packages, level]
   );
 
-  const [accId, setAccId] = useState(accommodations[0]?.id);
+  // Never open on an option nobody can buy.
+  const firstAvailable = accommodations.find((a) => !isSoldOut(a)) ?? accommodations[0];
+  const [accId, setAccId] = useState(firstAvailable?.id);
 
   // keep accommodation valid when level changes
-  const selected =
-    accommodations.find((a) => a.id === accId) ?? accommodations[0];
+  const picked = accommodations.find((a) => a.id === accId);
+  const selected = picked && !isSoldOut(picked) ? picked : firstAvailable;
 
   // Group the room options by hotel so the list reads "pick a place, then a
   // room" instead of one long flat radio list. "No hotel" and rooms without a
@@ -234,13 +248,17 @@ export function PackagePicker({ packages, currency = "EUR", reserve, heroImage, 
               if (!g.hotelName || g.key === "__none") {
                 return g.rooms.map((a) => {
                   const active = a.id === selected?.id;
+                  const sold = isSoldOut(a);
                   return (
                     <button
                       key={a.id}
-                      onClick={() => setAccId(a.id)}
+                      onClick={() => !sold && setAccId(a.id)}
+                      disabled={sold}
                       aria-pressed={active}
                       className={`w-full flex items-center justify-between gap-4 text-left px-4 py-3.5 rounded-xl border transition-all ${
-                        active
+                        sold
+                          ? "border-[#e3e9ec] bg-[#f6f8f9] opacity-60 cursor-not-allowed"
+                          : active
                           ? "border-[#00afdb] bg-[#00afdb]/[0.05] shadow-[0_6px_20px_rgba(0,175,219,0.1)]"
                           : "border-[#e3e9ec] hover:border-[#bcd] bg-white"
                       }`}
@@ -250,6 +268,7 @@ export function PackagePicker({ packages, currency = "EUR", reserve, heroImage, 
                         <span className="min-w-0">
                           <span className="block text-[14px] font-semibold text-[#1f3138] truncate">
                             {g.key === "__none" ? "No hotel" : a.accommodation}
+                            {sold && <span className="ml-2 text-[10px] font-bold uppercase tracking-wide text-[#9aa6ac]">Sold out</span>}
                           </span>
                           {g.key === "__none" && (
                             <span className="block text-[12px] text-[#7a8a90]">Coaching &amp; program only — you sort your own stay</span>
@@ -346,19 +365,22 @@ export function PackagePicker({ packages, currency = "EUR", reserve, heroImage, 
                     <div className="border-t border-[#00afdb]/20 px-3 py-2 space-y-1">
                       {g.rooms.map((a) => {
                         const active = a.id === selected?.id;
+                        const sold = isSoldOut(a);
                         return (
                           <button
                             key={a.id}
-                            onClick={() => setAccId(a.id)}
+                            onClick={() => !sold && setAccId(a.id)}
+                            disabled={sold}
                             aria-pressed={active}
                             className={`w-full flex items-center justify-between gap-3 text-left px-3 py-2.5 rounded-lg transition-colors ${
-                              active ? "bg-white shadow-[0_2px_10px_rgba(0,55,74,0.08)]" : "hover:bg-white/60"
+                              sold ? "opacity-55 cursor-not-allowed" : active ? "bg-white shadow-[0_2px_10px_rgba(0,55,74,0.08)]" : "hover:bg-white/60"
                             }`}
                           >
                             <span className="flex items-center gap-2.5 min-w-0">
                               <Radio on={active} />
                               <span className={`text-[13.5px] truncate ${active ? "font-bold text-[#00374a]" : "font-medium text-[#4a5b62]"}`}>
                                 {roomLabel(a, g.hotelName)}
+                                {sold && <span className="ml-2 text-[10px] font-bold uppercase tracking-wide text-[#9aa6ac]">Sold out</span>}
                               </span>
                             </span>
                             <span className={`text-[13.5px] shrink-0 tabular-nums ${active ? "font-bold text-[#00374a]" : "font-semibold text-[#5a6b72]"}`}>

@@ -30,12 +30,33 @@ export async function PATCH(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  const client = createAdminClient();
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const client = createAdminClient() as any;
   const { id } = await params;
   const body = await request.json();
 
+  // How many people the room sleeps belongs to the PHYSICAL room — a double is
+  // a double every week — so it is pulled out of the week-row patch and written
+  // through to exp_rooms below.
+  const { sleeps, ...rest } = body;
+
+  // "The hotel took this one back" only ever applies to a room we have NOT
+  // sold: once a guest books, NP7 blocks the room at the hotel, so it cannot be
+  // pulled. Releasing an occupied room would leave a paid guest with nowhere to
+  // sleep and no signal anywhere, so it is refused.
+  if (rest.released_at) {
+    const { data: cur } = await client
+      .from("exp_hotel_rooms").select("booking_id, extra_booking_ids").eq("id", id).maybeSingle();
+    if (cur?.booking_id || (cur?.extra_booking_ids ?? []).length) {
+      return NextResponse.json(
+        { error: "This room has a guest in it. We block a room at the hotel the moment it's booked, so it can't be taken back — move the guest first if it really is gone." },
+        { status: 409 }
+      );
+    }
+  }
+
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const patch: any = { ...body, updated_at: new Date().toISOString() };
+  const patch: any = { ...rest, updated_at: new Date().toISOString() };
   // "Hotel confirmed" refers to specific dates — changing check-in/out without
   // explicitly re-confirming resets the flag (the hotel OK'd the OLD dates).
   if (("check_in" in body || "check_out" in body) && !("hotel_confirmed" in body)) {
@@ -44,6 +65,9 @@ export async function PATCH(
     if (changed) { patch.hotel_confirmed = false; patch.hotel_confirmed_at = null; }
   }
   if ("hotel_confirmed" in body) patch.hotel_confirmed_at = body.hotel_confirmed ? new Date().toISOString() : null;
+  // Taking a room back frees it: it drops out of every bed count, and leaving it
+  // "assigned" would read as ours-and-occupied on the Rooms tab.
+  if (rest.released_at && !("status" in rest)) patch.status = "available";
 
   const { data, error } = await client
     .from("exp_hotel_rooms")
@@ -54,6 +78,13 @@ export async function PATCH(
 
   if (error) {
     return NextResponse.json({ error: error.message }, { status: 400 });
+  }
+
+  if (data?.room_id && sleeps !== undefined) {
+    const n = sleeps === null || sleeps === "" ? null : Number(sleeps);
+    if (n === null || (Number.isFinite(n) && n >= 1)) {
+      await client.from("exp_rooms").update({ sleeps: n }).eq("id", data.room_id);
+    }
   }
 
   return NextResponse.json(data);

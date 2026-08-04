@@ -8,7 +8,7 @@ import { OceanHeader, NP7_LOGO } from "@/components/experience/ocean-header";
 import { Reveal } from "@/components/experience/reveal";
 import { Carousel } from "@/components/experience/carousel";
 import { UpcomingExperiences, type ExpCard } from "@/components/experience/upcoming-experiences";
-import { paidSpotsByEdition, spotsLeftFrom } from "@/lib/availability";
+import { availabilityFor } from "@/lib/availability";
 import type { TilePlacement } from "@/lib/experience-tile";
 
 export const metadata: Metadata = {
@@ -115,9 +115,12 @@ export default async function ExperienceOverviewPage() {
   };
 
   const withEd = ((data as RawExperience[] | null) ?? []).filter((exp) => !hiddenIds.has(exp.id)).map((exp) => ({ ...exp, ed: nextEdition(exp.exp_editions) }));
-  const securedByEd = await paidSpotsByEdition(withEd.map((x) => x.ed?.id)); // spots left = paid only
+  // Per-package availability rolled up to the week: a week is bookable while
+  // any one of its packages still has room, so a full hotel no longer hides the
+  // no-hotel packages that have no beds to lose.
+  const availability = await availabilityFor(withEd.map((x) => x.ed?.id));
   const experiences = withEd
-    .map((exp) => ({ ...exp, spotsLeft: exp.ed ? spotsLeftFrom(exp.ed.max_spots, securedByEd[exp.ed.id] ?? 0) : null }))
+    .map((exp) => ({ ...exp, spotsLeft: exp.ed ? (availability.get(exp.ed.id)?.bestSpotsLeft ?? null) : null }))
     .sort((a, b) => {
       const ad = a.ed?.date_start ?? "9999";
       const bd = b.ed?.date_start ?? "9999";
