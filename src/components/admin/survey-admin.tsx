@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useMemo, useEffect } from "react";
+import { ContactLabel, ContactInline } from "@/components/admin/contact-label";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import ImagePickerModal from "@/components/image-picker-modal";
@@ -466,7 +467,7 @@ export function SurveyAdmin({ initialSurvey, initialInvites }: { initialSurvey: 
 }
 
 // ---------------- invites ----------------
-type Picked = { id: string; name: string };
+type Picked = { id: string; name: string; email?: string | null };
 function InviteSection({ surveyId, surveyTitle, openToken, invites, setInvites, linkFor }: {
   surveyId: string; surveyTitle: string; openToken: string | null; invites: SurveyInvite[]; setInvites: (v: SurveyInvite[]) => void; linkFor: (t: string) => string;
 }) {
@@ -485,7 +486,9 @@ function InviteSection({ surveyId, surveyTitle, openToken, invites, setInvites, 
     if (q.trim().length < 2) { setResults([]); return; }
     const res = await fetch(`/api/admin/contacts?search=${encodeURIComponent(q)}&limit=8`);
     const j = await res.json().catch(() => ({ data: [] }));
-    setResults((j.data ?? []).map((c: { id: string; name: string | null; email: string | null }) => ({ id: c.id, name: c.name || c.email || "Unnamed" })));
+    // Keep the email: two members can share a name, and the address is the
+    // only thing that tells them apart in the list below.
+    setResults((j.data ?? []).map((c: { id: string; name: string | null; email: string | null }) => ({ id: c.id, name: c.name || c.email || "Unnamed", email: c.email })));
   }
   const addPick = (p: Picked) => { if (!picked.some((x) => x.id === p.id)) setPicked([...picked, p]); setTerm(""); setResults([]); };
 
@@ -782,7 +785,7 @@ Same invite email under the subject "${remSubject.trim() || `Quick reminder 🤙
           <div className="absolute z-10 left-0 right-0 mt-1 rounded-lg border border-[#e2e9ec] bg-white shadow-lg overflow-hidden">
             {results.map((r) => (
               <button key={r.id} onClick={() => addPick(r)} disabled={invitedIds.has(r.id)} className="block w-full text-left px-3 py-2 text-[14px] text-[#0a2a33] hover:bg-[#f2f8f9] disabled:opacity-40 disabled:cursor-not-allowed">
-                {r.name}{invitedIds.has(r.id) ? " · already invited" : ""}
+                <ContactLabel name={r.name} email={r.email} note={invitedIds.has(r.id) ? "already invited" : null} />
               </button>
             ))}
           </div>
@@ -855,7 +858,7 @@ Same invite email under the subject "${remSubject.trim() || `Quick reminder 🤙
           <div className="flex flex-wrap gap-1.5">
             {picked.map((p) => (
               <span key={p.id} className="inline-flex items-center gap-1.5 rounded-full bg-[#ecfaff] border border-[#c7e7f0] px-3 py-1 text-[13px] font-semibold text-[#00374a]">
-                {p.name}
+                <ContactInline name={p.name} email={p.email} />
                 <button onClick={() => setPicked(picked.filter((x) => x.id !== p.id))} className="text-[#8a97a0] hover:text-[#c0392b]">×</button>
               </span>
             ))}

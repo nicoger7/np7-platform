@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useRef } from "react";
+import { ContactLabel } from "@/components/admin/contact-label";
 
 export interface ContactLite {
   id: string;
@@ -127,8 +128,7 @@ export function ContactPicker({ value, display, onChange, placeholder = "Search 
                 onClick={() => pick(c)}
                 className={`w-full text-left px-3 py-2 hover:bg-[var(--admin-surface-hover)] transition-colors ${c.id === value ? "bg-[#0aa3c7]/10" : ""}`}
               >
-                <div className="text-sm admin-heading truncate">{c.name}</div>
-                {c.email && <div className="text-xs admin-faint truncate">{c.email}</div>}
+                <ContactLabel name={c.name} email={c.email} />
               </button>
             ))}
             {!loading && results.length === 0 && (

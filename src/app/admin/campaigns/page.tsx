@@ -356,7 +356,7 @@ export default function CampaignsPage() {
                   </div>
                 </div>
                 {sample.length > 0 && (
-                  <p className="text-[11px] admin-faint">e.g. {sample.map((s) => s.name || s.email).slice(0, 5).join(" · ")}</p>
+                  <p className="text-[11px] admin-faint">e.g. {sample.slice(0, 5).map((s) => s.name && s.email && s.name !== s.email ? `${s.name} (${s.email})` : (s.name || s.email)).join(" · ")}</p>
                 )}
               </div>
             </div>
