@@ -6,7 +6,8 @@ import Link from "next/link";
 import { ContactPicker } from "@/components/contact-picker";
 import { SearchSelect } from "@/components/admin/search-select";
 import { type DocumentType, formatMoney } from "@/lib/invoices/types";
-import { parseFlightNote } from "@/lib/flights";
+import { parseFlightNote, sanitizeFlightInfo, type FlightInfo } from "@/lib/flights";
+import { FlightEditor } from "@/components/admin/flight-editor";
 import { parseAmount, formatAmount } from "@/lib/parse-amount";
 import { normalizeBookingStatus } from "@/lib/types";
 import { effectiveAddonStatus } from "@/lib/addons";
@@ -158,6 +159,7 @@ export function BookingDetailPane({ bookingId, onBack }: { bookingId: string; on
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
+  const [flightsDirty, setFlightsDirty] = useState(false);
   const [tab, setTab] = useState<"details" | "payments" | "addons" | "rooms" | "documents">("details");
   // Back target — honour ?from= (e.g. opened from a member) so "back" returns to
   // where you came from, not always the Bookings list.
@@ -293,8 +295,9 @@ export function BookingDetailPane({ bookingId, onBack }: { bookingId: string; on
         package_id: booking.package_id,
         contact_id: booking.contact_id,
         status: booking.status,
-        fly_in: booking.fly_in,
-        fly_out: booking.fly_out,
+        // fly_in/fly_out deliberately absent: they are mirrored from the travel
+        // details by the flights endpoint below, so there is exactly one writer
+        // and the guest never sees a date the admin has since changed.
         traveling_with: booking.traveling_with,
         wa_group: booking.wa_group,
         agreed_price: booking.agreed_price,
@@ -308,6 +311,18 @@ export function BookingDetailPane({ bookingId, onBack }: { bookingId: string; on
         notes: booking.notes,
       }),
     });
+    // Travel goes through its own endpoint — the same one the member portal
+    // uses — so both sides write flight_info and mirror the dates identically.
+    // Sent whenever it was touched, not only when it ends up non-empty: clearing
+    // a wrong arrival has to clear the mirrored fly_in too.
+    if (flightsDirty) {
+      await fetch(`/api/admin/bookings/${id}/flights`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(sanitizeFlightInfo((booking.flight_info ?? {}) as Record<string, unknown>)),
+      });
+      setFlightsDirty(false);
+    }
     setSaving(false);
     setSaved(true);
     setTimeout(() => setSaved(false), 2000);
@@ -583,6 +598,16 @@ export function BookingDetailPane({ bookingId, onBack }: { bookingId: string; on
 
   if (loading) return <div className="text-sm admin-faint">Loading...</div>;
   if (!booking) return <div className="text-sm text-red-400">Booking not found</div>;
+
+  // Travel. flight_info is the answer; the notes sentinel is the pre-migration
+  // fallback; fly_in/fly_out fill in for bookings whose dates were only ever
+  // typed on the old admin form, so nothing that was entered goes missing.
+  const storedFlights = (booking.flight_info as FlightInfo | null) ?? parseFlightNote(booking.notes) ?? {};
+  const flights: FlightInfo = {
+    ...storedFlights,
+    arrivalDate: storedFlights.arrivalDate ?? booking.fly_in ?? null,
+    departureDate: storedFlights.departureDate ?? booking.fly_out ?? null,
+  };
 
   // Received = 'paid' rows only. Pending is shown separately below so it informs
   // without inflating what the customer actually owes.
@@ -910,47 +935,39 @@ export function BookingDetailPane({ bookingId, onBack }: { bookingId: string; on
             </div>
           </div>
 
-          {/* Travel */}
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <label className={labelClass}>Fly in</label>
-              <input type="date" className={inputClass} value={booking.fly_in || ""} onChange={(e) => update("fly_in", e.target.value || null)} />
+          {/* Travel — one block, not two.
+              There used to be a pair of "Fly in / Fly out" date inputs here and,
+              below them, a read-only echo of what the member had entered. That
+              split was the bug: the dates written here never reached flight_info,
+              so an admin correcting an arrival date left the guest looking at the
+              old one in their member area. Now everything — dates, times, flight
+              numbers, own-way — is the same field the member writes, and the
+              fly_in/fly_out columns are mirrored from it on save. */}
+          <div>
+            <div className="flex items-baseline justify-between gap-3 mb-2">
+              <label className={labelClass}>Travel</label>
+              {flights.booked === true && (
+                <span className="text-[10.5px] font-bold uppercase px-1.5 py-0.5 rounded bg-green-500/15 text-green-400">
+                  {flights.arrivalMode === "own" ? "travel confirmed" : "flights booked"}
+                </span>
+              )}
             </div>
-            <div>
-              <label className={labelClass}>Fly out</label>
-              <input type="date" className={inputClass} value={booking.fly_out || ""} onChange={(e) => update("fly_out", e.target.value || null)} />
+            <div className="rounded-xl p-3.5" style={{ border: "1px solid var(--admin-border)", backgroundColor: "var(--admin-surface)" }}>
+              <FlightEditor
+                value={flights}
+                onChange={(next) => {
+                  setFlightsDirty(true);
+                  update("flight_info", next);
+                  // Keep the local mirror in step so the rest of the page (and
+                  // the list you go back to) doesn't show the pre-edit dates.
+                  update("fly_in", next.arrivalDate || null);
+                  update("fly_out", next.departureDate || null);
+                }}
+                hint={{ start: booking.exp_editions?.date_start ?? booking.exp_experiences?.date_start ?? null, end: booking.exp_editions?.date_end ?? booking.exp_experiences?.date_end ?? null }}
+              />
+              <p className="text-[10.5px] admin-faint mt-3">Saved to the same place the guest edits — a change here shows in their member area, and theirs shows here.</p>
             </div>
           </div>
-
-          {/* What the member actually entered. fly_in/fly_out are only the dates —
-              the times, flight numbers and "not flying" live in flight_info, and
-              were being collected and then shown nowhere. Read-only: it is the
-              guest's own answer, and editing it here would silently overwrite
-              what they told us. */}
-          {(() => {
-            const fi = (booking.flight_info ?? parseFlightNote(booking.notes) ?? {}) as Record<string, string | boolean | null>;
-            const has = ["arrivalTime", "arrivalFlightNo", "departureTime", "departureFlightNo"].some((k) => fi[k]);
-            if (!has && !fi.arrivalMode) return null;
-            const self = fi.arrivalMode === "own";
-            const line = (label: string, time?: unknown, no?: unknown) => (
-              <div className="flex items-baseline gap-2 text-[13px]">
-                <span className="admin-faint w-20 shrink-0">{label}</span>
-                <span className="admin-heading font-semibold">{(time as string) || "—"}</span>
-                {!self && <span className="admin-muted font-mono text-[12px]">{(no as string) || ""}</span>}
-              </div>
-            );
-            return (
-              <div className="rounded-xl p-3.5" style={{ border: "1px solid var(--admin-border)", backgroundColor: "var(--admin-surface)" }}>
-                <p className="text-[10px] font-bold tracking-[0.12em] uppercase admin-faint mb-2">
-                  Member entered {self && <span className="text-amber-500">· making their own way</span>}
-                </p>
-                <div className="space-y-1">
-                  {line(self ? "Arriving" : "Arrival", fi.arrivalTime, fi.arrivalFlightNo)}
-                  {line(self ? "Leaving" : "Departure", fi.departureTime, fi.departureFlightNo)}
-                </div>
-              </div>
-            );
-          })()}
 
           <div>
             <label className={labelClass}>Traveling with</label>

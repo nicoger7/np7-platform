@@ -22,7 +22,8 @@ import { effectiveCanAccess, effectiveCanSeeField } from "@/lib/access";
 import { PublicBadge } from "@/components/admin/public-badge";
 import { editionLabel } from "@/lib/edition-label";
 import { MailReadiness } from "@/components/admin/mail-readiness";
-import { parseFlightNote } from "@/lib/flights";
+import { parseFlightNote, type FlightInfo } from "@/lib/flights";
+import { FlightEditor } from "@/components/admin/flight-editor";
 import { EditionMailing } from "@/components/admin/edition-mailing";
 
 // Edition detail sub-tabs. The order is reorderable by drag-and-drop and saved
@@ -87,6 +88,9 @@ const ARRIVAL_COLUMNS: { key: string; label: string; width: string; always?: boo
   { key: "other_time", label: "Time", width: "72px" },
   { key: "other_flight", label: "Flight", width: "96px", off: true },
   { key: "room", label: "Room", width: "120px", off: true },
+  // Not a column you can switch off: guests phone and message their flights far
+  // more often than they fill the form in, and this is where that gets recorded.
+  { key: "edit", label: "", width: "34px", always: true },
 ];
 const ARRIVAL_COLS_KEY = "np7_edition_arrival_cols";
 const eur = (n: number | null | undefined, cur?: string | null) => `${cur === "EUR" || !cur ? "€" : cur + " "}${Number(n || 0).toLocaleString("en-US", { maximumFractionDigits: 0 })}`;
@@ -153,6 +157,9 @@ interface Booking {
   agreed_price: number | null;
   fly_in: string | null;
   fly_out: string | null;
+  /** The travel answer itself — dates above are only its mirror. */
+  flight_info?: Record<string, unknown> | null;
+  notes?: string | null;
   downpayment_received: boolean;
   final_payment_received: boolean;
   /** derived from the ledger by the API — the ✓ / ½ / — indicator */
@@ -405,6 +412,42 @@ export default function EditionDetailPage({
   /** Which leg you're looking at. Same table, mirrored — grouped by the day of
    *  whichever direction you picked, because that is the day you plan around. */
   const [leg, setLeg] = useState<"in" | "out">("in");
+
+  /**
+   * Editing travel from the list.
+   *
+   * A guest writes "landing 14:05, IB3216" in the group chat and the person
+   * reading it is looking at exactly this table — so this is where it has to be
+   * writable. The PUT is the same endpoint the member's own form uses, so what
+   * we type here is what they see in their member area, and vice versa.
+   */
+  const [arrEdit, setArrEdit] = useState<string | null>(null);
+  const [arrDraft, setArrDraft] = useState<FlightInfo>({});
+  const [arrSaving, setArrSaving] = useState(false);
+
+  function openArrEdit(b: Booking) {
+    const fi = ((b.flight_info as FlightInfo | null) ?? parseFlightNote(b.notes ?? null) ?? {}) as FlightInfo;
+    setArrDraft({ ...fi, arrivalDate: fi.arrivalDate ?? b.fly_in ?? null, departureDate: fi.departureDate ?? b.fly_out ?? null });
+    setArrEdit(b.id);
+  }
+
+  async function saveArrEdit(bookingId: string) {
+    setArrSaving(true);
+    const res = await fetch(`/api/admin/bookings/${bookingId}/flights`, {
+      method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(arrDraft),
+    });
+    if (res.ok) {
+      const { flights } = (await res.json()) as { flights: FlightInfo };
+      // Patch the row in place rather than refetching: the table is grouped and
+      // sorted by day, and a full reload would scroll you away from the guest
+      // you just edited.
+      setBookings((prev) => prev.map((b) => b.id === bookingId
+        ? { ...b, flight_info: flights as Record<string, unknown>, fly_in: flights.arrivalDate ?? null, fly_out: flights.departureDate ?? null }
+        : b));
+      setArrEdit(null);
+    }
+    setArrSaving(false);
+  }
 
   const [costForm, setCostForm] = useState(emptyCost);
   const [costEditId, setCostEditId] = useState<string | null>(null);
@@ -1405,25 +1448,59 @@ export default function EditionDetailPage({
                   </div>
                   {items.map((r) => {
                     const own = r.fi.arrivalMode === "own";
+                    const editing = arrEdit === r.b.id;
                     return (
-                      <Link key={r.b.id} href={`/admin/bookings/${r.b.id}`}
-                        className="grid gap-3 px-4 py-2.5 hover:bg-[var(--admin-surface-hover)] transition-colors"
-                        style={{ gridTemplateColumns: arrGrid, borderBottom: "1px solid var(--admin-border)" }}>
-                        <span className={`${cell} admin-heading`}>{(r.b.name || "").replace(/\s+[—-]\s+.*$/, "")}</span>
-                        {arrShow("time") && <span className={`${cell} ${r.time ? "admin-heading font-semibold" : "admin-faint"}`}>{r.time || "—"}</span>}
-                        {arrShow("flight") && <span className={`${cell} admin-muted font-mono uppercase`}>{own ? "—" : (r.flight || "—")}</span>}
-                        {arrShow("how") && (
-                          <span className="self-center">
-                            {own
-                              ? <span className="text-[10px] font-bold uppercase px-1.5 py-0.5 rounded bg-amber-500/15 text-amber-500">own way</span>
-                              : <span className="text-[10px] font-bold uppercase px-1.5 py-0.5 rounded admin-surface admin-faint">flying</span>}
-                          </span>
+                      <div key={r.b.id} style={{ borderBottom: "1px solid var(--admin-border)" }}>
+                        <div className="grid gap-3 px-4 py-2.5 hover:bg-[var(--admin-surface-hover)] transition-colors"
+                          style={{ gridTemplateColumns: arrGrid }}>
+                          {/* Only the name navigates — the rest of the row now has
+                              its own job, and a whole-row link would swallow the
+                              click you meant for the pencil. */}
+                          <Link href={`/admin/bookings/${r.b.id}`} className={`${cell} admin-heading hover:text-[var(--admin-accent)] transition-colors`}>
+                            {(r.b.name || "").replace(/\s+[—-]\s+.*$/, "")}
+                          </Link>
+                          {arrShow("time") && <span className={`${cell} ${r.time ? "admin-heading font-semibold" : "admin-faint"}`}>{r.time || "—"}</span>}
+                          {arrShow("flight") && <span className={`${cell} admin-muted font-mono uppercase`}>{own ? "—" : (r.flight || "—")}</span>}
+                          {arrShow("how") && (
+                            <span className="self-center">
+                              {own
+                                ? <span className="text-[10px] font-bold uppercase px-1.5 py-0.5 rounded bg-amber-500/15 text-amber-500">own way</span>
+                                : <span className="text-[10px] font-bold uppercase px-1.5 py-0.5 rounded admin-surface admin-faint">flying</span>}
+                            </span>
+                          )}
+                          {arrShow("other_day") && <span className={`${cell} admin-muted`}>{formatDate(r.otherDay)}</span>}
+                          {arrShow("other_time") && <span className={`${cell} ${r.otherTime ? "admin-muted" : "admin-faint"}`}>{r.otherTime || "—"}</span>}
+                          {arrShow("other_flight") && <span className={`${cell} admin-muted font-mono uppercase`}>{own ? "—" : (r.otherFlight || "—")}</span>}
+                          {arrShow("room") && <span className={`${cell} admin-faint`}>{roomFor(r.b.id) || "—"}</span>}
+                          <button onClick={() => (editing ? setArrEdit(null) : openArrEdit(r.b))}
+                            title={editing ? "Close" : "Edit travel"}
+                            className={`self-center justify-self-center p-1 rounded transition-colors ${editing ? "text-[var(--admin-accent)]" : "admin-faint hover:text-[var(--admin-accent)]"}`}>
+                            <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                              {editing ? <path d="M18 6 6 18M6 6l12 12" /> : <><path d="M12 20h9" /><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z" /></>}
+                            </svg>
+                          </button>
+                        </div>
+                        {editing && (
+                          <div className="px-4 pb-4 pt-1" style={{ backgroundColor: "var(--admin-surface)" }}>
+                            <FlightEditor
+                              value={arrDraft}
+                              onChange={setArrDraft}
+                              hint={{ start: edition?.date_start ?? null, end: edition?.date_end ?? null }}
+                              compact
+                            />
+                            <div className="flex items-center gap-2 mt-3">
+                              <button onClick={() => saveArrEdit(r.b.id)} disabled={arrSaving}
+                                className="px-3 py-1.5 rounded-lg text-[12px] font-bold bg-[var(--admin-accent)] text-[var(--admin-accent-contrast)] disabled:opacity-50">
+                                {arrSaving ? "Saving…" : "Save"}
+                              </button>
+                              <button onClick={() => setArrEdit(null)} className="px-3 py-1.5 rounded-lg text-[12px] font-bold admin-muted hover:admin-heading" style={{ border: "1px solid var(--admin-border)" }}>
+                                Cancel
+                              </button>
+                              <span className="text-[10.5px] admin-faint ml-1">Shows in their member area too.</span>
+                            </div>
+                          </div>
                         )}
-                        {arrShow("other_day") && <span className={`${cell} admin-muted`}>{formatDate(r.otherDay)}</span>}
-                        {arrShow("other_time") && <span className={`${cell} ${r.otherTime ? "admin-muted" : "admin-faint"}`}>{r.otherTime || "—"}</span>}
-                        {arrShow("other_flight") && <span className={`${cell} admin-muted font-mono uppercase`}>{own ? "—" : (r.otherFlight || "—")}</span>}
-                        {arrShow("room") && <span className={`${cell} admin-faint`}>{roomFor(r.b.id) || "—"}</span>}
-                      </Link>
+                      </div>
                     );
                   })}
                 </div>
