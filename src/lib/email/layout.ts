@@ -22,6 +22,7 @@ const THEMES: Record<Division, {
   accent: string; accentText: string;
   gradient: string; hero: string | null;
   headerBg: string; headerFade: string;
+  ruleImage: string;
   footerBg: string; footerText: string; footerStrong: string; tagline: string;
   contactEmail: string;
 }> = {
@@ -29,6 +30,7 @@ const THEMES: Record<Division, {
     logo: `${LOGOS}/np7-experience-logo.png`, logoLight: `${LOGOS}/np7-experience-logo.png`, logoAlt: "NP7 Experience", logoW: 168,
     accent: "#00afdb", accentText: "#ffffff",
     gradient: "linear-gradient(90deg,#ffc42e 0%,#f47b20 48%,#00afdb 100%)",
+    ruleImage: "https://media.np-seven.com/brand/email/np7-rule-experience.png",
     hero: `${STORAGE}/hero/windsurf-hero-poster.jpg`,
     headerBg: "#00374a", headerFade: "rgba(0,40,58,0.82)",
     footerBg: "#00374a", footerText: "#9fb3bb", footerStrong: "#cfe0e5",
@@ -39,6 +41,7 @@ const THEMES: Record<Division, {
     logo: `${LOGOS}/np7-logo.png`, logoLight: `${LOGOS}/np7-logo.png`, logoAlt: "NP7 Hardware", logoW: 92,
     accent: "#c6ff3a", accentText: "#0a0a0c",
     gradient: "linear-gradient(90deg,#c6ff3a 0%,#7bdb1e 50%,#ff2e88 100%)",
+    ruleImage: "https://media.np-seven.com/brand/email/np7-rule-hardware.png",
     hero: null,
     headerBg: "#0c0c0e", headerFade: "rgba(8,8,12,0.85)",
     footerBg: "#0c0c0e", footerText: "#8d8d8d", footerStrong: "#c6ff3a",
@@ -84,9 +87,9 @@ export function emailLayout(opts: { division?: Division; preheader?: string; hea
       <img src="${t.logoLight}" alt="${esc(t.logoAlt)}" width="${t.logoW}" style="display:block;width:${t.logoW}px;max-width:64%;height:auto;margin:0 auto;filter:drop-shadow(0 2px 10px rgba(0,0,0,0.45));">
     </td></tr></table>
   </td></tr>
-  <tr><td bgcolor="${t.accent}" height="4" style="height:4px;line-height:4px;font-size:0;background:${t.accent};background-image:${t.gradient};">&nbsp;</td></tr>
+  <tr><td bgcolor="${t.accent}" style="font-size:0;line-height:0;background:${t.accent};"><img src="${t.ruleImage}" width="560" height="4" alt="" style="display:block;width:100%;height:4px;border:0;outline:none;"></td></tr>
   ` : `
-  <tr><td bgcolor="${t.accent}" height="5" style="height:5px;line-height:5px;font-size:0;background:${t.accent};background-image:${t.gradient};">&nbsp;</td></tr>
+  <tr><td bgcolor="${t.accent}" style="font-size:0;line-height:0;background:${t.accent};"><img src="${t.ruleImage}" width="560" height="5" alt="" style="display:block;width:100%;height:5px;border:0;outline:none;"></td></tr>
   <tr><td align="center" style="background:#ffffff;padding:26px 24px 8px;"><img src="${t.logo}" alt="${esc(t.logoAlt)}" width="${t.logoW}" style="display:block;width:${t.logoW}px;max-width:60%;height:auto;"></td></tr>
   `}
   <tr><td style="padding:26px 32px 30px;color:#33434a;font-size:15px;line-height:1.6;">${bodyHtml}</td></tr>
