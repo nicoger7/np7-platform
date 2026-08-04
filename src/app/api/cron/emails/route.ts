@@ -106,6 +106,22 @@ export async function GET(req: NextRequest) {
   const liveFrom = liveFromRaw ? new Date(liveFromRaw).getTime() : null;
   const onOrAfterCutoff = (d?: string | null) => liveFrom == null || (!!d && new Date(d).getTime() >= liveFrom);
 
+  /**
+   * The trip being in the future is NOT enough.
+   *
+   * The cutoff above asks "is this trip ahead of go-live?", which every future
+   * booking passes. But the condition-driven mails ask "is this true NOW?" —
+   * and a balance paid in May is still paid today. Switching the pipeline on
+   * therefore flushed the whole backlog: 15 guests were congratulated on
+   * payments up to 79 days old, which is exactly the "never email backwards"
+   * rule the trip cutoff was supposed to enforce.
+   *
+   * So a mail triggered by an EVENT also has to prove the event itself is
+   * recent. An undateable event counts as old: we would rather stay silent
+   * than congratulate someone for something we cannot place in time.
+   */
+  const eventLive = (d?: string | null) => liveFrom == null || (!!d && new Date(d).getTime() >= liveFrom);
+
   const { data: bookings } = await db
     .from("exp_bookings")
     .select("id,status,experience_id,edition_id,agreed_price,deposit_received,downpayment_received,final_payment_received,created_at,contacts(name,email),exp_experiences(title,slug),exp_editions(date_start,date_end,deposit,whatsapp_group_link),exp_packages(deposit,deposit_refund_days,downpayment_percent,final_days_before)")
@@ -142,6 +158,18 @@ export async function GET(req: NextRequest) {
 
   // Which bookings already have a signed waiver (so we only remind the rest).
   const bookingIds = (bookings ?? []).map((b: { id: string }) => b.id);
+  // When the last payment landed, per booking — the event date behind
+  // "balance paid", which the cron previously had no way to know.
+  const lastPaidAt = new Map<string, string>();
+  if (bookingIds.length) {
+    const { data: pays } = await db.from("exp_payments").select("booking_id, date").in("booking_id", bookingIds);
+    for (const p of (pays ?? []) as { booking_id: string | null; date: string | null }[]) {
+      if (!p.booking_id || !p.date) continue;
+      const cur = lastPaidAt.get(p.booking_id);
+      if (!cur || p.date > cur) lastPaidAt.set(p.booking_id, p.date);
+    }
+  }
+
   const signedWaivers = new Set<string>();
   if (bookingIds.length) {
     const { data: sigs } = await db.from("exp_waiver_signatures").select("booking_id").in("booking_id", bookingIds);
@@ -260,13 +288,15 @@ export async function GET(req: NextRequest) {
     // 2 · final balance — anchored to the plan's REAL deadline (start − N days,
     //     N per package): one reminder the week it falls due, one overdue nudge.
     const daysToFinalDue = finalMs?.dueDate ? Math.round((new Date(finalMs.dueDate).getTime() - now) / DAY) : null;
-    if (tripLive && depositPaid && !balancePaid && finalMs && finalMs.amount > 0 && daysToFinalDue != null) {
+    if (tripLive && depositPaid && !balancePaid && finalMs && finalMs.amount > 0 && daysToFinalDue != null
+        && eventLive(finalMs.dueDate)) {
       if (daysToFinalDue <= 7 && daysToFinalDue >= 0) bump("balance", await send("balance_invoice_reminder", `balance_invoice_reminder:r1:${b.id}`));
       if (daysToFinalDue <= -3 && (daysToStart == null || daysToStart > 0)) bump("balance", await send("balance_invoice_reminder", `balance_invoice_reminder:r2:${b.id}`));
     }
 
     // 3 · balance paid in full — one confirmation
-    if (tripLive && depositPaid && balancePaid && (b.agreed_price ?? 0) > 0) {
+    if (tripLive && depositPaid && balancePaid && (b.agreed_price ?? 0) > 0
+        && eventLive(lastPaidAt.get(b.id) ?? null)) {
       bump("balance_paid", await send("balance_paid_confirmation", `balance_paid_confirmation:${b.id}`));
     }
 
