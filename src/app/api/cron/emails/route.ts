@@ -48,7 +48,12 @@ function fmtRange(start?: string | null, end?: string | null) {
 export async function GET(req: NextRequest) {
   if (!authorized(req)) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-  const origin = req.headers.get("origin") ?? `https://${req.headers.get("host")}`;
+  // NEVER the request host. Vercel invokes a cron at the DEPLOYMENT's own
+  // URL (np7-platform-<hash>-<team>.vercel.app), not the custom domain — so
+  // deriving links from the request sent 19 guests 44 emails whose every link
+  // led to a Vercel SSO wall they cannot pass. Guest-facing links are always
+  // the public site; every other mail path in the codebase already does this.
+  const origin = (process.env.NEXT_PUBLIC_SITE_URL || "https://www.np-seven.com").replace(/\/$/, "");
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const db = createAdminClient() as any;
   const now = Date.now();
