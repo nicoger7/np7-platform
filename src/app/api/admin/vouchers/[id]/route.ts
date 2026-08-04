@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { publicOrigin } from "@/lib/public-origin";
 import { createAdminClient } from "@/lib/supabase";
 import { sendVoucherIssued } from "@/lib/vouchers/notify";
 
@@ -75,7 +76,7 @@ export async function PATCH(request: NextRequest, { params }: RouteContext) {
   // On payment confirmation, email the printable PDF voucher to the buyer (and the
   // recipient if given). Best-effort + idempotent — never blocks the activation.
   if (action === "activate") {
-    const origin = request.headers.get("origin") ?? `https://${request.headers.get("host")}`;
+    const origin = publicOrigin();
     await sendVoucherIssued(id, origin).catch(() => {});
   }
 

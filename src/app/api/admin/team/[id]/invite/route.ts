@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { publicOrigin } from "@/lib/public-origin";
 import { createAdminClient } from "@/lib/supabase";
 import { inviteTeamMember } from "@/lib/members";
 
@@ -18,7 +19,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     return NextResponse.json({ error: "This team member has no email to invite." }, { status: 400 });
   }
 
-  const origin = req.headers.get("origin") ?? `https://${req.headers.get("host")}`;
+  const origin = publicOrigin();
   const firstName = (member.name ?? "").split(" ")[0] || undefined;
   const res = await inviteTeamMember({ email: member.email, origin, firstName });
 

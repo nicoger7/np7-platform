@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { publicOrigin } from "@/lib/public-origin";
 import { createAdminClient } from "@/lib/supabase";
 import { getRequestAccess } from "@/lib/admin-auth";
 import { eventPricing } from "@/lib/events";
@@ -36,7 +37,7 @@ export async function POST(request: NextRequest) {
   await db.from("exp_event_dates").update({ status: "confirmed" }).eq("id", dateId);
   await db.from("exp_event_dates").update({ status: "cancelled" }).eq("experience_id", experienceId).neq("id", dateId).eq("status", "candidate");
 
-  const origin = request.headers.get("origin") ?? `https://${request.headers.get("host")}`;
+  const origin = publicOrigin();
   const cur = exp.currency ?? "EUR";
 
   // Deposit-paid standby bookings awaiting resolution.

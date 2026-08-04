@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { publicOrigin } from "@/lib/public-origin";
 import { createAdminClient } from "@/lib/supabase";
 import { sendEmail } from "@/lib/email/send";
 import { getMemoryPhotosForBooking } from "@/lib/portal-data";
@@ -53,7 +54,7 @@ export async function GET(req: NextRequest) {
   // deriving links from the request sent 19 guests 44 emails whose every link
   // led to a Vercel SSO wall they cannot pass. Guest-facing links are always
   // the public site; every other mail path in the codebase already does this.
-  const origin = (process.env.NEXT_PUBLIC_SITE_URL || "https://www.np-seven.com").replace(/\/$/, "");
+  const origin = publicOrigin();
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const db = createAdminClient() as any;
   const now = Date.now();
@@ -160,13 +161,27 @@ export async function GET(req: NextRequest) {
   const bookingIds = (bookings ?? []).map((b: { id: string }) => b.id);
   // When the last payment landed, per booking — the event date behind
   // "balance paid", which the cron previously had no way to know.
+  // received_at is what the admin form actually writes; `date` alone is null on
+  // most recent rows, which would have made eventLive() permanently false and
+  // silently killed this mail for every future balance payment. created_at is
+  // the last resort — when we learned of it, if nobody dated it.
+  //
+  // Only money that ARRIVED counts: a pending promise or a refund is not a
+  // reason to congratulate anyone. Same test the ledger uses (paymentInflow).
   const lastPaidAt = new Map<string, string>();
   if (bookingIds.length) {
-    const { data: pays } = await db.from("exp_payments").select("booking_id, date").in("booking_id", bookingIds);
-    for (const p of (pays ?? []) as { booking_id: string | null; date: string | null }[]) {
-      if (!p.booking_id || !p.date) continue;
+    const { data: pays } = await db
+      .from("exp_payments")
+      .select("booking_id, received_at, date, created_at, status, direction, type")
+      .in("booking_id", bookingIds);
+    for (const p of (pays ?? []) as Record<string, string | null>[]) {
+      if (!p.booking_id) continue;
+      if (p.direction === "cost" || p.type === "refund" || p.type === "addon") continue;
+      if (p.status === "pending" || p.status === "cancelled") continue;
+      const when = p.received_at ?? p.date ?? p.created_at;
+      if (!when) continue;
       const cur = lastPaidAt.get(p.booking_id);
-      if (!cur || p.date > cur) lastPaidAt.set(p.booking_id, p.date);
+      if (!cur || when > cur) lastPaidAt.set(p.booking_id, when);
     }
   }
 
@@ -288,8 +303,11 @@ export async function GET(req: NextRequest) {
     // 2 · final balance — anchored to the plan's REAL deadline (start − N days,
     //     N per package): one reminder the week it falls due, one overdue nudge.
     const daysToFinalDue = finalMs?.dueDate ? Math.round((new Date(finalMs.dueDate).getTime() - now) / DAY) : null;
-    if (tripLive && depositPaid && !balancePaid && finalMs && finalMs.amount > 0 && daysToFinalDue != null
-        && eventLive(finalMs.dueDate)) {
+    // No event guard here on purpose. The r1 window is inherently current
+    // (due within 7 days) and r2 is a debt that is STILL OWED — a deadline that
+    // passed before go-live does not make the money less outstanding. tripLive
+    // already stops us nagging about trips that have been and gone.
+    if (tripLive && depositPaid && !balancePaid && finalMs && finalMs.amount > 0 && daysToFinalDue != null) {
       if (daysToFinalDue <= 7 && daysToFinalDue >= 0) bump("balance", await send("balance_invoice_reminder", `balance_invoice_reminder:r1:${b.id}`));
       if (daysToFinalDue <= -3 && (daysToStart == null || daysToStart > 0)) bump("balance", await send("balance_invoice_reminder", `balance_invoice_reminder:r2:${b.id}`));
     }

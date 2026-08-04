@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { publicOrigin } from "@/lib/public-origin";
 import { createAdminClient } from "@/lib/supabase";
 import { ensureMemberAccount } from "@/lib/members";
 import { sendEmail } from "@/lib/email/send";
@@ -137,7 +138,7 @@ export async function POST(request: NextRequest) {
   const { data: contact } = await admin.from("contacts").select("id,name,email,auth_user_id").eq("id", contactId).maybeSingle();
   if (!contact) return NextResponse.json({ error: "Contact not found" }, { status: 404 });
 
-  const origin = request.headers.get("origin") ?? `https://${request.headers.get("host")}`;
+  const origin = publicOrigin();
 
   if (action === "invite") {
     if (!contact.email) return NextResponse.json({ error: "Contact has no email" }, { status: 400 });

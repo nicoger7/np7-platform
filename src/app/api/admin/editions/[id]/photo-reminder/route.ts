@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { publicOrigin } from "@/lib/public-origin";
 import { createAdminClient } from "@/lib/supabase";
 import { requireTeamMember } from "@/lib/admin-auth";
 import { sendEmail } from "@/lib/email/send";
@@ -53,7 +54,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
   const denied = await requireTeamMember();
   if (denied) return denied;
   const { id } = await params;
-  const origin = req.headers.get("origin") ?? `https://${req.headers.get("host")}`;
+  const origin = publicOrigin();
   const rows = await participants(id);
   const today = new Date().toISOString().slice(0, 10);
 
