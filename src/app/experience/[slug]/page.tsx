@@ -418,6 +418,22 @@ export default async function ExperienceDetailPage({ params, searchParams }: Pro
   const fromPrice = priceCandidates.length ? Math.min(...priceCandidates) : null;
   const spotsLeft = edition ? (availability.get(edition.id)?.bestSpotsLeft ?? null) : null;
   const totalSpotsLeft = editionsLite.reduce((s, e) => s + (e.spotsLeft ?? 0), 0);
+  /**
+   * Scarcity is only scarcity when the number is small.
+   *
+   * The reserve modal already knew this and shows a count only at 3 or fewer.
+   * The hero and the sticky bar didn't, so on a six-week trip they added the
+   * weeks together and announced "38 spots left" — which is not a nudge, it's
+   * an inventory report, and it made a week that was actually nearly full read
+   * as wide open. Show the TIGHTEST week rather than the sum, and only when it
+   * is genuinely tight.
+   */
+  const SCARCE_AT = 3;
+  const tightestWeek = editionsLite
+    .map((e) => e.spotsLeft)
+    .filter((n): n is number => typeof n === "number" && n > 0)
+    .sort((a, b) => a - b)[0] ?? null;
+  const scarceLeft = tightestWeek != null && tightestWeek <= SCARCE_AT ? tightestWeek : null;
   // Sold out = every week that HAS a cap is full (uncapped weeks never count as
   // sold out — spotsLeft is null for those, not 0).
   const soldOut = multi
@@ -617,12 +633,12 @@ export default async function ExperienceDetailPage({ params, searchParams }: Pro
               {multi ? (
                 <span className="inline-flex items-center gap-1.5 text-[12px] font-semibold px-3 py-1 rounded-full text-[#5fd0e8] bg-[#00afdb]/15 border border-[#00afdb]/30">
                   <span className="w-1.5 h-1.5 rounded-full bg-[#5fd0e8] animate-pulse" />
-                  {allEditions.length} weeks{totalSpotsLeft > 0 ? ` · ${totalSpotsLeft} spots left` : ""}
+                  {allEditions.length} weeks{scarceLeft != null ? ` · one week down to ${scarceLeft}` : ""}
                 </span>
               ) : typeof spotsLeft === "number" ? (
                 <span className={`inline-flex items-center gap-1.5 text-[12px] font-semibold px-3 py-1 rounded-full ${spotsLeft > 0 ? "text-[#5fd0e8] bg-[#00afdb]/15 border border-[#00afdb]/30" : "text-white bg-[#f47b20]"}`}>
                   <span className="w-1.5 h-1.5 rounded-full bg-current animate-pulse" />
-                  {spotsLeft > 0 ? `Only ${spotsLeft} spots left` : "Fully booked"}
+                  {spotsLeft === 0 ? "Fully booked" : spotsLeft <= SCARCE_AT ? `Only ${spotsLeft} spots left` : "Spots available"}
                 </span>
               ) : null}
             </div>
@@ -1032,7 +1048,7 @@ export default async function ExperienceDetailPage({ params, searchParams }: Pro
           Team preview — drafts included, the public may see less
         </div>
       )}
-      <StickyCta title={experience.title} priceFrom={fromPrice ?? 0} spotsLeft={multi ? totalSpotsLeft : spotsLeft} target="#packages" soldOut={soldOut} />
+      <StickyCta title={experience.title} priceFrom={fromPrice ?? 0} spotsLeft={multi ? scarceLeft : (typeof spotsLeft === "number" && spotsLeft > 0 && spotsLeft <= SCARCE_AT ? spotsLeft : null)} target="#packages" soldOut={soldOut} />
     </SelectedEditionProvider>
   );
 }

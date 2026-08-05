@@ -23,8 +23,9 @@ export async function GET(_request: NextRequest, { params }: { params: Promise<{
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const db = createAdminClient() as any;
 
-  const [{ data: pool }, { data: avail }, { data: units }, { data: hotels }] = await Promise.all([
+  const [{ data: pool }, { data: levels }, { data: avail }, { data: units }, { data: hotels }] = await Promise.all([
     db.from("exp_edition_pool").select("cap, used, free, over_cap").eq("edition_id", id).maybeSingle(),
+    db.from("exp_edition_level_pool").select("*").eq("edition_id", id),
     db.from("exp_package_availability").select("*").eq("edition_id", id),
     db.from("exp_room_pool_units").select("*").eq("edition_id", id),
     db.from("hotels").select("id, name"),
@@ -91,6 +92,10 @@ export async function GET(_request: NextRequest, { params }: { params: Promise<{
       free: pool?.free ?? null,
       over: pool?.over_cap ?? 0,
     },
+    // Per coaching level. "Advanced 16, beginner 6" is how these weeks are
+    // actually sold, and neither the week cap nor a package cap can say it.
+    levels: (levels ?? []).sort((a: Record<string, unknown>, b: Record<string, unknown>) =>
+      String(a.level).localeCompare(String(b.level))),
     packages,
     pools: [...pools.values()].sort((a, b) =>
       `${a.hotel_name ?? ""}${a.room_type ?? ""}`.localeCompare(`${b.hotel_name ?? ""}${b.room_type ?? ""}`)

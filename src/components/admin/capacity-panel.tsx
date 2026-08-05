@@ -31,8 +31,14 @@ export type CapacityPackage = {
   pool_undeclared: boolean;
 };
 
+export type CapacityLevel = {
+  level: string; cap: number | null; used: number; free: number | null;
+  over_cap: number; untagged_packages: number;
+};
+
 export type CapacityData = {
   capacity: { cap: number | null; used: number; free: number | null; over: number };
+  levels: CapacityLevel[];
   packages: CapacityPackage[];
   pools: CapacityPools[];
 };
@@ -40,8 +46,11 @@ export type CapacityData = {
 const POOL_LABEL: Record<string, string> = {
   edition: "the week",
   rooms: "the hotel",
+  level: "the level",
   allocation: "the package cap",
 };
+
+const titleCase = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
 
 /** The headline: what is binding, in words, before any arithmetic. */
 function headline(d: CapacityData): { title: string; tone: "over" | "full" | "open" | "unset"; detail: string } {
@@ -85,12 +94,14 @@ const TONE: Record<string, { fg: string; bg: string }> = {
 };
 
 export function CapacityPanel({
-  data, cap, onCap, loading,
+  data, cap, onCap, onLevelCap, loading,
 }: {
   data: CapacityData | null;
   /** The one editable number: how many people the trip is. */
   cap: number | null;
   onCap: (v: number | null) => void;
+  /** Per-level ceilings — saved immediately, they are not part of the form. */
+  onLevelCap?: (level: string, v: number | null) => void;
   loading?: boolean;
 }) {
   const h = data ? headline(data) : null;
@@ -128,6 +139,33 @@ export function CapacityPanel({
           note={data && data.capacity.over > 0 ? `${data.capacity.over} over` : null}
           noteTone="bad"
         />
+        {/* Levels. "Advanced 16, beginner 6" is how the weeks are really sold,
+            and it is the one limit here a human types — beds are derived. */}
+        {(data?.levels ?? []).map((l) => (
+          <div key={l.level} className="flex items-baseline gap-3 px-4 py-2" style={{ borderBottom: "1px solid var(--admin-border)" }}>
+            <span className="text-[12px] admin-heading font-semibold w-44 shrink-0 truncate">{titleCase(l.level)}</span>
+            <span className="text-[12px] admin-muted flex-1 min-w-0 truncate">
+              {l.cap == null ? `${l.used} booked · no cap` : `${l.used} of ${l.cap}`}
+            </span>
+            {l.over_cap > 0
+              ? <span className="text-[11px] font-bold shrink-0 text-red-400">{l.over_cap} over</span>
+              : l.free != null && <span className={`text-[11px] font-bold shrink-0 ${l.free > 0 ? "text-green-400" : "text-amber-500"}`}>{l.free} free</span>}
+            {onLevelCap && (
+              <input
+                type="number" min={0}
+                className="w-16 shrink-0 rounded-lg px-2 py-1 text-[12px] admin-heading text-right"
+                style={{ border: "1px solid var(--admin-border)", backgroundColor: "var(--admin-bg)" }}
+                defaultValue={l.cap ?? ""}
+                placeholder="—"
+                title="Leave empty for no cap on this level. Don't retype a bed limit here — the rooms already do that."
+                onBlur={(e) => {
+                  const v = e.target.value.trim() === "" ? null : Number(e.target.value);
+                  if ((v ?? null) !== (l.cap ?? null)) onLevelCap(l.level, v);
+                }}
+              />
+            )}
+          </div>
+        ))}
         {(data?.pools ?? []).map((p) => (
           <PoolRow
             key={`${p.hotel_id}-${p.room_type}`}
@@ -159,6 +197,11 @@ export function CapacityPanel({
               {g.unknown_rooms.length > 4 ? ` +${g.unknown_rooms.length - 4}` : ""}. Until someone says how many each sleeps, these rooms limit nothing.
             </p>
           ))}
+          {(data?.levels ?? []).some((l) => l.cap != null) && (data?.levels?.[0]?.untagged_packages ?? 0) > 0 && (
+            <p>
+              <span className="text-amber-500 font-semibold">No level</span> — {data?.levels?.[0]?.untagged_packages} package{(data?.levels?.[0]?.untagged_packages ?? 0) === 1 ? "" : "s"} on this week have no coaching level, so no level cap applies to them and they sell past it.
+            </p>
+          )}
           {undeclared.length > 0 && (
             <p>
               <span className="text-amber-500 font-semibold">No room type</span> — {undeclared.length} package{undeclared.length === 1 ? "" : "s"} name a hotel but not which room they sell, so the hotel doesn&apos;t limit them: {undeclared.slice(0, 3).map((p) => p.name).join(", ")}

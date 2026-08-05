@@ -442,6 +442,21 @@ export default function EditionDetailPage({
     setArrEdit(b.id);
   }
 
+  /**
+   * A ceiling per coaching level — "advanced 16, beginner 6".
+   *
+   * Saved on blur rather than with the form's Save: it is not an edition field,
+   * it is a row per level, and burying it in the page's dirty state would mean
+   * a cap you typed vanishes when you navigate away without saving.
+   */
+  async function saveLevelCap(level: string, value: number | null) {
+    await fetch(`/api/admin/editions/${id}/level-caps`, {
+      method: "PUT", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ caps: { [level]: value } }),
+    }).catch(() => {});
+    loadCapacity();
+  }
+
   async function saveArrEdit(bookingId: string) {
     setArrSaving(true);
     const res = await fetch(`/api/admin/bookings/${bookingId}/flights`, {
@@ -1221,6 +1236,7 @@ export default function EditionDetailPage({
             data={capacity}
             cap={edition.max_spots ?? null}
             onCap={(v) => update("max_spots", v)}
+            onLevelCap={saveLevelCap}
             loading={capLoading}
           />
 
