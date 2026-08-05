@@ -9,7 +9,7 @@
 -- 144 sitting on whichever half you happened to open.
 --
 -- So: one link column, a backfill that matches the rows that already pair up,
--- and a vendor for every hotel that had none. The centres NP7 buys from
+-- and a vendor for every hotel that had none. The centers NP7 buys from
 -- (Windcenter Playa Surf, ASPC Alaçatı) are partners too and were nowhere at
 -- all — they are not hotels, so `hotels` was never going to hold them.
 -- ============================================================================
@@ -48,7 +48,7 @@ select h.name, array['accommodation']::text[], h.id, 'todo',
  where h.archived_at is null
    and not exists (select 1 from vendors v where v.hotel_id = h.id and v.archived_at is null);
 
--- ── The centres. Not hotels, so they were never going to appear above. ──────
+-- ── The centers. Not hotels, so they were never going to appear above. ─────
 insert into vendors (name, category, terms_status, notes)
 select x.name, array['center']::text[], 'todo', x.note
   from (values

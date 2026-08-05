@@ -17,7 +17,7 @@
 
 export const VENDOR_CATEGORIES: { key: string; label: string }[] = [
   { key: "accommodation", label: "Hotel" },
-  { key: "center", label: "Centre" },
+  { key: "center", label: "Center" },
   { key: "transport", label: "Transport" },
   { key: "catering", label: "Catering" },
   { key: "gear", label: "Gear" },
