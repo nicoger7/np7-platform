@@ -5,6 +5,7 @@ import Link from "next/link";
 import { SortableHeader } from "@/components/sortable-header";
 import { ColumnToggle, ColumnDef, buildGridTemplate, loadVisibleColumns } from "@/components/column-toggle";
 import { RowActions } from "@/components/row-actions";
+import { VendorTermsBadge } from "@/components/admin/vendor-terms";
 
 interface Vendor {
   id: string;
@@ -16,6 +17,12 @@ interface Vendor {
   chatwoot_contact_id: string | null;
   notes: string | null;
   created_at: string;
+  /** Cancellation terms we hold with them — see migration 144. */
+  cancel_free_until_days: number | null;
+  force_majeure_mirrored: boolean | null;
+  terms_status: string | null;
+  terms_note: string | null;
+  terms_checked_at: string | null;
 }
 
 function fmtDate(d: string | null) {
@@ -33,6 +40,10 @@ const COLUMNS: ColumnDef[] = [
   { key: "email", label: "Email", width: "140px" },
   { key: "phone", label: "Phone", width: "120px", defaultHidden: true },
   { key: "category", label: "Category", width: "100px" },
+  // On by default: a supplier whose force-majeure risk nobody has asked about is
+  // a number missing from every trip's P&L, and it stays missing until it's
+  // visible in the list rather than one click inside each vendor.
+  { key: "terms", label: "Cancel terms", width: "120px" },
   { key: "chatwoot_contact_id", label: "Chatwoot ID", width: "100px", defaultHidden: true },
   { key: "notes", label: "Notes", width: "150px", defaultHidden: true },
   { key: "created_at", label: "Created", width: "100px", defaultHidden: true },
@@ -186,6 +197,11 @@ export default function VendorsPage() {
               {visibleColumns.has("email") && <span className="text-xs admin-muted self-center truncate">{v.email || "—"}</span>}
               {visibleColumns.has("phone") && <span className="text-xs admin-muted self-center truncate">{v.phone || "—"}</span>}
               {visibleColumns.has("category") && <span className="text-xs admin-muted self-center">{v.category || "—"}</span>}
+              {visibleColumns.has("terms") && (
+                <span className="self-center" title={v.terms_note || "Nobody has recorded what we agreed with them"}>
+                  <VendorTermsBadge v={v} />
+                </span>
+              )}
               {visibleColumns.has("chatwoot_contact_id") && <span className="text-xs admin-faint self-center truncate">{v.chatwoot_contact_id || "—"}</span>}
               {visibleColumns.has("notes") && <span className="text-xs admin-faint self-center truncate" title={v.notes || ""}>{v.notes || "—"}</span>}
               {visibleColumns.has("created_at") && <span className="text-xs admin-faint self-center">{fmtDate(v.created_at)}</span>}

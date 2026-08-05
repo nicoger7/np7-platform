@@ -2,8 +2,9 @@
 
 import { useState, useEffect, use } from "react";
 import { useRouter } from "next/navigation";
+import { VendorTerms, type VendorTerms as Terms } from "@/components/admin/vendor-terms";
 
-interface Vendor {
+interface Vendor extends Terms {
   id: string;
   name: string;
   email: string | null;
@@ -91,6 +92,15 @@ export default function VendorDetailPage({ params }: { params: Promise<{ id: str
         <div><label className={labelClass}>Notes</label>
           <textarea className={`${inputClass} min-h-[100px] resize-y`} value={vendor.notes || ""} onChange={(e) => update("notes", e.target.value || null)} placeholder="Internal notes..." />
         </div>
+
+        {/* Our §651h(3) duty to the guest is fixed; whether it also costs us the
+            rooms is decided here, supplier by supplier. */}
+        <VendorTerms
+          value={vendor}
+          onChange={(patch) => setVendor((prev) => (prev ? { ...prev, ...patch } : prev))}
+          labelClass={labelClass}
+          inputClass={inputClass}
+        />
       </div>
     </div>
   );
