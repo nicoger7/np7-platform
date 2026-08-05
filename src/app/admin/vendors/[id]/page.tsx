@@ -3,6 +3,7 @@
 import { useState, useEffect, use } from "react";
 import { useRouter } from "next/navigation";
 import { VendorTerms, type VendorTerms as Terms } from "@/components/admin/vendor-terms";
+import { VendorCategoryPicker } from "@/components/admin/vendor-category";
 
 interface Vendor extends Terms {
   id: string;
@@ -10,13 +11,13 @@ interface Vendor extends Terms {
   email: string | null;
   phone: string | null;
   company: string | null;
-  category: string | null;
+  /** text[] — several partners are two things at once (coach AND owner). */
+  category: string[] | string | null;
   notes: string | null;
+  hotel_id: string | null;
   created_at: string;
   updated_at: string;
 }
-
-const CATEGORIES = ["Hotel", "Transport", "Catering", "Gear", "Photography", "Media", "Other"];
 
 export default function VendorDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
@@ -25,9 +26,12 @@ export default function VendorDetailPage({ params }: { params: Promise<{ id: str
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
+  const [hotels, setHotels] = useState<{ id: string; name: string }[]>([]);
 
   useEffect(() => {
     fetch(`/api/admin/vendors/${id}`).then((r) => r.json()).then((d) => { setVendor(d); setLoading(false); });
+    fetch("/api/admin/hotels").then((r) => r.json())
+      .then((d) => setHotels(Array.isArray(d) ? d : d?.hotels ?? [])).catch(() => {});
   }, [id]);
 
   async function handleSave() {
@@ -79,15 +83,20 @@ export default function VendorDetailPage({ params }: { params: Promise<{ id: str
           <div><label className={labelClass}>Name</label><input className={inputClass} value={vendor.name || ""} onChange={(e) => update("name", e.target.value)} /></div>
           <div><label className={labelClass}>Company</label><input className={inputClass} value={vendor.company || ""} onChange={(e) => update("company", e.target.value || null)} /></div>
         </div>
-        <div className="grid grid-cols-3 gap-4">
-          <div><label className={labelClass}>Category</label>
-            <select className={inputClass} value={vendor.category || ""} onChange={(e) => update("category", e.target.value || null)}>
-              <option value="">—</option>
-              {CATEGORIES.map((c) => <option key={c}>{c}</option>)}
-            </select>
-          </div>
+        <VendorCategoryPicker value={vendor.category} onChange={(next) => update("category", next)} labelClass={labelClass} />
+        <div className="grid grid-cols-2 gap-4">
           <div><label className={labelClass}>Email</label><input className={inputClass} type="email" value={vendor.email || ""} onChange={(e) => update("email", e.target.value || null)} /></div>
           <div><label className={labelClass}>Phone</label><input className={inputClass} value={vendor.phone || ""} onChange={(e) => update("phone", e.target.value || null)} /></div>
+        </div>
+        {/* The same supplier, both sides. hotels carries the photos and rooms a
+            guest sees; this carries who we negotiate with. Linked, so the terms
+            below are never recorded against the half nobody opened. */}
+        <div>
+          <label className={labelClass}>Same as hotel <span className="admin-faint font-normal">· links this partner to its rooms &amp; photos</span></label>
+          <select className={inputClass} value={vendor.hotel_id || ""} onChange={(e) => update("hotel_id", e.target.value || null)}>
+            <option value="">Not a hotel we hold rooms at</option>
+            {hotels.map((h) => <option key={h.id} value={h.id}>{h.name}</option>)}
+          </select>
         </div>
         <div><label className={labelClass}>Notes</label>
           <textarea className={`${inputClass} min-h-[100px] resize-y`} value={vendor.notes || ""} onChange={(e) => update("notes", e.target.value || null)} placeholder="Internal notes..." />

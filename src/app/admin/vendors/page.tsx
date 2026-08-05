@@ -6,6 +6,7 @@ import { SortableHeader } from "@/components/sortable-header";
 import { ColumnToggle, ColumnDef, buildGridTemplate, loadVisibleColumns } from "@/components/column-toggle";
 import { RowActions } from "@/components/row-actions";
 import { VendorTermsBadge } from "@/components/admin/vendor-terms";
+import { VendorCategories, VendorCategoryPicker } from "@/components/admin/vendor-category";
 
 interface Vendor {
   id: string;
@@ -13,7 +14,9 @@ interface Vendor {
   email: string | null;
   phone: string | null;
   company: string | null;
-  category: string | null;
+  /** text[] — a partner can be two things at once. */
+  category: string[] | string | null;
+  hotel_id: string | null;
   chatwoot_contact_id: string | null;
   notes: string | null;
   created_at: string;
@@ -29,8 +32,6 @@ function fmtDate(d: string | null) {
   if (!d) return "—";
   return new Date(d).toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" });
 }
-
-const CATEGORIES = ["Hotel", "Transport", "Catering", "Gear", "Photography", "Media", "Other"];
 
 type SortDir = "asc" | "desc" | null;
 
@@ -70,7 +71,25 @@ export default function VendorsPage() {
   const [visibleColumns, setVisibleColumns] = useState<Set<string>>(
     () => loadVisibleColumns(STORAGE_KEY, COLUMNS)
   );
-  const [form, setForm] = useState({ name: "", email: "", phone: "", company: "", category: "", notes: "" });
+  const [form, setForm] = useState({ name: "", email: "", phone: "", company: "", category: [] as string[], notes: "" });
+  // Hotels we hold rooms at but have no partner row for. The two lists drifted
+  // once already — Sorobon, three Bonaire weeks, was missing entirely — so the
+  // gap is shown rather than left to be noticed.
+  const [hotels, setHotels] = useState<{ id: string; name: string }[]>([]);
+  useEffect(() => {
+    fetch("/api/admin/hotels").then((r) => r.json())
+      .then((d) => setHotels(Array.isArray(d) ? d : d?.hotels ?? [])).catch(() => {});
+  }, []);
+  const linked = new Set(vendors.map((v) => v.hotel_id).filter(Boolean) as string[]);
+  const missingHotels = hotels.filter((h) => !linked.has(h.id));
+
+  async function addHotelAsVendor(h: { id: string; name: string }) {
+    await fetch("/api/admin/vendors", {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ name: h.name, category: ["accommodation"], hotel_id: h.id, terms_status: "todo" }),
+    });
+    fetchData();
+  }
 
   function fetchData() {
     const qs = search ? `?search=${encodeURIComponent(search)}` : "";
@@ -109,7 +128,7 @@ export default function VendorsPage() {
     });
     if (res.ok) {
       setShowNew(false);
-      setForm({ name: "", email: "", phone: "", company: "", category: "", notes: "" });
+      setForm({ name: "", email: "", phone: "", company: "", category: [], notes: "" });
       fetchData();
     }
   }
@@ -154,19 +173,39 @@ export default function VendorsPage() {
           <div className="grid grid-cols-3 gap-4 mb-4">
             <div><label className={labelClass}>Name *</label><input className={inputClass} value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} /></div>
             <div><label className={labelClass}>Company</label><input className={inputClass} value={form.company} onChange={(e) => setForm({ ...form, company: e.target.value })} /></div>
-            <div><label className={labelClass}>Category</label>
-              <select className={inputClass} value={form.category} onChange={(e) => setForm({ ...form, category: e.target.value })}>
-                <option value="">—</option>
-                {CATEGORIES.map((c) => <option key={c}>{c}</option>)}
-              </select>
-            </div>
             <div><label className={labelClass}>Email</label><input className={inputClass} type="email" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} /></div>
             <div><label className={labelClass}>Phone</label><input className={inputClass} value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })} /></div>
             <div><label className={labelClass}>Notes</label><input className={inputClass} value={form.notes} onChange={(e) => setForm({ ...form, notes: e.target.value })} /></div>
           </div>
+          <div className="mb-4">
+            <VendorCategoryPicker value={form.category} onChange={(next) => setForm({ ...form, category: next })} labelClass={labelClass} />
+          </div>
           <div className="flex gap-2">
             <button onClick={handleCreate} disabled={!form.name} className="px-4 py-2 bg-[var(--admin-accent)] hover:bg-[var(--admin-accent)]/90 disabled:opacity-40 text-[var(--admin-accent-contrast)] text-sm font-bold rounded-lg transition-colors">Create</button>
             <button onClick={() => setShowNew(false)} className="px-4 py-2 admin-muted text-sm rounded-lg">Cancel</button>
+          </div>
+        </div>
+      )}
+
+      {/* The two lists drifted once: Sorobon — three Bonaire weeks, the biggest
+          room supplier — was in Hotels and not here, so its cancellation terms
+          had nowhere to live. Shown rather than left to be noticed again. */}
+      {!loading && missingHotels.length > 0 && (
+        <div className="mb-5 rounded-xl px-4 py-3" style={{ border: "1px solid var(--admin-border)", backgroundColor: "var(--admin-surface)" }}>
+          <p className="text-[12.5px] admin-heading font-semibold">
+            {missingHotels.length} hotel{missingHotels.length === 1 ? " isn't" : "s aren't"} in this list
+          </p>
+          <p className="text-[11.5px] admin-faint mt-0.5 mb-2">
+            We hold rooms there but have no partner record, so there is nowhere to note what we agreed on cancellations.
+          </p>
+          <div className="flex flex-wrap gap-1.5">
+            {missingHotels.map((h) => (
+              <button key={h.id} onClick={() => addHotelAsVendor(h)}
+                className="px-3 py-1.5 rounded-lg text-[12px] font-bold admin-muted hover:text-[var(--admin-accent)] transition-colors"
+                style={{ border: "1px solid var(--admin-border)" }}>
+                + {h.name}
+              </button>
+            ))}
           </div>
         </div>
       )}
@@ -196,7 +235,7 @@ export default function VendorsPage() {
               {visibleColumns.has("company") && <span className="text-xs admin-muted self-center truncate">{v.company || "—"}</span>}
               {visibleColumns.has("email") && <span className="text-xs admin-muted self-center truncate">{v.email || "—"}</span>}
               {visibleColumns.has("phone") && <span className="text-xs admin-muted self-center truncate">{v.phone || "—"}</span>}
-              {visibleColumns.has("category") && <span className="text-xs admin-muted self-center">{v.category || "—"}</span>}
+              {visibleColumns.has("category") && <span className="self-center min-w-0"><VendorCategories value={v.category} /></span>}
               {visibleColumns.has("terms") && (
                 <span className="self-center" title={v.terms_note || "Nobody has recorded what we agreed with them"}>
                   <VendorTermsBadge v={v} />
