@@ -13,7 +13,7 @@ import { CountUp } from "@/components/experience/count-up";
 import { DestinationCta } from "@/components/experience/destination-cta";
 import { WaveDivider } from "@/components/experience/wave-divider";
 
-export const revalidate = 60;
+export const revalidate = 3600;
 
 /** Minimal inline icon set for the conditions band, keyed by stat label. */
 function StatIcon({ label, className = "w-5 h-5" }: { label: string; className?: string }) {

@@ -11,7 +11,7 @@ type Skill = {
 
 const DISCIPLINES = [...CORE_DISCIPLINES, "side"] as const;
 const disciplineLabel = (d: string | null) => DISCIPLINE_LABEL[(d as keyof typeof DISCIPLINE_LABEL)] ?? (d === "side" ? "Wave & Freestyle" : d ?? "—");
-const RANK_TONE: Record<string, string> = { Beginner: "#6b7280", Intermediate: "#2563eb", Advanced: "#7c3aed", Amateur: "#c2410c", "Semi-Pro": "#be185d", Pro: "#b45309" };
+const RANK_TONE: Record<string, string> = { Beginner: "#6b7280", Intermediate: "#2563eb", Advanced: "#7c3aed", Expert: "#c2410c", "Semi-Pro": "#be185d", Pro: "#b45309" };
 const rankIndex = (r: string) => RANKS.indexOf(r as (typeof RANKS)[number]);
 const isRank = (r: unknown): r is string => typeof r === "string" && RANKS.includes(r as (typeof RANKS)[number]);
 // Stored rank wins; fall back to the legacy difficulty band for rows not yet migrated.

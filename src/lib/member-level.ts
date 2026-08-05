@@ -18,7 +18,7 @@ export const LEVEL_DESCRIPTIONS: Record<Level, string> = {
   Beginner: "Uphauling, sailing both ways and basic steering — not yet planing.",
   Intermediate: "Planing in the harness & footstraps; learning the carve gybe.",
   Advanced: "Confident planing, waterstart & carve gybes; into waves or freestyle.",
-  Amateur: "Dialled-in all-rounder — carve gybes both ways, solid in strong wind & chop.",
+  Expert: "Dialled-in all-rounder — carve gybes both ways, solid in strong wind & chop.",
   "Semi-Pro": "Advanced moves land reliably — race pace, jumps or a first wave/freestyle repertoire.",
   Pro: "Masters most conditions — advanced waves, freestyle or racing.",
 };

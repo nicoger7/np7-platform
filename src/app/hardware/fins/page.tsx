@@ -13,7 +13,7 @@ export const metadata: Metadata = {
   description: "Slalom fins shaped, foiled and sanded on the bench by Nico Prien (GER-7) — and a selector that dials the right size to your board, sail and wind.",
 };
 
-export const revalidate = 60;
+export const revalidate = 3600;
 
 type FinProduct = {
   id: string;

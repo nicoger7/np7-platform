@@ -16,8 +16,8 @@ export const DISCIPLINE_LABEL: Record<Discipline, string> = {
 
 /** The 6 ranks a rider climbs — earned by mastering each band in turn. A skill's
     rank is stored directly (admin sets it by dropping the skill into a band). */
-export const RANKS = ["Beginner", "Intermediate", "Advanced", "Amateur", "Semi-Pro", "Pro"] as const;
-const RANK_INDEX: Record<string, number> = { Beginner: 0, Intermediate: 1, Advanced: 2, Amateur: 3, "Semi-Pro": 4, Pro: 5 };
+export const RANKS = ["Beginner", "Intermediate", "Advanced", "Expert", "Semi-Pro", "Pro"] as const;
+const RANK_INDEX: Record<string, number> = { Beginner: 0, Intermediate: 1, Advanced: 2, Expert: 3, "Semi-Pro": 4, Pro: 5 };
 /** Band index for a stored rank (the source of truth), or null if unrecognised. */
 export function bandOfRank(rank: string | null | undefined): number | null {
   if (!rank) return null;

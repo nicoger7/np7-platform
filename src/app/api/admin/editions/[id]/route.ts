@@ -3,6 +3,7 @@ import { createAdminClient } from "@/lib/supabase";
 import { softDelete } from "@/lib/archive";
 import { flags } from "@/lib/flags";
 import { getRequestAccess } from "@/lib/admin-auth";
+import { revalidateExperience } from "@/lib/revalidate-public";
 import { effectiveCanSeeField } from "@/lib/access";
 
 // Money columns on an edition — nulled for roles without the "money" grant.
@@ -138,6 +139,7 @@ export async function PUT(
     return NextResponse.json({ error: error.message }, { status: 400 });
   }
 
+  revalidateExperience(data?.exp_experiences?.slug ?? null);
   return NextResponse.json(data);
 }
 
@@ -164,5 +166,6 @@ export async function DELETE(
     return NextResponse.json({ error }, { status: 400 });
   }
 
+  revalidateExperience();
   return NextResponse.json({ success: true });
 }

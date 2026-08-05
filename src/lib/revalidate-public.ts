@@ -107,6 +107,53 @@ export async function revalidateDestinationById(
 }
 
 /**
+ * An experience, edition, package, coach, or review changed — anything that
+ * feeds the public /experience pages. The index lists all experiences; the
+ * slug page renders editions, packages, coaches, and reviews for one
+ * experience. The /destinations/[slug] pages also pull experience data.
+ */
+export function revalidateExperience(slug?: string | null) {
+  safe(() => {
+    revalidatePath("/experience");
+    revalidatePath("/method");
+    if (slug) revalidatePath(`/experience/${slug}`);
+    else revalidatePath("/experience/[slug]", "page");
+    revalidatePath("/destinations/[slug]", "page");
+    revalidatePath(SITEMAP);
+  });
+}
+
+/**
+ * Same as above, when the caller holds an experience ID rather than a slug.
+ */
+export async function revalidateExperienceById(
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  db: any,
+  experienceId: string | null | undefined,
+) {
+  if (!experienceId) return;
+  try {
+    const { data } = await db.from("exp_experiences").select("slug").eq("id", experienceId).maybeSingle();
+    revalidateExperience(data?.slug ?? null);
+  } catch (e) {
+    console.error("[revalidate] experience lookup failed:", e instanceof Error ? e.message : e);
+  }
+}
+
+/**
+ * A hardware product or its content changed.
+ */
+export function revalidateHardware(slug?: string | null) {
+  safe(() => {
+    revalidatePath("/hardware");
+    revalidatePath("/hardware/fins");
+    if (slug) revalidatePath(`/hardware/${slug}`);
+    else revalidatePath("/hardware/[slug]", "page");
+    revalidatePath(SITEMAP);
+  });
+}
+
+/**
  * Company settings changed. The legal pages are cached for a DAY and every one
  * of them renders getLegalEntity() → company_settings, so without this an
  * address or VAT-id correction would sit unpublished on the Impressum.

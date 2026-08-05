@@ -14,7 +14,7 @@ import type { ModuleKey } from "@/lib/hardware/templates";
 import type { Product, ProductContent, SpecRow, FitSegment } from "@/lib/hardware/types";
 import { LIME, PINK, BONE, INK, INK_SOFT, SAND, SAND_DEEP, sandGrainOverlay } from "@/components/hardware/theme";
 
-export const revalidate = 60;
+export const revalidate = 3600;
 
 type Props = { params: Promise<{ slug: string }> };
 

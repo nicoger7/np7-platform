@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase";
 import { softDelete } from "@/lib/archive";
+import { revalidateExperienceById } from "@/lib/revalidate-public";
 
 // GET /api/admin/packages/:id — get package with its components
 export async function GET(
@@ -57,6 +58,7 @@ export async function PATCH(
     return NextResponse.json({ error: error.message }, { status: 400 });
   }
 
+  await revalidateExperienceById(client, data?.experience_id);
   return NextResponse.json(data);
 }
 

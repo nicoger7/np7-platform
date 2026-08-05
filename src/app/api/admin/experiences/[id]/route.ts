@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase";
 import { softDelete } from "@/lib/archive";
 import { isAttending } from "@/lib/types";
+import { revalidateExperience } from "@/lib/revalidate-public";
 
 // GET /api/admin/experiences/:id — get experience with editions
 export async function GET(
@@ -134,6 +135,7 @@ export async function PATCH(
     return NextResponse.json({ error: error.message }, { status: 400 });
   }
 
+  revalidateExperience(data?.slug ?? body.slug ?? null);
   return NextResponse.json(data);
 }
 
@@ -151,5 +153,6 @@ export async function DELETE(
     return NextResponse.json({ error }, { status: 400 });
   }
 
+  revalidateExperience();
   return NextResponse.json({ success: true });
 }

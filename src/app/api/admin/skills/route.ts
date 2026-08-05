@@ -14,7 +14,7 @@ const SLUG = (s: string) => s.toLowerCase().trim().replace(/[^a-z0-9]+/g, "_").r
 const RANK_SET = new Set<string>(RANKS);
 // A representative difficulty per rank — keeps the legacy `difficulty` column
 // plausible/consistent during the transition. Ignored by the engine (it reads rank).
-const RANK_MID: Record<string, number> = { Beginner: 10, Intermediate: 22, Advanced: 40, Amateur: 55, "Semi-Pro": 75, Pro: 95 };
+const RANK_MID: Record<string, number> = { Beginner: 10, Intermediate: 22, Advanced: 40, Expert: 55, "Semi-Pro": 75, Pro: 95 };
 const normRank = (r: unknown): string => (typeof r === "string" && RANK_SET.has(r) ? r : "Beginner");
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any

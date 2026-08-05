@@ -30,7 +30,7 @@ import { ExplainerVideo } from "@/components/experience/explainer-video";
 import { TripOverlay } from "@/components/experience/trip-overlay";
 import { DestinationDeepDive } from "@/components/experience/destination-deep-dive";
 
-export const revalidate = 60;
+export const revalidate = 3600;
 
 type Props = { params: Promise<{ slug: string }>; searchParams?: Promise<{ paid?: string }> };
 

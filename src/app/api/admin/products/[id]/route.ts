@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase";
 import { softDelete } from "@/lib/archive";
+import { revalidateHardware } from "@/lib/revalidate-public";
 
 function coerceNumeric(val: unknown): number | null {
   if (val === null || val === undefined || val === "") return null;
@@ -63,6 +64,7 @@ export async function PATCH(
     .single();
 
   if (error) return NextResponse.json({ error: error.message }, { status: 400 });
+  revalidateHardware(data?.slug ?? body.slug ?? null);
   return NextResponse.json(data);
 }
 
@@ -77,5 +79,6 @@ export async function DELETE(
 
   const { ok, error } = await softDelete(client, "hw_products", id);
   if (!ok) return NextResponse.json({ error }, { status: 400 });
+  revalidateHardware();
   return NextResponse.json({ success: true });
 }

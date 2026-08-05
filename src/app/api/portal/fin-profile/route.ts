@@ -14,7 +14,7 @@ const RANK_TO_SELECTOR: Record<string, "intermediate" | "advanced" | "pro"> = {
   Beginner: "intermediate",
   Intermediate: "intermediate",
   Advanced: "advanced",
-  Amateur: "advanced",
+  Expert: "advanced",
   "Semi-Pro": "pro",
   Pro: "pro",
 };

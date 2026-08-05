@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase";
 import { mergeFocus, splitFocus } from "@/lib/placement";
 import type { SpecRow, FitSegment } from "@/lib/hardware/types";
+import { revalidateHardware } from "@/lib/revalidate-public";
 
 const EMPTY = {
   hero_image: null as string | null,
@@ -151,5 +152,6 @@ export async function PUT(
     return NextResponse.json({ error: error.message }, { status: 400 });
   }
 
+  revalidateHardware();
   return NextResponse.json(data);
 }

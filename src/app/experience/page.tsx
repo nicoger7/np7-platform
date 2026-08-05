@@ -17,7 +17,7 @@ export const metadata: Metadata = {
     "Guided windsurf, wing & foil trips with Nico Prien (GER-7). World-class coaching, hand-picked crews, and everything arranged.",
 };
 
-export const revalidate = 60;
+export const revalidate = 3600;
 
 import { cdn } from "@/lib/cdn";
 

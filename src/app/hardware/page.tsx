@@ -14,7 +14,7 @@ export const metadata: Metadata = {
     "Custom windsurf boards and fins, shaped on the bench by Nico Prien (GER-7). Carbon, hand-finished, built to ride.",
 };
 
-export const revalidate = 60;
+export const revalidate = 3600;
 
 const PINK = "#ff2e88";
 const LIME = "#c6ff3a";

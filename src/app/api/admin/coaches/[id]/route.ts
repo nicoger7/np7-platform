@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase";
+import { revalidateExperience } from "@/lib/revalidate-public";
 
 // PATCH /api/admin/coaches/:id — edit a library coach (affects everywhere it's used)
 export async function PATCH(
@@ -21,6 +22,7 @@ export async function PATCH(
     ({ data, error } = await doUpdate(rest));
   }
   if (error) return NextResponse.json({ error: error.message }, { status: 400 });
+  revalidateExperience();
   return NextResponse.json(data);
 }
 
@@ -34,5 +36,6 @@ export async function DELETE(
   const { id } = await params;
   const { error } = await client.from("exp_coaches").delete().eq("id", id);
   if (error) return NextResponse.json({ error: error.message }, { status: 400 });
+  revalidateExperience();
   return NextResponse.json({ success: true });
 }

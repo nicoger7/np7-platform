@@ -457,6 +457,17 @@ export const TEMPLATES: Record<string, (v: EmailVars, opts?: LayoutOpts) => Buil
     }),
   }),
 
+  /**
+   * The waiver nudge, and then the one that says it's now the last thing left.
+   *
+   * The gentle version went out to Alaçatı and eight of seventeen still hadn't
+   * signed a fortnight before the trip. Two things were missing from it. It
+   * never said the waiver is a condition of getting on the water — so it read
+   * as optional admin — and its button pointed at /account, which bounces
+   * anyone not already logged in to a login screen. A guest who has never set
+   * up their account hits a wall and gives up. `waiverLink` now carries a
+   * one-time sign-in that lands directly on their own waiver.
+   */
   waiver_reminder: (v, opts) => ({
     subject: `Quick one before ${v.experienceTitle ?? "your NP7 trip"} — sign your waiver`,
     html: emailLayout({
@@ -467,6 +478,24 @@ export const TEMPLATES: Record<string, (v: EmailVars, opts?: LayoutOpts) => Buil
         p(`Quick bit of admin before <strong>${esc(v.experienceTitle || "your trip")}</strong>${v.dates ? " (" + esc(v.dates) + ")" : ""}: every participant signs a short waiver &amp; health declaration. It takes about a minute, right in your account.`) +
         (v.waiverLink ? emailButton("Sign my waiver", v.waiverLink) : "") +
         p(`Already done it? You're all set — ignore this. 🤙`),
+    }),
+  }),
+
+  waiver_final_call: (v, opts) => ({
+    subject: `${v.firstName && v.firstName !== "there" ? v.firstName + ", one" : "One"} thing left before ${v.experienceTitle ?? "your NP7 trip"} — your waiver`,
+    html: emailLayout({
+      ...opts,
+      preheader: "One minute and one click — everyone riding with us signs one.",
+      bodyHtml:
+        greet(v) +
+        p(`We're nearly there — <strong>${esc(v.experienceTitle || "your trip")}</strong>${v.dates ? " (" + esc(v.dates) + ")" : ""} is coming up fast, and there's one thing still open on your side: your <strong>waiver &amp; health declaration</strong>.`) +
+        // The one sentence the first reminder was missing. It has to carry
+        // "this is required" without sounding like a warning letter — everyone
+        // on the beach signs one, and that framing does the work.
+        p(`Everyone riding with us signs one — a quick health check and the usual insurance bit. It's the last thing we need before we can get you out on the water, and it takes about a minute.`) +
+        (v.waiverLink ? emailButton("Sign my waiver — 1 minute", v.waiverLink) : "") +
+        p(`The button signs you straight in, so there's no password to remember. If it's expired by the time you click, just reply to this mail and we'll send a fresh one.`) +
+        p(`Already signed? Then you're all set and you can ignore this. 🤙<br>— Nico &amp; the NP7 team`),
     }),
   }),
 

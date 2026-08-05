@@ -14,7 +14,7 @@ export const metadata: Metadata = {
     "Great windsurfing was never one fix on the water — it's seven things moving together. The NP7 Method is Nico Prien's proven, holistic coaching system for building the whole rider across one week by the sea.",
   alternates: { canonical: "/method" },
 };
-export const revalidate = 60;
+export const revalidate = 3600;
 
 export default async function MethodPage() {
   // Built but kept OFFLINE — 404 in production until SHOW_METHOD=true.
