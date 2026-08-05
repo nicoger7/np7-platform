@@ -3,6 +3,24 @@ import { normalizeBookingStatus } from "@/lib/types";
 
 export type StatusChip = { label: string; tone: "amber" | "blue" | "green" | "gray" };
 
+/**
+ * Is the spot actually held?
+ *
+ * The line between "you told us you'd like to come" and "you are booked". Most
+ * packages have no deposit, so the down-payment is the securing payment — which
+ * is why this asks about money received and the attending statuses, never about
+ * a deposit that usually doesn't exist.
+ *
+ * One definition, because it decides more than a chip colour: it decides whether
+ * the document we hand the guest is a confirmation or a summary, and under
+ * §651a BGB those are not the same thing.
+ */
+export function isSecured(b: Pick<MemberBooking, "status" | "downpayment_received" | "final_payment_received">): boolean {
+  const s = normalizeBookingStatus(b.status);
+  if (s === "lost") return false;
+  return !!b.downpayment_received || !!b.final_payment_received || ["confirmed", "paid", "attended"].includes(s);
+}
+
 /** Friendly booking status for the member portal. The pipeline status gives the
  *  stage; the payment flags split a confirmed booking into deposit-paid vs fully-paid. */
 export function bookingStatus(b: Pick<MemberBooking, "status" | "downpayment_received" | "final_payment_received">): StatusChip {

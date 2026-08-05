@@ -4,7 +4,7 @@ import { redirect, notFound } from "next/navigation";
 import type { Metadata } from "next";
 import { getPortalUser } from "@/lib/auth";
 import { getMemberBooking, getTripGalleryGroupsForBooking, getTripVideosForBooking, getBookingPhotoSharing, getBookingPaid, getBookingHotel, getEditionCoaches, getMemoryDownloadsRemaining, getConfirmedAddonsTotal, getBookingFlights, getExperienceArrivalInfo, getCrewProfiles, getPreTripContent } from "@/lib/portal-data";
-import { bookingStatus, fmtDates, money } from "@/lib/portal-status";
+import { bookingStatus, fmtDates, money, isSecured } from "@/lib/portal-status";
 import { isAttending } from "@/lib/types";
 import { PortalChrome } from "@/components/portal/portal-chrome";
 import { ExtraNightsButton } from "@/components/portal/extra-nights-button";
@@ -120,6 +120,9 @@ export default async function BookingDetail({ params }: Props) {
   // the first, refundable securing payment). Labels must reflect the real config
   // — never say "deposit" when the securing payment is the down-payment.
   const hasDeposit = !!depositMilestone;
+  // Same rule the confirmation document uses, so the tab label and the document
+  // it opens can never disagree.
+  const secured = isSecured(b);
   const securingLabel = hasDeposit ? "Pay your deposit" : "Secure your spot";
 
   // Cancellation copy — deposit-aware: many trips have no deposit (the 50%
@@ -391,7 +394,13 @@ export default async function BookingDetail({ params }: Props) {
 
   const docsContent = (
     <>
-      <DocLink href={`/account/bookings/${b.id}/confirmation`} label="Trip confirmation" sub="Your booking summary (print / save as PDF)" />
+      {/* Named for what it is right now. Calling it a confirmation before the
+          spot is held is the kind of small lie a guest notices. */}
+      <DocLink
+        href={`/account/bookings/${b.id}/confirmation`}
+        label={secured ? "Trip confirmation" : "Booking summary"}
+        sub={secured ? "Your confirmed booking (print / save as PDF)" : "What you picked — not a confirmation until your spot is secured"}
+      />
       <DocLink href="/experience/legal/package-travel" label="Standard information form" sub="Your rights under EU package-travel law" />
       <p className="text-[12.5px] text-[#9aa6ac] py-2.5">Your invoices &amp; pro-forma are in the <strong className="text-[#6a7a80] font-semibold">Payment</strong> tab.</p>
       <details className="mt-2 border-t border-[#f3ede2] pt-3">

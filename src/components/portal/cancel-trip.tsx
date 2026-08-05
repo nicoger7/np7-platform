@@ -29,8 +29,10 @@ export function CancelTrip({ bookingId, milestones, paid, currency = "EUR" }: {
   const beyondDeposit = milestones.some((m) => m.kind !== "deposit" && m.status === "paid");
 
   // Our cancellation-fee scale = the milestones: free until the deposit's refund
-  // window closes, then the fee is whatever you've paid (deposit → 50% → 100%),
-  // with a goodwill credit voucher toward a future experience.
+  // window closes, then the fee is whatever you've paid (deposit → 50% → 100%).
+  // The goodwill voucher is a maybe, not a promise — it's decided case by case
+  // and it's usually small, so this must not read as compensation the guest is
+  // owed. Nobody should cancel expecting one.
   let tone: "ok" | "warn" = "ok";
   let headline = "";
   let detail = "";
@@ -43,18 +45,20 @@ export function CancelTrip({ bookingId, milestones, paid, currency = "EUR" }: {
   } else if (beyondDeposit) {
     tone = "warn";
     headline = "Past the refund point";
-    detail = `The ${money(paid, currency)} you've paid is the cancellation fee at this stage, so it isn't refundable — but we'd offer you a goodwill credit voucher toward a future NP7 experience.`;
+    detail = `The ${money(paid, currency)} you've paid is the cancellation fee at this stage, so it isn't refundable. Before you do: you can pass your place to someone else instead, which costs you nothing — just tell us who.`;
   } else {
     tone = "warn";
     headline = "Your deposit is the cancellation fee now";
-    detail = `Your ${money(paid, currency)} deposit is past its refund window, so it's kept as the cancellation fee and nothing more is owed. We'll be in touch about a goodwill credit voucher toward a future trip.`;
+    detail = `Your ${money(paid, currency)} deposit is past its refund window, so it's kept as the cancellation fee and nothing more is owed. You can also pass your place to someone else instead, which costs you nothing.`;
   }
 
   async function request() {
     setBusy(true); setError("");
     const res = await fetch(`/api/portal/bookings/${bookingId}/cancel`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ paid }) });
     setBusy(false);
-    if (res.ok) setDoneMsg("Cancellation requested — our team will be in touch shortly about your refund or credit voucher.");
+    // No voucher promised on the way out either: a confirmation screen that
+    // mentions one is the same promise, just later.
+    if (res.ok) setDoneMsg("Cancellation requested — our team will be in touch shortly to confirm and sort out anything owed.");
     else { const j = await res.json().catch(() => ({})); setError(j.error || "Couldn't send the request — please email us."); }
   }
 
