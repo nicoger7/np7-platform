@@ -29,7 +29,7 @@ export function defaultCancellationPolicy(hasDeposit: boolean): string {
 
   return [
     `You can cancel any time before the trip, no reason needed. ${first}`,
-    "Two things worth knowing before you cancel. You can pass your place to someone else instead — usually cheaper for you than cancelling. And if something extraordinary at the destination makes the trip impossible or unsafe (war, epidemic, natural disaster), you can cancel free of charge and get everything back.",
+    "Two things worth knowing before you cancel. You can pass your place to someone else instead — usually cheaper for you than cancelling. And if unavoidable, extraordinary circumstances at or near the destination seriously affect the trip or getting there — war, epidemic, natural disaster — you can cancel free of charge and get everything back.",
     "Where a cancellation does fall in a non-refundable band we'll sometimes offer a small goodwill voucher toward a future trip — a gesture on our side, not something to count on.",
     "To start, use ‘Cancel this trip’ at the bottom of the Payment tab. The full scale is in our Terms.",
   ].join("\n\n");

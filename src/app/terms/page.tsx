@@ -33,7 +33,7 @@ export default async function TermsPage() {
       </ul>
       <p>Instead of cancelling, you may <strong>transfer your booking</strong> to another person who meets the trip&apos;s requirements, provided you tell us in reasonable time; you and the substitute are jointly liable for the price and any transfer costs (§651e BGB).</p>
       <p>If <strong>unavoidable, extraordinary circumstances</strong> at or near the destination significantly affect the trip or the journey to it, you may cancel <strong>free of charge</strong> and we refund everything paid, within 14 days (§651h(3) BGB).</p>
-      <p>If we cancel the trip — for example because a stated minimum number of participants is not reached, which we will tell you by the deadline given in your booking — you receive a <strong>full refund within 14 days</strong>.</p>
+      <p>If we cancel the trip for any reason, you receive a <strong>full refund of everything paid, within 14 days</strong>. We may withdraw for insufficient participants only where a minimum number and a notification deadline were stated for that trip before you booked; where they were not, we cannot cancel on that ground.</p>
       <p>Where a cancellation falls in a non-refundable band, we may at our discretion offer a small goodwill <strong>credit voucher</strong> toward a future NP7 experience. It is a voluntary gesture, not an entitlement, and it does not replace or reduce your statutory rights, which are unaffected.</p>
 
       <h2>4. Conditions are not guaranteed</h2>
