@@ -545,12 +545,32 @@ function interpolate(s: string, v: EmailVars): string {
  */
 export function renderTemplate(
   key: string,
-  vars: EmailVars,
+  rawVars: EmailVars,
   dbOverride?: { subject_line?: string | null; body?: string | null } | null,
   division: Division = "experience",
   headerImage?: string | null,
   headerPosition?: number | null
 ): Built {
+  /**
+   * We often don't have a name.
+   *
+   * A magic link goes to whoever typed the address; a newsletter contact may be
+   * an address and nothing else. The code templates all handle that — every
+   * greeting reads `v.firstName || "there"`. But an edited template body from
+   * the admin editor goes through interpolate(), which fills a missing token
+   * with an empty string, so `Hey {{firstName}} 🤙` would have gone out as
+   * "Hey  🤙" the first time anyone edited a template and the recipient had no
+   * name on file.
+   *
+   * Nothing has an edited body today, so nothing has shipped wrong — but the
+   * landmine is armed and it is one click away. Normalising here means the
+   * fallback is defined once and both paths get it.
+   */
+  const vars: EmailVars = {
+    ...rawVars,
+    firstName: String(rawVars.firstName ?? "").trim() || "there",
+  };
+
   // survey_invite ignores a global BODY override: its text is edited per survey
   // (exp_surveys.email_body) and its one-tap date buttons are built in code — a
   // body saved in the template editor would silently strip them. Subject and
