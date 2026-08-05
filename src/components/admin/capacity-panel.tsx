@@ -37,7 +37,7 @@ export type CapacityLevel = {
 };
 
 export type CapacityData = {
-  capacity: { cap: number | null; used: number; free: number | null; over: number };
+  capacity: { cap: number | null; used: number; free: number | null; over: number; fromLevels?: boolean; typed?: number | null };
   levels: CapacityLevel[];
   packages: CapacityPackage[];
   pools: CapacityPools[];
@@ -59,7 +59,9 @@ function headline(d: CapacityData): { title: string; tone: "over" | "full" | "op
     return {
       title: `${over} over the cap`,
       tone: "over",
-      detail: `${used} secured against a cap of ${cap}. Either the cap is stale or these were deliberate — until it's right, "full" means nothing here.`,
+      detail: d.capacity.fromLevels
+        ? `${used} secured against ${cap} across the levels. Someone was let in over a level's cap — check the level rows below.`
+        : `${used} secured against a cap of ${cap}. Either the cap is stale or these were deliberate — until it's right, "full" means nothing here.`,
     };
   }
   if (cap == null) {
@@ -121,13 +123,26 @@ export function CapacityPanel({
         </div>
         <div className="shrink-0">
           <label className="block text-[10px] font-bold tracking-[0.12em] uppercase admin-faint mb-1">Max spots</label>
-          <input
-            type="number"
-            className="w-24 rounded-lg px-2.5 py-2 text-[13px] admin-heading"
-            style={{ border: "1px solid var(--admin-border)", backgroundColor: "var(--admin-bg)" }}
-            value={cap ?? ""}
-            onChange={(e) => onCap(e.target.value ? Number(e.target.value) : null)}
-          />
+          {/* With levels set, the week cap IS their sum — so it is shown, not
+              typed. A second editable number here is only something for the
+              levels to disagree with, and that disagreement is what had Week II
+              reading "fully booked" while two beginner places were free. */}
+          {data?.capacity.fromLevels ? (
+            <div className="w-24 rounded-lg px-2.5 py-2 text-[13px] admin-heading text-center"
+              style={{ border: "1px dashed var(--admin-border)", backgroundColor: "var(--admin-surface)" }}
+              title="Added up from the level caps below. Clear those to type a week cap by hand.">
+              {data.capacity.cap ?? "—"}
+            </div>
+          ) : (
+            <input
+              type="number"
+              className="w-24 rounded-lg px-2.5 py-2 text-[13px] admin-heading"
+              style={{ border: "1px solid var(--admin-border)", backgroundColor: "var(--admin-bg)" }}
+              value={cap ?? ""}
+              onChange={(e) => onCap(e.target.value ? Number(e.target.value) : null)}
+            />
+          )}
+          {data?.capacity.fromLevels && <p className="text-[10px] admin-faint mt-1 text-center">from the levels</p>}
         </div>
       </div>
 
@@ -135,7 +150,10 @@ export function CapacityPanel({
       <div className="divide-y" style={{ borderTop: "1px solid var(--admin-border)" }}>
         <PoolRow
           label="The week"
-          value={data ? (data.capacity.cap == null ? "no cap" : `${data.capacity.used} of ${data.capacity.cap}`) : "—"}
+          value={data
+            ? (data.capacity.cap == null ? "no cap"
+               : `${data.capacity.used} of ${data.capacity.cap}${data.capacity.fromLevels ? " (levels added up)" : ""}`)
+            : "—"}
           note={data && data.capacity.over > 0 ? `${data.capacity.over} over` : null}
           noteTone="bad"
         />

@@ -129,7 +129,7 @@ export async function runGoLiveChecks(): Promise<ExperienceReport[]> {
   const db = createAdminClient() as any;
 
   // One pass, eleven queries — not one query per check per experience.
-  const [{ data: exps }, { data: content }, { data: editions }, { data: packages }, { data: bookings }, { data: hotels }, { data: destinations }, { data: placements }, { data: pkgComponents }, { data: physRooms }, { data: rooms }] =
+  const [{ data: exps }, { data: content }, { data: editions }, { data: packages }, { data: bookings }, { data: hotels }, { data: destinations }, { data: placements }, { data: pkgComponents }, { data: physRooms }, { data: pools }, { data: rooms }] =
     await Promise.all([
       db.from("exp_experiences").select("id,title,location,description,hero_image,gallery,price,website_visible,cancellation_policy,status,destination_id").is("archived_at", null),
       db.from("exp_content").select("*"),
@@ -141,6 +141,10 @@ export async function runGoLiveChecks(): Promise<ExperienceReport[]> {
       db.from("exp_review_placements").select("experience_id"),
       db.from("exp_package_components").select("package_id"),
       db.from("exp_rooms").select("id,sleeps").is("archived_at", null),
+      // The effective week cap, which may come from the level caps rather than
+      // the typed max_spots (migration 149) — reading the column alone would
+      // flag "no capacity" on a week that is properly capped by its levels.
+      db.from("exp_edition_pool").select("edition_id, cap, cap_from_levels, used"),
       // released_at filtered out: a room the hotel took back is not ours, and
       // leaving it in would have it still vouching for the guests it once held.
       db.from("exp_hotel_rooms").select("edition_id,booking_id,extra_booking_ids,room_id,hotel_id,room_type,name,released_at").is("archived_at", null).is("released_at", null),
@@ -196,6 +200,15 @@ export async function runGoLiveChecks(): Promise<ExperienceReport[]> {
       bedGapByEdition.set(String(rm.edition_id), arr);
     }
   }
+  // Effective cap per week: the levels' sum where they exist, else max_spots.
+  const capByEdition = new Map<string, { cap: number | null; fromLevels: boolean }>();
+  for (const p of (pools ?? []) as Row[]) {
+    capByEdition.set(String(p.edition_id), {
+      cap: (p.cap as number | null) ?? null,
+      fromLevels: p.cap_from_levels === true,
+    });
+  }
+
   const roomsByEdition = new Map<string, number>();
   for (const rm of (rooms ?? []) as Row[]) {
     if (!rm.edition_id) continue;
@@ -309,7 +322,9 @@ export async function runGoLiveChecks(): Promise<ExperienceReport[]> {
       const sleeps = sellable.some((pk) => pk.hotel_id);
       const bedded = beddedByEdition.get(edId) ?? new Set<string>();
       const unbedded = securedIds.filter((bid) => !bedded.has(bid));
-      const cap = ed.max_spots as number | null;
+      const capInfo = capByEdition.get(edId);
+      const cap = capInfo?.cap ?? (ed.max_spots as number | null);
+      const capFromLevels = capInfo?.fromLevels === true;
       // Room-pool readiness. Both of these leave the hotel unable to limit
       // anything, so a package sells straight past the last bed — quietly.
       const bedGaps = bedGapByEdition.get(edId) ?? [];
@@ -320,14 +335,16 @@ export async function runGoLiveChecks(): Promise<ExperienceReport[]> {
       const checks: CheckResult[] = [
         ok("dates", "Dates set", "blocker", has(ed.date_start) && has(ed.date_end), `${base}?tab=details`, "No dates — it can't be sold or scheduled"),
         ok("maxSpots", "Capacity set", "blocker", cap != null, `${base}?tab=details`, "No capacity — nothing stops it overselling", {
-          okDetail: cap != null ? `${cap} spots` : undefined,
+          okDetail: cap != null ? `${cap} spots${capFromLevels ? " (from the levels)" : ""}` : undefined,
           fix: { table: "exp_editions", id: edId, column: "max_spots", kind: "number", title: "Capacity", help: "How many guests this week can take.", value: cap },
         }),
         ok("packages", "Sellable packages", "blocker", sellable.length > 0, `${base}?tab=packages`,
           pkgs.length ? `${pkgs.length} package${pkgs.length === 1 ? "" : "s"}, none active + visible + priced` : "No packages at all",
           { okDetail: `${sellable.length} on sale` }),
         ok("capacitySane", "Capacity vs bookings", "warning", cap == null || secured <= cap, `${base}?tab=details`,
-          `${secured} secured against a capacity of ${cap} — ${(secured - (cap ?? 0))} over. The page says "fully booked" either way, so if the cap is just stale you are turning people away for nothing.`,
+          capFromLevels
+            ? `${secured} secured against ${cap} across the levels — ${(secured - (cap ?? 0))} over. Someone was let in past a level's cap.`
+            : `${secured} secured against a capacity of ${cap} — ${(secured - (cap ?? 0))} over. The page says "fully booked" either way, so if the cap is just stale you are turning people away for nothing.`,
           {
             okDetail: cap != null ? `${secured}/${cap} secured` : undefined,
             fix: { table: "exp_editions", id: edId, column: "max_spots", kind: "number", title: "Max spots", help: "How many guests this week actually takes. Set it to the real number — the page reads 'fully booked' the moment bookings reach it.", value: cap },

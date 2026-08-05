@@ -24,7 +24,7 @@ export async function GET(_request: NextRequest, { params }: { params: Promise<{
   const db = createAdminClient() as any;
 
   const [{ data: pool }, { data: levels }, { data: avail }, { data: units }, { data: hotels }] = await Promise.all([
-    db.from("exp_edition_pool").select("cap, used, free, over_cap").eq("edition_id", id).maybeSingle(),
+    db.from("exp_edition_pool").select("cap, used, free, over_cap, cap_from_levels, cap_typed").eq("edition_id", id).maybeSingle(),
     db.from("exp_edition_level_pool").select("*").eq("edition_id", id),
     db.from("exp_package_availability").select("*").eq("edition_id", id),
     db.from("exp_room_pool_units").select("*").eq("edition_id", id),
@@ -91,6 +91,10 @@ export async function GET(_request: NextRequest, { params }: { params: Promise<{
       used: pool?.used ?? 0,
       free: pool?.free ?? null,
       over: pool?.over_cap ?? 0,
+      // Where the ceiling came from. With levels set, the week cap is their sum
+      // and typing a second number would only give it something to contradict.
+      fromLevels: pool?.cap_from_levels === true,
+      typed: pool?.cap_typed ?? null,
     },
     // Per coaching level. "Advanced 16, beginner 6" is how these weeks are
     // actually sold, and neither the week cap nor a package cap can say it.
