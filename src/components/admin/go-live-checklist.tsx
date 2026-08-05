@@ -316,10 +316,26 @@ export function GoLiveList({ reports, onRefresh, openId }: { reports: Experience
       {fix && <FixBox fix={fix} onClose={() => setFix(null)} onSaved={onRefresh} />}
 
       <div className="flex items-start justify-between gap-4 flex-wrap mb-5">
-        <p className="text-sm admin-muted max-w-[60ch]">
+        <p className="text-sm admin-muted max-w-[64ch]">
           {totalBlockers === 0
             ? "Nothing is blocking any trip."
-            : <><strong className="text-red-400">{totalBlockers} blocker{totalBlockers === 1 ? "" : "s"}</strong> across {notReady} trip{notReady === 1 ? "" : "s"}. Only weeks still ahead are counted.</>}
+            : <>
+                <strong className="text-red-400">{totalBlockers} blocker{totalBlockers === 1 ? "" : "s"}</strong> across {notReady} trip{notReady === 1 ? "" : "s"}. Only weeks still ahead are counted.
+                {/* A total is not a deadline. The trip selling soonest with
+                    something broken is the one sentence worth reading first. */}
+                {(() => {
+                  const next = reports.find((r) => r.tier === "selling" && r.blockers > 0)
+                            ?? reports.find((r) => r.blockers > 0 && r.daysToNext != null);
+                  if (!next || next.daysToNext == null) return null;
+                  return (
+                    <>
+                      {" "}Soonest: <a href={`#trip-${next.id}`} className="font-bold text-[var(--admin-accent)] hover:underline">{next.title}</a>
+                      {next.daysToNext <= 0 ? " is running now" : ` sells in ${next.daysToNext} day${next.daysToNext === 1 ? "" : "s"}`}
+                      {" "}with {next.blockers} blocker{next.blockers === 1 ? "" : "s"}.
+                    </>
+                  );
+                })()}
+              </>}
         </p>
         <DoneToggle value={showDone} onChange={setShowDone} />
       </div>
@@ -327,11 +343,14 @@ export function GoLiveList({ reports, onRefresh, openId }: { reports: Experience
 
       <div className="space-y-2.5">
         {reports.map((e, i) => {
-          // A heading the first time each status appears — the list is already
-          // sorted, so this just names the groups you can see.
-          const groupLabel = i === 0 || reports[i - 1].status !== e.status
-            ? ({ published: "Active", draft: "Draft", archived: "Archived" }[String(e.status ?? "draft")] ?? "Other")
-            : null;
+          // Headed by what it costs to leave alone. "Draft" told you how the row
+          // was configured; these tell you whether anyone can buy it today.
+          const TIER_LABEL: Record<string, string> = {
+            selling: "On sale now",
+            upcoming: "Dated, not on sale yet",
+            unscheduled: "No dates yet — needed eventually",
+          };
+          const groupLabel = i === 0 || reports[i - 1].tier !== e.tier ? TIER_LABEL[e.tier] : null;
           const isOpen = open.has(e.id);
           const clean = e.blockers === 0 && e.warnings === 0;
           const total = e.checks.length + e.editions.reduce((s, x) => s + x.checks.length, 0);
@@ -342,7 +361,7 @@ export function GoLiveList({ reports, onRefresh, openId }: { reports: Experience
                 <p className="text-[10px] font-bold tracking-[0.14em] uppercase admin-faint mt-5 mb-1.5 first:mt-0">{groupLabel}</p>
               )}
               <div className="rounded-xl overflow-hidden" style={{ border: "1px solid var(--admin-border)", backgroundColor: "var(--admin-surface)" }}>
-                <button onClick={() => toggle(e.id)} className="w-full flex items-center gap-3 px-4 py-3 text-left hover:bg-[var(--admin-surface-hover)] transition-colors">
+                <button onClick={() => toggle(e.id)} className="w-full flex items-start gap-3 px-4 py-3 text-left hover:bg-[var(--admin-surface-hover)] transition-colors">
                   <span className="flex-1 min-w-0">
                     <span className="block text-[14px] font-bold admin-heading truncate">
                       {e.title}
@@ -353,13 +372,33 @@ export function GoLiveList({ reports, onRefresh, openId }: { reports: Experience
                     <span className="block text-[11.5px] admin-faint">
                       {e.editions.length} upcoming week{e.editions.length === 1 ? "" : "s"}
                       {e.nextStart && <> · next {new Date(e.nextStart).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric", timeZone: "UTC" })}</>}
+                      {/* The deadline, in the unit people think in. "17 Aug 2026"
+                          needs mental arithmetic; "in 12 days" does not. */}
+                      {e.daysToNext != null && e.daysToNext >= 0 && (
+                        <span className={e.daysToNext <= 30 ? "text-amber-500 font-bold" : ""}>
+                          {" · "}{e.daysToNext === 0 ? "starts today" : `in ${e.daysToNext} day${e.daysToNext === 1 ? "" : "s"}`}
+                        </span>
+                      )}
                     </span>
+                    {/* WHAT is wrong, without opening anything. Scanning thirteen
+                        cards for "3 blocking" tells you nothing you can act on;
+                        scanning them for "Card & hero photo" tells you the job. */}
+                    {e.blockerLabels.length > 0 && (
+                      <span className="mt-1.5 flex flex-wrap gap-1">
+                        {e.blockerLabels.slice(0, 4).map((l) => (
+                          <span key={l} className="text-[10.5px] font-semibold px-1.5 py-0.5 rounded bg-red-500/10 text-red-400">{l}</span>
+                        ))}
+                        {e.blockerLabels.length > 4 && (
+                          <span className="text-[10.5px] font-semibold px-1.5 py-0.5 rounded admin-surface admin-faint">+{e.blockerLabels.length - 4} more</span>
+                        )}
+                      </span>
+                    )}
                   </span>
-                  {e.blockers > 0 && <span className="shrink-0 text-[11px] font-bold px-2 py-0.5 rounded bg-red-500/15 text-red-400">{e.blockers} blocking</span>}
-                  {e.warnings > 0 && <span className="shrink-0 text-[11px] font-bold px-2 py-0.5 rounded bg-amber-500/15 text-amber-500">{e.warnings} to polish</span>}
-                  {clean && <span className="shrink-0 text-[11px] font-bold px-2 py-0.5 rounded bg-green-500/15 text-green-500">ready</span>}
+                  {e.blockers > 0 && <span className="shrink-0 mt-0.5 text-[11px] font-bold px-2 py-0.5 rounded bg-red-500/15 text-red-400">{e.blockers} blocking</span>}
+                  {e.warnings > 0 && <span className="shrink-0 mt-0.5 text-[11px] font-bold px-2 py-0.5 rounded bg-amber-500/15 text-amber-500">{e.warnings} to polish</span>}
+                  {clean && <span className="shrink-0 mt-0.5 text-[11px] font-bold px-2 py-0.5 rounded bg-green-500/15 text-green-500">ready</span>}
                   <Progress done={done} total={total} />
-                  <svg className={`shrink-0 w-4 h-4 admin-faint transition-transform ${isOpen ? "rotate-180" : ""}`} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M6 9l6 6 6-6" /></svg>
+                  <svg className={`shrink-0 mt-1 w-4 h-4 admin-faint transition-transform ${isOpen ? "rotate-180" : ""}`} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M6 9l6 6 6-6" /></svg>
                 </button>
                 {isOpen && (
                   <div className="px-3 pb-3" style={{ borderTop: "1px solid var(--admin-border)", backgroundColor: "var(--admin-bg)" }}>

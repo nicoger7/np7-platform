@@ -92,6 +92,19 @@ export type ExperienceReport = {
   /** Blockers across the experience AND its upcoming editions. */
   blockers: number;
   warnings: number;
+  /**
+   * How urgent this trip's gaps are, which is not the same as how broken it is.
+   *   selling   — on the website with a week ahead: a gap here costs money now
+   *   upcoming  — dated and coming, but not yet on sale
+   *   unscheduled — no dates yet, so nothing can be sold or go wrong today
+   * Unscheduled trips still count and still show; they just sit last, because
+   * "we need it ready at some point" is not "a buyer is looking at it".
+   */
+  tier: "selling" | "upcoming" | "unscheduled";
+  /** Days until the next week starts — null when there is none. */
+  daysToNext: number | null;
+  /** The blocking checks by name, so the closed card can say WHAT is wrong. */
+  blockerLabels: string[];
 };
 
 const ok = (
@@ -364,30 +377,48 @@ export async function runGoLiveChecks(): Promise<ExperienceReport[]> {
       };
     }).sort((a, b) => (a.dateStart ?? "9999").localeCompare(b.dateStart ?? "9999"));
 
+    const nextStart = (edReports.map((r) => r.dateStart).filter(Boolean).sort()[0] ?? null) as string | null;
+
     reports.push({
       id,
       title: String(e.title ?? "Untitled"),
       websiteVisible: e.website_visible !== false,
       status: (e.status as string | null) ?? null,
-      nextStart: edReports.map((r) => r.dateStart).filter(Boolean).sort()[0] ?? null,
+      nextStart,
       checks: expChecks,
       editions: edReports,
       blockers: expChecks.filter((k) => !k.ok && k.severity === "blocker").length + edReports.reduce((s, r) => s + r.blockers, 0),
       warnings: expChecks.filter((k) => !k.ok && k.severity === "warning").length + edReports.reduce((s, r) => s + r.warnings, 0),
+      tier: nextStart == null
+        ? "unscheduled"
+        : (e.status === "published" && e.website_visible !== false ? "selling" : "upcoming"),
+      daysToNext: nextStart
+        ? Math.round((new Date(nextStart + "T00:00:00Z").getTime() - new Date(today + "T00:00:00Z").getTime()) / 86400000)
+        : null,
+      // Named, de-duplicated: "Card & hero photo" tells you what to do,
+      // "3 blocking" makes you open the card to find out.
+      blockerLabels: [...new Set([
+        ...expChecks.filter((k) => !k.ok && k.severity === "blocker").map((k) => k.label),
+        ...edReports.flatMap((r) => r.checks.filter((k) => !k.ok && k.severity === "blocker").map((k) => k.label)),
+      ])],
     });
   }
 
-  // Ordered the way the Experiences overview is: active first, then draft, then
-  // archived — and inside each group by the next week's date. Sorting by
-  // brokenness put every unfinished draft above the trips actually being sold,
-  // which is backwards: the live ones are the ones that cost money to get wrong.
-  const STATUS_ORDER = ["published", "draft", "archived"];
-  const rank = (s: string | null) => {
-    const i = STATUS_ORDER.indexOf(String(s ?? "draft"));
-    return i === -1 ? STATUS_ORDER.length : i;
-  };
+  /**
+   * Ordered by what it costs to leave alone, not by status.
+   *
+   * The old order was published → draft, which put a 2027 draft above a trip
+   * selling in twelve days whenever the draft happened to be "published". What
+   * actually matters is: is a buyer looking at this now, is it coming, or has it
+   * no dates at all. Within a tier, soonest first — the calendar is the deadline.
+   *
+   * Nothing is hidden or uncounted. An unscheduled trip still has to be made
+   * ready eventually; it just isn't today's problem.
+   */
+  const TIER_ORDER = ["selling", "upcoming", "unscheduled"];
   return reports.sort((a, b) =>
-    rank(a.status) - rank(b.status)
+    TIER_ORDER.indexOf(a.tier) - TIER_ORDER.indexOf(b.tier)
     || (a.nextStart ?? "9999").localeCompare(b.nextStart ?? "9999")
+    || b.blockers - a.blockers
     || a.title.localeCompare(b.title));
 }
