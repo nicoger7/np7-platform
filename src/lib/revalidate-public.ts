@@ -72,6 +72,12 @@ export function revalidateSpotguide(slug?: string | null, opts?: { alsoMagazine?
     revalidatePath(SPOTGUIDE_INDEX);
     if (slug) revalidatePath(`/spotguide/${slug}`);
     else revalidatePath("/spotguide/[slug]", "page");
+    // The same row also renders the PUBLIC destination page, which is ISR'd for
+    // an hour. Editing a destination in admin refreshed the spotguide and left
+    // /destinations/[slug] serving the old copy — which is how Bonaire's wind
+    // could read 12–25 knots on one page and 10–20 on another.
+    if (slug) revalidatePath(`/destinations/${slug}`);
+    else revalidatePath("/destinations/[slug]", "page");
     if (opts?.alsoMagazine) {
       for (const p of BLOG_LISTS) revalidatePath(p);
       revalidatePath("/blog/[slug]", "page");
