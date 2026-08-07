@@ -76,7 +76,14 @@ export async function GET(_request: NextRequest, { params }: { params: Promise<{
     if (first) recovered.firstName = first;
   }
 
-  const vars = { ...SAMPLE, ...recovered, ...(logged ?? {}) };
+  /**
+   * Sample values are for rows that logged NOTHING. Merging them under a row
+   * that did log its variables actively misleads: balance_invoice_reminder
+   * prints `amount ?? balance`, so a placeholder [amount] beat the real logged
+   * balance and the preview showed a blank amount on a mail that had gone out
+   * with €4,595 in it. A logged row is rendered from exactly what was logged.
+   */
+  const vars = logged ? { ...logged } : { ...SAMPLE, ...recovered };
   try {
     // Resolve the header exactly as the send did — from THIS row's booking, so a
     // trip mail previews with its week's hero. Passing only the template image
