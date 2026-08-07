@@ -124,7 +124,10 @@ interface AvailableComponent {
   id: string;
   name: string;
   category: string;
+  /** What it costs US. Never the price a guest is charged. */
   unit_cost: number | null;
+  /** What we charge for it — the one to put on an add-on. */
+  sell_price: number | null;
 }
 
 interface AvailableExperience {
@@ -1352,10 +1355,11 @@ export function BookingDetailPane({ bookingId, onBack }: { bookingId: string; on
                         ...addonForm,
                         component_id: v ?? "",
                         label: comp?.name || addonForm.label,
-                        price: comp?.unit_cost != null ? String(comp.unit_cost) : addonForm.price,
+                        price: comp?.sell_price != null ? String(comp.sell_price)
+                          : comp?.unit_cost != null ? String(comp.unit_cost) : addonForm.price,
                       });
                     }}
-                    options={components.map((c) => ({ value: c.id, label: c.name, sub: c.category, hint: c.unit_cost != null ? `€${c.unit_cost}` : undefined }))}
+                    options={components.map((c) => ({ value: c.id, label: c.name, sub: c.category, hint: c.sell_price != null ? `€${c.sell_price}` : c.unit_cost != null ? `€${c.unit_cost} (cost)` : undefined }))}
                     placeholder="Custom (no component)"
                     clearLabel="Custom (no component)"
                     searchPlaceholder="Search components…"
