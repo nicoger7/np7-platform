@@ -113,6 +113,12 @@ export type InvoiceData = {
     /** The package's website-included components ("Web" checkmarks, using their Website text). */
     packageIncludes?: string[] | null;
     notes?: string | null;
+    /** Confirmed add-ons billed on top of the package, itemised on the invoice. */
+    addons?: { label: string; price: number }[];
+    /** The package alone, i.e. agreedPrice minus the add-ons. */
+    packagePrice?: number;
+    /** Money actually received. The final balance deducts THIS, not a formula. */
+    received?: number;
   };
   contact: {
     name: string | null;
@@ -520,17 +526,32 @@ function FinalInvoiceLines({ data }: { data: InvoiceData }) {
   const currency = booking.currency || company.currency;
   const isMargin = company.vat_mode === "margin";
   const vatRate = company.vat_rate ?? 0;
-  // The final balance deducts every advance payment already invoiced
-  // (deposit + down-payment) — so a deposit = 0 booking simply deducts the
-  // down-payment, and a fully prepaid booking shows a zero balance.
-  const invoicedAdvance = booking.deposit + booking.downpayment;
-  const balance = booking.agreedPrice - invoicedAdvance;
+  /**
+   * The balance deducts what we have actually RECEIVED.
+   *
+   * It used to deduct `deposit + downpayment` — the milestone split, a formula
+   * rather than a fact. Andreas Burmeister had paid €3,950 of a €4,595 trip and
+   * still owed €645; this printed "Less: down-payment already invoiced
+   * €2,297.50 · Balance due €2,297.50" for a down-payment invoice that was
+   * never issued and never separately paid. Worse, the document row stored
+   * €4,595 for the same invoice, so one invoice carried two numbers and neither
+   * was the debt.
+   *
+   * Received is the only figure that matches the booking page, the reminder
+   * email and the guest's bank statement.
+   */
+  const received = booking.received ?? 0;
+  const balance = Math.max(0, booking.agreedPrice - received);
+  const addons = booking.addons ?? [];
+  // agreedPrice is the whole trip. Show the package on its own line so the
+  // add-ons are visible rather than swallowed by a package price €645 too high.
+  const packagePrice = booking.packagePrice ?? booking.agreedPrice - addons.reduce((n, a) => n + a.price, 0);
 
   const description = [experience.title, edition?.label].filter(Boolean).join(" · ");
   const packageDesc = booking.packageName ? `Package: ${booking.packageName}` : "";
 
   const totalNet = isMargin ? booking.agreedPrice : booking.agreedPrice / (1 + vatRate / 100);
-  const advanceNet = isMargin ? invoicedAdvance : invoicedAdvance / (1 + vatRate / 100);
+  const advanceNet = isMargin ? received : received / (1 + vatRate / 100);
   const balanceNet = totalNet - advanceNet;
   const balanceVat = isMargin ? 0 : balance - balanceNet;
 
@@ -550,30 +571,30 @@ function FinalInvoiceLines({ data }: { data: InvoiceData }) {
           {booking.packageIncludes?.length ? <Text style={s.smallText}>Incl. {booking.packageIncludes.join(" · ")}</Text> : null}
         </View>
         <Text style={s.col_period}>{servicePeriod(edition)}</Text>
-        <Text style={s.col_amount}>{formatMoney(booking.agreedPrice, currency)}</Text>
+        <Text style={s.col_amount}>{formatMoney(packagePrice, currency)}</Text>
       </View>
 
-      {/* Deposit already invoiced deduction */}
-      {booking.deposit > 0 && (
-        <View style={[s.tableRow, { color: GREY }]}>
+      {/* Add-ons, itemised. They are part of the total either way — the point is
+          that the guest can see what the extra money bought. */}
+      {addons.map((a, i) => (
+        <View key={`${a.label}-${i}`} style={s.tableRow}>
           <View style={s.col_desc}>
-            <Text style={{ fontFamily: "Helvetica-Bold" }}>Less: Deposit already invoiced</Text>
-            <Text style={s.smallText}>Invoice for advance payment previously issued</Text>
+            <Text>{a.label}</Text>
           </View>
           <Text style={s.col_period}> </Text>
-          <Text style={s.col_amount}>−{formatMoney(booking.deposit, currency)}</Text>
+          <Text style={s.col_amount}>{formatMoney(a.price, currency)}</Text>
         </View>
-      )}
+      ))}
 
-      {/* Down-payment already invoiced deduction */}
-      {booking.downpayment > 0 && (
+      {/* What has actually been paid. One deduction, one fact. */}
+      {received > 0 && (
         <View style={[s.tableRow, { color: GREY }]}>
           <View style={s.col_desc}>
-            <Text style={{ fontFamily: "Helvetica-Bold" }}>Less: Down-payment already invoiced</Text>
-            <Text style={s.smallText}>Interim payment invoice previously issued</Text>
+            <Text style={{ fontFamily: "Helvetica-Bold" }}>Less: payments received</Text>
+            <Text style={s.smallText}>Thank you — already paid on this booking</Text>
           </View>
           <Text style={s.col_period}> </Text>
-          <Text style={s.col_amount}>−{formatMoney(booking.downpayment, currency)}</Text>
+          <Text style={s.col_amount}>−{formatMoney(received, currency)}</Text>
         </View>
       )}
 

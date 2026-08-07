@@ -28,6 +28,7 @@ import {
   type BookingPaymentState,
 } from "@/lib/payments";
 import { effectiveAddonStatus } from "@/lib/addons";
+import { sumReceived } from "@/lib/payment-totals";
 
 // ─── DB helpers ───────────────────────────────────────────────────────────────
 
@@ -50,6 +51,30 @@ export async function confirmedAddonsTotal(bookingId: string): Promise<number> {
     // are not revenue and must never appear on an NP7 invoice
     .filter((a) => a.payment_mode !== "direct")
     .reduce((s, a) => s + (Number(a.price) || 0), 0));
+}
+
+/** Money actually in the bank on this booking. Same definition as the booking
+    page and the member plan — sumReceived, so 'pending' and 'cancelled' rows
+    never count as paid. */
+export async function bookingReceivedTotal(bookingId: string): Promise<number> {
+  const db = getDb();
+  const { data } = await db.from("exp_payments").select("amount,direction,type,status").eq("booking_id", bookingId);
+  return sumReceived(data ?? []);
+}
+
+/** The same billable add-ons, itemised, so the invoice can show what they were. */
+export async function confirmedAddonLines(bookingId: string): Promise<{ label: string; price: number }[]> {
+  const db = getDb();
+  const { data } = await db
+    .from("exp_booking_addons")
+    .select("label,price,status,notes,payment_mode,exp_components(name)")
+    .eq("booking_id", bookingId);
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  return ((data ?? []) as any[])
+    .filter((a) => effectiveAddonStatus(a) === "confirmed")
+    .filter((a) => a.payment_mode !== "direct")
+    .filter((a) => Number(a.price) > 0)
+    .map((a) => ({ label: String(a.label || a.exp_components?.name || "Add-on"), price: round2(Number(a.price) || 0) }));
 }
 
 /** Total of the real (non-void) tax invoices already ISSUED for a booking. Used
@@ -261,7 +286,7 @@ export async function generateDocument(input: GenerateInput): Promise<DocumentRo
   // so every stage below reflects extras the same way the member's plan does.
   // Deposit honours an edition-level override; the rest (down-payment %, final
   // timing) comes from the package.
-  const { total, invoiced, outstanding } = await bookingBillingTotals(bookingId, booking.agreed_price ?? 0);
+  const { total } = await bookingBillingTotals(bookingId, booking.agreed_price ?? 0);
   const cfg: PackagePaymentConfig = {
     deposit: computeDeposit(booking),
     downpayment_percent: booking.exp_packages?.downpayment_percent ?? null,
@@ -274,10 +299,23 @@ export async function generateDocument(input: GenerateInput): Promise<DocumentRo
   };
   const depositAmt = milestoneAmount("deposit", cfg, state);
   const downpaymentAmt = milestoneAmount("downpayment", cfg, state);
-  // Final = the OUTSTANDING balance (total − what's already been real-invoiced),
-  // NOT a fresh 50/50 split — so add-ons added after the down-payment invoice
-  // land in the final, never backward into an immutable invoice.
-  const finalAmt = round2(Math.max(0, total - invoiced));
+  /**
+   * Final = what is actually still owed: the trip total minus money RECEIVED.
+   *
+   * It used to be `total − already invoiced`, which broke in both directions.
+   * Andreas Burmeister had paid €3,950 of €4,595 and owed €645; nothing had been
+   * invoiced, so this stored €4,595 while the PDF printed €2,297.50 from its own
+   * separate formula. One invoice, two numbers, neither the debt.
+   *
+   * Received also keeps add-ons behaving: anything added after an earlier
+   * invoice simply lands in the final, because it raises the total and nothing
+   * has been paid against it.
+   */
+  const [received, addonLines] = await Promise.all([
+    bookingReceivedTotal(bookingId),
+    confirmedAddonLines(bookingId),
+  ]);
+  const finalAmt = round2(Math.max(0, total - received));
 
   const currency = company.currency || "EUR";
   const isInvoice = type !== "booking_confirmation";
@@ -288,7 +326,9 @@ export async function generateDocument(input: GenerateInput): Promise<DocumentRo
   const proformaMilestone: "deposit" | "downpayment" | "final" =
     input.milestone ?? (depositAmt > 0 ? "deposit" : "downpayment");
   const proformaAmt =
-    proformaMilestone === "final" ? outstanding
+    // Same figure as the final invoice — what's owed after payments received,
+    // not what has merely gone un-invoiced.
+    proformaMilestone === "final" ? finalAmt
     : proformaMilestone === "deposit" ? depositAmt
     : downpaymentAmt;
   // Deadline: securing = sign-up + refund window; final balance = trip start − final_days_before.
@@ -368,6 +408,11 @@ export async function generateDocument(input: GenerateInput): Promise<DocumentRo
       packageName: pkg?.name ?? null,
       packageIncludes: pkgIncludes,
       notes: booking.notes,
+      // The PDF prints these rather than re-deriving them, so the document row
+      // and the document itself can never disagree again.
+      addons: addonLines,
+      packagePrice: round2(booking.agreed_price ?? 0),
+      received,
     },
     contact: {
       name: contact?.name ?? null,
