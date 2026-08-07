@@ -88,7 +88,7 @@ interface Addon {
   status: string | null;
   source: string | null;
   meta?: { checkIn?: string | null; checkOut?: string | null; nightsBefore?: number; nightsAfter?: number; nights?: number; hotelConfirmed?: boolean } | null;
-  exp_components: { id: string; name: string; category: string; unit_cost: number; payment_mode?: string | null; payment_note?: string | null } | null;
+  exp_components: { id: string; name: string; category: string; unit_cost: number; sell_price?: number | null; payment_mode?: string | null; payment_note?: string | null } | null;
 }
 
 interface HotelRoom {
@@ -1425,7 +1425,26 @@ export function BookingDetailPane({ bookingId, onBack }: { bookingId: string; on
                   <span className="text-xs self-center">
                     {payDirect
                       ? <span className="text-[11px] font-semibold text-amber-500" title={a.exp_components?.payment_note || "The guest pays the supplier directly — nothing is invoiced by NP7."}>Pays supplier</span>
-                      : <span className="admin-muted">{a.price ? `€${Number(a.price).toLocaleString()}` : "—"}</span>}
+                      : (() => {
+                          // An add-on stores its own price at the moment it was
+                          // added, so a row saved while the picker prefilled the
+                          // BUYING price keeps that number for ever. Show what it
+                          // should be next to it rather than silently disagreeing
+                          // with the component — the invoice bills this number.
+                          const sell = a.exp_components?.sell_price;
+                          const wrong = a.price != null && sell != null && Number(a.price) < Number(sell);
+                          return (
+                            <span className="admin-muted">
+                              {a.price ? `€${Number(a.price).toLocaleString()}` : "—"}
+                              {wrong && (
+                                <span className="ml-1.5 text-[11px] font-semibold text-amber-500"
+                                  title="This was saved at our cost price. The sell price for this component is shown here — edit the add-on to charge it.">
+                                  → €{Number(sell).toLocaleString()}
+                                </span>
+                              )}
+                            </span>
+                          );
+                        })()}
                   </span>
                   <div className="flex items-center justify-end gap-2 self-center">
                     {requested && (
