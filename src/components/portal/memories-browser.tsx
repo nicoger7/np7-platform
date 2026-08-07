@@ -52,7 +52,7 @@ export function MemoriesBrowser({ trips }: { trips: TripMemories[] }) {
         return (
           <button key={t.bookingId} onClick={() => setOpenId(t.bookingId)}
             className="group text-left rounded-2xl overflow-hidden bg-white border border-[#f0e6d6] hover:-translate-y-0.5 hover:shadow-[0_18px_44px_rgba(0,55,74,0.10)] transition-all">
-            <div className="relative aspect-[4/3] bg-cover bg-center bg-[#e9eef0]"
+            <div className="relative aspect-[4/3] overflow-hidden rounded-t-2xl bg-cover bg-center bg-[#e9eef0]"
               style={{ backgroundImage: coverUrl ? `url('${coverUrl}')` : undefined }}>
               <div className="absolute inset-0 bg-gradient-to-t from-black/55 via-black/10 to-transparent" />
               <span className="absolute top-2.5 right-2.5 flex items-center gap-1.5">

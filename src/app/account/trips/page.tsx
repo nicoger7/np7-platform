@@ -49,7 +49,7 @@ export default async function MyTrips() {
                     {/* Same auto-branded tile as the homepage experiences (flag /
                         place / coach composited on the raw photo); falls back to the
                         edition/experience hero when the experience isn't auto-tiled. */}
-                    <div className="relative aspect-[16/9] overflow-hidden grid place-items-center bg-[#e8f1f3]">
+                    <div className="relative aspect-[16/9] overflow-hidden rounded-t-2xl grid place-items-center bg-[#e8f1f3]">
                       {b.experience?.tileAuto && b.experience?.hero_image ? (
                         <BrandedTile
                           photo={b.experience.hero_image}
