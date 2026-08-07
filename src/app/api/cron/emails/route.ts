@@ -4,6 +4,8 @@ import { createAdminClient } from "@/lib/supabase";
 import { sendEmail } from "@/lib/email/send";
 import { getMemoryPhotosForBooking } from "@/lib/portal-data";
 import { computePaymentPlan, dueUrgency, balanceDue } from "@/lib/payments";
+import { sumReceived } from "@/lib/payment-totals";
+import { effectiveAddonStatus } from "@/lib/addons";
 import { mailContentReady, getSendTiming } from "@/lib/email/readiness";
 import { recordHold } from "@/lib/email/holds";
 
@@ -168,12 +170,32 @@ export async function GET(req: NextRequest) {
   //
   // Only money that ARRIVED counts: a pending promise or a refund is not a
   // reason to congratulate anyone. Same test the ledger uses (paymentInflow).
+  //
+  // The same rows also give us how much has ARRIVED, and the add-ons query below
+  // gives what the trip really costs. Without both, every mail quoted a plan
+  // instead of a debt: the amounts came from the hand-ticked received flags and
+  // from agreed_price alone, so a guest who had overpaid one milestone, or who
+  // had booked extras, was asked for a number that matched nothing on his
+  // account page. Money we ask a guest for has to be the money he owes.
   const lastPaidAt = new Map<string, string>();
+  const receivedBy = new Map<string, number>();
+  const addonsBy = new Map<string, number>();
   if (bookingIds.length) {
-    const { data: pays } = await db
-      .from("exp_payments")
-      .select("booking_id, received_at, date, created_at, status, direction, type")
-      .in("booking_id", bookingIds);
+    const [{ data: pays }, { data: extras }] = await Promise.all([
+      db.from("exp_payments")
+        .select("booking_id, amount, received_at, date, created_at, status, direction, type")
+        .in("booking_id", bookingIds),
+      db.from("exp_booking_addons")
+        .select("booking_id, price, status, notes, payment_mode")
+        .in("booking_id", bookingIds),
+    ]);
+    for (const id of bookingIds) {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      receivedBy.set(id, sumReceived(((pays ?? []) as any[]).filter((p) => p.booking_id === id)));
+      addonsBy.set(id, ((extras ?? []) as Record<string, unknown>[])
+        .filter((a) => a.booking_id === id && effectiveAddonStatus(a) === "confirmed" && a.payment_mode !== "direct")
+        .reduce((n, a) => n + (Number(a.price) || 0), 0));
+    }
     for (const p of (pays ?? []) as Record<string, string | null>[]) {
       if (!p.booking_id) continue;
       if (p.direction === "cost" || p.type === "refund" || p.type === "addon") continue;
@@ -219,7 +241,10 @@ export async function GET(req: NextRequest) {
       final_days_before: pkgCfg.final_days_before ?? null,
     };
     const payState = {
-      total: b.agreed_price ?? 0,
+      // The trip total is the price PLUS confirmed add-ons — the same total the
+      // invoice engine and the member's payment plan use.
+      total: (b.agreed_price ?? 0) + (addonsBy.get(b.id) ?? 0),
+      paidAmount: receivedBy.get(b.id) ?? 0,
       editionStart: start,
       bookedAt: b.created_at ?? null,
       depositReceived: b.deposit_received ?? null,
@@ -239,7 +264,28 @@ export async function GET(req: NextRequest) {
     // older deposit-first "reserved" rows. Tolerant of legacy statuses.
     const awaitingDeposit = ["lead", "reserved", "payment_pending"].includes(status);
     const depositPaid = b.downpayment_received || ["confirmed", "downpayment_paid", "paid", "attended"].includes(status);
-    const balancePaid = !!b.final_payment_received || ["paid", "attended"].includes(status);
+    /**
+     * Paid, by hand and by ledger — deliberately two different questions.
+     *
+     * The flag said Andreas Burmeister's trip was settled while EUR 645 of
+     * add-ons sat open on it, so a single boolean had to be either wrong about
+     * the debt or wrong about the celebration.
+     *
+     * Chasing is muted when EITHER says paid, and it stays that way on purpose:
+     * four live bookings are flagged paid with money still open in the ledger,
+     * and one of them (a June trip, EUR 7,950, not a cent recorded) is plainly a
+     * payment nobody entered rather than a guest who owes us. Auto-mailing an
+     * invoice to someone who already paid is the worse error, so a human decides
+     * who gets chased.
+     *
+     * The congratulation needs the ledger to agree: "thanks, you're paid in
+     * full" to someone carrying an open balance is the same lie the portal was
+     * telling.
+     */
+    const flaggedPaid = !!b.final_payment_received || ["paid", "attended"].includes(status);
+    const ledgerSettled = balanceNum <= 0.01;
+    const balancePaid = flaggedPaid || ledgerSettled;   // mutes the chase
+    const balanceSettled = ledgerSettled && flaggedPaid; // earns the congratulation
 
     // Cutoff: trip-relative mails need the trip on/after go-live; lead nudges
     // need the reservation on/after go-live. Skip everything else (no backwards).
@@ -313,7 +359,7 @@ export async function GET(req: NextRequest) {
     }
 
     // 3 · balance paid in full — one confirmation
-    if (tripLive && depositPaid && balancePaid && (b.agreed_price ?? 0) > 0
+    if (tripLive && depositPaid && balanceSettled && (b.agreed_price ?? 0) > 0
         && eventLive(lastPaidAt.get(b.id) ?? null)) {
       bump("balance_paid", await send("balance_paid_confirmation", `balance_paid_confirmation:${b.id}`));
     }

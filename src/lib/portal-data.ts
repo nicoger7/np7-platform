@@ -29,6 +29,12 @@ export type MemberBooking = {
   pkg: { name: string; price: number | null } | null;
   wa_group: boolean | null;
   flight_info: Record<string, unknown> | null;
+  /** Money received on this booking (ledger, not the hand-ticked flags). */
+  paid: number;
+  /** Confirmed, billable add-ons. */
+  addons_total: number;
+  /** What the trip actually costs: agreed price + add-ons. Null when no price is set. */
+  trip_total: number | null;
 };
 
 const SELECT =
@@ -48,7 +54,46 @@ function shape(b: any): MemberBooking {
     pkg: b.exp_packages ?? null,
     wa_group: b.wa_group ?? null,
     flight_info: b.flight_info ?? null,
+    // Filled in by enrichMoney(); zero until then so the shape is never partial.
+    paid: 0,
+    addons_total: 0,
+    trip_total: b.agreed_price ?? null,
   };
+}
+
+/**
+ * Attach the money to each booking — in one round-trip for the whole list.
+ *
+ * Without it the portal judged "paid" from `final_payment_received`, a flag
+ * ticked by hand and never re-checked. Andreas Burmeister's trip carried a
+ * green "Fully paid" chip while the payment tab under it said he owed EUR 645,
+ * because the flag and the ledger were never the same source.
+ *
+ * Tolerant: any failure leaves the zeros from shape(), and the callers that
+ * treat a missing total as unknown behave exactly as they did before.
+ */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+async function enrichMoney(db: any, bookings: MemberBooking[]): Promise<void> {
+  const ids = bookings.map((b) => b.id);
+  if (!ids.length) return;
+  try {
+    const [payRes, addonRes] = await Promise.all([
+      db.from("exp_payments").select("booking_id,amount,direction,type,status").in("booking_id", ids),
+      db.from("exp_booking_addons").select("booking_id,price,status,notes,payment_mode").in("booking_id", ids),
+    ]);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const pays = (payRes.data ?? []) as any[];
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const addons = (addonRes.data ?? []) as any[];
+    for (const b of bookings) {
+      b.paid = sumReceived(pays.filter((p) => p.booking_id === b.id));
+      b.addons_total = addons
+        .filter((a) => a.booking_id === b.id && effectiveAddonStatus(a) === "confirmed" && a.payment_mode !== "direct")
+        .reduce((s, a) => s + (Number(a.price) || 0), 0);
+      const base = b.agreed_price ?? null;
+      b.trip_total = base != null ? base + b.addons_total : b.addons_total > 0 ? b.addons_total : null;
+    }
+  } catch { /* tolerant — zeros stand in, same behaviour as before this existed */ }
 }
 
 /** The experience's pre-trip content (written once in admin → Event Content →
@@ -115,7 +160,7 @@ export async function getMemberBookings(contactId: string): Promise<MemberBookin
   const db = createAdminClient() as any;
   const { data } = await db.from("exp_bookings").select(SELECT).eq("contact_id", contactId).order("created_at", { ascending: false });
   const bookings = (data ?? []).filter((b: { status?: string | null }) => !isCancelled(b.status)).map(shape);
-  await enrichBrandedTiles(db, bookings);
+  await Promise.all([enrichBrandedTiles(db, bookings), enrichMoney(db, bookings)]);
   return bookings;
 }
 
@@ -126,7 +171,9 @@ export async function getMemberBooking(contactId: string, bookingId: string): Pr
   // Same rule on the direct link — a bookmarked URL must not reopen a
   // cancelled trip with all its actions live.
   if (!data || isCancelled(data.status)) return null;
-  return shape(data);
+  const booking = shape(data);
+  await enrichMoney(db, [booking]);
+  return booking;
 }
 
 /** Images for the member-home banner slideshow: the member's own trip photos

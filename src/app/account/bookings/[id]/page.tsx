@@ -22,7 +22,7 @@ import { RedeemVoucher } from "@/components/portal/redeem-voucher";
 import { CrewCard } from "@/components/portal/crew-card";
 import { InvitePanel } from "@/components/portal/invite-panel";
 import { getInvitesForBooking, resolveRewards } from "@/lib/invites";
-import { computePaymentPlan } from "@/lib/payments";
+import { computePaymentPlan, amountDueNow } from "@/lib/payments";
 import { describePrice } from "@/lib/pricing";
 import { createAdminClient } from "@/lib/supabase";
 import { PackingChecklist } from "@/components/portal/packing-checklist";
@@ -167,6 +167,11 @@ export default async function BookingDetail({ params }: Props) {
   const cur = b.experience?.currency ?? "EUR";
   const fullyPaid = total != null && total > 0 && paid >= total;
   const nextMilestone = plan.find((m) => m.status !== "paid");
+  // What to actually transfer — the milestone MINUS what has already landed
+  // against it. The nominal slice would tell a member who has overpaid the
+  // down-payment to send the full half again. Falls back to the slice only when
+  // we have no ledger to work from.
+  const dueNow = amountDueNow(plan, paid) ?? nextMilestone?.amount ?? 0;
 
   // Immersive hero: cover photo (the edition's own tile wins, then the
   // experience's) + a phase-aware countdown with a wait-progress bar (booked → go).
@@ -191,9 +196,9 @@ export default async function BookingDetail({ params }: Props) {
     // Honest loss-aversion: name the real date we hold the place until (from the
     // engine), then reassure with the 14-day refund. No fake scarcity.
     const heldUntil = nextMilestone.dueDate ? new Date(nextMilestone.dueDate).toLocaleDateString("en-GB", { day: "numeric", month: "long" }) : null;
-    hero = { eyebrow: "Your next step", title: "Secure your spot", body: `Pay the ${money(nextMilestone.amount, cur)} down-payment to lock in your place${heldUntil ? ` — we hold it for you until ${heldUntil}` : ""}. Fully refundable for 14 days.`, ctaLabel: "See how to pay", ctaHref: "#payment", tone: "coral" };
+    hero = { eyebrow: "Your next step", title: "Secure your spot", body: `Pay the ${money(dueNow, cur)} down-payment to lock in your place${heldUntil ? ` — we hold it for you until ${heldUntil}` : ""}. Fully refundable for 14 days.`, ctaLabel: "See how to pay", ctaHref: "#payment", tone: "coral" };
   } else if (nextMilestone) {
-    hero = { eyebrow: "Your next step", title: `Balance due — ${money(nextMilestone.amount, cur)}`, body: `Pay by bank transfer${nextMilestone.dueDate ? ` (due ${new Date(nextMilestone.dueDate).toLocaleDateString("en-GB", { day: "numeric", month: "short" })})` : ""}. The bank details are in your payment plan.`, ctaLabel: "View payment plan", ctaHref: "#payment", tone: "amber" };
+    hero = { eyebrow: "Your next step", title: `Balance due — ${money(dueNow, cur)}`, body: `Pay by bank transfer${nextMilestone.dueDate ? ` (due ${new Date(nextMilestone.dueDate).toLocaleDateString("en-GB", { day: "numeric", month: "short" })})` : ""}. The bank details are in your payment plan.`, ctaLabel: "View payment plan", ctaHref: "#payment", tone: "amber" };
   } else {
     hero = { eyebrow: "You're all set", title: "You're set 🎉", body: "Everything's sorted for your trip.", ctaLabel: "Open trip prep", ctaHref: "#prep", tone: "green" };
   }
@@ -204,7 +209,7 @@ export default async function BookingDetail({ params }: Props) {
   const tiles: TripTile[] = [
     {
       key: "payment", label: "Payment", tab: "payment",
-      value: fullyPaid ? "Paid" : nextMilestone ? (money(nextMilestone.amount, cur) ?? "—") : "—",
+      value: fullyPaid ? "Paid" : nextMilestone ? (money(dueNow, cur) ?? "—") : "—",
       sub: fullyPaid ? "all done" : dueShort ? `due ${dueShort}` : undefined,
       tone: fullyPaid ? "green" : !depositPaid ? "coral" : "amber",
       done: fullyPaid,

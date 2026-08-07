@@ -18,7 +18,19 @@ import {
 } from "@react-pdf/renderer";
 
 import type { CompanySettings, GeneratableType, VatMode } from "./types";
-import { formatMoney } from "./types";
+import { formatMoney as formatMoneyRaw } from "./types";
+
+/**
+ * Money for the PDF.
+ *
+ * @react-pdf renders the built-in Helvetica through WinAnsi, where "€" sits in
+ * the extended range and is measured too narrow — so "€645.00" printed with the
+ * symbol sitting on top of the 6. A plain space after the symbol restores the
+ * gap. The minus is the ASCII one for the same reason: U+2212 is outside WinAnsi
+ * and vanished entirely, so a deduction row read as a charge.
+ */
+const formatMoney = (amount: number | null | undefined, currency = "EUR"): string =>
+  formatMoneyRaw(amount, currency).replace(/^([^\d\s-]+)(?=\d)/, "$1 ");
 
 // ─── Colour / typography tokens ──────────────────────────────────────────────
 const BRAND_DARK = "#00374a";
@@ -594,7 +606,7 @@ function FinalInvoiceLines({ data }: { data: InvoiceData }) {
             <Text style={s.smallText}>Thank you — already paid on this booking</Text>
           </View>
           <Text style={s.col_period}> </Text>
-          <Text style={s.col_amount}>−{formatMoney(received, currency)}</Text>
+          <Text style={s.col_amount}>-{formatMoney(received, currency)}</Text>
         </View>
       )}
 

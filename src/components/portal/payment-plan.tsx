@@ -60,6 +60,13 @@ export function PaymentPlan({
       <ol className="relative">
         {milestones.map((m, i) => {
           const last = i === milestones.length - 1;
+          // Part of this milestone can already be covered — by an earlier
+          // overpayment, or by paying a round number. Show what's left to
+          // transfer, not the plan's nominal slice, or the member is asked for
+          // money they've already sent.
+          const left = Math.max(0, m.cumulative - paid);
+          const covered = m.status === "paid" ? 0 : Math.max(0, Math.min(m.amount, m.amount - left));
+          const showLeft = m.status !== "paid" && covered > 0.01;
           return (
             <li key={m.kind} className="relative flex gap-3 pb-5 last:pb-0">
               {!last && <span className="absolute left-3 top-6 bottom-0 w-px -translate-x-1/2 bg-[#eadfce]" aria-hidden />}
@@ -69,10 +76,13 @@ export function PaymentPlan({
               <div className="min-w-0 flex-1 mt-[3px]">
                 <div className="flex items-start justify-between gap-2">
                   <p className="text-[14px] font-bold text-[#00374a] leading-snug">{m.label}</p>
-                  <p className="text-[14px] font-extrabold text-[#00374a] tabular-nums shrink-0 pl-1">{money(m.amount, currency)}</p>
+                  <p className="text-[14px] font-extrabold text-[#00374a] tabular-nums shrink-0 pl-1">{money(showLeft ? left : m.amount, currency)}</p>
                 </div>
                 <p className={`text-[12.5px] leading-snug mt-0.5 ${m.status === "paid" ? "text-green-600 font-semibold" : m.status === "due" ? "text-[#c9620f] font-semibold" : "text-[#9aa6ac]"}`}>
                   {m.status === "paid" ? "Paid ✓" : m.dueLabel}
+                  {showLeft && (
+                    <span className="text-[#9aa6ac] font-normal"> · {money(covered, currency)} of {money(m.amount, currency)} already covered</span>
+                  )}
                   {m.kind === "deposit" && m.status !== "paid" && m.refundableUntil && (
                     <span className="text-[#9aa6ac] font-normal"> · refundable until {fmtDate(m.refundableUntil)}</span>
                   )}

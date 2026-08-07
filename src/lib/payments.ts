@@ -168,6 +168,12 @@ export function computePaymentPlan(cfg: PackagePaymentConfig, state: BookingPaym
 
 /** Amount already paid, derived from which milestones are marked received. */
 export function amountPaid(cfg: PackagePaymentConfig, state: BookingPaymentState): number {
+  // The ledger when we have it. Summing the milestones marked paid rounds every
+  // payment DOWN to the last threshold it cleared: Andreas Burmeister's
+  // EUR 3,950 counted as the EUR 2,297.50 down-payment and nothing more, so his
+  // balance reminder would have asked for EUR 2,297.50 when he owed EUR 645.
+  // Without a ledger (flags-only rows) the milestone sum is still the best guess.
+  if (typeof state.paidAmount === "number") return round(Math.max(0, state.paidAmount));
   const plan = computePaymentPlan(cfg, state);
   return round(plan.filter((m) => m.status === "paid").reduce((s, m) => s + m.amount, 0));
 }
@@ -198,6 +204,25 @@ export const RELEASE_GRACE_DAYS = 7;
 export type DueUrgency = "ok" | "last_chance" | "expired";
 
 /** How urgent an unpaid, currently-due milestone is (paid/upcoming → "ok"). */
+/**
+ * What the member actually has to transfer for the next milestone.
+ *
+ * A milestone's `amount` is its share of the PLAN — half the trip, say. What is
+ * owed is that share minus whatever has already landed against it, which is why
+ * this reads the cumulative threshold rather than the slice. Andreas Burmeister
+ * had paid EUR 3,950 of a EUR 4,595 trip; his trip page opened with "Balance
+ * due — EUR 2,297.50" (the nominal final milestone) while the payment tab two
+ * scrolls down said EUR 645. The plan was right and the headline was wrong.
+ *
+ * Returns null when there is nothing left to pay.
+ */
+export function amountDueNow(plan: Milestone[], paid: number): number | null {
+  const next = plan.find((m) => m.status !== "paid");
+  if (!next) return null;
+  const due = round(Math.max(0, next.cumulative - (paid || 0)));
+  return due > 0 ? due : null;
+}
+
 export function dueUrgency(m: Pick<Milestone, "status" | "dueDate">, today: string = todayISO()): DueUrgency {
   if (m.status !== "due" || !m.dueDate) return "ok";
   if (m.dueDate < today) return "expired";

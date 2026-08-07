@@ -3,6 +3,25 @@ import { normalizeBookingStatus } from "@/lib/types";
 
 export type StatusChip = { label: string; tone: "amber" | "blue" | "green" | "gray" };
 
+type MoneyAware = Pick<MemberBooking, "status" | "downpayment_received" | "final_payment_received"> &
+  Partial<Pick<MemberBooking, "paid" | "trip_total">>;
+
+/**
+ * Is there money still outstanding, according to the ledger?
+ *
+ * `final_payment_received` is ticked by hand and nobody re-checks it after the
+ * balance moves. Andreas Burmeister's trip read "Fully paid" while the payment
+ * tab on the same screen said EUR 645 was due: the flag was set when his
+ * EUR 3,950 landed, then EUR 645 of add-ons was booked on top and no flag
+ * changed. So when we know the total and what arrived, that wins — and a
+ * booking whose price we don't know can't be contradicted, so the flag stands.
+ */
+function owesMoney(b: MoneyAware): boolean {
+  const total = b.trip_total;
+  if (typeof total !== "number" || total <= 0 || typeof b.paid !== "number") return false;
+  return b.paid + 0.01 < total;
+}
+
 /**
  * Is the spot actually held?
  *
@@ -23,9 +42,10 @@ export function isSecured(b: Pick<MemberBooking, "status" | "downpayment_receive
 
 /** Friendly booking status for the member portal. The pipeline status gives the
  *  stage; the payment flags split a confirmed booking into deposit-paid vs fully-paid. */
-export function bookingStatus(b: Pick<MemberBooking, "status" | "downpayment_received" | "final_payment_received">): StatusChip {
+export function bookingStatus(b: MoneyAware): StatusChip {
   const s = normalizeBookingStatus(b.status);
   if (s === "attended") return { label: "Completed", tone: "gray" };
+  if (owesMoney(b)) return { label: "Spot secured · balance open", tone: "blue" };
   if (b.final_payment_received || s === "paid") return { label: "Fully paid", tone: "green" };
   // deposit-neutral: most packages have NO deposit (explicit 0) — never claim
   // one was paid. "Spot secured" is true in both configs.
@@ -42,9 +62,10 @@ export function bookingStatus(b: Pick<MemberBooking, "status" | "downpayment_rec
  * asking to be secured — so a fully-paid trip still read as if a balance were
  * outstanding. Same inputs as bookingStatus(), so the two can't disagree.
  */
-export function paymentStageLabel(b: Pick<MemberBooking, "status" | "downpayment_received" | "final_payment_received">): string | null {
+export function paymentStageLabel(b: MoneyAware): string | null {
   const s = normalizeBookingStatus(b.status);
   if (s === "attended") return "Trip completed";
+  if (owesMoney(b)) return "Spot secured";
   if (b.final_payment_received || s === "paid") return "Fully paid";
   if (b.downpayment_received || s === "confirmed") return "Spot secured";
   return null; // nothing to celebrate yet
