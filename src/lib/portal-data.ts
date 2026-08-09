@@ -897,6 +897,52 @@ export async function getExperienceArrivalInfo(experienceId: string): Promise<Ar
   return out;
 }
 
+/**
+ * The nights actually held for this guest, mirrored straight from the room
+ * allotment (exp_hotel_rooms) — the same rows the admin manages. Explicit
+ * check-in/out wins; a row without dates falls back to its edition's window,
+ * exactly like the admin's overlap detection. Several rows (extended stays,
+ * cross-edition extra nights) merge into one span.
+ */
+export type StayInfo = { checkIn: string; checkOut: string; nights: number; hotelConfirmed: boolean };
+
+export async function getBookingStay(bookingId: string): Promise<StayInfo | null> {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const db = createAdminClient() as any;
+  try {
+    const { data: rows } = await db
+      .from("exp_hotel_rooms")
+      .select("check_in, check_out, hotel_confirmed, edition_id, released_at")
+      .or(`booking_id.eq.${bookingId},extra_booking_ids.cs.{${bookingId}}`)
+      .is("archived_at", null);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const live = ((rows ?? []) as any[]).filter((r) => !r.released_at);
+    if (!live.length) return null;
+    const edIds = [...new Set(live.map((r) => r.edition_id).filter(Boolean))] as string[];
+    const { data: eds } = edIds.length
+      ? await db.from("exp_editions").select("id,date_start,date_end").in("id", edIds)
+      : { data: [] };
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const edById = new Map(((eds ?? []) as any[]).map((e) => [e.id, e]));
+    const starts: string[] = [], ends: string[] = [];
+    for (const r of live) {
+      const ed = r.edition_id ? edById.get(r.edition_id) : null;
+      const s = r.check_in || ed?.date_start;
+      const e = r.check_out || ed?.date_end;
+      if (s) starts.push(String(s));
+      if (e) ends.push(String(e));
+    }
+    if (!starts.length || !ends.length) return null;
+    const checkIn = starts.sort()[0];
+    const checkOut = ends.sort().at(-1)!;
+    const nights = Math.round((Date.parse(checkOut) - Date.parse(checkIn)) / 86400000);
+    if (!(nights > 0)) return null;
+    return { checkIn, checkOut, nights, hotelConfirmed: live.every((r) => !!r.hotel_confirmed) };
+  } catch {
+    return null; // pre-migration or transient — the stay strip simply doesn't render
+  }
+}
+
 export type HotelInfo = { name: string; image_url: string | null; images: string[] | null; description: string | null; website: string | null; location: string | null; maps_url: string | null };
 
 /** Resolve the hotel for a booking (by the package's hotel_id, else name match on the

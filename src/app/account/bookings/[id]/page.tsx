@@ -3,7 +3,7 @@ import { defaultCancellationPolicy } from "@/lib/cancellation-policy";
 import { redirect, notFound } from "next/navigation";
 import type { Metadata } from "next";
 import { getPortalUser } from "@/lib/auth";
-import { getMemberBooking, getTripGalleryGroupsForBooking, getTripVideosForBooking, getBookingPhotoSharing, getBookingPaid, getBookingHotel, getEditionCoaches, getMemoryDownloadsRemaining, getConfirmedAddonsTotal, getBookingFlights, getExperienceArrivalInfo, getCrewProfiles, getPreTripContent } from "@/lib/portal-data";
+import { getMemberBooking, getTripGalleryGroupsForBooking, getTripVideosForBooking, getBookingPhotoSharing, getBookingPaid, getBookingHotel, getBookingStay, getEditionCoaches, getMemoryDownloadsRemaining, getConfirmedAddonsTotal, getBookingFlights, getExperienceArrivalInfo, getCrewProfiles, getPreTripContent } from "@/lib/portal-data";
 import { bookingStatus, fmtDates, money, isSecured } from "@/lib/portal-status";
 import { isAttending } from "@/lib/types";
 import { PortalChrome } from "@/components/portal/portal-chrome";
@@ -40,10 +40,11 @@ export default async function BookingDetail({ params }: Props) {
   if (!b) notFound();
 
   const chip = bookingStatus(b);
-  const [galleryGroups, paid, hotel, coaches, downloadsRemaining, addonsTotal, flights, arrival, crew, photosShared, preTrip, tripVideos] = await Promise.all([
+  const [galleryGroups, paid, hotel, stay, coaches, downloadsRemaining, addonsTotal, flights, arrival, crew, photosShared, preTrip, tripVideos] = await Promise.all([
     b.edition?.id ? getTripGalleryGroupsForBooking(b.edition.id, b.id).catch(() => []) : Promise.resolve([]),
     getBookingPaid(b.id).catch(() => 0),
     getBookingHotel(b.id).catch(() => null),
+    getBookingStay(b.id).catch(() => null),
     b.edition?.id ? getEditionCoaches(b.edition.id).catch(() => []) : Promise.resolve([]),
     getMemoryDownloadsRemaining(b.id).catch(() => 3),
     getConfirmedAddonsTotal(b.id).catch(() => 0),
@@ -345,6 +346,22 @@ export default async function BookingDetail({ params }: Props) {
           <p className="text-[11px] font-bold tracking-[0.14em] uppercase text-[#9aa6ac] mb-2">Your stay</p>
           {hotel.image_url && <div className="rounded-xl overflow-hidden mb-3 aspect-[16/9] bg-cover bg-center" style={{ backgroundImage: `url('${hotel.image_url}')` }} />}
           <p className="text-[15px] font-bold text-[#00374a]">{hotel.name}</p>
+          {stay && (() => {
+            const d = (iso: string) => new Date(iso + "T00:00:00Z").toLocaleDateString("en-GB", { weekday: "short", day: "numeric", month: "short", timeZone: "UTC" });
+            return (
+              <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5 mt-2">
+                <span className="text-[13.5px] text-[#3a4a50]">
+                  <strong className="text-[#00374a]">{d(stay.checkIn)}</strong> → <strong className="text-[#00374a]">{d(stay.checkOut)}</strong>
+                  <span className="text-[#9aa6ac]"> · {stay.nights} {stay.nights === 1 ? "night" : "nights"}</span>
+                </span>
+                {stay.hotelConfirmed ? (
+                  <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-green-100 text-green-700 text-[11.5px] font-bold">✓ Confirmed by the hotel</span>
+                ) : (
+                  <span className="inline-flex items-center px-2.5 py-0.5 rounded-full bg-[#e8f1f3] text-[#5a6b72] text-[11.5px] font-bold">Reserved for you</span>
+                )}
+              </div>
+            );
+          })()}
           {hotel.description && <p className="text-[13.5px] text-[#5a6b72] leading-relaxed mt-1.5 whitespace-pre-line">{hotel.description}</p>}
           <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5 mt-2">
             {hotel.website && <a href={hotel.website} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1.5 text-[13.5px] font-semibold text-[#00afdb] hover:underline">Hotel website ↗</a>}
