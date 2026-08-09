@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase";
-import { applyEditToSpot, CANONICAL_FIELDS } from "@/lib/spotguide-trust";
+import { applyEditToSpot, ADMIN_APPLY_FIELDS } from "@/lib/spotguide-trust";
 
 /**
  * POST /api/admin/spotguide/edits/:id — NP7 moderation of a member-suggested
@@ -32,7 +32,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
   }
 
   // approve
-  if (!CANONICAL_FIELDS.has(edit.field)) {
+  if (!ADMIN_APPLY_FIELDS.has(edit.field)) {
     // info suggestion — accept it (queued for merge), don't touch the prose.
     await db.from("spot_edits").update({ status: "approved", applied_at: now }).eq("id", id);
     return NextResponse.json({ ok: true, status: "approved" });

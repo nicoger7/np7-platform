@@ -46,6 +46,18 @@ export const EDITABLE_FIELDS = ["name", "pin", "info"] as const;
 export type EditableField = (typeof EDITABLE_FIELDS)[number];
 export const CANONICAL_FIELDS = new Set<string>(["name", "pin"]);
 
+/**
+ * Fields an NP7 ADMIN approval applies straight to the spot. Wider than
+ * CANONICAL_FIELDS on purpose: the member-confirm path (resolveEdit) keeps the
+ * narrow set, because three member confirms auto-apply an edit — fine for a
+ * name or a pin, not for silently rewriting curated prose. An admin click is a
+ * different trust level: jibe (agent) proposes complete replacement values for
+ * levels/description/summary, and "Approve" that merely re-labels the card
+ * "awaiting merge" — while the spot never changes — reads as a dead button.
+ * That was the spotguide queue's "buttons don't work" bug.
+ */
+export const ADMIN_APPLY_FIELDS = new Set<string>(["name", "pin", "levels", "description", "summary"]);
+
 export const EDIT_FIELD_LABEL: Record<EditableField, string> = {
   name: "Spot name", pin: "Pin location", info: "Info / correction",
 };
@@ -114,7 +126,19 @@ export async function applyEditToSpot(db: DB, spot: SpotRow, field: string, newV
     const v = newValue as { lat?: unknown; lng?: unknown };
     const lat = Number(v?.lat), lng = Number(v?.lng);
     if (Number.isFinite(lat) && Number.isFinite(lng)) { patch.lat = lat; patch.lng = lng; }
-  } else return; // non-canonical (info) never overwrites the spot
+  } else if (field === "levels") {
+    // stored as a JSON array or a comma string; the column is text[] with the
+    // rank vocabulary — validate each entry so a typo can't poison the filter
+    const KNOWN = new Set(["Beginner", "Intermediate", "Advanced", "Expert", "Semi-Pro", "Pro"]);
+    const arr = (Array.isArray(newValue) ? newValue : String(newValue ?? "").split(","))
+      .map((x) => String(x).trim()).filter((x) => KNOWN.has(x));
+    if (!arr.length) return;
+    patch.levels = arr;
+  } else if (field === "description" || field === "summary") {
+    const text = String(newValue ?? "").trim();
+    if (!text) return;
+    patch[field] = text;
+  } else return; // freeform info never overwrites the spot
   await db.from("spots").update(patch).eq("id", spot.id);
 
   if (field === "pin" && patch.lat != null && !String(spot.wind_stats?.source ?? "").startsWith("NP7")) {

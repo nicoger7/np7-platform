@@ -58,7 +58,11 @@ export default function SpotguideModeration() {
     setBusy(id);
     const j = await fetch(`/api/admin/spotguide/edits/${id}`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action }) }).then((r) => r.json()).catch(() => ({}));
     setBusy(null);
-    // Accepting an info suggestion keeps it in the list (now awaiting merge); everything else clears.
+    // A failure used to clear the row anyway — the click LOOKED like it worked
+    // until the next reload resurrected the card. Name the error, keep the row.
+    if (!j?.status) { alert(j?.error || "Couldn't save that decision — please try again."); return; }
+    // Accepting a freeform info note keeps it in the list (awaiting manual
+    // merge); structured fields apply immediately and the card clears.
     if (action === "approve" && j.status === "approved") setEdits((list) => list.map((e) => e.id === id ? { ...e, status: "approved" } : e));
     else setEdits((list) => list.filter((e) => e.id !== id));
   }
