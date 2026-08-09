@@ -2,6 +2,7 @@ import Link from "next/link";
 import { WindMiniChart } from "@/components/experience/wind-mini-chart";
 import { DEFAULT_WEEK_INFO } from "@/lib/experience-defaults";
 import { notFound } from "next/navigation";
+import { includeLine } from "@/lib/include-line";
 import type { Metadata } from "next";
 import { supabase } from "@/lib/supabase";
 import { getTeamMember, getPortalUser } from "@/lib/auth";
@@ -162,7 +163,7 @@ function CertaintyIcon({ name }: { name: string }) {
 
 /* live schema (generated types are stale) */
 type Edition = { id: string; label: string | null; coaches: string | null; date_start: string | null; date_end: string | null; max_spots: number | null; spots_taken: number | null; deposit: number | null; status: string | null };
-type PackageRow = { id: string; name: string; price: number | null; status: string | null; edition_id: string | null; category: string | null; includes: unknown; exp_package_components?: { show_on_website: boolean | null; exp_components: { name: string | null; description: string | null } | null }[] | null };
+type PackageRow = { id: string; name: string; price: number | null; status: string | null; edition_id: string | null; category: string | null; includes: unknown; exp_package_components?: { show_on_website: boolean | null; quantity?: number | null; exp_components: { name: string | null; description: string | null; category?: string | null } | null }[] | null };
 
 /** Coerce the jsonb `exp_packages.includes` into a clean list of display strings. */
 function parseIncludes(raw: unknown): string[] {
@@ -218,7 +219,7 @@ export default async function ExperienceDetailPage({ params, searchParams }: Pro
   }
   let query = supabase
     .from("exp_experiences")
-    .select("id,title,location,currency,price,description,hero_image,gallery,airport_code,exp_editions(id,label,coaches,date_start,date_end,max_spots,spots_taken,deposit,status,launch_discount_pct,launch_price_until),exp_packages(id,name,price,status,edition_id,category,includes,exp_package_components(show_on_website,exp_components(name,description)))")
+    .select("id,title,location,currency,price,description,hero_image,gallery,airport_code,exp_editions(id,label,coaches,date_start,date_end,max_spots,spots_taken,deposit,status,launch_discount_pct,launch_price_until),exp_packages(id,name,price,status,edition_id,category,includes,exp_package_components(show_on_website,quantity,exp_components(name,description,category)))")
     .eq("slug", slug);
   if (!team) query = query.eq("status", "published");
   const { data: rows } = await query.order("status", { ascending: false }).limit(1);
@@ -358,7 +359,7 @@ export default async function ExperienceDetailPage({ params, searchParams }: Pro
         if (manual.length) return manual;
         return (p.exp_package_components ?? [])
           .filter((l) => l?.show_on_website)
-          .map((l) => (l?.exp_components?.description || l?.exp_components?.name || "").trim())
+          .map((l) => includeLine({ ...l?.exp_components, quantity: l?.quantity }))
           .filter(Boolean);
       })(),
     };

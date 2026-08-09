@@ -3,7 +3,8 @@
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { ContactPicker, ContactLite } from "@/components/contact-picker";
-import { editionLabel, editionOptionLabel, editionSortKey } from "@/lib/edition-label";
+import { editionOptionLabel, editionSortKey } from "@/lib/edition-label";
+import { composeBookingName } from "@/lib/booking-name";
 
 interface Exp { id: string; title: string; code: string | null }
 interface Ed { id: string; experience_id: string; year: number | null; label: string | null; date_start: string | null; date_end: string | null }
@@ -37,8 +38,14 @@ export function NewBookingModal({ onClose }: { onClose: () => void }) {
     .sort((a, b) => editionSortKey(a).localeCompare(editionSortKey(b)));
   const exp = experiences.find((e) => e.id === expId);
   const ed = editions.find((e) => e.id === edId);
+  // One naming rule for every door into a booking. This modal had its own,
+  // reversed: "NP7 Experience Alacati 2026 — Luis Marina García-Barón" landed in
+  // a list where every other row on the same week reads
+  // "Andreas Burmeister — Alacati 2026". composeBookingName() is what the
+  // website reserve/register flows and the edition quick-add already use, and it
+  // matches the rows imported from Notion.
   const autoName = exp && contact
-    ? `${exp.code || exp.title}${ed ? ` ${editionLabel(ed)}` : ""} — ${contact.name}`
+    ? composeBookingName({ contactName: contact.name, experienceTitle: exp.title, editionLabel: ed?.label, year: ed?.year })
     : "";
 
   async function create() {

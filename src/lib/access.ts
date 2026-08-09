@@ -103,7 +103,9 @@ export const SECTIONS: Section[] = [
   { key: "bookings", label: "Bookings", world: "experience", group: "Operations", paths: ["/admin/bookings", "/api/admin/bookings"] },
   { key: "contacts", label: "Contacts", world: "experience", group: "Operations", paths: ["/admin/contacts", "/api/admin/contacts"] },
   { key: "invites", label: "Trip invites", world: "experience", group: "Operations", paths: ["/admin/invites", "/api/admin/invites"] },
-  { key: "hotel_rooms", label: "Hotel rooms", world: "experience", group: "Operations", paths: ["/admin/hotel-rooms", "/api/admin/hotel-rooms"] },
+  // /api/admin/rooms is the PHYSICAL-room API behind the same page — leaving it
+  // unmapped made its writes fail-open for view-only roles.
+  { key: "hotel_rooms", label: "Hotel rooms", world: "experience", group: "Operations", paths: ["/admin/hotel-rooms", "/api/admin/hotel-rooms", "/api/admin/rooms"] },
   { key: "hotels", label: "Hotels", world: "experience", group: "Operations", paths: ["/admin/hotels", "/api/admin/hotels"] },
   { key: "packages", label: "Packages", world: "experience", group: "Operations", paths: ["/admin/packages", "/api/admin/packages"] },
   { key: "components", label: "Components", world: "experience", group: "Operations", paths: ["/admin/components", "/api/admin/components"] },

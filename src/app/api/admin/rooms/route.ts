@@ -35,10 +35,12 @@ export async function POST(request: Request) {
       experience_id: (Array.isArray(body.experience_ids) ? body.experience_ids[0] : body.experience_id) || null,
       experience_ids: Array.isArray(body.experience_ids) ? body.experience_ids : (body.experience_id ? [body.experience_id] : []),
       hotel: body.hotel || null,
+      hotel_id: body.hotel_id || null,
       name: body.name,
       room_type: body.room_type || null,
       room_number: body.room_number || null,
       comments: body.comments || null,
+      sleeps: body.sleeps ?? null,
     })
     .select()
     .single();

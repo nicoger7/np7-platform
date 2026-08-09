@@ -28,6 +28,7 @@ import {
   type BookingPaymentState,
 } from "@/lib/payments";
 import { effectiveAddonStatus } from "@/lib/addons";
+import { includeLine } from "@/lib/include-line";
 import { sumReceived } from "@/lib/payment-totals";
 
 // ─── DB helpers ───────────────────────────────────────────────────────────────
@@ -223,12 +224,12 @@ async function packageIncludes(packageId: string | null): Promise<string[]> {
     const db = getDb();
     const { data, error } = await db
       .from("exp_package_components")
-      .select("show_on_website, exp_components(name, description)")
+      .select("show_on_website, quantity, exp_components(name, description, category)")
       .eq("package_id", packageId);
     if (error) return [];
-    return ((data ?? []) as { show_on_website?: boolean | null; exp_components: { name: string | null; description: string | null } | null }[])
+    return ((data ?? []) as { show_on_website?: boolean | null; quantity?: number | null; exp_components: { name: string | null; description: string | null; category?: string | null } | null }[])
       .filter((r) => r.show_on_website)
-      .map((r) => (r.exp_components?.description || r.exp_components?.name || "").trim())
+      .map((r) => includeLine({ ...r.exp_components, quantity: r.quantity }))
       .filter(Boolean);
   } catch {
     return [];

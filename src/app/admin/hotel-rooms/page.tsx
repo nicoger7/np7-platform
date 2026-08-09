@@ -199,16 +199,76 @@ export default function HotelRoomsPage() {
     if (!unitForm.name) return;
     setSavingUnit(true);
     const body = { name: unitForm.name, hotel_id: unitForm.hotel_id || null, hotel: unitForm.hotel || null, room_type: unitForm.room_type || null, room_number: unitForm.room_number || null, comments: unitForm.comments || null, experience_ids: unitForm.experience_ids };
-    if (selUnit === "new") {
-      const res = await fetch("/api/admin/rooms", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }).then((r) => r.json());
+    // A room built from legacy occupancy rows has a synthetic "name:…" key — no
+    // exp_rooms row exists, so a PATCH can never land (it used to be sent anyway
+    // and failed without a word: the "rooms don't save" bug). Saving one now
+    // CREATES the real room and adopts its week rows.
+    const isSynthetic = selUnit !== "new" && selUnit != null && !/^[0-9a-f-]{36}$/i.test(selUnit);
+    if (selUnit === "new" || isSynthetic) {
+      const res = await fetch("/api/admin/rooms", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+      const j = await res.json().catch(() => ({} as { room?: { id: string }; error?: string }));
+      if (!res.ok) { setSavingUnit(false); alert(j.error || "Couldn't save this room — please try again."); return; }
+      if (isSynthetic && j?.room?.id) {
+        // link the orphan weeks to the room we just materialised
+        const weeks = groupMap[selUnit!]?.weeks ?? [];
+        await Promise.all(weeks.map((w) => fetch(`/api/admin/hotel-rooms/${w.id}`, {
+          method: "PATCH", headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ room_id: j.room.id }),
+        }).catch(() => {})));
+      }
       await loadRooms();
       setSavingUnit(false);
-      if (res?.room?.id) setSelUnit(res.room.id); else closeUnit();
+      if (j?.room?.id) setSelUnit(j.room.id); else closeUnit();
     } else {
-      await fetch(`/api/admin/rooms/${selUnit}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+      const res = await fetch(`/api/admin/rooms/${selUnit}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+      if (!res.ok) {
+        const j = await res.json().catch(() => ({} as { error?: string }));
+        setSavingUnit(false);
+        alert(j.error || "Couldn't save this room — please try again.");
+        return; // keep the form open so nothing typed is lost
+      }
       await loadRooms();
       setSavingUnit(false);
     }
+  }
+
+  /** Duplicate a room N times — the "we have 6 of these doubles" case. Copies the
+      physical room (auto-numbered) and its week rows as AVAILABLE slots (same
+      editions and dates, no guest — an allotment is capacity, not people). */
+  async function duplicateUnit() {
+    if (!selUnit || selUnit === "new") return;
+    const g = groupMap[selUnit];
+    if (!g) return;
+    const nRaw = prompt("How many copies? Each becomes its own room with the same weeks (available, no guest).", "1");
+    if (nRaw == null) return;
+    const n = Math.min(20, Math.max(1, parseInt(nRaw, 10) || 1));
+    setSavingUnit(true);
+    const baseName = g.unit.name.replace(/\s+\d+$/, "");
+    const taken = new Set(units.filter((u) => (u.hotel_id || u.hotel) === (g.unit.hotel_id || g.unit.hotel)).map((u) => u.name));
+    let made = 0, num = 1;
+    for (let i = 0; i < n; i++) {
+      let name = `${baseName} ${++num}`;
+      while (taken.has(name)) name = `${baseName} ${++num}`;
+      taken.add(name);
+      const res = await fetch("/api/admin/rooms", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({
+        name, hotel_id: g.unit.hotel_id || null, hotel: g.unit.hotel || null, room_type: g.unit.room_type || null,
+        comments: g.unit.comments || null, experience_ids: g.unit.experience_ids?.length ? g.unit.experience_ids : (g.unit.experience_id ? [g.unit.experience_id] : []),
+      }) });
+      const j = await res.json().catch(() => ({} as { room?: { id: string }; error?: string }));
+      if (!res.ok || !j?.room?.id) { alert(j?.error || `Copy ${i + 1} failed — ${made} made so far.`); break; }
+      for (const w of g.weeks) {
+        await fetch("/api/admin/hotel-rooms", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({
+          room_id: j.room.id, experience_id: w.experience_id || g.unit.experience_id || null, name,
+          hotel_id: g.unit.hotel_id || null, hotel: g.unit.hotel || null, room_type: g.unit.room_type || null,
+          edition_id: w.edition_id || null, status: "available",
+          check_in: w.check_in || null, check_out: w.check_out || null,
+        }) }).catch(() => {});
+      }
+      made++;
+    }
+    setSavingUnit(false);
+    await loadRooms();
+    if (made) alert(`${made} ${made === 1 ? "copy" : "copies"} created.`);
   }
   async function removeUnit() {
     if (selUnit === "new" || !selUnit) return;
@@ -397,7 +457,8 @@ export default function HotelRoomsPage() {
               <div className="flex gap-2">
                 <button onClick={saveUnit} disabled={!unitForm.name || savingUnit} className="px-4 py-2 bg-[var(--admin-accent)] hover:bg-[var(--admin-accent)]/90 disabled:opacity-40 text-[var(--admin-accent-contrast)] text-sm font-bold rounded-lg transition-colors">{savingUnit ? "Saving…" : selUnit === "new" ? "Create" : "Update"}</button>
                 <button onClick={closeUnit} className="px-4 py-2 admin-muted text-sm rounded-lg transition-colors">Cancel</button>
-                {selUnit !== "new" && <button onClick={removeUnit} className="ml-auto px-3 py-2 text-sm text-red-400 hover:bg-red-500/10 rounded-lg transition-colors">Delete room</button>}
+                {selUnit !== "new" && <button onClick={duplicateUnit} disabled={savingUnit} className="ml-auto px-3 py-2 text-sm admin-muted hover:bg-[var(--admin-surface-hover)] rounded-lg transition-colors">Duplicate…</button>}
+                {selUnit !== "new" && <button onClick={removeUnit} className="px-3 py-2 text-sm text-red-400 hover:bg-red-500/10 rounded-lg transition-colors">Delete room</button>}
               </div>
             </div>
 
