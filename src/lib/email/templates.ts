@@ -55,6 +55,20 @@ const greet = (v: EmailVars) =>
 const rule = () =>
   `<div style="height:3px;width:52px;background:#f47b20;background-image:linear-gradient(90deg,#ffc42e,#f47b20);border-radius:2px;margin:24px 0 16px;"></div>`;
 
+/** When a booking carries several confirmed add-ons, list them in their two
+ *  money-buckets so whichever confirmation arrives shows the whole picture —
+ *  one mail per add-on, each blind to the others, is how a guest ends up
+ *  guessing which ones they owe us for. Vars are newline-joined lines. */
+const addonBuckets = (v: EmailVars) => {
+  if (!v.addonsOurs && !v.addonsDirect) return "";
+  const list = (raw: string) =>
+    `<ul style="margin:0 0 14px;padding-left:20px;">${raw.split("\n").filter(Boolean).map((l) => `<li style="margin:3px 0;">${esc(l)}</li>`).join("")}</ul>`;
+  let out = heading("All your add-ons");
+  if (v.addonsOurs) out += p(`<strong>On your NP7 balance</strong> — paid by bank transfer to us:`) + list(v.addonsOurs);
+  if (v.addonsDirect) out += p(`<strong>Paid locally</strong> — settled directly with the provider, not on your balance:`) + list(v.addonsDirect);
+  return out;
+};
+
 /** A small heading above a block — quiet, uppercase, gold. */
 const heading = (text: string) =>
   `<p style="margin:22px 0 6px;font-size:12px;font-weight:800;letter-spacing:.14em;text-transform:uppercase;color:#b0791e;">${esc(text)}</p>`;
@@ -549,11 +563,20 @@ export const TEMPLATES: Record<string, (v: EmailVars, opts?: LayoutOpts) => Buil
     subject: `Confirmed: ${v.addonLabel ?? "your add-on"} — ${v.experienceTitle ?? "your NP7 trip"}`,
     html: emailLayout({
       ...opts,
-      preheader: "Your requested add-on is confirmed.",
+      preheader: v.addonPayDirect ? "Your add-on is confirmed — you pay it locally." : "Your requested add-on is confirmed.",
       bodyHtml:
         greet(v) +
         p(`Good news — we've confirmed <strong>${esc(v.addonLabel || "your add-on")}</strong> for your trip${v.experienceTitle ? " to <strong>" + esc(v.experienceTitle) + "</strong>" : ""}.`) +
-        (v.addonPrice ? p(`It adds <strong>${esc(v.addonPrice)}</strong> to your balance${v.balance ? `, bringing your remaining balance to <strong>${esc(v.balance)}</strong>` : ""} — payable by bank transfer with the rest.`) : "") +
+        // Two different kinds of money. A pay-direct add-on is arranged by us but
+        // settled with the provider on site — telling the guest it "adds €0 to
+        // your balance, payable by bank transfer" (the old copy for every
+        // add-on) was wrong about the amount AND the payee in one sentence.
+        (v.addonPayDirect
+          ? p(`You'll pay for this <strong>directly with the local provider</strong> on site — it doesn't change your NP7 balance. They'll confirm the price with you there.`)
+          : v.addonPrice
+            ? p(`It adds <strong>${esc(v.addonPrice)}</strong> to your trip balance${v.balance ? ` — your remaining balance is <strong>${esc(v.balance)}</strong>` : ""}, payable by bank transfer with the rest.`)
+            : "") +
+        addonBuckets(v) +
         (v.bookingLink ? emailButton("View it in your trip", v.bookingLink) : "") +
         p(`Any questions, just reply.<br>— Nico & the NP7 team`),
     }),

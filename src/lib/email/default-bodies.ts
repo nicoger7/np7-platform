@@ -157,7 +157,10 @@ export const DEFAULT_BODIES: Record<string, string> = {
   addon_confirmed:
     P("Hey {{firstName}} 🤙") +
     P("Good news — we've confirmed <strong>{{addonLabel}}</strong> for your trip to <strong>{{experienceTitle}}</strong>.") +
-    P("It adds <strong>{{addonPrice}}</strong> to your balance, bringing your remaining balance to <strong>{{balance}}</strong> — payable by bank transfer with the rest.") +
+    // computed per add-on: pay-direct says "settled with the provider, not your
+    // balance"; billed-by-us states the price and the ledger balance. A flat
+    // body can't branch, so the sentence arrives pre-built.
+    P("{{addonPriceLine}}") +
     BTN("View it in your trip", "bookingLink") +
     P("Any questions, just reply." + SIGN),
 

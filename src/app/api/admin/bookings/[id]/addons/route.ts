@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse, after } from "next/server";
 import { createAdminClient } from "@/lib/supabase";
 import { sendEmail } from "@/lib/email/send";
-import { noteForStatus, type AddonStatus } from "@/lib/addons";
+import { noteForStatus, effectiveAddonStatus, type AddonStatus } from "@/lib/addons";
+import { sumReceived } from "@/lib/payment-totals";
 import { resyncBookingBilling } from "@/lib/invoices/promote";
 
 // Flag (or clear) hotel_confirmed on the guest's room week-row — same row the
@@ -176,7 +177,24 @@ export async function PATCH(
     const email = bk?.contacts?.email;
     if (email) {
       const label = data?.label ?? data?.exp_components?.name ?? "your add-on";
-      const price = data?.price != null ? `€${Number(data.price).toLocaleString("en-US")}` : "";
+      const isDirect = data?.payment_mode === "direct";
+      const money = (n: number) => `€${Number(n).toLocaleString("en-US")}`;
+      // The whole booking's confirmed add-ons, split by who gets paid, plus the
+      // ledger balance — so the mail states facts, not the milestone formula.
+      const [{ data: allAddons }, { data: pays }] = await Promise.all([
+        client.from("exp_booking_addons").select("label, price, status, notes, payment_mode, exp_components(name)").eq("booking_id", id),
+        client.from("exp_payments").select("amount,direction,type,status").eq("booking_id", id),
+      ]);
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const confirmedAll = ((allAddons ?? []) as any[]).filter((a) => effectiveAddonStatus(a) === "confirmed");
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const nameOf = (a: any) => String(a.label || a.exp_components?.name || "Add-on");
+      const ours = confirmedAll.filter((a) => a.payment_mode !== "direct");
+      const direct = confirmedAll.filter((a) => a.payment_mode === "direct");
+      const oursTotal = ours.reduce((s, a) => s + (Number(a.price) || 0), 0);
+      const received = sumReceived(pays ?? []);
+      const balance = Math.max(0, (Number(bk?.agreed_price) || 0) + oursTotal - received);
+      const priceNum = Number(data?.price) || 0;
       await sendEmail({
         to: email,
         templateKey: "addon_confirmed",
@@ -186,7 +204,21 @@ export async function PATCH(
           firstName: (bk?.contacts?.name ?? "").split(" ")[0] || "there",
           experienceTitle: bk?.exp_experiences?.title ?? "",
           addonLabel: label,
-          addonPrice: price,
+          addonPayDirect: isDirect ? "yes" : undefined,
+          // guard on the NUMBER: "€0" is a truthy string, and it once printed
+          // "adds €0 to your balance — payable by bank transfer" for a transfer
+          // the guest pays the driver for
+          addonPrice: !isDirect && priceNum > 0 ? money(priceNum) : undefined,
+          balance: balance > 0 ? money(balance) : undefined,
+          // one sentence a flat DB-edited body can embed as {{addonPriceLine}}
+          addonPriceLine: isDirect
+            ? "You'll pay for this directly with the local provider on site — it doesn't change your NP7 balance."
+            : priceNum > 0
+              ? `It adds ${money(priceNum)} to your trip balance${balance > 0 ? ` — your remaining balance is ${money(balance)}` : ""}, payable by bank transfer with the rest.`
+              : "",
+          // both buckets, only when there is more than this one add-on to show
+          addonsOurs: confirmedAll.length > 1 && ours.length ? ours.map((a) => `${nameOf(a)} — ${money(Number(a.price) || 0)}`).join("\n") : undefined,
+          addonsDirect: confirmedAll.length > 1 && direct.length ? direct.map((a) => `${nameOf(a)} (pay on site)`).join("\n") : undefined,
           bookingLink: `${process.env.NEXT_PUBLIC_SITE_URL ?? ""}/account/bookings/${id}`,
         },
       }).catch(() => {});
