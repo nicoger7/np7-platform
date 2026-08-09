@@ -219,7 +219,7 @@ export default async function ExperienceDetailPage({ params, searchParams }: Pro
   }
   let query = supabase
     .from("exp_experiences")
-    .select("id,title,location,currency,price,description,hero_image,gallery,airport_code,exp_editions(id,label,coaches,date_start,date_end,max_spots,spots_taken,deposit,status,launch_discount_pct,launch_price_until),exp_packages(id,name,price,status,edition_id,category,includes,exp_package_components(show_on_website,quantity,exp_components(name,description,category)))")
+    .select("id,title,location,currency,price,description,hero_image,gallery,airport_code,exp_editions(id,label,coaches,date_start,date_end,max_spots,spots_taken,deposit,status,launch_discount_pct,launch_price_until,video_analysis,photoshoot),exp_packages(id,name,price,status,edition_id,category,includes,exp_package_components(show_on_website,quantity,exp_components(name,description,category)))")
     .eq("slug", slug);
   if (!team) query = query.eq("status", "published");
   const { data: rows } = await query.order("status", { ascending: false }).limit(1);
@@ -356,11 +356,20 @@ export default async function ExperienceDetailPage({ params, searchParams }: Pro
       // (exp_components.description, name as fallback).
       includes: (() => {
         const manual = parseIncludes(p.includes);
-        if (manual.length) return manual;
-        return (p.exp_package_components ?? [])
+        const base = manual.length ? manual : (p.exp_package_components ?? [])
           .filter((l) => l?.show_on_website)
           .map((l) => includeLine({ ...l?.exp_components, quantity: l?.quantity }))
           .filter(Boolean);
+        // The member-area benefit rides on every package — what it PROMISES
+        // (photos, video clips) follows the week's own flags, so the overview
+        // never sells media a week doesn't shoot. Hand-written mentions win.
+        if (base.some((t) => /member area/i.test(t))) return base;
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const ped: any = allEditions.find((e) => e.id === p.edition_id) ?? edition;
+        const video = ped?.video_analysis !== false;
+        const photo = ped?.photoshoot !== false;
+        const media = video && photo ? "all your week's photos & videos, " : photo ? "all your week's photos, " : video ? "your video-analysis clips, " : "";
+        return [...base, `NP7 member area — ${media}trip documents & progress tracker`];
       })(),
     };
   };
@@ -479,7 +488,24 @@ export default async function ExperienceDetailPage({ params, searchParams }: Pro
   const customOutcomes = (Array.isArray(content?.week_outcomes) ? content!.week_outcomes! : [])
     .filter((o) => (o?.t ?? "").trim())
     .map((o) => ({ icon: o.icon || "bolt", t: o.t!, d: o.d ?? "" }));
-  const outcomeItems = customOutcomes.length ? customOutcomes : OUTCOMES;
+  // "What you take home" must only promise what the weeks deliver: when EVERY
+  // visible week explicitly switched a media promise off, its card comes down.
+  // One week with it on (or undecided) keeps the promise up — the card speaks
+  // for the experience, and the per-week truth lives on the packages.
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const anyVideo = allEditions.length === 0 || allEditions.some((e: any) => e.video_analysis !== false);
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const anyPhoto = allEditions.length === 0 || allEditions.some((e: any) => e.photoshoot !== false);
+  const mediaOutcomeOff = (o: { icon?: string; t: string }) => {
+    const hay = `${o.icon ?? ""} ${o.t}`.toLowerCase();
+    const isVideoCard = /video/.test(hay);
+    const isPhotoCard = /photo|camera/.test(hay);
+    if (isVideoCard && isPhotoCard) return !anyVideo && !anyPhoto; // the combined default card
+    if (isVideoCard) return !anyVideo;
+    if (isPhotoCard) return !anyPhoto;
+    return false;
+  };
+  const outcomeItems = (customOutcomes.length ? customOutcomes : OUTCOMES).filter((o) => !mediaOutcomeOff(o));
   const methodIntro = content?.method_intro?.trim() || METHOD_INTRO;
   const customSteps = (Array.isArray(content?.method_steps) ? content!.method_steps! : [])
     .filter((m) => (m?.t ?? "").trim())

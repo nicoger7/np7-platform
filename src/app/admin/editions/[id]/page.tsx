@@ -109,6 +109,8 @@ interface Edition {
   computed_price_to: number | null;
   deposit: number | null;
   max_spots: number | null;
+  video_analysis?: boolean | null;
+  photoshoot?: boolean | null;
   spots_taken: number;
   confirmed_count: number;
   status: string;
@@ -803,6 +805,8 @@ export default function EditionDetailPage({
         launch_discount_pct: edition.launch_discount_pct,
         launch_price_until: edition.launch_price_until,
         active: edition.active,
+        video_analysis: edition.video_analysis ?? null,
+        photoshoot: edition.photoshoot ?? null,
         notion_id: edition.notion_id,
       }),
     });
@@ -1245,6 +1249,21 @@ export default function EditionDetailPage({
           <div className="pt-4" style={{ borderTop: "1px solid var(--admin-border)" }}>
             <h3 className="text-xs font-bold tracking-[0.1em] admin-faint uppercase mb-4">Operations</h3>
             <div className="space-y-4">
+              {/* Per-edition media promises. Checked = the website keeps its
+                  photo/video card and the packages carry the member-area
+                  benefit; unchecked = this week doesn't offer it and the page
+                  says nothing it can't keep. Unset behaves as checked, so 150
+                  existing editions didn't silently lose their promise. */}
+              <div className="flex flex-wrap gap-x-6 gap-y-2">
+                {([["video_analysis", "Video analysis", "Coach films you and reviews frame-by-frame"], ["photoshoot", "Professional photoshoot", "A photographer shoots the week"]] as const).map(([key, label, note]) => (
+                  <label key={key} className="flex items-start gap-2 cursor-pointer select-none">
+                    <input type="checkbox" checked={edition[key] !== false} onChange={(e) => update(key, e.target.checked)} className="w-4 h-4 mt-0.5 accent-[#0aa3c7] shrink-0" />
+                    <span className="text-sm admin-heading font-semibold">{label}
+                      <span className="block text-[11px] admin-faint font-normal">{note} — drives the website&apos;s &quot;what you take home&quot; + member-area benefit</span>
+                    </span>
+                  </label>
+                ))}
+              </div>
               <div>
                 <label className={labelClass}>Coaches<PublicBadge note="Shown on the week card + the first name is the coach on the trip tile" /></label>
                 <input
