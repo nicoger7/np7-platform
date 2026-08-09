@@ -205,7 +205,9 @@ export default function DestinationEditor({ params }: { params: Promise<{ id: st
                 >{p.image ? "" : "Img"}</button>
                 <div className="grid grid-cols-[1fr_2fr_1fr_auto] gap-2 flex-1">
                   <input className={inputClass} placeholder="Name" value={p.name} onChange={(e) => set("partners", partners.map((x, j) => j === i ? { ...x, name: e.target.value } : x))} />
-                  <input className={inputClass} placeholder="Description" value={p.description} onChange={(e) => set("partners", partners.map((x, j) => j === i ? { ...x, description: e.target.value } : x))} />
+                  {/* a textarea, not an input — the card renders a paragraph like the
+                      hotel's, and a one-line box quietly teaches people to write one line */}
+                  <textarea rows={3} className={inputClass} placeholder="Short text — what it is and why guests care (2–3 sentences, like the hotel's)" value={p.description} onChange={(e) => set("partners", partners.map((x, j) => j === i ? { ...x, description: e.target.value } : x))} />
                   <input className={inputClass} placeholder="URL" value={p.url} onChange={(e) => set("partners", partners.map((x, j) => j === i ? { ...x, url: e.target.value } : x))} />
                   <button onClick={() => set("partners", partners.filter((_, j) => j !== i))} className="admin-faint hover:text-red-400 px-2">✕</button>
                 </div>
