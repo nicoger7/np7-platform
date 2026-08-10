@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { GalleryGroup } from "@/lib/portal-data";
 import { cdnImage } from "@/lib/img";
+import { mutate } from "@/lib/mutate";
 import { ShareSheet } from "./share-sheet";
 
 /**
@@ -54,6 +55,7 @@ export function MemberGallery({
   const [zipping, setZipping] = useState(false);
   const [err, setErr] = useState("");
   const [keepers, setKeepers] = useState<Set<string>>(new Set());
+  const [keeperErr, setKeeperErr] = useState("");
 
   useEffect(() => {
     if (!keeperBookingId) return;
@@ -66,11 +68,21 @@ export function MemberGallery({
   async function toggleKeeper(ref: string) {
     if (!keeperBookingId) return;
     const starred = !keepers.has(ref);
+    setKeeperErr("");
     setKeepers((s) => { const n = new Set(s); starred ? n.add(ref) : n.delete(ref); return n; }); // optimistic
-    await fetch("/api/portal/memories/stars", {
-      method: "POST", headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ bookingId: keeperBookingId, kind: "photo", ref, starred }),
-    }).catch(() => setKeepers((s) => { const n = new Set(s); starred ? n.delete(ref) : n.add(ref); return n; }));
+    // Only a network throw used to revert; an expired session or a rejected
+    // booking (401/403) left the star glowing gold on a photo the keepers table
+    // never recorded. The member stops worrying about that shot, and a year
+    // after the trip the retention cron deletes the one photo they meant to keep
+    // forever. Revert the star and say so, so they can star it again for real.
+    const r = await mutate("/api/portal/memories/stars", {
+      method: "POST",
+      body: { bookingId: keeperBookingId, kind: "photo", ref, starred },
+    });
+    if (!r.ok) {
+      setKeepers((s) => { const n = new Set(s); starred ? n.delete(ref) : n.add(ref); return n; });
+      setKeeperErr(r.error);
+    }
   }
 
   // Keepers first: once the member has starred photos, surface them as a pinned
@@ -246,6 +258,9 @@ export function MemberGallery({
         <div className="rounded-2xl border border-[#f6d9a8] bg-[#fff8ec] px-4 py-3 mb-4">
           <p className="text-[13.5px] font-bold text-[#00374a]">⭐ Choose your keepers{keepers.size > 0 ? ` — ${keepers.size} saved` : ""}</p>
           <p className="text-[12.5px] text-[#8a6a2a] mt-0.5 leading-snug">Tap the star on the photos you want to keep forever. Photos stay for a year after the trip (videos 3 months) — starred keepers stay for good.</p>
+          {/* The star reverted — say why here, next to the keepers explainer, so the
+              member knows the photo is NOT protected yet and stars it again. */}
+          {keeperErr && <p className="text-[12.5px] font-semibold text-[#c4621a] mt-1.5 leading-snug">{keeperErr}</p>}
         </div>
       )}
       <div className="space-y-2.5">

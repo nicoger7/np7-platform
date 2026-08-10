@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { mutate, saved } from "@/lib/mutate";
 
 type Edition = { id: string; label: string | null; year: number | null };
 type Pay = { id: string; amount: number; date: string | null; reference: string | null; method: string | null; vendors: { name: string } | null };
@@ -51,21 +52,43 @@ export function CostLinksEditor({ costId, onChange }: { costId: string; onChange
   async function attach() {
     if (!attachId) return;
     setBusy(true);
-    await fetch(`/api/admin/exp-costs/${costId}/payments`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ payment_id: attachId, amount: Number(attachAmt) || selectedAvail?.remaining || 0 }) });
-    setBusy(false); setAttachId(""); setAttachAmt(""); load(); onChange?.();
+    // Silent failure here cleared the picker and re-read the server, so the row
+    // simply didn't appear — indistinguishable from "I picked the wrong payment".
+    // The expense stays unallocated and the cost's Actual stays too low, which is
+    // exactly the number the edition P&L is built on.
+    const ok = await saved(mutate(`/api/admin/exp-costs/${costId}/payments`, { method: "POST", body: { payment_id: attachId, amount: Number(attachAmt) || selectedAvail?.remaining || 0 } }));
+    setBusy(false);
+    if (!ok) return; // keep the selection and the amount so it's one click to retry
+    setAttachId(""); setAttachAmt(""); load(); onChange?.();
   }
-  async function detach(pid: string) { await fetch(`/api/admin/exp-costs/${costId}/payments?payment_id=${pid}`, { method: "DELETE" }); load(); onChange?.(); }
+  async function detach(pid: string) {
+    // The row vanished on the next load() whether or not the delete landed. On a
+    // failure it reappeared later, and the payment stays counted against this cost
+    // while it's also being attached somewhere else — double-counted spend.
+    if (!(await saved(mutate(`/api/admin/exp-costs/${costId}/payments?payment_id=${pid}`, { method: "DELETE" })))) return;
+    load(); onChange?.();
+  }
   async function saveSplit() {
     setBusy(true);
     const allocations = Object.entries(pct).map(([edition_id, p]) => ({ edition_id, percent: Number(p) || 0 })).filter((a) => a.percent > 0);
-    await fetch(`/api/admin/exp-costs/${costId}/editions`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ allocations }) });
-    setBusy(false); load(); onChange?.();
+    // The percentages stayed in the boxes after a failed PUT, so the split looked
+    // saved. The cost then lands 100% on one edition — one trip carries another
+    // trip's costs and both editions' P&L are wrong.
+    const ok = await saved(mutate(`/api/admin/exp-costs/${costId}/editions`, { method: "PUT", body: { allocations } }));
+    setBusy(false);
+    if (!ok) return;
+    load(); onChange?.();
   }
   async function duplicate() {
     if (!dupEd) return;
     setBusy(true);
-    await fetch(`/api/admin/exp-costs/${costId}/duplicate-to-edition`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ edition_id: dupEd }) });
-    setBusy(false); setDupEd(""); onChange?.();
+    // This one never reloads, so nothing on screen contradicted a failed copy. The
+    // cost is quietly missing from the other edition's budget until someone
+    // reconciles it months later.
+    const ok = await saved(mutate(`/api/admin/exp-costs/${costId}/duplicate-to-edition`, { method: "POST", body: { edition_id: dupEd } }));
+    setBusy(false);
+    if (!ok) return; // leave the edition picked so "Copy here" is one click away
+    setDupEd(""); onChange?.();
   }
 
   const pctTotal = Object.values(pct).reduce((s, v) => s + (Number(v) || 0), 0);

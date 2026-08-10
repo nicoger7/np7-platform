@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { mutate, saved } from "@/lib/mutate";
 
 type Row = { id: string; date_start: string; date_end: string | null; label: string | null; status: string; sort_order: number };
 
@@ -24,11 +25,20 @@ export function EventDatesEditor({ experienceId, mode }: { experienceId: string;
   async function add() {
     if (!start) return;
     setBusy(true);
-    await fetch("/api/admin/event-dates", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ experienceId, date_start: start, date_end: end || null, label: label || null }) });
-    setStart(""); setEnd(""); setLabel(""); setBusy(false); load();
+    // The inputs used to be cleared unconditionally: a rejected POST looked exactly
+    // like a saved one, so the candidate date riders are asked to vote on was never
+    // created — and the admin, seeing empty fields, had no reason to re-enter it.
+    const ok = await saved(mutate("/api/admin/event-dates", { method: "POST", body: { experienceId, date_start: start, date_end: end || null, label: label || null } }));
+    setBusy(false);
+    if (!ok) return;
+    setStart(""); setEnd(""); setLabel(""); load();
   }
   async function remove(id: string) {
-    await fetch(`/api/admin/event-dates?id=${id}`, { method: "DELETE" }); load();
+    // A failed DELETE was followed by a reload that quietly put the row back, so a
+    // date the admin had withdrawn stayed live on the event page and kept taking
+    // standby deposits for a slot nobody intended to run.
+    if (!(await saved(mutate(`/api/admin/event-dates?id=${id}`, { method: "DELETE" })))) return;
+    load();
   }
   async function confirm(id: string, human: string) {
     if (!window.confirm(`Confirm "${human}"? Riders who picked it will be asked to pay the balance; everyone else gets the standby refund. This can't be undone.`)) return;

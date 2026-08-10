@@ -74,20 +74,27 @@ export function PhoneField({
   inputClass: string;
   required?: boolean;
 }) {
+  // The caller's input class starts with `w-full`, and a second width in the
+  // same class string is a coin toss decided by Tailwind's output order — not
+  // by which one is written last. On a phone `w-full` won, so the dial select
+  // filled the row and pushed the number field off the card. Strip it rather
+  // than try to out-specify it.
+  const selectClass = inputClass.replace(/(^|\s)w-full(\s|$)/, " ");
+
   return (
-    <span className="flex gap-2">
+    <span className="flex gap-2 w-full min-w-0">
       <select
         value={dial}
         onChange={(e) => onDial(e.target.value)}
         aria-label="Country dialling code"
-        className={`${inputClass} shrink-0 w-[104px] cursor-pointer`}
+        className={`${selectClass} shrink-0 basis-[108px] w-[108px] px-2.5 cursor-pointer`}
       >
         {DIALS.map((d) => (
           <option key={d.code + d.label} value={d.code}>{d.flag} {d.code}</option>
         ))}
       </select>
       <input
-        className={`${inputClass} flex-1 min-w-0`}
+        className={`${inputClass} flex-1 min-w-0 basis-0`}
         placeholder={placeholder}
         value={number}
         // A leading zero is a national prefix — it is wrong once a country code

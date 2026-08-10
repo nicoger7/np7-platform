@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import { mutate } from "@/lib/mutate";
 
 /**
  * "Apply a gift voucher" — a small form on the member booking page. Sends the
@@ -21,19 +22,18 @@ export function RedeemVoucher({ bookingId }: { bookingId: string }) {
     if (!trimmed) { setError("Enter your voucher code."); return; }
     setBusy(true);
     setError(null);
-    const res = await fetch("/api/portal/vouchers/redeem", {
+    // A dropped connection used to leave the button stuck on "Applying…" with no
+    // message: the member sat there believing a €500 gift voucher was being
+    // credited to their trip, when nothing had been sent at all.
+    const res = await mutate<{ forfeited?: number; currency?: string }>("/api/portal/vouchers/redeem", {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ code: trimmed, bookingId }),
+      body: { code: trimmed, bookingId },
     });
     setBusy(false);
-    const data = await res.json().catch(() => ({}));
-    if (res.ok) {
-      setDone({ forfeited: Number(data.forfeited) || 0, currency: data.currency || "EUR" });
-      router.refresh();
-    } else {
-      setError(data.error || "We couldn't apply that voucher.");
-    }
+    if (!res.ok) { setError(res.error); return; }
+    const data = res.data ?? {};
+    setDone({ forfeited: Number(data.forfeited) || 0, currency: data.currency || "EUR" });
+    router.refresh();
   }
 
   if (done) {

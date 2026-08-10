@@ -20,11 +20,23 @@ export function SetPasswordPrompt({ show }: { show: boolean }) {
 
   if (!show || closed) return null;
 
-  function dismiss() {
+  async function dismiss() {
     // Persist the dismissal on the account so it sticks across devices/tabs; the
-    // server re-shows it after the cooldown. Best-effort, non-blocking.
-    createClient().auth.updateUser({ data: { pw_prompt_dismissed_at: new Date().toISOString() } }).catch(() => {});
-    setClosed(true);
+    // server re-shows it after the cooldown.
+    setErr("");
+    const wasClosed = closed;
+    setClosed(true); // optimistic: the card goes the moment they click
+    const { error } = await createClient().auth.updateUser({
+      data: { pw_prompt_dismissed_at: new Date().toISOString() },
+    });
+    if (error) {
+      // Swallowed, this cost the member the thing they just asked for: "Maybe
+      // later" never reached the account, so the same prompt was waiting at the
+      // next sign-in and on every other device — nagging that looks like a bug.
+      // Put the card back so the dismissal can actually be retried.
+      setClosed(wasClosed);
+      setErr("Couldn't save that. This reminder will come back next time you sign in — tap Maybe later again to try once more.");
+    }
   }
 
   async function save() {

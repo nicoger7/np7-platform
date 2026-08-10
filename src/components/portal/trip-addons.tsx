@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState, useCallback } from "react";
+import { mutate } from "@/lib/mutate";
 import { effectiveAddonStatus } from "@/lib/addons";
 import { hasFlightDetails, isSelfArriving, type FlightInfo } from "@/lib/flights";
 import type { ArrivalInfo } from "@/lib/portal-data";
@@ -64,15 +65,19 @@ export function TripAddons({ bookingId, depositPaid, hasDeposit, securingLabel, 
   const [joined, setJoined] = useState(!!joinedGroup);
   const [showGroup, setShowGroup] = useState(false);
   const [savingGroup, setSavingGroup] = useState(false);
+  const [groupErr, setGroupErr] = useState<string | null>(null);
   const hasGroup = !!groupLink;
   async function setGroupJoined(next: boolean) {
+    const prev = joined;
     setSavingGroup(true);
+    setGroupErr(null);
     setJoined(next); // optimistic
-    const res = await fetch(`/api/portal/bookings/${bookingId}/group`, {
-      method: "PUT", headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ joined: next }),
-    });
-    if (!res.ok) setJoined(!next); // revert on failure
+    const r = await mutate(`/api/portal/bookings/${bookingId}/group`, { method: "PUT", body: { joined: next } });
+    // A dropped connection used to throw straight past the revert: the tick and
+    // the green "Join the group chat ✓" stayed on for the rest of the session,
+    // while we still had the member down as not in the chat — so nobody chased
+    // them, and they missed the pick-up times posted in there.
+    if (!r.ok) { setJoined(prev); setGroupErr(r.error); }
     setSavingGroup(false);
   }
 
@@ -87,28 +92,36 @@ export function TripAddons({ bookingId, depositPaid, hasDeposit, securingLabel, 
   const [showFlights, setShowFlights] = useState(false);
   const [editingFlights, setEditingFlights] = useState(false);
   const [savingFlights, setSavingFlights] = useState(false);
+  const [flightErr, setFlightErr] = useState<string | null>(null);
+  const [bookedErr, setBookedErr] = useState<string | null>(null);
   const flightsSaved = hasFlightDetails(flights);
   const flightsBooked = flights?.booked === true;
 
   async function putFlights(payload: FlightInfo) {
-    const res = await fetch(`/api/portal/bookings/${bookingId}/flights`, {
-      method: "PUT", headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(payload),
-    });
-    const d = await res.json().catch(() => ({}));
-    if (res.ok) setFlights(d.flights ?? payload);
-    return res.ok;
+    const r = await mutate<{ flights?: FlightInfo }>(`/api/portal/bookings/${bookingId}/flights`, { method: "PUT", body: payload });
+    if (r.ok) setFlights(r.data?.flights ?? payload);
+    return r;
   }
 
   async function saveFlights() {
     setSavingFlights(true);
-    const ok = await putFlights({ ...flightForm, booked: flights?.booked ?? false });
+    setFlightErr(null);
+    const r = await putFlights({ ...flightForm, booked: flights?.booked ?? false });
     setSavingFlights(false);
-    if (ok) setEditingFlights(false);
+    // An expired session used to swallow the arrival details entirely: the
+    // spinner stopped, the form sat there looking unsaved, and the member had no
+    // idea whether we knew their landing time — so nobody was at the airport.
+    if (!r.ok) { setFlightErr(r.error); return; }
+    setEditingFlights(false);
   }
 
   async function markBooked() {
-    await putFlights({ ...(flights ?? {}), booked: true });
+    setBookedErr(null);
+    const r = await putFlights({ ...(flights ?? {}), booked: true });
+    // "I've booked ✓" used to do nothing visible on failure — the member taps,
+    // the step stays open, and we keep sending "have you booked your flights
+    // yet?" chasers for a trip they already have tickets for.
+    if (!r.ok) setBookedErr(r.error);
   }
   const setFF = (k: keyof FlightInfo, v: string) => setFlightForm((f) => ({ ...f, [k]: v }));
 
@@ -127,6 +140,9 @@ export function TripAddons({ bookingId, depositPaid, hasDeposit, securingLabel, 
   // Extra-night picker state (one accommodation offer being configured at a time).
   const [nightsFor, setNightsFor] = useState<string | null>(null);
   const [nightForm, setNightForm] = useState<{ checkIn: string; checkOut: string }>({ checkIn: "", checkOut: "" });
+  // Keyed by offer so the message lands under the card the member just tapped.
+  const [requestErr, setRequestErr] = useState<{ id: string; msg: string } | null>(null);
+  const [noneErr, setNoneErr] = useState<string | null>(null);
 
   function openNights(componentId: string) {
     setNightForm({
@@ -145,11 +161,16 @@ export function TripAddons({ bookingId, depositPaid, hasDeposit, securingLabel, 
 
   async function request(componentId: string, extra?: { checkIn: string; checkOut: string }) {
     setBusy(componentId);
-    await fetch(`/api/portal/bookings/${bookingId}/addons`, {
-      method: "POST", headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ component_id: componentId, ...(extra ?? {}) }),
+    setRequestErr(null);
+    const r = await mutate(`/api/portal/bookings/${bookingId}/addons`, {
+      method: "POST",
+      body: { component_id: componentId, ...(extra ?? {}) },
     });
     setBusy(null);
+    // The date picker closed and the whole extras step collapsed whatever came
+    // back. A member could request four extra hotel nights, see the panel tick
+    // shut, and land two days before a room that was never booked for them.
+    if (!r.ok) { setRequestErr({ id: componentId, msg: r.error }); return; }
     setNightsFor(null);
     setShowOffers(false);
     load();
@@ -157,11 +178,13 @@ export function TripAddons({ bookingId, depositPaid, hasDeposit, securingLabel, 
 
   async function chooseNone() {
     setBusy("none");
-    await fetch(`/api/portal/bookings/${bookingId}/addons`, {
-      method: "POST", headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ none: true }),
-    });
+    setNoneErr(null);
+    const r = await mutate(`/api/portal/bookings/${bookingId}/addons`, { method: "POST", body: { none: true } });
     setBusy(null);
+    // Nothing marked the prep step done on failure, and nothing said why — the
+    // member keeps returning to a checklist that insists they still owe us an
+    // answer they have already given twice.
+    if (!r.ok) { setNoneErr(r.error); return; }
     load();
   }
 
@@ -237,6 +260,7 @@ export function TripAddons({ bookingId, depositPaid, hasDeposit, securingLabel, 
                       className="px-4 py-2 rounded-full text-[12.5px] font-bold text-white bg-[#00afdb] hover:bg-[#15c0ec] disabled:opacity-50 transition-colors">{busy === a.id ? "…" : total > 0 ? `Request ${total} ${plural(u, total)}` : `Request extra ${plural(u, 2)}`}</button>
                     <button onClick={() => setNightsFor(null)} className="px-4 py-2 rounded-full text-[12.5px] font-semibold text-[#6a7a80] bg-[#f1f5f6]">Cancel</button>
                   </div>
+                  {requestErr?.id === a.id && <p className="text-[12.5px] text-[#c0392b] leading-snug">{requestErr.msg}</p>}
                 </div>
               )}
             </div>
@@ -244,26 +268,29 @@ export function TripAddons({ bookingId, depositPaid, hasDeposit, securingLabel, 
         }
         const { hotel, title } = splitAddon(a.name, a.category);
         return (
-          <div key={a.id} className="flex items-center justify-between gap-3 bg-white rounded-xl border border-[#eef2f0] px-4 py-3">
-            <div className="min-w-0 flex-1">
-              {hotel && <p className="text-[10.5px] font-bold uppercase tracking-[0.1em] text-[#9aa6ac] leading-none mb-1">{hotel}</p>}
-              <p className="text-[14.5px] font-bold text-[#00374a] leading-tight">{title}</p>
-              {/* A pay-direct extra is arranged by us but settled with the
-                  provider — showing an NP7 price would imply we'll bill it. */}
-              {a.payment_mode === "direct" ? (
-                <p className="text-[12.5px] text-[#5a6b72] mt-0.5">
-                  <span className="font-bold text-[#00374a]">Nothing to pay now</span>
-                  {a.payment_note ? <span className="block text-[12px] mt-0.5">{a.payment_note}</span> : <span className="block text-[12px] mt-0.5">We arrange it — you settle it directly.</span>}
-                </p>
-              ) : (
-                a.sell_price != null && <p className="text-[12.5px] text-[#5a6b72] mt-0.5"><span className="font-bold text-[#00374a]">{money(a.sell_price)}</span></p>
-              )}
-              {a.description && <p className="text-[12px] text-[#9aa6ac] mt-0.5 truncate">{a.description}</p>}
+          <div key={a.id} className="bg-white rounded-xl border border-[#eef2f0] px-4 py-3">
+            <div className="flex items-center justify-between gap-3">
+              <div className="min-w-0 flex-1">
+                {hotel && <p className="text-[10.5px] font-bold uppercase tracking-[0.1em] text-[#9aa6ac] leading-none mb-1">{hotel}</p>}
+                <p className="text-[14.5px] font-bold text-[#00374a] leading-tight">{title}</p>
+                {/* A pay-direct extra is arranged by us but settled with the
+                    provider — showing an NP7 price would imply we'll bill it. */}
+                {a.payment_mode === "direct" ? (
+                  <p className="text-[12.5px] text-[#5a6b72] mt-0.5">
+                    <span className="font-bold text-[#00374a]">Nothing to pay now</span>
+                    {a.payment_note ? <span className="block text-[12px] mt-0.5">{a.payment_note}</span> : <span className="block text-[12px] mt-0.5">We arrange it — you settle it directly.</span>}
+                  </p>
+                ) : (
+                  a.sell_price != null && <p className="text-[12.5px] text-[#5a6b72] mt-0.5"><span className="font-bold text-[#00374a]">{money(a.sell_price)}</span></p>
+                )}
+                {a.description && <p className="text-[12px] text-[#9aa6ac] mt-0.5 truncate">{a.description}</p>}
+              </div>
+              <button onClick={() => request(a.id)} disabled={busy === a.id}
+                className="shrink-0 px-4 py-2 rounded-full text-[12.5px] font-bold text-white bg-[#00afdb] hover:bg-[#15c0ec] disabled:opacity-60 transition-colors">
+                {busy === a.id ? "…" : "Request"}
+              </button>
             </div>
-            <button onClick={() => request(a.id)} disabled={busy === a.id}
-              className="shrink-0 px-4 py-2 rounded-full text-[12.5px] font-bold text-white bg-[#00afdb] hover:bg-[#15c0ec] disabled:opacity-60 transition-colors">
-              {busy === a.id ? "…" : "Request"}
-            </button>
+            {requestErr?.id === a.id && <p className="text-[12.5px] text-[#c0392b] mt-2 leading-snug">{requestErr.msg}</p>}
           </div>
         );
       })}
@@ -349,6 +376,9 @@ export function TripAddons({ bookingId, depositPaid, hasDeposit, securingLabel, 
             ) : (
               <div className={rowCls}>{rowInner}</div>
             )}
+            {s.key === "book" && bookedErr && (
+              <p className="px-4 pb-3 text-[12.5px] text-[#c0392b] leading-snug">{bookedErr}</p>
+            )}
 
             {open && isFlights && (
               <div className="px-4 pb-4 pt-3 border-t border-[#f3ede2]">
@@ -404,6 +434,7 @@ export function TripAddons({ bookingId, depositPaid, hasDeposit, securingLabel, 
                       <button onClick={saveFlights} disabled={savingFlights} className="px-5 py-2.5 rounded-full text-[13px] font-bold text-white bg-[#00afdb] hover:bg-[#15c0ec] disabled:opacity-60">{savingFlights ? "Saving…" : flightsSaved ? "Save changes" : "Save my arrival"}</button>
                       {flightsSaved && <button onClick={() => setEditingFlights(false)} className="px-5 py-2.5 rounded-full text-[13px] font-bold text-[#6a7a80] bg-[#f1f5f6]">Cancel</button>}
                     </div>
+                    {flightErr && <p className="text-[12.5px] text-[#c0392b] leading-snug -mt-2">{flightErr}</p>}
                   </div>
                 )}
               </div>
@@ -413,7 +444,10 @@ export function TripAddons({ bookingId, depositPaid, hasDeposit, securingLabel, 
               <div className="px-4 pb-4 pt-3 border-t border-[#f3ede2]">
                 {offer.length > 0 ? <Offers /> : <p className="text-[13px] text-[#8a9aa0]">No optional extras for this trip.</p>}
                 {!resolved && (
-                  <button onClick={chooseNone} disabled={busy === "none"} className="mt-3 text-[13px] font-semibold text-[#6a7a80] hover:text-[#00374a] underline underline-offset-2">{busy === "none" ? "…" : "No extras needed — I'm all set"}</button>
+                  <>
+                    <button onClick={chooseNone} disabled={busy === "none"} className="mt-3 text-[13px] font-semibold text-[#6a7a80] hover:text-[#00374a] underline underline-offset-2">{busy === "none" ? "…" : "No extras needed — I'm all set"}</button>
+                    {noneErr && <p className="mt-2 text-[12.5px] text-[#c0392b] leading-snug">{noneErr}</p>}
+                  </>
                 )}
                 {active.length > 0 && (
                   <div className="mt-3 pt-3 border-t border-[#f3ede2] space-y-2">
@@ -453,6 +487,7 @@ export function TripAddons({ bookingId, depositPaid, hasDeposit, securingLabel, 
                   <input type="checkbox" checked={joined} disabled={savingGroup} onChange={(e) => setGroupJoined(e.target.checked)} className="w-4 h-4 accent-[#1aa851]" />
                   <span className="text-[13.5px] font-semibold text-[#00374a]">I&apos;ve joined the group</span>
                 </label>
+                {groupErr && <p className="text-[12.5px] text-[#c0392b] leading-snug -mt-1.5">{groupErr}</p>}
               </div>
             )}
           </div>

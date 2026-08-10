@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { TripVideo } from "@/lib/portal-data";
+import { mutate } from "@/lib/mutate";
 
 function StarIcon({ filled }: { filled: boolean }) {
   return <svg className="w-4 h-4" viewBox="0 0 24 24" fill={filled ? "currentColor" : "none"} stroke="currentColor" strokeWidth="2" strokeLinejoin="round"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z" /></svg>;
@@ -21,6 +22,7 @@ export function TripVideoGrid({ videos, bookingId, fallbackPoster, title = "Trip
   const [keepers, setKeepers] = useState<Set<string>>(new Set());
   const [openIdx, setOpenIdx] = useState<number | null>(null);
   const [expanded, setExpanded] = useState(false);
+  const [starErr, setStarErr] = useState("");
   const cardRef = useRef<HTMLDivElement>(null); // scroll back here on "Show less"
 
   useEffect(() => {
@@ -31,12 +33,23 @@ export function TripVideoGrid({ videos, bookingId, fallbackPoster, title = "Trip
   }, [bookingId]);
 
   const toggle = useCallback(async (stem: string) => {
-    const starred = !keepers.has(stem);
+    const wasKept = keepers.has(stem); // previous state, so a failed write can be reverted
+    const starred = !wasKept;
     setKeepers((s) => { const n = new Set(s); starred ? n.add(stem) : n.delete(stem); return n; });
-    await fetch("/api/portal/memories/stars", {
-      method: "POST", headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ bookingId, kind: "video", ref: stem, starred }),
-    }).catch(() => setKeepers((s) => { const n = new Set(s); starred ? n.delete(stem) : n.add(stem); return n; }));
+    setStarErr("");
+    const r = await mutate("/api/portal/memories/stars", {
+      method: "POST",
+      body: { bookingId, kind: "video", ref: stem, starred },
+    });
+    if (!r.ok) {
+      // Only a *saved* star survives the 3-month deletion sweep. The old code
+      // caught network errors but not a 401/403/500 — the star stayed lit, the
+      // member read that as "kept forever", stopped worrying about the clip,
+      // and it was deleted three months later. The one footage of their first
+      // planing jibe, gone with no warning and nothing to re-download.
+      setKeepers((s) => { const n = new Set(s); wasKept ? n.add(stem) : n.delete(stem); return n; });
+      setStarErr(`${starred ? "Couldn't keep that clip" : "Couldn't unstar that clip"} — it is not saved. ${r.error}`);
+    }
   }, [keepers, bookingId]);
 
   if (videos.length === 0) return null;
@@ -85,6 +98,7 @@ export function TripVideoGrid({ videos, bookingId, fallbackPoster, title = "Trip
         </button>
       )}
       <p className="text-[11.5px] text-[#9aa6ac] mt-2">Videos stay for 3 months after the trip — star the ones you want to keep forever.</p>
+      {starErr && <p className="text-[12.5px] font-semibold text-[#c4621a] mt-1.5 leading-snug">{starErr}</p>}
       </div>
 
       {open && openIdx != null && (
@@ -92,6 +106,7 @@ export function TripVideoGrid({ videos, bookingId, fallbackPoster, title = "Trip
           v={open}
           kept={keepers.has(open.stem)}
           onStar={() => toggle(open.stem)}
+          starErr={starErr}
           onClose={() => setOpenIdx(null)}
           onPrev={openIdx > 0 ? () => setOpenIdx(openIdx - 1) : undefined}
           onNext={openIdx < sorted.length - 1 ? () => setOpenIdx(openIdx + 1) : undefined}
@@ -130,8 +145,8 @@ function VideoThumb({ v, fallbackPoster }: { v: TripVideo; fallbackPoster?: stri
   );
 }
 
-function Lightbox({ v, kept, onStar, onClose, onPrev, onNext }: {
-  v: TripVideo; kept: boolean; onStar: () => void; onClose: () => void; onPrev?: () => void; onNext?: () => void;
+function Lightbox({ v, kept, onStar, starErr, onClose, onPrev, onNext }: {
+  v: TripVideo; kept: boolean; onStar: () => void; starErr?: string; onClose: () => void; onPrev?: () => void; onNext?: () => void;
 }) {
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -161,6 +176,9 @@ function Lightbox({ v, kept, onStar, onClose, onPrev, onNext }: {
           className={`absolute top-3 right-3 z-10 w-9 h-9 rounded-full grid place-items-center transition-all ${kept ? "bg-amber-400 text-white shadow" : "bg-black/50 text-white hover:bg-black/70"}`}>
           <StarIcon filled={kept} />
         </button>
+        {/* the grid's message is hidden behind this overlay, so a star that
+            failed from the player has to say so here or not at all */}
+        {starErr && <p className="mt-2.5 text-[12.5px] font-semibold text-[#ffb4a2] leading-snug">{starErr}</p>}
       </div>
     </div>
   );

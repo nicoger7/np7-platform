@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { mutate } from "@/lib/mutate";
 import { SignaturePad } from "./signature-pad";
 
 export function SignWaiver({ bookingId, html, defaultName, signed, guardian }: {
@@ -25,14 +26,19 @@ export function SignWaiver({ bookingId, html, defaultName, signed, guardian }: {
     if (!name.trim()) { setError("Please type your full name."); return; }
     if (!agree) { setError("Please tick the box to confirm you agree."); return; }
     setSubmitting(true);
-    const res = await fetch(`/api/portal/bookings/${bookingId}/waiver`, {
+    // A raw `fetch` REJECTS on a network drop — hotel wifi, a phone on the way to
+    // the airport — so the line that cleared `submitting` never ran: the button
+    // sat on "Saving…" forever with no message, and the rider assumed the waiver
+    // was in. It wasn't, and they'd find out at check-in, with the drawn
+    // signature gone the moment they reloaded. `mutate()` cannot reject, so we
+    // always come out of the spinner and always say what went wrong.
+    const res = await mutate(`/api/portal/bookings/${bookingId}/waiver`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ name: name.trim(), signature, agree, guardianRelationship: guardian ? rel.trim() : null }),
+      body: { name: name.trim(), signature, agree, guardianRelationship: guardian ? rel.trim() : null },
     });
     setSubmitting(false);
     if (res.ok) setJustSigned(true);
-    else { const j = await res.json().catch(() => ({})); setError(j.error || "Couldn't save — please try again."); }
+    else setError(res.error);
   }
 
   if (justSigned) {

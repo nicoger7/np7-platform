@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { RANKS, skillStateCounts, type Progression, type Track, type ProgressSkill } from "@/lib/progression";
 import { SkillBar, SHOW_WINDCOACH } from "@/components/portal/skill-bar";
+import { mutate as apiMutate } from "@/lib/mutate";
 
 /* The member "Progress" view — Freeride/Freerace/Slalom tracks. Rank (Beginner →
    Pro) is earned by MASTERING skills, so the headline is always "N skills to <next
@@ -35,10 +36,17 @@ function Ico({ name, size = 18, color }: { name: string; size?: number; color?: 
   }
 }
 
-type LogHandlers = { onLog: (id: string) => void; onUndo: (id: string) => void; busyId: string | null };
+type LogHandlers = {
+  onLog: (id: string) => void;
+  onUndo: (id: string) => void;
+  busyId: string | null;
+  /** Which skill's write failed, and what to tell the member — rendered on that row. */
+  logError: { id: string; message: string } | null;
+};
 
-function SkillRow({ s, onLog, onUndo, busyId }: { s: ProgressSkill } & LogHandlers) {
+function SkillRow({ s, onLog, onUndo, busyId, logError }: { s: ProgressSkill } & LogHandlers) {
   const busy = busyId === s.id;
+  const err = logError && logError.id === s.id ? logError.message : null;
   const icon =
     s.state === "coach" ? <Ico name="check" size={21} color={GOLD} />
     : s.state === "windcoach" ? <Ico name="check" size={21} color={PURPLE} />
@@ -71,20 +79,28 @@ function SkillRow({ s, onLog, onUndo, busyId }: { s: ProgressSkill } & LogHandle
     )
     : null;
   return (
-    <div className="flex items-center gap-[11px] px-3 py-2.5 rounded-[11px] border border-[#f0e6d6] bg-[#fffdf9]" style={{ opacity: s.state === "locked" ? 0.6 : 1 }}>
-      {icon}
-      <span className="flex-1 min-w-0">
-        <span className="block text-[14px] font-bold text-[#00374a]">{s.label}</span>
-        <span className="block text-[12px] text-[#9aa6ac]">{sub}</span>
-      </span>
-      {right && <span className="shrink-0">{right}</span>}
+    <div className="rounded-[11px] border border-[#f0e6d6] bg-[#fffdf9]" style={{ opacity: s.state === "locked" ? 0.6 : 1 }}>
+      <div className="flex items-center gap-[11px] px-3 py-2.5">
+        {icon}
+        <span className="flex-1 min-w-0">
+          <span className="block text-[14px] font-bold text-[#00374a]">{s.label}</span>
+          <span className="block text-[12px] text-[#9aa6ac]">{sub}</span>
+        </span>
+        {right && <span className="shrink-0">{right}</span>}
+      </div>
+      {/* No alerts in the member area — the failure is told on the row it belongs to. */}
+      {err && (
+        <p role="alert" className="mx-3 mb-2.5 rounded-lg px-2.5 py-2 text-[11.5px] font-semibold" style={{ background: "#fdf1e7", color: "#c4621a" }}>
+          {err}
+        </p>
+      )}
     </div>
   );
 }
 
 const isDone = (s: ProgressSkill) => s.state === "coach" || s.state === "windcoach";
 
-function TrackCard({ track, onLog, onUndo, busyId }: { track: Track } & LogHandlers) {
+function TrackCard({ track, onLog, onUndo, busyId, logError }: { track: Track } & LogHandlers) {
   // Skills grouped by rank band — the list reads as a ladder. Every band starts
   // folded so the page opens clean; the "Next up" pointer says what to open.
   const isSide = track.discipline === "side";
@@ -127,7 +143,7 @@ function TrackCard({ track, onLog, onUndo, busyId }: { track: Track } & LogHandl
                 <svg className="w-5 h-5 shrink-0 text-[#c0ccd0] transition-transform group-open:rotate-180" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M6 9l6 6 6-6" /></svg>
               </summary>
               <div className="flex flex-col gap-1.5 p-2">
-                {g.skills.map((s) => <SkillRow key={s.id} s={s} onLog={onLog} onUndo={onUndo} busyId={busyId} />)}
+                {g.skills.map((s) => <SkillRow key={s.id} s={s} onLog={onLog} onUndo={onUndo} busyId={busyId} logError={logError} />)}
               </div>
             </details>
           );
@@ -148,25 +164,29 @@ export function ProgressionView({ progression, avatarUrl, initials }: { progress
   const router = useRouter();
   const [active, setActive] = useState<string>(tracks[0]?.discipline ?? "side");
   const [busyId, setBusyId] = useState<string | null>(null);
+  const [logError, setLogError] = useState<{ id: string; message: string } | null>(null);
   const shown = active === "side" ? side : tracks.find((t) => t.discipline === active) ?? tracks[0];
 
   // Self-log: "I can do this" → verified_via='self'. The server recomputes the
   // whole progression (unlocks etc.) via router.refresh(), so the UI stays truthful.
-  async function mutate(method: "POST" | "DELETE", milestoneId: string) {
+  // A rejected write used to be indistinguishable from a successful one: the button
+  // simply came back saying "I can do this", so the member either tapped it over and
+  // over, or read it as "already logged" and walked onto the trip expecting the skill
+  // to be on the coach's verify list — where it never appeared. Same for "undo": the
+  // logged ✓ stayed put and looked like the undo had been ignored.
+  async function runLog(method: "POST" | "DELETE", milestoneId: string) {
     setBusyId(milestoneId);
+    setLogError(null);
     try {
-      const res = await fetch("/api/portal/progress/log", {
-        method,
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ milestoneId }),
-      });
-      if (res.ok) router.refresh();
+      const r = await apiMutate("/api/portal/progress/log", { method, body: { milestoneId } });
+      if (r.ok) router.refresh();
+      else setLogError({ id: milestoneId, message: r.error });
     } finally {
       setBusyId(null);
     }
   }
-  const onLog = (id: string) => mutate("POST", id);
-  const onUndo = (id: string) => mutate("DELETE", id);
+  const onLog = (id: string) => runLog("POST", id);
+  const onUndo = (id: string) => runLog("DELETE", id);
 
   const toNextLabel = mastered
     ? "Every core skill mastered — you're at the top"
@@ -265,7 +285,7 @@ export function ProgressionView({ progression, avatarUrl, initials }: { progress
         )}
       </div>
 
-      {shown && <TrackCard track={shown} onLog={onLog} onUndo={onUndo} busyId={busyId} />}
+      {shown && <TrackCard track={shown} onLog={onLog} onUndo={onUndo} busyId={busyId} logError={logError} />}
 
       {/* legend */}
       <div className="flex flex-wrap gap-x-4 gap-y-2 mt-4 text-[11.5px] text-[#9aa6ac] items-center">

@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { mutate } from "@/lib/mutate";
 import type { Milestone } from "@/lib/payments";
 
 const money = (n: number, currency = "EUR") =>
@@ -54,12 +55,17 @@ export function CancelTrip({ bookingId, milestones, paid, currency = "EUR" }: {
 
   async function request() {
     setBusy(true); setError("");
-    const res = await fetch(`/api/portal/bookings/${bookingId}/cancel`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ paid }) });
+    // A bare fetch threw on a dropped connection and nothing caught it: the
+    // button stayed on "Sending…" forever, no error, and the member walked away
+    // believing they'd cancelled. They'd then miss the balance due date on a
+    // trip nobody knows they want out of — an unpaid invoice and a cancellation
+    // fee that grew while they waited for a call that was never coming.
+    const r = await mutate(`/api/portal/bookings/${bookingId}/cancel`, { method: "POST", body: { paid } });
     setBusy(false);
     // No voucher promised on the way out either: a confirmation screen that
     // mentions one is the same promise, just later.
-    if (res.ok) setDoneMsg("Cancellation requested — our team will be in touch shortly to confirm and sort out anything owed.");
-    else { const j = await res.json().catch(() => ({})); setError(j.error || "Couldn't send the request — please email us."); }
+    if (r.ok) setDoneMsg("Cancellation requested — our team will be in touch shortly to confirm and sort out anything owed.");
+    else setError(`${r.error} If it keeps failing, please email us.`);
   }
 
   return (

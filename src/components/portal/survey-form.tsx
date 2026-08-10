@@ -4,6 +4,7 @@ import { useState, useEffect, useRef } from "react";
 import type { Survey, SurveyResponse, SurveyDestination, SurveyInfo } from "@/lib/surveys";
 import { SurveyInfoButtons } from "@/components/portal/survey-info-buttons";
 import { satImage } from "@/lib/satellite";
+import { mutate } from "@/lib/mutate";
 
 /**
  * The member-facing trip-interest form (reached only via a secret token link).
@@ -120,9 +121,16 @@ export function SurveyForm({ survey, token, contactName, existing, preview = fal
     if (preview) { setDone(true); window.scrollTo({ top: 0, behavior: "smooth" }); return; }
     setBusy(true);
     try {
-      const res = await fetch(`/api/survey/${token}`, {
-        method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
+      // The old code caught nothing: a dropped connection (this form is opened
+      // from a phone, on the move, from an email) rejected the fetch, `finally`
+      // cleared busy, and the member was left staring at an unchanged form with
+      // no error — most would assume it went through. Their trip picks were
+      // never stored, so they'd silently vanish from the interest list for a
+      // trip they wanted to join. mutate() turns every failure, network or HTTP,
+      // into a message we can show inline.
+      const r = await mutate(`/api/survey/${token}`, {
+        method: "POST",
+        body: {
           // trips mode: the starred date is the top pick; a single pick is
           // implicitly the favourite
           top_destination: hasTrips
@@ -131,10 +139,9 @@ export function SurveyForm({ survey, token, contactName, existing, preview = fal
           other_destinations: hasTrips ? chosenArr : [...alsoDest].filter((k) => k !== topDest),
           weeks: hasTrips ? [] : [...weeks],
           budget_ok: budgetOk, looking_for: lookingFor.trim() || null,
-        }),
+        },
       });
-      const j = await res.json().catch(() => ({}));
-      if (!res.ok) { setErr(j.error || "Couldn't submit — please try again."); return; }
+      if (!r.ok) { setErr(r.error); return; }
       setDone(true);
       window.scrollTo({ top: 0, behavior: "smooth" });
     } finally { setBusy(false); }

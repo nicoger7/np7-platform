@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { LEVELS } from "@/lib/member-level";
+import { mutate } from "@/lib/mutate";
 
 type Detail = {
   self_level: string | null; coach_level: string | null; level_status: string | null;
@@ -44,29 +45,40 @@ export function AdminMemberLevel({ contactId }: { contactId: string }) {
   }
 
   // Fire-and-forget write: no global disable, debounced reconcile when idle.
-  async function bg(payload: Record<string, unknown>) {
+  // `undo` restores the ticks this write was optimistic about.
+  async function bg(payload: Record<string, unknown>, undo?: () => void) {
     inFlight.current++; setSaving(true); setMsg("");
-    try {
-      const r = await fetch(`/api/admin/members/${contactId}/level`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
-      const x = await r.json().catch(() => ({}));
-      if (x.levelUnavailable) setMsg("Apply migration 036 to enable the full level system.");
-      else if (x.error) setMsg(x.error);
-    } catch {
-      setMsg("Couldn't save — check your connection.");
-    } finally {
-      inFlight.current--;
-      if (inFlight.current === 0) { setSaving(false); reconcileHeader(); }
-    }
+    // The old code read the JSON body but never res.ok, and a 401/403 returns an
+    // HTML login page — so `x` came back {} and nothing was reported. A coach
+    // whose session had expired could tick a whole tier, watch every chip turn
+    // cyan, and leave: the header reconcile leaves milestones alone by design, so
+    // the ticks survived on screen while the member's rank never moved.
+    const r = await mutate<{ levelUnavailable?: boolean; error?: string } | null>(
+      `/api/admin/members/${contactId}/level`,
+      { method: "POST", body: payload },
+    );
+    if (!r.ok) { undo?.(); setMsg(r.error); }
+    else if (r.data?.levelUnavailable) { undo?.(); setMsg("Apply migration 036 to enable the full level system."); }
+    else if (r.data?.error) { undo?.(); setMsg(r.data.error); }
+    inFlight.current--;
+    if (inFlight.current === 0) { setSaving(false); reconcileHeader(); }
   }
 
   // Blocking write (level select / suggest / verify) — infrequent, so we wait.
   async function post(payload: Record<string, unknown>) {
     setBusy(true); setMsg("");
-    const r = await fetch(`/api/admin/members/${contactId}/level`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
-    const x = await r.json().catch(() => ({}));
+    const r = await mutate<{ levelUnavailable?: boolean; error?: string } | null>(
+      `/api/admin/members/${contactId}/level`,
+      { method: "POST", body: payload },
+    );
     setBusy(false);
-    if (x.levelUnavailable) { setMsg("Apply migration 036 to enable the full level system."); }
-    else if (x.error) { setMsg(x.error); }
+    // Without this branch a rejected write fell through to the success arm below:
+    // "✓ Verified as Advanced", plus the congrats-email prompt for a verification
+    // the server refused. The coach tells the member they levelled up, and the
+    // member's account still says otherwise.
+    if (!r.ok) { setMsg(r.error); return; }
+    if (r.data?.levelUnavailable) { setMsg("Apply migration 036 to enable the full level system."); }
+    else if (r.data?.error) { setMsg(r.data.error); }
     else if (payload.verify && typeof payload.level === "string") {
       setMsg(`✓ Verified as ${payload.level}`);
       setJustVerified(payload.level); setCongratsSent(false);
@@ -79,10 +91,14 @@ export function AdminMemberLevel({ contactId }: { contactId: string }) {
   async function sendCongrats() {
     if (!justVerified) return;
     setBusy(true);
-    const r = await fetch(`/api/admin/members/${contactId}/congrats`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ level: justVerified }) });
+    const r = await mutate(`/api/admin/members/${contactId}/congrats`, { method: "POST", body: { level: justVerified } });
     setBusy(false);
+    // Marking it sent before knowing it sent removed the only "Send email" button
+    // there is, so a failed send could never be retried — and a dropped connection
+    // threw out of here entirely, leaving the buttons disabled with no message.
+    if (!r.ok) { setMsg(r.error); return; }
     setCongratsSent(true);
-    setMsg(r.ok ? "🎉 Congrats email sent" : "Couldn't send the email.");
+    setMsg("🎉 Congrats email sent");
   }
 
   // A coach action resolves the "self-logged" state: ticking marks it via='coach'
@@ -90,28 +106,41 @@ export function AdminMemberLevel({ contactId }: { contactId: string }) {
   function applyLocal(ids: Set<string>, achieved: boolean, via: string | null) {
     setD((cur) => (cur ? { ...cur, milestones: cur.milestones.map((m) => (ids.has(m.id) ? { ...m, achieved, via } : m)) } : cur));
   }
+  /** Optimistic tick + the undo that puts these exact milestones back if the write
+      is refused. Only the ids this write touched are restored, so a failure can't
+      wipe out a neighbouring tick that did save. */
+  function applyLocalUndoable(ids: Set<string>, achieved: boolean, via: string | null) {
+    const before = (d?.milestones ?? []).filter((m) => ids.has(m.id)).map((m) => ({ id: m.id, achieved: m.achieved, via: m.via ?? null }));
+    applyLocal(ids, achieved, via);
+    return () => setD((cur) => (cur ? { ...cur, milestones: cur.milestones.map((m) => {
+      const p = before.find((b) => b.id === m.id);
+      return p ? { ...m, achieved: p.achieved, via: p.via } : m;
+    }) } : cur));
+  }
   function toggleOne(m: Detail["milestones"][number]) {
     const next = !m.achieved;
-    applyLocal(new Set([m.id]), next, next ? "coach" : null);
-    bg({ action: "toggle_milestone", milestone_id: m.id, achieved: next });
+    const undo = applyLocalUndoable(new Set([m.id]), next, next ? "coach" : null);
+    bg({ action: "toggle_milestone", milestone_id: m.id, achieved: next }, undo);
   }
   function confirmOne(m: Detail["milestones"][number]) {
-    applyLocal(new Set([m.id]), true, "coach");
-    bg({ action: "toggle_milestone", milestone_id: m.id, achieved: true });
+    const undo = applyLocalUndoable(new Set([m.id]), true, "coach");
+    bg({ action: "toggle_milestone", milestone_id: m.id, achieved: true }, undo);
   }
   function confirmAllSelf() {
     if (!d) return;
     const ids = d.milestones.filter((m) => m.achieved && m.via === "self").map((m) => m.id);
     if (!ids.length) return;
-    applyLocal(new Set(ids), true, "coach");
-    bg({ action: "set_milestones", milestone_ids: ids, achieved: true });
+    // Undo matters most here: "Confirm all" clears the amber self-logged banner,
+    // so a failed write would hide the very skills still waiting for confirmation.
+    const undo = applyLocalUndoable(new Set(ids), true, "coach");
+    bg({ action: "set_milestones", milestone_ids: ids, achieved: true }, undo);
   }
   function setTier(tier: string, achieved: boolean) {
     if (!d) return;
     const ids = d.milestones.filter((m) => m.tier === tier).map((m) => m.id);
     if (!ids.length) return;
-    applyLocal(new Set(ids), achieved, achieved ? "coach" : null);
-    bg({ action: "set_milestones", milestone_ids: ids, achieved });
+    const undo = applyLocalUndoable(new Set(ids), achieved, achieved ? "coach" : null);
+    bg({ action: "set_milestones", milestone_ids: ids, achieved }, undo);
   }
 
   if (!d) return <p className="text-xs admin-faint">Loading…</p>;

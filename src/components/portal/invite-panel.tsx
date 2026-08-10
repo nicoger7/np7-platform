@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { mutate } from "@/lib/mutate";
 
 type Invite = {
   id: string;
@@ -63,15 +64,22 @@ export function InvitePanel({
   async function create(payload: { inviteeName?: string; inviteeEmail?: string; note?: string; send?: boolean }) {
     setBusy(true); setErr("");
     try {
-      const res = await fetch("/api/portal/invites", {
+      // Without a catch, a dropped connection or an expired session threw straight
+      // out of fetch(): the button stopped saying "Sending…" and nothing else moved.
+      // The member walked away believing their friend had the invite and their
+      // credit was on the way — no email was ever sent, and the friend's discount
+      // was lost the moment they booked without the referral link.
+      const r = await mutate<{ invite?: Invite; emailed?: boolean }>("/api/portal/invites", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ bookingId, ...payload }),
+        body: { bookingId, ...payload },
       });
-      const j = await res.json().catch(() => ({}));
-      if (!res.ok) { setErr(j.error || "Could not create the invite."); return null; }
-      setInvites((prev) => [j.invite, ...prev]);
-      return { invite: j.invite as Invite, emailed: !!j.emailed };
+      if (!r.ok) { setErr(r.error); return null; }
+      // A 200 with no invite in the body is still a failure for the member — don't
+      // push `undefined` into the Invited list and call it sent.
+      const invite = r.data?.invite;
+      if (!invite) { setErr("Could not create the invite. Please try again."); return null; }
+      setInvites((prev) => [invite, ...prev]);
+      return { invite, emailed: !!r.data?.emailed };
     } finally {
       setBusy(false);
     }
