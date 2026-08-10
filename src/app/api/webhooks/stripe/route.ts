@@ -190,16 +190,43 @@ async function onEventPayment(
     }
   }
 
-  // Confirmation email — best-effort, deduped.
+  // An event buyer becomes a member, exactly like a trip buyer.
+  //
+  // Trips do this on their /thanks page (ensureMemberAccount → magic link in
+  // the confirmation mail). Events redirected straight back to the sales page
+  // and did none of it, so someone who had just paid €400 had no account, no
+  // trip page, and nowhere to sign the waiver — the whole reason the waiver
+  // work above exists. The account is created HERE, on the payment webhook,
+  // because that is the moment the money is real and it fires whether or not
+  // the buyer's browser ever came back from Stripe.
   const contact = booking.contacts;
   if (contact?.email) {
     const firstName: string | undefined = (contact.name ?? "").split(" ")[0] || undefined;
+    const origin = process.env.NEXT_PUBLIC_SITE_URL || "https://www.np-seven.com";
+    let activationLink = `${origin}/account/login`;
+    try {
+      const { ensureMemberAccount } = await import("@/lib/members");
+      const acct = await ensureMemberAccount({
+        contactId: booking.contact_id,
+        email: contact.email,
+        origin,
+        next: `/account/bookings/${bookingId}`,
+      });
+      if (acct && "link" in acct) activationLink = acct.link;
+    } catch { /* never fail a payment over account setup — the login page still works */ }
+
     const { sendEmail } = await import("@/lib/email/send");
     const templateKey = kind === "event_deposit" ? "event_deposit_received" : "event_ticket_confirmed";
     await sendEmail({
       to: contact.email,
       templateKey,
-      vars: { firstName, experienceTitle: booking.exp_experiences?.title },
+      vars: {
+        firstName,
+        experienceTitle: booking.exp_experiences?.title,
+        activationLink,
+        bookingLink: `${origin}/account/bookings/${bookingId}`,
+        waiverLink: `${origin}/account/bookings/${bookingId}/waiver`,
+      },
       bookingId,
       contactId: booking.contact_id,
       dedupeKey: `${templateKey}:${bookingId}`,

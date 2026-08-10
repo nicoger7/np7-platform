@@ -48,6 +48,10 @@ export const AUTOMATIONS: Automation[] = [
   { key: "spot_released", name: "Spot released", stage: "Securing", trigger: "Once the down-payment deadline has passed and the spot is no longer held for them", division: "experience", kind: "lifecycle" , source: "scheduled" },
   { key: "balance_invoice_reminder", name: "Balance invoice & reminder", stage: "Balance", trigger: "Around the final-payment due date (~90 days before the trip by default)", division: "experience", kind: "lifecycle" , source: "scheduled" },
   { key: "balance_paid_confirmation", name: "Balance paid", stage: "Balance", trigger: "When the remaining balance is paid in full", division: "experience", kind: "lifecycle" , source: "scheduled" },
+  // Events pay by card, so these fire off the Stripe webhook the moment the
+  // money lands — transactional, not part of the soft-launch lifecycle hold.
+  { key: "event_ticket_confirmed", name: "Event ticket confirmed", stage: "Events", trigger: "When an event ticket is paid in full via Stripe", division: "experience", kind: "transactional", source: "guest" },
+  { key: "event_deposit_received", name: "Event deposit received", stage: "Events", trigger: "When a stand-by event deposit is paid via Stripe", division: "experience", kind: "transactional", source: "guest" },
   { key: "crew_forming", name: "Your crew is forming", stage: "Pre-trip", trigger: "~60 days before — opens the group chat while there is still time to plan together", division: "experience", kind: "lifecycle", source: "scheduled" },
   { key: "pre_trip_info", name: "Pre-trip info & packing list", stage: "Pre-trip", trigger: "~21 days before — packing list + your note (from Event Content)", division: "experience", kind: "lifecycle" , source: "scheduled" },
   { key: "pre_trip_excitement", name: "Countdown / excitement", stage: "Pre-trip", trigger: "~10 days before — build anticipation", division: "experience", kind: "lifecycle" , source: "scheduled" },

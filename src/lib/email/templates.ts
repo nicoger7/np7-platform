@@ -146,6 +146,41 @@ export const TEMPLATES: Record<string, (v: EmailVars, opts?: LayoutOpts) => Buil
     }),
   }),
 
+  /** Event ticket paid in full (fixed-date clinic). Everything the buyer needs
+   *  next lives in one mail: their account, the waiver, and what to bring. */
+  event_ticket_confirmed: (v, opts) => ({
+    subject: `You're in! 🤙 ${v.experienceTitle ?? "Your NP7 event"}`,
+    html: emailLayout({
+      ...opts,
+      preheader: "Ticket confirmed — activate your account and sign the waiver.",
+      bodyHtml:
+        greet(v) +
+        p(`Your spot is booked and paid — see you on the water. 🌊`) +
+        facts([["Event", v.experienceTitle], ["Dates", v.dates], ["Paid", v.amount]]) +
+        p(`We've set up your <strong>NP7 account</strong>, where you'll find your booking, your documents and — after the event — your photos and video.`) +
+        (v.activationLink ? emailButton("Open my account", v.activationLink) : "") +
+        heading("One thing before you ride") +
+        p(`Everyone on the water signs a short waiver. It takes a minute${v.waiverLink ? ` — <a href="${esc(v.waiverLink)}" style="color:#0aa3c7;font-weight:700;">sign it here</a>` : ""}. If the participant is under 18, a parent or guardian signs it.`) +
+        p(`Any questions, just reply to this email.<br>— Nico & the NP7 team`),
+    }),
+  }),
+
+  /** Standby deposit taken — the date isn't confirmed yet, and the mail must
+   *  not pretend otherwise. */
+  event_deposit_received: (v, opts) => ({
+    subject: `Deposit received — ${v.experienceTitle ?? "your NP7 event"}`,
+    html: emailLayout({
+      ...opts,
+      preheader: "Deposit received — we'll confirm the date shortly.",
+      bodyHtml:
+        greet(v) +
+        p(`Your deposit is in and your spot is held. We confirm the date once the forecast lands — you'll hear from us as soon as it does, and the balance is due then.`) +
+        facts([["Event", v.experienceTitle], ["Deposit paid", v.amount]]) +
+        (v.activationLink ? emailButton("Open my account", v.activationLink) : "") +
+        p(`Any questions, just reply.<br>— Nico & the NP7 team`),
+    }),
+  }),
+
   account_magic_link: (v, opts) => ({
     subject: `Your NP7 login link`,
     html: emailLayout({
