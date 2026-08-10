@@ -122,6 +122,27 @@ export function SurveyAdmin({ initialSurvey, initialInvites }: { initialSurvey: 
     setRow(r.key, p);
   };
   const [picker, setPicker] = useState<string | null>(null); // group key whose image picker is open
+  // Info-button libraries — coaches, destinations and components already exist;
+  // the survey only stores which IDs were ticked, never a copy of their text.
+  const [coaches, setCoaches] = useState<{ id: string; name: string; role: string | null }[]>([]);
+  const [destOptions, setDestOptions] = useState<{ id: string; name: string }[]>([]);
+  const [features, setFeatures] = useState<{ id: string; name: string; category: string | null }[]>([]);
+  useEffect(() => {
+    fetch("/api/admin/coaches").then((r) => r.json()).then((d) => {
+      const arr = Array.isArray(d) ? d : (d.coaches ?? []);
+      setCoaches(arr.map((c: { id: string; name: string; role?: string | null }) => ({ id: c.id, name: c.name, role: c.role ?? null })));
+    }).catch(() => {});
+    fetch("/api/admin/destinations").then((r) => r.json()).then((d) => {
+      const arr = Array.isArray(d) ? d : (d.destinations ?? []);
+      setDestOptions(arr.map((x: { id: string; name: string }) => ({ id: x.id, name: x.name })));
+    }).catch(() => {});
+    fetch("/api/admin/components").then((r) => r.json()).then((d) => {
+      const arr = Array.isArray(d) ? d : (d.components ?? []);
+      setFeatures(arr
+        .filter((c: { description?: string | null }) => (c.description ?? "").trim())
+        .map((c: { id: string; name: string; category?: string | null }) => ({ id: c.id, name: c.name, category: c.category ?? null })));
+    }).catch(() => {});
+  }, []);
   /** The editor grew past a screen and a half. Four tabs, in the order you
    *  actually work: write it, set the dates, invite people, read the answers. */
   const [tab, setTab] = useState<"setup" | "trips" | "invites" | "responses">("setup");
@@ -335,6 +356,64 @@ export function SurveyAdmin({ initialSurvey, initialInvites }: { initialSurvey: 
                   </div>
 
                   <textarea className={`${input} min-h-[60px] resize-y`} value={first.blurb ?? ""} onChange={(e) => setGroup(g.key, { blurb: e.target.value })} placeholder="Write about the trip — the spot, the vibe, what's included…" />
+
+                  {/* Info buttons — tick what riders can open. Each pulls its
+                      content live from where it already lives (coach library,
+                      destination page, component library), so nothing here can
+                      go stale against the rest of the platform. */}
+                  <details className="rounded-xl border border-[#e6ded0] bg-[#fdfbf7] px-3.5 py-2.5">
+                    <summary className="cursor-pointer text-[12.5px] font-bold text-[#6a7a80] select-none">
+                      Info buttons
+                      {(() => {
+                        const n = (first.coachIds?.length ?? 0) + (first.featureIds?.length ?? 0) + (first.destinationId ? 1 : 0);
+                        return n ? <span className="ml-1.5 text-[#0aa3c7]">· {n} on</span> : <span className="ml-1.5 font-normal text-[#9aa6ac]">— coach, the spot, what&apos;s included</span>;
+                      })()}
+                    </summary>
+
+                    <div className="mt-3 space-y-3">
+                      <div>
+                        <p className="text-[11px] font-bold uppercase tracking-wide text-[#8a9aa0] mb-1.5">Coach</p>
+                        <div className="flex flex-wrap gap-1.5">
+                          {coaches.map((c) => {
+                            const on = (first.coachIds ?? []).includes(c.id);
+                            return (
+                              <button key={c.id} type="button"
+                                onClick={() => setGroup(g.key, { coachIds: on ? (first.coachIds ?? []).filter((x) => x !== c.id) : [...(first.coachIds ?? []), c.id] })}
+                                className={`px-2.5 py-1 rounded-full text-[12px] font-semibold border transition-colors ${on ? "bg-[#0aa3c7] border-[#0aa3c7] text-white" : "border-[#d9d0c0] text-[#6a7a80] hover:border-[#0aa3c7]"}`}>
+                                {on ? "✓ " : ""}{c.name}
+                              </button>
+                            );
+                          })}
+                        </div>
+                        {(first.coachIds?.length ?? 0) > 0 && <p className="text-[11px] text-[#9aa6ac] mt-1">A short extract of the NP7 coaching method rides along in the same pop-up.</p>}
+                      </div>
+
+                      <div>
+                        <p className="text-[11px] font-bold uppercase tracking-wide text-[#8a9aa0] mb-1.5">The spot</p>
+                        <select className={input} value={first.destinationId ?? ""} onChange={(e) => setGroup(g.key, { destinationId: e.target.value || null })}>
+                          <option value="">— no spot button —</option>
+                          {destOptions.map((d) => <option key={d.id} value={d.id}>{d.name}</option>)}
+                        </select>
+                      </div>
+
+                      <div>
+                        <p className="text-[11px] font-bold uppercase tracking-wide text-[#8a9aa0] mb-1.5">What&apos;s included</p>
+                        <div className="flex flex-wrap gap-1.5">
+                          {features.map((f) => {
+                            const on = (first.featureIds ?? []).includes(f.id);
+                            return (
+                              <button key={f.id} type="button"
+                                onClick={() => setGroup(g.key, { featureIds: on ? (first.featureIds ?? []).filter((x) => x !== f.id) : [...(first.featureIds ?? []), f.id] })}
+                                className={`px-2.5 py-1 rounded-full text-[12px] font-semibold border transition-colors ${on ? "bg-[#0aa3c7] border-[#0aa3c7] text-white" : "border-[#d9d0c0] text-[#6a7a80] hover:border-[#0aa3c7]"}`}>
+                                {on ? "✓ " : ""}{f.name}
+                              </button>
+                            );
+                          })}
+                          {features.length === 0 && <span className="text-[12px] text-[#9aa6ac]">No components with a description yet — add one in Components.</span>}
+                        </div>
+                      </div>
+                    </div>
+                  </details>
 
                   {/* one photo / satellite fallback for the whole place */}
                   <div className="flex flex-wrap items-center gap-2 pt-1">

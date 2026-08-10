@@ -23,7 +23,24 @@ function db(): DB { return createAdminClient() as DB; }
 export type SurveyDestination = { key: string; groupId?: string | null; label: string; location?: string | null; start?: string | null; end?: string | null; blurb?: string | null; image?: string | null;
   /** vertical focal point 0–100 for the banner crop; 50 = centred */
   focus?: number | null;
-  lat?: number | null; lng?: number | null };
+  lat?: number | null; lng?: number | null;
+  /** Tick-to-add info buttons. Each holds IDs, never copied text — the survey
+   *  resolves them at render time, so a coach bio or spot description edited
+   *  anywhere shows up here too instead of going stale in a snapshot. */
+  coachIds?: string[] | null;
+  /** Which destination's spot write-up to show ("The spot"). */
+  destinationId?: string | null;
+  /** Components from the library, shown as "What's included". */
+  featureIds?: string[] | null;
+};
+
+/** Resolved content behind a place's info buttons (built server-side). */
+export type SurveyInfo = {
+  coaches: { name: string; role: string | null; bio: string | null; image: string | null }[];
+  method: { intro: string | null; steps: { t: string; d: string }[] } | null;
+  spot: { name: string; intro: string | null; tagline: string | null; conditions: string | null; windSpeed: string | null; season: string | null } | null;
+  features: { name: string; description: string | null }[];
+};
 export type SurveyWeek = { key: string; label: string; start: string | null; end: string | null };
 export type SurveyStatus = "draft" | "open" | "closed";
 
@@ -549,4 +566,47 @@ export async function sendSurveyReminderEmail(inviteId: string, url: string, sub
     await sb.from("exp_survey_invites").update({ reminded_at: new Date().toISOString() }).eq("id", inviteId);
   }
   return res.status;
+}
+
+
+/**
+ * Resolve a place's ticked info buttons into displayable content.
+ *
+ * IDs in, content out — nothing is copied into the survey row, so the coach
+ * bio, the spot write-up and the component descriptions stay the single source
+ * of truth wherever they're edited. Returns null when nothing is ticked, so the
+ * page renders no buttons at all rather than empty ones.
+ */
+export async function resolveSurveyInfo(dest: SurveyDestination): Promise<SurveyInfo | null> {
+  const coachIds = dest.coachIds ?? [];
+  const featureIds = dest.featureIds ?? [];
+  if (!coachIds.length && !featureIds.length && !dest.destinationId) return null;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const sb = db() as any;
+  const [coachRes, featRes, destRes, methodRes] = await Promise.all([
+    coachIds.length ? sb.from("exp_coaches").select("id,name,role,bio,image_url").in("id", coachIds) : Promise.resolve({ data: [] }),
+    featureIds.length ? sb.from("exp_components").select("id,name,description").in("id", featureIds) : Promise.resolve({ data: [] }),
+    dest.destinationId ? sb.from("destinations").select("name,intro,tagline,conditions,wind_speed,wind_season,best_season").eq("id", dest.destinationId).maybeSingle() : Promise.resolve({ data: null }),
+    // the coaching method rides along with the coach card — one shared template
+    coachIds.length ? sb.from("content_templates").select("body").eq("kind", "method").limit(1).maybeSingle() : Promise.resolve({ data: null }),
+  ]);
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const order = (rows: any[], ids: string[]) => ids.map((id) => rows.find((r) => r.id === id)).filter(Boolean);
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const mBody = (methodRes?.data?.body ?? null) as any;
+  const d = destRes?.data;
+  return {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    coaches: order((coachRes.data ?? []) as any[], coachIds).map((c: any) => ({
+      name: c.name, role: c.role ?? null, bio: c.bio ?? null, image: c.image_url ?? null,
+    })),
+    method: mBody
+      // a short extract: the intro plus the first three steps, not the whole band
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      ? { intro: mBody.intro ?? null, steps: (Array.isArray(mBody.steps) ? mBody.steps : []).slice(0, 3).map((x: any) => ({ t: String(x?.t ?? ""), d: String(x?.d ?? "") })).filter((x: { t: string }) => x.t) }
+      : null,
+    spot: d ? { name: d.name, intro: d.intro ?? null, tagline: d.tagline ?? null, conditions: d.conditions ?? null, windSpeed: d.wind_speed ?? null, season: d.wind_season ?? d.best_season ?? null } : null,
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    features: order((featRes.data ?? []) as any[], featureIds).map((f: any) => ({ name: f.name, description: f.description ?? null })),
+  };
 }

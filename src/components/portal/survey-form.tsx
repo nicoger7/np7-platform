@@ -1,7 +1,8 @@
 "use client";
 
 import { useState, useEffect, useRef } from "react";
-import type { Survey, SurveyResponse, SurveyDestination } from "@/lib/surveys";
+import type { Survey, SurveyResponse, SurveyDestination, SurveyInfo } from "@/lib/surveys";
+import { SurveyInfoButtons } from "@/components/portal/survey-info-buttons";
 import { satImage } from "@/lib/satellite";
 
 /**
@@ -23,8 +24,10 @@ function tripImage(rows: SurveyDestination[]): string | null {
   return withCoord ? satImage(withCoord.lat as number, withCoord.lng as number, { dLat: 0.05, w: 1200, h: 760 }) : null;
 }
 
-export function SurveyForm({ survey, token, contactName, existing, preview = false }: {
+export function SurveyForm({ survey, token, contactName, existing, preview = false, infoByKey = {} }: {
   survey: Survey; token: string; contactName: string | null; existing: SurveyResponse | null; preview?: boolean;
+  /** Resolved info-button content per place key (server-side, see resolveSurveyInfo). */
+  infoByKey?: Record<string, SurveyInfo>;
 }) {
   const fmt = (n: number) => new Intl.NumberFormat("en-IE", { style: "currency", currency: survey.currency || "EUR", maximumFractionDigits: 0 }).format(n);
   const fmtDay = (s: string, withYear = false) => new Date(s).toLocaleDateString("en-GB", { day: "numeric", month: "short", ...(withYear ? { year: "numeric" } : {}) });
@@ -223,6 +226,7 @@ export function SurveyForm({ survey, token, contactName, existing, preview = fal
                       </span>
                     )}
                     {g.blurb && <p className="text-[14px] text-[#5a6b72] leading-relaxed">{g.blurb}</p>}
+                    {infoByKey[g.key] && <SurveyInfoButtons info={infoByKey[g.key]} />}
                     {!single && (
                       <div className="flex flex-wrap gap-1.5 mt-3">
                         {g.periods.map((p) => {

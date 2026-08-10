@@ -4,6 +4,7 @@ import { notFound, redirect } from "next/navigation";
 import { getSurveyForToken, getSurvey, getSurveyByOpenToken, joinSurveyAsMember, submitResponse } from "@/lib/surveys";
 import { getPortalUser, getTeamMember } from "@/lib/auth";
 import { SurveyForm } from "@/components/portal/survey-form";
+import { resolveSurveyInfo, type SurveyInfo } from "@/lib/surveys";
 import { SurveyQuick } from "@/components/portal/survey-quick";
 import { SurveyJoin } from "@/components/portal/survey-join";
 import { satImage } from "@/lib/satellite";
@@ -94,6 +95,14 @@ export default async function SurveyPage({ params, searchParams }: Props) {
   const user = await getPortalUser().catch(() => null);
   const firstName = contactName?.split(/\s+/)[0] || null;
 
+  // Info buttons: resolve every place's ticked IDs into content, keyed by the
+  // place's own key so the form can hang the buttons on the right card.
+  const infoByKey: Record<string, SurveyInfo> = {};
+  await Promise.all(survey.destinations.map(async (d) => {
+    const info = await resolveSurveyInfo(d).catch(() => null);
+    if (info) infoByKey[d.key] = info;
+  }));
+
   // Hero photo = the first trip's image (or a satellite view of its pin), else a
   // premium default — never the low-res poster.
   const heroTrip = survey.destinations.find((d) => d.image) ?? survey.destinations.find((d) => d.lat != null && d.lng != null);
@@ -142,7 +151,7 @@ export default async function SurveyPage({ params, searchParams }: Props) {
           <>
             {survey.quick
               ? <SurveyQuick survey={survey} token={token} existing={response} preview={isPreview} justSaved={saved === "1"} />
-              : <SurveyForm survey={survey} token={token} contactName={contactName} existing={response} preview={isPreview} />}
+              : <SurveyForm survey={survey} token={token} contactName={contactName} existing={response} preview={isPreview} infoByKey={infoByKey} />}
             {!user && !isPreview && (
               <p className="text-[12.5px] text-[#9a8a6a] text-center mt-6">
                 Have an NP7 account? <Link href="/account" className="font-semibold text-[#b0791e] hover:underline">Log in</Link> — not required, this invitation is already personal to you.
