@@ -156,7 +156,7 @@ export const TEMPLATES: Record<string, (v: EmailVars, opts?: LayoutOpts) => Buil
       bodyHtml:
         greet(v) +
         p(`Your spot is booked and paid — see you on the water. 🌊`) +
-        facts([["Event", v.experienceTitle], ["Dates", v.dates], ["Paid", v.amount]]) +
+        facts([["Event", v.experienceTitle], ["Dates", v.dates], ["Where", v.location], ["Paid", v.amount]]) +
         p(`We've set up your <strong>NP7 account</strong>, where you'll find your booking, your documents and — after the event — your photos and video.`) +
         (v.activationLink ? emailButton("Open my account", v.activationLink) : "") +
         heading("One thing before you ride") +
@@ -175,7 +175,7 @@ export const TEMPLATES: Record<string, (v: EmailVars, opts?: LayoutOpts) => Buil
       bodyHtml:
         greet(v) +
         p(`Your deposit is in and your spot is held. We confirm the date once the forecast lands — you'll hear from us as soon as it does, and the balance is due then.`) +
-        facts([["Event", v.experienceTitle], ["Deposit paid", v.amount]]) +
+        facts([["Event", v.experienceTitle], ["Dates", v.dates], ["Where", v.location], ["Deposit paid", v.amount]]) +
         (v.activationLink ? emailButton("Open my account", v.activationLink) : "") +
         p(`Any questions, just reply.<br>— Nico & the NP7 team`),
     }),

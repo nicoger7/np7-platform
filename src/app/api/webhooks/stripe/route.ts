@@ -13,6 +13,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase";
 import { generateDocument } from "@/lib/invoices/generate";
+import { eur } from "@/lib/stripe";
 
 // ─── Stripe signature verification (no stripe npm package needed) ─────────────
 
@@ -146,6 +147,16 @@ async function onDepositPaid(bookingId: string, origin: string): Promise<void> {
 
 // ─── Event ticket payments (deposit / full / balance) ────────────────────────
 
+/** "Fri 14 – Sat 15 Aug 2026" — what a buyer wants to see on their receipt. */
+function fmtEventDates(start?: string | null, end?: string | null): string | undefined {
+  if (!start) return undefined;
+  const d = (iso: string, o: Intl.DateTimeFormatOptions) => new Date(`${iso}T00:00:00Z`).toLocaleDateString("en-GB", { timeZone: "UTC", ...o });
+  const full: Intl.DateTimeFormatOptions = { weekday: "short", day: "numeric", month: "short", year: "numeric" };
+  if (!end || end === start) return d(start, full);
+  const sameMonth = start.slice(0, 7) === end.slice(0, 7);
+  return `${d(start, sameMonth ? { weekday: "short", day: "numeric" } : { weekday: "short", day: "numeric", month: "short" })} – ${d(end, full)}`;
+}
+
 async function onEventPayment(
   session: Record<string, unknown>,
   kind: string,
@@ -165,7 +176,7 @@ async function onEventPayment(
   // retrying that forever is just noise.
   const { data: booking, error: readErr } = await db
     .from("exp_bookings")
-    .select("id, contact_id, experience_id, status, downpayment_received, final_payment_received, exp_experiences(title), contacts(name,email)")
+    .select("id, contact_id, experience_id, status, downpayment_received, final_payment_received, exp_experiences(title,location,currency), exp_editions(date_start,date_end,location), contacts(name,email)")
     .eq("id", bookingId).maybeSingle();
   if (readErr) throw new Error(`booking read failed for ${bookingId}: ${readErr.message ?? readErr}`);
   if (!booking) {
@@ -256,6 +267,13 @@ async function onEventPayment(
       vars: {
         firstName,
         experienceTitle: booking.exp_experiences?.title,
+        // The template asks for Dates and Paid; the webhook never passed
+        // either, and facts() drops empty rows — so a payment confirmation
+        // arrived saying neither when the event is nor what was charged. The
+        // one mail a buyer keeps as their receipt.
+        dates: fmtEventDates(booking.exp_editions?.date_start, booking.exp_editions?.date_end),
+        amount: eur(amount, booking.exp_experiences?.currency ?? "EUR"),
+        location: booking.exp_editions?.location || booking.exp_experiences?.location || undefined,
         activationLink,
         bookingLink: `${origin}/account/bookings/${bookingId}`,
         waiverLink: `${origin}/account/bookings/${bookingId}/waiver`,
