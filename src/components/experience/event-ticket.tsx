@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { usePathname } from "next/navigation";
 import { isMinorOn, checkParticipant } from "@/lib/minors";
 
 export type TicketDate = { id: string; label: string; sub?: string };
@@ -27,6 +28,11 @@ export function EventTicket({
   /** ISO date the event starts — age is judged on the day they ride. */
   eventDate?: string | null;
 }) {
+  // Send them back HERE after logging in — the login page takes a `next`, it
+  // just wasn't being given one, so a buyer mid-purchase landed on member home
+  // and had to find their way back to the ticket.
+  const pathname = usePathname();
+  const loginHref = `/account/login?next=${encodeURIComponent(`${pathname}#ticket`)}`;
   const [picked, setPicked] = useState<string[]>([]);
   const [firstName, setFirstName] = useState("");
   const [lastName, setLastName] = useState("");
@@ -169,7 +175,7 @@ export function EventTicket({
 
       {!isMember && (
         <p className="text-[12.5px] text-[#8a9aa0] mt-2.5">
-          Already have an NP7 account? <a href="/account/login" className="font-semibold text-[#0aa3c7] hover:underline">Log in</a>{" "}and we&apos;ll fill your details in.
+          Already have an NP7 account? <a href={loginHref} className="font-semibold text-[#0aa3c7] hover:underline">Log in</a>{" "}and we&apos;ll fill your details in.
         </p>
       )}
 
