@@ -151,6 +151,27 @@ Responses: 200 {status:"stored"|"queued_for_review"} · 401 bad signature ·
 single use, rate-limited; server-to-server verify endpoints on both sides,
 secret-authed like the §3 webhook.
 
+**Phase 4 contract (concrete, same auth as §3):**
+
+```
+GET  https://www.np-seven.com/api/windcoach/milestones
+  → { milestones: [{ key, title, rank, discipline_hint }] }   // the NP7 catalogue; keys are STABLE
+POST https://www.np-seven.com/api/windcoach/progress
+  { "idempotency_key": "verify_<windcoach-event-id>",
+    "np7_user_id": "…",                 // from the Phase-2 link
+    "np7_milestone_key": "pro_powerjibe",
+    "verified_at": "2026-09-01T12:00:00Z",
+    "evidence_url": "https://…video…" } // optional
+  → NP7 marks the milestone coach-verified (GOLD path)
+```
+
+wind.coach side: a `np7_milestone_map` (np7_key → fp_id + discipline) table —
+additive next to the free-text `fp_id` the training plan already uses — and the
+one-search-box "mark skill verified" control in the video-analysis admin that
+fires the POST. NP7 keys never rename; unknown keys are rejected with a 422
+naming the key, so a mapping typo surfaces immediately instead of dropping
+progress on the floor.
+
 ---
 
 ## 4 · Safe & legal (the frame, before any code)
