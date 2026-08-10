@@ -6,7 +6,7 @@ import { VERIFICATION_META, conditionLabel, type Verification } from "@/lib/spot
 import { SpotIntake } from "@/components/admin/spot-intake";
 
 interface PendingSpot {
-  id: string; name: string; destination_id: string; destinationName: string;
+  id: string; name: string; destination_id: string; destinationName: string; proposer?: string;
   level: string | null; conditions: string[] | null; description: string | null;
   verification: string; confirms: number; flags: number; flagReasons?: string[];
   ageDays: number; stuck: boolean; flagged: boolean;
@@ -253,7 +253,7 @@ export default function SpotguideModeration() {
                     </div>
                     <p className="text-[11px] admin-faint mt-0.5">{s.destinationName}{s.level ? ` · ${s.level}` : ""}{s.conditions?.length ? ` · ${s.conditions.map(conditionLabel).join(", ")}` : ""}</p>
                     {s.description && <p className="text-xs admin-muted mt-1.5 line-clamp-3">{s.description}</p>}
-                    <p className="text-[11px] admin-faint mt-1.5">{s.confirms} member confirm{s.confirms === 1 ? "" : "s"}{s.flags ? ` · ${s.flags} flag${s.flags === 1 ? "" : "s"}` : ""}</p>
+                    <p className="text-[11px] admin-faint mt-1.5">by {s.proposer ?? "a member"} · {s.confirms} member confirm{s.confirms === 1 ? "" : "s"}{s.flags ? ` · ${s.flags} flag${s.flags === 1 ? "" : "s"}` : ""}</p>
                     {s.flagged && (
                       <div className="mt-1.5 rounded-lg px-2.5 py-2 bg-red-500/10" style={{ border: "1px solid rgba(248,113,113,0.25)" }}>
                         <p className="text-[10px] font-bold uppercase tracking-wide text-red-400 mb-0.5">Why it was flagged</p>
@@ -269,8 +269,10 @@ export default function SpotguideModeration() {
                   </div>
                 </div>
                 <div className="flex flex-wrap gap-2 mt-3">
-                  <button onClick={() => act(s.id, { verification: "np7" })} disabled={busy === s.id} className="px-3 py-1.5 rounded-lg text-xs font-bold bg-[var(--admin-accent)] text-[var(--admin-accent-contrast)] disabled:opacity-50">NP7 verify</button>
-                  <button onClick={() => act(s.id, { verification: "community" })} disabled={busy === s.id} className="px-3 py-1.5 rounded-lg text-xs font-bold disabled:opacity-50" style={{ border: "1px solid var(--admin-border)" }}>Approve (community)</button>
+                  {/* Two publish tiers, named for what they DO — "Approve
+                      (community)" read like "let the community approve it". */}
+                  <button onClick={() => act(s.id, { verification: "np7" })} disabled={busy === s.id} title="Publishes now with the gold NP7 badge — you personally vouch for this spot" className="px-3 py-1.5 rounded-lg text-xs font-bold bg-[var(--admin-accent)] text-[var(--admin-accent-contrast)] disabled:opacity-50">Publish · NP7 gold ✓</button>
+                  <button onClick={() => act(s.id, { verification: "community" })} disabled={busy === s.id} title="Publishes now at the community-verified tier — no gold badge, as if rider confirms had come in" className="px-3 py-1.5 rounded-lg text-xs font-bold disabled:opacity-50" style={{ border: "1px solid var(--admin-border)" }}>Publish · community tier</button>
                   <button onClick={() => act(s.id, { status: "hidden" })} disabled={busy === s.id} className="px-3 py-1.5 rounded-lg text-xs font-semibold text-red-400/70 hover:text-red-400 disabled:opacity-50">Hide</button>
                   <Link href={`/admin/spots/${s.id}?from=spotguide`} className="px-3 py-1.5 rounded-lg text-xs font-semibold admin-muted ml-auto" style={{ border: "1px solid var(--admin-border)" }}>Open editor</Link>
                 </div>

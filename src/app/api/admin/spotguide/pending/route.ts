@@ -16,7 +16,7 @@ export async function GET() {
   // or flagged at any verification level).
   const { data: spots, error } = await db
     .from("spots")
-    .select("id, name, destination_id, level, conditions, description, verification, status, created_at")
+    .select("id, name, destination_id, level, conditions, description, verification, status, created_at, source, submitted_by")
     .in("source", ["member", "jibe"]) // jibe = AI-intake drafts awaiting review
     .order("created_at", { ascending: false });
   if (error) {
@@ -33,6 +33,15 @@ export async function GET() {
   ]);
   const destName = new Map((dests ?? []).map((d: { id: string; name: string }) => [d.id, d.name]));
 
+  // Who put it there. A card without a proposer made the queue read like the
+  // system invented the spot — it was either the jibe intake (it did) or a
+  // member whose name simply wasn't shown.
+  const submitterIds = [...new Set((spots ?? []).map((s: { submitted_by?: string | null }) => s.submitted_by).filter(Boolean))] as string[];
+  const { data: submitters } = submitterIds.length
+    ? await db.from("contacts").select("id, name").in("id", submitterIds)
+    : { data: [] };
+  const submitterName = new Map((submitters ?? []).map((c: { id: string; name: string }) => [c.id, c.name]));
+
   // Tag each pending spot so the admin surfaces only what needs a human: FLAGGED
   // (riders reported it wrong) or STUCK (no one's confirmed it after a few days —
   // early on, when there's no community yet, this catches everything so nothing
@@ -48,7 +57,10 @@ export async function GET() {
     const ageDays = Math.floor((Date.now() - new Date(String(s.created_at)).getTime()) / 86_400_000);
     const flagged = flags > 0;
     const stuck = !flagged && ageDays >= STUCK_DAYS && confirms < COMMUNITY_VERIFY_THRESHOLD;
-    return { ...s, destinationName: destName.get(s.destination_id as string) ?? "—", confirms, flags, flagReasons, ageDays, flagged, stuck };
+    const proposer = s.source === "jibe"
+      ? "jibe (agent) — from Nico's videos"
+      : (s.submitted_by && submitterName.get(s.submitted_by as string)) || "A member";
+    return { ...s, destinationName: destName.get(s.destination_id as string) ?? "—", proposer, confirms, flags, flagReasons, ageDays, flagged, stuck };
   });
   // Hidden contributions vanish from the queue by design — but then there is no
   // way back to them, which is how a spot ends up unfindable after a Hide.
