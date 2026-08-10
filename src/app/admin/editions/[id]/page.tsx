@@ -46,7 +46,7 @@ const PEOPLE_TABS: readonly string[] = ["bookings", "rooms", "arrivals"];
 const SIDE_TABS: readonly string[] = ["levels", "memories", "notes"];
 const TAB_LABEL: Record<EditionTab, string> = {
   details: "Details", branding: "Branding", mailing: "Mailing", bookings: "Bookings", arrivals: "Arrivals", levels: "Levels", packages: "Packages",
-  memories: "Memories", costs: "Costs", rooms: "Hotel Rooms", notes: "Notes",
+  memories: "Memories", costs: "Finance", rooms: "Hotel Rooms", notes: "Notes",
 };
 // Each tab's data comes from a section's API — hide the tab if the role can't
 // reach it (otherwise it shows but 404s on click). The edition's own tabs map to
@@ -480,7 +480,9 @@ export default function EditionDetailPage({
   const [costForm, setCostForm] = useState(emptyCost);
   const [costEditId, setCostEditId] = useState<string | null>(null);
   const [costShow, setCostShow] = useState(false);
-  const [pnl, setPnl] = useState<{ received: number; expected: number; costs: number; net: number; bookings: number; componentEstimate?: { total: number; bookings: number; breakdown: { componentId: string; name: string; qty: number; unitCost: number; total: number; actual: number | null }[] } } | null>(null);
+  const [pnl, setPnl] = useState<{ received: number; expected: number; costs: number; net: number; bookings: number; componentEstimate?: { total: number; bookings: number; breakdown: { componentId: string; name: string; qty: number; unitCost: number; total: number; actual: number | null }[] }; income?: { id: string; name: string; status: string | null; packageName: string | null; agreed: number; addons: number; total: number; received: number; secured: boolean }[]; scenarios?: Record<"everything" | "secured" | "paid", { income: number; bookings: number }> } | null>(null);
+  // Finance sub-tab: costs (the old tab) · income (what was sold) · net (scenarios)
+  const [finTab, setFinTab] = useState<"costs" | "income" | "net">("costs");
 
   const emptyRoom = { name: "", hotel_id: "", hotel: "", room_type: "", room_number: "", sleeps: "", status: "available", booking_id: "", extra_booking_ids: [] as string[], partner_tag_along: "" };
   const [roomForm, setRoomForm] = useState(emptyRoom);
@@ -1889,6 +1891,16 @@ export default function EditionDetailPage({
       {/* ── Costs tab ── */}
       {tab === "costs" && (
         <div>
+          {/* Finance = three views of one week: what it costs, what it sold,
+              and where it lands. The summary cards stay on all three. */}
+          <div className="inline-flex rounded-lg p-0.5 mb-5" style={{ border: "1px solid var(--admin-border)", background: "var(--admin-surface)" }}>
+            {([["costs", "Costs"], ["income", "Income"], ["net", "Net"]] as const).map(([k, l]) => (
+              <button key={k} onClick={() => setFinTab(k)}
+                className={`px-4 py-1.5 rounded-md text-xs font-bold transition-colors ${finTab === k ? "bg-[var(--admin-accent)] text-[var(--admin-accent-contrast)]" : "admin-muted hover:admin-heading"}`}>
+                {l}
+              </button>
+            ))}
+          </div>
           {/* Real P&L: received payments − allocated costs for THIS edition */}
           {pnl && (
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-5">
@@ -1915,6 +1927,60 @@ export default function EditionDetailPage({
             </div>
           )}
 
+          {/* ── INCOME — what every booking sold for ── */}
+          {finTab === "income" && (
+            <div className="rounded-xl admin-tablecard" style={{ border: "1px solid var(--admin-border)" }}>
+              <div className="grid grid-cols-[1fr_auto_auto_auto_auto] gap-x-4 px-5 py-2.5 admin-surface text-[10px] font-bold tracking-[0.1em] admin-faint uppercase" style={{ borderBottom: "1px solid var(--admin-border)" }}>
+                <span>Booking</span><span className="text-right w-20">Package</span><span className="text-right w-20">Add-ons</span><span className="text-right w-20">Total</span><span className="text-right w-20">Received</span>
+              </div>
+              {(pnl?.income ?? []).map((r) => (
+                <div key={r.id} className="grid grid-cols-[1fr_auto_auto_auto_auto] gap-x-4 items-center px-5 py-2.5 text-[13px]" style={{ borderBottom: "1px solid var(--admin-border)" }}>
+                  <span className="min-w-0">
+                    <Link href={`/admin/bookings/${r.id}`} className="admin-heading font-semibold hover:text-[#0aa3c7] truncate block">{r.name.split(" — ")[0]}</Link>
+                    <span className="text-[11px] admin-faint">{r.packageName ?? "no package"}{r.secured ? "" : " · not secured"}</span>
+                  </span>
+                  <span className="text-right w-20 admin-muted tabular-nums">{eur(r.agreed, currency)}</span>
+                  <span className="text-right w-20 admin-muted tabular-nums">{r.addons > 0 ? `+${eur(r.addons, currency)}` : "—"}</span>
+                  <span className="text-right w-20 admin-heading font-bold tabular-nums">{eur(r.total, currency)}</span>
+                  <span className={`text-right w-20 tabular-nums font-semibold ${r.received + 0.01 >= r.total && r.total > 0 ? "text-green-400" : r.received > 0 ? "text-amber-400" : "admin-faint"}`}>{r.received > 0 ? eur(r.received, currency) : "—"}</span>
+                </div>
+              ))}
+              <div className="grid grid-cols-[1fr_auto] gap-x-4 px-5 py-3 text-[13px] font-bold">
+                <span className="admin-heading">Total sold ({(pnl?.income ?? []).length} bookings)</span>
+                <span className="admin-heading tabular-nums">{eur((pnl?.income ?? []).reduce((t, r) => t + r.total, 0), currency)}</span>
+              </div>
+            </div>
+          )}
+
+          {/* ── NET — where the week lands, under three booking scenarios.
+                Income flexes; costs stay fixed — the hotel is booked whether a
+                lead converts or not, so "paid only" is the true floor. ── */}
+          {finTab === "net" && pnl?.scenarios && (
+            <div>
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-4">
+                {([
+                  ["everything", "If everyone pays", "every live booking at its agreed total — the ceiling"],
+                  ["secured", "Secured bookings", "only money-secured spots (confirmed or paid) — the realistic case"],
+                  ["paid", "Paid only", "only money already in the bank — the floor"],
+                ] as const).map(([k, title, note]) => {
+                  const sc = pnl.scenarios![k];
+                  const net = Math.round((sc.income - pnl.costs) * 100) / 100;
+                  return (
+                    <div key={k} className="rounded-xl p-4" style={{ border: "1px solid var(--admin-border)", backgroundColor: "var(--admin-surface)" }}>
+                      <div className="text-[10px] font-bold tracking-[0.1em] admin-faint uppercase mb-1">{title}</div>
+                      <div className={`text-2xl font-bold ${net < 0 ? "text-red-400" : "text-green-400"}`}>{eur(net, currency)}</div>
+                      <div className="text-[11.5px] admin-muted mt-1.5 tabular-nums">{eur(sc.income, currency)} income − {eur(pnl.costs, currency)} costs</div>
+                      <div className="text-[11px] admin-faint mt-0.5">{sc.bookings} booking{sc.bookings === 1 ? "" : "s"} · {sc.income > 0 ? `${Math.round((net / sc.income) * 100)}% margin` : "—"}</div>
+                      <div className="text-[10.5px] admin-faint mt-1.5">{note}</div>
+                    </div>
+                  );
+                })}
+              </div>
+              <p className="text-[11.5px] admin-faint leading-relaxed">Costs are held fixed across scenarios on purpose — the hotel and coaches are committed whether or not a lead converts. Component costs that scale per head are already estimated from signed-up packages only (see Costs).</p>
+            </div>
+          )}
+
+          {finTab === "costs" && (<>
           {/* Projected per-participant cost — auto-rolled from signed-up packages' components × cost price */}
           {pnl?.componentEstimate && pnl.componentEstimate.breakdown.length > 0 && (
             <div className="rounded-xl admin-tablecard mb-5" style={{ border: "1px solid var(--admin-border)" }}>
@@ -2061,6 +2127,7 @@ export default function EditionDetailPage({
               </div>
             )}
           </div>
+          </>)}
         </div>
       )}
 

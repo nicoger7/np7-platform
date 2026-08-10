@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase";
 import { getRequestAccess } from "@/lib/admin-auth";
 import { effectiveCanSeeField } from "@/lib/access";
+import { effectiveAddonStatus } from "@/lib/addons";
 
 // GET /api/admin/editions/[id]/pnl — the real per-edition P&L:
 //   received  = Σ revenue payments (status paid) on this edition's bookings, minus refunds
@@ -19,18 +20,65 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
   const db = createAdminClient() as any;
 
   // ── Revenue: payments on this edition's bookings ──
-  const { data: bookings } = await db.from("exp_bookings").select("id, status, package_id, downpayment_received, deposit_received").eq("edition_id", id);
+  const { data: bookings } = await db.from("exp_bookings").select("id, name, status, agreed_price, package_id, downpayment_received, deposit_received, final_payment_received, exp_packages(name)").eq("edition_id", id);
   const bookingIds = (bookings ?? []).map((b: { id: string }) => b.id);
   let received = 0, expected = 0;
+  const receivedBy = new Map<string, number>();
   if (bookingIds.length) {
-    const { data: pays } = await db.from("exp_payments").select("amount,direction,type,status").in("booking_id", bookingIds);
+    const { data: pays } = await db.from("exp_payments").select("booking_id,amount,direction,type,status").in("booking_id", bookingIds);
     for (const p of (pays ?? [])) {
       if (p.direction === "cost") continue;
       const a = (p.type === "refund" ? -1 : 1) * (Number(p.amount) || 0);
       expected += a;
-      if (p.status === "paid") received += a;
+      if (p.status === "paid") {
+        received += a;
+        if (p.booking_id) receivedBy.set(p.booking_id, (receivedBy.get(p.booking_id) || 0) + a);
+      }
     }
   }
+
+  // ── Income: what each booking SOLD for (agreed price + confirmed billable
+  //    add-ons), per booking — the revenue side the Costs tab never showed ──
+  const soldAddonsBy = new Map<string, number>();
+  if (bookingIds.length) {
+    try {
+      const { data: sold } = await db.from("exp_booking_addons")
+        .select("booking_id, price, status, notes, payment_mode").in("booking_id", bookingIds);
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      for (const a of (sold ?? []) as any[]) {
+        // same definition as the invoice engine: confirmed and billed by us
+        if (effectiveAddonStatus(a) !== "confirmed" || a.payment_mode === "direct") continue;
+        soldAddonsBy.set(a.booking_id, (soldAddonsBy.get(a.booking_id) || 0) + (Number(a.price) || 0));
+      }
+    } catch { /* add-ons optional */ }
+  }
+  const r2 = (n: number) => Math.round(n * 100) / 100;
+  const SECURED = new Set(["confirmed", "paid", "attended"]);
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const incomeRows = ((bookings ?? []) as any[])
+    .filter((b) => !["lost", "cancelled"].includes(String(b.status ?? "").toLowerCase()))
+    .map((b) => {
+      const addons = r2(soldAddonsBy.get(b.id) || 0);
+      const total = r2((Number(b.agreed_price) || 0) + addons);
+      const secured = SECURED.has(String(b.status ?? "").toLowerCase()) || !!b.downpayment_received || !!b.final_payment_received;
+      return {
+        id: b.id, name: b.name ?? "Booking", status: b.status ?? null,
+        packageName: b.exp_packages?.name ?? null,
+        agreed: r2(Number(b.agreed_price) || 0), addons, total,
+        received: r2(receivedBy.get(b.id) || 0),
+        secured,
+      };
+    })
+    .sort((a, b) => b.total - a.total);
+  const sumIf = (pred: (r: typeof incomeRows[number]) => boolean) => r2(incomeRows.filter(pred).reduce((s, r) => s + r.total, 0));
+  const scenarios = {
+    // best case: every live booking pays what was agreed
+    everything: { income: sumIf(() => true), bookings: incomeRows.length },
+    // realistic: only bookings whose spot is money-secured
+    secured: { income: sumIf((r) => r.secured), bookings: incomeRows.filter((r) => r.secured).length },
+    // floor: only money actually in the bank
+    paid: { income: r2(received), bookings: incomeRows.filter((r) => r.received > 0).length },
+  };
 
   // A cost's "real" spent: attached expense payments (Σ) if any, else the manual
   // actual, else the estimate.
@@ -159,5 +207,7 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
     net: Math.round((received - costs) * 100) / 100,
     bookings: bookingIds.length,
     componentEstimate: { total: Math.round(componentTotal * 100) / 100, bookings: attending.length, breakdown: componentBreakdown },
+    income: incomeRows,
+    scenarios,
   });
 }
