@@ -385,12 +385,23 @@ function ContentField({ editionId, use, onSaved }: { editionId: string; use: Use
           ? <span className="text-[10px] font-bold uppercase px-1.5 py-0.5 rounded bg-amber-500/15 text-amber-500">holds the mail</span>
           : <span className="text-[10px] admin-faint font-normal">optional</span>}
         {use.source === "experience" && <span className="text-[10px] admin-faint font-normal">using the experience&apos;s</span>}
-        {use.source === null && <span className="text-[10px] text-amber-500 font-normal">nothing set anywhere</span>}
+        {/* "Nothing to fall back on" was only ever true for a field that HOLDS
+            the mail. An optional note is an EXTRA paragraph dropped into a
+            template that is already written — the mail sends fine without it,
+            and an amber warning saying otherwise sends you looking for work
+            that doesn't exist. */}
+        {use.source === null && (use.blocking
+          ? <span className="text-[10px] text-amber-500 font-normal">nothing set anywhere</span>
+          : <span className="text-[10px] admin-faint font-normal">not set — the mail sends without it</span>)}
       </p>
 
       {multiline ? (
         <textarea value={value} onChange={(e) => { setValue(e.target.value); setDone(false); }} rows={4}
-          placeholder={use.inherited ? "Leave empty to use the experience's — shown below" : "Nothing here and nothing to fall back on"}
+          placeholder={use.inherited
+            ? "Leave empty to use the experience's — shown below"
+            : use.blocking
+              ? "Nothing here and nothing to fall back on — the mail is held until this is written"
+              : "Optional — an extra paragraph for this week. The mail sends without it."}
           className="w-full rounded-lg px-3 py-2 text-[13px] outline-none focus:border-[#0aa3c7] resize-y"
           style={{ border: "1px solid var(--admin-border)", backgroundColor: "var(--admin-bg)", color: "var(--admin-text)" }} />
       ) : (

@@ -2277,14 +2277,6 @@ export default function EditionDetailPage({
                 </div>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-4">
                   <div><label className={labelClass}>Room type</label><input className={inputClass} value={roomForm.room_type} onChange={(e) => setRoomForm({ ...roomForm, room_type: e.target.value })} placeholder="e.g. BON-WAN-Double Deluxe Balcony" /></div>
-                  {/* The one number the schema never had. Without it a room
-                      counts for nothing — better than counting for a guess. */}
-                  <div>
-                    <label className={labelClass}>Sleeps <span className="admin-faint font-normal">· optional</span></label>
-                    <input type="number" min={1} className={inputClass} value={roomForm.sleeps}
-                      onChange={(e) => setRoomForm({ ...roomForm, sleeps: e.target.value })}
-                      placeholder="optional — only says if a partner fits" />
-                  </div>
                   <div><label className={labelClass}>Guest (booking) <span className="admin-faint font-normal">· main</span></label><select className={inputClass} value={roomForm.booking_id} onChange={(e) => setRoomForm({ ...roomForm, booking_id: e.target.value })}><option value="">Unassigned</option>{bookings.map((b) => <option key={b.id} value={b.id}>{b.name}</option>)}</select></div>
                 </div>
                 {/* Sharing: additional participants in the SAME room who have their
@@ -2334,11 +2326,10 @@ export default function EditionDetailPage({
             </div>
           ) : (
             <div className="rounded-xl admin-tablecard" style={{ border: "1px solid var(--admin-border)" }}>
-              <div className="grid grid-cols-[1fr_120px_110px_78px_80px_110px_64px] gap-4 px-5 py-3 admin-surface" style={{ borderBottom: "1px solid var(--admin-border)" }}>
+              <div className="grid grid-cols-[1fr_120px_110px_80px_110px_64px] gap-4 px-5 py-3 admin-surface" style={{ borderBottom: "1px solid var(--admin-border)" }}>
                 <span className="text-[10px] font-bold tracking-[0.1em] admin-faint uppercase">Room</span>
                 <span className="text-[10px] font-bold tracking-[0.1em] admin-faint uppercase">Type</span>
                 <span className="text-[10px] font-bold tracking-[0.1em] admin-faint uppercase">Hotel</span>
-                <span className="text-[10px] font-bold tracking-[0.1em] admin-faint uppercase" title="How many people fit. Optional — availability counts rooms, not beds.">Sleeps</span>
                 <span className="text-[10px] font-bold tracking-[0.1em] admin-faint uppercase">Status</span>
                 <span className="text-[10px] font-bold tracking-[0.1em] admin-faint uppercase">Guest</span>
                 <span></span>
@@ -2346,7 +2337,7 @@ export default function EditionDetailPage({
               {rooms.map((room) => (
                 <div
                   key={room.id}
-                  className="grid grid-cols-[1fr_120px_110px_78px_80px_110px_64px] gap-4 px-5 py-3.5 transition-colors group"
+                  className="grid grid-cols-[1fr_120px_110px_80px_110px_64px] gap-4 px-5 py-3.5 transition-colors group"
                   style={{ borderBottom: "1px solid var(--admin-border)" }}
                   onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = "var(--admin-surface-hover)")}
                   onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = "transparent")}
@@ -2354,15 +2345,6 @@ export default function EditionDetailPage({
                   <span className="text-sm font-medium admin-heading truncate self-center cursor-pointer" onClick={() => { setRoomEditId(room.id); setRoomShow(false); setRoomForm({ name: room.name, hotel_id: room.hotel_id || "", hotel: room.hotel || "", room_type: room.room_type || "", room_number: room.room_number || "", sleeps: room.sleeps != null ? String(room.sleeps) : "", status: room.status, booking_id: room.booking_id || "", extra_booking_ids: room.extra_booking_ids ?? [], partner_tag_along: room.partner_tag_along ?? "" }); }}>{room.name}</span>
                   <span className="text-xs admin-muted self-center truncate">{room.room_type}</span>
                   <span className="text-xs admin-muted self-center">{room.hotel}</span>
-                  {/* Since migration 161 availability counts ROOMS, so an
-                      unset bed count no longer limits anything and must stop
-                      shouting. It is still worth knowing whether a partner
-                      fits — that is a rooming question, not a selling one. */}
-                  <span className="text-xs self-center">
-                    {room.sleeps != null
-                      ? <span className="admin-heading font-semibold">{room.sleeps}</span>
-                      : <span className="admin-faint" title="Optional — only tells you whether a second person fits">—</span>}
-                  </span>
                   <span className="self-center">
                     {room.released_at ? (
                       <span className="inline-block px-2 py-0.5 rounded text-[10px] font-bold uppercase bg-red-500/15 text-red-400" title={room.released_reason || "The hotel took this room back"}>released</span>

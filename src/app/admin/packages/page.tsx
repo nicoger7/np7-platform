@@ -496,8 +496,6 @@ export default function PackagesPage() {
                   <div className="flex flex-wrap gap-1.5">
                     {[...byType.entries()].map(([t, rs]) => {
                       const thisWeek = editionAware ? rs.filter((r) => scheduled.has(r.id)) : rs;
-                      const noBeds = thisWeek.filter((r) => r.sleeps == null).length;
-                      const beds = thisWeek.reduce((n, r) => n + (r.sleeps ?? 0), 0);
                       const on = form.room_type === t;
                       return (
                         <button key={t} type="button"
@@ -506,12 +504,10 @@ export default function PackagesPage() {
                           style={on ? undefined : { border: "1px solid var(--admin-border)" }}
                           title={thisWeek.length === 0
                             ? "No rooms of this type are scheduled for this edition"
-                            : noBeds > 0
-                              ? `${thisWeek.length} room(s) this week — ${noBeds} have no bed count set, so this pool cannot be counted yet`
-                              : `${thisWeek.length} room(s) this week · ${beds} beds`}>
+                            : `${thisWeek.length} room(s) of this type this week`}>
                           {on ? "\u2713 " : ""}{t}
                           <span className={on ? "opacity-80" : "admin-faint"}>
-                            {" · "}{thisWeek.length === 0 ? "not this week" : noBeds > 0 ? `${thisWeek.length} rooms · beds not set` : `${beds} beds`}
+                            {" · "}{thisWeek.length === 0 ? "not this week" : `${thisWeek.length} room${thisWeek.length === 1 ? "" : "s"}`}
                           </span>
                         </button>
                       );

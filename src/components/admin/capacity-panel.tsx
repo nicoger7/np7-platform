@@ -18,6 +18,8 @@ export type CapacityPools = {
   hotel_id: string | null; hotel_name: string | null; room_type: string | null;
   rooms: number; released: number; beds: number; beds_known: boolean;
   beds_used: number; beds_free: number; beds_over: number; unknown_rooms: string[];
+  /** Rooms with somebody in them, and rooms still empty (migration 161). */
+  occupied: number; rooms_free: number;
 };
 
 export type CapacityPackage = {
@@ -188,15 +190,13 @@ export function CapacityPanel({
           <PoolRow
             key={`${p.hotel_id}-${p.room_type}`}
             label={[p.hotel_name ?? "Hotel", p.room_type].filter(Boolean).join(" · ")}
-            value={
-              !p.beds_known
-                ? `${p.rooms} room${p.rooms === 1 ? "" : "s"} · beds not set`
-                : `${p.beds_used} of ${p.beds} beds`
-            }
+            // Rooms, not beds — a booking takes a room whether it sleeps one
+            // or two, and bed counts no longer gate anything.
+            value={`${p.occupied} of ${p.rooms} room${p.rooms === 1 ? "" : "s"} taken`}
             note={
-              p.beds_over > 0 ? `${p.beds_over} over`
-                : p.released > 0 ? `${p.released} released`
-                : p.beds_known ? `${p.beds_free} free` : "set bed counts"
+              p.released > 0 ? `${p.released} released`
+                : p.rooms_free > 0 ? `${p.rooms_free} free`
+                : "all taken"
             }
             noteTone={p.beds_over > 0 ? "bad" : p.beds_known ? (p.beds_free > 0 ? "good" : "warn") : "warn"}
           />
@@ -209,12 +209,10 @@ export function CapacityPanel({
       {/* Gaps: the reason a pool isn't counting yet. Named, not hinted at. */}
       {(gaps.length > 0 || undeclared.length > 0) && (
         <div className="px-4 py-3 text-[11.5px] admin-muted space-y-1" style={{ borderTop: "1px solid var(--admin-border)", backgroundColor: "var(--admin-surface)" }}>
-          {gaps.map((g) => (
-            <p key={`${g.hotel_id}-${g.room_type}`}>
-              <span className="text-amber-500 font-semibold">Beds not set</span> — {[g.hotel_name, g.room_type].filter(Boolean).join(" · ")}: {g.unknown_rooms.slice(0, 4).join(", ")}
-              {g.unknown_rooms.length > 4 ? ` +${g.unknown_rooms.length - 4}` : ""}. Until someone says how many each sleeps, these rooms limit nothing.
-            </p>
-          ))}
+          {/* "Beds not set … these rooms limit nothing" stopped being true in
+              migration 161: availability counts ROOMS, so an unset bed count
+              limits nothing and costs nothing. Chasing it was work invented by
+              the software. */}
           {(data?.levels ?? []).some((l) => l.cap != null) && (data?.levels?.[0]?.untagged_packages ?? 0) > 0 && (
             <p>
               <span className="text-amber-500 font-semibold">No level</span> — {data?.levels?.[0]?.untagged_packages} package{(data?.levels?.[0]?.untagged_packages ?? 0) === 1 ? "" : "s"} on this week have no coaching level, so no level cap applies to them and they sell past it.

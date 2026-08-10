@@ -1,6 +1,7 @@
 import { supabase, createAdminClient } from "@/lib/supabase";
 import { SUN_TO_SEA } from "@/components/shared/brand";
 import { GalleryStrip } from "@/components/experience/gallery-strip";
+import { MONTH_LABELS, destinationWindFacts, type WindStats } from "@/lib/wind-stats";
 
 /**
  * The DESTINATION deep-dive shown INSIDE the trip page's overlay — the rich,
@@ -11,12 +12,53 @@ import { GalleryStrip } from "@/components/experience/gallery-strip";
  * The trips grid is skipped on purpose (you're already on the trip).
  */
 
+/**
+ * Twelve months of measured sailing wind, for the dark "conditions" band.
+ *
+ * The trip page shows three months around ITS week; a destination is not a
+ * week, so it gets the whole year — which is also the honest answer to "when
+ * should I come?". Renders nothing without data, so a destination the cron
+ * hasn't sampled simply looks as it did before.
+ */
+function YearWind({ stats }: { stats: WindStats | null }) {
+  const months = stats?.months ?? [];
+  if (!months.length) return null;
+  const rows = Array.from({ length: 12 }, (_, i) => {
+    const mm = months.find((x) => x.m === i + 1);
+    return { m: i + 1, label: MONTH_LABELS[i], pct: Math.round(Number((mm?.pct as Record<string, number> | undefined)?.["4"] ?? 0)) };
+  });
+  if (rows.every((r) => r.pct === 0)) return null;
+  const years = stats?.period ? `${String(stats.period.start).slice(0, 4)}–${String(stats.period.end).slice(0, 4)}` : "";
+  const best = Math.max(...rows.map((r) => r.pct));
+
+  return (
+    <div className="mb-6">
+      <div className="flex items-end gap-1.5 sm:gap-2.5 h-[120px]">
+        {rows.map((r) => (
+          <div key={r.m} className="flex-1 flex flex-col items-center justify-end gap-1.5 h-full">
+            <span className={`text-[10.5px] sm:text-[12px] font-bold tabular-nums ${r.pct === best ? "text-[#ffc42e]" : "text-white/55"}`}>{r.pct}</span>
+            <span className="w-full rounded-t-md transition-all"
+              style={{ height: `${Math.max(4, r.pct)}%`, background: r.pct === best ? "linear-gradient(180deg,#ffc42e,#f47b20)" : "rgba(255,255,255,0.16)" }} />
+            <span className={`text-[9.5px] sm:text-[11px] font-bold uppercase tracking-wide ${r.pct === best ? "text-white" : "text-white/40"}`}>{r.label}</span>
+          </div>
+        ))}
+      </div>
+      <p className="text-[11.5px] text-white/45 leading-snug mt-3">
+        Share of days with sailing wind (11+ kn, 09–18h){years ? `. Open-Meteo ERA5, ${years}` : ""} — measured, not our estimate.
+      </p>
+    </div>
+  );
+}
+
 type Destination = {
   id: string; name: string; slug: string | null; region: string | null; country: string | null;
   hero_image: string | null; tagline: string | null; intro: string | null;
   wind_probability: string | null; wind_season: string | null; wind_speed: string | null;
   best_season: string | null; conditions: string | null; skill_levels: string | null;
   gallery: string[] | null; partners: { name?: string; description?: string; url?: string; image?: string }[] | null;
+  /** Cached climatology from the wind-stats cron — the accelerated (offshore)
+   *  read, which is what every NP7 surface quotes. */
+  wind_stats: WindStats | null;
 };
 type Hotel = { id: string; name: string; image_url: string | null; images: string[] | null; description: string | null; website: string | null; location: string | null };
 
@@ -61,10 +103,14 @@ export async function DestinationDeepDive({ slug }: { slug: string }) {
 
   const place = [d.region, d.country].filter(Boolean).join(" · ");
   const hero = d.hero_image || (d.gallery?.[0] ?? "");
+  // Measured beats hand-typed. The whole point of the climatology is that a
+  // guest can see the number isn't ours — so where it exists it replaces the
+  // typed "85–95%", and the typed one stays as the fallback.
+  const measured = destinationWindFacts(d.wind_stats);
   const facts = [
-    { label: "Wind probability", value: d.wind_probability },
-    { label: "Wind season", value: d.wind_season },
-    { label: "Wind strength", value: d.wind_speed },
+    { label: "Wind probability", value: measured ? `${measured.probability} at 4+ Bft` : d.wind_probability },
+    { label: "Wind season", value: measured?.season ?? d.wind_season },
+    { label: "Wind strength", value: measured?.speed ?? d.wind_speed },
     { label: "Best season", value: d.best_season },
     { label: "Conditions", value: d.conditions },
     { label: "Levels", value: d.skill_levels },
@@ -137,6 +183,7 @@ export async function DestinationDeepDive({ slug }: { slug: string }) {
               <p className="text-[11px] font-bold tracking-[0.28em] text-[#ffc42e] mb-2">WHAT TO EXPECT</p>
               <h3 className="text-2xl sm:text-4xl font-black tracking-[-0.03em]">The conditions</h3>
             </div>
+            <YearWind stats={d.wind_stats} />
             <div className="grid grid-cols-2 lg:grid-cols-3 gap-3">
               {facts.map((f) => (
                 <div key={f.label} className="rounded-2xl bg-white/[0.06] border border-white/10 p-4 sm:p-5">

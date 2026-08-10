@@ -63,6 +63,7 @@ export async function GET(_request: NextRequest, { params }: { params: Promise<{
     hotel_id: string | null; hotel_name: string | null; room_type: string | null;
     rooms: number; released: number; beds: number; beds_known: boolean;
     beds_used: number; beds_free: number; beds_over: number; unknown_rooms: string[];
+    occupied: number; rooms_free: number;
   }>();
   for (const u of (units ?? []) as Row[]) {
     const key = `${u.hotel_id ?? "-"}::${u.room_type ?? "-"}`;
@@ -72,6 +73,8 @@ export async function GET(_request: NextRequest, { params }: { params: Promise<{
       room_type: (u.room_type as string) ?? null,
       rooms: 0, released: 0, beds: 0, beds_known: true,
       beds_used: 0, beds_free: 0, beds_over: 0, unknown_rooms: [],
+      // Migration 161: a booking takes a ROOM. This is the number that limits.
+      occupied: 0, rooms_free: 0,
     };
     if (u.released) cur.released += 1;
     else {
@@ -81,6 +84,7 @@ export async function GET(_request: NextRequest, { params }: { params: Promise<{
       cur.beds_free += Number(u.beds_free ?? 0);
       cur.beds_over += Number(u.beds_over ?? 0);
       if (u.beds_unknown) { cur.beds_known = false; cur.unknown_rooms.push((u.name as string) ?? "?"); }
+      if (u.occupied) cur.occupied += 1; else cur.rooms_free += 1;
     }
     pools.set(key, cur);
   }
