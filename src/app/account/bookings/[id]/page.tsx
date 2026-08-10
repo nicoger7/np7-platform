@@ -166,6 +166,10 @@ export default async function BookingDetail({ params }: Props) {
   const tripStarted = startsAt ? startsAt <= now : false; // live OR ended
   const daysToGo = startsAt ? Math.max(0, Math.ceil((startsAt.getTime() - now.getTime()) / 86400000)) : null;
   const cur = b.experience?.currency ?? "EUR";
+  // A 1–2 day clinic (edition kind='event') is bought outright at checkout —
+  // no flights to declare, no packing list, no deposit→balance plan. Keep what
+  // it DOES have: the waiver (guardian for minors), documents and photos.
+  const isEvent = b.edition?.kind === "event";
   const fullyPaid = total != null && total > 0 && paid >= total;
   const nextMilestone = plan.find((m) => m.status !== "paid");
   // What to actually transfer — the milestone MINUS what has already landed
@@ -191,6 +195,11 @@ export default async function BookingDetail({ params }: Props) {
     hero = { eyebrow: "Your week", title: "Relive it 🌊", body: "Your photos and video from the trip are ready below.", tone: "cyan" };
   } else if (tripStarted) {
     hero = { eyebrow: "Happening now", title: "You're on the water 🌊", body: "Have an epic week — your crew, photos and trip details are all here.", ctaLabel: "See your crew", ctaHref: "#crew", tone: "cyan" };
+  } else if (isEvent) {
+    // Never a deposit→balance story for a clinic: it was bought outright.
+    hero = fullyPaid
+      ? { eyebrow: "You're in", title: daysToGo != null ? `${daysToGo} ${daysToGo === 1 ? "day" : "days"} to go 🎉` : "You're in 🎉", body: `Your spot is paid and confirmed.${waiverSig ? "" : " One thing left: sign the waiver."}`, ctaLabel: waiverSig ? "Your documents" : "Sign the waiver", ctaHref: "#docs", tone: "green" }
+      : { eyebrow: "Your next step", title: `Payment pending — ${money(total ?? 0, cur)}`, body: "Your spot isn't secured until the ticket is paid. If you started a payment and it didn't go through, just book again — or reply to your confirmation email and we'll sort it.", tone: "amber" };
   } else if (fullyPaid) {
     hero = { eyebrow: "You're all set", title: daysToGo != null ? `${daysToGo} ${daysToGo === 1 ? "day" : "days"} to go 🎉` : "You're all set 🎉", body: "Everything's paid. Check your packing list and arrival info so you're ready to ride.", ctaLabel: "Open trip prep", ctaHref: "#prep", tone: "green" };
   } else if (!depositPaid && nextMilestone) {
@@ -217,17 +226,17 @@ export default async function BookingDetail({ params }: Props) {
       attention: !fullyPaid && !!nextMilestone,
       cta: !fullyPaid && nextMilestone ? (depositPaid ? "Pay balance" : "Pay now") : undefined,
     },
-    {
-      key: "flights", label: "Arrival", tab: tripStarted ? undefined : "prep",
+    ...(isEvent ? [] : [{
+      key: "flights", label: "Arrival", tab: (tripStarted ? undefined : "prep") as TripTile["tab"],
       value: flightsAdded ? "Added" : "To add",
       sub: flightsAdded ? "tap to review" : "your times",
-      tone: flightsAdded ? "green" : "amber",
+      tone: (flightsAdded ? "green" : "amber") as TripTile["tone"],
       done: flightsAdded,
       attention: !flightsAdded && !tripStarted,
       cta: !flightsAdded && !tripStarted ? "Add arrival" : undefined,
-    },
+    }] as TripTile[]),
     {
-      key: "waiver", label: "Waiver", tab: tripStarted ? undefined : "prep",
+      key: "waiver", label: "Waiver", tab: isEvent ? "docs" : tripStarted ? undefined : "prep",
       value: waiverSig ? "Signed" : "To sign",
       sub: waiverSig ? "all done" : "1 minute",
       tone: waiverSig ? "green" : "amber",
@@ -244,6 +253,27 @@ export default async function BookingDetail({ params }: Props) {
   ];
 
   // The payment-plan body (used open pre-trip, folded into an accordion after start).
+  /** A clinic is bought outright — show the receipt, not a milestone plan. */
+  const eventPaymentBody = (
+    <div className="rounded-2xl border border-[#f0e6d6] bg-white p-5">
+      <div className="flex items-baseline justify-between gap-3">
+        <span className="text-[14px] text-[#6a7a80]">Ticket</span>
+        <span className="text-[18px] font-extrabold text-[#00374a] tabular-nums">{money(total ?? 0, cur)}</span>
+      </div>
+      <div className="flex items-baseline justify-between gap-3 mt-2 pt-2 border-t border-[#f3ede2]">
+        <span className="text-[14px] font-bold text-[#00374a]">{fullyPaid ? "Status" : "Outstanding"}</span>
+        <span className={`text-[15px] font-extrabold tabular-nums ${fullyPaid ? "text-green-600" : "text-[#c9620f]"}`}>
+          {fullyPaid ? "Paid in full ✓" : money(Math.max(0, (total ?? 0) - paid), cur)}
+        </span>
+      </div>
+      <p className="text-[12.5px] text-[#9aa6ac] mt-3 leading-relaxed">
+        {fullyPaid
+          ? "Paid by card at booking. Your receipt came from Stripe; anything else you need is under Docs."
+          : "This clinic is paid in full at booking — there's no deposit or later balance."}
+      </p>
+    </div>
+  );
+
   const paymentBody = (
     <>
       <Row label="Package" value={b.pkg?.name ?? "—"} />
@@ -450,13 +480,15 @@ export default async function BookingDetail({ params }: Props) {
   );
 
   // Tabs — phase-aware order + attention dots on anything that needs the member.
-  const paymentTab: TripTab = { key: "payment", label: "Payment", attention: !fullyPaid && !depositPaid, content: paymentBody };
+  const paymentTab: TripTab = { key: "payment", label: "Payment", attention: !fullyPaid && !depositPaid, content: isEvent ? eventPaymentBody : paymentBody };
   const prepTab: TripTab = { key: "prep", label: "Prep", attention: !flightsAdded || !waiverSig, content: prepContent };
   const tripTab: TripTab = { key: "trip", label: "Trip", content: tripContent };
   const docsTab: TripTab = { key: "docs", label: "Docs", content: docsContent };
   const photosTab: TripTab = { key: "photos", label: "Photos", content: photosContent };
-  const tabs: TripTab[] = tripStarted ? [photosTab, paymentTab, tripTab, docsTab] : [paymentTab, prepTab, tripTab, docsTab, photosTab];
-  const initialTab = tripStarted ? "photos" : !depositPaid ? "payment" : "prep";
+  const tabs: TripTab[] = isEvent
+    ? (tripStarted ? [photosTab, docsTab, paymentTab] : [paymentTab, docsTab, photosTab])
+    : tripStarted ? [photosTab, paymentTab, tripTab, docsTab] : [paymentTab, prepTab, tripTab, docsTab, photosTab];
+  const initialTab = tripStarted ? "photos" : isEvent ? (fullyPaid ? "docs" : "payment") : !depositPaid ? "payment" : "prep";
 
   return (
     <>

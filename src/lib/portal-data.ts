@@ -24,6 +24,8 @@ export type MemberBooking = {
   experience: { title: string; slug: string; currency: string | null; cancellation_policy: string | null; hero_image: string | null; location?: string | null; tileAuto?: boolean; coachName?: string | null; coachCutout?: string | null } | null;
   edition: {
     id: string; label: string | null; date_start: string | null; date_end: string | null; deposit: number | null;
+    /** 'event' = a 1–2 day clinic: no arrival/prep, no payment plan (paid up front). */
+    kind?: string | null;
     whatsapp_group_link: string | null; memories_video_url: string | null; hero_image: string | null;
   } | null;
   pkg: { name: string; price: number | null } | null;
@@ -40,7 +42,7 @@ export type MemberBooking = {
 const SELECT =
   "id,status,experience_id,agreed_price,downpayment_received,final_payment_received,created_at,wa_group,flight_info," +
   "exp_experiences(title,slug,currency,cancellation_policy,hero_image,location)," +
-  "exp_editions(id,label,date_start,date_end,deposit,whatsapp_group_link,memories_video_url,hero_image)," +
+  "exp_editions(id,label,kind,date_start,date_end,deposit,whatsapp_group_link,memories_video_url,hero_image)," +
   "exp_packages(name,price)";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
