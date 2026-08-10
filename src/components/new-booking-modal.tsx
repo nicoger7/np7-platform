@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { ContactPicker, ContactLite } from "@/components/contact-picker";
 import { editionOptionLabel, editionSortKey } from "@/lib/edition-label";
 import { composeBookingName } from "@/lib/booking-name";
+import { SearchSelect } from "@/components/admin/search-select";
 
 interface Exp { id: string; title: string; code: string | null }
 interface Ed { id: string; experience_id: string; year: number | null; label: string | null; date_start: string | null; date_end: string | null }
@@ -72,7 +73,6 @@ export function NewBookingModal({ onClose }: { onClose: () => void }) {
     }
   }
 
-  const inputClass = "w-full px-3 py-2 admin-input border rounded-lg text-sm focus:outline-none focus:border-[#0aa3c7]";
   const labelClass = "block text-xs font-medium admin-muted mb-1";
 
   return (
@@ -83,18 +83,22 @@ export function NewBookingModal({ onClose }: { onClose: () => void }) {
         <div className="space-y-4">
           <div>
             <label className={labelClass}>Experience *</label>
-            <select className={inputClass} value={expId} onChange={(e) => { setExpId(e.target.value); setEdId(""); }}>
-              <option value="">Select experience…</option>
-              {experiences.map((e) => <option key={e.id} value={e.id}>{e.title}</option>)}
-            </select>
+            <SearchSelect
+              value={expId || null}
+              onChange={(v) => { setExpId(v ?? ""); setEdId(""); }}
+              options={experiences.map((e) => ({ value: e.id, label: e.title }))}
+              placeholder="Select experience…" searchPlaceholder="Search experiences…" allowClear={false}
+            />
           </div>
 
           <div>
             <label className={labelClass}>Edition <span className="admin-faint">(optional)</span></label>
-            <select className={inputClass} value={edId} onChange={(e) => setEdId(e.target.value)} disabled={!expId}>
-              <option value="">No specific edition</option>
-              {edOptions.map((e) => <option key={e.id} value={e.id}>{editionOptionLabel(e)}</option>)}
-            </select>
+            <SearchSelect
+              value={edId || null}
+              onChange={(v) => setEdId(v ?? "")}
+              options={edOptions.map((e) => ({ value: e.id, label: editionOptionLabel(e) }))}
+              placeholder="No specific edition" clearLabel="No specific edition" searchPlaceholder="Search editions…" disabled={!expId}
+            />
           </div>
 
           <div>

@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback, useRef } from "react";
+import { SearchSelect } from "@/components/admin/search-select";
 import Link from "next/link";
 import { PackageComponentsEditor } from "@/components/package-components-editor";
 import { PublicBadge } from "@/components/admin/public-badge";
@@ -562,16 +563,15 @@ export default function PackagesPage() {
       <>
       {/* Filters: experience pills → edition pills, plus search */}
       <div className="mb-5 space-y-2.5">
-        <div className="flex flex-wrap items-center gap-1.5">
-          <FilterPill label="All experiences" active={!filterExperienceId} onClick={() => { setFilterExperienceId(""); setFilterEditionId(""); }} />
-          {experiences.map((exp) => (
-            <FilterPill
-              key={exp.id}
-              label={exp.title.replace(/^NP7\s+(Experience\s+)?/i, "")}
-              active={filterExperienceId === exp.id}
-              onClick={() => { setFilterExperienceId(exp.id); setFilterEditionId(""); }}
-            />
-          ))}
+        {/* A pill per experience was fine at four and a wall of chips at
+            thirteen — and the list only grows. Search scales; pills don't. */}
+        <div className="w-72">
+          <SearchSelect
+            value={filterExperienceId || null}
+            onChange={(v) => { setFilterExperienceId(v ?? ""); setFilterEditionId(""); }}
+            options={experiences.map((exp) => ({ value: exp.id, label: exp.title.replace(/^NP7\s+(Experience\s+)?/i, "") }))}
+            placeholder="All experiences" clearLabel="All experiences" searchPlaceholder="Search experiences…"
+          />
         </div>
         {years.length > 1 && (
           <div className="flex flex-wrap items-center gap-1.5">

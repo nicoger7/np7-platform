@@ -5,6 +5,7 @@ import { SortableHeader } from "@/components/sortable-header";
 import { ColumnToggle, ColumnDef, buildGridTemplate, loadVisibleColumns } from "@/components/column-toggle";
 import { SearchableSelect } from "@/components/admin/searchable-select";
 import { editionLabel, editionOptionLabel, editionSortKey } from "@/lib/edition-label";
+import { SearchSelect } from "@/components/admin/search-select";
 
 interface Experience {
   id: string;
@@ -452,24 +453,23 @@ export default function ComponentsPage() {
       <>
       {/* Filters */}
       <div className="flex flex-wrap items-center gap-2 mb-3">
-        <select
-          value={filterExperience}
-          onChange={(e) => { setFilterExperience(e.target.value); setFilterEdition(""); }}
-          className="admin-input text-xs px-3 py-1.5 rounded-lg"
-        >
-          <option value="">All experiences</option>
-          {experiences.map((exp) => <option key={exp.id} value={exp.id}>{exp.title}</option>)}
-        </select>
-        <select
-          value={filterEdition}
-          onChange={(e) => setFilterEdition(e.target.value)}
-          className="admin-input text-xs px-3 py-1.5 rounded-lg"
-        >
-          <option value="">All editions</option>
-          {filterEditionOptions.map((ed) => (
-            <option key={ed.id} value={ed.id}>{editionOptionLabel(ed, filterExperience ? null : expTitleById.get(ed.experience_id))}</option>
-          ))}
-        </select>
+        {/* growing lists get search; the fixed category pills below stay as-is */}
+        <div className="w-56">
+          <SearchSelect
+            value={filterExperience || null}
+            onChange={(v) => { setFilterExperience(v ?? ""); setFilterEdition(""); }}
+            options={experiences.map((exp) => ({ value: exp.id, label: exp.title }))}
+            placeholder="All experiences" clearLabel="All experiences" searchPlaceholder="Search experiences…"
+          />
+        </div>
+        <div className="w-64">
+          <SearchSelect
+            value={filterEdition || null}
+            onChange={(v) => setFilterEdition(v ?? "")}
+            options={filterEditionOptions.map((ed) => ({ value: ed.id, label: editionOptionLabel(ed, filterExperience ? null : expTitleById.get(ed.experience_id)) }))}
+            placeholder="All editions" clearLabel="All editions" searchPlaceholder="Search editions…"
+          />
+        </div>
         {(filterExperience || filterEdition) && (
           <button onClick={() => { setFilterExperience(""); setFilterEdition(""); }} className="text-xs admin-faint hover:admin-muted transition-colors px-1">Clear</button>
         )}
