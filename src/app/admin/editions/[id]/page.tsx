@@ -109,6 +109,9 @@ interface Edition {
   computed_price_to: number | null;
   deposit: number | null;
   max_spots: number | null;
+  /** 'event' = a 1–2 day clinic (migration 157): no mailing chain, no arrivals,
+   *  no rooms, no level caps — those all describe a travelled week. */
+  kind?: string | null;
   video_analysis?: boolean | null;
   photoshoot?: boolean | null;
   spots_taken: number;
@@ -277,6 +280,10 @@ export default function EditionDetailPage({
   const [tab, setTab] = useState<EditionTab>("details");
   const access = useAccess();
   const [tabOrder, setTabOrder] = useState<EditionTab[]>([...DEFAULT_TABS]);
+  // A clinic has no pre-trip mail chain, no flights to collect, no hotel
+  // allotment and no level caps — showing those tabs invites someone to fill in
+  // fields that will never be used, and buries the four that matter.
+  const EVENT_HIDDEN: readonly string[] = ["mailing", "arrivals", "rooms", "levels"];
   const dragTab = useRef<number | null>(null);
 
   // Restore the active tab from the URL on load, and reflect tab changes back into
@@ -852,6 +859,7 @@ export default function EditionDetailPage({
   if (loading) {
     return <div className="text-sm admin-faint">Loading...</div>;
   }
+  const isEventEdition = edition?.kind === "event";
 
   if (!edition) {
     return <div className="text-sm text-red-400">Edition not found</div>;
@@ -1048,7 +1056,7 @@ export default function EditionDetailPage({
         {([SETUP_TABS, PEOPLE_TABS] as const).map((group, gi) => (
           <span key={gi} className="flex items-end">
             {gi > 0 && <span className="self-stretch w-px mx-2.5 my-2" style={{ background: "var(--admin-border)" }} />}
-            {tabOrder.filter((t) => group.includes(t)).map((t, i) => {
+            {tabOrder.filter((t) => group.includes(t) && !(isEventEdition && EVENT_HIDDEN.includes(t))).map((t, i) => {
               if (access && !effectiveCanAccess(access, TAB_PATH[t])) return null;
               const count = edition._counts?.[t as keyof typeof edition._counts];
               return (
@@ -1079,7 +1087,7 @@ export default function EditionDetailPage({
         {/* Reference, not running the week — set apart so the eye skips it
             unless you're looking for it. */}
         <span className="ml-auto flex items-center gap-0.5 mb-1.5 rounded-lg px-1 py-0.5" style={{ backgroundColor: "var(--admin-surface)" }}>
-          {tabOrder.filter((t) => SIDE_TABS.includes(t)).map((t) => {
+          {tabOrder.filter((t) => SIDE_TABS.includes(t) && !(isEventEdition && EVENT_HIDDEN.includes(t))).map((t) => {
             if (access && !effectiveCanAccess(access, TAB_PATH[t])) return null;
             const count = edition._counts?.[t as keyof typeof edition._counts];
             return (
