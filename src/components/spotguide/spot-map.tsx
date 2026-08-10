@@ -90,16 +90,22 @@ export function SpotMap({ spots, cluster = false, height = 420, linkLabel = "Vie
       // street/satellite base layers + toggle
       attachBaseLayers(L, map);
 
-      const teardrop = (fill: string) =>
-        `position:relative;width:26px;height:26px;border-radius:50% 50% 50% 0;transform:rotate(-45deg);background:${fill};border:2.5px solid #fff;box-shadow:0 3px 9px rgba(0,55,74,.4)`;
+      const teardrop = (fill: string, border: string) =>
+        `position:relative;width:26px;height:26px;border-radius:50% 50% 50% 0;transform:rotate(-45deg);background:${fill};border:${border};box-shadow:0 3px 9px rgba(0,55,74,.4)`;
       const markers = spots.map((s) => {
-        // pending = proposed but unconfirmed: a hollow amber pin, visibly
-        // different from a verified spot so the map never overstates itself
+        // The pin colours ARE the verification ladder, and the eye must rank
+        // them the way the ladder does. Solid amber sat next to the gold end of
+        // the NP7 gradient and read as MORE verified than community green — so
+        // pending is genuinely hollow now: a dashed amber outline on a pale
+        // fill, unmistakably an unfinished spot. Solid green = community-
+        // verified; the sun-to-sea gradient stays the NP7 gold tier.
         const pending = s.verification === "pending";
-        const fill = pending ? "#f0a500" : s.verification === "community" ? "#1f9e57" : "linear-gradient(135deg,#ffc42e,#f47b20,#00afdb)";
+        const fill = pending ? "#fff7ec" : s.verification === "community" ? "#1f9e57" : "linear-gradient(135deg,#ffc42e,#f47b20,#00afdb)";
+        const border = pending ? "2.5px dashed #d97706" : "2.5px solid #fff";
+        const dot = pending ? "#d97706" : "#fff";
         const icon = L.divIcon({
           className: "",
-          html: `<div style="${teardrop(fill)}"><div style="transform:rotate(45deg);width:100%;height:100%;display:flex;align-items:center;justify-content:center"><span style="width:7px;height:7px;border-radius:50%;background:#fff;display:block"></span></div></div>`,
+          html: `<div style="${teardrop(fill, border)}"><div style="transform:rotate(45deg);width:100%;height:100%;display:flex;align-items:center;justify-content:center"><span style="width:7px;height:7px;border-radius:50%;background:${dot};display:block"></span></div></div>`,
           iconSize: [26, 26], iconAnchor: [13, 26], popupAnchor: [0, -24],
         });
         // Richer card: thumbnail + a meta row (rating · spots · level) when the

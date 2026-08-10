@@ -4,14 +4,20 @@
     {
       "name": "np7",
       "runtimeExecutable": "npm",
-      "runtimeArgs": ["run", "dev"],
+      "runtimeArgs": [
+        "run",
+        "dev"
+      ],
       "autoPort": true,
       "port": 3000
     },
     {
       "name": "preview",
       "runtimeExecutable": "npm",
-      "runtimeArgs": ["run", "dev:preview"],
+      "runtimeArgs": [
+        "run",
+        "dev:preview"
+      ],
       "port": 3210
     }
   ]
