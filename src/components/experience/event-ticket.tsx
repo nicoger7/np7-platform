@@ -169,7 +169,7 @@ export function EventTicket({
 
       {!isMember && (
         <p className="text-[12.5px] text-[#8a9aa0] mt-2.5">
-          Already have an NP7 account? <a href="/account/login" className="font-semibold text-[#0aa3c7] hover:underline">Log in</a> and we&apos;ll fill your details in.
+          Already have an NP7 account? <a href="/account/login" className="font-semibold text-[#0aa3c7] hover:underline">Log in</a>{" "}and we&apos;ll fill your details in.
         </p>
       )}
 
