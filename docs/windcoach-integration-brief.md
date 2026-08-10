@@ -4,28 +4,23 @@
 
 ---
 
-## 1 · Why we're doing this
+## 1 · What this is
 
-**The product story.** An NP7 Experience week ends with video analysis and a coach
-debrief. Today that knowledge leaves as a PDF that Nico emails by hand — and then
-it's gone. The promise we want to sell on every experience page is *"you know what
-to work on for a whole year"*. wind.coach is the tool that makes that promise true:
-the guide's focus points land in the rider's wind.coach account, and their next
-video session picks up exactly where the week left off.
+We connect our two products. An NP7 week ends with video analysis and two focus
+points; wind.coach is where a rider works on exactly that for the rest of the
+year. Today the guide leaves as a PDF Nico emails by hand, and the platforms
+don't know each other.
 
-**What NP7 gets.** A "what you take home" benefit no competitor has; zero manual
-PDF shuffling; a member area that stays alive after the trip (retention, rebooking);
-video-verified progress feeding the NP7 rank ladder.
+After this: the guide lands in the rider's NP7 member area automatically, and
+from there it's one click into a wind.coach training plan. wind.coach gets every
+NP7 participant as a warm, pre-filled signup right after a paid coaching week;
+NP7 gets a real "you know what to work on for a whole year" and a member area
+that stays alive after the trip. Later, video-verified skills flow back into NP7
+progress — one more reason for participants to stay on wind.coach.
 
-**What wind.coach gets.** A funnel of exactly-right users: riders who just paid for
-a coaching week, arriving with a pre-filled account, two focus points, and a coach
-relationship already warm. Every NP7 participant is a conversion candidate with the
-friction removed — one click, not a signup form.
-
-**The principle both sides keep:** each platform stays the source of truth for what
-it owns. NP7 owns bookings, trips and the NP7 rank ladder. wind.coach owns video
-analysis, its guides and video-verified skills. Nothing is migrated; facts are
-*shared, by consent, per rider*.
+**One principle:** each platform stays source of truth for what it owns. NP7
+owns bookings, trips and the NP7 ladder; wind.coach owns video analysis, guides
+and verified skills. Nothing migrates — facts are shared per rider, by consent.
 
 ---
 
