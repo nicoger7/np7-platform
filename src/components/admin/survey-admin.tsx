@@ -385,7 +385,7 @@ export function SurveyAdmin({ initialSurvey, initialInvites }: { initialSurvey: 
                             );
                           })}
                         </div>
-                        {(first.coachIds?.length ?? 0) > 0 && <p className="text-[11px] text-[#9aa6ac] mt-1">A short extract of the NP7 coaching method rides along in the same pop-up.</p>}
+                        {(first.coachIds?.length ?? 0) > 0 && <p className="text-[11px] text-[#9aa6ac] mt-1">Picking a coach also adds a <span className="admin-muted">How we coach</span> button — the NP7 method, edited under Templates.</p>}
                       </div>
 
                       <div>

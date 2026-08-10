@@ -1,127 +1,243 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import type { SurveyInfo } from "@/lib/surveys";
 
 /**
- * The tick-to-add info buttons under a survey place card.
+ * The info cards under a survey place card.
  *
  * A survey asks one question — "would you come?" — and the honest answer needs
- * a little more than a blurb: who's coaching, what the spot is actually like,
- * what's included. Putting all of that inline would bury the question, so each
- * lives behind a small button that opens a sheet. Nothing renders for a button
- * whose content is empty, so a half-filled back end can never show a blank
- * pop-up.
+ * a little more than a blurb: who's coaching, how NP7 coaches, what the spot is
+ * actually like, what's included. Inline, all of that buries the question, so
+ * each lives behind a card that opens a sheet.
+ *
+ * The cards are a flex row that fills its width, so two, three or four of them
+ * always land as an even, deliberate row rather than a ragged handful of pills —
+ * and on a narrow screen they wrap and grow to fill whatever line they land on.
+ * Nothing renders for a card whose content is empty, so a half-filled back end
+ * degrades to fewer cards, never to a blank sheet.
  */
+
+type Panel = "coach" | "method" | "spot" | "features";
+
+const ICONS: Record<Panel, React.ReactNode> = {
+  coach: <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2M12 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8Z" />,
+  method: <path d="M12 20V10M18 20V4M6 20v-4" />,
+  spot: <><path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z" /><circle cx="12" cy="10" r="3" /></>,
+  features: <path d="M20 6 9 17l-5-5" />,
+};
+
 export function SurveyInfoButtons({ info }: { info: SurveyInfo }) {
-  const [open, setOpen] = useState<"coach" | "spot" | "features" | null>(null);
+  const [open, setOpen] = useState<Panel | null>(null);
 
-  const hasCoach = info.coaches.length > 0;
-  const hasSpot = !!(info.spot && (info.spot.intro || info.spot.tagline || info.spot.conditions));
-  const hasFeatures = info.features.length > 0;
-  if (!hasCoach && !hasSpot && !hasFeatures) return null;
+  // Escape closes, and the page behind stops scrolling while a sheet is up —
+  // without it the survey scrolls away underneath on a phone.
+  useEffect(() => {
+    if (!open) return;
+    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") setOpen(null); };
+    window.addEventListener("keydown", onKey);
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => { window.removeEventListener("keydown", onKey); document.body.style.overflow = prev; };
+  }, [open]);
 
-  const btn = "inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[12.5px] font-bold text-[#0a5a72] bg-[#e4f3f7] hover:bg-[#d3ecf2] transition-colors";
+  const hasMethod = !!(info.method && (info.method.intro || info.method.steps.length > 0));
+  const cards: { key: Panel; label: string; sub: string }[] = [
+    ...(info.coaches.length
+      ? [{
+          key: "coach" as const,
+          label: info.coaches.length > 1 ? "Your coaches" : "Your coach",
+          sub: info.coaches.map((c) => c.name.split(" ")[0]).join(" & "),
+        }]
+      : []),
+    ...(hasMethod ? [{ key: "method" as const, label: "How we coach", sub: "The NP7 method" }] : []),
+    ...(info.spot && (info.spot.intro || info.spot.tagline || info.spot.conditions)
+      ? [{ key: "spot" as const, label: "The spot", sub: info.spot.name }]
+      : []),
+    ...(info.features.length
+      ? [{ key: "features" as const, label: "What's included", sub: `${info.features.length} things` }]
+      : []),
+  ];
+  if (cards.length === 0) return null;
 
   return (
     <>
-      <div className="flex flex-wrap gap-2 mt-3">
-        {hasCoach && (
-          <button type="button" className={btn} onClick={() => setOpen("coach")}>
-            <span aria-hidden>👤</span>{info.coaches.length > 1 ? "Your coaches" : "Your coach"}
+      {/* flex-1 with a shared basis: two cards halve the row, three third it,
+          four quarter it, and a card that wraps still fills its own line. */}
+      <div className="flex flex-wrap gap-2 mt-4">
+        {cards.map((c) => (
+          <button
+            key={c.key}
+            type="button"
+            onClick={() => setOpen(c.key)}
+            className="group flex-1 basis-[150px] text-left rounded-xl border border-[#ecdcbb] bg-white px-3.5 py-3 transition-all hover:border-[#f0a500] hover:shadow-[0_8px_22px_rgba(120,90,20,0.10)] hover:-translate-y-px"
+          >
+            <span className="flex items-center gap-2">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"
+                className="w-4 h-4 shrink-0 text-[#b0791e]" aria-hidden>
+                {ICONS[c.key]}
+              </svg>
+              <span className="min-w-0 flex-1">
+                <span className="block text-[13px] font-black text-[#00374a] leading-tight truncate">{c.label}</span>
+                <span className="block text-[11.5px] text-[#a2937a] leading-tight truncate mt-0.5">{c.sub}</span>
+              </span>
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"
+                className="w-3.5 h-3.5 shrink-0 text-[#d8cdbb] group-hover:text-[#f0a500] transition-colors" aria-hidden>
+                <path d="m9 18 6-6-6-6" />
+              </svg>
+            </span>
           </button>
-        )}
-        {hasSpot && (
-          <button type="button" className={btn} onClick={() => setOpen("spot")}>
-            <span aria-hidden>📍</span>The spot
-          </button>
-        )}
-        {hasFeatures && (
-          <button type="button" className={btn} onClick={() => setOpen("features")}>
-            <span aria-hidden>✓</span>What&apos;s included
-          </button>
-        )}
+        ))}
       </div>
 
       {open && (
-        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-6" role="dialog" aria-modal="true">
-          <div className="absolute inset-0 bg-[#00212b]/60 backdrop-blur-sm" onClick={() => setOpen(null)} />
-          <div className="relative w-full sm:max-w-[560px] max-h-[85svh] overflow-y-auto rounded-t-3xl sm:rounded-3xl bg-white p-6 sm:p-7 shadow-[0_24px_70px_rgba(0,33,43,0.3)]">
-            <button type="button" onClick={() => setOpen(null)} aria-label="Close"
-              className="absolute top-4 right-4 w-8 h-8 grid place-items-center rounded-full text-[#6a7a80] hover:bg-[#f0f5f6]">✕</button>
+        <Sheet
+          onClose={() => setOpen(null)}
+          eyebrow={cards.find((c) => c.key === open)?.label ?? ""}
+        >
+          {/* One coach gets their photo at full width — you are deciding whether
+              to spend a week with this person, and a thumbnail tells you nothing.
+              Several coaches fall back to a portrait list, because four banners
+              is a scroll, not an introduction. */}
+          {open === "coach" && info.coaches.length === 1 && (
+            <div>
+              {info.coaches[0].image ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img src={info.coaches[0].image} alt={info.coaches[0].name}
+                  className="w-full aspect-[4/3] object-cover rounded-2xl bg-[#f4ecdd]" />
+              ) : (
+                <span className="w-full aspect-[4/3] rounded-2xl grid place-items-center bg-[#f4ecdd] text-[52px] font-black text-[#b0791e]">
+                  {info.coaches[0].name.split(" ").map((w) => w[0]).slice(0, 2).join("")}
+                </span>
+              )}
+              <p className="text-[26px] font-black text-[#00374a] leading-tight tracking-[-0.02em] mt-5">{info.coaches[0].name}</p>
+              {info.coaches[0].role && (
+                <p className="text-[11px] font-black uppercase tracking-[0.16em] text-[#b0791e] mt-1.5">{info.coaches[0].role}</p>
+              )}
+              {info.coaches[0].bio && (
+                <p className="text-[15px] text-[#5a6b72] leading-[1.7] mt-4 whitespace-pre-line [text-wrap:pretty]">{info.coaches[0].bio}</p>
+              )}
+            </div>
+          )}
 
-            {open === "coach" && (
-              <div>
-                <p className="text-[11px] font-black tracking-[0.16em] uppercase text-[#b0791e] mb-3">
-                  {info.coaches.length > 1 ? "Your coaches" : "Your coach"}
-                </p>
-                {info.coaches.map((c) => (
-                  <div key={c.name} className="flex gap-4 mb-5 last:mb-0">
-                    {c.image && (
+          {open === "coach" && info.coaches.length > 1 && (
+            <div className="space-y-8">
+              {info.coaches.map((c) => (
+                <div key={c.name}>
+                  <div className="flex items-center gap-4">
+                    {c.image ? (
                       // eslint-disable-next-line @next/next/no-img-element
-                      <img src={c.image} alt="" className="w-16 h-16 rounded-2xl object-cover shrink-0" />
+                      <img src={c.image} alt="" className="w-[96px] h-[96px] rounded-2xl object-cover shrink-0" />
+                    ) : (
+                      <span className="w-[96px] h-[96px] rounded-2xl shrink-0 grid place-items-center bg-[#f4ecdd] text-[26px] font-black text-[#b0791e]">
+                        {c.name.split(" ").map((w) => w[0]).slice(0, 2).join("")}
+                      </span>
                     )}
                     <div className="min-w-0">
-                      <p className="text-[16px] font-black text-[#00374a] leading-tight">{c.name}</p>
-                      {c.role && <p className="text-[12px] font-bold uppercase tracking-wide text-[#8a9aa0] mt-0.5">{c.role}</p>}
-                      {c.bio && <p className="text-[13.5px] text-[#5a6b72] leading-relaxed mt-1.5 whitespace-pre-line">{c.bio}</p>}
+                      <p className="text-[20px] font-black text-[#00374a] leading-tight tracking-[-0.01em]">{c.name}</p>
+                      {c.role && <p className="text-[11px] font-black uppercase tracking-[0.14em] text-[#b0791e] mt-1">{c.role}</p>}
                     </div>
                   </div>
-                ))}
-                {/* the method extract — how NP7 coaches, not just who */}
-                {info.method && (info.method.intro || info.method.steps.length > 0) && (
-                  <div className="mt-5 pt-5 border-t border-[#eef3f4]">
-                    <p className="text-[11px] font-black tracking-[0.16em] uppercase text-[#b0791e] mb-2">How we coach</p>
-                    {info.method.intro && <p className="text-[13.5px] text-[#5a6b72] leading-relaxed">{info.method.intro}</p>}
-                    {info.method.steps.map((st, i) => (
-                      <div key={i} className="mt-3">
-                        <p className="text-[13.5px] font-bold text-[#00374a]">{st.t}</p>
-                        {st.d && <p className="text-[13px] text-[#6a7a80] leading-relaxed mt-0.5">{st.d}</p>}
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
-            )}
-
-            {open === "spot" && info.spot && (
-              <div>
-                <p className="text-[11px] font-black tracking-[0.16em] uppercase text-[#b0791e] mb-2">The spot</p>
-                <p className="text-[19px] font-black text-[#00374a] leading-tight">{info.spot.name}</p>
-                {info.spot.tagline && <p className="text-[14px] text-[#6a7a80] mt-1">{info.spot.tagline}</p>}
-                {info.spot.intro && <p className="text-[13.5px] text-[#5a6b72] leading-relaxed mt-3 whitespace-pre-line">{info.spot.intro}</p>}
-                <div className="flex flex-wrap gap-2 mt-4">
-                  {([["Wind", info.spot.windSpeed], ["Season", info.spot.season], ["Conditions", info.spot.conditions]] as const)
-                    .filter(([, v]) => !!v)
-                    .map(([k, v]) => (
-                      <span key={k} className="px-3 py-1.5 rounded-xl bg-[#f4f8f9] text-[12.5px]">
-                        <span className="font-bold text-[#8a9aa0] uppercase tracking-wide text-[10.5px] mr-1.5">{k}</span>
-                        <span className="font-semibold text-[#00374a]">{v}</span>
-                      </span>
-                    ))}
+                  {c.bio && <p className="text-[14.5px] text-[#5a6b72] leading-[1.65] mt-4 whitespace-pre-line [text-wrap:pretty]">{c.bio}</p>}
                 </div>
-              </div>
-            )}
+              ))}
+            </div>
+          )}
 
-            {open === "features" && (
-              <div>
-                <p className="text-[11px] font-black tracking-[0.16em] uppercase text-[#b0791e] mb-3">What&apos;s included</p>
-                <ul className="space-y-3">
-                  {info.features.map((f) => (
-                    <li key={f.name} className="flex gap-2.5">
-                      <span className="text-[#0aa3c7] font-black shrink-0" aria-hidden>✓</span>
+          {open === "method" && info.method && (
+            <div>
+              {info.method.intro && (
+                <p className="text-[15px] text-[#3a4a50] leading-[1.65] [text-wrap:pretty]">{info.method.intro}</p>
+              )}
+              {info.method.steps.length > 0 && (
+                <ol className="mt-6 space-y-5">
+                  {info.method.steps.map((st, i) => (
+                    <li key={i} className="flex gap-3.5">
+                      <span className="shrink-0 grid place-items-center w-7 h-7 rounded-full bg-[#f4ecdd] text-[12px] font-black text-[#b0791e] mt-0.5">
+                        {i + 1}
+                      </span>
                       <span className="min-w-0">
-                        <span className="block text-[14px] font-bold text-[#00374a]">{f.name}</span>
-                        {f.description && <span className="block text-[13px] text-[#6a7a80] leading-relaxed mt-0.5">{f.description}</span>}
+                        <span className="block text-[15px] font-black text-[#00374a] leading-snug">{st.t}</span>
+                        {st.d && <span className="block text-[14px] text-[#6a7a80] leading-[1.6] mt-1">{st.d}</span>}
                       </span>
                     </li>
                   ))}
-                </ul>
-              </div>
-            )}
-          </div>
-        </div>
+                </ol>
+              )}
+            </div>
+          )}
+
+          {open === "spot" && info.spot && (
+            <div>
+              <p className="text-[24px] font-black text-[#00374a] leading-tight tracking-[-0.02em]">{info.spot.name}</p>
+              {info.spot.tagline && <p className="text-[15px] text-[#8a7a58] mt-1.5">{info.spot.tagline}</p>}
+              {info.spot.intro && (
+                <p className="text-[14.5px] text-[#5a6b72] leading-[1.65] mt-4 whitespace-pre-line [text-wrap:pretty]">{info.spot.intro}</p>
+              )}
+              {(() => {
+                const stats = ([["Wind", info.spot!.windSpeed], ["Season", info.spot!.season], ["Conditions", info.spot!.conditions]] as const)
+                  .filter(([, v]) => !!v);
+                if (!stats.length) return null;
+                return (
+                  <dl className="grid sm:grid-cols-2 gap-2.5 mt-6">
+                    {stats.map(([k, v]) => (
+                      <div key={k} className="rounded-xl bg-[#fdf8ef] border border-[#f2e7d2] px-4 py-3">
+                        <dt className="text-[10.5px] font-black uppercase tracking-[0.14em] text-[#b0791e]">{k}</dt>
+                        <dd className="text-[14px] font-semibold text-[#00374a] mt-1 leading-snug">{v}</dd>
+                      </div>
+                    ))}
+                  </dl>
+                );
+              })()}
+            </div>
+          )}
+
+          {open === "features" && (
+            <ul className="space-y-4">
+              {info.features.map((f) => (
+                <li key={f.name} className="flex gap-3">
+                  <span className="shrink-0 grid place-items-center w-6 h-6 rounded-full bg-[#e9f6ef] mt-0.5" aria-hidden>
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3.2" strokeLinecap="round" strokeLinejoin="round"
+                      className="w-3.5 h-3.5 text-[#1f9e57]"><path d="M20 6 9 17l-5-5" /></svg>
+                  </span>
+                  <span className="min-w-0">
+                    <span className="block text-[15px] font-black text-[#00374a] leading-snug">{f.name}</span>
+                    {f.description && <span className="block text-[14px] text-[#6a7a80] leading-[1.6] mt-1">{f.description}</span>}
+                  </span>
+                </li>
+              ))}
+            </ul>
+          )}
+        </Sheet>
       )}
     </>
+  );
+}
+
+/**
+ * The sheet itself: a bottom sheet on a phone, a centred card on a desktop.
+ * The header is sticky so the close button is reachable however far down the
+ * bio runs, and the content gets real breathing room instead of being packed
+ * against the edges.
+ */
+function Sheet({ eyebrow, onClose, children }: { eyebrow: string; onClose: () => void; children: React.ReactNode }) {
+  return (
+    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center sm:p-6" role="dialog" aria-modal="true" aria-label={eyebrow}>
+      <div className="absolute inset-0 bg-[#00212b]/55 backdrop-blur-[3px]" onClick={onClose} />
+      <div className="relative w-full sm:max-w-[580px] max-h-[88svh] flex flex-col rounded-t-[28px] sm:rounded-[28px] bg-white shadow-[0_28px_80px_rgba(0,33,43,0.32)] overflow-hidden">
+        {/* grab handle — a phone sheet reads as draggable, so give it the cue */}
+        <span className="sm:hidden mx-auto mt-3 h-1 w-10 rounded-full bg-[#e2d8c6]" aria-hidden />
+        <div className="flex items-center justify-between gap-4 px-6 sm:px-8 pt-5 sm:pt-7 pb-4 shrink-0">
+          <p className="text-[11px] font-black tracking-[0.18em] uppercase text-[#b0791e]">{eyebrow}</p>
+          <button type="button" onClick={onClose} aria-label="Close"
+            className="shrink-0 w-9 h-9 grid place-items-center rounded-full text-[#8a9aa0] bg-[#f6f2ea] hover:bg-[#ece5d8] hover:text-[#00374a] transition-colors">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" className="w-4 h-4" aria-hidden>
+              <path d="M18 6 6 18M6 6l12 12" />
+            </svg>
+          </button>
+        </div>
+        <div className="overflow-y-auto px-6 sm:px-8 pb-8 sm:pb-9">{children}</div>
+      </div>
+    </div>
   );
 }

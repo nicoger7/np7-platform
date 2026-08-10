@@ -122,11 +122,26 @@ export type SurveyInvite = {
   source?: string | null;
 };
 
-/** Shareable open-link token, `join-` + 14 hex — visibly NOT a personal link. */
-export function generateOpenToken(): string {
+/**
+ * Shareable open-link token: `join-` + the survey's name + a short random tail.
+ *
+ * The `join-` prefix is load-bearing — it is how the page tells a shared link
+ * from a personal invitation. What followed used to be 14 hex characters, which
+ * is unguessable and also unreadable: /survey/join-4ca17cabdc48fb goes into a
+ * WhatsApp message or an Instagram sticker looking like a phishing attempt.
+ * The name earns the click; the tail keeps it unguessable and unique.
+ */
+export function generateOpenToken(title?: string): string {
+  const slug = (title || "")
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "")
+    .slice(0, 40)
+    .replace(/-+$/, "");
   let hex = "";
-  while (hex.length < 14) hex += Math.random().toString(16).slice(2);
-  return `join-${hex.slice(0, 14)}`;
+  while (hex.length < 6) hex += Math.random().toString(16).slice(2);
+  const tail = hex.slice(0, 6);
+  return slug ? `join-${slug}-${tail}` : `join-${tail}${Math.random().toString(16).slice(2, 10)}`;
 }
 
 /** Readable, hard-to-guess token like `nico-3f9a2b`. */
@@ -212,7 +227,7 @@ export async function createSurvey(input: Partial<Survey>): Promise<Survey | nul
     budget_min: input.budget_min ?? 1000,
     budget_max: input.budget_max ?? 8000,
     currency: input.currency ?? "EUR",
-    open_token: generateOpenToken(),
+    open_token: generateOpenToken(input.title),
   }).select("*").single();
   return data ? rowToSurvey(data) : null;
 }
@@ -221,6 +236,19 @@ export async function updateSurvey(id: string, patch: Partial<Survey>): Promise<
   const clean: Record<string, unknown> = { updated_at: new Date().toISOString() };
   for (const k of ["title", "intro", "status", "destinations", "weeks", "budget_anchor", "budget_min", "budget_max", "currency", "quick", "eyebrow", "cta_label", "decline_label", "show_decline", "email_body", "ask_wishes", "email_date_buttons", "email_button_label", "email_subject"] as const) {
     if (k in patch) clean[k] = patch[k];
+  }
+  // A survey is created "Untitled survey" and named a moment later, so the
+  // readable link has to catch up — otherwise every share link would read
+  // join-untitled-survey-…. Only while nothing has left the building: once an
+  // invite is sent or an answer is in, the link exists in someone's inbox and
+  // changing it would break it.
+  if (typeof clean.title === "string" && clean.title.trim()) {
+    const sb = db();
+    const [{ count: invites }, { count: answers }] = await Promise.all([
+      sb.from("exp_survey_invites").select("id", { count: "exact", head: true }).eq("survey_id", id),
+      sb.from("exp_survey_responses").select("id", { count: "exact", head: true }).eq("survey_id", id),
+    ]);
+    if (!invites && !answers) clean.open_token = generateOpenToken(clean.title as string);
   }
   const { data } = await db().from("exp_surveys").update(clean).eq("id", id).select("*").single();
   return data ? rowToSurvey(data) : null;
