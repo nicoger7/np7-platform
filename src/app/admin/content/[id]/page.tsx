@@ -20,7 +20,8 @@ type PickerTarget =
   | { kind: "tile" }
   | { kind: "hero" }
   | { kind: "gallery" }
-  | { kind: "review"; index: number };
+  | { kind: "review"; index: number }
+  | { kind: "weekCard"; index: number };
 
 /** What the live page renders while a section is left empty — shown, not
  *  described. "Leave empty to keep the standard copy" is only reassuring when
@@ -212,6 +213,12 @@ export default function ContentEditorPage({ params }: { params: Promise<{ id: st
     else if (picker.kind === "hero") setHeroImage(url);
     else if (picker.kind === "gallery") setGallery((g) => [...g, url]);
     else if (picker.kind === "review") setReviews((rs) => rs.map((r, i) => (i === picker.index ? { ...r, image: url } : r)));
+    else if (picker.kind === "weekCard") setWeekImages((imgs) => {
+      const next = [...imgs];
+      while (next.length <= picker.index) next.push(null);
+      next[picker.index] = url;
+      return next;
+    });
     setPicker(null);
   }
 
@@ -537,20 +544,38 @@ export default function ContentEditorPage({ params }: { params: Promise<{ id: st
                     position-N pairing, which reshuffled whenever the Media tab
                     was reordered. Photos stay PER EXPERIENCE even when the
                     words come from a shared template. */}
-                <div className="flex items-center gap-2 mt-2">
-                  {(weekImages[i] || gallery[i]) && (
-                    // eslint-disable-next-line @next/next/no-img-element
-                    <img src={(weekImages[i] || gallery[i]) as string} alt="" className="h-9 w-14 object-cover rounded-md shrink-0" style={{ border: "1px solid var(--admin-border)" }} />
-                  )}
-                  <select value={weekImages[i] ?? ""} onChange={(e) => {
-                    const next = [...weekImages];
-                    while (next.length <= i) next.push(null);
-                    next[i] = e.target.value || null;
-                    setWeekImages(next);
-                  }} className="admin-input px-2 py-1.5 rounded-md border text-xs outline-none">
-                    <option value="">Auto — gallery photo {i + 1}</option>
-                    {gallery.map((g, gi) => <option key={gi} value={g}>Photo {gi + 1}</option>)}
-                  </select>
+                {/* The same picker every other image field on this page uses —
+                    upload or choose from the library. A dropdown of "Photo 7"
+                    asked you to remember which photo that was. */}
+                <div className="flex items-center gap-2.5 mt-2.5">
+                  <button type="button" onClick={() => setPicker({ kind: "weekCard", index: i })}
+                    className="relative h-14 w-20 shrink-0 rounded-lg overflow-hidden group/img"
+                    style={{ border: "1px solid var(--admin-border)", background: "var(--admin-surface)" }}>
+                    {(weekImages[i] || gallery[i]) ? (
+                      <>
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                        <img src={(weekImages[i] || gallery[i]) as string} alt="" className="w-full h-full object-cover" />
+                        <span className="absolute inset-0 grid place-items-center bg-black/45 text-white text-[10px] font-bold opacity-0 group-hover/img:opacity-100 transition-opacity">Change</span>
+                      </>
+                    ) : (
+                      <span className="w-full h-full grid place-items-center text-[10px] font-bold admin-faint">+ Photo</span>
+                    )}
+                  </button>
+                  <div className="min-w-0">
+                    <p className="text-[11.5px] admin-muted">
+                      {weekImages[i] ? "Chosen for this card" : gallery[i] ? `Following gallery photo ${i + 1}` : "No photo yet"}
+                    </p>
+                    <div className="flex items-center gap-2 mt-0.5">
+                      <button type="button" onClick={() => setPicker({ kind: "weekCard", index: i })}
+                        className="text-[11.5px] font-semibold text-[var(--admin-accent)] hover:underline">
+                        {weekImages[i] ? "Change" : "Choose or upload"}
+                      </button>
+                      {weekImages[i] && (
+                        <button type="button" onClick={() => setWeekImages((imgs) => imgs.map((x, j) => (j === i ? null : x)))}
+                          className="text-[11.5px] admin-faint hover:admin-heading">Reset to gallery</button>
+                      )}
+                    </div>
+                  </div>
                 </div>
               </div>
             ))}
