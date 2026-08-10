@@ -24,7 +24,7 @@ function suggest(name: string, types: string[]): string | null {
 }
 
 export function PackageRoomPool({
-  pools, hotelId, roomType, bedsPerBooking, suggestFrom, onRoomType, onBeds, labelClass, inputClass,
+  pools, hotelId, roomType, bedsPerBooking, suggestFrom, onRoomType, labelClass, inputClass,
 }: {
   pools: Pool[];
   hotelId: string | null;
@@ -32,7 +32,8 @@ export function PackageRoomPool({
   bedsPerBooking: string;
   suggestFrom: string;
   onRoomType: (v: string) => void;
-  onBeds: (v: string) => void;
+  /** Still honoured, no longer asked — see the note in the body. */
+  onBeds?: (v: string) => void;
   labelClass: string;
   inputClass: string;
 }) {
@@ -52,29 +53,19 @@ export function PackageRoomPool({
 
   return (
     <div className="mb-4 p-3 rounded-lg space-y-3" style={{ border: "1px solid var(--admin-border)" }}>
-      <div className="grid grid-cols-2 gap-3">
-        <div>
-          <label className={labelClass}>Room type sold</label>
-          <select className={inputClass} value={roomType} onChange={(e) => onRoomType(e.target.value)}>
-            <option value="">— not set (hotel doesn&apos;t limit this) —</option>
-            {types.map((t) => <option key={t} value={t}>{t}</option>)}
-            {roomType && !types.includes(roomType) && <option value={roomType}>{roomType} (no rooms this week)</option>}
-          </select>
-        </div>
-        <div>
-          <label className={labelClass}>Beds per booking</label>
-          <select className={inputClass} value={bedsPerBooking} onChange={(e) => onBeds(e.target.value)}>
-            {/* "Shares the room" read as though NP7 puts strangers together.
-                It doesn't: this is arithmetic — how many beds ONE booking takes
-                out of the room pool. Two friends travelling together are two
-                bookings taking one bed each, and who actually ends up in which
-                room is decided on the Hotel Rooms tab. */}
-            <option value="1">1 bed — normal (two friends = two bookings, one room)</option>
-            <option value="2">2 beds — this booking takes a whole double</option>
-            <option value="3">3 beds — takes a triple / small apartment</option>
-            <option value="4">4 beds — takes a family room / apartment</option>
-          </select>
-        </div>
+      {/* One question, not two.
+          "Beds per booking" was an implementation detail wearing a label — it
+          asked the team to describe room-sharing in advance, per package, when
+          sharing is something the GUESTS decide at booking time. It is still a
+          column (and still honoured), but it defaults to one bed per person and
+          is no longer put in front of anyone. */}
+      <div>
+        <label className={labelClass}>Which rooms does this package sell?</label>
+        <select className={inputClass} value={roomType} onChange={(e) => onRoomType(e.target.value)}>
+          <option value="">— not set (nothing stops it overselling) —</option>
+          {types.map((t) => <option key={t} value={t}>{t}</option>)}
+          {roomType && !types.includes(roomType) && <option value={roomType}>{roomType} (no rooms this week)</option>}
+        </select>
       </div>
 
       {hint && (
@@ -84,14 +75,16 @@ export function PackageRoomPool({
         </button>
       )}
 
+      {/* What it MEANS, in people. "8 sellable" made you do the arithmetic
+          back to a number of guests. */}
       <p className="text-[11.5px] admin-faint">
         {picked
           ? picked.beds_known
-            ? `${picked.rooms} room${picked.rooms === 1 ? "" : "s"} this week · ${picked.beds} beds · ${picked.beds_free} free → ${Math.floor(picked.beds_free / (Number(bedsPerBooking) || 1))} sellable.`
-            : `${picked.rooms} room${picked.rooms === 1 ? "" : "s"} this week, but nobody has said how many each sleeps — until they do, the hotel limits nothing.`
+            ? `${picked.rooms} room${picked.rooms === 1 ? "" : "s"} this week, sleeping ${picked.beds} — room for ${Math.floor(picked.beds_free / (Number(bedsPerBooking) || 1))} more guest${Math.floor(picked.beds_free / (Number(bedsPerBooking) || 1)) === 1 ? "" : "s"} on this package.`
+            : `${picked.rooms} room${picked.rooms === 1 ? "" : "s"} this week — but nobody has said how many people sleep in each, so nothing stops this selling past the last bed. Set it on the Hotel Rooms tab.`
           : types.length === 0
-            ? "No rooms entered for this hotel this week, so the hotel limits nothing yet."
-            : "Not set: this package can be sold past the last bed."}
+            ? "No rooms entered for this hotel this week, so nothing limits this package yet."
+            : "Not set — nothing stops this package selling past the last bed."}
       </p>
     </div>
   );
