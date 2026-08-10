@@ -27,6 +27,48 @@ export const BFT_META: { bft: Bft; color: string; label: string }[] = [
 
 export const MONTH_LABELS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
 
+const MONTH_FULL = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
+
+/**
+ * The destination page's headline facts, derived from measured climatology
+ * instead of hand-typed strings — hand-typed is how Bonaire's wind read
+ * "12–25 knots" on one page and "10–20" on another. Peak months are named
+ * from the data (windy = ≥60% of daytime hours at 4+ Bft); the season label
+ * handles the wrap-around a trade-wind season has (December–August).
+ * Returns null when the stats can't say anything (no windy months).
+ */
+export function destinationWindFacts(stats: WindStats | null | undefined): { probability: string; season: string; speed: string } | null {
+  const months = stats?.months;
+  if (!months?.length) return null;
+  const windy = months.filter((m) => (m.pct["4"] ?? 0) >= 60);
+  // Fewer than 3 windy months is usually a sampling artifact, not a season —
+  // thermal spots (Garda's Ora, Alaçatı's afternoon build) undercount in
+  // daytime averages. Better the hand-typed truth than a derived absurdity
+  // like "season: February" for Alaçatı.
+  if (windy.length < 3) return null;
+  // season: contiguous runs in a circular year → longest run, "December–August"
+  const set = new Set(windy.map((m) => m.m));
+  let best: { start: number; len: number } = { start: windy[0].m, len: 1 };
+  for (const start of set) {
+    if (set.has(start === 1 ? 12 : start - 1)) continue; // not a run start
+    let len = 0, cur = start;
+    while (set.has(cur) && len < 12) { len++; cur = cur === 12 ? 1 : cur + 1; }
+    if (len > best.len) best = { start, len };
+  }
+  if (set.size === 12) best = { start: 1, len: 12 };
+  const end = ((best.start - 1 + best.len - 1) % 12) + 1;
+  // an 11-month "season" is a year with one shy month — call it what it is
+  const season = best.len >= 11 ? "Year-round" : best.len === 1 ? MONTH_FULL[best.start - 1] : `${MONTH_FULL[best.start - 1]}–${MONTH_FULL[end - 1]}`;
+  const meanPct = Math.round(windy.reduce((t, m) => t + (m.pct["4"] ?? 0), 0) / windy.length / 5) * 5;
+  const speeds = windy.map((m) => m.avgWind).filter((v) => Number.isFinite(v));
+  const lo = Math.round(Math.min(...speeds)), hi = Math.round(Math.max(...speeds));
+  return {
+    probability: `${meanPct}% of days`,
+    season,
+    speed: lo === hi ? `~${lo} knots avg` : `${lo}–${hi} knots avg`,
+  };
+}
+
 export type WindStatsMonth = {
   m: number;                       // 1–12
   pct: Record<string, number>;     // { "3": 83, "4": 58, … } — cumulative % ≥ that Bft

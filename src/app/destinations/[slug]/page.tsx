@@ -1,4 +1,6 @@
 import Link from "next/link";
+import { destinationWindFacts, type WindStats } from "@/lib/wind-stats";
+import { WindStatsChart } from "@/components/spotguide/wind-stats-chart";
 import { notFound } from "next/navigation";
 import type { Metadata } from "next";
 import { supabase, createAdminClient } from "@/lib/supabase";
@@ -104,11 +106,22 @@ export default async function DestinationPage({ params }: Props) {
 
   const place = [d.region, d.country].filter(Boolean).join(" · ");
   const hero = d.hero_image || (d.gallery?.[0] ?? "");
+  // Measured wind beats asserted wind: where ERA5 climatology exists the
+  // headline facts are DERIVED (peak months, mean 4+Bft share, avg speed) —
+  // hand-typed strings are how Bonaire read "12–25 knots" on one page and
+  // "10–20" on another. Manual fields stay as the fallback for the seven
+  // destinations that still have no coordinates.
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const windStats = ((d as any).wind_stats ?? null) as WindStats | null;
+  const derived = destinationWindFacts(windStats);
+  const seasonManual = d.wind_season || d.best_season;
   const facts = [
-    { label: "Wind probability", value: d.wind_probability },
-    { label: "Wind season", value: d.wind_season },
-    { label: "Wind strength", value: d.wind_speed },
-    { label: "Best season", value: d.best_season },
+    { label: "Wind probability", value: derived ? `${derived.probability} at 4+ Bft` : d.wind_probability },
+    { label: "Wind season", value: derived?.season ?? seasonManual },
+    { label: "Wind strength", value: derived ? derived.speed : d.wind_speed },
+    // two cards, one fact: only show a separate "best season" when it actually
+    // differs from the wind season (hand-typed rows often duplicated it)
+    { label: "Best season", value: derived ? null : (d.best_season && d.best_season !== d.wind_season ? d.best_season : null) },
     { label: "Conditions", value: d.conditions },
     { label: "Levels", value: d.skill_levels },
   ].filter((f): f is { label: string; value: string } => Boolean(f.value));
@@ -134,9 +147,9 @@ export default async function DestinationPage({ params }: Props) {
 
   // Three concise quick-stats floated over the hero
   const heroChips = [
-    d.wind_probability && { label: "Wind", value: d.wind_probability },
-    d.wind_speed && { label: "Strength", value: d.wind_speed },
-    (d.wind_season || d.best_season) && { label: "Season", value: (d.wind_season || d.best_season) as string },
+    (derived?.probability && { label: "Wind", value: `${derived.probability} 4+ Bft` }) || (d.wind_probability && { label: "Wind", value: d.wind_probability }),
+    (derived?.speed && { label: "Strength", value: derived.speed }) || (d.wind_speed && { label: "Strength", value: d.wind_speed }),
+    (derived?.season && { label: "Season", value: derived.season }) || ((d.wind_season || d.best_season) && { label: "Season", value: (d.wind_season || d.best_season) as string }),
   ].filter(Boolean).slice(0, 3) as { label: string; value: string }[];
 
   const navSections = [
@@ -213,6 +226,16 @@ export default async function DestinationPage({ params }: Props) {
                   </Reveal>
                 ))}
               </div>
+              {windStats && (
+                <Reveal className="mt-10">
+                  {/* the month-by-month climatology behind the headline numbers —
+                      same measured chart the spotguide shows, general overview
+                      here rather than a trip's three-month frame */}
+                  <div className="rounded-2xl bg-white/[0.06] border border-white/10 p-5 sm:p-6 overflow-x-auto">
+                    <WindStatsChart stats={windStats} accent="#ffc42e" />
+                  </div>
+                </Reveal>
+              )}
               <Reveal className="mt-9 text-center">
                 <p className="inline-flex items-start gap-2 text-[13.5px] text-white/60 max-w-[600px] mx-auto leading-relaxed">
                   <svg className="w-4 h-4 mt-0.5 shrink-0 text-[#ffc42e]" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round"><circle cx="12" cy="12" r="9" /><path d="M12 8v4M12 16h.01" /></svg>
