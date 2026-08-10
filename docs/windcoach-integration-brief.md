@@ -57,7 +57,17 @@ Two paths, both ending in one row in a `linked_accounts` table on each side:
    built-in list, so "Log in with NP7" as a real provider is not a wind.coach
    code change — parked. No code-redemption plumbing exists yet on either side;
    both build it fresh against the same contract.)*
-2. **Storage:** additive on both sides — `profiles.np7_user_id` (or a
+2. **"Log in with NP7" — not dead, just not an IdP.** Supabase's provider list
+   is closed, but the BUTTON is buildable as a trusted bridge: the rider clicks
+   "Log in with NP7" on wind.coach → NP7 authenticates them (magic link — NP7
+   has no passwords) → NP7 calls a signed server-to-server endpoint on
+   wind.coach → wind.coach finds-or-creates the Supabase user for that verified
+   email via its admin API, generates a Supabase magic link server-side, and
+   302s the rider straight into a session. One click, no password, no email
+   round-trip — to the rider it IS "Log in with NP7". Same trust anchor as the
+   §3 webhook (shared secret + HMAC), ~a day each side. Build it after the
+   link-code flow proves the plumbing.
+3. **Storage:** additive on both sides — `profiles.np7_user_id` (or a
    `linked_accounts` table) on wind.coach; the mirror column on NP7. wind.coach's
    `profiles` has no external-identity column today, so this is a clean add.
 
