@@ -164,7 +164,9 @@ async function onEventPayment(
 
   // Booking state per kind (idempotent).
   const patch: Record<string, unknown> = { updated_at: new Date().toISOString() };
-  if (paymentIntent && kind === "event_deposit") patch.stripe_payment_intent = paymentIntent;
+  // Every kind, not just deposits — a full-price ticket is the commonest case
+  // and its booking was left with no way back to the Stripe charge at all.
+  if (paymentIntent) patch.stripe_payment_intent = paymentIntent;
   if (kind === "event_deposit") { patch.downpayment_received = true; patch.status = "reserved"; }
   if (kind === "event_full") { patch.downpayment_received = true; patch.final_payment_received = true; patch.status = "paid"; }
   if (kind === "event_balance") { patch.final_payment_received = true; patch.status = "paid"; }
@@ -265,7 +267,15 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
   const host = request.headers.get("host") ?? "";
   const origin = `https://${host}`;
 
-  if (event.type === "checkout.session.completed") {
+  // A card pays instantly, so completed arrives already 'paid'. SEPA Direct
+  // Debit, Klarna and bank transfers — the methods an EU buyer is most likely
+  // to reach for — do not: `completed` arrives with payment_status 'unpaid'
+  // and the money confirms days later as async_payment_succeeded. Handling
+  // only the first event means the funds land in the account and the platform
+  // records nothing at all: booking still 'lead', no payment row, no member
+  // account, no confirmation. Both events carry the same session and metadata,
+  // and the work below is idempotent, so both are handled.
+  if (event.type === "checkout.session.completed" || event.type === "checkout.session.async_payment_succeeded") {
     const session = event.data.object;
     const paymentStatus = session["payment_status"] as string | undefined;
     const metadata = (session["metadata"] as Record<string, string> | null) ?? {};
@@ -296,6 +306,13 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
         // Non-fatal: log and still return 200 so Stripe doesn't retry infinitely
         console.error("[webhook] error processing checkout.session.completed:", err);
       }
+    } else if (bookingId) {
+      // Not an error — an async method simply hasn't cleared yet. Say so, so a
+      // "where is my booking?" an hour after a SEPA payment has an answer in
+      // the logs instead of silence.
+      console.warn(`[webhook] ${event.type} for booking ${bookingId} with payment_status=${paymentStatus} — awaiting funds, nothing recorded yet`);
+    } else {
+      console.warn(`[webhook] ${event.type} carried no booking_id in metadata — ignored`);
     }
   }
 

@@ -117,8 +117,15 @@ export async function POST(request: NextRequest) {
     const contactEmail = minor && guardianEmail ? guardianEmail : email;
     const contactName = minor && guardianName ? guardianName : fullName;
     const contactPhone = minor ? (guardian.guardianPhone ?? phone) : phone;
-    const { data: existing } = await db.from("contacts").select("id").eq("email", contactEmail).maybeSingle();
-    contactId = existing?.id;
+    // Oldest match wins, case-insensitively — the same rule auth.ts already
+    // had to learn (see its comment at the contact-by-email lookup). maybeSingle()
+    // ERRORS when two rows share an address, and with 13.5k imported maillist
+    // contacts alongside CRM rows that is not rare. The error would be swallowed,
+    // a third duplicate created, and the paid booking hung off a contact the
+    // buyer's account can never resolve to — a 404 on the trip they just bought.
+    const { data: existingRows } = await db.from("contacts").select("id")
+      .ilike("email", contactEmail).order("created_at", { ascending: true }).limit(1);
+    contactId = (existingRows as { id: string }[] | null)?.[0]?.id;
     if (!contactId) {
       const { data: created, error } = await db.from("contacts").insert({ name: contactName, email: contactEmail, phone: contactPhone, source: "website-event" }).select("id").single();
       if (error) return bad("Could not save your details. Please try again.", 500);
