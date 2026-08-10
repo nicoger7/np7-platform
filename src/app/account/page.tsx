@@ -82,6 +82,13 @@ export default async function AccountHome() {
     ...unsecured.map((b) => ({ b, secure: true })),
     ...upcoming.filter((b) => !needsDownpayment(b)).map((b) => ({ b, secure: false })),
   ];
+  // An edition is either a travelled week or a 1–2 day clinic (migration 157).
+  const events = tripCards.filter(({ b }) => b.edition?.kind === "event").length;
+  const cardsHeading = events === tripCards.length && events > 0
+    ? (tripCards.length > 1 ? "events" : "next event")
+    : events > 0
+      ? "trips & events"
+      : (tripCards.length > 1 ? "trips" : "next trip");
 
   // A photo avatar is EARNED on a trip — trip photos are the only source (see
   // community-profile.tsx: "ride with your initials until your first trip"). So
@@ -175,7 +182,10 @@ export default async function AccountHome() {
 
             {/* your trips — one card each, carrying its own action */}
             <div className="lg:order-1">
-              <p className="text-[11px] font-bold tracking-[0.18em] uppercase text-[#9aa6ac] mb-3">Your {tripCards.length > 1 ? "trips" : "next trip"}</p>
+              {/* A clinic is not a trip, and calling it one on the member's own
+                  home page is the first thing they read. Say what they actually
+                  booked — and when they've booked both, say both. */}
+              <p className="text-[11px] font-bold tracking-[0.18em] uppercase text-[#9aa6ac] mb-3">Your {cardsHeading}</p>
               {tripCards.length > 0 ? (
                 <div className="space-y-3">
                   {tripCards.map(({ b, secure }) => (
