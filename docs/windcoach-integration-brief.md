@@ -61,7 +61,10 @@ Two paths, both ending in one row in a `linked_accounts` table on each side:
    302s the rider straight into a session. One click, no password, no email
    round-trip — to the rider it IS "Log in with NP7". Same trust anchor as the
    §3 webhook (shared secret + HMAC), ~a day each side. Build it after the
-   link-code flow proves the plumbing.
+   link-code flow proves the plumbing. **And the bridge is symmetric:** NP7 also
+   runs Supabase Auth, so "Log in with wind.coach" on NP7 is the same mechanism
+   mirrored — wind.coach verifies the rider, calls NP7's signed endpoint, NP7
+   admin-generates its magic link and 302s. One design, both doors.
 3. **Storage:** additive on both sides — `profiles.np7_user_id` (or a
    `linked_accounts` table) on wind.coach; the mirror column on NP7. wind.coach's
    `profiles` has no external-identity column today, so this is a clean add.
