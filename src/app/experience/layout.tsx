@@ -35,7 +35,11 @@ export default async function ExperienceLayout({ children }: { children: React.R
  * sitemap: those are gated by the same flag.
  */
 async function publicByLink(path: string): Promise<boolean> {
-  const m = /^\/experience\/([^/]+)$/.exec(path);
+  // The detail page, and — since an event series sells one clinic per URL —
+  // its per-edition pages too. Without the second form, opening the Alaçatı
+  // link 404'd at the layout before the route ever ran, which is a link-only
+  // experience that cannot be opened by its own link.
+  const m = /^\/experience\/([^/]+)(?:\/[^/]+)?$/.exec(path);
   if (!m) return false;
   try {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any

@@ -38,7 +38,7 @@ export type SurveyDestination = { key: string; groupId?: string | null; label: s
 export type SurveyInfo = {
   coaches: { name: string; role: string | null; bio: string | null; image: string | null }[];
   method: { intro: string | null; steps: { t: string; d: string }[] } | null;
-  spot: { name: string; intro: string | null; tagline: string | null; conditions: string | null; windSpeed: string | null; season: string | null; levels: string | null; image: string | null; gallery: string[] } | null;
+  spot: { name: string; intro: string | null; tagline: string | null; conditions: string | null; windSpeed: string | null; season: string | null; levels: string | null; image: string | null; gallery: string[]; wind: { month: string; avgWind: number; pct4: number; airTemp: number | null } | null } | null;
   features: { name: string; description: string | null }[];
 };
 export type SurveyWeek = { key: string; label: string; start: string | null; end: string | null };
@@ -605,6 +605,28 @@ export async function sendSurveyReminderEmail(inviteId: string, url: string, sub
  * of truth wherever they're edited. Returns null when nothing is ticked, so the
  * page renders no buttons at all rather than empty ones.
  */
+/**
+ * The wind figures for the month a trip runs, out of the cached climatology.
+ * Same numbers the spotguide shows — one source, so a survey can't quietly
+ * promise a better month than the destination page does.
+ */
+function monthWind(stats: unknown, start: string | null): { month: string; avgWind: number; pct4: number; airTemp: number | null } | null {
+  if (!start || !/^\d{4}-\d{2}/.test(start)) return null;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const months = (stats as any)?.months as { m: number; pct: Record<string, number>; avgWind: number; airTemp: number | null }[] | undefined;
+  if (!Array.isArray(months) || !months.length) return null;
+  const m = Number(start.slice(5, 7));
+  const row = months.find((x) => x.m === m);
+  if (!row) return null;
+  const NAMES = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
+  return {
+    month: NAMES[m - 1] ?? "",
+    avgWind: Math.round(row.avgWind),
+    pct4: Math.round(row.pct?.["4"] ?? 0),
+    airTemp: row.airTemp != null ? Math.round(row.airTemp) : null,
+  };
+}
+
 export async function resolveSurveyInfo(dest: SurveyDestination): Promise<SurveyInfo | null> {
   const coachIds = dest.coachIds ?? [];
   const featureIds = dest.featureIds ?? [];
@@ -614,7 +636,7 @@ export async function resolveSurveyInfo(dest: SurveyDestination): Promise<Survey
   const [coachRes, featRes, destRes, methodRes] = await Promise.all([
     coachIds.length ? sb.from("exp_coaches").select("id,name,role,bio,image_url").in("id", coachIds) : Promise.resolve({ data: [] }),
     featureIds.length ? sb.from("exp_components").select("id,name,description").in("id", featureIds) : Promise.resolve({ data: [] }),
-    dest.destinationId ? sb.from("destinations").select("name,intro,tagline,conditions,wind_speed,wind_season,best_season,hero_image,gallery,skill_levels").eq("id", dest.destinationId).maybeSingle() : Promise.resolve({ data: null }),
+    dest.destinationId ? sb.from("destinations").select("name,intro,tagline,conditions,wind_speed,wind_season,best_season,hero_image,gallery,skill_levels,wind_stats").eq("id", dest.destinationId).maybeSingle() : Promise.resolve({ data: null }),
     // the coaching method rides along with the coach card — one shared template
     coachIds.length ? sb.from("content_templates").select("body").eq("kind", "method").limit(1).maybeSingle() : Promise.resolve({ data: null }),
   ]);
@@ -642,6 +664,12 @@ export async function resolveSurveyInfo(dest: SurveyDestination): Promise<Survey
       // before anyone uploaded its gallery still opens with a picture rather
       // than a wall of text, which is what made this sheet feel unfinished.
       image: d.hero_image ?? dest.image ?? null,
+      // Real climatology for the month this trip actually runs, not the
+      // hand-typed range. "62% of days Force 4+ · 15 kn avg · 22°C" is a
+      // different kind of answer to "15–25 knots", and it is the one the
+      // experience and spotguide pages already give. Null until the wind-stats
+      // cron has sampled the coordinates, and the typed line still shows.
+      wind: monthWind(d.wind_stats, dest.start ?? null),
       gallery: (Array.isArray(d.gallery) ? d.gallery : []).filter(Boolean).slice(0, 6),
     } : null,
     // eslint-disable-next-line @typescript-eslint/no-explicit-any

@@ -198,16 +198,50 @@ export function SurveyInfoButtons({ info }: { info: SurveyInfo }) {
               {info.spot.intro && (
                 <p className="text-[14.5px] text-[#5a6b72] leading-[1.65] mt-4 whitespace-pre-line [text-wrap:pretty]">{info.spot.intro}</p>
               )}
+              {/* Measured, for the month this trip runs — the same climatology
+                  the spotguide and the experience pages read, so a survey can
+                  never quietly promise a better month than the spot page does.
+                  Falls back to the typed line until the cron has sampled the
+                  coordinates. */}
+              {info.spot.wind && (
+                <div className="mt-6 rounded-2xl bg-[#00374a] p-5">
+                  <p className="text-[10.5px] font-black uppercase tracking-[0.18em] text-[#8fe6f2]">
+                    Measured · {info.spot.wind.month}
+                  </p>
+                  <div className="grid grid-cols-3 gap-3 mt-3">
+                    <div>
+                      <p className="text-[26px] font-black text-white leading-none tracking-[-0.02em]">{info.spot.wind.pct4}<span className="text-[15px]">%</span></p>
+                      <p className="text-[11px] text-white/60 leading-snug mt-1.5">of days<br />Force 4+</p>
+                    </div>
+                    <div>
+                      <p className="text-[26px] font-black text-white leading-none tracking-[-0.02em]">{info.spot.wind.avgWind}<span className="text-[15px]"> kn</span></p>
+                      <p className="text-[11px] text-white/60 leading-snug mt-1.5">average<br />daytime wind</p>
+                    </div>
+                    {info.spot.wind.airTemp != null && (
+                      <div>
+                        <p className="text-[26px] font-black text-white leading-none tracking-[-0.02em]">{info.spot.wind.airTemp}<span className="text-[15px]">°C</span></p>
+                        <p className="text-[11px] text-white/60 leading-snug mt-1.5">average<br />air temp</p>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
               {(() => {
-                const stats = ([["Wind", info.spot!.windSpeed], ["Season", info.spot!.season], ["Conditions", info.spot!.conditions]] as const)
-                  .filter(([, v]) => !!v);
+                const stats = ([
+                  // The measured block above already answers "how windy" — don't
+                  // print a hand-typed range beside it contradicting the data.
+                  ...(info.spot!.wind ? [] : [["Wind", info.spot!.windSpeed] as const]),
+                  ["Season", info.spot!.season] as const,
+                  ["Conditions", info.spot!.conditions] as const,
+                  ["Level", info.spot!.levels] as const,
+                ]).filter(([, v]) => !!v);
                 if (!stats.length) return null;
                 return (
-                  <dl className="grid grid-cols-2 gap-2.5 mt-6">
+                  <dl className="grid grid-cols-2 gap-2.5 mt-3">
                     {stats.map(([k, v], i) => (
-                      <div key={k} className={`rounded-xl bg-[#00374a] px-4 py-3 ${i === stats.length - 1 && stats.length % 2 === 1 ? "col-span-2" : ""}`}>
-                        <dt className="text-[10.5px] font-black uppercase tracking-[0.14em] text-[#8fe6f2]">{k}</dt>
-                        <dd className="text-[14px] font-bold text-white mt-1 leading-snug">{v}</dd>
+                      <div key={k} className={`rounded-xl bg-white border border-[#ecdcbb] px-4 py-3 ${i === stats.length - 1 && stats.length % 2 === 1 ? "col-span-2" : ""}`}>
+                        <dt className="text-[10.5px] font-black uppercase tracking-[0.14em] text-[#b0791e]">{k}</dt>
+                        <dd className="text-[14px] font-semibold text-[#00374a] mt-1 leading-snug">{v}</dd>
                       </div>
                     ))}
                   </dl>
