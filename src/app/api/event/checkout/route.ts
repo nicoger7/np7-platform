@@ -42,9 +42,9 @@ export async function POST(request: NextRequest) {
 
   const mode: "fixed" | "standby" = exp.event_mode === "standby" ? "standby" : "fixed";
   const { data: dateRows } = await db
-    .from("exp_event_dates").select("id,date_start,date_end,label,status")
+    .from("exp_event_dates").select("id,date_start,date_end,label,status,max_spots")
     .eq("experience_id", exp.id);
-  const dates = (dateRows ?? []) as { id: string; date_start: string; date_end: string | null; label: string | null; status: string }[];
+  const dates = (dateRows ?? []) as { id: string; date_start: string; date_end: string | null; label: string | null; status: string; max_spots: number | null }[];
 
   // Resolve which dates this booking is against.
   let selected: string[];
@@ -95,6 +95,27 @@ export async function POST(request: NextRequest) {
   const chosenLabel = mode === "standby"
     ? `standby · ${selected.length} date${selected.length > 1 ? "s" : ""}`
     : (dates.find((d) => d.id === selected[0])?.label ?? "fixed date");
+
+  // Capacity. max_spots was read from the date row and never checked anywhere,
+  // so a 12-place clinic would happily sell a 13th ticket — and the person who
+  // finds out is the one standing on the beach. Count tickets that are actually
+  // PAID (the webhook sets 'paid' / 'reserved'); an abandoned checkout must not
+  // hold a place, because its Stripe session simply expires.
+  for (const dateId of selected) {
+    const row = dates.find((d) => d.id === dateId);
+    const cap = row?.max_spots ?? null;
+    if (cap == null || cap <= 0) continue;
+    const { data: taken } = await db
+      .from("exp_bookings")
+      .select("id, status")
+      .eq("experience_id", exp.id)
+      .contains("event_date_ids", [dateId]);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const sold = ((taken ?? []) as any[]).filter((b) => ["paid", "reserved", "confirmed", "attended"].includes(String(b.status ?? "").toLowerCase())).length;
+    if (sold >= cap) {
+      return bad(row?.label ? `${row.label} is fully booked — no spots left.` : "This date is fully booked — no spots left.", 409);
+    }
+  }
 
   const { data: booking, error: bErr } = await db.from("exp_bookings").insert({
     name: composeBookingName({ contactName: fullName, experienceTitle: exp.title }),
