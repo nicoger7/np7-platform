@@ -37,9 +37,12 @@ emailing a PDF around.
 
 - wind.coach calls `POST https://www.np-seven.com/api/windcoach/guide` (endpoint to
   be built NP7-side) with the payload in §3.
-- NP7 stores it against the booking, shows it on the member trip page
-  ("Your focus points" card + PDF download), and triggers the existing post-trip
-  email flow with a "See your focus points" CTA.
+- NP7 stores it against the booking and renders it as a **native guide page in
+  NP7's signature design** inside the member area (trip page → "Your focus
+  points" card → full guide page: hero, one card per focus point with its
+  what-to-do / how / why / common-mistakes / coach-tip blocks, coach note,
+  images). The **PDF is the download button on that page**, not the experience
+  itself. The post-trip email CTA links to the page.
 - **Matching:** by `email` (lowercased) + edition window. Ambiguity → row lands in
   an NP7 admin review queue, never guessed.
 - No accounts are linked in this phase. It replaces a manual email, nothing more.
@@ -101,8 +104,20 @@ Body:
   "guide": {
     "pdf_url": "https://…signed, ≥30d expiry…",
     "focus_points": [
-      { "key": "harness", "title": "Harness timing", "summary": "…2–3 sentences…" },
-      { "key": "pro_powerjibe", "title": "Jibe exit speed", "summary": "…" }
+      {
+        "key": "harness",
+        "title": "Harness timing",
+        "summary": "…2–3 sentences for list views…",
+        "blocks": [
+          { "kind": "what_to_do", "text": "…" },
+          { "kind": "how", "text": "…" },
+          { "kind": "why", "text": "…" },
+          { "kind": "common_mistakes", "text": "…" },
+          { "kind": "coach_tip", "text": "…" }
+        ],
+        "image_urls": ["https://…stable/public…"]
+      },
+      { "key": "pro_powerjibe", "title": "Jibe exit speed", "summary": "…", "blocks": [] }
     ],
     "coach_note": "optional free text",
     "generated_at": "2026-08-24T10:00:00Z"
@@ -125,6 +140,11 @@ Responses: 200 {status:"stored"|"queued_for_review"} · 401 bad signature ·
   120s budget is already tight, so never block on NP7's response).
 - `focus_points[].key` SHOULD be an NP7 milestone key when one fits (that's what
   makes Phase 4 free later); unknown keys are stored verbatim and displayed anyway.
+- **`blocks` carry the full guide content** — they map 1:1 from `GuideModel.cards[]
+  .blocks` (the same structures the PDF renders). This is what lets NP7 show the
+  guide as a real page in its own design instead of an embedded PDF; NP7 mirrors
+  `image_urls` alongside the PDF. Send the whole model — rendering decisions
+  belong to the renderer.
 - Retries: at-least-once with the idempotency key; NP7 answers 409 on replays.
 
 **Phase 2 sketch (for sizing, not final):** link codes: 6 digits, 10-minute TTL,
