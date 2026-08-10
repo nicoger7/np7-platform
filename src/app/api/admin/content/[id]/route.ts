@@ -157,6 +157,15 @@ export async function PUT(
       ? body.method_steps.map((m: any) => ({ t: String(m?.t ?? ""), d: String(m?.d ?? ""), gameChanger: !!m?.gameChanger })).filter((m: { t: string; d: string }) => m.t.trim() || m.d.trim())
       : [],
     daily_program: program,
+    // Per-card photo overrides for the week outcomes; null slot = the old
+    // positional gallery fallback. Stored as-is, trimmed of trailing nulls.
+    week_images: Array.isArray(body.week_images)
+      ? (() => {
+          const arr = body.week_images.map((u: unknown) => (typeof u === "string" && u.trim() ? u.trim() : null));
+          while (arr.length && arr[arr.length - 1] == null) arr.pop();
+          return arr.length ? arr : null;
+        })()
+      : null,
     highlights,
     faq,
     hero_image: typeof body.hero_image === "string" ? body.hero_image : "",

@@ -77,6 +77,15 @@ export default function ContentEditorPage({ params }: { params: Promise<{ id: st
   const [weekTitle, setWeekTitle] = useState("");
   const [weekOutcomes, setWeekOutcomes] = useState<{ icon: string; t: string; d: string }[]>([]);
   const [methodIntro, setMethodIntro] = useState("");
+  // Shared templates (153): when a section FOLLOWS a template, the editors show
+  // the template's words and saving updates the template (all followers).
+  // "Customise" detaches this one experience; empty fields = following.
+  type TplInfo = { id: string; name: string; usedBy: number; body: Record<string, unknown> };
+  const [methodTpl, setMethodTpl] = useState<TplInfo | null>(null);
+  const [outcomesTpl, setOutcomesTpl] = useState<TplInfo | null>(null);
+  const [methodMode, setMethodMode] = useState<"following" | "custom">("custom");
+  const [outcomesMode, setOutcomesMode] = useState<"following" | "custom">("custom");
+  const [weekImages, setWeekImages] = useState<(string | null)[]>([]);
   const [methodSteps, setMethodSteps] = useState<{ t: string; d: string; gameChanger: boolean }[]>([]);
   const [highlights, setHighlights] = useState<string[]>([]);
   const [faq, setFaq] = useState<FaqItem[]>([]);
@@ -142,6 +151,34 @@ export default function ContentEditorPage({ params }: { params: Promise<{ id: st
         setWeekOutcomes(Array.isArray(c.week_outcomes) ? c.week_outcomes : []);
         setMethodIntro(c.method_intro ?? "");
         setMethodSteps(Array.isArray(c.method_steps) ? c.method_steps : []);
+        setWeekImages(Array.isArray(c.week_images) ? c.week_images : []);
+        // Templates: fetch once, prefill any section that has no override.
+        if (c.method_template_id || c.outcomes_template_id) {
+          fetch("/api/admin/content-templates").then((r) => r.json()).then((d) => {
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            const list = (d.templates ?? []) as any[];
+            const mt = list.find((t) => t.id === c.method_template_id);
+            const ot = list.find((t) => t.id === c.outcomes_template_id);
+            if (mt) {
+              setMethodTpl({ id: mt.id, name: mt.name, usedBy: mt.usedBy, body: mt.body ?? {} });
+              const own = (c.method_intro ?? "").trim() || (Array.isArray(c.method_steps) && c.method_steps.length);
+              if (!own) {
+                setMethodMode("following");
+                setMethodIntro(String(mt.body?.intro ?? ""));
+                setMethodSteps(Array.isArray(mt.body?.steps) ? mt.body.steps : []);
+              }
+            }
+            if (ot) {
+              setOutcomesTpl({ id: ot.id, name: ot.name, usedBy: ot.usedBy, body: ot.body ?? {} });
+              const own = (c.week_title ?? "").trim() || (Array.isArray(c.week_outcomes) && c.week_outcomes.length);
+              if (!own) {
+                setOutcomesMode("following");
+                setWeekTitle(String(ot.body?.title ?? ""));
+                setWeekOutcomes(Array.isArray(ot.body?.cards) ? ot.body.cards : []);
+              }
+            }
+          }).catch(() => {});
+        }
         setHighlights(Array.isArray(c.highlights) ? c.highlights : []);
         setFaq(Array.isArray(c.faq) ? c.faq : []);
         setWindProbability(c.wind_probability ?? "");
@@ -180,6 +217,29 @@ export default function ContentEditorPage({ params }: { params: Promise<{ id: st
     setSaving(true);
     setError("");
     setSaved(false);
+    // Following a template = the edits belong to the template (and to every
+    // experience following it). Only PATCH when the content actually changed.
+    const same = (a: unknown, b: unknown) => JSON.stringify(a) === JSON.stringify(b);
+    if (methodMode === "following" && methodTpl) {
+      const next = { intro: methodIntro, steps: methodSteps };
+      if (!same(next, { intro: methodTpl.body?.intro ?? "", steps: methodTpl.body?.steps ?? [] })) {
+        const ok = methodTpl.usedBy <= 1 || confirm(`"${methodTpl.name}" is used by ${methodTpl.usedBy} experiences — saving updates ALL of them.\n\nUpdate the template?`);
+        if (ok) {
+          await fetch(`/api/admin/content-templates/${methodTpl.id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ body: next }) }).catch(() => {});
+          setMethodTpl({ ...methodTpl, body: next });
+        }
+      }
+    }
+    if (outcomesMode === "following" && outcomesTpl) {
+      const next = { title: weekTitle, cards: weekOutcomes };
+      if (!same(next, { title: outcomesTpl.body?.title ?? "", cards: outcomesTpl.body?.cards ?? [] })) {
+        const ok = outcomesTpl.usedBy <= 1 || confirm(`"${outcomesTpl.name}" is used by ${outcomesTpl.usedBy} experiences — saving updates ALL of them.\n\nUpdate the template?`);
+        if (ok) {
+          await fetch(`/api/admin/content-templates/${outcomesTpl.id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ body: next }) }).catch(() => {});
+          setOutcomesTpl({ ...outcomesTpl, body: next });
+        }
+      }
+    }
     const res = await fetch(`/api/admin/content/${id}`, {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
@@ -202,10 +262,11 @@ export default function ContentEditorPage({ params }: { params: Promise<{ id: st
         location_about: locationAbout,
         week_info: weekInfo,
         daily_program: program,
-        week_title: weekTitle,
-        week_outcomes: weekOutcomes,
-        method_intro: methodIntro,
-        method_steps: methodSteps,
+        week_title: outcomesMode === "following" ? "" : weekTitle,
+        week_outcomes: outcomesMode === "following" ? [] : weekOutcomes,
+        method_intro: methodMode === "following" ? "" : methodIntro,
+        method_steps: methodMode === "following" ? [] : methodSteps,
+        week_images: weekImages,
         highlights,
         faq,
         wind_probability: windProbability,
@@ -429,6 +490,24 @@ export default function ContentEditorPage({ params }: { params: Promise<{ id: st
         </Section>
 
         <Section show={tab === "story"} title="Your week — outcome cards" hint="The six cards in the ‘Your epic week’ section. Leave everything empty to keep the standard NP7 cards; add your own to replace them. The title replaces ‘The best week of your windsurf year’. The cards’ PHOTOS are the first six gallery photos on the Media tab, in the same order — card 1 gets photo 1, and so on.">
+          {outcomesTpl && (
+            <div className="rounded-lg px-3.5 py-2.5 mb-3 text-[12.5px]" style={{ border: "1px solid var(--admin-border)", background: "var(--admin-surface)" }}>
+              {outcomesMode === "following" ? (
+                <span className="admin-muted">Following <strong className="admin-heading">{outcomesTpl.name}</strong> · used by {outcomesTpl.usedBy} experiences — <strong className="admin-heading">saving updates all of them</strong>.{" "}
+                  <button type="button" className="text-[#0aa3c7] font-semibold hover:underline" onClick={() => setOutcomesMode("custom")}>Customise this experience only</button>
+                </span>
+              ) : (
+                <span className="admin-muted">Customised — no longer following <strong className="admin-heading">{outcomesTpl.name}</strong>.{" "}
+                  <button type="button" className="text-[#0aa3c7] font-semibold hover:underline" onClick={() => {
+                    setOutcomesMode("following");
+                    setWeekTitle(String(outcomesTpl.body?.title ?? ""));
+                    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                    setWeekOutcomes(Array.isArray(outcomesTpl.body?.cards) ? (outcomesTpl.body.cards as any[]) : []);
+                  }}>Follow the template again</button>
+                </span>
+              )}
+            </div>
+          )}
           <input value={weekTitle} onChange={(e) => setWeekTitle(e.target.value)}
             placeholder="Section title — default: The best week of your windsurf year"
             className="admin-input w-full px-4 py-2.5 rounded-lg border text-sm outline-none mb-3" />
@@ -446,6 +525,25 @@ export default function ContentEditorPage({ params }: { params: Promise<{ id: st
                 </div>
                 <textarea value={o.d} onChange={(e) => setWeekOutcomes(weekOutcomes.map((x, j) => (j === i ? { ...x, d: e.target.value } : x)))}
                   rows={2} placeholder="One or two sentences…" className="admin-input w-full px-3 py-2 rounded-md border text-sm outline-none resize-y" />
+                {/* The card's photo — explicit choice beats the silent
+                    position-N pairing, which reshuffled whenever the Media tab
+                    was reordered. Photos stay PER EXPERIENCE even when the
+                    words come from a shared template. */}
+                <div className="flex items-center gap-2 mt-2">
+                  {(weekImages[i] || gallery[i]) && (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img src={(weekImages[i] || gallery[i]) as string} alt="" className="h-9 w-14 object-cover rounded-md shrink-0" style={{ border: "1px solid var(--admin-border)" }} />
+                  )}
+                  <select value={weekImages[i] ?? ""} onChange={(e) => {
+                    const next = [...weekImages];
+                    while (next.length <= i) next.push(null);
+                    next[i] = e.target.value || null;
+                    setWeekImages(next);
+                  }} className="admin-input px-2 py-1.5 rounded-md border text-xs outline-none">
+                    <option value="">Auto — gallery photo {i + 1}</option>
+                    {gallery.map((g, gi) => <option key={gi} value={g}>Photo {gi + 1}</option>)}
+                  </select>
+                </div>
               </div>
             ))}
             <AddButton label="Add card" onClick={() => setWeekOutcomes([...weekOutcomes, { icon: "bolt", t: "", d: "" }])} />
@@ -460,6 +558,24 @@ export default function ContentEditorPage({ params }: { params: Promise<{ id: st
         </Section>
 
         <Section show={tab === "story"} title="Coaching method" hint="The ‘NP7 training system’ band: intro + numbered steps. Leave empty to keep the standard method copy.">
+          {methodTpl && (
+            <div className="rounded-lg px-3.5 py-2.5 mb-3 text-[12.5px]" style={{ border: "1px solid var(--admin-border)", background: "var(--admin-surface)" }}>
+              {methodMode === "following" ? (
+                <span className="admin-muted">Following <strong className="admin-heading">{methodTpl.name}</strong> · used by {methodTpl.usedBy} experiences — <strong className="admin-heading">saving updates all of them</strong>.{" "}
+                  <button type="button" className="text-[#0aa3c7] font-semibold hover:underline" onClick={() => setMethodMode("custom")}>Customise this experience only</button>
+                </span>
+              ) : (
+                <span className="admin-muted">Customised — no longer following <strong className="admin-heading">{methodTpl.name}</strong>.{" "}
+                  <button type="button" className="text-[#0aa3c7] font-semibold hover:underline" onClick={() => {
+                    setMethodMode("following");
+                    setMethodIntro(String(methodTpl.body?.intro ?? ""));
+                    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                    setMethodSteps(Array.isArray(methodTpl.body?.steps) ? (methodTpl.body.steps as any[]) : []);
+                  }}>Follow the template again</button>
+                </span>
+              )}
+            </div>
+          )}
           <textarea value={methodIntro} onChange={(e) => setMethodIntro(e.target.value)} rows={3}
             placeholder="Method intro — default: Nico’s proven coaching approach…"
             className="admin-input w-full px-4 py-3 rounded-lg border text-sm outline-none resize-y mb-3" />

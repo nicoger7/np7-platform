@@ -240,7 +240,7 @@ export default async function ExperienceDetailPage({ params, searchParams }: Pro
   // Split the fetch so the newer media columns (added in migration 013) can't
   // break the existing text content if they haven't been applied yet.
   const [{ data: baseRaw }, { data: mediaRaw }] = await Promise.all([
-    sb.from("exp_content").select("location_about,week_info,daily_program,highlights,faq,week_title,week_outcomes,method_intro,method_steps").eq("experience_id", experience.id).maybeSingle(),
+    sb.from("exp_content").select("location_about,week_info,daily_program,highlights,faq,week_title,week_outcomes,method_intro,method_steps,method_template_id,outcomes_template_id,week_images").eq("experience_id", experience.id).maybeSingle(),
     sb.from("exp_content").select("hero_image,hero_focus,hero_focus_shapes,hero_video_url,explainer_video_url,gallery,reviews,no_wind_program,wind_probability,wind_range").eq("experience_id", experience.id).maybeSingle(),
   ]);
   const content = (baseRaw || mediaRaw ? { ...(baseRaw ?? {}), ...(mediaRaw ?? {}) } : null) as ContentRow | null;
@@ -484,8 +484,27 @@ export default async function ExperienceDetailPage({ params, searchParams }: Pro
   // Falls back to the standard promise — the section used to vanish silently.
   const weekInfo = content?.week_info?.trim() || DEFAULT_WEEK_INFO;
   // editable week cards + coaching method — DB wins, built-ins are the fallback
-  const weekTitle = content?.week_title?.trim() || "The best week of your windsurf year";
-  const customOutcomes = (Array.isArray(content?.week_outcomes) ? content!.week_outcomes! : [])
+  // Shared templates (migration 153): the words live ONCE in content_templates;
+  // a per-experience field, when set, is a deliberate override. Resolution is
+  // override → template → built-in default, so nothing here can render blank.
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const c: any = content;
+  const tplIds = [c?.method_template_id, c?.outcomes_template_id].filter(Boolean) as string[];
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  let tplById = new Map<string, any>();
+  if (tplIds.length) {
+    try {
+      const { data: tpls } = await sb.from("content_templates").select("id,body").in("id", tplIds);
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      tplById = new Map(((tpls ?? []) as any[]).map((t) => [t.id, t.body ?? {}]));
+    } catch { /* pre-migration → defaults carry it */ }
+  }
+  const methodTpl = c?.method_template_id ? tplById.get(c.method_template_id) : null;
+  const outcomesTpl = c?.outcomes_template_id ? tplById.get(c.outcomes_template_id) : null;
+
+  const weekTitle = content?.week_title?.trim() || (outcomesTpl?.title as string | undefined)?.trim() || "The best week of your windsurf year";
+  type OutcomeCard = { icon?: string; t?: string; d?: string };
+  const customOutcomes = (((Array.isArray(content?.week_outcomes) && content!.week_outcomes!.length ? content!.week_outcomes! : null) ?? (Array.isArray(outcomesTpl?.cards) ? outcomesTpl.cards : [])) as OutcomeCard[])
     .filter((o) => (o?.t ?? "").trim())
     .map((o) => ({ icon: o.icon || "bolt", t: o.t!, d: o.d ?? "" }));
   // "What you take home" must only promise what the weeks deliver: when EVERY
@@ -506,8 +525,9 @@ export default async function ExperienceDetailPage({ params, searchParams }: Pro
     return false;
   };
   const outcomeItems = (customOutcomes.length ? customOutcomes : OUTCOMES).filter((o) => !mediaOutcomeOff(o));
-  const methodIntro = content?.method_intro?.trim() || METHOD_INTRO;
-  const customSteps = (Array.isArray(content?.method_steps) ? content!.method_steps! : [])
+  const methodIntro = content?.method_intro?.trim() || (methodTpl?.intro as string | undefined)?.trim() || METHOD_INTRO;
+  type MethodStepRow = { t?: string; d?: string; gameChanger?: boolean };
+  const customSteps = (((Array.isArray(content?.method_steps) && content!.method_steps!.length ? content!.method_steps! : null) ?? (Array.isArray(methodTpl?.steps) ? methodTpl.steps : [])) as MethodStepRow[])
     .filter((m) => (m?.t ?? "").trim())
     .map((m, i) => ({ n: String(i + 1).padStart(2, "0"), t: m.t!, d: m.d ?? "", gameChanger: !!m.gameChanger }));
   const methodSteps = customSteps.length ? customSteps : METHOD;
@@ -738,7 +758,13 @@ export default async function ExperienceDetailPage({ params, searchParams }: Pro
       <div id="week" className="scroll-mt-28">
       <EpicWeekScroll
         outcomes={outcomeItems}
-        images={vibeImages}
+        images={(() => {
+          // explicit per-card image wins; empty slot falls back to gallery
+          // position N — the old behaviour, so re-ordering the Media tab can
+          // no longer silently reshuffle a card someone pinned a photo to
+          const wk = Array.isArray(c?.week_images) ? (c.week_images as (string | null)[]) : [];
+          return outcomeItems.map((_, i) => wk[i] || vibeImages[i % Math.max(1, vibeImages.length)]).filter(Boolean) as string[];
+        })()}
         eyebrow="YOUR EPIC WEEK"
         title={weekTitle}
         intro={experience.description || "One week, fully immersed in the sport you love — epic conditions, world-class coaching, and a crew that feels like old friends by day two."}
