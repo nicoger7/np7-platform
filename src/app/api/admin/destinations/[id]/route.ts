@@ -57,6 +57,20 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
   // photo tweak stays inside the spotguide.
   const structural = ["name", "slug", "spotguide_status", "status", "region", "country"].some((k) => k in body);
   revalidateSpotguide(data?.slug ?? null, { alsoMagazine: structural });
+  // The same row renders "The spot" popup on every trip page pointing at it,
+  // and those are ISR'd for an hour. Without this, a SUCCESSFUL save showed
+  // nothing on the page Nico was looking at — indistinguishable from the save
+  // having failed. Targeted, not the whole [slug] pattern: a destination edit
+  // must not flush every experience page (Fluid CPU is metered).
+  try {
+    const { data: exps } = await db.from("exp_experiences").select("slug").eq("destination_id", id);
+    const { revalidatePath } = await import("next/cache");
+    for (const e of (exps ?? []) as { slug: string | null }[]) {
+      if (e.slug) revalidatePath(`/experience/${e.slug}`);
+    }
+  } catch (e) {
+    console.error("[revalidate] experience pages for destination failed:", e instanceof Error ? e.message : e);
+  }
   return NextResponse.json(data);
 }
 

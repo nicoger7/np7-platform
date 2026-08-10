@@ -189,6 +189,11 @@ export function EpicWeekScroll({
             <p className="text-[11px] font-bold tracking-[0.25em] text-[#00afdb] mb-3">{eyebrow}</p>
             <h2 className="text-2xl sm:text-[34px] font-black tracking-[-0.03em] text-[#00374a] mb-3 leading-[1.06]">{title}</h2>
             <p className="text-[13.5px] text-[#6a7a80] leading-relaxed mb-5 hidden lg:block">{intro}</p>
+            {/* "About the week" from the admin. It rendered ONLY in the static
+                fallback below, so on any desktop with animations on — i.e. the
+                page as Nico actually views it — the field went nowhere and the
+                admin hint pointed at a paragraph that did not exist. */}
+            {weekInfo && <p className="text-[12.5px] text-[#7a8a90] leading-relaxed -mt-2 mb-5 whitespace-pre-line hidden lg:block">{weekInfo}</p>}
             <div className="hidden lg:flex lg:flex-col gap-2">
               {outcomes.map((o, i) => {
                 const on = i === active;
