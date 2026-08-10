@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import type { TripApplication, ApplicationStatus } from "@/lib/signature";
+import { mutate, reportFailure } from "@/lib/mutate";
 
 type App = TripApplication & { playbackUrl: string | null };
 
@@ -22,14 +23,21 @@ export function ApplicationsReview({ initial }: { initial: App[] }) {
   const counts = STATUSES.reduce((m, s) => ({ ...m, [s]: apps.filter((a) => a.status === s).length }), {} as Record<string, number>);
   const shown = filter === "all" ? apps : apps.filter((a) => a.status === filter);
 
+  // Optimistic, but only until the server disagrees. The old version painted
+  // the new status and then swallowed the response entirely, so an accepted
+  // applicant with vetting notes could revert on reload with nothing said.
   async function patch(id: string, body: { status?: ApplicationStatus; admin_notes?: string }) {
+    const before = apps;
     setApps((prev) => prev.map((a) => (a.id === id ? { ...a, ...body } : a)));
-    await fetch(`/api/admin/signature/${id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }).catch(() => {});
+    const r = await mutate(`/api/admin/signature/${id}`, { method: "PATCH", body });
+    if (!r.ok) { setApps(before); reportFailure(r); }
   }
   async function archive(id: string) {
     if (!confirm("Archive this application?")) return;
+    const before = apps;
     setApps((prev) => prev.filter((a) => a.id !== id));
-    await fetch(`/api/admin/signature/${id}`, { method: "DELETE" }).catch(() => {});
+    const r = await mutate(`/api/admin/signature/${id}`, { method: "DELETE" });
+    if (!r.ok) { setApps(before); reportFailure(r); }
   }
 
   return (

@@ -1,25 +1,33 @@
 "use client";
 
 import { useState } from "react";
+import { mutate } from "@/lib/mutate";
 
 export function ExtraNightsButton({ bookingId }: { bookingId: string }) {
   const [open, setOpen] = useState(false);
   const [message, setMessage] = useState("");
   const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const [done, setDone] = useState(false);
 
   async function submit() {
     setBusy(true);
-    await fetch("/api/portal/extra-nights", {
-      method: "POST", headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ bookingId, message }),
-    });
-    setBusy(false); setDone(true);
+    // "✓ Request sent" used to be printed whatever came back. A guest could
+    // type a dietary requirement, see the tick, and arrive to find nobody had
+    // ever received it.
+    const r = await mutate("/api/portal/extra-nights", { method: "POST", body: { bookingId, message } });
+    setBusy(false);
+    if (!r.ok) { setError(r.error); return; }
+    setError(null); setDone(true);
   }
 
   if (done) {
     return <p className="text-[13.5px] text-green-700 font-semibold">✓ Request sent — we&apos;ll be in touch.</p>;
   }
+
+  const errorNote = error
+    ? <p className="text-[12.5px] text-[#c0392b] mt-2 leading-snug">{error}</p>
+    : null;
 
   return (
     <>

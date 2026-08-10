@@ -23,6 +23,7 @@ import { TEMPLATE_OPTIONS } from "@/lib/hardware/templates";
 import { FinTuningEditor } from "@/components/admin/fin-tuning-editor";
 import { HeroFocusPicker, TILE_ASPECTS } from "@/components/admin/placement-editors";
 import { EanField } from "@/components/admin/ean-field";
+import { mutate, saved as savedOk } from "@/lib/mutate";
 
 // ─── Helpers ───────────────────────────────────────────────────────────────
 
@@ -513,18 +514,18 @@ export default function ProductEditor({
 
   async function deleteVariant(variantId: string) {
     if (!confirm("Archive this variant?")) return;
-    await fetch(`/api/admin/variants/${variantId}`, { method: "DELETE" });
+    // saveVariant() right above alerts on failure; this one silently refetched,
+    // so a failed archive just looked like the variant refusing to disappear.
+    if (!(await savedOk(mutate(`/api/admin/variants/${variantId}`, { method: "DELETE" })))) return;
     loadVariants();
   }
 
   // ── Inquiry status PATCH ─────────────────────────────────────────────────
 
   async function patchInquiryStatus(inquiryId: string, status: string) {
-    await fetch(`/api/admin/products/${id}/inquiries`, {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ inquiry_id: inquiryId, status }),
-    });
+    // The chip flipped to "answered" even on a guaranteed failure, so a real
+    // customer inquiry could sit unanswered while the list said it was handled.
+    if (!(await savedOk(mutate(`/api/admin/products/${id}/inquiries`, { method: "PATCH", body: { inquiry_id: inquiryId, status } })))) return;
     setInquiries((prev) =>
       prev.map((q) => (q.id === inquiryId ? { ...q, status } : q))
     );
@@ -534,7 +535,9 @@ export default function ProductEditor({
 
   async function handleDelete() {
     if (!confirm("Delete this product? This cannot be undone.")) return;
-    await fetch(`/api/admin/products/${id}`, { method: "DELETE" });
+    // A delete blocked by an order's foreign key looked exactly like a
+    // successful one: either way you landed on the product list.
+    if (!(await savedOk(mutate(`/api/admin/products/${id}`, { method: "DELETE" })))) return;
     router.push("/admin/products");
   }
 

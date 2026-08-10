@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { mutate } from "@/lib/mutate";
 
 type Grant = { id: string; role: string; destination_id: string | null; destinationName: string | null };
 type Dest = { id: string; name: string };
@@ -41,9 +42,14 @@ export function SpotguideTrust({ contactId }: { contactId: string }) {
   }
   async function revoke(id: string) {
     setBusy(true);
-    await fetch(`/api/admin/spotguide/trust?id=${id}`, { method: "DELETE" });
+    // This is a PERMISSION being taken away. Dropping the chip without checking
+    // meant the admin believed a moderator had been revoked while they could
+    // still approve and publish spots.
+    const r = await mutate(`/api/admin/spotguide/trust?id=${id}`, { method: "DELETE" });
     setBusy(false);
+    if (!r.ok) { setMsg(r.error); return; }
     setGrants((list) => list.filter((g) => g.id !== id));
+    setMsg("✓ Revoked");
   }
 
   const isMod = grants.some((g) => g.role === "moderator");

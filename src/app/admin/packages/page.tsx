@@ -523,10 +523,15 @@ export default function PackagesPage() {
                       <select className="px-2 py-1 rounded-lg text-xs admin-input border"
                         value={form.beds_per_booking}
                         onChange={(e) => setForm({ ...form, beds_per_booking: e.target.value })}>
-                        <option value="1">1 — shares the room</option>
-                        <option value="2">2 — takes the whole room (single use)</option>
-                        <option value="3">3</option>
-                        <option value="4">4</option>
+                        {/* "Shares the room" read as though NP7 puts strangers together.
+                        It doesn't: this is arithmetic — how many beds ONE booking takes
+                        out of the room pool. Two friends travelling together are two
+                        bookings taking one bed each, and who actually ends up in which
+                        room is decided on the Hotel Rooms tab. */}
+                        <option value="1">1 bed — normal (two friends = two bookings, one room)</option>
+                        <option value="2">2 beds — this booking takes a whole double</option>
+                        <option value="3">3 beds — takes a triple / small apartment</option>
+                        <option value="4">4 beds — takes a family room / apartment</option>
                       </select>
                     </label>
                   </div>

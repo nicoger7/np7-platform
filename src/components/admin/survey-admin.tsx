@@ -4,6 +4,7 @@ import { useState, useMemo, useEffect } from "react";
 import { ContactLabel, ContactInline } from "@/components/admin/contact-label";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import { mutate, saved } from "@/lib/mutate";
 import ImagePickerModal from "@/components/image-picker-modal";
 import { SurveyStoryShare } from "@/components/admin/survey-story-share";
 import type { Survey, SurveyInvite, SurveyDestination, SurveyWeek, SurveyStatus } from "@/lib/surveys";
@@ -50,13 +51,31 @@ export function SurveyAdmin({ initialSurvey, initialInvites }: { initialSurvey: 
           quick: s.quick, eyebrow: s.eyebrow, cta_label: s.cta_label, decline_label: s.decline_label, show_decline: s.show_decline, email_body: s.email_body, ask_wishes: s.ask_wishes, email_date_buttons: s.email_date_buttons, email_button_label: s.email_button_label,
         }),
       });
-      if (res.ok) { setSavedAt(new Date().toLocaleTimeString()); router.refresh(); }
+      // A failed save used to do NOTHING — no message, and the "Saved 14:02"
+      // from an earlier success stayed on screen beside the button, so an
+      // expired session read as a successful save. Clear the stale stamp and
+      // say what happened.
+      if (!res.ok) {
+        const j = await res.json().catch(() => null);
+        setSavedAt(null);
+        alert(res.status === 401 || res.status === 403
+          ? "Your session has expired. Open a new tab, log in again, then hit Save once more — nothing you typed is lost."
+          : `That didn't save (${(j as { error?: string } | null)?.error ?? `error ${res.status}`}). Nothing you typed is lost.`);
+        return;
+      }
+      setSavedAt(new Date().toLocaleTimeString());
+      router.refresh();
+    } catch {
+      setSavedAt(null);
+      alert("No connection — nothing was saved. Check your network and hit Save again; nothing you typed is lost.");
     } finally { setSaving(false); }
   }
 
   async function archive() {
     if (!confirm("Archive this survey?")) return;
-    await fetch(`/api/admin/surveys/${s.id}`, { method: "DELETE" });
+    // Leaving the page either way made a failed archive indistinguishable from
+    // a successful one — the survey simply reappeared later.
+    if (!(await saved(mutate(`/api/admin/surveys/${s.id}`, { method: "DELETE" })))) return;
     router.refresh();
     router.push("/admin/surveys");
   }
@@ -533,7 +552,9 @@ export function SurveyAdmin({ initialSurvey, initialInvites }: { initialSurvey: 
         <ResponsesSection survey={s} invites={invites} fmtMoney={fmtMoney}
           onRemove={async (inviteId, who) => {
             if (!confirm(`Remove ${who} from this survey?\n\nTheir answer goes with them.`)) return;
-            await fetch(`/api/admin/surveys/${s.id}/invites?inviteId=${inviteId}`, { method: "DELETE" });
+            // Removing the row locally before knowing the DELETE worked meant a
+            // failure hid a respondent who was still counted in the totals.
+            if (!(await saved(mutate(`/api/admin/surveys/${s.id}/invites?inviteId=${inviteId}`, { method: "DELETE" })))) return;
             setInvites((cur) => cur.filter((x) => x.id !== inviteId));
           }} />
       )}
@@ -778,7 +799,9 @@ Same invite email under the subject "${remSubject.trim() || `Quick reminder 🤙
   }
 
   async function remove(inviteId: string) {
-    await fetch(`/api/admin/surveys/${surveyId}/invites?inviteId=${inviteId}`, { method: "DELETE" });
+    // The dangerous version: the row vanished, then "Send invites" mailed the
+    // person the admin had just removed.
+    if (!(await saved(mutate(`/api/admin/surveys/${surveyId}/invites?inviteId=${inviteId}`, { method: "DELETE" })))) return;
     setInvites(invites.filter((i) => i.id !== inviteId));
   }
   function copy(url: string, id: string) {
