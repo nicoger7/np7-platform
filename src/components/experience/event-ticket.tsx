@@ -141,23 +141,36 @@ export function EventTicket({
           <input className={`${input} sm:col-span-2`} type="email" placeholder="you@example.com" value={email} onChange={(e) => setEmail(e.target.value)} autoComplete="email" />
           <input className={`${input} sm:col-span-2`} placeholder="Phone (optional)" value={phone} onChange={(e) => setPhone(e.target.value)} autoComplete="tel" />
 
-          <label className="sm:col-span-2 block">
-            <span className="block text-[12.5px] font-semibold text-[#5a6b72] mb-1">Participant&apos;s date of birth</span>
-            <input className={`${input} w-full`} type="date" value={dob} onChange={(e) => setDob(e.target.value)} max={eventDate ?? undefined} />
-          </label>
-
-          {minor && (
-            <div className="sm:col-span-2 rounded-xl bg-[#fff8e8] border border-[#f2dfae] p-3.5 grid gap-2.5 sm:grid-cols-2">
-              <p className="sm:col-span-2 text-[12.5px] text-[#8a6a2a] leading-relaxed">
-                Under 18 — a parent or guardian books and signs. They&apos;ll be the contact for everything and the one who pays.
-              </p>
-              <input className={input} placeholder="Parent / guardian name" value={gName} onChange={(e) => setGName(e.target.value)} autoComplete="name" />
-              <input className={input} placeholder="Relationship (e.g. mother)" value={gRel} onChange={(e) => setGRel(e.target.value)} />
-              <input className={input} type="email" placeholder="Guardian email" value={gEmail} onChange={(e) => setGEmail(e.target.value)} autoComplete="email" />
-              <input className={input} placeholder="Guardian phone" value={gPhone} onChange={(e) => setGPhone(e.target.value)} autoComplete="tel" />
-            </div>
-          )}
         </div>
+      )}
+
+      {/* Age is asked of EVERYONE, member or guest — a logged-in account says
+          nothing about who is riding, and this field gates the button. It used
+          to live inside the guest-only block, which left members permanently
+          unable to book. */}
+      <div className="mt-5 grid gap-2.5 sm:grid-cols-2">
+        <label className="sm:col-span-2 block">
+          <span className="block text-[12.5px] font-semibold text-[#5a6b72] mb-1">Participant&apos;s date of birth</span>
+          <input className={`${input} w-full`} type="date" value={dob} onChange={(e) => setDob(e.target.value)} max={eventDate ?? undefined} />
+        </label>
+
+        {minor && (
+          <div className="sm:col-span-2 rounded-xl bg-[#fff8e8] border border-[#f2dfae] p-3.5 grid gap-2.5 sm:grid-cols-2">
+            <p className="sm:col-span-2 text-[12.5px] text-[#8a6a2a] leading-relaxed">
+              Under 18 — a parent or guardian books and signs. They&apos;ll be the contact for everything and the one who pays.
+            </p>
+            <input className={input} placeholder="Parent / guardian name" value={gName} onChange={(e) => setGName(e.target.value)} autoComplete="name" />
+            <input className={input} placeholder="Relationship (e.g. mother)" value={gRel} onChange={(e) => setGRel(e.target.value)} />
+            <input className={input} type="email" placeholder="Guardian email" value={gEmail} onChange={(e) => setGEmail(e.target.value)} autoComplete="email" />
+            <input className={input} placeholder="Guardian phone" value={gPhone} onChange={(e) => setGPhone(e.target.value)} autoComplete="tel" />
+          </div>
+        )}
+      </div>
+
+      {!isMember && (
+        <p className="text-[12.5px] text-[#8a9aa0] mt-2.5">
+          Already have an NP7 account? <a href="/account/login" className="font-semibold text-[#0aa3c7] hover:underline">Log in</a> and we&apos;ll fill your details in.
+        </p>
       )}
 
       {guardianProblem && <p className="text-[13px] font-semibold text-[#a5732a] mt-3">{guardianProblem}</p>}
