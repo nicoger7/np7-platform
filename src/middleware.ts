@@ -77,7 +77,10 @@ export async function middleware(request: NextRequest) {
         },
         setAll(cookiesToSet) {
           cookiesToSet.forEach(({ name, value }) => request.cookies.set(name, value));
-          supabaseResponse = NextResponse.next({ request });
+          // Rebuilding from `request` alone dropped x-np7-pathname, so any
+          // request that happened to refresh its token lost the header the
+          // /experience gate reads.
+          supabaseResponse = NextResponse.next({ request: { headers: authedHeaders } });
           cookiesToSet.forEach(({ name, value, options }) =>
             supabaseResponse.cookies.set(name, value, options)
           );
@@ -87,6 +90,22 @@ export async function middleware(request: NextRequest) {
   );
 
   const { data: { user } } = await supabase.auth.getUser();
+
+  /**
+   * Carry any refreshed auth cookies onto whatever we return.
+   *
+   * getUser() rotates an expired access token and queues the new cookies on
+   * `supabaseResponse`. Every guard below returned a FRESH response instead —
+   * a redirect, or a 401/403 JSON — so those cookies were thrown away. Supabase
+   * refresh tokens are single-use: the moment one is spent and its replacement
+   * is dropped, the browser is holding a dead token and the whole session is
+   * gone. That is why a save could 401 out of nowhere and the next page bounced
+   * to the login screen, an hour into working.
+   */
+  const carry = (res: NextResponse) => {
+    for (const c of supabaseResponse.cookies.getAll()) res.cookies.set(c);
+    return res;
+  };
 
   const isAdminApi = path.startsWith("/api/admin");
   const isAdminPage = path.startsWith("/admin");
@@ -98,14 +117,14 @@ export async function middleware(request: NextRequest) {
     const url = request.nextUrl.clone();
     url.pathname = pathname;
     url.search = "";
-    return NextResponse.redirect(url);
+    return carry(NextResponse.redirect(url));
   };
 
   // ── Admin (pages + API): require an active team member, gated by access level ──
   if (isAdminApi || (isAdminPage && !isAdminLogin)) {
     if (!user) {
       return isAdminApi
-        ? NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+        ? carry(NextResponse.json({ error: "Unauthorized" }, { status: 401 }))
         : redirect("/admin/login");
     }
     const member = await teamMemberFor(user.email);
@@ -113,7 +132,7 @@ export async function middleware(request: NextRequest) {
       // A logged-in non-team account hitting /admin should land on the team
       // login (so they can sign in with a team account), NOT the member portal.
       return isAdminApi
-        ? NextResponse.json({ error: "Forbidden" }, { status: 403 })
+        ? carry(NextResponse.json({ error: "Forbidden" }, { status: 403 }))
         : redirect("/admin/login");
     }
     // Section access: a custom role gates by world + section; otherwise the
@@ -121,14 +140,14 @@ export async function middleware(request: NextRequest) {
     const eff = await effectiveAccessFor(member);
     if (!effectiveCanAccess(eff, path)) {
       return isAdminApi
-        ? NextResponse.json({ error: "Forbidden" }, { status: 403 })
+        ? carry(NextResponse.json({ error: "Forbidden" }, { status: 403 }))
         : redirect("/admin");
     }
     // Writes need the edit level, not just reach. This check was method-blind,
     // so "view" on a section granted that section's writes everywhere — one
     // media role could switch automations off and mass-mail secured guests.
     if (!["GET", "HEAD", "OPTIONS"].includes(request.method) && !effectiveCanWrite(eff, path)) {
-      return NextResponse.json({ error: "You have view access here, not edit." }, { status: 403 });
+      return carry(NextResponse.json({ error: "You have view access here, not edit." }, { status: 403 }));
     }
   }
 

@@ -25,8 +25,13 @@ export type MutateResult<T = unknown> =
 
 /** Human, actionable, and specific about the case that actually happens most. */
 function messageFor(status: number, serverMessage?: string): string {
-  if (status === 401 || status === 403) {
+  if (status === 401) {
     return "Your session has expired. Open a new tab, log in again, then try once more — nothing you typed is lost.";
+  }
+  if (status === 403) {
+    // Not the same thing, and telling someone to log in again when the real
+    // answer is "your role can't do this" sends them round a loop.
+    return serverMessage || "Your role can't save this. Ask an owner to grant edit access to this section.";
   }
   if (status === 0) return "No connection — check your network and try again. Nothing you typed is lost.";
   if (status === 409) return serverMessage || "That conflicts with something already saved. Reload and try again.";

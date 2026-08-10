@@ -72,9 +72,11 @@ export default function DestinationEditor({ params }: { params: Promise<{ id: st
       });
       if (!res.ok) {
         const j = await res.json().catch(() => ({}));
-        alert(res.status === 401 || res.status === 403 || res.redirected
+        alert(res.status === 401 || res.redirected
           ? "Your admin session has expired — open a new tab, log in again, then come back and hit Save. Your edits are still on this page."
-          : `Save failed: ${j.error || `HTTP ${res.status}`}. Your edits are still on this page — try again.`);
+          : res.status === 403
+            ? `${j.error || "Your role can't save this section."} Your edits are still on this page.`
+            : `Save failed: ${j.error || `HTTP ${res.status}`}. Your edits are still on this page — try again.`);
         return;
       }
       // Adopt the row the server actually stored, so what you see after Save
