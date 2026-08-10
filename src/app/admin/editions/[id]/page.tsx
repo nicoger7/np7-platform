@@ -112,6 +112,9 @@ interface Edition {
   /** 'event' = a 1–2 day clinic (migration 157): no mailing chain, no arrivals,
    *  no rooms, no level caps — those all describe a travelled week. */
   kind?: string | null;
+  /** Where this edition happens. Null = inherit the experience's location —
+   *  which is every trip. An event series fills it in per date. */
+  location?: string | null;
   video_analysis?: boolean | null;
   photoshoot?: boolean | null;
   spots_taken: number;
@@ -982,7 +985,7 @@ export default function EditionDetailPage({
               </span>
             </div>
             <p className="text-sm admin-muted">
-              {edition.exp_experiences?.location || ""}
+              {edition.location || edition.exp_experiences?.location || ""}
               {edition.experience_code ? ` • ${edition.experience_code}` : ""}
             </p>
           </div>
@@ -1140,6 +1143,22 @@ export default function EditionDetailPage({
               </select>
             </div>
           </div>
+
+          {/* Where THIS edition happens. A trip inherits its experience's place
+              and leaves this blank; an event series is a format that travels,
+              so the venue is the edition's own fact. */}
+          {isEventEdition && (
+            <div>
+              <label className={labelClass}>Location<PublicBadge note="Shown on the event page and in the member area for this date" /></label>
+              <input
+                className={inputClass}
+                value={edition.location || ""}
+                onChange={(e) => update("location", e.target.value || null)}
+                placeholder={edition.exp_experiences?.location || "e.g. Alaçatı, Turkey"}
+              />
+              <p className="text-[11px] admin-faint mt-1">Leave blank to use the experience default{edition.exp_experiences?.location ? ` (${edition.exp_experiences.location})` : ""}.</p>
+            </div>
+          )}
 
           {/* Dates */}
           <div className="grid grid-cols-2 gap-4">

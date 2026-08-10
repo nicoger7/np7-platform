@@ -61,6 +61,8 @@ export default function ContentEditorPage({ params }: { params: Promise<{ id: st
   const [explainerVideo, setExplainerVideo] = useState("");
   // event settings (page_template flips the whole public layout to the slim event page)
   const [pageTemplate, setPageTemplate] = useState<"full" | "event">("full");
+  /** A clinic, not a travelled week — drives which sections are even offered. */
+  const isEvent = pageTemplate === "event";
   const [eventMode, setEventMode] = useState<"fixed" | "standby">("fixed");
   const [eventDepositPct, setEventDepositPct] = useState(20);
   const [eventRefundPct, setEventRefundPct] = useState(15);
@@ -315,7 +317,13 @@ export default function ContentEditorPage({ params }: { params: Promise<{ id: st
 
       {/* Section tabs */}
       <div className="flex flex-wrap items-center gap-1 mb-5" style={{ borderBottom: "1px solid var(--admin-border)" }}>
-        {[["media", "Media"], ["story", "Story"], ["program", "Program"], ["pretrip", "Pre-trip"], ["event", "Event"], ["modules", "Per-edition"], ["reviews", "Reviews"], ["faq", "FAQ"]].map(([k, l]) => (
+        {/* An event is a clinic, not a travelled week: there is no packing list,
+            no pre-trip note, no flights — so Pre-trip is hidden rather than
+            offered and left empty. Program stays (a two-day clinic has days),
+            but it stops calling itself a perfect WEEK. */}
+        {([["media", "Media"], ["story", "Story"], ["program", isEvent ? "Day by day" : "Program"], ["pretrip", "Pre-trip"], ["event", "Event"], ["modules", "Per-edition"], ["reviews", "Reviews"], ["faq", "FAQ"]] as const)
+          .filter(([k]) => !(isEvent && k === "pretrip"))
+          .map(([k, l]) => (
           <button key={k} onClick={() => selectTab(k)} className={`px-3.5 py-2 text-sm font-medium transition-colors border-b-2 -mb-[1px] ${tab === k ? "admin-heading border-[var(--admin-accent)]" : "admin-muted border-transparent"}`}>{l}</button>
         ))}
       </div>
@@ -608,7 +616,11 @@ export default function ContentEditorPage({ params }: { params: Promise<{ id: st
           )}
         </Section>
 
-        <Section show={tab === "program"} title="Perfect week — daily program" hint="What a perfect week looks like. Note on the page tells guests the real schedule depends on the wind.">
+        <Section
+          show={tab === "program"}
+          title={isEvent ? "Day by day" : "Perfect week — daily program"}
+          hint={isEvent ? "What happens on each day of the clinic. Leave empty and the page simply doesn't show a schedule." : "What a perfect week looks like. Note on the page tells guests the real schedule depends on the wind."}
+        >
           <div className="space-y-3">
             {program.map((p, i) => (
               <div key={i} className="admin-surface admin-border border rounded-xl p-3.5">
@@ -624,7 +636,9 @@ export default function ContentEditorPage({ params }: { params: Promise<{ id: st
             ))}
             <AddButton label="Add day" onClick={() => setProgram([...program, { title: "", description: "" }])} />
           </div>
-          {program.length === 0 && (
+          {/* The six-day default is a WEEK. Showing it on a two-day clinic
+              tells you a fiction is live when nothing is. */}
+          {program.length === 0 && !isEvent && (
             <DefaultBox>
               {DEFAULT_DAILY_PROGRAM.map((d, i) => (
                 <p key={i}><strong className="admin-heading">Day {i + 1}: {d.title}</strong> — {d.description}</p>

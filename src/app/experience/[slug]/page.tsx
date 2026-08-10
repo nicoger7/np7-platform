@@ -33,7 +33,7 @@ import { DestinationDeepDive } from "@/components/experience/destination-deep-di
 
 export const revalidate = 3600;
 
-type Props = { params: Promise<{ slug: string }>; searchParams?: Promise<{ paid?: string }> };
+type Props = { params: Promise<{ slug: string }>; searchParams?: Promise<{ paid?: string; b?: string }> };
 
 /* -------- evergreen brand content (per-trip fields come from admin later) -------- */
 // Our own shots on our own CDN (R2) — no third-party hosting.
@@ -202,7 +202,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
 
 export default async function ExperienceDetailPage({ params, searchParams }: Props) {
   const { slug } = await params;
-  const { paid } = (await searchParams) ?? {};
+  const { paid, b: paidBookingId } = (await searchParams) ?? {};
   // Team members can preview drafts + off-website experiences (the admin
   // "Preview page" button); the public only ever sees published ones.
   const team = await getTeamMember().catch(() => null);
@@ -215,7 +215,7 @@ export default async function ExperienceDetailPage({ params, searchParams }: Pro
     // Same visibility rules as trips: public only sees published + on-website.
     if (!team && (event.status !== "published" || !event.websiteVisible)) notFound();
     const member = await getPortalUser().catch(() => null);
-    return <EventPage event={event} isMember={!!member?.contactId} paid={paid === "1"} />;
+    return <EventPage event={event} isMember={!!member?.contactId} paid={paid === "1"} paidBookingId={paidBookingId ?? null} />;
   }
   let query = supabase
     .from("exp_experiences")

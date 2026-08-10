@@ -59,11 +59,26 @@ export async function getEventForSlug(slug: string, opts: { includeAllDates?: bo
     .order("date_start");
   const dates = ((dateRows ?? []) as EventDate[]).filter((d) => opts.includeAllDates || d.status !== "cancelled");
 
+  // A race clinic is a format, not a place (migration 158): the edition holds
+  // the venue and the experience only holds a default. Read the soonest live
+  // edition's location so the page says Alaçatı in August and somewhere else
+  // in October, without one experience row per venue.
+  const { data: edRows } = await db
+    .from("exp_editions")
+    .select("location,date_start")
+    .eq("experience_id", exp.id)
+    .eq("kind", "event")
+    .eq("status", "published")
+    .not("location", "is", null)
+    .order("date_start");
+  const soonest = ((edRows ?? []) as { location: string | null; date_start: string | null }[])
+    .find((e) => (dates[0]?.date_start ? e.date_start === dates[0].date_start : true));
+
   return {
     id: exp.id,
     title: exp.title,
     slug: exp.slug,
-    location: exp.location,
+    location: soonest?.location ?? exp.location,
     currency: exp.currency,
     price: exp.price,
     description: exp.description,

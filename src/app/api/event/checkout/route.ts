@@ -137,10 +137,25 @@ export async function POST(request: NextRequest) {
     }
   }
 
+  // The edition this ticket belongs to. Migration 157 made an event date an
+  // edition, and every member and admin surface reads the edition — the trip
+  // page, the bookings tab, Finance. A booking written without edition_id is
+  // invisible to all of them, which is exactly the state the migration existed
+  // to end, so it must be resolved here and not left to a later backfill.
+  const { data: edRow } = await db
+    .from("exp_editions")
+    .select("id")
+    .eq("experience_id", exp.id)
+    .eq("kind", "event")
+    .eq("date_start", eventDate)
+    .maybeSingle();
+  const editionId = (edRow as { id: string } | null)?.id ?? null;
+
   const { data: booking, error: bErr } = await db.from("exp_bookings").insert({
     name: composeBookingName({ contactName: fullName, experienceTitle: exp.title }),
     contact_id: contactId,
     experience_id: exp.id,
+    edition_id: editionId,
     status: mode === "standby" ? "reserved" : "lead",
     agreed_price: price,
     event_date_ids: selected,
@@ -167,7 +182,7 @@ export async function POST(request: NextRequest) {
       amountCents: Math.round(amount * 100),
     },
     currency: exp.currency ?? "eur",
-    successUrl: `${origin}/experience/${exp.slug}?paid=1`,
+    successUrl: `${origin}/experience/${exp.slug}?paid=1&b=${booking.id}`,
     cancelUrl: `${origin}/experience/${exp.slug}`,
     customerEmail: email,
     metadata: { booking_id: booking.id, kind, experience_id: exp.id },

@@ -397,22 +397,54 @@ export default function ExperienceDetailPage({
       {/* ── Template / Components / Media tabs ── */}
       <div className="max-w-[720px]">
         <div className={activeSection === "template" ? "space-y-5" : "hidden"}>
-          {/* Page template */}
+          {/* What this experience IS. Everything downstream hangs off this one
+              answer: a trip is a week in one place, so the place belongs to the
+              experience; an event series is a FORMAT that travels, so the place
+              belongs to each edition. Getting it wrong used to mean one
+              experience row per venue. */}
           <div>
-            <label className={labelClass}>Event-page template</label>
+            <label className={labelClass}>What is this?</label>
+            <p className="text-xs admin-faint mb-2">A trip runs the same week in the same place, year after year. An event series is a format — a race clinic, a weekend workshop — that travels, so <span className="admin-muted">each edition sets its own place</span>.</p>
+            <div className="flex flex-wrap gap-2">
+              {[
+                { key: "full", label: "Trip", desc: "A week in one place · full experience page" },
+                { key: "event", label: "Event series", desc: "Short clinics · place set per edition" },
+              ].map((t) => {
+                const current = (exp.page_template === "event" ? "event" : "full") === t.key;
+                return (
+                  <button
+                    key={t.key}
+                    type="button"
+                    onClick={() => update("page_template", t.key)}
+                    title={t.desc}
+                    className={`px-4 py-2.5 rounded-lg text-sm font-medium border text-left transition-colors ${
+                      current ? "admin-heading border-[var(--admin-accent)] bg-[var(--admin-accent)]/10" : "admin-surface admin-muted"
+                    }`}
+                    style={{ borderColor: current ? undefined : "var(--admin-border)" }}
+                  >
+                    <span className="block">{t.label}</span>
+                    <span className="block text-[11px] admin-faint font-normal mt-0.5">{t.desc}</span>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
+          {/* Page template */}
+          <div className={exp.page_template === "event" ? "" : "hidden"}>
+            <label className={labelClass}>Event-page layout</label>
             <p className="text-xs admin-faint mb-2">Controls the public event-page layout. Smaller events can use a lighter template.</p>
             <div className="flex flex-wrap gap-2">
               {[
                 { key: "full", label: "Full", desc: "The complete, image-rich page" },
                 { key: "compact", label: "Compact", desc: "Lighter layout for small events (coming soon)", disabled: true },
               ].map((t) => {
-                const current = (exp.page_template || "full") === t.key;
+                const current = t.key === "full";
                 return (
                   <button
                     key={t.key}
                     type="button"
-                    disabled={t.disabled}
-                    onClick={() => !t.disabled && update("page_template", t.key)}
+                    disabled
                     title={t.desc}
                     className={`px-4 py-2.5 rounded-lg text-sm font-medium border text-left transition-colors ${
                       current ? "admin-heading border-[var(--admin-accent)] bg-[var(--admin-accent)]/10" : "admin-surface admin-muted"
@@ -527,12 +559,15 @@ export default function ExperienceDetailPage({
           {/* Location & Airport */}
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <label className={labelClass}>Location<PublicBadge note="Drives the place name + country flag on the trip card" /></label>
+              <label className={labelClass}>{exp.page_template === "event" ? "Default location" : "Location"}<PublicBadge note="Drives the place name + country flag on the trip card" /></label>
               <input
                 className={inputClass}
                 value={exp.location}
                 onChange={(e) => update("location", e.target.value)}
               />
+              {exp.page_template === "event" && (
+                <p className="text-[11px] admin-faint mt-1">Used only when an edition leaves its own location blank — set the real venue on each edition.</p>
+              )}
             </div>
             <div>
               <label className={labelClass}>Airport code</label>

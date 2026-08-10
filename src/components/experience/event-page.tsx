@@ -36,7 +36,20 @@ function toTicketDate(d: EventInfo["dates"][number]): TicketDate {
  * know the spot). Sells the ticket fast: hero, a short what-it-is, the ticket
  * box. No accommodation, no pre-payment plan, no deep-dives.
  */
-export async function EventPage({ event, isMember, paid }: { event: EventInfo; isMember: boolean; paid: boolean }) {
+export async function EventPage({ event, isMember, paid, paidBookingId = null }: { event: EventInfo; isMember: boolean; paid: boolean; paidBookingId?: string | null }) {
+  // "You're in" used to be a claim made by the URL alone, which is how a page
+  // can congratulate someone the platform never recorded. Ask the booking.
+  // The webhook writes the payment a moment after Stripe redirects, so a
+  // still-unpaid row is treated as "landing", not as a failure.
+  const paidBooking = paid && paidBookingId
+    ? await (async () => {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const db = createAdminClient() as any;
+        const { data } = await db.from("exp_bookings").select("id,status").eq("id", paidBookingId).maybeSingle();
+        return (data as { id: string; status: string | null } | null) ?? null;
+      })()
+    : null;
+  const paidConfirmed = ["paid", "reserved", "confirmed", "attended"].includes(String(paidBooking?.status ?? "").toLowerCase());
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const db = createAdminClient() as any;
   const [{ data: content }, { data: exp }, { data: coachRows }] = await Promise.all([
@@ -97,8 +110,25 @@ export async function EventPage({ event, isMember, paid }: { event: EventInfo; i
         <div>
           {paid && (
             <div className="mb-6 rounded-2xl bg-[#eafaf0] border border-[#bfe8cf] px-5 py-4">
-              <p className="text-[15px] font-bold text-[#1f7a45]">You&apos;re in — see you on the water! 🌊</p>
-              <p className="text-[13.5px] text-[#3a6a4e] mt-1">Check your email for the details{event.mode === "standby" ? " — we&apos;ll confirm your date soon" : ""}.</p>
+              {paidConfirmed ? (
+                <>
+                  <p className="text-[15px] font-bold text-[#1f7a45]">You&apos;re in — see you on the water! 🌊</p>
+                  <p className="text-[13.5px] text-[#3a6a4e] mt-1">Check your email for the details{event.mode === "standby" ? " — we&apos;ll confirm your date soon" : ""}.</p>
+                </>
+              ) : (
+                <>
+                  <p className="text-[15px] font-bold text-[#1f7a45]">Payment received — setting up your spot…</p>
+                  <p className="text-[13.5px] text-[#3a6a4e] mt-1">This takes a few seconds. Your confirmation email is on its way.</p>
+                </>
+              )}
+              {paidBooking && (
+                <Link
+                  href={`/account/bookings/${paidBooking.id}`}
+                  className="inline-flex items-center gap-1.5 mt-3 rounded-full bg-[#1f7a45] text-white text-[13px] font-bold px-4 py-2 hover:bg-[#186237] transition-colors"
+                >
+                  Go to my booking →
+                </Link>
+              )}
             </div>
           )}
           {about ? (
