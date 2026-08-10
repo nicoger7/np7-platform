@@ -42,53 +42,84 @@ export function SurveyInfoButtons({ info }: { info: SurveyInfo }) {
   }, [open]);
 
   const hasMethod = !!(info.method && (info.method.intro || info.method.steps.length > 0));
-  const cards: { key: Panel; label: string; sub: string }[] = [
+  const cards: { key: Panel; label: string; sub: string; photo?: string | null }[] = [
     ...(info.coaches.length
       ? [{
           key: "coach" as const,
           label: info.coaches.length > 1 ? "Your coaches" : "Your coach",
-          sub: info.coaches.map((c) => c.name.split(" ")[0]).join(" & "),
+          sub: info.coaches.map((c) => c.name).join(" & "),
+          photo: info.coaches[0].image,
         }]
       : []),
-    ...(hasMethod ? [{ key: "method" as const, label: "How we coach", sub: "The NP7 method" }] : []),
+    ...(hasMethod ? [{ key: "method" as const, label: "The NP7 Method", sub: "Seven dimensions · one rider" }] : []),
     ...(info.spot && (info.spot.intro || info.spot.tagline || info.spot.conditions)
-      ? [{ key: "spot" as const, label: "The spot", sub: info.spot.name }]
+      ? [{ key: "spot" as const, label: "The spot", sub: info.spot.name, photo: info.spot.image }]
       : []),
     ...(info.features.length
-      ? [{ key: "features" as const, label: "What's included", sub: `${info.features.length} things` }]
+      ? [{ key: "features" as const, label: "What's included", sub: `${info.features.length} things in your week` }]
       : []),
   ];
   if (cards.length === 0) return null;
 
   return (
     <>
-      {/* flex-1 with a shared basis: two cards halve the row, three third it,
-          four quarter it, and a card that wraps still fills its own line. */}
-      <div className="flex flex-wrap gap-2 mt-4">
+      {/* The GER-7 seal card from the experience page, applied to all four.
+          flex-1 on a shared basis, so two halve the row, three go 2+1 with the
+          wrapped one filling its line, and four make a tidy 2×2. */}
+      <div className="flex flex-wrap gap-3 mt-5">
         {cards.map((c) => (
           <button
             key={c.key}
             type="button"
             onClick={() => setOpen(c.key)}
-            className="group flex-1 basis-[160px] text-left rounded-2xl border border-[#e3eaec] bg-white px-3.5 py-3 transition-all hover:border-[#00afdb] hover:shadow-[0_10px_26px_rgba(0,55,74,0.12)] hover:-translate-y-px"
+            className="group relative flex flex-1 basis-[300px] items-center gap-4 rounded-2xl p-4 text-left transition-all hover:-translate-y-0.5 active:translate-y-0 motion-reduce:transform-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#00afdb] focus-visible:ring-offset-2 focus-visible:ring-offset-[#fdf8ef]"
+            style={{
+              border: "1px solid transparent",
+              background: "linear-gradient(rgba(0,25,34,0.96), rgba(0,25,34,0.96)) padding-box, linear-gradient(100deg, rgba(255,196,46,0.65), rgba(244,123,32,0.65) 45%, rgba(0,175,219,0.65)) border-box",
+              boxShadow: "0 10px 34px rgba(0,10,16,0.22)",
+            }}
           >
-            <span className="flex items-center gap-2.5">
-              {/* Deep teal tile, cyan mark — the NP7 pairing, so these read as
-                  ours at a glance instead of as a generic outline button. */}
-              <span className="shrink-0 grid place-items-center w-8 h-8 rounded-xl bg-[#00374a] group-hover:bg-[#00afdb] transition-colors">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.1" strokeLinecap="round" strokeLinejoin="round"
-                  className="w-[15px] h-[15px] text-[#67d7f0] group-hover:text-white transition-colors" aria-hidden>
-                  {ICONS[c.key]}
-                </svg>
+            {/* medallion — the same drifting seven-segment ring, holding the
+                coach's face or the spot's photo where there is one, so the card
+                shows you the thing instead of an icon standing in for it. */}
+            <span className="relative grid place-items-center w-[58px] h-[58px] shrink-0">
+              <span aria-hidden className="absolute inset-[-30%] rounded-full opacity-0 group-hover:opacity-100 transition-opacity duration-500" style={{ background: "radial-gradient(closest-side, rgba(244,123,32,0.22), transparent 70%)" }} />
+              <span aria-hidden className="absolute inset-0 motion-safe:animate-[spin_45s_linear_infinite]">
+                <span className="absolute inset-0 rounded-full" style={{
+                  background: "conic-gradient(from 210deg, #00afdb, #ffc42e 30%, #f47b20 62%, #00afdb)",
+                  WebkitMask: "radial-gradient(closest-side, transparent calc(100% - 5px), #000 calc(100% - 4px))",
+                  mask: "radial-gradient(closest-side, transparent calc(100% - 5px), #000 calc(100% - 4px))",
+                }} />
+                <span className="absolute inset-0 rounded-full" style={{
+                  background: "repeating-conic-gradient(from -90deg, transparent 0deg 47.4deg, #001922 47.4deg 51.43deg)",
+                  WebkitMask: "radial-gradient(closest-side, transparent calc(100% - 6px), #000 calc(100% - 5px))",
+                  mask: "radial-gradient(closest-side, transparent calc(100% - 6px), #000 calc(100% - 5px))",
+                }} />
               </span>
-              <span className="min-w-0 flex-1">
-                <span className="block text-[13px] font-black text-[#00374a] leading-tight truncate">{c.label}</span>
-                <span className="block text-[11.5px] text-[#8a9aa0] leading-tight truncate mt-0.5">{c.sub}</span>
+              <span className="relative grid place-items-center w-[calc(100%-13px)] h-[calc(100%-13px)] rounded-full bg-[#002a39] overflow-hidden">
+                {c.photo ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img src={c.photo} alt="" className="w-full h-full object-cover" />
+                ) : c.key === "method" ? (
+                  <span className="flex flex-col items-center leading-none">
+                    <span className="text-[6.5px] font-black tracking-[0.3em] text-white/45 translate-x-[0.15em]">GER</span>
+                    <span className="text-[22px] font-black bg-clip-text text-transparent" style={{ backgroundImage: "linear-gradient(180deg, #ffc42e, #f47b20 55%, #00afdb)" }}>7</span>
+                  </span>
+                ) : (
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"
+                    className="w-5 h-5 text-[#8fe6f2]" aria-hidden>{ICONS[c.key]}</svg>
+                )}
               </span>
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"
-                className="w-3.5 h-3.5 shrink-0 text-[#c3d2d7] group-hover:text-[#00afdb] transition-colors" aria-hidden>
-                <path d="m9 18 6-6-6-6" />
-              </svg>
+            </span>
+
+            <span className="min-w-0 flex-1">
+              <span className="block text-[16px] font-black tracking-[-0.02em] text-white truncate">{c.label}</span>
+              <span aria-hidden className="block h-[2.5px] w-full rounded-full origin-left scale-x-[0.18] group-hover:scale-x-100 transition-transform duration-300 my-1.5" style={{ background: "linear-gradient(90deg, #ffc42e, #f47b20 55%, #00afdb)" }} />
+              <span className="block text-[12px] font-semibold text-white/60 group-hover:text-white/80 transition-colors truncate">{c.sub}</span>
+            </span>
+
+            <span className="shrink-0 grid place-items-center w-9 h-9 rounded-full border border-white/15 bg-white/[0.07] text-white/80 transition-all group-hover:bg-[#ffc42e]/15 group-hover:text-[#ffc42e] group-hover:translate-x-0.5">
+              <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M9 6l6 6-6 6" /></svg>
             </span>
           </button>
         ))}
@@ -105,21 +136,12 @@ export function SurveyInfoButtons({ info }: { info: SurveyInfo }) {
               is a scroll, not an introduction. */}
           {open === "coach" && info.coaches.length === 1 && (
             <div>
-              {info.coaches[0].image ? (
-                // eslint-disable-next-line @next/next/no-img-element
-                <img src={info.coaches[0].image} alt={info.coaches[0].name}
-                  className="w-full h-[240px] sm:h-[280px] object-cover rounded-2xl bg-[#f4ecdd]" />
-              ) : (
-                <span className="w-full h-[240px] sm:h-[280px] rounded-2xl grid place-items-center bg-[#f4ecdd] text-[52px] font-black text-[#b0791e]">
-                  {info.coaches[0].name.split(" ").map((w) => w[0]).slice(0, 2).join("")}
-                </span>
-              )}
-              <p className="text-[24px] sm:text-[27px] font-black text-[#00374a] leading-[1.1] tracking-[-0.025em] mt-5">{info.coaches[0].name}</p>
-              {info.coaches[0].role && (
-                <p className="text-[11px] font-black uppercase tracking-[0.16em] text-[#b0791e] mt-1.5">{info.coaches[0].role}</p>
-              )}
+              {/* The name sits ON the photo, the way the site's heroes work —
+                  a picture then a caption underneath read as two things. */}
+              <Hero image={info.coaches[0].image} fallback={info.coaches[0].name}
+                title={info.coaches[0].name} eyebrow={info.coaches[0].role} />
               {info.coaches[0].bio && (
-                <p className="text-[15px] text-[#5a6b72] leading-[1.7] mt-4 whitespace-pre-line [text-wrap:pretty]">{info.coaches[0].bio}</p>
+                <p className="text-[15px] text-[#5a6b72] leading-[1.7] mt-5 whitespace-pre-line [text-wrap:pretty]">{info.coaches[0].bio}</p>
               )}
             </div>
           )}
@@ -188,15 +210,9 @@ export function SurveyInfoButtons({ info }: { info: SurveyInfo }) {
               {/* A place is a picture first. This panel opened on a wall of text
                   and three grey boxes, which is not how anyone decides where to
                   spend a week. */}
-              {info.spot.image && (
-                // eslint-disable-next-line @next/next/no-img-element
-                <img src={info.spot.image} alt={info.spot.name}
-                  className="w-full h-[200px] sm:h-[240px] object-cover rounded-2xl bg-[#f4ecdd] mb-5" />
-              )}
-              <p className="text-[24px] sm:text-[27px] font-black text-[#00374a] leading-[1.1] tracking-[-0.025em]">{info.spot.name}</p>
-              {info.spot.tagline && <p className="text-[15px] text-[#6a7a80] mt-1.5">{info.spot.tagline}</p>}
+              <Hero image={info.spot.image} fallback={info.spot.name} title={info.spot.name} eyebrow={info.spot.tagline} />
               {info.spot.intro && (
-                <p className="text-[14.5px] text-[#5a6b72] leading-[1.65] mt-4 whitespace-pre-line [text-wrap:pretty]">{info.spot.intro}</p>
+                <p className="text-[14.5px] text-[#5a6b72] leading-[1.65] mt-5 whitespace-pre-line [text-wrap:pretty]">{info.spot.intro}</p>
               )}
               {/* Measured, for the month this trip runs — the same climatology
                   the spotguide and the experience pages read, so a survey can
@@ -279,6 +295,34 @@ export function SurveyInfoButtons({ info }: { info: SurveyInfo }) {
         </Sheet>
       )}
     </>
+  );
+}
+
+/**
+ * A sheet's opening image with its name laid over it.
+ *
+ * The site's heroes all work this way — picture and title as one object, not a
+ * photo with a caption below it. Falls back to initials on the warm sand when
+ * there is no image, so the shape of the panel never changes.
+ */
+function Hero({ image, fallback, title, eyebrow }: { image: string | null; fallback: string; title: string; eyebrow?: string | null }) {
+  return (
+    <div className="relative overflow-hidden rounded-2xl h-[220px] sm:h-[260px] bg-[#002a39]">
+      {image ? (
+        // eslint-disable-next-line @next/next/no-img-element
+        <img src={image} alt={title} className="absolute inset-0 w-full h-full object-cover" />
+      ) : (
+        <span className="absolute inset-0 grid place-items-center bg-[#f4ecdd] text-[52px] font-black text-[#b0791e]">
+          {fallback.split(" ").map((w) => w[0]).slice(0, 2).join("")}
+        </span>
+      )}
+      <div className="absolute inset-0" style={{ background: "linear-gradient(to top, rgba(0,18,26,0.9) 4%, rgba(0,18,26,0.15) 52%, rgba(0,18,26,0.25) 100%)" }} aria-hidden />
+      <div className="absolute inset-x-0 bottom-0 p-5">
+        {eyebrow && <p className="text-[11px] font-black uppercase tracking-[0.16em] text-[#ffc42e]">{eyebrow}</p>}
+        <p className="text-[26px] sm:text-[30px] font-black text-white leading-[1.08] tracking-[-0.025em] mt-1">{title}</p>
+        <span aria-hidden className="block h-[2.5px] w-14 rounded-full mt-2.5" style={{ background: "linear-gradient(90deg, #ffc42e, #f47b20 55%, #00afdb)" }} />
+      </div>
+    </div>
   );
 }
 
