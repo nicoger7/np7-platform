@@ -63,9 +63,37 @@ export async function POST(request: NextRequest) {
     selected = [confirmed.id];
   }
 
+  // Minors. A form can be bypassed; this cannot. Age is judged on the day they
+  // ride, and a booking for an under-18 without a named guardian is refused —
+  // that contract would be voidable and the waiver worthless. This runs BEFORE
+  // the contact is resolved, because who is a minor decides whose account this
+  // booking belongs to.
+  const eventDate = dates.find((d) => d.id === selected[0])?.date_start ?? null;
+  const dob = typeof body.dob === "string" ? body.dob : null;
+  const guardian = {
+    guardianName: typeof body.guardianName === "string" ? body.guardianName.trim() : null,
+    guardianEmail: typeof body.guardianEmail === "string" ? body.guardianEmail.trim() : null,
+    guardianPhone: typeof body.guardianPhone === "string" ? body.guardianPhone.trim() : null,
+    guardianRelationship: typeof body.guardianRelationship === "string" ? body.guardianRelationship.trim() : null,
+  };
+  const participantProblem = checkParticipant(dob, eventDate, guardian);
+  if (participantProblem) return bad(participantProblem, 400);
+  const minor = isMinorOn(dob, eventDate) === true;
+
+  // For a minor the GUARDIAN is the contracting party, so the account, the
+  // confirmation email and the waiver invitation must reach them — not the
+  // child. Without this the contact is created under whatever address the form
+  // carried, and a nine-year-old ends up owning the booking their parent is
+  // legally responsible for. The booking still NAMES the rider; only the
+  // account and the correspondence move to the adult.
+  const guardianEmail = (guardian.guardianEmail ?? "").trim().toLowerCase();
+  const guardianName = (guardian.guardianName ?? "").trim();
+
   // Contact: logged-in member's own → reuse by email → create (mirrors /api/reserve).
   const member = await getPortalUser({ allowPreview: false }).catch(() => null);
   let firstName: string, lastName: string, email: string, phone: string;
+  // A logged-in adult books for their own child: the account is already the
+  // guardian's, so it stays. Only an anonymous minor booking is redirected.
   let contactId = member?.contactId as string | undefined;
   if (member && contactId) {
     const { data: c } = await db.from("contacts").select("name,email,phone").eq("id", contactId).maybeSingle();
@@ -83,10 +111,16 @@ export async function POST(request: NextRequest) {
   const fullName = `${firstName} ${lastName}`.trim();
 
   if (!contactId) {
-    const { data: existing } = await db.from("contacts").select("id").eq("email", email).maybeSingle();
+    // Whose account this is. An adult's is their own; a minor's is their
+    // guardian's, and the guardian's own name goes on it so the member area
+    // greets the person who actually signed.
+    const contactEmail = minor && guardianEmail ? guardianEmail : email;
+    const contactName = minor && guardianName ? guardianName : fullName;
+    const contactPhone = minor ? (guardian.guardianPhone ?? phone) : phone;
+    const { data: existing } = await db.from("contacts").select("id").eq("email", contactEmail).maybeSingle();
     contactId = existing?.id;
     if (!contactId) {
-      const { data: created, error } = await db.from("contacts").insert({ name: fullName, email, phone, source: "website-event" }).select("id").single();
+      const { data: created, error } = await db.from("contacts").insert({ name: contactName, email: contactEmail, phone: contactPhone, source: "website-event" }).select("id").single();
       if (error) return bad("Could not save your details. Please try again.", 500);
       contactId = created.id;
     }
@@ -100,21 +134,6 @@ export async function POST(request: NextRequest) {
   const chosenLabel = mode === "standby"
     ? `standby · ${selected.length} date${selected.length > 1 ? "s" : ""}`
     : (dates.find((d) => d.id === selected[0])?.label ?? "fixed date");
-
-  // Minors. A form can be bypassed; this cannot. Age is judged on the day they
-  // ride, and a booking for an under-18 without a named guardian is refused —
-  // that contract would be voidable and the waiver worthless.
-  const eventDate = dates.find((d) => d.id === selected[0])?.date_start ?? null;
-  const dob = typeof body.dob === "string" ? body.dob : null;
-  const guardian = {
-    guardianName: typeof body.guardianName === "string" ? body.guardianName.trim() : null,
-    guardianEmail: typeof body.guardianEmail === "string" ? body.guardianEmail.trim() : null,
-    guardianPhone: typeof body.guardianPhone === "string" ? body.guardianPhone.trim() : null,
-    guardianRelationship: typeof body.guardianRelationship === "string" ? body.guardianRelationship.trim() : null,
-  };
-  const participantProblem = checkParticipant(dob, eventDate, guardian);
-  if (participantProblem) return bad(participantProblem, 400);
-  const minor = isMinorOn(dob, eventDate) === true;
 
   // Capacity. max_spots was read from the date row and never checked anywhere,
   // so a 12-place clinic would happily sell a 13th ticket — and the person who

@@ -177,6 +177,7 @@ export function EventTicket({
           <div className="sm:col-span-2 rounded-xl bg-[#fff8e8] border border-[#f2dfae] p-3.5 grid gap-2.5 sm:grid-cols-2">
             <p className="sm:col-span-2 text-[12.5px] text-[#8a6a2a] leading-relaxed">
               Under 18 — a parent or guardian books and signs. They&apos;ll be the contact for everything and the one who pays.
+              <span className="block mt-1 font-semibold">The NP7 account, the confirmation and the waiver all go to the guardian&apos;s email below — the name above stays the rider&apos;s.</span>
             </p>
             <input className={input} placeholder="Parent / guardian name" value={gName} onChange={(e) => setGName(e.target.value)} autoComplete="name" />
             <input className={input} placeholder="Relationship (e.g. mother)" value={gRel} onChange={(e) => setGRel(e.target.value)} />
