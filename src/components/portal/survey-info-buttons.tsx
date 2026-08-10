@@ -108,15 +108,15 @@ export function SurveyInfoButtons({ info }: { info: SurveyInfo }) {
               {info.coaches[0].image ? (
                 // eslint-disable-next-line @next/next/no-img-element
                 <img src={info.coaches[0].image} alt={info.coaches[0].name}
-                  className="w-full aspect-[4/3] object-cover rounded-2xl bg-[#e4f3f7]" />
+                  className="w-full aspect-[4/3] object-cover rounded-2xl bg-[#f4ecdd]" />
               ) : (
-                <span className="w-full aspect-[4/3] rounded-2xl grid place-items-center bg-[#e4f3f7] text-[52px] font-black text-[#0a7f9e]">
+                <span className="w-full aspect-[4/3] rounded-2xl grid place-items-center bg-[#f4ecdd] text-[52px] font-black text-[#b0791e]">
                   {info.coaches[0].name.split(" ").map((w) => w[0]).slice(0, 2).join("")}
                 </span>
               )}
-              <p className="text-[26px] font-black text-[#00374a] leading-tight tracking-[-0.02em] mt-5">{info.coaches[0].name}</p>
+              <p className="text-[30px] sm:text-[38px] font-black text-[#00374a] leading-[1.05] tracking-[-0.03em] mt-6">{info.coaches[0].name}</p>
               {info.coaches[0].role && (
-                <p className="text-[11px] font-black uppercase tracking-[0.16em] text-[#0a7f9e] mt-1.5">{info.coaches[0].role}</p>
+                <p className="text-[11px] font-black uppercase tracking-[0.16em] text-[#b0791e] mt-1.5">{info.coaches[0].role}</p>
               )}
               {info.coaches[0].bio && (
                 <p className="text-[15px] text-[#5a6b72] leading-[1.7] mt-4 whitespace-pre-line [text-wrap:pretty]">{info.coaches[0].bio}</p>
@@ -133,13 +133,13 @@ export function SurveyInfoButtons({ info }: { info: SurveyInfo }) {
                       // eslint-disable-next-line @next/next/no-img-element
                       <img src={c.image} alt="" className="w-[96px] h-[96px] rounded-2xl object-cover shrink-0" />
                     ) : (
-                      <span className="w-[96px] h-[96px] rounded-2xl shrink-0 grid place-items-center bg-[#e4f3f7] text-[26px] font-black text-[#0a7f9e]">
+                      <span className="w-[96px] h-[96px] rounded-2xl shrink-0 grid place-items-center bg-[#f4ecdd] text-[26px] font-black text-[#b0791e]">
                         {c.name.split(" ").map((w) => w[0]).slice(0, 2).join("")}
                       </span>
                     )}
                     <div className="min-w-0">
                       <p className="text-[20px] font-black text-[#00374a] leading-tight tracking-[-0.01em]">{c.name}</p>
-                      {c.role && <p className="text-[11px] font-black uppercase tracking-[0.14em] text-[#0a7f9e] mt-1">{c.role}</p>}
+                      {c.role && <p className="text-[11px] font-black uppercase tracking-[0.14em] text-[#b0791e] mt-1">{c.role}</p>}
                     </div>
                   </div>
                   {c.bio && <p className="text-[14.5px] text-[#5a6b72] leading-[1.65] mt-4 whitespace-pre-line [text-wrap:pretty]">{c.bio}</p>}
@@ -157,7 +157,7 @@ export function SurveyInfoButtons({ info }: { info: SurveyInfo }) {
                 <ol className="mt-6 space-y-5">
                   {info.method.steps.map((st, i) => (
                     <li key={i} className="flex gap-3.5">
-                      <span className="shrink-0 grid place-items-center w-7 h-7 rounded-full bg-[#e4f3f7] text-[12px] font-black text-[#0a7f9e] mt-0.5">
+                      <span className="shrink-0 grid place-items-center w-7 h-7 rounded-full bg-white border border-[#ecdcbb] text-[12px] font-black text-[#b0791e] mt-0.5">
                         {i + 1}
                       </span>
                       <span className="min-w-0">
@@ -173,7 +173,7 @@ export function SurveyInfoButtons({ info }: { info: SurveyInfo }) {
 
           {open === "spot" && info.spot && (
             <div>
-              <p className="text-[24px] font-black text-[#00374a] leading-tight tracking-[-0.02em]">{info.spot.name}</p>
+              <p className="text-[30px] sm:text-[38px] font-black text-[#00374a] leading-[1.05] tracking-[-0.03em]">{info.spot.name}</p>
               {info.spot.tagline && <p className="text-[15px] text-[#6a7a80] mt-1.5">{info.spot.tagline}</p>}
               {info.spot.intro && (
                 <p className="text-[14.5px] text-[#5a6b72] leading-[1.65] mt-4 whitespace-pre-line [text-wrap:pretty]">{info.spot.intro}</p>
@@ -185,8 +185,8 @@ export function SurveyInfoButtons({ info }: { info: SurveyInfo }) {
                 return (
                   <dl className="grid sm:grid-cols-2 gap-2.5 mt-6">
                     {stats.map(([k, v]) => (
-                      <div key={k} className="rounded-xl bg-[#f4fafc] border border-[#dceef3] px-4 py-3">
-                        <dt className="text-[10.5px] font-black uppercase tracking-[0.14em] text-[#0a7f9e]">{k}</dt>
+                      <div key={k} className="rounded-xl bg-white border border-[#ecdcbb] px-4 py-3">
+                        <dt className="text-[10.5px] font-black uppercase tracking-[0.14em] text-[#b0791e]">{k}</dt>
                         <dd className="text-[14px] font-semibold text-[#00374a] mt-1 leading-snug">{v}</dd>
                       </div>
                     ))}
@@ -200,7 +200,7 @@ export function SurveyInfoButtons({ info }: { info: SurveyInfo }) {
             <ul className="space-y-4">
               {info.features.map((f) => (
                 <li key={f.name} className="flex gap-3">
-                  <span className="shrink-0 grid place-items-center w-6 h-6 rounded-full bg-[#e9f6ef] mt-0.5" aria-hidden>
+                  <span className="shrink-0 grid place-items-center w-6 h-6 rounded-full bg-white border border-[#ecdcbb] mt-0.5" aria-hidden>
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3.2" strokeLinecap="round" strokeLinejoin="round"
                       className="w-3.5 h-3.5 text-[#1f9e57]"><path d="M20 6 9 17l-5-5" /></svg>
                   </span>
@@ -226,27 +226,35 @@ export function SurveyInfoButtons({ info }: { info: SurveyInfo }) {
  */
 function Sheet({ eyebrow, onClose, children }: { eyebrow: string; onClose: () => void; children: React.ReactNode }) {
   return (
-    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center sm:p-6" role="dialog" aria-modal="true" aria-label={eyebrow}>
-      <div className="absolute inset-0 bg-[#00212b]/55 backdrop-blur-[3px]" onClick={onClose} />
-      <div className="relative w-full sm:max-w-[580px] max-h-[88svh] flex flex-col rounded-t-[28px] sm:rounded-[28px] bg-white shadow-[0_28px_80px_rgba(0,33,43,0.32)] overflow-hidden">
-        {/* NP7 deep-teal header with the cyan glow — the same band the site and
-            the member area wear, so the sheet is recognisably ours rather than
-            a white box with a gold caption. */}
-        <div className="relative shrink-0 bg-[#00374a] px-6 sm:px-8 pt-5 sm:pt-6 pb-5 overflow-hidden">
-          <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_88%_-10%,rgba(0,175,219,0.45),transparent_60%)]" aria-hidden />
-          <span className="sm:hidden absolute top-2.5 left-1/2 -translate-x-1/2 h-1 w-10 rounded-full bg-white/25" aria-hidden />
-          <div className="relative flex items-center justify-between gap-4">
-            <p className="text-[11px] font-black tracking-[0.2em] uppercase text-[#8fe6f2]">{eyebrow}</p>
-            <button type="button" onClick={onClose} aria-label="Close"
-              className="shrink-0 w-9 h-9 grid place-items-center rounded-full text-white/80 bg-white/12 hover:bg-white/22 hover:text-white transition-colors">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" className="w-4 h-4" aria-hidden>
-                <path d="M18 6 6 18M6 6l12 12" />
-              </svg>
-            </button>
-          </div>
+    <div className="fixed inset-0 z-[130] bg-[#00131b]/70 backdrop-blur-sm" onClick={onClose} role="dialog" aria-modal="true" aria-label={eyebrow}>
+      <div
+        className="absolute inset-x-0 bottom-0 top-[8%] sm:inset-6 md:inset-10 lg:inset-x-[16%] lg:inset-y-10 overflow-y-auto overscroll-contain rounded-t-3xl sm:rounded-3xl bg-[#fff7ec] shadow-2xl"
+        onClick={(e) => e.stopPropagation()}
+      >
+        {/* Same sticky bar as the Method modal on the experience page: cream at
+            92% over blur, a hairline rule, the gold eyebrow on the left and a
+            deep-teal pill that says what it does on the right. A bare ✕ on a
+            white card was the thing that made this feel like a different
+            product. */}
+        <div className="sticky top-0 z-20 flex items-center justify-between gap-3 px-5 sm:px-10 py-3.5 bg-[#fff7ec]/92 backdrop-blur border-b border-[#ecdcbb]">
+          <span className="text-[11px] font-black uppercase tracking-[0.16em] text-[#b0791e]">{eyebrow}</span>
+          <button type="button" onClick={onClose} aria-label="Back to the survey"
+            className="inline-flex items-center gap-1.5 rounded-full bg-[#00374a] text-white text-[12.5px] font-bold pl-3 pr-3.5 py-1.5 hover:bg-[#013242] transition-colors">
+            <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M6 6l12 12M6 18L18 6" /></svg>
+            Back
+          </button>
         </div>
-        <div className="h-6 shrink-0" aria-hidden />
-        <div className="overflow-y-auto px-6 sm:px-8 pb-8 sm:pb-9">{children}</div>
+
+        <div className="px-6 sm:px-10 pt-8 sm:pt-10 pb-4">{children}</div>
+
+        {/* The sun-to-sea gradient the rest of the site closes on. */}
+        <div className="px-6 sm:px-10 pb-10 text-center">
+          <button type="button" onClick={onClose}
+            className="inline-flex items-center gap-2 rounded-full font-black text-[14.5px] px-8 py-3.5 text-[#3a2a00] transition-transform hover:-translate-y-0.5"
+            style={{ background: "linear-gradient(90deg,#ffc42e,#f47b20 60%,#00afdb)" }}>
+            Back to the survey <span aria-hidden>→</span>
+          </button>
+        </div>
       </div>
     </div>
   );

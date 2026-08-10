@@ -156,11 +156,22 @@ async function onEventPayment(
   const paymentIntent = typeof session["payment_intent"] === "string" ? (session["payment_intent"] as string) : null;
   const amount = Number(session["amount_total"] ?? 0) / 100; // Stripe minor units → major
 
-  const { data: booking } = await db
+  // supabase-js does NOT throw on a failed query — it resolves with { error }.
+  // Reading only `data` made a database failure look identical to "no such
+  // booking", and both quietly returned. The route then answered 200, Stripe
+  // marked the event delivered, and a paid ticket was recorded nowhere with
+  // nothing in any log. A real failure must THROW so the caller returns a
+  // non-2xx and Stripe retries; a genuinely missing booking must not, because
+  // retrying that forever is just noise.
+  const { data: booking, error: readErr } = await db
     .from("exp_bookings")
     .select("id, contact_id, experience_id, status, downpayment_received, final_payment_received, exp_experiences(title), contacts(name,email)")
     .eq("id", bookingId).maybeSingle();
-  if (!booking) return;
+  if (readErr) throw new Error(`booking read failed for ${bookingId}: ${readErr.message ?? readErr}`);
+  if (!booking) {
+    console.error(`[webhook] PAID but no booking ${bookingId} — money taken with nothing to attach it to`);
+    return;
+  }
 
   // Booking state per kind (idempotent).
   const patch: Record<string, unknown> = { updated_at: new Date().toISOString() };
@@ -170,13 +181,22 @@ async function onEventPayment(
   if (kind === "event_deposit") { patch.downpayment_received = true; patch.status = "reserved"; }
   if (kind === "event_full") { patch.downpayment_received = true; patch.final_payment_received = true; patch.status = "paid"; }
   if (kind === "event_balance") { patch.final_payment_received = true; patch.status = "paid"; }
-  await db.from("exp_bookings").update(patch).eq("id", bookingId);
+  // THE write that turns a paid ticket into a paid booking — and the one that
+  // had no error handling at all. If it fails, throw: better Stripe retries in
+  // a minute than a customer who paid and is still 'lead' on Friday morning.
+  const { error: updErr } = await db.from("exp_bookings").update(patch).eq("id", bookingId);
+  if (updErr) throw new Error(`booking update failed for ${bookingId}: ${updErr.message ?? updErr}`);
 
   // Record the money in exp_payments (drives admin reconciliation).
   if (paymentIntent) {
-    const { data: dup } = await db.from("exp_payments").select("id").eq("reference", paymentIntent).maybeSingle();
+    // Oldest-match-wins, not maybeSingle(): once two rows ever shared a
+    // reference, maybeSingle() errors and the duplicate guard would be dead
+    // forever, adding a row on every redelivery. The real backstop is the
+    // unique index from migration 159 — this just avoids the noise.
+    const { data: dupRows } = await db.from("exp_payments").select("id").eq("reference", paymentIntent).limit(1);
+    const dup = (dupRows as { id: string }[] | null)?.[0] ?? null;
     if (!dup) {
-      await db.from("exp_payments").insert({
+      const { error: payErr } = await db.from("exp_payments").insert({
         booking_id: bookingId,
         contact_id: booking.contact_id,
         experience_id: booking.experience_id,
@@ -188,7 +208,18 @@ async function onEventPayment(
         reference: paymentIntent,
         received_at: new Date().toISOString(),
         notes: `Stripe ${kind.replace("event_", "")} · session ${session["id"] ?? ""}`,
-      }).then(undefined, () => {});
+      });
+      // `.then(undefined, () => {})` used to sit here — dead code, because a
+      // PostgREST insert resolves with { error } instead of rejecting. So the
+      // failure was invisible twice over. exp_payments is the ONLY record of
+      // this revenue; a lost row means the money is in Stripe and nowhere in
+      // the platform, and the booking looks paid so nobody goes looking.
+      // 23505 = the unique index caught a duplicate delivery, which is the
+      // guard doing its job, not a failure.
+      if (payErr && payErr.code !== "23505") {
+        console.error(`[webhook] PAYMENT ROW LOST for booking ${bookingId} (${paymentIntent}):`, payErr.message ?? payErr);
+        throw new Error(`payment insert failed for ${bookingId}: ${payErr.message ?? payErr}`);
+      }
     }
   }
 
@@ -287,24 +318,26 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       try {
         if (kind.startsWith("event_")) {
           // Event tickets (deposit / full / balance) — record + confirm.
-          await onEventPayment(session, kind, bookingId).catch((err) => {
-            console.error("[webhook] onEventPayment error (non-fatal):", err);
-          });
+          await onEventPayment(session, kind, bookingId);
         } else {
           // Trip reserve deposit flow (idempotent).
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
           const db = createAdminClient() as any;
-          const { data: booking } = await db
+          const { data: booking, error: readErr } = await db
             .from("exp_bookings").select("id, downpayment_received").eq("id", bookingId).maybeSingle();
+          if (readErr) throw new Error(`booking read failed for ${bookingId}: ${readErr.message ?? readErr}`);
           if (booking && !booking.downpayment_received) {
-            await onDepositPaid(bookingId, origin).catch((err) => {
-              console.error("[webhook] onDepositPaid error (non-fatal):", err);
-            });
+            await onDepositPaid(bookingId, origin);
           }
         }
       } catch (err) {
-        // Non-fatal: log and still return 200 so Stripe doesn't retry infinitely
-        console.error("[webhook] error processing checkout.session.completed:", err);
+        // Swallowing this and answering 200 was the worst of both worlds: Stripe
+        // marks the event delivered and NEVER retries, so a transient database
+        // blip permanently loses a payment with no trace. A 500 makes Stripe
+        // redeliver — and the work is idempotent (payments dedupe on the
+        // payment-intent reference, mail on a dedupeKey), so a replay is safe.
+        console.error(`[webhook] FAILED to record payment for booking ${bookingId} — returning 500 so Stripe retries:`, err);
+        return NextResponse.json({ error: "processing failed, please retry" }, { status: 500 });
       }
     } else if (bookingId) {
       // Not an error — an async method simply hasn't cleared yet. Say so, so a
