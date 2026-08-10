@@ -6,6 +6,7 @@ import { MethodModal } from "@/components/experience/method-modal";
 import { createAdminClient } from "@/lib/supabase";
 import { eventPricing, type EventInfo } from "@/lib/events";
 import { eur } from "@/lib/stripe";
+import { flags } from "@/lib/flags";
 
 type Coach = { name: string; role: string | null; bio: string | null; image_url: string | null; whatsapp_link: string | null };
 
@@ -66,7 +67,11 @@ export async function EventPage({ event, isMember, paid }: { event: EventInfo; i
 
   return (
     <main className="min-h-screen bg-[#fbfdfd]">
-      <OceanHeader bookHref="#ticket" />
+      {/* An event opened by direct link (public_by_link) sits in a world that is
+          otherwise 404 — so the nav must not offer Experiences / Hardware /
+          Magazine while those are still hidden, or the page advertises dead
+          ends to the very people we sent the link to. */}
+      <OceanHeader bookHref="#ticket" showExperience={flags.showExperience} showHardware={flags.showHardware} showBlog={flags.showBlog} />
 
       {/* HERO — compact, event-forward */}
       <section className="relative min-h-[52vh] flex items-end bg-[#00374a] overflow-hidden">
@@ -197,7 +202,7 @@ export async function EventPage({ event, isMember, paid }: { event: EventInfo; i
           </div>
           <div className="flex flex-wrap items-center justify-center sm:justify-end gap-x-5 gap-y-2">
             <Link href="/widerruf" className="text-white/70 underline underline-offset-2 hover:text-white transition-colors">Withdraw from contract</Link>
-            <Link href="/experience" className="hover:text-white transition-colors">All experiences →</Link>
+            {flags.showExperience && <Link href="/experience" className="hover:text-white transition-colors">All experiences →</Link>}
           </div>
         </div>
       </footer>
