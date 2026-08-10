@@ -16,7 +16,7 @@ export async function GET() {
   // or flagged at any verification level).
   const { data: spots, error } = await db
     .from("spots")
-    .select("id, name, destination_id, level, conditions, description, verification, status, created_at, source, submitted_by")
+    .select("id, name, destination_id, level, conditions, description, verification, status, created_at, source, submitted_by, lat, lng")
     .in("source", ["member", "jibe"]) // jibe = AI-intake drafts awaiting review
     .order("created_at", { ascending: false });
   if (error) {
@@ -60,7 +60,11 @@ export async function GET() {
     const proposer = s.source === "jibe"
       ? "jibe (agent) — from Nico's videos"
       : (s.submitted_by && submitterName.get(s.submitted_by as string)) || "A member";
-    return { ...s, destinationName: destName.get(s.destination_id as string) ?? "—", proposer, confirms, flags, flagReasons, ageDays, flagged, stuck };
+    // A spot with no coordinates publishes fine and then simply isn't on the
+    // map — the map query drops it and nothing says why. Surface it BEFORE the
+    // approve click, which is the only moment anyone can act on it.
+    const noPin = s.lat == null || s.lng == null;
+    return { ...s, destinationName: destName.get(s.destination_id as string) ?? "—", proposer, noPin, confirms, flags, flagReasons, ageDays, flagged, stuck };
   });
   // Hidden contributions vanish from the queue by design — but then there is no
   // way back to them, which is how a spot ends up unfindable after a Hide.

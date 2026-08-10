@@ -8,7 +8,7 @@ import { SpotIntake } from "@/components/admin/spot-intake";
 interface PendingSpot {
   id: string; name: string; destination_id: string; destinationName: string; proposer?: string;
   level: string | null; conditions: string[] | null; description: string | null;
-  verification: string; confirms: number; flags: number; flagReasons?: string[];
+  verification: string; confirms: number; flags: number; flagReasons?: string[]; noPin?: boolean;
   ageDays: number; stuck: boolean; flagged: boolean;
 }
 interface PendingPhoto { id: string; spot_id: string; url: string; caption: string | null }
@@ -253,6 +253,11 @@ export default function SpotguideModeration() {
                     </div>
                     <p className="text-[11px] admin-faint mt-0.5">{s.destinationName}{s.level ? ` · ${s.level}` : ""}{s.conditions?.length ? ` · ${s.conditions.map(conditionLabel).join(", ")}` : ""}</p>
                     {s.description && <p className="text-xs admin-muted mt-1.5 line-clamp-3">{s.description}</p>}
+                    {s.noPin && (
+                      <p className="text-[11px] font-semibold text-amber-500 mt-1.5">
+                        ⚠ No map pin — publish it and it won&apos;t appear on the map. Set the location in <span className="underline">Open editor</span> first.
+                      </p>
+                    )}
                     <p className="text-[11px] admin-faint mt-1.5">by {s.proposer ?? "a member"} · {s.confirms} member confirm{s.confirms === 1 ? "" : "s"}{s.flags ? ` · ${s.flags} flag${s.flags === 1 ? "" : "s"}` : ""}</p>
                     {s.flagged && (
                       <div className="mt-1.5 rounded-lg px-2.5 py-2 bg-red-500/10" style={{ border: "1px solid rgba(248,113,113,0.25)" }}>
