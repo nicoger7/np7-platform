@@ -47,12 +47,16 @@ emailing a PDF around.
 ### Phase 2 — Account connection (the foundation the rest stands on)
 Two paths, both ending in one row in a `linked_accounts` table on each side:
 
-1. **"Log in with NP7"** on wind.coach: NP7 runs Supabase Auth; wind.coach adds it
-   as an OIDC-style provider (NP7 exposes a small token-verify endpoint — Enrico's
-   side never sees NP7 passwords; magic-link only, NP7 has no passwords anyway).
-2. **"Connect your accounts"** for riders who already have both: rider clicks in
+1. **"Connect your accounts" (link code) — the primary path.** Rider clicks in
    either app → 6-digit short-lived code shown in app A → typed into app B →
-   server-to-server verify → linked.
+   server-to-server verify → linked. *(Recon: wind.coach runs Supabase Auth with
+   Google/Facebook only; Supabase does not accept a custom OIDC IdP outside its
+   built-in list, so "Log in with NP7" as a real provider is not a wind.coach
+   code change — parked. No code-redemption plumbing exists yet on either side;
+   both build it fresh against the same contract.)*
+2. **Storage:** additive on both sides — `profiles.np7_user_id` (or a
+   `linked_accounts` table) on wind.coach; the mirror column on NP7. wind.coach's
+   `profiles` has no external-identity column today, so this is a clean add.
 
 Consent screen at link time states exactly what flows (§4). Either side can unlink;
 unlink propagates.
@@ -111,14 +115,21 @@ Responses: 200 {status:"stored"|"queued_for_review"} · 401 bad signature ·
 - `WINDCOACH_WEBHOOK_SECRET` already exists as an env name on the NP7 side (unset
   today) — Nico sets it in Vercel, Enrico stores the same value; rotate by
   overlap (accept old+new for 48h).
+- **PDF handling (settled by recon):** wind.coach guides are generated on demand
+  and never persisted, and R2/SigV4 presigned URLs cap at 7 days — so **NP7
+  mirrors the PDF into its own R2 on receipt** (`pdf_url` only needs to survive
+  the webhook call; a public-bucket URL also works). The `focus_points` in the
+  payload map 1:1 from wind.coach's in-memory `GuideModel.cards[]`
+  (id/title/blocks), which exists fully structured right before the PDF renders
+  — the webhook is one fire-and-forget POST at that seam (the generate route's
+  120s budget is already tight, so never block on NP7's response).
 - `focus_points[].key` SHOULD be an NP7 milestone key when one fits (that's what
   makes Phase 4 free later); unknown keys are stored verbatim and displayed anyway.
 - Retries: at-least-once with the idempotency key; NP7 answers 409 on replays.
 
-**Phase 2 sketch (for sizing, not final):** NP7 exposes
-`POST /api/windcoach/verify-token` (server-to-server, secret-authed) that answers
-`{np7_user_id, email, name}` for a short-lived token the NP7 app hands the rider's
-browser. Link codes: 6 digits, 10-minute TTL, single use, rate-limited.
+**Phase 2 sketch (for sizing, not final):** link codes: 6 digits, 10-minute TTL,
+single use, rate-limited; server-to-server verify endpoints on both sides,
+secret-authed like the §3 webhook.
 
 ---
 
@@ -172,11 +183,29 @@ match a booking).
 
 ---
 
-## 6 · Open questions for Enrico
+## 6 · The five questions — answered from the wind.coach codebase (read-only recon, 2026-08-10)
 
-1. Can guide generation fire a webhook today, or is it a manual export step?
-2. Does wind.coach have a skills/milestone model we map NP7 keys onto — or do we
-   add an `external_key` column to yours?
-3. Hosting region + entity name for the agreement?
-4. OIDC provider support in your auth stack, or should we start link-code-only?
-5. Signed PDF URLs: can they live ≥30 days, or should NP7 mirror the file?
+1. **Guide generation is a manual admin export today** (`/admin/guides` → POST
+   `/api/admin/training-guide/generate` → browser download; nothing persisted).
+   The structured `GuideModel` exists in memory right before the PDF renders —
+   the webhook is a one-call, fire-and-forget insert at that exact seam. The
+   `notifyAdmin()` AdminEvent union is the codebase's natural outgoing-event
+   pattern to extend.
+2. **No skills table.** Progress lives in `training_plan_items` with free-text
+   `fp_id` (book taxonomy: `"1.1.3.2"` fin / `"w1.1.1"` wing / `"f2.2.5"` foil)
+   + `discipline`; milestones/badges are computed, not stored. NP7 keys need a
+   small **mapping table (np7_key → fp_id + discipline)** on the wind.coach side
+   — additive, no migration of existing data.
+3. **EU throughout:** Supabase Frankfurt, PostHog Frankfurt, Resend Ireland,
+   R2 Eastern Europe; deployed on Vercel Pro. **Entity for the agreement:
+   Marotti windsurfing d.o.o., Ulica Andrije Štangera 25, 51410 Opatija,
+   Croatia — OIB 34138224299, EU VAT HR34138224299.**
+4. **Link-code only.** wind.coach is Supabase Auth (email + Google/Facebook);
+   Supabase takes no custom OIDC IdP, so "Log in with NP7" is parked. No
+   redemption plumbing exists yet on either side; `profiles` has no external-id
+   column — `np7_user_id` is a clean additive change.
+5. **Signed URLs cap at 7 days** (SigV4/R2) — NP7 mirrors the PDF on receipt;
+   already folded into §3.
+
+**Still genuinely open for Enrico:** none technical — just the go-ahead, and the
+data-sharing agreement signature (§4).
