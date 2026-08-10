@@ -108,13 +108,13 @@ export function SurveyInfoButtons({ info }: { info: SurveyInfo }) {
               {info.coaches[0].image ? (
                 // eslint-disable-next-line @next/next/no-img-element
                 <img src={info.coaches[0].image} alt={info.coaches[0].name}
-                  className="w-full aspect-[4/3] object-cover rounded-2xl bg-[#f4ecdd]" />
+                  className="w-full h-[240px] sm:h-[280px] object-cover rounded-2xl bg-[#f4ecdd]" />
               ) : (
-                <span className="w-full aspect-[4/3] rounded-2xl grid place-items-center bg-[#f4ecdd] text-[52px] font-black text-[#b0791e]">
+                <span className="w-full h-[240px] sm:h-[280px] rounded-2xl grid place-items-center bg-[#f4ecdd] text-[52px] font-black text-[#b0791e]">
                   {info.coaches[0].name.split(" ").map((w) => w[0]).slice(0, 2).join("")}
                 </span>
               )}
-              <p className="text-[30px] sm:text-[38px] font-black text-[#00374a] leading-[1.05] tracking-[-0.03em] mt-6">{info.coaches[0].name}</p>
+              <p className="text-[24px] sm:text-[27px] font-black text-[#00374a] leading-[1.1] tracking-[-0.025em] mt-5">{info.coaches[0].name}</p>
               {info.coaches[0].role && (
                 <p className="text-[11px] font-black uppercase tracking-[0.16em] text-[#b0791e] mt-1.5">{info.coaches[0].role}</p>
               )}
@@ -173,7 +173,7 @@ export function SurveyInfoButtons({ info }: { info: SurveyInfo }) {
 
           {open === "spot" && info.spot && (
             <div>
-              <p className="text-[30px] sm:text-[38px] font-black text-[#00374a] leading-[1.05] tracking-[-0.03em]">{info.spot.name}</p>
+              <p className="text-[24px] sm:text-[27px] font-black text-[#00374a] leading-[1.1] tracking-[-0.025em]">{info.spot.name}</p>
               {info.spot.tagline && <p className="text-[15px] text-[#6a7a80] mt-1.5">{info.spot.tagline}</p>}
               {info.spot.intro && (
                 <p className="text-[14.5px] text-[#5a6b72] leading-[1.65] mt-4 whitespace-pre-line [text-wrap:pretty]">{info.spot.intro}</p>
@@ -226,9 +226,13 @@ export function SurveyInfoButtons({ info }: { info: SurveyInfo }) {
  */
 function Sheet({ eyebrow, onClose, children }: { eyebrow: string; onClose: () => void; children: React.ReactNode }) {
   return (
-    <div className="fixed inset-0 z-[130] bg-[#00131b]/70 backdrop-blur-sm" onClick={onClose} role="dialog" aria-modal="true" aria-label={eyebrow}>
+    <div className="fixed inset-0 z-[130] bg-[#00131b]/70 backdrop-blur-sm flex items-end sm:items-center justify-center sm:p-6" onClick={onClose} role="dialog" aria-modal="true" aria-label={eyebrow}>
+      {/* The Method modal is near-full-bleed because it carries a page of
+          content. This one is a photo and a few lines — at that width the
+          picture swallowed the screen and the bio sat in one thin line across
+          1400px. A capped, centred card: the same chrome, the right size. */}
       <div
-        className="absolute inset-x-0 bottom-0 top-[8%] sm:inset-6 md:inset-10 lg:inset-x-[16%] lg:inset-y-10 overflow-y-auto overscroll-contain rounded-t-3xl sm:rounded-3xl bg-[#fff7ec] shadow-2xl"
+        className="relative w-full sm:max-w-[560px] max-h-[92svh] sm:max-h-[86svh] flex flex-col rounded-t-3xl sm:rounded-3xl bg-[#fff7ec] shadow-2xl overflow-hidden"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Same sticky bar as the Method modal on the experience page: cream at
@@ -236,7 +240,7 @@ function Sheet({ eyebrow, onClose, children }: { eyebrow: string; onClose: () =>
             deep-teal pill that says what it does on the right. A bare ✕ on a
             white card was the thing that made this feel like a different
             product. */}
-        <div className="sticky top-0 z-20 flex items-center justify-between gap-3 px-5 sm:px-10 py-3.5 bg-[#fff7ec]/92 backdrop-blur border-b border-[#ecdcbb]">
+        <div className="shrink-0 flex items-center justify-between gap-3 px-5 sm:px-7 py-3.5 bg-[#fff7ec]/92 backdrop-blur border-b border-[#ecdcbb]">
           <span className="text-[11px] font-black uppercase tracking-[0.16em] text-[#b0791e]">{eyebrow}</span>
           <button type="button" onClick={onClose} aria-label="Back to the survey"
             className="inline-flex items-center gap-1.5 rounded-full bg-[#00374a] text-white text-[12.5px] font-bold pl-3 pr-3.5 py-1.5 hover:bg-[#013242] transition-colors">
@@ -245,15 +249,17 @@ function Sheet({ eyebrow, onClose, children }: { eyebrow: string; onClose: () =>
           </button>
         </div>
 
-        <div className="px-6 sm:px-10 pt-8 sm:pt-10 pb-4">{children}</div>
+        <div className="overflow-y-auto overscroll-contain">
+          <div className="px-6 sm:px-7 pt-6 sm:pt-7 pb-5">{children}</div>
 
-        {/* The sun-to-sea gradient the rest of the site closes on. */}
-        <div className="px-6 sm:px-10 pb-10 text-center">
-          <button type="button" onClick={onClose}
-            className="inline-flex items-center gap-2 rounded-full font-black text-[14.5px] px-8 py-3.5 text-[#3a2a00] transition-transform hover:-translate-y-0.5"
-            style={{ background: "linear-gradient(90deg,#ffc42e,#f47b20 60%,#00afdb)" }}>
-            Back to the survey <span aria-hidden>→</span>
-          </button>
+          {/* The sun-to-sea gradient the rest of the site closes on. */}
+          <div className="px-6 sm:px-7 pb-8 text-center">
+            <button type="button" onClick={onClose}
+              className="inline-flex items-center gap-2 rounded-full font-black text-[14px] px-7 py-3 text-[#3a2a00] transition-transform hover:-translate-y-0.5"
+              style={{ background: "linear-gradient(90deg,#ffc42e,#f47b20 60%,#00afdb)" }}>
+              Back to the survey <span aria-hidden>→</span>
+            </button>
+          </div>
         </div>
       </div>
     </div>
