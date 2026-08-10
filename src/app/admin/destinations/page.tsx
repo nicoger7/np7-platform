@@ -34,9 +34,11 @@ function HatBadges({ d }: { d: Destination }) {
   );
 }
 
-function DestCard({ d }: { d: Destination }) {
+/** `tab` picks which of the two rooms the card opens — a spotguide-only place
+ *  has no trip page to edit, so sending it to the marketing form is a detour. */
+function DestCard({ d, tab }: { d: Destination; tab?: "spotguide" }) {
   return (
-    <Link href={`/admin/destinations/${d.id}`} className="block rounded-xl overflow-hidden transition-colors" style={{ border: "1px solid var(--admin-border)" }}
+    <Link href={tab ? `/admin/destinations/${d.id}/${tab}` : `/admin/destinations/${d.id}`} className="block rounded-xl overflow-hidden transition-colors" style={{ border: "1px solid var(--admin-border)" }}
       onMouseEnter={(e) => (e.currentTarget.style.borderColor = "#0aa3c7")}
       onMouseLeave={(e) => (e.currentTarget.style.borderColor = "var(--admin-border)")}
     >
@@ -50,7 +52,7 @@ function DestCard({ d }: { d: Destination }) {
   );
 }
 
-function DestSection({ title, subtitle, items, empty }: { title: string; subtitle: string; items: Destination[]; empty: string }) {
+function DestSection({ title, subtitle, items, empty, tab }: { title: string; subtitle: string; items: Destination[]; empty: string; tab?: "spotguide" }) {
   return (
     <section>
       <div className="mb-3">
@@ -61,7 +63,7 @@ function DestSection({ title, subtitle, items, empty }: { title: string; subtitl
         <p className="text-xs admin-faint py-3">{empty}</p>
       ) : (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-          {items.map((d) => <DestCard key={d.id} d={d} />)}
+          {items.map((d) => <DestCard key={d.id} d={d} tab={tab} />)}
         </div>
       )}
     </section>
@@ -153,6 +155,7 @@ export default function DestinationsPage() {
             subtitle="Community spot guides, including rider-submitted places. We don't sell trips here (yet)."
             items={items.filter((d) => d.experienceCount === 0)}
             empty="No spotguide-only destinations yet."
+            tab="spotguide"
           />
         </div>
       )}

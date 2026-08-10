@@ -162,12 +162,12 @@ export default function SpotguideModeration() {
             {proposedDests.map((d) => (
               <div key={d.id} className="flex items-center justify-between gap-3 rounded-xl p-3" style={{ border: "1px solid var(--admin-border)", backgroundColor: "var(--admin-surface)" }}>
                 <div className="min-w-0">
-                  <Link href={`/admin/destinations/${d.id}`} className="text-sm font-bold admin-heading hover:text-[#0aa3c7]">{d.name}</Link>
+                  <Link href={`/admin/destinations/${d.id}/spotguide`} className="text-sm font-bold admin-heading hover:text-[#0aa3c7]">{d.name}</Link>
                   {d.region && <span className="text-[11px] admin-faint ml-2">{d.region}</span>}
                 </div>
                 <div className="flex items-center gap-2 shrink-0">
                   <button onClick={() => publishDest(d.id)} disabled={busy === d.id} className="px-3 py-1.5 rounded-lg text-xs font-bold bg-[var(--admin-accent)] text-[var(--admin-accent-contrast)] disabled:opacity-50">Publish area</button>
-                  <Link href={`/admin/destinations/${d.id}`} className="px-3 py-1.5 rounded-lg text-xs font-semibold admin-muted" style={{ border: "1px solid var(--admin-border)" }}>Open</Link>
+                  <Link href={`/admin/destinations/${d.id}/spotguide`} className="px-3 py-1.5 rounded-lg text-xs font-semibold admin-muted" style={{ border: "1px solid var(--admin-border)" }}>Open</Link>
                 </div>
               </div>
             ))}

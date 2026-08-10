@@ -4,7 +4,7 @@ import { useState, useEffect, use } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import ImagePickerModal from "@/components/image-picker-modal";
-import { LEVELS, DESTINATION_CRITERIA, DESTINATION_TAGS, VERIFICATION_META, type Verification } from "@/lib/spotguide";
+import { DESTINATION_TAGS } from "@/lib/spotguide";
 
 type Partner = { name: string; description: string; url: string; image?: string };
 interface Dest {
@@ -22,7 +22,8 @@ interface Dest {
   spotguide_status: string | null;
 }
 interface Trip { id: string; title: string; slug: string; status: string }
-interface SpotRow { id: string; name: string; slug: string | null; status: string; verification: string; level: string | null; hero_image: string | null; source: string }
+/** Only the count is shown here — the list itself lives on the Spotguide tab. */
+interface SpotRow { id: string }
 
 export default function DestinationEditor({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
@@ -33,7 +34,6 @@ export default function DestinationEditor({ params }: { params: Promise<{ id: st
   const [loading, setLoading] = useState(true);
   const [saved, setSaved] = useState(false);
   const [saving, setSaving] = useState(false);
-  const [addingSpot, setAddingSpot] = useState(false);
   const [picker, setPicker] = useState<{ kind: "hero" } | { kind: "gallery" } | { kind: "partner"; index: number } | null>(null);
 
   useEffect(() => {
@@ -44,19 +44,6 @@ export default function DestinationEditor({ params }: { params: Promise<{ id: st
   }, [id]);
 
   function set<K extends keyof Dest>(k: K, v: Dest[K]) { setD((p) => (p ? { ...p, [k]: v } : p)); }
-
-  async function addSpot() {
-    const name = prompt("New spot name (e.g. Sotavento)");
-    if (!name?.trim()) return;
-    setAddingSpot(true);
-    const res = await fetch("/api/admin/spots", {
-      method: "POST", headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ destination_id: id, name: name.trim() }),
-    });
-    setAddingSpot(false);
-    if (res.ok) { const sp = await res.json(); router.push(`/admin/spots/${sp.id}`); }
-    else { const j = await res.json().catch(() => ({})); alert(j.error || "Couldn't add spot."); }
-  }
 
   async function save() {
     if (!d || saving) return;
@@ -116,19 +103,29 @@ export default function DestinationEditor({ params }: { params: Promise<{ id: st
         </div>
         <div className="flex items-center gap-3">
           <button onClick={remove} className="px-3 py-2 text-xs text-red-400/60 hover:text-red-400">Delete</button>
-          {/* These fields feed TWO public surfaces, and one button labelled
-              "Preview page" always opened the spotguide — so editing the
-              tagline, intro or conditions for a trip's destination panel sent
-              you to look at a different page and wonder why nothing changed.
-              Name each one. (A rider-proposed draft lives on the members-only
-              route until it's published.) */}
+          {/* Preview means THIS page — the destination a trip sends people to.
+              It used to open the spotguide, so editing the tagline, intro or
+              conditions sent you to look at a different surface entirely and
+              wonder why nothing had changed. The spotguide lives in its own
+              tab now; it is not this. */}
           {d.slug && (
             <>
-              <Link href={d.spotguide_status === "published" ? `/spotguide/${d.slug}` : `/spotguide/proposed/${d.slug}`} target="_blank"
-                className="inline-flex items-center gap-2 rounded-full border border-[var(--admin-accent)] text-[var(--admin-accent)] text-[13px] font-bold px-4 py-2 hover:bg-[var(--admin-accent)]/10 transition-colors">
-                <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7z" /><circle cx="12" cy="12" r="3" /></svg>
-                Spotguide page ↗
-              </Link>
+              {/* The public route filters on status='published', so a draft has
+                  no page to open — a live-looking button that lands on 404 is
+                  the same lie the old spotguide link told. Say it instead. */}
+              {d.status === "published" ? (
+                <Link href={`/destinations/${d.slug}`} target="_blank"
+                  className="inline-flex items-center gap-2 rounded-full border border-[var(--admin-accent)] text-[var(--admin-accent)] text-[13px] font-bold px-4 py-2 hover:bg-[var(--admin-accent)]/10 transition-colors">
+                  <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7z" /><circle cx="12" cy="12" r="3" /></svg>
+                  Destination page ↗
+                </Link>
+              ) : (
+                <span title="Set Status to Published (and Save) to get a public page."
+                  className="inline-flex items-center gap-2 rounded-full border border-[var(--admin-border)] admin-faint text-[13px] font-bold px-4 py-2 cursor-not-allowed">
+                  <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7z" /><circle cx="12" cy="12" r="3" /><path d="m2 2 20 20" /></svg>
+                  Draft — no public page
+                </span>
+              )}
               {tripSlug && (
                 <Link href={`/experience/${tripSlug}#the-spot`} target="_blank"
                   className="inline-flex items-center gap-2 rounded-full border border-[var(--admin-border)] admin-muted text-[13px] font-bold px-4 py-2 hover:admin-heading transition-colors">
@@ -140,6 +137,19 @@ export default function DestinationEditor({ params }: { params: Promise<{ id: st
           )}
           <button onClick={save} disabled={saving} className="px-4 py-2 bg-[var(--admin-accent)] hover:bg-[var(--admin-accent)]/90 text-[var(--admin-accent-contrast)] text-sm font-bold rounded-lg disabled:opacity-60">{saving ? "Saving…" : saved ? "Saved!" : "Save"}</button>
         </div>
+      </div>
+
+      {/* Two rooms, one record — say so, and make the door obvious. */}
+      <div className="flex gap-1.5 mb-5">
+        <span className="px-3.5 py-1.5 rounded-full text-xs font-bold"
+          style={{ backgroundColor: "var(--admin-accent)", color: "var(--admin-accent-contrast)" }}>
+          Destination page
+        </span>
+        <Link href={`/admin/destinations/${id}/spotguide`}
+          className="px-3.5 py-1.5 rounded-full text-xs font-bold transition-colors admin-muted hover:admin-heading"
+          style={{ border: "1px solid var(--admin-border)" }}>
+          Spotguide{spots.length ? ` · ${spots.length} spots` : ""}
+        </Link>
       </div>
 
       <div className="space-y-5">
@@ -255,98 +265,6 @@ export default function DestinationEditor({ params }: { params: Promise<{ id: st
               </div>
             ))}
             <button onClick={() => set("partners", [...partners, { name: "", description: "", url: "", image: "" }])} className="text-xs text-[#0aa3c7] hover:underline">+ Add partner</button>
-          </div>
-        </div>
-
-        {/* ── Spotguide ──────────────────────────────────────────────── */}
-        <div className="rounded-xl p-4 space-y-5" style={{ border: "1px solid var(--admin-border)", backgroundColor: "var(--admin-surface)" }}>
-          <div className="flex items-center justify-between gap-3">
-            <div>
-              <h3 className="text-sm font-bold admin-heading">Spotguide</h3>
-              <p className="text-[11px] admin-faint">The member-interactive guide — rate the destination, set its level range, manage its spots. Published independently of the marketing page.</p>
-            </div>
-            <select className={`${inputClass} max-w-[150px]`} value={d.spotguide_status ?? "draft"} onChange={(e) => set("spotguide_status", e.target.value)}>
-              <option value="draft">Spotguide: draft</option>
-              <option value="published">Spotguide: live</option>
-            </select>
-          </div>
-
-          {/* Levels it suits — multi-select; stored as levels[] + derived min/max */}
-          <div>
-            <label className={labelClass}>Levels it suits <span className="admin-faint font-normal">(pick any that fit)</span></label>
-            {(() => {
-              const rankIdx = (l: string | null) => (l ? LEVELS.indexOf(l as (typeof LEVELS)[number]) : -1);
-              // source of truth = levels[]; before migration 085 fall back to the min→max span
-              const selected: string[] = d.levels?.length
-                ? d.levels
-                : (d.level_min && d.level_max ? LEVELS.slice(rankIdx(d.level_min), rankIdx(d.level_max) + 1) : []);
-              return (
-                <div className="flex flex-wrap gap-2">
-                  {LEVELS.map((l) => {
-                    const on = selected.includes(l);
-                    return (
-                      <button key={l} type="button" onClick={() => {
-                        const next = on ? selected.filter((x) => x !== l) : [...selected, l];
-                        const ordered = LEVELS.filter((x) => next.includes(x));
-                        set("levels", ordered);
-                        set("level_min", ordered[0] ?? null);        // derived for the public range label
-                        set("level_max", ordered[ordered.length - 1] ?? null);
-                      }}
-                        className="px-3 py-1.5 rounded-full text-xs font-semibold transition-colors"
-                        style={on ? { backgroundColor: "var(--admin-accent)", color: "var(--admin-accent-contrast)" } : { border: "1px solid var(--admin-border)" }}>
-                        {l}
-                      </button>
-                    );
-                  })}
-                </div>
-              );
-            })()}
-            <p className="text-[11px] admin-faint mt-1">Shows on the public spotguide as a range (e.g. “Intermediate–Pro”).</p>
-          </div>
-
-          {/* NP7 destination rating */}
-          <div>
-            <p className="text-xs font-bold admin-heading mb-2">NP7 rating <span className="admin-faint font-normal">(the whole-trip experience)</span></p>
-            <div className="grid sm:grid-cols-2 gap-x-6 gap-y-1">
-              {DESTINATION_CRITERIA.map((c) => (
-                <div key={c.key} className="flex items-center justify-between gap-3 py-1" title={c.hint}>
-                  <span className="text-xs admin-muted">{c.label}</span>
-                  <div className="flex items-center gap-0.5">
-                    {[1, 2, 3, 4, 5].map((n) => {
-                      const cur = (d.np7_ratings ?? {})[c.key] ?? 0;
-                      return <button key={n} onClick={() => set("np7_ratings", { ...(d.np7_ratings ?? {}), [c.key]: n === cur ? 0 : n })} className="text-lg leading-none" style={{ color: n <= cur ? "#f5a623" : "var(--admin-border)" }}>★</button>;
-                    })}
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-
-          {/* Spots */}
-          <div>
-            <div className="flex items-center justify-between mb-2">
-              <p className="text-xs font-bold admin-heading">Spots <span className="admin-faint font-normal">({spots.length})</span></p>
-              <button onClick={addSpot} disabled={addingSpot} className="text-xs font-bold text-[#0aa3c7] hover:underline disabled:opacity-50">{addingSpot ? "Adding…" : "+ Add spot"}</button>
-            </div>
-            {spots.length === 0 ? (
-              <p className="text-xs admin-faint">No spots yet. Add the launches people sail at here.</p>
-            ) : (
-              <div className="space-y-1.5">
-                {spots.map((sp) => {
-                  const vm = VERIFICATION_META[(sp.verification as Verification)] ?? VERIFICATION_META.np7;
-                  return (
-                    <Link key={sp.id} href={`/admin/spots/${sp.id}`} className="flex items-center gap-3 p-2 rounded-lg transition-colors hover:bg-black/5" style={{ border: "1px solid var(--admin-border)" }}>
-                      <div className="w-12 h-9 rounded bg-cover bg-center shrink-0 admin-surface" style={{ backgroundImage: sp.hero_image ? `url('${sp.hero_image}')` : undefined }} />
-                      <div className="flex-1 min-w-0">
-                        <p className="text-xs font-bold admin-heading truncate">{sp.name}</p>
-                        <p className="text-[11px] admin-faint">{[sp.level, sp.status, sp.source === "member" ? "member" : null].filter(Boolean).join(" · ")}</p>
-                      </div>
-                      <span className="px-2 py-0.5 rounded text-[10px] font-bold uppercase shrink-0" style={{ backgroundColor: `${vm.color}1f`, color: vm.color }}>{vm.short}</span>
-                    </Link>
-                  );
-                })}
-              </div>
-            )}
           </div>
         </div>
 
