@@ -77,6 +77,7 @@ const navByEnv: Record<Environment, NavGroup[]> = {
       label: "WEBSITE",
       items: [
         { label: "Event Content", href: "/admin/content", icon: "layers" },
+        { label: "Templates", href: "/admin/templates", icon: "layers" },
         // also listed under the Magazine env — trip pages AND the Spotguide use it
         { label: "Destinations", href: "/admin/destinations", icon: "compass" },
         { label: "Guest Reviews", href: "/admin/guest-reviews", icon: "star" },
