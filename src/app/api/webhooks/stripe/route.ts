@@ -198,6 +198,24 @@ async function onEventPayment(
   const { error: updErr } = await db.from("exp_bookings").update(patch).eq("id", bookingId);
   if (updErr) throw new Error(`booking update failed for ${bookingId}: ${updErr.message ?? updErr}`);
 
+  // The invoice, BEFORE the payment is recorded.
+  //
+  // A trip gets a deposit invoice + booking confirmation on its deposit; an
+  // event got neither, so a buyer paid €400 and the platform issued no
+  // document at all. Stripe's receipt is a card receipt, not a German invoice:
+  // no NP7 GmbH details, no VAT treatment, no sequential number.
+  //
+  // Order matters. generateDocument derives the amount from (total − received),
+  // so once the payment row exists the outstanding balance is zero and it
+  // refuses with "nothing to invoice". Issue first, then settle it.
+  if (kind === "event_full" || kind === "event_balance") {
+    try {
+      await generateDocument({ bookingId, type: "final_invoice" });
+    } catch (err) {
+      console.warn("[webhook] event invoice generation failed (non-fatal):", err);
+    }
+  }
+
   // Record the money in exp_payments (drives admin reconciliation).
   if (paymentIntent) {
     // Oldest-match-wins, not maybeSingle(): once two rows ever shared a

@@ -3,6 +3,7 @@ import { HeroVideo } from "@/components/experience/hero-video";
 import { OceanHeader, NP7_LOGO } from "@/components/experience/ocean-header";
 import { EventTicket, type TicketDate } from "@/components/experience/event-ticket";
 import { MethodModal } from "@/components/experience/method-modal";
+import { CoachCard } from "@/components/experience/coach-modal";
 import { createAdminClient } from "@/lib/supabase";
 import { eventPricing, type EventInfo } from "@/lib/events";
 import { eur } from "@/lib/stripe";
@@ -173,19 +174,7 @@ export async function EventPage({ event, isMember, paid, paidBookingId = null }:
               <h2 className="text-2xl font-black tracking-[-0.02em] text-[#00374a] mt-2">Who you&apos;ll ride with</h2>
               <div className="mt-4 grid sm:grid-cols-2 gap-4">
                 {coaches.map((c) => (
-                  <div key={c.name} className="flex gap-4 items-center rounded-2xl border border-[#eef2f3] bg-white p-3.5">
-                    {c.image_url ? (
-                      // eslint-disable-next-line @next/next/no-img-element
-                      <img src={c.image_url} alt={c.name} className="w-16 h-16 rounded-xl object-cover shrink-0" />
-                    ) : (
-                      <div className="w-16 h-16 rounded-xl shrink-0 grid place-items-center text-white font-black text-2xl" style={{ background: "linear-gradient(135deg,#ffc42e,#00afdb)" }}>{c.name[0]}</div>
-                    )}
-                    <div className="min-w-0">
-                      <p className="text-[16px] font-extrabold text-[#00374a] leading-tight">{c.name}</p>
-                      {c.role && <p className="text-[12px] font-bold uppercase tracking-wide text-[#00afdb]">{c.role}</p>}
-                      {c.bio && <p className="text-[12.5px] text-[#6a7a80] leading-snug mt-1 line-clamp-3">{c.bio}</p>}
-                    </div>
-                  </div>
+                  <CoachCard key={c.name} coach={c} />
                 ))}
               </div>
             </div>

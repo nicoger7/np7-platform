@@ -225,7 +225,20 @@ export default function PaymentsPage() {
                   <span className={`px-1.5 py-0.5 rounded font-bold uppercase ${p.direction === "cost" ? "bg-red-500/15 text-red-400" : "bg-green-500/15 text-green-400"}`}>{p.direction === "cost" ? "Cost" : "Rev"}</span>
                 </span>
                 <span className="text-xs admin-muted truncate">{p.type ?? "—"}</span>
-                <span className="text-xs admin-muted truncate">{p.reference ?? "—"}</span>
+                {/* A Stripe payment stores its payment-intent id as the
+                    reference. It was printed as inert text, so checking a
+                    charge, a card or a refund meant searching Stripe by hand. */}
+                {p.reference?.startsWith("pi_") || p.reference?.startsWith("ch_") ? (
+                  <a href={`https://dashboard.stripe.com/payments/${p.reference}`} target="_blank" rel="noreferrer"
+                    onClick={(e) => e.stopPropagation()}
+                    title="Open this charge in Stripe"
+                    className="text-xs font-semibold text-[#635bff] hover:underline truncate inline-flex items-center gap-1">
+                    {p.reference}
+                    <svg className="w-3 h-3 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6M15 3h6v6M10 14 21 3" /></svg>
+                  </a>
+                ) : (
+                  <span className="text-xs admin-muted truncate">{p.reference ?? "—"}</span>
+                )}
                 <span className="text-xs admin-muted truncate">
                   {p.booking_id && p.exp_bookings ? (
                     <Link href={`/admin/bookings/${p.booking_id}`} onClick={(e) => e.stopPropagation()} className="text-[#0aa3c7] hover:underline">{p.exp_bookings.name}</Link>

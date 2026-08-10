@@ -178,6 +178,8 @@ type ResolvedBooking = {
     year: number | null;
     date_start: string | null;
     date_end: string | null;
+    /** 'event' = a 1–2 day clinic bought outright (migration 157). */
+    kind?: string | null;
     deposit: number | null;
   } | null;
   exp_packages: {
@@ -199,7 +201,7 @@ async function resolveBooking(bookingId: string): Promise<ResolvedBooking> {
        agreed_price, downpayment_received, final_payment_received, notes, created_at,
        contacts(name, email, billing_address, billing_postal_code, billing_city, billing_country),
        exp_experiences(title, slug),
-       exp_editions(label, year, date_start, date_end, deposit),
+       exp_editions(label, year, date_start, date_end, deposit, kind),
        exp_packages(name, deposit, downpayment_percent, final_days_before, deposit_refund_days, includes)`
     )
     .eq("id", bookingId)
@@ -480,6 +482,11 @@ export async function generateDocument(input: GenerateInput): Promise<DocumentRo
             ? "Deposit Invoice"
             : type === "downpayment_invoice"
             ? "Down-Payment Invoice"
+            // A 1–2 day clinic is bought outright, so "Final Invoice" reads as
+            // the last of several instalments that never existed. It is simply
+            // the invoice.
+            : ed?.kind === "event"
+            ? "Invoice"
             : "Final Invoice"
         } – ${exp.title}${ed?.label ? " · " + ed.label : ""}`
       : `Booking Confirmation – ${exp.title}${ed?.label ? " · " + ed.label : ""}`,
