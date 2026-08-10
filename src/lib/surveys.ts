@@ -38,7 +38,7 @@ export type SurveyDestination = { key: string; groupId?: string | null; label: s
 export type SurveyInfo = {
   coaches: { name: string; role: string | null; bio: string | null; image: string | null }[];
   method: { intro: string | null; steps: { t: string; d: string }[] } | null;
-  spot: { name: string; intro: string | null; tagline: string | null; conditions: string | null; windSpeed: string | null; season: string | null } | null;
+  spot: { name: string; intro: string | null; tagline: string | null; conditions: string | null; windSpeed: string | null; season: string | null; levels: string | null; image: string | null; gallery: string[] } | null;
   features: { name: string; description: string | null }[];
 };
 export type SurveyWeek = { key: string; label: string; start: string | null; end: string | null };
@@ -614,7 +614,7 @@ export async function resolveSurveyInfo(dest: SurveyDestination): Promise<Survey
   const [coachRes, featRes, destRes, methodRes] = await Promise.all([
     coachIds.length ? sb.from("exp_coaches").select("id,name,role,bio,image_url").in("id", coachIds) : Promise.resolve({ data: [] }),
     featureIds.length ? sb.from("exp_components").select("id,name,description").in("id", featureIds) : Promise.resolve({ data: [] }),
-    dest.destinationId ? sb.from("destinations").select("name,intro,tagline,conditions,wind_speed,wind_season,best_season").eq("id", dest.destinationId).maybeSingle() : Promise.resolve({ data: null }),
+    dest.destinationId ? sb.from("destinations").select("name,intro,tagline,conditions,wind_speed,wind_season,best_season,hero_image,gallery,skill_levels").eq("id", dest.destinationId).maybeSingle() : Promise.resolve({ data: null }),
     // the coaching method rides along with the coach card — one shared template
     coachIds.length ? sb.from("content_templates").select("body").eq("kind", "method").limit(1).maybeSingle() : Promise.resolve({ data: null }),
   ]);
@@ -633,7 +633,17 @@ export async function resolveSurveyInfo(dest: SurveyDestination): Promise<Survey
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       ? { intro: mBody.intro ?? null, steps: (Array.isArray(mBody.steps) ? mBody.steps : []).slice(0, 3).map((x: any) => ({ t: String(x?.t ?? ""), d: String(x?.d ?? "") })).filter((x: { t: string }) => x.t) }
       : null,
-    spot: d ? { name: d.name, intro: d.intro ?? null, tagline: d.tagline ?? null, conditions: d.conditions ?? null, windSpeed: d.wind_speed ?? null, season: d.wind_season ?? d.best_season ?? null } : null,
+    spot: d ? {
+      name: d.name, intro: d.intro ?? null, tagline: d.tagline ?? null,
+      conditions: d.conditions ?? null, windSpeed: d.wind_speed ?? null,
+      season: d.wind_season ?? d.best_season ?? null,
+      levels: d.skill_levels ?? null,
+      // The place card's own photo is the fallback: a destination written up
+      // before anyone uploaded its gallery still opens with a picture rather
+      // than a wall of text, which is what made this sheet feel unfinished.
+      image: d.hero_image ?? dest.image ?? null,
+      gallery: (Array.isArray(d.gallery) ? d.gallery : []).filter(Boolean).slice(0, 6),
+    } : null,
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     features: order((featRes.data ?? []) as any[], featureIds).map((f: any) => ({ name: f.name, description: f.description ?? null })),
   };

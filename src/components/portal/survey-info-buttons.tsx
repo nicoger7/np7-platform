@@ -150,14 +150,26 @@ export function SurveyInfoButtons({ info }: { info: SurveyInfo }) {
 
           {open === "method" && info.method && (
             <div>
-              {info.method.intro && (
-                <p className="text-[15px] text-[#3a4a50] leading-[1.65] [text-wrap:pretty]">{info.method.intro}</p>
-              )}
+              {/* The method is the thing that distinguishes an NP7 week, and it
+                  was reading as a bulleted list. It gets the deep-teal band the
+                  experience page gives it, then the steps as real cards. */}
+              <div className="relative overflow-hidden rounded-2xl bg-[#00374a] px-6 py-7 mb-6">
+                <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_85%_-10%,rgba(0,175,219,0.42),transparent_62%)]" aria-hidden />
+                <div className="relative">
+                  <p className="text-[10.5px] font-black uppercase tracking-[0.2em] text-[#8fe6f2]">The NP7 Method</p>
+                  <h3 className="text-[22px] sm:text-[26px] font-black text-white leading-[1.12] tracking-[-0.02em] mt-2">
+                    Not just a session — a system
+                  </h3>
+                  {info.method.intro && (
+                    <p className="text-[14.5px] text-white/80 leading-[1.6] mt-3 [text-wrap:pretty]">{info.method.intro}</p>
+                  )}
+                </div>
+              </div>
               {info.method.steps.length > 0 && (
-                <ol className="mt-6 space-y-5">
+                <ol className="space-y-2.5">
                   {info.method.steps.map((st, i) => (
-                    <li key={i} className="flex gap-3.5">
-                      <span className="shrink-0 grid place-items-center w-7 h-7 rounded-full bg-white border border-[#ecdcbb] text-[12px] font-black text-[#b0791e] mt-0.5">
+                    <li key={i} className="flex gap-3.5 rounded-xl bg-white border border-[#ecdcbb] px-4 py-3.5">
+                      <span className="shrink-0 grid place-items-center w-7 h-7 rounded-full bg-[#00374a] text-[12px] font-black text-[#8fe6f2] mt-0.5">
                         {i + 1}
                       </span>
                       <span className="min-w-0">
@@ -173,6 +185,14 @@ export function SurveyInfoButtons({ info }: { info: SurveyInfo }) {
 
           {open === "spot" && info.spot && (
             <div>
+              {/* A place is a picture first. This panel opened on a wall of text
+                  and three grey boxes, which is not how anyone decides where to
+                  spend a week. */}
+              {info.spot.image && (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img src={info.spot.image} alt={info.spot.name}
+                  className="w-full h-[200px] sm:h-[240px] object-cover rounded-2xl bg-[#f4ecdd] mb-5" />
+              )}
               <p className="text-[24px] sm:text-[27px] font-black text-[#00374a] leading-[1.1] tracking-[-0.025em]">{info.spot.name}</p>
               {info.spot.tagline && <p className="text-[15px] text-[#6a7a80] mt-1.5">{info.spot.tagline}</p>}
               {info.spot.intro && (
@@ -183,16 +203,26 @@ export function SurveyInfoButtons({ info }: { info: SurveyInfo }) {
                   .filter(([, v]) => !!v);
                 if (!stats.length) return null;
                 return (
-                  <dl className="grid sm:grid-cols-2 gap-2.5 mt-6">
-                    {stats.map(([k, v]) => (
-                      <div key={k} className="rounded-xl bg-white border border-[#ecdcbb] px-4 py-3">
-                        <dt className="text-[10.5px] font-black uppercase tracking-[0.14em] text-[#b0791e]">{k}</dt>
-                        <dd className="text-[14px] font-semibold text-[#00374a] mt-1 leading-snug">{v}</dd>
+                  <dl className="grid grid-cols-2 gap-2.5 mt-6">
+                    {stats.map(([k, v], i) => (
+                      <div key={k} className={`rounded-xl bg-[#00374a] px-4 py-3 ${i === stats.length - 1 && stats.length % 2 === 1 ? "col-span-2" : ""}`}>
+                        <dt className="text-[10.5px] font-black uppercase tracking-[0.14em] text-[#8fe6f2]">{k}</dt>
+                        <dd className="text-[14px] font-bold text-white mt-1 leading-snug">{v}</dd>
                       </div>
                     ))}
                   </dl>
                 );
               })()}
+              {/* The destination's own gallery — the spotguide already has these
+                  photos and this sheet was showing none of them. */}
+              {info.spot.gallery.length > 0 && (
+                <div className="grid grid-cols-3 gap-2 mt-3">
+                  {info.spot.gallery.slice(0, 6).map((g) => (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img key={g} src={g} alt="" className="w-full h-[86px] object-cover rounded-lg bg-[#f4ecdd]" />
+                  ))}
+                </div>
+              )}
             </div>
           )}
 
