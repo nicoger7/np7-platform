@@ -22,11 +22,20 @@ export function editionLabel(ed: EditionLike | null | undefined): string {
 const fmtDay = (iso: string) =>
   new Date(iso + (iso.length === 10 ? "T00:00:00" : "")).toLocaleDateString("en-GB", { day: "numeric", month: "short" });
 
-/** For pickers: label + year + date range, e.g. "Week I · 2026 (30 Nov – 6 Dec)". */
-export function editionOptionLabel(ed: EditionLike | null | undefined): string {
+/**
+ * For pickers: label + year + date range, e.g. "Week I · 2026 (30 Nov – 6 Dec)".
+ *
+ * `experienceTitle` prefixes the place when the picker spans experiences — a
+ * cross-experience dropdown full of bare "2026 (15 Mar – 22 Mar)" rows makes
+ * the reader guess whose weeks they are, which is exactly what happened on the
+ * Components filter. A dateless edition says "dates TBD" instead of standing
+ * there as a naked year.
+ */
+export function editionOptionLabel(ed: EditionLike | null | undefined, experienceTitle?: string | null): string {
   if (!ed) return "";
-  const base = editionLabel(ed);
-  if (!ed.date_start) return base;
+  const place = (experienceTitle ?? "").trim().replace(/^NP7\s+(Experience\s+)?/i, "").replace(/\s+Experience$/i, "");
+  const base = [place, editionLabel(ed)].filter(Boolean).join(" · ");
+  if (!ed.date_start) return `${base} (dates TBD)`;
   const range =
     ed.date_end && ed.date_end !== ed.date_start
       ? `${fmtDay(ed.date_start)} – ${fmtDay(ed.date_end)}`

@@ -4,7 +4,7 @@ import { useState, useEffect } from "react";
 import { SortableHeader } from "@/components/sortable-header";
 import { ColumnToggle, ColumnDef, buildGridTemplate, loadVisibleColumns } from "@/components/column-toggle";
 import { SearchableSelect } from "@/components/admin/searchable-select";
-import { editionLabel, editionOptionLabel } from "@/lib/edition-label";
+import { editionLabel, editionOptionLabel, editionSortKey } from "@/lib/edition-label";
 
 interface Experience {
   id: string;
@@ -177,9 +177,11 @@ export default function ComponentsPage() {
     }
   }
 
-  const filterEditionOptions = filterExperience
+  const expTitleById = new Map(experiences.map((e) => [e.id, e.title]));
+  const filterEditionOptions = (filterExperience
     ? editions.filter((e) => e.experience_id === filterExperience)
-    : editions;
+    : editions
+  ).slice().sort((a, b) => editionSortKey(a).localeCompare(editionSortKey(b)));
   const filtered = components.filter((c) => {
     if (filterCategory && c.category !== filterCategory) return false;
     if (filterExperience && !(c.is_global || c.experience_id === filterExperience)) return false;
@@ -465,7 +467,7 @@ export default function ComponentsPage() {
         >
           <option value="">All editions</option>
           {filterEditionOptions.map((ed) => (
-            <option key={ed.id} value={ed.id}>{editionOptionLabel(ed)}</option>
+            <option key={ed.id} value={ed.id}>{editionOptionLabel(ed, filterExperience ? null : expTitleById.get(ed.experience_id))}</option>
           ))}
         </select>
         {(filterExperience || filterEdition) && (
