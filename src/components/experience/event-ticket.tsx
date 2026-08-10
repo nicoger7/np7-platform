@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { usePathname } from "next/navigation";
 import { isMinorOn, checkParticipant } from "@/lib/minors";
+import { PhoneField, joinPhone, dialForLocation } from "@/components/experience/phone-field";
 
 export type TicketDate = { id: string; label: string; sub?: string };
 
@@ -14,7 +15,7 @@ export type TicketDate = { id: string; label: string; sub?: string };
  * "we'll follow up" when Stripe isn't configured yet).
  */
 export function EventTicket({
-  experienceId, mode, priceLabel, depositLabel, balanceLabel, refundLabel, dates, fixedDate, isMember, eventDate,
+  experienceId, mode, priceLabel, depositLabel, balanceLabel, refundLabel, dates, fixedDate, isMember, eventDate, location = null,
 }: {
   experienceId: string;
   mode: "fixed" | "standby";
@@ -27,6 +28,8 @@ export function EventTicket({
   isMember: boolean;
   /** ISO date the event starts — age is judged on the day they ride. */
   eventDate?: string | null;
+  /** Where the event is — only used to pick a sensible default dial code. */
+  location?: string | null;
 }) {
   // Send them back HERE after logging in — the login page takes a `next`, it
   // just wasn't being given one, so a buyer mid-purchase landed on member home
@@ -38,6 +41,12 @@ export function EventTicket({
   const [lastName, setLastName] = useState("");
   const [email, setEmail] = useState("");
   const [phone, setPhone] = useState("");
+  // The dial code defaults to where the event happens, because that is where
+  // most of the people at it live — a Turkish parent booking a clinic in
+  // Alaçatı should not have to hunt for +90.
+  const homeDial = dialForLocation(location);
+  const [dial, setDial] = useState(homeDial);
+  const [gDial, setGDial] = useState(homeDial);
   // Under 18, a rider can't validly contract or waive anything — a parent has
   // to. The form asks everyone their date of birth and reveals the guardian
   // block only when it's needed, so adults aren't taxed for the juniors.
@@ -47,7 +56,9 @@ export function EventTicket({
   const [gPhone, setGPhone] = useState("");
   const [gRel, setGRel] = useState("");
   const minor = isMinorOn(dob || null, eventDate ?? null);
-  const guardianProblem = dob ? checkParticipant(dob, eventDate ?? null, { guardianName: gName, guardianEmail: gEmail, guardianPhone: gPhone, guardianRelationship: gRel }) : null;
+  const fullPhone = joinPhone(dial, phone);
+  const fullGPhone = joinPhone(gDial, gPhone);
+  const guardianProblem = dob ? checkParticipant(dob, eventDate ?? null, { guardianName: gName, guardianEmail: gEmail, guardianPhone: fullGPhone, guardianRelationship: gRel }) : null;
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [done, setDone] = useState(false);
@@ -64,10 +75,10 @@ export function EventTicket({
         body: JSON.stringify({
           experienceId,
           dateIds: mode === "standby" ? picked : fixedDate ? [fixedDate.id] : [],
-          firstName, lastName, email, phone,
+          firstName, lastName, email, phone: fullPhone,
           dob: dob || null,
           guardianName: gName || null, guardianEmail: gEmail || null,
-          guardianPhone: gPhone || null, guardianRelationship: gRel || null,
+          guardianPhone: fullGPhone || null, guardianRelationship: gRel || null,
         }),
       });
       const j = await res.json().catch(() => ({}));
@@ -145,7 +156,9 @@ export function EventTicket({
           <input className={input} placeholder="First name" value={firstName} onChange={(e) => setFirstName(e.target.value)} autoComplete="given-name" />
           <input className={input} placeholder="Last name" value={lastName} onChange={(e) => setLastName(e.target.value)} autoComplete="family-name" />
           <input className={`${input} sm:col-span-2`} type="email" placeholder="you@example.com" value={email} onChange={(e) => setEmail(e.target.value)} autoComplete="email" />
-          <input className={`${input} sm:col-span-2`} placeholder="Phone (optional)" value={phone} onChange={(e) => setPhone(e.target.value)} autoComplete="tel" />
+          <span className="sm:col-span-2">
+            <PhoneField dial={dial} onDial={setDial} number={phone} onNumber={setPhone} placeholder="Phone (optional)" inputClass={input} />
+          </span>
 
         </div>
       )}
@@ -168,7 +181,9 @@ export function EventTicket({
             <input className={input} placeholder="Parent / guardian name" value={gName} onChange={(e) => setGName(e.target.value)} autoComplete="name" />
             <input className={input} placeholder="Relationship (e.g. mother)" value={gRel} onChange={(e) => setGRel(e.target.value)} />
             <input className={input} type="email" placeholder="Guardian email" value={gEmail} onChange={(e) => setGEmail(e.target.value)} autoComplete="email" />
-            <input className={input} placeholder="Guardian phone" value={gPhone} onChange={(e) => setGPhone(e.target.value)} autoComplete="tel" />
+            {/* The number NP7 must be able to dial from the beach. Country code
+                is explicit for exactly that reason. */}
+            <PhoneField dial={gDial} onDial={setGDial} number={gPhone} onNumber={setGPhone} placeholder="Guardian phone" inputClass={input} />
           </div>
         )}
       </div>

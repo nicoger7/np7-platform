@@ -1,7 +1,8 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import type { Survey, SurveyResponse } from "@/lib/surveys";
+import type { Survey, SurveyResponse, SurveyInfo } from "@/lib/surveys";
+import { SurveyInfoButtons } from "@/components/portal/survey-info-buttons";
 
 /**
  * The one-tap interest survey. The invite email's buttons already registered an
@@ -24,8 +25,11 @@ function fmtRange(start?: string | null, end?: string | null): string {
   return f((start ?? end)!, full);
 }
 
-export function SurveyQuick({ survey, token, existing, preview = false, justSaved = false }: {
+export function SurveyQuick({ survey, token, existing, preview = false, justSaved = false, infoByKey = {} }: {
   survey: Survey; token: string; existing?: SurveyResponse | null; preview?: boolean; justSaved?: boolean;
+  /** Resolved info-button content per place key. The quick survey is the one
+   *  most people actually see, so it needs these as much as the long form. */
+  infoByKey?: Record<string, SurveyInfo>;
 }) {
   const dated = survey.destinations.filter((d) => d.start || d.end);
   const [picks, setPicks] = useState<Set<string>>(new Set(existing?.other_destinations ?? []));
@@ -131,9 +135,15 @@ export function SurveyQuick({ survey, token, existing, preview = false, justSave
             g.rows.push(d);
           }
           const multi = groups.length > 1;
-          return groups.map((g) => (
+          return groups.map((g) => {
+          // Info is picked per place in the admin; a group's dates all share it,
+          // so the first row that has any is the group's. Missing content is not
+          // an error state — the button for it simply isn't there, and the card
+          // reads exactly as it did before the feature existed.
+          const info = g.rows.map((r) => infoByKey[r.key]).find(Boolean) ?? null;
+          return (
             <div key={g.id} className="space-y-3">
-              {(g.blurb || multi) && (
+              {(g.blurb || multi || info) && (
                 <div className={multi ? "pt-2" : ""}>
                   {/* Each place gets its own photo when there's more than one —
                       otherwise the hero above is already showing it. */}
@@ -148,6 +158,7 @@ export function SurveyQuick({ survey, token, existing, preview = false, justSave
                   {/* Left, like the eyebrow above it and the cards below — it was
                       centred, which made every group read as three alignments. */}
                   {g.blurb && <p className="text-[14px] text-[#6a7a80] leading-relaxed mt-1">{g.blurb}</p>}
+                  {info && <SurveyInfoButtons info={info} />}
                 </div>
               )}
               {g.rows.map((d) => {
@@ -182,7 +193,8 @@ export function SurveyQuick({ survey, token, existing, preview = false, justSave
           );
               })}
             </div>
-          ));
+          );
+          });
         })()}
       </div>
 

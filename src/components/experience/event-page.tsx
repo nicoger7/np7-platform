@@ -214,6 +214,7 @@ export async function EventPage({ event, isMember, paid, paidBookingId = null }:
               fixedDate={fixedDate}
               isMember={isMember}
               eventDate={(confirmed ?? event.dates[0])?.date_start ?? null}
+              location={event.location}
             />
           ) : (
             <div className="rounded-2xl bg-white border border-[#e3e9ec] p-7 text-center">

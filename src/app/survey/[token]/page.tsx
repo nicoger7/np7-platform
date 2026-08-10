@@ -150,7 +150,7 @@ export default async function SurveyPage({ params, searchParams }: Props) {
         ) : (
           <>
             {survey.quick
-              ? <SurveyQuick survey={survey} token={token} existing={response} preview={isPreview} justSaved={saved === "1"} />
+              ? <SurveyQuick survey={survey} token={token} existing={response} preview={isPreview} justSaved={saved === "1"} infoByKey={infoByKey} />
               : <SurveyForm survey={survey} token={token} contactName={contactName} existing={response} preview={isPreview} infoByKey={infoByKey} />}
             {!user && !isPreview && (
               <p className="text-[12.5px] text-[#9a8a6a] text-center mt-6">
