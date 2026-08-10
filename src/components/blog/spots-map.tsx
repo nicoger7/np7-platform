@@ -32,6 +32,14 @@ export function SpotsMap({ spots, accent, accentInk }: { spots: Spot[]; accent: 
       await import("leaflet.markercluster"); // augments L with markerClusterGroup
       if (cancelled || !elRef.current || mapRef.current) return;
       const map = L.map(elRef.current, { scrollWheelZoom: false });
+      // Wheel zooms while the pointer is over the map, and the page scrolls
+      // again once it leaves — the same rule as the spotguide map. A coarse
+      // pointer fires a synthetic mouseover on tap and has no wheel, so it is
+      // left alone: one finger scrolls the page, two pinch the map.
+      if (!window.matchMedia("(pointer: coarse)").matches) {
+        map.on("mouseover", () => map.scrollWheelZoom.enable());
+        map.on("mouseout", () => map.scrollWheelZoom.disable());
+      }
       map.attributionControl.setPrefix('<a href="https://leafletjs.com" title="A JavaScript library for interactive maps">Leaflet</a>'); // strip Leaflet's default Ukraine-flag prefix
       mapRef.current = map;
       // street/satellite base layers + toggle (labelled — article maps need place context)

@@ -72,15 +72,22 @@ export function SpotMap({ spots, cluster = false, height = 420, linkLabel = "Vie
       map.attributionControl.setPrefix('<a href="https://leafletjs.com" title="A JavaScript library for interactive maps">Leaflet</a>'); // strip Leaflet's default Ukraine-flag prefix
       mapRef.current = map;
 
-      // Scroll-zoom engages only after a click — otherwise wheel/trackpad keeps
-      // scrolling the page (the "zoom doesn't work well" fix).
+      // Scroll-zoom follows the POINTER on a mouse or trackpad: over the map the
+      // wheel zooms, off it the page scrolls again. It used to demand a click
+      // first, which meant the obvious gesture — hover and scroll — scrolled
+      // straight past the map and looked broken.
+      //
+      // Only on a fine pointer. On touch there is no hover and no wheel: a
+      // single finger belongs to the page (see `dragging:false` above) and two
+      // fingers pinch, so nothing here applies and a synthetic mouseover from a
+      // tap must not change anything.
       map.on("click focus", () => { map.scrollWheelZoom.enable(); setZoomHint(false); });
-      map.on("mouseout blur", () => map.scrollWheelZoom.disable());
-      // Touch browsers fire a synthetic mouseover on tap — the hover hint would
-      // pop up on phones, where there is no wheel to talk about.
+      map.on("blur", () => map.scrollWheelZoom.disable());
       if (!coarse) {
-        map.on("mouseover", () => { if (!map.scrollWheelZoom.enabled()) setZoomHint(true); });
-        map.on("mouseout", () => setZoomHint(false));
+        map.on("mouseover", () => { map.scrollWheelZoom.enable(); setZoomHint(true); });
+        map.on("mouseout", () => { map.scrollWheelZoom.disable(); setZoomHint(false); });
+      } else {
+        map.on("mouseout", () => map.scrollWheelZoom.disable());
       }
 
       // `voyager_nolabels`: no country/place labels. Carto renders them in each
@@ -283,7 +290,7 @@ export function SpotMap({ spots, cluster = false, height = 420, linkLabel = "Vie
         {(note || (zoomHint && !full)) && (
           <div className="pointer-events-none absolute inset-x-0 bottom-3 z-[500] flex justify-center px-4">
             <span className="rounded-full bg-[#00374a]/85 text-white text-[11.5px] font-bold px-3.5 py-1.5 backdrop-blur-sm text-center">
-              {note ?? "Click the map to zoom"}
+              {note ?? (coarseRef.current ? "Pinch to zoom · two fingers to pan" : "Scroll to zoom · drag to pan")}
             </span>
           </div>
         )}
