@@ -9,10 +9,12 @@ import { cdnImage } from "@/lib/img";
  * a trip has no cover image yet.
  */
 export function TripHero({
-  coverImage, title, dateLabel, statusLabel, phase, daysToGo, weeks, waitPct,
+  coverImage, title, dateLabel, statusLabel, phase, daysToGo, weeks, waitPct, eyebrow = "Your trip",
 }: {
   coverImage: string | null;
   title: string;
+  /** "Your trip" for a week, "Your event" for a clinic — an edition is either. */
+  eyebrow?: string;
   dateLabel: string;
   statusLabel: string;
   phase: "before" | "during" | "after";
@@ -38,7 +40,7 @@ export function TripHero({
       <div className="relative p-5 sm:p-7">
         <div className="flex items-end justify-between gap-4 flex-wrap">
           <div className="min-w-0">
-            <p className="text-[11px] font-bold tracking-[0.22em] uppercase text-white/70 mb-1.5">Your trip</p>
+            <p className="text-[11px] font-bold tracking-[0.22em] uppercase text-white/70 mb-1.5">{eyebrow}</p>
             <h1 className="text-[26px] sm:text-[32px] font-black tracking-[-0.02em] text-white leading-[1.05]">{title}</h1>
             <p className="text-[13px] text-white/80 mt-1.5">{dateLabel}</p>
           </div>

@@ -244,10 +244,13 @@ export default async function BookingDetail({ params }: Props) {
       attention: !waiverSig && !tripStarted,
       cta: !waiverSig && !tripStarted ? "Sign now" : undefined,
     },
+    // Being early is not being alone. "Just you" told the first person to book
+    // — the one who took the risk on a new trip — that nobody else wanted it.
+    // Until the group is real, say that it's forming, and only ever count up.
     {
-      key: "crew", label: "Crew", tab: "trip",
-      value: crew.going > 1 ? `${crew.going} going` : "Just you",
-      sub: crew.going > 1 ? "meet them" : "bring a friend",
+      key: "crew", label: "Crew", tab: isEvent ? "crew" : "trip",
+      value: crew.going > 1 ? `${crew.going} going` : "Forming",
+      sub: crew.going > 1 ? "meet them" : "you're in early — bring a friend",
       tone: "cyan",
     },
   ];
@@ -444,16 +447,43 @@ export default async function BookingDetail({ params }: Props) {
     </div>
   );
 
+  // The crew on its own, for an event's Crew tab. Same card the trip tab uses,
+  // but it always renders: "nobody has shared a profile yet" is information;
+  // a tab that opens onto nothing is a dead end.
+  const crewContent = (
+    <div className="space-y-6">
+      <div id="crew" className="scroll-mt-28">
+        <p className="text-[11px] font-bold tracking-[0.14em] uppercase text-[#9aa6ac] mb-2">Who&apos;s coming</p>
+        <CrewCard bookingId={b.id} going={crew.going} sharing={crew.sharing} profiles={crew.profiles} whatsappLink={b.edition?.whatsapp_group_link ?? null} />
+      </div>
+      <InvitePanel collapsible bookingId={b.id} rewardFriend={inviteData.friend} rewardInviter={inviteData.inviter} currency={inviteData.currency} initialInvites={inviteData.invites} />
+    </div>
+  );
+
   const docsContent = (
     <>
+      {/* The waiver lived only in Prep — and an event has no Prep tab, so a
+          clinic's tile and the hero CTA both pointed at a section that was
+          never rendered. Someone who had paid could not sign, which is the
+          entire point of the guardian work. It belongs here for an event. */}
+      {isEvent && (
+        <div className="mb-5 pb-5 border-b border-[#f3ede2]">
+          <p className="text-[11px] font-bold tracking-[0.14em] uppercase text-[#9aa6ac] mb-2.5">Participation waiver</p>
+          {waiverBody}
+        </div>
+      )}
+
       {/* Named for what it is right now. Calling it a confirmation before the
           spot is held is the kind of small lie a guest notices. */}
       <DocLink
         href={`/account/bookings/${b.id}/confirmation`}
-        label={secured ? "Trip confirmation" : "Booking summary"}
-        sub={secured ? "Your confirmed booking (print / save as PDF)" : "What you picked — not a confirmation until your spot is secured"}
+        label={secured ? (isEvent ? "Your ticket" : "Trip confirmation") : "Booking summary"}
+        sub={secured ? `Your confirmed ${isEvent ? "ticket" : "booking"} (print / save as PDF)` : "What you picked — not a confirmation until your spot is secured"}
       />
-      <DocLink href="/experience/legal/package-travel" label="Standard information form" sub="Your rights under EU package-travel law" />
+      {/* A one-day coaching clinic is not a package tour: no travel, no
+          accommodation, nothing bundled. Handing the buyer a package-travel
+          information form claims rights this sale doesn't carry. */}
+      {!isEvent && <DocLink href="/experience/legal/package-travel" label="Standard information form" sub="Your rights under EU package-travel law" />}
       <p className="text-[12.5px] text-[#9aa6ac] py-2.5">Your invoices &amp; pro-forma are in the <strong className="text-[#6a7a80] font-semibold">Payment</strong> tab.</p>
       <details className="mt-2 border-t border-[#f3ede2] pt-3">
         <summary className="text-[14px] font-semibold text-[#00374a] cursor-pointer">Cancellation policy</summary>
@@ -485,8 +515,13 @@ export default async function BookingDetail({ params }: Props) {
   const tripTab: TripTab = { key: "trip", label: "Trip", content: tripContent };
   const docsTab: TripTab = { key: "docs", label: "Docs", content: docsContent };
   const photosTab: TripTab = { key: "photos", label: "Photos", content: photosContent };
+  // An event has no arrival, no rooms and no packing list — but it absolutely
+  // has a crew, and seeing who else is coming is half the reason to come. The
+  // Crew tile pointed at a "trip" tab that events didn't have, so the tile did
+  // nothing at all.
+  const crewTab: TripTab = { key: "crew", label: "Crew", content: crewContent };
   const tabs: TripTab[] = isEvent
-    ? (tripStarted ? [photosTab, docsTab, paymentTab] : [paymentTab, docsTab, photosTab])
+    ? (tripStarted ? [photosTab, crewTab, docsTab, paymentTab] : [paymentTab, crewTab, docsTab, photosTab])
     : tripStarted ? [photosTab, paymentTab, tripTab, docsTab] : [paymentTab, prepTab, tripTab, docsTab, photosTab];
   const initialTab = tripStarted ? "photos" : isEvent ? (fullyPaid ? "docs" : "payment") : !depositPaid ? "payment" : "prep";
 
@@ -499,6 +534,7 @@ export default async function BookingDetail({ params }: Props) {
             <TripHero
               coverImage={coverImage}
               title={b.experience?.title ?? "Your trip"}
+              eyebrow={isEvent ? "Your event" : "Your trip"}
               dateLabel={`${b.edition?.label ? `${b.edition.label} · ` : ""}${fmtDates(b.edition?.date_start, b.edition?.date_end)}`}
               statusLabel={chip.label}
               phase={tripPhase}

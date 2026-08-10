@@ -44,7 +44,20 @@ export default async function ConfirmationPage({ params }: { params: Promise<{ i
    * it is a summary of what was chosen; after it, it is the confirmation.
    */
   const secured = isSecured(b);
-  const title = secured ? "Trip confirmation" : "Booking summary";
+  /**
+   * An event is a coaching ticket, not a travelled week, and almost nothing on
+   * this page was true for one: a milestone plan for something bought outright,
+   * a hardcoded six-day trip inclusion list, "Traveller" for someone who isn't
+   * travelling — and a paragraph asserting the sale is a PACKAGE under
+   * §651a BGB / Directive 2015/2302. That last one isn't cosmetic. A two-day
+   * clinic with no travel and no accommodation is a single service, the
+   * Directive does not apply, and printing that it does hands the buyer rights
+   * against NP7 that this contract never created.
+   */
+  const isEvent = b.edition?.kind === "event";
+  const title = isEvent
+    ? (secured ? "Ticket confirmation" : "Booking summary")
+    : (secured ? "Trip confirmation" : "Booking summary");
 
   // The money comes from the SAME plan as the trip page and the invoices. It
   // used to be computed here on its own — `deposit ?? 300`, balance = total −
@@ -53,6 +66,20 @@ export default async function ConfirmationPage({ params }: { params: Promise<{ i
   // booking, same screen session, two different answers.
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const db = createAdminClient() as any;
+  // The real inclusion list and who is actually responsible. Both were missing:
+  // the page printed a hardcoded trip list regardless of what the experience
+  // says, and never named the guardian who signed for a minor.
+  const [extra, exp] = await Promise.all([
+    db.from("exp_bookings").select("name, participant_dob, guardian_name, guardian_email, guardian_relationship, exp_editions(location)")
+      .eq("id", b.id).maybeSingle().then((r: { data: Record<string, unknown> | null }) => r.data ?? null).catch(() => null),
+    db.from("exp_experiences").select("whats_included, location")
+      .eq("id", b.experience_id ?? "").maybeSingle().then((r: { data: Record<string, unknown> | null }) => r.data ?? null).catch(() => null),
+  ]);
+  const guardianName = (extra?.guardian_name as string | null) ?? null;
+  const riderName = ((extra?.name as string | null) ?? "").split(" — ")[0] || user.name;
+  const venue = ((extra?.exp_editions as { location?: string } | null)?.location) || (exp?.location as string | null) || null;
+  const included = ((exp?.whats_included as string[] | null) ?? []).filter(Boolean);
+
   const [paid, payRow] = await Promise.all([
     getBookingPaid(b.id),
     db.from("exp_bookings")
@@ -112,25 +139,41 @@ export default async function ConfirmationPage({ params }: { params: Promise<{ i
 
           {/* customer + trip */}
           <div className="grid sm:grid-cols-2 gap-6 mt-6">
-            <Block label="Traveller">
-              <p className="text-[15px] font-bold text-[#00374a]">{user.name}</p>
+            <Block label={isEvent ? "Participant" : "Traveller"}>
+              <p className="text-[15px] font-bold text-[#00374a]">{isEvent ? riderName : user.name}</p>
               <p className="text-[13px] text-[#6a7a80]">{user.email}</p>
+              {/* Under 18 the guardian is the contracting party — the document
+                  that evidences the contract has to say whose it is. */}
+              {guardianName && (
+                <p className="text-[12.5px] text-[#6a7a80] mt-1.5">
+                  Booked and signed for by <strong className="text-[#00374a]">{guardianName}</strong>
+                  {extra?.guardian_relationship ? ` (${String(extra.guardian_relationship)})` : ""} as parent / guardian
+                </p>
+              )}
             </Block>
-            <Block label="Experience">
+            <Block label={isEvent ? "Event" : "Experience"}>
               <p className="text-[15px] font-bold text-[#00374a]">{b.experience?.title}</p>
               <p className="text-[13px] text-[#6a7a80]">{b.edition?.label ? `${b.edition.label} · ` : ""}{fmtDates(b.edition?.date_start, b.edition?.date_end)}</p>
+              {venue && <p className="text-[13px] text-[#6a7a80]">{venue}</p>}
             </Block>
           </div>
 
           {/* package + pricing */}
           <div className="mt-8">
-            <Block label="Package">
-              <p className="text-[15px] font-bold text-[#00374a]">{b.pkg?.name ?? "—"}</p>
-            </Block>
+            {/* An event usually has no package, and an empty "Package —" is
+                just a hole in a document someone is about to print. */}
+            {b.pkg?.name && (
+              <Block label="Package">
+                <p className="text-[15px] font-bold text-[#00374a]">{b.pkg.name}</p>
+              </Block>
+            )}
             <table className="w-full mt-4 text-[14px]">
               <tbody>
-                <tr className="border-b border-[#eef2f3]"><td className="py-2.5 text-[#6a7a80]">Trip total (per person)</td><td className="py-2.5 text-right font-bold text-[#00374a]">{money(b.agreed_price, cur) ?? "—"}</td></tr>
-                {plan.map((m) => (
+                <tr className="border-b border-[#eef2f3]"><td className="py-2.5 text-[#6a7a80]">{isEvent ? "Ticket" : "Trip total (per person)"}</td><td className="py-2.5 text-right font-bold text-[#00374a]">{money(b.agreed_price, cur) ?? "—"}</td></tr>
+                {/* A ticket is bought outright. Printing "Deposit — secures your
+                    spot" and a €0 balance against a paid-in-full purchase
+                    invents a plan the buyer never agreed to. */}
+                {!isEvent && plan.map((m) => (
                   <tr key={m.kind} className="border-b border-[#eef2f3]">
                     <td className="py-2.5 text-[#6a7a80]">
                       {m.label}
@@ -147,22 +190,30 @@ export default async function ConfirmationPage({ params }: { params: Promise<{ i
                 </tr>
               </tbody>
             </table>
-            <p className="text-[12px] text-[#9aa6ac] mt-2">Each stage is invoiced and paid by bank transfer ahead of the trip.</p>
+            <p className="text-[12px] text-[#9aa6ac] mt-2">{isEvent ? "Paid in full at booking by card." : "Each stage is invoiced and paid by bank transfer ahead of the trip."}</p>
           </div>
 
-          {/* included */}
-          <div className="mt-8">
-            <Block label="What's included">
-              <ul className="grid sm:grid-cols-2 gap-x-6 gap-y-1.5 mt-1">
-                {STANDARD_INCLUDED.map((i) => <li key={i} className="text-[13.5px] text-[#3a4b52]">• {i}</li>)}
-              </ul>
-              <p className="text-[12.5px] text-[#9aa6ac] mt-3">Not included: flights, airport transfers (we&apos;re happy to arrange), and dinners.</p>
-            </Block>
-          </div>
+          {/* included — the experience's OWN list. The hardcoded one printed
+              "6 days of pro coaching · Breakfast every morning" on a two-day
+              clinic that includes neither. */}
+          {(included.length > 0 || !isEvent) && (
+            <div className="mt-8">
+              <Block label="What's included">
+                <ul className="grid sm:grid-cols-2 gap-x-6 gap-y-1.5 mt-1">
+                  {(included.length ? included : STANDARD_INCLUDED).map((i) => <li key={i} className="text-[13.5px] text-[#3a4b52]">• {i}</li>)}
+                </ul>
+                {!isEvent && <p className="text-[12.5px] text-[#9aa6ac] mt-3">Not included: flights, airport transfers (we&apos;re happy to arrange), and dinners.</p>}
+              </Block>
+            </div>
+          )}
 
           {/* legal */}
           <div className="mt-8 pt-6 border-t border-[#eef2f3] text-[12px] text-[#8a9aa0] leading-relaxed">
-            <p className="mb-2"><strong className="text-[#5a6b72]">Package travel:</strong> This trip is a package within the meaning of EU Directive 2015/2302 / §651a BGB. Your statutory pre-contractual information and your rights are set out in the <Link href="/experience/legal/package-travel" className="text-[#00afdb] font-semibold">standard information form</Link>. The insolvency-protection certificate (Sicherungsschein) and full terms accompany your booking.</p>
+            {isEvent ? (
+              <p className="mb-2"><strong className="text-[#5a6b72]">What this is:</strong> a coaching service — on-water coaching for the dates above. No travel, accommodation or transport is sold with it, so this is not package travel under EU Directive 2015/2302 / §651a BGB and no insolvency certificate applies. You arrange your own travel, stay and equipment. Participation requires the signed waiver in your account; for a participant under 18 a parent or guardian must sign it.</p>
+            ) : (
+              <p className="mb-2"><strong className="text-[#5a6b72]">Package travel:</strong> This trip is a package within the meaning of EU Directive 2015/2302 / §651a BGB. Your statutory pre-contractual information and your rights are set out in the <Link href="/experience/legal/package-travel" className="text-[#00afdb] font-semibold">standard information form</Link>. The insolvency-protection certificate (Sicherungsschein) and full terms accompany your booking.</p>
+            )}
             <p className="italic">
               Document generated {new Date().toLocaleDateString("en-GB")}.{" "}
               {secured
