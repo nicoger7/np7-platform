@@ -80,6 +80,8 @@ const emptyWeek = { edition_id: "", booking_id: "", status: "available", check_i
 export default function HotelRoomsPage() {
   const [occupancy, setOccupancy] = useState<Occupancy[]>([]);
   const [units, setUnits] = useState<RoomUnit[]>([]);
+  /** The name follows type + number until someone writes their own. */
+  const [roomNameTouched, setRoomNameTouched] = useState(false);
   const [experiences, setExperiences] = useState<Experience[]>([]);
   const [editions, setEditions] = useState<Edition[]>([]);
   const [editionBookings, setEditionBookings] = useState<{ id: string; name: string }[]>([]);
@@ -188,9 +190,12 @@ export default function HotelRoomsPage() {
   function startUnit(id: string | "new") {
     setWeekEditId(null); setWeekForm(emptyWeek);
     setSelUnit(id);
-    if (id === "new") { setUnitForm({ ...emptyUnit, hotel: filterHotel || "", experience_ids: filterExperience ? [filterExperience] : [] }); return; }
+    if (id === "new") { setRoomNameTouched(false); setUnitForm({ ...emptyUnit, hotel: filterHotel || "", experience_ids: filterExperience ? [filterExperience] : [] }); return; }
     const g = groupMap[id];
     const u = g?.unit;
+    // An existing room whose name is already "type + number" keeps following;
+    // anything hand-written is left alone.
+    if (u) setRoomNameTouched(u.name.trim() !== roomName(u.room_type || "", u.room_number || ""));
     if (u) setUnitForm({ name: u.name, hotel_id: u.hotel_id || "", hotel: u.hotel || "", room_type: u.room_type || "", room_number: u.room_number || "", comments: u.comments || "", experience_ids: (u.experience_ids?.length ? u.experience_ids : u.experience_id ? [u.experience_id] : []) });
   }
   function closeUnit() { setSelUnit(null); setUnitForm(emptyUnit); setWeekEditId(null); setWeekForm(emptyWeek); }
@@ -344,7 +349,14 @@ export default function HotelRoomsPage() {
   }
 
   const inputClass = "w-full px-3 py-2 admin-input border rounded-lg text-sm focus:outline-none focus:border-[var(--admin-accent)] focus:ring-1 focus:ring-[var(--admin-accent)] transition-colors";
-  const labelClass = "block text-xs font-medium admin-muted mb-1";
+  /** "Standard Room" + "3" → "Standard Room 3". One fact, written once. */
+function roomName(type: string, number: string): string {
+  const t = (type ?? "").trim();
+  const n = (number ?? "").trim();
+  return [t, n].filter(Boolean).join(" ");
+}
+
+const labelClass = "block text-xs font-medium admin-muted mb-1";
   const selUnitWeeks = (selUnit && selUnit !== "new" ? groupMap[selUnit]?.weeks : []) || [];
   const editionById = new Map(editions.map((e) => [e.id, e]));
   // Effective stay range of a week row: explicit check-in/out, else the edition's
@@ -415,10 +427,40 @@ export default function HotelRoomsPage() {
             <div className="p-5 rounded-xl" style={{ border: "1px solid var(--admin-border)", backgroundColor: "var(--admin-surface)" }}>
               <h3 className="text-base font-bold admin-heading mb-1">{selUnit === "new" ? "New room" : "Edit room"}</h3>
               <p className="text-xs admin-faint mb-4">The physical room — name &amp; type apply to every week.</p>
-              <div className="mb-3"><label className={labelClass}>Name * <span className="normal-case font-normal admin-faint">— our numbering, e.g. “Double Deluxe Patio 1”</span></label><input className={inputClass} value={unitForm.name} onChange={(e) => setUnitForm({ ...unitForm, name: e.target.value })} /></div>
+              {/* Name and Room type were two fields for one fact, typed twice
+                  and drifting apart — which is how "Standard Room" and
+                  "Standard Room " (trailing space) became two different types
+                  in the same hotel, and why packages matched no rooms at all.
+                  The type is the answer; the name is the type plus a number. */}
+              <div className="grid grid-cols-1 sm:grid-cols-[1fr_120px] gap-3 mb-3">
+                <div>
+                  <label className={labelClass}>Room type * <span className="normal-case font-normal admin-faint">— what the hotel calls it, e.g. “Double Deluxe Balcony”</span></label>
+                  <input className={inputClass} list="np7-room-types" value={unitForm.room_type}
+                    onChange={(e) => {
+                      const room_type = e.target.value;
+                      setUnitForm((f) => ({ ...f, room_type, name: roomNameTouched ? f.name : roomName(room_type, f.room_number) }));
+                    }}
+                    placeholder="e.g. Double Deluxe Balcony" />
+                  <datalist id="np7-room-types">
+                    {[...new Set(units.map((u) => (u.room_type ?? "").trim()).filter(Boolean))].sort().map((t) => <option key={t} value={t} />)}
+                  </datalist>
+                </div>
+                <div>
+                  <label className={labelClass}>No. <span className="normal-case font-normal admin-faint">— ours</span></label>
+                  <input className={inputClass} value={unitForm.room_number}
+                    onChange={(e) => {
+                      const room_number = e.target.value;
+                      setUnitForm((f) => ({ ...f, room_number, name: roomNameTouched ? f.name : roomName(f.room_type, room_number) }));
+                    }} />
+                </div>
+              </div>
+              <div className="mb-3">
+                <label className={labelClass}>Name <span className="normal-case font-normal admin-faint">— written for you; edit only if you need something else</span></label>
+                <input className={inputClass} value={unitForm.name}
+                  onChange={(e) => { setRoomNameTouched(true); setUnitForm({ ...unitForm, name: e.target.value }); }} />
+              </div>
               <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 mb-3">
                 <div><label className={labelClass}>Hotel</label><select className={inputClass} value={unitForm.hotel_id} onChange={(e) => setUnitForm({ ...unitForm, hotel_id: e.target.value, hotel: hotelOptions.find((x) => x.id === e.target.value)?.name ?? "" })}><option value="">—</option>{hotelOptions.map((h) => <option key={h.id} value={h.id}>{h.name}</option>)}</select></div>
-                <div><label className={labelClass}>Room # <span className="normal-case font-normal admin-faint">— the hotel’s own number, if any</span></label><input className={inputClass} value={unitForm.room_number} onChange={(e) => setUnitForm({ ...unitForm, room_number: e.target.value })} /></div>
                 <div className="relative"><label className={labelClass}>Experiences <span className="normal-case font-normal admin-faint">— all that use this room</span></label>
                   <button type="button" onClick={() => setExpPickerOpen((v) => !v)}
                     className={`${inputClass} text-left flex items-center justify-between gap-2`}>
@@ -451,7 +493,6 @@ export default function HotelRoomsPage() {
                 </div>
               </div>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-4">
-                <div><label className={labelClass}>Room type <span className="normal-case font-normal admin-faint">— internal; the website’s room label comes from the package name</span></label><input className={inputClass} value={unitForm.room_type} onChange={(e) => setUnitForm({ ...unitForm, room_type: e.target.value })} placeholder="e.g. Double Deluxe Balcony" /></div>
                 <div><label className={labelClass}>Notes</label><input className={inputClass} value={unitForm.comments} onChange={(e) => setUnitForm({ ...unitForm, comments: e.target.value })} /></div>
               </div>
               <div className="flex gap-2">

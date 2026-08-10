@@ -74,3 +74,41 @@ export function looksGenerated(name: string, suggestion: string): boolean {
   const norm = (v: string) => v.toLowerCase().replace(/[‐-―-]/g, "-").replace(/\s+/g, " ").trim();
   return norm(name) === norm(suggestion);
 }
+
+/* ── Components ─────────────────────────────────────────────────────────── */
+
+export type ComponentNameParts = {
+  category?: string | null;
+  hotelName?: string | null;
+  roomType?: string | null;
+};
+
+/**
+ * A component's name, when the fields already say what it is.
+ *
+ * Only where the answer is unambiguous — an accommodation component IS its room
+ * type at its hotel. Everything else (gear, coaching, transfers) carries meaning
+ * no field holds, so it returns "" and the box stays the author's.
+ */
+export function suggestComponentName(p: ComponentNameParts): string {
+  const isAcco = /acco/i.test(p.category ?? "");
+  const room = (p.roomType ?? "").trim();
+  const hotel = (p.hotelName ?? "").trim();
+  if (!isAcco || (!room && !hotel)) return "";
+  if (room && hotel) return `${room} · ${hotel}`;
+  return room || hotel;
+}
+
+/**
+ * The website line for ONE unit of a component.
+ *
+ * Written singular on purpose: the package's quantity supplies the number, and
+ * includeLine() pluralises. "6 nights in Hotel X" hardcoded at quantity 7 is
+ * the bug this avoids.
+ */
+export function suggestComponentWebsiteText(p: ComponentNameParts): string {
+  const isAcco = /acco/i.test(p.category ?? "");
+  const hotel = (p.hotelName ?? "").trim();
+  if (!isAcco) return "";
+  return hotel ? `night at ${hotel}` : "night in your room";
+}

@@ -6,6 +6,7 @@ import { ColumnToggle, ColumnDef, buildGridTemplate, loadVisibleColumns } from "
 import { SearchableSelect } from "@/components/admin/searchable-select";
 import { editionLabel, editionOptionLabel, editionSortKey } from "@/lib/edition-label";
 import { SearchSelect } from "@/components/admin/search-select";
+import { suggestComponentName, suggestComponentWebsiteText } from "@/lib/package-name";
 
 interface Experience {
   id: string;
@@ -92,6 +93,20 @@ function compareValues(a: unknown, b: unknown, dir: "asc" | "desc"): number {
   return dir === "asc" ? cmp : -cmp;
 }
 
+/** Re-derive name and website text from the fields, unless they were typed in. */
+function applyComponentSuggestions<T extends { name: string; description: string; category: string; room_type: string }>(
+  f: T, hotelName: string, nameTouched: boolean, textTouched: boolean,
+): T {
+  const parts = { category: f.category, hotelName, roomType: f.room_type };
+  const nameSug = suggestComponentName(parts);
+  const textSug = suggestComponentWebsiteText(parts);
+  return {
+    ...f,
+    name: !nameTouched && nameSug ? nameSug : f.name,
+    description: !textTouched && textSug ? textSug : f.description,
+  };
+}
+
 export default function ComponentsPage() {
   const [components, setComponents] = useState<Component[]>([]);
   const [experiences, setExperiences] = useState<Experience[]>([]);
@@ -124,6 +139,8 @@ export default function ComponentsPage() {
     hotel_id: "", room_type: "",
   };
   const [form, setForm] = useState(emptyForm);
+  const [nameTouched, setNameTouched] = useState(false);
+  const [textTouched, setTextTouched] = useState(false);
   const [hotels, setHotels] = useState<{ id: string; name: string }[]>([]);
   const [allRooms, setAllRooms] = useState<{ hotel: string | null; room_type: string | null }[]>([]);
 
@@ -210,6 +227,11 @@ export default function ComponentsPage() {
     : filtered;
 
   function startEdit(c: Component) {
+    // Opening an existing one: keep following only if it already matches what
+    // the fields would produce. Anything hand-written stays hand-written.
+    const parts = { category: c.category ?? "", hotelName: hotels.find((h) => h.id === c.hotel_id)?.name, roomType: c.room_type ?? "" };
+    setNameTouched((c.name ?? "").trim() !== suggestComponentName(parts));
+    setTextTouched((c.description ?? "").trim() !== suggestComponentWebsiteText(parts));
     setEditId(c.id);
     setForm({
       name: c.name,
@@ -231,6 +253,7 @@ export default function ComponentsPage() {
   }
 
   function startNew() {
+    setNameTouched(false); setTextTouched(false);
     setEditId(null);
     // Pre-scope a new component to whatever the list is filtered to — so adding
     // a component while viewing one experience/edition lands it there by default.
@@ -290,7 +313,20 @@ export default function ComponentsPage() {
     <div className="mb-6 p-5 rounded-xl" style={{ border: "1px solid var(--admin-border)", backgroundColor: "var(--admin-surface)" }}>
       <h3 className="text-sm font-bold admin-heading mb-4">{editId ? "Edit Component" : "New Component"}</h3>
       <div className="grid grid-cols-4 gap-4 mb-4">
-        <div><label className={labelClass}>Name *</label><input className={inputClass} value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} /></div>
+        {/* Written from the fields when they say what it is — an accommodation
+            component IS its room type at its hotel. Gear, coaching and
+            transfers carry meaning no field holds, so those stay yours. */}
+        <div><label className={labelClass}>Name *</label>
+          <input className={inputClass} value={form.name}
+            onChange={(e) => { setNameTouched(true); setForm({ ...form, name: e.target.value }); }} />
+          {(() => {
+            const sug = suggestComponentName({ category: form.category, hotelName: hotels.find((h) => h.id === form.hotel_id)?.name, roomType: form.room_type });
+            return sug && form.name.trim() !== sug ? (
+              <button type="button" onClick={() => { setNameTouched(false); setForm((f) => ({ ...f, name: sug })); }}
+                className="mt-1 text-[11.5px] font-semibold text-[var(--admin-accent)] hover:underline">Use: {sug}</button>
+            ) : null;
+          })()}
+        </div>
         <div><label className={labelClass}>Category <span className="admin-faint">(or type new)</span></label>
           <input className={inputClass} list="component-categories" value={form.category} onChange={(e) => setForm({ ...form, category: e.target.value })} placeholder="coaching, meals…" />
           <datalist id="component-categories">
@@ -301,7 +337,14 @@ export default function ComponentsPage() {
         <div><label className={labelClass}>Sell Price (€)</label><input className={inputClass} type="number" step="0.01" value={form.sell_price} onChange={(e) => setForm({ ...form, sell_price: e.target.value })} placeholder="0.00" /></div>
       </div>
       <div className="grid grid-cols-2 gap-4 mb-4">
-        <div><label className={labelClass}>Website text <span className="normal-case font-normal admin-faint">— how it appears in a package's &quot;What's included&quot;</span></label><input className={inputClass} value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} placeholder="e.g. Healthy lunch on the beach daily" /><p className="text-[11px] admin-faint mt-1">Shown for every package where this component is ✓-checked for the website. Blank = the component name is used.</p></div>
+        <div><label className={labelClass}>Website text <span className="normal-case font-normal admin-faint">— how it appears in a package's &quot;What's included&quot;</span></label><input className={inputClass} value={form.description} onChange={(e) => { setTextTouched(true); setForm({ ...form, description: e.target.value }); }} placeholder="e.g. night at Hotel Playa Surf" /><p className="text-[11px] admin-faint mt-1">Write it for <strong className="admin-muted">ONE</strong> — the package&apos;s quantity supplies the number. &ldquo;night at Hotel Playa Surf&rdquo; × 7 shows as &ldquo;7 nights at Hotel Playa Surf&rdquo;. Never type the number yourself; use <code>{"{n}"}</code> if you need it mid-sentence. Blank = the component name is used.</p>
+          {(() => {
+            const sug = suggestComponentWebsiteText({ category: form.category, hotelName: hotels.find((h) => h.id === form.hotel_id)?.name, roomType: form.room_type });
+            return sug && form.description.trim() !== sug ? (
+              <button type="button" onClick={() => { setTextTouched(false); setForm((f) => ({ ...f, description: sug })); }}
+                className="mt-1 text-[11.5px] font-semibold text-[var(--admin-accent)] hover:underline">Use: {sug}</button>
+            ) : null;
+          })()}</div>
         {form.category === "accommodation" && (
           <div className="grid grid-cols-2 gap-4">
             <div><label className={labelClass}>Hotel</label>
@@ -309,7 +352,7 @@ export default function ComponentsPage() {
                 onChange={(e) => {
                   const hotel_id = e.target.value;
                   const hName = hotels.find((h) => h.id === hotel_id)?.name || "";
-                  setForm((f) => ({ ...f, hotel_id, name: f.name.trim() ? f.name : (hName && f.room_type ? `${hName} – ${f.room_type}` : f.name) }));
+                  setForm((f) => applyComponentSuggestions({ ...f, hotel_id }, hName, nameTouched, textTouched));
                 }}>
                 <option value="">—</option>
                 {hotels.map((h) => <option key={h.id} value={h.id}>{h.name}</option>)}
@@ -320,7 +363,7 @@ export default function ComponentsPage() {
                 onChange={(e) => {
                   const room_type = e.target.value;
                   const hName = hotels.find((h) => h.id === form.hotel_id)?.name || "";
-                  setForm((f) => ({ ...f, room_type, name: f.name.trim() ? f.name : (hName && room_type ? `${hName} – ${room_type}` : f.name) }));
+                  setForm((f) => applyComponentSuggestions({ ...f, room_type }, hName, nameTouched, textTouched));
                 }} placeholder="e.g. Double Deluxe Balcony" />
               <datalist id="component-room-types">
                 {[...new Set(allRooms
