@@ -316,5 +316,14 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     }
   }
 
+  // A delayed payment that ultimately bounced. Nothing to undo — the booking
+  // was never marked paid — but it must not disappear quietly: the buyer
+  // believes they bought a ticket and their spot is not held.
+  if (event.type === "checkout.session.async_payment_failed") {
+    const session = event.data.object;
+    const metadata = (session["metadata"] as Record<string, string> | null) ?? {};
+    console.error(`[webhook] async payment FAILED for booking ${metadata["booking_id"] ?? "?"} — buyer thinks they paid, spot is not held`);
+  }
+
   return NextResponse.json({ received: true });
 }
