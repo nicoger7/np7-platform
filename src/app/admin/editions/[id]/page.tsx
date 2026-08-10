@@ -541,7 +541,6 @@ export default function EditionDetailPage({
   const SECTION_KEY = "np7-edition-sections";
   const ALL_SECTIONS = [
     { key: "operations", label: "Operations" },
-    { key: "financials", label: "Financials" },
   ];
   const [hiddenSections, setHiddenSections] = useState<Set<string>>(() => {
     if (typeof window === "undefined") return new Set();
@@ -1308,19 +1307,6 @@ export default function EditionDetailPage({
           </div>
           )}
 
-          {/* Financials — money-gated: never render for a role without the money grant. */}
-          {!hiddenSections.has("financials") && (!access || effectiveCanSeeField(access, "money")) && (
-          <div className="pt-4" style={{ borderTop: "1px solid var(--admin-border)" }}>
-            <h3 className="text-xs font-bold tracking-[0.1em] admin-faint uppercase mb-4">Financials</h3>
-
-            {/* Computed business case — sell − cost from packages × confirmed heads.
-                Overhead is pulled from the Costs tab (estimated/actual) — no manual override. */}
-            <div className="mb-4">
-              <BusinessCaseCard editionId={id} />
-            </div>
-            <p className="text-[10px] admin-faint mt-2">Costs come from the Costs tab (estimated &amp; actual). Add fixed costs there as line items.</p>
-          </div>
-          )}
         </div>
       )}
 
@@ -1977,6 +1963,15 @@ export default function EditionDetailPage({
                 })}
               </div>
               <p className="text-[11.5px] admin-faint leading-relaxed">Costs are held fixed across scenarios on purpose — the hotel and coaches are committed whether or not a lead converts. Component costs that scale per head are already estimated from signed-up packages only (see Costs).</p>
+              {/* The business case (sell − cost per package × heads) lived on the
+                  Details tab, a screen away from the money it explains. It is
+                  finance — it lives with finance. */}
+              {(!access || effectiveCanSeeField(access, "money")) && (
+                <div className="mt-5">
+                  <h3 className="text-xs font-bold tracking-[0.1em] admin-faint uppercase mb-3">Business case</h3>
+                  <BusinessCaseCard editionId={id} />
+                </div>
+              )}
             </div>
           )}
 
