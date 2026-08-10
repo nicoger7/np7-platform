@@ -203,6 +203,7 @@ export async function EventPage({ event, isMember, paid, paidBookingId = null }:
               fixedDate={fixedDate}
               isMember={isMember}
               eventDate={(confirmed ?? event.dates[0])?.date_start ?? null}
+              editionSlug={event.editionSlug ?? null}
               location={event.location}
             />
           ) : (

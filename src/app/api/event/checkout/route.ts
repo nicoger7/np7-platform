@@ -21,6 +21,8 @@ import { eventPricing } from "@/lib/events";
 type Body = {
   experienceId?: string;
   dateIds?: string[];        // standby: the dates the buyer can make; fixed: [confirmed date] (optional)
+  /** Which clinic in the series the buyer is looking at (exp_editions.slug). */
+  editionSlug?: string | null;
   firstName?: string; lastName?: string; email?: string; phone?: string;
   /** Participant's DOB — decides whether a guardian is legally required. */
   dob?: string | null;
@@ -51,6 +53,31 @@ export async function POST(request: NextRequest) {
     .eq("experience_id", exp.id);
   const dates = (dateRows ?? []) as { id: string; date_start: string; date_end: string | null; label: string | null; status: string; max_spots: number | null }[];
 
+  // WHICH CLINIC is being bought — resolved before anything else, because the
+  // price, the date and the booking's edition all come from it.
+  //
+  // This route used to read none of it: the price came from the experience
+  // while the page showed the EDITION's price (migration 157 exists so a series
+  // can charge differently per clinic), and a fixed-mode sale just took
+  // dates[0] whatever weekend the buyer was actually looking at. With one
+  // clinic those agreed by accident. With two they would not, and the buyer
+  // would be charged one price for a different weekend.
+  const { data: edRows } = await db
+    .from("exp_editions")
+    .select("id,slug,price,date_start")
+    .eq("experience_id", exp.id)
+    .eq("kind", "event")
+    .eq("status", "published")
+    .order("date_start");
+  type EdRow = { id: string; slug: string | null; price: number | null; date_start: string | null };
+  const editions = (edRows ?? []) as EdRow[];
+  const wantSlug = typeof body.editionSlug === "string" ? body.editionSlug : null;
+  const today = new Date().toISOString().slice(0, 10);
+  const edition: EdRow | null = wantSlug
+    ? editions.find((e) => e.slug === wantSlug) ?? null
+    : editions.find((e) => (e.date_start ?? "") >= today) ?? editions[0] ?? null;
+  if (wantSlug && !edition) return bad("That date is no longer on sale.", 409);
+
   // Resolve which dates this booking is against.
   let selected: string[];
   if (mode === "standby") {
@@ -58,7 +85,9 @@ export async function POST(request: NextRequest) {
     selected = (body.dateIds ?? []).filter((id) => candidateIds.has(id));
     if (selected.length === 0) return bad("Please pick at least one date you can make it.");
   } else {
-    const confirmed = dates.find((d) => d.status === "confirmed") ?? dates[0];
+    // The date row for the edition being sold — not "whichever came first".
+    const forEdition = edition?.date_start ? dates.find((d) => d.date_start === edition.date_start) : null;
+    const confirmed = forEdition ?? dates.find((d) => d.status === "confirmed") ?? dates[0];
     if (!confirmed) return bad("This event has no date yet.", 409);
     selected = [confirmed.id];
   }
@@ -133,7 +162,9 @@ export async function POST(request: NextRequest) {
     }
   }
 
-  const price = Number(exp.price);
+  // The edition's own price wins — the same rule lib/events.ts uses to build
+  // the number the buyer just read on the page.
+  const price = Number(edition?.price ?? exp.price);
   const { deposit } = eventPricing(price, exp.event_deposit_pct ?? 20, exp.event_refund_pct ?? 15);
   const amount = mode === "standby" ? deposit : price;
   const kind = mode === "standby" ? "event_deposit" : "event_full";
@@ -163,19 +194,11 @@ export async function POST(request: NextRequest) {
     }
   }
 
-  // The edition this ticket belongs to. Migration 157 made an event date an
-  // edition, and every member and admin surface reads the edition — the trip
-  // page, the bookings tab, Finance. A booking written without edition_id is
-  // invisible to all of them, which is exactly the state the migration existed
-  // to end, so it must be resolved here and not left to a later backfill.
-  const { data: edRow } = await db
-    .from("exp_editions")
-    .select("id")
-    .eq("experience_id", exp.id)
-    .eq("kind", "event")
-    .eq("date_start", eventDate)
-    .maybeSingle();
-  const editionId = (edRow as { id: string } | null)?.id ?? null;
+  // The edition this ticket belongs to — already resolved above. It used to be
+  // looked up again by date_start, which returned null whenever an event-date
+  // row and its edition disagreed by a day, producing exactly the orphaned
+  // booking migration 157 exists to prevent.
+  const editionId = edition?.id ?? null;
 
   const { data: booking, error: bErr } = await db.from("exp_bookings").insert({
     name: composeBookingName({ contactName: fullName, experienceTitle: exp.title }),

@@ -511,11 +511,16 @@ export default function EditionDetailPage({
   const hotelOptions = useHotelOptions();
   /** The name follows the fields until someone types their own. */
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  const pkgNameSuggestion = suggestPackageName({
-    level: pkgForm.category,
-    hotelName: hotelOptions.find((h) => h.id === pkgForm.hotel_id)?.name ?? null,
-    roomType: pkgForm.room_type,
-  });
+  // An empty form has no level and no hotel, and the generator's honest answer
+  // to that is "No Hotel" — which is how a brand-new package arrived already
+  // named. Say nothing until a field has been filled in.
+  const pkgNameSuggestion = (pkgForm.category || pkgForm.hotel_id)
+    ? suggestPackageName({
+        level: pkgForm.category,
+        hotelName: hotelOptions.find((h) => h.id === pkgForm.hotel_id)?.name ?? null,
+        roomType: pkgForm.room_type,
+      })
+    : "";
   const [roomEditId, setRoomEditId] = useState<string | null>(null);
   const [roomShow, setRoomShow] = useState(false);
 
@@ -682,7 +687,11 @@ export default function EditionDetailPage({
       status: pkgForm.status,
       website_visible: pkgForm.website_visible,
       hotel_id: pkgForm.hotel_id || null,
-      includes: pkgForm.includes.trim() ? pkgForm.includes : null,
+      // exp_packages.includes is TEXT[]. Sending the textarea's raw string
+      // made the whole save fail the moment anyone typed a website override.
+      includes: pkgForm.includes.trim()
+        ? pkgForm.includes.split("\n").map((l) => l.trim()).filter(Boolean)
+        : null,
       downpayment_percent: pkgForm.downpayment_percent ? Number(pkgForm.downpayment_percent) : null,
       final_days_before: pkgForm.final_days_before ? Number(pkgForm.final_days_before) : null,
       deposit_refund_days: pkgForm.deposit_refund_days ? Number(pkgForm.deposit_refund_days) : null,
@@ -1863,7 +1872,7 @@ export default function EditionDetailPage({
                     which is exactly what has been happening. */}
                 <PackageRoomPool
                   pools={capacity?.pools ?? []}
-                  hotelId={packages.find((p) => p.id === pkgEditId)?.hotel_id ?? null}
+                  hotelId={pkgForm.hotel_id || null}
                   roomType={pkgForm.room_type}
                   bedsPerBooking={pkgForm.beds_per_booking}
                   suggestFrom={pkgForm.name}

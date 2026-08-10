@@ -15,7 +15,7 @@ export type TicketDate = { id: string; label: string; sub?: string };
  * "we'll follow up" when Stripe isn't configured yet).
  */
 export function EventTicket({
-  experienceId, mode, priceLabel, depositLabel, balanceLabel, refundLabel, dates, fixedDate, isMember, eventDate, location = null,
+  experienceId, mode, priceLabel, depositLabel, balanceLabel, refundLabel, dates, fixedDate, isMember, eventDate, editionSlug = null, location = null,
 }: {
   experienceId: string;
   mode: "fixed" | "standby";
@@ -28,6 +28,9 @@ export function EventTicket({
   isMember: boolean;
   /** ISO date the event starts — age is judged on the day they ride. */
   eventDate?: string | null;
+  /** Which clinic in the series this box is selling — the server prices and
+   *  books against THIS edition rather than guessing. */
+  editionSlug?: string | null;
   /** Where the event is — only used to pick a sensible default dial code. */
   location?: string | null;
 }) {
@@ -74,6 +77,7 @@ export function EventTicket({
         method: "POST", headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           experienceId,
+          editionSlug,
           dateIds: mode === "standby" ? picked : fixedDate ? [fixedDate.id] : [],
           firstName, lastName, email, phone: fullPhone,
           dob: dob || null,

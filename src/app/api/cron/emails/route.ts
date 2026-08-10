@@ -343,7 +343,7 @@ export async function GET(req: NextRequest) {
     };
 
     // 1 · securing payment still pending — up to two gentle nudges (+2d, +5d)
-    if (leadLive && !depositPaid && awaitingDeposit && (daysToStart == null || daysToStart > 3)) {
+    if (leadLive && !isEvent && !depositPaid && awaitingDeposit && (daysToStart == null || daysToStart > 3)) {
       if (ageDays >= 2) bump("nudge", await send("payment_pending_nudge", `payment_pending_nudge:d2:${b.id}`));
       if (ageDays >= 5) bump("nudge", await send("payment_pending_nudge", `payment_pending_nudge:d5:${b.id}`));
     }
@@ -352,7 +352,7 @@ export async function GET(req: NextRequest) {
     //      "last chance" once inside the final days before the downpayment
     //      deadline, "spot released" once it's passed. Skipped for trips that
     //      already started; a recorded payment stops the ladder automatically.
-    if (leadLive && !depositPaid && awaitingDeposit && securing && (daysToStart == null || daysToStart > 0)) {
+    if (leadLive && !isEvent && !depositPaid && awaitingDeposit && securing && (daysToStart == null || daysToStart > 0)) {
       if (urgency === "last_chance") bump("last_chance", await send("downpayment_last_chance", `downpayment_last_chance:${b.id}`));
       if (urgency === "expired") bump("released", await send("spot_released", `spot_released:${b.id}`));
     }
@@ -369,8 +369,11 @@ export async function GET(req: NextRequest) {
       if (daysToFinalDue <= -3 && (daysToStart == null || daysToStart > 0)) bump("balance", await send("balance_invoice_reminder", `balance_invoice_reminder:r2:${b.id}`));
     }
 
-    // 3 · balance paid in full — one confirmation
-    if (tripLive && depositPaid && balanceSettled && (b.agreed_price ?? 0) > 0
+    // 3 · balance paid in full — one confirmation.
+    //     Not for an event: a ticket is paid in full AT checkout, so this fires
+    //     immediately after the confirmation mail and promises the pre-trip
+    //     chain that the guard below correctly suppresses.
+    if (tripLive && !isEvent && depositPaid && balanceSettled && (b.agreed_price ?? 0) > 0
         && eventLive(lastPaidAt.get(b.id) ?? null)) {
       bump("balance_paid", await send("balance_paid_confirmation", `balance_paid_confirmation:${b.id}`));
     }
