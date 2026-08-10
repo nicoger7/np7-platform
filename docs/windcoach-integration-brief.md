@@ -1,0 +1,182 @@
+# NP7 × wind.coach — Integration Brief & Build Plan
+
+*For: Enrico (wind.coach) and his Claude · From: Nico / NP7 platform · 2026-08-10 · v1*
+
+---
+
+## 1 · Why we're doing this
+
+**The product story.** An NP7 Experience week ends with video analysis and a coach
+debrief. Today that knowledge leaves as a PDF that Nico emails by hand — and then
+it's gone. The promise we want to sell on every experience page is *"you know what
+to work on for a whole year"*. wind.coach is the tool that makes that promise true:
+the guide's focus points land in the rider's wind.coach account, and their next
+video session picks up exactly where the week left off.
+
+**What NP7 gets.** A "what you take home" benefit no competitor has; zero manual
+PDF shuffling; a member area that stays alive after the trip (retention, rebooking);
+video-verified progress feeding the NP7 rank ladder.
+
+**What wind.coach gets.** A funnel of exactly-right users: riders who just paid for
+a coaching week, arriving with a pre-filled account, two focus points, and a coach
+relationship already warm. Every NP7 participant is a conversion candidate with the
+friction removed — one click, not a signup form.
+
+**The principle both sides keep:** each platform stays the source of truth for what
+it owns. NP7 owns bookings, trips and the NP7 rank ladder. wind.coach owns video
+analysis, its guides and video-verified skills. Nothing is migrated; facts are
+*shared, by consent, per rider*.
+
+---
+
+## 2 · The phases (build in this order)
+
+### Phase 1 — Guide handoff (wind.coach → NP7) · smallest, do first
+When a participant's guide is generated in wind.coach, push it to NP7 instead of
+emailing a PDF around.
+
+- wind.coach calls `POST https://www.np-seven.com/api/windcoach/guide` (endpoint to
+  be built NP7-side) with the payload in §3.
+- NP7 stores it against the booking, shows it on the member trip page
+  ("Your focus points" card + PDF download), and triggers the existing post-trip
+  email flow with a "See your focus points" CTA.
+- **Matching:** by `email` (lowercased) + edition window. Ambiguity → row lands in
+  an NP7 admin review queue, never guessed.
+- No accounts are linked in this phase. It replaces a manual email, nothing more.
+
+### Phase 2 — Account connection (the foundation the rest stands on)
+Two paths, both ending in one row in a `linked_accounts` table on each side:
+
+1. **"Log in with NP7"** on wind.coach: NP7 runs Supabase Auth; wind.coach adds it
+   as an OIDC-style provider (NP7 exposes a small token-verify endpoint — Enrico's
+   side never sees NP7 passwords; magic-link only, NP7 has no passwords anyway).
+2. **"Connect your accounts"** for riders who already have both: rider clicks in
+   either app → 6-digit short-lived code shown in app A → typed into app B →
+   server-to-server verify → linked.
+
+Consent screen at link time states exactly what flows (§4). Either side can unlink;
+unlink propagates.
+
+### Phase 3 — One-click "keep learning"
+The trip-page focus-points card (Phase 1) gets the button: **"Continue in
+wind.coach"**. Linked account → focus points are written into the rider's
+wind.coach plan server-to-server, and the button deep-links straight into the app.
+No account yet → the button runs Phase 2's flow first, then imports. This is the
+conversion moment — one click from "my week" to "my training plan".
+
+### Phase 4 — Progress & milestone sharing (two-way)
+- **NP7 → wind.coach:** the NP7 milestone catalogue (stable `key`s — already agreed,
+  never rename them) with the rider's current state. NP7 ranks have priority: they
+  must exist in wind.coach's model, mapped by `key`, not by name.
+- **wind.coach → NP7:** video-verified skill confirmations
+  (`{np7_milestone_key, verified_at, evidence_url}`) → NP7 marks the milestone
+  coach-verified (GOLD path). This needs the one wind.coach UI piece in this whole
+  plan: **a dead-simple "mark skill verified" control in the video-analysis admin**
+  — one search box (rider), one dropdown (skill), one button.
+
+### Phase 5 — Full profile sharing · PARKED as draft
+Levels, AI profile, gear preferences → NP7 recommends the right board/fin;
+wind.coach gets gear context for coaching. Explicitly out of scope now; the consent
+model in §4 is designed so this can be added later as a new scope without touching
+Phases 1–4.
+
+---
+
+## 3 · Technical contract (Phase 1, concrete)
+
+```
+POST /api/windcoach/guide
+Headers:
+  X-WindCoach-Signature: hex(hmac_sha256(WINDCOACH_WEBHOOK_SECRET, raw_body))
+  Content-Type: application/json
+Body:
+{
+  "idempotency_key": "guide_<windcoach-guide-id>",
+  "participant": { "email": "rider@example.com", "name": "Full Name" },
+  "trip": { "label": "Alacati 2026", "start": "2026-08-17", "end": "2026-08-23" },
+  "guide": {
+    "pdf_url": "https://…signed, ≥30d expiry…",
+    "focus_points": [
+      { "key": "harness", "title": "Harness timing", "summary": "…2–3 sentences…" },
+      { "key": "pro_powerjibe", "title": "Jibe exit speed", "summary": "…" }
+    ],
+    "coach_note": "optional free text",
+    "generated_at": "2026-08-24T10:00:00Z"
+  }
+}
+Responses: 200 {status:"stored"|"queued_for_review"} · 401 bad signature ·
+409 duplicate idempotency_key (safe to ignore) · 422 schema problem (named field)
+```
+
+- `WINDCOACH_WEBHOOK_SECRET` already exists as an env name on the NP7 side (unset
+  today) — Nico sets it in Vercel, Enrico stores the same value; rotate by
+  overlap (accept old+new for 48h).
+- `focus_points[].key` SHOULD be an NP7 milestone key when one fits (that's what
+  makes Phase 4 free later); unknown keys are stored verbatim and displayed anyway.
+- Retries: at-least-once with the idempotency key; NP7 answers 409 on replays.
+
+**Phase 2 sketch (for sizing, not final):** NP7 exposes
+`POST /api/windcoach/verify-token` (server-to-server, secret-authed) that answers
+`{np7_user_id, email, name}` for a short-lived token the NP7 app hands the rider's
+browser. Link codes: 6 digits, 10-minute TTL, single use, rate-limited.
+
+---
+
+## 4 · Safe & legal (the frame, before any code)
+
+- **Roles:** separate controllers, not joint. Each side is controller of its own
+  platform; for shared data the receiving side becomes controller for its purpose.
+  A short **data-sharing agreement** (not a full DPA) between NP7 GmbH and the
+  wind.coach entity names: categories shared, purposes, retention, deletion duty.
+  One page is enough if it's precise. Lawyer-review alongside the Sicherungsschein
+  work that's already running.
+- **Consent, per scope, at link time:** Phase 1 needs none beyond the existing
+  coaching contract (the guide is part of the paid service — legitimate
+  performance of contract; state it in the NP7 privacy policy). Phases 2–4 are
+  consent-based: the connect screen lists exactly what flows in plain words, one
+  checkbox per direction. Phase 5 would be a NEW scope with its own checkbox —
+  never bundled.
+- **Data minimisation:** email + name + the guide. No booking prices, no health
+  data, no marketing lists. wind.coach must not email NP7-sourced contacts for
+  marketing without its own opt-in (this goes in the agreement).
+- **Deletion:** unlink or account deletion on either side → webhook to the other
+  side → shared rows deleted, log kept 30 days. Both sides EU-hosted (confirm
+  wind.coach hosting region in the agreement).
+
+---
+
+## 5 · Who builds what
+
+| # | Piece | Side | Size |
+|---|---|---|---|
+| 1 | `POST /api/windcoach/guide` + storage + review queue | NP7 | S |
+| 2 | Trip-page "Your focus points" card + post-trip email CTA | NP7 | S |
+| 3 | Guide push on generation (webhook + retry + idempotency) | wind.coach | S |
+| 4 | Link-code flow + `linked_accounts` (both sides) | both | M |
+| 5 | "Log in with NP7" (token verify endpoint NP7, provider wind.coach) | both | M |
+| 6 | "Continue in wind.coach" import + deep link | wind.coach | M |
+| 7 | Milestone catalogue export + verified-skill webhook | both | M |
+| 8 | Video-analysis admin: "mark skill verified" control | wind.coach | S |
+| 9 | Data-sharing agreement + privacy-policy paragraphs | Nico + lawyer | S |
+
+**Sequencing:** 1–3 ship alone and already kill the manual PDF work. 4–6 are the
+conversion funnel. 7–8 are the retention loop. 9 starts now, in parallel.
+
+**For Enrico's Claude:** everything it needs is this document plus the payload
+schema in §3. NP7-side code lives in `np7-platform` (Next.js App Router +
+Supabase); the NP7 endpoints in rows 1 and 5 are built by NP7's side, so
+wind.coach's work never requires reading NP7's codebase — the contract in §3 is
+the whole interface. Test vectors: send the §3 example with the shared secret
+against the NP7 staging URL; expect `queued_for_review` (the example email won't
+match a booking).
+
+---
+
+## 6 · Open questions for Enrico
+
+1. Can guide generation fire a webhook today, or is it a manual export step?
+2. Does wind.coach have a skills/milestone model we map NP7 keys onto — or do we
+   add an `external_key` column to yours?
+3. Hosting region + entity name for the agreement?
+4. OIDC provider support in your auth stack, or should we start link-code-only?
+5. Signed PDF URLs: can they live ≥30 days, or should NP7 mirror the file?
