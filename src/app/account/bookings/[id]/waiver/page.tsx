@@ -1,4 +1,5 @@
 import { redirect } from "next/navigation";
+import { isMinorOn } from "@/lib/minors";
 import type { Metadata } from "next";
 import { getPortalUser } from "@/lib/auth";
 import { createAdminClient } from "@/lib/supabase";
@@ -18,7 +19,7 @@ export default async function WaiverPage({ params }: { params: Promise<{ id: str
   const db = createAdminClient() as any;
   const { data: booking } = await db
     .from("exp_bookings")
-    .select("id, contact_id, exp_experiences(title, waiver_text), exp_editions(date_start, date_end), contacts(name)")
+    .select("id, contact_id, participant_dob, guardian_name, guardian_relationship, event_date_ids, exp_experiences(title, waiver_text), exp_editions(date_start, date_end), contacts(name)")
     .eq("id", id)
     .maybeSingle();
   if (!booking || booking.contact_id !== user.contactId) redirect("/account");
@@ -41,5 +42,17 @@ export default async function WaiverPage({ params }: { params: Promise<{ id: str
   };
   const html = renderWaiver(booking.exp_experiences?.waiver_text || DEFAULT_WAIVER, vars);
 
-  return <SignWaiver bookingId={id} html={html} defaultName={fullName} signed={sig ? { name: sig.signed_name, at: sig.signed_at, documentUrl: sig.document_url ?? null } : null} />;
+  // Under 18 → the guardian signs, and the form has to say so. Event bookings
+  // carry their date on exp_event_dates rather than an edition.
+  let eventStart: string | null = ed?.date_start ?? null;
+  if (!eventStart && Array.isArray(booking.event_date_ids) && booking.event_date_ids.length) {
+    const { data: d } = await db.from("exp_event_dates").select("date_start").in("id", booking.event_date_ids).order("date_start").limit(1).maybeSingle();
+    eventStart = d?.date_start ?? null;
+  }
+  const isMinor = isMinorOn(booking.participant_dob, eventStart) === true;
+  const guardian = isMinor
+    ? { name: booking.guardian_name ?? "", relationship: booking.guardian_relationship ?? null, participant: fullName || "the participant" }
+    : null;
+
+  return <SignWaiver bookingId={id} html={html} defaultName={guardian ? (guardian.name || "") : fullName} signed={sig ? { name: sig.signed_name, at: sig.signed_at, documentUrl: sig.document_url ?? null } : null} guardian={guardian} />;
 }

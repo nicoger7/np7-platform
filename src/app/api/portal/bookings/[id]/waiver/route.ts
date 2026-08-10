@@ -4,6 +4,7 @@ import { getPortalUser } from "@/lib/auth";
 import { WAIVER_VERSION, DEFAULT_WAIVER, renderWaiver, waiverCompanyVars } from "@/lib/waiver";
 import { after } from "next/server";
 import { r2Enabled, uploadToR2 } from "@/lib/r2";
+import { isMinorOn } from "@/lib/minors";
 
 /**
  * POST /api/portal/bookings/[id]/waiver  { name, signature?, agree }
@@ -15,7 +16,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   const user = await getPortalUser({ allowPreview: false }).catch(() => null);
   if (!user) return NextResponse.json({ error: "Not signed in." }, { status: 401 });
 
-  let body: { name?: string; signature?: string | null; agree?: boolean };
+  let body: { name?: string; signature?: string | null; agree?: boolean; guardianRelationship?: string | null };
   try { body = await req.json(); } catch { return NextResponse.json({ error: "Bad request." }, { status: 400 }); }
   const name = (body.name ?? "").trim();
   if (!name) return NextResponse.json({ error: "Please type your full name." }, { status: 400 });
@@ -25,10 +26,32 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   const db = createAdminClient() as any;
   const { data: booking } = await db
     .from("exp_bookings")
-    .select("id, contact_id, exp_experiences(title, waiver_text), exp_editions(date_start, date_end), contacts(name)")
+    .select("id, contact_id, participant_dob, guardian_name, guardian_relationship, event_date_ids, exp_experiences(title, waiver_text), exp_editions(date_start, date_end), contacts(name)")
     .eq("id", id)
     .maybeSingle();
   if (!booking || booking.contact_id !== user.contactId) return NextResponse.json({ error: "Not found." }, { status: 404 });
+
+  /**
+   * Who is allowed to sign this one.
+   *
+   * A minor's signature waives nothing (§§104–113 BGB), so for an under-18
+   * booking the waiver must come from the guardian recorded at checkout — and
+   * be stored as such. Anything else looks like a signed waiver and isn't one,
+   * which is worse than none because it invites the assumption of cover.
+   */
+  let eventStart: string | null = booking.exp_editions?.date_start ?? null;
+  if (!eventStart && Array.isArray(booking.event_date_ids) && booking.event_date_ids.length) {
+    const { data: ed } = await db.from("exp_event_dates").select("date_start").in("id", booking.event_date_ids).order("date_start").limit(1).maybeSingle();
+    eventStart = ed?.date_start ?? null;
+  }
+  const minor = isMinorOn(booking.participant_dob, eventStart) === true;
+  if (minor && !(booking.guardian_name ?? "").trim()) {
+    return NextResponse.json({ error: "This booking is for a participant under 18 and has no guardian on file — please contact us before signing." }, { status: 409 });
+  }
+  const signedAs = minor ? "guardian" : "participant";
+  const guardianRelationship = minor
+    ? ((body.guardianRelationship ?? "").trim() || booking.guardian_relationship || null)
+    : null;
 
   const ip = req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ?? null;
   const ua = req.headers.get("user-agent") ?? null;
@@ -72,6 +95,8 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     signature_image: typeof body.signature === "string" ? body.signature : null,
     waiver_text: waiverText,
     signed_at: signedAtIso,
+    signed_as: signedAs,
+    guardian_relationship: guardianRelationship,
     ip,
     user_agent: ua,
   }, { onConflict: "booking_id" });

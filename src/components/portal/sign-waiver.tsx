@@ -3,15 +3,18 @@
 import { useState } from "react";
 import { SignaturePad } from "./signature-pad";
 
-export function SignWaiver({ bookingId, html, defaultName, signed }: {
+export function SignWaiver({ bookingId, html, defaultName, signed, guardian }: {
   bookingId: string;
   html: string;
   defaultName: string;
   signed: { name: string; at: string; documentUrl?: string | null } | null;
+  /** Set when the participant is under 18: the guardian signs, not the rider. */
+  guardian?: { name: string; relationship: string | null; participant: string } | null;
 }) {
   const [name, setName] = useState(defaultName);
   const [signature, setSignature] = useState<string | null>(null);
   const [agree, setAgree] = useState(false);
+  const [rel, setRel] = useState(guardian?.relationship ?? "");
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState("");
   const [justSigned, setJustSigned] = useState(false);
@@ -25,7 +28,7 @@ export function SignWaiver({ bookingId, html, defaultName, signed }: {
     const res = await fetch(`/api/portal/bookings/${bookingId}/waiver`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ name: name.trim(), signature, agree }),
+      body: JSON.stringify({ name: name.trim(), signature, agree, guardianRelationship: guardian ? rel.trim() : null }),
     });
     setSubmitting(false);
     if (res.ok) setJustSigned(true);
@@ -81,12 +84,23 @@ export function SignWaiver({ bookingId, html, defaultName, signed }: {
         <h1 className="text-2xl font-black text-[#00374a] mt-3 mb-5">Sign your waiver</h1>
         <div className="bg-white rounded-2xl border border-[#f0e6d6] p-6 sm:p-8">
           <div className="waiver-doc max-h-[44vh] overflow-y-auto pr-2 mb-6 text-[13.5px] text-[#3a4a50] leading-relaxed" dangerouslySetInnerHTML={{ __html: html }} />
-          <label className="block text-xs font-bold uppercase tracking-wide text-[#9aa6ac] mb-1">Full name</label>
+          {guardian && (
+            <div className="rounded-xl bg-[#fff8e8] border border-[#f2dfae] p-4 mb-4">
+              <p className="text-[13.5px] text-[#8a6a2a] leading-relaxed">
+                <strong>{guardian.participant}</strong> is under 18, so this is signed by a parent or guardian —
+                you are agreeing on their behalf and confirming you have the authority to do so.
+              </p>
+              <label className="block text-[12px] font-bold uppercase tracking-wide text-[#a5732a] mt-3 mb-1">Your relationship to {guardian.participant.split(/\s+/)[0]}</label>
+              <input value={rel} onChange={(e) => setRel(e.target.value)} placeholder="e.g. mother, father, legal guardian"
+                className="w-full px-4 py-2.5 rounded-xl border border-[#e6d3a8] bg-white text-[15px] text-[#00374a] outline-none focus:border-[#f0a500]" />
+            </div>
+          )}
+          <label className="block text-xs font-bold uppercase tracking-wide text-[#9aa6ac] mb-1">{guardian ? "Parent / guardian full name" : "Full name"}</label>
           <input value={name} onChange={(e) => setName(e.target.value)} placeholder="Your full name" className="w-full px-4 py-3 rounded-xl border border-[#dde6e9] text-[15px] text-[#00374a] outline-none focus:border-[#00afdb] mb-4" />
           <SignaturePad onChange={setSignature} />
           <label className="flex items-start gap-2.5 mt-4 cursor-pointer">
             <input type="checkbox" checked={agree} onChange={(e) => setAgree(e.target.checked)} className="mt-0.5 w-4 h-4 accent-[#00afdb]" />
-            <span className="text-[13px] text-[#5a6b72] leading-snug">I have read and understood this agreement and I agree to it.</span>
+            <span className="text-[13px] text-[#5a6b72] leading-snug">{guardian ? "I have read and understood this agreement, I am the parent or legal guardian, and I agree to it on the participant's behalf." : "I have read and understood this agreement and I agree to it."}</span>
           </label>
           {error && <p className="text-[13px] text-red-500 mt-3">{error}</p>}
           <button onClick={submit} disabled={submitting} className="w-full mt-5 px-7 py-4 rounded-full text-[15px] font-bold text-white bg-[#00afdb] hover:bg-[#15c0ec] disabled:opacity-60 transition-all">{submitting ? "Saving…" : "Sign now"}</button>
