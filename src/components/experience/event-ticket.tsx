@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { isMinorOn, checkParticipant } from "@/lib/minors";
 
 export type TicketDate = { id: string; label: string; sub?: string };
 
@@ -12,7 +13,7 @@ export type TicketDate = { id: string; label: string; sub?: string };
  * "we'll follow up" when Stripe isn't configured yet).
  */
 export function EventTicket({
-  experienceId, mode, priceLabel, depositLabel, balanceLabel, refundLabel, dates, fixedDate, isMember,
+  experienceId, mode, priceLabel, depositLabel, balanceLabel, refundLabel, dates, fixedDate, isMember, eventDate,
 }: {
   experienceId: string;
   mode: "fixed" | "standby";
@@ -23,12 +24,24 @@ export function EventTicket({
   dates: TicketDate[];        // standby candidate dates
   fixedDate: TicketDate | null;
   isMember: boolean;
+  /** ISO date the event starts — age is judged on the day they ride. */
+  eventDate?: string | null;
 }) {
   const [picked, setPicked] = useState<string[]>([]);
   const [firstName, setFirstName] = useState("");
   const [lastName, setLastName] = useState("");
   const [email, setEmail] = useState("");
   const [phone, setPhone] = useState("");
+  // Under 18, a rider can't validly contract or waive anything — a parent has
+  // to. The form asks everyone their date of birth and reveals the guardian
+  // block only when it's needed, so adults aren't taxed for the juniors.
+  const [dob, setDob] = useState("");
+  const [gName, setGName] = useState("");
+  const [gEmail, setGEmail] = useState("");
+  const [gPhone, setGPhone] = useState("");
+  const [gRel, setGRel] = useState("");
+  const minor = isMinorOn(dob || null, eventDate ?? null);
+  const guardianProblem = dob ? checkParticipant(dob, eventDate ?? null, { guardianName: gName, guardianEmail: gEmail, guardianPhone: gPhone, guardianRelationship: gRel }) : null;
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [done, setDone] = useState(false);
@@ -46,6 +59,9 @@ export function EventTicket({
           experienceId,
           dateIds: mode === "standby" ? picked : fixedDate ? [fixedDate.id] : [],
           firstName, lastName, email, phone,
+          dob: dob || null,
+          guardianName: gName || null, guardianEmail: gEmail || null,
+          guardianPhone: gPhone || null, guardianRelationship: gRel || null,
         }),
       });
       const j = await res.json().catch(() => ({}));
@@ -67,7 +83,9 @@ export function EventTicket({
   }
 
   const input = "w-full rounded-xl border border-[#dfe6e9] bg-white text-[#0a2a33] placeholder:text-[#9aa6ac] px-4 py-3 text-[15px] outline-none focus:border-[#00afdb] transition-colors";
-  const canSubmit = (mode === "fixed" || picked.length > 0) && (isMember || (firstName.trim() && lastName.trim() && /\S+@\S+\.\S+/.test(email)));
+  const canSubmit = (mode === "fixed" || picked.length > 0)
+    && (isMember || (firstName.trim() && lastName.trim() && /\S+@\S+\.\S+/.test(email)))
+    && !!dob && !guardianProblem;
 
   return (
     <form onSubmit={submit} className="rounded-2xl bg-white border border-[#e3e9ec] shadow-[0_18px_50px_rgba(0,40,55,0.1)] p-6 sm:p-7">
@@ -122,8 +140,27 @@ export function EventTicket({
           <input className={input} placeholder="Last name" value={lastName} onChange={(e) => setLastName(e.target.value)} autoComplete="family-name" />
           <input className={`${input} sm:col-span-2`} type="email" placeholder="you@example.com" value={email} onChange={(e) => setEmail(e.target.value)} autoComplete="email" />
           <input className={`${input} sm:col-span-2`} placeholder="Phone (optional)" value={phone} onChange={(e) => setPhone(e.target.value)} autoComplete="tel" />
+
+          <label className="sm:col-span-2 block">
+            <span className="block text-[12.5px] font-semibold text-[#5a6b72] mb-1">Participant&apos;s date of birth</span>
+            <input className={`${input} w-full`} type="date" value={dob} onChange={(e) => setDob(e.target.value)} max={eventDate ?? undefined} />
+          </label>
+
+          {minor && (
+            <div className="sm:col-span-2 rounded-xl bg-[#fff8e8] border border-[#f2dfae] p-3.5 grid gap-2.5 sm:grid-cols-2">
+              <p className="sm:col-span-2 text-[12.5px] text-[#8a6a2a] leading-relaxed">
+                Under 18 — a parent or guardian books and signs. They&apos;ll be the contact for everything and the one who pays.
+              </p>
+              <input className={input} placeholder="Parent / guardian name" value={gName} onChange={(e) => setGName(e.target.value)} autoComplete="name" />
+              <input className={input} placeholder="Relationship (e.g. mother)" value={gRel} onChange={(e) => setGRel(e.target.value)} />
+              <input className={input} type="email" placeholder="Guardian email" value={gEmail} onChange={(e) => setGEmail(e.target.value)} autoComplete="email" />
+              <input className={input} placeholder="Guardian phone" value={gPhone} onChange={(e) => setGPhone(e.target.value)} autoComplete="tel" />
+            </div>
+          )}
         </div>
       )}
+
+      {guardianProblem && <p className="text-[13px] font-semibold text-[#a5732a] mt-3">{guardianProblem}</p>}
 
       {error && <p className="text-[13px] font-semibold text-[#c0392b] mt-3">{error}</p>}
 

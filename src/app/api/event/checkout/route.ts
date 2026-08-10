@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase";
 import { getPortalUser } from "@/lib/auth";
 import { composeBookingName } from "@/lib/booking-name";
+import { checkParticipant, isMinorOn } from "@/lib/minors";
 import { createCheckoutSession, eur } from "@/lib/stripe";
 import { eventPricing } from "@/lib/events";
 
@@ -21,6 +22,10 @@ type Body = {
   experienceId?: string;
   dateIds?: string[];        // standby: the dates the buyer can make; fixed: [confirmed date] (optional)
   firstName?: string; lastName?: string; email?: string; phone?: string;
+  /** Participant's DOB — decides whether a guardian is legally required. */
+  dob?: string | null;
+  guardianName?: string | null; guardianEmail?: string | null;
+  guardianPhone?: string | null; guardianRelationship?: string | null;
 };
 
 const bad = (msg: string, status = 400) => NextResponse.json({ error: msg }, { status });
@@ -96,6 +101,21 @@ export async function POST(request: NextRequest) {
     ? `standby · ${selected.length} date${selected.length > 1 ? "s" : ""}`
     : (dates.find((d) => d.id === selected[0])?.label ?? "fixed date");
 
+  // Minors. A form can be bypassed; this cannot. Age is judged on the day they
+  // ride, and a booking for an under-18 without a named guardian is refused —
+  // that contract would be voidable and the waiver worthless.
+  const eventDate = dates.find((d) => d.id === selected[0])?.date_start ?? null;
+  const dob = typeof body.dob === "string" ? body.dob : null;
+  const guardian = {
+    guardianName: typeof body.guardianName === "string" ? body.guardianName.trim() : null,
+    guardianEmail: typeof body.guardianEmail === "string" ? body.guardianEmail.trim() : null,
+    guardianPhone: typeof body.guardianPhone === "string" ? body.guardianPhone.trim() : null,
+    guardianRelationship: typeof body.guardianRelationship === "string" ? body.guardianRelationship.trim() : null,
+  };
+  const participantProblem = checkParticipant(dob, eventDate, guardian);
+  if (participantProblem) return bad(participantProblem, 400);
+  const minor = isMinorOn(dob, eventDate) === true;
+
   // Capacity. max_spots was read from the date row and never checked anywhere,
   // so a 12-place clinic would happily sell a 13th ticket — and the person who
   // finds out is the one standing on the beach. Count tickets that are actually
@@ -124,6 +144,14 @@ export async function POST(request: NextRequest) {
     status: mode === "standby" ? "reserved" : "lead",
     agreed_price: price,
     event_date_ids: selected,
+    participant_dob: dob,
+    // For a minor the guardian is the contracting party — recorded on the
+    // booking so every downstream surface (invoice, emails, waiver) knows who
+    // is actually responsible, not just who rides.
+    guardian_name: minor ? guardian.guardianName : null,
+    guardian_email: minor ? guardian.guardianEmail : null,
+    guardian_phone: minor ? guardian.guardianPhone : null,
+    guardian_relationship: minor ? guardian.guardianRelationship : null,
     notes: `Event ticket (${mode}) · ${chosenLabel} · phone: ${phone} · ${mode === "standby" ? `deposit ${eur(amount, exp.currency)}` : `full ${eur(amount, exp.currency)}`} via Stripe`,
   }).select("id").single();
   if (bErr) return bad("Could not create your booking. Please try again.", 500);
