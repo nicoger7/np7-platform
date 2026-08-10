@@ -349,9 +349,12 @@ export async function runGoLiveChecks(): Promise<ExperienceReport[]> {
             okDetail: cap != null ? `${secured}/${cap} secured` : undefined,
             fix: { table: "exp_editions", id: edId, column: "max_spots", kind: "number", title: "Max spots", help: "How many guests this week actually takes. Set it to the real number — the page reads 'fully booked' the moment bookings reach it.", value: cap },
           }),
-        ok("bedCounts", "Bed counts set", "warning", bedGaps.length === 0, `${base}?tab=rooms`,
-          `${bedGaps.length} room${bedGaps.length === 1 ? "" : "s"} with no "sleeps" — ${bedGaps.slice(0, 3).join(", ")}${bedGaps.length > 3 ? "…" : ""}. Until it's set the hotel limits nothing and packages can sell past the last bed.`,
-          { okDetail: roomCount > 0 ? `All ${roomCount} rooms sized` : undefined }),
+        // Bed counts stopped being a blocker in migration 161: availability counts
+        // ROOMS now, so an unset `sleeps` limits nothing and chasing it was busywork
+        // on a list that must only show real work. Kept as a passing row, because
+        // knowing whether a partner fits is still worth having.
+        ok("bedCounts", "Bed counts", "warning", true, `${base}?tab=rooms`, undefined,
+          { okDetail: bedGaps.length === 0 && roomCount > 0 ? `All ${roomCount} rooms sized` : "Optional — availability counts rooms, not beds" }),
         ok("roomsEntered", "Rooms entered", "warning", hotelPkgs.length === 0 || roomCount > 0, `${base}?tab=rooms`,
           `Packages sell a hotel but no rooms are in the system for this week, so nothing limits how many we sell`,
           { okDetail: hotelPkgs.length ? `${roomCount} rooms` : undefined }),

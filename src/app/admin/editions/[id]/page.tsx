@@ -2280,10 +2280,10 @@ export default function EditionDetailPage({
                   {/* The one number the schema never had. Without it a room
                       counts for nothing — better than counting for a guess. */}
                   <div>
-                    <label className={labelClass}>Sleeps <span className="admin-faint font-normal">· people, not rooms</span></label>
+                    <label className={labelClass}>Sleeps <span className="admin-faint font-normal">· optional</span></label>
                     <input type="number" min={1} className={inputClass} value={roomForm.sleeps}
                       onChange={(e) => setRoomForm({ ...roomForm, sleeps: e.target.value })}
-                      placeholder="not set — this room limits nothing" />
+                      placeholder="optional — only says if a partner fits" />
                   </div>
                   <div><label className={labelClass}>Guest (booking) <span className="admin-faint font-normal">· main</span></label><select className={inputClass} value={roomForm.booking_id} onChange={(e) => setRoomForm({ ...roomForm, booking_id: e.target.value })}><option value="">Unassigned</option>{bookings.map((b) => <option key={b.id} value={b.id}>{b.name}</option>)}</select></div>
                 </div>
@@ -2338,7 +2338,7 @@ export default function EditionDetailPage({
                 <span className="text-[10px] font-bold tracking-[0.1em] admin-faint uppercase">Room</span>
                 <span className="text-[10px] font-bold tracking-[0.1em] admin-faint uppercase">Type</span>
                 <span className="text-[10px] font-bold tracking-[0.1em] admin-faint uppercase">Hotel</span>
-                <span className="text-[10px] font-bold tracking-[0.1em] admin-faint uppercase" title="How many people this room takes. Unset rooms count for nothing.">Sleeps</span>
+                <span className="text-[10px] font-bold tracking-[0.1em] admin-faint uppercase" title="How many people fit. Optional — availability counts rooms, not beds.">Sleeps</span>
                 <span className="text-[10px] font-bold tracking-[0.1em] admin-faint uppercase">Status</span>
                 <span className="text-[10px] font-bold tracking-[0.1em] admin-faint uppercase">Guest</span>
                 <span></span>
@@ -2354,12 +2354,14 @@ export default function EditionDetailPage({
                   <span className="text-sm font-medium admin-heading truncate self-center cursor-pointer" onClick={() => { setRoomEditId(room.id); setRoomShow(false); setRoomForm({ name: room.name, hotel_id: room.hotel_id || "", hotel: room.hotel || "", room_type: room.room_type || "", room_number: room.room_number || "", sleeps: room.sleeps != null ? String(room.sleeps) : "", status: room.status, booking_id: room.booking_id || "", extra_booking_ids: room.extra_booking_ids ?? [], partner_tag_along: room.partner_tag_along ?? "" }); }}>{room.name}</span>
                   <span className="text-xs admin-muted self-center truncate">{room.room_type}</span>
                   <span className="text-xs admin-muted self-center">{room.hotel}</span>
-                  {/* Beds, not rooms. A room with no count limits nothing, so
-                      say so rather than showing a reassuring dash. */}
+                  {/* Since migration 161 availability counts ROOMS, so an
+                      unset bed count no longer limits anything and must stop
+                      shouting. It is still worth knowing whether a partner
+                      fits — that is a rooming question, not a selling one. */}
                   <span className="text-xs self-center">
                     {room.sleeps != null
                       ? <span className="admin-heading font-semibold">{room.sleeps}</span>
-                      : <span className="text-amber-500 font-semibold" title="Nobody has said how many people this room takes, so it limits nothing">not set</span>}
+                      : <span className="admin-faint" title="Optional — only tells you whether a second person fits">—</span>}
                   </span>
                   <span className="self-center">
                     {room.released_at ? (
