@@ -21,6 +21,7 @@ import { useAccess } from "@/lib/use-access";
 import { effectiveCanAccess, effectiveCanSeeField } from "@/lib/access";
 import { PublicBadge } from "@/components/admin/public-badge";
 import { editionLabel } from "@/lib/edition-label";
+import { suggestPackageName, looksGenerated } from "@/lib/package-name";
 import { MailReadiness } from "@/components/admin/mail-readiness";
 import { parseFlightNote, type FlightInfo } from "@/lib/flights";
 import { FlightEditor } from "@/components/admin/flight-editor";
@@ -191,8 +192,14 @@ interface Package {
   hotel_id?: string | null;
   /** Which room type at that hotel this package sells — the pool key. */
   room_type?: string | null;
-  /** 1 = shares a room · 2 = takes the whole room (double for single use). */
+  /** How many beds one booking takes from the pool. 1 is normal — two friends
+   *  travelling together are two bookings sharing one room. */
   beds_per_booking?: number | null;
+  /** Hand-written website list; blank = the ✓-checked components are used. */
+  includes?: string | string[] | null;
+  downpayment_percent?: number | null;
+  final_days_before?: number | null;
+  deposit_refund_days?: number | null;
 }
 
 interface Cost {
@@ -371,9 +378,13 @@ export default function EditionDetailPage({
   }
 
   // ── Inline CRUD form state ──
-  const emptyPkg = { name: "", price: "", cost_per_person: "", deposit: "", max_spots: "", category: "", status: "active", website_visible: true, room_type: "", beds_per_booking: "1" };
+  const emptyPkg = { name: "", price: "", cost_per_person: "", deposit: "", max_spots: "", category: "", status: "active", website_visible: true, room_type: "", beds_per_booking: "1",
+    // The five the standalone Packages page had and this one didn't, so the
+    // same package edited from a week silently lacked half its settings.
+    hotel_id: "", includes: "", downpayment_percent: "", final_days_before: "", deposit_refund_days: "" };
   const [pkgForm, setPkgForm] = useState(emptyPkg);
   const [pkgEditId, setPkgEditId] = useState<string | null>(null);
+  const [pkgNameTouched, setPkgNameTouched] = useState(false);
   const [pkgShow, setPkgShow] = useState(false);
 
   const emptyCost = { item: "", estimated_amount: "", actual_amount: "", date: "", status: "estimate" };
@@ -497,6 +508,13 @@ export default function EditionDetailPage({
   const emptyRoom = { name: "", hotel_id: "", hotel: "", room_type: "", room_number: "", sleeps: "", status: "available", booking_id: "", extra_booking_ids: [] as string[], partner_tag_along: "" };
   const [roomForm, setRoomForm] = useState(emptyRoom);
   const hotelOptions = useHotelOptions();
+  /** The name follows the fields until someone types their own. */
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  const pkgNameSuggestion = suggestPackageName({
+    level: pkgForm.category,
+    hotelName: hotelOptions.find((h) => h.id === pkgForm.hotel_id)?.name ?? null,
+    roomType: pkgForm.room_type,
+  });
   const [roomEditId, setRoomEditId] = useState<string | null>(null);
   const [roomShow, setRoomShow] = useState(false);
 
@@ -641,6 +659,13 @@ export default function EditionDetailPage({
   const expId = edition?.experience_id;
 
   // Packages
+  // While the name is still the generated one, changing hotel / room / level
+  // rewrites it. Once it has been typed in, it is left alone for good.
+  useEffect(() => {
+    if (pkgNameTouched || !pkgNameSuggestion) return;
+    setPkgForm((f) => (f.name === pkgNameSuggestion ? f : { ...f, name: pkgNameSuggestion }));
+  }, [pkgNameSuggestion, pkgNameTouched]);
+
   async function savePackage() {
     const body = {
       name: pkgForm.name,
@@ -655,6 +680,11 @@ export default function EditionDetailPage({
       category: pkgForm.category || null,
       status: pkgForm.status,
       website_visible: pkgForm.website_visible,
+      hotel_id: pkgForm.hotel_id || null,
+      includes: pkgForm.includes.trim() ? pkgForm.includes : null,
+      downpayment_percent: pkgForm.downpayment_percent ? Number(pkgForm.downpayment_percent) : null,
+      final_days_before: pkgForm.final_days_before ? Number(pkgForm.final_days_before) : null,
+      deposit_refund_days: pkgForm.deposit_refund_days ? Number(pkgForm.deposit_refund_days) : null,
       edition_id: id,
       experience_id: expId,
     };
@@ -1752,7 +1782,8 @@ export default function EditionDetailPage({
               {packages.map((pkg) => {
                 const active = pkg.id === pkgEditId;
                 return (
-                  <button key={pkg.id} onClick={() => { setPkgEditId(pkg.id); setPkgShow(false); setPkgForm({ name: pkg.name, price: pkg.price?.toString() || "", cost_per_person: pkg.cost_per_person?.toString() || "", deposit: pkg.deposit?.toString() || "", max_spots: pkg.max_spots?.toString() || "", category: pkg.category || "", status: pkg.status, website_visible: pkg.website_visible !== false, room_type: pkg.room_type || "", beds_per_booking: String(pkg.beds_per_booking ?? 1) }); }} className="shrink-0 text-left px-3 py-2 rounded-lg transition-colors" style={{ background: active ? "var(--admin-accent)" : "var(--admin-surface)", border: "1px solid var(--admin-border)" }}>
+                  <button key={pkg.id} onClick={() => { setPkgEditId(pkg.id); setPkgShow(false); setPkgNameTouched(!looksGenerated(pkg.name, suggestPackageName({ level: pkg.category, hotelName: hotelOptions.find((h) => h.id === pkg.hotel_id)?.name ?? null, roomType: pkg.room_type }))); setPkgForm({ name: pkg.name, price: pkg.price?.toString() || "", cost_per_person: pkg.cost_per_person?.toString() || "", deposit: pkg.deposit?.toString() || "", max_spots: pkg.max_spots?.toString() || "", category: pkg.category || "", status: pkg.status, website_visible: pkg.website_visible !== false, room_type: pkg.room_type || "", beds_per_booking: String(pkg.beds_per_booking ?? 1),
+                    hotel_id: pkg.hotel_id || "", includes: typeof pkg.includes === "string" ? pkg.includes : Array.isArray(pkg.includes) ? (pkg.includes as string[]).join("\n") : "", downpayment_percent: pkg.downpayment_percent != null ? String(pkg.downpayment_percent) : "", final_days_before: pkg.final_days_before != null ? String(pkg.final_days_before) : "", deposit_refund_days: pkg.deposit_refund_days != null ? String(pkg.deposit_refund_days) : "" }); }} className="shrink-0 text-left px-3 py-2 rounded-lg transition-colors" style={{ background: active ? "var(--admin-accent)" : "var(--admin-surface)", border: "1px solid var(--admin-border)" }}>
                     <span className={`block text-xs font-semibold truncate ${active ? "text-[var(--admin-accent-contrast)]" : "admin-heading"}`}>{pkg.name}</span>
                     <span className={`block text-[10px] mt-0.5 truncate ${active ? "text-[var(--admin-accent-contrast)]/80" : "admin-faint"}`}>{pkg.price ? `€${Number(pkg.price).toLocaleString()}` : "—"} · {pkg.status}{pkg.website_visible === false ? " · private" : ""}</span>
                   </button>
@@ -1762,13 +1793,69 @@ export default function EditionDetailPage({
             <div className="flex-1 min-w-0 space-y-4">
               <div className="p-5 rounded-xl" style={{ border: "1px solid var(--admin-border)", backgroundColor: "var(--admin-surface)" }}>
                 <h3 className="text-base font-bold admin-heading mb-4">{pkgEditId ? "Edit package" : "New package"}</h3>
-                <div className="mb-3"><label className={labelClass}>Name *</label><input className={inputClass} value={pkgForm.name} onChange={(e) => setPkgForm({ ...pkgForm, name: e.target.value })} /></div>
+                {/* Generated from level + hotel + room, and editable. It keeps
+                    following the fields until you type your own, so the usual
+                    case needs no typing at all and the deliberate exceptions
+                    ("Turkish Locals") are never overwritten. */}
+                <div className="mb-3">
+                  <label className={labelClass}>Name *</label>
+                  <input className={inputClass} value={pkgForm.name}
+                    onChange={(e) => { setPkgNameTouched(true); setPkgForm({ ...pkgForm, name: e.target.value }); }} />
+                  {pkgNameSuggestion && pkgForm.name.trim() !== pkgNameSuggestion && (
+                    <button type="button"
+                      onClick={() => { setPkgNameTouched(false); setPkgForm((f) => ({ ...f, name: pkgNameSuggestion })); }}
+                      className="mt-1 text-[11.5px] font-semibold text-[var(--admin-accent)] hover:underline">
+                      Use the generated name: {pkgNameSuggestion}
+                    </button>
+                  )}
+                  {pkgNameSuggestion && pkgForm.name.trim() === pkgNameSuggestion && (
+                    <p className="mt-1 text-[11px] admin-faint">Following the fields below — type here to name it yourself.</p>
+                  )}
+                </div>
                 <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 mb-3">
                   <div><label className={labelClass}>Sell price ({currency})</label><input type="number" className={inputClass} value={pkgForm.price} onChange={(e) => setPkgForm({ ...pkgForm, price: e.target.value })} /></div>
                   <div><label className={labelClass}>Cost / person</label><input type="number" className={inputClass} value={pkgForm.cost_per_person} onChange={(e) => setPkgForm({ ...pkgForm, cost_per_person: e.target.value })} placeholder="auto" /></div>
                   <div><label className={labelClass}>Deposit</label><input type="number" className={inputClass} value={pkgForm.deposit} onChange={(e) => setPkgForm({ ...pkgForm, deposit: e.target.value })} /></div>
                   <div><label className={labelClass} title="Optional ceiling on this package's share of the week">Cap</label><input type="number" className={inputClass} placeholder="no limit" value={pkgForm.max_spots} onChange={(e) => setPkgForm({ ...pkgForm, max_spots: e.target.value })} /></div>
                   <div className="col-span-2 sm:col-span-1"><label className={labelClass}>Category</label><select className={inputClass} value={pkgForm.category} onChange={(e) => setPkgForm({ ...pkgForm, category: e.target.value })}>{PKG_CATEGORIES.map((c) => <option key={c} value={c}>{c ? c[0].toUpperCase() + c.slice(1) : "None"}</option>)}</select></div>
+                  {/* Hotel and Status lived only on the standalone Packages
+                      page. Editing the same package from its week therefore
+                      couldn't set where guests sleep — which is how four
+                      Alaçatı packages ended up with no hotel and showed no
+                      room on the public page. */}
+                  <div><label className={labelClass}>Hotel</label>
+                    <select className={inputClass} value={pkgForm.hotel_id} onChange={(e) => setPkgForm({ ...pkgForm, hotel_id: e.target.value })}>
+                      <option value="">— no hotel</option>
+                      {hotelOptions.map((h) => <option key={h.id} value={h.id}>{h.name}</option>)}
+                    </select>
+                  </div>
+                  <div><label className={labelClass}>Status</label>
+                    <select className={inputClass} value={pkgForm.status} onChange={(e) => setPkgForm({ ...pkgForm, status: e.target.value })}>
+                      <option value="active">Active</option>
+                      <option value="draft">Draft</option>
+                      <option value="archived">Archived</option>
+                    </select>
+                  </div>
+                </div>
+
+                {/* The payment plan — the same three fields the invoices and the
+                    member's plan read (computePaymentPlan). Leaving them here
+                    unreachable meant a week's package quietly used defaults
+                    nobody chose. */}
+                <p className="text-[10px] font-bold tracking-[0.12em] uppercase admin-faint mb-2">Payment plan</p>
+                <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 mb-1">
+                  <div><label className={labelClass}>Downpayment due (days after sign-up)</label><input type="number" className={inputClass} placeholder="14" value={pkgForm.deposit_refund_days} onChange={(e) => setPkgForm({ ...pkgForm, deposit_refund_days: e.target.value })} /></div>
+                  <div><label className={labelClass}>Downpayment (% of total)</label><input type="number" className={inputClass} placeholder="50" value={pkgForm.downpayment_percent} onChange={(e) => setPkgForm({ ...pkgForm, downpayment_percent: e.target.value })} /></div>
+                  <div><label className={labelClass}>Final due (days before trip)</label><input type="number" className={inputClass} placeholder="90" value={pkgForm.final_days_before} onChange={(e) => setPkgForm({ ...pkgForm, final_days_before: e.target.value })} /></div>
+                </div>
+                <p className="text-[11px] admin-faint mb-3">Downpayment is always due that many days after sign-up (the flight-booking window); the final balance that many days before the trip. A deposit, if set, also stays refundable for the same window.</p>
+
+                <div className="mb-3">
+                  <label className={labelClass}>Website list — manual override <span className="admin-faint font-normal">(optional)</span></label>
+                  <textarea className={`${inputClass} min-h-[90px] resize-y`} value={pkgForm.includes}
+                    onChange={(e) => setPkgForm({ ...pkgForm, includes: e.target.value })}
+                    placeholder={"Usually leave this BLANK — the website then lists the components ✓-checked below (their Website text).\nFill it only to fully hand-write the list, one line each."} />
+                  <p className="text-[11px] admin-faint mt-1"><strong className="admin-muted">Leave blank</strong> → the website shows the components marked Web ✓ below. Filling this overrides that list entirely.</p>
                 </div>
                 {/* Where the guests sleep. Without this the hotel cannot limit
                     the package, so it will happily sell past the last bed —
@@ -1837,7 +1924,7 @@ export default function EditionDetailPage({
                   </>
                 )}
               </div>
-              <button onClick={() => { setPkgEditId(null); setPkgForm(emptyPkg); setPkgShow(true); }} className="px-3 py-1.5 bg-[var(--admin-accent)] hover:bg-[var(--admin-accent)]/90 text-[var(--admin-accent-contrast)] text-xs font-bold rounded-lg transition-colors">New Package</button>
+              <button onClick={() => { setPkgEditId(null); setPkgNameTouched(false); setPkgForm(emptyPkg); setPkgShow(true); }} className="px-3 py-1.5 bg-[var(--admin-accent)] hover:bg-[var(--admin-accent)]/90 text-[var(--admin-accent-contrast)] text-xs font-bold rounded-lg transition-colors">New Package</button>
             </div>
           </div>
 
@@ -1864,7 +1951,8 @@ export default function EditionDetailPage({
                   onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = "var(--admin-surface-hover)")}
                   onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = "transparent")}
                 >
-                  <div className="min-w-0 self-center cursor-pointer" onClick={() => { setPkgEditId(pkg.id); setPkgShow(false); setPkgForm({ name: pkg.name, price: pkg.price?.toString() || "", cost_per_person: pkg.cost_per_person?.toString() || "", deposit: pkg.deposit?.toString() || "", max_spots: pkg.max_spots?.toString() || "", category: pkg.category || "", status: pkg.status, website_visible: pkg.website_visible !== false, room_type: pkg.room_type || "", beds_per_booking: String(pkg.beds_per_booking ?? 1) }); }}>
+                  <div className="min-w-0 self-center cursor-pointer" onClick={() => { setPkgEditId(pkg.id); setPkgShow(false); setPkgNameTouched(!looksGenerated(pkg.name, suggestPackageName({ level: pkg.category, hotelName: hotelOptions.find((h) => h.id === pkg.hotel_id)?.name ?? null, roomType: pkg.room_type }))); setPkgForm({ name: pkg.name, price: pkg.price?.toString() || "", cost_per_person: pkg.cost_per_person?.toString() || "", deposit: pkg.deposit?.toString() || "", max_spots: pkg.max_spots?.toString() || "", category: pkg.category || "", status: pkg.status, website_visible: pkg.website_visible !== false, room_type: pkg.room_type || "", beds_per_booking: String(pkg.beds_per_booking ?? 1),
+                    hotel_id: pkg.hotel_id || "", includes: typeof pkg.includes === "string" ? pkg.includes : Array.isArray(pkg.includes) ? (pkg.includes as string[]).join("\n") : "", downpayment_percent: pkg.downpayment_percent != null ? String(pkg.downpayment_percent) : "", final_days_before: pkg.final_days_before != null ? String(pkg.final_days_before) : "", deposit_refund_days: pkg.deposit_refund_days != null ? String(pkg.deposit_refund_days) : "" }); }}>
                     <div className="text-sm font-medium admin-heading truncate flex items-center gap-1.5">
                       {pkg.name}
                       {pkg.website_visible === false && <span className="shrink-0 inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[9px] font-bold uppercase tracking-[0.05em] bg-purple-500/15 text-purple-400" title="Private — not shown on the website">Private</span>}
