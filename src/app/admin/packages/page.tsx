@@ -6,6 +6,7 @@ import Link from "next/link";
 import { PackageComponentsEditor } from "@/components/package-components-editor";
 import { PublicBadge } from "@/components/admin/public-badge";
 import { editionLabel as edYearLabel } from "@/lib/edition-label";
+import { PACKAGE_LEVEL_OPTIONS, packageLevelLabel } from "@/lib/package-levels";
 
 interface Package {
   id: string;
@@ -52,7 +53,7 @@ interface Experience {
   code: string | null;
 }
 
-const PKG_CATEGORIES = ["", "advanced", "beginner", "mixed"];
+
 
 function money(n: number | null) {
   return n != null ? `€${Number(n).toLocaleString()}` : "—";
@@ -413,7 +414,7 @@ export default function PackagesPage() {
           <div className="grid grid-cols-3 gap-4 mb-4">
             <div><label className={labelClass}>Level<PublicBadge note="Step 1 on the website — the Advanced/Beginner choice customers make first" /></label>
               <select className={inputClass} value={form.category} onChange={(e) => setForm({ ...form, category: e.target.value })}>
-                {PKG_CATEGORIES.map((c) => <option key={c} value={c}>{c ? c[0].toUpperCase() + c.slice(1) : "None"}</option>)}
+                {PACKAGE_LEVEL_OPTIONS.map((c) => <option key={c} value={c}>{packageLevelLabel(c)}</option>)}
               </select>
             </div>
             <div><label className={labelClass}>Hotel<PublicBadge note="Step 2 on the website — drives the hotel name & photos in the accommodation choice" /></label>

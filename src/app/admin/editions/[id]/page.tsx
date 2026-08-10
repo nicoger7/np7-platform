@@ -28,6 +28,7 @@ import { FlightEditor } from "@/components/admin/flight-editor";
 import { CapacityPanel, SpotsLeftCell, type CapacityData } from "@/components/admin/capacity-panel";
 import { PackageRoomPool } from "@/components/admin/package-room-pool";
 import { EditionMailing } from "@/components/admin/edition-mailing";
+import { PACKAGE_LEVEL_OPTIONS, packageLevelLabel } from "@/lib/package-levels";
 
 // Edition detail sub-tabs. The order is reorderable by drag-and-drop and saved
 // per admin in localStorage (each team member keeps their own preferred order).
@@ -258,7 +259,7 @@ function useHotelOptions() {
 }
 const COST_STATUSES = ["estimate", "confirmed", "cancelled", "unlisted"];
 const ROOM_STATUSES = ["available", "assigned", "held"];
-const PKG_CATEGORIES = ["", "pro", "beginner", "mixed"];
+
 const ADD_BOOKING_STATUSES = ["lead", "reserved", "confirmed", "paid", "attended", "lost"];
 
 // "published" is the stored value for a live/running edition — shown as "Active"
@@ -1817,7 +1818,7 @@ export default function EditionDetailPage({
                   <div><label className={labelClass}>Cost / person</label><input type="number" className={inputClass} value={pkgForm.cost_per_person} onChange={(e) => setPkgForm({ ...pkgForm, cost_per_person: e.target.value })} placeholder="auto" /></div>
                   <div><label className={labelClass}>Deposit</label><input type="number" className={inputClass} value={pkgForm.deposit} onChange={(e) => setPkgForm({ ...pkgForm, deposit: e.target.value })} /></div>
                   <div><label className={labelClass} title="Optional ceiling on this package's share of the week">Cap</label><input type="number" className={inputClass} placeholder="no limit" value={pkgForm.max_spots} onChange={(e) => setPkgForm({ ...pkgForm, max_spots: e.target.value })} /></div>
-                  <div className="col-span-2 sm:col-span-1"><label className={labelClass}>Category</label><select className={inputClass} value={pkgForm.category} onChange={(e) => setPkgForm({ ...pkgForm, category: e.target.value })}>{PKG_CATEGORIES.map((c) => <option key={c} value={c}>{c ? c[0].toUpperCase() + c.slice(1) : "None"}</option>)}</select></div>
+                  <div className="col-span-2 sm:col-span-1"><label className={labelClass}>Category</label><select className={inputClass} value={pkgForm.category} onChange={(e) => setPkgForm({ ...pkgForm, category: e.target.value })}>{PACKAGE_LEVEL_OPTIONS.map((c) => <option key={c} value={c}>{packageLevelLabel(c)}</option>)}</select></div>
                   {/* Hotel and Status lived only on the standalone Packages
                       page. Editing the same package from its week therefore
                       couldn't set where guests sleep — which is how four
