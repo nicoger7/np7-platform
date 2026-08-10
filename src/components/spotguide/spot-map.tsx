@@ -81,11 +81,28 @@ export function SpotMap({ spots, cluster = false, height = 420, linkLabel = "Vie
       // single finger belongs to the page (see `dragging:false` above) and two
       // fingers pinch, so nothing here applies and a synthetic mouseover from a
       // tap must not change anything.
-      map.on("click focus", () => { map.scrollWheelZoom.enable(); setZoomHint(false); });
       map.on("blur", () => map.scrollWheelZoom.disable());
       if (!coarse) {
-        map.on("mouseover", () => { map.scrollWheelZoom.enable(); setZoomHint(true); });
-        map.on("mouseout", () => { map.scrollWheelZoom.disable(); setZoomHint(false); });
+        // pointerenter/pointerleave on the CONTAINER, not Leaflet's
+        // mouseover/mouseout on the map.
+        //
+        // Leaflet's versions behave like mouseover/mouseout: they fire as the
+        // pointer crosses onto a child layer. So moving onto a marker — or
+        // clicking a spot — raised `mouseout`, zoom switched off, and because
+        // the pointer never re-entered the container from outside, no
+        // `mouseover` ever came back. You had to click the map to wake it up.
+        //
+        // pointerenter/pointerleave don't fire for children, so the map stays
+        // "hovered" the whole time the cursor is anywhere inside it, markers
+        // and popups included.
+        const enter = () => { map.scrollWheelZoom.enable(); setZoomHint(true); };
+        const leave = () => { map.scrollWheelZoom.disable(); setZoomHint(false); };
+        el.addEventListener("pointerenter", enter);
+        el.addEventListener("pointerleave", leave);
+        teardownRef.current.push(() => {
+          el.removeEventListener("pointerenter", enter);
+          el.removeEventListener("pointerleave", leave);
+        });
       } else {
         map.on("mouseout", () => map.scrollWheelZoom.disable());
       }
