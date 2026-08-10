@@ -127,7 +127,7 @@ export async function GET(req: NextRequest) {
 
   const { data: bookings } = await db
     .from("exp_bookings")
-    .select("id,status,experience_id,edition_id,agreed_price,deposit_received,downpayment_received,final_payment_received,created_at,contacts(name,email),exp_experiences(title,slug),exp_editions(date_start,date_end,deposit,whatsapp_group_link),exp_packages(deposit,deposit_refund_days,downpayment_percent,final_days_before)")
+    .select("id,status,experience_id,edition_id,agreed_price,deposit_received,downpayment_received,final_payment_received,created_at,contacts(name,email),exp_experiences(title,slug),exp_editions(kind,date_start,date_end,deposit,whatsapp_group_link),exp_packages(deposit,deposit_refund_days,downpayment_percent,final_days_before)")
     .not("status", "in", "(lost)");
 
   // Pre-trip content (packing list + personal note) per experience — written once
@@ -291,6 +291,17 @@ export async function GET(req: NextRequest) {
     // need the reservation on/after go-live. Skip everything else (no backwards).
     const tripLive = onOrAfterCutoff(start);
     const leadLive = onOrAfterCutoff(b.created_at);
+    // An edition can be a 1–2 day clinic (migration 157). The pre-trip chain is
+    // written for a travelled week — crew forming two months out, packing,
+    // flights, arrival, "final details" — and NONE of it exists for a clinic
+    // you drive to on Friday. Without this guard the Alaçatı buyers, four days
+    // out, would each receive a countdown telling them to check their packing
+    // list and arrival info for a trip they never booked.
+    //
+    // What an event DOES get: the ticket confirmation (from the payment
+    // webhook), the waiver reminder — the one legal thing that genuinely
+    // applies — and the photos when they land.
+    const isEvent = b.exp_editions?.kind === "event";
 
     const c = content.get(b.experience_id ?? "") ?? {};
     const vars = {
@@ -368,7 +379,7 @@ export async function GET(req: NextRequest) {
     //     the final countdown. Paid guests only. Each mail hands over to the
     //     next, so someone who books six weeks out never gets "two months to
     //     go": they land straight in whichever window the date falls in.
-    if (tripLive && depositPaid && daysToStart != null) {
+    if (tripLive && !isEvent && depositPaid && daysToStart != null) {
       if (dueBefore("crew_forming", daysToStart)) bump("crew", await send("crew_forming", `crew_forming:${b.id}`));
       if (dueBefore("pre_trip_info", daysToStart)) bump("pretrip", await send("pre_trip_info", `pre_trip_info:${b.id}`));
       if (dueBefore("pre_trip_excitement", daysToStart)) bump("excitement", await send("pre_trip_excitement", `pre_trip_excitement:${b.id}`));
@@ -382,7 +393,7 @@ export async function GET(req: NextRequest) {
     }
 
     // 6 · post-trip thank-you + review/photos, once everyone is home
-    if (tripLive && depositPaid && dueAfterEnd("post_trip_thank_you", daysSinceEnd)) {
+    if (tripLive && !isEvent && depositPaid && dueAfterEnd("post_trip_thank_you", daysSinceEnd)) {
       bump("post_trip", await send("post_trip_thank_you", `post_trip_thank_you:${b.id}`));
     }
 
