@@ -29,7 +29,13 @@ export async function publishDestinationIfEarned(db: DB, destinationId: string |
   if (!destinationId) return;
   const { data: d } = await db.from("destinations")
     .select("spotguide_status, submitted_by").eq("id", destinationId).maybeSingle();
-  if (!d || d.spotguide_status !== "draft" || !d.submitted_by) return;
+  // Publishing a spot into an unpublished place hides it just as effectively as
+  // leaving it draft. This used to require submitted_by — meant to scope the
+  // auto-publish to rider-proposed places, but agent (jibe) intake leaves that
+  // null, so Tarifa, Brouwersdam, Ringkøbing and Viana stayed draft with
+  // approved spots inside them. What earns a place its page is a verified spot,
+  // not who typed the name.
+  if (!d || d.spotguide_status !== "draft") return;
   await db.from("destinations")
     .update({ spotguide_status: "published", updated_at: new Date().toISOString() })
     .eq("id", destinationId);

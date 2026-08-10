@@ -49,6 +49,16 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
 
   const patch: Record<string, unknown> = { updated_at: new Date().toISOString() };
   for (const k of COLS) if (k in body) patch[k] = body[k];
+  // Approving a spot publishes it. The two are one decision to whoever clicks
+  // "Publish · community tier", but the button only ever sent `verification` —
+  // so a DRAFT spot got its public verification and stayed invisible, which is
+  // exactly what happened to four spots Nico approved. Public visibility needs
+  // status='published' AND a public verification (see spotguide-data.ts).
+  // Guarded: an explicit status in the same request wins, so Hide
+  // ({status:'hidden'}) is untouched and can never be undone by this.
+  if (!("status" in body) && (body.verification === "community" || body.verification === "np7")) {
+    patch.status = "published";
+  }
   let { data, error } = await db.from("spots").update(patch).eq("id", id).select("*").single();
   // tolerate the levels column not existing yet (migration 082): drop it and retry
   if (error && /\blevels\b/i.test(error.message) && "levels" in patch) {
