@@ -32,6 +32,7 @@ export default function DestinationEditor({ params }: { params: Promise<{ id: st
   const [spots, setSpots] = useState<SpotRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [saved, setSaved] = useState(false);
+  const [saving, setSaving] = useState(false);
   const [addingSpot, setAddingSpot] = useState(false);
   const [picker, setPicker] = useState<{ kind: "hero" } | { kind: "gallery" } | { kind: "partner"; index: number } | null>(null);
 
@@ -58,12 +59,34 @@ export default function DestinationEditor({ params }: { params: Promise<{ id: st
   }
 
   async function save() {
-    if (!d) return;
-    await fetch(`/api/admin/destinations/${id}`, {
-      method: "PATCH", headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ ...d, partners: (d.partners ?? []).filter((p) => p.name.trim()) }),
-    });
-    setSaved(true); setTimeout(() => setSaved(false), 2000);
+    if (!d || saving) return;
+    setSaving(true);
+    try {
+      // "Saved!" used to flash UNCONDITIONALLY — the response was never read.
+      // An expired session, an RLS surprise, a 400 from a bad column: every one
+      // of them showed the same green Saved! and threw the edit away. A save
+      // that cannot fail visibly is worse than no save button at all.
+      const res = await fetch(`/api/admin/destinations/${id}`, {
+        method: "PATCH", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ...d, partners: (d.partners ?? []).filter((p) => p.name.trim()) }),
+      });
+      if (!res.ok) {
+        const j = await res.json().catch(() => ({}));
+        alert(res.status === 401 || res.status === 403 || res.redirected
+          ? "Your admin session has expired — open a new tab, log in again, then come back and hit Save. Your edits are still on this page."
+          : `Save failed: ${j.error || `HTTP ${res.status}`}. Your edits are still on this page — try again.`);
+        return;
+      }
+      // Adopt the row the server actually stored, so what you see after Save
+      // is what the database holds — not what the form hoped.
+      const row = await res.json().catch(() => null);
+      if (row?.id) setD((p) => (p ? { ...p, ...row, gallery: row.gallery ?? [], partners: row.partners ?? [], np7_ratings: row.np7_ratings ?? {} } : p));
+      setSaved(true); setTimeout(() => setSaved(false), 2000);
+    } catch {
+      alert("Save failed — network error. Your edits are still on this page; check your connection and try again.");
+    } finally {
+      setSaving(false);
+    }
   }
   async function remove() {
     if (!confirm("Delete this destination?")) return;
@@ -77,6 +100,8 @@ export default function DestinationEditor({ params }: { params: Promise<{ id: st
   const inputClass = "w-full px-3 py-2 admin-input border rounded-lg text-sm focus:outline-none focus:border-[var(--admin-accent)]";
   const labelClass = "block text-xs font-medium admin-muted mb-1";
   const folder = d.slug ? `destinations/${d.slug}` : undefined;
+  // the first live trip pointing at this destination — for the second preview link
+  const tripSlug = trips.find((t) => t.status === "published")?.slug ?? trips[0]?.slug ?? null;
   const partners = d.partners ?? [];
   const gallery = d.gallery ?? [];
 
@@ -89,15 +114,29 @@ export default function DestinationEditor({ params }: { params: Promise<{ id: st
         </div>
         <div className="flex items-center gap-3">
           <button onClick={remove} className="px-3 py-2 text-xs text-red-400/60 hover:text-red-400">Delete</button>
-          {/* a rider-proposed draft lives on the members-only route until it's published */}
+          {/* These fields feed TWO public surfaces, and one button labelled
+              "Preview page" always opened the spotguide — so editing the
+              tagline, intro or conditions for a trip's destination panel sent
+              you to look at a different page and wonder why nothing changed.
+              Name each one. (A rider-proposed draft lives on the members-only
+              route until it's published.) */}
           {d.slug && (
-            <Link href={d.spotguide_status === "published" ? `/spotguide/${d.slug}` : `/spotguide/proposed/${d.slug}`} target="_blank"
-              className="inline-flex items-center gap-2 rounded-full border border-[var(--admin-accent)] text-[var(--admin-accent)] text-[13px] font-bold px-4 py-2 hover:bg-[var(--admin-accent)]/10 transition-colors">
-              <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7z" /><circle cx="12" cy="12" r="3" /></svg>
-              Preview page ↗
-            </Link>
+            <>
+              <Link href={d.spotguide_status === "published" ? `/spotguide/${d.slug}` : `/spotguide/proposed/${d.slug}`} target="_blank"
+                className="inline-flex items-center gap-2 rounded-full border border-[var(--admin-accent)] text-[var(--admin-accent)] text-[13px] font-bold px-4 py-2 hover:bg-[var(--admin-accent)]/10 transition-colors">
+                <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7z" /><circle cx="12" cy="12" r="3" /></svg>
+                Spotguide page ↗
+              </Link>
+              {tripSlug && (
+                <Link href={`/experience/${tripSlug}#the-spot`} target="_blank"
+                  className="inline-flex items-center gap-2 rounded-full border border-[var(--admin-border)] admin-muted text-[13px] font-bold px-4 py-2 hover:admin-heading transition-colors">
+                  <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7z" /><circle cx="12" cy="12" r="3" /></svg>
+                  On the trip page ↗
+                </Link>
+              )}
+            </>
           )}
-          <button onClick={save} className="px-4 py-2 bg-[var(--admin-accent)] hover:bg-[var(--admin-accent)]/90 text-[var(--admin-accent-contrast)] text-sm font-bold rounded-lg">{saved ? "Saved!" : "Save"}</button>
+          <button onClick={save} disabled={saving} className="px-4 py-2 bg-[var(--admin-accent)] hover:bg-[var(--admin-accent)]/90 text-[var(--admin-accent-contrast)] text-sm font-bold rounded-lg disabled:opacity-60">{saving ? "Saving…" : saved ? "Saved!" : "Save"}</button>
         </div>
       </div>
 

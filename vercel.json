@@ -21,7 +21,7 @@
     },
     {
       "path": "/api/cron/wind-stats",
-      "schedule": "0 4 * * 1"
+      "schedule": "0 4 * * *"
     },
     {
       "path": "/api/cron/media-retention",

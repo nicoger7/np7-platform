@@ -3,7 +3,16 @@ import { createAdminClient } from "@/lib/supabase";
 import { fetchWindStatsBoth } from "@/lib/wind-stats";
 
 export const dynamic = "force-dynamic";
-export const maxDuration = 60;
+export const maxDuration = 300;
+
+/**
+ * Spots refreshed per run. Five fitted a 60-second budget; at 5 a week a
+ * 30-spot backfill takes six weeks, which is how a model change quietly fails
+ * to reach the pages it was made for. Each accelerated read is a multi-point
+ * historical query, so this is paced, not unbounded — and once every spot is
+ * current the query selects nothing and the run costs nothing.
+ */
+const BATCH = 12;
 
 /**
  * Refreshes spot wind climatology (Open-Meteo). Climate normals barely move, so
@@ -31,20 +40,33 @@ export async function GET(req: NextRequest) {
     .not("lat", "is", null);
   if (!force) q = q.or(`wind_stats_at.is.null,wind_stats_at.lt.${cutoff}`);
   else q = q.or(`wind_stats_at.is.null,wind_stats->alt.is.null`); // force = top up spots missing the alt model
-  const { data: candidates, error } = await q.limit(25);
+  const { data: candidates, error } = await q.limit(60);
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
 
   // Never overwrite a hand-entered "NP7 · …" override.
   const spots = (candidates ?? [])
     .filter((s: { wind_stats: { source?: string } | null }) => !String(s.wind_stats?.source ?? "").startsWith("NP7"))
-    .slice(0, 5);
+    .slice(0, BATCH);
 
   let updated = 0;
   for (const s of spots) {
     try {
       // Store BOTH model reads (main = the spot's chosen profile) so riders can
       // toggle between the coastal and offshore reads on demand.
-      const stats = await fetchWindStatsBoth(s.lat, s.lng, s.wind_profile === "accelerated" ? "accelerated" : "standard");
+      // Accelerated is the DEFAULT for a spot, not the exception.
+      //
+      // The shoreline read is taken at one pixel, and a windsurf spot is by
+      // definition somewhere the wind accelerates — a venturi, a thermal, a
+      // headland. Sampling that single point under-reads every one of them, and
+      // a pin a kilometre inland under-reads catastrophically (El Médano: 89%
+      // at the beach, 40% three kilometres in). The accelerated model rings the
+      // pin offshore and keeps the best planing score, which absorbs both.
+      //
+      // The trade is real and worth naming: for a genuinely sheltered spot the
+      // ring can find wind the rider on the beach will not get. `wind_profile`
+      // stays honoured, so a spot proven to over-read can be pinned back to
+      // 'standard' — and both model reads are stored either way.
+      const stats = await fetchWindStatsBoth(s.lat, s.lng, s.wind_profile === "standard" ? "standard" : "accelerated");
       const now = new Date().toISOString();
       await db.from("spots").update({ wind_stats: stats, wind_stats_at: now }).eq("id", s.id);
       updated++;
