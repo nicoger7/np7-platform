@@ -64,6 +64,10 @@ export type CheckResult = {
   href: string;
   /** Editable right here, without leaving the list. */
   fix?: CheckFix;
+  /** "Keep the standard" is a valid answer to this one — offer the decision. */
+  acceptable?: boolean;
+  /** …and it has been taken, so this passes by choice rather than by content. */
+  accepted?: boolean;
 };
 
 export type EditionReport = {
@@ -123,6 +127,40 @@ const ok = (
 });
 
 const has = (v: unknown) => v != null && String(v).trim() !== "";
+
+/**
+ * Checks a trip can settle by DECIDING rather than by changing something.
+ *
+ * These all ask the same question — "is the shared standard right for this
+ * trip?" — and for most trips the honest answer is yes: the template system
+ * exists precisely so a week's outcomes, program and FAQ can be shared. But
+ * the only way to clear them was to make the content DIFFERENT, so a trip that
+ * legitimately runs the standard sat at 12/14 forever with two ambers that no
+ * amount of work could close. A checklist that cannot reach the end is one you
+ * stop reading — and then it stops protecting the things that DO matter.
+ *
+ * So "keep the standard" is recorded as the answer it is (migration 160). The
+ * row still says the content is standard; it just stops calling it unfinished.
+ */
+const ACCEPTABLE = new Set(["weekTitle", "outcomes", "program", "faq", "review"]);
+
+/**
+ * Apply the recorded decisions. An accepted check passes and SAYS it is
+ * running the standard — silently going green would hide the very thing the
+ * check exists to surface.
+ */
+function applyAccepted(checks: CheckResult[], acceptedRaw: unknown): CheckResult[] {
+  const accepted = new Set(
+    Array.isArray(acceptedRaw) ? acceptedRaw.filter((x): x is string => typeof x === "string") : [],
+  );
+  return checks.map((c) => {
+    if (!ACCEPTABLE.has(c.id)) return c;
+    if (c.ok) return { ...c, acceptable: true };          // solved by real content
+    if (!accepted.has(c.id)) return { ...c, acceptable: true };
+    const { detail: _drop, ...rest } = c;
+    return { ...rest, ok: true, acceptable: true, accepted: true, okDetail: `${c.detail} — kept on purpose` };
+  });
+}
 
 export async function runGoLiveChecks(): Promise<ExperienceReport[]> {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -244,7 +282,7 @@ export async function runGoLiveChecks(): Promise<ExperienceReport[]> {
 
     const eds = ((editions ?? []) as Row[]).filter((x) => String(x.experience_id) === id && stillAhead(x));
 
-    const expChecks: CheckResult[] = [
+    const expChecksRaw: CheckResult[] = [
       ok("tileImage", "Card & hero photo", "blocker", has(e.hero_image) || has(c.hero_image), `${content_}?tab=media`, "No image — the listing card and page hero are empty"),
       ok("location", "Location", "blocker", has(e.location), detail, "No place name on the card or page", {
         fix: { table: "exp_experiences", id, column: "location", kind: "text", title: "Location", help: "Town and country, as it should read on the card — e.g. “Alacati, Turkey”.", value: (e.location as string) ?? null },
@@ -300,6 +338,9 @@ export async function runGoLiveChecks(): Promise<ExperienceReport[]> {
       ok("faq", "FAQ", "warning", !sameAsDefault(c.faq, DEFAULT_FAQ),
         `${content_}?tab=faq`, "Still the standard answers"),
     ];
+    // "Keep the standard" is an answer — fold the recorded decisions in before
+    // anything counts blockers, warnings or progress.
+    const expChecks = applyAccepted(expChecksRaw, c.accepted_defaults);
 
     const edReports: EditionReport[] = eds.map((ed) => {
       const edId = String(ed.id);
