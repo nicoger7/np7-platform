@@ -142,7 +142,7 @@ const has = (v: unknown) => v != null && String(v).trim() !== "";
  * So "keep the standard" is recorded as the answer it is (migration 160). The
  * row still says the content is standard; it just stops calling it unfinished.
  */
-const ACCEPTABLE = new Set(["weekTitle", "outcomes", "program", "faq", "review"]);
+export const ACCEPTABLE_CHECKS = new Set(["weekTitle", "outcomes", "program", "faq", "review"]);
 
 /**
  * Apply the recorded decisions. An accepted check passes and SAYS it is
@@ -154,7 +154,7 @@ function applyAccepted(checks: CheckResult[], acceptedRaw: unknown): CheckResult
     Array.isArray(acceptedRaw) ? acceptedRaw.filter((x): x is string => typeof x === "string") : [],
   );
   return checks.map((c) => {
-    if (!ACCEPTABLE.has(c.id)) return c;
+    if (!ACCEPTABLE_CHECKS.has(c.id)) return c;
     if (c.ok) return { ...c, acceptable: true };          // solved by real content
     if (!accepted.has(c.id)) return { ...c, acceptable: true };
     const { detail: _drop, ...rest } = c;

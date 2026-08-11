@@ -105,6 +105,10 @@ export default function ContentEditorPage({ params }: { params: Promise<{ id: st
   const [editionId, setEditionId] = useState("");
   const CONTENT_TABS = ["media", "story", "program", "pretrip", "event", "modules", "reviews", "faq"] as const;
   const [tab, setTab] = useState("media");
+  // Story held five long sections in one scroll — the spot, the week, the wind,
+  // six outcome cards and the whole method. You had to scroll past four of them
+  // to reach the one you came for. Same sections, grouped by what they describe.
+  const [story, setStory] = useState<"spot" | "week" | "method">("spot");
 
   // Restore the tab from the URL and reflect changes back into it, so the
   // readiness checklist can link straight at the field it is complaining about
@@ -460,7 +464,25 @@ export default function ContentEditorPage({ params }: { params: Promise<{ id: st
         </Section>
 
         {/* TEXT */}
-        <Section show={tab === "story"} title="About the location" hint="The text of ‘The spot’ section on the experience page. Line breaks are kept.">
+        {tab === "story" && (
+          <div className="flex flex-wrap gap-1.5">
+            {([
+              { k: "spot", label: "The spot", hint: "Where they ride, and what the wind does" },
+              { k: "week", label: "Your week", hint: "The week's promise and its six cards" },
+              { k: "method", label: "Method", hint: "The NP7 training system band" },
+            ] as const).map((t) => (
+              <button key={t.k} type="button" onClick={() => setStory(t.k)} title={t.hint}
+                className="px-3.5 py-1.5 rounded-full text-xs font-bold transition-colors"
+                style={story === t.k
+                  ? { backgroundColor: "var(--admin-accent)", color: "var(--admin-accent-contrast)" }
+                  : { border: "1px solid var(--admin-border)" }}>
+                {t.label}
+              </button>
+            ))}
+          </div>
+        )}
+
+        <Section show={tab === "story" && story === "spot"} title="About the location" hint="The text of ‘The spot’ section on the experience page. Line breaks are kept.">
           <textarea value={locationAbout} onChange={(e) => setLocationAbout(e.target.value)} rows={5}
             placeholder={destination?.text ? `Leave empty to keep using ${destination.name}'s own intro — shown below` : "Bonaire is a flat-water paradise…"}
             className="admin-input w-full px-4 py-3 rounded-lg border text-sm outline-none resize-y" />
@@ -482,7 +504,7 @@ export default function ContentEditorPage({ params }: { params: Promise<{ id: st
           ))}
         </Section>
 
-        <Section show={tab === "story"} title="About the week" hint="The small paragraph under the intro of the ‘Your week’ scroll section.">
+        <Section show={tab === "story" && story === "week"} title="About the week" hint="The small paragraph under the intro of the ‘Your week’ scroll section.">
           <textarea value={weekInfo} onChange={(e) => setWeekInfo(e.target.value)} rows={4}
             placeholder="A relaxed week built around the best wind windows…" className="admin-input w-full px-4 py-3 rounded-lg border text-sm outline-none resize-y" />
           {!weekInfo.trim() && (
@@ -490,7 +512,7 @@ export default function ContentEditorPage({ params }: { params: Promise<{ id: st
           )}
         </Section>
 
-        <Section show={tab === "story"} title="Wind certainty & no-wind program" hint="Wind range + probability show in three places: the quick-facts bar, the ‘You can count on it’ band and the wind chip next to the spot section. The no-wind program gets its own card further down. NO DEFAULT here: left empty, these simply don’t appear on the page.">
+        <Section show={tab === "story" && story === "spot"} title="Wind certainty & no-wind program" hint="Wind range + probability show in three places: the quick-facts bar, the ‘You can count on it’ band and the wind chip next to the spot section. The no-wind program gets its own card further down. NO DEFAULT here: left empty, these simply don’t appear on the page.">
           <div className="grid sm:grid-cols-2 gap-3 mb-3">
             <div className="px-4 py-3 rounded-lg text-[12.5px] admin-muted leading-snug" style={{ border: "1px dashed var(--admin-border)" }}>
               <strong className="admin-heading">Wind probability is measured now.</strong> The page shows a small
@@ -504,7 +526,7 @@ export default function ContentEditorPage({ params }: { params: Promise<{ id: st
             placeholder="No-wind program — what happens on a rare light-wind day…" className="admin-input w-full px-4 py-3 rounded-lg border text-sm outline-none resize-y" />
         </Section>
 
-        <Section show={tab === "story"} title="Your week — outcome cards" hint="The six cards in the ‘Your epic week’ section. Leave everything empty to keep the standard NP7 cards; add your own to replace them. The title replaces ‘The best week of your windsurf year’. The cards’ PHOTOS are the first six gallery photos on the Media tab, in the same order — card 1 gets photo 1, and so on.">
+        <Section show={tab === "story" && story === "week"} title="Your week — outcome cards" hint="The six cards in the ‘Your epic week’ section. Leave everything empty to keep the standard NP7 cards; add your own to replace them. The title replaces ‘The best week of your windsurf year’. The cards’ PHOTOS are the first six gallery photos on the Media tab, in the same order — card 1 gets photo 1, and so on.">
           {outcomesTpl && (
             <div className="rounded-lg px-3.5 py-2.5 mb-3 text-[12.5px]" style={{ border: "1px solid var(--admin-border)", background: "var(--admin-surface)" }}>
               {outcomesMode === "following" ? (
@@ -526,59 +548,61 @@ export default function ContentEditorPage({ params }: { params: Promise<{ id: st
           <input value={weekTitle} onChange={(e) => setWeekTitle(e.target.value)}
             placeholder="Section title — default: The best week of your windsurf year"
             className="admin-input w-full px-4 py-2.5 rounded-lg border text-sm outline-none mb-3" />
-          <div className="space-y-3">
+          {/* Edited as the cards they ARE. A stack of full-width text rows told
+              you nothing about the thing being built — the photo is most of
+              each card on the page, so it leads here too. */}
+          <div className="grid sm:grid-cols-2 gap-3">
             {weekOutcomes.map((o, i) => (
-              <div key={i} className="admin-surface admin-border border rounded-xl p-3.5">
-                <div className="flex items-center gap-2 mb-2">
-                  <select value={o.icon} onChange={(e) => setWeekOutcomes(weekOutcomes.map((x, j) => (j === i ? { ...x, icon: e.target.value } : x)))}
-                    className="admin-input px-2 py-2 rounded-md border text-sm outline-none">
-                    {["bolt", "gauge", "rotate", "idea", "globe", "camera"].map((ic) => <option key={ic} value={ic}>{ic}</option>)}
-                  </select>
-                  <input value={o.t} onChange={(e) => setWeekOutcomes(weekOutcomes.map((x, j) => (j === i ? { ...x, t: e.target.value } : x)))}
-                    placeholder="Card title (e.g. Real confidence on the water)" className="admin-input flex-1 px-3 py-2 rounded-md border text-sm outline-none" />
-                  <RowButtons onUp={() => setWeekOutcomes(move(weekOutcomes, i, -1))} onDown={() => setWeekOutcomes(move(weekOutcomes, i, 1))} onRemove={() => setWeekOutcomes(weekOutcomes.filter((_, j) => j !== i))} />
-                </div>
-                <textarea value={o.d} onChange={(e) => setWeekOutcomes(weekOutcomes.map((x, j) => (j === i ? { ...x, d: e.target.value } : x)))}
-                  rows={2} placeholder="One or two sentences…" className="admin-input w-full px-3 py-2 rounded-md border text-sm outline-none resize-y" />
-                {/* The card's photo — explicit choice beats the silent
-                    position-N pairing, which reshuffled whenever the Media tab
-                    was reordered. Photos stay PER EXPERIENCE even when the
-                    words come from a shared template. */}
-                {/* The same picker every other image field on this page uses —
-                    upload or choose from the library. A dropdown of "Photo 7"
-                    asked you to remember which photo that was. */}
-                <div className="flex items-center gap-2.5 mt-2.5">
-                  <button type="button" onClick={() => setPicker({ kind: "weekCard", index: i })}
-                    className="relative h-14 w-20 shrink-0 rounded-lg overflow-hidden group/img"
-                    style={{ border: "1px solid var(--admin-border)", background: "var(--admin-surface)" }}>
-                    {(weekImages[i] || gallery[i]) ? (
-                      <>
-                        {/* eslint-disable-next-line @next/next/no-img-element */}
-                        <img src={(weekImages[i] || gallery[i]) as string} alt="" className="w-full h-full object-cover" />
-                        <span className="absolute inset-0 grid place-items-center bg-black/45 text-white text-[10px] font-bold opacity-0 group-hover/img:opacity-100 transition-opacity">Change</span>
-                      </>
-                    ) : (
-                      <span className="w-full h-full grid place-items-center text-[10px] font-bold admin-faint">+ Photo</span>
-                    )}
-                  </button>
-                  <div className="min-w-0">
-                    <p className="text-[11.5px] admin-muted">
-                      {weekImages[i] ? "Chosen for this card" : gallery[i] ? `Following gallery photo ${i + 1}` : "No photo yet"}
-                    </p>
-                    <div className="flex items-center gap-2 mt-0.5">
-                      <button type="button" onClick={() => setPicker({ kind: "weekCard", index: i })}
-                        className="text-[11.5px] font-semibold text-[var(--admin-accent)] hover:underline">
-                        {weekImages[i] ? "Change" : "Choose or upload"}
-                      </button>
+              <div key={i} className="rounded-xl overflow-hidden flex flex-col"
+                style={{ border: "1px solid var(--admin-border)", background: "var(--admin-surface)" }}>
+                <button type="button" onClick={() => setPicker({ kind: "weekCard", index: i })}
+                  className="relative w-full aspect-[16/10] group/img block">
+                  {(weekImages[i] || gallery[i]) ? (
+                    <>
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img src={(weekImages[i] || gallery[i]) as string} alt="" className="absolute inset-0 w-full h-full object-cover" />
+                      <span aria-hidden className="absolute inset-0" style={{ background: "linear-gradient(to top, rgba(0,18,26,0.72) 0%, rgba(0,18,26,0.05) 55%)" }} />
+                    </>
+                  ) : (
+                    <span className="absolute inset-0 grid place-items-center text-[11px] font-bold admin-faint">+ Photo</span>
+                  )}
+                  <span className="absolute top-2 left-2 grid place-items-center w-6 h-6 rounded-full bg-black/45 text-white text-[10px] font-black">{i + 1}</span>
+                  <span className="absolute inset-0 grid place-items-center bg-black/45 text-white text-[11px] font-bold opacity-0 group-hover/img:opacity-100 transition-opacity">
+                    {(weekImages[i] || gallery[i]) ? "Change photo" : "Choose or upload"}
+                  </span>
+                  {(weekImages[i] || gallery[i]) && (
+                    <span className="absolute bottom-2 left-2 right-2 text-left text-[13px] font-extrabold text-white leading-tight line-clamp-2">
+                      {o.t || "Card title"}
+                    </span>
+                  )}
+                </button>
+
+                <div className="p-3 flex flex-col gap-2 flex-1">
+                  <div className="flex items-center gap-2">
+                    <select value={o.icon} onChange={(e) => setWeekOutcomes(weekOutcomes.map((x, j) => (j === i ? { ...x, icon: e.target.value } : x)))}
+                      className="admin-input px-2 py-1.5 rounded-md border text-xs outline-none shrink-0">
+                      {["bolt", "gauge", "rotate", "idea", "globe", "camera"].map((ic) => <option key={ic} value={ic}>{ic}</option>)}
+                    </select>
+                    <input value={o.t} onChange={(e) => setWeekOutcomes(weekOutcomes.map((x, j) => (j === i ? { ...x, t: e.target.value } : x)))}
+                      placeholder="Card title" className="admin-input flex-1 min-w-0 px-2.5 py-1.5 rounded-md border text-sm outline-none" />
+                  </div>
+                  <textarea value={o.d} onChange={(e) => setWeekOutcomes(weekOutcomes.map((x, j) => (j === i ? { ...x, d: e.target.value } : x)))}
+                    rows={3} placeholder="One or two sentences…" className="admin-input w-full px-2.5 py-2 rounded-md border text-[13px] outline-none resize-y flex-1" />
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="text-[11px] admin-faint truncate">
+                      {weekImages[i] ? "Own photo" : gallery[i] ? `Gallery photo ${i + 1}` : "No photo yet"}
                       {weekImages[i] && (
                         <button type="button" onClick={() => setWeekImages((imgs) => imgs.map((x, j) => (j === i ? null : x)))}
-                          className="text-[11.5px] admin-faint hover:admin-heading">Reset to gallery</button>
+                          className="ml-2 admin-faint hover:admin-heading underline">reset</button>
                       )}
-                    </div>
+                    </span>
+                    <RowButtons onUp={() => setWeekOutcomes(move(weekOutcomes, i, -1))} onDown={() => setWeekOutcomes(move(weekOutcomes, i, 1))} onRemove={() => setWeekOutcomes(weekOutcomes.filter((_, j) => j !== i))} />
                   </div>
                 </div>
               </div>
             ))}
+          </div>
+          <div className="mt-3">
             <AddButton label="Add card" onClick={() => setWeekOutcomes([...weekOutcomes, { icon: "bolt", t: "", d: "" }])} />
           </div>
           {weekOutcomes.length === 0 && (
@@ -590,7 +614,7 @@ export default function ContentEditorPage({ params }: { params: Promise<{ id: st
           )}
         </Section>
 
-        <Section show={tab === "story"} title="Coaching method" hint="The ‘NP7 training system’ band: intro + numbered steps. Leave empty to keep the standard method copy.">
+        <Section show={tab === "story" && story === "method"} title="Coaching method" hint="The ‘NP7 training system’ band: intro + numbered steps. Leave empty to keep the standard method copy.">
           {methodTpl && (
             <div className="rounded-lg px-3.5 py-2.5 mb-3 text-[12.5px]" style={{ border: "1px solid var(--admin-border)", background: "var(--admin-surface)" }}>
               {methodMode === "following" ? (

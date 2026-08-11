@@ -118,7 +118,11 @@ function Tick() {
   );
 }
 
-function Row({ c, showDone, onFix }: { c: CheckResult; showDone: boolean; onFix: (f: CheckFix) => void }) {
+function Row({ c, showDone, onFix, experienceId, onAccepted }: {
+  c: CheckResult; showDone: boolean; onFix: (f: CheckFix) => void;
+  experienceId?: string; onAccepted?: () => void;
+}) {
+  const [busy, setBusy] = useState(false);
   if (c.ok && !showDone) return null;
   const red = !c.ok && c.severity === "blocker";
   const amber = !c.ok && c.severity === "warning";
@@ -139,15 +143,57 @@ function Row({ c, showDone, onFix }: { c: CheckResult; showDone: boolean; onFix:
     </>
   );
 
+  // Some checks can only be cleared by making the content DIFFERENT — and for
+  // most trips the standard IS the right answer. So offer the decision instead
+  // of nagging forever. It writes to accepted_defaults and is reversible.
+  async function decide(accept: boolean) {
+    if (!experienceId || busy) return;
+    setBusy(true);
+    const res = await fetch("/api/admin/go-live/accept", {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ experienceId, checkId: c.id, accept }),
+    }).catch(() => null);
+    setBusy(false);
+    if (!res || !res.ok) {
+      const j = res ? await res.json().catch(() => ({})) : {};
+      alert(j.error || "Couldn't save that — try again.");
+      return;
+    }
+    onAccepted?.();
+  }
+
+  const decidable = c.acceptable && experienceId;
+
   // `group` goes HERE, on the row. On the wrapper it meant hovering anywhere
   // in an experience lit up every row's hint at once.
   const cls = "group/row w-full text-left flex items-start gap-2.5 px-3 py-2 rounded-lg hover:bg-[var(--admin-surface-hover)] transition-colors";
 
   // A plain field opens here; anything needing a picker, an upload or a child
   // table opens where it actually lives.
-  return c.fix
+  const main = c.fix
     ? <button onClick={() => onFix(c.fix!)} className={cls}>{inner}</button>
     : <Link href={c.href} className={cls}>{inner}</Link>;
+
+  if (!decidable) return main;
+
+  // The row still says the content is standard — going green silently would
+  // hide the thing the check exists to surface. It just stops calling it a gap.
+  return (
+    <div className="flex items-start gap-1">
+      <span className="min-w-0 flex-1">{main}</span>
+      <button
+        type="button" disabled={busy} onClick={() => decide(!c.accepted)}
+        title={c.accepted
+          ? "You chose to keep the standard here. Click to reopen it."
+          : "The standard is fine for this trip — record that and stop flagging it."}
+        className={`shrink-0 mt-1.5 px-2.5 py-1 rounded-full text-[11px] font-bold transition-colors disabled:opacity-50 ${
+          c.accepted ? "admin-faint hover:admin-heading" : "text-[#0aa3c7] hover:bg-[#0aa3c7]/10"
+        }`}
+        style={c.accepted ? { border: "1px solid var(--admin-border)" } : { border: "1px solid rgba(10,163,199,0.35)" }}>
+        {busy ? "…" : c.accepted ? "Reopen" : "Keep standard"}
+      </button>
+    </div>
+  );
 }
 
 /** A trip week, written the way you'd say it: "17–23 Aug 2026". */
@@ -186,10 +232,11 @@ function Progress({ done, total }: { done: number; total: number }) {
  * as a whole, which is precisely the distinction that tells you where to go.
  */
 function Group({
-  title, meta, tone, checks, showDone, onFix, href,
+  title, meta, tone, checks, showDone, onFix, href, experienceId, onAccepted,
 }: {
   title: string; meta?: React.ReactNode; tone: "experience" | "edition";
   checks: CheckResult[]; showDone: boolean; onFix: (f: CheckFix) => void; href?: string;
+  experienceId?: string; onAccepted?: () => void;
 }) {
   const done = checks.filter((c) => c.ok).length;
   const blockers = checks.filter((c) => !c.ok && c.severity === "blocker").length;
@@ -213,22 +260,22 @@ function Group({
 
       {visible.length === 0
         ? <p className="px-3.5 py-2 text-[12.5px] text-green-500">All done</p>
-        : <div className="py-1">{visible.map((c) => <Row key={c.id} c={c} showDone={showDone} onFix={onFix} />)}</div>}
+        : <div className="py-1">{visible.map((c) => <Row key={c.id} c={c} showDone={showDone} onFix={onFix} experienceId={experienceId} onAccepted={onAccepted} />)}</div>}
     </div>
   );
 }
 
 /** One experience's rows — the trip itself first, then each upcoming week. */
 export function ExperienceChecks({
-  report, showDone, onFix,
-}: { report: ExperienceReport; showDone: boolean; onFix: (f: CheckFix) => void }) {
+  report, showDone, onFix, onAccepted,
+}: { report: ExperienceReport; showDone: boolean; onFix: (f: CheckFix) => void; onAccepted?: () => void }) {
   return (
     <div className="space-y-2.5 pt-3">
       <Group
         title="The whole trip"
         meta={<span className="text-[11px] admin-faint">page, photos, terms — shared by every week</span>}
         tone="experience"
-        checks={report.checks} showDone={showDone} onFix={onFix}
+        checks={report.checks} showDone={showDone} onFix={onFix} experienceId={report.id} onAccepted={onAccepted}
       />
 
       {report.editions.length === 0 ? (
@@ -402,7 +449,7 @@ export function GoLiveList({ reports, onRefresh, openId }: { reports: Experience
                 </button>
                 {isOpen && (
                   <div className="px-3 pb-3" style={{ borderTop: "1px solid var(--admin-border)", backgroundColor: "var(--admin-bg)" }}>
-                    <ExperienceChecks report={e} showDone={showDone} onFix={setFix} />
+                    <ExperienceChecks report={e} showDone={showDone} onFix={setFix} onAccepted={onRefresh} />
                   </div>
                 )}
               </div>
@@ -433,7 +480,7 @@ export function GoLivePanel({ report, onRefresh }: { report: ExperienceReport | 
         <DoneToggle value={showDone} onChange={setShowDone} />
       </div>
       <Legend />
-      <ExperienceChecks report={report} showDone={showDone} onFix={setFix} />
+      <ExperienceChecks report={report} showDone={showDone} onFix={setFix} onAccepted={onRefresh} />
       <p className="text-xs admin-faint mt-3">
         Only weeks still ahead are checked. Every line opens the field that fixes it — the simple ones right here.{" "}
         <Link href="/admin/go-live" className="text-[#0aa3c7] hover:underline">All trips →</Link>
