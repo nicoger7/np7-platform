@@ -294,7 +294,11 @@ export default function EditionDetailPage({
   // A clinic has no pre-trip mail chain, no flights to collect, no hotel
   // allotment and no level caps — showing those tabs invites someone to fill in
   // fields that will never be used, and buries the four that matter.
-  const EVENT_HIDDEN: readonly string[] = ["mailing", "arrivals", "rooms", "levels"];
+  // Mailing stays: an event DOES send mail (ticket confirmation, waiver
+  // reminder, balance, photos) and hiding the tab left no way to see which —
+  // while the dashboard was still nagging about content for the trip series it
+  // never sends. The tab now lists only what actually fires.
+  const EVENT_HIDDEN: readonly string[] = ["arrivals", "rooms", "levels"];
   const dragTab = useRef<number | null>(null);
 
   // Restore the active tab from the URL on load, and reflect tab changes back into

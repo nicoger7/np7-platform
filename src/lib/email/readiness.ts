@@ -243,6 +243,35 @@ export const MAIL_REQUIREMENTS: Record<string, { blocking: ContentKey[]; soft: C
   waiver_reminder: { blocking: [], soft: [], label: "Waiver reminder" },
 };
 
+/**
+ * The scheduled mails an EVENT edition actually sends.
+ *
+ * A 1–2 day clinic you drive to on Friday has no crew forming two months out,
+ * no packing list, no flights, no "final details". The emails cron already
+ * knows this — every one of those sends sits behind `!isEvent`. What it does
+ * send is the waiver reminder (the one legal thing that still applies), the
+ * balance reminder (a stand-by event has a real balance, and that send is
+ * deliberately NOT event-guarded in the cron), and the photos when they land.
+ *
+ * Readiness did NOT know it, so it judged an event against the whole travelled-
+ * week series and the dashboard announced that the Alaçatı race clinic was
+ * overdue a packing list and a WhatsApp group link for mails that were never
+ * going to fire. A warning about work that does not exist teaches you to stop
+ * reading the warnings.
+ *
+ * Derived by reading the cron's `!isEvent` gates one send at a time — keep it
+ * that way if a send is added there.
+ */
+export const EVENT_SCHEDULED_MAILS = new Set([
+  "waiver_reminder",
+  "balance_invoice_reminder",
+  "photos_ready",
+]);
+
+/** Does this scheduled mail apply to an edition of this kind? */
+export const mailAppliesTo = (kind: string | null | undefined, templateKey: string): boolean =>
+  kind === "event" ? EVENT_SCHEDULED_MAILS.has(templateKey) : true;
+
 export const CONTENT_LABELS: Record<ContentKey, { label: string; where: string }> = {
   packingList: { label: "Packing list", where: "Edition → Details, or the experience's Event Content" },
   preTripNote: { label: "Pre-trip note", where: "Edition → Details, or the experience's Event Content" },
@@ -269,6 +298,7 @@ export type ReadinessItem = {
 export type EditionReadiness = {
   editionId: string;
   startDate: string | null;
+  kind: string | null;
   inherited: { packingList: string | null; preTripNote: string | null };
   daysToStart: number | null;
   items: ReadinessItem[];
@@ -279,6 +309,8 @@ export type EditionReadiness = {
 /** The content an edition actually resolves to, edition value overriding the experience. */
 export async function resolveEditionContent(editionId: string): Promise<{
   startDate: string | null;
+  /** 'event' = a 1–2 day clinic, which sends a different, much shorter series. */
+  kind: string | null;
   values: Record<ContentKey, string | null>;
   /** what the EXPERIENCE level holds, so the edition editor can show what it
    *  would fall back to — you cannot judge whether to override something you
@@ -291,12 +323,13 @@ export async function resolveEditionContent(editionId: string): Promise<{
   const db = createAdminClient() as any;
   const { data: ed } = await db
     .from("exp_editions")
-    .select("id, date_start, experience_id, pre_trip_note, packing_list, whatsapp_group_link, final_details_note")
+    .select("id, date_start, kind, experience_id, pre_trip_note, packing_list, whatsapp_group_link, final_details_note")
     .eq("id", editionId)
     .maybeSingle();
   if (!ed) {
     return {
       startDate: null,
+      kind: null,
       values: { packingList: null, preTripNote: null, whatsappLink: null, finalDetailsNote: null },
       inherited: { packingList: null, preTripNote: null },
       source: { packingList: null, preTripNote: null, whatsappLink: null, finalDetailsNote: null },
@@ -323,6 +356,7 @@ export async function resolveEditionContent(editionId: string): Promise<{
 
   return {
     startDate: ed.date_start ?? null,
+    kind: ed.kind ?? null,
     values: {
       // edition wins, experience is the fallback — same rule the cron uses
       packingList: pick(ed.packing_list, expContent.packing_list),
@@ -348,7 +382,7 @@ export async function resolveEditionContent(editionId: string): Promise<{
 const DAY = 86_400_000;
 
 export async function getEditionReadiness(editionId: string, now = new Date()): Promise<EditionReadiness> {
-  const { startDate, values, inherited } = await resolveEditionContent(editionId);
+  const { startDate, kind, values, inherited } = await resolveEditionContent(editionId);
   // The deadline shown to the admin has to be the deadline the cron works to,
   // so it comes from the effective schedule and not the built-in constant.
   const timing = await getSendTiming();
@@ -362,6 +396,8 @@ export async function getEditionReadiness(editionId: string, now = new Date()): 
     let earliestLead: number | null = null;
 
     for (const [mail, req] of Object.entries(MAIL_REQUIREMENTS)) {
+      // An event is never judged against the travelled-week series.
+      if (!mailAppliesTo(kind, mail)) continue;
       const lead = timing.before[mail];
       if (req.blocking.includes(key)) {
         blocks.push(req.label);
@@ -395,6 +431,7 @@ export async function getEditionReadiness(editionId: string, now = new Date()): 
   return {
     editionId,
     startDate,
+    kind,
     inherited,
     daysToStart,
     items,

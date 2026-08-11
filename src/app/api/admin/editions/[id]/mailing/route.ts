@@ -3,7 +3,7 @@ import { sendEmail } from "@/lib/email/send";
 import { requireTeamMember, requireSectionEdit } from "@/lib/admin-auth";
 import { createAdminClient } from "@/lib/supabase";
 import { AUTOMATIONS, CANNOT_DISABLE, lifecycleLive } from "@/lib/email/automations";
-import { listSendTiming, timingAnchor, resolveEditionContent, MAIL_REQUIREMENTS, CONTENT_LABELS, type ContentKey } from "@/lib/email/readiness";
+import { listSendTiming, timingAnchor, resolveEditionContent, mailAppliesTo, MAIL_REQUIREMENTS, CONTENT_LABELS, type ContentKey } from "@/lib/email/readiness";
 
 export const dynamic = "force-dynamic";
 
@@ -26,7 +26,7 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const db = createAdminClient() as any;
 
-  const { startDate, values, inherited, source } = await resolveEditionContent(id);
+  const { startDate, kind, values, inherited, source } = await resolveEditionContent(id);
   const { data: ed } = await db.from("exp_editions").select("date_start, date_end").eq("id", id).maybeSingle();
 
   const { data: bookings } = await db
@@ -80,7 +80,10 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
   // passes, photos appear), so they have no date at all and were rendering as a
   // bare "—" with "Due —" next to it, which reads like something is broken.
   // `whenKind` lets the panel keep them apart and say so.
-  const scheduled = AUTOMATIONS.filter((a) => a.source === "scheduled").map((a) => {
+  // An event is a 1–2 day clinic: most of this series never fires for it, and
+  // listing mails that cannot send reads as a to-do list of work that isn't
+  // real. Same rule the cron and the readiness check use.
+  const scheduled = AUTOMATIONS.filter((a) => a.source === "scheduled" && mailAppliesTo(kind, a.key)).map((a) => {
     const t = timingBy.get(a.key);
     const lead = t?.anchor === "before" ? t.days : undefined;
     const after = t?.anchor === "afterEnd" ? t.days : undefined;
