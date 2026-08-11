@@ -272,6 +272,11 @@ export async function POST(request: NextRequest) {
   if (!session) {
     return NextResponse.json({ ok: true, noPayment: true, bookingId: booking.id });
   }
-  await db.from("exp_bookings").update({ notes: `Event ticket (${mode}) · ${chosenLabel} · phone: ${phone} · session ${session.id}` }).eq("id", booking.id);
+  const charged = mode === "standby"
+    ? `deposit ${eur(amount, exp.currency)} of ${eur(price, exp.currency)}`
+    : plan.partPayment
+      ? `deposit ${eur(amount, exp.currency)} of ${eur(price, exp.currency)}, balance ${eur(plan.balance, exp.currency)} due ${plan.balanceDue ?? "before the clinic"}`
+      : `full ${eur(amount, exp.currency)}`;
+  await db.from("exp_bookings").update({ notes: `Event ticket (${mode}) · ${chosenLabel} · phone: ${phone} · ${charged} · session ${session.id}` }).eq("id", booking.id);
   return NextResponse.json({ url: session.url });
 }
