@@ -205,6 +205,12 @@ export async function EventPage({ event, isMember, paid, paidBookingId = null }:
               eventDate={(confirmed ?? event.dates[0])?.date_start ?? null}
               editionSlug={event.editionSlug ?? null}
               location={event.location}
+              partPayment={event.plan.partPayment}
+              dueNowLabel={eur(event.plan.dueNow, cur)}
+              planBalanceLabel={eur(event.plan.balance, cur)}
+              balanceDueLabel={event.plan.balanceDue
+                ? new Date(`${event.plan.balanceDue}T00:00:00Z`).toLocaleDateString("en-GB", { day: "numeric", month: "long", year: "numeric", timeZone: "UTC" })
+                : null}
             />
           ) : (
             <div className="rounded-2xl bg-white border border-[#e3e9ec] p-7 text-center">

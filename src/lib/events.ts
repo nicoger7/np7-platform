@@ -23,6 +23,10 @@ export type EventInfo = {
   mode: "fixed" | "standby";
   depositPct: number;
   refundPct: number;
+  /** Part-payment terms read off the edition's package (deposit + final due). */
+  plan: EventDepositPlan;
+  /** The package being sold, so the booking can carry it. */
+  packageId: string | null;
   status: string | null;
   websiteVisible: boolean;
   dates: EventDate[];
@@ -31,6 +35,49 @@ export type EventInfo = {
   /** Other upcoming clinics in the same series, for "other dates". */
   siblings?: { slug: string; label: string | null; location: string | null; date_start: string | null; date_end: string | null }[];
 };
+
+/**
+ * A part-payment ticket: pay the deposit now, the rest before the clinic.
+ *
+ * This is NOT a new payment model — it is the one every trip already runs, read
+ * off the package the way `computePaymentPlan` reads it. Events were built as a
+ * separate slim Stripe path (pay 100% now, or a stand-by percentage), so the
+ * deposit and "final due N days before" you set on a package did nothing at all
+ * on an event: the booking never even carried a `package_id`, and the ticket box
+ * priced itself from `event_deposit_pct` instead.
+ *
+ * So the package is the control now, which is where you would look for it. A
+ * package whose deposit is missing, zero, or >= the price simply sells at full
+ * price — the old behaviour, unchanged, for every event that has not been
+ * given a deposit.
+ */
+export type EventDepositPlan = {
+  /** Charged at checkout. Equals the full price when there is no deposit. */
+  dueNow: number;
+  /** Left to pay. Zero when the ticket is sold in full. */
+  balance: number;
+  /** ISO date the balance is due — start − final_days_before. */
+  balanceDue: string | null;
+  /** True when this is a genuine part-payment rather than a full ticket. */
+  partPayment: boolean;
+};
+
+export function eventDepositPlan(
+  price: number,
+  pkg: { deposit: number | null; final_days_before: number | null } | null,
+  startDate: string | null,
+): EventDepositPlan {
+  const full = { dueNow: price, balance: 0, balanceDue: null, partPayment: false };
+  if (!pkg) return full;
+  const deposit = pkg.deposit == null ? null : Number(pkg.deposit);
+  // A deposit at or above the price is not a deposit, it is the ticket.
+  if (deposit == null || !(deposit > 0) || deposit >= price) return full;
+  const days = pkg.final_days_before ?? 0;
+  const balanceDue = startDate
+    ? new Date(new Date(`${startDate}T00:00:00Z`).getTime() - days * 86_400_000).toISOString().slice(0, 10)
+    : null;
+  return { dueNow: deposit, balance: Math.round((price - deposit) * 100) / 100, balanceDue, partPayment: true };
+}
 
 /** Ticket maths — a single source of truth shared by page, checkout, refunds. */
 export function eventPricing(price: number, depositPct: number, refundPct: number) {
@@ -95,6 +142,22 @@ export async function getEventForSlug(
     pinned = editions.find((e) => (e.date_end ?? e.date_start ?? "") >= today) ?? editions[0] ?? null;
   }
 
+  // The package that actually sells this clinic. It carries the deposit and the
+  // "final due N days before" — the same two fields every trip is priced from.
+  // One active package is the normal shape for an event; if a clinic ever has
+  // several, the cheapest deposit wins rather than an arbitrary row.
+  let pkg: { id: string; deposit: number | null; final_days_before: number | null } | null = null;
+  if (pinned) {
+    const { data: pkgRows } = await db
+      .from("exp_packages")
+      .select("id,deposit,final_days_before,price,status,website_visible")
+      .eq("edition_id", pinned.id)
+      .eq("status", "active")
+      .is("archived_at", null);
+    const usable = ((pkgRows ?? []) as { id: string; deposit: number | null; final_days_before: number | null }[]);
+    pkg = usable.sort((a, b) => Number(a.deposit ?? Infinity) - Number(b.deposit ?? Infinity))[0] ?? null;
+  }
+
   // The dates the ticket box offers follow the edition being sold.
   const shown = pinned?.date_start ? dates.filter((d) => d.date_start === pinned!.date_start) : dates;
   const soonest = pinned;
@@ -113,6 +176,8 @@ export async function getEventForSlug(
     mode: exp.event_mode === "standby" ? "standby" : "fixed",
     depositPct: exp.event_deposit_pct ?? 20,
     refundPct: exp.event_refund_pct ?? 15,
+    plan: eventDepositPlan(Number(pinned?.price ?? exp.price ?? 0), pkg, pinned?.date_start ?? null),
+    packageId: pkg?.id ?? null,
     status: exp.status ?? null,
     websiteVisible: exp.website_visible !== false,
     dates: shown.length ? shown : dates,

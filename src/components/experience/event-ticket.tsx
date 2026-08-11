@@ -16,6 +16,7 @@ export type TicketDate = { id: string; label: string; sub?: string };
  */
 export function EventTicket({
   experienceId, mode, priceLabel, depositLabel, balanceLabel, refundLabel, dates, fixedDate, isMember, eventDate, editionSlug = null, location = null,
+  partPayment = false, dueNowLabel = null, planBalanceLabel = null, balanceDueLabel = null,
 }: {
   experienceId: string;
   mode: "fixed" | "standby";
@@ -33,6 +34,12 @@ export function EventTicket({
   editionSlug?: string | null;
   /** Where the event is — only used to pick a sensible default dial code. */
   location?: string | null;
+  /** A fixed-date clinic sold as deposit-now, balance-before. Read off the
+   *  package's deposit + "final due N days before", same as any trip. */
+  partPayment?: boolean;
+  dueNowLabel?: string | null;
+  planBalanceLabel?: string | null;
+  balanceDueLabel?: string | null;
 }) {
   // Send them back HERE after logging in — the login page takes a `next`, it
   // just wasn't being given one, so a buyer mid-purchase landed on member home
@@ -112,11 +119,20 @@ export function EventTicket({
     <form onSubmit={submit} className="rounded-2xl bg-white border border-[#e3e9ec] shadow-[0_18px_50px_rgba(0,40,55,0.1)] p-6 sm:p-7">
       {/* price line */}
       <div className="flex items-baseline justify-between">
-        <span className="text-[13px] font-bold uppercase tracking-[0.12em] text-[#9aa6ac]">{mode === "standby" ? "Deposit today" : "Ticket"}</span>
-        <span className="text-[28px] font-black text-[#00374a] tabular-nums">{mode === "standby" ? depositLabel : priceLabel}</span>
+        <span className="text-[13px] font-bold uppercase tracking-[0.12em] text-[#9aa6ac]">
+          {mode === "standby" || partPayment ? "Pay today" : "Ticket"}
+        </span>
+        <span className="text-[28px] font-black text-[#00374a] tabular-nums">
+          {mode === "standby" ? depositLabel : partPayment ? dueNowLabel : priceLabel}
+        </span>
       </div>
       {mode === "standby" && (
         <p className="text-[12.5px] text-[#6a7a80] mt-1">of {priceLabel} total · balance {balanceLabel} once your date is set</p>
+      )}
+      {mode !== "standby" && partPayment && (
+        <p className="text-[12.5px] text-[#6a7a80] mt-1">
+          of {priceLabel} total · balance {planBalanceLabel} due{balanceDueLabel ? ` ${balanceDueLabel}` : " before the clinic"}
+        </p>
       )}
 
       {/* fixed date line */}
@@ -206,7 +222,13 @@ export function EventTicket({
       <button type="submit" disabled={!canSubmit || busy}
         className="mt-5 w-full rounded-full py-3.5 text-[15px] font-black text-[#00374a] disabled:opacity-45 transition-transform active:scale-[0.99]"
         style={{ background: "linear-gradient(90deg,#ffe08a,#f0a500 60%,#f47b20)" }}>
-        {busy ? "One sec…" : mode === "standby" ? `Secure my spot — ${depositLabel}` : `Book my ticket — ${priceLabel}`}
+        {busy
+          ? "One sec…"
+          : mode === "standby"
+            ? `Secure my spot — ${depositLabel}`
+            : partPayment
+              ? `Secure my spot — ${dueNowLabel}`
+              : `Book my ticket — ${priceLabel}`}
       </button>
       <p className="text-[11.5px] text-[#9aa6ac] text-center mt-2.5">Secure payment via Stripe.</p>
       {/* Art. 246a § 1 Abs. 3 EGBGB: fixed-date leisure services carry NO

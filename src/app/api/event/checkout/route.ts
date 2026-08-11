@@ -4,7 +4,7 @@ import { getPortalUser } from "@/lib/auth";
 import { composeBookingName } from "@/lib/booking-name";
 import { checkParticipant, isMinorOn } from "@/lib/minors";
 import { createCheckoutSession, eur } from "@/lib/stripe";
-import { eventPricing } from "@/lib/events";
+import { eventPricing, eventDepositPlan } from "@/lib/events";
 
 /**
  * Public event-ticket checkout.
@@ -166,8 +166,30 @@ export async function POST(request: NextRequest) {
   // the number the buyer just read on the page.
   const price = Number(edition?.price ?? exp.price);
   const { deposit } = eventPricing(price, exp.event_deposit_pct ?? 20, exp.event_refund_pct ?? 15);
-  const amount = mode === "standby" ? deposit : price;
-  const kind = mode === "standby" ? "event_deposit" : "event_full";
+
+  // A fixed-date clinic can still be sold as a part-payment: deposit now, the
+  // rest before the weekend. That comes off the PACKAGE — the same `deposit`
+  // and `final_days_before` every trip is priced from — so setting it where you
+  // would expect to set it now actually does something. Stand-by keeps its own
+  // percentage: its deposit answers a different question (which dates suit you)
+  // and is non-refundable on different terms.
+  let pkgRow: { id: string; deposit: number | null; final_days_before: number | null } | null = null;
+  if (edition) {
+    const { data: pkgRows } = await db
+      .from("exp_packages")
+      .select("id,deposit,final_days_before")
+      .eq("edition_id", edition.id)
+      .eq("status", "active")
+      .is("archived_at", null);
+    const usable = (pkgRows ?? []) as { id: string; deposit: number | null; final_days_before: number | null }[];
+    pkgRow = usable.sort((a, b) => Number(a.deposit ?? Infinity) - Number(b.deposit ?? Infinity))[0] ?? null;
+  }
+  const plan = eventDepositPlan(price, pkgRow, edition?.date_start ?? null);
+
+  const amount = mode === "standby" ? deposit : plan.dueNow;
+  const kind = mode === "standby"
+    ? "event_deposit"
+    : plan.partPayment ? "event_part" : "event_full";
 
   const chosenLabel = mode === "standby"
     ? `standby · ${selected.length} date${selected.length > 1 ? "s" : ""}`
@@ -205,6 +227,7 @@ export async function POST(request: NextRequest) {
     contact_id: contactId,
     experience_id: exp.id,
     edition_id: editionId,
+    package_id: pkgRow?.id ?? null,
     status: mode === "standby" ? "reserved" : "lead",
     agreed_price: price,
     event_date_ids: selected,
@@ -216,7 +239,13 @@ export async function POST(request: NextRequest) {
     guardian_email: minor ? guardian.guardianEmail : null,
     guardian_phone: minor ? guardian.guardianPhone : null,
     guardian_relationship: minor ? guardian.guardianRelationship : null,
-    notes: `Event ticket (${mode}) · ${chosenLabel} · phone: ${phone} · ${mode === "standby" ? `deposit ${eur(amount, exp.currency)}` : `full ${eur(amount, exp.currency)}`} via Stripe`,
+    notes: `Event ticket (${mode}) · ${chosenLabel} · phone: ${phone} · ${
+      mode === "standby"
+        ? `deposit ${eur(amount, exp.currency)}`
+        : plan.partPayment
+          ? `deposit ${eur(amount, exp.currency)} of ${eur(price, exp.currency)}, balance ${eur(plan.balance, exp.currency)} due ${plan.balanceDue ?? "before the clinic"}`
+          : `full ${eur(amount, exp.currency)}`
+    } via Stripe`,
   }).select("id").single();
   if (bErr) return bad("Could not create your booking. Please try again.", 500);
 
@@ -224,10 +253,12 @@ export async function POST(request: NextRequest) {
   const origin = request.headers.get("origin") ?? `https://${request.headers.get("host")}`;
   const session = await createCheckoutSession({
     line: {
-      name: mode === "standby" ? `${exp.title} · deposit` : `${exp.title} · ticket`,
+      name: mode === "standby" || plan.partPayment ? `${exp.title} · deposit` : `${exp.title} · ticket`,
       description: mode === "standby"
         ? `Non-refundable deposit to hold your spot. Balance of ${eur(price - amount, exp.currency)} due once your date is confirmed.`
-        : `Event ticket.`,
+        : plan.partPayment
+          ? `Deposit for your ${eur(price, exp.currency)} ticket. Balance of ${eur(plan.balance, exp.currency)} due ${plan.balanceDue ? new Date(`${plan.balanceDue}T00:00:00Z`).toLocaleDateString("en-GB", { day: "numeric", month: "long", year: "numeric", timeZone: "UTC" }) : "before the clinic"}.`
+          : `Event ticket.`,
       amountCents: Math.round(amount * 100),
     },
     currency: exp.currency ?? "eur",

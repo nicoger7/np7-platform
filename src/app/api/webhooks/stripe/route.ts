@@ -189,7 +189,12 @@ async function onEventPayment(
   // Every kind, not just deposits — a full-price ticket is the commonest case
   // and its booking was left with no way back to the Stripe charge at all.
   if (paymentIntent) patch.stripe_payment_intent = paymentIntent;
+  // 'reserved' is right for STAND-BY — the date isn't settled, so the spot is
+  // held rather than booked. A fixed-date clinic paid in part is different:
+  // that rider is coming on the 14th. 'confirmed' is the status that means
+  // deposit-paid-and-attending, and it is what the funnel counts.
   if (kind === "event_deposit") { patch.downpayment_received = true; patch.status = "reserved"; }
+  if (kind === "event_part") { patch.downpayment_received = true; patch.status = "confirmed"; }
   if (kind === "event_full") { patch.downpayment_received = true; patch.final_payment_received = true; patch.status = "paid"; }
   if (kind === "event_balance") { patch.final_payment_received = true; patch.status = "paid"; }
   // THE write that turns a paid ticket into a paid booking — and the one that
@@ -208,9 +213,17 @@ async function onEventPayment(
   // Order matters. generateDocument derives the amount from (total − received),
   // so once the payment row exists the outstanding balance is zero and it
   // refuses with "nothing to invoice". Issue first, then settle it.
-  if (kind === "event_full" || kind === "event_balance") {
+  // A part-payment gets its deposit invoice here for the same reason a full
+  // ticket gets its final invoice: Stripe's card receipt is not a German
+  // invoice. The balance is invoiced separately when it is paid.
+  if (kind === "event_full" || kind === "event_balance" || kind === "event_part") {
+    // A part-payment must be invoiced as the DEPOSIT it is. `final_invoice`
+    // derives its amount from (total − received), so on a €100 deposit against
+    // a €400 ticket it would issue a €400 invoice for a €100 payment — and the
+    // balance would then have nothing left to invoice in August.
+    const type = kind === "event_part" ? "deposit_invoice" : "final_invoice";
     try {
-      await generateDocument({ bookingId, type: "final_invoice" });
+      await generateDocument({ bookingId, type });
     } catch (err) {
       console.warn("[webhook] event invoice generation failed (non-fatal):", err);
     }
@@ -230,7 +243,7 @@ async function onEventPayment(
         contact_id: booking.contact_id,
         experience_id: booking.experience_id,
         amount,
-        type: kind === "event_deposit" ? "deposit" : "final",
+        type: kind === "event_deposit" || kind === "event_part" ? "deposit" : "final",
         method: "stripe",
         direction: "revenue",
         status: "paid",
@@ -278,7 +291,7 @@ async function onEventPayment(
     } catch { /* never fail a payment over account setup — the login page still works */ }
 
     const { sendEmail } = await import("@/lib/email/send");
-    const templateKey = kind === "event_deposit" ? "event_deposit_received" : "event_ticket_confirmed";
+    const templateKey = kind === "event_deposit" || kind === "event_part" ? "event_deposit_received" : "event_ticket_confirmed";
     await sendEmail({
       to: contact.email,
       templateKey,
