@@ -181,6 +181,38 @@ export const TEMPLATES: Record<string, (v: EmailVars, opts?: LayoutOpts) => Buil
     }),
   }),
 
+  /**
+   * Deposit taken on a FIXED clinic — the opposite situation to stand-by.
+   *
+   * `event_deposit_received` says "we confirm the date once the forecast lands
+   * and the balance is due then", which is true of stand-by and false here: the
+   * date is set, the rider is coming, and the balance has a real deadline. Sent
+   * to the wrong buyer that copy tells them their clinic might not happen.
+   */
+  event_part_received: (v, opts) => ({
+    subject: `You're in! 🤙 ${v.experienceTitle ?? "Your NP7 event"}`,
+    html: emailLayout({
+      ...opts,
+      preheader: "Deposit received — your spot is confirmed.",
+      bodyHtml:
+        greet(v) +
+        p(`Your deposit is in and your spot is <strong>confirmed</strong> — see you on the water. 🌊`) +
+        facts([
+          ["Event", v.experienceTitle],
+          ["Dates", v.dates],
+          ["Where", v.location],
+          ["Deposit paid", v.amount],
+          ["Still to pay", v.balance],
+          ["Due", v.balanceDue],
+        ]) +
+        p(`We've set up your <strong>NP7 account</strong>, where you'll find your booking, your invoice and — after the clinic — your photos.`) +
+        (v.activationLink ? emailButton("Open my account", v.activationLink) : "") +
+        heading("One thing before you ride") +
+        p(`Everyone on the water signs a short waiver. It takes a minute${v.waiverLink ? ` — <a href="${esc(v.waiverLink)}" style="color:#0aa3c7;font-weight:700;">sign it here</a>` : ""}. If the participant is under 18, a parent or guardian signs it.`) +
+        p(`Any questions, just reply to this email.<br>— Nico & the NP7 team`),
+    }),
+  }),
+
   account_magic_link: (v, opts) => ({
     subject: `Your NP7 login link`,
     html: emailLayout({

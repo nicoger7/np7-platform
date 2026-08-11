@@ -176,7 +176,7 @@ async function onEventPayment(
   // retrying that forever is just noise.
   const { data: booking, error: readErr } = await db
     .from("exp_bookings")
-    .select("id, contact_id, experience_id, status, downpayment_received, final_payment_received, exp_experiences(title,location,currency), exp_editions(date_start,date_end,location), contacts(name,email)")
+    .select("id, contact_id, experience_id, status, agreed_price, downpayment_received, final_payment_received, exp_packages(final_days_before), exp_experiences(title,location,currency), exp_editions(date_start,date_end,location), contacts(name,email)")
     .eq("id", bookingId).maybeSingle();
   if (readErr) throw new Error(`booking read failed for ${bookingId}: ${readErr.message ?? readErr}`);
   if (!booking) {
@@ -291,7 +291,32 @@ async function onEventPayment(
     } catch { /* never fail a payment over account setup — the login page still works */ }
 
     const { sendEmail } = await import("@/lib/email/send");
-    const templateKey = kind === "event_deposit" || kind === "event_part" ? "event_deposit_received" : "event_ticket_confirmed";
+    // Three different situations, three different mails. A fixed-date clinic
+    // paid in part must NOT get the stand-by copy — its date is not in doubt.
+    const templateKey = kind === "event_part"
+      ? "event_part_received"
+      : kind === "event_deposit"
+        ? "event_deposit_received"
+        : "event_ticket_confirmed";
+    // What is still owed, and when — straight off the money and the package,
+    // the same two sources the ticket box and the member page read.
+    let outstanding = 0;
+    let balanceDueISO: string | null = null;
+    if (kind === "event_part") {
+      try {
+        const { outstandingForBooking } = await import("@/lib/events");
+        ({ outstanding } = await outstandingForBooking(db, bookingId, Number(booking.agreed_price) || 0));
+        const start = booking.exp_editions?.date_start ?? null;
+        const days = booking.exp_packages?.final_days_before ?? null;
+        if (start && days != null) {
+          balanceDueISO = new Date(new Date(`${start}T00:00:00Z`).getTime() - days * 86_400_000).toISOString().slice(0, 10);
+        }
+      } catch (err) {
+        // A receipt missing one line beats no receipt: never fail the mail —
+        // or the webhook — over the balance figure.
+        console.warn("[webhook] balance figures for the deposit mail failed:", err);
+      }
+    }
     await sendEmail({
       to: contact.email,
       templateKey,
@@ -305,6 +330,10 @@ async function onEventPayment(
         dates: fmtEventDates(booking.exp_editions?.date_start, booking.exp_editions?.date_end),
         amount: eur(amount, booking.exp_experiences?.currency ?? "EUR"),
         location: booking.exp_editions?.location || booking.exp_experiences?.location || undefined,
+        balance: outstanding > 0 ? eur(outstanding, booking.exp_experiences?.currency ?? "EUR") : undefined,
+        balanceDue: balanceDueISO
+          ? new Date(`${balanceDueISO}T00:00:00Z`).toLocaleDateString("en-GB", { day: "numeric", month: "long", year: "numeric", timeZone: "UTC" })
+          : undefined,
         activationLink,
         bookingLink: `${origin}/account/bookings/${bookingId}`,
         waiverLink: `${origin}/account/bookings/${bookingId}/waiver`,
