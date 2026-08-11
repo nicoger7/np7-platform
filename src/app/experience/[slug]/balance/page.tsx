@@ -3,7 +3,7 @@ import { notFound } from "next/navigation";
 import type { Metadata } from "next";
 import { createAdminClient } from "@/lib/supabase";
 import { OceanHeader } from "@/components/experience/ocean-header";
-import { eventPricing } from "@/lib/events";
+import { outstandingForBooking } from "@/lib/events";
 import { eur } from "@/lib/stripe";
 import { PayBalanceButton } from "@/components/experience/pay-balance-button";
 
@@ -28,21 +28,25 @@ export default async function BalancePage({ params, searchParams }: Props) {
 
   const cur = b.exp_experiences.currency ?? "EUR";
   const price = Number(b.agreed_price) || 0;
-  const { balance } = eventPricing(price, b.exp_experiences.event_deposit_pct ?? 20, b.exp_experiences.event_refund_pct ?? 15);
+  const { paid: paidSoFar, outstanding: balance } = await outstandingForBooking(db, b.id, price);
 
   // Which of the buyer's dates actually got confirmed (for the header line).
   const { data: confirmed } = await db
     .from("exp_event_dates").select("date_start,date_end,label,status")
     .eq("experience_id", b.experience_id).eq("status", "confirmed").maybeSingle();
 
-  const paid = !!b.final_payment_received;
+  // A balance settled by bank transfer or at the centre never sets this flag
+  // through Stripe, so trust the money as well as the flag.
+  const paid = !!b.final_payment_received || balance <= 0;
 
   return (
     <main className="min-h-screen bg-[#fbfdfd]">
       <OceanHeader bookHref="#" />
       <div className="max-w-[520px] mx-auto px-6 pt-28 pb-16">
         <div className="rounded-2xl bg-white border border-[#e3e9ec] shadow-[0_18px_50px_rgba(0,40,55,0.1)] p-7 sm:p-8">
-          <p className="text-[11px] font-black uppercase tracking-[0.16em] text-[#b0791e]">Your date is confirmed</p>
+          <p className="text-[11px] font-black uppercase tracking-[0.16em] text-[#b0791e]">
+            {confirmed ? "Your date is confirmed" : "Your remaining balance"}
+          </p>
           <h1 className="text-2xl font-black text-[#00374a] mt-2">{b.exp_experiences.title}</h1>
           {confirmed && (
             <p className="text-[14px] text-[#6a7a80] mt-1">
@@ -62,7 +66,7 @@ export default async function BalancePage({ params, searchParams }: Props) {
                 <span className="text-[13px] font-bold uppercase tracking-[0.12em] text-[#9aa6ac]">Balance due</span>
                 <span className="text-[30px] font-black text-[#00374a] tabular-nums">{eur(balance, cur)}</span>
               </div>
-              <p className="text-[12.5px] text-[#6a7a80] mt-1">Your {eur(price, cur)} ticket, less the deposit you already paid.</p>
+              <p className="text-[12.5px] text-[#6a7a80] mt-1">Your {eur(price, cur)} ticket, less the {eur(paidSoFar, cur)} you have already paid.</p>
               <div className="mt-6"><PayBalanceButton bookingId={b.id} amountLabel={eur(balance, cur)} /></div>
             </>
           )}

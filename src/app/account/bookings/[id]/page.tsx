@@ -172,6 +172,16 @@ export default async function BookingDetail({ params }: Props) {
   const isEvent = b.edition?.kind === "event";
   const fullyPaid = total != null && total > 0 && paid >= total;
   const nextMilestone = plan.find((m) => m.status !== "paid");
+  // An event ticket used to be all-or-nothing, so anything short of the full
+  // price read as "payment pending — book again". A rider who paid the €100
+  // deposit on a €400 clinic is SECURED, and telling them to book again would
+  // have taken a second €100. Part-paid = money in, money still owed.
+  const eventPartPaid = isEvent && !fullyPaid && paid > 0.01;
+  const eventOutstanding = Math.max(0, (total ?? 0) - paid);
+  const eventBalanceDue = plan.find((m) => m.kind === "final")?.dueDate ?? null;
+  const eventBalanceDueLabel = eventBalanceDue
+    ? new Date(`${eventBalanceDue}T00:00:00Z`).toLocaleDateString("en-GB", { day: "numeric", month: "long", year: "numeric", timeZone: "UTC" })
+    : null;
   // What to actually transfer — the milestone MINUS what has already landed
   // against it. The nominal slice would tell a member who has overpaid the
   // down-payment to send the full half again. Falls back to the slice only when
@@ -199,7 +209,9 @@ export default async function BookingDetail({ params }: Props) {
     // Never a deposit→balance story for a clinic: it was bought outright.
     hero = fullyPaid
       ? { eyebrow: "You're in", title: daysToGo != null ? `${daysToGo} ${daysToGo === 1 ? "day" : "days"} to go 🎉` : "You're in 🎉", body: `Your spot is paid and confirmed.${waiverSig ? "" : " One thing left: sign the waiver."}`, ctaLabel: waiverSig ? "Your documents" : "Sign the waiver", ctaHref: "#docs", tone: "green" }
-      : { eyebrow: "Your next step", title: `Payment pending — ${money(total ?? 0, cur)}`, body: "Your spot isn't secured until the ticket is paid. If you started a payment and it didn't go through, just book again — or reply to your confirmation email and we'll sort it.", tone: "amber" };
+      : eventPartPaid
+        ? { eyebrow: "You're in", title: daysToGo != null ? `${daysToGo} ${daysToGo === 1 ? "day" : "days"} to go 🎉` : "Your spot is secured 🎉", body: `Your deposit is in and your spot is confirmed. The remaining ${money(eventOutstanding, cur)}${eventBalanceDueLabel ? ` is due ${eventBalanceDueLabel}` : " is due before the clinic"}.${waiverSig ? "" : " One thing left: sign the waiver."}`, ctaLabel: "See payment", ctaHref: "#payment", tone: "green" }
+        : { eyebrow: "Your next step", title: `Payment pending — ${money(total ?? 0, cur)}`, body: "Your spot isn't secured until the ticket is paid. If you started a payment and it didn't go through, just book again — or reply to your confirmation email and we'll sort it.", tone: "amber" };
   } else if (fullyPaid) {
     hero = { eyebrow: "You're all set", title: daysToGo != null ? `${daysToGo} ${daysToGo === 1 ? "day" : "days"} to go 🎉` : "You're all set 🎉", body: "Everything's paid. Check your packing list and arrival info so you're ready to ride.", ctaLabel: "Open trip prep", ctaHref: "#prep", tone: "green" };
   } else if (!depositPaid && nextMilestone) {
@@ -272,7 +284,9 @@ export default async function BookingDetail({ params }: Props) {
       <p className="text-[12.5px] text-[#9aa6ac] mt-3 leading-relaxed">
         {fullyPaid
           ? "Paid by card at booking. Your receipt came from Stripe; anything else you need is under Docs."
-          : "This clinic is paid in full at booking — there's no deposit or later balance."}
+          : eventPartPaid
+            ? `Your deposit is paid and your spot is confirmed. The rest${eventBalanceDueLabel ? ` is due ${eventBalanceDueLabel}` : " is due before the clinic"} — we'll send you a link, or you can settle it with us directly.`
+            : "Your spot is held once the ticket is paid."}
       </p>
     </div>
   );

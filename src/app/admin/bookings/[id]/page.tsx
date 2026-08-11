@@ -55,6 +55,8 @@ interface BookingDetail {
   final_invoice_sent: boolean;
   final_invoice_due: string | null;
   final_payment_received: boolean;
+  /** How the outstanding balance gets collected (migration 163). */
+  balance_method: string | null;
   notes: string | null;
   created_at: string;
   contacts: { name: string; email: string; phone: string; country: string; level: string; tshirt_size: string; diet_allergies: string } | null;
@@ -311,6 +313,7 @@ export function BookingDetailPane({ bookingId, onBack }: { bookingId: string; on
         final_invoice_sent: booking.final_invoice_sent,
         final_invoice_due: booking.final_invoice_due,
         final_payment_received: booking.final_payment_received,
+        balance_method: booking.balance_method,
         notes: booking.notes,
       }),
     });
@@ -1032,6 +1035,48 @@ export function BookingDetailPane({ bookingId, onBack }: { bookingId: string; on
       {/* ─── Payments Tab ─── */}
       {tab === "payments" && (
         <div className="max-w-[800px]">
+          {/* How the rest gets collected.
+              Only a person knows whether this rider is paying by card, sending
+              a transfer, or settling at the centre — and until it was recorded
+              the balance was implicitly "Stripe" for everyone, with no way to
+              declare an on-site payment before it happened. */}
+          {recon.balance > 0.01 && (
+            <div className="rounded-xl admin-surface mb-4 p-4" style={{ border: "1px solid var(--admin-border)" }}>
+              <div className="text-[10px] font-bold tracking-[0.1em] admin-faint uppercase mb-2">
+                How they pay the remaining €{recon.balance.toLocaleString()}
+              </div>
+              <div className="flex flex-wrap gap-2">
+                {[
+                  { v: "stripe", label: "Card (Stripe link)", hint: "They get a pay-balance link and settle it themselves." },
+                  { v: "transfer", label: "Bank transfer", hint: "Invoice with NP7 bank details; you record it when it lands." },
+                  { v: "onsite", label: "At the centre", hint: "Cash or card in Alaçatı; you record it on the day." },
+                ].map((o) => {
+                  // Null means undecided, and undecided behaves as Stripe
+                  // everywhere else — so show that rather than nothing selected.
+                  const on = (booking.balance_method ?? "stripe") === o.v;
+                  return (
+                    <button key={o.v} type="button" title={o.hint}
+                      onClick={() => setBooking({ ...booking, balance_method: o.v })}
+                      className="px-3 py-1.5 rounded-full text-xs font-semibold transition-colors"
+                      style={on
+                        ? { backgroundColor: "var(--admin-accent)", color: "var(--admin-accent-contrast)" }
+                        : { border: "1px solid var(--admin-border)" }}>
+                      {o.label}
+                    </button>
+                  );
+                })}
+              </div>
+              <p className="text-[11px] admin-faint mt-2">
+                {booking.balance_method === "transfer"
+                  ? "No card link goes out — invoice them and record the transfer here when it arrives."
+                  : booking.balance_method === "onsite"
+                    ? "No card link goes out — add the payment here on the day."
+                    : "They can pay the balance by card from their booking page."}
+                {" "}Remember to Save.
+              </p>
+            </div>
+          )}
+
           {/* Balance summary — derived from invoices + payments */}
           <div className="rounded-xl admin-surface mb-4 p-4 grid grid-cols-2 sm:grid-cols-4 gap-3" style={{ border: "1px solid var(--admin-border)" }}>
             <div>

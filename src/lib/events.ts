@@ -79,6 +79,36 @@ export function eventDepositPlan(
   return { dueNow: deposit, balance: Math.round((price - deposit) * 100) / 100, balanceDue, partPayment: true };
 }
 
+/**
+ * What this booking still owes: the price agreed, less every payment received.
+ *
+ * The balance page and the balance checkout both used to re-derive it from
+ * `event_deposit_pct` — which describes STAND-BY's percentage split and says
+ * nothing about a part-payment. On a fixed clinic with the pct left at 100 it
+ * computed a balance of zero, so the page said "all paid" and the checkout
+ * refused with "nothing left to pay": a rider who had paid €100 of €400 had no
+ * way to pay the other €300.
+ *
+ * Summing what actually landed is both correct for every mode and honest about
+ * part payments, refunds and anything settled by hand off-Stripe.
+ */
+export async function outstandingForBooking(
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  db: any,
+  bookingId: string,
+  agreedPrice: number,
+): Promise<{ paid: number; outstanding: number }> {
+  const { data } = await db
+    .from("exp_payments")
+    .select("amount, direction, status")
+    .eq("booking_id", bookingId);
+  const rows = (data ?? []) as { amount: number | string | null; direction: string | null; status: string | null }[];
+  const paid = rows
+    .filter((r) => r.status === "paid" && r.direction !== "refund")
+    .reduce((sum, r) => sum + (Number(r.amount) || 0), 0);
+  return { paid: Math.round(paid * 100) / 100, outstanding: Math.round((agreedPrice - paid) * 100) / 100 };
+}
+
 /** Ticket maths — a single source of truth shared by page, checkout, refunds. */
 export function eventPricing(price: number, depositPct: number, refundPct: number) {
   const deposit = Math.round((price * depositPct) / 100); // non-refundable up-front

@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase";
 import { createCheckoutSession, eur } from "@/lib/stripe";
-import { eventPricing } from "@/lib/events";
+import { outstandingForBooking } from "@/lib/events";
 
 /**
  * Standby balance checkout — the buyer pays the remaining amount once their date
@@ -27,13 +27,13 @@ export async function POST(request: NextRequest) {
 
   const { data: contact } = await db.from("contacts").select("email").eq("id", b.contact_id).maybeSingle();
   const price = Number(b.agreed_price) || 0;
-  const { balance } = eventPricing(price, b.exp_experiences.event_deposit_pct ?? 20, b.exp_experiences.event_refund_pct ?? 15);
+  const { balance } = await outstandingForBooking(db, bookingId, price).then((r) => ({ balance: r.outstanding }));
   if (balance <= 0) return bad("Nothing left to pay.", 409);
 
   const origin = request.headers.get("origin") ?? `https://${request.headers.get("host")}`;
   const cur = b.exp_experiences.currency ?? "EUR";
   const session = await createCheckoutSession({
-    line: { name: `${b.exp_experiences.title} · balance`, description: `Remaining balance for your confirmed event date.`, amountCents: Math.round(balance * 100) },
+    line: { name: `${b.exp_experiences.title} · balance`, description: `Remaining balance on your ${eur(price, cur)} ticket.`, amountCents: Math.round(balance * 100) },
     currency: cur,
     successUrl: `${origin}/experience/${b.exp_experiences.slug}?paid=1`,
     cancelUrl: `${origin}/experience/${b.exp_experiences.slug}/balance?booking=${bookingId}`,

@@ -47,7 +47,7 @@ export function CoachCard({ coach }: { coach: CoachInfo }) {
         type="button"
         onClick={() => hasMore && setOpen(true)}
         disabled={!hasMore}
-        className={`group w-full text-left flex gap-4 items-center rounded-2xl border border-[#eef2f3] bg-white p-3.5 transition-all ${
+        className={`group w-full text-left flex gap-4 items-start rounded-2xl border border-[#eef2f3] bg-white p-3.5 transition-all ${
           hasMore ? "hover:border-[#00afdb] hover:shadow-[0_10px_26px_rgba(0,55,74,0.10)] hover:-translate-y-px cursor-pointer" : ""
         }`}
       >
@@ -60,7 +60,7 @@ export function CoachCard({ coach }: { coach: CoachInfo }) {
         <span className="min-w-0 flex-1">
           <span className="block text-[16px] font-extrabold text-[#00374a] leading-tight">{coach.name}</span>
           {coach.role && <span className="block text-[12px] font-bold uppercase tracking-wide text-[#00afdb]">{coach.role}</span>}
-          {coach.bio && <span className="block text-[12.5px] text-[#6a7a80] leading-snug mt-1 line-clamp-2">{coach.bio}</span>}
+          {coach.bio && <span className="text-[12.5px] text-[#6a7a80] leading-snug mt-1 line-clamp-2">{coach.bio}</span>}
           {hasMore && (
             <span className="mt-1.5 inline-flex items-center gap-1 text-[12px] font-bold text-[#0aa3c7] group-hover:gap-2 transition-all">
               Read more

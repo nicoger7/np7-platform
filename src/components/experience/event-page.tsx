@@ -172,7 +172,7 @@ export async function EventPage({ event, isMember, paid, paidBookingId = null }:
             <div className="mt-10">
               <p className="text-[11px] font-black uppercase tracking-[0.2em] text-[#f47b20]">Your coach{coaches.length > 1 ? "es" : ""}</p>
               <h2 className="text-2xl font-black tracking-[-0.02em] text-[#00374a] mt-2">Who you&apos;ll ride with</h2>
-              <div className="mt-4 grid sm:grid-cols-2 gap-4">
+              <div className={`mt-4 grid gap-4 ${coaches.length > 1 ? "sm:grid-cols-2" : ""}`}>
                 {coaches.map((c) => (
                   <CoachCard key={c.name} coach={c} />
                 ))}
