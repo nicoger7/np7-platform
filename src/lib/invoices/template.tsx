@@ -386,7 +386,7 @@ function ProformaLines({ data }: { data: InvoiceData }) {
           This pro-forma invoice is a payment request, not a tax invoice — your official
           invoice follows automatically once your payment has arrived.
           {data.dueDate ? ` Please pay by ${fmtDate(data.dueDate)}, quoting the reference above — after that date we can no longer hold your spot.` : " Please quote the reference above with your transfer."}
-          {" "}The remaining balance of {formatMoney(remaining, currency)} is invoiced separately later.
+          {remaining > 0 ? ` The remaining balance of ${formatMoney(remaining, currency)} is invoiced separately later.` : ""}
         </Text>
       </View>
     </View>
@@ -449,12 +449,15 @@ function DepositInvoiceLines({ data }: { data: InvoiceData }) {
         </View>
       </View>
 
-      {/* Remaining balance note */}
+      {/* Remaining balance note — only when something is actually left to pay.
+          This used to print unconditionally, so a deposit that IS the whole
+          price told the customer in writing that a further bill was coming and
+          quoted it as EUR 0.00. */}
       <View style={[s.noteBox, { marginTop: 16 }]}>
         <Text>
-          Note: This invoice covers the deposit only. The remaining balance of{" "}
-          {formatMoney(balance, currency)} will be invoiced separately and is payable
-          by bank transfer before the trip start date.
+          {balance > 0
+            ? `Note: This invoice covers the deposit only. The remaining balance of ${formatMoney(balance, currency)} will be invoiced separately and is payable by bank transfer before the trip start date.`
+            : "Note: This payment settles the booking in full — there is no further balance to pay."}
         </Text>
       </View>
     </View>
@@ -525,8 +528,9 @@ function DownpaymentInvoiceLines({ data }: { data: InvoiceData }) {
           {investedBefore > 0
             ? ` Together with the deposit of ${formatMoney(investedBefore, currency)} invoiced separately, ${formatMoney(investedBefore + downpayment, currency)} of ${formatMoney(booking.agreedPrice, currency)} is now invoiced.`
             : ` ${formatMoney(downpayment, currency)} of ${formatMoney(booking.agreedPrice, currency)} is now invoiced.`}
-          {" "}The remaining balance of {formatMoney(remaining, currency)} will be invoiced
-          separately and is payable by bank transfer before the trip start date.
+          {remaining > 0
+            ? ` The remaining balance of ${formatMoney(remaining, currency)} will be invoiced separately and is payable by bank transfer before the trip start date.`
+            : " This settles the booking in full — there is no further balance to pay."}
         </Text>
       </View>
     </View>

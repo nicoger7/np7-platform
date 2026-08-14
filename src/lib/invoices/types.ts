@@ -87,6 +87,15 @@ export type GenerateInput = {
    *  payment (deposit if set, else downpayment). "final" = a pro-forma for the
    *  remaining balance (trip total incl. add-ons − amounts already real-invoiced). */
   milestone?: "deposit" | "downpayment" | "final";
+  /**
+   * Re-render an ALREADY ISSUED document in place, keeping its invoice number.
+   *
+   * A tax invoice sequence must stay gapless, so a correction cannot simply
+   * burn the next number and abandon the old one. When the figures are right
+   * and only the rendering is wrong — and the document was never sent — this
+   * rewrites the same number's PDF and row rather than issuing a new one.
+   */
+  reuseDocumentId?: string;
 };
 
 export const DIVISIONS: Division[] = ["experience", "hardware"];

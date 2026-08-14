@@ -374,12 +374,24 @@ export async function generateDocument(input: GenerateInput): Promise<DocumentRo
   // 2. Allocate invoice number. Pro-formas do NOT burn the gapless tax-invoice
   // counter — they get a deterministic PF reference (stage-coded, unique per
   // booking+stage) the rider quotes on the transfer, matched by reconciliation.
+  // Re-issuing a corrected copy of an existing document keeps its number.
+  let reuseRow: DocumentRow | null = null;
+  if (input.reuseDocumentId) {
+    const { data: existing } = await getDb()
+      .from("documents").select("*").eq("id", input.reuseDocumentId).maybeSingle();
+    if (!existing) throw new Error(`No document ${input.reuseDocumentId} to re-issue.`);
+    if ((existing as DocumentRow & { sent_at?: string | null }).sent_at) {
+      throw new Error("That invoice has already been sent — correct it with a credit note, not by rewriting it.");
+    }
+    reuseRow = existing as DocumentRow;
+  }
+
   // An existing pro-forma being updated keeps its reference.
-  let invoiceNumber: string | null = existingProforma?.invoice_number ?? null;
+  let invoiceNumber: string | null = reuseRow?.invoice_number ?? existingProforma?.invoice_number ?? null;
   if (isProforma && !invoiceNumber) {
     const stage = proformaMilestone === "final" ? "FIN" : proformaMilestone === "deposit" ? "DEP" : "DP";
     invoiceNumber = `PF-${company.invoice_prefix || "INV"}-${year}-${bookingId.replace(/-/g, "").slice(0, 6).toUpperCase()}-${stage}`;
-  } else if (isInvoice && !isProforma) {
+  } else if (isInvoice && !isProforma && !invoiceNumber) {
     const seq = await allocateInvoiceNumber(division, year);
     invoiceNumber = formatInvoiceNumber(company.invoice_prefix, year, seq);
   }
@@ -510,6 +522,17 @@ export async function generateDocument(input: GenerateInput): Promise<DocumentRo
   // Update-in-place for an existing pro-forma (resync after an add-on change) —
   // its PDF was just re-uploaded above (upsert); refresh amount/due/meta. New
   // documents are inserted.
+  if (reuseRow) {
+    const { data: updated, error: updErr } = await admin
+      .from("documents")
+      .update({ amount, title: docRow.title, meta: docRow.meta })
+      .eq("id", reuseRow.id)
+      .select()
+      .single();
+    if (updErr) throw new Error(`Failed to re-issue ${reuseRow.invoice_number}: ${updErr.message}`);
+    return Object.assign(updated as DocumentRow, { pdf: pdfBuffer });
+  }
+
   if (existingProforma) {
     const { data: updated, error: updErr } = await admin
       .from("documents")
