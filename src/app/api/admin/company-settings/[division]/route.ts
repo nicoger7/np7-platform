@@ -93,6 +93,16 @@ export async function PUT(
   }
 
   const body: Record<string, unknown> = await request.json();
+
+  // Refuse an IBAN that cannot possibly be right. This field prints on every
+  // invoice, and a bad one is invisible until a customer's bank rejects the
+  // transfer — which is exactly how NP7's own 20-character German IBAN was
+  // found, by voice message, long after the invoices went out.
+  if ("iban" in body) {
+    const { checkIban } = await import("@/lib/iban");
+    const verdict = checkIban(body.iban as string | null);
+    if (!verdict.ok) return NextResponse.json({ error: verdict.reason }, { status: 400 });
+  }
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const db = createAdminClient() as any;
 
