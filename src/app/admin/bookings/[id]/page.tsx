@@ -14,6 +14,7 @@ import { effectiveAddonStatus } from "@/lib/addons";
 import { describePrice } from "@/lib/pricing";
 import { reconcileBooking, suggestInvoices, type ReconInvoice, type ReconPayment } from "@/lib/reconcile";
 import { computePaymentPlan, dueUrgency, type MilestoneKind } from "@/lib/payments";
+import { mutate, reportFailure } from "@/lib/mutate";
 import { CancelBookingModal } from "@/components/admin/cancel-booking-modal";
 import { sumReceived, sumExpected, paidState } from "@/lib/payment-totals";
 
@@ -499,17 +500,19 @@ export function BookingDetailPane({ bookingId, onBack }: { bookingId: string; on
       notes: paymentForm.notes || null,
       document_id: paymentForm.document_id || null,
     };
-    const res = await fetch(`/api/admin/bookings/${id}/payments`, {
+    // `if (res.ok)` with no else is why this looked "stuck": a 401 from an
+    // expired session, a 403 from a role, a 500 from the insert — every one of
+    // them resolved, skipped the block, and left the form sitting there with
+    // no error and no payment. Money that someone believed they had recorded.
+    const r = await mutate<{ payment: Payment }>(`/api/admin/bookings/${id}/payments`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(body),
     });
-    if (res.ok) {
-      const { payment } = await res.json();
-      setBooking((prev) => prev ? { ...prev, payments: [...prev.payments, payment] } : prev);
-      setShowPaymentForm(false);
-      setPaymentForm({ amount: "", type: "downpayment", direction: "revenue", status: "paid", method: "", reference: "", notes: "", document_id: "" });
-    }
+    if (!r.ok) return reportFailure(r);
+    setBooking((prev) => prev ? { ...prev, payments: [...prev.payments, r.data.payment] } : prev);
+    setShowPaymentForm(false);
+    setPaymentForm({ amount: "", type: "downpayment", direction: "revenue", status: "paid", method: "", reference: "", notes: "", document_id: "" });
   }
 
   async function openAllocForm() {
