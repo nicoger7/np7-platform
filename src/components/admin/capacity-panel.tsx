@@ -161,6 +161,30 @@ export function CapacityPanel({
         />
         {/* Levels. "Advanced 16, beginner 6" is how the weeks are really sold,
             and it is the one limit here a human types — beds are derived. */}
+        {/* The week counts EVERY secured booking; the levels only count those
+            whose package carries a level. A booking with no package therefore
+            appeared in the week total and in no level row, so the rows silently
+            failed to add up — Bonaire Week II read "Full 21 of 21" above
+            "Advanced 16 of 16" and "Beginner 4 of 5 · 1 free". A free spot that
+            does not exist is the one error here that can oversell a week.
+
+            Naming the difference makes the arithmetic close again. */}
+        {(() => {
+          const levelUsed = (data?.levels ?? []).reduce((n, l) => n + (l.used ?? 0), 0);
+          const unassigned = (data?.capacity.used ?? 0) - levelUsed;
+          if (unassigned <= 0) return null;
+          return (
+            <div className="flex items-baseline gap-3 px-4 py-2" style={{ borderBottom: "1px solid var(--admin-border)" }}>
+              <span className="text-[12px] font-semibold w-44 shrink-0 truncate text-amber-500">No level yet</span>
+              <span className="text-[12px] admin-muted flex-1 min-w-0 truncate">
+                {unassigned} booked · counted in the week, in no level
+              </span>
+              <span className="text-[11px] font-bold shrink-0 text-amber-500" title="These bookings have no package, so nothing says which level they take. Set a package on each and they will move into its level.">
+                set a package
+              </span>
+            </div>
+          );
+        })()}
         {(data?.levels ?? []).map((l) => (
           <div key={l.level} className="flex items-baseline gap-3 px-4 py-2" style={{ borderBottom: "1px solid var(--admin-border)" }}>
             <span className="text-[12px] admin-heading font-semibold w-44 shrink-0 truncate">{titleCase(l.level)}</span>

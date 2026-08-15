@@ -15,7 +15,7 @@ export async function GET(
     client
       .from("exp_bookings")
       .select(
-        "*, contacts(name, email, phone, country, level, tshirt_size, diet_allergies), exp_experiences(title, slug), exp_editions(year, date_start, date_end, deposit), exp_packages(name, price, deposit, downpayment_percent, final_days_before, deposit_refund_days)"
+        "*, contacts(name, email, phone, country, level, tshirt_size, diet_allergies), exp_experiences(title, slug), exp_editions(year, date_start, date_end, deposit, kind), exp_packages(name, price, deposit, downpayment_percent, final_days_before, deposit_refund_days)"
       )
       .eq("id", id)
       .single(),

@@ -304,9 +304,45 @@ export default function EditionDetailPage({
   // Restore the active tab from the URL on load, and reflect tab changes back into
   // the URL — so the quick-switcher can drop you onto the same tab of another edition.
   useEffect(() => {
-    const t = new URLSearchParams(window.location.search).get("tab");
+    const q = new URLSearchParams(window.location.search);
+    const t = q.get("tab");
     if (t && (DEFAULT_TABS as readonly string[]).includes(t)) setTab(t as EditionTab);
+    // The open booking belongs in the URL too — see openBooking() below.
+    const b = q.get("booking");
+    if (b) setSelBooking(b);
+    // Browser Back/Forward must move between the list and a booking rather than
+    // leaving the edition entirely.
+    const onPop = () => {
+      const p = new URLSearchParams(window.location.search);
+      const pt = p.get("tab");
+      if (pt && (DEFAULT_TABS as readonly string[]).includes(pt)) setTab(pt as EditionTab);
+      setSelBooking(p.get("booking"));
+    };
+    window.addEventListener("popstate", onPop);
+    return () => window.removeEventListener("popstate", onPop);
   }, []);
+
+  /**
+   * Opening a booking is a navigation, so it gets a history entry.
+   *
+   * It used to be React state only. Nothing changed in the URL, so the browser
+   * had no entry to go back to — pressing Back skipped the whole edition and
+   * dumped you on the global bookings list, losing the week, the tab and your
+   * place in it. pushState here, replaceState on close, so Back steps from a
+   * booking to the list and only then out of the edition.
+   */
+  function openBooking(bookingId: string | null) {
+    setSelBooking(bookingId);
+    const url = new URL(window.location.href);
+    url.searchParams.set("tab", "bookings");
+    if (bookingId) {
+      url.searchParams.set("booking", bookingId);
+      window.history.pushState(null, "", url.toString());
+    } else {
+      url.searchParams.delete("booking");
+      window.history.replaceState(null, "", url.toString());
+    }
+  }
   function selectTab(t: EditionTab) {
     setTab(t);
     const url = new URL(window.location.href);
@@ -1643,7 +1679,7 @@ export default function EditionDetailPage({
           {selBooking ? (
           <div className="flex flex-col md:flex-row gap-4">
             <div className="md:w-56 shrink-0 flex md:flex-col gap-1.5 md:max-h-[72vh] md:overflow-y-auto md:pr-1">
-              <button onClick={() => setSelBooking(null)} className="shrink-0 mb-1 flex items-center gap-1.5 text-xs font-semibold admin-muted hover:text-[var(--admin-accent)] transition-colors">
+              <button onClick={() => openBooking(null)} className="shrink-0 mb-1 flex items-center gap-1.5 text-xs font-semibold admin-muted hover:text-[var(--admin-accent)] transition-colors">
                 <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m15 18-6-6 6-6" /></svg>
                 All bookings
               </button>
@@ -1653,7 +1689,7 @@ export default function EditionDetailPage({
               {sortedBookings.map((b) => {
                 const active = b.id === selBooking;
                 return (
-                  <button key={b.id} onClick={() => setSelBooking(b.id)} className="shrink-0 text-left px-3 py-2 rounded-lg transition-colors" style={{ background: active ? "var(--admin-accent)" : "var(--admin-surface)", border: "1px solid var(--admin-border)" }}>
+                  <button key={b.id} onClick={() => openBooking(b.id)} className="shrink-0 text-left px-3 py-2 rounded-lg transition-colors" style={{ background: active ? "var(--admin-accent)" : "var(--admin-surface)", border: "1px solid var(--admin-border)" }}>
                     <span className={`block text-xs font-semibold truncate ${active ? "text-[var(--admin-accent-contrast)]" : "admin-heading"}`}>{b.name}</span>
                     <span className={`block text-[10px] mt-0.5 truncate ${active ? "text-[var(--admin-accent-contrast)]/80" : "admin-faint"}`}>{BOOKING_STATUSES[normalizeBookingStatus(b.status)]?.label || b.status}</span>
                   </button>
@@ -1661,7 +1697,7 @@ export default function EditionDetailPage({
               })}
             </div>
             <div className="flex-1 min-w-0">
-              <BookingDetailPane bookingId={selBooking} onBack={() => { setSelBooking(null); loadBookings(); }} />
+              <BookingDetailPane bookingId={selBooking} onBack={() => { openBooking(null); loadBookings(); }} />
             </div>
           </div>
           ) : (<>
@@ -1740,8 +1776,8 @@ export default function EditionDetailPage({
                   onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = "var(--admin-surface-hover)")}
                   onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = "transparent")}
                 >
-                  <span className="text-sm font-medium admin-heading truncate self-center cursor-pointer" onClick={() => setSelBooking(b.id)}>{b.name}</span>
-                  {bkShow("status") && <span className="self-center cursor-pointer" onClick={() => setSelBooking(b.id)}><BookingStatusBadge status={b.status} /></span>}
+                  <span className="text-sm font-medium admin-heading truncate self-center cursor-pointer" onClick={() => openBooking(b.id)}>{b.name}</span>
+                  {bkShow("status") && <span className="self-center cursor-pointer" onClick={() => openBooking(b.id)}><BookingStatusBadge status={b.status} /></span>}
                   {bkShow("fly_in") && <span className="text-xs admin-muted self-center">{formatDate(b.fly_in)}</span>}
                   {bkShow("arr_time") && <span className="text-xs admin-muted self-center">{bkFlight(b).arrivalTime || "—"}</span>}
                   {bkShow("arr_flight") && <span className="text-xs admin-muted self-center font-mono truncate">{bkFlight(b).arrivalMode === "own" ? "own way" : (bkFlight(b).arrivalFlightNo || "—")}</span>}

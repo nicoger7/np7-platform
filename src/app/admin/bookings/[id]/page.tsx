@@ -62,7 +62,7 @@ interface BookingDetail {
   created_at: string;
   contacts: { name: string; email: string; phone: string; country: string; level: string; tshirt_size: string; diet_allergies: string } | null;
   exp_experiences: { title: string; slug: string; date_start: string; date_end: string } | null;
-  exp_editions: { year: number | null; date_start: string | null; date_end: string | null; deposit: number | null } | null;
+  exp_editions: { year: number | null; date_start: string | null; date_end: string | null; deposit: number | null; kind?: string | null } | null;
   exp_packages: { name: string; price: number; deposit: number | null; downpayment_percent: number | null; final_days_before: number | null; deposit_refund_days: number | null } | null;
   payments: Payment[];
   addons: Addon[];
@@ -1042,8 +1042,14 @@ export function BookingDetailPane({ bookingId, onBack }: { bookingId: string; on
               Only a person knows whether this rider is paying by card, sending
               a transfer, or settling at the centre — and until it was recorded
               the balance was implicitly "Stripe" for everyone, with no way to
-              declare an on-site payment before it happened. */}
-          {recon.balance > 0.01 && (
+              declare an on-site payment before it happened.
+
+              EVENTS ONLY. A trip already answers this: deposit → downpayment →
+              final is the plan, with its own dates and its own invoices, and a
+              second control above it only invited them to disagree. A clinic
+              has no such plan — one deposit, one balance, and someone has to
+              say how that balance arrives. */}
+          {booking.exp_editions?.kind === "event" && recon.balance > 0.01 && (
             <div className="rounded-xl admin-surface mb-4 p-4" style={{ border: "1px solid var(--admin-border)" }}>
               <div className="text-[10px] font-bold tracking-[0.1em] admin-faint uppercase mb-2">
                 How they pay the remaining €{recon.balance.toLocaleString()}
