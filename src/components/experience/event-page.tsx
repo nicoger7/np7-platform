@@ -56,17 +56,37 @@ export async function EventPage({ event, isMember, paid, paidBookingId = null }:
   const [{ data: content }, { data: exp }, { data: coachRows }] = await Promise.all([
     db.from("exp_content").select("location_about,hero_image,gallery,hero_video_url,hero_video_start,hero_video_end").eq("experience_id", event.id).maybeSingle(),
     db.from("exp_experiences").select("whats_included").eq("id", event.id).maybeSingle(),
-    // HEAD coach only — the coach library is global (no per-event link), so
-    // listing arbitrary coaches would attribute the wrong people to an event.
-    // Nico fronts every event; per-event crews need an edition-coach link first.
-    db.from("exp_coaches").select("name,role,bio,image_url,whatsapp_link").ilike("role", "%head%").order("created_at"),
+    // THIS edition's team first. When that comment was written there was no
+    // per-event coach link, so the page fell back to "the head coach" — which
+    // meant the OBX week, coached by Dennis Robinson, introduced Nico as the
+    // person you'd ride with. exp_edition_coaches exists now and the admin's
+    // Per-edition team tab writes to it, so read what it says.
+    event.editionId
+      ? db.from("exp_edition_coaches")
+          .select("sort_order,name_override,role_override,bio_override,image_override,exp_coaches(name,role,bio,image_url,whatsapp_link)")
+          .eq("edition_id", event.editionId).order("sort_order")
+      : Promise.resolve({ data: [] }),
   ]);
   const hero = content?.hero_image || event.hero_image || "";
   const heroVideo = (content?.hero_video_url || "").trim();
   const about = (content?.location_about || event.description || "").trim();
   const gallery = (Array.isArray(content?.gallery) ? content.gallery : []).filter(Boolean).slice(0, 6) as string[];
   const included = parseIncluded(exp?.whats_included).slice(0, 8);
-  const coaches = ((coachRows ?? []) as Coach[]).slice(0, 1);
+  type EdCoach = {
+    name_override: string | null; role_override: string | null; bio_override: string | null; image_override: string | null;
+    exp_coaches: Coach | null;
+  };
+  const edCoaches: Coach[] = ((coachRows ?? []) as unknown as EdCoach[])
+    .map((r) => (r.exp_coaches ? {
+      name: r.name_override || r.exp_coaches.name,
+      role: r.role_override || r.exp_coaches.role,
+      bio: r.bio_override || r.exp_coaches.bio,
+      image_url: r.image_override || r.exp_coaches.image_url,
+      whatsapp_link: r.exp_coaches.whatsapp_link,
+    } : null))
+    .filter((c): c is Coach => !!c);
+  // No team set on the edition → show nobody rather than the wrong person.
+  const coaches = edCoaches.slice(0, 4);
 
   const price = event.price ?? 0;
   const { deposit, balance, refund } = eventPricing(price, event.depositPct, event.refundPct);
@@ -216,6 +236,30 @@ export async function EventPage({ event, isMember, paid, paidBookingId = null }:
             <div className="rounded-2xl bg-white border border-[#e3e9ec] p-7 text-center">
               <p className="text-[15px] font-bold text-[#00374a]">Dates coming soon</p>
               <p className="text-[13.5px] text-[#6a7a80] mt-2">This event isn&apos;t open for booking yet. Check back shortly.</p>
+            </div>
+          )}
+
+          {/* The other runs of this format. EventInfo has carried `siblings`
+              since the series/edition split, but nothing ever rendered them —
+              so a buyer on the wrong weekend's page had no way to find theirs
+              except the browser back button. */}
+          {(event.siblings ?? []).length > 0 && (
+            <div className="mt-4 rounded-2xl bg-white border border-[#e3e9ec] p-5">
+              <p className="text-[11px] font-black uppercase tracking-[0.16em] text-[#9aa6ac]">Other dates</p>
+              <div className="mt-3 space-y-2">
+                {(event.siblings ?? []).map((sib) => (
+                  <a key={sib.slug} href={`/experience/${event.slug}/${sib.slug}`}
+                    className="group flex items-baseline justify-between gap-3 rounded-xl border border-[#eef2f3] px-3.5 py-2.5 hover:border-[#00afdb] transition-colors">
+                    <span className="min-w-0">
+                      <span className="block text-[14px] font-bold text-[#00374a] truncate">
+                        {fmtRange(sib.date_start ?? "", sib.date_end)}
+                      </span>
+                      {sib.location && <span className="block text-[12px] text-[#6a7a80] truncate">{sib.location}</span>}
+                    </span>
+                    <span className="shrink-0 text-[12px] font-bold text-[#0aa3c7] group-hover:gap-2 transition-all">See →</span>
+                  </a>
+                ))}
+              </div>
             </div>
           )}
         </div>

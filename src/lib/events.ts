@@ -27,6 +27,8 @@ export type EventInfo = {
   plan: EventDepositPlan;
   /** The package being sold, so the booking can carry it. */
   packageId: string | null;
+  /** The edition being sold — its team, its dates, its copy. */
+  editionId: string | null;
   status: string | null;
   websiteVisible: boolean;
   dates: EventDate[];
@@ -149,12 +151,12 @@ export async function getEventForSlug(
   // in October, without one experience row per venue.
   const { data: edRows } = await db
     .from("exp_editions")
-    .select("id,slug,label,location,price,date_start,date_end")
+    .select("id,slug,label,location,price,date_start,date_end,description")
     .eq("experience_id", exp.id)
     .eq("kind", "event")
     .eq("status", "published")
     .order("date_start");
-  type EdRow = { id: string; slug: string | null; label: string | null; location: string | null; price: number | null; date_start: string | null; date_end: string | null };
+  type EdRow = { id: string; slug: string | null; label: string | null; location: string | null; price: number | null; date_start: string | null; date_end: string | null; description: string | null };
   const editions = (edRows ?? []) as EdRow[];
 
   // One URL cannot sell two clinics. /experience/np7-race-clinic is the SERIES —
@@ -188,8 +190,37 @@ export async function getEventForSlug(
     pkg = usable.sort((a, b) => Number(a.deposit ?? Infinity) - Number(b.deposit ?? Infinity))[0] ?? null;
   }
 
-  // The dates the ticket box offers follow the edition being sold.
-  const shown = pinned?.date_start ? dates.filter((d) => d.date_start === pinned!.date_start) : dates;
+  /**
+   * Where a date comes from, settled.
+   *
+   * FIXED event → the EDITION. It already carries date_start/date_end, and
+   * `exp_event_dates` was a second place to type the same week — so the admin's
+   * Event tab asked for a date the edition had, and a fully dated clinic could
+   * advertise "Dates coming soon" because the duplicate row was missing.
+   *
+   * STAND-BY event → `exp_event_dates`. That is what the table is genuinely
+   * for: several candidate weekends competing for one confirmation, which an
+   * edition cannot express (an edition is a week that is happening).
+   */
+  const isStandby = exp.event_mode === "standby";
+  let shown: EventDate[];
+  if (isStandby) {
+    shown = pinned?.date_start ? dates.filter((d) => d.date_start === pinned!.date_start) : dates;
+    if (shown.length === 0) shown = dates;
+  } else {
+    shown = pinned?.date_start
+      ? [{
+          id: `edition:${pinned.id}`,
+          date_start: pinned.date_start,
+          date_end: pinned.date_end,
+          label: pinned.label,
+          status: "confirmed",
+          max_spots: null,
+          sort_order: 0,
+        }]
+      : [];
+  }
+
   const soonest = pinned;
 
   return {
@@ -201,13 +232,17 @@ export async function getEventForSlug(
     // An event edition carries its own ticket price (migration 157) so a series
     // can charge differently per clinic; the experience price is the fallback.
     price: pinned?.price ?? exp.price,
-    description: exp.description,
+    // The edition's own copy wins — the experience describes the FORMAT, and a
+    // series that runs in two places cannot share one paragraph about a spot.
+    // Same edition-overrides-experience rule as the packing list (migration 166).
+    description: pinned?.description ?? exp.description,
     hero_image: exp.hero_image,
     mode: exp.event_mode === "standby" ? "standby" : "fixed",
     depositPct: exp.event_deposit_pct ?? 20,
     refundPct: exp.event_refund_pct ?? 15,
     plan: eventDepositPlan(Number(pinned?.price ?? exp.price ?? 0), pkg, pinned?.date_start ?? null),
     packageId: pkg?.id ?? null,
+    editionId: pinned?.id ?? null,
     status: exp.status ?? null,
     websiteVisible: exp.website_visible !== false,
     dates: shown.length ? shown : dates,

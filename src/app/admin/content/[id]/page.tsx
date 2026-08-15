@@ -755,13 +755,32 @@ export default function ContentEditorPage({ params }: { params: Promise<{ id: st
                 </div>
               )}
 
+              {/* A fixed event's date is the EDITION's date. This panel used to
+                  ask for it again in a separate table, so the same week was
+                  typed twice — and a clinic with dates on its edition still
+                  advertised "Dates coming soon" when the duplicate was missing.
+                  Candidate dates remain here for stand-by, which is the one
+                  case an edition cannot express: several weekends competing
+                  for a single confirmation. */}
               <div className="pt-2 border-t admin-border">
-                <p className="text-[12px] font-bold uppercase tracking-[0.12em] admin-faint mb-2">{eventMode === "standby" ? "Candidate dates" : "Event date"}</p>
-                <p className="text-xs admin-faint mb-3">{eventMode === "standby" ? "Add every possible date. When you know which one runs, hit “Confirm this date” — riders who picked it are asked to pay the balance, the rest are refunded." : "Add the confirmed date for this event."}</p>
-                <EventDatesEditor experienceId={id} mode={eventMode} />
+                {eventMode === "standby" ? (
+                  <>
+                    <p className="text-[12px] font-bold uppercase tracking-[0.12em] admin-faint mb-2">Candidate dates</p>
+                    <p className="text-xs admin-faint mb-3">Add every possible date. When you know which one runs, hit “Confirm this date” — riders who picked it are asked to pay the balance, the rest are refunded.</p>
+                    <EventDatesEditor experienceId={id} mode={eventMode} />
+                  </>
+                ) : (
+                  <>
+                    <p className="text-[12px] font-bold uppercase tracking-[0.12em] admin-faint mb-2">Event date</p>
+                    <p className="text-xs admin-faint">
+                      Set on the <strong className="admin-heading">edition</strong>, with its price, capacity and team — one clinic, one row.
+                      Add another date by duplicating the edition; the public page then offers both under “Other dates”.
+                    </p>
+                  </>
+                )}
               </div>
 
-              <p className="text-[12px] admin-faint">Save this tab to apply the event settings, then use the dates panel above (it saves on its own).</p>
+              <p className="text-[12px] admin-faint">Save this tab to apply the event settings.</p>
             </div>
           )}
         </Section>
