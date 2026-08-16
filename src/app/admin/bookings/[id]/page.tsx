@@ -628,6 +628,14 @@ export function BookingDetailPane({ bookingId, onBack }: { bookingId: string; on
   const confirmedAddonsTotal = booking.addons
     .filter((a) => effectiveAddonStatus(a) === "confirmed")
     .reduce((s, a) => s + (Number(a.price) || 0), 0);
+  // A role without money access should see a booking with no money in it —
+  // not zeros and blanks, which read as "nobody has paid" rather than "you
+  // can't see this". The API already sends money_redacted; nothing read it.
+  const noMoney = (booking as { money_redacted?: boolean }).money_redacted === true;
+  // …including via a pasted ?tab=payments link, which would otherwise render
+  // the panel the tab bar just hid.
+  const safeTab = noMoney && (tab === "payments" || tab === "documents") ? "details" : tab;
+
   const priceLabel = describePrice({
     agreedPrice: booking.agreed_price,
     packagePrice: booking.exp_packages?.price ?? null,
@@ -719,7 +727,8 @@ export function BookingDetailPane({ bookingId, onBack }: { bookingId: string; on
           </div>
         </div>
         <div className="flex items-center gap-3">
-          {/* Financial summary */}
+          {/* Financial summary — absent entirely for roles without money. */}
+          {!noMoney && (
           <div className="text-right mr-4">
             <div className="text-xs admin-faint">
               Agreed: <span className="admin-muted font-medium">{booking.agreed_price ? `€${Number(booking.agreed_price).toLocaleString()}` : "—"}</span>
@@ -737,6 +746,7 @@ export function BookingDetailPane({ bookingId, onBack }: { bookingId: string; on
               )}
             </div>
           </div>
+          )}
           {booking.status !== "lost" && (
             <button onClick={() => setCancelOpen(true)} className="px-3 py-2 text-xs text-amber-500/80 hover:text-amber-400 transition-colors">
               Cancel booking…
@@ -757,7 +767,9 @@ export function BookingDetailPane({ bookingId, onBack }: { bookingId: string; on
 
       {/* Tabs */}
       <div className="flex gap-1 mb-6" style={{ borderBottom: "1px solid var(--admin-border)" }}>
-        {(["details", "payments", "addons", "rooms", "documents"] as const).map((t) => (
+        {(["details", "payments", "addons", "rooms", "documents"] as const)
+          .filter((t) => !noMoney || (t !== "payments" && t !== "documents"))
+          .map((t) => (
           <button
             key={t}
             onClick={() => setTab(t)}
@@ -771,7 +783,7 @@ export function BookingDetailPane({ bookingId, onBack }: { bookingId: string; on
       </div>
 
       {/* ─── Details Tab ─── */}
-      {tab === "details" && (
+      {safeTab === "details" && (
         <div className="max-w-[720px] space-y-5">
           {/* Name */}
           <div>
@@ -1036,7 +1048,7 @@ export function BookingDetailPane({ bookingId, onBack }: { bookingId: string; on
       )}
 
       {/* ─── Payments Tab ─── */}
-      {tab === "payments" && (
+      {safeTab === "payments" && (
         <div className="max-w-[800px]">
           {/* How the rest gets collected.
               Only a person knows whether this rider is paying by card, sending
@@ -1384,7 +1396,7 @@ export function BookingDetailPane({ bookingId, onBack }: { bookingId: string; on
       )}
 
       {/* ─── Add-ons Tab ─── */}
-      {tab === "addons" && (
+      {safeTab === "addons" && (
         <div className="max-w-[800px]">
           <div className="flex justify-between items-center mb-4">
             <p className="text-xs admin-faint">Extra components beyond the package</p>
@@ -1527,7 +1539,7 @@ export function BookingDetailPane({ bookingId, onBack }: { bookingId: string; on
       )}
 
       {/* ─── Rooms Tab ─── */}
-      {tab === "rooms" && (
+      {safeTab === "rooms" && (
         <div className="max-w-[800px]">
           {booking.hotel_rooms.length === 0 ? (
             <div className="py-12 text-center">
@@ -1565,7 +1577,7 @@ export function BookingDetailPane({ bookingId, onBack }: { bookingId: string; on
       )}
 
       {/* ─── Documents Tab ─── */}
-      {tab === "documents" && (
+      {safeTab === "documents" && (
         <div className="max-w-[860px]">
           {/* Generate buttons */}
           <div className="flex items-center gap-3 mb-4 flex-wrap">

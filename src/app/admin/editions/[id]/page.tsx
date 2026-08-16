@@ -448,7 +448,12 @@ export default function EditionDetailPage({
     return next;
   });
   const bkGrid = EDITION_BK_COLUMNS.filter((c) => c.always || bkCols.has(c.key)).map((c) => c.width).join(" ") + " 40px";
-  const bkShow = (k: string) => EDITION_BK_COLUMNS.find((c) => c.key === k)?.always || bkCols.has(k);
+  // Roles without money get a bookings table with no money in it — the columns
+  // are not merely blank, they are not on offer.
+  const bkMoneyHidden = bookings.some((b) => (b as { money_redacted?: boolean }).money_redacted);
+  const bkShow = (k: string) =>
+    (!bkMoneyHidden || (k !== "price" && k !== "paid")) &&
+    ((EDITION_BK_COLUMNS.find((c) => c.key === k)?.always || bkCols.has(k)) ?? false);
   // The edition's Booking type predates flight_info; read it defensively rather
   // than widen a type the list API may or may not populate.
   const bkFlight = (b: unknown) => {
