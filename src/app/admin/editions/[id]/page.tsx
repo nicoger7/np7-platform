@@ -73,6 +73,9 @@ const EDITION_BK_COLUMNS: { key: string; label: string; width: string; always?: 
   { key: "fly_out", label: "Fly Out", width: "90px", off: true },
   { key: "dep_time", label: "Dep. time", width: "80px", off: true },
   { key: "dep_flight", label: "Dep. flight", width: "100px", off: true },
+  // Off by default: only wanted when you're ordering shirts, but then you want
+  // it on the overview rather than opening 19 bookings one at a time.
+  { key: "tshirt", label: "T-shirt", width: "80px", off: true },
   { key: "price", label: "Price", width: "90px" },
   { key: "paid", label: "Paid", width: "60px" },
 ];
@@ -166,6 +169,8 @@ interface Booking {
   id: string;
   name: string;
   status: string;
+  /** Joined from contacts — t-shirt size for the overview column. */
+  contact?: { tshirt_size?: string | null } | null;
   agreed_price: number | null;
   fly_in: string | null;
   fly_out: string | null;
@@ -1784,6 +1789,7 @@ export default function EditionDetailPage({
                   {bkShow("fly_out") && <span className="text-xs admin-muted self-center">{formatDate(bkFlight(b).departureDate || b.fly_out)}</span>}
                   {bkShow("dep_time") && <span className="text-xs admin-muted self-center">{bkFlight(b).departureTime || "—"}</span>}
                   {bkShow("dep_flight") && <span className="text-xs admin-muted self-center font-mono truncate">{bkFlight(b).arrivalMode === "own" ? "own way" : (bkFlight(b).departureFlightNo || "—")}</span>}
+                  {bkShow("tshirt") && <span className="text-xs admin-muted self-center">{b.contact?.tshirt_size || "—"}</span>}
                   <span className="text-xs admin-muted self-center">
                     {b.agreed_price ? `€${Number(b.agreed_price).toLocaleString()}` : "—"}
                   </span>

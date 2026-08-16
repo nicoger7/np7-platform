@@ -24,7 +24,7 @@ export async function GET(request: NextRequest) {
     .from("exp_bookings")
     .select(
       `*,
-       contact:contact_id(id, name, email, phone),
+       contact:contact_id(id, name, email, phone, tshirt_size, level, country),
        experience:experience_id(id, title, slug, location),
        edition:edition_id(id, year, label, date_end),
        package:package_id(id, name, price)`
