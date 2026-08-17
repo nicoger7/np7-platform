@@ -78,6 +78,41 @@ export async function sendEmail(args: SendArgs): Promise<SendResult> {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const db = createAdminClient() as any;
 
+  /**
+   * A hard-bounced address gets a couple more tries, then we stop.
+   *
+   * Bulk mail already skips bounced addresses. Transactional mail deliberately
+   * does not — locking someone out of their own account because their inbox was
+   * full last month is the worse failure. But "lovedabw331@gamil.com" (a typo
+   * for gmail) bounced four seconds after the first send and then received
+   * EIGHT more login links in half an hour, because the person kept retrying an
+   * address that can never receive anything. Nobody got a link, and every send
+   * was another hard bounce against NP7's sender reputation.
+   *
+   * So: still forgiving — a full mailbox or a temporary failure gets retries —
+   * but not infinitely. After BOUNCE_GRACE_SENDS post-bounce attempts the door
+   * closes and the caller is told why, so it can say "check the spelling"
+   * instead of "check your email" for the ninth time.
+   */
+  const BOUNCE_GRACE_SENDS = 2;
+  try {
+    const { data: bounced } = await db
+      .from("contacts").select("email_bounced_at")
+      .ilike("email", to).not("email_bounced_at", "is", null)
+      .order("email_bounced_at", { ascending: false }).limit(1);
+    const bouncedAt = (bounced as { email_bounced_at: string }[] | null)?.[0]?.email_bounced_at;
+    if (bouncedAt) {
+      const { count } = await db
+        .from("email_log").select("id", { count: "exact", head: true })
+        .eq("to_email", to).gt("created_at", bouncedAt);
+      if ((count ?? 0) >= BOUNCE_GRACE_SENDS) {
+        return { status: "skipped", error: "bounced_address" };
+      }
+    }
+  } catch {
+    // Never block a send because the bounce lookup itself failed.
+  }
+
   // optional DB override (select * so a not-yet-migrated header_image column can't error)
   const { data: override } = await db
     .from("email_templates")
