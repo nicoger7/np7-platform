@@ -56,7 +56,12 @@ export function GalleryStrip({ images }: { images: string[] }) {
           <button aria-label="Next" className="absolute right-3 sm:right-6 w-12 h-12 rounded-full bg-white/10 hover:bg-white/20 text-white grid place-items-center" onClick={(e) => { e.stopPropagation(); setOpen((i) => (i === null ? i : (i + 1) % images.length)); }}>
             <svg className="w-6 h-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M9 18l6-6-6-6" /></svg>
           </button>
-          <span className="absolute bottom-5 left-1/2 -translate-x-1/2 text-white/60 text-sm font-medium tabular-nums">{open + 1} / {images.length}</span>
+          {/* Pinned to the VIEWPORT, not the photo. The image is centred and up
+              to 86vh tall, so on a short window a bottom-5 counter landed on top
+              of the picture. Top-left mirrors the close button, sits in the
+              chrome rather than the photo, and keeps its own backdrop so it
+              stays readable over a bright frame. */}
+          <span className="absolute top-5 left-5 px-3 py-1.5 rounded-full bg-black/45 backdrop-blur-sm text-white/85 text-[13px] font-semibold tabular-nums">{open + 1} / {images.length}</span>
         </div>
       )}
 
