@@ -1151,7 +1151,11 @@ export default function EditionDetailPage({
           <span key={gi} className="flex items-end">
             {gi > 0 && <span className="self-stretch w-px mx-2.5 my-2" style={{ background: "var(--admin-border)" }} />}
             {tabOrder.filter((t) => group.includes(t) && !(isEventEdition && EVENT_HIDDEN.includes(t))).map((t, i) => {
-              if (access && !effectiveCanAccess(access, TAB_PATH[t])) return null;
+              // Until access is known, show NOTHING rather than everything. The old
+              // `access && …` guard treated "not loaded yet" as "allowed", so every
+              // tab painted for one frame and then the forbidden ones vanished —
+              // a restricted role got a look at tabs it can never open.
+              if (!access || !effectiveCanAccess(access, TAB_PATH[t])) return null;
               const count = edition._counts?.[t as keyof typeof edition._counts];
               return (
                 <button
@@ -1182,7 +1186,11 @@ export default function EditionDetailPage({
             unless you're looking for it. */}
         <span className="ml-auto flex items-center gap-0.5 mb-1.5 rounded-lg px-1 py-0.5" style={{ backgroundColor: "var(--admin-surface)" }}>
           {tabOrder.filter((t) => SIDE_TABS.includes(t) && !(isEventEdition && EVENT_HIDDEN.includes(t))).map((t) => {
-            if (access && !effectiveCanAccess(access, TAB_PATH[t])) return null;
+            // Until access is known, show NOTHING rather than everything. The old
+              // `access && …` guard treated "not loaded yet" as "allowed", so every
+              // tab painted for one frame and then the forbidden ones vanished —
+              // a restricted role got a look at tabs it can never open.
+              if (!access || !effectiveCanAccess(access, TAB_PATH[t])) return null;
             const count = edition._counts?.[t as keyof typeof edition._counts];
             return (
               <button key={t} onClick={() => selectTab(t)}

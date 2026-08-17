@@ -236,7 +236,11 @@ export function BookingDetailPane({ bookingId, onBack }: { bookingId: string; on
       if (b.edition_id || b.experience_id) {
         fetch(`/api/admin/packages?${b.edition_id ? `edition_id=${b.edition_id}` : `experience_id=${b.experience_id}`}`)
           .then((r) => r.json())
-          .then((pkgs) => setPackages(pkgs || []));
+          // `pkgs || []` kept a 403's {error:…} body — an object is truthy — and
+          // the picker's .map() then threw, taking the whole page down for any
+          // role that can't read packages. Same guard the components fetch uses.
+          .then((pkgs) => setPackages(Array.isArray(pkgs) ? pkgs : []))
+          .catch(() => setPackages([]));
       }
       setLoading(false);
     });
@@ -360,8 +364,8 @@ export function BookingDetailPane({ bookingId, onBack }: { bookingId: string; on
     update("experience_id", expId || null);
     update("package_id", null);
     if (expId) {
-      const pkgs = await fetch(`/api/admin/packages?experience_id=${expId}`).then((r) => r.json());
-      setPackages(pkgs || []);
+      const pkgs = await fetch(`/api/admin/packages?experience_id=${expId}`).then((r) => r.json()).catch(() => null);
+      setPackages(Array.isArray(pkgs) ? pkgs : []);
     } else {
       setPackages([]);
     }
