@@ -9,6 +9,7 @@ import { NewBookingModal } from "@/components/new-booking-modal";
 import { normalizeBookingStatus } from "@/lib/types";
 import { editionLabel, editionSortKey } from "@/lib/edition-label";
 import { BookingDetailPane } from "./[id]/page";
+import { PaneBoundary } from "@/components/admin/pane-boundary";
 
 interface Booking {
   id: string;
@@ -396,7 +397,7 @@ function BookingsInner() {
             })}
           </aside>
           <section className="flex-1 min-w-0">
-            <BookingDetailPane bookingId={selectedId} onBack={clearSelection} />
+            <PaneBoundary label="This booking"><BookingDetailPane bookingId={selectedId} onBack={clearSelection} /></PaneBoundary>
           </section>
           </div>
         </>

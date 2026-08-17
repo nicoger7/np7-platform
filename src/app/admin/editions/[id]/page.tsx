@@ -15,6 +15,7 @@ import { EditionMemoriesUploader } from "@/components/edition-memories-uploader"
 import { ContactPicker, ContactLite } from "@/components/contact-picker";
 import { EditionCrewLevels } from "@/components/admin/edition-crew-levels";
 import { BookingDetailPane } from "../../bookings/[id]/page";
+import { PaneBoundary } from "@/components/admin/pane-boundary";
 import { composeBookingName } from "@/lib/booking-name";
 import ImagePickerModal from "@/components/image-picker-modal";
 import { useAccess } from "@/lib/use-access";
@@ -1707,7 +1708,7 @@ export default function EditionDetailPage({
               })}
             </div>
             <div className="flex-1 min-w-0">
-              <BookingDetailPane bookingId={selBooking} onBack={() => { openBooking(null); loadBookings(); }} />
+              <PaneBoundary label="This booking"><BookingDetailPane bookingId={selBooking} onBack={() => { openBooking(null); loadBookings(); }} /></PaneBoundary>
             </div>
           </div>
           ) : (<>
