@@ -5,6 +5,7 @@ import { notFound } from "next/navigation";
 import type { Metadata } from "next";
 import { supabase, createAdminClient } from "@/lib/supabase";
 import { flags } from "@/lib/flags";
+import { canSeeExperienceWorld } from "@/lib/auth";
 import { OceanHeader } from "@/components/experience/ocean-header";
 import { NP7_EXPERIENCE_LOGO, SUN_TO_SEA } from "@/components/shared/brand";
 import { Reveal } from "@/components/experience/reveal";
@@ -98,7 +99,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
 
 export default async function DestinationPage({ params }: Props) {
   // Same guard as generateMetadata above — 404 before any query or render work.
-  if (!flags.showExperience) notFound();
+  if (!(await canSeeExperienceWorld(flags.showExperience))) notFound();
   const { slug } = await params;
   const res = await getDestination(slug).catch(() => null);
   if (!res) notFound();

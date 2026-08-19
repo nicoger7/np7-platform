@@ -141,3 +141,21 @@ export async function requirePortalApi(opts: { allowPreview?: boolean } = {}):
   if (!user) return { ok: false, res: NextResponse.json({ error: "Unauthorized" }, { status: 401 }) };
   return { ok: true, user };
 }
+
+
+/**
+ * May this request see the not-yet-public Experience world?
+ *
+ * Production hides /experience and /destinations behind SHOW_EXPERIENCE. Team
+ * always passed (the admin preview button). Members now pass too — the soft
+ * launch: customers who already have an account live in the full environment,
+ * while anonymous visitors and crawlers keep getting a plain 404 until the
+ * public reveal. The sitemap stays flag-only on purpose.
+ */
+export async function canSeeExperienceWorld(flagOn: boolean): Promise<boolean> {
+  if (flagOn) return true;
+  const team = await getTeamMember().catch(() => null);
+  if (team) return true;
+  const member = await getPortalUser().catch(() => null);
+  return !!member?.contactId;
+}

@@ -2,7 +2,7 @@ import { notFound } from "next/navigation";
 import { headers } from "next/headers";
 import { BotIdClient } from "botid/client";
 import { flags } from "@/lib/flags";
-import { getTeamMember } from "@/lib/auth";
+import { canSeeExperienceWorld } from "@/lib/auth";
 import { createAdminClient } from "@/lib/supabase";
 
 // Hidden in production until SHOW_EXPERIENCE=true — a plain 404, no public hint.
@@ -14,9 +14,8 @@ export default async function ExperienceLayout({ children }: { children: React.R
   // the header carries path + query — strip the query before matching
   const path = ((await headers()).get("x-np7-pathname") ?? "").split("?")[0];
   const isGift = path.startsWith("/experience/gift");
-  if (!flags.showExperience && !isGift && !(await publicByLink(path))) {
-    const team = await getTeamMember().catch(() => null);
-    if (!team) notFound();
+  if (!isGift && !(await canSeeExperienceWorld(flags.showExperience)) && !(await publicByLink(path))) {
+    notFound();
   }
   return (
     <>
