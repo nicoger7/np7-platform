@@ -400,7 +400,7 @@ export function PackagePicker({ packages, currency = "EUR", reserve, heroImage, 
       </div>
 
       {/* summary */}
-      <aside className="lg:sticky lg:top-24 rounded-3xl bg-[#00374a] text-white shadow-[0_20px_60px_rgba(0,55,74,0.25)] overflow-hidden">
+      <aside className="lg:sticky lg:top-[124px] lg:max-h-[calc(100vh-140px)] rounded-3xl bg-[#00374a] text-white shadow-[0_20px_60px_rgba(0,55,74,0.25)] overflow-y-auto overflow-x-hidden">
         {/* hotel photo, or the experience hero as a fallback so "Experience Only" isn't a bare card */}
         {(selected?.hotelImage || heroImage) && (
           <div className="relative h-36 bg-cover bg-center" style={{ backgroundImage: `url('${selected?.hotelImage || heroImage}')` }}>

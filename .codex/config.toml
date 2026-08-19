@@ -1,0 +1,3 @@
+[mcp_servers.meta-ads]
+command = "node"
+args = ["mcp/meta-ads/dist/stdio.js"]

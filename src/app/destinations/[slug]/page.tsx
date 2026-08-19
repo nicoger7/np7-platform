@@ -116,10 +116,11 @@ export default async function DestinationPage({ params }: Props) {
   const windStats = ((d as any).wind_stats ?? null) as WindStats | null;
   const derived = destinationWindFacts(windStats);
   const seasonManual = d.wind_season || d.best_season;
+  // No probability chip: a single % (often a summer figure) reads as a promise
+  // — and NP7 sells November weeks too. The chart below shows it per month.
   const facts = [
-    { label: "Wind", value: derived ? `${derived.probability} at 4+ Bft` : d.wind_probability },
     { label: "Season", value: derived?.season ?? seasonManual },
-    { label: "Strength", value: derived ? derived.speed : d.wind_speed },
+    { label: "Typical wind", value: derived ? derived.speed : d.wind_speed },
     // two cards, one fact: only show a separate "best season" when it actually
     // differs from the wind season (hand-typed rows often duplicated it)
     { label: "Best season", value: derived ? null : (d.best_season && d.best_season !== d.wind_season ? d.best_season : null) },

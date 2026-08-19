@@ -138,7 +138,7 @@ export function WindStatsChart({ stats, compact = false, accent = "#00afdb" }: {
           {hi != null && (() => {
             const m = view.months[hi - 1];
             return (
-              <div className="absolute -top-1 left-1/2 -translate-x-1/2 -translate-y-full z-10 w-[150px] rounded-lg bg-[#00374a] text-white p-2.5 shadow-lg pointer-events-none">
+              <div className="absolute top-2 left-1/2 -translate-x-1/2 z-10 w-[150px] rounded-lg bg-[#00374a] text-white p-2.5 shadow-lg pointer-events-none">
                 <div className="flex items-center justify-between text-[11px] font-bold mb-1.5"><span>{MONTH_LABELS[hi - 1]}</span><span className="text-white/70">{m.avgWind} kn avg{m.airTemp != null ? ` · ${m.airTemp}°` : ""}</span></div>
                 {[3, 4, 5, 6, 7].map((b) => (
                   <div key={b} className="flex items-center gap-1.5 text-[10.5px] leading-[1.5]">

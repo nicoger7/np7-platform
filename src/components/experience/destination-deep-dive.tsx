@@ -108,9 +108,8 @@ export async function DestinationDeepDive({ slug }: { slug: string }) {
   // typed "85–95%", and the typed one stays as the fallback.
   const measured = destinationWindFacts(d.wind_stats);
   const facts = [
-    { label: "Wind probability", value: measured ? `${measured.probability} at 4+ Bft` : d.wind_probability },
     { label: "Wind season", value: measured?.season ?? d.wind_season },
-    { label: "Wind strength", value: measured?.speed ?? d.wind_speed },
+    { label: "Typical wind", value: measured?.speed ?? d.wind_speed },
     { label: "Best season", value: d.best_season },
     { label: "Conditions", value: d.conditions },
     { label: "Levels", value: d.skill_levels },
@@ -132,8 +131,7 @@ export async function DestinationDeepDive({ slug }: { slug: string }) {
   ];
 
   const heroChips = [
-    d.wind_probability && { label: "Wind", value: d.wind_probability },
-    d.wind_speed && { label: "Strength", value: d.wind_speed },
+    d.wind_speed && { label: "Typical wind", value: d.wind_speed },
     (d.wind_season || d.best_season) && { label: "Season", value: (d.wind_season || d.best_season) as string },
   ].filter(Boolean).slice(0, 3) as { label: string; value: string }[];
 

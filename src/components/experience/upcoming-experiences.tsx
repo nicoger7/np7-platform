@@ -141,9 +141,9 @@ export function UpcomingExperiences({ experiences, showSignature = false }: { ex
                       <span className="absolute bottom-3 left-3 text-[11px] font-bold tracking-wide uppercase text-white drop-shadow">{exp.location}</span>
                     </>
                   )}
-                  {typeof exp.spotsLeft === "number" && (
+                  {typeof exp.spotsLeft === "number" && (exp.spotsLeft <= 0 || exp.spotsLeft <= 5) && (
                     <span className={`absolute top-3 left-3 z-20 text-[11px] font-bold px-3 py-1.5 rounded-full backdrop-blur-md ${exp.spotsLeft > 0 ? "bg-white/85 text-[#00374a]" : "bg-[#f47b20] text-white"}`}>
-                      {exp.spotsLeft > 0 ? `${exp.spotsLeft} spots left` : "Fully booked"}
+                      {exp.spotsLeft > 0 ? `Only ${exp.spotsLeft} spots left` : "Fully booked"}
                     </span>
                   )}
                 </div>

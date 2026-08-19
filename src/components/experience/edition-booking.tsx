@@ -59,6 +59,9 @@ export function EditionBooking({
     .filter((e) => e.id !== ed?.id && (e.spotsLeft == null || e.spotsLeft > 0))
     .sort((a, b) => ((a.dateStart ?? "") < (b.dateStart ?? "") ? -1 : 1));
   const sameSeason = openOthers.filter((e) => yearOf(e) <= currentYear);
+  // "N left" is an urgency signal, not inventory — it only appears when it's
+  // genuinely tight (or the week is gone). "12 left" on every card is noise.
+  const SCARCE = 5;
   const nextSeason = openOthers.filter((e) => yearOf(e) > currentYear);
 
   return (
@@ -68,8 +71,15 @@ export function EditionBooking({
           <p className="text-[11px] font-bold tracking-[0.2em] uppercase text-[#9aa6ac] mb-3.5 text-center">
             Choose your week
           </p>
+          {Array.from(editions.reduce((m, e) => {
+            const y = yearOf(e); if (!m.has(y)) m.set(y, [] as EditionLite[]); m.get(y)!.push(e); return m;
+          }, new Map<number, EditionLite[]>())).sort((a, b) => a[0] - b[0]).map(([year, yearEditions], gi, groups) => (
+          <div key={year} className={gi > 0 ? "mt-6" : undefined}>
+          {groups.length > 1 && (
+            <p className="text-[12px] font-extrabold tracking-[0.12em] text-[#9aa6ac] mb-2.5 max-w-[820px] mx-auto">{year}</p>
+          )}
           <div className="grid sm:grid-cols-3 gap-3 max-w-[820px] mx-auto">
-            {editions.map((e) => {
+            {yearEditions.map((e) => {
               const on = e.id === sel;
               const full = e.spotsLeft != null && e.spotsLeft <= 0;
               return (
@@ -97,9 +107,9 @@ export function EditionBooking({
                     {e.fromPrice != null ? (
                       <span className="text-[13px] font-bold text-[#00374a]">from {fmt(e.fromPrice)}</span>
                     ) : <span />}
-                    {e.spotsLeft != null && (
+                    {e.spotsLeft != null && (full || e.spotsLeft <= SCARCE) && (
                       <span className={`text-[11px] font-bold ${full ? "text-[#f47b20]" : "text-green-600"}`}>
-                        {full ? "Fully booked" : `${e.spotsLeft} left`}
+                        {full ? "Fully booked" : `Only ${e.spotsLeft} left`}
                       </span>
                     )}
                   </div>
@@ -107,6 +117,8 @@ export function EditionBooking({
               );
             })}
           </div>
+          </div>
+          ))}
           {ed?.coaches && (
             <p className="text-center text-[13px] text-[#5a6b72] mt-4">
               Coaches this week: <span className="font-semibold text-[#00374a]">{ed.coaches}</span>
@@ -134,7 +146,7 @@ export function EditionBooking({
                     className="w-full flex items-center justify-between gap-3 rounded-xl border border-[#e3e9ec] bg-white hover:border-[#9fd9e8] px-4 py-3 text-left transition-colors">
                     <span className="min-w-0"><span className="block font-bold text-[#00374a]">{e.label}</span><span className="text-[13px] text-[#5a6b72]">{e.shortRange}</span></span>
                     <span className="shrink-0 text-right">
-                      {e.spotsLeft != null && <span className="block text-[11px] font-bold text-green-600">{e.spotsLeft} left</span>}
+                      {e.spotsLeft != null && e.spotsLeft <= 5 && <span className="block text-[11px] font-bold text-green-600">Only {e.spotsLeft} left</span>}
                       {e.fromPrice != null && <span className="text-[13px] font-bold text-[#00afdb]">from {fmt(e.fromPrice)} →</span>}
                     </span>
                   </button>

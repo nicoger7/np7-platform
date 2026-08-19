@@ -240,9 +240,23 @@ export default async function ExperienceOverviewPage() {
     }, new Map<string, { location: string; image: string | null; count: number }>())
     .values()
   );
+  // A "trip" on these cards is an upcoming WEEK, not an experience row —
+  // Bonaire is one experience but runs 3 weeks in 2026 and 3 in 2027, and the
+  // card used to say "1 trip in 2026" (hardcoded year included).
+  const todayIso = new Date().toISOString().slice(0, 10);
+  const upcomingWeeks = (list: typeof experiences) => list.flatMap((e) =>
+    (e.exp_editions ?? []).filter((ed) => ed.status === "published" && ed.date_start && ed.date_start > todayIso));
+  const weekLabel = (ups: { date_start: string | null }[]) => {
+    const years = Array.from(new Set(ups.map((ed) => ed.date_start!.slice(0, 4)))).sort();
+    const span = years.length === 0 ? "" : years.length === 1 ? ` in ${years[0]}` : ` ${years[0]}–${years[years.length - 1]}`;
+    return `${ups.length} ${ups.length === 1 ? "trip" : "trips"}${span}`;
+  };
   const destCards = (tableDest.length
-    ? tableDest.map((d) => ({ key: d.slug, title: d.name, image: d.hero_image, count: experiences.filter((e) => e.destination_id === d.id).length, href: `/destinations/${d.slug}` }))
-    : derived.map((d) => ({ key: d.location, title: d.location, image: d.image, count: d.count, href: "#experiences" })))
+    ? tableDest.map((d) => {
+        const ups = upcomingWeeks(experiences.filter((e) => e.destination_id === d.id));
+        return { key: d.slug, title: d.name, image: d.hero_image, count: ups.length, label: weekLabel(ups), href: `/destinations/${d.slug}` };
+      })
+    : derived.map((d) => ({ key: d.location, title: d.location, image: d.image, count: d.count, label: `${d.count} ${d.count === 1 ? "trip" : "trips"}`, href: "#experiences" })))
     // Only show destinations we actually run visible trips to. Hides places whose
     // experience is hidden/unpublished (e.g. Madagascar) so no "0 trips" tiles appear.
     .filter((d) => d.count > 0);
@@ -357,7 +371,7 @@ export default async function ExperienceOverviewPage() {
                       <div className="absolute inset-0 bg-gradient-to-t from-[#00374a] via-[#00374a]/20 to-transparent" />
                       <div className="absolute bottom-0 p-6">
                         <h3 className="text-2xl font-black tracking-[-0.02em]">{d.title}</h3>
-                        <p className="text-[12px] font-semibold text-[#8fe6f2] mt-1">{d.count} {d.count === 1 ? "trip" : "trips"} in 2026</p>
+                        <p className="text-[12px] font-semibold text-[#8fe6f2] mt-1">{d.label}</p>
                       </div>
                     </div>
                   </Link>

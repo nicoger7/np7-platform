@@ -31,8 +31,10 @@ import { PreviewBridge } from "./preview-bridge";
 export async function PortalChrome({ section }: { section?: "experience" | "hardware" } = {}) {
   const [head, store] = await Promise.all([headers(), cookies()]);
   // A page can force its theme (trips→experience, gear→hardware); neutral pages
-  // pass nothing and follow the current section context.
-  const resolved: "experience" | "hardware" = section ?? (store.get("np7_section")?.value === "hardware" ? "hardware" : "experience");
+  // pass nothing and are ALWAYS experience-toned. Following the np7_section
+  // cookie here meant one visit to the shop painted the member home black with
+  // a full hardware nav — the exact stale-cookie leak the docblock warns about.
+  const resolved: "experience" | "hardware" = section ?? "experience";
   // Admin "view as member" read-only preview (Member view tab) → a clear banner.
   const isPreview = store.get("np7_preview")?.value === "1";
 
