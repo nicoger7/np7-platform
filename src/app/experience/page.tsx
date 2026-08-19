@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { flags } from "@/lib/flags";
 import type { Metadata } from "next";
 import { supabase } from "@/lib/supabase";
 import { HeroFindYourFit } from "@/components/experience/hero-find-your-fit";
@@ -248,7 +249,7 @@ export default async function ExperienceOverviewPage() {
 
   return (
     <>
-      <OceanHeader />
+      <OceanHeader  showAbout={flags.showExperience} showHardware={flags.showHardware} />
 
       {/* ---------------------------------------------------------------- */}
       {/* HERO — scroll-scrubbed windsurf "dive"                            */}

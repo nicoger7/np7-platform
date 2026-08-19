@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { flags } from "@/lib/flags";
 import { headers } from "next/headers";
 import type { Metadata } from "next";
 import { createAdminClient } from "@/lib/supabase";
@@ -83,7 +84,7 @@ export default async function ThanksPage({ params, searchParams }: Props) {
 
   return (
     <>
-      <OceanHeader bookHref={`/experience/${slug}#packages`} />
+      <OceanHeader bookHref={`/experience/${slug}#packages`}  showAbout={flags.showExperience} showHardware={flags.showHardware} />
       <main className="min-h-[100svh] bg-[#fff7ec] flex items-center justify-center px-6 pt-24 pb-16">
         <div className="max-w-[560px] w-full text-center">
           <div className={`mx-auto w-16 h-16 rounded-full grid place-items-center mb-6 ${ok ? "bg-[#00afdb]" : "bg-[#f47b20]"}`}>

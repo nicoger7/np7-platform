@@ -163,7 +163,7 @@ export default async function DestinationPage({ params }: Props) {
 
   return (
     <>
-      <OceanHeader bookHref="#trips" />
+      <OceanHeader bookHref="#trips"  showAbout={flags.showExperience} showHardware={flags.showHardware} />
 
       {/* HERO — cinematic parallax photo with Ken Burns + quick-stats */}
       <ParallaxHero image={hero}>

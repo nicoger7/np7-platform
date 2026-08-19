@@ -9,7 +9,7 @@ import { NP7_LOGO } from "@/components/shared/brand";
 // re-exported for the many call sites that import it from here
 export { NP7_LOGO };
 
-type NavItem = { label: string; href: string; side?: "right"; need?: "experience" | "blog" };
+type NavItem = { label: string; href: string; side?: "right"; need?: "experience" | "blog" | "about" };
 // `need` gates each link on a visibility flag, so with only SHOW_BLOG live the
 // header shows just Magazine — the experience links stay hidden until that world reveals.
 const NAV: NavItem[] = [
@@ -20,7 +20,7 @@ const NAV: NavItem[] = [
   // public feature for now, so the header points at the product (the magazine's
   // Gear/Technique/stories are reachable from the spotguide sub-nav).
   { label: "Spotguide", href: "/spotguide?from=experience", side: "right", need: "blog" },
-  { label: "About", href: "/about?from=experience", side: "right", need: "experience" },
+  { label: "About", href: "/about?from=experience", side: "right", need: "about" },
 ];
 const navLink = "text-[12.5px] font-semibold text-white/70 hover:text-white transition-colors tracking-wide";
 
@@ -44,6 +44,7 @@ export function OceanHeader({
   variant = "overlay",
   showExperience = true,
   showHardware = true,
+  showAbout,
   showBlog = true,
   sectionVariant,
 }: {
@@ -51,14 +52,19 @@ export function OceanHeader({
   variant?: "overlay" | "docked";
   showExperience?: boolean;
   showHardware?: boolean;
+  /** /about ist Teil des öffentlichen Launches — Members im Soft-Launch sehen
+   *  es nicht (die Seite wäre für sie ohnehin 404). Default: wie showExperience,
+   *  damit sich öffentliche Seiten nach dem Reveal nicht ändern. */
+  showAbout?: boolean;
   showBlog?: boolean;
   sectionVariant?: "experience";
 }) {
   const docked = variant === "docked";
-  // The Experience⇄Hardware switch only makes sense once a public world is live —
   // while just the Magazine is out it would advertise (and link to) 404 pages.
-  const showSwitch = showExperience || showHardware;
-  const visibleNav = NAV.filter((n) => (n.need === "blog" ? showBlog : n.need === "experience" ? showExperience : true));
+  // Umschalten gibt es nur, wenn es ZWEI Welten gibt. ODER zeigte Members im
+  // Soft-Launch einen Hardware-Knopf, dessen Ziel für sie 404 ist.
+  const showSwitch = showExperience && showHardware;
+  const visibleNav = NAV.filter((n) => (n.need === "blog" ? showBlog : n.need === "about" ? (showAbout ?? showExperience) : n.need === "experience" ? showExperience : true));
   const leftNav = visibleNav.filter((n) => n.side !== "right");
   const rightNav = visibleNav.filter((n) => n.side === "right");
   const [scrolled, setScrolled] = useState(false);

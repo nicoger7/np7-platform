@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { flags } from "@/lib/flags";
 import { WindMiniChart } from "@/components/experience/wind-mini-chart";
 import { DEFAULT_WEEK_INFO } from "@/lib/experience-defaults";
 import { notFound } from "next/navigation";
@@ -651,7 +652,7 @@ export default async function ExperienceDetailPage({ params, searchParams }: Pro
 
   return (
     <SelectedEditionProvider initialId={edition?.id ?? null}>
-      <OceanHeader bookHref="#packages" />
+      <OceanHeader bookHref="#packages"  showAbout={flags.showExperience} showHardware={flags.showHardware} />
 
       {/* HERO */}
       <section className="relative min-h-[74vh] flex items-end bg-[#00374a] overflow-hidden">

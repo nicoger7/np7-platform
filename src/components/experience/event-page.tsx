@@ -97,7 +97,12 @@ export async function EventPage({ event, isMember, paid, paidBookingId = null }:
   const fixedDate: TicketDate | null = confirmed ? toTicketDate(confirmed)
     : event.mode === "fixed" && event.dates[0] ? toTicketDate(event.dates[0]) : null;
 
-  const canBook = price > 0 && (event.mode === "standby" ? candidateDates.length > 0 : !!fixedDate);
+  // A clinic whose date has passed must stop selling itself. Without this the
+  // series page fell back to the PAST edition and offered "Pay today €100" for
+  // a weekend that already happened — with a balance due date in the past.
+  const today = new Date().toISOString().slice(0, 10);
+  const over = event.dates.length > 0 && event.dates.every((d) => (d.date_end ?? d.date_start) < today);
+  const canBook = !over && price > 0 && (event.mode === "standby" ? candidateDates.length > 0 : !!fixedDate);
 
   return (
     <main className="min-h-screen bg-[#fbfdfd]">
@@ -105,7 +110,7 @@ export async function EventPage({ event, isMember, paid, paidBookingId = null }:
           otherwise 404 — so the nav must not offer Experiences / Hardware /
           Magazine while those are still hidden, or the page advertises dead
           ends to the very people we sent the link to. */}
-      <OceanHeader bookHref="#ticket" showExperience={flags.showExperience} showHardware={flags.showHardware} showBlog={flags.showBlog} />
+      <OceanHeader bookHref="#ticket" showExperience={flags.showExperience} showAbout={flags.showExperience} showHardware={flags.showHardware} showBlog={flags.showBlog} />
 
       {/* HERO — compact, event-forward */}
       <section className="relative min-h-[52vh] flex items-end bg-[#00374a] overflow-hidden">
@@ -116,6 +121,12 @@ export async function EventPage({ event, isMember, paid, paidBookingId = null }:
         ) : null}
         <div className="absolute inset-0 bg-gradient-to-t from-[#00374a] via-[#00374a]/45 to-transparent" />
         <div className="relative z-10 w-full max-w-[1000px] mx-auto px-6 sm:px-8 pb-10 pt-24 text-white">
+          {/* The event page had no way back — the slim header offers only
+              Spotguide, so the only exit was the browser button. */}
+          <Link href="/experience" className="inline-flex items-center gap-1.5 text-[12px] font-bold text-white/75 hover:text-white transition-colors mb-2.5">
+            <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="m15 18-6-6 6-6" /></svg>
+            All experiences
+          </Link>
           <span className="inline-flex items-center gap-2 text-[11px] font-black uppercase tracking-[0.2em] text-[#ffd66b]">
             <span aria-hidden>◆</span> Event{event.location ? ` · ${event.location}` : ""}
           </span>
@@ -234,8 +245,8 @@ export async function EventPage({ event, isMember, paid, paidBookingId = null }:
             />
           ) : (
             <div className="rounded-2xl bg-white border border-[#e3e9ec] p-7 text-center">
-              <p className="text-[15px] font-bold text-[#00374a]">Dates coming soon</p>
-              <p className="text-[13.5px] text-[#6a7a80] mt-2">This event isn&apos;t open for booking yet. Check back shortly.</p>
+              <p className="text-[15px] font-bold text-[#00374a]">{over ? "This clinic has run" : "Dates coming soon"}</p>
+              <p className="text-[13.5px] text-[#6a7a80] mt-2">{over ? "New dates are in the works — check back, or ping us and we'll tell you first." : "This event isn\u2019t open for booking yet. Check back shortly."}</p>
             </div>
           )}
 

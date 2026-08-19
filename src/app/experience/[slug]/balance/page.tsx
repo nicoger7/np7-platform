@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { flags } from "@/lib/flags";
 import { notFound } from "next/navigation";
 import type { Metadata } from "next";
 import { createAdminClient } from "@/lib/supabase";
@@ -41,7 +42,7 @@ export default async function BalancePage({ params, searchParams }: Props) {
 
   return (
     <main className="min-h-screen bg-[#fbfdfd]">
-      <OceanHeader bookHref="#" />
+      <OceanHeader bookHref="#"  showAbout={flags.showExperience} showHardware={flags.showHardware} />
       <div className="max-w-[520px] mx-auto px-6 pt-28 pb-16">
         <div className="rounded-2xl bg-white border border-[#e3e9ec] shadow-[0_18px_50px_rgba(0,40,55,0.1)] p-7 sm:p-8">
           <p className="text-[11px] font-black uppercase tracking-[0.16em] text-[#b0791e]">
