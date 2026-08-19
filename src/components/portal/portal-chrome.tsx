@@ -5,6 +5,7 @@ import { HardwareHeader } from "@/components/hardware/hardware-header";
 import { NP7_LOGO } from "@/components/shared/brand";
 import { MemberButton } from "@/components/shared/member-button";
 import { flags } from "@/lib/flags";
+import { canSeeExperienceWorld } from "@/lib/auth";
 import { PortalSubnav } from "./portal-subnav";
 import { MemberInstallPrompt } from "@/components/pwa/member-install-prompt";
 import { PreviewBridge } from "./preview-bridge";
@@ -37,8 +38,13 @@ export async function PortalChrome({ section }: { section?: "experience" | "hard
 
   const host = (head.get("host") || "").split(":")[0].toLowerCase();
   const onLiveDomain = /(^|\.)np-seven\.com$/.test(host);
+  // Everyone rendered by this chrome is signed in (member, or admin preview) —
+  // and members now live in the Experience world before the public reveal. So
+  // the nav follows the same rule as the page gate, not the raw flag: the
+  // pages were reachable but the header still hid every link to them.
+  const showExp = await canSeeExperienceWorld(flags.showExperience);
   // Full header unless we're on the live domain with every world still hidden.
-  const siteLive = !onLiveDomain || flags.showExperience || flags.showHardware;
+  const siteLive = !onLiveDomain || showExp || flags.showHardware;
 
   return (
     <>
@@ -48,7 +54,7 @@ export async function PortalChrome({ section }: { section?: "experience" | "hard
         </div>
       )}
       {siteLive ? (
-        resolved === "hardware" ? <HardwareHeader variant="docked" /> : <OceanHeader variant="docked" showExperience={flags.showExperience} showHardware={flags.showHardware} showBlog={flags.showBlog} />
+        resolved === "hardware" ? <HardwareHeader variant="docked" /> : <OceanHeader variant="docked" showExperience={showExp} showHardware={flags.showHardware} showBlog={flags.showBlog} />
       ) : (
         <header className={`sticky top-0 z-50 ${resolved === "hardware" ? "bg-black" : "bg-[#00374a]"} border-b border-white/10`}>
           <div className="max-w-[1000px] mx-auto px-5 sm:px-8 h-16 flex items-center justify-between gap-4">
