@@ -255,7 +255,11 @@ export default async function ExperienceDetailPage({ params, searchParams }: Pro
   // The public only ever sees published editions.
   const editionVisible = (s: string | null) => (team ? s === "published" || s === "draft" : s === "published");
   const allEditions = (experience.exp_editions ?? [])
-    .filter((e) => editionVisible(e.status) && (!e.date_end || e.date_end >= today))
+    .filter((e) => editionVisible(e.status)
+      // Off the front end the day it STARTS, not the day it ends — a week that
+      // is already on the water sold "3 left" to the public for its whole run.
+      // Undated editions stay ("dates coming soon").
+      && (!e.date_start || e.date_start > today))
     .sort((a, b) => ((a.date_start ?? "") < (b.date_start ?? "") ? -1 : 1));
   const multi = allEditions.length > 1;
   const datesTBD = allEditions.length === 0; // published experience, no upcoming week yet
