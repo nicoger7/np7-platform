@@ -155,7 +155,8 @@ function applyAccepted(checks: CheckResult[], acceptedRaw: unknown): CheckResult
   );
   return checks.map((c) => {
     if (!ACCEPTABLE_CHECKS.has(c.id)) return c;
-    if (c.ok) return { ...c, acceptable: true };          // solved by real content
+    if (c.ok) return c;   // organisch erfüllt — nichts anzubieten, der Knopf
+                          // täte sichtbar nichts (der Bug am Guest-Review)
     if (!accepted.has(c.id)) return { ...c, acceptable: true };
     const { detail: _drop, ...rest } = c;
     return { ...rest, ok: true, acceptable: true, accepted: true, okDetail: `${c.detail} — kept on purpose` };
@@ -349,7 +350,11 @@ export async function runGoLiveChecks(): Promise<ExperienceReport[]> {
         (p) => String(p.edition_id) === edId || (!p.edition_id && String(p.experience_id) === id),
       );
       const sellable = pkgs.filter((p) => p.status === "active" && p.website_visible !== false && p.price != null);
-      const noHotel = sellable.filter((p) => !p.hotel_id);
+      // A package without a hotel is a PRODUCT ("Advanced – No Hotel", own-gear
+      // variants), not a mistake — flagging those trained people to ignore the
+      // row. The real defect is a package that CLAIMS accommodation (room_type
+      // set) while naming no hotel: that is the one the trip page cannot place.
+      const noHotel = sellable.filter((p) => p.room_type && !p.hotel_id);
       const hotelIds = [...new Set(sellable.map((p) => p.hotel_id).filter(Boolean))] as string[];
       const thinHotels = hotelIds.filter((h) => {
         const hotel = hotelById.get(h);
