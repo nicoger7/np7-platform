@@ -117,9 +117,9 @@ export default async function DestinationPage({ params }: Props) {
   const derived = destinationWindFacts(windStats);
   const seasonManual = d.wind_season || d.best_season;
   const facts = [
-    { label: "Wind probability", value: derived ? `${derived.probability} at 4+ Bft` : d.wind_probability },
-    { label: "Wind season", value: derived?.season ?? seasonManual },
-    { label: "Wind strength", value: derived ? derived.speed : d.wind_speed },
+    { label: "Wind", value: derived ? `${derived.probability} at 4+ Bft` : d.wind_probability },
+    { label: "Season", value: derived?.season ?? seasonManual },
+    { label: "Strength", value: derived ? derived.speed : d.wind_speed },
     // two cards, one fact: only show a separate "best season" when it actually
     // differs from the wind season (hand-typed rows often duplicated it)
     { label: "Best season", value: derived ? null : (d.best_season && d.best_season !== d.wind_season ? d.best_season : null) },
@@ -149,7 +149,6 @@ export default async function DestinationPage({ params }: Props) {
   // Three concise quick-stats floated over the hero
   const heroChips = [
     (derived?.probability && { label: "Wind", value: `${derived.probability} 4+ Bft` }) || (d.wind_probability && { label: "Wind", value: d.wind_probability }),
-    (derived?.speed && { label: "Strength", value: derived.speed }) || (d.wind_speed && { label: "Strength", value: d.wind_speed }),
     (derived?.season && { label: "Season", value: derived.season }) || ((d.wind_season || d.best_season) && { label: "Season", value: (d.wind_season || d.best_season) as string }),
   ].filter(Boolean).slice(0, 3) as { label: string; value: string }[];
 
@@ -216,27 +215,26 @@ export default async function DestinationPage({ params }: Props) {
                 <h2 className="text-3xl sm:text-5xl font-black tracking-[-0.03em]">The conditions</h2>
                 <div className="h-[3px] w-14 rounded-full mx-auto mt-5" style={{ background: SUN_TO_SEA }} />
               </Reveal>
-              <div className="grid grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4">
-                {facts.map((f, i) => (
-                  <Reveal key={f.label} delay={i * 60}>
-                    <div className="h-full rounded-2xl bg-white/[0.06] border border-white/10 p-5 sm:p-6 hover:bg-white/[0.1] hover:-translate-y-0.5 transition-all">
-                      <div className="w-10 h-10 rounded-xl bg-[#f47b20]/20 text-[#ffb766] grid place-items-center mb-4"><StatIcon label={f.label} /></div>
-                      <p className="text-[10px] font-bold tracking-[0.14em] uppercase text-white/50">{f.label}</p>
-                      <p className="text-[20px] sm:text-[26px] font-black text-white mt-1.5 leading-tight"><CountUp value={f.value} /></p>
-                    </div>
-                  </Reveal>
-                ))}
-              </div>
-              {windStats && (
-                <Reveal className="mt-10">
-                  {/* the month-by-month climatology behind the headline numbers —
-                      same measured chart the spotguide shows, general overview
-                      here rather than a trip's three-month frame */}
-                  <div className="rounded-2xl bg-white/[0.06] border border-white/10 p-5 sm:p-6 overflow-x-auto">
-                    <WindStatsChart stats={windStats} accent="#ffc42e" />
+              {/* One band instead of six shouting cards + a second chart panel:
+                  the facts read as a chip row, the measured months sit right
+                  under them — one glance, one card. */}
+              <Reveal>
+                <div className="rounded-2xl bg-white/[0.06] border border-white/10 p-5 sm:p-6">
+                  <div className="flex flex-wrap items-center justify-center gap-2 sm:gap-2.5 mb-1">
+                    {facts.map((f) => (
+                      <span key={f.label} className="inline-flex items-baseline gap-1.5 rounded-full bg-white/[0.08] border border-white/10 px-3.5 py-1.5">
+                        <span className="text-[10px] font-bold tracking-[0.12em] uppercase text-[#ffc42e]">{f.label}</span>
+                        <span className="text-[13.5px] font-bold text-white whitespace-nowrap">{f.value}</span>
+                      </span>
+                    ))}
                   </div>
-                </Reveal>
-              )}
+                  {windStats && (
+                    <div className="mt-5 overflow-x-auto">
+                      <WindStatsChart stats={windStats} accent="#ffc42e" />
+                    </div>
+                  )}
+                </div>
+              </Reveal>
               <Reveal className="mt-9 text-center">
                 <p className="inline-flex items-start gap-2 text-[13.5px] text-white/60 max-w-[600px] mx-auto leading-relaxed">
                   <svg className="w-4 h-4 mt-0.5 shrink-0 text-[#ffc42e]" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round"><circle cx="12" cy="12" r="9" /><path d="M12 8v4M12 16h.01" /></svg>
