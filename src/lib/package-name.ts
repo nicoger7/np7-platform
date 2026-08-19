@@ -50,7 +50,9 @@ export function suggestPackageName(p: PackageNameParts): string {
   } else {
     // "All Inclusive – Standard Room" reads as the room; when the room type is
     // unset the hotel's own name is the most specific thing we have.
-    parts.push("All Inclusive");
+    // "Full Experience" statt "All Inclusive" — das Bundle hat kein Abendessen,
+    // und All-Inclusive verspricht im Hoteljargon genau das. Entschieden 2026-08-19.
+    parts.push("Full Experience");
     parts.push(room ? `${titled(room)} Room`.replace(/\sRoom\sRoom$/i, " Room") : hotel);
   }
 
