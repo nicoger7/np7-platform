@@ -53,7 +53,10 @@ export async function planHoursCosts(db: ReturnType<typeof createAdminClient>) {
    *  still ahead in March, not to one that had already run. */
   const upcomingOn = (on: string) => eds.filter((e) => !e.date_end || !on || e.date_end >= on);
 
-  const costs: { edition_id: string; item: string; estimated_amount: number; hoursIds: string[] }[] = [];
+  const expOf = new Map<string, string>();
+  for (const e of eds) if (e.experience_id) expOf.set(e.id, e.experience_id);
+
+  const costs: { edition_id: string; experience_id: string; item: string; estimated_amount: number; hoursIds: string[] }[] = [];
   const skipped: { name: string; hours: number; why: string }[] = [];
   const bucket = new Map<string, { amount: number; ids: string[]; who: string }>();
 
@@ -112,8 +115,11 @@ export async function planHoursCosts(db: ReturnType<typeof createAdminClient>) {
   const LABEL: Record<string, string> = { direct: "Labour", experience: "Labour (experience)", overhead: "Overhead labour" };
   for (const [key, b] of bucket) {
     const [edition_id, who, month, kind] = key.split("|");
+    const experience_id = expOf.get(edition_id);
+    if (!experience_id) continue; // an edition without an experience can't carry a cost row
     costs.push({
       edition_id,
+      experience_id,
       item: `${LABEL[kind]} — ${who}${month ? ` (${month})` : ""}`,
       estimated_amount: Math.round(b.amount * 100) / 100,
       hoursIds: b.ids,
@@ -128,6 +134,7 @@ export async function commitHoursCosts(db: ReturnType<typeof createAdminClient>)
   const q = db as any;
   const { costs, skipped } = await planHoursCosts(db);
   let written = 0, updated = 0;
+  const failures: string[] = [];
   const stamp = new Date().toISOString();
   for (const c of costs) {
     // Logged hours are the ACTUAL. An estimate you typed on the same line stays;
@@ -143,15 +150,19 @@ export async function commitHoursCosts(db: ReturnType<typeof createAdminClient>)
           status: "confirmed", notes: note,
         }).eq("id", prev.id)
       : await q.from("exp_costs").insert({
+          // experience_id is NOT NULL on exp_costs — omitting it made every
+          // nightly insert fail, silently, for weeks. The edition knows its
+          // experience; the row carries both.
+          experience_id: c.experience_id,
           edition_id: c.edition_id, item: c.item,
           estimated_amount: null, actual_amount: c.estimated_amount,
           status: "confirmed", date: stamp.slice(0, 10), notes: note,
         });
-    if (error) continue;
+    if (error) { failures.push(`${c.item}: ${error.message}`); continue; }
     if (prev) updated++; else written++;
     // Only stamp the hours once their row landed — a failed write must stay
     // claimable rather than vanish.
     await q.from("hours_log").update({ processed_at: stamp }).in("id", c.hoursIds);
   }
-  return { written, updated, skipped };
+  return { written, updated, skipped, failures };
 }
