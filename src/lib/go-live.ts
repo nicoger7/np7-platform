@@ -164,6 +164,11 @@ function applyAccepted(checks: CheckResult[], acceptedRaw: unknown): CheckResult
 }
 
 export async function runGoLiveChecks(): Promise<ExperienceReport[]> {
+  // The group-chat link is only NEEDED once the crew-forming mail approaches
+  // (lead is 60 days by default, admin-overridable). Flagging a week a year
+  // out taught people the row is noise. 30 days of runway on top ≈ 90 days.
+  const { getSendTiming } = await import("@/lib/email/readiness");
+  const crewLead = (await getSendTiming().catch(() => null))?.before?.crew_forming ?? 60;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const db = createAdminClient() as any;
 
@@ -346,6 +351,9 @@ export async function runGoLiveChecks(): Promise<ExperienceReport[]> {
     const edReports: EditionReport[] = eds.map((ed) => {
       const edId = String(ed.id);
       const base = `/admin/editions/${edId}`;
+      const edDaysToStart = ed.date_start
+        ? Math.ceil((new Date(String(ed.date_start)).getTime() - Date.now()) / 86_400_000)
+        : null;
       const pkgs = ((packages ?? []) as Row[]).filter(
         (p) => String(p.edition_id) === edId || (!p.edition_id && String(p.experience_id) === id),
       );
@@ -422,8 +430,13 @@ export async function runGoLiveChecks(): Promise<ExperienceReport[]> {
             okDetail: Number(ed.deposit) === 0 ? "No deposit — 50% downpayment secures the spot" : `€${ed.deposit}`,
             fix: { table: "exp_editions", id: edId, column: "deposit", kind: "number", title: "Deposit", help: "Enter 0 when there is no deposit and the 50% downpayment secures the spot. Left empty, the plan falls back to €300.", value: (ed.deposit as number) ?? null },
           }),
-        ok("whatsapp", "Group chat link", "warning", has(ed.whatsapp_group_link), `${base}?tab=details`,
+        ok("whatsapp", "Group chat link", "warning",
+          has(ed.whatsapp_group_link)
+            // far out = fine without one; the row says when it becomes real
+            || (edDaysToStart != null && edDaysToStart > crewLead + 30),
+          `${base}?tab=details`,
           "The crew-forming email is held back without it", {
+            okDetail: has(ed.whatsapp_group_link) ? undefined : `Not needed yet — due ${crewLead + 30} days before the trip`,
             fix: { table: "exp_editions", id: edId, column: "whatsapp_group_link", kind: "url", title: "Group chat link", help: "The WhatsApp invite link for this week's crew.", value: (ed.whatsapp_group_link as string) ?? null },
           }),
       ];
