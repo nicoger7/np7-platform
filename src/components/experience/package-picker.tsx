@@ -100,7 +100,7 @@ export function PackagePicker({ packages, currency = "EUR", reserve, heroImage, 
   const [quote, setQuote] = useState<Quote | null>(null);
   const quoteCache = useRef<Map<string, Quote>>(new Map());
   const symbol = currency === "EUR" || !currency ? "€" : `${currency} `;
-  const fmt = (n: number) => `${symbol}${n.toLocaleString("en-US")}`;
+  const fmt = (n: number) => `${symbol}${Number.isInteger(n) ? n.toLocaleString("en-US") : n.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
   // distinct levels, beginner pushed last
   const levels = useMemo(() => {
@@ -426,17 +426,24 @@ export function PackagePicker({ packages, currency = "EUR", reserve, heroImage, 
           ))}
         </ul>
 
-        <div className="flex items-end justify-between border-t border-white/10 pt-5 mb-5">
-          <span className="text-[13px] text-white/50">Total p.p.</span>
-          <span className="text-3xl font-black tracking-[-0.02em] tabular-nums">
-            {selected ? (
-              launch
-                ? <><s className="text-[18px] font-bold text-[#9aa6ac] mr-2 align-middle">{fmt(selected.price)}</s>{fmt(lp(selected.price))}</>
-                : fmt(selected.price)
-            ) : "—"}
-          </span>
+        <div className="border-t border-white/10 pt-5 mb-5">
+          <div className="flex items-end justify-between gap-4">
+            <span className="text-[13px] text-white/50 pb-1">Total p.p.</span>
+            <span className="text-right">
+              {launch && selected && (
+                <s className="block text-[14px] font-semibold text-white/35 leading-none mb-1">{fmt(selected.price)}</s>
+              )}
+              <span className="block text-3xl font-black tracking-[-0.02em] tabular-nums leading-none">
+                {selected ? fmt(launch ? lp(selected.price) : selected.price) : "—"}
+              </span>
+            </span>
+          </div>
           {launch && (
-            <span className="block text-[12px] font-bold text-[#ff8a3d] mt-0.5">{launch.label ?? "Launch price"} · {launch.pct}% off{launchUntil ? ` until ${launchUntil}` : ""}</span>
+            <div className="flex justify-end mt-2.5">
+              <span className="inline-flex items-center gap-1.5 rounded-full bg-[#ffc42e] text-[#00374a] text-[11px] font-extrabold tracking-[0.04em] px-3 py-1">
+                ★ {launch.label ?? "Launch price"} · {launch.pct}% off{launchUntil ? ` · until ${launchUntil}` : ""}
+              </span>
+            </div>
           )}
         </div>
 

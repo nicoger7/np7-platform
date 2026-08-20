@@ -1,17 +1,48 @@
 import { Slideshow } from "@/components/experience/slideshow";
 import type { MemberTier } from "@/lib/member-tier";
 
-/** Booking.com-Genius-style tier chip: quiet, but unmistakably a status. */
+/** Booking.com-Genius-style tier chip. Hover (or keyboard focus) reveals the
+ *  ladder: three rungs, your progress filling toward the next one. */
 function TierChip({ tier }: { tier: MemberTier }) {
   const tone =
     tier.key === "legend" ? "bg-gradient-to-r from-[#f47b20] to-[#ffc42e] text-[#3d2202]"
     : tier.key === "crew" ? "bg-[#ffc42e] text-[#4a3403]"
     : "bg-white/90 text-[#01576f]";
-  const hint = tier.toNext ? `${tier.trips} trip${tier.trips === 1 ? "" : "s"} ridden · ${tier.toNext} more to ${tier.nextLabel}` : `${tier.trips} trips ridden`;
+  const STEPS = [
+    { key: "rider", label: "Rider", min: 1 },
+    { key: "crew", label: "Crew", min: 2 },
+    { key: "legend", label: "Legend", min: 4 },
+  ];
+  // fill per rung: done → 100, the next one → partial, beyond → 0
+  const fill = (i: number) => {
+    const step = STEPS[i];
+    if (tier.trips >= step.min) return 100;
+    const prevMin = i > 0 ? STEPS[i - 1].min : 0;
+    if (tier.trips >= prevMin) return Math.round(((tier.trips - prevMin) / (step.min - prevMin)) * 100);
+    return 0;
+  };
   return (
-    <span title={hint}
-      className={`inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-[10.5px] font-extrabold tracking-[0.12em] uppercase align-middle ${tone}`}>
-      ★ {tier.label}
+    <span className="relative inline-flex group/tier" tabIndex={0}>
+      <span className={`inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-[10.5px] font-extrabold tracking-[0.12em] uppercase align-middle cursor-default ${tone}`}>
+        ★ {tier.label}
+      </span>
+      <span className="pointer-events-none absolute left-0 top-full mt-2 z-30 w-[248px] opacity-0 translate-y-1 transition-all duration-200 group-hover/tier:opacity-100 group-hover/tier:translate-y-0 group-focus-within/tier:opacity-100 group-focus-within/tier:translate-y-0">
+        <span className="block rounded-2xl bg-[#012b3a]/95 backdrop-blur-sm border border-white/10 shadow-[0_16px_40px_rgba(0,20,30,0.45)] p-4">
+          <span className="flex gap-1.5 mb-2.5">
+            {STEPS.map((s, i) => (
+              <span key={s.key} className="flex-1">
+                <span className="block h-1.5 rounded-full bg-white/15 overflow-hidden">
+                  <span className="block h-full rounded-full" style={{ width: `${fill(i)}%`, background: "linear-gradient(90deg,#ffc42e,#f47b20)" }} />
+                </span>
+                <span className={`block mt-1.5 text-[9.5px] font-extrabold tracking-[0.14em] uppercase ${tier.key === s.key ? "text-[#ffc42e]" : tier.trips >= s.min ? "text-white/80" : "text-white/40"}`}>{s.label}</span>
+              </span>
+            ))}
+          </span>
+          <span className="block text-[12px] font-semibold text-white/85">
+            {tier.trips} trip{tier.trips === 1 ? "" : "s"} ridden{tier.toNext ? ` — ${tier.toNext} more to ${tier.nextLabel}` : " — top tier"}
+          </span>
+        </span>
+      </span>
     </span>
   );
 }
@@ -56,14 +87,7 @@ export function MemberHomeBanner({
         <p className="text-[15px] text-white/85 mt-1.5 max-w-[560px]">{subtitle}</p>
         {(tier || level) && (
           <div className="mt-3.5 flex flex-wrap items-center gap-2">
-            {tier && (
-              <>
-                <TierChip tier={tier} />
-                <span className="text-[11.5px] font-semibold text-white/75">
-                  {tier.trips} trip{tier.trips === 1 ? "" : "s"} ridden{tier.toNext ? ` · ${tier.toNext} more to ${tier.nextLabel}` : " · top tier"}
-                </span>
-              </>
-            )}
+            {tier && <TierChip tier={tier} />}
             {level && (
               <span className="inline-flex items-center gap-2 rounded-full bg-white/15 border border-white/25 backdrop-blur-sm px-3 py-1"
                 title={`Your rank: ${level.label}`}>
