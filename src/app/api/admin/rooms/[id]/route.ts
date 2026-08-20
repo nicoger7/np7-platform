@@ -44,5 +44,12 @@ export async function DELETE(_request: Request, { params }: { params: Promise<{ 
   const client = createAdminClient();
   const { ok, error } = await softDelete(client, "exp_rooms", id);
   if (!ok) return NextResponse.json({ error }, { status: 400 });
+  // Its free allotment slots go with it — leaving them made the rooms list
+  // resurrect the "deleted" room from its own week rows. Slots with a guest
+  // stay: a deletion must never detach a booking from its bed.
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  await (client as any).from("exp_hotel_rooms")
+    .update({ archived_at: new Date().toISOString() })
+    .eq("room_id", id).is("booking_id", null).is("archived_at", null);
   return NextResponse.json({ success: true });
 }

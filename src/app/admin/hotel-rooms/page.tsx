@@ -154,7 +154,11 @@ export default function HotelRoomsPage() {
   const groupMap: Record<string, { unit: RoomUnit; weeks: Occupancy[] }> = {};
   for (const u of filteredUnits) groupMap[u.id] = { unit: u, weeks: [] };
   for (const r of filteredOcc) {
-    const key = r.room_id ?? `name:${r.experience_id ?? ""}|${r.hotel ?? ""}|${r.name}`;
+    // A row with a room_id belongs to a real room: if that room isn't in the
+    // list (deleted, or filtered out), the row must not resurrect it as a
+    // synthetic card — that made "Delete room" look like it did nothing.
+    if (r.room_id) { groupMap[r.room_id]?.weeks.push(r); continue; }
+    const key = `name:${r.experience_id ?? ""}|${r.hotel ?? ""}|${r.name}`;
     if (!groupMap[key]) {
       groupMap[key] = { unit: { id: key, experience_id: r.experience_id, hotel: r.hotel, name: r.name, room_type: r.room_type, room_number: r.room_number, comments: r.comments }, weeks: [] };
     }
@@ -627,13 +631,24 @@ const labelClass = "block text-xs font-medium admin-muted mb-1";
                           <div className="text-sm font-medium admin-heading truncate">{g.unit.name}{g.unit.room_type ? <span className="admin-faint font-normal"> · {g.unit.room_type}</span> : ""}</div>
                           <div className="flex flex-wrap gap-1 mt-1">
                             {weeks.length === 0 && <span className="text-[10px] admin-faint">no weeks yet</span>}
-                            {weeks.map((w) => {
-                              const guest = w.booking?.name ? w.booking.name.split(" — ")[0].split(" - ")[0] : null;
+                            {Object.values(weeks.reduce<Record<string, Occupancy[]>>((acc, w) => {
+                              const k = w.edition_id || w.id;
+                              (acc[k] = acc[k] || []).push(w);
+                              return acc;
+                            }, {})).map((rows) => {
+                              // one chip per WEEK — a shared double is two rows,
+                              // and "who is in the room" means everyone in it
+                              const w = rows[0];
+                              const names = rows.flatMap((r) => [
+                                r.booking?.name ? r.booking.name.split(" — ")[0].split(" - ")[0] : null,
+                                r.partner_tag_along ? `+${r.partner_tag_along.split(" ")[0]}` : null,
+                              ]).filter(Boolean);
                               const lbl = w.edition ? editionLabel(w.edition) : "—";
+                              const tone = rows.find((r) => r.booking) ?? w;
                               return (
-                                <button key={w.id} onClick={(e) => { e.stopPropagation(); startUnit(g.unit.id); startWeek(w); }} title={`${lbl}: ${guest || "free"}${w.partner_tag_along ? " (+" + w.partner_tag_along + ")" : ""}`}
-                                  className={`px-1.5 py-0.5 rounded text-[10px] ${statusColor(w.status)} hover:opacity-80 transition-opacity`}>
-                                  <b>{lbl}</b>: {guest || "free"}{w.partner_tag_along ? ` (+${w.partner_tag_along.split(" ")[0]})` : ""}
+                                <button key={w.id} onClick={(e) => { e.stopPropagation(); startUnit(g.unit.id); startWeek(w); }} title={`${lbl}: ${names.join(", ") || "free"}`}
+                                  className={`px-1.5 py-0.5 rounded text-[10px] ${statusColor(tone.status)} hover:opacity-80 transition-opacity`}>
+                                  <b>{lbl}</b>: {names.length ? names.join(" · ") : "free"}
                                 </button>
                               );
                             })}
