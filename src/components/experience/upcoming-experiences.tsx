@@ -126,6 +126,43 @@ export function UpcomingExperiences({ experiences, showSignature = false }: { ex
   );
 }
 
+/** Compact variant for tight surfaces (member home): the SAME branded tile
+ *  imagery, minus the description/footer — a thumbnail, not a poster. */
+export function ExpTileCardCompact({ exp }: { exp: ExpCard }) {
+  return (
+    <Link href={`/experience/${exp.slug}`}
+      className="group block h-full bg-white rounded-2xl overflow-hidden border border-[#f0e6d6] hover:-translate-y-0.5 hover:shadow-[0_16px_40px_rgba(0,55,74,0.10)] transition-all">
+      <div className="relative h-[120px] bg-[#e9eef0] overflow-hidden [clip-path:inset(0_round_16px_16px_0_0)] transform-gpu">
+        {exp.tileAuto && exp.hero_image ? (
+          <BrandedTile
+            photo={exp.hero_image}
+            place={placeFromLocation(exp.location).toUpperCase()}
+            flag={flagFromLocation(exp.location)}
+            coachName={exp.coachName}
+            coachCutout={exp.coachCutout}
+            placement={exp.placement}
+          />
+        ) : (
+          <>
+            <div className="absolute inset-0 bg-cover bg-center" style={{ backgroundImage: exp.hero_image ? `url('${exp.hero_image}')` : undefined }} />
+            <div className="absolute inset-0 bg-gradient-to-t from-black/35 to-transparent" />
+            <span className="absolute bottom-2 left-3 text-[10.5px] font-bold tracking-wide uppercase text-white drop-shadow">{exp.location}</span>
+          </>
+        )}
+        {typeof exp.spotsLeft === "number" && exp.spotsLeft <= 5 && (
+          <span className={`absolute top-2 left-2 z-20 text-[10px] font-bold px-2 py-1 rounded-full backdrop-blur-md ${exp.spotsLeft > 0 ? "bg-white/85 text-[#00374a]" : "bg-[#f47b20] text-white"}`}>
+            {exp.spotsLeft > 0 ? `Only ${exp.spotsLeft} left` : "Fully booked"}
+          </span>
+        )}
+      </div>
+      <div className="px-4 py-3">
+        <h3 className="text-[15px] font-black tracking-[-0.01em] text-[#00374a] leading-snug group-hover:text-[#00afdb] transition-colors">{exp.title.replace(/^NP7 (Experience )?/, "")}</h3>
+        <p className="text-[12.5px] text-[#6a7a80] mt-0.5">{exp.dateLabel}{exp.priceLabel ? ` · from ${exp.priceLabel}` : ""}</p>
+      </div>
+    </Link>
+  );
+}
+
 /** One experience tile — the exact card the /experience grid renders, exported
  *  so other surfaces (member home) show the same tile, not a re-creation. */
 export function ExpTileCard({ exp }: { exp: ExpCard }) {

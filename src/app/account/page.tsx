@@ -5,7 +5,8 @@ import { getPortalUser, getTeamMember } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 import { getMemberBookings, getMemberBannerImages, getMemberProfile, getMemberProgression } from "@/lib/portal-data";
 import { getExperienceCards } from "@/lib/experience-cards";
-import { ExpTileCard } from "@/components/experience/upcoming-experiences";
+import { getMemberTier } from "@/lib/member-tier";
+import { ExpTileCardCompact } from "@/components/experience/upcoming-experiences";
 import { fmtDates, needsDownpayment, paymentStageLabel } from "@/lib/portal-status";
 import { hasFlightDetails, type FlightInfo } from "@/lib/flights";
 import { firstNameInitial, initialsFrom } from "@/lib/member-profile";
@@ -43,6 +44,7 @@ export default async function AccountHome() {
     getMemberApplication(user.contactId).catch(() => null),
     getExperienceCards().then((r) => r.cards).catch(() => []),
   ]);
+  const tier = await getMemberTier(user.contactId).catch(() => null);
   // Only weeks you can actually book — a "dates coming soon" tile sells nothing here.
   const bookableTrips = nextTrips.filter((c) => c.dateLabel !== "Dates coming soon").slice(0, 3);
   const first = user.name?.split(" ")[0] ?? "there";
@@ -135,6 +137,7 @@ export default async function AccountHome() {
           <MemberHomeBanner
             images={bannerImages}
             name={first}
+            tier={tier}
             subtitle="Welcome to your NP7 home — your trips, your gear and everything in between."
           />
 
@@ -229,22 +232,23 @@ export default async function AccountHome() {
                   ))}
                 </div>
               ) : null}
+              {/* Book your next trip — the loop's on-ramp, in the same column
+                  as the trips so the profile card never floats alone. Compact
+                  cards, but the REAL branded tile imagery (one source). */}
+              {bookableTrips.length > 0 && (
+                <div className={tripCards.length ? "mt-6" : undefined}>
+                  <div className="flex items-baseline justify-between mb-3">
+                    <p className="text-[11px] font-bold tracking-[0.18em] uppercase text-[#9aa6ac]">Book your next trip</p>
+                    <Link href="/experience" className="text-[12.5px] font-bold text-[#00afdb] hover:underline">All trips →</Link>
+                  </div>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    {bookableTrips.map((c) => <ExpTileCardCompact key={c.id} exp={c} />)}
+                  </div>
+                </div>
+              )}
+
             </div>
           </div>
-
-          {/* Book your next trip — the loop's on-ramp, rendered with the SAME
-              tiles as the /experience homepage (one source: experience-cards). */}
-          {bookableTrips.length > 0 && (
-            <div className={tripCards.length ? "mt-6" : undefined}>
-              <div className="flex items-baseline justify-between mb-3">
-                <p className="text-[11px] font-bold tracking-[0.18em] uppercase text-[#9aa6ac]">Book your next trip</p>
-                <Link href="/experience" className="text-[12.5px] font-bold text-[#00afdb] hover:underline">All trips →</Link>
-              </div>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                {bookableTrips.map((c) => <ExpTileCard key={c.id} exp={c} />)}
-              </div>
-            </div>
-          )}
 
           {/* Your progression — the ladder gets real estate on the home, not just a
               chip: rank + 6-rung ladder + per-discipline breakdown, linking to the
