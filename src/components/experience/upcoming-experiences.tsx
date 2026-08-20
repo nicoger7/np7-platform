@@ -116,56 +116,64 @@ export function UpcomingExperiences({ experiences, showSignature = false }: { ex
                   Animating box-shadow repaints the big soft blur every frame —
                   that was the residual jank — so the hover shadow is a second
                   layer whose OPACITY cross-fades under the card instead. */}
-              <div className="group relative h-full transform-gpu transition-transform duration-[420ms] [transition-timing-function:cubic-bezier(0.22,1,0.36,1)] hover:-translate-y-1.5">
-                <div aria-hidden className="absolute inset-0 rounded-[18px] shadow-[0_32px_62px_rgba(0,20,30,0.38)] opacity-0 group-hover:opacity-100 transition-opacity duration-[420ms] [transition-timing-function:cubic-bezier(0.22,1,0.36,1)]" />
-              <Link
-                href={`/experience/${exp.slug}`}
-                className="relative block h-full bg-white rounded-[18px] overflow-hidden border border-white/10 shadow-[0_24px_50px_rgba(0,20,30,0.28)]"
-              >
-                {/* clip-path for the same Safari composited-child escape as on
-                    the Signature tile above */}
-                <div className="relative h-[210px] bg-[#e9eef0] overflow-hidden [clip-path:inset(0_round_18px_18px_0_0)] transform-gpu">
-                  {exp.tileAuto && exp.hero_image ? (
-                    <BrandedTile
-                      photo={exp.hero_image}
-                      place={placeFromLocation(exp.location).toUpperCase()}
-                      flag={flagFromLocation(exp.location)}
-                      coachName={exp.coachName}
-                      coachCutout={exp.coachCutout}
-                      placement={exp.placement}
-                    />
-                  ) : (
-                    <>
-                      <div className="absolute inset-0 bg-cover bg-center" style={{ backgroundImage: exp.hero_image ? `url('${exp.hero_image}')` : undefined }} />
-                      <div className="absolute inset-0 bg-gradient-to-t from-black/35 to-transparent" />
-                      <span className="absolute bottom-3 left-3 text-[11px] font-bold tracking-wide uppercase text-white drop-shadow">{exp.location}</span>
-                    </>
-                  )}
-                  {typeof exp.spotsLeft === "number" && (exp.spotsLeft <= 0 || exp.spotsLeft <= 5) && (
-                    <span className={`absolute top-3 left-3 z-20 text-[11px] font-bold px-3 py-1.5 rounded-full backdrop-blur-md ${exp.spotsLeft > 0 ? "bg-white/85 text-[#00374a]" : "bg-[#f47b20] text-white"}`}>
-                      {exp.spotsLeft > 0 ? `Only ${exp.spotsLeft} spots left` : "Fully booked"}
-                    </span>
-                  )}
-                </div>
-                <div className="p-6">
-                  <p className="text-[12px] font-semibold text-[#00afdb] mb-1.5">{exp.dateLabel}</p>
-                  <h3 className="text-xl font-extrabold tracking-[-0.02em] text-[#00374a] mb-2.5 group-hover:text-[#00afdb] transition-colors">{exp.title}</h3>
-                  {exp.description && <p className="text-[14px] text-[#6a7a80] leading-relaxed line-clamp-2 mb-4">{exp.description}</p>}
-                  <div className="flex items-center justify-between pt-3 border-t border-[#f0f0f0]">
-                    {exp.priceLabel ? <span className="text-[15px] font-bold text-[#00374a]">from {exp.priceLabel}</span> : <span />}
-                    <span className="inline-flex items-center gap-1.5 text-[12px] font-bold text-[#00afdb] group-hover:gap-2.5 transition-all">
-                      View trip
-                      <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M5 12h14M13 6l6 6-6 6" /></svg>
-                    </span>
-                  </div>
-                </div>
-              </Link>
-              </div>
+              <ExpTileCard exp={exp} />
             </Reveal>
           ))}
           {showSignature && <SignatureTile />}
         </div>
       )}
     </>
+  );
+}
+
+/** One experience tile — the exact card the /experience grid renders, exported
+ *  so other surfaces (member home) show the same tile, not a re-creation. */
+export function ExpTileCard({ exp }: { exp: ExpCard }) {
+  return (
+      <div className="group relative h-full transform-gpu transition-transform duration-[420ms] [transition-timing-function:cubic-bezier(0.22,1,0.36,1)] hover:-translate-y-1.5">
+        <div aria-hidden className="absolute inset-0 rounded-[18px] shadow-[0_32px_62px_rgba(0,20,30,0.38)] opacity-0 group-hover:opacity-100 transition-opacity duration-[420ms] [transition-timing-function:cubic-bezier(0.22,1,0.36,1)]" />
+      <Link
+        href={`/experience/${exp.slug}`}
+        className="relative block h-full bg-white rounded-[18px] overflow-hidden border border-white/10 shadow-[0_24px_50px_rgba(0,20,30,0.28)]"
+      >
+        {/* clip-path for the same Safari composited-child escape as on
+            the Signature tile above */}
+        <div className="relative h-[210px] bg-[#e9eef0] overflow-hidden [clip-path:inset(0_round_18px_18px_0_0)] transform-gpu">
+          {exp.tileAuto && exp.hero_image ? (
+            <BrandedTile
+              photo={exp.hero_image}
+              place={placeFromLocation(exp.location).toUpperCase()}
+              flag={flagFromLocation(exp.location)}
+              coachName={exp.coachName}
+              coachCutout={exp.coachCutout}
+              placement={exp.placement}
+            />
+          ) : (
+            <>
+              <div className="absolute inset-0 bg-cover bg-center" style={{ backgroundImage: exp.hero_image ? `url('${exp.hero_image}')` : undefined }} />
+              <div className="absolute inset-0 bg-gradient-to-t from-black/35 to-transparent" />
+              <span className="absolute bottom-3 left-3 text-[11px] font-bold tracking-wide uppercase text-white drop-shadow">{exp.location}</span>
+            </>
+          )}
+          {typeof exp.spotsLeft === "number" && (exp.spotsLeft <= 0 || exp.spotsLeft <= 5) && (
+            <span className={`absolute top-3 left-3 z-20 text-[11px] font-bold px-3 py-1.5 rounded-full backdrop-blur-md ${exp.spotsLeft > 0 ? "bg-white/85 text-[#00374a]" : "bg-[#f47b20] text-white"}`}>
+              {exp.spotsLeft > 0 ? `Only ${exp.spotsLeft} spots left` : "Fully booked"}
+            </span>
+          )}
+        </div>
+        <div className="p-6">
+          <p className="text-[12px] font-semibold text-[#00afdb] mb-1.5">{exp.dateLabel}</p>
+          <h3 className="text-xl font-extrabold tracking-[-0.02em] text-[#00374a] mb-2.5 group-hover:text-[#00afdb] transition-colors">{exp.title}</h3>
+          {exp.description && <p className="text-[14px] text-[#6a7a80] leading-relaxed line-clamp-2 mb-4">{exp.description}</p>}
+          <div className="flex items-center justify-between pt-3 border-t border-[#f0f0f0]">
+            {exp.priceLabel ? <span className="text-[15px] font-bold text-[#00374a]">from {exp.priceLabel}</span> : <span />}
+            <span className="inline-flex items-center gap-1.5 text-[12px] font-bold text-[#00afdb] group-hover:gap-2.5 transition-all">
+              View trip
+              <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M5 12h14M13 6l6 6-6 6" /></svg>
+            </span>
+          </div>
+        </div>
+      </Link>
+      </div>
   );
 }
