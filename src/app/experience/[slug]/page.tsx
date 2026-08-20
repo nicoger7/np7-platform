@@ -19,6 +19,8 @@ import { Accordion, type AccordionItem } from "@/components/experience/accordion
 import { StickyCta } from "@/components/experience/sticky-cta";
 import { type RealPackage } from "@/components/experience/package-picker";
 import { activeLaunch } from "@/lib/launch-price";
+import { resolveTierPct, bestAdvantage, type TierPerkRule, type PriceAdvantage } from "@/lib/tier-perks";
+import { getMemberTier } from "@/lib/member-tier";
 import { FOCUS_CLASS, FOCUS_CSS, focusVars, parseFocus } from "@/lib/placement";
 import { EditionBooking, type EditionLite } from "@/components/experience/edition-booking";
 import { HeroVideo } from "@/components/experience/hero-video";
@@ -279,6 +281,25 @@ export default async function ExperienceDetailPage({ params, searchParams }: Pro
   // Launch price per week — computed server-side once; the picker only displays it.
   const launchByEdition: Record<string, { pct: number; until: string } | null> = {};
   for (const e of allEditions) launchByEdition[e.id] = activeLaunch(e as never);
+  // Tier perks (migration 169): the signed-in member's ladder discount vs the
+  // launch price — the single best advantage wins, they never stack.
+  const viewer = await getPortalUser().catch(() => null);
+  const viewerTier = viewer?.contactId ? await getMemberTier(viewer.contactId).catch(() => null) : null;
+  let perkRules: TierPerkRule[] = [];
+  if (viewerTier) {
+    const { data: perkRows } = await sb.from("exp_tier_perks")
+      .select("tier,kind,value,edition_id,package_id")
+      .eq("experience_id", experience.id).eq("active", true);
+    perkRules = (Array.isArray(perkRows) ? perkRows : []) as TierPerkRule[];
+  }
+  const advantageByEdition: Record<string, PriceAdvantage> = {};
+  for (const e of allEditions) {
+    advantageByEdition[e.id] = bestAdvantage(
+      launchByEdition[e.id],
+      viewerTier ? resolveTierPct(perkRules, { tier: viewerTier.key, editionId: e.id, packageId: null }) : 0,
+      viewerTier?.label ?? null,
+    );
+  }
 
   // Securing payment: deposit is explicit 0 across the board for now (no Stripe yet)
   // → there's no upfront deposit; the spot is reserved free and confirmed by the
@@ -960,7 +981,7 @@ export default async function ExperienceDetailPage({ params, searchParams }: Pro
               <EditionBooking
                 editions={editionsLite}
                 packagesByEdition={packagesByEdition}
-                launchByEdition={launchByEdition}
+                launchByEdition={advantageByEdition}
                 currency={experience.currency ?? undefined}
                 experienceId={experience.id}
                 experienceTitle={experience.title}

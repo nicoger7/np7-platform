@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { activeLaunch, launchPrice } from "@/lib/launch-price";
+import { bookingPrice } from "@/lib/tier-perks";
 import { createAdminClient } from "@/lib/supabase";
 import { sendEmail } from "@/lib/email/send";
 import { getPortalUser } from "@/lib/auth";
@@ -123,6 +123,13 @@ export async function POST(request: NextRequest) {
     }
   }
 
+  // The one price this booking may be created at — launch vs tier discount,
+  // best single advantage, resolved server-side (lib/tier-perks).
+  const priced = await bookingPrice(db, {
+    price: pkg.price, experienceId: exp.id, editionId: editionId ?? null,
+    packageId: pkg.id, edition, contactId: contactId ?? null,
+  });
+
   // Booking — lands in the admin pipeline as "reserved" (awaiting the deposit).
   const { data: booking, error: bErr } = await db
     .from("exp_bookings")
@@ -135,8 +142,8 @@ export async function POST(request: NextRequest) {
       status: "reserved",
       // Recomputed here, not read from the page — the launch window can close
       // between page load and reserve, and the server's clock decides.
-      agreed_price: launchPrice(pkg.price, activeLaunch(edition)),
-      notes: `Website reservation · package: ${pkg.name} · phone: ${phone} · deposit €${DEPOSIT_EUR} via Stripe${activeLaunch(edition) ? ` · launch price −${activeLaunch(edition)!.pct}%` : ""}`,
+      agreed_price: priced.price,
+      notes: `Website reservation · package: ${pkg.name} · phone: ${phone} · deposit €${DEPOSIT_EUR} via Stripe${priced.noteSuffix}`,
     })
     .select("id")
     .single();

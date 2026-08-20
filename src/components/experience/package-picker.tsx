@@ -87,11 +87,11 @@ type Quote = {
   milestones: { kind: string; label: string; amount: number; dueLabel: string; dueDate: string | null }[];
 };
 
-export function PackagePicker({ packages, currency = "EUR", reserve, heroImage, launch }: Props & { launch?: { pct: number; until: string } | null }) {
+export function PackagePicker({ packages, currency = "EUR", reserve, heroImage, launch }: Props & { launch?: { pct: number; until?: string | null; label?: string } | null }) {
   // Launch price: display only — the reserve API recomputes it server-side, so
   // a stale page can never charge a discount whose window has closed.
   const lp = (n: number) => (launch ? Math.round(n * (1 - launch.pct / 100)) : n);
-  const launchUntil = launch ? new Date(launch.until + "T00:00:00Z").toLocaleDateString("en-GB", { day: "numeric", month: "short", timeZone: "UTC" }) : null;
+  const launchUntil = launch?.until ? new Date(launch.until + "T00:00:00Z").toLocaleDateString("en-GB", { day: "numeric", month: "short", timeZone: "UTC" }) : null;
   const [showReserve, setShowReserve] = useState(false);
   // Active photo per hotel group (the expanded card shows a swappable banner —
   // photos stay at card size on purpose: sources aren't always hi-res, so no lightbox).
@@ -436,7 +436,7 @@ export function PackagePicker({ packages, currency = "EUR", reserve, heroImage, 
             ) : "—"}
           </span>
           {launch && (
-            <span className="block text-[12px] font-bold text-[#ff8a3d] mt-0.5">Launch price · {launch.pct}% off until {launchUntil}</span>
+            <span className="block text-[12px] font-bold text-[#ff8a3d] mt-0.5">{launch.label ?? "Launch price"} · {launch.pct}% off{launchUntil ? ` until ${launchUntil}` : ""}</span>
           )}
         </div>
 

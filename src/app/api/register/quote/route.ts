@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
-import { activeLaunch, launchPrice } from "@/lib/launch-price";
+import { bookingPrice } from "@/lib/tier-perks";
+import { getPortalUser } from "@/lib/auth";
 import { createAdminClient } from "@/lib/supabase";
 import { computePaymentPlan, PAYMENT_DEFAULTS } from "@/lib/payments";
 
@@ -25,7 +26,7 @@ export async function GET(request: NextRequest) {
       .select("id,price,status,deposit,deposit_refund_days,downpayment_percent,final_days_before")
       .eq("id", packageId).maybeSingle(),
     editionId
-      ? db.from("exp_editions").select("id,deposit,date_start,launch_discount_pct,launch_price_until").eq("id", editionId).maybeSingle()
+      ? db.from("exp_editions").select("id,experience_id,deposit,date_start,launch_discount_pct,launch_price_until").eq("id", editionId).maybeSingle()
       : Promise.resolve({ data: null }),
   ]);
   if (!pkg || pkg.status !== "active") {
@@ -42,7 +43,17 @@ export async function GET(request: NextRequest) {
   const today = new Date().toISOString().slice(0, 10);
   // Every milestone is a fraction of the total, so the discount has to land
   // here — quoting a plan off the full price contradicts the price shown.
-  const total = launchPrice(pkg.price ?? 0, activeLaunch(edition));
+  // Launch vs tier — the best single advantage, same resolver the booking
+  // routes use, so the promise here always matches the invoice later.
+  const member = await getPortalUser().catch(() => null);
+  const { price: total } = await bookingPrice(db, {
+    price: pkg.price ?? 0,
+    experienceId: edition?.experience_id ?? "",
+    editionId: editionId || null,
+    packageId,
+    edition,
+    contactId: member?.contactId ?? null,
+  });
   const plan = computePaymentPlan(cfg, {
     total,
     paidAmount: 0,

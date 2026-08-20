@@ -56,7 +56,14 @@ export function MemberHomeBanner({
         <p className="text-[15px] text-white/85 mt-1.5 max-w-[560px]">{subtitle}</p>
         {(tier || level) && (
           <div className="mt-3.5 flex flex-wrap items-center gap-2">
-            {tier && <TierChip tier={tier} />}
+            {tier && (
+              <>
+                <TierChip tier={tier} />
+                <span className="text-[11.5px] font-semibold text-white/75">
+                  {tier.trips} trip{tier.trips === 1 ? "" : "s"} ridden{tier.toNext ? ` · ${tier.toNext} more to ${tier.nextLabel}` : " · top tier"}
+                </span>
+              </>
+            )}
             {level && (
               <span className="inline-flex items-center gap-2 rounded-full bg-white/15 border border-white/25 backdrop-blur-sm px-3 py-1"
                 title={`Your rank: ${level.label}`}>

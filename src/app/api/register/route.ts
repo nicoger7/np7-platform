@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { activeLaunch, launchPrice } from "@/lib/launch-price";
+import { bookingPrice } from "@/lib/tier-perks";
 import { after } from "next/server";
 import { checkBotId } from "botid/server";
 import { createAdminClient } from "@/lib/supabase";
@@ -121,9 +121,12 @@ export async function POST(request: NextRequest) {
     edition_id: editionId ?? null,
     package_id: pkg.id,
     // Recomputed from the server's clock, exactly as /api/reserve does — the
-    // picker advertises the launch price, and a signup that recorded full
-    // price would invoice the guest more than the page promised.
-    agreed_price: launchPrice(pkg.price, activeLaunch(edition)),
+    // picker advertises a launch or tier price, and a signup that recorded
+    // full price would invoice the guest more than the page promised.
+    agreed_price: (await bookingPrice(db, {
+      price: pkg.price, experienceId: exp.id, editionId: editionId ?? null,
+      packageId: pkg.id, edition, contactId: contactId ?? null,
+    })).price,
     notes: `Website registration · package: ${pkg.name}${body.inviteToken ? (body.intent === "info" ? " · friend invite (info request)" : " · friend invite") : ""}`,
   };
   const { data: booking, error: bErr } = await db

@@ -33,7 +33,7 @@ export function EditionBooking({
 }: {
   editions: EditionLite[];
   packagesByEdition: Record<string, RealPackage[]>;
-  launchByEdition?: Record<string, { pct: number; until: string } | null>;
+  launchByEdition?: Record<string, { pct: number; until?: string | null; label?: string } | null>;
   currency?: string;
   experienceId: string;
   experienceTitle: string;

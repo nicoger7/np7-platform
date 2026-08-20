@@ -138,8 +138,6 @@ export function ExpTileCardCompact({ exp }: { exp: ExpCard }) {
             photo={exp.hero_image}
             place={placeFromLocation(exp.location).toUpperCase()}
             flag={flagFromLocation(exp.location)}
-            coachName={exp.coachName}
-            coachCutout={exp.coachCutout}
             placement={exp.placement}
           />
         ) : (
