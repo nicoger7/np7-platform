@@ -28,6 +28,7 @@ export function MemberHomeBanner({
   title,
   variant = "experience",
   tier,
+  level,
 }: {
   images: string[];
   name?: string;
@@ -35,8 +36,10 @@ export function MemberHomeBanner({
   /** Overrides the default "Hey {name}" heading (e.g. "My trips"). */
   title?: string;
   variant?: "experience" | "hardware";
-  /** Loyalty ladder chip beside the greeting; absent before the first trip. */
+  /** Loyalty ladder chip; absent before the first trip. */
   tier?: import("@/lib/member-tier").MemberTier | null;
+  /** Skill rank + progress into the current band, as a tiny bar. */
+  level?: { label: string; pct: number } | null;
 }) {
   const overlay =
     variant === "hardware"
@@ -45,15 +48,26 @@ export function MemberHomeBanner({
   const fallback = variant === "hardware" ? "bg-[#b9770a]" : "bg-[#00374a]";
 
   return (
-    <div className="relative rounded-3xl overflow-hidden mb-7 min-h-[164px] sm:min-h-[190px] flex items-end">
+    <div className="relative rounded-3xl overflow-hidden mb-7 min-h-[190px] sm:min-h-[224px] flex items-end">
       {images.length > 0 ? <Slideshow images={images} interval={6000} /> : <div className={`absolute inset-0 ${fallback}`} />}
       <div className={`absolute inset-0 ${overlay}`} />
       <div className="relative p-6 sm:p-7 text-white">
-        <h1 className="text-3xl sm:text-4xl font-black tracking-[-0.03em] drop-shadow-sm">
-          {title ?? `Hey ${name ?? "there"}`}
-          {tier && <span className="ml-3 relative -top-1"><TierChip tier={tier} /></span>}
-        </h1>
+        <h1 className="text-3xl sm:text-4xl font-black tracking-[-0.03em] drop-shadow-sm">{title ?? `Hey ${name ?? "there"}`}</h1>
         <p className="text-[15px] text-white/85 mt-1.5 max-w-[560px]">{subtitle}</p>
+        {(tier || level) && (
+          <div className="mt-3.5 flex flex-wrap items-center gap-2">
+            {tier && <TierChip tier={tier} />}
+            {level && (
+              <span className="inline-flex items-center gap-2 rounded-full bg-white/15 border border-white/25 backdrop-blur-sm px-3 py-1"
+                title={`Your rank: ${level.label}`}>
+                <span className="text-[10.5px] font-extrabold tracking-[0.12em] uppercase text-white">{level.label}</span>
+                <span className="relative h-1.5 w-14 rounded-full bg-white/25 overflow-hidden">
+                  <span className="absolute inset-y-0 left-0 rounded-full" style={{ width: `${Math.max(6, Math.min(100, level.pct))}%`, background: "linear-gradient(90deg,#ffc42e,#f47b20)" }} />
+                </span>
+              </span>
+            )}
+          </div>
+        )}
       </div>
     </div>
   );

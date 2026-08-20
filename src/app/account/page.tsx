@@ -138,6 +138,7 @@ export default async function AccountHome() {
             images={bannerImages}
             name={first}
             tier={tier}
+            level={progression?.level ? { label: progression.level, pct: progression.pct ?? 0 } : null}
             subtitle="Welcome to your NP7 home — your trips, your gear and everything in between."
           />
 
