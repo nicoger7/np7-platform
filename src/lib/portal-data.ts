@@ -292,7 +292,9 @@ export async function getProfilePhotoChoices(contactId: string): Promise<string[
   const lists = await Promise.all(
     bookings.map((b) => (b.edition?.id ? getMemoryPhotosForBooking(b.edition.id, b.id).catch(() => []) : Promise.resolve([])))
   );
-  return [...new Set(lists.flat().filter(Boolean))].slice(0, 60);
+  // Every trip's photos — the cap is a guard against pathological volume, not
+  // a feature; at 60 a two-trip member already lost their first week's photos.
+  return [...new Set(lists.flat().filter(Boolean))].slice(0, 400);
 }
 
 export type CrewRoster = { going: number; sharing: number; profiles: PublicProfile[] };

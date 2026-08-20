@@ -87,7 +87,7 @@ export function CommunityProfile(p: Props) {
     <section className="bg-white rounded-2xl border border-[#f0e6d6] p-6">
       <h2 className="text-[11px] font-bold tracking-[0.2em] uppercase text-[#00afdb] mb-1.5">Community profile</h2>
       <p className="text-[13.5px] text-[#6a7a80] mb-5 leading-relaxed">
-        Optional — let other NP7 riders put a face to your name on trips you share. Off by default; you choose exactly where and what.
+        How riders you share a week with see you. Nothing is shown until you switch it on — the switches are below, under &ldquo;Where can other members see me?&rdquo;.
       </p>
 
       {/* avatar + handle */}
@@ -139,12 +139,16 @@ export function CommunityProfile(p: Props) {
           {p.photoChoices.length === 0 ? (
             <p className="text-[13px] text-[#9aa6ac] py-2 text-center">Your trip photos appear here after your first week — until then you&apos;ll show with your initials.</p>
           ) : (
-            <div className="grid grid-cols-5 sm:grid-cols-8 gap-2 max-h-[180px] overflow-y-auto">
+            <div className="grid grid-cols-5 sm:grid-cols-8 gap-2 max-h-[320px] overflow-y-auto">
               {p.photoChoices.map((src) => (
                 <button key={src} type="button" onClick={() => { setAvatar(src); setPickerOpen(false); }}
                   aria-label="Use this photo"
-                  className={`aspect-square rounded-lg bg-cover bg-center hover:opacity-90 hover:scale-[1.03] transition-all ${avatar === src ? "ring-2 ring-[#00afdb]" : ""}`}
-                  style={{ backgroundImage: `url('${src}')` }} />
+                  className={`aspect-square rounded-lg overflow-hidden hover:opacity-90 hover:scale-[1.03] transition-all ${avatar === src ? "ring-2 ring-[#00afdb]" : ""}`}>
+                  {/* real <img loading="lazy">, not a CSS background — with 400
+                      choices the browser must only fetch what scrolls into view */}
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img src={src} alt="" loading="lazy" className="w-full h-full object-cover" />
+                </button>
               ))}
             </div>
           )}
