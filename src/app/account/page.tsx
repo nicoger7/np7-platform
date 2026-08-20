@@ -3,7 +3,7 @@ import { redirect } from "next/navigation";
 import type { Metadata } from "next";
 import { getPortalUser, getTeamMember } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
-import { getMemberBookings, getMemberBannerImages, getMemberProfile, getMemberProgression } from "@/lib/portal-data";
+import { getMemberBookings, getMemberBannerImages, getMemberProfile, getMemberProgression, getUpcomingTrips } from "@/lib/portal-data";
 import { fmtDates, needsDownpayment, paymentStageLabel } from "@/lib/portal-status";
 import { hasFlightDetails, type FlightInfo } from "@/lib/flights";
 import { firstNameInitial, initialsFrom } from "@/lib/member-profile";
@@ -33,13 +33,19 @@ export default async function AccountHome() {
     await supabase.auth.signOut();
     redirect("/account/login");
   }
-  const [bookings, bannerImages, profile, progression, signatureApp] = await Promise.all([
+  const [bookings, bannerImages, profile, progression, signatureApp, nextTrips] = await Promise.all([
     getMemberBookings(user.contactId),
     getMemberBannerImages(user.contactId).catch(() => []),
     getMemberProfile(user.contactId).catch(() => null),
     getMemberProgression(user.contactId).catch(() => null),
     getMemberApplication(user.contactId).catch(() => null),
+    getUpcomingTrips(3).catch(() => []),
   ]);
+  const fmtTrip = (s: string, e: string | null) => {
+    const d = (x: string) => new Date(x + "T00:00:00Z").toLocaleDateString("en-GB", { day: "numeric", month: "short", timeZone: "UTC" });
+    const yr = new Date(s + "T00:00:00Z").getUTCFullYear();
+    return `${d(s)}${e ? ` – ${d(e)}` : ""} ${yr}`;
+  };
   const first = user.name?.split(" ")[0] ?? "there";
 
   // Suggest setting a password if the member has only ever used magic links — but
@@ -234,6 +240,30 @@ export default async function AccountHome() {
               )}
             </div>
           </div>
+
+          {/* Book your next trip — the loop's on-ramp: the next bookable weeks,
+              always visible (an alumni's "next" matters as much as a first-timer's) */}
+          {nextTrips.length > 0 && (
+            <div className="mt-6">
+              <div className="flex items-baseline justify-between mb-3">
+                <p className="text-[11px] font-bold tracking-[0.18em] uppercase text-[#9aa6ac]">Book your next trip</p>
+                <Link href="/experience" className="text-[12.5px] font-bold text-[#00afdb] hover:underline">All trips →</Link>
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                {nextTrips.map((t) => (
+                  <Link key={t.slug} href={`/experience/${t.slug}`} className="group block bg-white rounded-2xl border border-[#f0e6d6] overflow-hidden hover:-translate-y-0.5 hover:shadow-[0_16px_40px_rgba(0,55,74,0.08)] transition-all">
+                    <div className="h-24 bg-cover bg-center bg-[#0a4a5e] transition-transform duration-500 group-hover:scale-[1.02]" style={t.hero ? { backgroundImage: `url('${t.hero}')` } : undefined} />
+                    <div className="p-4">
+                      <h3 className="text-[15px] font-black tracking-[-0.01em] text-[#00374a] leading-snug">{t.title.replace(/^NP7 (Experience )?/, "")}</h3>
+                      <p className="text-[12.5px] text-[#6a7a80] mt-0.5">
+                        {fmtTrip(t.dateStart, t.dateEnd)}{t.fromPrice != null ? ` · from €${t.fromPrice.toLocaleString("en-GB")}` : ""}
+                      </p>
+                    </div>
+                  </Link>
+                ))}
+              </div>
+            </div>
+          )}
 
           {/* Your progression — the ladder gets real estate on the home, not just a
               chip: rank + 6-rung ladder + per-discipline breakdown, linking to the
