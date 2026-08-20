@@ -253,8 +253,16 @@ export default async function ExperienceOverviewPage() {
   };
   const destCards = (tableDest.length
     ? tableDest.map((d) => {
-        const ups = upcomingWeeks(experiences.filter((e) => e.destination_id === d.id));
-        return { key: d.slug, title: d.name, image: d.hero_image, count: ups.length, label: weekLabel(ups), href: `/destinations/${d.slug}` };
+        const linked = experiences.filter((e) => e.destination_id === d.id && !hiddenIds.has(e.id));
+        const ups = upcomingWeeks(linked);
+        // A destination between seasons (last week ran, next not published yet)
+        // stays on the shelf — hiding it read as "we dropped Lake Garda".
+        return {
+          key: d.slug, title: d.name, image: d.hero_image,
+          count: linked.length ? Math.max(ups.length, 1) : 0,
+          label: ups.length ? weekLabel(ups) : "New dates coming soon",
+          href: `/destinations/${d.slug}`,
+        };
       })
     : derived.map((d) => ({ key: d.location, title: d.location, image: d.image, count: d.count, label: `${d.count} ${d.count === 1 ? "trip" : "trips"}`, href: "#experiences" })))
     // Only show destinations we actually run visible trips to. Hides places whose
