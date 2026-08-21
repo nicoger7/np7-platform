@@ -130,6 +130,22 @@ export const TEMPLATES: Record<string, (v: EmailVars, opts?: LayoutOpts) => Buil
     }),
   }),
 
+  /** Coach ticked skills after a trip — the nudge that makes progress FELT.
+   *  Admin-triggered from the edition's Levels tab. */
+  skills_verified: (v, opts) => ({
+    subject: `Your coach signed off new skills 🤙`,
+    html: emailLayout({
+      ...opts,
+      preheader: "Fresh coach-verified skills are on your progress ladder.",
+      bodyHtml:
+        greet(v) +
+        p(`Good news from the water: your coach verified <strong>${esc(String(v.skillCount ?? "new"))} skill${String(v.skillCount ?? "") === "1" ? "" : "s"}</strong>${v.experienceTitle ? ` after <strong>${esc(v.experienceTitle)}</strong>` : ""} on your NP7 progress ladder.`) +
+        (v.levelLabel ? p(`Your verified rank now reads <strong>${esc(String(v.levelLabel))}</strong>.`) : "") +
+        (v.portalLink ? emailButton("See my progress", String(v.portalLink)) : "") +
+        p(`Keep it rolling — the next trip builds straight on top.<br>— Nico & the NP7 team`),
+    }),
+  }),
+
   deposit_confirmation: (v, opts) => ({
     subject: `You're in! 🤙 ${v.experienceTitle ?? "Your NP7 trip"} is booked`,
     html: emailLayout({

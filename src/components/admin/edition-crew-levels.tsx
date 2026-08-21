@@ -133,6 +133,9 @@ export function EditionCrewLevels({ editionId }: { editionId: string }) {
             </select>
             <button disabled={!pick} onClick={() => { patch(m.contactId, { coach_level: pick, level_status: "suggested", reviewed: false }); fire(`/api/admin/members/${m.contactId}/level`, { action: "set_level", level: pick }); }} className="text-xs px-2.5 py-1.5 rounded disabled:opacity-40" style={formEl}>Suggest</button>
             <button disabled={!pick} onClick={() => { patch(m.contactId, { coach_level: pick, level_status: "verified", reviewed: true }); fire(`/api/admin/members/${m.contactId}/level`, { action: "set_level", level: pick, verify: true }); }} className="text-xs px-2.5 py-1.5 rounded disabled:opacity-40 font-bold" style={{ backgroundColor: "#0aa3c7", color: "#fff" }}>Verify</button>
+            <button onClick={async () => { const r = await fetch(`/api/admin/members/${m.contactId}/level`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "email_update", editionId }) }).then((x) => x.json()).catch(() => null); alert(r?.ok ? (r.sent ? "Skill-update email sent." : "Already sent today — nothing new mailed.") : (r?.error || "Could not send.")); }}
+              className="text-xs px-2.5 py-1.5 rounded" style={{ backgroundColor: "rgba(255,196,46,0.18)", color: "#b97608" }}
+              title="Email the rider that their coach verified new skills — links to their progress page">✉ Email update</button>
             {catalog.length > 0 && <span className="ml-auto text-xs admin-faint">{m.achievedIds.length}/{catalog.length} skills</span>}
           </div>
           {selfCount > 0 && (

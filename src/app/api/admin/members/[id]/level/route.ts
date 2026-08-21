@@ -85,5 +85,37 @@ export async function POST(req: NextRequest, { params }: Ctx) {
     return NextResponse.json({ ok: true });
   }
 
+  if (body.action === "email_update") {
+    // "Your coach signed off new skills" — the post-trip nudge, admin-triggered.
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const db = createAdminClient() as any;
+    const { data: contact } = await db.from("contacts").select("id,name,email,level,level_status").eq("id", id).maybeSingle();
+    if (!contact?.email) return NextResponse.json({ error: "This rider has no email address." }, { status: 400 });
+    const { count } = await db.from("contact_milestones")
+      .select("id", { count: "exact", head: true })
+      .eq("contact_id", id).in("verified_via", ["coach", "windcoach"]);
+    let experienceTitle: string | undefined;
+    if (typeof body.editionId === "string" && body.editionId) {
+      const { data: ed } = await db.from("exp_editions").select("exp_experiences(title)").eq("id", body.editionId).maybeSingle();
+      experienceTitle = ed?.exp_experiences?.title ?? undefined;
+    }
+    const { sendEmail } = await import("@/lib/email/send");
+    const res = await sendEmail({
+      to: contact.email,
+      templateKey: "skills_verified",
+      vars: {
+        firstName: String(contact.name ?? "").split(" ")[0] || undefined,
+        skillCount: String(count ?? ""),
+        levelLabel: contact.level_status === "verified" ? contact.level ?? undefined : undefined,
+        experienceTitle,
+        portalLink: `${process.env.NEXT_PUBLIC_SITE_URL || "https://www.np-seven.com"}/account/level`,
+      },
+      contactId: id,
+      // one nudge per rider per day — a second click can't double-send
+      dedupeKey: `skills_verified:${id}:${new Date().toISOString().slice(0, 10)}`,
+    });
+    return NextResponse.json({ ok: true, sent: res !== null });
+  }
+
   return NextResponse.json({ error: "Unknown action." }, { status: 400 });
 }
