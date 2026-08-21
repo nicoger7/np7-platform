@@ -32,7 +32,7 @@ function seasonRange(season: string | null | undefined): [number, number] | null
   return found.length >= 2 ? [found[0], found[1]] : null;
 }
 
-function YearWind({ stats, season }: { stats: WindStats | null; season?: string | null }) {
+function YearWind({ stats, season, tripMonths }: { stats: WindStats | null; season?: string | null; tripMonths?: number[] }) {
   const months = stats?.months ?? [];
   if (!months.length) return null;
   const rows = Array.from({ length: 12 }, (_, i) => {
@@ -45,10 +45,16 @@ function YearWind({ stats, season }: { stats: WindStats | null; season?: string 
   // synoptic winter wind in full but under-reads a summer thermal — so the raw
   // maximum crowned February in Alaçatı, directly contradicting the
   // "May–September" card next to it. No parseable season → raw maximum.
+  // The highlight answers "what's the wind when I'm there": the months our
+  // upcoming weeks run in. Only when nothing is scheduled does it fall back to
+  // the strongest month inside the stated wind season (never the raw maximum —
+  // ERA5 over-reads winter storms and under-reads a summer thermal).
+  const trip = new Set(tripMonths ?? []);
   const range = seasonRange(season);
   const inSeason = (m: number) => !range || (range[0] <= range[1] ? m >= range[0] && m <= range[1] : m >= range[0] || m <= range[1]);
   const best = Math.max(...rows.filter((r) => inSeason(r.m)).map((r) => r.pct));
-  const isBest = (r: { m: number; pct: number }) => r.pct === best && inSeason(r.m);
+  const isBest = (r: { m: number; pct: number }) =>
+    trip.size ? trip.has(r.m) : (r.pct === best && inSeason(r.m));
 
   return (
     <div className="mb-6">
@@ -64,6 +70,7 @@ function YearWind({ stats, season }: { stats: WindStats | null; season?: string 
       </div>
       <p className="text-[11.5px] text-white/45 leading-snug mt-3">
         Share of days with sailing wind (11+ kn, 09–18h){years ? `. Open-Meteo ERA5, ${years}` : ""} — measured, not our estimate.
+        {trip.size > 0 && <>{" "}Highlighted: when our weeks run.</>}
       </p>
     </div>
   );
@@ -81,11 +88,32 @@ type Destination = {
 };
 type Hotel = { id: string; name: string; image_url: string | null; images: string[] | null; description: string | null; website: string | null; location: string | null };
 
-async function getData(slug: string): Promise<{ d: Destination; hotels: Hotel[] } | null> {
+async function getData(slug: string): Promise<{ d: Destination; hotels: Hotel[]; tripMonths: number[] } | null> {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const sb = supabase as any;
   const { data: d } = await sb.from("destinations").select("*").eq("slug", slug).eq("status", "published").maybeSingle();
   if (!d) return null;
+
+  // The months OUR upcoming weeks run in — that's what the chart highlights,
+  // because the guest's question is "what's the wind when I'm there", not
+  // "which month would have been ideal in theory".
+  let tripMonths: number[] = [];
+  try {
+    const { data: exps } = await sb.from("exp_experiences")
+      .select("id, exp_editions(date_start,date_end,status)")
+      .eq("destination_id", d.id).eq("status", "published");
+    const today = new Date().toISOString().slice(0, 10);
+    const months = new Set<number>();
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    for (const e of ((exps ?? []) as any[])) {
+      for (const ed of (e.exp_editions ?? []) as { date_start: string | null; date_end: string | null; status: string | null }[]) {
+        if (ed.status !== "published" || !ed.date_start || ed.date_start <= today) continue;
+        months.add(new Date(ed.date_start + "T00:00:00Z").getUTCMonth() + 1);
+        if (ed.date_end) months.add(new Date(ed.date_end + "T00:00:00Z").getUTCMonth() + 1);
+      }
+    }
+    tripMonths = [...months];
+  } catch { /* chart falls back to the season maximum */ }
 
   // Same hotel auto-pull as the destination page: the hotels this destination's
   // trips actually use (package links + room assignments). Optional — never blocks.
@@ -112,13 +140,13 @@ async function getData(slug: string): Promise<{ d: Destination; hotels: Hotel[] 
     }
   } catch { /* optional */ }
 
-  return { d, hotels };
+  return { d, hotels, tripMonths };
 }
 
 export async function DestinationDeepDive({ slug }: { slug: string }) {
   const res = await getData(slug).catch(() => null);
   if (!res) return null;
-  const { d, hotels } = res;
+  const { d, hotels, tripMonths } = res;
 
   const place = [d.region, d.country].filter(Boolean).join(" · ");
   const hero = d.hero_image || (d.gallery?.[0] ?? "");
@@ -200,7 +228,7 @@ export async function DestinationDeepDive({ slug }: { slug: string }) {
               <p className="text-[11px] font-bold tracking-[0.28em] text-[#ffc42e] mb-2">WHAT TO EXPECT</p>
               <h3 className="text-2xl sm:text-4xl font-black tracking-[-0.03em]">The conditions</h3>
             </div>
-            <YearWind stats={d.wind_stats} season={d.wind_season || d.best_season} />
+            <YearWind stats={d.wind_stats} season={d.wind_season || d.best_season} tripMonths={tripMonths} />
             <div className="grid grid-cols-2 lg:grid-cols-3 gap-3">
               {facts.map((f) => (
                 <div key={f.label} className="rounded-2xl bg-white/[0.06] border border-white/10 p-4 sm:p-5">

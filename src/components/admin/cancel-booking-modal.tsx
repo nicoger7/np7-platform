@@ -29,12 +29,13 @@ export function CancelBookingModal({
 }: {
   bookingName: string;
   onClose: () => void;
-  onConfirm: (args: { initiator: CancelInitiator; reason: string; sendEmail: boolean }) => Promise<void>;
+  onConfirm: (args: { initiator: CancelInitiator; reason: string; sendEmail: boolean; releaseRoom: boolean }) => Promise<void>;
 }) {
   const [initiator, setInitiator] = useState<CancelInitiator | null>(null);
   // Default the email to ON only for a customer request, where a confirmation is
   // expected. When WE cancel, silence is the safer default — you've likely called.
   const [sendEmail, setSendEmail] = useState(true);
+  const [releaseRoom, setReleaseRoom] = useState(false);
   const [reason, setReason] = useState("");
   const [busy, setBusy] = useState(false);
 
@@ -84,6 +85,7 @@ export function CancelBookingModal({
         )}
 
         {initiator && (
+          <>
           <label className="flex items-start gap-2.5 mb-4 cursor-pointer">
             <input type="checkbox" checked={sendEmail} onChange={(e) => setSendEmail(e.target.checked)}
               className="mt-0.5 w-4 h-4 accent-[var(--admin-accent)]" />
@@ -96,6 +98,19 @@ export function CancelBookingModal({
               </span>
             </span>
           </label>
+          <label className="flex items-start gap-2.5 mt-3 cursor-pointer">
+            <input type="checkbox" checked={releaseRoom} onChange={(e) => setReleaseRoom(e.target.checked)}
+              className="mt-0.5 w-4 h-4 accent-[var(--admin-accent)]" />
+            <span className="text-[12.5px] admin-muted">
+              Release their hotel room too
+              <span className="block text-[11px] admin-faint">
+                {releaseRoom
+                  ? "The guest's room-week becomes available again for the next guest."
+                  : "The room stays assigned — free it later under Hotel Rooms (e.g. when you plan to swap someone in)."}
+              </span>
+            </span>
+          </label>
+          </>
         )}
 
         <div className="rounded-lg px-3 py-2 mb-4 text-[11.5px] admin-muted" style={{ backgroundColor: "var(--admin-surface)" }}>
@@ -110,7 +125,7 @@ export function CancelBookingModal({
             title={!initiator ? "Pick who cancelled" : needsReason && !reason.trim() ? "Add a reason" : undefined}
             onClick={async () => {
               setBusy(true);
-              try { await onConfirm({ initiator: initiator!, reason: reason.trim(), sendEmail }); }
+              try { await onConfirm({ initiator: initiator!, reason: reason.trim(), sendEmail, releaseRoom }); }
               finally { setBusy(false); }
             }}
             className="px-4 py-2 rounded-lg text-sm font-bold bg-red-500 hover:bg-red-600 disabled:opacity-40 text-white transition-colors"

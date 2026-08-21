@@ -20,6 +20,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
   const { id } = await params;
   const body = await request.json().catch(() => ({} as Record<string, unknown>));
   const initiator = body.initiator === "np7" ? "np7" : "customer";
+  const releaseRoom = body.releaseRoom === true;
   const reason = typeof body.reason === "string" ? body.reason.trim().slice(0, 300) : "";
   // default true keeps the old one-button behaviour for any caller without a body
   const sendMail = body.sendEmail !== false;
@@ -45,6 +46,19 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
   const notes = b.notes ? `${b.notes}\n${note}` : note;
   const { error } = await db.from("exp_bookings").update({ status: "lost", notes }).eq("id", id);
   if (error) return NextResponse.json({ error: error.message }, { status: 400 });
+
+  // Optionally hand the bed back: the guest's room-weeks become available again.
+  // Best-effort — a failed release must not undo the cancellation.
+  if (releaseRoom) {
+    await db.from("exp_hotel_rooms").update({
+      booking_id: null, status: "available", hotel_confirmed: false, hotel_confirmed_at: null,
+      check_in: null, check_out: null, transfer_need: false, partner_tag_along: null,
+      updated_at: new Date().toISOString(),
+    }).eq("booking_id", id).is("archived_at", null).then(
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      (res: any) => { if (res?.error) console.error("[cancel] room release failed:", res.error.message); }
+    );
+  }
 
   // Email the member (best-effort — never fails the cancellation), and only
   // when the team asked for it. NOTE: cancellation_confirmed is on the

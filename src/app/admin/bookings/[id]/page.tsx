@@ -205,6 +205,9 @@ export function BookingDetailPane({ bookingId, onBack }: { bookingId: string; on
   const [contactEdit, setContactEdit] = useState(false);
   const [contactForm, setContactForm] = useState<{ name: string; email: string; phone: string; country: string; level: string; tshirt_size: string; diet_allergies: string }>({ name: "", email: "", phone: "", country: "", level: "", tshirt_size: "", diet_allergies: "" });
   const [cancelOpen, setCancelOpen] = useState(false);
+  // Storno/Gutschrift dialog: which invoice is being corrected
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const [creditFor, setCreditFor] = useState<any | null>(null);
   const [editingRow, setEditingRow] = useState<string | null>(null);
   const [rowEdit, setRowEdit] = useState({ amount: "", type: "final", status: "paid", method: "", reference: "" });
   const [contactBusy, setContactBusy] = useState(false);
@@ -345,7 +348,7 @@ export function BookingDetailPane({ bookingId, onBack }: { bookingId: string; on
     router.push("/admin/bookings");
   }
 
-  async function cancelBooking(args: { initiator: "customer" | "np7"; reason: string; sendEmail: boolean }) {
+  async function cancelBooking(args: { initiator: "customer" | "np7"; reason: string; sendEmail: boolean; releaseRoom: boolean }) {
     const res = await fetch(`/api/admin/bookings/${id}/cancel`, {
       method: "POST", headers: { "Content-Type": "application/json" },
       body: JSON.stringify(args),
@@ -1687,6 +1690,15 @@ export function BookingDetailPane({ bookingId, onBack }: { bookingId: string; on
                         {doc.sent_at ? "Resend" : "Send"}
                       </button>
                     )}
+                    {!doc.readOnly && doc.status !== "void" && ["deposit_invoice", "downpayment_invoice", "final_invoice"].includes(doc.type) && (
+                      <button
+                        onClick={() => setCreditFor(doc)}
+                        title="Issue a Storno (full) or credit note (partial) correcting this invoice"
+                        className="text-xs text-amber-500/70 hover:text-amber-500 transition-colors"
+                      >
+                        Storno…
+                      </button>
+                    )}
                     {!doc.readOnly && doc.status !== "void" && (
                       <button
                         onClick={() => voidDocument(doc.id)}
@@ -1702,6 +1714,14 @@ export function BookingDetailPane({ bookingId, onBack }: { bookingId: string; on
           )}
         </div>
       )}
+      {creditFor && (
+        <CreditNoteModal
+          doc={creditFor}
+          bookingId={id}
+          onClose={() => setCreditFor(null)}
+          onDone={() => { setCreditFor(null); fetchDocuments(); }}
+        />
+      )}
       {cancelOpen && booking && (
         <CancelBookingModal
           bookingName={booking.name || "this booking"}
@@ -1709,6 +1729,72 @@ export function BookingDetailPane({ bookingId, onBack }: { bookingId: string; on
           onConfirm={cancelBooking}
         />
       )}
+    </div>
+  );
+}
+
+/** Storno/Gutschrift: correct ONE issued invoice — full, or a partial amount.
+ *  The heavy rules live server-side; this dialog only asks the two questions
+ *  a human must answer (how much, and why). */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function CreditNoteModal({ doc, bookingId, onClose, onDone }: { doc: any; bookingId: string; onClose: () => void; onDone: () => void }) {
+  const [mode, setMode] = useState<"full" | "partial">("full");
+  const [amount, setAmount] = useState("");
+  const [reason, setReason] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState("");
+  const original = Number(doc.amount) || 0;
+  const ready = reason.trim().length >= 3 && (mode === "full" || (Number(amount) > 0 && Number(amount) <= original));
+
+  async function submit() {
+    setBusy(true); setErr("");
+    const res = await fetch(`/api/admin/bookings/${bookingId}/credit-note`, {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ documentId: doc.id, amount: mode === "partial" ? Number(amount) : undefined, reason: reason.trim() }),
+    });
+    const j = await res.json().catch(() => ({}));
+    setBusy(false);
+    if (res.ok) { onDone(); alert(`${mode === "full" ? "Storno" : "Credit note"} ${j.document?.invoice_number ?? ""} issued.`); }
+    else setErr(j.error || "Could not create the credit note.");
+  }
+
+  return (
+    <div className="fixed inset-0 z-[80] bg-black/50 flex items-center justify-center p-4" onClick={onClose}>
+      <div className="w-full max-w-[440px] rounded-2xl p-6" style={{ backgroundColor: "var(--admin-surface)", border: "1px solid var(--admin-border)" }} onClick={(e) => e.stopPropagation()}>
+        <h3 className="text-[15px] font-bold admin-heading">Correct invoice {doc.invoice_number}</h3>
+        <p className="text-[12.5px] admin-faint mt-1 mb-4">
+          Issues a numbered correction document referencing this invoice — required once an invoice is out in the world. It doesn&apos;t move money: log the refund under Payments.
+        </p>
+        <div className="space-y-2 mb-4">
+          <label className="flex items-start gap-2.5 cursor-pointer">
+            <input type="radio" checked={mode === "full"} onChange={() => setMode("full")} className="mt-0.5 accent-[var(--admin-accent)]" />
+            <span className="text-[13px] admin-heading">Full Storno
+              <span className="block text-[11.5px] admin-faint">Cancels the whole invoice ({formatMoney(original, doc.currency)}).</span>
+            </span>
+          </label>
+          <label className="flex items-start gap-2.5 cursor-pointer">
+            <input type="radio" checked={mode === "partial"} onChange={() => setMode("partial")} className="mt-0.5 accent-[var(--admin-accent)]" />
+            <span className="text-[13px] admin-heading">Partial credit
+              <span className="block text-[11.5px] admin-faint">e.g. a goodwill reduction — the rest of the invoice stands.</span>
+            </span>
+          </label>
+          {mode === "partial" && (
+            <input type="number" min="0.01" step="0.01" max={original} value={amount} onChange={(e) => setAmount(e.target.value)}
+              placeholder={`Amount (max ${original})`} className="w-full mt-1 px-3 py-2 rounded-lg text-sm admin-input border" style={{ borderColor: "var(--admin-border)" }} />
+          )}
+        </div>
+        <label className="block text-[12px] font-bold admin-muted mb-1">Reason — printed on the document</label>
+        <input value={reason} onChange={(e) => setReason(e.target.value)} placeholder="e.g. goodwill credit — guest could not attend"
+          className="w-full px-3 py-2 rounded-lg text-sm admin-input border" style={{ borderColor: "var(--admin-border)" }} />
+        {err && <p className="text-[12px] text-red-400 mt-2">{err}</p>}
+        <div className="flex justify-end gap-2 mt-5">
+          <button onClick={onClose} className="px-4 py-2 text-sm admin-muted rounded-lg">Cancel</button>
+          <button onClick={submit} disabled={!ready || busy}
+            className="px-4 py-2 bg-[var(--admin-accent)] text-[var(--admin-accent-contrast)] text-sm font-bold rounded-lg disabled:opacity-40">
+            {busy ? "Issuing…" : mode === "full" ? "Issue Storno" : "Issue credit note"}
+          </button>
+        </div>
+      </div>
     </div>
   );
 }
