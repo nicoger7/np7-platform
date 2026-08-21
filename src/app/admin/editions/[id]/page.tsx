@@ -133,6 +133,7 @@ interface Edition {
   payment_page_id: string | null;
   whatsapp_group_link: string | null;
   launch_discount_pct: number | null;
+  public_from: string | null;
   launch_price_until: string | null;
   total_fixed_costs: number | null;
   estimated_costs: number | null;
@@ -905,6 +906,7 @@ export default function EditionDetailPage({
         payment_page_id: edition.payment_page_id,
         whatsapp_group_link: edition.whatsapp_group_link,
         launch_discount_pct: edition.launch_discount_pct,
+        public_from: edition.public_from,
         launch_price_until: edition.launch_price_until,
         active: edition.active,
         video_analysis: edition.video_analysis ?? null,
@@ -1348,6 +1350,10 @@ export default function EditionDetailPage({
               <input type="date" className={inputClass}
                 value={edition.launch_price_until ?? ""}
                 onChange={(e) => update("launch_price_until", e.target.value || null)} />
+              <label className={`${labelClass} mt-3`}>Public from — before this, only Crew/Legend can book (early access)</label>
+              <input type="date" className={inputClass}
+                value={edition.public_from ?? ""}
+                onChange={(e) => update("public_from", e.target.value || null)} />
               <p className="text-[11px] admin-faint mt-1">
                 {edition.launch_discount_pct && edition.launch_price_until
                   ? (edition.launch_price_until >= new Date().toISOString().slice(0, 10)

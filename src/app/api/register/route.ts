@@ -7,6 +7,7 @@ import { sendEmail } from "@/lib/email/send";
 import { getPortalUser } from "@/lib/auth";
 import { composeBookingName } from "@/lib/booking-name";
 import { attachBookingToInvite } from "@/lib/invites";
+import { getMemberTier } from "@/lib/member-tier";
 import { generateDocument } from "@/lib/invoices/generate";
 
 /**
@@ -126,6 +127,15 @@ export async function POST(request: NextRequest) {
     agreed_price: (await bookingPrice(db, {
       price: pkg.price, experienceId: exp.id, editionId: editionId ?? null,
       packageId: pkg.id, edition, contactId: contactId ?? null,
+      // Lounge rule: a Legend's invite link gifts the friend the Crew price.
+      giftTier: await (async () => {
+        const token = body.inviteToken || request.cookies.get("np7_invite")?.value;
+        if (!token) return null;
+        const { data: inv } = await db.from("trip_invites").select("inviter_contact_id").eq("token", token).maybeSingle();
+        if (!inv?.inviter_contact_id) return null;
+        const inviterTier = await getMemberTier(inv.inviter_contact_id).catch(() => null);
+        return inviterTier?.key === "legend" ? ("crew" as const) : null;
+      })(),
     })).price,
     notes: `Website registration · package: ${pkg.name}${body.inviteToken ? (body.intent === "info" ? " · friend invite (info request)" : " · friend invite") : ""}`,
   };

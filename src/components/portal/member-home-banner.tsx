@@ -36,8 +36,13 @@ function TierChip({ tier }: { tier: MemberTier }) {
             ))}
           </span>
           <span className="block text-[12px] font-semibold text-white/85">
-            {tier.trips} trip{tier.trips === 1 ? "" : "s"} ridden{tier.toNext ? ` — ${tier.toNext} more to ${tier.nextLabel}` : " — top tier"}
+            {Number.isInteger(tier.trips) ? tier.trips : tier.trips.toFixed(2)} trip{tier.trips === 1 ? "" : "s"} ridden{tier.toNext ? ` — ${Number.isInteger(tier.toNext) ? tier.toNext : tier.toNext.toFixed(2)} more to ${tier.nextLabel}` : " — top tier"}
           </span>
+          {tier.validUntil && (
+            <span className="block text-[10.5px] text-white/50 mt-0.5">
+              {tier.label} status valid until {new Date(tier.validUntil + "T00:00:00Z").toLocaleDateString("en-GB", { month: "short", year: "numeric", timeZone: "UTC" })} — your next trip extends it
+            </span>
+          )}
           <span className="block mt-2.5 pt-2.5" style={{ borderTop: "1px solid rgba(255,255,255,0.12)" }}>
             <span className="block text-[9.5px] font-extrabold tracking-[0.14em] uppercase text-[#ffc42e] mb-1">Your {tier.label} perks</span>
             {TIER_PERKS[tier.key].map((p) => (

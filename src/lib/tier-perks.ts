@@ -67,22 +67,30 @@ export async function bookingPrice(
     packageId: string;
     edition: { launch_discount_pct?: number | null; launch_price_until?: string | null } | null;
     contactId: string | null;
+    /** Lounge rule: a LEGEND's invite gifts the friend the Crew price. Set to
+     *  "crew" when the booking arrives via a Legend's invite link. */
+    giftTier?: "crew" | null;
   },
 ): Promise<{ price: number; noteSuffix: string }> {
   const launch = activeLaunch(opts.edition);
   let tierPct = 0, tierLabel: string | null = null;
-  if (opts.contactId && opts.experienceId) {
-    const tier = await getMemberTier(opts.contactId).catch(() => null);
+  if (opts.experienceId && (opts.contactId || opts.giftTier)) {
+    const tier = opts.contactId ? await getMemberTier(opts.contactId).catch(() => null) : null;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { data } = await (db as any)
+      .from("exp_tier_perks")
+      .select("tier,kind,value,edition_id,package_id")
+      .eq("experience_id", opts.experienceId)
+      .eq("active", true);
+    const rules = (Array.isArray(data) ? data : []) as TierPerkRule[];
     if (tier) {
-      const { data } = await db
-        .from("exp_tier_perks")
-        .select("tier,kind,value,edition_id,package_id")
-        .eq("experience_id", opts.experienceId)
-        .eq("active", true);
-      tierPct = resolveTierPct((Array.isArray(data) ? data : []) as TierPerkRule[], {
-        tier: tier.key, editionId: opts.editionId, packageId: opts.packageId,
-      });
+      tierPct = resolveTierPct(rules, { tier: tier.key, editionId: opts.editionId, packageId: opts.packageId });
       tierLabel = tier.label;
+    }
+    // The gifted Crew price only wins when it beats the friend's own tier.
+    if (opts.giftTier) {
+      const gifted = resolveTierPct(rules, { tier: opts.giftTier, editionId: opts.editionId, packageId: opts.packageId });
+      if (gifted > tierPct) { tierPct = gifted; tierLabel = "Invited Crew"; }
     }
   }
   const adv = bestAdvantage(launch, tierPct, tierLabel);

@@ -222,7 +222,7 @@ export default async function ExperienceDetailPage({ params, searchParams }: Pro
   }
   let query = supabase
     .from("exp_experiences")
-    .select("id,title,location,currency,price,description,hero_image,gallery,airport_code,exp_editions(id,label,coaches,date_start,date_end,max_spots,spots_taken,deposit,status,launch_discount_pct,launch_price_until,video_analysis,photoshoot),exp_packages(id,name,price,status,edition_id,category,includes,exp_package_components(show_on_website,quantity,exp_components(name,description,category)))")
+    .select("id,title,location,currency,price,description,hero_image,gallery,airport_code,exp_editions(id,label,coaches,date_start,date_end,max_spots,spots_taken,deposit,status,launch_discount_pct,launch_price_until,public_from,video_analysis,photoshoot),exp_packages(id,name,price,status,edition_id,category,includes,exp_package_components(show_on_website,quantity,exp_components(name,description,category)))")
     .eq("slug", slug);
   if (!team) query = query.eq("status", "published");
   const { data: rows } = await query.order("status", { ascending: false }).limit(1);
@@ -256,12 +256,20 @@ export default async function ExperienceDetailPage({ params, searchParams }: Pro
   // Team preview renders the page as it WILL look live: draft weeks count too.
   // The public only ever sees published editions.
   const editionVisible = (s: string | null) => (team ? s === "published" || s === "draft" : s === "published");
+  // Early access (loyalty perk, migration 170): a published week with a future
+  // `public_from` is visible only to Crew/Legend members (and the team) until
+  // that date — "book before everyone else".
+  const viewer = await getPortalUser().catch(() => null);
+  const viewerTier = viewer?.contactId ? await getMemberTier(viewer.contactId).catch(() => null) : null;
+  const earlyAccess = !!team || viewerTier?.key === "crew" || viewerTier?.key === "legend";
   const allEditions = (experience.exp_editions ?? [])
     .filter((e) => editionVisible(e.status)
       // Off the front end the day it STARTS, not the day it ends — a week that
       // is already on the water sold "3 left" to the public for its whole run.
       // Undated editions stay ("dates coming soon").
-      && (!e.date_start || e.date_start > today))
+      && (!e.date_start || e.date_start > today)
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      && (earlyAccess || !(e as any).public_from || (e as any).public_from <= today))
     .sort((a, b) => ((a.date_start ?? "") < (b.date_start ?? "") ? -1 : 1));
   const multi = allEditions.length > 1;
   const datesTBD = allEditions.length === 0; // published experience, no upcoming week yet
@@ -283,8 +291,6 @@ export default async function ExperienceDetailPage({ params, searchParams }: Pro
   for (const e of allEditions) launchByEdition[e.id] = activeLaunch(e as never);
   // Tier perks (migration 169): the signed-in member's ladder discount vs the
   // launch price — the single best advantage wins, they never stack.
-  const viewer = await getPortalUser().catch(() => null);
-  const viewerTier = viewer?.contactId ? await getMemberTier(viewer.contactId).catch(() => null) : null;
   let perkRules: TierPerkRule[] = [];
   if (viewerTier) {
     const { data: perkRows } = await sb.from("exp_tier_perks")
