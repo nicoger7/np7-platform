@@ -3,7 +3,7 @@ import { redirect } from "next/navigation";
 import type { Metadata } from "next";
 import { getPortalUser, getTeamMember } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
-import { getMemberBookings, getMemberBannerImages, getMemberProfile, getMemberProgression } from "@/lib/portal-data";
+import { getMemberBookings, getMemberBannerImages, getMemberProfile, getMemberProgression, getProfilePhotoChoices } from "@/lib/portal-data";
 import { getExperienceCards } from "@/lib/experience-cards";
 import { getMemberTier } from "@/lib/member-tier";
 import { ExpTileCardCompact } from "@/components/experience/upcoming-experiences";
@@ -45,6 +45,7 @@ export default async function AccountHome() {
     getExperienceCards().then((r) => r.cards).catch(() => []),
   ]);
   const tier = await getMemberTier(user.contactId).catch(() => null);
+  const ownPhotoCount = await getProfilePhotoChoices(user.contactId).then((p) => p.length).catch(() => 0);
   // Only weeks you can actually book — a "dates coming soon" tile sells nothing here.
   const bookableTrips = nextTrips.filter((c) => c.dateLabel !== "Dates coming soon").slice(0, 3);
   const first = user.name?.split(" ")[0] ?? "there";
@@ -121,10 +122,12 @@ export default async function AccountHome() {
         // verified rank (lvl.verified / level_status) counts; don't nag someone
         // whose level card already shows a verified rank to "set" it.
         { key: "level", label: "Set your riding level", hint: "So coaches meet you where you are", done: !!profile.self_level || !!lvl?.verified || profile.level_status === "verified", href: "/account/level" },
-        // Only when a photo is actually earnable (attended a trip) or already set.
-        ...(hasAttended || profile.avatar_url
-          ? [{ key: "photo", label: "Add a profile photo", hint: "Pick one from your trip photos", done: !!profile.avatar_url, href: "/account/profile" } as SetupStep]
+        // Only once photos of THEM exist to pick from (or one is already set).
+        ...(ownPhotoCount > 0 || profile.avatar_url
+          ? [{ key: "photo", label: "Add a profile photo", hint: `Pick one of your ${ownPhotoCount || ""} trip photos`.replace("  ", " "), done: !!profile.avatar_url, href: "/account/profile" } as SetupStep]
           : []),
+        // The crew shirt needs a size — the step nags until it's filled in.
+        { key: "tshirt", label: "Your T-shirt size", hint: "For the crew shirt waiting on your next trip", done: !!profile.tshirt_size, href: "/account/settings" },
         { key: "handle", label: "Pick your @handle", hint: "Your name on the crew & spotguide", done: !!profile.username, href: "/account/profile", inline: "handle" },
       ]
     : [];

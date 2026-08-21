@@ -41,6 +41,8 @@ export const VERIFY_LABEL: Record<VerifiedVia, string> = { self: "Logged", windc
 export function isVerified(v: VerifiedVia): boolean { return v === "windcoach" || v === "coach"; }
 
 export type CatalogSkill = {
+  /** A joke/bonus skill: shown and tickable, worth nothing toward any counter. */
+  bonus?: boolean;
   id: string; key: string; label: string; tier: string; rank?: string | null;
   discipline: Discipline; difficulty: number; prerequisite_key: string | null; sort_order: number;
 };
@@ -112,7 +114,7 @@ export function buildProgression(catalogRaw: CatalogSkill[], achievements: Achie
   // Rank = how many core bands you've fully mastered.
   const bands = Array.from({ length: 6 }, () => ({ verified: 0, total: 0 }));
   for (const s of skills) {
-    if (s.discipline === "side") continue;
+    if (s.discipline === "side" || s.bonus) continue;
     const b = bands[s.band];
     b.total++;
     if (s.state === "coach" || s.state === "windcoach") b.verified++;
@@ -134,7 +136,9 @@ export function buildProgression(catalogRaw: CatalogSkill[], achievements: Achie
 
   const makeTrack = (d: Discipline): Track => {
     const s = skills.filter((x) => x.discipline === d).sort((a, b) => a.sort_order - b.sort_order);
-    return { discipline: d, label: DISCIPLINE_LABEL[d], skills: s, verified: s.filter((x) => x.state === "coach" || x.state === "windcoach").length, total: s.length };
+    // bonus skills ride along in the list but never in the counters
+    const counting = s.filter((x) => !x.bonus);
+    return { discipline: d, label: DISCIPLINE_LABEL[d], skills: s, verified: counting.filter((x) => x.state === "coach" || x.state === "windcoach").length, total: counting.length };
   };
   const tracks = CORE_DISCIPLINES.map(makeTrack).filter((t) => t.total > 0);
   const side = makeTrack("side");

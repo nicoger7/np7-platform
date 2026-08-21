@@ -528,6 +528,7 @@ export async function getMemberProgression(contactId: string): Promise<Progressi
   const catalog: CatalogSkill[] = (cat.data as Record<string, unknown>[]).map((m) => ({
     id: String(m.id), key: String(m.key), label: String(m.label ?? ""), tier: String(m.tier ?? ""),
     rank: (m.rank as string | null) ?? null,
+    bonus: m.bonus === true,
     discipline: m.discipline as CatalogSkill["discipline"],
     difficulty: typeof m.difficulty === "number" ? m.difficulty : 10,
     prerequisite_key: (m.prerequisite_key as string | null) ?? null,

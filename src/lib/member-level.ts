@@ -64,7 +64,8 @@ export function groupSkillsByTier(skills: SkillTag[]): { tier: Level; items: Ski
 export function deriveSuggestedLevel(catalog: Milestone[], achievedIds: Set<string>): Level | null {
   let lastComplete: Level | null = null;
   for (const tier of LEVELS) {
-    const inTier = catalog.filter((m) => m.tier === tier);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const inTier = catalog.filter((m) => m.tier === tier && !(m as any).bonus);
     if (inTier.length === 0) continue;
     if (inTier.every((m) => achievedIds.has(m.id))) { lastComplete = tier; continue; }
     return tier; // first tier not fully ticked — the one you're earning now
