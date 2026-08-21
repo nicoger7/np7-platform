@@ -21,11 +21,7 @@ export type MemberTier = {
   nextLabel: string | null;
 };
 
-const LADDER = [
-  { key: "rider" as const, label: "Rider", min: 1 },
-  { key: "crew" as const, label: "Crew", min: 2 },
-  { key: "legend" as const, label: "Legend", min: 4 },
-];
+import { TIER_STEPS as LADDER } from "@/lib/tier-config";
 
 /** Null until the first trip is ridden — a badge you start with is not a badge. */
 export async function getMemberTier(contactId: string): Promise<MemberTier | null> {

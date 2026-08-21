@@ -54,5 +54,8 @@ export function cdnImage(
   if (!url.includes(marker)) return url; // external or already a render URL
   const transformed = url.replace(marker, "/storage/v1/render/image/public/");
   const sep = transformed.includes("?") ? "&" : "?";
-  return `${transformed}${sep}width=${width}&quality=${quality}`;
+  // resize=contain is load-bearing: with only ?width, Supabase CROPS the width
+  // and keeps the original height — a 2048×1365 photo came back as a 200×1365
+  // sliver (measured), which is what made thumbnails look "super zoomed".
+  return `${transformed}${sep}width=${width}&quality=${quality}&resize=contain`;
 }

@@ -1,5 +1,6 @@
 import { Slideshow } from "@/components/experience/slideshow";
 import type { MemberTier } from "@/lib/member-tier";
+import { TIER_STEPS, TIER_PERKS } from "@/lib/tier-config";
 
 /** Booking.com-Genius-style tier chip. Hover (or keyboard focus) reveals the
  *  ladder: three rungs, your progress filling toward the next one. */
@@ -8,11 +9,7 @@ function TierChip({ tier }: { tier: MemberTier }) {
     tier.key === "legend" ? "bg-gradient-to-r from-[#f47b20] to-[#ffc42e] text-[#3d2202]"
     : tier.key === "crew" ? "bg-[#ffc42e] text-[#4a3403]"
     : "bg-white/90 text-[#01576f]";
-  const STEPS = [
-    { key: "rider", label: "Rider", min: 1 },
-    { key: "crew", label: "Crew", min: 2 },
-    { key: "legend", label: "Legend", min: 4 },
-  ];
+  const STEPS = TIER_STEPS;
   // fill per rung: done → 100, the next one → partial, beyond → 0
   const fill = (i: number) => {
     const step = STEPS[i];
@@ -40,6 +37,18 @@ function TierChip({ tier }: { tier: MemberTier }) {
           </span>
           <span className="block text-[12px] font-semibold text-white/85">
             {tier.trips} trip{tier.trips === 1 ? "" : "s"} ridden{tier.toNext ? ` — ${tier.toNext} more to ${tier.nextLabel}` : " — top tier"}
+          </span>
+          <span className="block mt-2.5 pt-2.5" style={{ borderTop: "1px solid rgba(255,255,255,0.12)" }}>
+            <span className="block text-[9.5px] font-extrabold tracking-[0.14em] uppercase text-[#ffc42e] mb-1">Your {tier.label} perks</span>
+            {TIER_PERKS[tier.key].map((p) => (
+              <span key={p} className="block text-[11px] text-white/75 leading-[1.6]">✓ {p}</span>
+            ))}
+            {tier.nextLabel && (
+              <span className="block text-[10.5px] text-white/45 mt-1.5 leading-snug">
+                {tier.nextLabel} adds: {TIER_PERKS[tier.nextLabel.toLowerCase() as "crew" | "legend"]
+                  .filter((p) => !TIER_PERKS[tier.key].includes(p)).join(" · ")}
+              </span>
+            )}
           </span>
         </span>
       </span>
