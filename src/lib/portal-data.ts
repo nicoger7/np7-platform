@@ -453,11 +453,14 @@ export type MemberLevelDetail = {
     reads `description` (migration 039) and falls back when it's absent. */
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 async function readActiveCatalog(db: any): Promise<CatalogMilestone[]> {
-  let r = await db.from("level_milestones").select("id,key,label,description,tier,sort_order").eq("active", true).order("sort_order");
+  // rank + bonus are load-bearing: the admin panel groups by RANK (tier
+  // "Amateur" matches no group), and bonus rows must not count anywhere.
+  let r = await db.from("level_milestones").select("id,key,label,description,tier,rank,bonus,sort_order").eq("active", true).order("sort_order");
+  if (r.error) r = await db.from("level_milestones").select("id,key,label,description,tier,sort_order").eq("active", true).order("sort_order");
   if (r.error) r = await db.from("level_milestones").select("id,key,label,tier,sort_order").eq("active", true).order("sort_order");
   if (r.error || !r.data) return [];
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  return (r.data as any[]).map((m) => ({ id: m.id, key: m.key, label: m.label, description: m.description ?? null, tier: m.tier, sort_order: m.sort_order }));
+  return (r.data as any[]).map((m) => ({ id: m.id, key: m.key, label: m.label, description: m.description ?? null, tier: m.tier, rank: m.rank ?? null, bonus: m.bonus === true, sort_order: m.sort_order }));
 }
 
 /**
