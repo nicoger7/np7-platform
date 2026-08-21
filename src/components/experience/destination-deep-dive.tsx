@@ -20,7 +20,19 @@ import { MONTH_LABELS, destinationWindFacts, type WindStats } from "@/lib/wind-s
  * should I come?". Renders nothing without data, so a destination the cron
  * hasn't sampled simply looks as it did before.
  */
-function YearWind({ stats }: { stats: WindStats | null }) {
+/** "May–September" → [5, 9]. Any two month names in the string, else null. */
+function seasonRange(season: string | null | undefined): [number, number] | null {
+  if (!season) return null;
+  const FULL = ["january","february","march","april","may","june","july","august","september","october","november","december"];
+  const found: number[] = [];
+  for (const w of season.toLowerCase().match(/[a-zäöü]+/g) ?? []) {
+    const i = FULL.findIndex((f) => f.startsWith(w) && w.length >= 3);
+    if (i >= 0) found.push(i + 1);
+  }
+  return found.length >= 2 ? [found[0], found[1]] : null;
+}
+
+function YearWind({ stats, season }: { stats: WindStats | null; season?: string | null }) {
   const months = stats?.months ?? [];
   if (!months.length) return null;
   const rows = Array.from({ length: 12 }, (_, i) => {
@@ -29,17 +41,24 @@ function YearWind({ stats }: { stats: WindStats | null }) {
   });
   if (rows.every((r) => r.pct === 0)) return null;
   const years = stats?.period ? `${String(stats.period.start).slice(0, 4)}–${String(stats.period.end).slice(0, 4)}` : "";
-  const best = Math.max(...rows.map((r) => r.pct));
+  // Highlight the strongest month INSIDE the stated wind season. ERA5 reads
+  // synoptic winter wind in full but under-reads a summer thermal — so the raw
+  // maximum crowned February in Alaçatı, directly contradicting the
+  // "May–September" card next to it. No parseable season → raw maximum.
+  const range = seasonRange(season);
+  const inSeason = (m: number) => !range || (range[0] <= range[1] ? m >= range[0] && m <= range[1] : m >= range[0] || m <= range[1]);
+  const best = Math.max(...rows.filter((r) => inSeason(r.m)).map((r) => r.pct));
+  const isBest = (r: { m: number; pct: number }) => r.pct === best && inSeason(r.m);
 
   return (
     <div className="mb-6">
       <div className="flex items-end gap-1.5 sm:gap-2.5 h-[120px]">
         {rows.map((r) => (
           <div key={r.m} className="flex-1 flex flex-col items-center justify-end gap-1.5 h-full">
-            <span className={`text-[10.5px] sm:text-[12px] font-bold tabular-nums ${r.pct === best ? "text-[#ffc42e]" : "text-white/55"}`}>{r.pct}</span>
+            <span className={`text-[10.5px] sm:text-[12px] font-bold tabular-nums ${isBest(r) ? "text-[#ffc42e]" : "text-white/55"}`}>{r.pct}</span>
             <span className="w-full rounded-t-md transition-all"
-              style={{ height: `${Math.max(4, r.pct)}%`, background: r.pct === best ? "linear-gradient(180deg,#ffc42e,#f47b20)" : "rgba(255,255,255,0.16)" }} />
-            <span className={`text-[9.5px] sm:text-[11px] font-bold uppercase tracking-wide ${r.pct === best ? "text-white" : "text-white/40"}`}>{r.label}</span>
+              style={{ height: `${Math.max(4, r.pct)}%`, background: isBest(r) ? "linear-gradient(180deg,#ffc42e,#f47b20)" : "rgba(255,255,255,0.16)" }} />
+            <span className={`text-[9.5px] sm:text-[11px] font-bold uppercase tracking-wide ${isBest(r) ? "text-white" : "text-white/40"}`}>{r.label}</span>
           </div>
         ))}
       </div>
@@ -181,7 +200,7 @@ export async function DestinationDeepDive({ slug }: { slug: string }) {
               <p className="text-[11px] font-bold tracking-[0.28em] text-[#ffc42e] mb-2">WHAT TO EXPECT</p>
               <h3 className="text-2xl sm:text-4xl font-black tracking-[-0.03em]">The conditions</h3>
             </div>
-            <YearWind stats={d.wind_stats} />
+            <YearWind stats={d.wind_stats} season={d.wind_season || d.best_season} />
             <div className="grid grid-cols-2 lg:grid-cols-3 gap-3">
               {facts.map((f) => (
                 <div key={f.label} className="rounded-2xl bg-white/[0.06] border border-white/10 p-4 sm:p-5">
