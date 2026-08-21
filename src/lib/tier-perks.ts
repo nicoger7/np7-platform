@@ -8,9 +8,10 @@ import { activeLaunch, launchPrice } from "@/lib/launch-price";
  * an experience-wide row, so "Legend −8% on Full Experience, −0% on Own Gear"
  * is two package rows overriding one experience rule.
  *
- * Stacking policy (Nico, 2026-08-21): percentages NEVER stack. A booking gets
- * the single best advantage — launch price OR tier discount, whichever is
- * larger. Vouchers are payments, not discounts, and live elsewhere.
+ * Stacking policy (Nico, 2026-08-22): launch price and tier discount ADD —
+ * that is the comeback deal by design (launch 5% + Crew 5% = 10%, which on a
+ * ×1.1 next-year price lands within 1% of this year's). Vouchers are payments,
+ * not discounts, max one per booking, and live elsewhere.
  */
 export type TierPerkRule = {
   tier: string;
@@ -33,7 +34,7 @@ export function resolveTierPct(
   return pick(mine.filter((r) => !r.package_id && !r.edition_id)) ?? 0;
 }
 
-/** What the booking-price and the picker both show: the one best advantage. */
+/** What the booking-price and the picker both show: the combined advantage. */
 export type PriceAdvantage = { pct: number; label: string; until?: string | null } | null;
 
 export function bestAdvantage(
@@ -43,7 +44,10 @@ export function bestAdvantage(
 ): PriceAdvantage {
   const l = launch?.pct ?? 0;
   if (tierPct <= 0 && l <= 0) return null;
-  return tierPct > l
+  if (l > 0 && tierPct > 0) {
+    return { pct: l + tierPct, label: `Launch + ${tierLabel ?? "Member"} price`, until: launch!.until };
+  }
+  return tierPct > 0
     ? { pct: tierPct, label: `${tierLabel ?? "Member"} price` }
     : { pct: l, label: "Launch price", until: launch!.until };
 }
@@ -83,8 +87,8 @@ export async function bookingPrice(
   }
   const adv = bestAdvantage(launch, tierPct, tierLabel);
   if (!adv) return { price: opts.price, noteSuffix: "" };
-  const price = adv.label === "Launch price"
-    ? launchPrice(opts.price, launch)
-    : Math.round(opts.price * (1 - adv.pct / 100));
+  // One formula for every case (launch-only, tier-only, combined) — same
+  // whole-euro rounding launchPrice uses.
+  const price = Math.round(opts.price * (1 - adv.pct / 100));
   return { price, noteSuffix: ` · ${adv.label.toLowerCase()} −${adv.pct}%` };
 }
