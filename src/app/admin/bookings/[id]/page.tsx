@@ -1316,9 +1316,9 @@ export function BookingDetailPane({ bookingId, onBack }: { bookingId: string; on
                 <span className="text-[10px] font-bold tracking-[0.1em] admin-faint uppercase">Date</span>
               </div>
               {[...booking.payments].sort((a, b) =>
-                // chronological, so the list reads like the payment plan —
-                // undated rows fall back to when they were recorded
-                String(a.received_at ?? "9999").localeCompare(String(b.received_at ?? "9999"))
+                // newest first — the latest movement is what you came to check;
+                // undated rows sink to the bottom rather than claim "latest"
+                String(b.received_at ?? "0000").localeCompare(String(a.received_at ?? "0000"))
               ).map((p) => (
                 <div key={p.id} className="grid grid-cols-[100px_84px_80px_120px_84px_1fr_80px] gap-3 px-5 py-3" style={{ borderBottom: "1px solid var(--admin-border)" }}>
                   <span className={`text-sm font-medium self-center ${p.type === "refund" || p.direction === "cost" ? "text-red-400" : "text-green-400"}`}>
