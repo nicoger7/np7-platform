@@ -27,6 +27,7 @@ export function EditionMemoriesUploader({ editionId, initialVideoUrl }: { editio
   const [videoSaved, setVideoSaved] = useState(false);
   const [selected, setSelected] = useState<Set<string>>(new Set()); // photo paths picked for "assign"
   const [assigning, setAssigning] = useState(false);
+  const [assignTarget, setAssignTarget] = useState(""); // picked rider — assignment fires on the button, not on pick
   const fileInput = useRef<HTMLInputElement>(null);
   // Peek galleries: show a couple of rows that fade into the card, with a
   // "Show all N" expander — same idea as the member gallery, so a big set never
@@ -183,6 +184,22 @@ export function EditionMemoriesUploader({ editionId, initialVideoUrl }: { editio
     const dest = folderFor(bookingId);
     // One bulk request — the server moves them all concurrently (was one slow
     // round-trip per photo, ~49× the latency).
+    const moves = [...selected].map((from) => ({ from, to: `${dest}/${from.split("/").pop()}` }));
+    await fetch("/api/admin/images", {
+      method: "PATCH", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ moves }),
+    }).catch(() => {});
+    setSelected(new Set());
+    setAssignTarget("");
+    setAssigning(false);
+    load(); refreshCounts();
+  }
+
+  // The reverse move: a rider's photos back into the Everyone pool.
+  async function unassignSelected() {
+    if (selected.size === 0) return;
+    setAssigning(true);
+    const dest = folderFor("");
     const moves = [...selected].map((from) => ({ from, to: `${dest}/${from.split("/").pop()}` }));
     await fetch("/api/admin/images", {
       method: "PATCH", headers: { "Content-Type": "application/json" },
@@ -423,31 +440,48 @@ export function EditionMemoriesUploader({ editionId, initialVideoUrl }: { editio
           <p className="text-xs admin-faint">No photos for {scopeLabel} yet.</p>
         ) : (
           <>
-            {/* Assign bar — only in the Everyone pool: pick shots, send to a rider. */}
-            {scope === "" && (
-              <div className="flex flex-wrap items-center gap-2 mb-3 text-xs min-h-[28px]">
-                {selected.size === 0 ? (
-                  <span className="admin-faint">Tip: click photos to select, then assign them to a rider&apos;s private gallery.</span>
-                ) : (
-                  <>
-                    <span className="font-bold admin-heading">{selected.size} selected</span>
-                    <span className="admin-faint">→ assign to</span>
-                    <select defaultValue="" disabled={assigning}
-                      onChange={(e) => { const v = e.target.value; e.target.value = ""; assignTo(v); }}
-                      className="admin-input border rounded-lg px-2 py-1 text-xs">
-                      <option value="" disabled>{assigning ? "Assigning…" : "Choose a rider…"}</option>
-                      {bookings.map((b) => <option key={b.id} value={b.id}>{b.contact?.name || b.name || "Participant"}</option>)}
-                    </select>
-                    <button type="button" onClick={() => setSelected(new Set())} className="admin-faint hover:admin-muted underline">Clear</button>
-                  </>
-                )}
-              </div>
-            )}
+            {/* Assign bar. In Everyone: pick shots → choose rider → explicit Assign
+                (choosing alone must never move anything). In a rider's gallery:
+                the reverse — send picks back to Everyone. */}
+            <div className="flex flex-wrap items-center gap-2 mb-3 text-xs min-h-[28px]">
+              {selected.size === 0 ? (
+                <span className="admin-faint">
+                  {scope === ""
+                    ? <>Tip: click photos to select, then assign them to a rider&apos;s private gallery.</>
+                    : <>Tip: click photos to select, then send them back to Everyone.</>}
+                </span>
+              ) : scope === "" ? (
+                <>
+                  <span className="font-bold admin-heading">{selected.size} selected</span>
+                  <span className="admin-faint">→ assign to</span>
+                  <select value={assignTarget} disabled={assigning}
+                    onChange={(e) => setAssignTarget(e.target.value)}
+                    className="admin-input border rounded-lg px-2 py-1 text-xs">
+                    <option value="">Choose a rider…</option>
+                    {bookings.map((b) => <option key={b.id} value={b.id}>{b.contact?.name || b.name || "Participant"}</option>)}
+                  </select>
+                  <button type="button" onClick={() => assignTo(assignTarget)} disabled={!assignTarget || assigning}
+                    className="px-3 py-1 rounded-lg bg-[var(--admin-accent)] text-[var(--admin-accent-contrast)] font-bold disabled:opacity-40">
+                    {assigning ? "Assigning…" : "Assign"}
+                  </button>
+                  <button type="button" onClick={() => { setSelected(new Set()); setAssignTarget(""); }} className="admin-faint hover:admin-muted underline">Clear</button>
+                </>
+              ) : (
+                <>
+                  <span className="font-bold admin-heading">{selected.size} selected</span>
+                  <button type="button" onClick={unassignSelected} disabled={assigning}
+                    className="px-3 py-1 rounded-lg bg-[var(--admin-accent)] text-[var(--admin-accent-contrast)] font-bold disabled:opacity-40">
+                    {assigning ? "Moving…" : "Unassign — back to Everyone"}
+                  </button>
+                  <button type="button" onClick={() => setSelected(new Set())} className="admin-faint hover:admin-muted underline">Clear</button>
+                </>
+              )}
+            </div>
             <div className="relative">
             <div className="grid grid-cols-3 sm:grid-cols-5 gap-2">
               {(photosExpanded ? photos : photos.slice(0, PHOTO_PEEK)).map((p) => {
                 const sel = selected.has(p.path);
-                const selectable = scope === "";
+                const selectable = true; // Everyone: select-to-assign · rider gallery: select-to-unassign
                 return (
                   <div key={p.path} onClick={selectable ? () => toggleSelect(p.path) : undefined}
                     className={`relative group aspect-square rounded-lg overflow-hidden ${selectable ? "cursor-pointer" : ""} ${sel ? "ring-2 ring-[#0aa3c7] ring-offset-1" : ""}`}
