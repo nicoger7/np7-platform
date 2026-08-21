@@ -40,8 +40,11 @@ export async function getMemberTier(contactId: string): Promise<MemberTier | nul
   const rows = (Array.isArray(data) ? data : []) as any[];
   const ridden = new Set(
     rows
-      .filter((b) => b.status === "attended" ||
-        (["confirmed", "paid"].includes(b.status) && b.exp_editions?.date_end && b.exp_editions.date_end < today))
+      // A trip counts ONLY once it is over — even an early "attended" flag
+      // must not upgrade anyone mid-week (Nico, 2026-08-22). And the status
+      // whitelist means lost/cancelled/lead/reserved never count at all.
+      .filter((b) => ["attended", "confirmed", "paid"].includes(b.status)
+        && b.exp_editions?.date_end && b.exp_editions.date_end < today)
       .map((b) => b.edition_id)
       .filter(Boolean)
   );
