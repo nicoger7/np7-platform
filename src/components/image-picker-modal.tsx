@@ -19,6 +19,10 @@ interface ImagePickerModalProps {
   onClose: () => void;
   /** Open the library here and default uploads to this folder (e.g. experiences/alacati/hero). */
   defaultFolder?: string;
+  /** Multi-select mode: click toggles photos, the footer confirms them all at
+   *  once — for galleries, where picking one at a time meant reopening the
+   *  dialog per photo. `onSelect` still fires per double-click. */
+  onSelectMany?: (urls: string[]) => void;
 }
 
 function formatSize(bytes: number) {
@@ -117,7 +121,7 @@ function safeName(file: File) {
   return `${base}-${Date.now()}-${Math.random().toString(36).slice(2, 6)}.${ext}`;
 }
 
-export default function ImagePickerModal({ onSelect, onClose, defaultFolder }: ImagePickerModalProps) {
+export default function ImagePickerModal({ onSelect, onClose, defaultFolder, onSelectMany }: ImagePickerModalProps) {
   const [view, setView] = useState<"all" | "folders">("all");
   const [all, setAll] = useState<FileItem[]>([]);
   const [folderFiles, setFolderFiles] = useState<FileItem[]>([]);
@@ -126,6 +130,8 @@ export default function ImagePickerModal({ onSelect, onClose, defaultFolder }: I
   const [uploading, setUploading] = useState(false);
   const [progress, setProgress] = useState<{ done: number; total: number } | null>(null);
   const [selected, setSelected] = useState<string | null>(null);
+  const [multiSel, setMultiSel] = useState<Set<string>>(new Set());
+  const multi = !!onSelectMany;
   const [query, setQuery] = useState("");
   // Friendly names for the UUID folders we've walked through, so the
   // breadcrumb can read "Bonaire 2026 / Participants / Dennis Robinson"
@@ -346,12 +352,16 @@ export default function ImagePickerModal({ onSelect, onClose, defaultFolder }: I
               {grid.length > 0 ? (
                 <div className="grid grid-cols-3 sm:grid-cols-4 lg:grid-cols-6 gap-3">
                   {grid.map((item) => {
-                    const isSelected = selected === item.url;
+                    const isSelected = multi ? !!item.url && multiSel.has(item.url) : selected === item.url;
                     const dir = item.path.includes("/") ? item.path.slice(0, item.path.lastIndexOf("/")) : "";
                     return (
                       <button
                         key={item.path}
-                        onClick={() => setSelected(item.url)}
+                        onClick={() => {
+                          if (!item.url) return;
+                          if (multi) setMultiSel((s) => { const n = new Set(s); if (n.has(item.url!)) n.delete(item.url!); else n.add(item.url!); return n; });
+                          else setSelected(item.url);
+                        }}
                         onDoubleClick={() => item.url && onSelect(item.url)}
                         title={item.path}
                         className="group relative rounded-xl overflow-hidden text-left transition-all"
@@ -401,7 +411,13 @@ export default function ImagePickerModal({ onSelect, onClose, defaultFolder }: I
           </p>
           <div className="flex gap-3">
             <button onClick={onClose} className="px-4 py-2 text-sm admin-muted">Cancel</button>
-            <button onClick={() => selected && onSelect(selected)} disabled={!selected} className="px-5 py-2 bg-[#0aa3c7] hover:bg-[#0aa3c7]/90 disabled:opacity-30 text-white text-sm font-bold rounded-lg transition-colors">Select</button>
+            {multi ? (
+              <button onClick={() => multiSel.size && onSelectMany!([...multiSel])} disabled={multiSel.size === 0} className="px-5 py-2 bg-[#0aa3c7] hover:bg-[#0aa3c7]/90 disabled:opacity-30 text-white text-sm font-bold rounded-lg transition-colors">
+                Add {multiSel.size || ""} photo{multiSel.size === 1 ? "" : "s"}
+              </button>
+            ) : (
+              <button onClick={() => selected && onSelect(selected)} disabled={!selected} className="px-5 py-2 bg-[#0aa3c7] hover:bg-[#0aa3c7]/90 disabled:opacity-30 text-white text-sm font-bold rounded-lg transition-colors">Select</button>
+            )}
           </div>
         </div>
       </div>

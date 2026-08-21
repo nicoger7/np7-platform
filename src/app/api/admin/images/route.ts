@@ -42,9 +42,17 @@ async function labelMemoryFolders(admin: any, folder: string, files: ListedFile[
   const dirs = files.filter((f) => f.isFolder);
   if (dirs.length === 0) return;
   if (folder === "memories") {
-    const { data } = await admin.from("exp_editions").select("id, title").in("id", dirs.map((f) => f.name));
-    const m = new Map((data ?? []).map((e: { id: string; title: string }) => [e.id, e.title]));
-    for (const f of dirs) f.label = (m.get(f.name) as string) ?? null;
+    // Editions carry label + year (no title) — the trip name lives on the
+    // experience. Selecting a non-existent column errored, the catch ate it,
+    // and every memories folder showed as a raw UUID.
+    const { data } = await admin.from("exp_editions")
+      .select("id, label, year, exp_experiences(title)").in("id", dirs.map((f) => f.name));
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const m = new Map(((data ?? []) as any[]).map((e) => [e.id, [
+      String(e.exp_experiences?.title ?? "").replace(/^NP7 (Experience )?/, ""),
+      e.label, e.year,
+    ].filter(Boolean).join(" · ")]));
+    for (const f of dirs) f.label = (m.get(f.name) as string) || null;
   } else if (/^memories\/[^/]+$/.test(folder)) {
     for (const f of dirs) if (f.name === "p") f.label = "Participants";
   } else if (/^memories\/[^/]+\/p$/.test(folder)) {

@@ -875,6 +875,7 @@ export default function ContentEditorPage({ params }: { params: Promise<{ id: st
         <ImagePickerModal
           defaultFolder={slug ? `experiences/${slug}` : undefined}
           onSelect={applyPicked}
+          onSelectMany={picker.kind === "gallery" ? (urls) => { setGallery((g) => [...g, ...urls]); setPicker(null); } : undefined}
           onClose={() => setPicker(null)}
         />
       )}
