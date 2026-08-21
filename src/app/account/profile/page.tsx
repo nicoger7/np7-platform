@@ -6,6 +6,8 @@ import { getMemberProfile, getProfilePhotoChoices } from "@/lib/portal-data";
 import { displayLevel } from "@/lib/member-level";
 import { PortalChrome } from "@/components/portal/portal-chrome";
 import { CommunityProfile } from "@/components/portal/community-profile";
+import { TierStatusCard } from "@/components/portal/tier-status-card";
+import { getMemberTier } from "@/lib/member-tier";
 
 export const metadata: Metadata = { title: "Profile — NP7" };
 export const dynamic = "force-dynamic";
@@ -15,9 +17,10 @@ export const dynamic = "force-dynamic";
 export default async function ProfilePage() {
   const user = await getPortalUser();
   if (!user) redirect("/account/login");
-  const [profile, photoChoices] = await Promise.all([
+  const [profile, photoChoices, tier] = await Promise.all([
     getMemberProfile(user.contactId),
     getProfilePhotoChoices(user.contactId).catch(() => []),
+    getMemberTier(user.contactId).catch(() => null),
   ]);
   const shownLevel = profile
     ? displayLevel({ self_level: profile.self_level, level: profile.level, level_status: profile.level_status }).level
@@ -35,7 +38,8 @@ export default async function ProfilePage() {
           </p>
           {profile ? (
             <div className="space-y-5">
-              <CommunityProfile
+              <TierStatusCard tier={tier} />
+          <CommunityProfile
                 name={profile.name}
                 country={profile.country}
                 shownLevel={shownLevel}
