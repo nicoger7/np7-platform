@@ -28,6 +28,7 @@ export function EditionMemoriesUploader({ editionId, initialVideoUrl }: { editio
   const [selected, setSelected] = useState<Set<string>>(new Set()); // photo paths picked for "assign"
   const [assigning, setAssigning] = useState(false);
   const [assignTarget, setAssignTarget] = useState(""); // picked rider — assignment fires on the button, not on pick
+  const [viewer, setViewer] = useState<number | null>(null); // lightbox index into `photos` (click selects; the loupe enlarges)
   const fileInput = useRef<HTMLInputElement>(null);
   // Peek galleries: show a couple of rows that fade into the card, with a
   // "Show all N" expander — same idea as the member gallery, so a big set never
@@ -90,7 +91,19 @@ export function EditionMemoriesUploader({ editionId, initialVideoUrl }: { editio
   }
 
   // Selection is per-scope; drop it whenever you switch who you're viewing.
-  useEffect(() => { setSelected(new Set()); }, [scope]);
+  useEffect(() => { setSelected(new Set()); setViewer(null); }, [scope]);
+
+  // lightbox keyboard: Esc closes, arrows walk the gallery — as on the front end
+  useEffect(() => {
+    if (viewer == null) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setViewer(null);
+      if (e.key === "ArrowRight") setViewer((v) => (v == null ? v : Math.min(v + 1, photos.length - 1)));
+      if (e.key === "ArrowLeft") setViewer((v) => (v == null ? v : Math.max(v - 1, 0)));
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [viewer, photos.length]);
   const toggleSelect = (path: string) =>
     setSelected((s) => { const n = new Set(s); n.has(path) ? n.delete(path) : n.add(path); return n; });
 
@@ -479,7 +492,7 @@ export function EditionMemoriesUploader({ editionId, initialVideoUrl }: { editio
             </div>
             <div className="relative">
             <div className="grid grid-cols-3 sm:grid-cols-5 gap-2">
-              {(photosExpanded ? photos : photos.slice(0, PHOTO_PEEK)).map((p) => {
+              {(photosExpanded ? photos : photos.slice(0, PHOTO_PEEK)).map((p, gridIdx) => {
                 const sel = selected.has(p.path);
                 const selectable = true; // Everyone: select-to-assign · rider gallery: select-to-unassign
                 return (
@@ -494,6 +507,10 @@ export function EditionMemoriesUploader({ editionId, initialVideoUrl }: { editio
                       </span>
                     )}
                     <button onClick={(e) => { e.stopPropagation(); remove(p.path); }} className="absolute top-1 right-1 w-6 h-6 rounded bg-black/60 text-white text-sm grid place-items-center opacity-0 group-hover:opacity-100 transition-opacity" title="Remove">×</button>
+                    <button onClick={(e) => { e.stopPropagation(); setViewer(gridIdx); }}
+                      className="absolute bottom-1 right-1 w-6 h-6 rounded bg-black/45 text-white/85 grid place-items-center opacity-0 group-hover:opacity-100 transition-opacity" title="View large">
+                      <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round"><circle cx="11" cy="11" r="7" /><path d="M21 21l-4.35-4.35M11 8v6M8 11h6" /></svg>
+                    </button>
                     <button onClick={(e) => { e.stopPropagation(); toggleStar("photo", p.path); }}
                       className={`absolute bottom-1 left-1 w-6 h-6 rounded grid place-items-center transition-all ${starPhotos.has(p.path) ? "bg-amber-400 text-white" : "bg-black/45 text-white/85 opacity-0 group-hover:opacity-100"}`}
                       title={starPhotos.has(p.path) ? "Keeper — kept forever" : "Mark as keeper (kept forever)"}>
@@ -632,6 +649,29 @@ export function EditionMemoriesUploader({ editionId, initialVideoUrl }: { editio
           {videoSaved && <span className="text-xs text-green-400">Saved ✓</span>}
         </div>
       </div>
+
+      {/* Lightbox — the front end's viewer, admin edition: chrome carries the
+          counter, arrows walk, Esc closes. */}
+      {viewer != null && photos[viewer] && (
+        <div className="fixed inset-0 z-[70] bg-black/92 flex flex-col" onClick={() => setViewer(null)}>
+          <div className="flex items-center justify-between px-4 py-3 text-white/85 text-sm">
+            <span className="font-semibold tabular-nums">{viewer + 1} / {photos.length}</span>
+            <button onClick={(e) => { e.stopPropagation(); setViewer(null); }} className="w-9 h-9 grid place-items-center rounded-full hover:bg-white/10 text-xl" aria-label="Close">×</button>
+          </div>
+          <div className="flex-1 flex items-center justify-center px-12 pb-6 min-h-0">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src={photos[viewer].url} alt="" className="max-w-full max-h-full object-contain rounded-lg" onClick={(e) => e.stopPropagation()} />
+          </div>
+          {viewer > 0 && (
+            <button onClick={(e) => { e.stopPropagation(); setViewer(viewer - 1); }}
+              className="absolute left-3 top-1/2 -translate-y-1/2 w-11 h-11 grid place-items-center rounded-full bg-white/10 hover:bg-white/20 text-white text-2xl" aria-label="Previous">‹</button>
+          )}
+          {viewer < photos.length - 1 && (
+            <button onClick={(e) => { e.stopPropagation(); setViewer(viewer + 1); }}
+              className="absolute right-3 top-1/2 -translate-y-1/2 w-11 h-11 grid place-items-center rounded-full bg-white/10 hover:bg-white/20 text-white text-2xl" aria-label="Next">›</button>
+          )}
+        </div>
+      )}
     </div>
   );
 }

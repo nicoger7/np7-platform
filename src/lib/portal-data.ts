@@ -289,8 +289,10 @@ export async function getMemberProfile(contactId: string): Promise<MemberProfile
     de-duped across all bookings — used as the avatar picker source. */
 export async function getProfilePhotoChoices(contactId: string): Promise<string[]> {
   const bookings = await getMemberBookings(contactId);
+  // ONLY the member's own folder — the week's shared "Everyone" pool is full of
+  // other people's faces, which must never be someone's avatar material.
   const lists = await Promise.all(
-    bookings.map((b) => (b.edition?.id ? getMemoryPhotosForBooking(b.edition.id, b.id).catch(() => []) : Promise.resolve([])))
+    bookings.map((b) => (b.edition?.id ? listAssetFolder(`memories/${b.edition.id}/p/${b.id}`).catch(() => []) : Promise.resolve([])))
   );
   // Every trip's photos — the cap is a guard against pathological volume, not
   // a feature; at 60 a two-trip member already lost their first week's photos.
