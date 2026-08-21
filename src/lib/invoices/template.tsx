@@ -782,3 +782,94 @@ export function buildInvoiceDocument(data: InvoiceData): React.ReactElement {
     </Document>
   );
 }
+
+
+// ─── Credit note / Stornorechnung ────────────────────────────────────────────
+
+/** A credit note corrects ONE issued tax invoice — full (Storno) or partial. */
+export type CreditNoteData = {
+  company: CompanySettings;
+  /** The credit note's own sequential number (same gapless circle). */
+  invoiceNumber: string;
+  invoiceDate: string;
+  /** The invoice being corrected — a credit note without one is not compliant. */
+  original: { number: string; date: string; amount: number };
+  /** Positive figure; the document renders it as a credit (negative). */
+  amount: number;
+  full: boolean;
+  reason: string;
+  currency: string;
+  contact: InvoiceData["contact"];
+  experience: { title: string };
+  edition: InvoiceData["edition"];
+};
+
+export function buildCreditNoteDocument(data: CreditNoteData): React.ReactElement {
+  const { company, invoiceNumber, original } = data;
+  const currency = data.currency || company.currency;
+  const description = [data.experience.title, data.edition?.label].filter(Boolean).join(" · ");
+
+  return (
+    <Document
+      title={`${data.full ? "Cancellation Invoice" : "Credit Note"} ${invoiceNumber}`}
+      author={company.legal_name ?? "NP7 GmbH"}
+      creator="NP7 Platform"
+    >
+      <Page size="A4" style={s.page}>
+        <View style={s.headerRow}>
+          <SellerBlock company={company} />
+          <View style={s.docInfoBlock}>
+            <Text style={s.docTitle}>{data.full ? "Cancellation Invoice" : "Credit Note"}</Text>
+            <Text style={s.smallText}>{data.full ? "Storno / full correction" : "Partial correction (Gutschrift)"}</Text>
+            <Text style={s.docNumber}>No. {invoiceNumber}</Text>
+            <View style={{ marginTop: 8 }}>
+              <Text style={s.smallText}>Date: {fmtDate(data.invoiceDate)}</Text>
+            </View>
+          </View>
+        </View>
+
+        <View style={s.divider} />
+        <BuyerBlock contact={data.contact} />
+
+        {/* The legally required anchor: WHICH invoice this corrects. */}
+        <Text style={[s.smallText, { marginBottom: 10, fontFamily: "Helvetica-Bold" }]}>
+          This document corrects invoice No. {original.number} dated {fmtDate(original.date)}.
+        </Text>
+
+        <View style={s.tableHeader}>
+          <Text style={[s.colHeader, s.col_desc]}>Description</Text>
+          <Text style={[s.colHeader, s.col_period]}>Service period</Text>
+          <Text style={[s.colHeader, s.col_amount]}>Amount</Text>
+        </View>
+        <View style={s.tableRow}>
+          <View style={s.col_desc}>
+            <Text style={{ fontFamily: "Helvetica-Bold" }}>
+              {data.full ? "Cancellation" : "Credit"}: {description}
+            </Text>
+            <Text style={[s.smallText, { marginTop: 2 }]}>Reason: {data.reason}</Text>
+          </View>
+          <Text style={s.col_period}>{servicePeriod(data.edition)}</Text>
+          <Text style={s.col_amount}>−{formatMoney(data.amount, currency)}</Text>
+        </View>
+
+        <View style={s.totalsBox}>
+          <View style={s.totalRow}>
+            <Text style={[s.totalLabel, { fontFamily: "Helvetica-Bold" }]}>Total credit</Text>
+            <Text style={{ fontFamily: "Helvetica-Bold" }}>−{formatMoney(data.amount, currency)}</Text>
+          </View>
+        </View>
+
+        <VatNote vatMode={company.vat_mode} vatRate={company.vat_rate} />
+        <Text style={s.vatNote}>
+          No payment is due on this document. Any amount already paid against the
+          corrected invoice will be refunded.
+        </Text>
+
+        {company.invoice_footer && (
+          <Text style={[s.smallText, { marginTop: 16, color: GREY }]}>{company.invoice_footer}</Text>
+        )}
+        <PageFooter company={company} invoiceNumber={invoiceNumber} />
+      </Page>
+    </Document>
+  );
+}

@@ -92,7 +92,7 @@ export function CommunityProfile(p: Props) {
       </p>
 
       {/* avatar + handle */}
-      <div className="flex flex-wrap gap-5">
+      <div className="flex flex-col sm:flex-row gap-5">
         <div className="flex flex-col items-center gap-2">
           {avatar ? (
             <div className="w-20 h-20 rounded-full bg-cover bg-center border border-[#e6eef0]" style={{ backgroundImage: `url('${cdnImage(avatar, { width: 160 })}')` }} />
@@ -113,17 +113,17 @@ export function CommunityProfile(p: Props) {
           )}
         </div>
 
-        <div className="flex-1 w-full min-w-0 sm:min-w-[220px] space-y-3">
+        <div className="flex-1 w-full min-w-0 space-y-3">
           <div>
             <label className={label}>Display name</label>
             <p className="text-[15px] text-[#00374a] font-semibold">{displayName} <span className="text-[12px] font-normal text-[#9aa6ac]">· auto from your name</span></p>
           </div>
-          <div className="grid sm:grid-cols-2 gap-3">
+          <div className="grid sm:grid-cols-2 gap-3 min-w-0">
             <div>
               <label className={label}>Username</label>
-              <div className="flex items-center rounded-xl border border-[#dde6e9] focus-within:border-[#00afdb] overflow-hidden">
+              <div className="flex items-center w-full min-w-0 rounded-xl border border-[#dde6e9] focus-within:border-[#00afdb] overflow-hidden">
                 <span className="pl-3 pr-1 text-[15px] text-[#9aa6ac]">@</span>
-                <input className="flex-1 px-1 py-3 text-[15px] text-[#00374a] outline-none" value={username} onChange={(e) => setUsername(e.target.value.replace(/^@+/, ""))} placeholder="nicoprien" />
+                <input className="flex-1 min-w-0 px-1 py-3 text-[15px] text-[#00374a] outline-none" value={username} onChange={(e) => setUsername(e.target.value.replace(/^@+/, ""))} placeholder="nicoprien" />
               </div>
             </div>
             <div>
@@ -140,11 +140,12 @@ export function CommunityProfile(p: Props) {
           {p.photoChoices.length === 0 ? (
             <p className="text-[13px] text-[#9aa6ac] py-2 text-center">Your trip photos appear here after your first week — until then you&apos;ll show with your initials.</p>
           ) : (
-            <div className="grid grid-cols-5 sm:grid-cols-8 gap-2 max-h-[320px] overflow-y-auto">
+            <div className="grid grid-cols-3 sm:grid-cols-6 gap-2 max-h-[360px] overflow-y-auto">
               {p.photoChoices.map((src) => (
                 <button key={src} type="button" onClick={() => { setAvatar(src); setPickerOpen(false); }}
                   aria-label="Use this photo"
-                  className={`relative aspect-square rounded-lg overflow-hidden bg-[#eef3f4] hover:opacity-90 hover:scale-[1.03] transition-all ${avatar === src ? "ring-2 ring-[#00afdb]" : ""}`}>
+                  style={{ paddingBottom: "100%" }}
+                  className={`relative block w-full h-0 rounded-lg overflow-hidden bg-[#eef3f4] hover:opacity-90 transition-all ${avatar === src ? "ring-2 ring-[#00afdb]" : ""}`}>
                   {/* small CDN variant (same resize path as the trip gallery),
                       absolutely positioned so the image can never dictate the
                       grid's size — the full-size originals both crashed iOS

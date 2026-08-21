@@ -13,7 +13,7 @@
 import React from "react";
 import { renderToBuffer } from "@react-pdf/renderer";
 import { createAdminClient } from "@/lib/supabase";
-import { buildInvoiceDocument, type InvoiceData } from "./template";
+import { buildInvoiceDocument, type InvoiceData , buildCreditNoteDocument } from "./template";
 import {
   formatInvoiceNumber,
   type GenerateInput,
@@ -85,7 +85,7 @@ export async function issuedInvoiceTotal(bookingId: string): Promise<number> {
   const db = getDb();
   const { data } = await db.from("documents").select("amount,type,status").eq("booking_id", bookingId).eq("status", "issued");
   return round2(((data ?? []) as { amount: number | null; type: string }[])
-    .filter((d) => ["deposit_invoice", "downpayment_invoice", "final_invoice"].includes(d.type))
+    .filter((d) => ["deposit_invoice", "downpayment_invoice", "final_invoice", "credit_note"].includes(d.type))
     .reduce((s, d) => s + (Number(d.amount) || 0), 0));
 }
 
@@ -573,4 +573,118 @@ declare namespace ReactPDF {
     subject?: string;
     creator?: string;
   }
+}
+
+
+// ─── Credit note / Storno ─────────────────────────────────────────────────────
+
+export type CreditNoteInput = {
+  bookingId: string;
+  /** The issued tax invoice being corrected. */
+  originalDocumentId: string;
+  /** Omit for a FULL cancellation of the original; set for a partial credit. */
+  amount?: number;
+  /** Printed on the document — a correction without a stated reason reads as an error. */
+  reason: string;
+};
+
+/**
+ * A legally-shaped correction document (§14/§17 UStG logic, margin-scheme
+ * aware): its own number from the same gapless circle, a mandatory reference
+ * to the original invoice, a negative total, and no payment request. The
+ * documents row stores the amount NEGATIVE so `issuedInvoiceTotal` nets it
+ * out and the booking's billing state stays truthful.
+ */
+export async function generateCreditNote(input: CreditNoteInput): Promise<DocumentRow> {
+  const reason = (input.reason ?? "").trim();
+  if (!reason) throw new Error("A credit note needs a reason — it is printed on the document.");
+
+  const db = getDb();
+  const { data: orig } = await db.from("documents").select("*").eq("id", input.originalDocumentId).maybeSingle();
+  if (!orig) throw new Error("Original invoice not found.");
+  const o = orig as DocumentRow;
+  if (o.booking_id !== input.bookingId) throw new Error("That invoice belongs to a different booking.");
+  if (o.status !== "issued") throw new Error("Only an issued invoice can be corrected.");
+  if (!["deposit_invoice", "downpayment_invoice", "final_invoice"].includes(o.type)) {
+    throw new Error(o.type === "proforma_invoice"
+      ? "A pro-forma is a payment request, not a tax invoice — void or re-issue it, no Storno needed."
+      : "Only tax invoices (deposit / down-payment / final) can be corrected with a credit note.");
+  }
+  if (!o.invoice_number) throw new Error("The original invoice has no number — cannot reference it.");
+
+  const originalAmount = round2(Number(o.amount) || 0);
+  if (originalAmount <= 0) throw new Error("The original invoice has no positive amount to credit.");
+  const amount = round2(input.amount ?? originalAmount);
+  if (!(amount > 0)) throw new Error("The credit amount must be positive.");
+  if (amount > originalAmount + 0.005) {
+    throw new Error(`The credit (${amount}) cannot exceed the original invoice amount (${originalAmount}).`);
+  }
+  // Guard against double-correcting: existing credits against this original.
+  const { data: priorRows } = await db.from("documents").select("amount,meta,status")
+    .eq("booking_id", input.bookingId).eq("type", "credit_note").eq("status", "issued");
+  const priorCredit = round2(((priorRows ?? []) as { amount: number | null; meta: Record<string, unknown> | null }[])
+    .filter((r) => (r.meta as { original_document_id?: string } | null)?.original_document_id === o.id)
+    .reduce((s2, r) => s2 + Math.abs(Number(r.amount) || 0), 0));
+  if (priorCredit + amount > originalAmount + 0.005) {
+    throw new Error(`Already credited ${priorCredit} against this invoice — only ${round2(originalAmount - priorCredit)} left to credit.`);
+  }
+  const full = Math.abs(amount - originalAmount) < 0.01 && priorCredit === 0;
+
+  const division = o.division ?? "experience";
+  const [booking, company] = await Promise.all([resolveBooking(input.bookingId), resolveCompanySettings(division)]);
+  const contact = booking.contacts;
+  const year = new Date().getFullYear();
+  const seq = await allocateInvoiceNumber(division, year);
+  const invoiceNumber = formatInvoiceNumber(company.invoice_prefix, year, seq);
+  const currency = o.currency || company.currency || "EUR";
+
+  const element = buildCreditNoteDocument({
+    company,
+    invoiceNumber,
+    invoiceDate: new Date().toISOString().slice(0, 10),
+    original: { number: o.invoice_number, date: o.issued_at ?? o.created_at, amount: originalAmount },
+    amount,
+    full,
+    reason,
+    currency,
+    contact: {
+      name: contact?.name ?? null,
+      billingAddress: contact?.billing_address ?? null,
+      billingPostalCode: contact?.billing_postal_code ?? null,
+      billingCity: contact?.billing_city ?? null,
+      billingCountry: contact?.billing_country ?? null,
+      email: contact?.email ?? null,
+    },
+    experience: { title: booking.exp_experiences?.title ?? "NP7 Experience" },
+    edition: booking.exp_editions
+      ? { label: booking.exp_editions.label, dateStart: booking.exp_editions.date_start, dateEnd: booking.exp_editions.date_end }
+      : null,
+  });
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const pdfBuffer = await renderToBuffer(element as any);
+
+  const fileSlug = invoiceNumber.replace(/[^a-zA-Z0-9_-]/g, "_");
+  const filePath = `${division}/${input.bookingId}/${fileSlug}.pdf`;
+  const { error: uploadError } = await db.storage
+    .from("documents").upload(filePath, pdfBuffer, { contentType: "application/pdf", upsert: true });
+  if (uploadError) throw new Error(`Failed to upload PDF to storage: ${uploadError.message}`);
+
+  const docRow = {
+    booking_id: input.bookingId,
+    contact_id: booking.contact_id,
+    division,
+    type: "credit_note" as const,
+    invoice_number: invoiceNumber,
+    title: full
+      ? `Cancellation Invoice (Storno) for ${o.invoice_number}`
+      : `Credit Note for ${o.invoice_number}`,
+    file_path: filePath,
+    amount: -amount,
+    currency,
+    status: "issued" as const,
+    meta: { original_document_id: o.id, original_invoice_number: o.invoice_number, reason, full },
+  };
+  const { data: inserted, error: insErr } = await db.from("documents").insert(docRow).select("*").single();
+  if (insErr) throw new Error(`Failed to save the credit note: ${insErr.message}`);
+  return inserted as DocumentRow;
 }
