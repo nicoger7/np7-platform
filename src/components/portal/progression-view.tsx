@@ -83,10 +83,7 @@ function SkillRow({ s, onLog, onUndo, busyId, logError }: { s: ProgressSkill } &
       <div className="flex items-center gap-[11px] px-3 py-2.5">
         {icon}
         <span className="flex-1 min-w-0">
-          <span className="block text-[14px] font-bold text-[#00374a]">
-            {s.label}
-            {s.bonus && <span className="ml-2 align-middle inline-block text-[9.5px] font-extrabold tracking-[0.1em] uppercase bg-[#fdf3e0] text-[#b97608] rounded-full px-2 py-0.5">just for fun</span>}
-          </span>
+          <span className="block text-[14px] font-bold text-[#00374a]">{s.label}</span>
           <span className="block text-[12px] text-[#9aa6ac]">{sub}</span>
         </span>
         {right && <span className="shrink-0">{right}</span>}

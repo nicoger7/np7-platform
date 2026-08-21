@@ -10,11 +10,9 @@ import { TIER_STEPS as LADDER, TIER_KEEP } from "@/lib/tier-config";
  *    lost never counts. A week weighs 1.0, an event/clinic 0.25.
  *  - RIDER you are always — every member, from day one.
  *  - CREW after your 1st counted trip · KEEP with 2 weighted trips per
- *    rolling 24 months.
- *  - LEGEND after your 2nd counted trip · KEEP with 4 per rolling 24 months.
- *  - Fresh status is protected: the trip that COMPLETED the climb holds the
- *    tier for 24 months on its own — nobody is demoted the week they arrive.
- *    Once that trip ages out, the keep-rate decides.
+ *    rolling 24 months (the 1st trip protects it for its first 24 months).
+ *  - LEGEND is a PACE, not a total (Nico, v3): 2 weighted trips within the
+ *    last 12 months — earned and held by the same rolling rule.
  */
 export type MemberTier = {
   key: "rider" | "crew" | "legend";
@@ -62,40 +60,47 @@ export async function getMemberTier(contactId: string): Promise<MemberTier | nul
     return null;
   };
 
-  /** A tier is active when attained AND (fresh-attainment protection OR keep-rate met). */
-  const active = (key: "crew" | "legend"): boolean => {
-    const min = LADDER.find((l) => l.key === key)!.min;
-    const on = attainedOn(min);
-    if (!on) return false;
-    return on >= cutoff || recent >= TIER_KEEP[key];
-  };
+  const cutoff12 = iso(Date.now() - WINDOW_MS / 2);
+  const recent12 = asc.filter((t) => t.end >= cutoff12).reduce((s, t) => s + t.weight, 0);
 
-  const key: MemberTier["key"] = active("legend") ? "legend" : active("crew") ? "crew" : "rider";
+  // Legend = the rolling year: 2 weighted trips in the last 12 months.
+  const legendActive = recent12 >= 2;
+  // Crew = ever ridden, kept by 2 per 24 months (first trip protects 24 months).
+  const crewOn = attainedOn(1);
+  const crewActive = !!crewOn && (crewOn >= cutoff || recent >= TIER_KEEP.crew);
 
-  // Valid until: the later of (attainment trip + 24mo) and the keep-window edge.
+  const key: MemberTier["key"] = legendActive ? "legend" : crewActive ? "crew" : "rider";
+
+  // Valid until — Legend: the day the rolling year drops below 2 (12 months
+  // after the trip that still covers the pace); Crew: 24-month logic.
   let validUntil: string | null = null;
-  if (key !== "rider") {
-    const min = LADDER.find((l) => l.key === key)!.min;
-    const candidates: string[] = [];
-    const on = attainedOn(min);
-    if (on) candidates.push(plus24mo(on));
-    // rolling keep: walk newest→oldest until the keep weight is covered
-    const need = TIER_KEEP[key];
+  if (key === "legend") {
     let cum = 0;
     for (const t of [...asc].reverse()) {
       cum += t.weight;
-      if (cum >= need) { candidates.push(plus24mo(t.end)); break; }
+      if (cum >= 2) { validUntil = iso(new Date(t.end + "T00:00:00Z").getTime() + WINDOW_MS / 2); break; }
+    }
+  } else if (key === "crew") {
+    const candidates: string[] = [];
+    if (crewOn) candidates.push(plus24mo(crewOn));
+    let cum = 0;
+    for (const t of [...asc].reverse()) {
+      cum += t.weight;
+      if (cum >= TIER_KEEP.crew) { candidates.push(plus24mo(t.end)); break; }
     }
     validUntil = candidates.sort().pop() ?? null;
   }
 
-  const next = key === "rider" && total < 1 ? LADDER[1] : key !== "legend" && total < 2 ? LADDER[2] : null;
+  // "to next": Rider → your 1st trip; Crew → what's missing on the rolling
+  // year toward Legend's 2-in-12-months pace.
+  const next = key === "rider" ? LADDER[1] : key === "crew" ? LADDER[2] : null;
+  const toNextVal = key === "rider" ? Math.max(0, 1 - total) : key === "crew" ? Math.max(0, 2 - recent12) : null;
   const tier = LADDER.find((l) => l.key === key)!;
   return {
     key,
     label: tier.label,
     trips: total,
-    toNext: next ? Math.round((next.min - total) * 100) / 100 : null,
+    toNext: toNextVal != null && toNextVal > 0 ? Math.round(toNextVal * 100) / 100 : null,
     nextLabel: next?.label ?? null,
     validUntil,
   };

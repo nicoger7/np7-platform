@@ -542,7 +542,7 @@ export async function getMemberProgression(contactId: string): Promise<Progressi
   return buildProgression(catalog, achievements);
 }
 
-export type CatalogMilestone = { id: string; key: string; label: string; description: string | null; tier: string; sort_order: number };
+export type CatalogMilestone = { id: string; key: string; label: string; description: string | null; tier: string; rank?: string | null; bonus?: boolean; sort_order: number };
 export type EditionCrewMember = {
   contactId: string; name: string; self_level: string | null; coach_level: string | null;
   level_status: string | null; suggested: string | null; reviewed: boolean; achievedIds: string[];

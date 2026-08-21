@@ -21,9 +21,9 @@ export const TIER_PERKS: Record<"rider" | "crew" | "legend", string[]> = {
   rider: ["Your crew, photos & progress in the member area"],
   crew: ["Member discounts on selected trips", "Early access to new weeks"],
   legend: [
+    "Pass your Crew discount to a friend",
     "Member discounts on selected trips",
     "Early access to new weeks",
     "Signature Trip invitations",
-    "Pass your Crew discount to a friend",
   ],
 };

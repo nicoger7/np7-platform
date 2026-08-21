@@ -148,14 +148,20 @@ export function EditionCrewLevels({ editionId }: { editionId: string }) {
         {catalog.length > 0 && (
           <div className="px-4 sm:px-5 py-4 space-y-3" style={{ backgroundColor: "var(--admin-surface)" }}>
             {LEVELS.map((t) => {
-              const inTier = catalog.filter((c) => c.tier === t);
+              // Group by RANK (falling back to tier): the Expert skills carry
+              // tier "Amateur", which matched no group — the whole Expert band
+              // (and every self-logged claim in it) was simply invisible here.
+              // eslint-disable-next-line @typescript-eslint/no-explicit-any
+              const inTier = catalog.filter((c) => (((c as any).rank ?? c.tier) === t));
               if (inTier.length === 0) return null;
-              const doneCount = inTier.filter((c) => achieved.has(c.id)).length;
-              const allDone = doneCount === inTier.length;
+              // eslint-disable-next-line @typescript-eslint/no-explicit-any
+              const counting = inTier.filter((c) => !(c as any).bonus);
+              const doneCount = counting.filter((c) => achieved.has(c.id)).length;
+              const allDone = doneCount === counting.length;
               return (
                 <div key={t}>
                   <div className="flex items-center gap-2 mb-1.5">
-                    <p className="text-[10px] uppercase tracking-wider admin-faint">{t} <span className="admin-faint">· {doneCount}/{inTier.length}</span></p>
+                    <p className="text-[10px] uppercase tracking-wider admin-faint">{t} <span className="admin-faint">· {doneCount}/{counting.length}</span></p>
                     <button onClick={() => setTier(m, t, !allDone)} className="text-[10px] font-semibold px-1.5 py-0.5 rounded" style={{ color: "var(--admin-accent)", backgroundColor: "var(--admin-accent-weak)" }}>{allDone ? "Clear all" : "Select all"}</button>
                   </div>
                   <div className="flex flex-wrap gap-1.5">
