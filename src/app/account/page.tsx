@@ -36,15 +36,15 @@ export default async function AccountHome() {
     await supabase.auth.signOut();
     redirect("/account/login");
   }
+  const tier = await getMemberTier(user.contactId).catch(() => null);
   const [bookings, bannerImages, profile, progression, signatureApp, nextTrips] = await Promise.all([
     getMemberBookings(user.contactId),
     getMemberBannerImages(user.contactId).catch(() => []),
     getMemberProfile(user.contactId).catch(() => null),
     getMemberProgression(user.contactId).catch(() => null),
     getMemberApplication(user.contactId).catch(() => null),
-    getExperienceCards().then((r) => r.cards).catch(() => []),
+    getExperienceCards(tier ? { tierKey: tier.key, tierLabel: tier.label } : null).then((r) => r.cards).catch(() => []),
   ]);
-  const tier = await getMemberTier(user.contactId).catch(() => null);
   const ownPhotoCount = await getProfilePhotoChoices(user.contactId).then((p) => p.length).catch(() => 0);
   // Only weeks you can actually book — a "dates coming soon" tile sells nothing here.
   const bookableTrips = nextTrips.filter((c) => c.dateLabel !== "Dates coming soon").slice(0, 3);

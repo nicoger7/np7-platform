@@ -1,5 +1,7 @@
 import { supabase } from "@/lib/supabase";
 import { availabilityFor } from "@/lib/availability";
+import { activeLaunch } from "@/lib/launch-price";
+import { resolveTierPct, bestAdvantage, type TierPerkRule } from "@/lib/tier-perks";
 import type { TilePlacement } from "@/lib/experience-tile";
 import type { ExpCard } from "@/components/experience/upcoming-experiences";
 
@@ -21,6 +23,9 @@ export type Edition = {
   status: string | null;
   active: boolean | null;
   coaches: string | null;
+  launch_discount_pct?: number | null;
+  launch_price_until?: string | null;
+  public_from?: string | null;
 };
 
 export type RawExperience = {
@@ -41,7 +46,9 @@ export type ExpListItem = RawExperience & { ed: Edition | undefined; spotsLeft: 
 function nextEdition(editions: Edition[] | null) {
   const today = new Date().toISOString().slice(0, 10);
   return (editions ?? [])
-    .filter((e) => e.status === "published" && e.date_start && e.date_start >= today)
+    // public view only (these cards are cached): early-access weeks stay off
+    .filter((e) => e.status === "published" && e.date_start && e.date_start >= today
+      && (!e.public_from || e.public_from <= today))
     .sort((a, b) => (a.date_start! < b.date_start! ? -1 : 1))[0];
 }
 
@@ -67,11 +74,11 @@ function leadCoach(coaches: string | null | undefined): string | null {
   return first || null;
 }
 
-export async function getExperienceCards(): Promise<{ cards: ExpCard[]; experiences: ExpListItem[] }> {
+export async function getExperienceCards(viewer?: { tierKey: "rider" | "crew" | "legend"; tierLabel: string } | null): Promise<{ cards: ExpCard[]; experiences: ExpListItem[] }> {
   const { data } = await supabase
     .from("exp_experiences")
     .select(
-      "id,title,slug,location,price,currency,description,hero_image,destination_id,exp_packages(price,status,edition_id,website_visible),exp_editions(id,date_start,date_end,max_spots,spots_taken,status,active,coaches)"
+      "id,title,slug,location,price,currency,description,hero_image,destination_id,exp_packages(price,status,edition_id,website_visible),exp_editions(id,date_start,date_end,max_spots,spots_taken,status,active,coaches,launch_discount_pct,launch_price_until,public_from)"
     )
     .eq("status", "published");
 
@@ -158,6 +165,16 @@ export async function getExperienceCards(): Promise<{ cards: ExpCard[]; experien
     }
   }
 
+  // Tier-perk rules for the signed-in viewer (one query for all experiences) —
+  // the tile whispers the same advantage the picker will charge.
+  let perkRules: (TierPerkRule & { experience_id?: string })[] = [];
+  if (viewer && (viewer.tierKey === "crew" || viewer.tierKey === "legend")) {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { data: perkRows } = await (supabase as any)
+      .from("exp_tier_perks").select("experience_id,tier,kind,value,edition_id,package_id").eq("active", true);
+    perkRules = (Array.isArray(perkRows) ? perkRows : []);
+  }
+
   // Card data for the month-filtered grid. `months` = every upcoming edition's
   // YYYY-MM, so the month chips reflect exactly what's bookable.
   const today = new Date().toISOString().slice(0, 10);
@@ -190,6 +207,17 @@ export async function getExperienceCards(): Promise<{ cards: ExpCard[]; experien
       coachName: coach?.name ?? named,
       coachCutout: coach?.cutout ?? null,
       placement: placementByExp.get(exp.id) ?? null,
+      // The genius-style hint: the launch price is public; a signed-in Crew/
+      // Legend sees the combined figure (launch + tier stack additively).
+      advantage: (() => {
+        if (!exp.ed) return null;
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const launch = activeLaunch(exp.ed as any);
+        const tierPct = viewer && (viewer.tierKey === "crew" || viewer.tierKey === "legend")
+          ? resolveTierPct(perkRules.filter((r) => r.experience_id === exp.id), { tier: viewer.tierKey, editionId: exp.ed.id, packageId: null })
+          : 0;
+        return bestAdvantage(launch, tierPct, viewer?.tierLabel ?? null);
+      })(),
       months: Array.from(
         new Set(
           (exp.exp_editions ?? [])

@@ -51,6 +51,9 @@ function SignatureTile() {
 }
 
 export type ExpCard = {
+  /** The price advantage to whisper on the tile (launch, or launch+tier for a
+   *  signed-in member) — the booking.com-genius-style hint. */
+  advantage?: { pct: number; label: string; until?: string | null } | null;
   id: string;
   slug: string;
   title: string;
@@ -156,6 +159,11 @@ export function ExpTileCardCompact({ exp }: { exp: ExpCard }) {
       <div className="px-4 py-3">
         <h3 className="text-[15px] font-black tracking-[-0.01em] text-[#00374a] leading-snug group-hover:text-[#00afdb] transition-colors">{exp.title.replace(/^NP7 (Experience )?/, "")}</h3>
         <p className="text-[12.5px] text-[#6a7a80] mt-0.5">{exp.dateLabel}{exp.priceLabel ? ` · from ${exp.priceLabel}` : ""}</p>
+        {exp.advantage && (
+          <span className="inline-flex items-center gap-1 rounded-full bg-[#ffc42e] text-[#4a3403] text-[10px] font-extrabold tracking-[0.04em] px-2 py-0.5 mt-1.5">
+            ★ {exp.advantage.label} · {exp.advantage.pct}% off
+          </span>
+        )}
       </div>
     </Link>
   );
@@ -198,6 +206,11 @@ export function ExpTileCard({ exp }: { exp: ExpCard }) {
         </div>
         <div className="p-6">
           <p className="text-[12px] font-semibold text-[#00afdb] mb-1.5">{exp.dateLabel}</p>
+          {exp.advantage && (
+            <span className="inline-flex items-center gap-1 rounded-full bg-[#ffc42e] text-[#4a3403] text-[10.5px] font-extrabold tracking-[0.04em] px-2.5 py-0.5 mb-2">
+              ★ {exp.advantage.label} · {exp.advantage.pct}% off
+            </span>
+          )}
           <h3 className="text-xl font-extrabold tracking-[-0.02em] text-[#00374a] mb-2.5 group-hover:text-[#00afdb] transition-colors">{exp.title}</h3>
           {exp.description && <p className="text-[14px] text-[#6a7a80] leading-relaxed line-clamp-2 mb-4">{exp.description}</p>}
           <div className="flex items-center justify-between pt-3 border-t border-[#f0f0f0]">

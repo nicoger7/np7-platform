@@ -1,36 +1,37 @@
 import { createAdminClient } from "@/lib/supabase";
-import { TIER_STEPS as LADDER } from "@/lib/tier-config";
+import { TIER_STEPS as LADDER, TIER_KEEP } from "@/lib/tier-config";
 
 /**
  * The loyalty ladder — Rider / Crew / Legend, computed live from trips
- * actually ridden. Deliberately UNSTORED: a tier is a fact about bookings, so
- * there is no column to drift out of date.
+ * actually ridden. Deliberately UNSTORED: a tier is a fact about bookings.
  *
- * Rules (Nico, final 2026-08-22):
- *  - A trip counts once its week has ENDED, with status attended/confirmed/
- *    paid. Lost never counts. An event/day-clinic weighs 0.25; a week 1.0.
- *  - CLIMBING is cumulative (weighted): Rider ≥1 · Crew ≥2 · Legend ≥4.
- *  - HOLDING needs recent riding: Crew ≥1 weighted trip in the last 12
- *    months, Legend ≥2 in the last 12 months. Falling short drops you ONE
- *    step (Legend→Crew→Rider) — never to zero, and the lifetime counter
- *    stays, so a returning rider climbs straight back.
+ * Rules (Nico, final v2, 2026-08-22):
+ *  - A trip counts once its week has ENDED, status attended/confirmed/paid;
+ *    lost never counts. A week weighs 1.0, an event/clinic 0.25.
+ *  - RIDER you are always — every member, from day one.
+ *  - CREW after your 1st counted trip · KEEP with 2 weighted trips per
+ *    rolling 24 months.
+ *  - LEGEND after your 2nd counted trip · KEEP with 4 per rolling 24 months.
+ *  - Fresh status is protected: the trip that COMPLETED the climb holds the
+ *    tier for 24 months on its own — nobody is demoted the week they arrive.
+ *    Once that trip ages out, the keep-rate decides.
  */
 export type MemberTier = {
   key: "rider" | "crew" | "legend";
   label: string;
   /** Weighted lifetime trips (events = 0.25). */
   trips: number;
-  /** Weighted trips still needed to CLIMB — null at the top. */
+  /** Weighted trips still needed to CLIMB — null when the pace, not the count, is the story. */
   toNext: number | null;
   nextLabel: string | null;
-  /** ISO date the current tier lapses without another counted trip; null = never (Rider). */
+  /** ISO date the current tier lapses without more riding; null = never (Rider). */
   validUntil: string | null;
 };
 
-const HOLD: Record<"rider" | "crew" | "legend", number> = { rider: 0, crew: 1, legend: 2 };
-const YEAR_MS = 365 * 86_400_000;
+const WINDOW_MS = 2 * 365 * 86_400_000;
+const iso = (t: number) => new Date(t).toISOString().slice(0, 10);
+const plus24mo = (d: string) => iso(new Date(d + "T00:00:00Z").getTime() + WINDOW_MS);
 
-/** Null until the first trip is ridden — a badge you start with is not a badge. */
 export async function getMemberTier(contactId: string): Promise<MemberTier | null> {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const db = createAdminClient() as any;
@@ -42,41 +43,54 @@ export async function getMemberTier(contactId: string): Promise<MemberTier | nul
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const rows = (Array.isArray(data) ? data : []) as any[];
 
-  // one entry per edition: { end, weight }
   const byEdition = new Map<string, { end: string; weight: number }>();
   for (const b of rows) {
     if (!["attended", "confirmed", "paid"].includes(b.status)) continue;
     const end = b.exp_editions?.date_end as string | null;
-    if (!b.edition_id || !end || end >= today) continue; // only finished weeks
+    if (!b.edition_id || !end || end >= today) continue;
     byEdition.set(b.edition_id, { end, weight: b.exp_editions?.kind === "event" ? 0.25 : 1 });
   }
-  const trips = [...byEdition.values()].sort((a, b) => (a.end < b.end ? 1 : -1)); // newest first
-  const total = Math.round(trips.reduce((s, t) => s + t.weight, 0) * 100) / 100;
-  if (total < LADDER[0].min) return null;
+  const asc = [...byEdition.values()].sort((a, b) => (a.end < b.end ? -1 : 1));
+  const total = Math.round(asc.reduce((s, t) => s + t.weight, 0) * 100) / 100;
+  const cutoff = iso(Date.now() - WINDOW_MS);
+  const recent = asc.filter((t) => t.end >= cutoff).reduce((s, t) => s + t.weight, 0);
 
-  // climb by lifetime weighted count…
-  const attained = [...LADDER].reverse().find((t) => total >= t.min)!;
-  // …then hold by the last 12 months' weighted count
-  const cutoff = new Date(Date.now() - YEAR_MS).toISOString().slice(0, 10);
-  const recent12 = trips.filter((t) => t.end >= cutoff).reduce((s, t) => s + t.weight, 0);
-  let key = attained.key;
-  if (key === "legend" && recent12 < HOLD.legend) key = "crew";
-  if (key === "crew" && recent12 < HOLD.crew) key = "rider";
-
-  // "valid until": walk newest→oldest until the holding weight is covered; the
-  // trip that covers it expires 12 months after its week ended.
-  let validUntil: string | null = null;
-  const need = HOLD[key];
-  if (need > 0) {
+  /** The date cumulative weight first reached `min` — the climb-completing trip. */
+  const attainedOn = (min: number): string | null => {
     let cum = 0;
-    for (const t of trips) {
+    for (const t of asc) { cum += t.weight; if (cum >= min) return t.end; }
+    return null;
+  };
+
+  /** A tier is active when attained AND (fresh-attainment protection OR keep-rate met). */
+  const active = (key: "crew" | "legend"): boolean => {
+    const min = LADDER.find((l) => l.key === key)!.min;
+    const on = attainedOn(min);
+    if (!on) return false;
+    return on >= cutoff || recent >= TIER_KEEP[key];
+  };
+
+  const key: MemberTier["key"] = active("legend") ? "legend" : active("crew") ? "crew" : "rider";
+
+  // Valid until: the later of (attainment trip + 24mo) and the keep-window edge.
+  let validUntil: string | null = null;
+  if (key !== "rider") {
+    const min = LADDER.find((l) => l.key === key)!.min;
+    const candidates: string[] = [];
+    const on = attainedOn(min);
+    if (on) candidates.push(plus24mo(on));
+    // rolling keep: walk newest→oldest until the keep weight is covered
+    const need = TIER_KEEP[key];
+    let cum = 0;
+    for (const t of [...asc].reverse()) {
       cum += t.weight;
-      if (cum >= need) { validUntil = new Date(new Date(t.end + "T00:00:00Z").getTime() + YEAR_MS).toISOString().slice(0, 10); break; }
+      if (cum >= need) { candidates.push(plus24mo(t.end)); break; }
     }
+    validUntil = candidates.sort().pop() ?? null;
   }
 
-  const tier = LADDER.find((t) => t.key === key)!;
-  const next = LADDER.find((t) => t.min > total) ?? null;
+  const next = key === "rider" && total < 1 ? LADDER[1] : key !== "legend" && total < 2 ? LADDER[2] : null;
+  const tier = LADDER.find((l) => l.key === key)!;
   return {
     key,
     label: tier.label,

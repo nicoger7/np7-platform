@@ -24,7 +24,7 @@ function TierChip({ tier }: { tier: MemberTier }) {
       <span className={`inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-[10.5px] font-extrabold tracking-[0.12em] uppercase align-middle cursor-pointer ${tone}`}>
         ★ {tier.label}
       </span>
-      <span className="pointer-events-none absolute left-0 bottom-full mb-2 z-30 w-[248px] opacity-0 translate-y-1 transition-all duration-200 group-hover/tier:opacity-100 group-hover/tier:translate-y-0 group-focus-within/tier:opacity-100 group-focus-within/tier:translate-y-0">
+      <span className="absolute left-0 bottom-full pb-2 z-30 w-[248px] opacity-0 pointer-events-none translate-y-1 transition-all duration-200 group-hover/tier:opacity-100 group-hover/tier:pointer-events-auto group-hover/tier:translate-y-0 group-focus-within/tier:opacity-100 group-focus-within/tier:pointer-events-auto group-focus-within/tier:translate-y-0">
         <span className="block rounded-2xl bg-[#012b3a]/95 backdrop-blur-sm border border-white/10 shadow-[0_16px_40px_rgba(0,20,30,0.45)] p-4">
           <span className="flex gap-1.5 mb-2.5">
             {STEPS.map((s, i) => (

@@ -1,5 +1,5 @@
 import type { MemberTier } from "@/lib/member-tier";
-import { TIER_STEPS, TIER_PERKS } from "@/lib/tier-config";
+import { TIER_STEPS, TIER_PERKS, TIER_KEEP } from "@/lib/tier-config";
 
 /**
  * The loyalty ladder as a first-class profile card — the banner chip's hover
@@ -74,7 +74,10 @@ export function TierStatusCard({ tier }: { tier: MemberTier | null }) {
                   <span className={`text-[11px] font-extrabold tracking-[0.14em] uppercase ${mine ? "text-[#c47a10]" : reached ? "text-[#00374a]" : "text-[#8fa0a6]"}`}>{s.label}</span>
                   {mine && <span className="text-[9px] font-extrabold tracking-[0.12em] uppercase bg-[#ffc42e] text-[#4a3403] rounded-full px-2 py-0.5">You</span>}
                 </div>
-                <p className="text-[11px] text-[#9aa6ac] mb-2.5">{s.min === 1 ? "1 trip" : `${s.min}+ trips`}</p>
+                <p className="text-[11px] text-[#9aa6ac] mb-2.5">
+                  {s.min === 0 ? "every NP7 rider" : s.min === 1 ? "after your 1st trip" : `after your ${s.min}nd trip`}
+                  {s.key !== "rider" && <> · keep it: {TIER_KEEP[s.key as "crew" | "legend"]} per 2 years</>}
+                </p>
                 <ul className="space-y-1">
                   {TIER_PERKS[s.key].map((p) => (
                     <li key={p} className={`text-[12.5px] flex gap-1.5 leading-snug ${reached ? "text-[#00374a]" : "text-[#8fa0a6]"}`}>
