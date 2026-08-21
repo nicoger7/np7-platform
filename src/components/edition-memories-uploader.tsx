@@ -396,8 +396,9 @@ export function EditionMemoriesUploader({ editionId, initialVideoUrl }: { editio
           (Private trip photos — separate from the public marketing gallery in Event Content.)
         </p>
 
-        {/* scope picker */}
-        <div className="flex flex-wrap gap-1.5 mb-4">
+        {/* scope picker — min-w-0/max-w-full so long names can never force the
+            panel (and with it the whole admin page) into sideways scrolling */}
+        <div className="flex flex-wrap gap-1.5 mb-4 min-w-0 max-w-full">
           {chip("", "👥 Everyone")}
           {bookings.map((b) => chip(b.id, b.contact?.name || b.name || "Participant"))}
           {bookings.length === 0 && <span className="text-xs admin-faint">No participants booked yet.</span>}
