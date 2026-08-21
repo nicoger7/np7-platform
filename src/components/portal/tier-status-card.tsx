@@ -57,21 +57,36 @@ export function TierStatusCard({ tier }: { tier: MemberTier | null }) {
               {tier.label} status valid until {new Date(tier.validUntil + "T00:00:00Z").toLocaleDateString("en-GB", { month: "long", year: "numeric", timeZone: "UTC" })} — your next trip extends it.
             </p>
           )}
-          <div className="pt-4 border-t border-[#f3ede2]">
-            <p className="text-[12px] font-bold tracking-[0.08em] uppercase text-[#9aa6ac] mb-2">Your {tier.label} perks</p>
-            <ul className="space-y-1">
-              {TIER_PERKS[tier.key].map((p) => (
-                <li key={p} className="text-[13.5px] text-[#00374a] flex gap-2"><span className="text-[#00afdb] font-bold">✓</span>{p}</li>
-              ))}
-            </ul>
-            {tier.nextLabel && (
-              <p className="text-[12.5px] text-[#9aa6ac] mt-2.5">
-                {tier.nextLabel} adds: {TIER_PERKS[tier.nextLabel.toLowerCase() as "crew" | "legend"].filter((p) => !TIER_PERKS[tier.key].includes(p)).join(" · ")}
-              </p>
-            )}
-          </div>
         </>
       )}
+
+      {/* All three tiers, side by side — a ladder only pulls when the top is
+          visible. The member's own column carries the sun. */}
+      <div className="pt-4 border-t border-[#f3ede2]">
+        <p className="text-[12px] font-bold tracking-[0.08em] uppercase text-[#9aa6ac] mb-3">Perks by status</p>
+        <div className="grid sm:grid-cols-3 gap-3">
+          {TIER_STEPS.map((s) => {
+            const mine = tier?.key === s.key;
+            const reached = !!tier && tier.trips >= s.min;
+            return (
+              <div key={s.key} className={`rounded-xl border p-4 ${mine ? "border-[#ffc42e] bg-[#fffaf0]" : "border-[#eef3f4]"}`}>
+                <div className="flex items-baseline justify-between gap-2 mb-0.5">
+                  <span className={`text-[11px] font-extrabold tracking-[0.14em] uppercase ${mine ? "text-[#c47a10]" : reached ? "text-[#00374a]" : "text-[#8fa0a6]"}`}>{s.label}</span>
+                  {mine && <span className="text-[9px] font-extrabold tracking-[0.12em] uppercase bg-[#ffc42e] text-[#4a3403] rounded-full px-2 py-0.5">You</span>}
+                </div>
+                <p className="text-[11px] text-[#9aa6ac] mb-2.5">{s.min === 1 ? "1 trip" : `${s.min}+ trips`}</p>
+                <ul className="space-y-1">
+                  {TIER_PERKS[s.key].map((p) => (
+                    <li key={p} className={`text-[12.5px] flex gap-1.5 leading-snug ${reached ? "text-[#00374a]" : "text-[#8fa0a6]"}`}>
+                      <span className={`font-bold ${reached ? "text-[#00afdb]" : "text-[#c3ced2]"}`}>{reached ? "✓" : "•"}</span>{p}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            );
+          })}
+        </div>
+      </div>
     </section>
   );
 }
