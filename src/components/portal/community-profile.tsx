@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import { cdnImage } from "@/lib/img";
 import {
   ageFrom, firstNameInitial, initialsFrom, MINOR_AGE,
   type ProfileField, type ProfileSurface, type Visibility,
@@ -94,7 +95,7 @@ export function CommunityProfile(p: Props) {
       <div className="flex flex-wrap gap-5">
         <div className="flex flex-col items-center gap-2">
           {avatar ? (
-            <div className="w-20 h-20 rounded-full bg-cover bg-center border border-[#e6eef0]" style={{ backgroundImage: `url('${avatar}')` }} />
+            <div className="w-20 h-20 rounded-full bg-cover bg-center border border-[#e6eef0]" style={{ backgroundImage: `url('${cdnImage(avatar, { width: 160 })}')` }} />
           ) : (
             <div className="w-20 h-20 rounded-full grid place-items-center bg-[#e8f6fb] text-[#00748f] text-[22px] font-bold">{initials}</div>
           )}
@@ -143,11 +144,13 @@ export function CommunityProfile(p: Props) {
               {p.photoChoices.map((src) => (
                 <button key={src} type="button" onClick={() => { setAvatar(src); setPickerOpen(false); }}
                   aria-label="Use this photo"
-                  className={`aspect-square rounded-lg overflow-hidden hover:opacity-90 hover:scale-[1.03] transition-all ${avatar === src ? "ring-2 ring-[#00afdb]" : ""}`}>
-                  {/* real <img loading="lazy">, not a CSS background — with 400
-                      choices the browser must only fetch what scrolls into view */}
+                  className={`relative aspect-square rounded-lg overflow-hidden bg-[#eef3f4] hover:opacity-90 hover:scale-[1.03] transition-all ${avatar === src ? "ring-2 ring-[#00afdb]" : ""}`}>
+                  {/* small CDN variant (same resize path as the trip gallery),
+                      absolutely positioned so the image can never dictate the
+                      grid's size — the full-size originals both crashed iOS
+                      Safari and blew the card wider than the screen */}
                   {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img src={src} alt="" loading="lazy" className="w-full h-full object-cover" />
+                  <img src={cdnImage(src, { width: 200 })} alt="" loading="lazy" className="absolute inset-0 w-full h-full object-cover" />
                 </button>
               ))}
             </div>
@@ -187,7 +190,7 @@ export function CommunityProfile(p: Props) {
         <p className="text-[12px] font-bold tracking-[0.08em] uppercase text-[#9aa6ac] mb-3">How others see you</p>
         <div className="inline-flex flex-col items-center text-center rounded-xl border border-[#e6eef0] px-6 py-4 min-w-[170px]">
           {avatar ? (
-            <div className="w-12 h-12 rounded-full bg-cover bg-center mb-2" style={{ backgroundImage: `url('${avatar}')` }} />
+            <div className="w-12 h-12 rounded-full bg-cover bg-center mb-2" style={{ backgroundImage: `url('${cdnImage(avatar, { width: 96 })}')` }} />
           ) : (
             <div className="w-12 h-12 rounded-full grid place-items-center bg-[#e8f6fb] text-[#00748f] text-[15px] font-bold mb-2">{initials}</div>
           )}
