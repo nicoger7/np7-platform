@@ -1,6 +1,7 @@
+import Link from "next/link";
 import { Slideshow } from "@/components/experience/slideshow";
 import type { MemberTier } from "@/lib/member-tier";
-import { TIER_STEPS, TIER_PERKS } from "@/lib/tier-config";
+import { TIER_STEPS } from "@/lib/tier-config";
 
 /** Booking.com-Genius-style tier chip. Hover (or keyboard focus) reveals the
  *  ladder: three rungs, your progress filling toward the next one. */
@@ -19,8 +20,8 @@ function TierChip({ tier }: { tier: MemberTier }) {
     return 0;
   };
   return (
-    <span className="relative inline-flex group/tier" tabIndex={0}>
-      <span className={`inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-[10.5px] font-extrabold tracking-[0.12em] uppercase align-middle cursor-default ${tone}`}>
+    <Link href="/account/profile" className="relative inline-flex group/tier no-underline" tabIndex={0}>
+      <span className={`inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-[10.5px] font-extrabold tracking-[0.12em] uppercase align-middle cursor-pointer ${tone}`}>
         ★ {tier.label}
       </span>
       <span className="pointer-events-none absolute left-0 bottom-full mb-2 z-30 w-[248px] opacity-0 translate-y-1 transition-all duration-200 group-hover/tier:opacity-100 group-hover/tier:translate-y-0 group-focus-within/tier:opacity-100 group-focus-within/tier:translate-y-0">
@@ -38,26 +39,10 @@ function TierChip({ tier }: { tier: MemberTier }) {
           <span className="block text-[12px] font-semibold text-white/85">
             {Number.isInteger(tier.trips) ? tier.trips : tier.trips.toFixed(2)} trip{tier.trips === 1 ? "" : "s"} ridden{tier.toNext ? ` — ${Number.isInteger(tier.toNext) ? tier.toNext : tier.toNext.toFixed(2)} more to ${tier.nextLabel}` : " — top tier"}
           </span>
-          {tier.validUntil && (
-            <span className="block text-[10.5px] text-white/50 mt-0.5">
-              {tier.label} status valid until {new Date(tier.validUntil + "T00:00:00Z").toLocaleDateString("en-GB", { month: "short", year: "numeric", timeZone: "UTC" })} — your next trip extends it
-            </span>
-          )}
-          <span className="block mt-2.5 pt-2.5" style={{ borderTop: "1px solid rgba(255,255,255,0.12)" }}>
-            <span className="block text-[9.5px] font-extrabold tracking-[0.14em] uppercase text-[#ffc42e] mb-1">Your {tier.label} perks</span>
-            {TIER_PERKS[tier.key].map((p) => (
-              <span key={p} className="block text-[11px] text-white/75 leading-[1.6]">✓ {p}</span>
-            ))}
-            {tier.nextLabel && (
-              <span className="block text-[10.5px] text-white/45 mt-1.5 leading-snug">
-                {tier.nextLabel} adds: {TIER_PERKS[tier.nextLabel.toLowerCase() as "crew" | "legend"]
-                  .filter((p) => !TIER_PERKS[tier.key].includes(p)).join(" · ")}
-              </span>
-            )}
-          </span>
+          <span className="block text-[11px] text-[#7fd9f2] mt-1.5">Your status &amp; perks →</span>
         </span>
       </span>
-    </span>
+    </Link>
   );
 }
 
