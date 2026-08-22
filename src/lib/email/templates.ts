@@ -130,6 +130,22 @@ export const TEMPLATES: Record<string, (v: EmailVars, opts?: LayoutOpts) => Buil
     }),
   }),
 
+  /** The loyalty ladder's expiry nudge: real loss aversion, honestly used —
+   *  the status genuinely lapses, and one trip genuinely keeps it. */
+  tier_expiry_reminder: (v, opts) => ({
+    subject: `Your ${v.tierLabel ?? "NP7"} status runs out ${v.validUntilLabel ? `in ${v.validUntilLabel}` : "soon"}`,
+    html: emailLayout({
+      ...opts,
+      preheader: "One trip keeps it — here's what's coming up.",
+      bodyHtml:
+        greet(v) +
+        p(`A heads-up from your NP7 ladder: your <strong>${esc(String(v.tierLabel ?? ""))}</strong> status is valid until <strong>${esc(String(v.validUntilLabel ?? "soon"))}</strong>. After that it steps down — and with it the perks${v.tierLabel === "Legend" ? " (your Signature invitations and the friend discount included)" : ""}.`) +
+        p(`Keeping it is simple: <strong>ride with us again</strong>. ${esc(String(v.keepRule ?? ""))}`) +
+        (v.tripsLink ? emailButton("See the upcoming weeks", String(v.tripsLink)) : "") +
+        p(`Your member prices are already on the tiles when you're signed in.<br>— Nico & the NP7 team`),
+    }),
+  }),
+
   /** Coach ticked skills after a trip — the nudge that makes progress FELT.
    *  Admin-triggered from the edition's Levels tab. */
   skills_verified: (v, opts) => ({

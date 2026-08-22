@@ -30,6 +30,10 @@
     {
       "path": "/api/cron/hours-cost",
       "schedule": "30 3 * * *"
+    },
+    {
+      "path": "/api/cron/tier-expiry",
+      "schedule": "0 8 * * 1"
     }
   ]
 }
