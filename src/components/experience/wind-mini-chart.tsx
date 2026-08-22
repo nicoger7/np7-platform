@@ -1,4 +1,7 @@
+"use client";
+
 import { MONTH_LABELS, type WindStats } from "@/lib/wind-stats";
+import { useSelectedEdition } from "./selected-edition";
 
 /**
  * The tiny wind graph on a trip page — three months around the trip, measured.
@@ -9,12 +12,37 @@ import { MONTH_LABELS, type WindStats } from "@/lib/wind-stats";
  * where the venturi spots actually blow — with the source printed underneath
  * so a guest can see it isn't us inventing it.
  */
-export function WindMiniChart({ stats, centerMonth }: { stats: WindStats; centerMonth: number }) {
-  const pick = [((centerMonth + 10) % 12) + 1, centerMonth, ((centerMonth) % 12) + 1];
+export function WindMiniChart({
+  stats,
+  centerMonth,
+  monthsByEdition,
+}: {
+  stats: WindStats;
+  /** Months of the default week — used until a week is picked. */
+  centerMonth: number | number[];
+  /** Every week's months, so the graph follows the week the visitor selects. */
+  monthsByEdition?: Record<string, number[]>;
+}) {
+  // The graph used to be handed ONE month, computed on the server from the
+  // default week — so picking another week never moved it, and a week that
+  // runs 28 Aug – 3 Sep lit up August alone while September stayed grey.
+  // It now reads the selected week and highlights EVERY month the trip covers.
+  const { id } = useSelectedEdition();
+  const selected = id ? monthsByEdition?.[id] : undefined;
+  const fallback = Array.isArray(centerMonth) ? centerMonth : [centerMonth];
+  const tripMonths = (selected?.length ? selected : fallback).filter((m) => m >= 1 && m <= 12);
+  const anchor = tripMonths[0] ?? 1;
+  const last = tripMonths[tripMonths.length - 1] ?? anchor;
+  // Window: the month before the trip starts through the month after it ends,
+  // so a two-month week shows both of its own months plus one on each side.
+  const pick: number[] = [((anchor + 10) % 12) + 1];
+  for (const m of tripMonths) if (!pick.includes(m)) pick.push(m);
+  const after = (last % 12) + 1;
+  if (!pick.includes(after)) pick.push(after);
   const rows = pick.map((m) => {
     const mm = stats.months?.find((x) => x.m === m);
     const pct = Math.round(Number((mm?.pct as Record<string, number> | undefined)?.["4"] ?? 0));
-    return { m, label: MONTH_LABELS[m - 1], pct, center: m === centerMonth };
+    return { m, label: MONTH_LABELS[m - 1], pct, center: tripMonths.includes(m) };
   });
   if (rows.every((r) => r.pct === 0)) return null;
 

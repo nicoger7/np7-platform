@@ -1,12 +1,19 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { createPortal } from "react-dom";
 
 /**
  * A compact, continuously-drifting filmstrip of trip photos. It "flies by" in a
  * single band (no tall grid), pauses on hover, and any photo opens a full-screen
  * lightbox with arrow / swipe navigation so guests can dig into the vibe.
  * Pure CSS marquee (duplicated track) — no deps.
+ *
+ * The lightbox is PORTALLED to <body>. It sits inside a <Reveal>, whose enter
+ * animation leaves a `translate-*` on the wrapper — and any transform makes an
+ * ancestor the containing block for `position: fixed`. The overlay was
+ * therefore pinned to the filmstrip's own band rather than the viewport, so
+ * every photo opened clipped top and bottom. A portal escapes that for good.
  */
 export function GalleryStrip({ images }: { images: string[] }) {
   const [open, setOpen] = useState<number | null>(null);
@@ -43,7 +50,7 @@ export function GalleryStrip({ images }: { images: string[] }) {
         </div>
       </div>
 
-      {open !== null && (
+      {open !== null && typeof document !== "undefined" && createPortal(
         <div className="fixed inset-0 z-[100] bg-black/90 backdrop-blur-sm flex items-center justify-center p-4" onClick={() => setOpen(null)}>
           <button aria-label="Close" className="absolute top-5 right-5 w-11 h-11 rounded-full bg-white/10 hover:bg-white/20 text-white grid place-items-center" onClick={() => setOpen(null)}>
             <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><path d="M18 6L6 18M6 6l12 12" /></svg>
@@ -62,7 +69,8 @@ export function GalleryStrip({ images }: { images: string[] }) {
               chrome rather than the photo, and keeps its own backdrop so it
               stays readable over a bright frame. */}
           <span className="absolute top-5 left-5 px-3 py-1.5 rounded-full bg-black/45 backdrop-blur-sm text-white/85 text-[13px] font-semibold tabular-nums">{open + 1} / {images.length}</span>
-        </div>
+        </div>,
+        document.body
       )}
 
       <style>{`

@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Reveal } from "./reveal";
 import { BrandedTile } from "./branded-tile";
 import { placeFromLocation, flagFromLocation, type TilePlacement } from "@/lib/experience-tile";
@@ -82,6 +82,20 @@ const monthLabel = (ym: string) =>
  * show up, so new months appear automatically as trips are added.
  */
 export function UpcomingExperiences({ experiences, showSignature = false }: { experiences: ExpCard[]; showSignature?: boolean }) {
+  // This grid is statically rendered, so the server built these cards with no
+  // viewer and every chip shows the PUBLIC launch discount only. A signed-in
+  // Crew/Legend gets their real, stacked figure filled in here — same resolver
+  // the picker prices from, so tile and checkout always agree.
+  const [memberAdv, setMemberAdv] = useState<Record<string, { pct: number; label: string; until?: string | null }>>({});
+  useEffect(() => {
+    let alive = true;
+    fetch("/api/member/advantages")
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d) => { if (alive && d?.advantages) setMemberAdv(d.advantages); })
+      .catch(() => {});
+    return () => { alive = false; };
+  }, []);
+
   const months = useMemo(() => {
     const set = new Set<string>();
     for (const e of experiences) for (const m of e.months) set.add(m);
@@ -89,7 +103,11 @@ export function UpcomingExperiences({ experiences, showSignature = false }: { ex
   }, [experiences]);
 
   const [month, setMonth] = useState<string | null>(null); // null = all
-  const filtered = month ? experiences.filter((e) => e.months.includes(month)) : experiences;
+  const withAdv = useMemo(
+    () => experiences.map((e) => (memberAdv[e.slug] ? { ...e, advantage: memberAdv[e.slug] } : e)),
+    [experiences, memberAdv],
+  );
+  const filtered = month ? withAdv.filter((e) => e.months.includes(month)) : withAdv;
 
   const chip = (active: boolean) =>
     `px-4 py-2 rounded-full text-[13px] font-bold transition-all ${

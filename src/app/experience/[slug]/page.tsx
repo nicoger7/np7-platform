@@ -388,8 +388,19 @@ export default async function ExperienceDetailPage({ params, searchParams }: Pro
       // (exp_components.description, name as fallback).
       includes: (() => {
         const manual = parseIncludes(p.includes);
+        // Fixed order, not database order. The rows come back in whatever order
+        // the join produces, so two weeks holding the SAME components listed
+        // them differently and the copies looked like different products.
+        // Coaching first (it is the trip), then where you sleep, then the rest.
+        const RANK: Record<string, number> = { coaching: 0, accommodation: 1, gear: 2, meals: 3, transport: 4, other: 5 };
+        const rank = (c?: string | null) => RANK[(c ?? "").toLowerCase()] ?? 6;
         const base = manual.length ? manual : (p.exp_package_components ?? [])
           .filter((l) => l?.show_on_website)
+          .slice()
+          .sort((a, b) => {
+            const d = rank(a?.exp_components?.category) - rank(b?.exp_components?.category);
+            return d !== 0 ? d : (a?.exp_components?.name ?? "").localeCompare(b?.exp_components?.name ?? "");
+          })
           .map((l) => includeLine({ ...l?.exp_components, quantity: l?.quantity }))
           .filter(Boolean);
         // The member-area benefit rides on every package — what it PROMISES
@@ -676,6 +687,20 @@ export default async function ExperienceDetailPage({ params, searchParams }: Pro
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const windStats = ((destination as any)?.wind_stats ?? null) as import("@/lib/wind-stats").WindStats | null;
   const tripMonth = edition?.date_start ? new Date(edition.date_start + "T00:00:00Z").getUTCMonth() + 1 : null;
+  // Every calendar month a week touches — a week running 28 Aug – 3 Sep covers
+  // two, and the wind graph should light up both rather than only its first.
+  const monthsSpanned = (start?: string | null, end?: string | null): number[] => {
+    if (!start) return [];
+    const s0 = new Date(start + "T00:00:00Z");
+    const e0 = end ? new Date(end + "T00:00:00Z") : s0;
+    const out: number[] = [];
+    const cur = new Date(Date.UTC(s0.getUTCFullYear(), s0.getUTCMonth(), 1));
+    while (cur <= e0 && out.length < 12) { out.push(cur.getUTCMonth() + 1); cur.setUTCMonth(cur.getUTCMonth() + 1); }
+    return out.length ? out : [s0.getUTCMonth() + 1];
+  };
+  const monthsByEdition: Record<string, number[]> = {};
+  for (const e of allEditions) monthsByEdition[e.id] = monthsSpanned(e.date_start, e.date_end);
+  const defaultTripMonths = edition ? monthsSpanned(edition.date_start, edition.date_end) : [];
   const measuredPct = windStats && tripMonth
     ? Math.round(Number((windStats.months?.find((m) => m.m === tripMonth)?.pct as Record<string, number> | undefined)?.["4"] ?? 0)) || null
     : null;
@@ -920,7 +945,7 @@ export default async function ExperienceDetailPage({ params, searchParams }: Pro
                     {windDisplay && <span className="text-[12.5px] font-bold text-[#00374a] bg-[#00afdb]/10 px-3.5 py-1.5 rounded-full">{measuredPct != null ? `${windDisplay} sailing-wind days` : `${windDisplay} wind probability`}</span>}
                   </div>
                 )}
-                {windStats && tripMonth && <WindMiniChart stats={windStats} centerMonth={tripMonth} />}
+                {windStats && tripMonth && <WindMiniChart stats={windStats} centerMonth={defaultTripMonths.length ? defaultTripMonths : tripMonth} monthsByEdition={monthsByEdition} />}
                 {destination?.slug && (
                   /* opens the rich DESTINATION deep-dive ON the trip — zero navigation, zero funnel leak */
                   <div className="mt-7">
