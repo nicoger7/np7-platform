@@ -47,7 +47,7 @@ export async function getMemberActivity(limit = 120): Promise<ActivityItem[]> {
 
   const [bookings, payments, waivers, addons, applications, ratings, photos, newSpots, edits, levels, orders] =
     await Promise.all([
-      safe(() => db.from("exp_bookings").select("id, name, created_at, contact_id, contacts(name), exp_experiences(title)").order("created_at", { ascending: false }).limit(LIMIT_PER_SOURCE)),
+      safe(() => db.from("exp_bookings").select("id, name, created_at, contact_id, contacts(name), exp_experiences(title), notes").order("created_at", { ascending: false }).limit(LIMIT_PER_SOURCE)),
       safe(() => db.from("exp_payments").select("id, amount, received_at, created_at, contact_id, booking_id, contacts(name)").order("created_at", { ascending: false }).limit(LIMIT_PER_SOURCE)),
       safe(() => db.from("exp_waiver_signatures").select("id, signed_at, created_at, contact_id, booking_id, contacts(name)").order("created_at", { ascending: false }).limit(LIMIT_PER_SOURCE)),
       safe(() => db.from("exp_booking_addons").select("id, label, requested_at, booking_id, source, exp_bookings(name, contact_id, contacts(name))").not("requested_at", "is", null).order("requested_at", { ascending: false }).limit(LIMIT_PER_SOURCE)),
@@ -66,6 +66,9 @@ export async function getMemberActivity(limit = 120): Promise<ActivityItem[]> {
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   for (const b of (bookings.data ?? []) as any[]) {
+    // Backfilled pre-platform trips carry an [ARCHIVE] note — logged for the
+    // loyalty ladder, not news. The feed must not read them as fresh bookings.
+    if (String(b.notes ?? "").includes("[ARCHIVE]")) continue;
     push({ id: `booking:${b.id}`, at: b.created_at, kind: "trip", action: "Booked a trip",
       subject: b.exp_experiences?.title ?? b.name ?? null, contactId: b.contact_id, contactName: nameOf(b),
       href: `/admin/bookings/${b.id}` });

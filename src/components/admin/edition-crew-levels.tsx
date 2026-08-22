@@ -19,6 +19,9 @@ export function EditionCrewLevels({ editionId }: { editionId: string }) {
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [bulkSkill, setBulkSkill] = useState("");
   const [picks, setPicks] = useState<Record<string, string>>({});
+  // manual level override collapsed by default — the level normally derives
+  // from the ticked skills, and the always-visible row read as a required step
+  const [manualOpen, setManualOpen] = useState<Record<string, boolean>>({});
 
   useEffect(() => {
     let alive = true;
@@ -115,6 +118,7 @@ export function EditionCrewLevels({ editionId }: { editionId: string }) {
     const selfCount = m.selfLoggedIds.length;
     const suggested = deriveSuggestedLevel(catalog, achieved);
     const pick = picks[m.contactId] ?? m.coach_level ?? suggested ?? "";
+    const manual = !!manualOpen[m.contactId];
     return (
       <div className="rounded-xl overflow-hidden" style={{ border: "1px solid var(--admin-border)" }}>
         <div className="px-4 sm:px-5 py-4" style={{ borderBottom: catalog.length > 0 ? "1px solid var(--admin-border)" : undefined }}>
@@ -127,12 +131,18 @@ export function EditionCrewLevels({ editionId }: { editionId: string }) {
           </div>
           <div className="flex flex-wrap items-center gap-1.5 mt-3">
             <button disabled={!m.self_level} onClick={() => { patch(m.contactId, { coach_level: m.self_level, level_status: "verified", reviewed: true }); fire(`/api/admin/members/${m.contactId}/level`, { action: "approve_self" }); }} className="text-xs px-2.5 py-1.5 rounded disabled:opacity-40" style={{ backgroundColor: "rgba(34,197,94,0.16)", color: "#22c55e" }} title="Verify at their self-rating">Approve self</button>
+            {!manual && (
+              <button onClick={() => setManualOpen((o) => ({ ...o, [m.contactId]: true }))} className="text-xs px-2 py-1.5 admin-faint hover:admin-muted underline"
+                title="Normally the level sets itself from the ticked skills — open this only to override.">Set level manually…</button>
+            )}
+            {manual && (<>
             <select value={pick} onChange={(e) => setPicks((p) => ({ ...p, [m.contactId]: e.target.value }))} className="text-xs px-2 py-1.5 rounded" style={formEl}>
               <option value="">Level…</option>
               {LEVELS.map((l) => <option key={l} value={l}>{l}</option>)}
             </select>
-            <button disabled={!pick} onClick={() => { patch(m.contactId, { coach_level: pick, level_status: "suggested", reviewed: false }); fire(`/api/admin/members/${m.contactId}/level`, { action: "set_level", level: pick }); }} className="text-xs px-2.5 py-1.5 rounded disabled:opacity-40" style={formEl}>Suggest</button>
-            <button disabled={!pick} onClick={() => { patch(m.contactId, { coach_level: pick, level_status: "verified", reviewed: true }); fire(`/api/admin/members/${m.contactId}/level`, { action: "set_level", level: pick, verify: true }); }} className="text-xs px-2.5 py-1.5 rounded disabled:opacity-40 font-bold" style={{ backgroundColor: "#0aa3c7", color: "#fff" }}>Verify</button>
+            <button disabled={!pick} onClick={() => { patch(m.contactId, { coach_level: pick, level_status: "suggested", reviewed: false }); fire(`/api/admin/members/${m.contactId}/level`, { action: "set_level", level: pick }); }} className="text-xs px-2.5 py-1.5 rounded disabled:opacity-40" style={formEl} title="Propose this level — the rider sees and accepts it">Suggest</button>
+            <button disabled={!pick} onClick={() => { patch(m.contactId, { coach_level: pick, level_status: "verified", reviewed: true }); fire(`/api/admin/members/${m.contactId}/level`, { action: "set_level", level: pick, verify: true }); }} className="text-xs px-2.5 py-1.5 rounded disabled:opacity-40 font-bold" style={{ backgroundColor: "#0aa3c7", color: "#fff" }} title="Set this level as coach-verified, overriding the skill-derived one">Verify</button>
+            </>)}
             <button onClick={async () => { const r = await fetch(`/api/admin/members/${m.contactId}/level`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "email_update", editionId }) }).then((x) => x.json()).catch(() => null); alert(r?.ok ? (r.sent ? "Skill-update email sent." : "Already sent today — nothing new mailed.") : (r?.error || "Could not send.")); }}
               className="text-xs px-2.5 py-1.5 rounded" style={{ backgroundColor: "rgba(255,196,46,0.18)", color: "#b97608" }}
               title="Email the rider that their coach verified new skills — links to their progress page">✉ Email update</button>
