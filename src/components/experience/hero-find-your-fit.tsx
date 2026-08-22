@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { Slideshow } from "@/components/experience/slideshow";
 import { useEffect, useRef, useState } from "react";
 
 /**
@@ -45,7 +46,7 @@ const sunWash = (
   </>
 );
 
-export function HeroFindYourFit({ src, poster, children }: { src: string; poster: string; children?: React.ReactNode }) {
+export function HeroFindYourFit({ src, poster, fallbackImages, children }: { src: string; poster: string; fallbackImages?: string[]; children?: React.ReactNode }) {
   const wrapRef = useRef<HTMLElement>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
   const zoomRef = useRef<HTMLDivElement>(null);
@@ -178,7 +179,9 @@ export function HeroFindYourFit({ src, poster, children }: { src: string; poster
     return (
       <>
         <section className="relative w-full h-[100svh] min-h-[640px] overflow-hidden">
-          <div className="absolute inset-0 bg-cover bg-center" style={{ backgroundImage: `url('${poster}')` }} aria-hidden />
+          {fallbackImages && fallbackImages.length > 1
+            ? <div className="absolute inset-0" aria-hidden><Slideshow images={fallbackImages} interval={6000} /></div>
+            : <div className="absolute inset-0 bg-cover bg-center" style={{ backgroundImage: `url('${poster}')` }} aria-hidden />}
           {sunWash}
           <div className="absolute inset-0 bg-[radial-gradient(ellipse_58%_48%_at_50%_42%,rgba(0,28,42,0.55)_0%,transparent_75%)]" aria-hidden />
           <div className="relative z-10 h-full flex flex-col items-center justify-center text-center px-6">{children}</div>
