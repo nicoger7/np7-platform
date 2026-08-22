@@ -86,9 +86,9 @@ export async function POST(request: NextRequest) {
   // Validate the selection server-side.
   const [{ data: exp }, { data: pkg }, { data: edition }] = await Promise.all([
     db.from("exp_experiences").select("id,title,slug").eq("id", experienceId).maybeSingle(),
-    db.from("exp_packages").select("id,name,price,experience_id,status").eq("id", packageId).maybeSingle(),
+    db.from("exp_packages").select("id,name,price,experience_id,status,deposit,deposit_refund_days").eq("id", packageId).maybeSingle(),
     editionId
-      ? db.from("exp_editions").select("id,label,experience_id,date_start,launch_discount_pct,launch_price_until").eq("id", editionId).maybeSingle()
+      ? db.from("exp_editions").select("id,label,experience_id,date_start,deposit,launch_discount_pct,launch_price_until").eq("id", editionId).maybeSingle()
       : Promise.resolve({ data: null }),
   ]);
   if (!exp || !pkg || pkg.experience_id !== exp.id || pkg.status !== "active") return bad("This package is no longer available.", 409);
@@ -171,7 +171,10 @@ export async function POST(request: NextRequest) {
     await sendEmail({
       to: email,
       templateKey: "reservation_received",
-      vars: { firstName, experienceTitle: exp.title, editionLabel: edition?.label ?? undefined, bookingLink: `${origin}/account` },
+      vars: {
+        firstName, experienceTitle: exp.title, editionLabel: edition?.label ?? undefined, bookingLink: `${origin}/account`,
+        refundDays: Number(edition?.deposit ?? pkg.deposit ?? 0) > 0 ? String(pkg.deposit_refund_days ?? 14) : undefined,
+      },
       bookingId: booking.id,
       contactId,
       experienceId: exp.id,

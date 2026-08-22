@@ -1101,7 +1101,7 @@ export default async function ExperienceDetailPage({ params, searchParams }: Pro
             </>
           ) : (
             <>
-              {typeof spotsLeft === "number" && spotsLeft > 0 && (
+              {typeof spotsLeft === "number" && spotsLeft > 0 && spotsLeft <= SCARCE_AT && (
                 <span className="inline-flex items-center gap-1.5 text-[12px] font-semibold text-[#5fd0e8] bg-[#00afdb]/15 border border-[#00afdb]/30 px-3 py-1 rounded-full mb-6"><span className="w-1.5 h-1.5 rounded-full bg-[#5fd0e8] animate-pulse" />Only {spotsLeft} spots left</span>
               )}
               <h2 className="text-3xl sm:text-5xl font-black tracking-[-0.03em] mb-5 leading-[1.05]">Your dream week is real.<br />Make it yours.</h2>

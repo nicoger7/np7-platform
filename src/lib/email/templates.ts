@@ -122,7 +122,7 @@ export const TEMPLATES: Record<string, (v: EmailVars, opts?: LayoutOpts) => Buil
       bodyHtml:
         greet(v) +
         p(`You're registered for <strong>${esc(v.experienceTitle || "")}${v.editionLabel ? " · " + esc(v.editionLabel) : ""}</strong> — awesome to have you. Here's how it works from here:`) +
-        p(`<strong>1. Secure your spot.</strong> Attached are your payment details (pro-forma invoice) — pay the downpayment by bank transfer within the window shown and your place is locked in. Fully refundable for 14 days after you pay, so there's plenty of time to sort flights.`) +
+        p(`<strong>1. Secure your spot.</strong> Attached are your payment details (pro-forma invoice) — pay the downpayment by bank transfer within the window shown and your place is locked in.${v.refundDays ? ` Fully refundable for ${esc(String(v.refundDays))} days after you pay, so there's plenty of time to sort flights.` : ""}`) +
         p(`<strong>2. Plan it with us.</strong> Manage your booking, add extra nights and meet your crew — all in your trip account.`) +
         p(`<strong>3. Pay the balance later</strong> by bank transfer, in good time before the trip.`) +
         (v.bookingLink ? emailButton("Secure my spot", v.bookingLink) : "") +

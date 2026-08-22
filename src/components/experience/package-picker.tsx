@@ -343,6 +343,7 @@ export function PackagePicker({ packages, currency = "EUR", reserve, heroImage, 
                       <span className="flex items-center justify-between gap-3">
                         <span className="text-[15px] font-extrabold text-[#00374a] truncate">{g.hotelName}</span>
                         <span className="text-[13.5px] font-bold text-[#1f3138] shrink-0">
+                          {launch && <s className="text-[12px] font-semibold text-[#9aa6ac] mr-1.5">{fmt(cheapest.price)}</s>}
                           {single ? fmt(lp(cheapest.price)) : `from ${fmt(lp(cheapest.price))}`}
                         </span>
                       </span>

@@ -83,9 +83,9 @@ export async function POST(request: NextRequest) {
   // Load + sanity-check the selection server-side (never trust client prices).
   const [{ data: exp }, { data: pkg }, { data: edition }] = await Promise.all([
     db.from("exp_experiences").select("id,title,slug,currency").eq("id", experienceId).maybeSingle(),
-    db.from("exp_packages").select("id,name,price,experience_id,edition_id,status").eq("id", packageId).maybeSingle(),
+    db.from("exp_packages").select("id,name,price,experience_id,edition_id,status,deposit,deposit_refund_days").eq("id", packageId).maybeSingle(),
     editionId
-      ? db.from("exp_editions").select("id,label,date_start,date_end,experience_id,max_spots,launch_discount_pct,launch_price_until").eq("id", editionId).maybeSingle()
+      ? db.from("exp_editions").select("id,label,date_start,date_end,experience_id,max_spots,deposit,launch_discount_pct,launch_price_until").eq("id", editionId).maybeSingle()
       : Promise.resolve({ data: null }),
   ]);
 
@@ -154,7 +154,10 @@ export async function POST(request: NextRequest) {
     await sendEmail({
       to: email,
       templateKey: "reservation_received",
-      vars: { firstName, experienceTitle: exp.title, editionLabel: edition?.label ?? undefined, deposit: String(DEPOSIT_EUR) },
+      vars: {
+        firstName, experienceTitle: exp.title, editionLabel: edition?.label ?? undefined, deposit: String(DEPOSIT_EUR),
+        refundDays: Number(edition?.deposit ?? pkg.deposit ?? 0) > 0 ? String(pkg.deposit_refund_days ?? 14) : undefined,
+      },
       bookingId: booking.id,
       contactId,
       dedupeKey: `reservation_received:${booking.id}`,
