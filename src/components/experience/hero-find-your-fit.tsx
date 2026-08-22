@@ -73,6 +73,10 @@ export function HeroFindYourFit({ src, poster, fallbackImages, children }: { src
     // If metadata already loaded before this listener attached (cached / fast load),
     // the event won't fire again — prime it now so scrubbing actually starts.
     if (video.readyState >= 1 && video.duration) onMeta();
+    // A slow connection never fires `error` — the video just stalls behind the
+    // poster and the scroll story scrubs nothing. If metadata hasn't arrived
+    // after 6s, stop waiting and run the photo slideshow instead.
+    const stall = window.setTimeout(() => { if (!ready) setMode("static"); }, 6000);
 
     const progress = () => {
       const dist = wrap.offsetHeight - window.innerHeight;
@@ -125,7 +129,7 @@ export function HeroFindYourFit({ src, poster, fallbackImages, children }: { src
     const io = new IntersectionObserver(([e]) => { running = e.isIntersecting; if (running && !raf) raf = requestAnimationFrame(tick); else if (!running && raf) { cancelAnimationFrame(raf); raf = 0; } }, { threshold: 0 });
     io.observe(wrap);
     raf = requestAnimationFrame(tick);
-    return () => { running = false; cancelAnimationFrame(raf); io.disconnect(); video.removeEventListener("loadedmetadata", onMeta); video.removeEventListener("error", onError); };
+    return () => { running = false; clearTimeout(stall); cancelAnimationFrame(raf); io.disconnect(); video.removeEventListener("loadedmetadata", onMeta); video.removeEventListener("error", onError); };
   }, []);
 
   function goTo(i: number) {

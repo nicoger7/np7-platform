@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import { PackagePicker, type RealPackage } from "./package-picker";
 import { useSelectedEdition } from "./selected-edition";
 
@@ -197,8 +198,64 @@ export function EditionBooking({
           }}
         />
       ) : (
-        <p className="text-center text-[#6a7a80]">Packages for this week are being finalised.</p>
+        <WeekInterestForm experienceId={experienceId} editionId={ed?.id ?? null} />
       )}
+    </div>
+  );
+}
+
+/**
+ * The "being finalised" dead end, turned into a lead.
+ *
+ * A week can be published before its packages are priced; the picker used to
+ * say so and stop — a visitor ready to hand over their email had nowhere to
+ * put it. Name + email here files a plain LEAD booking on that week, so the
+ * follow-up lives in the admin pipeline like every other lead.
+ */
+function WeekInterestForm({ experienceId, editionId }: { experienceId: string; editionId: string | null }) {
+  const [firstName, setFirstName] = useState("");
+  const [email, setEmail] = useState("");
+  const [state, setState] = useState<"idle" | "busy" | "done" | "error">("idle");
+
+  async function submit(e: React.FormEvent) {
+    e.preventDefault();
+    if (state === "busy") return;
+    setState("busy");
+    try {
+      const res = await fetch("/api/week-interest", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ experienceId, editionId, firstName, email }),
+      });
+      setState(res.ok ? "done" : "error");
+    } catch {
+      setState("error");
+    }
+  }
+
+  if (state === "done") {
+    return (
+      <p className="text-center text-[15px] font-bold text-[#00374a]">
+        You&apos;re on the list — we&apos;ll email you the packages the moment this week opens for booking.
+      </p>
+    );
+  }
+  return (
+    <div className="max-w-md mx-auto text-center">
+      <p className="text-[#6a7a80]">Packages for this week are being finalised.</p>
+      <p className="mt-1 text-[13px] text-[#5a6b72]">Leave your email and we&apos;ll send them to you the moment they&apos;re live.</p>
+      <form onSubmit={submit} className="mt-3 flex flex-col sm:flex-row gap-2">
+        <input value={firstName} onChange={(e) => setFirstName(e.target.value)} required placeholder="First name"
+          className="flex-1 min-w-0 rounded-lg border border-[#d3dbde] px-3.5 py-2.5 text-[14px] text-[#00374a] placeholder:text-[#9aa8ad] focus:border-[#00afdb] focus:outline-none" />
+        <input value={email} onChange={(e) => setEmail(e.target.value)} required type="email" placeholder="Email"
+          className="flex-1 min-w-0 rounded-lg border border-[#d3dbde] px-3.5 py-2.5 text-[14px] text-[#00374a] placeholder:text-[#9aa8ad] focus:border-[#00afdb] focus:outline-none" />
+        <button type="submit" disabled={state === "busy"}
+          className="shrink-0 rounded-lg bg-[#00afdb] hover:bg-[#0099c2] disabled:opacity-60 px-5 py-2.5 text-[14px] font-bold text-white transition-colors">
+          {state === "busy" ? "Saving…" : "Keep me posted"}
+        </button>
+      </form>
+      {state === "error" && <p className="mt-2 text-[12.5px] font-semibold text-[#c2410c]">Something went wrong — please try again.</p>}
+      <p className="mt-2 text-[11.5px] text-[#8a9aa0]">No commitment — we&apos;ll only email you about this trip.</p>
     </div>
   );
 }

@@ -566,13 +566,20 @@ export default function EditionDetailPage({
   // An empty form has no level and no hotel, and the generator's honest answer
   // to that is "No Hotel" — which is how a brand-new package arrived already
   // named. Say nothing until a field has been filled in.
-  const pkgNameSuggestion = (pkgForm.category || pkgForm.hotel_id)
+  const pkgNameSuggestionRaw = (pkgForm.category || pkgForm.hotel_id)
     ? suggestPackageName({
         level: pkgForm.category,
         hotelName: hotelOptions.find((h) => h.id === pkgForm.hotel_id)?.name ?? null,
         roomType: pkgForm.room_type,
       })
     : "";
+  // The generator can't see what makes a package special — "Advanced – Own Gear
+  // – No Hotel" generates "Advanced – No Hotel", which is a DIFFERENT package in
+  // the same week. A suggestion that is already a sibling's name would collapse
+  // two products into one, so it is no suggestion at all.
+  const pkgNameSuggestion =
+    pkgNameSuggestionRaw && packages.some((p) => p.id !== pkgEditId && looksGenerated(p.name, pkgNameSuggestionRaw))
+      ? "" : pkgNameSuggestionRaw;
   const [roomEditId, setRoomEditId] = useState<string | null>(null);
   const [roomShow, setRoomShow] = useState(false);
 
