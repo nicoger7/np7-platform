@@ -39,16 +39,24 @@ function bad(msg: string, status = 400) {
 }
 
 export async function POST(request: NextRequest) {
-  // Invisible bot check (Vercel BotID). Registration is FREE and holds no spot,
-  // so a verification hiccup must never block a real person — only block a
-  // confirmed bot on the live production deployment, and fail OPEN on any error
-  // or when BotID isn't fully enabled (e.g. preview deploys).
+  // Invisible bot check (Vercel BotID) — FLAGS, never blocks.
+  //
+  // It used to answer a bot verdict with a 403. A real customer signing up for
+  // a €5,790 Bonaire week hit exactly that and could not register at all: the
+  // classifier false-positives on ordinary people (privacy browsers, VPNs, iOS
+  // Private Relay, aggressive blockers), and the page gives them no way past it.
+  //
+  // Registration is FREE and holds no spot, so a bot getting through costs one
+  // junk lead the team deletes, while a false positive costs a real booking.
+  // The verdict is therefore recorded on the lead for review instead — the
+  // signal is kept, the door stays open.
+  let botFlag = false;
   if (process.env.VERCEL_ENV === "production") {
     try {
       const verdict = await checkBotId();
-      if ("isBot" in verdict && verdict.isBot) return bad("Couldn't verify your request. Please try again.", 403);
+      botFlag = "isBot" in verdict && !!verdict.isBot;
     } catch {
-      /* verification unavailable → allow through */
+      /* verification unavailable → treat as human */
     }
   }
 
@@ -137,7 +145,7 @@ export async function POST(request: NextRequest) {
         return inviterTier?.key === "legend" ? ("crew" as const) : null;
       })(),
     })).price,
-    notes: `Website registration · package: ${pkg.name}${body.inviteToken ? (body.intent === "info" ? " · friend invite (info request)" : " · friend invite") : ""}`,
+    notes: `Website registration · package: ${pkg.name}${body.inviteToken ? (body.intent === "info" ? " · friend invite (info request)" : " · friend invite") : ""}${botFlag ? " · ⚠ BOT-CHECK FLAGGED — verify before invoicing" : ""}`,
   };
   const { data: booking, error: bErr } = await db
     .from("exp_bookings").insert({ ...bookingPayload, status: "lead" }).select("id").single();
