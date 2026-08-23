@@ -83,7 +83,10 @@ function SkillRow({ s, onLog, onUndo, busyId, logError }: { s: ProgressSkill } &
       <div className="flex items-center gap-[11px] px-3 py-2.5">
         {icon}
         <span className="flex-1 min-w-0">
-          <span className="block text-[14px] font-bold text-[#00374a]">{s.label}</span>
+          <span className="flex items-center gap-1.5">
+            <span className="text-[14px] font-bold text-[#00374a]">{s.label}</span>
+            {s.blurb && <SkillInfo label={s.label} text={s.blurb} />}
+          </span>
           <span className="block text-[12px] text-[#9aa6ac]">{sub}</span>
         </span>
         {right && <span className="shrink-0">{right}</span>}
@@ -95,6 +98,47 @@ function SkillRow({ s, onLog, onUndo, busyId, logError }: { s: ProgressSkill } &
         </p>
       )}
     </div>
+  );
+}
+
+/**
+ * What a skill actually means, on demand.
+ *
+ * "Heli tack" and "Duck gybe" are names, not explanations — someone still
+ * learning cannot tell from the list what they are being asked to do. A small
+ * mark next to the name opens the one-sentence definition.
+ *
+ * Hover alone would have hidden it on every phone, so the mark is a real button:
+ * hovering opens it with a mouse, tapping opens it with a finger, and it is
+ * reachable by keyboard. Escape and a second tap close it.
+ */
+function SkillInfo({ label, text }: { label: string; text: string }) {
+  const [open, setOpen] = useState(false);
+  return (
+    <span className="relative inline-flex">
+      <button
+        type="button"
+        aria-label={`What is ${label}?`}
+        aria-expanded={open}
+        onClick={(e) => { e.stopPropagation(); setOpen((v) => !v); }}
+        onMouseEnter={() => setOpen(true)}
+        onMouseLeave={() => setOpen(false)}
+        onFocus={() => setOpen(true)}
+        onBlur={() => setOpen(false)}
+        onKeyDown={(e) => { if (e.key === "Escape") setOpen(false); }}
+        className="grid place-items-center w-[15px] h-[15px] rounded-full text-[10px] font-black text-[#8a9aa0] bg-[#eef3f4] hover:bg-[#d9eef5] hover:text-[#0782a0] transition-colors"
+      >
+        ?
+      </button>
+      {open && (
+        <span
+          role="tooltip"
+          className="absolute left-1/2 -translate-x-1/2 bottom-full mb-1.5 z-30 w-[228px] sm:w-[260px] rounded-lg px-3 py-2 text-[12px] leading-snug text-white bg-[#00374a] shadow-[0_8px_24px_rgba(0,55,74,0.28)]"
+        >
+          {text}
+        </span>
+      )}
+    </span>
   );
 }
 

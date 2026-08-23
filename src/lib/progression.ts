@@ -45,6 +45,15 @@ export type CatalogSkill = {
   bonus?: boolean;
   id: string; key: string; label: string; tier: string; rank?: string | null;
   discipline: Discipline; difficulty: number; prerequisite_key: string | null; sort_order: number;
+  /**
+   * What this skill actually means, in one sentence a rider understands.
+   *
+   * "Heli tack" and "Duck gybe" tell someone who already knows what they are
+   * nothing they didn't know, and everyone else nothing at all. The Knowledge
+   * Base's "What it is" section is the real source once written; the catalogue's
+   * own description is the fallback, so every skill can explain itself today.
+   */
+  blurb?: string | null;
 };
 export type Achievement = { milestone_id: string; verified_via: VerifiedVia; verified_ref?: string | null };
 

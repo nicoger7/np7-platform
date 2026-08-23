@@ -26,6 +26,14 @@ type Section = {
 type Entry = any;
 
 const RANK_ORDER = ["Beginner", "Intermediate", "Advanced", "Expert", "Semi-Pro", "Pro"];
+// The shelf IS the skill catalogue, so it has to be navigable at the catalogue's
+// real size: 58 skills across four disciplines. Grouped by rank alone, every
+// band mixed freeride with slalom and wave, and finding one skill meant reading
+// all of them. Discipline first, rank inside it — the way the skills are taught.
+const DISCIPLINE_ORDER = ["freeride", "freerace", "slalom", "side"];
+const DISCIPLINE_LABEL: Record<string, string> = {
+  freeride: "Freeride", freerace: "Freerace", slalom: "Slalom", side: "Wave & Freestyle",
+};
 
 export default function KnowledgePage() {
   const [skills, setSkills] = useState<ShelfRow[]>([]);
@@ -97,7 +105,20 @@ export default function KnowledgePage() {
   }
 
   const dot = (s: string) => s === "complete" ? "#22c55e" : s === "draft" ? "#f59e0b" : "var(--admin-border)";
-  const shelfGroups = RANK_ORDER.map((rank) => ({ rank, rows: skills.filter((s) => (s.rank ?? "") === rank) })).filter((g) => g.rows.length);
+  // Discipline → rank → skills, with anything of an unknown discipline kept
+  // rather than filtered away, so a new discipline can never vanish silently.
+  const known = new Set(DISCIPLINE_ORDER);
+  const disciplines = [...DISCIPLINE_ORDER, ...[...new Set(skills.map((s) => s.discipline ?? "")).values()].filter((d) => d && !known.has(d))];
+  const shelfGroups = disciplines.map((d) => {
+    const rows = skills.filter((s) => (s.discipline ?? "") === d);
+    return {
+      discipline: d,
+      label: DISCIPLINE_LABEL[d] ?? (d ? d[0].toUpperCase() + d.slice(1) : "Other"),
+      done: rows.filter((r) => r.sections.total > 0 && r.sections.complete === r.sections.total).length,
+      total: rows.length,
+      bands: RANK_ORDER.map((rank) => ({ rank, rows: rows.filter((r) => (r.rank ?? "") === rank) })).filter((b) => b.rows.length),
+    };
+  }).filter((g) => g.total);
 
   return (
     <div className="p-4 sm:p-6 max-w-[1400px]">
@@ -110,9 +131,15 @@ export default function KnowledgePage() {
         <div className="rounded-xl p-3 space-y-4 max-h-[75vh] overflow-y-auto" style={{ border: "1px solid var(--admin-border)", backgroundColor: "var(--admin-surface)" }}>
           {loading && <p className="text-xs admin-faint p-2">Loading…</p>}
           {shelfGroups.map((g) => (
-            <div key={g.rank}>
-              <p className="text-[10px] uppercase tracking-wider admin-faint px-2 mb-1">{g.rank}</p>
-              {g.rows.map((r) => (
+            <div key={g.discipline}>
+              <p className="flex items-center justify-between text-[11px] font-bold admin-heading px-2 mb-1.5 pt-1">
+                <span>{g.label}</span>
+                <span className="text-[10px] font-semibold admin-faint">{g.done}/{g.total}</span>
+              </p>
+              {g.bands.map((b) => (
+                <div key={b.rank} className="mb-1.5">
+                  <p className="text-[10px] uppercase tracking-wider admin-faint px-2 mb-1">{b.rank}</p>
+                  {b.rows.map((r) => (
                 <button key={r.refKey} onClick={() => openEntry(r)}
                   className={`w-full flex items-center gap-2 text-left px-2 py-1.5 rounded-lg text-[13px] transition-colors ${entry && r.entryId === openId ? "font-bold" : ""}`}
                   style={entry && r.entryId === openId ? { backgroundColor: "var(--admin-accent-weak)" } : undefined}>
@@ -122,6 +149,8 @@ export default function KnowledgePage() {
                     {r.sections.total ? `${r.sections.complete}/${r.sections.total}` : ""}{r.websiteVisible ? " · 👁" : ""}
                   </span>
                 </button>
+                  ))}
+                </div>
               ))}
             </div>
           ))}

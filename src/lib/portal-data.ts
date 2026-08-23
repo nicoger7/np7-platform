@@ -528,6 +528,24 @@ export async function getMemberProgression(contactId: string): Promise<Progressi
   const db = createAdminClient() as any;
   const cat = await db.from("level_milestones").select("*").eq("active", true);
   if (cat.error || !cat.data?.length) return null;
+  // The Knowledge Base's one-sentence definition, where the team has written
+  // one and marked the entry visible. Tolerant: no KB tables yet (or nothing
+  // published) simply leaves every skill on its catalogue description.
+  const kbBlurb = new Map<string, string>();
+  try {
+    const entries = await db.from("kb_entries").select("id,ref_key").eq("kind", "skill").eq("website_visible", true);
+    const rows = (entries.data ?? []) as { id: string; ref_key: string | null }[];
+    if (rows.length) {
+      const secs = await db.from("kb_sections").select("entry_id,content").eq("section_key", "what")
+        .in("entry_id", rows.map((r) => r.id));
+      const byEntry = new Map((((secs.data ?? []) as { entry_id: string; content: string | null }[]))
+        .map((s2) => [s2.entry_id, (s2.content ?? "").trim()]));
+      for (const r of rows) {
+        const txt = r.ref_key ? byEntry.get(r.id) : null;
+        if (r.ref_key && txt) kbBlurb.set(r.ref_key, txt);
+      }
+    }
+  } catch { /* KB not migrated yet — descriptions carry it */ }
   const catalog: CatalogSkill[] = (cat.data as Record<string, unknown>[]).map((m) => ({
     id: String(m.id), key: String(m.key), label: String(m.label ?? ""), tier: String(m.tier ?? ""),
     rank: (m.rank as string | null) ?? null,
@@ -536,6 +554,20 @@ export async function getMemberProgression(contactId: string): Promise<Progressi
     difficulty: typeof m.difficulty === "number" ? m.difficulty : 10,
     prerequisite_key: (m.prerequisite_key as string | null) ?? null,
     sort_order: typeof m.sort_order === "number" ? m.sort_order : 0,
+    // A description that merely restates the label ("Rigging" → "Basic
+    // rigging") explains nothing, so it is dropped rather than shown as if it
+    // were an explanation — better no tooltip than an empty one.
+    blurb: (() => {
+      const kb = kbBlurb.get(String(m.key));
+      if (kb) return kb;
+      const d = String(m.description ?? "").trim();
+      const label = String(m.label ?? "").trim().toLowerCase();
+      if (!d) return null;
+      const bare = d.toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
+      const lbl = label.replace(/[^a-z0-9]+/g, " ").trim();
+      if (!lbl || bare === lbl || bare.length <= lbl.length + 4) return null;
+      return d;
+    })(),
   }));
   const ach = await db.from("contact_milestones").select("*").eq("contact_id", contactId);
   const achievements: Achievement[] = (ach.data ?? []).map((r: Record<string, unknown>) => ({
