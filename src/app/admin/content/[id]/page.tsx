@@ -79,6 +79,14 @@ export default function ContentEditorPage({ params }: { params: Promise<{ id: st
   const [program, setProgram] = useState<ProgramItem[]>([]);
   const [weekTitle, setWeekTitle] = useState("");
   const [weekOutcomes, setWeekOutcomes] = useState<{ icon: string; t: string; d: string }[]>([]);
+  // Per-level versions of the same section. Empty for a level = that level
+  // shows the shared copy above, which is what every experience does today.
+  type LevelBlock = { title: string; cards: { icon: string; t: string; d: string }[] };
+  const [byLevel, setByLevel] = useState<Record<string, LevelBlock>>({});
+  const [lvlTab, setLvlTab] = useState("beginner");
+  const lvlBlock = byLevel[lvlTab] ?? { title: "", cards: [] };
+  const setLvl = (patch: Partial<LevelBlock>) =>
+    setByLevel({ ...byLevel, [lvlTab]: { ...lvlBlock, ...patch } });
   const [methodIntro, setMethodIntro] = useState("");
   // Shared templates (153): when a section FOLLOWS a template, the editors show
   // the template's words and saving updates the template (all followers).
@@ -156,6 +164,7 @@ export default function ContentEditorPage({ params }: { params: Promise<{ id: st
         setProgram(Array.isArray(c.daily_program) ? c.daily_program : []);
         setWeekTitle(c.week_title ?? "");
         setWeekOutcomes(Array.isArray(c.week_outcomes) ? c.week_outcomes : []);
+        setByLevel(c.week_outcomes_by_level && typeof c.week_outcomes_by_level === "object" ? c.week_outcomes_by_level : {});
         setMethodIntro(c.method_intro ?? "");
         setMethodSteps(Array.isArray(c.method_steps) ? c.method_steps : []);
         setWeekImages(Array.isArray(c.week_images) ? c.week_images : []);
@@ -277,6 +286,13 @@ export default function ContentEditorPage({ params }: { params: Promise<{ id: st
         daily_program: program,
         week_title: outcomesMode === "following" ? "" : weekTitle,
         week_outcomes: outcomesMode === "following" ? [] : weekOutcomes,
+        // A level with no title and no cards is dropped rather than stored as
+        // an empty object, so "nothing written here" stays the same thing as
+        // "fall back to the shared copy".
+        week_outcomes_by_level: Object.fromEntries(
+          Object.entries(byLevel).filter(([, v]) =>
+            (v?.title ?? "").trim() || (v?.cards ?? []).some((c) => (c?.t ?? "").trim()))
+        ),
         method_intro: methodMode === "following" ? "" : methodIntro,
         method_steps: methodMode === "following" ? [] : methodSteps,
         week_images: weekImages,
@@ -612,6 +628,62 @@ export default function ContentEditorPage({ params }: { params: Promise<{ id: st
               ))}
             </DefaultBox>
           )}
+
+          {/* Per-level copy. Optional by design: the website only shows the
+              switcher on experiences that actually sell more than one coaching
+              level, and a level left blank here simply shows the copy above. */}
+          <div className="mt-8 pt-6" style={{ borderTop: "1px solid var(--admin-border)" }}>
+            <h4 className="text-sm font-bold admin-heading mb-1">Different copy per coaching level</h4>
+            <p className="text-[12.5px] admin-faint mb-3 leading-relaxed">
+              Optional. Beginners and advanced riders get promised different things — write each one here and the
+              website shows a small switcher above this section. Leave a level empty and it shows the cards above.
+              The switcher only appears where the trip sells both levels.
+            </p>
+            <div className="flex gap-1.5 mb-3">
+              {["beginner", "advanced"].map((k) => {
+                const on = k === lvlTab;
+                const filled = (byLevel[k]?.title ?? "").trim() || (byLevel[k]?.cards ?? []).some((c) => (c?.t ?? "").trim());
+                return (
+                  <button key={k} type="button" onClick={() => setLvlTab(k)}
+                    className="px-3.5 py-1.5 rounded-lg text-xs font-bold transition-colors"
+                    style={{ background: on ? "var(--admin-accent)" : "var(--admin-surface)",
+                             color: on ? "var(--admin-accent-contrast)" : "inherit",
+                             border: "1px solid var(--admin-border)" }}>
+                    {k[0].toUpperCase() + k.slice(1)}{filled ? " ·" : ""}
+                  </button>
+                );
+              })}
+            </div>
+            <label className="block text-[11px] font-bold uppercase tracking-wide admin-faint mb-1">Headline for this level</label>
+            <input className="admin-input w-full px-2.5 py-1.5 rounded-md border text-sm outline-none" value={lvlBlock.title}
+              onChange={(e) => setLvl({ title: e.target.value })}
+              placeholder={weekTitle || "Leave empty to use the headline above"} />
+            <div className="mt-3 space-y-2">
+              {lvlBlock.cards.map((o, i) => (
+                <div key={i} className="p-3 rounded-lg" style={{ border: "1px solid var(--admin-border)", background: "var(--admin-surface)" }}>
+                  <div className="flex gap-2 mb-2">
+                    <select value={o.icon} className="admin-input px-2 py-1.5 rounded-md border text-xs outline-none shrink-0"
+                      onChange={(e) => setLvl({ cards: lvlBlock.cards.map((x, j) => (j === i ? { ...x, icon: e.target.value } : x)) })}>
+                      {["bolt", "gauge", "rotate", "idea", "globe", "camera"].map((ic) => <option key={ic} value={ic}>{ic}</option>)}
+                    </select>
+                    <input className="admin-input flex-1 min-w-0 px-2.5 py-1.5 rounded-md border text-sm outline-none" value={o.t} placeholder="Card title"
+                      onChange={(e) => setLvl({ cards: lvlBlock.cards.map((x, j) => (j === i ? { ...x, t: e.target.value } : x)) })} />
+                  </div>
+                  <textarea className="admin-input w-full px-2.5 py-2 rounded-md border text-[13px] outline-none resize-y" rows={2} value={o.d} placeholder="One or two sentences…"
+                    onChange={(e) => setLvl({ cards: lvlBlock.cards.map((x, j) => (j === i ? { ...x, d: e.target.value } : x)) })} />
+                  <div className="mt-2">
+                    <RowButtons
+                      onUp={() => setLvl({ cards: move(lvlBlock.cards, i, -1) })}
+                      onDown={() => setLvl({ cards: move(lvlBlock.cards, i, 1) })}
+                      onRemove={() => setLvl({ cards: lvlBlock.cards.filter((_, j) => j !== i) })} />
+                  </div>
+                </div>
+              ))}
+            </div>
+            <div className="mt-3">
+              <AddButton label={`Add ${lvlTab} card`} onClick={() => setLvl({ cards: [...lvlBlock.cards, { icon: "bolt", t: "", d: "" }] })} />
+            </div>
+          </div>
         </Section>
 
         <Section show={tab === "story" && story === "method"} title="Coaching method" hint="The ‘NP7 training system’ band: intro + numbered steps. Leave empty to keep the standard method copy.">

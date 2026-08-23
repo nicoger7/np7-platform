@@ -14,7 +14,7 @@ import { getExperienceCards } from "@/lib/experience-cards";
 export const metadata: Metadata = {
   title: { absolute: "NP7 Experience — Premium Watersports Travel" },
   description:
-    "Guided windsurf, wing & foil trips with Nico Prien (GER-7). World-class coaching, hand-picked crews, and everything arranged.",
+    "Guided windsurf & foil trips with Nico Prien (GER-7). World-class coaching, hand-picked crews, and everything arranged.",
 };
 
 export const revalidate = 3600;
@@ -108,7 +108,7 @@ export default async function ExperienceOverviewPage() {
           Chase the ride. Find your crew.
         </h1>
         <p className="mt-5 text-[16px] sm:text-[19px] text-white/85 max-w-[520px] font-medium">
-          World-class windsurf, wing &amp; foil trips around the planet — coaching, community and everything arranged for you.
+          World-class windsurf &amp; foil trips around the planet — coaching, community and everything arranged for you.
         </p>
         <div className="mt-9 flex flex-wrap items-center justify-center gap-3">
           <Link

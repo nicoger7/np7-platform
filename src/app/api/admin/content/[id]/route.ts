@@ -13,6 +13,7 @@ const EMPTY = {
   week_info: "",
   week_title: "",
   week_outcomes: [] as { icon: string; t: string; d: string }[],
+  week_outcomes_by_level: {} as Record<string, { title: string; cards: { icon: string; t: string; d: string }[] }>,
   method_intro: "",
   method_steps: [] as { t: string; d: string; gameChanger: boolean }[],
   daily_program: [] as ProgramItem[],
@@ -151,6 +152,28 @@ export async function PUT(
     week_outcomes: Array.isArray(body.week_outcomes)
       ? body.week_outcomes.map((o: any) => ({ icon: String(o?.icon ?? "bolt"), t: String(o?.t ?? ""), d: String(o?.d ?? "") })).filter((o: { t: string; d: string }) => o.t.trim() || o.d.trim())
       : [],
+    // Per-coaching-level copy for the same section. Sanitised the same way as
+    // the shared cards, and a level whose title and cards are all blank is
+    // dropped — an empty block would otherwise read as "this level has nothing
+    // to say" instead of "fall back to the shared copy".
+    week_outcomes_by_level: (() => {
+      const src = body.week_outcomes_by_level;
+      if (!src || typeof src !== "object" || Array.isArray(src)) return {};
+      const out: Record<string, { title: string; cards: { icon: string; t: string; d: string }[] }> = {};
+      for (const [level, raw] of Object.entries(src as Record<string, unknown>)) {
+        if (!/^[a-z_]{1,32}$/.test(level)) continue;
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const v = raw as any;
+        const title = typeof v?.title === "string" ? v.title : "";
+        const cards = Array.isArray(v?.cards)
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          ? v.cards.map((o: any) => ({ icon: String(o?.icon ?? "bolt"), t: String(o?.t ?? ""), d: String(o?.d ?? "") }))
+              .filter((o: { t: string; d: string }) => o.t.trim() || o.d.trim())
+          : [];
+        if (title.trim() || cards.length) out[level] = { title, cards };
+      }
+      return out;
+    })(),
     method_intro: typeof body.method_intro === "string" ? body.method_intro : "",
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     method_steps: Array.isArray(body.method_steps)

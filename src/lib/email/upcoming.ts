@@ -23,7 +23,7 @@ const ANCHORS: { key: string; label: string; beforeStart?: number; afterEnd?: nu
   { key: "waiver_reminder", label: "Waiver reminder", beforeStart: 14 },
   { key: "pre_trip_excitement", label: "Countdown / excitement", beforeStart: 12 },
   { key: "pre_trip_final", label: "Final details", beforeStart: 3 },
-  { key: "post_trip_thank_you", label: "Thank you + review", afterEnd: 3 },
+  { key: "post_trip_thank_you", label: "Thank you + review", afterEnd: 1 },
 ];
 
 /** Booking statuses the cron treats as secured — only these get lifecycle mail. */

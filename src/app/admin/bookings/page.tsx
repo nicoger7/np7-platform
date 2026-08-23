@@ -255,8 +255,18 @@ function BookingsInner() {
         }
         return compareValues(aVal, bVal, sortDir);
       })
-    // Default order: highest pipeline status up, then most-recently created.
-    : [...filtered].sort((a, b) => rank(b) - rank(a) || (b.created_at || "").localeCompare(a.created_at || ""));
+    // Default order: by the TRIP, latest first.
+    //
+    // It used to lead with the pipeline rank and fall back to created_at, which
+    // reads well until a row's two dates disagree. Backfilling the 2024 and 2025
+    // trips put eight finished trips at the very top of the list, because they
+    // were CREATED yesterday — the newest rows describing the oldest weeks.
+    // The date that matters here is when the trip runs, so that is the one that
+    // sorts. Bookings with no week yet (a bare lead) sort by when they came in.
+    : [...filtered].sort((a, b) => {
+        const when = (x: Booking) => x.edition?.date_end || x.created_at.slice(0, 10) || "";
+        return when(b).localeCompare(when(a)) || rank(b) - rank(a);
+      });
 
   // Pipeline view groups
   const pipelineGroups = STATUSES.filter(

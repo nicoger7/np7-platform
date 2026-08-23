@@ -31,6 +31,25 @@ function Icon({ name }: { name: string }) {
   }
 }
 
+/**
+ * One coaching level's version of this section.
+ *
+ * A week sold to beginners and a week sold to advanced riders promise
+ * different things, and one shared list had to describe both — so it described
+ * neither. Each level carries its own title and cards; a level the team has not
+ * written yet simply falls back to the shared copy, which is why turning this
+ * on changes nothing until someone actually writes the level-specific version.
+ */
+export type LevelVariant = {
+  /** exp_packages.category — "beginner", "advanced", … */
+  key: string;
+  /** What the chip says. */
+  label: string;
+  title: string;
+  outcomes: Outcome[];
+  images: string[];
+};
+
 export function EpicWeekScroll({
   outcomes,
   images,
@@ -38,6 +57,7 @@ export function EpicWeekScroll({
   title,
   intro,
   weekInfo,
+  levels,
 }: {
   outcomes: Outcome[];
   images: string[];
@@ -45,7 +65,19 @@ export function EpicWeekScroll({
   title: string;
   intro: string;
   weekInfo?: string | null;
+  /** Levels this experience actually sells. Fewer than two → no selector. */
+  levels?: LevelVariant[];
 }) {
+  // The selector only exists where there is a genuine choice to make: an
+  // experience with one coaching level shows exactly what it showed before.
+  const variants = (levels ?? []).length >= 2 ? levels! : null;
+  const [levelIdx, setLevelIdx] = useState(0);
+  const shown = variants?.[levelIdx];
+  if (shown) {
+    outcomes = shown.outcomes;
+    images = shown.images;
+    title = shown.title;
+  }
   const N = outcomes.length;
   const sectionRef = useRef<HTMLDivElement>(null);
   const innerRef = useRef<HTMLDivElement>(null);
@@ -146,6 +178,26 @@ export function EpicWeekScroll({
             <p className="text-[15px] sm:text-[16px] text-[#6a7a80] leading-relaxed">{intro}</p>
             {weekInfo && <p className="text-[14px] text-[#7a8a90] leading-relaxed mt-3 whitespace-pre-line">{weekInfo}</p>}
           </div>
+          <div className="max-w-[640px]">
+            {variants && (
+              <div className="flex flex-wrap gap-2 mb-5" role="tablist" aria-label="Coaching level">
+                {variants.map((v, i) => {
+                  const on = i === levelIdx;
+                  return (
+                    <button
+                      key={v.key} type="button" role="tab" aria-selected={on}
+                      onClick={() => setLevelIdx(i)}
+                      className={`px-4 py-1.5 rounded-full text-[13px] font-bold transition-colors ${
+                        on ? "bg-[#00afdb] text-white" : "bg-white text-[#5a6b72] border border-[#d3dbde] hover:border-[#00afdb]"
+                      }`}
+                    >
+                      {v.label}
+                    </button>
+                  );
+                })}
+              </div>
+            )}
+          </div>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             {outcomes.map((o, i) => (
               <Reveal key={o.t} as="article" from="up" delay={(i % 2) * 90} className="relative min-h-[230px] sm:min-h-[250px] rounded-3xl overflow-hidden bg-[#012c3b] flex flex-col justify-end">
@@ -194,6 +246,24 @@ export function EpicWeekScroll({
                 page as Nico actually views it — the field went nowhere and the
                 admin hint pointed at a paragraph that did not exist. */}
             {weekInfo && <p className="text-[12.5px] text-[#7a8a90] leading-relaxed -mt-2 mb-5 whitespace-pre-line hidden lg:block">{weekInfo}</p>}
+            {variants && (
+              <div className="flex flex-wrap gap-2 mb-5" role="tablist" aria-label="Coaching level">
+                {variants.map((v, i) => {
+                  const on = i === levelIdx;
+                  return (
+                    <button
+                      key={v.key} type="button" role="tab" aria-selected={on}
+                      onClick={() => setLevelIdx(i)}
+                      className={`px-4 py-1.5 rounded-full text-[13px] font-bold transition-colors ${
+                        on ? "bg-[#00afdb] text-white" : "bg-white text-[#5a6b72] border border-[#d3dbde] hover:border-[#00afdb]"
+                      }`}
+                    >
+                      {v.label}
+                    </button>
+                  );
+                })}
+              </div>
+            )}
             <div className="hidden lg:flex lg:flex-col gap-2">
               {outcomes.map((o, i) => {
                 const on = i === active;

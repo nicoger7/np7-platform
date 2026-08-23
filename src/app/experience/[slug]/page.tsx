@@ -4,6 +4,7 @@ import { WindMiniChart } from "@/components/experience/wind-mini-chart";
 import { DEFAULT_WEEK_INFO } from "@/lib/experience-defaults";
 import { notFound } from "next/navigation";
 import { includeLine } from "@/lib/include-line";
+import { packageLevelLabel } from "@/lib/package-levels";
 import type { Metadata } from "next";
 import { supabase } from "@/lib/supabase";
 import { getTeamMember, getPortalUser } from "@/lib/auth";
@@ -182,6 +183,7 @@ type ReviewRow = { name: string; country: string; quote: string; rating: number;
 type ContentRow = {
   location_about: string | null; week_info: string | null;
   week_title: string | null; week_outcomes: { icon?: string; t?: string; d?: string }[] | null;
+  week_outcomes_by_level?: Record<string, { title?: string; cards?: { icon?: string; t?: string; d?: string }[] }> | null;
   method_intro: string | null; method_steps: { t?: string; d?: string; gameChanger?: boolean }[] | null;
   daily_program: ProgramItem[] | null; highlights: string[] | null; faq: FaqRow[] | null;
   hero_image: string | null; hero_focus: string | null; hero_focus_shapes: Record<string, string> | null;
@@ -243,7 +245,7 @@ export default async function ExperienceDetailPage({ params, searchParams }: Pro
   // Split the fetch so the newer media columns (added in migration 013) can't
   // break the existing text content if they haven't been applied yet.
   const [{ data: baseRaw }, { data: mediaRaw }] = await Promise.all([
-    sb.from("exp_content").select("location_about,week_info,daily_program,highlights,faq,week_title,week_outcomes,method_intro,method_steps,method_template_id,outcomes_template_id,week_images").eq("experience_id", experience.id).maybeSingle(),
+    sb.from("exp_content").select("location_about,week_info,daily_program,highlights,faq,week_title,week_outcomes,week_outcomes_by_level,method_intro,method_steps,method_template_id,outcomes_template_id,week_images").eq("experience_id", experience.id).maybeSingle(),
     sb.from("exp_content").select("hero_image,hero_focus,hero_focus_shapes,hero_video_url,explainer_video_url,gallery,reviews,no_wind_program,wind_probability,wind_range").eq("experience_id", experience.id).maybeSingle(),
   ]);
   const content = (baseRaw || mediaRaw ? { ...(baseRaw ?? {}), ...(mediaRaw ?? {}) } : null) as ContentRow | null;
@@ -568,6 +570,44 @@ export default async function ExperienceDetailPage({ params, searchParams }: Pro
     return false;
   };
   const outcomeItems = (customOutcomes.length ? customOutcomes : OUTCOMES).filter((o) => !mediaOutcomeOff(o));
+  // Per-level versions of this section. Which levels appear is decided by what
+  // the experience actually SELLS — the distinct coaching level across every
+  // package on show — so a one-level trip renders exactly as before and a level
+  // added later brings its chip along without anyone touching content.
+  //
+  // The copy is a separate question: a level with nothing written for it falls
+  // back to the shared title and cards, so switching this on is invisible until
+  // the team writes the beginner version.
+  const levelVariants = (() => {
+    const byLevel = content?.week_outcomes_by_level ?? null;
+    const seen = new Map<string, number>();
+    for (const list of Object.values(packagesByEdition)) {
+      for (const rp of list) {
+        const key = (rp.level ?? "").trim().toLowerCase();
+        if (!key || key === "mixed") continue;          // "mixed" is not a choice a rider makes
+        seen.set(key, (seen.get(key) ?? 0) + 1);
+      }
+    }
+    if (seen.size < 2) return undefined;
+    // Most-sold level first, so the busiest audience lands on its own copy.
+    const keys = [...seen.entries()].sort((a, b) => b[1] - a[1]).map(([k]) => k);
+    const weekImgs = Array.isArray(c?.week_images) ? (c!.week_images as (string | null)[]) : [];
+    return keys.map((key) => {
+      const own = byLevel?.[key];
+      const cards = (Array.isArray(own?.cards) ? own!.cards! : [])
+        .filter((o) => (o?.t ?? "").trim())
+        .map((o) => ({ icon: o.icon || "bolt", t: o.t!, d: o.d ?? "" }));
+      const items = (cards.length ? cards : outcomeItems).filter((o) => !mediaOutcomeOff(o));
+      return {
+        key,
+        label: packageLevelLabel(key),
+        title: (own?.title ?? "").trim() || weekTitle,
+        outcomes: items,
+        images: items.map((_, i) => weekImgs[i] || vibeImages[i % Math.max(1, vibeImages.length)]).filter(Boolean) as string[],
+      };
+    });
+  })();
+
   const methodIntro = content?.method_intro?.trim() || (methodTpl?.intro as string | undefined)?.trim() || METHOD_INTRO;
   type MethodStepRow = { t?: string; d?: string; gameChanger?: boolean };
   const customSteps = (((Array.isArray(content?.method_steps) && content!.method_steps!.length ? content!.method_steps! : null) ?? (Array.isArray(methodTpl?.steps) ? methodTpl.steps : [])) as MethodStepRow[])
@@ -823,6 +863,7 @@ export default async function ExperienceDetailPage({ params, searchParams }: Pro
           return outcomeItems.map((_, i) => wk[i] || vibeImages[i % Math.max(1, vibeImages.length)]).filter(Boolean) as string[];
         })()}
         eyebrow="YOUR EPIC WEEK"
+        levels={levelVariants}
         title={weekTitle}
         intro={experience.description || "One week, fully immersed in the sport you love — epic conditions, world-class coaching, and a crew that feels like old friends by day two."}
         weekInfo={weekInfo}

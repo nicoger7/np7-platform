@@ -41,7 +41,7 @@ export const SEND_SCHEDULE = {
  * "no send date" for a mail that goes out three days after everyone flies home.
  */
 export const SEND_AFTER_END = {
-  post_trip_thank_you: 3,
+  post_trip_thank_you: 1,
 } as const;
 
 /**
