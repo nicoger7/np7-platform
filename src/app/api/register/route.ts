@@ -32,6 +32,10 @@ type Body = {
   inviteToken?: string;
   /** "reserve" (ready to book) or "info" (just wants the details first). */
   intent?: string;
+  /** Honeypot — a hidden field only a script fills. */
+  trap?: string;
+  /** How long the form was open before submit, in ms. */
+  filledMs?: number;
 };
 
 function bad(msg: string, status = 400) {
@@ -67,12 +71,32 @@ export async function POST(request: NextRequest) {
     return bad("Invalid request");
   }
 
+  // Behaviour beats fingerprinting. These two catch the bots that actually
+  // show up — scripts that POST the form — and, unlike a classifier verdict,
+  // a real person cannot trip them: the honeypot is invisible and unfocusable,
+  // and nobody types a name and an email in under a second and a half.
+  //
+  // A caught honeypot gets a plain 200 with nothing written, so the script
+  // sees success and never learns to adapt. The typing floor answers with a
+  // retryable error instead — on the small chance a human ever hits it, the
+  // second attempt is slower and simply goes through.
+  if ((body.trap ?? "").trim() !== "") {
+    return NextResponse.json({ ok: true });
+  }
+  const filledMs = Number(body.filledMs);
+  // Only for hand-typed submissions: a signed-in member confirms with one
+  // click off a pre-filled screen, which is legitimately instant.
+  const memberProbe = await getPortalUser({ allowPreview: false }).catch(() => null);
+  if (!memberProbe && Number.isFinite(filledMs) && filledMs > 0 && filledMs < 1500) {
+    return bad("That went through a little too fast — please try again.", 429);
+  }
+
   const { experienceId, editionId, packageId } = body;
   if (!experienceId || !packageId) return bad("Missing trip selection.");
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const db = createAdminClient() as any;
-  const member = await getPortalUser({ allowPreview: false }).catch(() => null);
+  const member = memberProbe;
 
   let firstName = "", lastName = "", email = "";
   let contactId = member?.contactId as string | undefined;

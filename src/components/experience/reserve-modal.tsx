@@ -50,6 +50,12 @@ export function ReserveModal({ ctx, onClose }: { ctx: ReserveContext; onClose: (
   const [member, setMember] = useState(false);
   const [ready, setReady] = useState(false);
   const [quote, setQuote] = useState<Quote | null>(null);
+  // Bot traps. A hidden field a person can never see or tab into, and how long
+  // the form was actually open. Both are evidence a MACHINE produced the
+  // submission — unlike a fingerprint verdict, neither can mistake a real
+  // person for a bot just because they use a VPN or a privacy browser.
+  const [trap, setTrap] = useState("");
+  const [openedAt] = useState(() => Date.now());
 
   // The real payment plan for THIS package (deposit, downpayment %, deadlines) —
   // computed server-side by the same engine that drives invoices, so what we
@@ -109,6 +115,7 @@ export function ReserveModal({ ctx, onClose }: { ctx: ReserveContext; onClose: (
           editionId: ctx.editionId,
           packageId: ctx.packageId,
           firstName, lastName, email, marketingOptIn,
+          trap, filledMs: Date.now() - openedAt,
         }),
       });
       const json = await res.json();
@@ -258,6 +265,15 @@ export function ReserveModal({ ctx, onClose }: { ctx: ReserveContext; onClose: (
               </>
             ) : (
               <form onSubmit={(e) => { e.preventDefault(); go(); }}>
+                {/* Honeypot: off-screen, unfocusable, hidden from screen
+                    readers, and named so no password manager autofills it.
+                    Anything in here came from a script that filled every
+                    input it found. */}
+                <input
+                  type="text" name="np7_hp" tabIndex={-1} autoComplete="off" aria-hidden="true"
+                  value={trap} onChange={(e) => setTrap(e.target.value)}
+                  style={{ position: "absolute", left: "-9999px", width: 1, height: 1, opacity: 0 }}
+                />
                 <div className="grid grid-cols-2 gap-3 mb-3">
                   <input required value={firstName} onChange={(e) => setFirstName(e.target.value)} placeholder="First name" autoComplete="given-name" className={inputCls} />
                   <input required value={lastName} onChange={(e) => setLastName(e.target.value)} placeholder="Last name" autoComplete="family-name" className={inputCls} />

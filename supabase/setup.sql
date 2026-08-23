@@ -204,7 +204,7 @@ INSERT INTO exp_experiences (title, slug, location, date_start, date_end, price,
   590,
   10,
   4,
-  'Meltemi wind, flat water, and a week of pure freestyle and freeride. One of the world''s best windsurfing spots.',
+  'Poyraz wind, flat water, and a week of pure freestyle and freeride. One of the world''s best windsurfing spots.',
   'https://surfcenter-experience.com/wp-content/uploads/2025/11/Tenerife-3-1024x576.jpg',
   'published'
 ),
