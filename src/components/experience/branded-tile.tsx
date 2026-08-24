@@ -177,13 +177,18 @@ export function BrandedTile({
               style={{ height: `${p.coachScale}%`, filter: "drop-shadow(-5px 5px 9px rgba(0,0,0,0.45))" }}
             />
           )}
-          <span className="absolute right-3 top-3 text-right leading-none">
-            <span className="block italic text-white/85 text-[9.5px] mb-0.5">with</span>
-            <span className="block font-extrabold uppercase tracking-[0.02em] text-white text-[clamp(10px,2.2vw,13px)] drop-shadow-[0_2px_6px_rgba(0,0,0,0.7)]">
-              {withLabel}
-            </span>
-          </span>
         </div>
+      )}
+
+      {/* the "with …" label is pinned to the TILE's corner, not the coach —
+          moving Coach 1 used to drag the names off the canvas with him */}
+      {lead && (
+        <span className="absolute right-3 top-3 z-20 text-right leading-none">
+          <span className="block italic text-white/85 text-[9.5px] mb-0.5">with</span>
+          <span className="block font-extrabold uppercase tracking-[0.02em] text-white text-[clamp(10px,2.2vw,13px)] drop-shadow-[0_2px_6px_rgba(0,0,0,0.7)]">
+            {withLabel}
+          </span>
+        </span>
       )}
     </div>
   );
