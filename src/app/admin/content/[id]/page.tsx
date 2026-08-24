@@ -48,6 +48,10 @@ export default function ContentEditorPage({ params }: { params: Promise<{ id: st
   const [location, setLocation] = useState("");
   // Head coach for the live tile preview — same fallback the public card uses.
   const [headCoach, setHeadCoach] = useState<{ name: string; cutout: string | null } | null>(null);
+  // Preview crew for the multi-coach tile: head first, then others WITH
+  // cutouts (the real card uses the week's own coaches — this is the editor's
+  // stand-in, same approximation the single-coach preview always made).
+  const [previewCoaches, setPreviewCoaches] = useState<{ name: string; cutout: string | null }[]>([]);
   const [destination, setDestination] = useState<{ name: string; slug: string | null; text: string } | null>(null);
 
   // images
@@ -212,6 +216,11 @@ export default function ContentEditorPage({ params }: { params: Promise<{ id: st
       const arr = (Array.isArray(list) ? list : []) as any[];
       const head = arr.find((c) => /head/i.test(String(c.role ?? ""))) ?? arr[0];
       if (head) setHeadCoach({ name: head.name, cutout: head.cutout_url ?? null });
+      if (head) {
+        const extras = arr.filter((c) => c !== head && c.cutout_url).slice(0, 2)
+          .map((c) => ({ name: c.name as string, cutout: (c.cutout_url ?? null) as string | null }));
+        setPreviewCoaches([{ name: head.name, cutout: head.cutout_url ?? null }, ...extras]);
+      }
     }).catch(() => {});
     fetch("/api/admin/editions").then((r) => r.json()).then((d) => {
       const eds = (Array.isArray(d) ? d : []).filter((e: { experience_id: string }) => e.experience_id === id);
@@ -391,6 +400,7 @@ export default function ContentEditorPage({ params }: { params: Promise<{ id: st
                   flag: flagFromLocation(location),
                   coachName: headCoach?.name ?? null,
                   coachCutout: headCoach?.cutout ?? null,
+                  coaches: previewCoaches.length ? previewCoaches : undefined,
                 }}
                 value={cardPlacement}
                 onChange={setCardPlacement}

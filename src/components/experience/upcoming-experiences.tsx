@@ -71,6 +71,8 @@ export type ExpCard = {
   tileAuto?: boolean;
   coachName?: string | null;
   coachCutout?: string | null;
+  /** The week's tile crew, lead first — BrandedTile shows up to three. */
+  coaches?: { name: string; cutout: string | null }[] | null;
   /** Focal/position overrides for the branded tile (migration 110). */
   placement?: TilePlacement | null;
 };
@@ -209,6 +211,7 @@ export function ExpTileCard({ exp }: { exp: ExpCard }) {
               flag={flagFromLocation(exp.location)}
               coachName={exp.coachName}
               coachCutout={exp.coachCutout}
+              coaches={exp.coaches}
               placement={exp.placement}
             />
           ) : (

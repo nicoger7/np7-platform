@@ -144,6 +144,10 @@ export async function getExperienceCards(viewer?: { tierKey: "rider" | "crew" | 
   // crew is coaches + assistants (exp_edition_coaches); only the one whose role
   // reads "head" fronts the card. Falls back to the library head coach.
   const headCoachByEdition = new Map<string, { name: string; cutout: string | null }>();
+  // The whole tile crew per week: the head coach leads (right slot, locked),
+  // and up to two more coaches WITH cutouts join from the left. A week with
+  // one coach renders exactly the tile it always has.
+  const crewByEdition = new Map<string, { name: string; cutout: string | null }[]>();
   {
     const nextEdIds = experiences.map((e) => e.ed?.id).filter((x): x is string => !!x);
     if (nextEdIds.length) {
@@ -152,15 +156,24 @@ export async function getExperienceCards(viewer?: { tierKey: "rider" | "crew" | 
         .from("exp_edition_coaches")
         .select("edition_id,sort_order,name_override,role_override,exp_coaches(name,role,cutout_url)")
         .in("edition_id", nextEdIds).order("sort_order");
+      const raw = new Map<string, { name: string; cutout: string | null; head: boolean }[]>();
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       for (const r of ((ecRows ?? []) as any[])) {
-        const role = String(r.role_override ?? r.exp_coaches?.role ?? "");
-        if (!/head/i.test(role)) continue;                    // head coach only
-        if (headCoachByEdition.has(r.edition_id)) continue;    // first wins (sort_order)
-        headCoachByEdition.set(r.edition_id, {
-          name: r.name_override ?? r.exp_coaches?.name ?? "",
+        const name = r.name_override ?? r.exp_coaches?.name ?? "";
+        if (!name) continue;
+        raw.set(r.edition_id, [...(raw.get(r.edition_id) ?? []), {
+          name,
           cutout: r.exp_coaches?.cutout_url ?? null,
-        });
+          head: /head/i.test(String(r.role_override ?? r.exp_coaches?.role ?? "")),
+        }]);
+      }
+      for (const [edId, list] of raw) {
+        const sorted = [...list.filter((c) => c.head), ...list.filter((c) => !c.head)];
+        const head = sorted.find((c) => c.head);
+        if (head) headCoachByEdition.set(edId, { name: head.name, cutout: head.cutout });
+        const lead = sorted[0];
+        const extras = sorted.slice(1).filter((c) => c.cutout).slice(0, 2);
+        if (lead) crewByEdition.set(edId, [lead, ...extras].map(({ name, cutout }) => ({ name, cutout })));
       }
     }
   }
@@ -210,6 +223,7 @@ export async function getExperienceCards(viewer?: { tierKey: "rider" | "crew" | 
       tileAuto: autoIds.has(exp.id),
       coachName: coach?.name ?? named,
       coachCutout: coach?.cutout ?? null,
+      coaches: exp.ed?.id ? (crewByEdition.get(exp.ed.id) ?? null) : null,
       placement: placementByExp.get(exp.id) ?? null,
       // The genius-style hint: the launch price is public; a signed-in Crew/
       // Legend sees the combined figure (launch + tier stack additively).

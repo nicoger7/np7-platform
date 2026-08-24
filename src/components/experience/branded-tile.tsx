@@ -11,6 +11,9 @@ export type BrandedTileProps = {
   coachName?: string | null;
   /** Transparent-background coach cutout PNG. */
   coachCutout?: string | null;
+  /** The week's coaches, lead first — overrides coachName/coachCutout when set.
+   *  Lead renders right (locked), up to two more anchor from the left. */
+  coaches?: { name: string; cutout: string | null }[] | null;
   /** Small line under the place name. */
   subtitle?: string;
   /** Optional focal/position overrides (from the placement editor). */
@@ -35,11 +38,23 @@ export function BrandedTile({
   flag,
   coachName,
   coachCutout,
+  coaches,
   subtitle = "NP7 Windsurf Experience",
   placement,
   className = "",
 }: BrandedTileProps) {
   const p = resolveTilePlacement(placement);
+  // One list whichever way the coach arrived. Lead may exist without a cutout
+  // (name still shows); the extra slots only render an actual cutout.
+  const crew = (coaches && coaches.length ? coaches : coachName ? [{ name: coachName, cutout: coachCutout ?? null }] : []).slice(0, 3);
+  const lead = crew[0];
+  const extras = crew.slice(1).filter((c) => c.cutout);
+  // The "with …" label: one coach = full name; two = first names; three = crew.
+  const first = (n2: string) => n2.trim().split(/\s+/)[0] || n2;
+  const withLabel =
+    crew.length <= 1 ? lead?.name ?? null
+    : crew.length === 2 ? `${first(crew[0].name)} & ${first(crew[1].name)}`
+    : `${first(crew[0].name)} + Crew`;
   return (
     <div className={`absolute inset-0 overflow-hidden ${className}`}>
       {/* 1 — photo. Two nested layers: the OUTER handles the subtle hover zoom
@@ -128,14 +143,32 @@ export function BrandedTile({
         </p>
       </div>
 
-      {/* 5 — coach cutout + name (placement.coachRight / coachBottom / coachScale) */}
-      {coachName && (
+      {/* 5a — extra coach cutouts (left-anchored; rendered first so the lead
+             paints over them if they ever meet in the middle) */}
+      {extras.map((c, i) => (
+        // eslint-disable-next-line @next/next/no-img-element
+        <img
+          key={`${c.name}-${i}`}
+          src={c.cutout!}
+          alt={c.name}
+          className="absolute z-10 w-auto max-w-none object-contain object-bottom"
+          style={{
+            left: `${i === 0 ? p.coach2X : p.coach3X}%`,
+            bottom: `${i === 0 ? p.coach2Bottom : p.coach3Bottom}%`,
+            height: `${i === 0 ? p.coach2Scale : p.coach3Scale}%`,
+            filter: "drop-shadow(5px 5px 9px rgba(0,0,0,0.45))",
+          }}
+        />
+      ))}
+
+      {/* 5b — lead coach cutout + "with …" (right-locked, as always) */}
+      {lead && (
         <div className="absolute top-0 z-10 flex items-end" style={{ right: `${p.coachRight}%`, bottom: `${p.coachBottom}%` }}>
-          {coachCutout && (
+          {lead.cutout && (
             // eslint-disable-next-line @next/next/no-img-element
             <img
-              src={coachCutout}
-              alt={coachName}
+              src={lead.cutout}
+              alt={lead.name}
               className="w-auto max-w-none self-end object-contain object-bottom"
               style={{ height: `${p.coachScale}%`, filter: "drop-shadow(-5px 5px 9px rgba(0,0,0,0.45))" }}
             />
@@ -143,7 +176,7 @@ export function BrandedTile({
           <span className="absolute right-3 top-3 text-right leading-none">
             <span className="block italic text-white/85 text-[9.5px] mb-0.5">with</span>
             <span className="block font-extrabold uppercase tracking-[0.02em] text-white text-[clamp(10px,2.2vw,13px)] drop-shadow-[0_2px_6px_rgba(0,0,0,0.7)]">
-              {coachName}
+              {withLabel}
             </span>
           </span>
         </div>

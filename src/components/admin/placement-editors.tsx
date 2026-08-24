@@ -54,7 +54,7 @@ function Slider({ label, value, min, max, step = 1, suffix = "", onChange }: {
    CARD placement editor — photo focal point, coach position + size, flag
    position + fade. Live preview across the tile's real aspect-ratio range.
 ════════════════════════════════════════════════════════════════════════════ */
-type TileContent = { photo: string | null; place: string; flag: FlagInfo | null; coachName: string | null; coachCutout: string | null };
+type TileContent = { photo: string | null; place: string; flag: FlagInfo | null; coachName: string | null; coachCutout: string | null; coaches?: { name: string; cutout: string | null }[] };
 
 // The real tile is fixed-height / fluid-width: aspect ~1.3 (2-col) → ~2.8 (wide
 // 1-col). We preview the extremes so placement is safe on every screen.
@@ -93,7 +93,7 @@ const PREVIEW_ASPECTS = [
   { r: 2.7, label: "Wide", note: "phone 1-up" },
 ];
 
-type Elem = "photo" | "coach" | "flag";
+type Elem = "photo" | "coach" | "coach2" | "coach3" | "flag";
 
 export function TilePlacementEditor({ content, value, onChange }: {
   content: TileContent; value: TilePlacement; onChange: (v: TilePlacement) => void;
@@ -108,15 +108,22 @@ export function TilePlacementEditor({ content, value, onChange }: {
   const { ref, handlers } = useCanvasDrag((x, y) => {
     if (active === "photo") set({ photoX: x, photoY: y });
     else if (active === "coach") set({ coachBottom: clamp(100 - y, -15, 60) });
+    // The extra coaches are left-anchored and free on BOTH axes — only the
+    // lead is horizontally locked (that's the cross-tile alignment promise).
+    else if (active === "coach2") set({ coach2X: clamp(x - 8, -10, 70), coach2Bottom: clamp(100 - y, -15, 60) });
+    else if (active === "coach3") set({ coach3X: clamp(x - 8, -10, 70), coach3Bottom: clamp(100 - y, -15, 60) });
     else set({ flagRight: clamp(100 - x, -20, 70), flagTop: clamp(y - 60, -40, 35) });
   });
 
   // Marker position (canvas %) for the active element.
   const marker = active === "photo" ? { x: p.photoX, y: p.photoY }
     : active === "coach" ? { x: 100 - p.coachRight, y: 100 - p.coachBottom }
+    : active === "coach2" ? { x: p.coach2X + 8, y: 100 - p.coach2Bottom }
+    : active === "coach3" ? { x: p.coach3X + 8, y: 100 - p.coach3Bottom }
     : { x: 100 - p.flagRight, y: p.flagTop + 60 };
 
-  const hasCoach = !!content.coachName;
+  const crew = content.coaches ?? (content.coachName ? [{ name: content.coachName, cutout: content.coachCutout }] : []);
+  const hasCoach = crew.length > 0;
   const hasFlag = !!content.flag;
   const [showAll, setShowAll] = useState(false);
 
@@ -125,7 +132,11 @@ export function TilePlacementEditor({ content, value, onChange }: {
       {/* element picker */}
       <div className="flex flex-wrap items-center gap-1.5 mb-2.5">
         <span className="text-[11px] font-bold uppercase tracking-[0.12em] text-[var(--admin-fg-muted,#7a8a90)] mr-0.5">Adjust</span>
-        {([["photo", "Photo"], ["coach", "Coach"], ["flag", "Flag"]] as [Elem, string][]).map(([k, lbl]) => {
+        {([["photo", "Photo"],
+           ["coach", crew.length > 1 ? "Coach 1" : "Coach"],
+           ...(crew.length > 1 ? [["coach2", "Coach 2"] as [Elem, string]] : []),
+           ...(crew.length > 2 ? [["coach3", "Coach 3"] as [Elem, string]] : []),
+           ["flag", "Flag"]] as [Elem, string][]).map(([k, lbl]) => {
           const disabled = (k === "coach" && !hasCoach) || (k === "flag" && !hasFlag);
           return (
             <button key={k} type="button" disabled={disabled} onClick={() => setActive(k)}
@@ -143,11 +154,11 @@ export function TilePlacementEditor({ content, value, onChange }: {
         className="group relative w-full rounded-lg overflow-hidden cursor-crosshair select-none touch-none ring-1 ring-black/5"
         style={{ aspectRatio: "1.73" }}>
         <BrandedTile photo={content.photo} place={content.place} flag={content.flag}
-          coachName={content.coachName} coachCutout={content.coachCutout} placement={value} />
+          coachName={content.coachName} coachCutout={content.coachCutout} coaches={content.coaches} placement={value} />
         <span aria-hidden className="pointer-events-none absolute z-20 -translate-x-1/2 -translate-y-1/2 w-6 h-6 rounded-full border-2 border-white shadow-[0_0_0_2px_rgba(0,0,0,0.4)]"
           style={{ left: `${marker.x}%`, top: `${marker.y}%`, background: "rgba(0,175,219,0.35)" }} />
         <span className="pointer-events-none absolute top-1.5 left-1.5 z-20 text-[9.5px] font-bold uppercase tracking-[0.08em] text-white/90 bg-black/45 rounded px-1.5 py-0.5">
-          Drag {active}{active === "coach" ? " up/down" : ""}
+          Drag {active === "coach2" ? "coach 2" : active === "coach3" ? "coach 3" : active}{active === "coach" ? " up/down" : ""}
         </span>
       </div>
 
@@ -165,7 +176,21 @@ export function TilePlacementEditor({ content, value, onChange }: {
           <>
             <Slider label="Size" value={p.coachScale} min={45} max={120} suffix="%" onChange={(v) => set({ coachScale: v })} />
             <Slider label="From bottom" value={p.coachBottom} min={-15} max={50} suffix="%" onChange={(v) => set({ coachBottom: v })} />
-            <p className="text-[11px] text-[var(--admin-fg-muted,#7a8a90)]">The coach&apos;s side position is locked so every tile lines up.</p>
+            <p className="text-[11px] text-[var(--admin-fg-muted,#7a8a90)]">The lead coach&apos;s side position is locked so every tile lines up.</p>
+          </>
+        )}
+        {active === "coach2" && (
+          <>
+            <Slider label="Size" value={p.coach2Scale} min={35} max={110} suffix="%" onChange={(v) => set({ coach2Scale: v })} />
+            <Slider label="From left" value={p.coach2X} min={-10} max={70} suffix="%" onChange={(v) => set({ coach2X: v })} />
+            <Slider label="From bottom" value={p.coach2Bottom} min={-15} max={50} suffix="%" onChange={(v) => set({ coach2Bottom: v })} />
+          </>
+        )}
+        {active === "coach3" && (
+          <>
+            <Slider label="Size" value={p.coach3Scale} min={35} max={110} suffix="%" onChange={(v) => set({ coach3Scale: v })} />
+            <Slider label="From left" value={p.coach3X} min={-10} max={70} suffix="%" onChange={(v) => set({ coach3X: v })} />
+            <Slider label="From bottom" value={p.coach3Bottom} min={-15} max={50} suffix="%" onChange={(v) => set({ coach3Bottom: v })} />
           </>
         )}
         {active === "flag" && hasFlag && (
@@ -190,7 +215,7 @@ export function TilePlacementEditor({ content, value, onChange }: {
             <div key={a.label}>
               <ScaledPreview r={a.r}>
                 <BrandedTile photo={content.photo} place={content.place} flag={content.flag}
-                  coachName={content.coachName} coachCutout={content.coachCutout} placement={value} />
+                  coachName={content.coachName} coachCutout={content.coachCutout} coaches={content.coaches} placement={value} />
               </ScaledPreview>
               <p className="text-[10px] text-[var(--admin-fg-muted,#7a8a90)] mt-0.5 leading-tight"><span className="font-bold text-[var(--admin-fg,#0a2a33)]">{a.label}</span></p>
             </div>

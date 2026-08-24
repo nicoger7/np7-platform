@@ -717,6 +717,14 @@ export default async function ExperienceDetailPage({ params, searchParams }: Pro
       .map((e) => ({ key: e.key, label: e.label, avg: Math.round((e.s / e.n) * 10) / 10 }));
   })();
 
+  // Hero review pill: overall average + count across the placed REAL reviews.
+  // Zero reviews → the pill yields to the old "How it works" button; a pill
+  // with no proof behind it would be an anti-testimonial.
+  const reviewCount = placedReviews.length;
+  const reviewAvg = reviewCount
+    ? Math.round((placedReviews.reduce((a: number, r: { rating: number }) => a + r.rating, 0) / reviewCount) * 10) / 10
+    : null;
+
   const reviewItems =
     placedReviews.length > 0
       ? placedReviews
@@ -831,7 +839,13 @@ export default async function ExperienceDetailPage({ params, searchParams }: Pro
                   {money(fromPrice, experience.currency) ? `Reserve your spot · from ${money(fromPrice, experience.currency)}` : "Reserve your spot"}
                 </Link>
               )}
-              <Link href="#method" className="px-7 py-4 rounded-full text-[14px] font-bold text-white border-[1.5px] border-white/40 hover:bg-white/10 transition-all">How it works</Link>
+              {reviewAvg != null ? (
+                <Link href="#reviews" className="inline-flex items-center gap-2 px-7 py-4 rounded-full text-[14px] font-bold text-white border-[1.5px] border-white/40 hover:bg-white/10 transition-all">
+                  <span className="text-[#ffd24a]">★</span> {reviewAvg.toFixed(1)} · {reviewCount} review{reviewCount === 1 ? "" : "s"}
+                </Link>
+              ) : (
+                <Link href="#method" className="px-7 py-4 rounded-full text-[14px] font-bold text-white border-[1.5px] border-white/40 hover:bg-white/10 transition-all">How it works</Link>
+              )}
             </div>
           </Reveal>
         </div>
@@ -1130,8 +1144,10 @@ export default async function ExperienceDetailPage({ params, searchParams }: Pro
               weekLabels={Object.fromEntries(editionsLite.map((e) => [e.id, e.label]))}
             />
           </Reveal>
+          {/* anchor for the hero's review pill — Reveal doesn't take an id */}
+          <span id="reviews" className="block scroll-mt-28" aria-hidden />
           <Reveal className="mb-8">
-            <p className="text-[11px] font-bold tracking-[0.25em] text-[#00afdb] mb-3">★ 5.0 — WHAT GUESTS SAY</p>
+            <p className="text-[11px] font-bold tracking-[0.25em] text-[#00afdb] mb-3">{reviewAvg != null ? `★ ${reviewAvg.toFixed(1)} — WHAT GUESTS SAY` : "★ 5.0 — WHAT GUESTS SAY"}</p>
             <h2 className="text-3xl sm:text-4xl font-black tracking-[-0.03em] text-[#00374a]">Moments &amp; new friends</h2>
             {catAverages.length > 0 && (
               <div className="mt-4 flex flex-wrap gap-2">
