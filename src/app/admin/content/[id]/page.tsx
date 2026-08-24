@@ -216,14 +216,11 @@ export default function ContentEditorPage({ params }: { params: Promise<{ id: st
       const arr = (Array.isArray(list) ? list : []) as any[];
       const head = arr.find((c) => /head/i.test(String(c.role ?? ""))) ?? arr[0];
       if (head) setHeadCoach({ name: head.name, cutout: head.cutout_url ?? null });
-      if (head) {
-        const extras = arr.filter((c) => c !== head && c.cutout_url).slice(0, 2)
-          .map((c) => ({ name: c.name as string, cutout: (c.cutout_url ?? null) as string | null }));
-        setPreviewCoaches([{ name: head.name, cutout: head.cutout_url ?? null }, ...extras]);
-      }
-      // Library crew is only the stand-in until an edition is picked — the
-      // effect below swaps in the REAL edition team (its list order decides
-      // who fronts the card, same rule the live tile follows).
+      // Stand-in is ONE coach, never a fabricated pair: padding with "other
+      // library coaches who happen to have cutouts" put Dennis on Bonaire's
+      // preview, a trip he doesn't coach. Real pairs come only from the
+      // edition-team effect below (list order, same rule the live tile follows).
+      if (head) setPreviewCoaches([{ name: head.name, cutout: head.cutout_url ?? null }]);
     }).catch(() => {});
     fetch("/api/admin/editions").then((r) => r.json()).then((d) => {
       const eds = (Array.isArray(d) ? d : []).filter((e: { experience_id: string }) => e.experience_id === id);
