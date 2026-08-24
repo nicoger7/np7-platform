@@ -4,7 +4,8 @@ import { WindMiniChart } from "@/components/experience/wind-mini-chart";
 import { DEFAULT_WEEK_INFO } from "@/lib/experience-defaults";
 import { notFound } from "next/navigation";
 import { includeLine } from "@/lib/include-line";
-import { REVIEW_CATEGORIES, categoryLabel } from "@/lib/review-categories";
+import { REVIEW_CATEGORIES } from "@/lib/review-categories";
+import { GuestReviews } from "@/components/experience/guest-reviews";
 import { packageLevelLabel } from "@/lib/package-levels";
 import type { Metadata } from "next";
 import { supabase } from "@/lib/supabase";
@@ -16,7 +17,6 @@ import { CrewCarousel, type Guide } from "@/components/experience/crew-carousel"
 import { ProgramForWeek, type ProgramDay } from "@/components/experience/program-for-week";
 import { OceanHeader, NP7_LOGO } from "@/components/experience/ocean-header";
 import { Reveal } from "@/components/experience/reveal";
-import { Carousel } from "@/components/experience/carousel";
 import { Accordion, type AccordionItem } from "@/components/experience/accordion";
 import { StickyCta } from "@/components/experience/sticky-cta";
 import { type RealPackage } from "@/components/experience/package-picker";
@@ -1134,44 +1134,17 @@ export default async function ExperienceDetailPage({ params, searchParams }: Pro
             <p className="text-[11px] font-bold tracking-[0.25em] text-[#00afdb] mb-3">★ 5.0 — WHAT GUESTS SAY</p>
             <h2 className="text-3xl sm:text-4xl font-black tracking-[-0.03em] text-[#00374a]">Moments &amp; new friends</h2>
             {catAverages.length > 0 && (
-              <p className="mt-3 text-[13px] font-semibold text-[#6a7a80]">
-                {catAverages.map((c, i) => (
-                  <span key={c.key}>{i > 0 && <span className="text-[#c9d3d6]"> · </span>}{c.label} <span className="text-[#00374a] font-bold">{c.avg.toFixed(1)}</span><span className="text-[#f5a623]">★</span></span>
+              <div className="mt-4 flex flex-wrap gap-2">
+                {catAverages.map((c) => (
+                  <span key={c.key} className="inline-flex items-center gap-1.5 rounded-full bg-white border border-[#e8e2d5] px-3 py-1.5 text-[12.5px] font-semibold text-[#5a6b72]">
+                    {c.label} <span className="font-black text-[#00374a]">{c.avg.toFixed(1)}</span><span className="text-[#f5a623] -ml-0.5">★</span>
+                  </span>
                 ))}
-              </p>
+              </div>
             )}
           </Reveal>
           <Reveal>
-            <Carousel label="Guest reviews">
-              {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
-              {reviewItems.map((m: any, i: number) => (
-                <article key={i} className="snap-start shrink-0 w-[280px] sm:w-[360px] relative rounded-3xl overflow-hidden h-[400px]">
-                  <div className="absolute inset-0 bg-cover bg-center" style={{ backgroundImage: `url('${m.image}')` }} />
-                  <div className="absolute inset-0 bg-gradient-to-t from-black/85 via-black/20 to-transparent" />
-                  {m.verified && (
-                    <span className="absolute top-4 right-4 inline-flex items-center gap-1 text-[10px] font-bold tracking-wide uppercase text-white bg-[#00afdb]/90 backdrop-blur px-2.5 py-1 rounded-full shadow-sm">
-                      <svg className="w-3 h-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><path d="M20 6L9 17l-5-5" /></svg>
-                      Verified
-                    </span>
-                  )}
-                  <div className="absolute bottom-0 p-7 text-white">
-                    <span className="text-[#ffd24a] text-sm">{"★".repeat(m.rating)}</span>
-                    <p className="text-[16px] font-bold leading-snug mt-3 mb-4">&ldquo;{m.quote}&rdquo;</p>
-                    {/* category stars — only on reviews that have them; older
-                        reviews render exactly the card they always did */}
-                    {m.cats && Object.keys(m.cats).length > 0 && (
-                      <p className="text-[11px] text-white/75 font-semibold mb-2.5 leading-relaxed">
-                        {Object.entries(m.cats as Record<string, number>).slice(0, 3).map(([k, v], ci) => (
-                          <span key={k}>{ci > 0 && " · "}{categoryLabel(k)} <span className="text-[#ffd24a]">{"★".repeat(Math.max(1, Math.min(5, Number(v))))}</span></span>
-                        ))}
-                        {Object.keys(m.cats).length > 3 ? " · …" : ""}
-                      </p>
-                    )}
-                    <p className="text-[13px] text-white/70 font-semibold">{m.name}{m.country ? ` · ${m.country}` : ""}</p>
-                  </div>
-                </article>
-              ))}
-            </Carousel>
+            <GuestReviews items={reviewItems} />
           </Reveal>
         </div>
       </section>
