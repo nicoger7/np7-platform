@@ -39,7 +39,9 @@ export function BrandedTile({
   coachName,
   coachCutout,
   coaches,
-  subtitle = "NP7 Windsurf Experience",
+  // Default empty — the place name carries the tile alone (Nico, 2026-08-25).
+  // Callers can still pass a line for special cards.
+  subtitle = "",
   placement,
   className = "",
 }: BrandedTileProps) {
@@ -138,9 +140,11 @@ export function BrandedTile({
         >
           {place}
         </h3>
-        <p className="mt-1 font-extrabold uppercase tracking-[0.015em] leading-tight text-white/95 text-[clamp(8.5px,2vw,11px)] drop-shadow-[0_2px_6px_rgba(0,0,0,0.6)]">
-          {subtitle}
-        </p>
+        {subtitle && (
+          <p className="mt-1 font-extrabold uppercase tracking-[0.015em] leading-tight text-white/95 text-[clamp(8.5px,2vw,11px)] drop-shadow-[0_2px_6px_rgba(0,0,0,0.6)]">
+            {subtitle}
+          </p>
+        )}
       </div>
 
       {/* 5a — extra coach cutouts (left-anchored; rendered first so the lead
