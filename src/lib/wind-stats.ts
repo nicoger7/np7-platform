@@ -30,14 +30,16 @@ export const BFT_META: { bft: Bft; color: string; label: string }[] = [
  * Vasiliki's Eric) blow through valleys a few km wide — invisible even to a
  * 7 km model, which then reports 2–14% for venues that deliver wind daily.
  * Publishing that number would be honest about the MODEL and a lie about the
- * SPOT. Rule: if even the best month can't reach 30% sailable days, the model
+ * SPOT. Rule: if even the best month can't reach 40% sailable days, the model
  * is blind here — callers fall back to the hand-typed wind copy instead.
+ * (40, not 30: with the gust clause Garda's best month reads 33% — still the
+ * model missing the Ora, and still nothing we'd put a bar chart on.)
  */
 export function statsAreBlind(stats: WindStats | null | undefined): boolean {
   const months = stats?.months;
   if (!months?.length) return true;
   const best = Math.max(...months.map((m) => m.dayPct ?? m.pct["4"] ?? 0));
-  return best < 30;
+  return best < 40;
 }
 
 export const MONTH_LABELS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
@@ -107,9 +109,9 @@ export type WindStats = {
   alt?: Omit<WindStats, "alt">;
 };
 
-type Hourly = { time: string[]; wind: (number | null)[]; temp: (number | null)[] };
-type RawHourly = { time?: string[]; wind_speed_10m?: (number | null)[]; temperature_2m?: (number | null)[] };
-const toHourly = (h?: RawHourly): Hourly | null => (h?.time?.length ? { time: h.time, wind: h.wind_speed_10m ?? [], temp: h.temperature_2m ?? [] } : null);
+type Hourly = { time: string[]; wind: (number | null)[]; temp: (number | null)[]; gust: (number | null)[] };
+type RawHourly = { time?: string[]; wind_speed_10m?: (number | null)[]; temperature_2m?: (number | null)[]; wind_gusts_10m?: (number | null)[] };
+const toHourly = (h?: RawHourly): Hourly | null => (h?.time?.length ? { time: h.time, wind: h.wind_speed_10m ?? [], temp: h.temperature_2m ?? [], gust: h.wind_gusts_10m ?? [] } : null);
 
 async function fetchHourly(url: string): Promise<Hourly | null> {
   const res = await fetch(url, { headers: { accept: "application/json" } });
@@ -127,7 +129,7 @@ async function fetchHourlyMulti(url: string): Promise<(Hourly | null)[]> {
   return arr.map((x: { hourly?: RawHourly }) => toHourly(x.hourly));
 }
 
-const HOURLY = "hourly=wind_speed_10m,temperature_2m&wind_speed_unit=kn&timezone=auto";
+const HOURLY = "hourly=wind_speed_10m,wind_gusts_10m,temperature_2m&wind_speed_unit=kn&timezone=auto";
 const ACCEL_RADIUS_KM = 12; // acceleration zones read true a few km offshore, not at the coastal pin
                             // (El Médano: pin 5 kn/10%, ring-max ~95% planing in Jul, 62% annual — matches reality)
 
@@ -144,7 +146,7 @@ function ringPoints(lat: number, lng: number, radiusKm: number): { lat: number; 
 }
 
 /** Aggregate hourly wind/temp into the monthly Beaufort climatology (daytime 09–18). */
-function monthsFromHourly({ time, wind, temp }: Hourly): { months: WindStatsMonth[]; windyMonths: number[]; warmestMonth: number | null; warmestTemp: number | null; planingScore: number } {
+function monthsFromHourly({ time, wind, temp, gust }: Hourly): { months: WindStatsMonth[]; windyMonths: number[]; warmestMonth: number | null; warmestTemp: number | null; planingScore: number } {
   const acc = Array.from({ length: 12 }, () => ({ total: 0, ge: { 3: 0, 4: 0, 5: 0, 6: 0, 7: 0 } as Record<number, number>, windSum: 0, tempSum: 0, tempN: 0 }));
   for (let k = 0; k < time.length; k++) {
     const t = time[k];
@@ -159,8 +161,13 @@ function monthsFromHourly({ time, wind, temp }: Hourly): { months: WindStatsMont
     if (tp != null) { a.tempSum += tp; a.tempN++; }
   }
   // Day-window pass: a DAY counts as sailable when it offers ≥2 consecutive
-  // hours at 4+ Bft between 11–19h local — the session a rider actually plans
-  // around on a thermal venue. Partial days at the series edges are skipped.
+  // hours of powered sailing between 11–19h local — 11+ kn MEAN, or 16+ kn
+  // GUSTS. The gust clause is what lets the model see thermal venues at all:
+  // a 7 km grid smears Alaçatı's venturi into 9 kn mean while the gust field
+  // still carries the punch a rider actually planes on (measured: Alaçatı Aug
+  // 57%→72% of days, Vasiliki 8%→65% — both finally resembling the venue).
+  // 16 kn gusts is deliberately the conservative line: real powered sailing,
+  // not drifting days counted pretty. Partial days at the series edges skip.
   const dayAcc = Array.from({ length: 12 }, () => ({ days: 0, sail: 0 }));
   {
     let curDate = "", month = 0, run = 0, best = 0, hoursSeen = 0;
@@ -177,7 +184,8 @@ function monthsFromHourly({ time, wind, temp }: Hourly): { months: WindStatsMont
       const w = wind[k];
       if (w == null) continue;
       hoursSeen++;
-      run = w >= BEAUFORT_KN[4] ? run + 1 : 0;
+      const g = gust[k];
+      run = w >= BEAUFORT_KN[4] || (g != null && g >= 16) ? run + 1 : 0;
       if (run > best) best = run;
     }
     flush();

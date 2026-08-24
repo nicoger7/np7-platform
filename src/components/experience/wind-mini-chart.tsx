@@ -69,7 +69,7 @@ export function WindMiniChart({
         ))}
       </div>
       <p className="text-[11px] text-[#9aa6ac] mt-2 leading-snug">
-        Days with a real session window — 2h+ of sailing wind (11+ kn) between 11–19h. Source: Open-Meteo {years} — measured, not our estimate.
+        Days with a real session window — 2h+ of 11+ kn wind (or 16+ kn gusts), 11–19h. Source: Open-Meteo {years} — measured, not our estimate.
       </p>
     </div>
   );
