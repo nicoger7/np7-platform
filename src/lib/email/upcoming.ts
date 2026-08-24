@@ -71,22 +71,46 @@ export async function getUpcomingMails(now = new Date()): Promise<{
   // One count query for every edition rather than one per mail.
   const { data: bookings } = await db
     .from("exp_bookings")
-    .select("edition_id, status, downpayment_received")
+    .select("id, edition_id, status, downpayment_received")
     .in("edition_id", live.map((e: { id: string }) => e.id));
 
-  const securedByEdition = new Map<string, number>();
-  for (const b of (bookings ?? []) as { edition_id: string | null; status: string | null; downpayment_received: boolean | null }[]) {
-    if (!b.edition_id) continue;
+  // A paid deposit does not resurrect a dead booking: Alaçatı's forecast said
+  // "18 guests" while the cron correctly mailed 15, because three LOST bookings
+  // had their downpayment flag still set (guests who paid, then dropped out).
+  // The cron never mails lost — neither may the forecast count them.
+  const securedByEdition = new Map<string, string[]>();
+  for (const b of (bookings ?? []) as { id: string; edition_id: string | null; status: string | null; downpayment_received: boolean | null }[]) {
+    if (!b.edition_id || b.status === "lost") continue;
     const secured = b.downpayment_received || SECURED.includes(String(b.status));
-    if (secured) securedByEdition.set(b.edition_id, (securedByEdition.get(b.edition_id) ?? 0) + 1);
+    if (secured) securedByEdition.set(b.edition_id, [...(securedByEdition.get(b.edition_id) ?? []), b.id]);
+  }
+
+  // What already WENT OUT stops being a forecast. Without this, "Thank you +
+  // review · today" sat on the dashboard all day after the mails were sent.
+  // One query: sent rows for these bookings and these templates; each mail's
+  // recipient count below is only the bookings still waiting.
+  const sent = new Set<string>();
+  {
+    const allIds = [...securedByEdition.values()].flat();
+    if (allIds.length) {
+      const { data: sentRows } = await db
+        .from("email_log")
+        .select("booking_id, template_key")
+        .eq("status", "sent")
+        .in("template_key", ANCHORS.map((a) => a.key))
+        .in("booking_id", allIds);
+      for (const r of (sentRows ?? []) as { booking_id: string | null; template_key: string | null }[]) {
+        if (r.booking_id && r.template_key) sent.add(`${r.template_key}:${r.booking_id}`);
+      }
+    }
   }
 
   const today = new Date(now.toISOString().slice(0, 10) + "T00:00:00Z").getTime();
   const out: UpcomingMail[] = [];
 
   for (const ed of live) {
-    const recipients = securedByEdition.get(ed.id) ?? 0;
-    if (!recipients) continue; // nothing to send, nothing to warn about
+    const securedIds = securedByEdition.get(ed.id) ?? [];
+    if (!securedIds.length) continue; // nothing to send, nothing to warn about
 
     // Resolve content once per edition, not once per mail.
     const { values } = await resolveEditionContent(ed.id).catch(() => ({ values: {} as Record<string, string | null> }));
@@ -99,6 +123,11 @@ export async function getUpcomingMails(now = new Date()): Promise<{
       const sendAt = a.beforeStart != null ? base - a.beforeStart * DAY : base + (a.afterEnd ?? 0) * DAY;
       const daysAway = Math.round((sendAt - today) / DAY);
       if (daysAway < 0 || daysAway > HORIZON_DAYS) continue;
+
+      // Only bookings this mail has NOT yet reached. A fully-sent mail
+      // disappears from the panel; a partial failure honestly shows the rest.
+      const recipients = securedIds.filter((id) => !sent.has(`${a.key}:${id}`)).length;
+      if (!recipients) continue;
 
       const blocking = MAIL_REQUIREMENTS[a.key]?.blocking ?? [];
       const missing = blocking.filter((k) => !values[k]);
