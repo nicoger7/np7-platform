@@ -31,6 +31,8 @@ const SECURED = ["confirmed", "downpayment_paid", "paid", "attended"];
 
 const DAY = 86_400_000;
 const HORIZON_DAYS = 45;
+/** When the daily lifecycle cron fires — mirrors vercel.json ("0 9 * * *"). */
+const CRON_HOUR_UTC = 9;
 
 export type UpcomingMail = {
   templateKey: string;
@@ -38,6 +40,8 @@ export type UpcomingMail = {
   editionId: string;
   editionTitle: string;
   sendDate: string;
+  /** The actual send instant (next cron run on/after the due day), ISO. */
+  sendAt: string;
   daysAway: number;
   recipients: number;
   /** blocking content that is still missing — the mail will be held back */
@@ -120,9 +124,16 @@ export async function getUpcomingMails(now = new Date()): Promise<{
       const anchor = a.beforeStart != null ? ed.date_start : ed.date_end ?? ed.date_start;
       if (!anchor) continue;
       const base = new Date(anchor + "T00:00:00Z").getTime();
-      const sendAt = a.beforeStart != null ? base - a.beforeStart * DAY : base + (a.afterEnd ?? 0) * DAY;
-      const daysAway = Math.round((sendAt - today) / DAY);
-      if (daysAway < 0 || daysAway > HORIZON_DAYS) continue;
+      const dueDay = a.beforeStart != null ? base - a.beforeStart * DAY : base + (a.afterEnd ?? 0) * DAY;
+      if (Math.round((dueDay - today) / DAY) < 0) continue;
+      // The cron fires once a day at 09:00 UTC. A mail whose day has arrived
+      // but whose run has already passed — held for content, or content added
+      // after the run — actually goes out at the NEXT run, so that is the
+      // instant shown, not a time that lies in the past.
+      let sendAtMs = dueDay + CRON_HOUR_UTC * 3_600_000;
+      while (sendAtMs < now.getTime()) sendAtMs += DAY;
+      const daysAway = Math.round((sendAtMs - CRON_HOUR_UTC * 3_600_000 - today) / DAY);
+      if (daysAway > HORIZON_DAYS) continue;
 
       // Only bookings this mail has NOT yet reached. A fully-sent mail
       // disappears from the panel; a partial failure honestly shows the rest.
@@ -137,7 +148,8 @@ export async function getUpcomingMails(now = new Date()): Promise<{
         label: a.label,
         editionId: ed.id,
         editionTitle: title,
-        sendDate: new Date(sendAt).toISOString().slice(0, 10),
+        sendDate: new Date(sendAtMs).toISOString().slice(0, 10),
+        sendAt: new Date(sendAtMs).toISOString(),
         daysAway,
         recipients,
         missing,

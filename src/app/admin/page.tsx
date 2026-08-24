@@ -411,7 +411,7 @@ interface DashboardData {
   photoTasks?: { editionId: string; label: string; total: number; missing: { id: string; name: string }[] }[];
   upcomingMails?: {
     paused: boolean;
-    mails: { templateKey: string; label: string; editionId: string; editionTitle: string; sendDate: string; daysAway: number; recipients: number; missing: string[] }[];
+    mails: { templateKey: string; label: string; editionId: string; editionTitle: string; sendDate: string; sendAt?: string; daysAway: number; recipients: number; missing: string[] }[];
   };
   readiness?: {
     id: string; title: string; status: string | null; websiteVisible: boolean; nextStart: string | null;
@@ -615,8 +615,15 @@ function ExperienceDashboard() {
               {d.upcomingMails.mails.slice(0, 8).map((m) => (
                 <Link key={`${m.editionId}:${m.templateKey}`} href={`/admin/editions/${m.editionId}?tab=mailing`}
                   className="flex items-center gap-3 text-xs py-1.5 px-2 -mx-2 rounded-lg hover:bg-[var(--admin-surface-hover)]">
-                  <span className={`shrink-0 w-14 text-right font-bold ${m.daysAway <= 3 ? "text-amber-500" : "admin-muted"}`}>
-                    {m.daysAway === 0 ? "today" : `${m.daysAway}d`}
+                  <span className={`shrink-0 w-14 text-right ${m.daysAway <= 3 ? "text-amber-500" : "admin-muted"}`}>
+                    <span className="block font-bold">{m.daysAway === 0 ? "today" : `${m.daysAway}d`}</span>
+                    {/* Client component → the browser renders the cron's UTC
+                        instant in the viewer's own timezone. */}
+                    {m.sendAt && (
+                      <span className="block text-[10px] font-semibold admin-faint">
+                        {new Date(m.sendAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
+                      </span>
+                    )}
                   </span>
                   <span className="flex-1 min-w-0">
                     <span className="block admin-heading truncate">{m.label}</span>
