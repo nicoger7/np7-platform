@@ -167,39 +167,46 @@ export function EpicWeekScroll({
 
   const img = (i: number) => (images.length ? images[i % images.length] : null);
 
+  // The level switcher sits ABOVE the whole module — its own centred moment,
+  // not a control buried in a text column. A quiet "SEE THE WEEK AS" line, then
+  // one white segmented pill. Shared by both layout modes; absent entirely on
+  // one-level experiences.
+  const levelSwitcher = variants ? (
+    <div className="bg-[#f6f9fa] pt-12 sm:pt-16 pb-1 text-center">
+      <p className="text-[10.5px] font-bold tracking-[0.3em] uppercase text-[#8aa0a8] mb-3.5">See the week as</p>
+      <div className="inline-flex items-center gap-1 rounded-full bg-white border border-[#e2e9ec] p-1.5 shadow-[0_10px_34px_rgba(0,55,74,0.10)]" role="tablist" aria-label="Coaching level">
+        {variants.map((v, i) => {
+          const on = i === levelIdx;
+          return (
+            <button
+              key={v.key} type="button" role="tab" aria-selected={on}
+              onClick={() => setLevelIdx(i)}
+              className={`px-7 sm:px-9 py-2.5 rounded-full text-[14.5px] sm:text-[15px] font-bold transition-all ${
+                on ? "bg-[#00afdb] text-white shadow-[0_6px_18px_rgba(0,175,219,0.35)]" : "text-[#5a6b72] hover:text-[#00374a]"
+              }`}
+            >
+              {v.label}
+            </button>
+          );
+        })}
+      </div>
+    </div>
+  ) : null;
+
   // ---- static fallback: clean wrapping grid (mobile / reduced-motion) ------
   if (!enabled) {
     return (
-      <section className="py-14 sm:py-20 bg-[#f6f9fa] text-[#00374a]">
+      <>
+      {levelSwitcher}
+      <section className={`${variants ? "pt-7 sm:pt-9" : "pt-14 sm:pt-20"} pb-14 sm:pb-20 bg-[#f6f9fa] text-[#00374a]`}>
         <div className="max-w-[1080px] mx-auto px-5 sm:px-8">
           <div className="max-w-[640px] mb-8 sm:mb-10">
             <p className="text-[11px] font-bold tracking-[0.25em] text-[#00afdb] mb-3">{eyebrow}</p>
-            {/* level switcher — ABOVE the headline: "who are you?" comes before
-                the promise, and half-hidden under the intro nobody found it */}
-            {variants && (
-              <div className="flex flex-wrap gap-2 mb-4" role="tablist" aria-label="Coaching level">
-                {variants.map((v, i) => {
-                  const on = i === levelIdx;
-                  return (
-                    <button
-                      key={v.key} type="button" role="tab" aria-selected={on}
-                      onClick={() => setLevelIdx(i)}
-                      className={`px-5 py-2 rounded-full text-[14px] font-bold transition-all ${
-                        on ? "bg-[#00afdb] text-white shadow-[0_4px_16px_rgba(0,175,219,0.35)]" : "bg-white text-[#5a6b72] border-[1.5px] border-[#c8d4d8] hover:border-[#00afdb] hover:text-[#00374a]"
-                      }`}
-                    >
-                      {v.label}
-                    </button>
-                  );
-                })}
-              </div>
-            )}
             <h2 className="text-[28px] sm:text-5xl font-black tracking-[-0.03em] leading-[1.08] mb-3 sm:mb-4">{title}</h2>
             <p className="text-[15px] sm:text-[16px] text-[#6a7a80] leading-relaxed">{intro}</p>
             {weekInfo && <p className="text-[14px] text-[#7a8a90] leading-relaxed mt-3 whitespace-pre-line">{weekInfo}</p>}
           </div>
-          <div className="max-w-[640px]">
-          </div>
+
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             {outcomes.map((o, i) => (
               <Reveal key={o.t} as="article" from="up" delay={(i % 2) * 90} className="relative min-h-[230px] sm:min-h-[250px] rounded-3xl overflow-hidden bg-[#012c3b] flex flex-col justify-end">
@@ -215,11 +222,14 @@ export function EpicWeekScroll({
           </div>
         </div>
       </section>
+      </>
     );
   }
 
   // ---- pinned scroll -------------------------------------------------------
   return (
+    <>
+    {levelSwitcher}
     <section ref={sectionRef} className="relative bg-[#f6f9fa]" style={{ height: `${N * 80 + 50}vh` }}>
       <div ref={innerRef} className="sticky top-0 h-[100svh] overflow-hidden text-[#00374a]">
         {/* soft light backdrop — cool sea glow + a warm sun glow (sun to sea) */}
@@ -241,24 +251,6 @@ export function EpicWeekScroll({
           {/* overview */}
           <div className="relative">
             <p className="text-[11px] font-bold tracking-[0.25em] text-[#00afdb] mb-3">{eyebrow}</p>
-            {variants && (
-              <div className="flex flex-wrap gap-2 mb-4" role="tablist" aria-label="Coaching level">
-                {variants.map((v, i) => {
-                  const on = i === levelIdx;
-                  return (
-                    <button
-                      key={v.key} type="button" role="tab" aria-selected={on}
-                      onClick={() => setLevelIdx(i)}
-                      className={`px-5 py-2 rounded-full text-[14px] font-bold transition-all ${
-                        on ? "bg-[#00afdb] text-white shadow-[0_4px_16px_rgba(0,175,219,0.35)]" : "bg-white text-[#5a6b72] border-[1.5px] border-[#c8d4d8] hover:border-[#00afdb] hover:text-[#00374a]"
-                      }`}
-                    >
-                      {v.label}
-                    </button>
-                  );
-                })}
-              </div>
-            )}
             <h2 className="text-2xl sm:text-[34px] font-black tracking-[-0.03em] text-[#00374a] mb-3 leading-[1.06]">{title}</h2>
             <p className="text-[13.5px] text-[#6a7a80] leading-relaxed mb-5 hidden lg:block">{intro}</p>
             {/* "About the week" from the admin. It rendered ONLY in the static
@@ -302,5 +294,6 @@ export function EpicWeekScroll({
         .epic-card { transition: none; opacity: 0; }
       `}</style>
     </section>
+    </>
   );
 }
