@@ -198,6 +198,9 @@ export async function PUT(
     hero_video_start: toSeconds(body.hero_video_start),
     hero_video_end: toSeconds(body.hero_video_end),
     card_placement: body.card_placement && typeof body.card_placement === "object" ? body.card_placement : {},
+    // Crew override for the generated tile (array of coach ids, lead first);
+    // empty/absent = automatic (the next week's team).
+    tile_coaches: Array.isArray(body.tile_coaches) ? body.tile_coaches.filter((x: unknown) => typeof x === "string").slice(0, 3) : null,
     gallery,
     reviews,
     no_wind_program: typeof body.no_wind_program === "string" ? body.no_wind_program : "",
@@ -231,9 +234,9 @@ export async function PUT(
 
   // Pre-migration-110 fallback: if the placement columns don't exist yet, retry
   // without them so content still saves.
-  if (error && /(card_placement|hero_focus)/.test(error.message || "")) {
+  if (error && /(card_placement|hero_focus|tile_coaches)/.test(error.message || "")) {
     // eslint-disable-next-line @typescript-eslint/no-unused-vars
-    const { card_placement: _cp, hero_focus: _hf, hero_focus_shapes: _hfs2, ...rest } = row;
+    const { card_placement: _cp, hero_focus: _hf, hero_focus_shapes: _hfs2, tile_coaches: _tc, ...rest } = row;
     ({ data, error } = await db.from("exp_content").upsert(rest, { onConflict: "experience_id" }).select().single());
   }
 

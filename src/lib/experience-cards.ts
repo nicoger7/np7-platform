@@ -123,10 +123,18 @@ export async function getExperienceCards(viewer?: { tierKey: "rider" | "crew" | 
   // Per-experience card placement overrides (migration 110). Tolerant: the
   // column may not exist yet → empty map → every tile uses the built-in layout.
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const { data: placementRows } = await (supabase as any).from("exp_content").select("experience_id,card_placement");
+  const { data: placementRows } = await (supabase as any).from("exp_content").select("experience_id,card_placement,tile_coaches");
   const placementByExp = new Map<string, TilePlacement>();
+  // Per-experience crew OVERRIDE for the tile: the card is experience-level
+  // while teams are per-week, so a one-coach week starved the card of its
+  // second cutout even when the experience has more coaches. Ids resolve
+  // against the coach library below; empty = automatic (next week's team).
+  const tileCoachIdsByExp = new Map<string, string[]>();
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  for (const r of ((placementRows ?? []) as any[])) if (r.card_placement && typeof r.card_placement === "object") placementByExp.set(r.experience_id, r.card_placement);
+  for (const r of ((placementRows ?? []) as any[])) {
+    if (r.card_placement && typeof r.card_placement === "object") placementByExp.set(r.experience_id, r.card_placement);
+    if (Array.isArray(r.tile_coaches) && r.tile_coaches.length) tileCoachIdsByExp.set(r.experience_id, r.tile_coaches.filter((x: unknown) => typeof x === "string"));
+  }
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const { data: coachRows } = await (supabase as any).from("exp_coaches").select("*");
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -237,7 +245,17 @@ export async function getExperienceCards(viewer?: { tierKey: "rider" | "crew" | 
       tileAuto: autoIds.has(exp.id),
       coachName: coach?.name ?? named,
       coachCutout: coach?.cutout ?? null,
-      coaches: exp.ed?.id ? (crewByEdition.get(exp.ed.id) ?? null) : null,
+      coaches: (() => {
+        const ids = tileCoachIdsByExp.get(exp.id);
+        if (ids?.length) {
+          const picked = ids
+            .map((cid) => coachList.find((c) => c.id === cid))
+            .filter(Boolean)
+            .map((c) => ({ name: c.name as string, cutout: (c.cutout_url ?? null) as string | null }));
+          if (picked.length) return picked.slice(0, 3);
+        }
+        return exp.ed?.id ? (crewByEdition.get(exp.ed.id) ?? null) : null;
+      })(),
       placement: placementByExp.get(exp.id) ?? null,
       // The genius-style hint: the launch price is public; a signed-in Crew/
       // Legend sees the combined figure (launch + tier stack additively).

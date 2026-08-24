@@ -52,6 +52,10 @@ export default function ContentEditorPage({ params }: { params: Promise<{ id: st
   // cutouts (the real card uses the week's own coaches — this is the editor's
   // stand-in, same approximation the single-coach preview always made).
   const [previewCoaches, setPreviewCoaches] = useState<{ name: string; cutout: string | null }[]>([]);
+  // The whole coach library (for the card-crew override picker) and the
+  // override itself: up to three coach ids, lead first. Empty = automatic.
+  const [coachLib, setCoachLib] = useState<{ id: string; name: string; cutout: string | null }[]>([]);
+  const [tileCoaches, setTileCoaches] = useState<string[]>([]);
   const [destination, setDestination] = useState<{ name: string; slug: string | null; text: string } | null>(null);
 
   // images
@@ -148,6 +152,7 @@ export default function ContentEditorPage({ params }: { params: Promise<{ id: st
         setTileImage(c.tile_image ?? "");
         setTileAuto(!!c.tile_auto);
         setCardPlacement(c.card_placement && typeof c.card_placement === "object" ? c.card_placement : {});
+        setTileCoaches(Array.isArray(c.tile_coaches) ? c.tile_coaches.filter((x: unknown) => typeof x === "string") : []);
         setHeroImage(c.hero_image ?? "");
         setHeroFocus(c.hero_focus ?? null);
         setHeroVideo(c.hero_video_url ?? "");
@@ -216,6 +221,7 @@ export default function ContentEditorPage({ params }: { params: Promise<{ id: st
       const arr = (Array.isArray(list) ? list : []) as any[];
       const head = arr.find((c) => /head/i.test(String(c.role ?? ""))) ?? arr[0];
       if (head) setHeadCoach({ name: head.name, cutout: head.cutout_url ?? null });
+      setCoachLib(arr.map((c) => ({ id: String(c.id), name: String(c.name ?? ""), cutout: (c.cutout_url ?? null) as string | null })));
       // Stand-in is ONE coach, never a fabricated pair: padding with "other
       // library coaches who happen to have cutouts" put Dennis on Bonaire's
       // preview, a trip he doesn't coach. Real pairs come only from the
@@ -304,6 +310,7 @@ export default function ContentEditorPage({ params }: { params: Promise<{ id: st
         tile_image: tileImage,
         tile_auto: tileAuto,
         card_placement: cardPlacement,
+        tile_coaches: tileCoaches.filter(Boolean),
         page_template: pageTemplate,
         event_mode: eventMode,
         event_deposit_pct: eventDepositPct,
@@ -418,6 +425,28 @@ export default function ContentEditorPage({ params }: { params: Promise<{ id: st
               it across every real tile shape (the public card is fluid-width) */}
           {tileAuto && tileImage && (
             <div className="mt-4 max-w-[620px]">
+              {/* Card crew override — the card is EXPERIENCE-level while teams
+                  are per-week; a one-coach week starved the card of its second
+                  cutout even when the experience has more coaches. */}
+              <div className="mb-4">
+                <p className="text-xs font-semibold admin-muted mb-1">Card crew <span className="admin-faint font-normal">— who fronts the generated card. Automatic = the next week&apos;s team.</span></p>
+                <div className="flex flex-wrap gap-2">
+                  {[0, 1, 2].map((i) => (
+                    <select key={i} className="admin-input border rounded-lg px-2 py-1.5 text-sm"
+                      value={tileCoaches[i] ?? ""}
+                      onChange={(e) => setTileCoaches((arr2) => {
+                        const next = [...arr2];
+                        next[i] = e.target.value;
+                        return next.filter(Boolean).length ? next : [];
+                      })}>
+                      <option value="">{i === 0 ? "Automatic (next week's team)" : "—"}</option>
+                      {coachLib.map((c) => (
+                        <option key={c.id} value={c.id}>{c.name}{c.cutout ? "" : " (no cutout)"}</option>
+                      ))}
+                    </select>
+                  ))}
+                </div>
+              </div>
               <p className="text-xs admin-faint mb-2">Fine-tune the card — drag to place the photo, coach and flag:</p>
               <TilePlacementEditor
                 content={{
@@ -426,7 +455,14 @@ export default function ContentEditorPage({ params }: { params: Promise<{ id: st
                   flag: flagFromLocation(location),
                   coachName: headCoach?.name ?? null,
                   coachCutout: headCoach?.cutout ?? null,
-                  coaches: previewCoaches.length ? previewCoaches : undefined,
+                  coaches: (() => {
+                    const picked = tileCoaches
+                      .map((cid) => coachLib.find((c) => c.id === cid))
+                      .filter(Boolean)
+                      .map((c) => ({ name: c!.name, cutout: c!.cutout }));
+                    if (picked.length) return picked;
+                    return previewCoaches.length ? previewCoaches : undefined;
+                  })(),
                 }}
                 value={cardPlacement}
                 onChange={setCardPlacement}
