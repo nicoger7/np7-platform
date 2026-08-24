@@ -221,6 +221,9 @@ export default function ContentEditorPage({ params }: { params: Promise<{ id: st
           .map((c) => ({ name: c.name as string, cutout: (c.cutout_url ?? null) as string | null }));
         setPreviewCoaches([{ name: head.name, cutout: head.cutout_url ?? null }, ...extras]);
       }
+      // Library crew is only the stand-in until an edition is picked — the
+      // effect below swaps in the REAL edition team (its list order decides
+      // who fronts the card, same rule the live tile follows).
     }).catch(() => {});
     fetch("/api/admin/editions").then((r) => r.json()).then((d) => {
       const eds = (Array.isArray(d) ? d : []).filter((e: { experience_id: string }) => e.experience_id === id);
@@ -228,6 +231,26 @@ export default function ContentEditorPage({ params }: { params: Promise<{ id: st
       if (eds[0]) setEditionId((prev) => prev || eds[0].id);
     });
   }, [id]);
+
+  // The tile preview shows the SELECTED edition's own team, in its list order —
+  // the library head-coach above is only the fallback before an edition loads.
+  // Without this, the preview said "with NICO PRIEN" while the edition listed
+  // Dennis first, and the live card (which follows the list) disagreed.
+  useEffect(() => {
+    if (!editionId) return;
+    fetch(`/api/admin/editions/${editionId}/coaches`).then((r) => r.json()).then((rows) => {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const list = (Array.isArray(rows) ? rows : []) as any[];
+      const crew = list
+        .map((r) => ({ name: (r.name_override ?? r.exp_coaches?.name ?? "") as string, cutout: (r.exp_coaches?.cutout_url ?? null) as string | null }))
+        .filter((c) => c.name);
+      if (!crew.length) return; // edition without a team → keep the library stand-in
+      const lead = crew[0];
+      const extras = crew.slice(1).filter((c) => c.cutout).slice(0, 2);
+      setPreviewCoaches([lead, ...extras]);
+      setHeadCoach(lead);
+    }).catch(() => {});
+  }, [editionId]);
 
   function applyPicked(url: string) {
     if (!picker) return;

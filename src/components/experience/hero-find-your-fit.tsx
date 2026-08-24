@@ -60,6 +60,10 @@ export function HeroFindYourFit({ src, poster, fallbackImages, children }: { src
   const activeRef = useRef(0);
   const [active, setActive] = useState(0);
   const [mode, setMode] = useState<"video" | "static">("video");
+  // Inverted loading (Nico): the slideshow is the STARTING state, and the
+  // video only takes over once it is fully in memory and scrub-ready. A laggy
+  // first scroll is impossible — worst case the photos simply stay.
+  const [videoReady, setVideoReady] = useState(false);
 
   useEffect(() => {
     if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) { setMode("static"); return; }
@@ -67,22 +71,17 @@ export function HeroFindYourFit({ src, poster, fallbackImages, children }: { src
     if (!wrap || !video) return;
     let duration = 0, ready = false, current = 0;
     const onMeta = () => { duration = video.duration || 0; ready = duration > 0; video.play().then(() => video.pause()).catch(() => {}); };
-    const onError = () => setMode("static");
+    const onError = () => setVideoReady(false); // slideshow stays — the failure state IS the loading state
     video.addEventListener("loadedmetadata", onMeta);
     video.addEventListener("error", onError);
     // If metadata already loaded before this listener attached (cached / fast load),
     // the event won't fire again — prime it now so scrubbing actually starts.
     if (video.readyState >= 1 && video.duration) onMeta();
-    // A slow connection never fires `error` — the video just stalls behind the
-    // poster and the scroll story scrubs nothing. If metadata hasn't arrived
-    // after 6s, stop waiting and run the photo slideshow instead.
-    const stall = window.setTimeout(() => { if (!ready) setMode("static"); }, 6000);
-
-    // Smoothness is memory, not codec: the clip is already all-intra, but
-    // scrubbing over the NETWORK stutters — every seek into an unbuffered
-    // range is its own HTTP fetch. So the whole file (~12 MB) is pulled once
-    // into a blob; after the swap every seek decodes from RAM. If the fetch
-    // fails or the visitor leaves first, the network `src` keeps working.
+    // Smoothness is memory, not codec: the whole clip (~12 MB) is pulled once
+    // into a blob, and ONLY then does the video replace the slideshow — every
+    // seek decodes from RAM, so the first scroll is as smooth as the last.
+    // Fetch fails → the slideshow simply stays; nothing to time out, nothing
+    // to judder.
     let blobUrl = "";
     fetch(video.currentSrc || video.src)
       .then((r) => (r.ok ? r.blob() : Promise.reject(new Error(String(r.status)))))
@@ -91,10 +90,12 @@ export function HeroFindYourFit({ src, poster, fallbackImages, children }: { src
         blobUrl = URL.createObjectURL(b);
         const keep = video.currentTime;
         video.src = blobUrl;
-        // metadata re-fires from the blob (instant); restore the scrub position
-        video.addEventListener("loadedmetadata", () => { try { video.currentTime = keep; } catch { /* fine */ } }, { once: true });
+        video.addEventListener("loadedmetadata", () => {
+          try { video.currentTime = keep; } catch { /* fine */ }
+          setVideoReady(true); // memory-backed and scrub-ready — fade the photos out
+        }, { once: true });
       })
-      .catch(() => { /* network src stays — worse but working */ });
+      .catch(() => { /* slideshow keeps the hero — worse but beautiful */ });
 
     const progress = () => {
       const dist = wrap.offsetHeight - window.innerHeight;
@@ -151,7 +152,7 @@ export function HeroFindYourFit({ src, poster, fallbackImages, children }: { src
     const io = new IntersectionObserver(([e]) => { running = e.isIntersecting; if (running && !raf) raf = requestAnimationFrame(tick); else if (!running && raf) { cancelAnimationFrame(raf); raf = 0; } }, { threshold: 0 });
     io.observe(wrap);
     raf = requestAnimationFrame(tick);
-    return () => { running = false; clearTimeout(stall); cancelAnimationFrame(raf); io.disconnect(); video.removeEventListener("loadedmetadata", onMeta); video.removeEventListener("error", onError); if (blobUrl) URL.revokeObjectURL(blobUrl); };
+    return () => { running = false; cancelAnimationFrame(raf); io.disconnect(); video.removeEventListener("loadedmetadata", onMeta); video.removeEventListener("error", onError); if (blobUrl) URL.revokeObjectURL(blobUrl); };
   }, []);
 
   function goTo(i: number) {
@@ -229,6 +230,14 @@ export function HeroFindYourFit({ src, poster, fallbackImages, children }: { src
         {/* video backdrop — runs the whole way, then fades out into the ocean */}
         <div ref={zoomRef} className="absolute inset-0 will-change-transform">
           <video ref={videoRef} src={src} poster={poster} muted playsInline preload="auto" tabIndex={-1} aria-hidden disablePictureInPicture className="absolute inset-0 w-full h-full object-cover pointer-events-none" />
+          {/* The photos ARE the loading state: they cover the video until it is
+              memory-backed, then fade away. Slow connections never see a stutter
+              — they see a slideshow that happens to become a video. */}
+          {fallbackImages && fallbackImages.length > 1 && (
+            <div className={`absolute inset-0 transition-opacity duration-1000 ${videoReady ? "opacity-0 pointer-events-none" : "opacity-100"}`} aria-hidden>
+              <Slideshow images={fallbackImages} interval={6000} />
+            </div>
+          )}
         </div>
         <div ref={sunWashRef} className="absolute inset-0 will-change-[opacity]" style={{ opacity: 0.6 }}>{sunWash}</div>
         {/* readability vignette — dark top & bottom for the cards/detail, clear centre */}
