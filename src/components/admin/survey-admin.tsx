@@ -48,7 +48,7 @@ export function SurveyAdmin({ initialSurvey, initialInvites }: { initialSurvey: 
         body: JSON.stringify({
           title: s.title, intro: s.intro, status: s.status, destinations: s.destinations, weeks: s.weeks,
           budget_anchor: s.budget_anchor, budget_min: s.budget_min, budget_max: s.budget_max, currency: s.currency,
-          quick: s.quick, eyebrow: s.eyebrow, cta_label: s.cta_label, decline_label: s.decline_label, show_decline: s.show_decline, email_body: s.email_body, ask_wishes: s.ask_wishes, email_date_buttons: s.email_date_buttons, email_button_label: s.email_button_label,
+          quick: s.quick, eyebrow: s.eyebrow, personal_note: s.personal_note, cta_label: s.cta_label, decline_label: s.decline_label, show_decline: s.show_decline, email_body: s.email_body, ask_wishes: s.ask_wishes, email_date_buttons: s.email_date_buttons, email_button_label: s.email_button_label,
         }),
       });
       // A failed save used to do NOTHING — no message, and the "Saved 14:02"
@@ -221,6 +221,8 @@ export function SurveyAdmin({ initialSurvey, initialInvites }: { initialSurvey: 
         <label className="block mb-3">
           <span className={lbl}>Small line above the title <span className="font-normal normal-case opacity-70">— gold, uppercase. Also becomes the browser-tab title. Empty = &ldquo;By private invitation&rdquo; · a single space hides it</span></span>
           <input className={`${input} mt-1`} value={s.eyebrow ?? ""} onChange={(e) => patch({ eyebrow: e.target.value === "" ? null : e.target.value })} placeholder="By private invitation" />
+          <label className="block text-xs font-semibold admin-muted mt-3">Personal note <span className="admin-faint font-normal">— the gold line; {"{name}"} becomes the invitee&apos;s first name; leave empty for the default, a single space hides it</span></label>
+          <input className={`${input} mt-1`} value={s.personal_note ?? ""} onChange={(e) => patch({ personal_note: e.target.value === "" ? null : e.target.value })} placeholder="Hey {name} — you're one of the few we're asking. 🤙" />
         </label>
         <label className="block mb-3">
           <span className={lbl}>Intro (shown on the form + email)</span>

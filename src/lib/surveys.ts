@@ -60,6 +60,9 @@ export type Survey = {
   quick: boolean;
   /** Small gold line above the hero title. null = "By private invitation", "" = hidden. */
   eyebrow: string | null;
+  /** The gold line under the hero copy; {name} = invitee's first name.
+   *  null = default line, "" (or blank) = hidden. Migration 177. */
+  personal_note?: string | null;
   /** Join-button label. null = "Count me in" (page) / "I'd join" (email buttons). */
   cta_label: string | null;
   /** Decline-button label (display only). null = "Can't make it this time". */

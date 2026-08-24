@@ -135,7 +135,15 @@ export default async function SurveyPage({ params, searchParams }: Props) {
           )}
           <h1 className="text-4xl sm:text-[62px] font-black tracking-[-0.03em] mt-4 leading-[1.02]">{survey.title}</h1>
           {survey.intro && <p className="text-white/85 text-[16px] sm:text-[17.5px] leading-relaxed mt-5 max-w-[580px] whitespace-pre-line">{survey.intro}</p>}
-          {firstName && <p className="text-[14px] mt-6 font-semibold" style={{ color: "#ffe0a0" }}>Hey {firstName} — you&apos;re one of just a handful of riders I&apos;m asking. 🤙</p>}
+          {/* Per-survey personal note (migration 177): null → default line,
+              "" → hidden, else verbatim with {name} swapped for the invitee. */}
+          {firstName && (survey.personal_note ?? "default").trim() !== "" && (
+            <p className="text-[14px] mt-6 font-semibold" style={{ color: "#ffe0a0" }}>
+              {survey.personal_note
+                ? survey.personal_note.replaceAll("{name}", firstName)
+                : `Hey ${firstName} — you're one of the few we're asking. 🤙`}
+            </p>
+          )}
         </div>
       </header>
 
