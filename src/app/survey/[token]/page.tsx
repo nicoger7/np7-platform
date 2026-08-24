@@ -124,10 +124,14 @@ export default async function SurveyPage({ params, searchParams }: Props) {
       <header className="relative overflow-hidden flex flex-col min-h-[430px] sm:min-h-[540px] text-white">
         <div className="absolute inset-0 bg-cover scale-105"
           style={{ backgroundImage: `url('${heroImg}')`, backgroundPosition: `50% ${heroTrip?.focus ?? 50}%` }} />
-        <div className="absolute inset-0" style={{ background: "linear-gradient(180deg, rgba(1,32,42,0.50) 0%, rgba(1,28,38,0.28) 38%, rgba(1,22,30,0.90) 100%)" }} />
+        {/* The mid-stop sat at 0.28 — body copy floated over bright, shimmering
+            water and was genuinely hard to read. Darker throughout, plus a soft
+            text shadow on the copy block below; the photo still reads at the
+            edges, the words read everywhere. */}
+        <div className="absolute inset-0" style={{ background: "linear-gradient(180deg, rgba(1,32,42,0.62) 0%, rgba(1,28,38,0.52) 40%, rgba(1,22,30,0.92) 100%)" }} />
         {heroImg.includes("/api/sat") && <span className="absolute bottom-1 right-2 z-20 text-[9px] font-medium text-white/50">Imagery © Esri</span>}
         <div className="absolute top-0 inset-x-0 h-[3px] z-10" style={{ background: "linear-gradient(90deg,#ffe08a,#f0a500 45%,#f47b20)" }} />
-        <div className="relative z-10 mt-auto w-full max-w-[720px] mx-auto px-5 sm:px-8 pb-12 pt-16">
+        <div className="relative z-10 mt-auto w-full max-w-[720px] mx-auto px-5 sm:px-8 pb-12 pt-16 [text-shadow:0_1px_14px_rgba(0,10,16,0.5)]">
           {(survey.eyebrow ?? "By private invitation").trim() !== "" && (
             <span className="inline-flex items-center gap-2 text-[11px] font-black uppercase tracking-[0.24em]" style={{ color: "#ffd97a" }}>
               <span aria-hidden>✦</span> {survey.eyebrow ?? "By private invitation"}

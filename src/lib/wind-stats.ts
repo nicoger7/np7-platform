@@ -146,7 +146,7 @@ function ringPoints(lat: number, lng: number, radiusKm: number): { lat: number; 
 }
 
 /** Aggregate hourly wind/temp into the monthly Beaufort climatology (daytime 09–18). */
-function monthsFromHourly({ time, wind, temp, gust }: Hourly): { months: WindStatsMonth[]; windyMonths: number[]; warmestMonth: number | null; warmestTemp: number | null; planingScore: number } {
+function monthsFromHourly({ time, wind, temp, gust }: Hourly): { months: WindStatsMonth[]; windyMonths: number[]; warmestMonth: number | null; warmestTemp: number | null; planingScore: number; dayScore: number } {
   const acc = Array.from({ length: 12 }, () => ({ total: 0, ge: { 3: 0, 4: 0, 5: 0, 6: 0, 7: 0 } as Record<number, number>, windSum: 0, tempSum: 0, tempN: 0 }));
   for (let k = 0; k < time.length; k++) {
     const t = time[k];
