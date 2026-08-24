@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
+import { REVIEW_CATEGORIES } from "@/lib/review-categories";
 
 /**
  * Member review submission. Star rating + quote, name/country prefilled from
@@ -9,11 +10,13 @@ import { useRouter } from "next/navigation";
  * gallery. Submits to POST /api/portal/reviews → lands as `pending` for admin
  * approval in /admin/guest-reviews.
  */
-export function ReviewForm({ bookingId, gallery }: { bookingId: string; gallery: string[] }) {
+export function ReviewForm({ bookingId, gallery, hasHotel }: { bookingId: string; gallery: string[]; hasHotel?: boolean }) {
   const router = useRouter();
   const [rating, setRating] = useState(5);
   const [hover, setHover] = useState(0);
   const [quote, setQuote] = useState("");
+  // Per-category stars — all optional. {} entries only for what was rated.
+  const [cats, setCats] = useState<Record<string, number>>({});
   const [name, setName] = useState("");
   const [country, setCountry] = useState("");
   const [photoUrl, setPhotoUrl] = useState<string | null>(null);
@@ -49,6 +52,7 @@ export function ReviewForm({ bookingId, gallery }: { bookingId: string; gallery:
           author_name: name.trim() || undefined,
           author_country: country.trim() || undefined,
           photo_url: photoUrl || undefined,
+          category_ratings: Object.keys(cats).length ? cats : undefined,
         }),
       });
       const json = await res.json();
@@ -97,6 +101,41 @@ export function ReviewForm({ bookingId, gallery }: { bookingId: string; gallery:
                 <path d="M12 2l2.9 6.3 6.9.8-5.1 4.7 1.4 6.8L12 17.8 5.9 21.4l1.4-6.8L2.2 9.9l6.9-.8z" />
               </svg>
             </button>
+          ))}
+        </div>
+      </div>
+
+      {/* category ratings — every one optional: tap a star to rate, tap the
+          same star again to clear. "Accommodation" only appears when the
+          booking actually had a hotel. */}
+      <div>
+        <span className={label}>Rate the week <span className="text-[#9aa6ac] font-medium normal-case tracking-normal">(optional)</span></span>
+        <div className="space-y-3">
+          {REVIEW_CATEGORIES.filter((c) => !c.hotelOnly || hasHotel).map((c) => (
+            <div key={c.key} className="flex items-center justify-between gap-3">
+              <span className="min-w-0">
+                <span className="block text-[13.5px] font-bold text-[#00374a] leading-tight">{c.label}</span>
+                <span className="block text-[11.5px] text-[#9aa6ac] leading-tight mt-0.5">{c.sub}</span>
+              </span>
+              <div className="flex shrink-0 items-center">
+                {[1, 2, 3, 4, 5].map((n) => (
+                  <button key={n} type="button"
+                    aria-label={`${c.label}: ${n} star${n > 1 ? "s" : ""}`}
+                    onClick={() => setCats((m) => {
+                      const next = { ...m };
+                      if (next[c.key] === n) delete next[c.key]; else next[c.key] = n;
+                      return next;
+                    })}
+                    className="p-0.5">
+                    <svg className="w-[22px] h-[22px]" viewBox="0 0 24 24"
+                      fill={(cats[c.key] ?? 0) >= n ? "#f5a623" : "none"}
+                      stroke={(cats[c.key] ?? 0) >= n ? "#f5a623" : "#d8c9a8"} strokeWidth="1.5" strokeLinejoin="round">
+                      <path d="M12 2l2.9 6.3 6.9.8-5.1 4.7 1.4 6.8L12 17.8 5.9 21.4l1.4-6.8L2.2 9.9l6.9-.8z" />
+                    </svg>
+                  </button>
+                ))}
+              </div>
+            </div>
           ))}
         </div>
       </div>

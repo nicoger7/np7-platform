@@ -4,6 +4,7 @@ import { WindMiniChart } from "@/components/experience/wind-mini-chart";
 import { DEFAULT_WEEK_INFO } from "@/lib/experience-defaults";
 import { notFound } from "next/navigation";
 import { includeLine } from "@/lib/include-line";
+import { REVIEW_CATEGORIES, categoryLabel } from "@/lib/review-categories";
 import { packageLevelLabel } from "@/lib/package-levels";
 import type { Metadata } from "next";
 import { supabase } from "@/lib/supabase";
@@ -681,10 +682,10 @@ export default async function ExperienceDetailPage({ params, searchParams }: Pro
   // Admin-curated participant reviews for this experience (fallback to legacy content.reviews).
   const { data: placementRows } = await sb
     .from("exp_review_placements")
-    .select("sort_order, exp_reviews(author_name,author_country,rating,quote,photo_url,status,booking_id)")
+    .select("sort_order, exp_reviews(author_name,author_country,rating,quote,photo_url,status,booking_id,category_ratings)")
     .eq("experience_id", experience.id)
     .order("sort_order");
-  type PlacedReview = { author_name: string | null; author_country: string | null; rating: number | null; quote: string | null; photo_url: string | null; status: string; booking_id: string | null };
+  type PlacedReview = { author_name: string | null; author_country: string | null; rating: number | null; quote: string | null; photo_url: string | null; status: string; booking_id: string | null; category_ratings?: Record<string, number> | null };
   const placedReviews = (placementRows ?? [])
     .map((p: { exp_reviews: PlacedReview | null }) => p.exp_reviews)
     .filter((r: PlacedReview | null): r is PlacedReview => !!r && r.status === "approved")
@@ -692,7 +693,29 @@ export default async function ExperienceDetailPage({ params, searchParams }: Pro
       quote: r.quote ?? "", name: r.author_name ?? "", country: r.author_country ?? "",
       image: r.photo_url || BRAND_IMG.group, rating: Math.max(1, Math.min(5, r.rating || 5)),
       verified: !!r.booking_id,
+      // Absent for every review written before categories existed — the card
+      // then renders exactly as it always has.
+      cats: r.category_ratings ?? null,
     }));
+
+  // Per-category averages across the placed reviews that actually rated them.
+  // Empty until the first categorised review is approved — the row simply
+  // doesn't render, so the section looks untouched for older content.
+  const catAverages = (() => {
+    const sums = new Map<string, { s: number; n: number }>();
+    for (const r of placedReviews) {
+      for (const [k, v] of Object.entries(r.cats ?? {})) {
+        const num = Number(v);
+        if (!(num >= 1 && num <= 5)) continue;
+        const e = sums.get(k) ?? { s: 0, n: 0 };
+        e.s += num; e.n += 1; sums.set(k, e);
+      }
+    }
+    return REVIEW_CATEGORIES
+      .map((c) => ({ key: c.key, label: c.label, ...(sums.get(c.key) ?? { s: 0, n: 0 }) }))
+      .filter((e) => e.n > 0)
+      .map((e) => ({ key: e.key, label: e.label, avg: Math.round((e.s / e.n) * 10) / 10 }));
+  })();
 
   const reviewItems =
     placedReviews.length > 0
@@ -1107,7 +1130,17 @@ export default async function ExperienceDetailPage({ params, searchParams }: Pro
               weekLabels={Object.fromEntries(editionsLite.map((e) => [e.id, e.label]))}
             />
           </Reveal>
-          <Reveal className="mb-8"><p className="text-[11px] font-bold tracking-[0.25em] text-[#00afdb] mb-3">★ 5.0 — WHAT GUESTS SAY</p><h2 className="text-3xl sm:text-4xl font-black tracking-[-0.03em] text-[#00374a]">Moments &amp; new friends</h2></Reveal>
+          <Reveal className="mb-8">
+            <p className="text-[11px] font-bold tracking-[0.25em] text-[#00afdb] mb-3">★ 5.0 — WHAT GUESTS SAY</p>
+            <h2 className="text-3xl sm:text-4xl font-black tracking-[-0.03em] text-[#00374a]">Moments &amp; new friends</h2>
+            {catAverages.length > 0 && (
+              <p className="mt-3 text-[13px] font-semibold text-[#6a7a80]">
+                {catAverages.map((c, i) => (
+                  <span key={c.key}>{i > 0 && <span className="text-[#c9d3d6]"> · </span>}{c.label} <span className="text-[#00374a] font-bold">{c.avg.toFixed(1)}</span><span className="text-[#f5a623]">★</span></span>
+                ))}
+              </p>
+            )}
+          </Reveal>
           <Reveal>
             <Carousel label="Guest reviews">
               {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
@@ -1121,7 +1154,21 @@ export default async function ExperienceDetailPage({ params, searchParams }: Pro
                       Verified
                     </span>
                   )}
-                  <div className="absolute bottom-0 p-7 text-white"><span className="text-[#ffd24a] text-sm">{"★".repeat(m.rating)}</span><p className="text-[16px] font-bold leading-snug mt-3 mb-4">&ldquo;{m.quote}&rdquo;</p><p className="text-[13px] text-white/70 font-semibold">{m.name}{m.country ? ` · ${m.country}` : ""}</p></div>
+                  <div className="absolute bottom-0 p-7 text-white">
+                    <span className="text-[#ffd24a] text-sm">{"★".repeat(m.rating)}</span>
+                    <p className="text-[16px] font-bold leading-snug mt-3 mb-4">&ldquo;{m.quote}&rdquo;</p>
+                    {/* category stars — only on reviews that have them; older
+                        reviews render exactly the card they always did */}
+                    {m.cats && Object.keys(m.cats).length > 0 && (
+                      <p className="text-[11px] text-white/75 font-semibold mb-2.5 leading-relaxed">
+                        {Object.entries(m.cats as Record<string, number>).slice(0, 3).map(([k, v], ci) => (
+                          <span key={k}>{ci > 0 && " · "}{categoryLabel(k)} <span className="text-[#ffd24a]">{"★".repeat(Math.max(1, Math.min(5, Number(v))))}</span></span>
+                        ))}
+                        {Object.keys(m.cats).length > 3 ? " · …" : ""}
+                      </p>
+                    )}
+                    <p className="text-[13px] text-white/70 font-semibold">{m.name}{m.country ? ` · ${m.country}` : ""}</p>
+                  </div>
                 </article>
               ))}
             </Carousel>

@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
+import { categoryLabel } from "@/lib/review-categories";
 import ImagePickerModal from "@/components/image-picker-modal";
 import { editionLabel } from "@/lib/edition-label";
 
@@ -9,6 +10,7 @@ interface Review {
   author_name: string | null;
   author_country: string | null;
   rating: number | null;
+  category_ratings?: Record<string, number> | null;
   quote: string | null;
   photo_url: string | null;
   status: string;
@@ -208,6 +210,15 @@ export default function GuestReviewsPage() {
                   {r.exp_experiences && <span className="text-[11px] admin-faint truncate">{r.exp_experiences.title}{r.exp_editions ? ` · ${editionLabel(r.exp_editions)}` : ""}</span>}
                 </div>
                 <p className="text-sm admin-heading line-clamp-2">{r.quote || "—"}</p>
+                {r.category_ratings && Object.keys(r.category_ratings).length > 0 && (
+                  <div className="flex flex-wrap gap-1.5 mt-1.5">
+                    {Object.entries(r.category_ratings).map(([k, v]) => (
+                      <span key={k} className="text-[10px] font-semibold px-2 py-0.5 rounded-full admin-muted" style={{ border: "1px solid var(--admin-border)", backgroundColor: "var(--admin-surface)" }}>
+                        {categoryLabel(k)} <span className="text-[#ffc42e]">{"★".repeat(Math.max(1, Math.min(5, Number(v))))}</span>
+                      </span>
+                    ))}
+                  </div>
+                )}
                 <p className="text-[11px] admin-faint mt-1">{r.author_name || "Anonymous"}{r.author_country ? ` · ${r.author_country}` : ""}</p>
               </div>
               <div className="shrink-0" onClick={(e) => e.stopPropagation()}>

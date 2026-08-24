@@ -2,7 +2,7 @@ import Link from "next/link";
 import { redirect, notFound } from "next/navigation";
 import type { Metadata } from "next";
 import { getPortalUser } from "@/lib/auth";
-import { getMemberBooking, getOwnTripPhotos } from "@/lib/portal-data";
+import { getBookingHotel, getMemberBooking, getOwnTripPhotos } from "@/lib/portal-data";
 import { fmtDates } from "@/lib/portal-status";
 import { PortalChrome } from "@/components/portal/portal-chrome";
 import { ReviewForm } from "@/components/portal/review-form";
@@ -22,6 +22,9 @@ export default async function ReviewPage({ params }: Props) {
   // ONLY their own personal shots (not the week's shared gallery) — so a review
   // photo is genuinely the rider's own.
   const gallery = b.edition?.id ? await getOwnTripPhotos(b.edition.id, b.id).catch(() => []) : [];
+  // Whether this booking slept in one of our hotels — the "Accommodation"
+  // category only shows when there is genuinely a room to judge.
+  const hotel = await getBookingHotel(b.id).catch(() => null);
 
   return (
     <>
@@ -38,7 +41,7 @@ export default async function ReviewPage({ params }: Props) {
             </p>
           </div>
 
-          <ReviewForm bookingId={b.id} gallery={gallery} />
+          <ReviewForm bookingId={b.id} gallery={gallery} hasHotel={!!hotel} />
         </div>
       </main>
     </>
