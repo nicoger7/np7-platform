@@ -167,22 +167,23 @@ export function EpicWeekScroll({
 
   const img = (i: number) => (images.length ? images[i % images.length] : null);
 
-  // The level switcher sits ABOVE the whole module — its own centred moment,
-  // not a control buried in a text column. A quiet "SEE THE WEEK AS" line, then
-  // one white segmented pill. Shared by both layout modes; absent entirely on
-  // one-level experiences.
+  // The level switcher floats ON the module, top-centre — physically part of
+  // the section it controls, so it can't read as a page-wide toggle (centred
+  // above everything it looked like it switched the whole page; it doesn't).
+  // In the pinned story it stays visible the entire scroll, so a rider can
+  // change level mid-story. Absent entirely on one-level experiences.
   const levelSwitcher = variants ? (
-    <div className="bg-[#f6f9fa] pt-12 sm:pt-16 pb-1 text-center">
-      <p className="text-[10.5px] font-bold tracking-[0.3em] uppercase text-[#8aa0a8] mb-3.5">See the week as</p>
-      <div className="inline-flex items-center gap-1 rounded-full bg-white border border-[#e2e9ec] p-1.5 shadow-[0_10px_34px_rgba(0,55,74,0.10)]" role="tablist" aria-label="Coaching level">
+    <div className="text-center">
+      <p className="text-[10px] font-bold tracking-[0.28em] uppercase text-[#8aa0a8] mb-2">See the week as</p>
+      <div className="inline-flex items-center gap-1 rounded-full bg-white/95 backdrop-blur border border-[#e2e9ec] p-1 shadow-[0_10px_30px_rgba(0,55,74,0.14)]" role="tablist" aria-label="Coaching level">
         {variants.map((v, i) => {
           const on = i === levelIdx;
           return (
             <button
               key={v.key} type="button" role="tab" aria-selected={on}
               onClick={() => setLevelIdx(i)}
-              className={`px-7 sm:px-9 py-2.5 rounded-full text-[14.5px] sm:text-[15px] font-bold transition-all ${
-                on ? "bg-[#00afdb] text-white shadow-[0_6px_18px_rgba(0,175,219,0.35)]" : "text-[#5a6b72] hover:text-[#00374a]"
+              className={`px-6 sm:px-8 py-2 rounded-full text-[14px] font-bold transition-all ${
+                on ? "bg-[#00afdb] text-white shadow-[0_5px_16px_rgba(0,175,219,0.35)]" : "text-[#5a6b72] hover:text-[#00374a]"
               }`}
             >
               {v.label}
@@ -196,9 +197,8 @@ export function EpicWeekScroll({
   // ---- static fallback: clean wrapping grid (mobile / reduced-motion) ------
   if (!enabled) {
     return (
-      <>
-      {levelSwitcher}
-      <section className={`${variants ? "pt-7 sm:pt-9" : "pt-14 sm:pt-20"} pb-14 sm:pb-20 bg-[#f6f9fa] text-[#00374a]`}>
+      <section className="py-14 sm:py-20 bg-[#f6f9fa] text-[#00374a]">
+        {levelSwitcher && <div className="mb-10">{levelSwitcher}</div>}
         <div className="max-w-[1080px] mx-auto px-5 sm:px-8">
           <div className="max-w-[640px] mb-8 sm:mb-10">
             <p className="text-[11px] font-bold tracking-[0.25em] text-[#00afdb] mb-3">{eyebrow}</p>
@@ -222,16 +222,17 @@ export function EpicWeekScroll({
           </div>
         </div>
       </section>
-      </>
     );
   }
 
   // ---- pinned scroll -------------------------------------------------------
   return (
-    <>
-    {levelSwitcher}
     <section ref={sectionRef} className="relative bg-[#f6f9fa]" style={{ height: `${N * 80 + 50}vh` }}>
       <div ref={innerRef} className="sticky top-0 h-[100svh] overflow-hidden text-[#00374a]">
+        {/* top-32 clears the sticky section nav (top-16 + its height) */}
+        {levelSwitcher && (
+          <div className="absolute top-32 left-1/2 -translate-x-1/2 z-30">{levelSwitcher}</div>
+        )}
         {/* soft light backdrop — cool sea glow + a warm sun glow (sun to sea) */}
         <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_72%_-5%,rgba(0,175,219,0.10),transparent_55%)]" />
         <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_6%_104%,rgba(244,123,32,0.15),transparent_52%)]" />
@@ -294,6 +295,5 @@ export function EpicWeekScroll({
         .epic-card { transition: none; opacity: 0; }
       `}</style>
     </section>
-    </>
   );
 }
