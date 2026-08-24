@@ -147,33 +147,36 @@ export function BrandedTile({
         )}
       </div>
 
-      {/* 5a — extra coach cutouts (left-anchored; rendered first so the lead
-             paints over them if they ever meet in the middle) */}
-      {extras.map((c, i) => (
-        // eslint-disable-next-line @next/next/no-img-element
-        <img
-          key={`${c.name}-${i}`}
-          src={c.cutout!}
-          alt={c.name}
-          className="absolute z-10 w-auto max-w-none object-contain object-bottom" /* behind the lead: Coach 1 is always the front figure */
-          style={{
-            left: `${i === 0 ? p.coach2X : p.coach3X}%`,
-            bottom: `${i === 0 ? p.coach2Bottom : p.coach3Bottom}%`,
-            height: `${i === 0 ? p.coach2Scale : p.coach3Scale}%`,
-            filter: "drop-shadow(5px 5px 9px rgba(0,0,0,0.45))",
-          }}
-        />
-      ))}
-
-      {/* 5b — lead coach cutout + "with …" (right-locked, as always) */}
+      {/* 5 — the crew as ONE right-anchored group (C3 · C2 · C1). Extras offset
+             via CSS translate %, which references their OWN box — so overlap
+             and lift scale with the figures, and the spacing reads the same on
+             every aspect ratio. Edge-anchored percentages drifted: overlapping
+             on narrow tiles, scattered on wide ones. DOM order paints the lead
+             in front. */}
       {lead && (
-        <div className="absolute top-0 z-20 flex items-end" style={{ right: `${p.coachRight}%`, bottom: `${p.coachBottom}%` }}>
+        <div className="absolute top-0 z-10 flex items-end" style={{ right: `${p.coachRight}%`, bottom: `${p.coachBottom}%` }}>
+          {[...extras].reverse().map((c, idx) => {
+            const isC3 = extras.length === 2 && idx === 0;
+            const X = isC3 ? p.coach3X : p.coach2X;
+            const B = isC3 ? p.coach3Bottom : p.coach2Bottom;
+            const S = isC3 ? p.coach3Scale : p.coach2Scale;
+            return (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img
+                key={`${c.name}-${idx}`}
+                src={c.cutout!}
+                alt={c.name}
+                className="w-auto max-w-none self-end object-contain object-bottom"
+                style={{ height: `${S}%`, transform: `translate(${X}%, ${-B}%)`, filter: "drop-shadow(5px 5px 9px rgba(0,0,0,0.45))" }}
+              />
+            );
+          })}
           {lead.cutout && (
             // eslint-disable-next-line @next/next/no-img-element
             <img
               src={lead.cutout}
               alt={lead.name}
-              className="w-auto max-w-none self-end object-contain object-bottom"
+              className="relative w-auto max-w-none self-end object-contain object-bottom"
               style={{ height: `${p.coachScale}%`, filter: "drop-shadow(-5px 5px 9px rgba(0,0,0,0.45))" }}
             />
           )}

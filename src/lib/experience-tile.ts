@@ -76,13 +76,16 @@ export type TilePlacement = {
   flagRotate?: number;  // degrees (default 12)
   flagOpacity?: number; // 0–100 (default 45)
   flagFade?: number;    // fade-off strength 0–100 (default 25 ≈ the original mask)
-  // Extra coach cutouts — a week can front two or three coaches. The LEAD
-  // coach stays right-locked (the alignment promise); extras anchor from the
-  // LEFT edge so they can never collide with that lock.
-  coach2X?: number;      // % from the left edge (default 1)
-  coach2Bottom?: number; // default 0
+  // Extra coach cutouts. The whole crew renders as ONE right-anchored group,
+  // and the extras' offsets are relative to their OWN figure size (CSS
+  // translate %), not the tile width — edge-anchored percentages made the
+  // spacing drift per aspect ratio (overlapping on narrow, scattered on
+  // wide). coachNX = overlap toward Coach 1 (+ = closer/behind), coachNBottom
+  // = lift in % of the figure's own height.
+  coach2X?: number;      // overlap toward the lead, % of own width (default 22)
+  coach2Bottom?: number; // lift, % of own height (default 0)
   coach2Scale?: number;  // default 62
-  coach3X?: number;      // default 24
+  coach3X?: number;      // default 30
   coach3Bottom?: number; // default 0
   coach3Scale?: number;  // default 56
 };
@@ -91,8 +94,8 @@ export const TILE_PLACEMENT_DEFAULTS: Required<TilePlacement> = {
   photoX: 50, photoY: 50, photoZoom: 100,
   coachRight: 0, coachBottom: 0, coachScale: 82,
   flagRight: -2, flagTop: -12, flagWidth: 42, flagRotate: 12, flagOpacity: 45, flagFade: 25,
-  coach2X: 1, coach2Bottom: 0, coach2Scale: 62,
-  coach3X: 24, coach3Bottom: 0, coach3Scale: 56,
+  coach2X: 22, coach2Bottom: 0, coach2Scale: 62,
+  coach3X: 30, coach3Bottom: 0, coach3Scale: 56,
 };
 
 /** Merge a (possibly partial / null) placement over the defaults.

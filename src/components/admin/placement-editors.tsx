@@ -110,16 +110,18 @@ export function TilePlacementEditor({ content, value, onChange }: {
     else if (active === "coach") set({ coachRight: clamp(100 - x - 8, -50, 70), coachBottom: clamp(100 - y, -15, 60) });
     // The extra coaches are left-anchored and free on BOTH axes — only the
     // lead is horizontally locked (that's the cross-tile alignment promise).
-    else if (active === "coach2") set({ coach2X: clamp(x - 8, -10, 70), coach2Bottom: clamp(100 - y, -15, 60) });
-    else if (active === "coach3") set({ coach3X: clamp(x - 8, -10, 70), coach3Bottom: clamp(100 - y, -15, 60) });
+    // Extras: horizontal drag tunes the OVERLAP toward Coach 1 (figure-
+    // relative), vertical the lift. Dragging left = further from the lead.
+    else if (active === "coach2") set({ coach2X: clamp(100 - x - p.coachRight, -40, 90), coach2Bottom: clamp(100 - y, -20, 60) });
+    else if (active === "coach3") set({ coach3X: clamp(100 - x - p.coachRight, -40, 90), coach3Bottom: clamp(100 - y, -20, 60) });
     else set({ flagRight: clamp(100 - x, -20, 70), flagTop: clamp(y - 60, -40, 35) });
   });
 
   // Marker position (canvas %) for the active element.
   const marker = active === "photo" ? { x: p.photoX, y: p.photoY }
     : active === "coach" ? { x: 100 - p.coachRight, y: 100 - p.coachBottom }
-    : active === "coach2" ? { x: p.coach2X + 8, y: 100 - p.coach2Bottom }
-    : active === "coach3" ? { x: p.coach3X + 8, y: 100 - p.coach3Bottom }
+    : active === "coach2" ? { x: clamp(100 - p.coachRight - p.coach2X, 2, 98), y: clamp(100 - p.coach2Bottom, 2, 98) }
+    : active === "coach3" ? { x: clamp(100 - p.coachRight - p.coach3X, 2, 98), y: clamp(100 - p.coach3Bottom, 2, 98) }
     : { x: 100 - p.flagRight, y: p.flagTop + 60 };
 
   const crew = content.coaches ?? (content.coachName ? [{ name: content.coachName, cutout: content.coachCutout }] : []);
@@ -187,15 +189,16 @@ export function TilePlacementEditor({ content, value, onChange }: {
         {active === "coach2" && (
           <>
             <Slider label="Size" value={p.coach2Scale} min={35} max={110} suffix="%" onChange={(v) => set({ coach2Scale: v })} />
-            <Slider label="From left" value={p.coach2X} min={-10} max={70} suffix="%" onChange={(v) => set({ coach2X: v })} />
-            <Slider label="From bottom" value={p.coach2Bottom} min={-15} max={50} suffix="%" onChange={(v) => set({ coach2Bottom: v })} />
+            <Slider label="Overlap with Coach 1" value={p.coach2X} min={-40} max={90} suffix="%" onChange={(v) => set({ coach2X: v })} />
+            <Slider label="Lift" value={p.coach2Bottom} min={-20} max={60} suffix="%" onChange={(v) => set({ coach2Bottom: v })} />
+            <p className="text-[11px] text-[var(--admin-fg-muted,#7a8a90)]">Offsets scale with the figure, so the crew keeps its spacing on every screen shape.</p>
           </>
         )}
         {active === "coach3" && (
           <>
             <Slider label="Size" value={p.coach3Scale} min={35} max={110} suffix="%" onChange={(v) => set({ coach3Scale: v })} />
-            <Slider label="From left" value={p.coach3X} min={-10} max={70} suffix="%" onChange={(v) => set({ coach3X: v })} />
-            <Slider label="From bottom" value={p.coach3Bottom} min={-15} max={50} suffix="%" onChange={(v) => set({ coach3Bottom: v })} />
+            <Slider label="Overlap with the crew" value={p.coach3X} min={-40} max={90} suffix="%" onChange={(v) => set({ coach3X: v })} />
+            <Slider label="Lift" value={p.coach3Bottom} min={-20} max={60} suffix="%" onChange={(v) => set({ coach3Bottom: v })} />
           </>
         )}
         {active === "flag" && hasFlag && (
