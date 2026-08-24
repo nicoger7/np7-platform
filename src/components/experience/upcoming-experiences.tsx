@@ -61,6 +61,8 @@ export type ExpCard = {
   description: string | null;
   hero_image: string | null;
   priceLabel: string | null;
+  /** Raw price behind the label — lets the card compute the discounted figure. */
+  priceValue?: number | null;
   dateLabel: string | null;
   spotsLeft: number | null;
   months: string[]; // "YYYY-MM" of every upcoming edition
@@ -176,7 +178,7 @@ export function ExpTileCardCompact({ exp }: { exp: ExpCard }) {
       </div>
       <div className="px-4 py-3">
         <h3 className="text-[15px] font-black tracking-[-0.01em] text-[#00374a] leading-snug group-hover:text-[#00afdb] transition-colors">{exp.title.replace(/^NP7 (Experience )?/, "")}</h3>
-        <p className="text-[12.5px] text-[#6a7a80] mt-0.5">{exp.dateLabel}{exp.priceLabel ? ` · from ${exp.priceLabel}` : ""}</p>
+        <p className="text-[12.5px] text-[#6a7a80] mt-0.5">{exp.dateLabel}{exp.priceLabel ? <> · <CardPrice exp={exp} /></> : ""}</p>
         {exp.advantage && (
           <span className="inline-flex items-center gap-1 rounded-full bg-[#ffc42e] text-[#4a3403] text-[10px] font-extrabold tracking-[0.04em] px-2 py-0.5 mt-1.5">
             ★ {exp.advantage.label} · {exp.advantage.pct}% off
@@ -232,7 +234,7 @@ export function ExpTileCard({ exp }: { exp: ExpCard }) {
           <h3 className="text-xl font-extrabold tracking-[-0.02em] text-[#00374a] mb-2.5 group-hover:text-[#00afdb] transition-colors">{exp.title}</h3>
           {exp.description && <p className="text-[14px] text-[#6a7a80] leading-relaxed line-clamp-2 mb-4">{exp.description}</p>}
           <div className="flex items-center justify-between pt-3 border-t border-[#f0f0f0]">
-            {exp.priceLabel ? <span className="text-[15px] font-bold text-[#00374a]">from {exp.priceLabel}</span> : <span />}
+            {exp.priceLabel ? <span className="text-[15px] font-bold text-[#00374a]"><CardPrice exp={exp} /></span> : <span />}
             <span className="inline-flex items-center gap-1.5 text-[12px] font-bold text-[#00afdb] group-hover:gap-2.5 transition-all">
               View trip
               <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M5 12h14M13 6l6 6-6 6" /></svg>
@@ -242,4 +244,28 @@ export function ExpTileCard({ exp }: { exp: ExpCard }) {
       </Link>
       </div>
   );
+}
+
+/**
+ * The card's price line, honest about the advantage chip above it.
+ *
+ * The chip said "10% off" while the price below still showed the full figure —
+ * the two never agreed. When an advantage applies (launch, or launch+tier for
+ * a signed-in member), the old price is struck and the discounted one shown,
+ * rounded exactly the way the checkout rounds (Math.round, lib/tier-perks) so
+ * the tile always names the figure the picker will charge. No advantage — or
+ * no raw price on an older cache — falls back to the plain label.
+ */
+function CardPrice({ exp }: { exp: ExpCard }) {
+  const pct = exp.advantage?.pct ?? 0;
+  if (pct > 0 && exp.priceValue != null) {
+    const fmt = (n: number) => `€${n.toLocaleString("en-US")}`;
+    return (
+      <>
+        <s className="opacity-55 font-normal">{fmt(exp.priceValue)}</s>{" "}
+        from {fmt(Math.round(exp.priceValue * (1 - pct / 100)))}
+      </>
+    );
+  }
+  return <>from {exp.priceLabel}</>;
 }

@@ -201,6 +201,10 @@ export async function getExperienceCards(viewer?: { tierKey: "rider" | "crew" | 
       // grid ended up advertising Lake Garda at €1,490 against a €2,390 entry
       // package. Fall back to the stored price only when there are no packages.
       priceLabel: exp.ed ? money(cheapestPackagePrice(exp) ?? exp.price, exp.currency) : null,
+      // The raw number behind the label, so the card can strike the old price
+      // and show the discounted one when an advantage applies — same
+      // Math.round(price · (1 − pct/100)) the checkout charges (lib/tier-perks).
+      priceValue: exp.ed ? (cheapestPackagePrice(exp) ?? exp.price) : null,
       dateLabel: fmtRange(exp.ed?.date_start, exp.ed?.date_end),
       spotsLeft: exp.spotsLeft,
       tileAuto: autoIds.has(exp.id),
