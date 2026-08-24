@@ -195,7 +195,10 @@ export function EpicWeekScroll({
       <section className="py-14 sm:py-20 bg-[#f6f9fa] text-[#00374a]">
         <div className="max-w-[1080px] mx-auto px-5 sm:px-8">
           <div className="max-w-[640px] mb-8 sm:mb-10">
-            {levelSwitcher && <div className="mb-5">{levelSwitcher}</div>}
+            {/* mb-8: the pill is its own layer above the header group, not part of
+                the text stack (mb-5 read as squished). -ml-1 cancels the pill's
+                inner padding so its visible edge sits optically flush left. */}
+            {levelSwitcher && <div className="mb-8 -ml-1">{levelSwitcher}</div>}
             <p className="text-[11px] font-bold tracking-[0.25em] text-[#00afdb] mb-3">{eyebrow}</p>
             <h2 className="text-[28px] sm:text-5xl font-black tracking-[-0.03em] leading-[1.08] mb-3 sm:mb-4">{title}</h2>
             <p className="text-[15px] sm:text-[16px] text-[#6a7a80] leading-relaxed">{intro}</p>
@@ -243,7 +246,10 @@ export function EpicWeekScroll({
         <div className="relative h-full max-w-[1180px] mx-auto px-5 sm:px-12 lg:px-16 grid lg:grid-cols-[290px_1fr] gap-5 lg:gap-14 items-center">
           {/* overview */}
           <div className="relative">
-            {levelSwitcher && <div className="mb-5">{levelSwitcher}</div>}
+            {/* mb-8: the pill is its own layer above the header group, not part of
+                the text stack (mb-5 read as squished). -ml-1 cancels the pill's
+                inner padding so its visible edge sits optically flush left. */}
+            {levelSwitcher && <div className="mb-8 -ml-1">{levelSwitcher}</div>}
             <p className="text-[11px] font-bold tracking-[0.25em] text-[#00afdb] mb-3">{eyebrow}</p>
             <h2 className="text-2xl sm:text-[34px] font-black tracking-[-0.03em] text-[#00374a] mb-3 leading-[1.06]">{title}</h2>
             <p className="text-[13.5px] text-[#6a7a80] leading-relaxed mb-5 hidden lg:block">{intro}</p>
