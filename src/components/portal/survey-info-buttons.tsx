@@ -63,27 +63,25 @@ export function SurveyInfoButtons({ info }: { info: SurveyInfo }) {
 
   return (
     <>
-      {/* The GER-7 seal card from the experience page, applied to all four.
-          flex-1 on a shared basis, so two halve the row, three go 2+1 with the
-          wrapped one filling its line, and four make a tidy 2×2. */}
+      {/* The seven-segment medallion stays (it's the brand seal), but on the
+          site's WHITE card — the near-black version read as a different
+          product next to the cream survey (Nico, 2026-08-24). flex-1 on a
+          shared basis, so two halve the row, three go 2+1 with the wrapped
+          one filling its line, and four make a tidy 2×2. */}
       <div className="flex flex-wrap gap-3 mt-5">
         {cards.map((c) => (
           <button
             key={c.key}
             type="button"
             onClick={() => setOpen(c.key)}
-            className="group relative flex flex-1 basis-[300px] items-center gap-4 rounded-2xl p-4 text-left transition-all hover:-translate-y-0.5 active:translate-y-0 motion-reduce:transform-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#00afdb] focus-visible:ring-offset-2 focus-visible:ring-offset-[#fdf8ef]"
-            style={{
-              border: "1px solid transparent",
-              background: "linear-gradient(rgba(0,25,34,0.96), rgba(0,25,34,0.96)) padding-box, linear-gradient(100deg, rgba(255,196,46,0.65), rgba(244,123,32,0.65) 45%, rgba(0,175,219,0.65)) border-box",
-              boxShadow: "0 10px 34px rgba(0,10,16,0.22)",
-            }}
+            className="group relative flex flex-1 basis-[300px] items-center gap-4 rounded-2xl p-4 text-left bg-white border border-[#ecdcbb] transition-all hover:-translate-y-0.5 hover:border-[#00afdb] active:translate-y-0 motion-reduce:transform-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#00afdb] focus-visible:ring-offset-2 focus-visible:ring-offset-[#fdf8ef]"
+            style={{ boxShadow: "0 8px 26px rgba(0,55,74,0.08)" }}
           >
             {/* medallion — the same drifting seven-segment ring, holding the
                 coach's face or the spot's photo where there is one, so the card
                 shows you the thing instead of an icon standing in for it. */}
             <span className="relative grid place-items-center w-[58px] h-[58px] shrink-0">
-              <span aria-hidden className="absolute inset-[-30%] rounded-full opacity-0 group-hover:opacity-100 transition-opacity duration-500" style={{ background: "radial-gradient(closest-side, rgba(244,123,32,0.22), transparent 70%)" }} />
+              <span aria-hidden className="absolute inset-[-30%] rounded-full opacity-0 group-hover:opacity-100 transition-opacity duration-500" style={{ background: "radial-gradient(closest-side, rgba(255,196,46,0.28), transparent 70%)" }} />
               <span aria-hidden className="absolute inset-0 motion-safe:animate-[spin_45s_linear_infinite]">
                 <span className="absolute inset-0 rounded-full" style={{
                   background: "conic-gradient(from 210deg, #00afdb, #ffc42e 30%, #f47b20 62%, #00afdb)",
@@ -91,34 +89,34 @@ export function SurveyInfoButtons({ info }: { info: SurveyInfo }) {
                   mask: "radial-gradient(closest-side, transparent calc(100% - 5px), #000 calc(100% - 4px))",
                 }} />
                 <span className="absolute inset-0 rounded-full" style={{
-                  background: "repeating-conic-gradient(from -90deg, transparent 0deg 47.4deg, #001922 47.4deg 51.43deg)",
+                  background: "repeating-conic-gradient(from -90deg, transparent 0deg 47.4deg, #ffffff 47.4deg 51.43deg)",
                   WebkitMask: "radial-gradient(closest-side, transparent calc(100% - 6px), #000 calc(100% - 5px))",
                   mask: "radial-gradient(closest-side, transparent calc(100% - 6px), #000 calc(100% - 5px))",
                 }} />
               </span>
-              <span className="relative grid place-items-center w-[calc(100%-13px)] h-[calc(100%-13px)] rounded-full bg-[#002a39] overflow-hidden">
+              <span className="relative grid place-items-center w-[calc(100%-13px)] h-[calc(100%-13px)] rounded-full bg-[#f4ecdd] overflow-hidden">
                 {c.photo ? (
                   // eslint-disable-next-line @next/next/no-img-element
                   <img src={c.photo} alt="" className="w-full h-full object-cover" />
                 ) : c.key === "method" ? (
                   <span className="flex flex-col items-center leading-none">
-                    <span className="text-[6.5px] font-black tracking-[0.3em] text-white/45 translate-x-[0.15em]">GER</span>
+                    <span className="text-[6.5px] font-black tracking-[0.3em] text-[#b0791e]/70 translate-x-[0.15em]">GER</span>
                     <span className="text-[22px] font-black bg-clip-text text-transparent" style={{ backgroundImage: "linear-gradient(180deg, #ffc42e, #f47b20 55%, #00afdb)" }}>7</span>
                   </span>
                 ) : (
                   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"
-                    className="w-5 h-5 text-[#8fe6f2]" aria-hidden>{ICONS[c.key]}</svg>
+                    className="w-5 h-5 text-[#0782a0]" aria-hidden>{ICONS[c.key]}</svg>
                 )}
               </span>
             </span>
 
             <span className="min-w-0 flex-1">
-              <span className="block text-[16px] font-black tracking-[-0.02em] text-white truncate">{c.label}</span>
+              <span className="block text-[16px] font-black tracking-[-0.02em] text-[#00374a] truncate">{c.label}</span>
               <span aria-hidden className="block h-[2.5px] w-full rounded-full origin-left scale-x-[0.18] group-hover:scale-x-100 transition-transform duration-300 my-1.5" style={{ background: "linear-gradient(90deg, #ffc42e, #f47b20 55%, #00afdb)" }} />
-              <span className="block text-[12px] font-semibold text-white/60 group-hover:text-white/80 transition-colors truncate">{c.sub}</span>
+              <span className="block text-[12px] font-semibold text-[#6a7a80] group-hover:text-[#00374a] transition-colors truncate">{c.sub}</span>
             </span>
 
-            <span className="shrink-0 grid place-items-center w-9 h-9 rounded-full border border-white/15 bg-white/[0.07] text-white/80 transition-all group-hover:bg-[#ffc42e]/15 group-hover:text-[#ffc42e] group-hover:translate-x-0.5">
+            <span className="shrink-0 grid place-items-center w-9 h-9 rounded-full border border-[#e5ddca] bg-[#faf6ec] text-[#00374a]/70 transition-all group-hover:bg-[#00afdb]/10 group-hover:text-[#0782a0] group-hover:translate-x-0.5">
               <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M9 6l6 6-6 6" /></svg>
             </span>
           </button>
