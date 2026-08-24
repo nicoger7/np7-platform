@@ -47,7 +47,7 @@ export default function LandingPage() {
           <span className="text-[10px] sm:text-[11px] font-bold tracking-[0.3em] text-white/70 mb-4 md:mb-7">TRAVEL · COACHING · COMMUNITY</span>
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img src={NP7_EXPERIENCE_LOGO} alt="NP7 Experience" className="w-[175px] sm:w-[300px] lg:w-[340px] h-auto drop-shadow-[0_6px_30px_rgba(0,0,0,0.5)] mb-4 md:mb-7" />
-          <p className="text-[14px] sm:text-[17px] text-white/80 max-w-[320px] mb-6 md:mb-9 font-medium">Premium windsurf, wing &amp; foil trips around the planet.</p>
+          <p className="text-[14px] sm:text-[17px] text-white/80 max-w-[320px] mb-6 md:mb-9 font-medium">Premium windsurf trips around the planet.</p>
           <span className="inline-flex items-center gap-2 px-6 py-3 md:px-7 md:py-3.5 rounded-full text-[13.5px] font-bold text-[#00374a] bg-white shadow-[0_8px_30px_rgba(255,255,255,0.2)] group-hover:gap-3.5 group-active:gap-3.5 transition-all">
             Enter Experience <Arrow />
           </span>
