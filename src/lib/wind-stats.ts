@@ -74,6 +74,11 @@ export type WindStatsMonth = {
   pct: Record<string, number>;     // { "3": 83, "4": 58, … } — cumulative % ≥ that Bft
   avgWind: number;                 // mean daytime wind, kn
   airTemp: number | null;          // mean daytime air temp, °C
+  /** % of DAYS offering a real session window (≥2 consecutive hours at 4+ Bft,
+   *  11–19h local). The hours-metric above undersells thermal venues: a calm
+   *  morning + 15–20 kn from lunch reads ~55% of hours even though the guest
+   *  sails every single day. This answers what a guest actually asks. */
+  dayPct?: number;
 };
 export type WindStats = {
   source: string; unit: "kn"; window: string;
@@ -138,11 +143,36 @@ function monthsFromHourly({ time, wind, temp }: Hourly): { months: WindStatsMont
     const tp = temp[k];
     if (tp != null) { a.tempSum += tp; a.tempN++; }
   }
+  // Day-window pass: a DAY counts as sailable when it offers ≥2 consecutive
+  // hours at 4+ Bft between 11–19h local — the session a rider actually plans
+  // around on a thermal venue. Partial days at the series edges are skipped.
+  const dayAcc = Array.from({ length: 12 }, () => ({ days: 0, sail: 0 }));
+  {
+    let curDate = "", month = 0, run = 0, best = 0, hoursSeen = 0;
+    const flush = () => {
+      if (!curDate || hoursSeen < 5) return;
+      const a = dayAcc[month]; a.days++; if (best >= 2) a.sail++;
+    };
+    for (let k = 0; k < time.length; k++) {
+      const t = time[k];
+      const d = t.slice(0, 10);
+      if (d !== curDate) { flush(); curDate = d; month = parseInt(t.slice(5, 7), 10) - 1; run = 0; best = 0; hoursSeen = 0; }
+      const hr = parseInt(t.slice(11, 13), 10);
+      if (hr < 11 || hr > 19) continue;
+      const w = wind[k];
+      if (w == null) continue;
+      hoursSeen++;
+      run = w >= BEAUFORT_KN[4] ? run + 1 : 0;
+      if (run > best) best = run;
+    }
+    flush();
+  }
   const months: WindStatsMonth[] = acc.map((a, i) => ({
     m: i + 1,
     pct: Object.fromEntries(BFT_THRESHOLDS.map((b) => [String(b), a.total ? Math.round((a.ge[b] / a.total) * 100) : 0])),
     avgWind: a.total ? Math.round(a.windSum / a.total) : 0,
     airTemp: a.tempN ? Math.round(a.tempSum / a.tempN) : null,
+    ...(dayAcc[i].days ? { dayPct: Math.round((dayAcc[i].sail / dayAcc[i].days) * 100) } : {}),
   }));
   const windyMonths = months.filter((m) => (m.pct["4"] ?? 0) >= 60).map((m) => m.m);
   let warmestMonth: number | null = null, warmestTemp: number | null = null;

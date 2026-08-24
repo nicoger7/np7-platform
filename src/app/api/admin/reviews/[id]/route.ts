@@ -12,9 +12,12 @@ export async function PATCH(
   const { id } = await params;
   const body = await request.json();
   const patch: Record<string, unknown> = {};
-  for (const k of ["author_name", "author_country", "quote", "photo_url", "status", "experience_id", "edition_id"]) {
+  for (const k of ["author_name", "author_country", "quote", "photo_url", "status", "experience_id", "edition_id", "reply"]) {
     if (k in body) patch[k] = body[k] === "" ? null : body[k];
   }
+  // The reply's timestamp follows the reply: set when one is written, cleared
+  // with it — nobody has to remember a second field.
+  if ("reply" in body) patch.replied_at = patch.reply ? new Date().toISOString() : null;
   if ("rating" in body) patch.rating = Math.max(1, Math.min(5, Number(body.rating) || 5));
   const { data, error } = await client
     .from("exp_reviews")

@@ -10,6 +10,7 @@ interface Review {
   author_name: string | null;
   author_country: string | null;
   rating: number | null;
+  reply?: string | null;
   category_ratings?: Record<string, number> | null;
   quote: string | null;
   photo_url: string | null;
@@ -29,7 +30,7 @@ const STATUS_STYLE: Record<string, string> = {
   approved: "bg-green-500/15 text-green-400",
   hidden: "bg-gray-500/15 text-gray-400",
 };
-const EMPTY = { author_name: "", author_country: "", rating: "5", quote: "", photo_url: "", status: "approved" };
+const EMPTY = { author_name: "", author_country: "", rating: "5", quote: "", photo_url: "", status: "approved", reply: "" };
 
 export default function GuestReviewsPage() {
   const [reviews, setReviews] = useState<Review[]>([]);
@@ -60,7 +61,7 @@ export default function GuestReviewsPage() {
   function openNew() { setSelId("new"); setForm(EMPTY); }
   function openReview(r: Review) {
     setSelId(r.id);
-    setForm({ author_name: r.author_name ?? "", author_country: r.author_country ?? "", rating: String(r.rating ?? 5), quote: r.quote ?? "", photo_url: r.photo_url ?? "", status: r.status });
+    setForm({ author_name: r.author_name ?? "", author_country: r.author_country ?? "", rating: String(r.rating ?? 5), quote: r.quote ?? "", photo_url: r.photo_url ?? "", status: r.status, reply: r.reply ?? "" });
   }
   function close() { setSelId(null); }
 
@@ -169,6 +170,10 @@ export default function GuestReviewsPage() {
 
               <div className="mt-4"><label className={labelClass}>Quote *</label>
                 <textarea className={`${inputClass} min-h-[100px] resize-y`} value={form.quote} onChange={(e) => setForm({ ...form, quote: e.target.value })} />
+              </div>
+              <div>
+                <label className="block text-xs font-semibold admin-muted mb-1.5">NP7 reply <span className="admin-faint font-normal">— shown publicly under the review, signed &ldquo;Nico &amp; the NP7 team&rdquo;</span></label>
+                <textarea className={`${inputClass} min-h-[80px] resize-y`} placeholder="Thank you for riding with us…" value={form.reply} onChange={(e) => setForm({ ...form, reply: e.target.value })} />
               </div>
 
               <div className="mt-4">

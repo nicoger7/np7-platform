@@ -30,6 +30,8 @@ export type GuestReviewItem = {
   /** Community-profile photo — present ONLY when the reviewer opted their
    *  profile into the reviews surface. No photo → the name stands alone. */
   avatarUrl?: string | null;
+  /** NP7's public reply — the owner's voice under the guest's. */
+  reply?: string | null;
 };
 
 const stars = (n: number, cls = "text-[#ffd24a]") => (
@@ -61,7 +63,7 @@ export function GuestReviews({ items }: { items: GuestReviewItem[] }) {
       <Carousel label="Guest reviews">
         {items.map((m, i) => {
           // Anything the clamp might hide — or category stars — earns the link.
-          const hasMore = m.quote.length > 180 || (m.cats && Object.keys(m.cats).length > 0);
+          const hasMore = m.quote.length > 180 || (m.cats && Object.keys(m.cats).length > 0) || !!m.reply;
           return (
             <article key={i} className="snap-start shrink-0 w-[280px] sm:w-[360px] relative rounded-3xl overflow-hidden h-[400px]">
               <div className="absolute inset-0 bg-cover bg-center" style={{ backgroundImage: `url('${m.image}')` }} />
@@ -130,6 +132,17 @@ export function GuestReviews({ items }: { items: GuestReviewItem[] }) {
                   )}
                   {open.name}{open.country ? ` · ${open.country}` : ""}
                 </p>
+
+                {open.reply && (
+                  <div className="mt-6 rounded-2xl bg-[#eef7fa] border border-[#d3ecf4] p-5">
+                    <p className="flex items-center gap-2 text-[11px] font-black uppercase tracking-[0.14em] text-[#0782a0] mb-2">
+                      <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M3 10h10a4 4 0 0 1 4 4v6M3 10l5-5M3 10l5 5" /></svg>
+                      Response from NP7
+                    </p>
+                    <p className="text-[14px] text-[#00374a] leading-relaxed whitespace-pre-line">{open.reply}</p>
+                    <p className="mt-2 text-[12px] text-[#6a7a80] font-semibold">— Nico &amp; the NP7 team</p>
+                  </div>
+                )}
 
                 {openCats.length > 0 && (
                   <div className="mt-6 pt-5 border-t border-[#ecdcbb]">

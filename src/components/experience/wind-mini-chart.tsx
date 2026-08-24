@@ -42,7 +42,9 @@ export function WindMiniChart({
   if (!pick.includes(after)) pick.push(after);
   const rows = pick.map((m) => {
     const mm = stats.months?.find((x) => x.m === m);
-    const pct = Math.round(Number((mm?.pct as Record<string, number> | undefined)?.["4"] ?? 0));
+    // Day-window metric where the cache has it; hours-share as fallback until
+    // the destination's stats are refetched.
+    const pct = Math.round(Number(mm?.dayPct ?? (mm?.pct as Record<string, number> | undefined)?.["4"] ?? 0));
     return { m, label: MONTH_LABELS[m - 1], pct, center: tripMonths.includes(m) };
   });
   if (rows.every((r) => r.pct === 0)) return null;
@@ -66,7 +68,7 @@ export function WindMiniChart({
         ))}
       </div>
       <p className="text-[11px] text-[#9aa6ac] mt-2 leading-snug">
-        Days with sailing wind (11+ kn, 09–18h). Source: Open-Meteo, ERA5 reanalysis {years} — measured, not our estimate.
+        Days with a real session window — 2h+ of sailing wind (11+ kn) between 11–19h. Source: Open-Meteo {years} — measured, not our estimate.
       </p>
     </div>
   );

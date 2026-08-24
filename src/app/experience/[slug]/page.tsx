@@ -684,7 +684,7 @@ export default async function ExperienceDetailPage({ params, searchParams }: Pro
   // Admin-curated participant reviews for this experience (fallback to legacy content.reviews).
   const { data: placementRows } = await sb
     .from("exp_review_placements")
-    .select("sort_order, exp_reviews(author_name,author_country,rating,quote,photo_url,status,booking_id,category_ratings)")
+    .select("sort_order, exp_reviews(author_name,author_country,rating,quote,photo_url,status,booking_id,category_ratings,reply)")
     .eq("experience_id", experience.id)
     .order("sort_order");
   // The PERSON behind a verified review — but only when they opted their
@@ -717,7 +717,7 @@ export default async function ExperienceDetailPage({ params, searchParams }: Pro
     }
   }
 
-  type PlacedReview = { author_name: string | null; author_country: string | null; rating: number | null; quote: string | null; photo_url: string | null; status: string; booking_id: string | null; category_ratings?: Record<string, number> | null };
+  type PlacedReview = { author_name: string | null; author_country: string | null; rating: number | null; quote: string | null; photo_url: string | null; status: string; booking_id: string | null; category_ratings?: Record<string, number> | null; reply?: string | null };
   const placedReviews = (placementRows ?? [])
     .map((p: { exp_reviews: PlacedReview | null }) => p.exp_reviews)
     .filter((r: PlacedReview | null): r is PlacedReview => !!r && r.status === "approved")
@@ -736,6 +736,7 @@ export default async function ExperienceDetailPage({ params, searchParams }: Pro
       cats: r.category_ratings ?? null,
       // The reviewer's community-profile photo — only with their opt-in.
       avatarUrl: r.booking_id ? avatarByBooking.get(r.booking_id) ?? null : null,
+      reply: (r.reply ?? "").trim() || null,
     }));
 
   // Per-category averages across the placed reviews that actually rated them.
@@ -813,7 +814,12 @@ export default async function ExperienceDetailPage({ params, searchParams }: Pro
   for (const e of allEditions) monthsByEdition[e.id] = monthsSpanned(e.date_start, e.date_end);
   const defaultTripMonths = edition ? monthsSpanned(edition.date_start, edition.date_end) : [];
   const measuredPct = windStats && tripMonth
-    ? Math.round(Number((windStats.months?.find((m) => m.m === tripMonth)?.pct as Record<string, number> | undefined)?.["4"] ?? 0)) || null
+    ? (() => {
+        const m = windStats.months?.find((x) => x.m === tripMonth);
+        // day-window metric first (see wind-stats.ts), hours-share fallback
+        const v = m?.dayPct ?? Number((m?.pct as Record<string, number> | undefined)?.["4"] ?? 0);
+        return Math.round(Number(v)) || null;
+      })()
     : null;
   const windDisplay = measuredPct != null ? `${measuredPct}%` : windProbability;
 
