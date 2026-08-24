@@ -5,6 +5,11 @@ import { sendEmail } from "@/lib/email/send";
 /**
  * "Forgot password?" on the admin login.
  *
+ * Lives under /api/auth, NOT /api/admin: the admin middleware gate 401s every
+ * unauthenticated request, and the one person who needs this route is by
+ * definition locked out. Found the hard way — the deployed route answered 401
+ * to the very people it existed for.
+ *
  * Same machinery as the member magic link (lib/members.ts): a server-generated
  * recovery token, wrapped in OUR confirm route on OUR domain, sent through
  * Resend with the branded template — no dependency on Supabase's mailer or

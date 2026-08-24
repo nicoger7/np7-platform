@@ -134,12 +134,17 @@ export function TilePlacementEditor({ content, value, onChange }: {
         <span className="text-[11px] font-bold uppercase tracking-[0.12em] text-[var(--admin-fg-muted,#7a8a90)] mr-0.5">Adjust</span>
         {([["photo", "Photo"],
            ["coach", crew.length > 1 ? "Coach 1" : "Coach"],
-           ...(crew.length > 1 ? [["coach2", "Coach 2"] as [Elem, string]] : []),
+           // Coach 2 stays VISIBLE when the crew is short — a hidden option is
+           // an option nobody discovers. Disabled with the how-to in the title.
+           ["coach2", "Coach 2"] as [Elem, string],
            ...(crew.length > 2 ? [["coach3", "Coach 3"] as [Elem, string]] : []),
            ["flag", "Flag"]] as [Elem, string][]).map(([k, lbl]) => {
-          const disabled = (k === "coach" && !hasCoach) || (k === "flag" && !hasFlag);
+          const disabled = (k === "coach" && !hasCoach) || (k === "flag" && !hasFlag)
+            || (k === "coach2" && crew.length < 2) || (k === "coach3" && crew.length < 3);
+          const hint = k === "coach2" && crew.length < 2
+            ? "Needs a second coach with a cutout — make one in Coaches → Photo studio" : undefined;
           return (
-            <button key={k} type="button" disabled={disabled} onClick={() => setActive(k)}
+            <button key={k} type="button" disabled={disabled} title={hint} onClick={() => setActive(k)}
               className={`text-[12.5px] font-bold px-2.5 py-1 rounded-full transition-colors disabled:opacity-40 disabled:cursor-not-allowed ${
                 active === k ? "bg-[#00374a] text-white" : "bg-[var(--admin-chip,#eef3f5)] text-[var(--admin-fg,#0a2a33)] hover:bg-[#dfe8eb]"
               }`}>{lbl}</button>

@@ -46,6 +46,13 @@ export default function KnowledgePage() {
   const [assisting, setAssisting] = useState(false);
   const [questions, setQuestions] = useState<{ section: string; question: string }[]>([]);
   const [toast, setToast] = useState("");
+  // Two halves of one environment: the sidebar links land on skills or
+  // equipment; window.location keeps us out of the useSearchParams/Suspense
+  // dance in a client page.
+  const [view, setView] = useState<"skills" | "equipment">("skills");
+  useEffect(() => {
+    if (new URLSearchParams(window.location.search).get("view") === "equipment") setView("equipment");
+  }, []);
 
   const loadShelf = useCallback(async () => {
     const d = await fetch("/api/admin/kb").then((r) => r.json()).catch(() => null);
@@ -130,7 +137,7 @@ export default function KnowledgePage() {
         {/* shelf */}
         <div className="rounded-xl p-3 space-y-4 max-h-[75vh] overflow-y-auto" style={{ border: "1px solid var(--admin-border)", backgroundColor: "var(--admin-surface)" }}>
           {loading && <p className="text-xs admin-faint p-2">Loading…</p>}
-          {shelfGroups.map((g) => (
+          {view === "skills" && shelfGroups.map((g) => (
             <div key={g.discipline}>
               <p className="flex items-center justify-between text-[11px] font-bold admin-heading px-2 mb-1.5 pt-1">
                 <span>{g.label}</span>
@@ -154,6 +161,7 @@ export default function KnowledgePage() {
               ))}
             </div>
           ))}
+          {view === "equipment" && (
           <div>
             <div className="flex items-center justify-between px-2 mb-1">
               <p className="text-[10px] uppercase tracking-wider admin-faint">Equipment</p>
@@ -169,6 +177,7 @@ export default function KnowledgePage() {
             ))}
             {equipment.length === 0 && <p className="text-[11px] admin-faint px-2">No equipment entries yet.</p>}
           </div>
+          )}
         </div>
 
         {/* editor */}

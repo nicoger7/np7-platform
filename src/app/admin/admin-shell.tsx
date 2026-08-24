@@ -69,10 +69,18 @@ const navByEnv: Record<Environment, NavGroup[]> = {
         { label: "Member Management", href: "/admin/members", icon: "person" },
         { label: "Member Activity", href: "/admin/member-activity", icon: "flow" },
         { label: "Progress Skills", href: "/admin/skills", icon: "checklist" },
-        { label: "Knowledge Base", href: "/admin/knowledge", icon: "checklist" },
         { label: "Tier Perks", href: "/admin/perks", icon: "checklist" },
         { label: "Interest Surveys", href: "/admin/surveys", icon: "checklist" },
         { label: "Trip Invites", href: "/admin/invites", icon: "gift" },
+      ],
+    },
+    {
+      // The coaching brain is an ENVIRONMENT, not a row under Members: its own
+      // group, its own halves (skills teaching / equipment knowledge).
+      label: "Knowledge",
+      items: [
+        { label: "Skills & Teaching", href: "/admin/knowledge", icon: "checklist" },
+        { label: "Equipment", href: "/admin/knowledge?view=equipment", icon: "checklist" },
       ],
     },
     {

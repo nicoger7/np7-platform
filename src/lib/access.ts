@@ -99,7 +99,7 @@ export type Section = {
 /** The admin sections a role can be granted, mirroring the sidebar nav. */
 export const SECTIONS: Section[] = [
   // Experience · Operations
-  { key: "experiences", label: "Experiences & editions", world: "experience", group: "Operations", paths: ["/admin/experiences", "/admin/editions", "/admin/go-live", "/api/admin/experiences", "/api/admin/editions", "/api/admin/go-live"] },
+  { key: "experiences", label: "Experiences & editions", world: "experience", group: "Operations", paths: ["/admin/experiences", "/admin/editions", "/admin/go-live", "/api/admin/experiences", "/api/admin/editions", "/api/admin/go-live", "/api/admin/coaches"] },
   { key: "bookings", label: "Bookings", world: "experience", group: "Operations", paths: ["/admin/bookings", "/api/admin/bookings"] },
   { key: "contacts", label: "Contacts", world: "experience", group: "Operations", paths: ["/admin/contacts", "/api/admin/contacts"] },
   { key: "invites", label: "Trip invites", world: "experience", group: "Operations", paths: ["/admin/invites", "/api/admin/invites"] },
@@ -110,11 +110,11 @@ export const SECTIONS: Section[] = [
   { key: "packages", label: "Packages", world: "experience", group: "Operations", paths: ["/admin/packages", "/api/admin/packages"] },
   { key: "components", label: "Components", world: "experience", group: "Operations", paths: ["/admin/components", "/api/admin/components"] },
   // Experience · Website
-  { key: "file_storage", label: "File storage", world: "experience", group: "Website", paths: ["/admin/images", "/api/admin/images"] },
-  { key: "event_content", label: "Event content", world: "experience", group: "Website", paths: ["/admin/content", "/api/admin/content"] },
+  { key: "file_storage", label: "File storage", world: "experience", group: "Website", paths: ["/admin/images", "/api/admin/images", "/api/admin/memories", "/api/admin/videos"] },
+  { key: "event_content", label: "Event content", world: "experience", group: "Website", paths: ["/admin/content", "/api/admin/content", "/api/admin/events", "/api/admin/event-dates", "/api/admin/youtube"] },
   { key: "members", label: "Member management", world: "experience", group: "Website", paths: ["/admin/members", "/api/admin/members"] },
   { key: "magazine", label: "Magazine", world: "experience", group: "Website", paths: ["/admin/blog", "/api/admin/blog"] },
-  { key: "spotguide", label: "Spotguide", world: "experience", group: "Website", paths: ["/admin/spotguide", "/admin/spots", "/api/admin/spotguide", "/api/admin/spots"] },
+  { key: "spotguide", label: "Spotguide", world: "experience", group: "Website", paths: ["/admin/spotguide", "/admin/spots", "/api/admin/spotguide", "/api/admin/spots", "/api/admin/spot-notes"] },
   { key: "destinations", label: "Destinations", world: "experience", group: "Website", paths: ["/admin/destinations", "/api/admin/destinations"] },
   // /api/admin/reviews (exp_reviews) belongs here: it backs this page and, as a
   // read-only pool, the edition Reviews tab. NOTE it can only live in ONE section —
@@ -141,9 +141,9 @@ export const SECTIONS: Section[] = [
   { key: "documents", label: "Documents", world: "experience", group: "Finance", paths: ["/admin/documents", "/api/admin/documents"] },
   { key: "settings", label: "Company settings", world: "experience", group: "Finance", paths: ["/admin/settings", "/api/admin/company-settings"] },
   // Experience · Automation
-  { key: "emails", label: "Emails & templates", world: "experience", group: "Automation", paths: ["/admin/emails", "/admin/email-templates", "/admin/email-log", "/admin/campaigns", "/api/admin/emails", "/api/admin/email-templates", "/api/admin/email-log", "/api/admin/campaigns", "/api/admin/audience"] },
+  { key: "emails", label: "Emails & templates", world: "experience", group: "Automation", paths: ["/admin/emails", "/admin/email-templates", "/admin/email-log", "/admin/campaigns", "/api/admin/emails", "/api/admin/email-templates", "/api/admin/email-log", "/api/admin/campaigns", "/api/admin/audience", "/api/admin/email", "/api/admin/mail-gaps"] },
   // Hardware
-  { key: "products", label: "Products", world: "hardware", group: "Hardware", paths: ["/admin/products", "/api/admin/products", "/api/admin/variants"] },
+  { key: "products", label: "Products", world: "hardware", group: "Hardware", paths: ["/admin/products", "/api/admin/products", "/api/admin/variants", "/api/admin/gtin"] },
   { key: "product_pages", label: "Product pages (website)", world: "hardware", group: "Hardware", paths: ["/admin/product-pages", "/api/admin/products"] },
   { key: "orders", label: "Orders", world: "hardware", group: "Hardware", paths: ["/admin/orders", "/api/admin/orders"] },
   { key: "inventory", label: "Inventory", world: "hardware", group: "Hardware", paths: ["/admin/inventory", "/api/admin/inventory"] },
@@ -161,12 +161,20 @@ export const SECTIONS: Section[] = [
   // Analytics
   { key: "member_activity", label: "Member activity", world: "experience", group: "Operations", paths: ["/admin/member-activity", "/api/admin/member-activity"] },
   { key: "archive", label: "Archive (deleted records)", world: "experience", group: "Operations", paths: ["/admin/archive", "/api/admin/archive"] },
-  { key: "applications", label: "Signature-trip applications", world: "experience", group: "Operations", paths: ["/admin/applications"] },
+  { key: "applications", label: "Signature-trip applications", world: "experience", group: "Operations", paths: ["/admin/applications", "/api/admin/signature"] },
   { key: "surveys", label: "Interest surveys", world: "experience", group: "Automation", paths: ["/admin/surveys", "/api/admin/surveys"] },
   { key: "pipeline_rules", label: "Pipeline rules", world: "experience", group: "Automation", paths: ["/admin/pipeline-rules", "/api/admin/pipeline-rules"] },
   { key: "task_rules", label: "Task rules", world: "experience", group: "Automation", paths: ["/admin/task-rules", "/api/admin/task-rules"] },
   { key: "withdrawals", label: "Withdrawals (Widerruf)", world: "experience", group: "Finance", paths: ["/admin/widerrufe", "/api/admin/widerrufe"] },
   { key: "skills", label: "Progression skills", world: "experience", group: "Website", paths: ["/admin/skills", "/api/admin/skills"] },
+  // Knowledge — the coaching brain. Its own group: this is an ENVIRONMENT in
+  // the sidebar, not a row under Members (Nico, 2026-08-24). Registering it is
+  // what makes Owner edits WORK at all: writes to an unclaimed /api/admin path
+  // fail closed for everyone — which is exactly how the Owner spent a morning
+  // staring at "view access here, not edit" on his own knowledge base.
+  { key: "knowledge", label: "Knowledge Base", world: "experience", group: "Knowledge", paths: ["/admin/knowledge", "/api/admin/kb"] },
+  { key: "tier_perks", label: "Tier perks", world: "experience", group: "Website", paths: ["/admin/perks", "/api/admin/tier-perks"] },
+  { key: "templates", label: "Page templates", world: "experience", group: "Website", paths: ["/admin/templates", "/api/admin/templates"] },
   // `boards` and `product_reviews` used to sit here, pointing at two placeholder
   // pages in the product-dev world. Both pages are gone (replaced by the real
   // build-sheet section), and `product_reviews` also claimed /api/admin/reviews —
