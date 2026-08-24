@@ -78,6 +78,24 @@ export function HeroFindYourFit({ src, poster, fallbackImages, children }: { src
     // after 6s, stop waiting and run the photo slideshow instead.
     const stall = window.setTimeout(() => { if (!ready) setMode("static"); }, 6000);
 
+    // Smoothness is memory, not codec: the clip is already all-intra, but
+    // scrubbing over the NETWORK stutters — every seek into an unbuffered
+    // range is its own HTTP fetch. So the whole file (~12 MB) is pulled once
+    // into a blob; after the swap every seek decodes from RAM. If the fetch
+    // fails or the visitor leaves first, the network `src` keeps working.
+    let blobUrl = "";
+    fetch(video.currentSrc || video.src)
+      .then((r) => (r.ok ? r.blob() : Promise.reject(new Error(String(r.status)))))
+      .then((b) => {
+        if (!running) return;
+        blobUrl = URL.createObjectURL(b);
+        const keep = video.currentTime;
+        video.src = blobUrl;
+        // metadata re-fires from the blob (instant); restore the scrub position
+        video.addEventListener("loadedmetadata", () => { try { video.currentTime = keep; } catch { /* fine */ } }, { once: true });
+      })
+      .catch(() => { /* network src stays — worse but working */ });
+
     const progress = () => {
       const dist = wrap.offsetHeight - window.innerHeight;
       return dist <= 0 ? 0 : clamp(-wrap.getBoundingClientRect().top / dist);
@@ -92,7 +110,11 @@ export function HeroFindYourFit({ src, poster, fallbackImages, children }: { src
 
       if (ready && duration) {
         const t = p * (duration - 0.05);
-        if (video.readyState >= 1 && Math.abs(video.currentTime - t) > 0.01) {
+        // One seek at a time: firing a new one every RAF while the previous
+        // is still in flight is what made the scrub judder (Safari queues or
+        // drops them). Gate on `seeking` — the eased `current` keeps gliding,
+        // so the next allowed seek lands on the freshest position anyway.
+        if (video.readyState >= 1 && !video.seeking && Math.abs(video.currentTime - t) > 0.01) {
           try { video.currentTime = t; } catch { /* seeking mid-load */ }
         }
       }
@@ -129,7 +151,7 @@ export function HeroFindYourFit({ src, poster, fallbackImages, children }: { src
     const io = new IntersectionObserver(([e]) => { running = e.isIntersecting; if (running && !raf) raf = requestAnimationFrame(tick); else if (!running && raf) { cancelAnimationFrame(raf); raf = 0; } }, { threshold: 0 });
     io.observe(wrap);
     raf = requestAnimationFrame(tick);
-    return () => { running = false; clearTimeout(stall); cancelAnimationFrame(raf); io.disconnect(); video.removeEventListener("loadedmetadata", onMeta); video.removeEventListener("error", onError); };
+    return () => { running = false; clearTimeout(stall); cancelAnimationFrame(raf); io.disconnect(); video.removeEventListener("loadedmetadata", onMeta); video.removeEventListener("error", onError); if (blobUrl) URL.revokeObjectURL(blobUrl); };
   }, []);
 
   function goTo(i: number) {
