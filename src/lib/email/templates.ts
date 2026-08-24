@@ -10,6 +10,7 @@ export type EmailVars = {
   deposit?: string;
   balance?: string;
   activationLink?: string;
+  resetLink?: string;
   bookingLink?: string;
   whatsappLink?: string;
   /** admin-set subject for a survey invite; empty = the built-in one */
@@ -242,6 +243,19 @@ export const TEMPLATES: Record<string, (v: EmailVars, opts?: LayoutOpts) => Buil
         heading("One thing before you ride") +
         p(`Everyone on the water signs a short waiver. It takes a minute${v.waiverLink ? ` — <a href="${esc(v.waiverLink)}" style="color:#0aa3c7;font-weight:700;">sign it here</a>` : ""}. If the participant is under 18, a parent or guardian signs it.`) +
         p(`Any questions, just reply to this email.<br>— Nico & the NP7 team`),
+    }),
+  }),
+
+  password_reset: (v, opts) => ({
+    subject: `Reset your NP7 password`,
+    html: emailLayout({
+      ...opts,
+      preheader: "Set a new password — the link works once.",
+      bodyHtml:
+        greet(v) +
+        p(`Someone asked to reset the password for this NP7 account — usually that someone is you.`) +
+        (v.resetLink ? emailButton("Set a new password", v.resetLink) : "") +
+        p(`The link works once and expires after an hour. If you didn't request this, you can safely ignore this email — your password stays as it is.`),
     }),
   }),
 
