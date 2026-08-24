@@ -107,7 +107,7 @@ export function TilePlacementEditor({ content, value, onChange }: {
   // default now, not a law).
   const { ref, handlers } = useCanvasDrag((x, y) => {
     if (active === "photo") set({ photoX: x, photoY: y });
-    else if (active === "coach") set({ coachRight: clamp(100 - x - 8, -10, 70), coachBottom: clamp(100 - y, -15, 60) });
+    else if (active === "coach") set({ coachRight: clamp(100 - x - 8, -50, 70), coachBottom: clamp(100 - y, -15, 60) });
     // The extra coaches are left-anchored and free on BOTH axes — only the
     // lead is horizontally locked (that's the cross-tile alignment promise).
     else if (active === "coach2") set({ coach2X: clamp(x - 8, -10, 70), coach2Bottom: clamp(100 - y, -15, 60) });
@@ -180,7 +180,7 @@ export function TilePlacementEditor({ content, value, onChange }: {
         {active === "coach" && hasCoach && (
           <>
             <Slider label="Size" value={p.coachScale} min={45} max={120} suffix="%" onChange={(v) => set({ coachScale: v })} />
-            <Slider label="From right" value={p.coachRight} min={-10} max={70} suffix="%" onChange={(v) => set({ coachRight: v })} />
+            <Slider label="From right" value={p.coachRight} min={-50} max={70} suffix="%" onChange={(v) => set({ coachRight: v })} />
             <Slider label="From bottom" value={p.coachBottom} min={-15} max={50} suffix="%" onChange={(v) => set({ coachBottom: v })} />
           </>
         )}
