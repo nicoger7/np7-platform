@@ -174,21 +174,18 @@ export function EpicWeekScroll({
         <div className="max-w-[1080px] mx-auto px-5 sm:px-8">
           <div className="max-w-[640px] mb-8 sm:mb-10">
             <p className="text-[11px] font-bold tracking-[0.25em] text-[#00afdb] mb-3">{eyebrow}</p>
-            <h2 className="text-[28px] sm:text-5xl font-black tracking-[-0.03em] leading-[1.08] mb-3 sm:mb-4">{title}</h2>
-            <p className="text-[15px] sm:text-[16px] text-[#6a7a80] leading-relaxed">{intro}</p>
-            {weekInfo && <p className="text-[14px] text-[#7a8a90] leading-relaxed mt-3 whitespace-pre-line">{weekInfo}</p>}
-          </div>
-          <div className="max-w-[640px]">
+            {/* level switcher — ABOVE the headline: "who are you?" comes before
+                the promise, and half-hidden under the intro nobody found it */}
             {variants && (
-              <div className="flex flex-wrap gap-2 mb-5" role="tablist" aria-label="Coaching level">
+              <div className="flex flex-wrap gap-2 mb-4" role="tablist" aria-label="Coaching level">
                 {variants.map((v, i) => {
                   const on = i === levelIdx;
                   return (
                     <button
                       key={v.key} type="button" role="tab" aria-selected={on}
                       onClick={() => setLevelIdx(i)}
-                      className={`px-4 py-1.5 rounded-full text-[13px] font-bold transition-colors ${
-                        on ? "bg-[#00afdb] text-white" : "bg-white text-[#5a6b72] border border-[#d3dbde] hover:border-[#00afdb]"
+                      className={`px-5 py-2 rounded-full text-[14px] font-bold transition-all ${
+                        on ? "bg-[#00afdb] text-white shadow-[0_4px_16px_rgba(0,175,219,0.35)]" : "bg-white text-[#5a6b72] border-[1.5px] border-[#c8d4d8] hover:border-[#00afdb] hover:text-[#00374a]"
                       }`}
                     >
                       {v.label}
@@ -197,6 +194,11 @@ export function EpicWeekScroll({
                 })}
               </div>
             )}
+            <h2 className="text-[28px] sm:text-5xl font-black tracking-[-0.03em] leading-[1.08] mb-3 sm:mb-4">{title}</h2>
+            <p className="text-[15px] sm:text-[16px] text-[#6a7a80] leading-relaxed">{intro}</p>
+            {weekInfo && <p className="text-[14px] text-[#7a8a90] leading-relaxed mt-3 whitespace-pre-line">{weekInfo}</p>}
+          </div>
+          <div className="max-w-[640px]">
           </div>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             {outcomes.map((o, i) => (
@@ -239,23 +241,16 @@ export function EpicWeekScroll({
           {/* overview */}
           <div className="relative">
             <p className="text-[11px] font-bold tracking-[0.25em] text-[#00afdb] mb-3">{eyebrow}</p>
-            <h2 className="text-2xl sm:text-[34px] font-black tracking-[-0.03em] text-[#00374a] mb-3 leading-[1.06]">{title}</h2>
-            <p className="text-[13.5px] text-[#6a7a80] leading-relaxed mb-5 hidden lg:block">{intro}</p>
-            {/* "About the week" from the admin. It rendered ONLY in the static
-                fallback below, so on any desktop with animations on — i.e. the
-                page as Nico actually views it — the field went nowhere and the
-                admin hint pointed at a paragraph that did not exist. */}
-            {weekInfo && <p className="text-[12.5px] text-[#7a8a90] leading-relaxed -mt-2 mb-5 whitespace-pre-line hidden lg:block">{weekInfo}</p>}
             {variants && (
-              <div className="flex flex-wrap gap-2 mb-5" role="tablist" aria-label="Coaching level">
+              <div className="flex flex-wrap gap-2 mb-4" role="tablist" aria-label="Coaching level">
                 {variants.map((v, i) => {
                   const on = i === levelIdx;
                   return (
                     <button
                       key={v.key} type="button" role="tab" aria-selected={on}
                       onClick={() => setLevelIdx(i)}
-                      className={`px-4 py-1.5 rounded-full text-[13px] font-bold transition-colors ${
-                        on ? "bg-[#00afdb] text-white" : "bg-white text-[#5a6b72] border border-[#d3dbde] hover:border-[#00afdb]"
+                      className={`px-5 py-2 rounded-full text-[14px] font-bold transition-all ${
+                        on ? "bg-[#00afdb] text-white shadow-[0_4px_16px_rgba(0,175,219,0.35)]" : "bg-white text-[#5a6b72] border-[1.5px] border-[#c8d4d8] hover:border-[#00afdb] hover:text-[#00374a]"
                       }`}
                     >
                       {v.label}
@@ -264,6 +259,14 @@ export function EpicWeekScroll({
                 })}
               </div>
             )}
+            <h2 className="text-2xl sm:text-[34px] font-black tracking-[-0.03em] text-[#00374a] mb-3 leading-[1.06]">{title}</h2>
+            <p className="text-[13.5px] text-[#6a7a80] leading-relaxed mb-5 hidden lg:block">{intro}</p>
+            {/* "About the week" from the admin. It rendered ONLY in the static
+                fallback below, so on any desktop with animations on — i.e. the
+                page as Nico actually views it — the field went nowhere and the
+                admin hint pointed at a paragraph that did not exist. */}
+            {weekInfo && <p className="text-[12.5px] text-[#7a8a90] leading-relaxed -mt-2 mb-5 whitespace-pre-line hidden lg:block">{weekInfo}</p>}
+
             <div className="hidden lg:flex lg:flex-col gap-2">
               {outcomes.map((o, i) => {
                 const on = i === active;

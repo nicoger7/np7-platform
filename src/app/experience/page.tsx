@@ -105,10 +105,10 @@ export default async function ExperienceOverviewPage() {
           className="w-[280px] sm:w-[400px] lg:w-[460px] h-auto drop-shadow-[0_6px_30px_rgba(0,0,0,0.55)] mb-7"
         />
         <h1 className="text-3xl sm:text-5xl lg:text-[56px] font-black text-white leading-[0.98] tracking-[-0.03em] drop-shadow-[0_4px_30px_rgba(0,0,0,0.3)]">
-          Chase the ride. Find your crew.
+          The No.&thinsp;1 windsurf holiday.
         </h1>
         <p className="mt-5 text-[16px] sm:text-[19px] text-white/85 max-w-[520px] font-medium">
-          World-class windsurf &amp; foil trips around the planet — coaching, community and everything arranged for you.
+          Chase the ride, find your crew — world-class coaching, community and everything arranged for you.
         </p>
         <div className="mt-9 flex flex-wrap items-center justify-center gap-3">
           <Link

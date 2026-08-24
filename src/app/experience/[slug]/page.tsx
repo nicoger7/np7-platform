@@ -5,6 +5,8 @@ import { DEFAULT_WEEK_INFO } from "@/lib/experience-defaults";
 import { notFound } from "next/navigation";
 import { includeLine } from "@/lib/include-line";
 import { REVIEW_CATEGORIES } from "@/lib/review-categories";
+import { publicProfileFor } from "@/lib/member-profile";
+import { createAdminClient } from "@/lib/supabase";
 import { GuestReviews } from "@/components/experience/guest-reviews";
 import { packageLevelLabel } from "@/lib/package-levels";
 import type { Metadata } from "next";
@@ -685,6 +687,36 @@ export default async function ExperienceDetailPage({ params, searchParams }: Pro
     .select("sort_order, exp_reviews(author_name,author_country,rating,quote,photo_url,status,booking_id,category_ratings)")
     .eq("experience_id", experience.id)
     .order("sort_order");
+  // The PERSON behind a verified review — but only when they opted their
+  // community profile into the "reviews" surface (profile settings → "On
+  // reviews I write", off by default). publicProfileFor is the single privacy
+  // gate: a null there means "not visible", and the card stays name-only.
+  const avatarByBooking = new Map<string, string>();
+  {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const bids = ((placementRows ?? []) as any[]).map((pr) => pr.exp_reviews?.booking_id).filter(Boolean);
+    if (bids.length) {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const adminDb = createAdminClient() as any;
+      const { data: bs } = await adminDb.from("exp_bookings").select("id, contact_id").in("id", bids);
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const cids = [...new Set(((bs ?? []) as any[]).map((b) => b.contact_id).filter(Boolean))];
+      if (cids.length) {
+        const { data: cs } = await adminDb
+          .from("contacts")
+          .select("id,name,username,avatar_url,country,display_city,self_level,level,level_status,date_of_birth,profile_visibility")
+          .in("id", cids);
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const profByContact = new Map(((cs ?? []) as any[]).map((c) => [c.id, publicProfileFor(c, "reviews")]));
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        for (const b of ((bs ?? []) as any[])) {
+          const prof = profByContact.get(b.contact_id);
+          if (prof?.avatarUrl) avatarByBooking.set(b.id, prof.avatarUrl);
+        }
+      }
+    }
+  }
+
   type PlacedReview = { author_name: string | null; author_country: string | null; rating: number | null; quote: string | null; photo_url: string | null; status: string; booking_id: string | null; category_ratings?: Record<string, number> | null };
   const placedReviews = (placementRows ?? [])
     .map((p: { exp_reviews: PlacedReview | null }) => p.exp_reviews)
@@ -696,6 +728,8 @@ export default async function ExperienceDetailPage({ params, searchParams }: Pro
       // Absent for every review written before categories existed — the card
       // then renders exactly as it always has.
       cats: r.category_ratings ?? null,
+      // The reviewer's community-profile photo — only with their opt-in.
+      avatarUrl: r.booking_id ? avatarByBooking.get(r.booking_id) ?? null : null,
     }));
 
   // Per-category averages across the placed reviews that actually rated them.

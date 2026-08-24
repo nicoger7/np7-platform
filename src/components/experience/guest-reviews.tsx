@@ -27,6 +27,9 @@ export type GuestReviewItem = {
   rating: number;
   verified: boolean;
   cats?: Record<string, number> | null;
+  /** Community-profile photo — present ONLY when the reviewer opted their
+   *  profile into the reviews surface. No photo → the name stands alone. */
+  avatarUrl?: string | null;
 };
 
 const stars = (n: number, cls = "text-[#ffd24a]") => (
@@ -79,7 +82,12 @@ export function GuestReviews({ items }: { items: GuestReviewItem[] }) {
                     <svg className="w-3 h-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="m9 6 6 6-6 6" /></svg>
                   </button>
                 )}
-                <p className="text-[13px] text-white/70 font-semibold">{m.name}{m.country ? ` · ${m.country}` : ""}</p>
+                <p className="flex items-center gap-2 text-[13px] text-white/70 font-semibold">
+                  {m.avatarUrl && (
+                    <span className="w-7 h-7 rounded-full bg-cover bg-center shrink-0 ring-2 ring-white/30" style={{ backgroundImage: `url('${m.avatarUrl}')` }} aria-hidden />
+                  )}
+                  {m.name}{m.country ? ` · ${m.country}` : ""}
+                </p>
               </div>
             </article>
           );
@@ -116,7 +124,12 @@ export function GuestReviews({ items }: { items: GuestReviewItem[] }) {
 
               <div className="px-6 sm:px-7 py-6">
                 <p className="text-[15.5px] text-[#00374a] leading-relaxed font-medium">&ldquo;{open.quote}&rdquo;</p>
-                <p className="mt-3 text-[13px] text-[#6a7a80] font-semibold">{open.name}{open.country ? ` · ${open.country}` : ""}</p>
+                <p className="mt-4 flex items-center gap-2.5 text-[13px] text-[#6a7a80] font-semibold">
+                  {open.avatarUrl && (
+                    <span className="w-9 h-9 rounded-full bg-cover bg-center shrink-0 ring-2 ring-[#ecdcbb]" style={{ backgroundImage: `url('${open.avatarUrl}')` }} aria-hidden />
+                  )}
+                  {open.name}{open.country ? ` · ${open.country}` : ""}
+                </p>
 
                 {openCats.length > 0 && (
                   <div className="mt-6 pt-5 border-t border-[#ecdcbb]">
