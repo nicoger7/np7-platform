@@ -96,11 +96,12 @@ export const TILE_PLACEMENT_DEFAULTS: Required<TilePlacement> = {
 };
 
 /** Merge a (possibly partial / null) placement over the defaults.
- *  The coach's HORIZONTAL position is locked (every tile lines up), so any
- *  legacy saved `coachRight` is deliberately ignored here — otherwise tiles
- *  customised before the lock would break the alignment it promises. */
+ *  The lead coach's horizontal position was once locked so every tile lines
+ *  up — unlocked 2026-08-25: with two- and three-coach crews the lead needs
+ *  to move sideways to compose against the extras, and the admin asked for
+ *  the control three times. Alignment is now a default, not a law. */
 export function resolveTilePlacement(p?: TilePlacement | null): Required<TilePlacement> {
-  return { ...TILE_PLACEMENT_DEFAULTS, ...(p ?? {}), coachRight: TILE_PLACEMENT_DEFAULTS.coachRight };
+  return { ...TILE_PLACEMENT_DEFAULTS, ...(p ?? {}) };
 }
 
 /** The flag's fade mask for a given fade strength (higher = flag fades out more). */

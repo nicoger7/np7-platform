@@ -102,12 +102,12 @@ export function TilePlacementEditor({ content, value, onChange }: {
   const p = resolveTilePlacement(value);
   const set = (patch: Partial<TilePlacement>) => onChange({ ...value, ...patch });
 
-  // Drag on the canvas moves whichever element is active. The COACH is
-  // horizontally locked (so every tile's coach lines up) — drag only nudges it
-  // vertically; use the Size slider for scale.
+  // Drag on the canvas moves whichever element is active — every coach moves
+  // on both axes (the lead's side-lock fell 2026-08-25; alignment is a
+  // default now, not a law).
   const { ref, handlers } = useCanvasDrag((x, y) => {
     if (active === "photo") set({ photoX: x, photoY: y });
-    else if (active === "coach") set({ coachBottom: clamp(100 - y, -15, 60) });
+    else if (active === "coach") set({ coachRight: clamp(100 - x - 8, -10, 70), coachBottom: clamp(100 - y, -15, 60) });
     // The extra coaches are left-anchored and free on BOTH axes — only the
     // lead is horizontally locked (that's the cross-tile alignment promise).
     else if (active === "coach2") set({ coach2X: clamp(x - 8, -10, 70), coach2Bottom: clamp(100 - y, -15, 60) });
@@ -163,7 +163,7 @@ export function TilePlacementEditor({ content, value, onChange }: {
         <span aria-hidden className="pointer-events-none absolute z-20 -translate-x-1/2 -translate-y-1/2 w-6 h-6 rounded-full border-2 border-white shadow-[0_0_0_2px_rgba(0,0,0,0.4)]"
           style={{ left: `${marker.x}%`, top: `${marker.y}%`, background: "rgba(0,175,219,0.35)" }} />
         <span className="pointer-events-none absolute top-1.5 left-1.5 z-20 text-[9.5px] font-bold uppercase tracking-[0.08em] text-white/90 bg-black/45 rounded px-1.5 py-0.5">
-          Drag {active === "coach2" ? "coach 2" : active === "coach3" ? "coach 3" : active}{active === "coach" ? " up/down" : ""}
+          Drag {active === "coach2" ? "coach 2" : active === "coach3" ? "coach 3" : active === "coach" ? "coach 1" : active}
         </span>
       </div>
 
@@ -180,8 +180,8 @@ export function TilePlacementEditor({ content, value, onChange }: {
         {active === "coach" && hasCoach && (
           <>
             <Slider label="Size" value={p.coachScale} min={45} max={120} suffix="%" onChange={(v) => set({ coachScale: v })} />
+            <Slider label="From right" value={p.coachRight} min={-10} max={70} suffix="%" onChange={(v) => set({ coachRight: v })} />
             <Slider label="From bottom" value={p.coachBottom} min={-15} max={50} suffix="%" onChange={(v) => set({ coachBottom: v })} />
-            <p className="text-[11px] text-[var(--admin-fg-muted,#7a8a90)]">The lead coach&apos;s side position is locked so every tile lines up.</p>
           </>
         )}
         {active === "coach2" && (
