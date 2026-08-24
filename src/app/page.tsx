@@ -11,6 +11,7 @@ export const metadata: Metadata = {
 };
 
 import { cdn } from "@/lib/cdn";
+import { createAdminClient } from "@/lib/supabase";
 
 const NP7_LOGO = cdn('logos/np7-logo.png');
 const NP7_EXPERIENCE_LOGO = cdn('logos/np7-experience-logo.png');
@@ -23,7 +24,29 @@ const Arrow = () => (
   </svg>
 );
 
-export default function LandingPage() {
+export default async function LandingPage() {
+  // Admin copy (Admin → Website → Homepage, site_settings `home_page`).
+  // Shipped strings are the floor — a missing row changes nothing.
+  const copy = await (async () => {
+    const d = {
+      expEyebrow: "TRAVEL · COACHING · COMMUNITY",
+      expTagline: "Premium windsurf trips around the planet.",
+      expCta: "Enter Experience",
+      expPhoto: EXP_PHOTO,
+      hwEyebrow: "BOARDS · FINS · CUSTOM",
+      hwTagline: "Custom boards & fins — shaped on the bench, finished by hand.",
+      hwCta: "Enter Hardware",
+    };
+    try {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const db = createAdminClient() as any;
+      const { data } = await db.from("site_settings").select("value").eq("key", "home_page").maybeSingle();
+      const v = (data?.value ?? {}) as Partial<typeof d>;
+      return { ...d, ...Object.fromEntries(Object.entries(v).filter(([, x]) => typeof x === "string" && x.trim())) } as typeof d;
+    } catch {
+      return d;
+    }
+  })();
   // Until a public world is live (production), keep the existing brand splash + a small
   // member-login link, exactly as production looks today. Once SHOW_EXPERIENCE /
   // SHOW_HARDWARE is on, the new internal landing below takes over.
@@ -38,18 +61,18 @@ export default function LandingPage() {
         aria-label="Enter NP7 Experience"
         className="group relative flex flex-col items-center justify-center basis-0 grow transition-all duration-500 ease-out md:hover:grow-[1.45] overflow-hidden motion-reduce:transition-none"
       >
-        <div className="absolute inset-0 bg-cover bg-center transition-transform duration-[1.2s] ease-out group-hover:scale-105 group-active:scale-105" style={{ backgroundImage: `url('${EXP_PHOTO}')` }} />
+        <div className="absolute inset-0 bg-cover bg-center transition-transform duration-[1.2s] ease-out group-hover:scale-105 group-active:scale-105" style={{ backgroundImage: `url('${copy.expPhoto}')` }} />
         <div className="absolute inset-0 bg-gradient-to-t from-[#00374a]/95 via-[#00374a]/55 to-[#00374a]/60 transition-colors duration-500 group-hover:from-[#00374a]/85 group-hover:via-[#00374a]/40 group-active:from-[#00374a]/85 group-active:via-[#00374a]/40" />
         {/* sun-to-sea accent wash */}
         <div className="absolute inset-0 opacity-60 mix-blend-soft-light" style={{ background: "linear-gradient(180deg, rgba(255,196,46,0.25), transparent 45%, rgba(0,175,219,0.3))" }} />
 
         <div className="relative z-10 w-full flex flex-col items-center justify-center text-center px-8 py-10 md:py-24">
-          <span className="text-[10px] sm:text-[11px] font-bold tracking-[0.3em] text-white/70 mb-4 md:mb-7">TRAVEL · COACHING · COMMUNITY</span>
+          <span className="text-[10px] sm:text-[11px] font-bold tracking-[0.3em] text-white/70 mb-4 md:mb-7">{copy.expEyebrow}</span>
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img src={NP7_EXPERIENCE_LOGO} alt="NP7 Experience" className="w-[175px] sm:w-[300px] lg:w-[340px] h-auto drop-shadow-[0_6px_30px_rgba(0,0,0,0.5)] mb-4 md:mb-7" />
-          <p className="text-[14px] sm:text-[17px] text-white/80 max-w-[320px] mb-6 md:mb-9 font-medium">Premium windsurf trips around the planet.</p>
+          <p className="text-[14px] sm:text-[17px] text-white/80 max-w-[320px] mb-6 md:mb-9 font-medium">{copy.expTagline}</p>
           <span className="inline-flex items-center gap-2 px-6 py-3 md:px-7 md:py-3.5 rounded-full text-[13.5px] font-bold text-[#00374a] bg-white shadow-[0_8px_30px_rgba(255,255,255,0.2)] group-hover:gap-3.5 group-active:gap-3.5 transition-all">
-            Enter Experience <Arrow />
+            {copy.expCta} <Arrow />
           </span>
         </div>
       </Link>
@@ -70,7 +93,7 @@ export default function LandingPage() {
         <div className="absolute inset-0 opacity-70 group-hover:opacity-100 group-active:opacity-100 transition-opacity duration-500" style={{ background: "radial-gradient(70% 50% at 50% 115%, rgba(255,46,136,0.3), transparent 70%)" }} />
 
         <div className="relative z-10 w-full flex flex-col items-center justify-center text-center px-8 py-10 md:py-24">
-          <span className="font-mono text-[10px] sm:text-[11px] font-bold tracking-[0.3em] text-white/45 mb-4 md:mb-7">BOARDS · FINS · CUSTOM</span>
+          <span className="font-mono text-[10px] sm:text-[11px] font-bold tracking-[0.3em] text-white/45 mb-4 md:mb-7">{copy.hwEyebrow}</span>
           <h2 className="text-[44px] sm:text-7xl lg:text-[88px] font-black tracking-[-0.03em] uppercase text-white leading-[0.9]" style={{ textShadow: "0 4px 30px rgba(0,0,0,0.6)" }}>
             Hardware
           </h2>
@@ -79,9 +102,9 @@ export default function LandingPage() {
             <span className="h-1.5 w-14 rounded-full" style={{ background: "#c6ff3a", boxShadow: "0 0 14px #c6ff3a" }} />
             <span className="h-1.5 w-5 rounded-full" style={{ background: "#ff2e88", boxShadow: "0 0 14px #ff2e88" }} />
           </div>
-          <p className="text-[14px] sm:text-[17px] text-white/65 max-w-[320px] mb-6 md:mb-9 font-medium">Custom boards &amp; fins — shaped on the bench, finished by hand.</p>
+          <p className="text-[14px] sm:text-[17px] text-white/65 max-w-[320px] mb-6 md:mb-9 font-medium">{copy.hwTagline}</p>
           <span className="inline-flex items-center gap-2 px-6 py-3 md:px-7 md:py-3.5 rounded-full text-[13.5px] font-bold text-black bg-[#c6ff3a] shadow-[0_0_30px_rgba(198,255,58,0.4)] group-hover:gap-3.5 group-active:gap-3.5 transition-all">
-            Enter Hardware <Arrow />
+            {copy.hwCta} <Arrow />
           </span>
         </div>
       </Link>

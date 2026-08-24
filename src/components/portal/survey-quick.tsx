@@ -157,7 +157,15 @@ export function SurveyQuick({ survey, token, existing, preview = false, justSave
                   {multi && <p className="text-[13px] font-black uppercase tracking-[0.12em] text-[#b0791e]">{g.label}</p>}
                   {/* Left, like the eyebrow above it and the cards below — it was
                       centred, which made every group read as three alignments. */}
-                  {g.blurb && <p className="text-[14px] text-[#6a7a80] leading-relaxed mt-1">{g.blurb}</p>}
+                  {/* One long paragraph read as wall-of-text (Nico) — the blurb
+                      becomes its own sectioned card with an eyebrow, so the page
+                      reads header → about → info cards → dates. */}
+                  {g.blurb && (
+                    <div className="rounded-2xl bg-white border border-[#ecdcbb] p-5 mt-2" style={{ boxShadow: "0 8px 26px rgba(0,55,74,0.06)" }}>
+                      <p className="text-[10.5px] font-black uppercase tracking-[0.18em] text-[#b0791e] mb-2">About the week</p>
+                      <p className="text-[14px] text-[#5a6b72] leading-[1.7] [text-wrap:pretty]">{g.blurb}</p>
+                    </div>
+                  )}
                   {info && <SurveyInfoButtons info={info} />}
                 </div>
               )}
