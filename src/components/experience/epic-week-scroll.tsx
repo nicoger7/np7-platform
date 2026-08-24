@@ -167,14 +167,10 @@ export function EpicWeekScroll({
 
   const img = (i: number) => (images.length ? images[i % images.length] : null);
 
-  // The level switcher floats ON the module, top-centre — physically part of
-  // the section it controls, so it can't read as a page-wide toggle (centred
-  // above everything it looked like it switched the whole page; it doesn't).
-  // In the pinned story it stays visible the entire scroll, so a rider can
-  // change level mid-story. Absent entirely on one-level experiences.
+  // The switcher crowns the section HEADER (Nico's final call, fourth
+  // placement): directly above the eyebrow, left-aligned with the copy it
+  // switches, no explainer label — the two level names explain themselves.
   const levelSwitcher = variants ? (
-    <div className="text-center">
-      <p className="text-[10px] font-bold tracking-[0.28em] uppercase text-[#8aa0a8] mb-2">See the week as</p>
       <div className="inline-flex items-center gap-1 rounded-full bg-white/95 backdrop-blur border border-[#e2e9ec] p-1 shadow-[0_10px_30px_rgba(0,55,74,0.14)]" role="tablist" aria-label="Coaching level">
         {variants.map((v, i) => {
           const on = i === levelIdx;
@@ -191,16 +187,15 @@ export function EpicWeekScroll({
           );
         })}
       </div>
-    </div>
   ) : null;
 
   // ---- static fallback: clean wrapping grid (mobile / reduced-motion) ------
   if (!enabled) {
     return (
       <section className="py-14 sm:py-20 bg-[#f6f9fa] text-[#00374a]">
-        {levelSwitcher && <div className="mb-10">{levelSwitcher}</div>}
         <div className="max-w-[1080px] mx-auto px-5 sm:px-8">
           <div className="max-w-[640px] mb-8 sm:mb-10">
+            {levelSwitcher && <div className="mb-5">{levelSwitcher}</div>}
             <p className="text-[11px] font-bold tracking-[0.25em] text-[#00afdb] mb-3">{eyebrow}</p>
             <h2 className="text-[28px] sm:text-5xl font-black tracking-[-0.03em] leading-[1.08] mb-3 sm:mb-4">{title}</h2>
             <p className="text-[15px] sm:text-[16px] text-[#6a7a80] leading-relaxed">{intro}</p>
@@ -245,14 +240,10 @@ export function EpicWeekScroll({
           ))}
         </div>
 
-        {/* The switcher lives IN the centred composition — first element of the
-            column, fixed gap to the two columns beneath. Floating it absolute
-            ignored the content's vertical centring and looked unanchored. */}
-        <div className="relative h-full max-w-[1180px] mx-auto px-5 sm:px-12 lg:px-16 flex flex-col justify-center">
-        {levelSwitcher && <div className="mb-7 lg:mb-9">{levelSwitcher}</div>}
-        <div className="grid lg:grid-cols-[290px_1fr] gap-5 lg:gap-14 items-center">
+        <div className="relative h-full max-w-[1180px] mx-auto px-5 sm:px-12 lg:px-16 grid lg:grid-cols-[290px_1fr] gap-5 lg:gap-14 items-center">
           {/* overview */}
           <div className="relative">
+            {levelSwitcher && <div className="mb-5">{levelSwitcher}</div>}
             <p className="text-[11px] font-bold tracking-[0.25em] text-[#00afdb] mb-3">{eyebrow}</p>
             <h2 className="text-2xl sm:text-[34px] font-black tracking-[-0.03em] text-[#00374a] mb-3 leading-[1.06]">{title}</h2>
             <p className="text-[13.5px] text-[#6a7a80] leading-relaxed mb-5 hidden lg:block">{intro}</p>
@@ -290,7 +281,6 @@ export function EpicWeekScroll({
                 </article>
             ))}
           </div>
-        </div>
         </div>
       </div>
 
