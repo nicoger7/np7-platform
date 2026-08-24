@@ -255,18 +255,18 @@ function BookingsInner() {
         }
         return compareValues(aVal, bVal, sortDir);
       })
-    // Default order: by the TRIP, latest first.
+    // Default order: newest booking first (created_at, Nico's call 2026-08-24).
     //
-    // It used to lead with the pipeline rank and fall back to created_at, which
-    // reads well until a row's two dates disagree. Backfilling the 2024 and 2025
-    // trips put eight finished trips at the very top of the list, because they
-    // were CREATED yesterday — the newest rows describing the oldest weeks.
-    // The date that matters here is when the trip runs, so that is the one that
-    // sorts. Bookings with no week yet (a bare lead) sort by when they came in.
-    : [...filtered].sort((a, b) => {
-        const when = (x: Booking) => x.edition?.date_end || x.created_at.slice(0, 10) || "";
-        return when(b).localeCompare(when(a)) || rank(b) - rank(a);
-      });
+    // Two earlier defaults both failed the "open the page, see what's
+    // happening" test. Pipeline-rank-first buried new leads under old paid
+    // rows. Trip-date-first then put next year's LOST WindWeek leads at the
+    // very top, because their week is the furthest in the future — the list
+    // led with dead rows about a distant trip. What the list is FOR is seeing
+    // what just happened, and "just happened" is when the row came in.
+    // Ties (same instant, e.g. a backfill batch) break by pipeline rank.
+    : [...filtered].sort((a, b) =>
+        (b.created_at || "").localeCompare(a.created_at || "") || rank(b) - rank(a)
+      );
 
   // Pipeline view groups
   const pipelineGroups = STATUSES.filter(
