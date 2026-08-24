@@ -5,6 +5,7 @@ import { DEFAULT_WEEK_INFO } from "@/lib/experience-defaults";
 import { notFound } from "next/navigation";
 import { includeLine } from "@/lib/include-line";
 import { REVIEW_CATEGORIES } from "@/lib/review-categories";
+import { statsAreBlind } from "@/lib/wind-stats";
 import { firstNameInitial, publicProfileFor } from "@/lib/member-profile";
 import { createAdminClient } from "@/lib/supabase";
 import { GuestReviews } from "@/components/experience/guest-reviews";
@@ -813,7 +814,7 @@ export default async function ExperienceDetailPage({ params, searchParams }: Pro
   const monthsByEdition: Record<string, number[]> = {};
   for (const e of allEditions) monthsByEdition[e.id] = monthsSpanned(e.date_start, e.date_end);
   const defaultTripMonths = edition ? monthsSpanned(edition.date_start, edition.date_end) : [];
-  const measuredPct = windStats && tripMonth
+  const measuredPct = windStats && tripMonth && !statsAreBlind(windStats)
     ? (() => {
         const m = windStats.months?.find((x) => x.m === tripMonth);
         // day-window metric first (see wind-stats.ts), hours-share fallback

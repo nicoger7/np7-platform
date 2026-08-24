@@ -25,6 +25,21 @@ export const BFT_META: { bft: Bft; color: string; label: string }[] = [
   { bft: 7, color: "#b43a6e", label: "7+ Bft" },
 ];
 
+/**
+ * Can this model actually SEE the spot? Hyper-local thermals (Garda's Ora,
+ * Vasiliki's Eric) blow through valleys a few km wide — invisible even to a
+ * 7 km model, which then reports 2–14% for venues that deliver wind daily.
+ * Publishing that number would be honest about the MODEL and a lie about the
+ * SPOT. Rule: if even the best month can't reach 30% sailable days, the model
+ * is blind here — callers fall back to the hand-typed wind copy instead.
+ */
+export function statsAreBlind(stats: WindStats | null | undefined): boolean {
+  const months = stats?.months;
+  if (!months?.length) return true;
+  const best = Math.max(...months.map((m) => m.dayPct ?? m.pct["4"] ?? 0));
+  return best < 30;
+}
+
 export const MONTH_LABELS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
 
 const MONTH_FULL = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];

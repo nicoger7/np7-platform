@@ -1,6 +1,6 @@
 "use client";
 
-import { MONTH_LABELS, type WindStats } from "@/lib/wind-stats";
+import { MONTH_LABELS, statsAreBlind, type WindStats } from "@/lib/wind-stats";
 
 /**
  * The tiny wind graph on a trip page — three months around the trip, measured.
@@ -48,6 +48,7 @@ export function WindMiniChart({
     return { m, label: MONTH_LABELS[m - 1], pct, center: tripMonths.includes(m) };
   });
   if (rows.every((r) => r.pct === 0)) return null;
+  if (statsAreBlind(stats)) return null; // model can't see this spot — say nothing rather than 2%
 
   const years = stats.period
     ? `${String(stats.period.start).slice(0, 4)}–${String(stats.period.end).slice(0, 4)}`
