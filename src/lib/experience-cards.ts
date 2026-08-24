@@ -218,7 +218,18 @@ export async function getExperienceCards(viewer?: { tierKey: "rider" | "crew" | 
       // and show the discounted one when an advantage applies — same
       // Math.round(price · (1 − pct/100)) the checkout charges (lib/tier-perks).
       priceValue: exp.ed ? (cheapestPackagePrice(exp) ?? exp.price) : null,
-      dateLabel: fmtRange(exp.ed?.date_start, exp.ed?.date_end),
+      // One week: exact dates, as always. Several UPCOMING weeks: the full span
+      // plus a count — "30 Nov – 20 Dec 2026 · 3 weeks" — the tile-sized echo
+      // of the detail hero's "2 weeks to choose from". No extra chrome.
+      dateLabel: (() => {
+        const ups = (exp.exp_editions ?? [])
+          .filter((e) => e.status === "published" && e.date_start && e.date_start >= today
+            && (!e.public_from || e.public_from <= today))
+          .sort((a, b) => (a.date_start! < b.date_start! ? -1 : 1));
+        if (ups.length <= 1) return fmtRange(exp.ed?.date_start, exp.ed?.date_end);
+        const last = ups[ups.length - 1];
+        return `${fmtRange(ups[0].date_start, last.date_end ?? last.date_start)} · ${ups.length} weeks`;
+      })(),
       spotsLeft: exp.spotsLeft,
       tileAuto: autoIds.has(exp.id),
       coachName: coach?.name ?? named,
