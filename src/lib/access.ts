@@ -174,7 +174,7 @@ export const SECTIONS: Section[] = [
   // staring at "view access here, not edit" on his own knowledge base.
   { key: "knowledge", label: "Knowledge Base", world: "experience", group: "Knowledge", paths: ["/admin/knowledge", "/api/admin/kb"] },
   { key: "tier_perks", label: "Tier perks", world: "experience", group: "Website", paths: ["/admin/perks", "/api/admin/tier-perks"] },
-  { key: "templates", label: "Page templates", world: "experience", group: "Website", paths: ["/admin/templates", "/api/admin/templates"] },
+  { key: "templates", label: "Page templates", world: "experience", group: "Website", paths: ["/admin/templates", "/api/admin/templates", "/api/admin/site-settings"] },
   // `boards` and `product_reviews` used to sit here, pointing at two placeholder
   // pages in the product-dev world. Both pages are gone (replaced by the real
   // build-sheet section), and `product_reviews` also claimed /api/admin/reviews —

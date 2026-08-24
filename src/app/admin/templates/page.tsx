@@ -31,6 +31,85 @@ const KIND_LABEL: Record<string, string> = {
   policy: "Cancellation policy",
 };
 
+/**
+ * The Experience-landing hero, admin-editable (site_settings key
+ * `experience_landing_hero`). The video scrubs on scroll; the poster is its
+ * first frame; the fallback images run as a slideshow whenever the video
+ * CAN'T run — a load error, no video data within 6s (slow connection), or the
+ * visitor's own reduced-motion setting. Empty fields fall back to the
+ * built-in defaults, so half-filled is never broken.
+ */
+function LandingHeroCard() {
+  const [videoUrl, setVideoUrl] = useState("");
+  const [posterUrl, setPosterUrl] = useState("");
+  const [images, setImages] = useState<string[]>(["", "", "", ""]);
+  const [state, setState] = useState<"loading" | "idle" | "busy" | "saved" | "error">("loading");
+
+  useEffect(() => {
+    fetch("/api/admin/site-settings?key=experience_landing_hero").then((r) => r.json()).then((d) => {
+      const v = (d?.value ?? {}) as { video?: string; poster?: string; images?: string[] };
+      setVideoUrl(v.video ?? "");
+      setPosterUrl(v.poster ?? "");
+      const imgs = Array.isArray(v.images) ? v.images : [];
+      setImages([0, 1, 2, 3].map((i) => imgs[i] ?? ""));
+      setState("idle");
+    }).catch(() => setState("idle"));
+  }, []);
+
+  async function save() {
+    setState("busy");
+    const value = {
+      video: videoUrl.trim() || undefined,
+      poster: posterUrl.trim() || undefined,
+      images: images.map((x) => x.trim()).filter(Boolean),
+    };
+    const r = await fetch("/api/admin/site-settings", {
+      method: "PUT", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ key: "experience_landing_hero", value }),
+    }).catch(() => null);
+    setState(r?.ok ? "saved" : "error");
+    if (r?.ok) setTimeout(() => setState("idle"), 1800);
+  }
+
+  const input = "w-full admin-input border rounded-lg px-3 py-2 text-sm";
+  return (
+    <div className="mb-8 p-5 rounded-xl" style={{ border: "1px solid var(--admin-border)", backgroundColor: "var(--admin-surface)" }}>
+      <h2 className="text-base font-bold admin-heading">Experience landing hero</h2>
+      <p className="text-xs admin-faint mt-1 mb-4">
+        The scroll video on /experience, its poster frame, and up to four fallback photos. The photos show ONLY when the
+        video can&apos;t run: load error, slow connection (no video data within 6s), or the visitor&apos;s own
+        &ldquo;reduce motion&rdquo; setting. Tall crops: the photos fill the whole screen — pick shots that survive a
+        vertical phone crop. Copy URLs from File storage.
+      </p>
+      {state === "loading" ? <p className="text-xs admin-faint">Loading…</p> : (
+        <div className="space-y-3">
+          <div><label className="block text-xs font-semibold admin-muted mb-1">Video URL (mp4)</label>
+            <input className={input} value={videoUrl} onChange={(e) => setVideoUrl(e.target.value)} placeholder="/cdn/assets/hero/windsurf-hero.mp4" /></div>
+          <div><label className="block text-xs font-semibold admin-muted mb-1">Poster image URL</label>
+            <input className={input} value={posterUrl} onChange={(e) => setPosterUrl(e.target.value)} placeholder="/cdn/assets/hero/windsurf-hero-poster.jpg" /></div>
+          <div className="grid sm:grid-cols-2 gap-3">
+            {images.map((img, i) => (
+              <div key={i}>
+                <label className="block text-xs font-semibold admin-muted mb-1">Fallback photo {i + 1}</label>
+                <input className={input} value={img} onChange={(e) => setImages((arr) => arr.map((x, j) => (j === i ? e.target.value : x)))} placeholder="https://media.np-seven.com/…" />
+                {img.trim() && <div className="mt-1.5 h-16 w-28 rounded-lg bg-cover bg-center" style={{ backgroundImage: `url('${img.trim()}')`, border: "1px solid var(--admin-border)" }} />}
+              </div>
+            ))}
+          </div>
+          <div className="flex items-center gap-3">
+            <button onClick={save} disabled={state === "busy"}
+              className="px-4 py-2 bg-[var(--admin-accent)] hover:opacity-90 disabled:opacity-40 text-[var(--admin-accent-contrast)] text-sm font-bold rounded-lg transition-opacity">
+              {state === "busy" ? "Saving…" : "Save hero"}
+            </button>
+            {state === "saved" && <span className="text-xs font-semibold text-green-500">Saved ✓</span>}
+            {state === "error" && <span className="text-xs font-semibold text-red-400">Could not save — try again.</span>}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 export default function TemplatesPage() {
   const [templates, setTemplates] = useState<Tpl[]>([]);
   const [custom, setCustom] = useState<ContentRow[]>([]);
@@ -82,6 +161,7 @@ export default function TemplatesPage() {
         </p>
       </div>
 
+      <LandingHeroCard />
       {loading && <p className="text-sm admin-faint">Loading…</p>}
 
       {kinds.map((kind) => (

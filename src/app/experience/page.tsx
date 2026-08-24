@@ -22,6 +22,8 @@ export const revalidate = 3600;
 import { cdn } from "@/lib/cdn";
 
 const NP7_EXPERIENCE_LOGO = cdn('logos/np7-experience-logo.png');
+import { createAdminClient } from "@/lib/supabase";
+
 const HERO_VIDEO = cdn('hero/windsurf-hero.mp4');
 const HERO_POSTER = cdn('hero/windsurf-hero-poster.jpg');
 // Slow-connection fallback: when the hero video can't play, these four
@@ -40,6 +42,25 @@ const GIFT_PHOTO = "";
 /* --------------------------------- page --------------------------------- */
 
 export default async function ExperienceOverviewPage() {
+  // Admin-editable hero (Templates → Experience landing hero, site_settings).
+  // Every field optional; the shipped constants stay the floor so a half-filled
+  // or missing row can never blank the page.
+  const hero = await (async () => {
+    try {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const db = createAdminClient() as any;
+      const { data } = await db.from("site_settings").select("value").eq("key", "experience_landing_hero").maybeSingle();
+      const v = (data?.value ?? {}) as { video?: string; poster?: string; images?: string[] };
+      const imgs = Array.isArray(v.images) ? v.images.filter((x) => typeof x === "string" && x.trim()) : [];
+      return {
+        video: v.video?.trim() || HERO_VIDEO,
+        poster: v.poster?.trim() || HERO_POSTER,
+        images: imgs.length ? imgs : HERO_FALLBACKS,
+      };
+    } catch {
+      return { video: HERO_VIDEO, poster: HERO_POSTER, images: HERO_FALLBACKS };
+    }
+  })();
   const { cards: expCards, experiences } = await getExperienceCards();
 
   // The gift card's backdrop = a dedicated plain photo (GIFT_PHOTO). We no longer
@@ -97,7 +118,7 @@ export default async function ExperienceOverviewPage() {
       {/* ---------------------------------------------------------------- */}
       {/* HERO — scroll-scrubbed windsurf "dive"                            */}
       {/* ---------------------------------------------------------------- */}
-      <HeroFindYourFit src={HERO_VIDEO} poster={HERO_POSTER} fallbackImages={HERO_FALLBACKS}>
+      <HeroFindYourFit src={hero.video} poster={hero.poster} fallbackImages={hero.images}>
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img
           src={NP7_EXPERIENCE_LOGO}
