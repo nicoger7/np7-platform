@@ -228,7 +228,13 @@ export default function ContentEditorPage({ params }: { params: Promise<{ id: st
     fetch("/api/admin/editions").then((r) => r.json()).then((d) => {
       const eds = (Array.isArray(d) ? d : []).filter((e: { experience_id: string }) => e.experience_id === id);
       setEditions(eds.map((e: { id: string; year: number | null; label: string | null }) => ({ id: e.id, year: e.year, label: e.label })));
-      if (eds[0]) setEditionId((prev) => prev || eds[0].id);
+      // Default to the NEXT upcoming week — the one the live tile fronts —
+      // not the oldest row. Previewing 2026's crew for a 2027 card is how
+      // the preview and the site ended up disagreeing about who leads.
+      const today = new Date().toISOString().slice(0, 10);
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const next = eds.find((e: any) => e.date_start && e.date_start >= today) ?? eds[0];
+      if (next) setEditionId((prev) => prev || next.id);
     });
   }, [id]);
 

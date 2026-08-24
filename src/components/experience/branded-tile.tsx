@@ -151,7 +151,7 @@ export function BrandedTile({
           key={`${c.name}-${i}`}
           src={c.cutout!}
           alt={c.name}
-          className="absolute z-10 w-auto max-w-none object-contain object-bottom"
+          className="absolute z-10 w-auto max-w-none object-contain object-bottom" /* behind the lead: Coach 1 is always the front figure */
           style={{
             left: `${i === 0 ? p.coach2X : p.coach3X}%`,
             bottom: `${i === 0 ? p.coach2Bottom : p.coach3Bottom}%`,
@@ -163,7 +163,7 @@ export function BrandedTile({
 
       {/* 5b — lead coach cutout + "with …" (right-locked, as always) */}
       {lead && (
-        <div className="absolute top-0 z-10 flex items-end" style={{ right: `${p.coachRight}%`, bottom: `${p.coachBottom}%` }}>
+        <div className="absolute top-0 z-20 flex items-end" style={{ right: `${p.coachRight}%`, bottom: `${p.coachBottom}%` }}>
           {lead.cutout && (
             // eslint-disable-next-line @next/next/no-img-element
             <img
