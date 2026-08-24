@@ -198,10 +198,16 @@ function monthsFromHourly({ time, wind, temp, gust }: Hourly): { months: WindSta
     ...(dayAcc[i].days ? { dayPct: Math.round((dayAcc[i].sail / dayAcc[i].days) * 100) } : {}),
   }));
   const windyMonths = months.filter((m) => (m.pct["4"] ?? 0) >= 60).map((m) => m.m);
+  // Selection score for the accelerated ring: summed session-DAYS, not hours.
+  // The ring exists to find where the wind actually is — and what we display
+  // is the day-window metric, so the point must be chosen by the same measure.
+  // Scoring by hours picked an offshore point for Alaçatı whose day-window
+  // (56%) was WORSE than the bay pin's own (72%).
+  const dayScore = months.reduce((sum, m) => sum + (m.dayPct ?? 0), 0);
   let warmestMonth: number | null = null, warmestTemp: number | null = null;
   for (const m of months) if (m.airTemp != null && (warmestTemp == null || m.airTemp > warmestTemp)) { warmestTemp = m.airTemp; warmestMonth = m.m; }
   const planingScore = months.reduce((s, m) => s + (m.pct["4"] ?? 0), 0) / 12; // mean monthly planing %
-  return { months, windyMonths, warmestMonth, warmestTemp, planingScore };
+  return { months, windyMonths, warmestMonth, warmestTemp, planingScore, dayScore };
 }
 
 /**
@@ -230,7 +236,7 @@ export async function fetchWindStats(lat: number, lng: number, opts?: { accelera
     for (const s of series) {
       if (!s || s.time.length < 24 * 120) continue;
       const agg = monthsFromHourly(s);
-      if (!best || agg.planingScore > best.planingScore) best = agg;
+      if (!best || agg.dayScore > best.dayScore) best = agg;
     }
     if (best) {
       return {
