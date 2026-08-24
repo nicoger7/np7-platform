@@ -5,7 +5,7 @@ import { DEFAULT_WEEK_INFO } from "@/lib/experience-defaults";
 import { notFound } from "next/navigation";
 import { includeLine } from "@/lib/include-line";
 import { REVIEW_CATEGORIES } from "@/lib/review-categories";
-import { publicProfileFor } from "@/lib/member-profile";
+import { firstNameInitial, publicProfileFor } from "@/lib/member-profile";
 import { createAdminClient } from "@/lib/supabase";
 import { GuestReviews } from "@/components/experience/guest-reviews";
 import { packageLevelLabel } from "@/lib/package-levels";
@@ -722,7 +722,13 @@ export default async function ExperienceDetailPage({ params, searchParams }: Pro
     .map((p: { exp_reviews: PlacedReview | null }) => p.exp_reviews)
     .filter((r: PlacedReview | null): r is PlacedReview => !!r && r.status === "approved")
     .map((r: PlacedReview) => ({
-      quote: r.quote ?? "", name: r.author_name ?? "", country: r.author_country ?? "",
+      quote: r.quote ?? "",
+      // Public pages shorten to "Thomas J." — same privacy convention as the
+      // member area. The form PREFILLS the full contact name and most guests
+      // submit it untouched, so "they typed it themselves" would be generous.
+      // Curated legacy quotes (content.reviews) keep their hand-written names.
+      name: firstNameInitial(r.author_name),
+      country: r.author_country ?? "",
       image: r.photo_url || BRAND_IMG.group, rating: Math.max(1, Math.min(5, r.rating || 5)),
       verified: !!r.booking_id,
       // Absent for every review written before categories existed — the card

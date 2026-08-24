@@ -1,7 +1,6 @@
 "use client";
 
 import { MONTH_LABELS, type WindStats } from "@/lib/wind-stats";
-import { useSelectedEdition } from "./selected-edition";
 
 /**
  * The tiny wind graph on a trip page — three months around the trip, measured.
@@ -23,14 +22,16 @@ export function WindMiniChart({
   /** Every week's months, so the graph follows the week the visitor selects. */
   monthsByEdition?: Record<string, number[]>;
 }) {
-  // The graph used to be handed ONE month, computed on the server from the
-  // default week — so picking another week never moved it, and a week that
-  // runs 28 Aug – 3 Sep lit up August alone while September stayed grey.
-  // It now reads the selected week and highlights EVERY month the trip covers.
-  const { id } = useSelectedEdition();
-  const selected = id ? monthsByEdition?.[id] : undefined;
+  // Highlight the months of the WHOLE experience, not the selected week.
+  // Following the selection meant the default week lit August alone while the
+  // trip genuinely reaches into September — a guest comparing weeks reads this
+  // chart as "when does this trip blow", not "when does my current selection
+  // blow". Union across every week; the server-provided months are the fallback.
+  const all = monthsByEdition ? [...new Set(Object.values(monthsByEdition).flat())] : [];
   const fallback = Array.isArray(centerMonth) ? centerMonth : [centerMonth];
-  const tripMonths = (selected?.length ? selected : fallback).filter((m) => m >= 1 && m <= 12);
+  const tripMonths = (all.length ? all : fallback)
+    .filter((m) => m >= 1 && m <= 12)
+    .sort((a, b) => a - b);
   const anchor = tripMonths[0] ?? 1;
   const last = tripMonths[tripMonths.length - 1] ?? anchor;
   // Window: the month before the trip starts through the month after it ends,

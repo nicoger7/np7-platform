@@ -229,10 +229,7 @@ export function EpicWeekScroll({
   return (
     <section ref={sectionRef} className="relative bg-[#f6f9fa]" style={{ height: `${N * 80 + 50}vh` }}>
       <div ref={innerRef} className="sticky top-0 h-[100svh] overflow-hidden text-[#00374a]">
-        {/* top-32 clears the sticky section nav (top-16 + its height) */}
-        {levelSwitcher && (
-          <div className="absolute top-32 left-1/2 -translate-x-1/2 z-30">{levelSwitcher}</div>
-        )}
+
         {/* soft light backdrop — cool sea glow + a warm sun glow (sun to sea) */}
         <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_72%_-5%,rgba(0,175,219,0.10),transparent_55%)]" />
         <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_6%_104%,rgba(244,123,32,0.15),transparent_52%)]" />
@@ -248,7 +245,12 @@ export function EpicWeekScroll({
           ))}
         </div>
 
-        <div className="relative h-full max-w-[1180px] mx-auto px-5 sm:px-12 lg:px-16 grid lg:grid-cols-[290px_1fr] gap-5 lg:gap-14 items-center">
+        {/* The switcher lives IN the centred composition — first element of the
+            column, fixed gap to the two columns beneath. Floating it absolute
+            ignored the content's vertical centring and looked unanchored. */}
+        <div className="relative h-full max-w-[1180px] mx-auto px-5 sm:px-12 lg:px-16 flex flex-col justify-center">
+        {levelSwitcher && <div className="mb-7 lg:mb-9">{levelSwitcher}</div>}
+        <div className="grid lg:grid-cols-[290px_1fr] gap-5 lg:gap-14 items-center">
           {/* overview */}
           <div className="relative">
             <p className="text-[11px] font-bold tracking-[0.25em] text-[#00afdb] mb-3">{eyebrow}</p>
@@ -288,6 +290,7 @@ export function EpicWeekScroll({
                 </article>
             ))}
           </div>
+        </div>
         </div>
       </div>
 
