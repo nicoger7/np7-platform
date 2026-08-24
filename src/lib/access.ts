@@ -79,6 +79,7 @@ export function canAccess(level: AccessLevel, path: string): boolean {
 
 export const WORLDS = [
   { id: "experience", label: "NP7 Experience" },
+  { id: "knowledge", label: "Knowledge" },
   { id: "hardware", label: "NP7 Hardware" },
   { id: "product-dev", label: "Product Development" },
   { id: "analytics", label: "Analytics" },
@@ -172,7 +173,7 @@ export const SECTIONS: Section[] = [
   // what makes Owner edits WORK at all: writes to an unclaimed /api/admin path
   // fail closed for everyone — which is exactly how the Owner spent a morning
   // staring at "view access here, not edit" on his own knowledge base.
-  { key: "knowledge", label: "Knowledge Base", world: "experience", group: "Knowledge", paths: ["/admin/knowledge", "/api/admin/kb"] },
+  { key: "knowledge", label: "Knowledge Base", world: "knowledge", group: "Knowledge", paths: ["/admin/knowledge", "/api/admin/kb"] },
   { key: "tier_perks", label: "Tier perks", world: "experience", group: "Website", paths: ["/admin/perks", "/api/admin/tier-perks"] },
   { key: "templates", label: "Page templates", world: "experience", group: "Website", paths: ["/admin/templates", "/admin/home", "/api/admin/templates", "/api/admin/site-settings"] },
   // `boards` and `product_reviews` used to sit here, pointing at two placeholder

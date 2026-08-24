@@ -308,7 +308,7 @@ function Hero({ image, fallback, title, eyebrow }: { image: string | null; fallb
     <div className="relative overflow-hidden rounded-2xl h-[220px] sm:h-[260px] bg-[#002a39]">
       {image ? (
         // eslint-disable-next-line @next/next/no-img-element
-        <img src={image} alt={title} className="absolute inset-0 w-full h-full object-cover" />
+        <img src={image} alt={title} className="absolute inset-0 w-full h-full object-cover object-[50%_22%]" />
       ) : (
         <span className="absolute inset-0 grid place-items-center bg-[#f4ecdd] text-[52px] font-black text-[#b0791e]">
           {fallback.split(" ").map((w) => w[0]).slice(0, 2).join("")}

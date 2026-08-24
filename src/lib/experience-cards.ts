@@ -168,11 +168,14 @@ export async function getExperienceCards(viewer?: { tierKey: "rider" | "crew" | 
         }]);
       }
       for (const [edId, list] of raw) {
-        const sorted = [...list.filter((c) => c.head), ...list.filter((c) => !c.head)];
-        const head = sorted.find((c) => c.head);
+        // The edition's LIST ORDER decides who fronts the tile — the team
+        // orders that list deliberately (↑↓ in the admin). The old head-first
+        // re-sort meant Nico fronted a week Dennis was listed to lead, and no
+        // amount of reordering in the admin could change it.
+        const head = list.find((c) => c.head);
         if (head) headCoachByEdition.set(edId, { name: head.name, cutout: head.cutout });
-        const lead = sorted[0];
-        const extras = sorted.slice(1).filter((c) => c.cutout).slice(0, 2);
+        const lead = list[0];
+        const extras = list.slice(1).filter((c) => c.cutout).slice(0, 2);
         if (lead) crewByEdition.set(edId, [lead, ...extras].map(({ name, cutout }) => ({ name, cutout })));
       }
     }

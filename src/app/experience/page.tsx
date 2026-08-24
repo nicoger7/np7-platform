@@ -50,15 +50,30 @@ export default async function ExperienceOverviewPage() {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const db = createAdminClient() as any;
       const { data } = await db.from("site_settings").select("value").eq("key", "experience_landing_hero").maybeSingle();
-      const v = (data?.value ?? {}) as { video?: string; poster?: string; images?: string[] };
+      const v = (data?.value ?? {}) as { video?: string; poster?: string; images?: string[]; tagline?: string; subline?: string; cta1?: string; cta2?: string; upcomingEyebrow?: string; upcomingTitle?: string; upcomingSub?: string };
       const imgs = Array.isArray(v.images) ? v.images.filter((x) => typeof x === "string" && x.trim()) : [];
+      const t = (x?: string, d = "") => (typeof x === "string" && x.trim() ? x.trim() : d);
       return {
         video: v.video?.trim() || HERO_VIDEO,
         poster: v.poster?.trim() || HERO_POSTER,
         images: imgs.length ? imgs : HERO_FALLBACKS,
+        tagline: t(v.tagline, "The No.\u20091 windsurf holiday."),
+        subline: t(v.subline, "Chase the ride, find your crew — world-class coaching, community and everything arranged for you."),
+        cta1: t(v.cta1, "Explore experiences"),
+        cta2: t(v.cta2, "See destinations"),
+        upcomingEyebrow: t(v.upcomingEyebrow, "NEXT ON THE WATER"),
+        upcomingTitle: t(v.upcomingTitle, "Upcoming experiences"),
+        upcomingSub: t(v.upcomingSub, "Pick a date, pack your harness — we'll handle the rest."),
       };
     } catch {
-      return { video: HERO_VIDEO, poster: HERO_POSTER, images: HERO_FALLBACKS };
+      return {
+        video: HERO_VIDEO, poster: HERO_POSTER, images: HERO_FALLBACKS,
+        tagline: "The No.\u20091 windsurf holiday.",
+        subline: "Chase the ride, find your crew — world-class coaching, community and everything arranged for you.",
+        cta1: "Explore experiences", cta2: "See destinations",
+        upcomingEyebrow: "NEXT ON THE WATER", upcomingTitle: "Upcoming experiences",
+        upcomingSub: "Pick a date, pack your harness — we'll handle the rest.",
+      };
     }
   })();
   const { cards: expCards, experiences } = await getExperienceCards();
@@ -126,23 +141,23 @@ export default async function ExperienceOverviewPage() {
           className="w-[280px] sm:w-[400px] lg:w-[460px] h-auto drop-shadow-[0_6px_30px_rgba(0,0,0,0.55)] mb-7"
         />
         <h1 className="text-3xl sm:text-5xl lg:text-[56px] font-black text-white leading-[0.98] tracking-[-0.03em] drop-shadow-[0_4px_30px_rgba(0,0,0,0.3)]">
-          The No.&thinsp;1 windsurf holiday.
+          {hero.tagline}
         </h1>
         <p className="mt-5 text-[16px] sm:text-[19px] text-white/85 max-w-[520px] font-medium">
-          Chase the ride, find your crew — world-class coaching, community and everything arranged for you.
+          {hero.subline}
         </p>
         <div className="mt-9 flex flex-wrap items-center justify-center gap-3">
           <Link
             href="#experiences"
             className="px-7 py-4 rounded-full text-[14px] font-bold text-[#00374a] bg-white shadow-[0_8px_30px_rgba(255,255,255,0.25)] hover:-translate-y-0.5 transition-all"
           >
-            Explore experiences
+            {hero.cta1}
           </Link>
           <Link
             href="#destinations"
             className="px-7 py-4 rounded-full text-[14px] font-bold text-white border-[1.5px] border-white/50 hover:bg-white/10 transition-all"
           >
-            See destinations
+            {hero.cta2}
           </Link>
         </div>
       </HeroFindYourFit>
@@ -158,9 +173,9 @@ export default async function ExperienceOverviewPage() {
         <section id="experiences" className="scroll-mt-20 pt-20 sm:pt-28 pb-24">
           <div className="max-w-[1200px] mx-auto px-6 sm:px-8">
             <Reveal className="text-center max-w-[620px] mx-auto mb-14">
-              <p className="text-[11px] font-bold tracking-[0.25em] text-[#8fe6f2] mb-3">NEXT ON THE WATER</p>
-              <h2 className="text-3xl sm:text-5xl font-black tracking-[-0.03em] text-white mb-4">Upcoming experiences</h2>
-              <p className="text-[16px] text-white/70 leading-relaxed">Pick a date, pack your harness — we&apos;ll handle the rest.</p>
+              <p className="text-[11px] font-bold tracking-[0.25em] text-[#8fe6f2] mb-3">{hero.upcomingEyebrow}</p>
+              <h2 className="text-3xl sm:text-5xl font-black tracking-[-0.03em] text-white mb-4">{hero.upcomingTitle}</h2>
+              <p className="text-[16px] text-white/70 leading-relaxed">{hero.upcomingSub}</p>
             </Reveal>
 
             {experiences.length === 0 ? (

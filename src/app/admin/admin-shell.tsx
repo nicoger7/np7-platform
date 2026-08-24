@@ -30,6 +30,8 @@ const environments: { id: Environment; label: string; shortLabel: string; color:
   { id: "experience", label: "NP7 Experience", shortLabel: "Experience", color: "#0aa3c7", accentContrast: "#ffffff", gradient: "linear-gradient(180deg,#ffc42e 0%,#f47b20 50%,#00afdb 100%)" },
   { id: "hardware", label: "NP7 Hardware", shortLabel: "Hardware", color: "#c2ff38", accentContrast: "#0a0a0a", gradient: "linear-gradient(180deg,#c2ff38 0%,#7bdb1e 50%,#ff2e88 100%)" },
   { id: "magazine", label: "Magazine", shortLabel: "Magazine", color: "#f0a500", accentContrast: "#2a1a00", gradient: "linear-gradient(180deg,#ffd97a 0%,#f0a500 50%,#f47b20 100%)" },
+  // The coaching brain — a WORLD, not a sidebar row (Nico, twice). Warm gold-teal.
+  { id: "knowledge", label: "Knowledge", shortLabel: "Knowledge", color: "#b0791e", accentContrast: "#ffffff", gradient: "linear-gradient(180deg,#ffd97a 0%,#b0791e 50%,#00374a 100%)" },
   { id: "product-dev", label: "Product Development", shortLabel: "Product Dev", color: "#8b5cf6", accentContrast: "#ffffff", gradient: "linear-gradient(180deg,#a78bfa 0%,#8b5cf6 50%,#6d28d9 100%)" },
   { id: "analytics", label: "Analytics", shortLabel: "Analytics", color: "#10b981", accentContrast: "#06281d", gradient: "linear-gradient(180deg,#34d399 0%,#10b981 50%,#059669 100%)", ownerOnly: true },
 ];
@@ -48,6 +50,15 @@ type NavItem = { label: string; href: string; icon: string; wip?: boolean };
 type NavGroup = { label: string; items: NavItem[] };
 
 const navByEnv: Record<Environment, NavGroup[]> = {
+  knowledge: [
+    {
+      label: "COACHING BRAIN",
+      items: [
+        { label: "Skills & Teaching", href: "/admin/knowledge", icon: "checklist" },
+        { label: "Equipment", href: "/admin/knowledge?view=equipment", icon: "puzzle" },
+      ],
+    },
+  ],
   experience: [
     {
       label: "OPERATIONS",
@@ -72,15 +83,6 @@ const navByEnv: Record<Environment, NavGroup[]> = {
         { label: "Tier Perks", href: "/admin/perks", icon: "checklist" },
         { label: "Interest Surveys", href: "/admin/surveys", icon: "checklist" },
         { label: "Trip Invites", href: "/admin/invites", icon: "gift" },
-      ],
-    },
-    {
-      // The coaching brain is an ENVIRONMENT, not a row under Members: its own
-      // group, its own halves (skills teaching / equipment knowledge).
-      label: "Knowledge",
-      items: [
-        { label: "Skills & Teaching", href: "/admin/knowledge", icon: "checklist" },
-        { label: "Equipment", href: "/admin/knowledge?view=equipment", icon: "checklist" },
       ],
     },
     {

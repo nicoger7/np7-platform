@@ -40,12 +40,14 @@ function effectiveFor(roleIds: string[], roles: RoleRow[]): RoleAccess | null {
 
 const WORLD_COLOR: Record<WorldId, string> = {
   experience: "#0aa3c7",
+  knowledge: "#b0791e",
   hardware: "#84cc16",
   "product-dev": "#a78bfa",
   analytics: "#34d399",
 };
 const WORLD_SHORT: Record<WorldId, string> = {
   experience: "Experience",
+  knowledge: "Knowledge",
   hardware: "Hardware",
   "product-dev": "Product Dev",
   analytics: "Analytics",

@@ -158,7 +158,7 @@ export function EditionGuidesEditor({ editionId, slug }: { editionId: string; sl
                     <button onClick={() => move(idx, -1)} disabled={idx === 0} className="admin-faint hover:admin-heading disabled:opacity-20 text-xs px-1" title="Move up">↑</button>
                     <button onClick={() => move(idx, 1)} disabled={idx === links.length - 1} className="admin-faint hover:admin-heading disabled:opacity-20 text-xs px-1" title="Move down">↓</button>
                     <button onClick={() => setExpandedId(expanded ? null : link.coach_id)} className="text-[11px] font-medium text-[#0aa3c7] px-2 py-1">{expanded ? "Close" : "Edit"}</button>
-                    <button onClick={() => unassign(link.coach_id)} className="admin-faint hover:text-red-400 transition-colors" title="Remove from edition">
+                    <button onClick={() => { if (window.confirm(`Remove ${link.name_override ?? link.exp_coaches?.name ?? "this member"} from this edition's team? They stay in the coach library.`)) unassign(link.coach_id); }} className="admin-faint hover:text-red-400 transition-colors" title="Remove from edition">
                       <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M18 6L6 18M6 6l12 12" /></svg>
                     </button>
                   </div>

@@ -113,7 +113,9 @@ export function GuestReviews({ items }: { items: GuestReviewItem[] }) {
             <div className="overflow-y-auto overscroll-contain">
               <div className="relative h-[180px] sm:h-[220px] bg-[#002a39]">
                 {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img src={open.image} alt="" className="absolute inset-0 w-full h-full object-cover" />
+                {/* faces live in the upper third — anchor there so a tall
+                    crop trims shoulders, never the head */}
+                <img src={open.image} alt="" className="absolute inset-0 w-full h-full object-cover object-[50%_22%]" />
                 <div className="absolute inset-0 bg-gradient-to-t from-black/55 to-transparent" />
                 {open.verified && (
                   <span className="absolute top-4 right-4 inline-flex items-center gap-1 text-[10px] font-bold tracking-wide uppercase text-white bg-[#00afdb]/90 backdrop-blur px-2.5 py-1 rounded-full">
