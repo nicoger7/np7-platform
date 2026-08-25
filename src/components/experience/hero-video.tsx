@@ -57,6 +57,9 @@ export function HeroVideo({
   const id = youtubeId(url);
   const hasSegment = (start != null && start > 0) || (end != null && end > 0);
   const [show, setShow] = useState(false);
+  // The iframe stays invisible until PLAYING actually fires: when autoplay is
+  // blocked, YouTube renders its big play button — the poster covers it.
+  const [playing, setPlaying] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
   const hostRef = useRef<HTMLDivElement>(null);
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -76,6 +79,8 @@ export function HeroVideo({
   useEffect(() => {
     if (!id || !show || !hasSegment) return;
     let cancelled = false;
+    let loopTimer: number | undefined;
+    setPlaying(false);
     const s = start != null && start > 0 ? Math.floor(start) : 0;
     const e = end != null && end > s ? Math.floor(end) : undefined;
     loadYouTubeApi().then(() => {
@@ -90,7 +95,7 @@ export function HeroVideo({
         playerVars: {
           autoplay: 1, mute: 1, controls: 0, rel: 0, showinfo: 0,
           modestbranding: 1, playsinline: 1, disablekb: 1, fs: 0,
-          start: s, ...(e ? { end: e } : {}),
+          start: s,
         },
         events: {
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -102,9 +107,22 @@ export function HeroVideo({
               iframe.className = COVER_CLASS;
               iframe.setAttribute("aria-hidden", "true");
             }
+            // Seamless loop: seek back BEFORE the window ends. A mid-playback
+            // seek fires no state change, so YouTube shows no play/pause bezel
+            // — the ENDED path did, every single loop.
+            if (e) {
+              loopTimer = window.setInterval(() => {
+                try {
+                  const t = ev.target.getCurrentTime?.();
+                  if (typeof t === "number" && t >= e - 0.4) ev.target.seekTo(s, true);
+                } catch { /* player mid-teardown */ }
+              }, 250);
+            }
           },
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
           onStateChange: (ev: { data: number; target: any }) => {
+            if (ev.data === YT.PlayerState.PLAYING) setPlaying(true);
+            // Backstop for clips that reach their natural end (no `end` set).
             if (ev.data === YT.PlayerState.ENDED) {
               ev.target.seekTo(s, true);
               ev.target.playVideo();
@@ -115,6 +133,7 @@ export function HeroVideo({
     });
     return () => {
       cancelled = true;
+      if (loopTimer) window.clearInterval(loopTimer);
       try {
         playerRef.current?.destroy?.();
       } catch {
@@ -130,7 +149,7 @@ export function HeroVideo({
         <div className="absolute inset-0 bg-cover bg-center" style={{ backgroundImage: `url('${poster}')` }} />
       )}
       {id && show && hasSegment && (
-        <div className="absolute inset-0">
+        <div className={`absolute inset-0 transition-opacity duration-700 ${playing ? "opacity-100" : "opacity-0"}`}>
           {/* replaced in place by the API-managed iframe */}
           <div ref={hostRef} className={COVER_CLASS} />
         </div>
