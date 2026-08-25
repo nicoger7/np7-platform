@@ -127,6 +127,19 @@ export function HeroVideo({
               ev.target.seekTo(s, true);
               ev.target.playVideo();
             }
+            // The overlay is pointer-events:none, so nobody pauses this on
+            // purpose — browsers do (tab switch, battery saver, offscreen).
+            // A paused YouTube player shows its big play button, so a pause
+            // never gets to stand: resume, and when the browser refuses,
+            // fade back to the poster so the button can't show.
+            if (ev.data === YT.PlayerState.PAUSED) {
+              ev.target.playVideo();
+              window.setTimeout(() => {
+                try {
+                  if (playerRef.current?.getPlayerState?.() === YT.PlayerState.PAUSED) setPlaying(false);
+                } catch { /* player mid-teardown */ }
+              }, 900);
+            }
           },
         },
       });
