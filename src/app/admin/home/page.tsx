@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import ImagePickerModal from "@/components/image-picker-modal";
 
 /**
  * The public front doors, admin-editable — two tabs:
@@ -73,13 +74,33 @@ function Field({ label, hint, value, onChange, rows }: {
   );
 }
 
-function Thumb({ url, wide }: { url: string; wide?: boolean }) {
-  if (!url.trim()) return null;
+/** Photo field, admin-convention style: preview + "Change" opens the File
+ *  storage picker — nobody pastes URLs by hand ("we always do it with a
+ *  selector from the media folder" — Nico, 2026-08-25). */
+function PhotoPick({ label, hint, url, wide, onPick }: {
+  label: string; hint?: string; url: string; wide?: boolean; onPick: () => void;
+}) {
   return (
-    <div
-      className={`mt-1.5 rounded-lg bg-cover bg-center ${wide ? "h-20 w-36" : "h-16 w-28"}`}
-      style={{ backgroundImage: `url('${url.trim()}')`, border: "1px solid var(--admin-border)" }}
-    />
+    <div>
+      <label className="block text-xs font-semibold admin-muted mb-1">
+        {label}{hint && <span className="admin-faint font-normal"> — {hint}</span>}
+      </label>
+      <div className="flex items-end gap-3">
+        {url.trim() ? (
+          <div
+            className={`rounded-lg bg-cover bg-center ${wide ? "h-20 w-36" : "h-16 w-28"}`}
+            style={{ backgroundImage: `url('${url.trim()}')`, border: "1px solid var(--admin-border)" }}
+          />
+        ) : (
+          <button onClick={onPick}
+            className={`rounded-lg border-2 border-dashed grid place-items-center admin-faint hover:admin-heading ${wide ? "h-20 w-36" : "h-16 w-28"}`}
+            style={{ borderColor: "var(--admin-border)" }}>
+            Pick…
+          </button>
+        )}
+        <button onClick={onPick} className="text-xs text-[#0aa3c7] hover:underline pb-1">Change</button>
+      </div>
+    </div>
   );
 }
 
@@ -128,6 +149,12 @@ async function saveSetting(key: string, value: Record<string, unknown>): Promise
 
 export default function HomeContentPage() {
   const [tab, setTab] = useState<"front" | "landing">("front");
+  const [picker, setPicker] = useState<
+    | { target: "expPhoto" }
+    | { target: "poster" }
+    | { target: "photo"; index: number }
+    | null
+  >(null);
 
   // Front door
   const [front, setFront] = useState<Record<string, string>>({});
@@ -216,8 +243,7 @@ export default function HomeContentPage() {
                 <Field label="Eyebrow" hint="small caps line" value={front.expEyebrow ?? ""} onChange={setF("expEyebrow")} />
                 <Field label="Tagline" value={front.expTagline ?? ""} onChange={setF("expTagline")} />
                 <Field label="Button label" value={front.expCta ?? ""} onChange={setF("expCta")} />
-                <Field label="Background photo URL" hint="copy from File storage" value={front.expPhoto ?? ""} onChange={setF("expPhoto")} />
-                <Thumb url={front.expPhoto ?? ""} wide />
+                <PhotoPick label="Background photo" wide url={front.expPhoto ?? ""} onPick={() => setPicker({ target: "expPhoto" })} />
               </Card>
               <Card title="Hardware side" dot="#a3c70a">
                 <Field label="Eyebrow" value={front.hwEyebrow ?? ""} onChange={setF("hwEyebrow")} />
@@ -252,8 +278,8 @@ export default function HomeContentPage() {
             </Card>
             <Card title="Hero video">
               <Field label="Video URL (mp4)" value={landing.video ?? ""} onChange={setL("video")} />
-              <Field label="Poster image URL" hint="the frame shown before the video runs" value={landing.poster ?? ""} onChange={setL("poster")} />
-              <Thumb url={landing.poster ?? ""} wide />
+              <PhotoPick label="Poster image" hint="the frame shown before the video runs" wide
+                url={landing.poster ?? ""} onPick={() => setPicker({ target: "poster" })} />
             </Card>
             <Card title="Slow-connection photos" hint="only shown when the video can't run">
               <p className="text-xs admin-faint -mt-1">
@@ -262,18 +288,26 @@ export default function HomeContentPage() {
               </p>
               <div className="grid sm:grid-cols-2 gap-3">
                 {images.map((img, i) => (
-                  <div key={i}>
-                    <label className="block text-xs font-semibold admin-muted mb-1">Photo {i + 1}</label>
-                    <input className={inputCls} value={img}
-                      onChange={(e) => setImages((arr) => arr.map((x, j) => (j === i ? e.target.value : x)))} />
-                    <Thumb url={img} />
-                  </div>
+                  <PhotoPick key={i} label={`Photo ${i + 1}`} url={img}
+                    onPick={() => setPicker({ target: "photo", index: i })} />
                 ))}
               </div>
             </Card>
             <SaveRow state={landingState} label="Save landing" onSave={saveLanding} />
           </div>
         )
+      )}
+      {picker && (
+        <ImagePickerModal
+          defaultFolder="experiences"
+          onClose={() => setPicker(null)}
+          onSelect={(url) => {
+            if (picker.target === "expPhoto") setFront((m) => ({ ...m, expPhoto: url }));
+            else if (picker.target === "poster") setLanding((m) => ({ ...m, poster: url }));
+            else setImages((arr) => arr.map((x, j) => (j === picker.index ? url : x)));
+            setPicker(null);
+          }}
+        />
       )}
     </div>
   );
