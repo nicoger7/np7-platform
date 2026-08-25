@@ -1089,6 +1089,9 @@ export type MemberGuide = {
   trip_start: string | null; trip_end: string | null; name: string | null;
   focus_points: GuideFocusPoint[]; coach_note: string | null;
   generated_at: string | null; created_at: string | null;
+  /** The week's lead coach (edition list order) — gives the guide a face.
+      Null when the guide has no booking or the edition names no coaches. */
+  coach: { name: string; cutout: string | null } | null;
 };
 
 /**
@@ -1110,6 +1113,23 @@ export async function getGuideForMember(guideId: string, contactId: string): Pro
     mine = !!bk?.contact_id && bk.contact_id === contactId;
   }
   if (!mine) return null;
+
+  // The lead coach of the booked week, same list-order rule as the tiles.
+  let coach: { name: string; cutout: string | null } | null = null;
+  if (g.booking_id) {
+    try {
+      const { data: bk2 } = await db.from("exp_bookings").select("edition_id").eq("id", g.booking_id).maybeSingle();
+      if (bk2?.edition_id) {
+        const { data: ec } = await db.from("exp_edition_coaches")
+          .select("sort_order,name_override,exp_coaches(name,cutout_url)")
+          .eq("edition_id", bk2.edition_id).order("sort_order").limit(1);
+        const lead = (ec ?? [])[0];
+        const name = lead?.name_override ?? lead?.exp_coaches?.name ?? null;
+        if (name) coach = { name, cutout: lead?.exp_coaches?.cutout_url ?? null };
+      }
+    } catch { /* a guide without a coach face still renders */ }
+  }
+
   return {
     id: g.id,
     booking_id: g.booking_id ?? null,
@@ -1119,6 +1139,7 @@ export async function getGuideForMember(guideId: string, contactId: string): Pro
     name: g.name ?? null,
     focus_points: Array.isArray(g.focus_points) ? (g.focus_points as GuideFocusPoint[]) : [],
     coach_note: g.coach_note ?? null,
+    coach,
     generated_at: g.generated_at ?? null,
     created_at: g.created_at ?? null,
   };
