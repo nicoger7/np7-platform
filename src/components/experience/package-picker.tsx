@@ -92,6 +92,28 @@ export function PackagePicker({ packages, currency = "EUR", reserve, heroImage, 
   // a stale page can never charge a discount whose window has closed.
   const lp = (n: number) => (launch ? Math.round(n * (1 - launch.pct / 100)) : n);
   const launchUntil = launch?.until ? new Date(launch.until + "T00:00:00Z").toLocaleDateString("en-GB", { day: "numeric", month: "short", timeZone: "UTC" }) : null;
+
+  // The summary panel must never scroll INSIDE itself (a box-in-box scroller
+  // read as broken). Instead the sticky anchor shifts: a panel that fits pins
+  // at the top as always; a taller one pins so its END (total + CTA) rides the
+  // viewport bottom while scrolling down — scrolling up rolls the head back in.
+  const summaryRef = useRef<HTMLElement | null>(null);
+  const [summaryTop, setSummaryTop] = useState(124);
+  useEffect(() => {
+    const el = summaryRef.current;
+    if (!el) return;
+    const compute = () => {
+      const vh = window.innerHeight;
+      const h = el.offsetHeight;
+      setSummaryTop(h + 148 <= vh ? 124 : Math.min(124, vh - h - 24));
+    };
+    compute();
+    const ro = new ResizeObserver(compute);
+    ro.observe(el);
+    window.addEventListener("resize", compute);
+    return () => { ro.disconnect(); window.removeEventListener("resize", compute); };
+  }, []);
+
   const [showReserve, setShowReserve] = useState(false);
   // Active photo per hotel group (the expanded card shows a swappable banner —
   // photos stay at card size on purpose: sources aren't always hi-res, so no lightbox).
@@ -401,10 +423,8 @@ export function PackagePicker({ packages, currency = "EUR", reserve, heroImage, 
       </div>
 
       {/* summary */}
-      <aside /* Scroll stays (a tall package must not trap the CTA off-screen), but the
-             BAR goes — a visible scrollbar inside the rounded summary card read
-             as a broken widget. */
-        className="lg:sticky lg:top-[124px] lg:max-h-[calc(100vh-140px)] rounded-3xl bg-[#00374a] text-white shadow-[0_20px_60px_rgba(0,55,74,0.25)] overflow-y-auto overflow-x-hidden [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+      <aside ref={summaryRef} style={{ top: summaryTop }}
+        className="lg:sticky rounded-3xl bg-[#00374a] text-white shadow-[0_20px_60px_rgba(0,55,74,0.25)] overflow-hidden">
         {/* hotel photo, or the experience hero as a fallback so "Experience Only" isn't a bare card */}
         {(selected?.hotelImage || heroImage) && (
           <div className="relative h-36 bg-cover bg-center" style={{ backgroundImage: `url('${selected?.hotelImage || heroImage}')` }}>
