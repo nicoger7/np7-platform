@@ -149,8 +149,10 @@ function compareValues(a: unknown, b: unknown, dir: "asc" | "desc"): number {
 export default function ExperiencesPage() {
   const [experiences, setExperiences] = useState<Experience[]>([]);
   const [editions, setEditions] = useState<Edition[]>([]);
-  // Head coach for the auto-branded tile previews — same fallback the public site uses.
-  const [headCoach, setHeadCoach] = useState<{ name: string; cutout: string | null } | null>(null);
+  // Resolved tile crew per experience — the same logic the public cards use
+  // (override → next week's team in list order). One global fallback coach
+  // here put Dennis on every single tile.
+  const [crews, setCrews] = useState<Record<string, { name: string; cutout: string | null }[]>>({});
   const [loading, setLoading] = useState(true);
   const [view, setView] = useState<ViewMode>(() => {
     if (typeof window !== "undefined") {
@@ -169,14 +171,11 @@ export default function ExperiencesPage() {
     Promise.all([
       fetch("/api/admin/experiences").then((r) => r.json()),
       fetch("/api/admin/editions").then((r) => r.json()),
-      fetch("/api/admin/coaches").then((r) => r.json()).catch(() => []),
-    ]).then(([exps, eds, coaches]) => {
+      fetch("/api/admin/tile-crews").then((r) => r.json()).catch(() => ({})),
+    ]).then(([exps, eds, crewMap]) => {
       setExperiences(Array.isArray(exps) ? exps : exps.experiences || []);
       setEditions(Array.isArray(eds) ? eds : []);
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const list = (Array.isArray(coaches) ? coaches : []) as any[];
-      const head = list.find((c) => /head/i.test(String(c.role ?? ""))) ?? list[0];
-      if (head) setHeadCoach({ name: head.name, cutout: head.cutout_url ?? null });
+      if (crewMap && typeof crewMap === "object") setCrews(crewMap);
       setLoading(false);
     });
   }, []);
@@ -359,8 +358,7 @@ export default function ExperiencesPage() {
                       photo={exp.hero_image}
                       place={placeFromLocation(exp.location).toUpperCase()}
                       flag={flagFromLocation(exp.location)}
-                      coachName={headCoach?.name}
-                      coachCutout={headCoach?.cutout}
+                      coaches={crews[exp.id] ?? null}
                     />
                   ) : exp.hero_image ? (
                     // eslint-disable-next-line @next/next/no-img-element

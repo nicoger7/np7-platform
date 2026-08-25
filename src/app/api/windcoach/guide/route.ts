@@ -2,21 +2,45 @@ import { NextRequest, NextResponse } from "next/server";
 import crypto from "crypto";
 import { createAdminClient } from "@/lib/supabase";
 
+export const runtime = "nodejs";
+export const dynamic = "force-dynamic";
+
 /**
  * POST /api/windcoach/guide — wind.coach pushes a participant's training guide
- * (integration brief §3). HMAC-authed with the shared WINDCOACH_WEBHOOK_SECRET,
- * idempotent on the guide id, and matching is never guessed: email + trip
- * window must agree on exactly ONE booking, otherwise the guide parks in the
- * review queue for a human.
+ * (integration brief §3, contract frozen 2026-08-25). HMAC-SHA256 over the RAW
+ * body, idempotent on idempotency_key, and matching is never guessed: email +
+ * trip window must agree on exactly ONE booking, otherwise the guide parks in
+ * the review queue for a human.
  *
- * The signature check runs on the RAW body — parse-then-restringify would
+ * Contract responses, exactly:
+ *   200 {"status":"stored"}              matched to a booking
+ *   200 {"status":"queued_for_review"}   not unambiguously matchable
+ *   401                                  bad signature OR secret not configured
+ *   409                                  idempotency_key already seen
+ *   422                                  schema problem, offending field NAMED
+ *
+ * v1 tolerances (do not tighten): guide.pdf_url may be absent or present;
+ * focus_points[].image_urls may be empty or filled; block `kind` values we do
+ * not know must still pass; focus_points[].key is wind.coach's book id and is
+ * stored verbatim.
+ *
+ * The signature check runs on the RAW text — parse-then-restringify would
  * break byte-equality for perfectly valid payloads.
  */
+
+/** DB status → contract wire status. The queue is called "review" internally. */
+const wire = (s: string) => (s === "stored" ? "stored" : "queued_for_review");
+
+function fail422(field: string, why: string) {
+  return NextResponse.json({ error: `${field}: ${why}` }, { status: 422 });
+}
+
 export async function POST(request: NextRequest) {
   const secret = process.env.WINDCOACH_WEBHOOK_SECRET;
-  if (!secret) return NextResponse.json({ error: "Integration not configured." }, { status: 503 });
-
   const raw = await request.text();
+  // Fail closed as an auth failure, per contract: no secret, no service.
+  if (!secret) return NextResponse.json({ error: "Unauthorized." }, { status: 401 });
+
   const theirs = request.headers.get("x-windcoach-signature") ?? "";
   const ours = crypto.createHmac("sha256", secret).update(raw).digest("hex");
   const a = Buffer.from(theirs, "utf8");
@@ -27,14 +51,44 @@ export async function POST(request: NextRequest) {
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   let body: any;
-  try { body = JSON.parse(raw); } catch { return NextResponse.json({ error: "Body is not JSON." }, { status: 422 }); }
+  try { body = JSON.parse(raw); } catch { return fail422("body", "not valid JSON"); }
 
   const key = String(body?.idempotency_key ?? "").trim();
+  if (!key) return fail422("idempotency_key", "required");
   const email = String(body?.participant?.email ?? "").trim().toLowerCase();
-  if (!key) return NextResponse.json({ error: "idempotency_key required." }, { status: 422 });
-  if (!email) return NextResponse.json({ error: "participant.email required." }, { status: 422 });
-  const focusPoints = Array.isArray(body?.guide?.focus_points) ? body.guide.focus_points : [];
-  if (!focusPoints.length) return NextResponse.json({ error: "guide.focus_points must be a non-empty array." }, { status: 422 });
+  if (!email) return fail422("participant.email", "required");
+
+  const focusPoints = body?.guide?.focus_points;
+  if (!Array.isArray(focusPoints) || focusPoints.length === 0) {
+    return fail422("guide.focus_points", "must be a non-empty array");
+  }
+  for (let i = 0; i < focusPoints.length; i++) {
+    const fp = focusPoints[i];
+    const at = `guide.focus_points[${i}]`;
+    if (!fp || typeof fp !== "object") return fail422(at, "must be an object");
+    if (typeof fp.key !== "string" || !fp.key.trim()) return fail422(`${at}.key`, "required string");
+    if (typeof fp.title !== "string" || !fp.title.trim()) return fail422(`${at}.title`, "required string");
+    if (fp.summary != null && typeof fp.summary !== "string") return fail422(`${at}.summary`, "must be a string");
+    if (!Array.isArray(fp.blocks)) return fail422(`${at}.blocks`, "must be an array");
+    for (let j = 0; j < fp.blocks.length; j++) {
+      const bl = fp.blocks[j];
+      const bat = `${at}.blocks[${j}]`;
+      if (!bl || typeof bl !== "object") return fail422(bat, "must be an object");
+      // Unknown `kind` values are ALLOWED (forward compatibility); they must
+      // simply be strings. Same for text.
+      if (typeof bl.kind !== "string" || !bl.kind.trim()) return fail422(`${bat}.kind`, "required string");
+      if (typeof bl.text !== "string") return fail422(`${bat}.text`, "required string");
+    }
+    if (fp.image_urls != null) {
+      if (!Array.isArray(fp.image_urls)) return fail422(`${at}.image_urls`, "must be an array");
+      for (let j = 0; j < fp.image_urls.length; j++) {
+        if (typeof fp.image_urls[j] !== "string") return fail422(`${at}.image_urls[${j}]`, "must be a string");
+      }
+    }
+  }
+  if (body?.guide?.pdf_url != null && typeof body.guide.pdf_url !== "string") {
+    return fail422("guide.pdf_url", "must be a string when present");
+  }
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const db = createAdminClient() as any;
@@ -42,7 +96,7 @@ export async function POST(request: NextRequest) {
   // Replays are success, not conflict-to-debug: at-least-once delivery means
   // the sender WILL retry; 409 tells it the first attempt landed.
   const { data: dupe } = await db.from("windcoach_guides").select("id,status").eq("idempotency_key", key).maybeSingle();
-  if (dupe) return NextResponse.json({ status: dupe.status, duplicate: true }, { status: 409 });
+  if (dupe) return NextResponse.json({ status: wire(dupe.status), duplicate: true }, { status: 409 });
 
   // ── Match: email → contact → that contact's bookings inside the trip window ──
   const tripStart = typeof body?.trip?.start === "string" ? body.trip.start : null;
@@ -87,9 +141,13 @@ export async function POST(request: NextRequest) {
     .select("id,status")
     .single();
   if (error) {
-    // unique-violation race between the dupe check and the insert = a replay
-    if (/duplicate key/i.test(error.message)) return NextResponse.json({ status: "stored", duplicate: true }, { status: 409 });
+    // Unique-violation race between the dupe check and the insert = a replay.
+    // Re-read the winner so the 409 reports its real status.
+    if (/duplicate key/i.test(error.message)) {
+      const { data: winner } = await db.from("windcoach_guides").select("status").eq("idempotency_key", key).maybeSingle();
+      return NextResponse.json({ status: wire(winner?.status ?? "review"), duplicate: true }, { status: 409 });
+    }
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
-  return NextResponse.json({ status: row.status });
+  return NextResponse.json({ status: wire(row.status) });
 }
