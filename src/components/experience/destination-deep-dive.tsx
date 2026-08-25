@@ -1,7 +1,7 @@
 import { supabase, createAdminClient } from "@/lib/supabase";
 import { SUN_TO_SEA } from "@/components/shared/brand";
 import { GalleryStrip } from "@/components/experience/gallery-strip";
-import { MONTH_LABELS, destinationWindFacts, type WindStats } from "@/lib/wind-stats";
+import { MONTH_LABELS, destinationWindFacts, type WindStats, statsAreBlind } from "@/lib/wind-stats";
 
 /**
  * The DESTINATION deep-dive shown INSIDE the trip page's overlay — the rich,
@@ -35,9 +35,12 @@ function seasonRange(season: string | null | undefined): [number, number] | null
 function YearWind({ stats, season, tripMonths }: { stats: WindStats | null; season?: string | null; tripMonths?: number[] }) {
   const months = stats?.months ?? [];
   if (!months.length) return null;
+  if (statsAreBlind(stats)) return null; // model can't see this spot — say nothing rather than 2%
   const rows = Array.from({ length: 12 }, (_, i) => {
     const mm = months.find((x) => x.m === i + 1);
-    return { m: i + 1, label: MONTH_LABELS[i], pct: Math.round(Number((mm?.pct as Record<string, number> | undefined)?.["4"] ?? 0)) };
+    // dayPct = the honest day-share metric the public chart uses; the old
+    // strict Bft4-hours number only serves rows the cron hasn't healed yet.
+    return { m: i + 1, label: MONTH_LABELS[i], pct: Math.round(Number(mm?.dayPct ?? (mm?.pct as Record<string, number> | undefined)?.["4"] ?? 0)) };
   });
   if (rows.every((r) => r.pct === 0)) return null;
   const years = stats?.period ? `${String(stats.period.start).slice(0, 4)}–${String(stats.period.end).slice(0, 4)}` : "";
