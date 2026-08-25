@@ -48,7 +48,7 @@ export async function GET(req: NextRequest) {
     if (!c?.email) continue;
     const keepRule = tier.key === "legend"
       ? `Legend lives on a pace of 2 trips within 12 months (a clinic counts 0.25).`
-      : `Crew stays with ${TIER_KEEP.crew} trips in 2 years (a clinic counts 0.25).`;
+      : `Crew stays with ${TIER_KEEP.crew} trip a year (a clinic counts 0.25).`;
     const until = new Date(tier.validUntil + "T00:00:00Z").toLocaleDateString("en-GB", { month: "long", year: "numeric", timeZone: "UTC" });
     const res = await sendEmail({
       to: c.email,

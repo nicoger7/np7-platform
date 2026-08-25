@@ -14,8 +14,9 @@ export const TIER_STEPS = [
   { key: "legend" as const, label: "Legend", min: 2 },
 ];
 
-/** Weighted trips needed within a rolling 24 months to KEEP a tier. */
-export const TIER_KEEP: Record<"crew" | "legend", number> = { crew: 2, legend: 4 };
+/** Weighted trips needed to KEEP a tier. Crew rides on a rolling 12 months
+ *  (1 per year — Nico, 2026-08-25); Legend's pace lives in member-tier.ts. */
+export const TIER_KEEP: Record<"crew" | "legend", number> = { crew: 1, legend: 4 };
 
 export const TIER_PERKS: Record<"rider" | "crew" | "legend", string[]> = {
   rider: ["Your crew, photos & progress in the member area"],

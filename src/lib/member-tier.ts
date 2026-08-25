@@ -9,8 +9,9 @@ import { TIER_STEPS as LADDER, TIER_KEEP } from "@/lib/tier-config";
  *  - A trip counts once its week has ENDED, status attended/confirmed/paid;
  *    lost never counts. A week weighs 1.0, an event/clinic 0.25.
  *  - RIDER you are always — every member, from day one.
- *  - CREW after your 1st counted trip · KEEP with 2 weighted trips per
- *    rolling 24 months (the 1st trip protects it for its first 24 months).
+ *  - CREW after your 1st counted trip · KEEP with 1 weighted trip per
+ *    rolling year (v3, 2026-08-25; the qualifying trip protects its own
+ *    first 12 months).
  *  - LEGEND is a PACE, not a total (Nico, v3): 2 weighted trips within the
  *    last 12 months — earned and held by the same rolling rule.
  */
@@ -28,7 +29,6 @@ export type MemberTier = {
 
 const WINDOW_MS = 2 * 365 * 86_400_000;
 const iso = (t: number) => new Date(t).toISOString().slice(0, 10);
-const plus24mo = (d: string) => iso(new Date(d + "T00:00:00Z").getTime() + WINDOW_MS);
 
 export async function getMemberTier(contactId: string): Promise<MemberTier | null> {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -50,8 +50,6 @@ export async function getMemberTier(contactId: string): Promise<MemberTier | nul
   }
   const asc = [...byEdition.values()].sort((a, b) => (a.end < b.end ? -1 : 1));
   const total = Math.round(asc.reduce((s, t) => s + t.weight, 0) * 100) / 100;
-  const cutoff = iso(Date.now() - WINDOW_MS);
-  const recent = asc.filter((t) => t.end >= cutoff).reduce((s, t) => s + t.weight, 0);
 
   /** The date cumulative weight first reached `min` — the climb-completing trip. */
   const attainedOn = (min: number): string | null => {
@@ -65,28 +63,30 @@ export async function getMemberTier(contactId: string): Promise<MemberTier | nul
 
   // Legend = the rolling year: 2 weighted trips in the last 12 months.
   const legendActive = recent12 >= 2;
-  // Crew = ever ridden, kept by 2 per 24 months (first trip protects 24 months).
+  // Crew = ever ridden, kept by 1 weighted trip per rolling year (the
+  // qualifying trip protects its own first 12 months).
   const crewOn = attainedOn(1);
-  const crewActive = !!crewOn && (crewOn >= cutoff || recent >= TIER_KEEP.crew);
+  const crewActive = !!crewOn && (crewOn >= cutoff12 || recent12 >= TIER_KEEP.crew);
 
   const key: MemberTier["key"] = legendActive ? "legend" : crewActive ? "crew" : "rider";
 
   // Valid until — Legend: the day the rolling year drops below 2 (12 months
-  // after the trip that still covers the pace); Crew: 24-month logic.
+  // after the trip that still covers the pace); Crew: same arithmetic at 1.
+  const plus12mo = (d: string) => iso(new Date(d + "T00:00:00Z").getTime() + WINDOW_MS / 2);
   let validUntil: string | null = null;
   if (key === "legend") {
     let cum = 0;
     for (const t of [...asc].reverse()) {
       cum += t.weight;
-      if (cum >= 2) { validUntil = iso(new Date(t.end + "T00:00:00Z").getTime() + WINDOW_MS / 2); break; }
+      if (cum >= 2) { validUntil = plus12mo(t.end); break; }
     }
   } else if (key === "crew") {
     const candidates: string[] = [];
-    if (crewOn) candidates.push(plus24mo(crewOn));
+    if (crewOn) candidates.push(plus12mo(crewOn));
     let cum = 0;
     for (const t of [...asc].reverse()) {
       cum += t.weight;
-      if (cum >= TIER_KEEP.crew) { candidates.push(plus24mo(t.end)); break; }
+      if (cum >= TIER_KEEP.crew) { candidates.push(plus12mo(t.end)); break; }
     }
     validUntil = candidates.sort().pop() ?? null;
   }

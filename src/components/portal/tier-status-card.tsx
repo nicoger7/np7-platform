@@ -75,7 +75,7 @@ export function TierStatusCard({ tier }: { tier: MemberTier | null }) {
                   {mine && <span className="text-[9px] font-extrabold tracking-[0.12em] uppercase bg-[#ffc42e] text-[#4a3403] rounded-full px-2 py-0.5">You</span>}
                 </div>
                 <p className="text-[11px] text-[#9aa6ac] mb-2.5">
-                  {s.key === "rider" ? "every NP7 rider" : s.key === "crew" ? `after your 1st trip · keep it: ${TIER_KEEP.crew} per 2 years` : "2 trips within 12 months — earned and kept by pace"}
+                  {s.key === "rider" ? "every NP7 rider" : s.key === "crew" ? `after your 1st trip · keep it: ${TIER_KEEP.crew} trip a year` : "2 trips within 12 months — earned and kept by pace"}
                 </p>
                 <ul className="space-y-1">
                   {TIER_PERKS[s.key].map((p) => (
