@@ -112,17 +112,21 @@ export default async function SurveyPage({ params, searchParams }: Props) {
     (heroTrip?.lat != null && heroTrip?.lng != null ? satImage(heroTrip.lat, heroTrip.lng) : null) ||
     "https://media.np-seven.com/experiences/np7-bonaire/place/bonaire-spot-overview-drone-shot.jpg";
 
-  // Optional YouTube banner — the &t= timestamp becomes the loop start.
+  // Optional YouTube banner — &t= is the loop start, &end= the loop end, so a
+  // link like …?t=7m52s&end=8m22s plays exactly that window on repeat.
   const ytUrl = (survey.hero_youtube ?? "").trim();
-  const ytStart = (() => {
-    if (!ytUrl) return null;
+  const ytSeconds = (raw: string | null): number | null => {
+    if (!raw) return null;
+    const m = /^(?:(\d+)h)?(?:(\d+)m)?(\d+)s?$/.exec(raw.trim());
+    if (!m) return null;
+    return Number(m[1] ?? 0) * 3600 + Number(m[2] ?? 0) * 60 + Number(m[3] ?? 0) || null;
+  };
+  const [ytStart, ytEnd] = (() => {
+    if (!ytUrl) return [null, null] as const;
     try {
-      const t = new URL(ytUrl).searchParams.get("t") || new URL(ytUrl).searchParams.get("start");
-      if (!t) return null;
-      const m = /^(?:(\d+)h)?(?:(\d+)m)?(\d+)s?$/.exec(t.trim());
-      if (!m) return null;
-      return Number(m[1] ?? 0) * 3600 + Number(m[2] ?? 0) * 60 + Number(m[3] ?? 0) || null;
-    } catch { return null; }
+      const q = new URL(ytUrl).searchParams;
+      return [ytSeconds(q.get("t") || q.get("start")), ytSeconds(q.get("end"))] as const;
+    } catch { return [null, null] as const; }
   })();
 
   return (
@@ -139,7 +143,7 @@ export default async function SurveyPage({ params, searchParams }: Props) {
         {ytUrl ? (
           /* HeroVideo shows the poster until the embed runs — and stays on it
              when the link doesn't parse, so the photo is always the floor. */
-          <HeroVideo url={ytUrl} start={ytStart} end={null} poster={heroImg} />
+          <HeroVideo url={ytUrl} start={ytStart} end={ytEnd} poster={heroImg} />
         ) : (
           <div className="absolute inset-0 bg-cover scale-105"
             style={{ backgroundImage: `url('${heroImg}')`, backgroundPosition: `50% ${heroTrip?.focus ?? 50}%` }} />
