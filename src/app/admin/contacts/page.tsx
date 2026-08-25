@@ -88,7 +88,8 @@ function ContactsInner() {
   const pageSize = 100;
 
   const [newContact, setNewContact] = useState({
-    name: "",
+    first_name: "",
+    last_name: "",
     email: "",
     phone: "",
     country: "",
@@ -148,13 +149,14 @@ function ContactsInner() {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        ...newContact,
+        ...(({ first_name, last_name, ...rest }) => rest)(newContact),
+        name: `${newContact.first_name.trim()} ${newContact.last_name.trim()}`.trim(),
         date_of_birth: newContact.date_of_birth || null,
       }),
     });
     if (res.ok) {
       setShowNew(false);
-      setNewContact({ name: "", email: "", phone: "", country: "", discipline: "", level: "", source: "", date_of_birth: "", accepts_marketing: false });
+      setNewContact({ first_name: "", last_name: "", email: "", phone: "", country: "", discipline: "", level: "", source: "", date_of_birth: "", accepts_marketing: false });
       fetchContacts();
     }
   }
@@ -231,9 +233,15 @@ function ContactsInner() {
         >
           <h3 className="text-sm font-bold admin-heading mb-4">New Contact</h3>
           <div className="grid grid-cols-3 gap-4 mb-4">
-            <div>
-              <label className={labelClass}>Name *</label>
-              <input className={inputClass} value={newContact.name} onChange={(e) => setNewContact({ ...newContact, name: e.target.value })} />
+            <div className="grid grid-cols-2 gap-2">
+              <div>
+                <label className={labelClass}>First name *</label>
+                <input className={inputClass} value={newContact.first_name} onChange={(e) => setNewContact({ ...newContact, first_name: e.target.value })} />
+              </div>
+              <div>
+                <label className={labelClass}>Last name</label>
+                <input className={inputClass} value={newContact.last_name} onChange={(e) => setNewContact({ ...newContact, last_name: e.target.value })} />
+              </div>
             </div>
             <div>
               <label className={labelClass}>Email</label>
@@ -294,7 +302,7 @@ function ContactsInner() {
           <div className="flex gap-2">
             <button
               onClick={handleCreate}
-              disabled={!newContact.name}
+              disabled={!newContact.first_name.trim()}
               className="px-4 py-2 bg-[var(--admin-accent)] hover:bg-[var(--admin-accent)]/90 disabled:opacity-40 text-[var(--admin-accent-contrast)] text-sm font-bold rounded-lg transition-colors"
             >
               Create
