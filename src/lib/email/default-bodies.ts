@@ -128,6 +128,9 @@ export const DEFAULT_BODIES: Record<string, string> = {
     BTN("Join the group chat", "whatsappLink") +
     P("Safe travels — we can't wait to ride with you." + SIGN),
 
+  // No wind.coach guide CTA here on purpose: the block is conditional on a
+  // stored guide, and a flat body can't branch (same limit as addonPriceLine
+  // below). renderTemplate() appends the CTA in code, under an edited body too.
   post_trip_thank_you:
     P("Hey {{firstName}} 🤙") +
     P("Thank you for joining <strong>{{experienceTitle}}</strong> — it was epic having you on the water. We hope you went home a better windsurfer with a few new friends. 🤙") +

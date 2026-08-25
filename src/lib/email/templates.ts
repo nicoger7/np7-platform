@@ -16,6 +16,9 @@ export type EmailVars = {
   /** admin-set subject for a survey invite; empty = the built-in one */
   surveySubject?: string;
   reviewLink?: string;
+  /** wind.coach training guide for this booking — set by the cron ONLY when a
+   *  stored guide exists, so `v.guideUrl ? … : ""` is the whole feature gate. */
+  guideUrl?: string;
   joinLink?: string;
   /** Newline-separated packing list (rendered as a checklist). */
   packingList?: string;
@@ -69,6 +72,16 @@ const addonBuckets = (v: EmailVars) => {
   if (v.addonsDirect) out += p(`<strong>Paid locally</strong> — settled directly with the provider, not on your balance:`) + list(v.addonsDirect);
   return out;
 };
+
+/** The wind.coach training-guide CTA for the post-trip mail. Renders only when
+ *  a stored guide exists for the booking (the cron sets `guideUrl` then, and
+ *  only then) — otherwise an empty string, so a mail without a guide is
+ *  byte-for-byte the mail we sent before guides existed. */
+const guideCta = (v: EmailVars) =>
+  v.guideUrl
+    ? p(`<strong>Your focus points from the week are ready.</strong> Your personal training guide from the coaching sessions is waiting for you:`) +
+      emailButton("Open your training guide", v.guideUrl)
+    : "";
 
 /** A small heading above a block — quiet, uppercase, gold. */
 const heading = (text: string) =>
@@ -716,6 +729,7 @@ export const TEMPLATES: Record<string, (v: EmailVars, opts?: LayoutOpts) => Buil
       bodyHtml:
         greet(v) +
         p(`Thank you for joining <strong>${esc(v.experienceTitle || "")}</strong> — it was epic having you on the water. We hope you went home a better windsurfer with a few new friends. 🤙`) +
+        guideCta(v) +
         p(`<strong>Your photos</strong> are being sorted and will appear in your trip account soon — we'll let you know the moment they're up.`) +
         (v.reviewLink
           ? p(`If you had a great time, a short review means the world to us and helps other riders find their next trip:`) + emailButton("Leave a review", v.reviewLink)
@@ -794,7 +808,14 @@ export function renderTemplate(
   // header image overrides still apply.
   if (dbOverride?.body && key !== "survey_invite") {
     const subject = dbOverride.subject_line ? interpolate(dbOverride.subject_line, vars) : (TEMPLATES[key]?.(vars).subject ?? "NP7 Experience");
-    return { subject, html: emailLayout({ division, headerImage, headerPosition, bodyHtml: interpolate(dbOverride.body, vars) }) };
+    // post_trip_thank_you: the training-guide CTA is conditional on a stored
+    // wind.coach guide, and a flat {{var}} body cannot branch — interpolate()
+    // escapes every value, so a pre-built HTML block can't travel through a
+    // variable either (the {{addonPriceLine}} pattern only carries plain text).
+    // So the CTA is appended in code under whatever the admin wrote; with no
+    // guide it appends nothing and the override body renders untouched.
+    const appended = key === "post_trip_thank_you" ? guideCta(vars) : "";
+    return { subject, html: emailLayout({ division, headerImage, headerPosition, bodyHtml: interpolate(dbOverride.body, vars) + appended }) };
   }
   if (dbOverride?.subject_line && key === "survey_invite") {
     const built = TEMPLATES[key](vars, { division, headerImage, headerPosition });

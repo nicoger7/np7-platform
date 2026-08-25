@@ -3,7 +3,7 @@ import { defaultCancellationPolicy } from "@/lib/cancellation-policy";
 import { redirect, notFound } from "next/navigation";
 import type { Metadata } from "next";
 import { getPortalUser } from "@/lib/auth";
-import { getMemberBooking, getTripGalleryGroupsForBooking, getTripVideosForBooking, getBookingPhotoSharing, getBookingPaid, getBookingHotel, getBookingStay, getEditionCoaches, getMemoryDownloadsRemaining, getConfirmedAddonsTotal, getBookingFlights, getExperienceArrivalInfo, getCrewProfiles, getPreTripContent } from "@/lib/portal-data";
+import { getMemberBooking, getTripGalleryGroupsForBooking, getTripVideosForBooking, getBookingPhotoSharing, getBookingPaid, getBookingHotel, getBookingStay, getEditionCoaches, getMemoryDownloadsRemaining, getConfirmedAddonsTotal, getBookingFlights, getExperienceArrivalInfo, getCrewProfiles, getPreTripContent, getGuidesForBooking } from "@/lib/portal-data";
 import { bookingStatus, fmtDates, money, isSecured } from "@/lib/portal-status";
 import { isAttending } from "@/lib/types";
 import { PortalChrome } from "@/components/portal/portal-chrome";
@@ -40,7 +40,7 @@ export default async function BookingDetail({ params }: Props) {
   if (!b) notFound();
 
   const chip = bookingStatus(b);
-  const [galleryGroups, paid, hotel, stay, coaches, downloadsRemaining, addonsTotal, flights, arrival, crew, photosShared, preTrip, tripVideos] = await Promise.all([
+  const [galleryGroups, paid, hotel, stay, coaches, downloadsRemaining, addonsTotal, flights, arrival, crew, photosShared, preTrip, tripVideos, guides] = await Promise.all([
     b.edition?.id ? getTripGalleryGroupsForBooking(b.edition.id, b.id).catch(() => []) : Promise.resolve([]),
     getBookingPaid(b.id).catch(() => 0),
     getBookingHotel(b.id).catch(() => null),
@@ -54,6 +54,7 @@ export default async function BookingDetail({ params }: Props) {
     getBookingPhotoSharing(b.id).catch(() => true),
     b.experience_id ? getPreTripContent(b.experience_id).catch(() => ({ packingList: null, preTripNote: null })) : Promise.resolve({ packingList: null, preTripNote: null }),
     b.edition?.id ? getTripVideosForBooking(b.edition.id, b.id).catch(() => []) : Promise.resolve([]),
+    getGuidesForBooking(b.id).catch(() => []),
   ]);
   const packingItems = (preTrip.packingList ?? "").split("\n").map((s) => s.trim()).filter(Boolean);
 
@@ -385,6 +386,23 @@ export default async function BookingDetail({ params }: Props) {
         <div className="rounded-2xl border border-[#f0e6d6] bg-[#fffdf8] p-5">
           <p className="text-[11px] font-bold tracking-[0.14em] uppercase text-[#9aa6ac] mb-2">A note from Nico</p>
           <p className="text-[14px] text-[#3a4a50] leading-relaxed whitespace-pre-line">{preTrip.preTripNote}</p>
+        </div>
+      )}
+      {/* wind.coach training guide(s) matched to this booking — only when one
+          actually landed; no empty promise card. */}
+      {guides.length > 0 && (
+        <div>
+          <p className="text-[11px] font-bold tracking-[0.14em] uppercase text-[#9aa6ac] mb-2">Your focus points</p>
+          <div className="rounded-2xl border border-[#f0e6d6] bg-[#fffdf8] px-5 py-2">
+            {guides.map((g) => (
+              <DocLink
+                key={g.id}
+                href={`/account/guides/${g.id}`}
+                label={g.trip_label ?? "Your training guide"}
+                sub={`${g.focusPointCount} ${g.focusPointCount === 1 ? "focus point" : "focus points"} your coach picked for you`}
+              />
+            ))}
+          </div>
         </div>
       )}
       {packingItems.length > 0 && <PackingChecklist bookingId={b.id} items={packingItems} />}

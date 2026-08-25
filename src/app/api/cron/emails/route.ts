@@ -214,6 +214,26 @@ export async function GET(req: NextRequest) {
     for (const s of (sigs ?? []) as any[]) if (s.booking_id) signedWaivers.add(s.booking_id);
   }
 
+  // Stored wind.coach training guides per booking — the post-trip thank-you
+  // links to them when one exists. Only status 'stored' counts: 'review' means
+  // a coach still has it open, and a guest link to a half-checked guide is
+  // worse than no link. Fail OPEN to "no guide": a missing table or a failed
+  // query must never break the run or hold the thank-you back — the mail
+  // simply goes out as it always did, without the CTA.
+  const guideBy = new Map<string, string>();
+  if (bookingIds.length) {
+    try {
+      const { data: guides } = await db
+        .from("windcoach_guides")
+        .select("id, booking_id, created_at")
+        .in("booking_id", bookingIds)
+        .eq("status", "stored")
+        .order("created_at", { ascending: true }); // newest wins the map
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      for (const g of (guides ?? []) as any[]) if (g.booking_id && g.id) guideBy.set(g.booking_id, g.id);
+    } catch { /* guides not queryable — send without the CTA */ }
+  }
+
   const out = {
     evaluated: (bookings ?? []).length,
     nudge: 0, last_chance: 0, released: 0, balance: 0, balance_paid: 0, crew: 0, pretrip: 0, excitement: 0, pretrip_final: 0, post_trip: 0, waiver: 0, photos: 0,
@@ -313,6 +333,9 @@ export async function GET(req: NextRequest) {
       dates: fmtRange(start, end),
       whatsappLink: b.exp_editions?.whatsapp_group_link ?? undefined,
       reviewLink: `${origin}/account/bookings/${b.id}/review`,
+      // Only set when a STORED guide exists — the template renders the CTA off
+      // exactly this, so no guide means the mail is unchanged from today.
+      guideUrl: guideBy.has(b.id) ? `${origin}/account/guides/${guideBy.get(b.id)}` : undefined,
       bookingLink: `${origin}/account`,
       waiverLink: `${origin}/account/bookings/${b.id}/waiver`,
       tripLink: `${origin}/account/bookings/${b.id}`,

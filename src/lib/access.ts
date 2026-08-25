@@ -123,6 +123,7 @@ export const SECTIONS: Section[] = [
   // listing a path under two sections does not OR their grants, it silently hands
   // the path to whichever section appears earlier in this array.
   { key: "guest_reviews", label: "Guest reviews", world: "experience", group: "Website", paths: ["/admin/guest-reviews", "/api/admin/guest-reviews", "/api/admin/reviews"] },
+  { key: "windcoach_guides", label: "wind.coach guides", world: "experience", group: "Members", paths: ["/admin/windcoach-guides", "/api/admin/windcoach-guides"] },
   { key: "waivers", label: "Waivers", world: "experience", group: "Website", paths: ["/admin/waivers", "/api/admin/waivers"] },
   // Experience · Team
   { key: "team", label: "Employees & roles", world: "experience", group: "Team", paths: ["/admin/team", "/admin/roles", "/api/admin/team", "/api/admin/roles"] },

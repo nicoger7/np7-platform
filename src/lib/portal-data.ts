@@ -1059,3 +1059,68 @@ export async function getEditionCoaches(editionId: string): Promise<CoachCard[]>
     .filter((c: CoachCard) => c.name);
 }
 
+export type BookingGuideSummary = { id: string; trip_label: string | null; created_at: string | null; focusPointCount: number };
+
+/** The wind.coach training guides stored against a booking — just enough (id,
+    label, when, how many focus points) for the trip page to offer the link.
+    Only 'stored' guides count: a guide in the review queue isn't matched yet.
+    Tolerant of migration 154 being unapplied → empty. */
+export async function getGuidesForBooking(bookingId: string): Promise<BookingGuideSummary[]> {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const db = createAdminClient() as any;
+  const { data, error } = await db.from("windcoach_guides")
+    .select("id,trip_label,created_at,focus_points")
+    .eq("booking_id", bookingId).eq("status", "stored")
+    .order("created_at", { ascending: false });
+  if (error || !data) return [];
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  return (data as any[]).map((g) => ({
+    id: g.id,
+    trip_label: g.trip_label ?? null,
+    created_at: g.created_at ?? null,
+    focusPointCount: Array.isArray(g.focus_points) ? g.focus_points.length : 0,
+  }));
+}
+
+export type GuideBlock = { kind: string; text: string };
+export type GuideFocusPoint = { key: string; title: string; summary?: string | null; blocks?: GuideBlock[]; image_urls?: string[] };
+export type MemberGuide = {
+  id: string; booking_id: string | null; trip_label: string | null;
+  trip_start: string | null; trip_end: string | null; name: string | null;
+  focus_points: GuideFocusPoint[]; coach_note: string | null;
+  generated_at: string | null; created_at: string | null;
+};
+
+/**
+ * The full guide, ONLY if it is 'stored' and genuinely this member's: linked to
+ * their contact, or to a booking that belongs to them. The URL id alone proves
+ * nothing — a guessed id would open another rider's training otherwise. A
+ * guide still parked in the review queue is invisible to members by design.
+ */
+export async function getGuideForMember(guideId: string, contactId: string): Promise<MemberGuide | null> {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const db = createAdminClient() as any;
+  const { data: g, error } = await db.from("windcoach_guides")
+    .select("id,booking_id,contact_id,trip_label,trip_start,trip_end,name,focus_points,coach_note,generated_at,created_at,status")
+    .eq("id", guideId).maybeSingle();
+  if (error || !g || g.status !== "stored") return null;
+  let mine = !!g.contact_id && g.contact_id === contactId;
+  if (!mine && g.booking_id) {
+    const { data: bk } = await db.from("exp_bookings").select("contact_id").eq("id", g.booking_id).maybeSingle();
+    mine = !!bk?.contact_id && bk.contact_id === contactId;
+  }
+  if (!mine) return null;
+  return {
+    id: g.id,
+    booking_id: g.booking_id ?? null,
+    trip_label: g.trip_label ?? null,
+    trip_start: g.trip_start ?? null,
+    trip_end: g.trip_end ?? null,
+    name: g.name ?? null,
+    focus_points: Array.isArray(g.focus_points) ? (g.focus_points as GuideFocusPoint[]) : [],
+    coach_note: g.coach_note ?? null,
+    generated_at: g.generated_at ?? null,
+    created_at: g.created_at ?? null,
+  };
+}
+
