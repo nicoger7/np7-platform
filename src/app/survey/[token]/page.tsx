@@ -121,13 +121,16 @@ export default async function SurveyPage({ params, searchParams }: Props) {
     if (!m) return null;
     return Number(m[1] ?? 0) * 3600 + Number(m[2] ?? 0) * 60 + Number(m[3] ?? 0) || null;
   };
-  const [ytStart, ytEnd] = (() => {
+  const [urlStart, urlEnd] = (() => {
     if (!ytUrl) return [null, null] as const;
     try {
       const q = new URL(ytUrl).searchParams;
       return [ytSeconds(q.get("t") || q.get("start")), ytSeconds(q.get("end"))] as const;
     } catch { return [null, null] as const; }
   })();
+  // The explicit admin fields (migration 181) win; URL params serve old rows.
+  const ytStart = survey.hero_video_start ?? urlStart;
+  const ytEnd = survey.hero_video_end ?? urlEnd;
 
   return (
     <main className="min-h-[100svh] bg-[#fdf6ea]">

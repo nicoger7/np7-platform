@@ -129,7 +129,12 @@ export function BrandedTile({
       {/* 4 — gold place name + subtitle (bottom-left, clear of the photo's centre) */}
       <div className="absolute left-4 bottom-3.5 max-w-[58%] z-10">
         <h3
-          className="font-[family-name:var(--font-display)] uppercase leading-[0.82] tracking-[0.005em] text-[clamp(24px,5.8vw,36px)]"
+          /* pt/-mt + pb/-mb: background-clip:text paints only inside the padding
+             box, and at line-height 0.82 the cap tops poke OUT of it — they got
+             no gradient and vanished (the "cut" look). The padding stretches
+             the paint area over the full glyphs; the negative margins give the
+             space right back, so layout doesn't move. */
+          className="font-[family-name:var(--font-display)] uppercase leading-[0.82] tracking-[0.005em] text-[clamp(24px,5.8vw,36px)] pt-[0.18em] -mt-[0.18em] pb-[0.1em] -mb-[0.1em]"
           style={{
             backgroundImage: "linear-gradient(180deg, #fff2c2 0%, #ffd257 42%, #f4a11f 66%, #d97a12 100%)",
             WebkitBackgroundClip: "text",

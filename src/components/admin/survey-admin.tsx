@@ -39,6 +39,10 @@ export function SurveyAdmin({ initialSurvey, initialInvites }: { initialSurvey: 
   const fmtMoney = (n: number | null) => n == null ? "—" : new Intl.NumberFormat("en-IE", { style: "currency", currency: s.currency || "EUR", maximumFractionDigits: 0 }).format(n);
 
   const patch = (p: Partial<Survey>) => setS((cur) => ({ ...cur, ...p }));
+  // Video start/end: the INPUT holds the raw string (so "7:5…" survives
+  // typing), the parsed seconds land on the survey object for saving.
+  const [vidStart, setVidStart] = useState(fmtClock(initialSurvey.hero_video_start ?? null));
+  const [vidEnd, setVidEnd] = useState(fmtClock(initialSurvey.hero_video_end ?? null));
 
   async function save() {
     setSaving(true);
@@ -48,7 +52,7 @@ export function SurveyAdmin({ initialSurvey, initialInvites }: { initialSurvey: 
         body: JSON.stringify({
           title: s.title, intro: s.intro, status: s.status, destinations: s.destinations, weeks: s.weeks,
           budget_anchor: s.budget_anchor, budget_min: s.budget_min, budget_max: s.budget_max, currency: s.currency,
-          quick: s.quick, eyebrow: s.eyebrow, hero_youtube: s.hero_youtube, personal_note: s.personal_note, cta_label: s.cta_label, decline_label: s.decline_label, show_decline: s.show_decline, email_body: s.email_body, ask_wishes: s.ask_wishes, email_date_buttons: s.email_date_buttons, email_button_label: s.email_button_label,
+          quick: s.quick, eyebrow: s.eyebrow, hero_youtube: s.hero_youtube, hero_video_start: s.hero_video_start ?? null, hero_video_end: s.hero_video_end ?? null, personal_note: s.personal_note, cta_label: s.cta_label, decline_label: s.decline_label, show_decline: s.show_decline, email_body: s.email_body, ask_wishes: s.ask_wishes, email_date_buttons: s.email_date_buttons, email_button_label: s.email_button_label,
         }),
       });
       // A failed save used to do NOTHING — no message, and the "Saved 14:02"
@@ -224,10 +228,22 @@ export function SurveyAdmin({ initialSurvey, initialInvites }: { initialSurvey: 
           <label className="block text-xs font-semibold admin-muted mt-3">Personal note <span className="admin-faint font-normal">— the gold line; {"{name}"} becomes the invitee&apos;s first name; leave empty for the default, a single space hides it</span></label>
           <input className={`${input} mt-1`} value={s.personal_note ?? ""} onChange={(e) => patch({ personal_note: e.target.value === "" ? null : e.target.value })} placeholder="Hey {name} — you're one of the few we're asking. 🤙" />
         </label>
-        <label className="block mb-3">
-          <span className={lbl}>YouTube banner <span className="font-normal normal-case opacity-70">— paste a link (timestamp like &amp;t=90s works); it plays muted behind the title. Empty = the photo</span></span>
-          <input className={`${input} mt-1`} value={s.hero_youtube ?? ""} onChange={(e) => patch({ hero_youtube: e.target.value === "" ? null : e.target.value })} placeholder="https://youtu.be/…?t=90" />
-        </label>
+        <div className="mb-3">
+          <span className={lbl}>YouTube banner <span className="font-normal normal-case opacity-70">— plays muted behind the hero title, looping start → end. The trip photo from Trips &amp; dates is the fallback and shows until the video runs. Empty = photo only</span></span>
+          <input className={`${input} mt-1`} value={s.hero_youtube ?? ""} onChange={(e) => patch({ hero_youtube: e.target.value === "" ? null : e.target.value })} placeholder="https://www.youtube.com/watch?v=…" />
+          <div className="grid grid-cols-2 gap-3 mt-2 max-w-[340px]">
+            <label className="block">
+              <span className="block text-xs font-semibold admin-muted">Start</span>
+              <input className={`${input} mt-1`} value={vidStart} placeholder="7:52"
+                onChange={(e) => { setVidStart(e.target.value); patch({ hero_video_start: parseClock(e.target.value) }); }} />
+            </label>
+            <label className="block">
+              <span className="block text-xs font-semibold admin-muted">End</span>
+              <input className={`${input} mt-1`} value={vidEnd} placeholder="8:22"
+                onChange={(e) => { setVidEnd(e.target.value); patch({ hero_video_end: parseClock(e.target.value) }); }} />
+            </label>
+          </div>
+        </div>
         <label className="block mb-3">
           <span className={lbl}>Intro (shown on the form + email)</span>
           <textarea className={`${input} mt-1 min-h-[70px] resize-y`} value={s.intro ?? ""} onChange={(e) => patch({ intro: e.target.value })} placeholder="e.g. I'm cooking up a small, special trip for a handful of riders…" />
@@ -1201,4 +1217,22 @@ function ResponsesSection({ survey, invites, fmtMoney, onRemove }: { survey: Sur
       )}
     </div>
   );
+}
+
+
+/** "7:52" | "1:02:03" | "472" → seconds; empty/unparseable → null. */
+function parseClock(raw: string): number | null {
+  const t = raw.trim();
+  if (!t) return null;
+  if (/^\d+$/.test(t)) return Number(t) || null;
+  const m = /^(?:(\d+):)?(\d{1,2}):(\d{2})$/.exec(t);
+  if (!m) return null;
+  return (Number(m[1] ?? 0) * 3600 + Number(m[2]) * 60 + Number(m[3])) || null;
+}
+
+/** seconds → "m:ss" (or "h:mm:ss"); null → "". */
+function fmtClock(sec: number | null): string {
+  if (sec == null || !Number.isFinite(sec) || sec <= 0) return "";
+  const h = Math.floor(sec / 3600), m = Math.floor((sec % 3600) / 60), s2 = Math.floor(sec % 60);
+  return h ? `${h}:${String(m).padStart(2, "0")}:${String(s2).padStart(2, "0")}` : `${m}:${String(s2).padStart(2, "0")}`;
 }
