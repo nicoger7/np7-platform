@@ -393,14 +393,39 @@ export default async function BookingDetail({ params }: Props) {
       {guides.length > 0 && (
         <div>
           <p className="text-[11px] font-bold tracking-[0.14em] uppercase text-[#9aa6ac] mb-2">Your focus points</p>
-          <div className="rounded-2xl border border-[#f0e6d6] bg-[#fffdf8] px-5 py-2">
+          <div className="space-y-3">
             {guides.map((g) => (
-              <DocLink
-                key={g.id}
-                href={`/account/guides/${g.id}`}
-                label={g.trip_label ?? "Your training guide"}
-                sub={`${g.focusPointCount} ${g.focusPointCount === 1 ? "focus point" : "focus points"} your coach picked for you`}
-              />
+              /* A guide is coaching, not paperwork — the teaser speaks the
+                 guide page's own language: ocean card, sun hairline, the
+                 numbered points it actually contains. */
+              <a key={g.id} href={`/account/guides/${g.id}`}
+                className="group relative block rounded-2xl overflow-hidden p-5 transition-transform hover:scale-[1.01]"
+                style={{ background: "linear-gradient(155deg,#00232f,#00374a 55%,#075b7d)" }}>
+                <span className="absolute top-0 inset-x-0 h-[3px]" style={{ background: "linear-gradient(90deg,#ffc42e,#f0774a 55%,#00afdb)" }} />
+                <div className="flex items-center justify-between gap-3">
+                  <p className="text-[15px] font-black text-white tracking-tight">{g.trip_label ?? "Your training guide"}</p>
+                  <span className="shrink-0 text-[10.5px] font-bold px-2.5 py-1 rounded-full bg-white/15 text-white border border-white/25">
+                    {g.focusPointCount} {g.focusPointCount === 1 ? "focus point" : "focus points"}
+                  </span>
+                </div>
+                {g.focusTitles.length > 0 && (
+                  <ul className="mt-3 space-y-1.5">
+                    {g.focusTitles.map((t, i) => (
+                      <li key={i} className="flex items-baseline gap-2 text-[13px] text-white/85">
+                        <span className="shrink-0 font-black tabular-nums text-[#ffc42e]">{String(i + 1).padStart(2, "0")}</span>
+                        <span className="font-semibold truncate">{t}</span>
+                      </li>
+                    ))}
+                    {g.focusPointCount > g.focusTitles.length && (
+                      <li className="text-[12px] text-white/60 pl-7">+ {g.focusPointCount - g.focusTitles.length} more</li>
+                    )}
+                  </ul>
+                )}
+                <p className="mt-3.5 inline-flex items-center gap-1.5 text-[12.5px] font-bold text-[#8fe6f2] group-hover:text-white transition-colors">
+                  Open your guide
+                  <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M5 12h14M13 6l6 6-6 6" /></svg>
+                </p>
+              </a>
             ))}
           </div>
         </div>

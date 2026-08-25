@@ -1059,7 +1059,7 @@ export async function getEditionCoaches(editionId: string): Promise<CoachCard[]>
     .filter((c: CoachCard) => c.name);
 }
 
-export type BookingGuideSummary = { id: string; trip_label: string | null; created_at: string | null; focusPointCount: number };
+export type BookingGuideSummary = { id: string; trip_label: string | null; created_at: string | null; focusPointCount: number; focusTitles: string[] };
 
 /** The wind.coach training guides stored against a booking — just enough (id,
     label, when, how many focus points) for the trip page to offer the link.
@@ -1079,6 +1079,10 @@ export async function getGuidesForBooking(bookingId: string): Promise<BookingGui
     trip_label: g.trip_label ?? null,
     created_at: g.created_at ?? null,
     focusPointCount: Array.isArray(g.focus_points) ? g.focus_points.length : 0,
+    // The first titles give the trip card something concrete to promise.
+    focusTitles: (Array.isArray(g.focus_points) ? g.focus_points : [])
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      .map((fp: any) => String(fp?.title ?? "").trim()).filter(Boolean).slice(0, 3),
   }));
 }
 
