@@ -46,8 +46,10 @@ export default async function MyTrips() {
                 return (
                   <Link key={b.id} href={`/account/bookings/${b.id}`}
                     className="group block bg-white rounded-2xl border border-[#f0e6d6] overflow-hidden hover:-translate-y-0.5 hover:shadow-[0_16px_40px_rgba(0,55,74,0.08)] transition-all">
-                    {/* Same auto-branded tile as the homepage experiences (flag /
-                        place / coach composited on the raw photo); falls back to the
+                    {/* Same auto-branded tile as the homepage experiences — but
+                        WITHOUT the coach cutout: on a member's own trip list the
+                        tile is a booking artifact, not a pitch, and the face came
+                        from a global fallback anyway. Falls back to the
                         edition/experience hero when the experience isn't auto-tiled. */}
                     <div className="relative aspect-[16/9] overflow-hidden rounded-t-2xl grid place-items-center bg-[#e8f1f3]">
                       {b.experience?.tileAuto && b.experience?.hero_image ? (
@@ -55,17 +57,13 @@ export default async function MyTrips() {
                           photo={b.experience.hero_image}
                           place={placeFromLocation(b.experience.location ?? "").toUpperCase()}
                           flag={flagFromLocation(b.experience.location ?? "")}
-                          coachName={b.experience.coachName ?? null}
-                          coachCutout={b.experience.coachCutout ?? null}
                         />
                       ) : (() => { const tile = b.edition?.hero_image ?? b.experience?.hero_image; return tile ? (
                         <div className="absolute inset-0 bg-cover bg-center" style={{ backgroundImage: `url('${tile}')` }} />
                       ) : (
                         <svg className="w-10 h-10 text-[#b9cdd3]" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="3" width="18" height="18" rx="2" /><circle cx="8.5" cy="8.5" r="1.5" /><path d="m21 15-5-5L5 21" /></svg>
                       ); })()}
-                      {/* top-LEFT: the branded tile's coach cutout + "with Nico"
-                          branding sits on the right, so the status chip goes left
-                          to avoid overlapping it. */}
+                      {/* status chip stays top-left, matching the other cards */}
                       <span className={`absolute top-3 left-3 z-20 inline-block px-3 py-1.5 rounded-full text-[11px] font-bold shadow-sm ${CHIP_CLASS[chip.tone]}`}>{chip.label}</span>
                     </div>
                     <div className="p-5">
