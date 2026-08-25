@@ -60,6 +60,9 @@ export type Survey = {
   quick: boolean;
   /** Small gold line above the hero title. null = "By private invitation", "" = hidden. */
   eyebrow: string | null;
+  /** YouTube link (optionally with &t= timestamp) for the hero banner.
+   *  null/empty = the photo hero; an unparseable link also falls back to it. */
+  hero_youtube?: string | null;
   /** The gold line under the hero copy; {name} = invitee's first name.
    *  null = default line, "" (or blank) = hidden. Migration 177. */
   personal_note?: string | null;
@@ -168,6 +171,7 @@ function rowToSurvey(r: Record<string, unknown>): Survey {
     currency: String(r.currency ?? "EUR"),
     quick: r.quick === true,
     eyebrow: (r.eyebrow as string | null) ?? null,
+    hero_youtube: (r.hero_youtube as string | null) ?? null,
     cta_label: (r.cta_label as string | null) ?? null,
     decline_label: (r.decline_label as string | null) ?? null,
     show_decline: r.show_decline !== false,
@@ -237,7 +241,7 @@ export async function createSurvey(input: Partial<Survey>): Promise<Survey | nul
 
 export async function updateSurvey(id: string, patch: Partial<Survey>): Promise<Survey | null> {
   const clean: Record<string, unknown> = { updated_at: new Date().toISOString() };
-  for (const k of ["title", "intro", "status", "destinations", "weeks", "budget_anchor", "budget_min", "budget_max", "currency", "quick", "eyebrow", "cta_label", "decline_label", "show_decline", "email_body", "ask_wishes", "email_date_buttons", "email_button_label", "email_subject"] as const) {
+  for (const k of ["title", "intro", "status", "destinations", "weeks", "budget_anchor", "budget_min", "budget_max", "currency", "quick", "eyebrow", "hero_youtube", "cta_label", "decline_label", "show_decline", "email_body", "ask_wishes", "email_date_buttons", "email_button_label", "email_subject"] as const) {
     if (k in patch) clean[k] = patch[k];
   }
   // A survey is created "Untitled survey" and named a moment later, so the

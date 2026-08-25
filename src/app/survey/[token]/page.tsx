@@ -5,6 +5,7 @@ import { getSurveyForToken, getSurvey, getSurveyByOpenToken, joinSurveyAsMember,
 import { getPortalUser, getTeamMember } from "@/lib/auth";
 import { SurveyForm } from "@/components/portal/survey-form";
 import { resolveSurveyInfo, type SurveyInfo } from "@/lib/surveys";
+import { HeroVideo } from "@/components/experience/hero-video";
 import { SurveyQuick } from "@/components/portal/survey-quick";
 import { SurveyJoin } from "@/components/portal/survey-join";
 import { satImage } from "@/lib/satellite";
@@ -111,6 +112,19 @@ export default async function SurveyPage({ params, searchParams }: Props) {
     (heroTrip?.lat != null && heroTrip?.lng != null ? satImage(heroTrip.lat, heroTrip.lng) : null) ||
     "https://media.np-seven.com/experiences/np7-bonaire/place/bonaire-spot-overview-drone-shot.jpg";
 
+  // Optional YouTube banner — the &t= timestamp becomes the loop start.
+  const ytUrl = (survey.hero_youtube ?? "").trim();
+  const ytStart = (() => {
+    if (!ytUrl) return null;
+    try {
+      const t = new URL(ytUrl).searchParams.get("t") || new URL(ytUrl).searchParams.get("start");
+      if (!t) return null;
+      const m = /^(?:(\d+)h)?(?:(\d+)m)?(\d+)s?$/.exec(t.trim());
+      if (!m) return null;
+      return Number(m[1] ?? 0) * 3600 + Number(m[2] ?? 0) * 60 + Number(m[3] ?? 0) || null;
+    } catch { return null; }
+  })();
+
   return (
     <main className="min-h-[100svh] bg-[#fdf6ea]">
       {isPreview && (
@@ -122,8 +136,14 @@ export default async function SurveyPage({ params, searchParams }: Props) {
           ocean gradient, with a gold "by invitation" treatment so it reads
           premium the moment it opens (this is a dream-trip invite, not a form). */}
       <header className="relative overflow-hidden flex flex-col min-h-[430px] sm:min-h-[540px] text-white">
-        <div className="absolute inset-0 bg-cover scale-105"
-          style={{ backgroundImage: `url('${heroImg}')`, backgroundPosition: `50% ${heroTrip?.focus ?? 50}%` }} />
+        {ytUrl ? (
+          /* HeroVideo shows the poster until the embed runs — and stays on it
+             when the link doesn't parse, so the photo is always the floor. */
+          <HeroVideo url={ytUrl} start={ytStart} end={null} poster={heroImg} />
+        ) : (
+          <div className="absolute inset-0 bg-cover scale-105"
+            style={{ backgroundImage: `url('${heroImg}')`, backgroundPosition: `50% ${heroTrip?.focus ?? 50}%` }} />
+        )}
         {/* The mid-stop sat at 0.28 — body copy floated over bright, shimmering
             water and was genuinely hard to read. Darker throughout, plus a soft
             text shadow on the copy block below; the photo still reads at the
