@@ -246,6 +246,54 @@ export const TEMPLATES: Record<string, (v: EmailVars, opts?: LayoutOpts) => Buil
     }),
   }),
 
+  /** The admin confirmed an event date and this buyer CAN make it — the
+   *  deposit holds the spot, the balance is due now via the Stripe link. */
+  event_date_confirmed_balance: (v, opts) => ({
+    subject: `It's on! 🤙 ${v.experienceTitle ?? "Your NP7 event"} — date confirmed`,
+    html: emailLayout({
+      ...opts,
+      preheader: "The forecast landed — settle the balance and you're locked in.",
+      bodyHtml:
+        greet(v) +
+        p(`Great news — the forecast landed and <strong>${esc(String(v.experienceTitle ?? "your event"))}</strong> is confirmed. Your deposit holds the spot; the balance locks it in.`) +
+        facts([["Event", v.experienceTitle], ["Balance due", v.balance]]) +
+        (v.balanceLink ? emailButton("Pay the balance", String(v.balanceLink)) : "") +
+        p(`See you on the water. 🌊<br>— Nico & the NP7 team`),
+    }),
+  }),
+
+  /** Standby whose chosen date(s) didn't run — the refund notice. The refund
+   *  itself is already on its way when this sends; the mail must not ask for
+   *  anything, only explain. */
+  event_date_not_running: (v, opts) => ({
+    subject: `${v.experienceTitle ?? "Your NP7 event"} — your dates didn't make it`,
+    html: emailLayout({
+      ...opts,
+      preheader: "Your chosen dates aren't running — your refund is on the way.",
+      bodyHtml:
+        greet(v) +
+        p(`We've locked in a date for <strong>${esc(String(v.experienceTitle ?? "the event"))}</strong> — unfortunately not one of the dates you could make. Sorry we couldn't line the wind up with your calendar this time.`) +
+        (v.refund ? p(`Your refund of <strong>${esc(String(v.refund))}</strong> goes back to your card automatically over the next few days — nothing to do on your side.`) : "") +
+        p(`Next forecast window, we'd love another shot.<br>— Nico & the NP7 team`),
+    }),
+  }),
+
+  /** Scheduled from the voucher-expiry cron at ~30 and ~7 days before
+   *  redeem_by. A €5k voucher must never die silently. */
+  voucher_expiry_reminder: (v, opts) => ({
+    subject: `Your NP7 gift voucher runs out on ${v.redeemByLabel ?? "…"}`,
+    html: emailLayout({
+      ...opts,
+      preheader: "Still yours to ride — book any experience and we'll apply it.",
+      bodyHtml:
+        greet(v) +
+        p(`A friendly heads-up: your NP7 gift voucher <strong>${esc(String(v.code ?? ""))}</strong>${v.amountLabel ? ` over <strong>${esc(String(v.amountLabel))}</strong>` : ""} is valid until <strong>${esc(String(v.redeemByLabel ?? "soon"))}</strong> — after that it expires.`) +
+        p(`Redeeming is easy: pick any experience, mention the code when you book, and we take it straight off the invoice.`) +
+        (v.browseLink ? emailButton("Browse the experiences", String(v.browseLink)) : "") +
+        p(`Not sure which week fits? Just reply — we'll help you pick.<br>— Nico & the NP7 team`),
+    }),
+  }),
+
   password_reset: (v, opts) => ({
     subject: `Reset your NP7 password`,
     html: emailLayout({

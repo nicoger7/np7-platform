@@ -3,17 +3,25 @@
 import { useEffect, useState } from "react";
 
 /**
- * The public homepage (np-seven.com root — the Experience/Hardware split),
- * admin-editable at last. Stored in site_settings key `home_page`; every field
- * optional, the shipped copy is the floor. "Home is hardcoded" — not anymore
- * (Nico, 2026-08-24).
+ * The public front doors, admin-editable — two tabs:
+ *
+ *   Front door  — np-seven.com root, the Experience/Hardware split
+ *                 (site_settings `home_page`)
+ *   /experience — the Experience landing hero: copy, video, fallback photos
+ *                 (site_settings `experience_landing_hero`)
+ *
+ * Every input is PREFILLED with the copy that is actually live — the stored
+ * override when one exists, the shipped default otherwise — so the form shows
+ * the truth instead of a wall of empty boxes ("put in what we actually have
+ * hardcoded now" — Nico, 2026-08-25). Saving stores whatever stands in the
+ * fields; the shipped copy remains the fallback floor for anything cleared.
  */
-type HomeCopy = {
-  expEyebrow?: string; expTagline?: string; expCta?: string; expPhoto?: string;
-  hwEyebrow?: string; hwTagline?: string; hwCta?: string;
-};
 
-const DEFAULTS: Required<HomeCopy> = {
+/* ------------------------------ shipped copy ------------------------------ */
+/* Mirrors src/app/page.tsx and src/app/experience/page.tsx — the floor the
+   public pages fall back to. Update BOTH sides when the shipped copy moves. */
+
+const FRONT_DEFAULTS = {
   expEyebrow: "TRAVEL · COACHING · COMMUNITY",
   expTagline: "Premium windsurf trips around the planet.",
   expCta: "Enter Experience",
@@ -21,159 +29,252 @@ const DEFAULTS: Required<HomeCopy> = {
   hwEyebrow: "BOARDS · FINS · CUSTOM",
   hwTagline: "Custom boards & fins — shaped on the bench, finished by hand.",
   hwCta: "Enter Hardware",
-};
+} as const;
 
-const FIELDS: { key: keyof HomeCopy; label: string; hint?: string }[] = [
-  { key: "expEyebrow", label: "Experience — eyebrow (small caps line)" },
-  { key: "expTagline", label: "Experience — tagline" },
-  { key: "expCta", label: "Experience — button label" },
-  { key: "expPhoto", label: "Experience — background photo URL", hint: "Copy from File storage" },
-  { key: "hwEyebrow", label: "Hardware — eyebrow" },
-  { key: "hwTagline", label: "Hardware — tagline" },
-  { key: "hwCta", label: "Hardware — button label" },
+const LANDING_DEFAULTS = {
+  tagline: "The No. 1 windsurf holiday.",
+  subline: "Chase the ride, find your crew — world-class coaching, community and everything arranged for you.",
+  cta1: "Explore experiences",
+  cta2: "See destinations",
+  upcomingEyebrow: "NEXT ON THE WATER",
+  upcomingTitle: "Upcoming experiences",
+  upcomingSub: "Pick a date, pack your harness — we'll handle the rest.",
+  video: "/cdn/assets/hero/windsurf-hero.mp4",
+  poster: "/cdn/assets/hero/windsurf-hero-poster.jpg",
+} as const;
+
+const LANDING_IMAGE_DEFAULTS = [
+  "/cdn/assets/hero/windsurf-hero-poster.jpg",
+  "/cdn/assets/experiences/np7-alacati/action/alacati-experience-group-on-water.jpg",
+  "/cdn/assets/experiences/np7-lake-garda-2026/action/rider-crossing-mountain-backdrop.jpg",
+  "/cdn/assets/experiences/np7-alacati/action/alacati-experience-action-nico.jpg",
 ];
 
-/**
- * The /experience landing — hero video, poster, slow-connection photos AND the
- * headline copy, one card. Lives in site_settings `experience_landing_hero`
- * (the page reads the same key). Consolidated here from the Templates page:
- * everything homepage-ish edits in one place.
- */
-function ExperienceLandingCard() {
-  const [v, setV] = useState<Record<string, string>>({});
-  const [images, setImages] = useState<string[]>(["", "", "", ""]);
-  const [state, setState] = useState<"loading" | "idle" | "busy" | "saved" | "error">("loading");
+/* -------------------------------- pieces --------------------------------- */
 
-  useEffect(() => {
-    fetch("/api/admin/site-settings?key=experience_landing_hero").then((r) => r.json()).then((d) => {
-      const val = (d?.value ?? {}) as Record<string, unknown>;
-      const pick = (k: string) => (typeof val[k] === "string" ? (val[k] as string) : "");
-      setV({
-        video: pick("video"), poster: pick("poster"),
-        tagline: pick("tagline"), subline: pick("subline"), cta1: pick("cta1"), cta2: pick("cta2"),
-        upcomingEyebrow: pick("upcomingEyebrow"), upcomingTitle: pick("upcomingTitle"), upcomingSub: pick("upcomingSub"),
-      });
-      const imgs = Array.isArray(val.images) ? (val.images as string[]) : [];
-      setImages([0, 1, 2, 3].map((i) => imgs[i] ?? ""));
-      setState("idle");
-    }).catch(() => setState("idle"));
-  }, []);
+type SaveState = "loading" | "idle" | "busy" | "saved" | "error";
 
-  async function save() {
-    setState("busy");
-    const value: Record<string, unknown> = Object.fromEntries(Object.entries(v).map(([k, x]) => [k, x.trim()]).filter(([, x]) => x));
-    const imgs = images.map((x) => x.trim()).filter(Boolean);
-    if (imgs.length) value.images = imgs;
-    const r = await fetch("/api/admin/site-settings", {
-      method: "PUT", headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ key: "experience_landing_hero", value }),
-    }).catch(() => null);
-    setState(r?.ok ? "saved" : "error");
-    if (r?.ok) setTimeout(() => setState("idle"), 1800);
-  }
+const inputCls = "w-full admin-input border rounded-lg px-3 py-2 text-sm";
 
-  const TEXT: { key: string; label: string; ph: string }[] = [
-    { key: "tagline", label: "Big tagline (H1)", ph: "The No. 1 windsurf holiday." },
-    { key: "subline", label: "Subline", ph: "Chase the ride, find your crew — world-class coaching, community and everything arranged for you." },
-    { key: "cta1", label: "Button 1", ph: "Explore experiences" },
-    { key: "cta2", label: "Button 2", ph: "See destinations" },
-    { key: "upcomingEyebrow", label: "Upcoming section — eyebrow", ph: "NEXT ON THE WATER" },
-    { key: "upcomingTitle", label: "Upcoming section — heading", ph: "Upcoming experiences" },
-    { key: "upcomingSub", label: "Upcoming section — subline", ph: "Pick a date, pack your harness — we'll handle the rest." },
-    { key: "video", label: "Hero video URL (mp4)", ph: "/cdn/assets/hero/windsurf-hero.mp4" },
-    { key: "poster", label: "Poster image URL", ph: "/cdn/assets/hero/windsurf-hero-poster.jpg" },
-  ];
-
-  const input = "w-full admin-input border rounded-lg px-3 py-2 text-sm";
+function Field({ label, hint, value, onChange, rows }: {
+  label: string; hint?: string; value: string; onChange: (v: string) => void; rows?: number;
+}) {
   return (
-    <div className="mt-8 p-5 rounded-xl" style={{ border: "1px solid var(--admin-border)", backgroundColor: "var(--admin-surface)" }}>
-      <h2 className="text-base font-bold admin-heading">Experience landing (/experience)</h2>
-      <p className="text-xs admin-faint mt-1 mb-4">
-        Hero copy, scroll video and the slow-connection fallback photos. The photos show ONLY when the video can&apos;t run
-        (load error, no video data within 6s, or the visitor&apos;s &ldquo;reduce motion&rdquo; setting) — pick shots that
-        survive a vertical phone crop. Empty fields fall back to the built-in copy.
-      </p>
-      {state === "loading" ? <p className="text-xs admin-faint">Loading…</p> : (
-        <div className="space-y-3">
-          {TEXT.map((f) => (
-            <div key={f.key}>
-              <label className="block text-xs font-semibold admin-muted mb-1">{f.label}</label>
-              <input className={input} value={v[f.key] ?? ""} placeholder={f.ph} onChange={(e) => setV((m) => ({ ...m, [f.key]: e.target.value }))} />
-            </div>
-          ))}
-          <div className="grid sm:grid-cols-2 gap-3">
-            {images.map((img, i) => (
-              <div key={i}>
-                <label className="block text-xs font-semibold admin-muted mb-1">Fallback photo {i + 1}</label>
-                <input className={input} value={img} onChange={(e) => setImages((arr) => arr.map((x, j) => (j === i ? e.target.value : x)))} placeholder="https://media.np-seven.com/…" />
-                {img.trim() && <div className="mt-1.5 h-16 w-28 rounded-lg bg-cover bg-center" style={{ backgroundImage: `url('${img.trim()}')`, border: "1px solid var(--admin-border)" }} />}
-              </div>
-            ))}
-          </div>
-          <div className="flex items-center gap-3">
-            <button onClick={save} disabled={state === "busy"}
-              className="px-4 py-2 bg-[var(--admin-accent)] hover:opacity-90 disabled:opacity-40 text-[var(--admin-accent-contrast)] text-sm font-bold rounded-lg transition-opacity">
-              {state === "busy" ? "Saving…" : "Save landing"}
-            </button>
-            {state === "saved" && <span className="text-xs font-semibold text-green-500">Saved ✓</span>}
-            {state === "error" && <span className="text-xs font-semibold text-red-400">Could not save — try again.</span>}
-          </div>
-        </div>
+    <div>
+      <label className="block text-xs font-semibold admin-muted mb-1">
+        {label}{hint && <span className="admin-faint font-normal"> — {hint}</span>}
+      </label>
+      {rows ? (
+        <textarea className={inputCls} rows={rows} value={value} onChange={(e) => onChange(e.target.value)} />
+      ) : (
+        <input className={inputCls} value={value} onChange={(e) => onChange(e.target.value)} />
       )}
     </div>
   );
 }
 
+function Thumb({ url, wide }: { url: string; wide?: boolean }) {
+  if (!url.trim()) return null;
+  return (
+    <div
+      className={`mt-1.5 rounded-lg bg-cover bg-center ${wide ? "h-20 w-36" : "h-16 w-28"}`}
+      style={{ backgroundImage: `url('${url.trim()}')`, border: "1px solid var(--admin-border)" }}
+    />
+  );
+}
+
+function Card({ title, dot, hint, children }: {
+  title: string; dot?: string; hint?: string; children: React.ReactNode;
+}) {
+  return (
+    <div className="p-5 rounded-xl" style={{ border: "1px solid var(--admin-border)", backgroundColor: "var(--admin-surface)" }}>
+      <div className="flex items-center gap-2 mb-4">
+        {dot && <span className="inline-block h-2.5 w-2.5 rounded-full" style={{ backgroundColor: dot }} />}
+        <h2 className="text-sm font-bold admin-heading">{title}</h2>
+        {hint && <span className="text-[11px] admin-faint ml-auto">{hint}</span>}
+      </div>
+      <div className="space-y-3">{children}</div>
+    </div>
+  );
+}
+
+function SaveRow({ state, label, onSave }: { state: SaveState; label: string; onSave: () => void }) {
+  return (
+    <div className="flex items-center gap-3">
+      <button onClick={onSave} disabled={state === "busy"}
+        className="px-4 py-2 bg-[var(--admin-accent)] hover:opacity-90 disabled:opacity-40 text-[var(--admin-accent-contrast)] text-sm font-bold rounded-lg transition-opacity">
+        {state === "busy" ? "Saving…" : label}
+      </button>
+      {state === "saved" && <span className="text-xs font-semibold text-green-500">Saved ✓ — live within the hour (page cache)</span>}
+      {state === "error" && <span className="text-xs font-semibold text-red-400">Could not save — try again.</span>}
+    </div>
+  );
+}
+
+async function loadSetting(key: string): Promise<Record<string, unknown>> {
+  const r = await fetch(`/api/admin/site-settings?key=${key}`).then((x) => x.json()).catch(() => null);
+  return (r?.value ?? {}) as Record<string, unknown>;
+}
+
+async function saveSetting(key: string, value: Record<string, unknown>): Promise<boolean> {
+  const r = await fetch("/api/admin/site-settings", {
+    method: "PUT", headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ key, value }),
+  }).catch(() => null);
+  return Boolean(r?.ok);
+}
+
+/* --------------------------------- page ---------------------------------- */
+
 export default function HomeContentPage() {
-  const [copy, setCopy] = useState<HomeCopy>({});
-  const [state, setState] = useState<"loading" | "idle" | "busy" | "saved" | "error">("loading");
+  const [tab, setTab] = useState<"front" | "landing">("front");
+
+  // Front door
+  const [front, setFront] = useState<Record<string, string>>({});
+  const [frontState, setFrontState] = useState<SaveState>("loading");
+
+  // /experience landing
+  const [landing, setLanding] = useState<Record<string, string>>({});
+  const [images, setImages] = useState<string[]>(["", "", "", ""]);
+  const [landingState, setLandingState] = useState<SaveState>("loading");
 
   useEffect(() => {
-    fetch("/api/admin/site-settings?key=home_page").then((r) => r.json()).then((d) => {
-      setCopy((d?.value ?? {}) as HomeCopy);
-      setState("idle");
-    }).catch(() => setState("idle"));
+    if (new URLSearchParams(window.location.search).get("tab") === "landing") setTab("landing");
+    loadSetting("home_page").then((v) => {
+      const pick = (k: keyof typeof FRONT_DEFAULTS) => (typeof v[k] === "string" && (v[k] as string).trim()) || FRONT_DEFAULTS[k];
+      setFront(Object.fromEntries((Object.keys(FRONT_DEFAULTS) as (keyof typeof FRONT_DEFAULTS)[]).map((k) => [k, pick(k)])));
+      setFrontState("idle");
+    });
+    loadSetting("experience_landing_hero").then((v) => {
+      const pick = (k: keyof typeof LANDING_DEFAULTS) => (typeof v[k] === "string" && (v[k] as string).trim()) || LANDING_DEFAULTS[k];
+      setLanding(Object.fromEntries((Object.keys(LANDING_DEFAULTS) as (keyof typeof LANDING_DEFAULTS)[]).map((k) => [k, pick(k)])));
+      const imgs = Array.isArray(v.images) ? (v.images as string[]) : [];
+      setImages([0, 1, 2, 3].map((i) => imgs[i]?.trim() || LANDING_IMAGE_DEFAULTS[i] || ""));
+      setLandingState("idle");
+    });
   }, []);
 
-  async function save() {
-    setState("busy");
-    const value = Object.fromEntries(Object.entries(copy).map(([k, v]) => [k, String(v ?? "").trim()]).filter(([, v]) => v));
-    const r = await fetch("/api/admin/site-settings", {
-      method: "PUT", headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ key: "home_page", value }),
-    }).catch(() => null);
-    setState(r?.ok ? "saved" : "error");
-    if (r?.ok) setTimeout(() => setState("idle"), 1800);
+  function switchTab(t: "front" | "landing") {
+    setTab(t);
+    const url = new URL(window.location.href);
+    if (t === "landing") url.searchParams.set("tab", "landing"); else url.searchParams.delete("tab");
+    window.history.replaceState(null, "", url.toString());
   }
 
-  const input = "w-full admin-input border rounded-lg px-3 py-2 text-sm";
+  async function saveFront() {
+    setFrontState("busy");
+    const value = Object.fromEntries(Object.entries(front).map(([k, v]) => [k, v.trim()]).filter(([, v]) => v));
+    const ok = await saveSetting("home_page", value);
+    setFrontState(ok ? "saved" : "error");
+    if (ok) setTimeout(() => setFrontState("idle"), 2200);
+  }
+
+  async function saveLanding() {
+    setLandingState("busy");
+    const value: Record<string, unknown> = Object.fromEntries(Object.entries(landing).map(([k, v]) => [k, v.trim()]).filter(([, v]) => v));
+    const imgs = images.map((x) => x.trim()).filter(Boolean);
+    if (imgs.length) value.images = imgs;
+    const ok = await saveSetting("experience_landing_hero", value);
+    setLandingState(ok ? "saved" : "error");
+    if (ok) setTimeout(() => setLandingState("idle"), 2200);
+  }
+
+  const setF = (k: string) => (v: string) => setFront((m) => ({ ...m, [k]: v }));
+  const setL = (k: string) => (v: string) => setLanding((m) => ({ ...m, [k]: v }));
+
+  const tabBtn = (t: "front" | "landing", label: string) => (
+    <button onClick={() => switchTab(t)}
+      className={`px-4 py-1.5 rounded-full text-sm font-bold transition-colors ${tab === t
+        ? "bg-[var(--admin-accent)] text-[var(--admin-accent-contrast)]"
+        : "admin-muted hover:opacity-80"}`}>
+      {label}
+    </button>
+  );
+
   return (
-    <div className="p-4 sm:p-6 max-w-[760px]">
+    <div className="p-4 sm:p-6 max-w-[880px]">
       <h1 className="text-xl font-bold admin-heading mb-1">Homepage</h1>
-      <p className="text-[13px] admin-faint mb-5">The np-seven.com front door — the Experience/Hardware split. Empty fields fall back to the built-in copy, so half-filled is never broken.</p>
-      {state === "loading" ? <p className="text-xs admin-faint">Loading…</p> : (
-        <div className="space-y-4">
-          {FIELDS.map((f) => (
-            <div key={f.key}>
-              <label className="block text-xs font-semibold admin-muted mb-1">{f.label}{f.hint && <span className="admin-faint font-normal"> — {f.hint}</span>}</label>
-              <input className={input} value={copy[f.key] ?? ""} placeholder={DEFAULTS[f.key]}
-                onChange={(e) => setCopy((c) => ({ ...c, [f.key]: e.target.value }))} />
-              {f.key === "expPhoto" && (copy.expPhoto ?? DEFAULTS.expPhoto).trim() && (
-                <div className="mt-1.5 h-20 w-36 rounded-lg bg-cover bg-center" style={{ backgroundImage: `url('${(copy.expPhoto ?? DEFAULTS.expPhoto).trim()}')`, border: "1px solid var(--admin-border)" }} />
-              )}
+      <p className="text-[13px] admin-faint mb-4">
+        What the public front doors say — prefilled with the copy that is live right now. Edit, save, done;
+        anything you clear falls back to the built-in copy.
+      </p>
+
+      <div className="inline-flex rounded-full p-1 mb-6" style={{ border: "1px solid var(--admin-border)", backgroundColor: "var(--admin-surface)" }}>
+        {tabBtn("front", "Front door")}
+        {tabBtn("landing", "Experience landing")}
+      </div>
+
+      {tab === "front" && (
+        frontState === "loading" ? <p className="text-xs admin-faint">Loading…</p> : (
+          <div className="space-y-4">
+            <p className="text-xs admin-faint">
+              The np-seven.com root — the Experience/Hardware split.{" "}
+              <a href="https://www.np-seven.com" target="_blank" rel="noreferrer" className="underline">View live ↗</a>
+            </p>
+            <div className="grid md:grid-cols-2 gap-4 items-start">
+              <Card title="Experience side" dot="#0aa3c7">
+                <Field label="Eyebrow" hint="small caps line" value={front.expEyebrow ?? ""} onChange={setF("expEyebrow")} />
+                <Field label="Tagline" value={front.expTagline ?? ""} onChange={setF("expTagline")} />
+                <Field label="Button label" value={front.expCta ?? ""} onChange={setF("expCta")} />
+                <Field label="Background photo URL" hint="copy from File storage" value={front.expPhoto ?? ""} onChange={setF("expPhoto")} />
+                <Thumb url={front.expPhoto ?? ""} wide />
+              </Card>
+              <Card title="Hardware side" dot="#a3c70a">
+                <Field label="Eyebrow" value={front.hwEyebrow ?? ""} onChange={setF("hwEyebrow")} />
+                <Field label="Tagline" value={front.hwTagline ?? ""} onChange={setF("hwTagline")} />
+                <Field label="Button label" value={front.hwCta ?? ""} onChange={setF("hwCta")} />
+              </Card>
             </div>
-          ))}
-          <div className="flex items-center gap-3 pt-1">
-            <button onClick={save} disabled={state === "busy"}
-              className="px-4 py-2 bg-[var(--admin-accent)] hover:opacity-90 disabled:opacity-40 text-[var(--admin-accent-contrast)] text-sm font-bold rounded-lg transition-opacity">
-              {state === "busy" ? "Saving…" : "Save homepage"}
-            </button>
-            {state === "saved" && <span className="text-xs font-semibold text-green-500">Saved ✓ — live within the hour (page cache)</span>}
-            {state === "error" && <span className="text-xs font-semibold text-red-400">Could not save — try again.</span>}
+            <SaveRow state={frontState} label="Save front door" onSave={saveFront} />
           </div>
-        </div>
+        )
       )}
-      <ExperienceLandingCard />
+
+      {tab === "landing" && (
+        landingState === "loading" ? <p className="text-xs admin-faint">Loading…</p> : (
+          <div className="space-y-4">
+            <p className="text-xs admin-faint">
+              The /experience landing — hero copy, scroll video and the slow-connection photos.{" "}
+              <a href="https://www.np-seven.com/experience" target="_blank" rel="noreferrer" className="underline">View live ↗</a>
+            </p>
+            <Card title="Hero copy" dot="#0aa3c7">
+              <Field label="Big tagline (H1)" value={landing.tagline ?? ""} onChange={setL("tagline")} />
+              <Field label="Subline" value={landing.subline ?? ""} onChange={setL("subline")} rows={2} />
+              <div className="grid sm:grid-cols-2 gap-3">
+                <Field label="Button 1" value={landing.cta1 ?? ""} onChange={setL("cta1")} />
+                <Field label="Button 2" value={landing.cta2 ?? ""} onChange={setL("cta2")} />
+              </div>
+            </Card>
+            <Card title="Upcoming strip" hint="the experience list further down the page">
+              <Field label="Eyebrow" value={landing.upcomingEyebrow ?? ""} onChange={setL("upcomingEyebrow")} />
+              <Field label="Heading" value={landing.upcomingTitle ?? ""} onChange={setL("upcomingTitle")} />
+              <Field label="Subline" value={landing.upcomingSub ?? ""} onChange={setL("upcomingSub")} />
+            </Card>
+            <Card title="Hero video">
+              <Field label="Video URL (mp4)" value={landing.video ?? ""} onChange={setL("video")} />
+              <Field label="Poster image URL" hint="the frame shown before the video runs" value={landing.poster ?? ""} onChange={setL("poster")} />
+              <Thumb url={landing.poster ?? ""} wide />
+            </Card>
+            <Card title="Slow-connection photos" hint="only shown when the video can't run">
+              <p className="text-xs admin-faint -mt-1">
+                These crossfade when the video fails to load, no data arrives within 6s, or the visitor has
+                &ldquo;reduce motion&rdquo; on — pick shots that survive a vertical phone crop.
+              </p>
+              <div className="grid sm:grid-cols-2 gap-3">
+                {images.map((img, i) => (
+                  <div key={i}>
+                    <label className="block text-xs font-semibold admin-muted mb-1">Photo {i + 1}</label>
+                    <input className={inputCls} value={img}
+                      onChange={(e) => setImages((arr) => arr.map((x, j) => (j === i ? e.target.value : x)))} />
+                    <Thumb url={img} />
+                  </div>
+                ))}
+              </div>
+            </Card>
+            <SaveRow state={landingState} label="Save landing" onSave={saveLanding} />
+          </div>
+        )
+      )}
     </div>
   );
 }
