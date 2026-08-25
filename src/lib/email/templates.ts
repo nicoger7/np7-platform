@@ -386,7 +386,11 @@ export const TEMPLATES: Record<string, (v: EmailVars, opts?: LayoutOpts) => Buil
                 .map((g) => (g.name ? head(g.name) : "") + g.items.map((ch) => chip(ch.label, ch.url)).join(""))
                 .join("");
             })() +
-            p(`<span style="color:#8a97a0;font-size:13.5px;">Tap as many as work for you — nothing is booked, it just tells me where the crew is leaning. 🤙</span>`) +
+            // "As many as work for you" is nonsense under a single button —
+            // one option gets the one-tap wording instead.
+            p(`<span style="color:#8a97a0;font-size:13.5px;">${quick.length > 1
+              ? "Tap as many as work for you — nothing is booked, it just tells me where the crew is leaning. 🤙"
+              : "Nothing is booked — one tap just tells me you&#39;d be in. 🤙"}</span>`) +
             (v.quickDeclineUrl ? p(`Not this time? No hard feelings — <a href="${esc(v.quickDeclineUrl)}" style="color:#b0791e;font-weight:bold;">tap here</a> and I'll stop asking. 🤙`) : "") +
             p(`This link is personal to you — no login, no commitment, just a show of hands.<br>— Nico`)
           : p(`Hey ${esc(v.firstName || "there")} 🤙`) +
