@@ -52,7 +52,7 @@ export function SurveyAdmin({ initialSurvey, initialInvites }: { initialSurvey: 
         body: JSON.stringify({
           title: s.title, intro: s.intro, status: s.status, destinations: s.destinations, weeks: s.weeks,
           budget_anchor: s.budget_anchor, budget_min: s.budget_min, budget_max: s.budget_max, currency: s.currency,
-          quick: s.quick, eyebrow: s.eyebrow, hero_youtube: s.hero_youtube, hero_video_start: s.hero_video_start ?? null, hero_video_end: s.hero_video_end ?? null, personal_note: s.personal_note, cta_label: s.cta_label, decline_label: s.decline_label, show_decline: s.show_decline, email_body: s.email_body, ask_wishes: s.ask_wishes, email_date_buttons: s.email_date_buttons, email_button_label: s.email_button_label,
+          quick: s.quick, eyebrow: s.eyebrow, hero_youtube: s.hero_youtube, hero_video_start: s.hero_video_start ?? null, hero_video_end: s.hero_video_end ?? null, personal_note: s.personal_note, cta_label: s.cta_label, decline_label: s.decline_label, show_decline: s.show_decline, email_body: s.email_body, ask_wishes: s.ask_wishes, email_date_buttons: s.email_date_buttons, email_button_label: s.email_button_label, email_subject: s.email_subject,
         }),
       });
       // A failed save used to do NOTHING — no message, and the "Saved 14:02"
