@@ -40,7 +40,10 @@ export async function GET(req: NextRequest) {
     .not("lat", "is", null);
   if (!force) q = q.or(`wind_stats_at.is.null,wind_stats_at.lt.${cutoff}`);
   else q = q.or(`wind_stats_at.is.null,wind_stats->alt.is.null`); // force = top up spots missing the alt model
-  const { data: candidates, error } = await q.limit(60);
+  // nullsFirst: without an ORDER the db hands back arbitrary rows, and in
+  // production that starved the never-fetched spots for nights on end while
+  // the same fresh trio got refetched. Oldest need goes first, always.
+  const { data: candidates, error } = await q.order("wind_stats_at", { ascending: true, nullsFirst: true }).limit(60);
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
 
   // Never overwrite a hand-entered "NP7 · …" override.
@@ -79,8 +82,11 @@ export async function GET(req: NextRequest) {
   {
     let dq = db.from("destinations").select("id, lat, lng, wind_stats_at").not("lat", "is", null);
     if (!force) dq = dq.or(`wind_stats_at.is.null,wind_stats_at.lt.${cutoff}`);
-    const { data: dests } = await dq.limit(3);
-    for (const d of (dests ?? []) as { id: string; lat: number; lng: number }[]) {
+    const { data: dests } = await dq.order("wind_stats_at", { ascending: true, nullsFirst: true }).limit(3);
+    for (const d of (dests ?? []) as { id: string; lat: number; lng: number; wind_stats_at: string | null }[]) {
+      // Belt and braces: whatever the filter matched, never re-fetch a row
+      // that is already fresh — that budget belongs to the starving ones.
+      if (!force && d.wind_stats_at && d.wind_stats_at >= cutoff) continue;
       try {
         const stats = await fetchWindStatsBoth(d.lat, d.lng, "accelerated");
         await db.from("destinations").update({ wind_stats: stats, wind_stats_at: new Date().toISOString() }).eq("id", d.id);
