@@ -46,7 +46,7 @@ const sunWash = (
   </>
 );
 
-export function HeroFindYourFit({ src, poster, fallbackImages, children }: { src: string; poster: string; fallbackImages?: string[]; children?: React.ReactNode }) {
+export function HeroFindYourFit({ src, poster, fallbackImages, fallbackFocus, children }: { src: string; poster: string; fallbackImages?: string[]; fallbackFocus?: (string | null)[]; children?: React.ReactNode }) {
   const wrapRef = useRef<HTMLElement>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
   const zoomRef = useRef<HTMLDivElement>(null);
@@ -244,8 +244,8 @@ export function HeroFindYourFit({ src, poster, fallbackImages, children }: { src
             <div className={`absolute inset-0 transition-opacity duration-1000 ${videoReady ? "opacity-0 pointer-events-none" : "opacity-100"}`} aria-hidden>
               {fallbackImages.map((img, i) => (
                 <div key={i}
-                  className="absolute inset-0 bg-cover bg-center transition-opacity duration-1000"
-                  style={{ backgroundImage: `url('${img}')`, opacity: Math.min(bgIdx, fallbackImages.length - 1) === i ? 1 : 0 }} />
+                  className="absolute inset-0 bg-cover transition-opacity duration-1000"
+                  style={{ backgroundImage: `url('${img}')`, backgroundPosition: fallbackFocus?.[i] || "50% 50%", opacity: Math.min(bgIdx, fallbackImages.length - 1) === i ? 1 : 0 }} />
               ))}
             </div>
           )}

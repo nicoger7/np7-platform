@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import ImagePickerModal from "@/components/image-picker-modal";
+import { HeroFocusPicker } from "@/components/admin/placement-editors";
 
 /**
  * The public front doors, admin-editable — two tabs:
@@ -172,6 +173,7 @@ export default function HomeContentPage() {
   // /experience landing
   const [landing, setLanding] = useState<Record<string, string>>({});
   const [images, setImages] = useState<string[]>(["", "", "", "", ""]);
+  const [imageFocus, setImageFocus] = useState<(string | null)[]>([null, null, null, null, null]);
   const [landingState, setLandingState] = useState<SaveState>("loading");
 
   useEffect(() => {
@@ -186,6 +188,8 @@ export default function HomeContentPage() {
       setLanding(Object.fromEntries((Object.keys(LANDING_DEFAULTS) as (keyof typeof LANDING_DEFAULTS)[]).map((k) => [k, pick(k)])));
       const imgs = Array.isArray(v.images) ? (v.images as string[]) : [];
       setImages([0, 1, 2, 3, 4].map((i) => imgs[i]?.trim() || LANDING_IMAGE_DEFAULTS[i] || ""));
+      const foc = Array.isArray((v as { imageFocus?: unknown }).imageFocus) ? ((v as { imageFocus: (string | null)[] }).imageFocus) : [];
+      setImageFocus([0, 1, 2, 3, 4].map((i) => foc[i] ?? null));
       setLandingState("idle");
     });
   }, []);
@@ -210,6 +214,7 @@ export default function HomeContentPage() {
     const value: Record<string, unknown> = Object.fromEntries(Object.entries(landing).map(([k, v]) => [k, v.trim()]).filter(([, v]) => v));
     const imgs = images.map((x) => x.trim()).filter(Boolean);
     if (imgs.length) value.images = imgs;
+    value.imageFocus = imageFocus.map((f) => f ?? null);
     const ok = await saveSetting("experience_landing_hero", value);
     setLandingState(ok ? "saved" : "error");
     if (ok) setTimeout(() => setLandingState("idle"), 2200);
@@ -299,8 +304,18 @@ export default function HomeContentPage() {
               </p>
               <div className="grid sm:grid-cols-2 gap-3">
                 {images.map((img, i) => (
-                  <PhotoPick key={i} label={LANDING_IMAGE_LABELS[i] ?? `Photo ${i + 1}`} url={img}
-                    onPick={() => setPicker({ target: "photo", index: i })} />
+                  <div key={i} className="space-y-2">
+                    <PhotoPick label={LANDING_IMAGE_LABELS[i] ?? `Photo ${i + 1}`} url={img}
+                      onPick={() => setPicker({ target: "photo", index: i })} />
+                    {img.trim() && (
+                      <HeroFocusPicker
+                        image={img.trim()}
+                        value={imageFocus[i]}
+                        onChange={(f) => setImageFocus((arr) => arr.map((x, j) => (j === i ? f : x)))}
+                        label="Drag so the subject survives every crop"
+                      />
+                    )}
+                  </div>
                 ))}
               </div>
             </Card>

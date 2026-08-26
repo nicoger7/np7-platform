@@ -30,6 +30,9 @@ const HERO_POSTER = cdn('hero/windsurf-hero-poster.jpg');
 // crossfade instead of one frozen frame — crew energy plus three destinations.
 // One per scene: [logo hero, enthusiast, comeback, first-timer, together]
 // (Nico's picks, 2026-08-27). Admin can override each in Homepage → landing.
+// Tuned focal points for the five defaults — the subject survives ultrawide
+// AND a phone portrait crop. Admin can re-drag each in Homepage → landing.
+const HERO_FALLBACK_FOCUS = ['50% 55%', '50% 45%', '50% 55%', '42% 45%', '32% 50%'];
 const HERO_FALLBACKS = [
   "https://media.np-seven.com/experiences/np7-bonaire/people/groups-hot-water-2025.jpg",
   "https://media.np-seven.com/experiences/np7-bonaire/action/water-action-participant-8-nico-with-participant.jpg",
@@ -60,6 +63,9 @@ export default async function ExperienceOverviewPage() {
         video: v.video?.trim() || HERO_VIDEO,
         poster: v.poster?.trim() || HERO_POSTER,
         images: imgs.length ? imgs : HERO_FALLBACKS,
+        imageFocus: Array.isArray((v as { imageFocus?: unknown }).imageFocus)
+          ? ((v as { imageFocus: (string | null)[] }).imageFocus)
+          : HERO_FALLBACK_FOCUS,
         tagline: t(v.tagline, "The No.\u20091 windsurf holiday."),
         subline: t(v.subline, "Chase the ride, find your crew — world-class coaching, community and everything arranged for you."),
         cta1: t(v.cta1, "Explore experiences"),
@@ -70,7 +76,7 @@ export default async function ExperienceOverviewPage() {
       };
     } catch {
       return {
-        video: HERO_VIDEO, poster: HERO_POSTER, images: HERO_FALLBACKS,
+        video: HERO_VIDEO, poster: HERO_POSTER, images: HERO_FALLBACKS, imageFocus: HERO_FALLBACK_FOCUS,
         tagline: "The No.\u20091 windsurf holiday.",
         subline: "Chase the ride, find your crew — world-class coaching, community and everything arranged for you.",
         cta1: "Explore experiences", cta2: "See destinations",
@@ -136,7 +142,7 @@ export default async function ExperienceOverviewPage() {
       {/* ---------------------------------------------------------------- */}
       {/* HERO — scroll-scrubbed windsurf "dive"                            */}
       {/* ---------------------------------------------------------------- */}
-      <HeroFindYourFit src={hero.video} poster={hero.poster} fallbackImages={hero.images}>
+      <HeroFindYourFit src={hero.video} poster={hero.poster} fallbackImages={hero.images} fallbackFocus={hero.imageFocus}>
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img
           src={NP7_EXPERIENCE_LOGO}
