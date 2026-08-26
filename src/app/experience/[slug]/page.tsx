@@ -368,6 +368,24 @@ export default async function ExperienceDetailPage({ params, searchParams }: Pro
   // to every week. A week that needs to differ gets its own edition-scoped
   // package with the same level+room name, which OVERRIDES the shared one for
   // that week only (two passes: scoped first, then shared fills the gaps).
+  // Booking-time extras (rental, storage …): components flagged offer_at_booking.
+  // Experience-scoped or global; priced by sell_price; archived never offered.
+  const bookingExtras = await (async () => {
+    try {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const db = createAdminClient() as any;
+      const { data } = await db
+        .from("exp_components")
+        .select("id,name,description,sell_price,offer_at_booking,is_global,experience_id,archived_at")
+        .eq("offer_at_booking", true)
+        .is("archived_at", null);
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      return ((data ?? []) as any[])
+        .filter((c) => Number(c.sell_price) > 0 && (c.is_global || c.experience_id === experience.id))
+        .map((c) => ({ id: String(c.id), name: String(c.name), description: (c.description as string | null) ?? null, price: Number(c.sell_price) }));
+    } catch { return []; }
+  })();
+
   const packagesByEdition: Record<string, RealPackage[]> = {};
   const claimedByEdition: Record<string, Set<string>> = {};
   for (const ed of allEditions) { packagesByEdition[ed.id] = []; claimedByEdition[ed.id] = new Set(); }
@@ -1137,6 +1155,7 @@ export default async function ExperienceDetailPage({ params, searchParams }: Pro
               <EditionBooking
                 editions={editionsLite}
                 packagesByEdition={packagesByEdition}
+                extras={bookingExtras}
                 launchByEdition={advantageByEdition}
                 currency={experience.currency ?? undefined}
                 experienceId={experience.id}

@@ -31,6 +31,7 @@ interface Component {
   unit_cost: number | null;
   sell_price: number | null;
   addon_available: boolean;
+  offer_at_booking?: boolean;
   payment_mode?: string | null;
   payment_note?: string | null;
   scope: string | null;
@@ -135,7 +136,7 @@ export default function ComponentsPage() {
   );
   const emptyForm = {
     name: "", category: "coaching", description: "", unit_cost: "", sell_price: "",
-    addon_available: false, payment_mode: "np7", payment_note: "", notes: "", is_global: true, experience_id: "", edition_id: "",
+    addon_available: false, offer_at_booking: false, payment_mode: "np7", payment_note: "", notes: "", is_global: true, experience_id: "", edition_id: "",
     hotel_id: "", room_type: "",
   };
   const [form, setForm] = useState(emptyForm);
@@ -240,6 +241,7 @@ export default function ComponentsPage() {
       unit_cost: c.unit_cost?.toString() || "",
       sell_price: c.sell_price?.toString() || "",
       addon_available: c.addon_available || false,
+      offer_at_booking: c.offer_at_booking || false,
       payment_mode: c.payment_mode || "np7",
       payment_note: c.payment_note || "",
       notes: c.notes || "",
@@ -271,6 +273,7 @@ export default function ComponentsPage() {
       unit_cost: form.unit_cost ? Number(form.unit_cost) : null,
       sell_price: form.sell_price ? Number(form.sell_price) : null,
       addon_available: form.addon_available,
+      offer_at_booking: form.offer_at_booking ?? false,
       payment_mode: form.payment_mode,
       payment_note: form.payment_mode === "direct" ? (form.payment_note.trim() || null) : null,
       notes: form.notes || null,
@@ -381,6 +384,10 @@ export default function ComponentsPage() {
           <label className="flex items-center gap-2 cursor-pointer">
             <input type="checkbox" checked={form.addon_available} onChange={(e) => setForm({ ...form, addon_available: e.target.checked })} className="w-4 h-4 accent-[#0aa3c7]" />
             <span className="text-sm admin-muted">Add-on available</span>
+          </label>
+          <label className="flex items-center gap-2 text-sm admin-heading cursor-pointer mt-2">
+            <input type="checkbox" checked={form.offer_at_booking ?? false} onChange={(e) => setForm({ ...form, offer_at_booking: e.target.checked })} className="w-4 h-4 accent-[#0aa3c7]" />
+            Offer at booking <span className="admin-faint text-xs">— checkbox in the public booking flow (rental, storage …); price = sell price</span>
           </label>
         </div>
       </div>

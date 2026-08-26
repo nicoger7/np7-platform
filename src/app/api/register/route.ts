@@ -22,6 +22,9 @@ import { generateDocument } from "@/lib/invoices/generate";
  * (Bot check via Vercel BotID is wired in a follow-up.)
  */
 type Body = {
+  /** Booking-time extras (component ids) the guest ticked — validated
+      server-side against offer_at_booking, prices come from the DB. */
+  extras?: string[];
   experienceId?: string;
   editionId?: string;
   packageId?: string;
@@ -174,6 +177,31 @@ export async function POST(request: NextRequest) {
   const { data: booking, error: bErr } = await db
     .from("exp_bookings").insert({ ...bookingPayload, status: "lead" }).select("id").single();
   if (bErr) return bad("Could not complete your registration. Please try again.", 500);
+
+  // Booking-time extras → confirmed add-on rows on the existing rails
+  // (member plan, invoices and the add-on invoice all read these).
+  const extraIds = Array.isArray(body.extras) ? body.extras.filter((x) => typeof x === "string").slice(0, 12) : [];
+  if (extraIds.length) {
+    const { data: comps } = await db
+      .from("exp_components")
+      .select("id,name,sell_price,payment_mode,offer_at_booking,experience_id,is_global,archived_at")
+      .in("id", extraIds);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const valid = ((comps ?? []) as any[]).filter((c) =>
+      c.offer_at_booking && !c.archived_at && Number(c.sell_price) > 0 &&
+      (c.is_global || c.experience_id === exp.id));
+    if (valid.length) {
+      await db.from("exp_booking_addons").insert(valid.map((c) => ({
+        booking_id: booking.id,
+        component_id: c.id,
+        label: c.name,
+        price: Number(c.sell_price),
+        status: "confirmed",
+        source: "booking",
+        payment_mode: c.payment_mode ?? "np7",
+      }))).then(undefined, () => {});
+    }
+  }
 
   // Referral attribution: the friend may have arrived via an invite link (token
   // in the body) OR browsed the site first (token stickied in the np7_invite

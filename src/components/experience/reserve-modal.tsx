@@ -26,6 +26,9 @@ export type ReserveContext = {
   level: string;
   accommodation: string;
   price: number;
+  /** Ticked booking-time extras (component ids) — sent verbatim, priced server-side. */
+  extras?: string[];
+  extrasLabel?: string | null;
   currency?: string;
   /** Real remaining capacity for this week — drives an honest "spots left" nudge. */
   spotsLeft?: number | null;
@@ -114,6 +117,7 @@ export function ReserveModal({ ctx, onClose }: { ctx: ReserveContext; onClose: (
           experienceId: ctx.experienceId,
           editionId: ctx.editionId,
           packageId: ctx.packageId,
+          extras: ctx.extras ?? [],
           firstName, lastName, email, marketingOptIn,
           trap, filledMs: Date.now() - openedAt,
         }),

@@ -54,15 +54,32 @@ export async function GET(request: NextRequest) {
     edition,
     contactId: member?.contactId ?? null,
   });
+  // Ticked booking-time extras ride the plan un-discounted (they are add-ons,
+  // not the package) — same maths the booking will produce for real.
+  const extraIds = (sp.get("extras") ?? "").split(",").map((x) => x.trim()).filter(Boolean).slice(0, 12);
+  let extrasTotal = 0;
+  if (extraIds.length) {
+    const { data: comps } = await db
+      .from("exp_components")
+      .select("id,sell_price,offer_at_booking,archived_at,is_global,experience_id")
+      .in("id", extraIds);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    extrasTotal = ((comps ?? []) as any[])
+      .filter((c) => c.offer_at_booking && !c.archived_at && Number(c.sell_price) > 0 &&
+        (c.is_global || !edition?.experience_id || c.experience_id === edition.experience_id))
+      .reduce((n2, c) => n2 + Number(c.sell_price), 0);
+  }
+
   const plan = computePaymentPlan(cfg, {
-    total,
+    total: total + extrasTotal,
     paidAmount: 0,
     bookedAt: today,
     editionStart: edition?.date_start ?? null,
   });
 
   return NextResponse.json({
-    price: total,
+    price: total + extrasTotal,
+    extrasTotal,
     deposit: cfg.deposit ?? PAYMENT_DEFAULTS.deposit,
     downpaymentPercent: cfg.downpayment_percent ?? PAYMENT_DEFAULTS.downpaymentPercent,
     refundDays: cfg.deposit_refund_days ?? PAYMENT_DEFAULTS.depositRefundDays,

@@ -40,8 +40,12 @@ export type ReserveTarget = {
   going?: number | null;
 };
 
+export type BookingExtra = { id: string; name: string; description: string | null; price: number };
+
 type Props = {
   packages: RealPackage[];
+  /** Optional booking-time extras (rental, storage …) — checkbox rows. */
+  extras?: BookingExtra[];
   currency?: string;
   deposit?: number | null;
   reserve?: ReserveTarget;
@@ -87,7 +91,7 @@ type Quote = {
   milestones: { kind: string; label: string; amount: number; dueLabel: string; dueDate: string | null }[];
 };
 
-export function PackagePicker({ packages, currency = "EUR", reserve, heroImage, launch }: Props & { launch?: { pct: number; until?: string | null; label?: string } | null }) {
+export function PackagePicker({ packages, extras = [], currency = "EUR", reserve, heroImage, launch }: Props & { launch?: { pct: number; until?: string | null; label?: string } | null }) {
   // Launch price: display only — the reserve API recomputes it server-side, so
   // a stale page can never charge a discount whose window has closed.
   const lp = (n: number) => (launch ? Math.round(n * (1 - launch.pct / 100)) : n);
@@ -97,6 +101,9 @@ export function PackagePicker({ packages, currency = "EUR", reserve, heroImage, 
   // read as broken). Instead the sticky anchor shifts: a panel that fits pins
   // at the top as always; a taller one pins so its END (total + CTA) rides the
   // viewport bottom while scrolling down — scrolling up rolls the head back in.
+  // Ticked booking-time extras — ids the reserve POST sends verbatim.
+  const [pickedExtras, setPickedExtras] = useState<Set<string>>(new Set());
+  const extrasSum = extras.filter((x) => pickedExtras.has(x.id)).reduce((n2, x) => n2 + x.price, 0);
   const summaryRef = useRef<HTMLElement | null>(null);
   const [summaryTop, setSummaryTop] = useState(124);
   useEffect(() => {
@@ -194,13 +201,15 @@ export function PackagePicker({ packages, currency = "EUR", reserve, heroImage, 
   const selectedId = accommodations.find((a) => a.id === accId)?.id ?? accommodations[0]?.id;
   useEffect(() => {
     if (!selectedId) { setQuote(null); return; }
-    const key = `${selectedId}:${reserve?.editionId ?? ""}`;
+    const extrasKey = [...pickedExtras].sort().join(",");
+    const key = `${selectedId}:${reserve?.editionId ?? ""}:${extrasKey}`;
     const cached = quoteCache.current.get(key);
     if (cached) { setQuote(cached); return; }
     setQuote(null);
     let dead = false;
     const qs = new URLSearchParams({ packageId: selectedId });
     if (reserve?.editionId) qs.set("editionId", reserve.editionId);
+    if (extrasKey) qs.set("extras", extrasKey);
     fetch(`/api/register/quote?${qs}`)
       .then((r) => (r.ok ? r.json() : null))
       .then((d) => {
@@ -210,7 +219,7 @@ export function PackagePicker({ packages, currency = "EUR", reserve, heroImage, 
       })
       .catch(() => {});
     return () => { dead = true; };
-  }, [selectedId, reserve?.editionId]);
+  }, [selectedId, reserve?.editionId, pickedExtras]);
 
   const onLevel = (lv: string) => {
     setLevel(lv);
@@ -420,6 +429,33 @@ export function PackagePicker({ packages, currency = "EUR", reserve, heroImage, 
             })}
           </div>
         </div>
+
+        {/* booking-time extras — one checkbox each; ticking creates a real
+            add-on on the booking, so every money surface already knows it */}
+        {extras.length > 0 && (
+          <div>
+            <p className="text-[11px] font-bold tracking-[0.2em] uppercase text-[#9aa6ac] mb-3">3 · Extras — optional</p>
+            <div className="space-y-2">
+              {extras.map((x) => {
+                const on = pickedExtras.has(x.id);
+                return (
+                  <button key={x.id} type="button"
+                    onClick={() => setPickedExtras((prev) => { const nx = new Set(prev); if (nx.has(x.id)) nx.delete(x.id); else nx.add(x.id); return nx; })}
+                    className={`w-full flex items-center justify-between gap-3 rounded-xl border-2 px-4 py-3.5 text-left transition-colors ${on ? "border-[#00afdb] bg-[#00afdb]/[0.05]" : "border-[#e6eef0] bg-white hover:border-[#bfe8f3]"}`}>
+                    <span className="flex items-start gap-3 min-w-0">
+                      <span className={`mt-0.5 shrink-0 w-5 h-5 rounded-md border-2 grid place-items-center text-[12px] font-black transition-colors ${on ? "bg-[#00afdb] border-[#00afdb] text-white" : "border-[#cbd5d9] text-transparent"}`}>✓</span>
+                      <span className="min-w-0">
+                        <span className="block font-bold text-[#00374a]">{x.name}</span>
+                        {x.description && <span className="block text-[12.5px] text-[#5a6b62] leading-snug">{x.description}</span>}
+                      </span>
+                    </span>
+                    <span className="shrink-0 font-bold text-[#00374a] tabular-nums">+{fmt(x.price)}</span>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        )}
       </div>
 
       {/* summary */}
@@ -450,6 +486,16 @@ export function PackagePicker({ packages, currency = "EUR", reserve, heroImage, 
           ))}
         </ul>
 
+        {extras.filter((x) => pickedExtras.has(x.id)).length > 0 && (
+          <ul className="mb-4 space-y-1.5">
+            {extras.filter((x) => pickedExtras.has(x.id)).map((x) => (
+              <li key={x.id} className="flex items-center justify-between gap-3 text-[13px] text-white/80">
+                <span className="min-w-0 truncate">+ {x.name}</span>
+                <span className="shrink-0 font-bold tabular-nums">{fmt(x.price)}</span>
+              </li>
+            ))}
+          </ul>
+        )}
         <div className="border-t border-white/10 pt-5 mb-5">
           <div className="flex items-end justify-between gap-4">
             <span className="text-[13px] text-white/50 pb-1">Total p.p.</span>
@@ -458,7 +504,7 @@ export function PackagePicker({ packages, currency = "EUR", reserve, heroImage, 
                 <s className="block text-[14px] font-semibold text-white/35 leading-none mb-1">{fmt(selected.price)}</s>
               )}
               <span className="block text-3xl font-black tracking-[-0.02em] tabular-nums leading-none">
-                {selected ? fmt(launch ? lp(selected.price) : selected.price) : "—"}
+                {selected ? fmt((launch ? lp(selected.price) : selected.price) + extrasSum) : "—"}
               </span>
             </span>
           </div>
@@ -516,7 +562,9 @@ export function PackagePicker({ packages, currency = "EUR", reserve, heroImage, 
               packageId: selected.id,
               level,
               accommodation: selected.accommodation,
-              price: lp(selected.price),
+              price: lp(selected.price) + extrasSum,
+              extras: [...pickedExtras],
+              extrasLabel: extras.filter((x) => pickedExtras.has(x.id)).map((x) => x.name).join(" · ") || null,
               currency,
             } satisfies ReserveContext
           }

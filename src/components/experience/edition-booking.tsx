@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { PackagePicker, type RealPackage } from "./package-picker";
+import { PackagePicker, type RealPackage, type BookingExtra } from "./package-picker";
 import { useSelectedEdition } from "./selected-edition";
 
 export type EditionLite = {
@@ -26,6 +26,7 @@ export type EditionLite = {
 export function EditionBooking({
   editions,
   packagesByEdition,
+  extras = [],
   launchByEdition,
   currency = "EUR",
   experienceId,
@@ -34,6 +35,7 @@ export function EditionBooking({
 }: {
   editions: EditionLite[];
   packagesByEdition: Record<string, RealPackage[]>;
+  extras?: BookingExtra[];
   launchByEdition?: Record<string, { pct: number; until?: string | null; label?: string } | null>;
   currency?: string;
   experienceId: string;
@@ -184,6 +186,7 @@ export function EditionBooking({
         <PackagePicker
           key={ed?.id}
           packages={packages}
+          extras={extras}
           currency={currency}
           launch={launchByEdition?.[ed?.id ?? ""] ?? null}
           heroImage={heroImage}
