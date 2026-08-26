@@ -56,8 +56,10 @@ gerechnet, nie gespeichert.**
 
 ## Invarianten (was nie passieren darf)
 
-- Zwei Rental-Komponenten im selben Scope ohne Beginner-Unterscheidung →
-  die Auswahl wird zufällig. Ein Scope, eine Rolle.
+- Mehrere **Rental**-Komponenten im selben Scope sind seit 2026-08-27 ein
+  Feature (Stufen: günstigste = Basis/included, Rest = Upgrades) — mehrere
+  **Storage**-Komponenten im selben Scope dagegen bleiben undefiniert
+  (nur die günstigste zählt): eine Storage-Rolle pro Scope.
 - Ein Paket mit `gear_baseline = 'rental'`, dessen Preis Rental real **nicht**
   enthält → der Toggle behauptet „included" und verschenkt Geld. Baseline ist
   eine Preis-Aussage, keine Marketing-Aussage.
