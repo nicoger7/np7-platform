@@ -25,6 +25,10 @@ const NP7_EXPERIENCE_LOGO = cdn('logos/np7-experience-logo.png');
 import { createAdminClient } from "@/lib/supabase";
 
 const HERO_VIDEO = cdn('hero/windsurf-hero.mp4');
+/** TEMP (Nico, 2026-08-27): preview the per-scene photo fallback — forces the
+ *  video off so the five scene photos carry the whole scroll. REVERT to false
+ *  once reviewed; the video path is untouched underneath. */
+const PHOTO_FALLBACK_PREVIEW = true;
 const HERO_POSTER = cdn('hero/windsurf-hero-poster.jpg');
 // Slow-connection fallback: when the hero video can't play, these four
 // crossfade instead of one frozen frame — crew energy plus three destinations.
@@ -136,7 +140,7 @@ export default async function ExperienceOverviewPage() {
       {/* ---------------------------------------------------------------- */}
       {/* HERO — scroll-scrubbed windsurf "dive"                            */}
       {/* ---------------------------------------------------------------- */}
-      <HeroFindYourFit src={hero.video} poster={hero.poster} fallbackImages={hero.images}>
+      <HeroFindYourFit src={PHOTO_FALLBACK_PREVIEW ? "" : hero.video} poster={hero.poster} fallbackImages={hero.images}>
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img
           src={NP7_EXPERIENCE_LOGO}
