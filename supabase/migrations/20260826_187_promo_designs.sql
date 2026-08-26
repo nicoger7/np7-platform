@@ -1,4 +1,4 @@
--- 186: Promo Studio — saved promo-graphic designs. One row per design; the
+-- 187: Promo Studio — saved promo-graphic designs. One row per design; the
 -- whole editable state (layers, per-format positions, texts) lives in `state`
 -- so the editor can evolve without schema churn. Soft-delete via archived_at
 -- per the house archive rule.
