@@ -437,36 +437,30 @@ export function PackagePicker({ packages, extras = [], currency = "EUR", reserve
           </div>
         </div>
 
-        {/* the gear choice — Model A: rental is IN the package price, the
-            radio only ever writes a DELTA. Deltas come from the quote (server
-            truth), so this section appears once the quote knows the gear
-            components of this week. */}
+        {/* the gear choice — a quiet three-way toggle, no prices shown: the
+            TOTAL adjusts, the deltas stay backstage (Nico, 2026-08-27). The
+            default mirrors what the selected package actually contains. */}
         {quote?.gear && (
           <div>
             <p className="text-[11px] font-bold tracking-[0.2em] uppercase text-[#9aa6ac] mb-3">3 · Gear</p>
-            <div className="space-y-2">
+            <div className="inline-flex rounded-full bg-white border border-[#e6eef0] p-1 shadow-sm">
               {([
-                ...(quote.gear.deltas.rental != null ? [{ key: "rental" as const, title: quote.gear.baseline === "rental" ? "Rental gear — included" : "Add rental gear", sub: quote.gear.rentalName, delta: quote.gear.deltas.rental }] : []),
-                ...(quote.gear.deltas.storage != null ? [{ key: "storage" as const, title: quote.gear.baseline === "storage" ? "Gear storage — included" : "I bring my own — store it at the spot", sub: "Rig stays rigged at the centre", delta: quote.gear.deltas.storage }] : []),
-                { key: "none" as const, title: "I bring my own — no storage", sub: "You handle your gear yourself", delta: quote.gear.deltas.none },
+                ...(quote.gear.deltas.rental != null ? [{ key: "rental" as const, label: "Rental gear" }] : []),
+                ...(quote.gear.deltas.storage != null ? [{ key: "storage" as const, label: "Own gear + storage" }] : []),
+                { key: "none" as const, label: "Own gear" },
               ]).map((opt) => (
-                <button key={opt.key} type="button" onClick={() => { gearTouched.current = true; setGear(opt.key); }}
-                  className={`w-full flex items-center justify-between gap-3 rounded-xl border-2 px-4 py-3.5 text-left transition-colors ${gear === opt.key ? "border-[#00afdb] bg-[#00afdb]/[0.05]" : "border-[#e6eef0] bg-white hover:border-[#bfe8f3]"}`}>
-                  <span className="flex items-start gap-3 min-w-0">
-                    <span className={`mt-0.5 shrink-0 w-4 h-4 rounded-full border-2 grid place-items-center ${gear === opt.key ? "border-[#00afdb]" : "border-[#cbd5d9]"}`}>
-                      {gear === opt.key && <span className="w-2 h-2 rounded-full bg-[#00afdb]" />}
-                    </span>
-                    <span className="min-w-0">
-                      <span className="block font-bold text-[#00374a]">{opt.title}</span>
-                      <span className="block text-[12.5px] text-[#5a6b72] leading-snug">{opt.sub}</span>
-                    </span>
-                  </span>
-                  <span className={`shrink-0 font-bold tabular-nums ${opt.delta < 0 ? "text-[#0a9a6a]" : "text-[#00374a]"}`}>
-                    {opt.delta === 0 ? "included" : `${opt.delta > 0 ? "+" : "−"}${fmt(Math.abs(opt.delta))}`}
-                  </span>
+                <button key={opt.key} type="button"
+                  onClick={() => { gearTouched.current = true; setGear(opt.key); }}
+                  className={`px-4 sm:px-5 py-2 rounded-full text-[13px] font-bold transition-colors ${gear === opt.key ? "bg-[#00afdb] text-white" : "text-[#5a6b72] hover:text-[#00374a]"}`}>
+                  {opt.label}
                 </button>
               ))}
             </div>
+            <p className="text-[12.5px] text-[#5a6b72] mt-2">
+              {gear === "rental" ? "Latest boards & sails for the whole week — all sorted for you."
+                : gear === "storage" ? "You bring your own kit — it stays rigged and stored at the centre."
+                : "You bring and handle your own gear."}
+            </p>
           </div>
         )}
 
@@ -518,7 +512,16 @@ export function PackagePicker({ packages, extras = [], currency = "EUR", reserve
         <p className="text-[13px] text-white/55 mb-4">{selected?.hotelName || selected?.accommodation}</p>
 
         <ul className="space-y-2 mb-6">
-          {((selected?.includes && selected.includes.length ? selected.includes : DEFAULT_INCLUDES)).map((inc) => (
+          {(() => {
+            const base = selected?.includes && selected.includes.length ? selected.includes : DEFAULT_INCLUDES;
+            // The list tells the truth about the toggle: gear/storage lines are
+            // swapped to match the choice instead of contradicting it.
+            if (!quote?.gear || gear === quote.gear.baseline) return base;
+            const stripped = base.filter((x) => !/rental|windsurf gear|storage/i.test(x));
+            if (gear === "rental") return [...stripped, "Latest windsurf gear for the whole week"];
+            if (gear === "storage") return [...stripped, "Storage for your own gear right at the centre"];
+            return stripped;
+          })().map((inc) => (
             <li key={inc} className="flex items-start gap-2.5 text-[13.5px] text-white/80">
               <svg className="w-4 h-4 mt-0.5 shrink-0 text-[#00afdb]" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M20 6L9 17l-5-5" /></svg>
               {inc}
@@ -526,12 +529,6 @@ export function PackagePicker({ packages, extras = [], currency = "EUR", reserve
           ))}
         </ul>
 
-        {quote?.gear && gear !== quote.gear.baseline && (quote.gear.deltas[gear] ?? 0) !== 0 && (
-          <div className="mb-2 flex items-center justify-between gap-3 text-[13px] text-white/80">
-            <span className="min-w-0 truncate">{gear === "rental" ? "Rental gear added" : gear === "storage" ? "Own gear + storage" : "Own gear — no rental"}</span>
-            <span className="shrink-0 font-bold tabular-nums text-[#8fe6f2]">{(quote.gear.deltas[gear] ?? 0) > 0 ? "+" : "−"}{fmt(Math.abs(quote.gear.deltas[gear] ?? 0))}</span>
-          </div>
-        )}
         {extras.filter((x) => pickedExtras.has(x.id)).length > 0 && (
           <ul className="mb-4 space-y-1.5">
             {extras.filter((x) => pickedExtras.has(x.id)).map((x) => (
