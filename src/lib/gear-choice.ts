@@ -13,7 +13,9 @@ import { createAdminClient } from "@/lib/supabase";
  */
 
 export type GearComponent = { id: string; name: string; sell: number };
-export type GearInfo = { rental: GearComponent | null; storage: GearComponent | null };
+/** rentals[0] is the base tier (cheapest in the best scope) — `rental` keeps
+    pointing at it for the existing maths; further entries are UPGRADES. */
+export type GearInfo = { rental: GearComponent | null; rentals: GearComponent[]; storage: GearComponent | null };
 export type GearChoice = "rental" | "storage" | "none";
 
 /**
@@ -29,7 +31,7 @@ export async function resolveGearInfo(
 ): Promise<GearInfo> {
   // Beginner packages never offer the choice — beginners don't fly in with
   // their own kit, rental is simply part of the week (Nico, 2026-08-26).
-  if (level === "beginner") return { rental: null, storage: null };
+  if (level === "beginner") return { rental: null, rentals: [], storage: null };
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const db = createAdminClient() as any;
   let year: string | null = null;
@@ -53,7 +55,7 @@ export async function resolveGearInfo(
         : 2;
   const eligible = mine.filter((c) => rank(c) < 99 && Number(c.sell_price) > 0);
 
-  const pick = (kind: "rental" | "storage"): GearComponent | null => {
+  const pickAll = (kind: "rental" | "storage"): GearComponent[] => {
     let list = eligible.filter((c) => c.gear_option === kind);
     if (kind === "rental" && level) {
       const forLevel = list.filter((c) =>
@@ -61,14 +63,16 @@ export async function resolveGearInfo(
       );
       if (forLevel.length) list = forLevel;
     }
-    // Several candidates in the SAME scope shouldn't happen (see
-    // docs/gear-choice.md), but if they do: the cheapest sell wins —
-    // deterministic, and never accidentally 'includes' the slalom rig.
+    // Cheapest-first within the best scope: rentals[0] is the BASE tier (what
+    // "included" means); anything after it is an upgrade — the slalom rig can
+    // never accidentally become the included rental.
     list.sort((a, b) => rank(a) - rank(b) || Number(a.sell_price) - Number(b.sell_price));
-    const c = list[0];
-    return c ? { id: String(c.id), name: String(c.name), sell: Number(c.sell_price) } : null;
+    const best = list.length ? rank(list[0]) : 99;
+    return list.filter((c) => rank(c) === best)
+      .map((c) => ({ id: String(c.id), name: String(c.name), sell: Number(c.sell_price) }));
   };
-  return { rental: pick("rental"), storage: pick("storage") };
+  const rentals = pickAll("rental");
+  return { rental: rentals[0] ?? null, rentals, storage: pickAll("storage")[0] ?? null };
 }
 
 const round2 = (n: number) => Math.round((n + Number.EPSILON) * 100) / 100;
@@ -79,16 +83,17 @@ export function parseGearBaseline(raw: unknown): GearChoice {
 
 /** What each option COSTS on top of nothing: rental/storage = their sell,
     none = 0. The delta shown/charged is cost(choice) − cost(baseline). */
-function optionCost(info: GearInfo, gear: GearChoice): number | null {
+function optionCost(info: GearInfo, gear: GearChoice, rentalId?: string | null): number | null {
   if (gear === "none") return 0;
-  const c = gear === "rental" ? info.rental : info.storage;
-  return c ? c.sell : null;
+  if (gear === "storage") return info.storage ? info.storage.sell : null;
+  const chosen = rentalId ? info.rentals.find((r) => r.id === rentalId) : null;
+  return (chosen ?? info.rental) ? (chosen ?? info.rental)!.sell : null;
 }
 
 /** Price delta vs the PACKAGE's declared baseline (migration 186). */
-export function gearDelta(info: GearInfo, gear: GearChoice, baseline: GearChoice): number {
-  const chosen = optionCost(info, gear);
-  const base = optionCost(info, baseline);
+export function gearDelta(info: GearInfo, gear: GearChoice, baseline: GearChoice, rentalId?: string | null): number {
+  const chosen = optionCost(info, gear, rentalId);
+  const base = optionCost(info, baseline); // baseline always means the BASE rental tier
   if (chosen == null || base == null) return 0;
   return round2(chosen - base);
 }
@@ -99,6 +104,7 @@ export function gearOptions(info: GearInfo, baseline: GearChoice): {
   baseline: GearChoice;
   rentalName: string;
   deltas: { rental: number | null; storage: number | null; none: number };
+  rentalTiers: { id: string; name: string; delta: number }[] | null;
 } | null {
   if (!info.rental) return null;
   const base = optionCost(info, baseline);
@@ -111,6 +117,11 @@ export function gearOptions(info: GearInfo, baseline: GearChoice): {
       storage: info.storage ? round2(info.storage.sell - base) : null,
       none: round2(0 - base),
     },
+    // Upgrade tiers beyond the base rental (Tenerife: Slalom / Wave rigs) —
+    // delta vs the BASE rental, shown as "+€…" inside the rental option.
+    rentalTiers: info.rentals.length > 1
+      ? info.rentals.map((r) => ({ id: r.id, name: r.name, delta: round2(r.sell - info.rentals[0].sell) }))
+      : null,
   };
 }
 

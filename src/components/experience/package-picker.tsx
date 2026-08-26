@@ -10,6 +10,9 @@ export type RealPackage = {
   level: string;
   accommodation: string;
   price: number;
+  /** What this package's price contains (rental | storage | none) — lets the
+      left-column prices follow the gear toggle honestly. */
+  gear_baseline?: string;
   hotelName?: string | null;
   hotelImage?: string | null;
   hotelImages?: string[] | null;
@@ -89,7 +92,7 @@ const DEFAULT_INCLUDES = [
 type Quote = {
   price: number; deposit: number; downpaymentPercent: number; refundDays: number;
   milestones: { kind: string; label: string; amount: number; dueLabel: string; dueDate: string | null }[];
-  gear?: { baseline: "rental" | "storage" | "none"; rentalName: string; deltas: { rental: number | null; storage: number | null; none: number } } | null;
+  gear?: { baseline: "rental" | "storage" | "none"; rentalName: string; deltas: { rental: number | null; storage: number | null; none: number }; rentalTiers: { id: string; name: string; delta: number }[] | null } | null;
 };
 
 export function PackagePicker({ packages, extras = [], currency = "EUR", reserve, heroImage, launch }: Props & { launch?: { pct: number; until?: string | null; label?: string } | null }) {
@@ -107,6 +110,8 @@ export function PackagePicker({ packages, extras = [], currency = "EUR", reserve
   // rental | storage | none — defaults to the PACKAGE's declared baseline
   // (what its price already contains) once the quote tells us.
   const [gear, setGear] = useState<"rental" | "storage" | "none">("rental");
+  // Chosen rental TIER (Tenerife: Freeride included, Slalom/Wave = upgrades).
+  const [rentalTier, setRentalTier] = useState<string | null>(null);
   const gearTouched = useRef(false);
   const lastQuotePkgRef = useRef<string | null>(null);
   // Belt and braces against the toggle blinking out: the section renders from
@@ -114,6 +119,15 @@ export function PackagePicker({ packages, extras = [], currency = "EUR", reserve
   // refetch (or a momentary null) can never unmount the pill mid-press.
   const [stickyGear, setStickyGear] = useState<Quote["gear"]>(null);
   const extrasSum = extras.filter((x) => pickedExtras.has(x.id)).reduce((n2, x) => n2 + x.price, 0);
+  // The LEFT column's prices follow the gear toggle too — same delta the
+  // summary uses, applied only where the package's own baseline matches the
+  // quoted one (mixed-baseline experiences stay honest, row by row).
+  const gearAdj = (p: { gear_baseline?: string }) => {
+    const g = quote?.gear ?? stickyGear;
+    if (!g || gear === g.baseline) return 0;
+    if ((p.gear_baseline ?? "rental") !== g.baseline) return 0;
+    return g.deltas[gear] ?? 0;
+  };
   const summaryRef = useRef<HTMLElement | null>(null);
   const [summaryTop, setSummaryTop] = useState(124);
   useEffect(() => {
@@ -212,7 +226,7 @@ export function PackagePicker({ packages, extras = [], currency = "EUR", reserve
   useEffect(() => {
     if (!selectedId) { setQuote(null); return; }
     const extrasKey = [...pickedExtras].sort().join(",");
-    const key = `${selectedId}:${reserve?.editionId ?? ""}:${extrasKey}:${gear}`;
+    const key = `${selectedId}:${reserve?.editionId ?? ""}:${extrasKey}:${gear}:${rentalTier ?? ""}`;
     const cached = quoteCache.current.get(key);
     if (cached) { setQuote(cached); if (cached.gear) setStickyGear(cached.gear); return; }
     // Only blank the quote when the PACKAGE changed — a gear/extras change
@@ -225,6 +239,7 @@ export function PackagePicker({ packages, extras = [], currency = "EUR", reserve
     if (reserve?.editionId) qs.set("editionId", reserve.editionId);
     if (extrasKey) qs.set("extras", extrasKey);
     if (gearTouched.current) qs.set("gear", gear);
+    if (gear === "rental" && rentalTier) qs.set("rentalId", rentalTier);
     fetch(`/api/register/quote?${qs}`)
       .then((r) => (r.ok ? r.json() : null))
       .then((d) => {
@@ -236,7 +251,7 @@ export function PackagePicker({ packages, extras = [], currency = "EUR", reserve
       })
       .catch(() => {});
     return () => { dead = true; };
-  }, [selectedId, reserve?.editionId, pickedExtras, gear]);
+  }, [selectedId, reserve?.editionId, pickedExtras, gear, rentalTier]);
 
   const onLevel = (lv: string) => {
     setLevel(lv);
@@ -311,6 +326,20 @@ export function PackagePicker({ packages, extras = [], currency = "EUR", reserve
                 </button>
               ))}
             </div>
+            {gear === "rental" && g.rentalTiers && (
+              <div className="flex flex-wrap gap-2 mt-2.5">
+                {g.rentalTiers.map((t, ti) => {
+                  const on = rentalTier ? rentalTier === t.id : ti === 0;
+                  return (
+                    <button key={t.id} type="button"
+                      onClick={() => { gearTouched.current = true; setRentalTier(ti === 0 ? null : t.id); }}
+                      className={`px-3.5 py-1.5 rounded-full text-[12.5px] font-bold border-2 transition-colors ${on ? "border-[#f0774a] bg-[#fff4ec] text-[#00374a]" : "border-[#e6eef0] bg-white text-[#5a6b72] hover:border-[#f5c9b2]"}`}>
+                      {t.name}{t.delta > 0 ? ` · +${fmt(t.delta)}` : " · included"}
+                    </button>
+                  );
+                })}
+              </div>
+            )}
             <p className="text-[12.5px] text-[#5a6b72] mt-2">
               {gear === "rental" ? "Latest boards & sails for the whole week — all sorted for you."
                 : gear === "storage" ? "You bring your own kit — it stays rigged and stored at the centre."
@@ -359,7 +388,7 @@ export function PackagePicker({ packages, extras = [], currency = "EUR", reserve
                       </span>
                       <span className="shrink-0 text-right">
                         {launch && <span className="block text-[11px] text-[#9aa6ac] line-through">{fmt(a.price)}</span>}
-                        <span className="text-[14px] font-bold text-[#1f3138]">{fmt(lp(a.price))}</span>
+                        <span className="text-[14px] font-bold text-[#1f3138]">{fmt(lp(a.price) + gearAdj(a))}</span>
                       </span>
                     </button>
                   );
@@ -426,7 +455,7 @@ export function PackagePicker({ packages, extras = [], currency = "EUR", reserve
                         <span className="text-[15px] font-extrabold text-[#00374a] truncate">{g.hotelName}</span>
                         <span className="text-[13.5px] font-bold text-[#1f3138] shrink-0">
                           {launch && <s className="text-[12px] font-semibold text-[#9aa6ac] mr-1.5">{fmt(cheapest.price)}</s>}
-                          {single ? fmt(lp(cheapest.price)) : `from ${fmt(lp(cheapest.price))}`}
+                          {single ? fmt(lp(cheapest.price) + gearAdj(cheapest)) : `from ${fmt(lp(cheapest.price) + gearAdj(cheapest))}`}
                         </span>
                       </span>
                       {/* Collapsed = 2-line teaser (line-clamp needs -webkit-box, so no
@@ -467,7 +496,7 @@ export function PackagePicker({ packages, extras = [], currency = "EUR", reserve
                               </span>
                             </span>
                             <span className={`text-[13.5px] shrink-0 tabular-nums ${active ? "font-bold text-[#00374a]" : "font-semibold text-[#5a6b72]"}`}>
-                              {launch ? <><s className="opacity-50 mr-1">{fmt(a.price)}</s>{fmt(lp(a.price))}</> : fmt(a.price)}
+                              {launch ? <><s className="opacity-50 mr-1">{fmt(a.price)}</s>{fmt(lp(a.price) + gearAdj(a))}</> : fmt(a.price + gearAdj(a))}
                             </span>
                           </button>
                         );
@@ -625,6 +654,7 @@ export function PackagePicker({ packages, extras = [], currency = "EUR", reserve
               accommodation: selected.accommodation,
               price: lp(selected.price) + extrasSum + (quote?.gear ? (quote.gear.deltas[gear] ?? 0) : 0),
               gear,
+              rentalId: gear === "rental" ? rentalTier : null,
               extras: [...pickedExtras],
               extrasLabel: extras.filter((x) => pickedExtras.has(x.id)).map((x) => x.name).join(" · ") || null,
               currency,

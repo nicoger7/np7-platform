@@ -28,6 +28,8 @@ type Body = {
   extras?: string[];
   /** Gear choice — rental (default, included) | storage | none. */
   gear?: string;
+  /** Rental tier component id (upgrades beyond the base rental). */
+  rentalId?: string | null;
   experienceId?: string;
   editionId?: string;
   packageId?: string;
@@ -186,16 +188,20 @@ export async function POST(request: NextRequest) {
   // component, so ops, invoices and P&L all see what happened.
   const gearBaseline = parseGearBaseline((pkg as { gear_baseline?: string | null }).gear_baseline);
   const gearChoice = parseGearChoice(body.gear ?? gearBaseline);
-  if (gearChoice !== gearBaseline) {
+  const rentalId = typeof body.rentalId === "string" ? body.rentalId : null;
+  if (gearChoice !== gearBaseline || (gearChoice === "rental" && rentalId)) {
     try {
       const gearInfo = await resolveGearInfo(exp.id, editionId ?? null, (pkg as { category?: string | null }).category ?? null);
-      const delta = gearDelta(gearInfo, gearChoice, gearBaseline);
+      const delta = gearDelta(gearInfo, gearChoice, gearBaseline, rentalId);
+      const chosenRental = (rentalId && gearInfo.rentals.find((r) => r.id === rentalId)) || gearInfo.rental;
       const comp = gearChoice === "storage" ? gearInfo.storage
-        : gearChoice === "rental" ? gearInfo.rental
+        : gearChoice === "rental" ? chosenRental
         : gearInfo.rental ?? gearInfo.storage; // "none": reference what was removed
       if (comp && delta !== 0) {
         const LABELS: Record<string, string> = {
-          rental: "Gear rental — added to the package",
+          rental: rentalId && chosenRental && chosenRental.id === rentalId && gearBaseline === "rental"
+            ? `Rental upgrade — ${chosenRental.name}`
+            : "Gear rental — added to the package",
           storage: gearBaseline === "rental" ? "Gear storage — included rental swapped out" : "Gear storage — added",
           none: gearBaseline === "rental" ? "Own gear — included rental removed" : "Included storage removed",
         };

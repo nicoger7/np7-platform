@@ -228,7 +228,7 @@ export default async function ExperienceDetailPage({ params, searchParams }: Pro
   }
   let query = supabase
     .from("exp_experiences")
-    .select("id,title,location,currency,price,description,hero_image,gallery,airport_code,exp_editions(id,label,coaches,date_start,date_end,max_spots,spots_taken,deposit,status,launch_discount_pct,launch_price_until,public_from,video_analysis,photoshoot),exp_packages(id,name,price,status,archived_at,edition_id,category,includes,exp_package_components(show_on_website,quantity,exp_components(name,description,category)))")
+    .select("id,title,location,currency,price,description,hero_image,gallery,airport_code,exp_editions(id,label,coaches,date_start,date_end,max_spots,spots_taken,deposit,status,launch_discount_pct,launch_price_until,public_from,video_analysis,photoshoot),exp_packages(id,name,price,status,archived_at,edition_id,category,gear_baseline,includes,exp_package_components(show_on_website,quantity,exp_components(name,description,category)))")
     .eq("slug", slug);
   if (!team) query = query.eq("status", "published");
   const { data: rows } = await query.order("status", { ascending: false }).limit(1);
@@ -408,6 +408,7 @@ export default async function ExperienceDetailPage({ params, searchParams }: Pro
     const h = resolveHotel(p.id, p.name, accommodation);
     return {
       id: p.id, level, accommodation, price: p.price as number,
+      gear_baseline: ((p as { gear_baseline?: string | null }).gear_baseline ?? "rental") as string,
       hotelName: h?.name ?? null, hotelImage: h?.image_url ?? null, hotelImages: h?.images ?? null, hotelDescription: h?.description ?? null,
       // Manual list (exp_packages.includes) wins when filled; otherwise the list is
       // the components ✓-checked for the website, each shown with its Website text

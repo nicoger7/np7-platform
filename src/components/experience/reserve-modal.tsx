@@ -28,6 +28,8 @@ export type ReserveContext = {
   price: number;
   /** Gear choice — rental (default) | storage | none; priced server-side. */
   gear?: "rental" | "storage" | "none";
+  /** Chosen rental tier component id (null = base tier). */
+  rentalId?: string | null;
   /** Ticked booking-time extras (component ids) — sent verbatim, priced server-side. */
   extras?: string[];
   extrasLabel?: string | null;
@@ -120,6 +122,7 @@ export function ReserveModal({ ctx, onClose }: { ctx: ReserveContext; onClose: (
           editionId: ctx.editionId,
           packageId: ctx.packageId,
           gear: ctx.gear ?? "rental",
+          rentalId: ctx.rentalId ?? null,
           extras: ctx.extras ?? [],
           firstName, lastName, email, marketingOptIn,
           trap, filledMs: Date.now() - openedAt,

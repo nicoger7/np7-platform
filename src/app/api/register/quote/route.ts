@@ -80,7 +80,8 @@ export async function GET(request: NextRequest) {
     editionId || null,
     (pkg.category as string | null) ?? null,
   );
-  const gDelta = gearDelta(gearInfo, gearChoice, baseline);
+  const rentalId = sp.get("rentalId") || null;
+  const gDelta = gearDelta(gearInfo, gearChoice, baseline, rentalId);
 
   const plan = computePaymentPlan(cfg, {
     total: total + extrasTotal + gDelta,
