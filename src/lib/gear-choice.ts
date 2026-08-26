@@ -61,7 +61,10 @@ export async function resolveGearInfo(
       );
       if (forLevel.length) list = forLevel;
     }
-    list.sort((a, b) => rank(a) - rank(b));
+    // Several candidates in the SAME scope shouldn't happen (see
+    // docs/gear-choice.md), but if they do: the cheapest sell wins —
+    // deterministic, and never accidentally 'includes' the slalom rig.
+    list.sort((a, b) => rank(a) - rank(b) || Number(a.sell_price) - Number(b.sell_price));
     const c = list[0];
     return c ? { id: String(c.id), name: String(c.name), sell: Number(c.sell_price) } : null;
   };
