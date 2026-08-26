@@ -108,6 +108,7 @@ export function PackagePicker({ packages, extras = [], currency = "EUR", reserve
   // (what its price already contains) once the quote tells us.
   const [gear, setGear] = useState<"rental" | "storage" | "none">("rental");
   const gearTouched = useRef(false);
+  const lastQuotePkgRef = useRef<string | null>(null);
   const extrasSum = extras.filter((x) => pickedExtras.has(x.id)).reduce((n2, x) => n2 + x.price, 0);
   const summaryRef = useRef<HTMLElement | null>(null);
   const [summaryTop, setSummaryTop] = useState(124);
@@ -210,7 +211,11 @@ export function PackagePicker({ packages, extras = [], currency = "EUR", reserve
     const key = `${selectedId}:${reserve?.editionId ?? ""}:${extrasKey}:${gear}`;
     const cached = quoteCache.current.get(key);
     if (cached) { setQuote(cached); return; }
-    setQuote(null);
+    // Only blank the quote when the PACKAGE changed — a gear/extras change
+    // keeps the old quote on screen until the fresh one lands, so the toggle
+    // never blinks out from under the finger that just pressed it.
+    if (lastQuotePkgRef.current !== selectedId) setQuote(null);
+    lastQuotePkgRef.current = selectedId;
     let dead = false;
     const qs = new URLSearchParams({ packageId: selectedId });
     if (reserve?.editionId) qs.set("editionId", reserve.editionId);
@@ -289,8 +294,15 @@ export function PackagePicker({ packages, extras = [], currency = "EUR", reserve
               ]).map((opt) => (
                 <button key={opt.key} type="button"
                   onClick={() => { gearTouched.current = true; setGear(opt.key); }}
-                  className={`px-4 sm:px-5 py-2 rounded-full text-[13px] font-bold transition-colors ${gear === opt.key ? "bg-[#00afdb] text-white" : "text-[#5a6b72] hover:text-[#00374a]"}`}>
-                  {opt.label}
+                  className={`px-4 sm:px-5 py-2 rounded-full text-[13px] font-bold transition-colors ${
+                    gear === opt.key
+                      ? opt.key === "rental"
+                        ? "text-[#00374a] font-extrabold shadow-sm"           /* premium: the sun gradient */
+                        : "bg-[#eef7fa] text-[#00374a] border border-[#cde9f2]" /* the quiet, light versions */
+                      : "text-[#8a97a0] hover:text-[#00374a]"
+                  }`}
+                  style={gear === opt.key && opt.key === "rental" ? { background: "linear-gradient(90deg,#ffc42e,#f0774a)" } : undefined}>
+                  {opt.key === "rental" ? "★ " : ""}{opt.label}
                 </button>
               ))}
             </div>
