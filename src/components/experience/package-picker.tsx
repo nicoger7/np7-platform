@@ -109,6 +109,10 @@ export function PackagePicker({ packages, extras = [], currency = "EUR", reserve
   const [gear, setGear] = useState<"rental" | "storage" | "none">("rental");
   const gearTouched = useRef(false);
   const lastQuotePkgRef = useRef<string | null>(null);
+  // Belt and braces against the toggle blinking out: the section renders from
+  // this sticky snapshot, which only ever changes package→package — a quote
+  // refetch (or a momentary null) can never unmount the pill mid-press.
+  const [stickyGear, setStickyGear] = useState<Quote["gear"]>(null);
   const extrasSum = extras.filter((x) => pickedExtras.has(x.id)).reduce((n2, x) => n2 + x.price, 0);
   const summaryRef = useRef<HTMLElement | null>(null);
   const [summaryTop, setSummaryTop] = useState(124);
@@ -210,11 +214,11 @@ export function PackagePicker({ packages, extras = [], currency = "EUR", reserve
     const extrasKey = [...pickedExtras].sort().join(",");
     const key = `${selectedId}:${reserve?.editionId ?? ""}:${extrasKey}:${gear}`;
     const cached = quoteCache.current.get(key);
-    if (cached) { setQuote(cached); return; }
+    if (cached) { setQuote(cached); if (cached.gear) setStickyGear(cached.gear); return; }
     // Only blank the quote when the PACKAGE changed — a gear/extras change
     // keeps the old quote on screen until the fresh one lands, so the toggle
     // never blinks out from under the finger that just pressed it.
-    if (lastQuotePkgRef.current !== selectedId) setQuote(null);
+    if (lastQuotePkgRef.current !== selectedId) { setQuote(null); setStickyGear(null); }
     lastQuotePkgRef.current = selectedId;
     let dead = false;
     const qs = new URLSearchParams({ packageId: selectedId });
@@ -227,6 +231,7 @@ export function PackagePicker({ packages, extras = [], currency = "EUR", reserve
         if (dead || !d?.milestones) return;
         quoteCache.current.set(key, d);
         setQuote(d);
+        if (d.gear) setStickyGear(d.gear);
         if (!gearTouched.current && d.gear?.baseline) setGear(d.gear.baseline);
       })
       .catch(() => {});
@@ -283,13 +288,13 @@ export function PackagePicker({ packages, extras = [], currency = "EUR", reserve
         {/* the gear choice — a quiet three-way toggle, no prices shown: the
             TOTAL adjusts, the deltas stay backstage (Nico, 2026-08-27). The
             default mirrors what the selected package actually contains. */}
-        {quote?.gear && (
+        {(quote?.gear ?? stickyGear) && (() => { const g = (quote?.gear ?? stickyGear)!; return (
           <div>
             <p className="text-[11px] font-bold tracking-[0.2em] uppercase text-[#9aa6ac] mb-3">2 · Gear</p>
             <div className="inline-flex rounded-full bg-white border border-[#e6eef0] p-1 shadow-sm">
               {([
-                ...(quote.gear.deltas.rental != null ? [{ key: "rental" as const, label: "Rental gear" }] : []),
-                ...(quote.gear.deltas.storage != null ? [{ key: "storage" as const, label: "Own gear + storage" }] : []),
+                ...(g.deltas.rental != null ? [{ key: "rental" as const, label: "Rental gear" }] : []),
+                ...(g.deltas.storage != null ? [{ key: "storage" as const, label: "Own gear + storage" }] : []),
                 { key: "none" as const, label: "Own gear" },
               ]).map((opt) => (
                 <button key={opt.key} type="button"
@@ -312,7 +317,7 @@ export function PackagePicker({ packages, extras = [], currency = "EUR", reserve
                 : "You bring and handle your own gear."}
             </p>
           </div>
-        )}
+        ); })()}
 
         {/* accommodation — hotels as photo cards; rooms unfold inside the chosen hotel */}
         <div>
