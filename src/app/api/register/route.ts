@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { bookingPrice } from "@/lib/tier-perks";
 import { after } from "next/server";
 import { checkBotId } from "botid/server";
+import { resolveGearInfo, gearDelta, parseGearChoice } from "@/lib/gear-choice";
 import { createAdminClient } from "@/lib/supabase";
 import { sendEmail } from "@/lib/email/send";
 import { getPortalUser } from "@/lib/auth";
@@ -25,6 +26,8 @@ type Body = {
   /** Booking-time extras (component ids) the guest ticked — validated
       server-side against offer_at_booking, prices come from the DB. */
   extras?: string[];
+  /** Gear choice — rental (default, included) | storage | none. */
+  gear?: string;
   experienceId?: string;
   editionId?: string;
   packageId?: string;
@@ -121,7 +124,7 @@ export async function POST(request: NextRequest) {
   // Validate the selection server-side.
   const [{ data: exp }, { data: pkg }, { data: edition }] = await Promise.all([
     db.from("exp_experiences").select("id,title,slug").eq("id", experienceId).maybeSingle(),
-    db.from("exp_packages").select("id,name,price,experience_id,status,deposit,deposit_refund_days").eq("id", packageId).maybeSingle(),
+    db.from("exp_packages").select("id,name,price,experience_id,status,deposit,deposit_refund_days,category").eq("id", packageId).maybeSingle(),
     editionId
       ? db.from("exp_editions").select("id,label,experience_id,date_start,deposit,launch_discount_pct,launch_price_until").eq("id", editionId).maybeSingle()
       : Promise.resolve({ data: null }),
@@ -177,6 +180,30 @@ export async function POST(request: NextRequest) {
   const { data: booking, error: bErr } = await db
     .from("exp_bookings").insert({ ...bookingPayload, status: "lead" }).select("id").single();
   if (bErr) return bad("Could not complete your registration. Please try again.", 500);
+
+  // Gear choice (Model A): rental is included in the package price — only a
+  // choice AWAY from it writes a row: ONE delta add-on referencing the real
+  // component, so ops, invoices and P&L all see what happened.
+  const gearChoice = parseGearChoice(body.gear);
+  if (gearChoice !== "rental") {
+    try {
+      const gearInfo = await resolveGearInfo(exp.id, editionId ?? null, (pkg as { category?: string | null }).category ?? null);
+      const delta = gearDelta(gearInfo, gearChoice);
+      if (gearInfo.rental && delta !== 0) {
+        await db.from("exp_booking_addons").insert({
+          booking_id: booking.id,
+          component_id: gearChoice === "storage" && gearInfo.storage ? gearInfo.storage.id : gearInfo.rental.id,
+          label: gearChoice === "storage"
+            ? "Gear storage — included rental swapped out"
+            : "Own gear — included rental removed",
+          price: delta,
+          status: "confirmed",
+          source: "booking",
+          payment_mode: "np7",
+        }).then(undefined, () => {});
+      }
+    } catch { /* no gear components built for this edition — nothing to record */ }
+  }
 
   // Booking-time extras → confirmed add-on rows on the existing rails
   // (member plan, invoices and the add-on invoice all read these).

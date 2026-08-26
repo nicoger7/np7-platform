@@ -89,6 +89,7 @@ const DEFAULT_INCLUDES = [
 type Quote = {
   price: number; deposit: number; downpaymentPercent: number; refundDays: number;
   milestones: { kind: string; label: string; amount: number; dueLabel: string; dueDate: string | null }[];
+  gear?: { choice: string; rentalName: string; storageDelta: number | null; noneDelta: number } | null;
 };
 
 export function PackagePicker({ packages, extras = [], currency = "EUR", reserve, heroImage, launch }: Props & { launch?: { pct: number; until?: string | null; label?: string } | null }) {
@@ -103,6 +104,8 @@ export function PackagePicker({ packages, extras = [], currency = "EUR", reserve
   // viewport bottom while scrolling down — scrolling up rolls the head back in.
   // Ticked booking-time extras — ids the reserve POST sends verbatim.
   const [pickedExtras, setPickedExtras] = useState<Set<string>>(new Set());
+  // rental | storage | none — rental is the default and the included state.
+  const [gear, setGear] = useState<"rental" | "storage" | "none">("rental");
   const extrasSum = extras.filter((x) => pickedExtras.has(x.id)).reduce((n2, x) => n2 + x.price, 0);
   const summaryRef = useRef<HTMLElement | null>(null);
   const [summaryTop, setSummaryTop] = useState(124);
@@ -202,7 +205,7 @@ export function PackagePicker({ packages, extras = [], currency = "EUR", reserve
   useEffect(() => {
     if (!selectedId) { setQuote(null); return; }
     const extrasKey = [...pickedExtras].sort().join(",");
-    const key = `${selectedId}:${reserve?.editionId ?? ""}:${extrasKey}`;
+    const key = `${selectedId}:${reserve?.editionId ?? ""}:${extrasKey}:${gear}`;
     const cached = quoteCache.current.get(key);
     if (cached) { setQuote(cached); return; }
     setQuote(null);
@@ -210,6 +213,7 @@ export function PackagePicker({ packages, extras = [], currency = "EUR", reserve
     const qs = new URLSearchParams({ packageId: selectedId });
     if (reserve?.editionId) qs.set("editionId", reserve.editionId);
     if (extrasKey) qs.set("extras", extrasKey);
+    if (gear !== "rental") qs.set("gear", gear);
     fetch(`/api/register/quote?${qs}`)
       .then((r) => (r.ok ? r.json() : null))
       .then((d) => {
@@ -219,7 +223,7 @@ export function PackagePicker({ packages, extras = [], currency = "EUR", reserve
       })
       .catch(() => {});
     return () => { dead = true; };
-  }, [selectedId, reserve?.editionId, pickedExtras]);
+  }, [selectedId, reserve?.editionId, pickedExtras, gear]);
 
   const onLevel = (lv: string) => {
     setLevel(lv);
@@ -430,11 +434,44 @@ export function PackagePicker({ packages, extras = [], currency = "EUR", reserve
           </div>
         </div>
 
+        {/* the gear choice — Model A: rental is IN the package price, the
+            radio only ever writes a DELTA. Deltas come from the quote (server
+            truth), so this section appears once the quote knows the gear
+            components of this week. */}
+        {quote?.gear && (
+          <div>
+            <p className="text-[11px] font-bold tracking-[0.2em] uppercase text-[#9aa6ac] mb-3">3 · Gear</p>
+            <div className="space-y-2">
+              {([
+                { key: "rental" as const, title: "Rental gear — included", sub: quote.gear.rentalName, delta: 0 },
+                ...(quote.gear.storageDelta != null ? [{ key: "storage" as const, title: "I bring my own — store it at the spot", sub: "Rig stays rigged at the centre", delta: quote.gear.storageDelta }] : []),
+                { key: "none" as const, title: "I bring my own — no storage", sub: "You handle your gear yourself", delta: quote.gear.noneDelta },
+              ]).map((opt) => (
+                <button key={opt.key} type="button" onClick={() => setGear(opt.key)}
+                  className={`w-full flex items-center justify-between gap-3 rounded-xl border-2 px-4 py-3.5 text-left transition-colors ${gear === opt.key ? "border-[#00afdb] bg-[#00afdb]/[0.05]" : "border-[#e6eef0] bg-white hover:border-[#bfe8f3]"}`}>
+                  <span className="flex items-start gap-3 min-w-0">
+                    <span className={`mt-0.5 shrink-0 w-4 h-4 rounded-full border-2 grid place-items-center ${gear === opt.key ? "border-[#00afdb]" : "border-[#cbd5d9]"}`}>
+                      {gear === opt.key && <span className="w-2 h-2 rounded-full bg-[#00afdb]" />}
+                    </span>
+                    <span className="min-w-0">
+                      <span className="block font-bold text-[#00374a]">{opt.title}</span>
+                      <span className="block text-[12.5px] text-[#5a6b72] leading-snug">{opt.sub}</span>
+                    </span>
+                  </span>
+                  <span className={`shrink-0 font-bold tabular-nums ${opt.delta < 0 ? "text-[#0a9a6a]" : "text-[#00374a]"}`}>
+                    {opt.delta === 0 ? "included" : `${opt.delta > 0 ? "+" : "−"}${fmt(Math.abs(opt.delta))}`}
+                  </span>
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+
         {/* booking-time extras — one checkbox each; ticking creates a real
             add-on on the booking, so every money surface already knows it */}
         {extras.length > 0 && (
           <div>
-            <p className="text-[11px] font-bold tracking-[0.2em] uppercase text-[#9aa6ac] mb-3">3 · Extras — optional</p>
+            <p className="text-[11px] font-bold tracking-[0.2em] uppercase text-[#9aa6ac] mb-3">4 · Extras — optional</p>
             <div className="space-y-2">
               {extras.map((x) => {
                 const on = pickedExtras.has(x.id);
@@ -486,6 +523,12 @@ export function PackagePicker({ packages, extras = [], currency = "EUR", reserve
           ))}
         </ul>
 
+        {quote?.gear && gear !== "rental" && (
+          <div className="mb-2 flex items-center justify-between gap-3 text-[13px] text-white/80">
+            <span className="min-w-0 truncate">{gear === "storage" ? "Own gear + storage" : "Own gear — rental removed"}</span>
+            <span className="shrink-0 font-bold tabular-nums text-[#8fe6f2]">{(gear === "storage" ? (quote.gear.storageDelta ?? 0) : quote.gear.noneDelta) > 0 ? "+" : "−"}{fmt(Math.abs((gear === "storage" ? (quote.gear.storageDelta ?? 0) : quote.gear.noneDelta)))}</span>
+          </div>
+        )}
         {extras.filter((x) => pickedExtras.has(x.id)).length > 0 && (
           <ul className="mb-4 space-y-1.5">
             {extras.filter((x) => pickedExtras.has(x.id)).map((x) => (
@@ -504,7 +547,7 @@ export function PackagePicker({ packages, extras = [], currency = "EUR", reserve
                 <s className="block text-[14px] font-semibold text-white/35 leading-none mb-1">{fmt(selected.price)}</s>
               )}
               <span className="block text-3xl font-black tracking-[-0.02em] tabular-nums leading-none">
-                {selected ? fmt((launch ? lp(selected.price) : selected.price) + extrasSum) : "—"}
+                {selected ? fmt((launch ? lp(selected.price) : selected.price) + extrasSum + (quote?.gear && gear !== "rental" ? (gear === "storage" ? (quote.gear.storageDelta ?? 0) : quote.gear.noneDelta) : 0)) : "—"}
               </span>
             </span>
           </div>
@@ -562,7 +605,8 @@ export function PackagePicker({ packages, extras = [], currency = "EUR", reserve
               packageId: selected.id,
               level,
               accommodation: selected.accommodation,
-              price: lp(selected.price) + extrasSum,
+              price: lp(selected.price) + extrasSum + (quote?.gear && gear !== "rental" ? (gear === "storage" ? (quote.gear.storageDelta ?? 0) : quote.gear.noneDelta) : 0),
+              gear,
               extras: [...pickedExtras],
               extrasLabel: extras.filter((x) => pickedExtras.has(x.id)).map((x) => x.name).join(" · ") || null,
               currency,

@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { bookingPrice } from "@/lib/tier-perks";
+import { resolveGearInfo, gearDelta, parseGearChoice } from "@/lib/gear-choice";
 import { getPortalUser } from "@/lib/auth";
 import { createAdminClient } from "@/lib/supabase";
 import { computePaymentPlan, PAYMENT_DEFAULTS } from "@/lib/payments";
@@ -23,7 +24,7 @@ export async function GET(request: NextRequest) {
   const db = createAdminClient() as any;
   const [{ data: pkg }, { data: edition }] = await Promise.all([
     db.from("exp_packages")
-      .select("id,price,status,deposit,deposit_refund_days,downpayment_percent,final_days_before")
+      .select("id,price,status,deposit,deposit_refund_days,downpayment_percent,final_days_before,category,experience_id")
       .eq("id", packageId).maybeSingle(),
     editionId
       ? db.from("exp_editions").select("id,experience_id,deposit,date_start,launch_discount_pct,launch_price_until").eq("id", editionId).maybeSingle()
@@ -70,16 +71,33 @@ export async function GET(request: NextRequest) {
       .reduce((n2, c) => n2 + Number(c.sell_price), 0);
   }
 
+  // The gear choice (Model A): rental is IN the package (±0); storage / own
+  // gear quote as a delta from the governing components' sell prices.
+  const gearChoice = parseGearChoice(sp.get("gear"));
+  const gearInfo = await resolveGearInfo(
+    (pkg.experience_id as string | null) ?? edition?.experience_id ?? "",
+    editionId || null,
+    (pkg.category as string | null) ?? null,
+  );
+  const gDelta = gearDelta(gearInfo, gearChoice);
+
   const plan = computePaymentPlan(cfg, {
-    total: total + extrasTotal,
+    total: total + extrasTotal + gDelta,
     paidAmount: 0,
     bookedAt: today,
     editionStart: edition?.date_start ?? null,
   });
 
   return NextResponse.json({
-    price: total + extrasTotal,
+    price: total + extrasTotal + gDelta,
     extrasTotal,
+    // What the picker renders the choice from — deltas only, never raw costs.
+    gear: gearInfo.rental ? {
+      choice: gearChoice,
+      rentalName: gearInfo.rental.name,
+      storageDelta: gearInfo.storage ? gearDelta(gearInfo, "storage") : null,
+      noneDelta: gearDelta(gearInfo, "none"),
+    } : null,
     deposit: cfg.deposit ?? PAYMENT_DEFAULTS.deposit,
     downpaymentPercent: cfg.downpayment_percent ?? PAYMENT_DEFAULTS.downpaymentPercent,
     refundDays: cfg.deposit_refund_days ?? PAYMENT_DEFAULTS.depositRefundDays,
