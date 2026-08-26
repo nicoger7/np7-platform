@@ -625,7 +625,7 @@ export default async function ExperienceDetailPage({ params, searchParams }: Pro
       // The beginner skills card ("From first glide …") shows the SAME shot on
       // every experience — a shallow-water lesson, not whatever action photo
       // the index happens to land on (a slalom racer sold the wrong story).
-      const BEGINNER_SKILLS_IMG = "https://media.np-seven.com/experiences/np7-alacati/learning/beginner-lesson-shallow-water.jpg";
+      const BEGINNER_SKILLS_IMG = "https://media.np-seven.com/experiences/np7-bonaire/learning/beginner-lesson-bonaire.jpg";
       const skillsIdx = items.findIndex((o) => o.icon === "bolt");
       return {
         key,

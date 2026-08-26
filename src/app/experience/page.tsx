@@ -36,7 +36,7 @@ const HERO_FALLBACK_FOCUS = ['50% 55%', '50% 45%', '50% 55%', '42% 45%', '32% 50
 const HERO_FALLBACKS = [
   "https://media.np-seven.com/experiences/np7-bonaire/people/groups-hot-water-2025.jpg",
   "https://media.np-seven.com/experiences/np7-bonaire/action/water-action-participant-8-nico-with-participant.jpg",
-  "https://media.np-seven.com/experiences/np7-bonaire/action/bonaire-nico-blue-water-action.jpg",
+  "https://media.np-seven.com/experiences/np7-bonaire/action/water-action-participant-7-nico-together-with-participant.jpg",
   "https://media.np-seven.com/memories/123ad479-4ab9-4e47-b10f-9dff0339f58a/ALACATI2026-79-2.jpg",
   "https://media.np-seven.com/memories/123ad479-4ab9-4e47-b10f-9dff0339f58a/ALACATI2026-200.jpg",
 ];
