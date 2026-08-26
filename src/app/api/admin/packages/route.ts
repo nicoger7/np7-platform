@@ -71,6 +71,8 @@ export async function GET(request: NextRequest) {
     return {
       ...p,
       component_count: linkCount[p.id] || 0,
+      /** the pure component sum — so the UI can show what 'auto' would use */
+      component_cost: compCostByPkg[p.id] ?? null,
       cost_estimate: cost,
       margin,
     };
