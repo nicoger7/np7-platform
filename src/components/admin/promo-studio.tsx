@@ -660,8 +660,7 @@ export default function PromoStudio() {
               ))}
             </div>
           )}
-          {menu === "designs" &&
-            (designs.length ? (
+          {menu === "designs" && (
               <div className="flex flex-col gap-1">
                 {designs.map((d) => (
                   <div key={d.id} className="flex items-center gap-2">
@@ -682,6 +681,9 @@ export default function PromoStudio() {
                     </button>
                   </div>
                 ))}
+                {!designs.length && (
+                  <span style={{ color: "var(--admin-text-muted,#666)" }}>No saved designs yet.</span>
+                )}
                 <button
                   onClick={() => {
                     setState(defaultPromoState());
@@ -693,9 +695,7 @@ export default function PromoStudio() {
                   + New from template
                 </button>
               </div>
-            ) : (
-              <span style={{ color: "var(--admin-text-muted,#666)" }}>No saved designs yet.</span>
-            ))}
+            )}
         </div>
       )}
 

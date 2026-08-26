@@ -70,11 +70,45 @@ export async function resolveGearInfo(
 
 const round2 = (n: number) => Math.round((n + Number.EPSILON) * 100) / 100;
 
-/** Price delta vs the included rental. Rental (or no gear info) = 0. */
-export function gearDelta(info: GearInfo, gear: GearChoice): number {
-  if (gear === "rental" || !info.rental) return 0;
-  if (gear === "storage") return info.storage ? round2(info.storage.sell - info.rental.sell) : 0;
-  return round2(-info.rental.sell);
+export function parseGearBaseline(raw: unknown): GearChoice {
+  return raw === "storage" || raw === "none" ? raw : "rental";
+}
+
+/** What each option COSTS on top of nothing: rental/storage = their sell,
+    none = 0. The delta shown/charged is cost(choice) − cost(baseline). */
+function optionCost(info: GearInfo, gear: GearChoice): number | null {
+  if (gear === "none") return 0;
+  const c = gear === "rental" ? info.rental : info.storage;
+  return c ? c.sell : null;
+}
+
+/** Price delta vs the PACKAGE's declared baseline (migration 186). */
+export function gearDelta(info: GearInfo, gear: GearChoice, baseline: GearChoice): number {
+  const chosen = optionCost(info, gear);
+  const base = optionCost(info, baseline);
+  if (chosen == null || base == null) return 0;
+  return round2(chosen - base);
+}
+
+/** The renderable options for a package: null = choice not available for it.
+    Each option carries its delta; the baseline option is the ±0 "included". */
+export function gearOptions(info: GearInfo, baseline: GearChoice): {
+  baseline: GearChoice;
+  rentalName: string;
+  deltas: { rental: number | null; storage: number | null; none: number };
+} | null {
+  if (!info.rental) return null;
+  const base = optionCost(info, baseline);
+  if (base == null) return null;
+  return {
+    baseline,
+    rentalName: info.rental.name,
+    deltas: {
+      rental: round2(info.rental.sell - base),
+      storage: info.storage ? round2(info.storage.sell - base) : null,
+      none: round2(0 - base),
+    },
+  };
 }
 
 export function parseGearChoice(raw: unknown): GearChoice {

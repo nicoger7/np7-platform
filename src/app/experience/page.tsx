@@ -37,7 +37,7 @@ const HERO_FALLBACKS = [
 
 // Dedicated background photo for the "Gift of NP7" band — a plain photo, NOT a
 // baked tile graphic. Leave empty for the gradient-only (restrained) band.
-const GIFT_PHOTO = "";
+const GIFT_PHOTO = "https://media.np-seven.com/experiences/np7-bonaire/place/bonaire-spot-overview-drone-shot.jpg";
 
 /* --------------------------------- page --------------------------------- */
 

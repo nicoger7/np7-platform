@@ -25,6 +25,7 @@ interface Package {
   sort_order: number;
   status: string;
   category: string | null;
+  gear_baseline?: string | null;
   date: string | null;
   includes: unknown; // jsonb — curated "what's included" list shown on the website
   experience_id: string | null;
@@ -83,7 +84,7 @@ function StatusBadge({ status }: { status: string }) {
 const emptyForm = {
   name: "", price: "", cost_per_person: "", deposit: "", max_spots: "",
   deposit_refund_days: "", downpayment_percent: "", final_days_before: "",
-  category: "", status: "active", experience_id: "", edition_id: "", hotel_id: "", includes: "",
+  category: "", gear_baseline: "rental", status: "active", experience_id: "", edition_id: "", hotel_id: "", includes: "",
   // The room pool: which room type at hotel_id this package sells, and how much
   // of a room one sale takes. Without a room type the hotel limits nothing and
   // the package sells past the last bed.
@@ -256,6 +257,7 @@ export default function PackagesPage() {
       final_days_before: p.final_days_before?.toString() || "",
       max_spots: p.max_spots?.toString() || "",
       category: p.category || "",
+      gear_baseline: p.gear_baseline || "rental",
       status: p.status || "active",
       experience_id: p.experience_id || "",
       edition_id: p.edition_id || "",
@@ -279,6 +281,7 @@ export default function PackagesPage() {
       ...(form.final_days_before ? { final_days_before: Number(form.final_days_before) } : {}),
       max_spots: form.max_spots ? Number(form.max_spots) : null,
       category: form.category || null,
+      gear_baseline: form.gear_baseline || "rental",
       status: form.status,
       experience_id: form.experience_id || null,
       edition_id: form.edition_id || null,
@@ -415,6 +418,13 @@ export default function PackagesPage() {
             <div><label className={labelClass}>Level<PublicBadge note="Step 1 on the website — the Advanced/Beginner choice customers make first" /></label>
               <select className={inputClass} value={form.category} onChange={(e) => setForm({ ...form, category: e.target.value })}>
                 {PACKAGE_LEVEL_OPTIONS.map((c) => <option key={c} value={c}>{packageLevelLabel(c)}</option>)}
+              </select>
+            </div>
+            <div><label className={labelClass}>Gear in the price<PublicBadge note="What this package's price already contains — the public gear choice (Rental vs Storage vs Own gear) quotes deltas from exactly this" /></label>
+              <select className={inputClass} value={form.gear_baseline ?? "rental"} onChange={(e) => setForm({ ...form, gear_baseline: e.target.value })}>
+                <option value="rental">Rental included</option>
+                <option value="storage">Storage included</option>
+                <option value="none">No gear included</option>
               </select>
             </div>
             <div><label className={labelClass}>Hotel<PublicBadge note="Step 2 on the website — drives the hotel name & photos in the accommodation choice" /></label>
