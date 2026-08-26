@@ -103,6 +103,7 @@ const navByEnv: Record<Environment, NavGroup[]> = {
     {
       label: "MARKETING",
       items: [
+        { label: "Promo Studio", href: "/admin/promo", icon: "image" },
         { label: "Campaigns", href: "/admin/campaigns", icon: "mail" },
         // One entry, not two: "Emails" is the catalogue AND the editor now.
         { label: "Emails", href: "/admin/emails", icon: "flow" },

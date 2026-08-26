@@ -165,6 +165,7 @@ export const SECTIONS: Section[] = [
   { key: "archive", label: "Archive (deleted records)", world: "experience", group: "Operations", paths: ["/admin/archive", "/api/admin/archive"] },
   { key: "applications", label: "Signature-trip applications", world: "experience", group: "Operations", paths: ["/admin/applications", "/api/admin/signature"] },
   { key: "surveys", label: "Interest surveys", world: "experience", group: "Automation", paths: ["/admin/surveys", "/api/admin/surveys"] },
+  { key: "promo", label: "Promo graphics", world: "experience", group: "Automation", paths: ["/admin/promo", "/api/admin/promo"] },
   { key: "pipeline_rules", label: "Pipeline rules", world: "experience", group: "Automation", paths: ["/admin/pipeline-rules", "/api/admin/pipeline-rules"] },
   { key: "task_rules", label: "Task rules", world: "experience", group: "Automation", paths: ["/admin/task-rules", "/api/admin/task-rules"] },
   { key: "withdrawals", label: "Withdrawals (Widerruf)", world: "experience", group: "Finance", paths: ["/admin/widerrufe", "/api/admin/widerrufe"] },

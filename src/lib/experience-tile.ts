@@ -34,6 +34,7 @@ const COUNTRY_KEYWORDS: { match: string[]; code: string; name: string }[] = [
   { match: ["sweden", "schweden", "sverige", "malmö", "malmo", "schonen"], code: "se", name: "Sweden" },
   { match: ["madagascar", "madagaskar"], code: "mg", name: "Madagascar" },
   { match: ["netherlands", "holland", "niederlande"], code: "nl", name: "Netherlands" },
+  { match: ["hatteras", "outer banks", "north carolina", "united states", "usa", "avon"], code: "us", name: "USA" },
 ];
 
 /**

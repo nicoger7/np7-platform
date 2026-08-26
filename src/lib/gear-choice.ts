@@ -27,6 +27,9 @@ export async function resolveGearInfo(
   editionId: string | null,
   level: string | null,
 ): Promise<GearInfo> {
+  // Beginner packages never offer the choice — beginners don't fly in with
+  // their own kit, rental is simply part of the week (Nico, 2026-08-26).
+  if (level === "beginner") return { rental: null, storage: null };
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const db = createAdminClient() as any;
   let year: string | null = null;
