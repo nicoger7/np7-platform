@@ -30,7 +30,7 @@ interface Occupancy {
   partner_tag_along: string | null;
   hotel_confirmed?: boolean;
   comments: string | null;
-  booking: { id: string; name: string; status: string; contact: { id: string; name: string; email: string } | null } | null;
+  booking: { id: string; name: string; status: string; traveling_with?: string | null; contact: { id: string; name: string; email: string } | null } | null;
   edition: { year: number; label: string | null } | null;
 }
 
