@@ -624,16 +624,54 @@ export default function PromoStudio() {
     if (id === "coach") return state.coach.visible;
     return state.texts.find((x) => x.id === id)?.visible ?? false;
   };
-  const moveLayer = (id: string, dir: 1 | -1) =>
+  // Drag & drop reordering in the Layers panel. `over` is the insertion SLOT
+  // in the top-first list (0 = above the first row, n = below the last).
+  const [layerDrag, setLayerDrag] = useState<null | { id: string; over: number }>(null);
+  const layerListRef = useRef<HTMLDivElement>(null);
+
+  const reorderLayer = (id: string, slot: number) =>
     patch((s) => {
-      const ord = promoOrder(s);
-      const i = ord.indexOf(id);
-      const j = i + dir;
-      if (i < 0 || j < 0 || j >= ord.length) return s;
-      [ord[i], ord[j]] = [ord[j], ord[i]];
-      s.order = ord;
+      const rev = [...promoOrder(s)].reverse(); // top-first, like the panel
+      const from = rev.indexOf(id);
+      if (from < 0) return s;
+      rev.splice(from, 1);
+      const insertAt = clamp(slot > from ? slot - 1 : slot, 0, rev.length);
+      rev.splice(insertAt, 0, id);
+      s.order = [...rev].reverse();
       return s;
     });
+
+  const onLayerRowPointerDown = (e: React.PointerEvent, id: string) => {
+    const tag = (e.target as HTMLElement).tagName;
+    if (tag === "BUTTON" || tag === "INPUT") return; // the eye keeps working
+    e.preventDefault();
+    const startY = e.clientY;
+    let started = false;
+    const slotAt = (clientY: number) => {
+      const rows = Array.from(layerListRef.current?.querySelectorAll("[data-lrow]") ?? []);
+      let slot = 0;
+      for (const r of rows) {
+        const rect = (r as HTMLElement).getBoundingClientRect();
+        if (clientY > rect.top + rect.height / 2) slot++;
+      }
+      return slot;
+    };
+    const move = (ev: PointerEvent) => {
+      if (!started && Math.abs(ev.clientY - startY) > 4) started = true;
+      if (started) setLayerDrag({ id, over: slotAt(ev.clientY) });
+    };
+    const up = (ev: PointerEvent) => {
+      window.removeEventListener("pointermove", move);
+      window.removeEventListener("pointerup", up);
+      window.removeEventListener("pointercancel", up);
+      if (started) reorderLayer(id, slotAt(ev.clientY));
+      else setSelected(id); // plain click still selects
+      setLayerDrag(null);
+    };
+    window.addEventListener("pointermove", move);
+    window.addEventListener("pointerup", up);
+    window.addEventListener("pointercancel", up);
+  };
 
   // -- hidden elements (for the restore menu) ---------------------------------
   const hiddenElements = useMemo(() => {
@@ -752,52 +790,47 @@ export default function PromoStudio() {
               <span style={{ color: "var(--admin-text-muted,#666)" }}>Loading editions…</span>
             ))}
           {menu === "layers" && (
-            <div className="flex flex-col gap-0.5">
+            <div className="flex flex-col" ref={layerListRef}>
               <div className="text-[10px] font-bold uppercase tracking-wider mb-1" style={{ color: "var(--admin-text-muted,#666)" }}>
-                Top layer first — ↑ raises, ↓ lowers
+                Top layer first — drag a row to reorder
               </div>
-              {[...promoOrder(state)].reverse().map((id, idx, arr) => (
-                <div
-                  key={id}
-                  className="flex items-center gap-2 px-2 py-1 rounded cursor-pointer"
-                  style={{ background: selected === id ? "rgba(0,175,219,0.12)" : undefined, opacity: layerVisible(id) ? 1 : 0.45 }}
-                  onClick={() => setSelected(id)}
-                >
-                  <button
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      setHidden(id, !layerVisible(id));
+              {[...promoOrder(state)].reverse().map((id, idx) => (
+                <div key={id}>
+                  <div
+                    className="h-0.5 mx-1 rounded"
+                    style={{ background: layerDrag && layerDrag.over === idx ? "var(--admin-accent,#00afdb)" : "transparent" }}
+                  />
+                  <div
+                    data-lrow
+                    className="flex items-center gap-2 px-2 py-1 rounded select-none touch-none"
+                    style={{
+                      background: selected === id ? "rgba(0,175,219,0.12)" : undefined,
+                      opacity: layerDrag?.id === id ? 0.35 : layerVisible(id) ? 1 : 0.45,
+                      cursor: layerDrag ? "grabbing" : "grab",
                     }}
-                    title={layerVisible(id) ? "Hide" : "Show"}
-                    className="w-5"
+                    onPointerDown={(e) => onLayerRowPointerDown(e, id)}
                   >
-                    {layerVisible(id) ? "👁" : "◌"}
-                  </button>
-                  <span className="flex-1 text-xs font-semibold">{layerLabel(id)}</span>
-                  <button
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      moveLayer(id, 1);
-                    }}
-                    disabled={idx === 0}
-                    className="px-1.5 disabled:opacity-25"
-                    title="Raise"
-                  >
-                    ↑
-                  </button>
-                  <button
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      moveLayer(id, -1);
-                    }}
-                    disabled={idx === arr.length - 1}
-                    className="px-1.5 disabled:opacity-25"
-                    title="Lower"
-                  >
-                    ↓
-                  </button>
+                    <span className="text-[10px] tracking-tighter" style={{ color: "var(--admin-text-muted,#666)" }}>
+                      ⠿
+                    </span>
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setHidden(id, !layerVisible(id));
+                      }}
+                      title={layerVisible(id) ? "Hide" : "Show"}
+                      className="w-5"
+                    >
+                      {layerVisible(id) ? "👁" : "◌"}
+                    </button>
+                    <span className="flex-1 text-xs font-semibold">{layerLabel(id)}</span>
+                  </div>
                 </div>
               ))}
+              <div
+                className="h-0.5 mx-1 rounded"
+                style={{ background: layerDrag && layerDrag.over === promoOrder(state).length ? "var(--admin-accent,#00afdb)" : "transparent" }}
+              />
               <div className="text-[10px] mt-1" style={{ color: "var(--admin-text-muted,#666)" }}>
                 Photo & colour washes are always the base.
               </div>
