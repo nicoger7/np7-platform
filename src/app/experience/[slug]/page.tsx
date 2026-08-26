@@ -622,12 +622,21 @@ export default async function ExperienceDetailPage({ params, searchParams }: Pro
         .filter((o) => (o?.t ?? "").trim())
         .map((o) => ({ icon: o.icon || "bolt", t: o.t!, d: o.d ?? "" }));
       const items = (cards.length ? cards : outcomeItems).filter((o) => !mediaOutcomeOff(o));
+      // The beginner skills card ("From first glide …") shows the SAME shot on
+      // every experience — a shallow-water lesson, not whatever action photo
+      // the index happens to land on (a slalom racer sold the wrong story).
+      const BEGINNER_SKILLS_IMG = "https://media.np-seven.com/experiences/np7-alacati/learning/beginner-lesson-shallow-water.jpg";
+      const skillsIdx = items.findIndex((o) => o.icon === "bolt");
       return {
         key,
         label: packageLevelLabel(key),
         title: (own?.title ?? "").trim() || weekTitle,
         outcomes: items,
-        images: items.map((_, i) => weekImgs[i] || vibeImages[i % Math.max(1, vibeImages.length)]).filter(Boolean) as string[],
+        images: items.map((_, i) =>
+          key === "beginner" && i === skillsIdx
+            ? BEGINNER_SKILLS_IMG
+            : weekImgs[i] || vibeImages[i % Math.max(1, vibeImages.length)]
+        ).filter(Boolean) as string[],
       };
     });
   })();
