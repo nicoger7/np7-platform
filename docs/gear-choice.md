@@ -43,6 +43,17 @@ stimmen Zahlungsplan, Rechnungen (inkl. Add-on-Invoice) und P&L automatisch.
 5. **Keine Gear-Paketvarianten mehr anlegen** („… + Rental", „Own Gear – …") —
    genau die ersetzt der Toggle.
 
+## Preis-Konvention: absolut, nie als Zuschlag
+
+Rental-Stufen (mehrere `rental`-Komponenten im selben Scope) tragen jede ihren
+**vollen Standalone-Preis**: Basis-Rental €200, Slalom-Rental **€220** — nicht
+„€20 Zuschlag". Der Aufpreis (`+€20`) wird immer gerechnet (`Stufe − Basis`,
+günstigste = Basis = „included"). So bleibt jede Komponente überall wahr
+(Pakete, Add-ons, P&L, Rechnungen), und eine Basis-Preisänderung aktualisiert
+alle Upgrade-Deltas automatisch. Gleiches gilt für `unit_cost`: voller Einkauf
+der Stufe. **Komponenten kennen nur absolute Preise; Differenzen sind immer
+gerechnet, nie gespeichert.**
+
 ## Invarianten (was nie passieren darf)
 
 - Zwei Rental-Komponenten im selben Scope ohne Beginner-Unterscheidung →
