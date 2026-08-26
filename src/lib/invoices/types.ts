@@ -10,6 +10,7 @@ export const DOCUMENT_TYPES = [
   "deposit_invoice",
   "downpayment_invoice",
   "final_invoice",
+  "addon_invoice",
   "booking_confirmation",
   "credit_note",
   "sicherungsschein",
@@ -24,7 +25,7 @@ export type DocumentType = (typeof DOCUMENT_TYPES)[number];
     (promoteProformaIfPaid) — so unpaid registrations never need a Storno. */
 export type GeneratableType = Extract<
   DocumentType,
-  "proforma_invoice" | "deposit_invoice" | "downpayment_invoice" | "final_invoice" | "booking_confirmation"
+  "proforma_invoice" | "deposit_invoice" | "downpayment_invoice" | "final_invoice" | "addon_invoice" | "booking_confirmation"
 >;
 
 /** Per-division legal/company profile (company_settings row). */

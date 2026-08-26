@@ -100,5 +100,12 @@ export async function PATCH(
     return NextResponse.json({ error: error.message }, { status: 400 });
   }
 
+  // Voiding an add-on invoice releases its stamped add-on rows, so they are
+  // billable again on the next add-on invoice. (A later re-issue toggle does
+  // NOT re-stamp — the rows may have been billed elsewhere meanwhile.)
+  if (body.status === "void" && data?.type === "addon_invoice") {
+    await db.from("exp_booking_addons").update({ invoiced_in: null }).eq("invoiced_in", id);
+  }
+
   return NextResponse.json(data);
 }

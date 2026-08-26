@@ -78,6 +78,24 @@ export async function confirmedAddonLines(bookingId: string): Promise<{ label: s
     .map((a) => ({ label: String(a.label || a.exp_components?.name || "Add-on"), price: round2(Number(a.price) || 0) }));
 }
 
+/** Confirmed, billable add-ons no issued invoice has picked up yet — the
+    add-on invoice bills exactly these and stamps them (invoiced_in), so a
+    second add-on invoice can never double-bill a row. */
+export async function unbilledAddonLines(bookingId: string): Promise<{ id: string; label: string; price: number }[]> {
+  const db = getDb();
+  const { data } = await db
+    .from("exp_booking_addons")
+    .select("id,label,price,status,notes,payment_mode,invoiced_in,exp_components(name)")
+    .eq("booking_id", bookingId)
+    .is("invoiced_in", null);
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  return ((data ?? []) as any[])
+    .filter((a) => effectiveAddonStatus(a) === "confirmed")
+    .filter((a) => a.payment_mode !== "direct")
+    .filter((a) => Number(a.price) > 0)
+    .map((a) => ({ id: String(a.id), label: String(a.label || a.exp_components?.name || "Add-on"), price: round2(Number(a.price) || 0) }));
+}
+
 /** Total of the real (non-void) tax invoices already ISSUED for a booking. Used
     to derive the outstanding balance — a real invoice is immutable, so anything
     added after it flows into the next document, never backward. */
@@ -85,7 +103,7 @@ export async function issuedInvoiceTotal(bookingId: string): Promise<number> {
   const db = getDb();
   const { data } = await db.from("documents").select("amount,type,status").eq("booking_id", bookingId).eq("status", "issued");
   return round2(((data ?? []) as { amount: number | null; type: string }[])
-    .filter((d) => ["deposit_invoice", "downpayment_invoice", "final_invoice", "credit_note"].includes(d.type))
+    .filter((d) => ["deposit_invoice", "downpayment_invoice", "final_invoice", "addon_invoice", "credit_note"].includes(d.type))
     .reduce((s, d) => s + (Number(d.amount) || 0), 0));
 }
 
@@ -320,6 +338,13 @@ export async function generateDocument(input: GenerateInput): Promise<DocumentRo
   ]);
   const finalAmt = round2(Math.max(0, total - received));
 
+  // Add-on invoice: bills exactly the confirmed extras nothing has invoiced
+  // yet — an interim document for things added AFTER the down-payment, so the
+  // guest pays the extra now while the final stays on its own schedule.
+  // (Final self-corrects either way: it is total − received.)
+  const billedAddons = type === "addon_invoice" ? await unbilledAddonLines(bookingId) : [];
+  const addonAmt = round2(billedAddons.reduce((sum, a) => sum + a.price, 0));
+
   const currency = company.currency || "EUR";
   const isInvoice = type !== "booking_confirmation";
   const isProforma = type === "proforma_invoice";
@@ -369,6 +394,9 @@ export async function generateDocument(input: GenerateInput): Promise<DocumentRo
   }
   if (type === "final_invoice" && finalAmt <= 0) {
     throw new Error("This booking has no outstanding final balance — nothing to invoice.");
+  }
+  if (type === "addon_invoice" && addonAmt <= 0) {
+    throw new Error("No un-invoiced add-ons on this booking — every confirmed extra is already on an invoice.");
   }
 
   // 2. Allocate invoice number. Pro-formas do NOT burn the gapless tax-invoice
@@ -426,6 +454,7 @@ export async function generateDocument(input: GenerateInput): Promise<DocumentRo
       // The PDF prints these rather than re-deriving them, so the document row
       // and the document itself can never disagree again.
       addons: addonLines,
+      billedAddons: billedAddons.map(({ label, price }) => ({ label, price })),
       packagePrice: round2(booking.agreed_price ?? 0),
       received,
     },
@@ -478,6 +507,7 @@ export async function generateDocument(input: GenerateInput): Promise<DocumentRo
   else if (type === "deposit_invoice") amount = depositAmt;
   else if (type === "downpayment_invoice") amount = downpaymentAmt;
   else if (type === "final_invoice") amount = finalAmt;
+  else if (type === "addon_invoice") amount = addonAmt;
 
   // 7. Insert documents row
   const docRow = {
@@ -494,6 +524,8 @@ export async function generateDocument(input: GenerateInput): Promise<DocumentRo
             ? "Deposit Invoice"
             : type === "downpayment_invoice"
             ? "Down-Payment Invoice"
+            : type === "addon_invoice"
+            ? "Add-on Invoice"
             // A 1–2 day clinic is bought outright, so "Final Invoice" reads as
             // the last of several instalments that never existed. It is simply
             // the invoice.
@@ -555,6 +587,14 @@ export async function generateDocument(input: GenerateInput): Promise<DocumentRo
       throw new Error("Migration 021 not applied: documents table missing.");
     }
     throw new Error(`Failed to insert document row: ${insertError.message}`);
+  }
+
+  // Stamp the billed add-on rows with this invoice — the double-billing lock.
+  // Voiding the document releases them (documents PATCH route).
+  if (type === "addon_invoice" && billedAddons.length) {
+    await admin.from("exp_booking_addons")
+      .update({ invoiced_in: (inserted as DocumentRow).id })
+      .in("id", billedAddons.map((a) => a.id));
   }
 
   // Callers that email the document right away get the buffer for free

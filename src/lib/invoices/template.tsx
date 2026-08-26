@@ -127,6 +127,8 @@ export type InvoiceData = {
     notes?: string | null;
     /** Confirmed add-ons billed on top of the package, itemised on the invoice. */
     addons?: { label: string; price: number }[];
+    /** Only the add-ons THIS document bills (addon_invoice). */
+    billedAddons?: { label: string; price: number }[];
     /** The package alone, i.e. agreedPrice minus the add-ons. */
     packagePrice?: number;
     /** Money actually received. The final balance deducts THIS, not a formula. */
@@ -232,6 +234,8 @@ function DocInfoBlock({ data }: { data: InvoiceData }) {
     ? "Deposit Invoice"
     : type === "downpayment_invoice"
     ? "Down-Payment Invoice"
+    : type === "addon_invoice"
+    ? "Add-on Invoice"
     : "Final Invoice";
 
   return (
@@ -537,6 +541,66 @@ function DownpaymentInvoiceLines({ data }: { data: InvoiceData }) {
   );
 }
 
+/** Interim invoice over extras added after an earlier invoice — bills ONLY
+    the stamped add-on rows; the trip's own payment schedule stays untouched
+    and the note says so, so nobody reads this as a surprise final bill. */
+function AddonInvoiceLines({ data }: { data: InvoiceData }) {
+  const { booking, company, experience, edition } = data;
+  const currency = booking.currency || company.currency;
+  const isMargin = company.vat_mode === "margin";
+  const vatRate = company.vat_rate ?? 0;
+  const items = booking.billedAddons ?? [];
+  const totalAmt = items.reduce((n, a) => n + a.price, 0);
+  const net = isMargin ? totalAmt : totalAmt / (1 + vatRate / 100);
+  const vat = isMargin ? 0 : totalAmt - net;
+  const remaining = Math.max(0, booking.agreedPrice - (booking.received ?? 0) - totalAmt);
+
+  return (
+    <View>
+      <View style={s.tableHeader}>
+        <Text style={[s.colHeader, s.col_desc]}>Description</Text>
+        <Text style={[s.colHeader, s.col_period]}>Service period</Text>
+        <Text style={[s.colHeader, s.col_amount]}>Amount</Text>
+      </View>
+      {items.map((a, i) => (
+        <View key={i} style={s.tableRow}>
+          <View style={s.col_desc}>
+            <Text style={{ fontFamily: "Helvetica-Bold" }}>{a.label}</Text>
+            <Text style={s.smallText}>{[experience.title, edition?.label].filter(Boolean).join(" · ")} — booking extra</Text>
+          </View>
+          <Text style={s.col_period}>{servicePeriod(edition)}</Text>
+          <Text style={s.col_amount}>{formatMoney(a.price, currency)}</Text>
+        </View>
+      ))}
+      <View style={s.divider} />
+      <View style={s.totalsBox}>
+        {!isMargin && (
+          <>
+            <View style={s.totalRow}>
+              <Text style={s.totalLabel}>Net amount:</Text>
+              <Text style={s.totalValue}>{formatMoney(net, currency)}</Text>
+            </View>
+            <View style={s.totalRow}>
+              <Text style={s.totalLabel}>VAT ({vatRate}%):</Text>
+              <Text style={s.totalValue}>{formatMoney(vat, currency)}</Text>
+            </View>
+          </>
+        )}
+        <View style={s.grandTotalRow}>
+          <Text style={s.grandLabel}>Amount due (add-ons):</Text>
+          <Text style={s.grandValue}>{formatMoney(totalAmt, currency)}</Text>
+        </View>
+      </View>
+      <View style={[s.noteBox, { marginTop: 16 }]}>
+        <Text>
+          {`Note: This invoice covers extras added to your booking — your payment plan for the trip itself is unchanged.`}
+          {remaining > 0 ? ` The remaining trip balance of ${formatMoney(remaining, currency)} will be invoiced separately as scheduled.` : ""}
+        </Text>
+      </View>
+    </View>
+  );
+}
+
 function FinalInvoiceLines({ data }: { data: InvoiceData }) {
   const { booking, company, experience, edition } = data;
   const currency = booking.currency || company.currency;
@@ -747,6 +811,7 @@ export function buildInvoiceDocument(data: InvoiceData): React.ReactElement {
         {type === "deposit_invoice" && <DepositInvoiceLines data={data} />}
         {type === "downpayment_invoice" && <DownpaymentInvoiceLines data={data} />}
         {type === "final_invoice" && <FinalInvoiceLines data={data} />}
+        {type === "addon_invoice" && <AddonInvoiceLines data={data} />}
         {isConfirmation && <BookingConfirmation data={data} />}
 
         {/* VAT note for TAX invoices only (a pro-forma isn't one) */}
