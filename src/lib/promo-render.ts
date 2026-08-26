@@ -12,7 +12,7 @@
  */
 
 import type { Box, PromoFormat, PromoState, TextLayer } from "./promo-template";
-import { PROMO_FORMATS } from "./promo-template";
+import { PROMO_FORMATS, promoOrder } from "./promo-template";
 
 export interface PromoFonts {
   /** Canvas font-family lists, e.g. `"__Anton_x", "__Anton_Fallback_x"`. */
@@ -187,8 +187,22 @@ export function drawPromo(
     ctx.fillRect(0, 0, W, H);
   }
 
-  // 3 — flag drape: cover-drawn into its box, two intersected gradient fades,
-  //     rotated around the box centre, screened onto the scene.
+  // 3+ — the movable layers, in the design's own z-order (bottom→top)
+  for (const layerId of promoOrder(state)) {
+    if (layerId === "flag") drawFlagLayer(ctx, state, fmt, hits);
+    else if (layerId === "logo") drawLogoLayer(ctx, state, fmt, hits);
+    else if (layerId === "coach") drawCoachLayer(ctx, state, fmt, hits);
+    else {
+      const t = state.texts.find((x) => x.id === layerId);
+      if (t?.visible) hits.push({ id: t.id, box: drawText(ctx, t, fmt, fonts, opts?.skipTextId === t.id) });
+    }
+  }
+
+  ctx.restore();
+  return hits;
+}
+
+function drawFlagLayer(ctx: CanvasRenderingContext2D, state: PromoState, fmt: PromoFormat, hits: HitBox[]) {
   const flagImg = state.flag.visible ? getCachedImage(state.flag.src) : null;
   if (state.flag.visible && state.flag.src) {
     const b = state.flag.box[fmt];
@@ -226,8 +240,9 @@ export function drawPromo(
     }
     hits.push({ id: "flag", box: { ...b } });
   }
+}
 
-  // 4 — logo
+function drawLogoLayer(ctx: CanvasRenderingContext2D, state: PromoState, fmt: PromoFormat, hits: HitBox[]) {
   const logoImg = state.logo.visible ? getCachedImage(state.logo.src) : null;
   if (state.logo.visible && state.logo.src) {
     const b = state.logo.box[fmt];
@@ -241,16 +256,11 @@ export function drawPromo(
     }
     hits.push({ id: "logo", box: { ...b } });
   }
+}
 
-  // 5 — texts
-  for (const t of state.texts) {
-    if (!t.visible) continue;
-    const box = drawText(ctx, t, fmt, fonts, opts?.skipTextId === t.id);
-    hits.push({ id: t.id, box });
-  }
-
-  // 6 — coach cutout on top, double drop-shadow (drawn via the offset trick so
-  //     the figure itself is painted exactly once)
+// coach cutout with double drop-shadow (drawn via the offset trick so the
+// figure itself is painted exactly once)
+function drawCoachLayer(ctx: CanvasRenderingContext2D, state: PromoState, fmt: PromoFormat, hits: HitBox[]) {
   const coachImg = state.coach.visible ? getCachedImage(state.coach.src) : null;
   if (state.coach.visible && state.coach.src) {
     const b = state.coach.box[fmt];
@@ -274,9 +284,6 @@ export function drawPromo(
     }
     hits.push({ id: "coach", box: { ...b } });
   }
-
-  ctx.restore();
-  return hits;
 }
 
 // -- text kinds ---------------------------------------------------------------

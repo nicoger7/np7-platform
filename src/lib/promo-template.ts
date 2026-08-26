@@ -78,6 +78,18 @@ export interface PromoState {
   coach: ImageLayer;
   logo: ImageLayer;
   texts: TextLayer[];
+  /** Draw order of the movable layers, bottom→top. Photo + washes are always
+   *  the base. Older saved designs may lack this — use promoOrder(). */
+  order?: string[];
+}
+
+/** The effective layer order (bottom→top), tolerating pre-`order` designs. */
+export function promoOrder(state: PromoState): string[] {
+  const known = new Set(["flag", "logo", "coach", ...state.texts.map((t) => t.id)]);
+  const stored = (state.order ?? []).filter((id) => known.has(id));
+  for (const id of ["flag", "logo", ...state.texts.map((t) => t.id), "coach"])
+    if (!stored.includes(id)) stored.push(id);
+  return stored;
 }
 
 export const PROMO_FLAGS = [
@@ -144,6 +156,7 @@ export function defaultPromoState(): PromoState {
       { id: "partner", kind: "partner", visible: true, text: "Partner event with Ocean Air Sports  ·  *np-seven.com*", size: 21, pos: { "45": { x: 56, y: 1272 }, "916": { x: 56, y: 1750 } } },
       { id: "with", kind: "with", visible: true, text: "Dennis Robinson", size: 34, pos: { "45": { x: 1024, y: 56 }, "916": { x: 1024, y: 104 } } },
     ],
+    order: ["flag", "logo", "eyebrow", "place", "subtitle", "chip-gold", "chip-glass", "details", "partner", "with", "coach"],
   };
 }
 

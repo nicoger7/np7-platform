@@ -21,6 +21,7 @@ import {
   PROMO_FLAGS,
   TEXT_KIND_LABELS,
   defaultPromoState,
+  promoOrder,
   type PromoFormat,
   type PromoState,
 } from "@/lib/promo-template";
@@ -97,7 +98,7 @@ export default function PromoStudio() {
   const [designId, setDesignId] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
-  const [menu, setMenu] = useState<null | "elements" | "edition" | "designs">(null);
+  const [menu, setMenu] = useState<null | "elements" | "edition" | "designs" | "layers">(null);
 
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const wrapRef = useRef<HTMLDivElement>(null);
@@ -197,10 +198,82 @@ export default function PromoStudio() {
     setTimeout(() => setNotice(null), 3500);
   };
 
-  // -- state helpers ----------------------------------------------------------
-  const patch = useCallback((fn: (s: PromoState) => PromoState) => {
-    setState((s) => fn(structuredClone(s)));
+  // -- history (undo/redo) ----------------------------------------------------
+  // Every mutation snapshots the previous state. Continuous gestures (drag,
+  // slider scrub, wheel zoom) pass a stable key so the whole gesture collapses
+  // into ONE undo step; discrete edits get a unique key and always snapshot.
+  const pastRef = useRef<PromoState[]>([]);
+  const futureRef = useRef<PromoState[]>([]);
+  const lastKeyRef = useRef<{ key: string | null; t: number }>({ key: null, t: 0 });
+  const keySeq = useRef(0);
+  const [histTick, setHistTick] = useState(0);
+
+  const patch = useCallback((fn: (s: PromoState) => PromoState, key?: string) => {
+    setState((s) => {
+      const now = Date.now();
+      const k = key ?? `once-${++keySeq.current}`;
+      const coalesce = lastKeyRef.current.key === k && now - lastKeyRef.current.t < 900;
+      if (!coalesce) {
+        pastRef.current.push(structuredClone(s));
+        if (pastRef.current.length > 60) pastRef.current.shift();
+        futureRef.current = [];
+      }
+      lastKeyRef.current = { key: k, t: now };
+      return fn(structuredClone(s));
+    });
+    setHistTick((t) => t + 1);
   }, []);
+
+  /** Replace the whole state (load design / reset / prefill) as one undo step. */
+  const replaceState = useCallback((next: PromoState) => {
+    setState((s) => {
+      pastRef.current.push(structuredClone(s));
+      if (pastRef.current.length > 60) pastRef.current.shift();
+      futureRef.current = [];
+      lastKeyRef.current = { key: null, t: 0 };
+      return next;
+    });
+    setHistTick((t) => t + 1);
+  }, []);
+
+  const undo = useCallback(() => {
+    setState((s) => {
+      const prev = pastRef.current.pop();
+      if (!prev) return s;
+      futureRef.current.push(structuredClone(s));
+      lastKeyRef.current = { key: null, t: 0 };
+      return prev;
+    });
+    setHistTick((t) => t + 1);
+  }, []);
+
+  const redo = useCallback(() => {
+    setState((s) => {
+      const next = futureRef.current.pop();
+      if (!next) return s;
+      pastRef.current.push(structuredClone(s));
+      lastKeyRef.current = { key: null, t: 0 };
+      return next;
+    });
+    setHistTick((t) => t + 1);
+  }, []);
+
+  void histTick; // re-render trigger so the undo/redo buttons enable/disable
+
+  // global ⌘Z / ⇧⌘Z (skipped while typing in an input/textarea)
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      const tag = (e.target as HTMLElement)?.tagName;
+      if (tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT") return;
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "z") {
+        e.preventDefault();
+        if (e.shiftKey) redo();
+        else undo();
+      }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [undo, redo]);
 
   const patchText = (id: string, fn: (t: PromoState["texts"][number]) => void) =>
     patch((s) => {
@@ -291,7 +364,7 @@ export default function PromoStudio() {
   };
 
   const loadDesign = (d: DesignRow) => {
-    setState(d.state);
+    replaceState(d.state);
     setDesignId(d.id);
     setSelected(null);
     setMenu(null);
@@ -323,6 +396,7 @@ export default function PromoStudio() {
     mode: "move" | "resize";
     handle?: string;
     id: string;
+    key: string;
     startX: number;
     startY: number;
     orig: { x: number; y: number; w: number; h: number; size?: number; fx?: number; fy?: number };
@@ -356,7 +430,7 @@ export default function PromoStudio() {
       const hb = hitsRef.current.find((h) => h.id === id);
       if (t && hb) Object.assign(orig, hb.box, { size: t.size, x: t.pos[s.format].x, y: t.pos[s.format].y, w: hb.box.w, h: hb.box.h });
     }
-    dragRef.current = { mode, handle, id, startX: p.x, startY: p.y, orig };
+    dragRef.current = { mode, handle, id, key: `drag-${Date.now()}`, startX: p.x, startY: p.y, orig };
 
     const move = (ev: PointerEvent) => onDrag(ev);
     const up = () => {
@@ -412,7 +486,7 @@ export default function PromoStudio() {
         t.size = clamp(Math.round((d.orig.size ?? t.size) * ratio), 9, 420);
       }
       return s;
-    });
+    }, d.key);
   };
 
   const resizeBox = (
@@ -478,7 +552,7 @@ export default function PromoStudio() {
         const fo = s.photo.focal[s.format];
         fo.zoom = clamp(Math.round(fo.zoom - e.deltaY * 0.05), 100, 260);
         return s;
-      });
+      }, "wheel-zoom");
     };
     el.addEventListener("wheel", onWheel, { passive: false });
     return () => el.removeEventListener("wheel", onWheel);
@@ -536,6 +610,31 @@ export default function PromoStudio() {
     setEditingText(null);
   };
 
+  // -- layer ordering ---------------------------------------------------------
+  const layerLabel = (id: string): string => {
+    if (id === "flag") return "Flag";
+    if (id === "logo") return "Logo";
+    if (id === "coach") return "Coach";
+    const t = state.texts.find((x) => x.id === id);
+    return t ? TEXT_KIND_LABELS[t.kind] : id;
+  };
+  const layerVisible = (id: string): boolean => {
+    if (id === "flag") return state.flag.visible;
+    if (id === "logo") return state.logo.visible;
+    if (id === "coach") return state.coach.visible;
+    return state.texts.find((x) => x.id === id)?.visible ?? false;
+  };
+  const moveLayer = (id: string, dir: 1 | -1) =>
+    patch((s) => {
+      const ord = promoOrder(s);
+      const i = ord.indexOf(id);
+      const j = i + dir;
+      if (i < 0 || j < 0 || j >= ord.length) return s;
+      [ord[i], ord[j]] = [ord[j], ord[i]];
+      s.order = ord;
+      return s;
+    });
+
   // -- hidden elements (for the restore menu) ---------------------------------
   const hiddenElements = useMemo(() => {
     const out: { id: string; label: string }[] = [];
@@ -578,7 +677,28 @@ export default function PromoStudio() {
           ))}
         </div>
 
-        {(["edition", "elements", "designs"] as const).map((m) => (
+        <div className="flex rounded-lg overflow-hidden" style={{ border: "1px solid var(--admin-border,#ddd)" }}>
+          <button
+            onClick={undo}
+            disabled={!pastRef.current.length}
+            title="Undo (⌘Z)"
+            className="px-3 py-1.5 text-sm font-bold disabled:opacity-30"
+            style={{ background: "var(--admin-surface,#fff)", color: "var(--admin-text,#111)" }}
+          >
+            ↶
+          </button>
+          <button
+            onClick={redo}
+            disabled={!futureRef.current.length}
+            title="Redo (⇧⌘Z)"
+            className="px-3 py-1.5 text-sm font-bold disabled:opacity-30"
+            style={{ background: "var(--admin-surface,#fff)", color: "var(--admin-text,#111)", borderLeft: "1px solid var(--admin-border,#ddd)" }}
+          >
+            ↷
+          </button>
+        </div>
+
+        {(["edition", "layers", "elements", "designs"] as const).map((m) => (
           <button
             key={m}
             onClick={() => {
@@ -587,9 +707,13 @@ export default function PromoStudio() {
               if (m === "designs") loadDesigns();
             }}
             className="px-3 py-1.5 rounded-lg text-xs font-bold"
-            style={{ background: "var(--admin-surface,#fff)", border: "1px solid var(--admin-border,#ddd)", color: "var(--admin-text,#111)" }}
+            style={{
+              background: menu === m ? "var(--admin-accent,#00afdb)" : "var(--admin-surface,#fff)",
+              border: "1px solid var(--admin-border,#ddd)",
+              color: menu === m ? "#fff" : "var(--admin-text,#111)",
+            }}
           >
-            {m === "edition" ? "From edition ▾" : m === "elements" ? "Elements ▾" : "Designs ▾"}
+            {m === "edition" ? "From edition ▾" : m === "layers" ? "Layers ▾" : m === "elements" ? "Elements ▾" : "Designs ▾"}
           </button>
         ))}
 
@@ -627,6 +751,58 @@ export default function PromoStudio() {
             ) : (
               <span style={{ color: "var(--admin-text-muted,#666)" }}>Loading editions…</span>
             ))}
+          {menu === "layers" && (
+            <div className="flex flex-col gap-0.5">
+              <div className="text-[10px] font-bold uppercase tracking-wider mb-1" style={{ color: "var(--admin-text-muted,#666)" }}>
+                Top layer first — ↑ raises, ↓ lowers
+              </div>
+              {[...promoOrder(state)].reverse().map((id, idx, arr) => (
+                <div
+                  key={id}
+                  className="flex items-center gap-2 px-2 py-1 rounded cursor-pointer"
+                  style={{ background: selected === id ? "rgba(0,175,219,0.12)" : undefined, opacity: layerVisible(id) ? 1 : 0.45 }}
+                  onClick={() => setSelected(id)}
+                >
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setHidden(id, !layerVisible(id));
+                    }}
+                    title={layerVisible(id) ? "Hide" : "Show"}
+                    className="w-5"
+                  >
+                    {layerVisible(id) ? "👁" : "◌"}
+                  </button>
+                  <span className="flex-1 text-xs font-semibold">{layerLabel(id)}</span>
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      moveLayer(id, 1);
+                    }}
+                    disabled={idx === 0}
+                    className="px-1.5 disabled:opacity-25"
+                    title="Raise"
+                  >
+                    ↑
+                  </button>
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      moveLayer(id, -1);
+                    }}
+                    disabled={idx === arr.length - 1}
+                    className="px-1.5 disabled:opacity-25"
+                    title="Lower"
+                  >
+                    ↓
+                  </button>
+                </div>
+              ))}
+              <div className="text-[10px] mt-1" style={{ color: "var(--admin-text-muted,#666)" }}>
+                Photo & colour washes are always the base.
+              </div>
+            </div>
+          )}
           {menu === "elements" && (
             <div className="flex flex-wrap gap-3">
               {[
@@ -686,7 +862,7 @@ export default function PromoStudio() {
                 )}
                 <button
                   onClick={() => {
-                    setState(defaultPromoState());
+                    replaceState(defaultPromoState());
                     setDesignId(null);
                     setMenu(null);
                   }}
@@ -783,7 +959,7 @@ export default function PromoStudio() {
               {sel === "photo" && (
                 <>
                   <button onClick={() => setPicker("photo")} className="underline">replace</button>
-                  <Mini label="zoom" min={100} max={260} value={state.photo.focal[fmt].zoom} onChange={(v) => patch((s) => ((s.photo.focal[s.format].zoom = v), s))} />
+                  <Mini label="zoom" min={100} max={260} value={state.photo.focal[fmt].zoom} onChange={(v) => patch((s) => ((s.photo.focal[s.format].zoom = v), s), "sl-zoom")} />
                   <span className="opacity-60">drag = focus · wheel = zoom</span>
                 </>
               )}
@@ -798,10 +974,10 @@ export default function PromoStudio() {
                       <option key={f.code} value={`/flags/${f.code}.svg`} className="text-black">{f.name}</option>
                     ))}
                   </select>
-                  <Mini label="opacity" min={5} max={100} value={Math.round(state.flag.opacity * 100)} onChange={(v) => patch((s) => ((s.flag.opacity = v / 100), s))} />
-                  <Mini label="rotate" min={-45} max={45} value={state.flag.rotate} onChange={(v) => patch((s) => ((s.flag.rotate = v), s))} />
-                  <Mini label="fade" min={0} max={60} value={state.flag.fadeSide} onChange={(v) => patch((s) => ((s.flag.fadeSide = v), s))} />
-                  <Mini label="fade ↓" min={5} max={90} value={state.flag.fadeDown[fmt]} onChange={(v) => patch((s) => ((s.flag.fadeDown[s.format] = v), s))} />
+                  <Mini label="opacity" min={5} max={100} value={Math.round(state.flag.opacity * 100)} onChange={(v) => patch((s) => ((s.flag.opacity = v / 100), s), "sl-op")} />
+                  <Mini label="rotate" min={-45} max={45} value={state.flag.rotate} onChange={(v) => patch((s) => ((s.flag.rotate = v), s), "sl-rot")} />
+                  <Mini label="fade" min={0} max={60} value={state.flag.fadeSide} onChange={(v) => patch((s) => ((s.flag.fadeSide = v), s), "sl-fs")} />
+                  <Mini label="fade ↓" min={5} max={90} value={state.flag.fadeDown[fmt]} onChange={(v) => patch((s) => ((s.flag.fadeDown[s.format] = v), s), "sl-fd")} />
                   <button
                     onClick={() => patch((s) => ((s.flag.blend = s.flag.blend === "screen" ? "normal" : "screen"), s))}
                     className="underline"
@@ -859,7 +1035,7 @@ export default function PromoStudio() {
               {selText && (
                 <>
                   <button onClick={() => setEditingText(sel)} className="underline">edit text</button>
-                  <Mini label="size" min={9} max={selText.kind === "place" ? 420 : 90} value={selText.size} onChange={(v) => patchText(sel!, (t) => (t.size = v))} />
+                  <Mini label="size" min={9} max={selText.kind === "place" ? 420 : 90} value={selText.size} onChange={(v) => patch((s) => { const t = s.texts.find((x) => x.id === sel); if (t) t.size = v; return s; }, "sl-size")} />
                 </>
               )}
               <button
