@@ -27,7 +27,10 @@ const THEMES: Record<Division, {
   contactEmail: string;
 }> = {
   experience: {
-    logo: `${LOGOS}/np7-experience-logo.png`, logoLight: `${LOGOS}/np7-experience-logo.png`, logoAlt: "NP7 Experience", logoW: 168,
+    // logoLight carries a BAKED dark glow: Outlook strips CSS gradients and
+    // drop-shadows, so the fade under the logo simply doesn't exist there —
+    // the glow lives in the pixels instead and reads on any photo, anywhere.
+    logo: `${LOGOS}/np7-experience-logo.png`, logoLight: `${LOGOS}/np7-experience-logo-glow.png`, logoAlt: "NP7 Experience", logoW: 168,
     accent: "#00afdb", accentText: "#ffffff",
     gradient: "linear-gradient(90deg,#ffc42e 0%,#f47b20 48%,#00afdb 100%)",
     ruleImage: "https://media.np-seven.com/brand/email/np7-rule-experience.png",

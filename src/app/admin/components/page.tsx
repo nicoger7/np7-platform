@@ -32,6 +32,7 @@ interface Component {
   sell_price: number | null;
   addon_available: boolean;
   offer_at_booking?: boolean;
+  gear_option?: string | null;
   payment_mode?: string | null;
   payment_note?: string | null;
   scope: string | null;
@@ -136,7 +137,7 @@ export default function ComponentsPage() {
   );
   const emptyForm = {
     name: "", category: "coaching", description: "", unit_cost: "", sell_price: "",
-    addon_available: false, offer_at_booking: false, payment_mode: "np7", payment_note: "", notes: "", is_global: true, experience_id: "", edition_id: "",
+    addon_available: false, offer_at_booking: false, gear_option: "", payment_mode: "np7", payment_note: "", notes: "", is_global: true, experience_id: "", edition_id: "",
     hotel_id: "", room_type: "",
   };
   const [form, setForm] = useState(emptyForm);
@@ -242,6 +243,7 @@ export default function ComponentsPage() {
       sell_price: c.sell_price?.toString() || "",
       addon_available: c.addon_available || false,
       offer_at_booking: c.offer_at_booking || false,
+      gear_option: c.gear_option || "",
       payment_mode: c.payment_mode || "np7",
       payment_note: c.payment_note || "",
       notes: c.notes || "",
@@ -274,6 +276,7 @@ export default function ComponentsPage() {
       sell_price: form.sell_price ? Number(form.sell_price) : null,
       addon_available: form.addon_available,
       offer_at_booking: form.offer_at_booking ?? false,
+      gear_option: form.gear_option || null,
       payment_mode: form.payment_mode,
       payment_note: form.payment_mode === "direct" ? (form.payment_note.trim() || null) : null,
       notes: form.notes || null,
@@ -387,8 +390,18 @@ export default function ComponentsPage() {
           </label>
           <label className="flex items-center gap-2 text-sm admin-heading cursor-pointer mt-2">
             <input type="checkbox" checked={form.offer_at_booking ?? false} onChange={(e) => setForm({ ...form, offer_at_booking: e.target.checked })} className="w-4 h-4 accent-[#0aa3c7]" />
-            Offer at booking <span className="admin-faint text-xs">— checkbox in the public booking flow (rental, storage …); price = sell price</span>
+            Offer at booking <span className="admin-faint text-xs">— optional extra checkbox in the public booking flow; price = sell price</span>
           </label>
+          <div className="mt-3">
+            <label className="block text-xs font-semibold admin-muted mb-1">
+              Gear role <span className="admin-faint font-normal">— makes this component govern the public Rental / Storage / Own-gear toggle for its experience &amp; scope (sell price = the money truth)</span>
+            </label>
+            <select className="admin-input border rounded-lg px-3 py-2 text-sm" value={form.gear_option ?? ""} onChange={(e) => setForm({ ...form, gear_option: e.target.value })}>
+              <option value="">Not a gear option</option>
+              <option value="rental">Rental — the gear-rental option</option>
+              <option value="storage">Storage — the own-gear storage option</option>
+            </select>
+          </div>
         </div>
       </div>
       {/* Payment mode belongs under the "Add-on available" row it depends on —
