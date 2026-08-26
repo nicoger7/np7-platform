@@ -283,8 +283,10 @@ export default function HomeContentPage() {
             </Card>
             <Card title="Slow-connection photos" hint="only shown when the video can't run">
               <p className="text-xs admin-faint -mt-1">
-                These crossfade when the video fails to load, no data arrives within 6s, or the visitor has
-                &ldquo;reduce motion&rdquo; on — pick shots that survive a vertical phone crop.
+                Shown when the video fails to load, no data arrives within 6s, or the visitor has
+                &ldquo;reduce motion&rdquo; on. <strong>One photo per Find-your-fit element, in order:</strong>{" "}
+                1 = The enthusiast · 2 = The comeback · 3 = The first-timer · 4 = Together — scrolling to the
+                next element fades the matching photo in. Pick shots that survive a vertical phone crop.
               </p>
               <div className="grid sm:grid-cols-2 gap-3">
                 {images.map((img, i) => (

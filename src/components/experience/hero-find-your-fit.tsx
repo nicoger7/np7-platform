@@ -231,11 +231,17 @@ export function HeroFindYourFit({ src, poster, fallbackImages, children }: { src
         <div ref={zoomRef} className="absolute inset-0 will-change-transform">
           <video ref={videoRef} src={src} poster={poster} muted playsInline preload="auto" tabIndex={-1} aria-hidden disablePictureInPicture className="absolute inset-0 w-full h-full object-cover pointer-events-none" />
           {/* The photos ARE the loading state: they cover the video until it is
-              memory-backed, then fade away. Slow connections never see a stutter
-              — they see a slideshow that happens to become a video. */}
-          {fallbackImages && fallbackImages.length > 1 && (
+              memory-backed, then fade away. And they are not a random slideshow:
+              ONE photo per Find-your-fit element — scrolling to the next fit
+              fades the next photo in, so the fallback tells the same story the
+              video would (Nico, 2026-08-27). */}
+          {fallbackImages && fallbackImages.length > 0 && (
             <div className={`absolute inset-0 transition-opacity duration-1000 ${videoReady ? "opacity-0 pointer-events-none" : "opacity-100"}`} aria-hidden>
-              <Slideshow images={fallbackImages} interval={6000} />
+              {fallbackImages.map((img, i) => (
+                <div key={i}
+                  className="absolute inset-0 bg-cover bg-center transition-opacity duration-1000"
+                  style={{ backgroundImage: `url('${img}')`, opacity: Math.min(active, fallbackImages.length - 1) === i ? 1 : 0 }} />
+              ))}
             </div>
           )}
         </div>
