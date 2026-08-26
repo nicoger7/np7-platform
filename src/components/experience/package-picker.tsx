@@ -275,9 +275,36 @@ export function PackagePicker({ packages, extras = [], currency = "EUR", reserve
           })()}
         </div>
 
+        {/* the gear choice — a quiet three-way toggle, no prices shown: the
+            TOTAL adjusts, the deltas stay backstage (Nico, 2026-08-27). The
+            default mirrors what the selected package actually contains. */}
+        {quote?.gear && (
+          <div>
+            <p className="text-[11px] font-bold tracking-[0.2em] uppercase text-[#9aa6ac] mb-3">2 · Gear</p>
+            <div className="inline-flex rounded-full bg-white border border-[#e6eef0] p-1 shadow-sm">
+              {([
+                ...(quote.gear.deltas.rental != null ? [{ key: "rental" as const, label: "Rental gear" }] : []),
+                ...(quote.gear.deltas.storage != null ? [{ key: "storage" as const, label: "Own gear + storage" }] : []),
+                { key: "none" as const, label: "Own gear" },
+              ]).map((opt) => (
+                <button key={opt.key} type="button"
+                  onClick={() => { gearTouched.current = true; setGear(opt.key); }}
+                  className={`px-4 sm:px-5 py-2 rounded-full text-[13px] font-bold transition-colors ${gear === opt.key ? "bg-[#00afdb] text-white" : "text-[#5a6b72] hover:text-[#00374a]"}`}>
+                  {opt.label}
+                </button>
+              ))}
+            </div>
+            <p className="text-[12.5px] text-[#5a6b72] mt-2">
+              {gear === "rental" ? "Latest boards & sails for the whole week — all sorted for you."
+                : gear === "storage" ? "You bring your own kit — it stays rigged and stored at the centre."
+                : "You bring and handle your own gear."}
+            </p>
+          </div>
+        )}
+
         {/* accommodation — hotels as photo cards; rooms unfold inside the chosen hotel */}
         <div>
-          <p className="text-[11px] font-bold tracking-[0.2em] uppercase text-[#9aa6ac] mb-3">2 · Accommodation</p>
+          <p className="text-[11px] font-bold tracking-[0.2em] uppercase text-[#9aa6ac] mb-3">3 · Accommodation</p>
           <div className="space-y-2.5">
             {groups.map((g) => {
               const groupActive = g.rooms.some((r) => r.id === selected?.id);
@@ -437,32 +464,6 @@ export function PackagePicker({ packages, extras = [], currency = "EUR", reserve
           </div>
         </div>
 
-        {/* the gear choice — a quiet three-way toggle, no prices shown: the
-            TOTAL adjusts, the deltas stay backstage (Nico, 2026-08-27). The
-            default mirrors what the selected package actually contains. */}
-        {quote?.gear && (
-          <div>
-            <p className="text-[11px] font-bold tracking-[0.2em] uppercase text-[#9aa6ac] mb-3">3 · Gear</p>
-            <div className="inline-flex rounded-full bg-white border border-[#e6eef0] p-1 shadow-sm">
-              {([
-                ...(quote.gear.deltas.rental != null ? [{ key: "rental" as const, label: "Rental gear" }] : []),
-                ...(quote.gear.deltas.storage != null ? [{ key: "storage" as const, label: "Own gear + storage" }] : []),
-                { key: "none" as const, label: "Own gear" },
-              ]).map((opt) => (
-                <button key={opt.key} type="button"
-                  onClick={() => { gearTouched.current = true; setGear(opt.key); }}
-                  className={`px-4 sm:px-5 py-2 rounded-full text-[13px] font-bold transition-colors ${gear === opt.key ? "bg-[#00afdb] text-white" : "text-[#5a6b72] hover:text-[#00374a]"}`}>
-                  {opt.label}
-                </button>
-              ))}
-            </div>
-            <p className="text-[12.5px] text-[#5a6b72] mt-2">
-              {gear === "rental" ? "Latest boards & sails for the whole week — all sorted for you."
-                : gear === "storage" ? "You bring your own kit — it stays rigged and stored at the centre."
-                : "You bring and handle your own gear."}
-            </p>
-          </div>
-        )}
 
         {/* booking-time extras — one checkbox each; ticking creates a real
             add-on on the booking, so every money surface already knows it */}
