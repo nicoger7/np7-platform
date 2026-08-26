@@ -520,12 +520,13 @@ const labelClass = "block text-xs font-medium admin-muted mb-1";
                   {selUnitWeeks.length > 0 && <p className="text-[11px] admin-faint">Rooms are <b>allotment slots</b>, not real hotel room numbers. A week&apos;s stay defaults to the edition&apos;s dates — set check-in/out when a guest extends, and overlapping stays (even across editions) get flagged ⚠.</p>}
                   {[...selUnitWeeks].sort((a, b) => (a.edition?.year ?? 0) - (b.edition?.year ?? 0) || String(a.edition?.label ?? "").localeCompare(String(b.edition?.label ?? ""))).map((w) => {
                     const g = w.booking?.name ? w.booking.name.split(" — ")[0].split(" - ")[0] : null;
+                    const mates = companionsOf(w.booking, g);
                     const lbl = w.edition ? editionLabel(w.edition) : "—";
                     return (
                       <div key={w.id} className="flex items-center gap-2 px-3 py-2 rounded-lg" style={{ border: "1px solid var(--admin-border)" }}>
                         <span className={`inline-block px-2 py-0.5 rounded text-[10px] font-bold uppercase ${statusColor(w.status)}`}>{w.status}</span>
                         <span className="text-sm admin-heading">{lbl}</span>
-                        <span className="text-xs admin-muted truncate">{g ? (w.booking ? <Link href={`/admin/bookings/${w.booking.id}`} className="text-[#0aa3c7] hover:underline">{g}</Link> : g) : "free"}{w.partner_tag_along ? ` (+${w.partner_tag_along})` : ""}</span>
+                        <span className="text-xs admin-muted truncate">{g ? (w.booking ? <Link href={`/admin/bookings/${w.booking.id}`} className="text-[#0aa3c7] hover:underline">{g}</Link> : g) : "free"}{w.partner_tag_along ? ` (+${w.partner_tag_along})` : ""}{mates.length ? <span className="admin-faint"> · with {mates.join(", ")}</span> : null}</span>
                         {w.check_in && <span className="text-[10px] admin-faint">{formatDate(w.check_in)} → {formatDate(w.check_out)}</span>}
                         {(() => {
                           const cf = weekConflicts.get(w.id) ?? [];
@@ -639,10 +640,14 @@ const labelClass = "block text-xs font-medium admin-muted mb-1";
                               // one chip per WEEK — a shared double is two rows,
                               // and "who is in the room" means everyone in it
                               const w = rows[0];
-                              const names = rows.flatMap((r) => [
-                                r.booking?.name ? r.booking.name.split(" — ")[0].split(" - ")[0] : null,
-                                r.partner_tag_along ? `+${r.partner_tag_along.split(" ")[0]}` : null,
-                              ]).filter(Boolean);
+                              const names = rows.flatMap((r) => {
+                                const guest = r.booking?.name ? r.booking.name.split(" — ")[0].split(" - ")[0] : null;
+                                return [
+                                  guest,
+                                  ...companionsOf(r.booking, guest).map((m) => `+${m.split(" ")[0]}`),
+                                  r.partner_tag_along ? `+${r.partner_tag_along.split(" ")[0]}` : null,
+                                ];
+                              }).filter(Boolean);
                               const lbl = w.edition ? editionLabel(w.edition) : "—";
                               const tone = rows.find((r) => r.booking) ?? w;
                               return (
@@ -667,4 +672,25 @@ const labelClass = "block text-xs font-medium admin-muted mb-1";
       )}
     </div>
   );
+}
+
+
+/** Companion names from a booking's free-text traveling_with — "Lukas Prien
+    (traveling together), Lukas :-)" → ["Lukas Prien"]. The room shows everyone
+    sleeping in it, not just whoever holds the allotment slot. */
+function companionsOf(booking: { traveling_with?: string | null } | null | undefined, guest: string | null): string[] {
+  const raw = booking?.traveling_with ?? "";
+  if (!raw.trim()) return [];
+  const seen = new Set<string>();
+  const out: string[] = [];
+  for (const part of raw.split(",")) {
+    const name = part.replace(/\([^)]*\)/g, "").replace(/[^\p{L}\p{M}' .-]/gu, "").replace(/\s+/g, " ").trim();
+    if (!name || name.length < 2) continue;
+    const key = name.toLowerCase();
+    if (seen.has(key)) continue;
+    if (guest && (key === guest.toLowerCase() || guest.toLowerCase().startsWith(key))) continue;
+    seen.add(key);
+    out.push(name);
+  }
+  return out;
 }

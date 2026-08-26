@@ -38,7 +38,7 @@ export async function GET(request: NextRequest) {
     .select(
       `
       *,
-      booking:exp_bookings(id, name, status, contacts(id, name, email)),
+      booking:exp_bookings(id, name, status, traveling_with, contacts(id, name, email)),
       edition:edition_id(year, label),
       room:room_id(id, sleeps)
     `
