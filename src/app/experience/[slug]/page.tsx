@@ -228,7 +228,7 @@ export default async function ExperienceDetailPage({ params, searchParams }: Pro
   }
   let query = supabase
     .from("exp_experiences")
-    .select("id,title,location,currency,price,description,hero_image,gallery,airport_code,exp_editions(id,label,coaches,date_start,date_end,max_spots,spots_taken,deposit,status,launch_discount_pct,launch_price_until,public_from,video_analysis,photoshoot),exp_packages(id,name,price,status,edition_id,category,includes,exp_package_components(show_on_website,quantity,exp_components(name,description,category)))")
+    .select("id,title,location,currency,price,description,hero_image,gallery,airport_code,exp_editions(id,label,coaches,date_start,date_end,max_spots,spots_taken,deposit,status,launch_discount_pct,launch_price_until,public_from,video_analysis,photoshoot),exp_packages(id,name,price,status,archived_at,edition_id,category,includes,exp_package_components(show_on_website,quantity,exp_components(name,description,category)))")
     .eq("slug", slug);
   if (!team) query = query.eq("status", "published");
   const { data: rows } = await query.order("status", { ascending: false }).limit(1);
@@ -323,7 +323,9 @@ export default async function ExperienceDetailPage({ params, searchParams }: Pro
     : null;
 
   // group active packages by edition so each week only shows its own (no dupes)
-  const activePackages = (experience.exp_packages ?? []).filter((p) => (team ? p.status === "active" || p.status === "draft" : p.status === "active") && p.price != null);
+  // archived_at is the soft-delete truth; status alone let archived rows keep
+  // selling (they stayed status='active' — exactly the double gear offer bug).
+  const activePackages = (experience.exp_packages ?? []).filter((p) => !(p as { archived_at?: string | null }).archived_at && (team ? p.status === "active" || p.status === "draft" : p.status === "active") && p.price != null);
 
   // Resolve each package's hotel for the booking step (name + preview photo).
   // Tolerant: hotels media columns + exp_packages.hotel_id arrive in migration 023,
