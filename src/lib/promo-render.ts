@@ -12,7 +12,7 @@
  */
 
 import type { Box, PromoFormat, PromoState, TextLayer } from "./promo-template";
-import { PROMO_FORMATS, promoOrder } from "./promo-template";
+import { GRADIENT_PRESETS, PROMO_FORMATS, promoOrder } from "./promo-template";
 
 export interface PromoFonts {
   /** Canvas font-family lists, e.g. `"__Anton_x", "__Anton_Fallback_x"`. */
@@ -189,7 +189,8 @@ export function drawPromo(
 
   // 3+ — the movable layers, in the design's own z-order (bottom→top)
   for (const layerId of promoOrder(state)) {
-    if (layerId === "flag") drawFlagLayer(ctx, state, fmt, hits);
+    if (layerId === "gradient") drawGradientLayer(ctx, state, W, H); // no hit box — select via Layers panel
+    else if (layerId === "flag") drawFlagLayer(ctx, state, fmt, hits);
     else if (layerId === "logo") drawLogoLayer(ctx, state, fmt, hits);
     else if (layerId === "coach") drawCoachLayer(ctx, state, fmt, hits);
     else {
@@ -200,6 +201,25 @@ export function drawPromo(
 
   ctx.restore();
   return hits;
+}
+
+// NP7 gradient scrim: brand colours along the run, dissolving to transparent —
+// solid before `start`, gone after `end`, overall opacity via `strength`.
+function drawGradientLayer(ctx: CanvasRenderingContext2D, state: PromoState, W: number, H: number) {
+  const g = state.gradient;
+  if (!g?.visible) return;
+  const preset = GRADIENT_PRESETS[g.preset] ?? GRADIENT_PRESETS["sun-to-sea"];
+  const s = Math.max(0, Math.min(1, g.strength / 100));
+  const a0 = Math.max(0, Math.min(1, g.start / 100));
+  const a1 = Math.max(a0 + 0.02, Math.min(1, g.end / 100));
+  const rgba = (p: (typeof preset.stops)[number]) => `rgba(${p.rgb[0]},${p.rgb[1]},${p.rgb[2]},${(p.a * s).toFixed(3)})`;
+  const stops: Stop[] = [
+    [0, rgba(preset.stops[0])],
+    ...preset.stops.map((p): Stop => [a0 + p.at * (a1 - a0), rgba(p)]),
+    [1, `rgba(${preset.stops.at(-1)!.rgb.join(",")},0)`],
+  ];
+  ctx.fillStyle = cssGradient(ctx, 0, 0, W, H, g.angle, stops);
+  ctx.fillRect(0, 0, W, H);
 }
 
 function drawFlagLayer(ctx: CanvasRenderingContext2D, state: PromoState, fmt: PromoFormat, hits: HitBox[]) {

@@ -47,6 +47,63 @@ export interface ImageLayer {
   shadow?: boolean;
 }
 
+/** Full-canvas NP7-brand gradient that fades to transparent — a designable
+ *  scrim (extra warmth, a readability base, a colour mood) that lives in the
+ *  layer stack like everything else. */
+export interface GradientLayer {
+  visible: boolean;
+  preset: string; // key of GRADIENT_PRESETS
+  angle: number; // CSS-style: 0 = to top (colour sits at the bottom edge)
+  strength: number; // 0–100 overall opacity
+  start: number; // % of the run where the fade begins (solid before it)
+  end: number; // % where it is fully transparent
+}
+
+export const GRADIENT_PRESETS: Record<
+  string,
+  { label: string; stops: { at: number; rgb: [number, number, number]; a: number }[] }
+> = {
+  "sun-to-sea": {
+    label: "Sun to sea",
+    stops: [
+      { at: 0, rgb: [255, 210, 87], a: 1 },
+      { at: 0.45, rgb: [244, 123, 32], a: 0.75 },
+      { at: 0.8, rgb: [0, 175, 219], a: 0.3 },
+      { at: 1, rgb: [0, 175, 219], a: 0 },
+    ],
+  },
+  sunset: {
+    label: "Sunset",
+    stops: [
+      { at: 0, rgb: [255, 210, 87], a: 1 },
+      { at: 0.55, rgb: [244, 123, 32], a: 0.6 },
+      { at: 1, rgb: [244, 123, 32], a: 0 },
+    ],
+  },
+  "deep-sea": {
+    label: "Deep sea",
+    stops: [
+      { at: 0, rgb: [0, 32, 44], a: 1 },
+      { at: 0.6, rgb: [0, 36, 52], a: 0.45 },
+      { at: 1, rgb: [0, 44, 60], a: 0 },
+    ],
+  },
+  cyan: {
+    label: "Cyan",
+    stops: [
+      { at: 0, rgb: [0, 175, 219], a: 0.9 },
+      { at: 1, rgb: [0, 175, 219], a: 0 },
+    ],
+  },
+  gold: {
+    label: "Gold",
+    stops: [
+      { at: 0, rgb: [255, 210, 87], a: 0.95 },
+      { at: 1, rgb: [255, 196, 46], a: 0 },
+    ],
+  },
+};
+
 export type TextKind =
   | "eyebrow"
   | "place"
@@ -78,6 +135,8 @@ export interface PromoState {
   coach: ImageLayer;
   logo: ImageLayer;
   texts: TextLayer[];
+  /** Optional NP7 gradient scrim — absent in designs saved before it existed. */
+  gradient?: GradientLayer;
   /** Draw order of the movable layers, bottom→top. Photo + washes are always
    *  the base. Older saved designs may lack this — use promoOrder(). */
   order?: string[];
@@ -85,10 +144,19 @@ export interface PromoState {
 
 /** The effective layer order (bottom→top), tolerating pre-`order` designs. */
 export function promoOrder(state: PromoState): string[] {
-  const known = new Set(["flag", "logo", "coach", ...state.texts.map((t) => t.id)]);
+  const base = state.gradient ? ["gradient"] : [];
+  const known = new Set([...base, "flag", "logo", "coach", ...state.texts.map((t) => t.id)]);
   const stored = (state.order ?? []).filter((id) => known.has(id));
-  for (const id of ["flag", "logo", ...state.texts.map((t) => t.id), "coach"])
+  for (const id of [...base, "flag", "logo", ...state.texts.map((t) => t.id), "coach"])
     if (!stored.includes(id)) stored.push(id);
+  // gradient joins BELOW everything movable when an older order predates it
+  if (state.gradient && !(state.order ?? []).includes("gradient")) {
+    const i = stored.indexOf("gradient");
+    if (i > 0) {
+      stored.splice(i, 1);
+      stored.unshift("gradient");
+    }
+  }
   return stored;
 }
 
@@ -146,6 +214,7 @@ export function defaultPromoState(): PromoState {
         "916": { x: 56, y: 96, w: 232, h: 164 },
       },
     },
+    gradient: { visible: false, preset: "sun-to-sea", angle: 0, strength: 60, start: 0, end: 55 },
     texts: [
       { id: "eyebrow", kind: "eyebrow", visible: true, text: "NP7 Coaching Week", size: 27, pos: { "45": { x: 56, y: 592 }, "916": { x: 56, y: 1070 } } },
       { id: "place", kind: "place", visible: true, text: "Outer\nBanks", size: 186, pos: { "45": { x: 56, y: 648 }, "916": { x: 56, y: 1126 } } },
@@ -156,7 +225,7 @@ export function defaultPromoState(): PromoState {
       { id: "partner", kind: "partner", visible: true, text: "Partner event with Ocean Air Sports  ·  *np-seven.com*", size: 21, pos: { "45": { x: 56, y: 1272 }, "916": { x: 56, y: 1750 } } },
       { id: "with", kind: "with", visible: true, text: "Dennis Robinson", size: 34, pos: { "45": { x: 1024, y: 56 }, "916": { x: 1024, y: 104 } } },
     ],
-    order: ["flag", "logo", "eyebrow", "place", "subtitle", "chip-gold", "chip-glass", "details", "partner", "with", "coach"],
+    order: ["gradient", "flag", "logo", "eyebrow", "place", "subtitle", "chip-gold", "chip-glass", "details", "partner", "with", "coach"],
   };
 }
 

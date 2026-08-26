@@ -17,6 +17,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import ImagePickerModal from "@/components/image-picker-modal";
 import {
+  GRADIENT_PRESETS,
   PROMO_FORMATS,
   PROMO_FLAGS,
   TEXT_KIND_LABELS,
@@ -285,7 +286,10 @@ export default function PromoStudio() {
   const setHidden = (id: string, visible: boolean) =>
     patch((s) => {
       if (id === "photo") return s;
-      if (id === "flag") s.flag.visible = visible;
+      if (id === "gradient")
+        // older designs may predate the gradient layer — create it on first use
+        s.gradient = { ...(s.gradient ?? defaultPromoState().gradient!), visible };
+      else if (id === "flag") s.flag.visible = visible;
       else if (id === "coach") s.coach.visible = visible;
       else if (id === "logo") s.logo.visible = visible;
       else {
@@ -364,6 +368,8 @@ export default function PromoStudio() {
   };
 
   const loadDesign = (d: DesignRow) => {
+    // normalize designs saved before the gradient layer existed
+    if (!d.state.gradient) d.state.gradient = { ...defaultPromoState().gradient!, visible: false };
     replaceState(d.state);
     setDesignId(d.id);
     setSelected(null);
@@ -408,6 +414,9 @@ export default function PromoStudio() {
   };
 
   const selectedBox = (): { x: number; y: number; w: number; h: number } | null => {
+    // the gradient covers the whole canvas and has no hit box (it would eat
+    // every click) — it is selected from the Layers panel only
+    if (selected === "gradient") return { x: 0, y: 0, w: W, h: H };
     const hb = hitsRef.current.find((h) => h.id === selected);
     return hb ? hb.box : null;
   };
@@ -615,6 +624,7 @@ export default function PromoStudio() {
     if (id === "flag") return "Flag";
     if (id === "logo") return "Logo";
     if (id === "coach") return "Coach";
+    if (id === "gradient") return "NP7 gradient";
     const t = state.texts.find((x) => x.id === id);
     return t ? TEXT_KIND_LABELS[t.kind] : id;
   };
@@ -622,6 +632,7 @@ export default function PromoStudio() {
     if (id === "flag") return state.flag.visible;
     if (id === "logo") return state.logo.visible;
     if (id === "coach") return state.coach.visible;
+    if (id === "gradient") return state.gradient?.visible ?? false;
     return state.texts.find((x) => x.id === id)?.visible ?? false;
   };
   // Drag & drop reordering in the Layers panel. `over` is the insertion SLOT
@@ -842,6 +853,7 @@ export default function PromoStudio() {
                 { id: "flag", label: "Flag", vis: state.flag.visible },
                 { id: "coach", label: "Coach", vis: state.coach.visible },
                 { id: "logo", label: "Logo", vis: state.logo.visible },
+                { id: "gradient", label: "NP7 gradient", vis: state.gradient?.visible ?? false },
                 ...state.texts.map((t) => ({ id: t.id, label: TEXT_KIND_LABELS[t.kind], vis: t.visible })),
               ].map((el) => (
                 <label key={el.id} className="flex items-center gap-1.5 text-xs font-semibold cursor-pointer">
@@ -1065,6 +1077,23 @@ export default function PromoStudio() {
                 </>
               )}
               {sel === "logo" && <button onClick={() => setPicker("logo")} className="underline">replace</button>}
+              {sel === "gradient" && state.gradient && (
+                <>
+                  <select
+                    value={state.gradient.preset}
+                    onChange={(e) => patch((s) => ((s.gradient!.preset = e.target.value), s))}
+                    className="bg-transparent border border-white/30 rounded px-1 py-0.5"
+                  >
+                    {Object.entries(GRADIENT_PRESETS).map(([k, p]) => (
+                      <option key={k} value={k} className="text-black">{p.label}</option>
+                    ))}
+                  </select>
+                  <Mini label="angle" min={0} max={360} value={state.gradient.angle} onChange={(v) => patch((s) => ((s.gradient!.angle = v), s), "sl-ga")} />
+                  <Mini label="strength" min={0} max={100} value={state.gradient.strength} onChange={(v) => patch((s) => ((s.gradient!.strength = v), s), "sl-gs")} />
+                  <Mini label="fade from" min={0} max={90} value={state.gradient.start} onChange={(v) => patch((s) => ((s.gradient!.start = v), s), "sl-g0")} />
+                  <Mini label="fade to" min={5} max={100} value={state.gradient.end} onChange={(v) => patch((s) => ((s.gradient!.end = v), s), "sl-g1")} />
+                </>
+              )}
               {selText && (
                 <>
                   <button onClick={() => setEditingText(sel)} className="underline">edit text</button>
