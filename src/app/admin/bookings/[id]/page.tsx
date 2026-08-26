@@ -141,6 +141,7 @@ interface AvailableExperience {
 interface AvailablePackage {
   id: string;
   name: string;
+  category?: string | null;
   price: number | null;
 }
 
@@ -166,7 +167,7 @@ export function BookingDetailPane({ bookingId, onBack }: { bookingId: string; on
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
   const [flightsDirty, setFlightsDirty] = useState(false);
-  const [tab, setTab] = useState<"details" | "payments" | "addons" | "rooms" | "documents">("details");
+  const [tab, setTab] = useState<"details" | "payments" | "addons" | "rooms" | "documents" | "notes">("details");
   // Back target — honour ?from= (e.g. opened from a member) so "back" returns to
   // where you came from, not always the Bookings list.
   const [backHref, setBackHref] = useState("/admin/bookings");
@@ -174,7 +175,7 @@ export function BookingDetailPane({ bookingId, onBack }: { bookingId: string; on
   useEffect(() => {
     const sp = new URLSearchParams(window.location.search);
     const t = sp.get("tab");
-    if (t === "addons" || t === "payments" || t === "rooms" || t === "documents") setTab(t);
+    if (t === "addons" || t === "payments" || t === "rooms" || t === "documents" || t === "notes") setTab(t);
     const from = sp.get("from");
     if (from) setBackHref(from);
   }, []);
@@ -182,6 +183,9 @@ export function BookingDetailPane({ bookingId, onBack }: { bookingId: string; on
   // Documents tab state
   const [documents, setDocuments] = useState<BookingDocument[]>([]);
   const [docsLoading, setDocsLoading] = useState(false);
+  type BookingNote = { id: string; body: string; author: string | null; created_at: string; done_at: string | null; struck_at: string | null };
+  const [notes, setNotes] = useState<BookingNote[]>([]);
+  const [noteDraft, setNoteDraft] = useState("");
   const [genError, setGenError] = useState<string | null>(null);
   const [generating, setGenerating] = useState<DocumentType | null>(null);
 
@@ -223,6 +227,7 @@ export function BookingDetailPane({ bookingId, onBack }: { bookingId: string; on
       setBooking(b);
       if (!b) { setLoading(false); return; } // no access / not found → graceful empty state
       fetchDocuments(); // also needed by the Payments tab to reconcile
+      fetchNotes();
       const expList = Array.isArray(exps?.experiences) ? exps.experiences : Array.isArray(exps) ? exps : [];
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       setExperiences(expList.map((e: any) => ({ id: e.id, title: e.title })));
@@ -252,6 +257,25 @@ export function BookingDetailPane({ bookingId, onBack }: { bookingId: string; on
 
   function update(field: string, value: unknown) {
     setBooking((prev) => (prev ? { ...prev, [field]: value } : prev));
+  }
+
+  async function fetchNotes() {
+    const res = await fetch(`/api/admin/bookings/${id}/notes`);
+    if (res.ok) setNotes((await res.json()).notes ?? []);
+  }
+  async function addNote() {
+    const text = noteDraft.trim();
+    if (!text) return;
+    const res = await fetch(`/api/admin/bookings/${id}/notes`, {
+      method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ body: text }),
+    });
+    if (res.ok) { setNoteDraft(""); fetchNotes(); }
+  }
+  async function patchNote(noteId: string, p: { done?: boolean; struck?: boolean }) {
+    const res = await fetch(`/api/admin/bookings/${id}/notes`, {
+      method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ noteId, ...p }),
+    });
+    if (res.ok) fetchNotes();
   }
 
   async function fetchDocuments() {
@@ -774,7 +798,7 @@ export function BookingDetailPane({ bookingId, onBack }: { bookingId: string; on
 
       {/* Tabs */}
       <div className="flex gap-1 mb-6" style={{ borderBottom: "1px solid var(--admin-border)" }}>
-        {(["details", "payments", "addons", "rooms", "documents"] as const)
+        {(["details", "payments", "addons", "rooms", "documents", "notes"] as const)
           .filter((t) => !noMoney || (t !== "payments" && t !== "documents"))
           .map((t) => (
           <button
@@ -784,7 +808,7 @@ export function BookingDetailPane({ bookingId, onBack }: { bookingId: string; on
               tab === t ? "admin-heading border-[var(--admin-accent)]" : "admin-muted border-transparent"
             }`}
           >
-            {t === "addons" ? `Add-ons (${booking.addons.length})` : t === "payments" ? `Payments (${booking.payments.length})` : t === "rooms" ? `Rooms (${booking.hotel_rooms.length})` : t === "documents" ? `Documents (${documents.length})` : t}
+            {t === "addons" ? `Add-ons (${booking.addons.length})` : t === "payments" ? `Payments (${booking.payments.length})` : t === "rooms" ? `Rooms (${booking.hotel_rooms.length})` : t === "documents" ? `Documents (${documents.length})` : t === "notes" ? `Notes (${notes.filter((x) => !x.done_at && !x.struck_at).length + (booking.notes ? 1 : 0)})` : t}
           </button>
         ))}
       </div>
@@ -839,7 +863,14 @@ export function BookingDetailPane({ bookingId, onBack }: { bookingId: string; on
               <SearchSelect
                 value={booking.package_id}
                 onChange={handlePackageChange}
-                options={packages.map((pkg) => ({ value: pkg.id, label: cleanPackageName(pkg.name), hint: pkg.price ? `€${pkg.price}` : undefined }))}
+                options={packages.map((pkg) => ({
+                  value: pkg.id,
+                  // Two packages can share a name ("No Hotel" beginner AND
+                  // advanced) — the coaching level (exp_packages.category)
+                  // is the distinguishing fact, so say it.
+                  label: cleanPackageName(pkg.name) + (pkg.category ? ` — ${pkg.category[0].toUpperCase()}${pkg.category.slice(1)}` : ""),
+                  hint: pkg.price ? `€${pkg.price}` : undefined,
+                }))}
                 placeholder="No package"
                 searchPlaceholder="Search packages…"
               />
@@ -1041,15 +1072,64 @@ export function BookingDetailPane({ bookingId, onBack }: { bookingId: string; on
               Notion sync still writes them) and both remain as optional columns
               on the bookings list. */}
 
-          {/* Notes */}
+        </div>
+      )}
+
+      {/* ─── Notes Tab — real entries: author, time, check, strike. The legacy
+             free-text column stays as the pinned System block (registration,
+             standby and cancellation flows write into it). ─── */}
+      {safeTab === "notes" && (
+        <div className="max-w-[720px] space-y-5">
           <div>
-            <label className={labelClass}>Notes</label>
+            <label className={labelClass}>System note <span className="admin-faint font-normal">— written by registration &amp; automations, editable</span></label>
             <textarea
-              className={`${inputClass} min-h-[100px] resize-y`}
+              className={`${inputClass} min-h-[80px] resize-y`}
               value={booking.notes || ""}
               onChange={(e) => update("notes", e.target.value || null)}
-              placeholder="Internal notes..."
+              placeholder="—"
             />
+          </div>
+
+          <div>
+            <label className={labelClass}>Add a note</label>
+            <div className="flex gap-2">
+              <textarea
+                className={`${inputClass} min-h-[60px] resize-y flex-1`}
+                value={noteDraft}
+                onChange={(e) => setNoteDraft(e.target.value)}
+                placeholder="e.g. Called about flight times — waiting for reply"
+              />
+              <button onClick={addNote} disabled={!noteDraft.trim()}
+                className="self-end px-4 py-2 bg-[var(--admin-accent)] hover:opacity-90 disabled:opacity-40 text-[var(--admin-accent-contrast)] text-sm font-bold rounded-lg transition-opacity">
+                Add
+              </button>
+            </div>
+          </div>
+
+          <div className="space-y-2">
+            {notes.map((nt) => (
+              <div key={nt.id} className="flex items-start gap-3 p-3.5 rounded-xl" style={{ border: "1px solid var(--admin-border)", backgroundColor: "var(--admin-surface)", opacity: nt.struck_at ? 0.55 : 1 }}>
+                <button
+                  onClick={() => patchNote(nt.id, { done: !nt.done_at })}
+                  title={nt.done_at ? "Un-check" : "Check off"}
+                  className={`mt-0.5 shrink-0 w-5 h-5 rounded-md border-2 grid place-items-center text-[12px] font-black transition-colors ${nt.done_at ? "bg-green-500 border-green-500 text-white" : "border-[var(--admin-border)] admin-faint hover:border-green-500"}`}>
+                  {nt.done_at ? "✓" : ""}
+                </button>
+                <div className="min-w-0 flex-1">
+                  <p className={`text-sm admin-heading whitespace-pre-line ${nt.struck_at ? "line-through" : ""}`}>{nt.body}</p>
+                  <p className="text-[11px] admin-faint mt-1">
+                    {nt.author || "Team"} · {new Date(nt.created_at).toLocaleString("de-DE", { day: "2-digit", month: "2-digit", year: "2-digit", hour: "2-digit", minute: "2-digit" })}
+                    {nt.done_at ? " · ✓ done" : ""}
+                  </p>
+                </div>
+                <button onClick={() => patchNote(nt.id, { struck: !nt.struck_at })}
+                  title={nt.struck_at ? "Restore" : "Strike through"}
+                  className="shrink-0 text-[11px] font-bold admin-faint hover:admin-heading transition-colors">
+                  {nt.struck_at ? "restore" : "strike"}
+                </button>
+              </div>
+            ))}
+            {notes.length === 0 && <p className="text-xs admin-faint">No notes yet.</p>}
           </div>
         </div>
       )}
