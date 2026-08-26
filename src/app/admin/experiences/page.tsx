@@ -152,7 +152,7 @@ export default function ExperiencesPage() {
   // Resolved tile crew per experience — the same logic the public cards use
   // (override → next week's team in list order). One global fallback coach
   // here put Dennis on every single tile.
-  const [crews, setCrews] = useState<Record<string, { name: string; cutout: string | null }[]>>({});
+  const [crews, setCrews] = useState<Record<string, { crew: { name: string; cutout: string | null }[]; placement: unknown | null }>>({});
   const [loading, setLoading] = useState(true);
   const [view, setView] = useState<ViewMode>(() => {
     if (typeof window !== "undefined") {
@@ -358,7 +358,9 @@ export default function ExperiencesPage() {
                       photo={exp.hero_image}
                       place={placeFromLocation(exp.location).toUpperCase()}
                       flag={flagFromLocation(exp.location)}
-                      coaches={crews[exp.id] ?? null}
+                      coaches={crews[exp.id]?.crew ?? null}
+                      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                      placement={(crews[exp.id]?.placement as any) ?? null}
                     />
                   ) : exp.hero_image ? (
                     // eslint-disable-next-line @next/next/no-img-element

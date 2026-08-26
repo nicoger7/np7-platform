@@ -19,7 +19,7 @@ export async function GET() {
     db.from("exp_experiences").select("id"),
     db.from("exp_editions").select("id,experience_id,date_start").order("date_start"),
     db.from("exp_coaches").select("id,name,cutout_url"),
-    db.from("exp_content").select("experience_id,tile_coaches"),
+    db.from("exp_content").select("experience_id,tile_coaches,card_placement"),
   ]);
 
   type Crew = { name: string; cutout: string | null };
@@ -62,24 +62,29 @@ export async function GET() {
   }
 
   const overrides = new Map<string, string[]>();
+  // The tuned tile placement (size/position from the adjuster) — without it
+  // the overview rendered default-sized giants over correct crews.
+  const placements = new Map<string, unknown>();
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   for (const r of (contentRows ?? []) as any[]) {
     if (Array.isArray(r.tile_coaches) && r.tile_coaches.length) {
       overrides.set(r.experience_id, r.tile_coaches.filter((x: unknown) => typeof x === "string"));
     }
+    if (r.card_placement && typeof r.card_placement === "object") placements.set(r.experience_id, r.card_placement);
   }
 
-  const out: Record<string, Crew[]> = {};
+  const out: Record<string, { crew: Crew[]; placement: unknown | null }> = {};
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   for (const e of (exps ?? []) as any[]) {
+    const placement = placements.get(e.id) ?? null;
     const ids = overrides.get(e.id);
     if (ids?.length) {
       const crew = ids.map((id) => coachById.get(id)).filter((x): x is Crew => Boolean(x)).slice(0, 3);
-      if (crew.length) { out[e.id] = crew; continue; }
+      if (crew.length) { out[e.id] = { crew, placement }; continue; }
     }
     const edId = nextEd.get(e.id);
     const crew = edId ? crewByEdition.get(edId) : undefined;
-    if (crew?.length) out[e.id] = crew;
+    out[e.id] = { crew: crew ?? [], placement };
   }
   return NextResponse.json(out);
 }
