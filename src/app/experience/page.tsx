@@ -28,11 +28,14 @@ const HERO_VIDEO = cdn('hero/windsurf-hero.mp4');
 const HERO_POSTER = cdn('hero/windsurf-hero-poster.jpg');
 // Slow-connection fallback: when the hero video can't play, these four
 // crossfade instead of one frozen frame — crew energy plus three destinations.
+// One per scene: [logo hero, enthusiast, comeback, first-timer, together]
+// (Nico's picks, 2026-08-27). Admin can override each in Homepage → landing.
 const HERO_FALLBACKS = [
-  HERO_POSTER,
-  cdn('experiences/np7-alacati/action/alacati-experience-group-on-water.jpg'),
-  cdn('experiences/np7-lake-garda-2026/action/rider-crossing-mountain-backdrop.jpg'),
-  cdn('experiences/np7-alacati/action/alacati-experience-action-nico.jpg'),
+  "https://media.np-seven.com/experiences/np7-bonaire/people/groups-hot-water-2025.jpg",
+  "https://media.np-seven.com/experiences/np7-bonaire/action/water-action-participant-8-nico-with-participant.jpg",
+  "https://media.np-seven.com/experiences/np7-bonaire/action/bonaire-nico-blue-water-action.jpg",
+  "https://media.np-seven.com/memories/123ad479-4ab9-4e47-b10f-9dff0339f58a/ALACATI2026-79-2.jpg",
+  "https://media.np-seven.com/memories/123ad479-4ab9-4e47-b10f-9dff0339f58a/ALACATI2026-200.jpg",
 ];
 
 // Dedicated background photo for the "Gift of NP7" band — a plain photo, NOT a

@@ -45,10 +45,19 @@ const LANDING_DEFAULTS = {
 } as const;
 
 const LANDING_IMAGE_DEFAULTS = [
-  "/cdn/assets/hero/windsurf-hero-poster.jpg",
-  "/cdn/assets/experiences/np7-alacati/action/alacati-experience-group-on-water.jpg",
-  "/cdn/assets/experiences/np7-lake-garda-2026/action/rider-crossing-mountain-backdrop.jpg",
-  "/cdn/assets/experiences/np7-alacati/action/alacati-experience-action-nico.jpg",
+  "https://media.np-seven.com/experiences/np7-bonaire/people/groups-hot-water-2025.jpg",
+  "https://media.np-seven.com/experiences/np7-bonaire/action/water-action-participant-8-nico-with-participant.jpg",
+  "https://media.np-seven.com/experiences/np7-bonaire/action/bonaire-nico-blue-water-action.jpg",
+  "https://media.np-seven.com/memories/123ad479-4ab9-4e47-b10f-9dff0339f58a/ALACATI2026-79-2.jpg",
+  "https://media.np-seven.com/memories/123ad479-4ab9-4e47-b10f-9dff0339f58a/ALACATI2026-200.jpg",
+];
+
+const LANDING_IMAGE_LABELS = [
+  "Hero — behind the logo",
+  "The enthusiast",
+  "The comeback",
+  "The first-timer",
+  "Together",
 ];
 
 /* -------------------------------- pieces --------------------------------- */
@@ -162,7 +171,7 @@ export default function HomeContentPage() {
 
   // /experience landing
   const [landing, setLanding] = useState<Record<string, string>>({});
-  const [images, setImages] = useState<string[]>(["", "", "", ""]);
+  const [images, setImages] = useState<string[]>(["", "", "", "", ""]);
   const [landingState, setLandingState] = useState<SaveState>("loading");
 
   useEffect(() => {
@@ -176,7 +185,7 @@ export default function HomeContentPage() {
       const pick = (k: keyof typeof LANDING_DEFAULTS) => (typeof v[k] === "string" && (v[k] as string).trim()) || LANDING_DEFAULTS[k];
       setLanding(Object.fromEntries((Object.keys(LANDING_DEFAULTS) as (keyof typeof LANDING_DEFAULTS)[]).map((k) => [k, pick(k)])));
       const imgs = Array.isArray(v.images) ? (v.images as string[]) : [];
-      setImages([0, 1, 2, 3].map((i) => imgs[i]?.trim() || LANDING_IMAGE_DEFAULTS[i] || ""));
+      setImages([0, 1, 2, 3, 4].map((i) => imgs[i]?.trim() || LANDING_IMAGE_DEFAULTS[i] || ""));
       setLandingState("idle");
     });
   }, []);
@@ -284,13 +293,13 @@ export default function HomeContentPage() {
             <Card title="Slow-connection photos" hint="only shown when the video can't run">
               <p className="text-xs admin-faint -mt-1">
                 Shown when the video fails to load, no data arrives within 6s, or the visitor has
-                &ldquo;reduce motion&rdquo; on. <strong>One photo per Find-your-fit element, in order:</strong>{" "}
-                1 = The enthusiast · 2 = The comeback · 3 = The first-timer · 4 = Together — scrolling to the
-                next element fades the matching photo in. Pick shots that survive a vertical phone crop.
+                &ldquo;reduce motion&rdquo; on. <strong>One photo per scene</strong> — the first sits behind the
+                logo &amp; headline, then one per Find-your-fit element; scrolling fades the matching photo in.
+                Pick shots that survive a vertical phone crop.
               </p>
               <div className="grid sm:grid-cols-2 gap-3">
                 {images.map((img, i) => (
-                  <PhotoPick key={i} label={`Photo ${i + 1}`} url={img}
+                  <PhotoPick key={i} label={LANDING_IMAGE_LABELS[i] ?? `Photo ${i + 1}`} url={img}
                     onPick={() => setPicker({ target: "photo", index: i })} />
                 ))}
               </div>

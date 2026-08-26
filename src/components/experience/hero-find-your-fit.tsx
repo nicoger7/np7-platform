@@ -59,6 +59,9 @@ export function HeroFindYourFit({ src, poster, fallbackImages, children }: { src
   const railRef = useRef<HTMLDivElement>(null);
   const activeRef = useRef(0);
   const [active, setActive] = useState(0);
+  // Which fallback photo shows: 0 = the logo scene's own shot, fit i = i+1.
+  const bgIdxRef = useRef(0);
+  const [bgIdx, setBgIdx] = useState(0);
   const [mode, setMode] = useState<"video" | "static">("video");
   // Inverted loading (Nico): the slideshow is the STARTING state, and the
   // video only takes over once it is fully in memory and scrub-ready. A laggy
@@ -145,6 +148,8 @@ export function HeroFindYourFit({ src, poster, fallbackImages, children }: { src
 
       const idx = Math.min(N - 1, Math.floor(fp * N));
       if (idx !== activeRef.current) { activeRef.current = idx; setActive(idx); }
+      const bg = fitIn < 0.35 ? 0 : idx + 1;
+      if (bg !== bgIdxRef.current) { bgIdxRef.current = bg; setBgIdx(bg); }
 
       raf = running ? requestAnimationFrame(tick) : 0;
     };
@@ -240,7 +245,7 @@ export function HeroFindYourFit({ src, poster, fallbackImages, children }: { src
               {fallbackImages.map((img, i) => (
                 <div key={i}
                   className="absolute inset-0 bg-cover bg-center transition-opacity duration-1000"
-                  style={{ backgroundImage: `url('${img}')`, opacity: Math.min(active, fallbackImages.length - 1) === i ? 1 : 0 }} />
+                  style={{ backgroundImage: `url('${img}')`, opacity: Math.min(bgIdx, fallbackImages.length - 1) === i ? 1 : 0 }} />
               ))}
             </div>
           )}
