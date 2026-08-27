@@ -29,7 +29,6 @@ export function EditionMemoriesUploader({ editionId, initialVideoUrl }: { editio
   const [assigning, setAssigning] = useState(false);
   const [assignTarget, setAssignTarget] = useState(""); // picked rider — assignment fires on the button, not on pick
   const [viewer, setViewer] = useState<number | null>(null); // lightbox index into `photos` (click selects; the loupe enlarges)
-  const fileInput = useRef<HTMLInputElement>(null);
   // The one dropzone: mixed photos+videos land on the current scope; FOLDERS
   // named exactly like a participant route their contents automatically.
   const [dropBusy, setDropBusy] = useState(false);
@@ -57,27 +56,37 @@ export function EditionMemoriesUploader({ editionId, initialVideoUrl }: { editio
   const [vidR2, setVidR2] = useState(true);
   const [vidLoading, setVidLoading] = useState(true);
   const [vidUp, setVidUp] = useState<{ name: string; pct: number; done: number; total: number; phase: "compress" | "upload" } | null>(null);
-  const vidInput = useRef<HTMLInputElement>(null);
-  // Off = the files were already compressed outside (Handbrake etc.) — upload
-  // them EXACTLY as-is. Compressing twice visibly hurts quality. Remembered per
-  // browser so the choice sticks between sessions.
-  const [compressUploads, setCompressUploads] = useState<boolean>(() => {
-    if (typeof window === "undefined") return true;
-    return localStorage.getItem("np7-video-compress") !== "off";
+  // Per-batch video quality, chosen in the upload popup. "asis" = the files
+  // were already compressed outside (Creator Suite etc.) — upload them EXACTLY
+  // as-is; compressing twice visibly hurts quality. Remembered per browser;
+  // migrates the old on/off compress toggle ("off" → as-is).
+  type VidQuality = "standard" | "high" | "asis";
+  const [vidQuality, setVidQuality] = useState<VidQuality>(() => {
+    if (typeof window === "undefined") return "standard";
+    const saved = localStorage.getItem("np7-video-quality");
+    if (saved === "standard" || saved === "high" || saved === "asis") return saved;
+    return localStorage.getItem("np7-video-compress") === "off" ? "asis" : "standard";
   });
   useEffect(() => {
-    try { localStorage.setItem("np7-video-compress", compressUploads ? "on" : "off"); } catch {}
-  }, [compressUploads]);
+    try { localStorage.setItem("np7-video-quality", vidQuality); } catch {}
+  }, [vidQuality]);
+  // A staged batch that contains videos parks in the popup for a quality choice
+  // before anything uploads; photo-only batches skip the popup entirely.
+  type Staged = { buckets: [string, File[]][]; skipped: string[]; nPhotos: number; nVideos: number };
+  const [pending, setPending] = useState<Staged | null>(null);
+  const [batchPhase, setBatchPhase] = useState<"choose" | "running" | "done">("choose");
+  const [batchClean, setBatchClean] = useState(true); // false → the popup says so instead of "Done ✓"
+  const dropInput = useRef<HTMLInputElement>(null); // click-to-browse twin of the dropzone
 
   // Warn before closing/reloading the tab mid-upload. A browser can't keep a
   // client upload running once the tab is CLOSED, so the best we can do is guard
   // against losing the run by accident.
   useEffect(() => {
-    if (!vidUp) return;
+    if (!vidUp && !dropBusy) return;
     const warn = (e: BeforeUnloadEvent) => { e.preventDefault(); e.returnValue = ""; };
     window.addEventListener("beforeunload", warn);
     return () => window.removeEventListener("beforeunload", warn);
-  }, [vidUp]);
+  }, [vidUp, dropBusy]);
 
   // Screen wake lock — a long batch (dozens of clips) would otherwise pause when
   // the Mac dims / the display sleeps. Held for the whole run and re-acquired
@@ -179,27 +188,38 @@ export function EditionMemoriesUploader({ editionId, initialVideoUrl }: { editio
 
   // Core photo upload with an EXPLICIT target scope — the folder-drop router
   // uploads for many riders in one batch, so the state scope can't be the truth.
-  async function uploadPhotoFiles(list: File[], scopeId: string) {
-    if (!list.length) return;
+  /** Returns the names that did NOT land. A network blip must never take the
+   *  whole batch down: each file retries, failures are collected, and the
+   *  `finally` guarantees `uploading` is cleared — a stuck flag would freeze
+   *  the dropzone, which is now the only way in. */
+  async function uploadPhotoFiles(list: File[], scopeId: string): Promise<string[]> {
+    if (!list.length) return [];
     setUploading(true);
     setProgress({ done: 0, total: list.length });
     const folder = folderFor(scopeId);
-    for (let i = 0; i < list.length; i++) {
-      const fd = new FormData();
-      fd.append("file", list[i]);
-      fd.append("folder", folder);
-      await fetch("/api/admin/images", { method: "POST", body: fd });
-      setProgress({ done: i + 1, total: list.length });
+    const failed: string[] = [];
+    try {
+      for (let i = 0; i < list.length; i++) {
+        let ok = false;
+        for (let attempt = 0; attempt < 3 && !ok; attempt++) {
+          if (attempt > 0) await new Promise((r) => setTimeout(r, 1000 * attempt));
+          try {
+            const fd = new FormData();
+            fd.append("file", list[i]);
+            fd.append("folder", folder);
+            const res = await fetch("/api/admin/images", { method: "POST", body: fd });
+            ok = res.ok;
+          } catch { /* offline / aborted — retry */ }
+        }
+        if (!ok) failed.push(list[i].name);
+        setProgress({ done: i + 1, total: list.length });
+      }
+    } finally {
+      setUploading(false);
+      setProgress(null);
+      load(); refreshCounts();
     }
-    setUploading(false);
-    setProgress(null);
-    load(); refreshCounts();
-  }
-
-  async function upload(files: FileList | null) {
-    if (!files || files.length === 0) return;
-    await uploadPhotoFiles(Array.from(files), scope);
-    if (fileInput.current) fileInput.current.value = "";
+    return failed;
   }
 
   // Move the selected "Everyone" photos into one participant's private folder.
@@ -299,13 +319,10 @@ export function EditionMemoriesUploader({ editionId, initialVideoUrl }: { editio
     return res.json();
   }
 
-  async function uploadVideos(files: FileList | null) {
-    if (!files || files.length === 0) return;
-    await uploadVideoFiles(Array.from(files), scope);
-  }
-
-  async function uploadVideoFiles(list: File[], scopeId: string) {
-    if (!list.length) return;
+  /** Returns the names that did NOT land, same contract as uploadPhotoFiles —
+   *  the caller folds them into the batch report. */
+  async function uploadVideoFiles(list: File[], scopeId: string, mode: VidQuality): Promise<string[]> {
+    if (!list.length) return [];
     // In-browser compressor (WebCodecs) — loaded on demand so the admin bundle
     // stays lean. On unsupported browsers we fall back to a raw upload.
     const compressor = await import("@/lib/video-compress").catch(() => null);
@@ -323,14 +340,14 @@ export function EditionMemoriesUploader({ editionId, initialVideoUrl }: { editio
         // problem (missing encoder, exotic codec, stall) downgrades this one file to a
         // raw upload — the clip always lands, never an aborted batch.
         let compressed: { mp4: Blob; poster: Blob | null } | null = null;
-        if (compressUploads && compressor?.canCompressInBrowser()) {
+        if (mode !== "asis" && compressor?.canCompressInBrowser()) {
           setVidUp({ name: file.name, pct: 0, done: i, total: list.length, phase: "compress" });
           try {
-            compressed = await compressor.compressVideo(file, prog("compress"));
+            compressed = await compressor.compressVideo(file, prog("compress"), mode);
           } catch (err) {
             console.warn(`In-browser compression failed for ${file.name} — uploading raw instead.`, err);
           }
-        } else if (!compressUploads) {
+        } else if (mode === "asis") {
           // Toggle off: the file was compressed outside already — ship it AS-IS as
           // the final web video (double compression visibly hurts quality). Only a
           // poster frame is generated here, no re-encode.
@@ -364,12 +381,9 @@ export function EditionMemoriesUploader({ editionId, initialVideoUrl }: { editio
       document.removeEventListener("visibilitychange", onVis);
       releaseWakeLock();
       setVidUp(null);
-      if (vidInput.current) vidInput.current.value = "";
       loadVideos();
     }
-    if (failed.length) {
-      alert(`${failed.length} file${failed.length === 1 ? "" : "s"} didn't upload after retries:\n${failed.slice(0, 8).join("\n")}${failed.length > 8 ? "\n…" : ""}\n\nJust re-drop those files to finish — the ones that landed are already saved.`);
-    }
+    return failed;
   }
 
   async function removeVideo(s: string) {
@@ -420,55 +434,98 @@ export function EditionMemoriesUploader({ editionId, initialVideoUrl }: { editio
     return Array.from(dt.files).filter((f) => !f.name.startsWith(".")).map((file) => ({ folder: null, file }));
   }
 
-  async function handleDrop(dt: DataTransfer) {
-    if (dropBusy || uploading || !!vidUp) return;
+  /** Bucket a batch by target scope. Batches WITH videos park in the quality
+   *  popup first; photo-only batches upload straight away. */
+  function stageIncoming(items: { folder: string | null; file: File }[]) {
+    if (dropBusy || uploading || !!vidUp || pending) return;
+    // participant lookup by normalized name (contact name AND booking name's first segment)
+    const byName = new Map<string, string | "AMBIGUOUS">();
+    for (const b of bookings) {
+      for (const cand of [b.contact?.name, (b.name ?? "").split(" — ")[0].split(" - ")[0]]) {
+        if (!cand) continue;
+        const k = normName(cand);
+        if (!k) continue;
+        const prev = byName.get(k);
+        if (prev && prev !== b.id) byName.set(k, "AMBIGUOUS");
+        else byName.set(k, b.id);
+      }
+    }
+    // bucket: scope key ("" | bookingId) → files; unmatched folders are skipped loudly
+    const buckets = new Map<string, File[]>();
+    const skipped = new Set<string>();
+    let nPhotos = 0;
+    let nVideos = 0;
+    for (const { folder, file } of items) {
+      let target: string | null = null;
+      if (folder == null) target = scope;
+      else {
+        const hit = byName.get(normName(folder));
+        if (hit && hit !== "AMBIGUOUS") target = hit;
+        else { skipped.add(folder + (hit === "AMBIGUOUS" ? " (two participants share this name)" : "")); continue; }
+      }
+      if (file.type.startsWith("image/")) nPhotos += 1;
+      if (file.type.startsWith("video/")) nVideos += 1;
+      buckets.set(target, [...(buckets.get(target) ?? []), file]);
+    }
+    const staged: Staged = { buckets: [...buckets.entries()], skipped: [...skipped], nPhotos, nVideos };
+    if (nVideos > 0) {
+      setBatchPhase("choose");
+      setPending(staged);
+    } else {
+      // Photo-only: no popup. Never leave this as an unhandled rejection —
+      // that used to strand `uploading` and freeze the dropzone for good.
+      void runBatch(staged, null).catch((e) => console.warn("Photo batch failed", e));
+    }
+  }
+
+  /** Runs a staged batch and returns whether everything landed. Nothing in here
+   *  may throw past the caller: a half-failed batch must still report honestly
+   *  rather than leave the popup claiming success. */
+  async function runBatch(staged: Staged, mode: VidQuality | null): Promise<boolean> {
     setDropBusy(true);
     setDropReport(null);
     const report: string[] = [];
+    let clean = true;
     try {
-      const dropped = await filesFromDrop(dt);
-      if (!dropped.length) return;
-      // participant lookup by normalized name (contact name AND booking name's first segment)
-      const byName = new Map<string, string | "AMBIGUOUS">();
-      for (const b of bookings) {
-        for (const cand of [b.contact?.name, (b.name ?? "").split(" — ")[0].split(" - ")[0]]) {
-          if (!cand) continue;
-          const k = normName(cand);
-          if (!k) continue;
-          const prev = byName.get(k);
-          if (prev && prev !== b.id) byName.set(k, "AMBIGUOUS");
-          else byName.set(k, b.id);
-        }
-      }
-      // bucket: scope key ("" | bookingId) → files; unmatched folders are skipped loudly
-      const buckets = new Map<string, File[]>();
-      const skippedFolders = new Set<string>();
-      for (const { folder, file } of dropped) {
-        let target: string | null = null;
-        if (folder == null) target = scope;
-        else {
-          const hit = byName.get(normName(folder));
-          if (hit && hit !== "AMBIGUOUS") target = hit;
-          else { skippedFolders.add(folder + (hit === "AMBIGUOUS" ? " (two participants share this name)" : "")); continue; }
-        }
-        buckets.set(target, [...(buckets.get(target) ?? []), file]);
-      }
-      for (const [target, files] of buckets) {
+      for (const [target, files] of staged.buckets) {
         const imgs = files.filter((f) => f.type.startsWith("image/"));
         const vids = files.filter((f) => f.type.startsWith("video/"));
         const other = files.length - imgs.length - vids.length;
         const who = target === "" ? "Everyone" : (bookings.find((b) => b.id === target)?.contact?.name || bookings.find((b) => b.id === target)?.name || "participant");
-        if (imgs.length) await uploadPhotoFiles(imgs, target);
-        if (vids.length) await uploadVideoFiles(vids, target);
-        report.push(`${who}: ${imgs.length} photo${imgs.length === 1 ? "" : "s"}, ${vids.length} video${vids.length === 1 ? "" : "s"} ✓${other ? ` · ${other} other file${other === 1 ? "" : "s"} skipped` : ""}`);
+        let bad: string[] = [];
+        try {
+          if (imgs.length) bad = bad.concat(await uploadPhotoFiles(imgs, target));
+          if (vids.length && mode) bad = bad.concat(await uploadVideoFiles(vids, target, mode));
+        } catch (e) {
+          console.warn("Upload batch error", e);
+          bad = bad.concat(["(the run stopped early)"]);
+        }
+        // Count only what actually landed — a report that says "✓" for files
+        // that never uploaded is worse than no report at all.
+        const okImgs = imgs.length - bad.filter((n) => imgs.some((f) => f.name === n)).length;
+        const okVids = vids.length - bad.filter((n) => vids.some((f) => f.name === n)).length;
+        if (bad.length) clean = false;
+        report.push(
+          `${who}: ${okImgs} photo${okImgs === 1 ? "" : "s"}, ${okVids} video${okVids === 1 ? "" : "s"}${bad.length ? "" : " ✓"}${other ? ` · ${other} other file${other === 1 ? "" : "s"} skipped` : ""}`
+        );
+        if (bad.length) {
+          report.push(`⚠ ${bad.length} didn't upload — re-drop ${bad.slice(0, 4).join(", ")}${bad.length > 4 ? " …" : ""}`);
+        }
       }
-      for (const f of skippedFolders) report.push(`Folder "${f}" matches no participant — skipped.`);
-      if (!buckets.size && !skippedFolders.size) report.push("Nothing uploadable in that drop.");
+      for (const f of staged.skipped) { clean = false; report.push(`Folder "${f}" matches no participant — skipped.`); }
+      if (!staged.buckets.length && !staged.skipped.length) report.push("Nothing uploadable in that drop.");
     } finally {
       setDropBusy(false);
       setDropReport(report);
       loadVideos(); load(); refreshCounts();
     }
+    return clean;
+  }
+
+  async function handleDrop(dt: DataTransfer) {
+    if (dropBusy || uploading || !!vidUp || pending) return;
+    const dropped = await filesFromDrop(dt);
+    if (dropped.length) stageIncoming(dropped);
   }
 
   const scopeLabel = scope ? (bookings.find((b) => b.id === scope)?.contact?.name || bookings.find((b) => b.id === scope)?.name || "this participant") : "Everyone";
@@ -502,20 +559,31 @@ export function EditionMemoriesUploader({ editionId, initialVideoUrl }: { editio
           {bookings.length === 0 && <span className="text-xs admin-faint">No participants booked yet.</span>}
         </div>
 
-        {/* THE dropzone — one target for the videographer's whole shoot */}
+        {/* THE dropzone — the ONE entry point for photos AND videos: drop or
+            click to browse. Video batches get the quality popup first. */}
+        <input ref={dropInput} type="file" accept="image/*,video/*" multiple className="hidden"
+          onChange={(e) => {
+            const fs = e.target.files;
+            if (fs?.length) stageIncoming(Array.from(fs).map((file) => ({ folder: null, file })));
+            e.target.value = "";
+          }} />
         <div
+          onClick={() => { if (!dropBusy && !uploading && !vidUp && !pending) dropInput.current?.click(); }}
           onDragOver={(e) => { e.preventDefault(); setDropOver(true); }}
           onDragLeave={() => setDropOver(false)}
           onDrop={(e) => { e.preventDefault(); setDropOver(false); handleDrop(e.dataTransfer); }}
-          className={`rounded-xl border-2 border-dashed px-4 py-5 mb-4 text-center transition-colors ${dropOver ? "border-[#0aa3c7] bg-[#0aa3c7]/5" : ""}`}
+          className={`rounded-xl border-2 border-dashed px-4 py-5 mb-4 text-center transition-colors cursor-pointer ${dropOver ? "border-[#0aa3c7] bg-[#0aa3c7]/5" : ""}`}
           style={{ borderColor: dropOver ? undefined : "var(--admin-border)" }}
         >
           <p className="text-sm font-bold admin-heading">
-            {dropBusy ? "Uploading the drop…" : `Drop photos & videos here → ${scopeLabel}`}
+            {dropBusy
+              ? (uploading && progress ? `Uploading photos ${progress.done}/${progress.total}…` : vidUp ? "Uploading videos…" : "Uploading the drop…")
+              : `Drop photos & videos here → ${scopeLabel}`}
           </p>
           <p className="text-xs admin-faint mt-1">
-            Or drop <span className="admin-muted">whole folders named like participants</span> („Julia Prien/…") — each folder's
-            photos and videos land with that rider automatically. Unmatched folders are skipped, never guessed.
+            …or <span className="admin-muted">click to choose files</span>. Whole folders named like participants
+            („Julia Prien/…") route automatically — each folder&apos;s photos and videos land with that rider.
+            Unmatched folders are skipped, never guessed.
           </p>
           {dropReport && (
             <div className="mt-2.5 text-left inline-block text-xs admin-muted space-y-0.5">
@@ -531,42 +599,38 @@ export function EditionMemoriesUploader({ editionId, initialVideoUrl }: { editio
             <div className="rounded-lg px-3 py-2.5 mb-4 text-xs" style={{ border: "1px solid var(--admin-border)", backgroundColor: okP && okV ? "rgba(34,197,94,0.07)" : "rgba(245,158,11,0.07)" }}>
               <p className="font-bold admin-heading flex flex-wrap items-center gap-x-2 gap-y-0.5">
                 <span>⭐ Keepers for {scopeLabel}:</span>
-                <span className={okP ? "text-green-500" : "text-amber-500"}>{starPhotos.size}/{KEEPERS_TARGET} photos</span>
+                {/* Target, not a cap — starring more is fine and welcome. Once
+                    the target is met the "/3" goes away, so a curated set never
+                    renders as "5/3", which reads like a breached limit. */}
+                <span className={okP ? "text-green-500" : "text-amber-500"}>{starPhotos.size}{okP ? "" : `/${KEEPERS_TARGET}`} photos</span>
                 <span className="admin-faint">·</span>
-                <span className={okV ? "text-green-500" : "text-amber-500"}>{starVideos.size}/{KEEPERS_TARGET} videos</span>
+                <span className={okV ? "text-green-500" : "text-amber-500"}>{starVideos.size}{okV ? "" : `/${KEEPERS_TARGET}`} videos</span>
                 {okP && okV && <span className="text-green-500">✓ done</span>}
               </p>
               <p className="admin-faint mt-1">
-                Star (☆ → ⭐) at least {KEEPERS_TARGET} photos and {KEEPERS_TARGET} videos for each person — these are <span className="admin-muted">kept forever</span>.
+                Star (☆ → ⭐) at least {KEEPERS_TARGET} photos and {KEEPERS_TARGET} videos for each person — more is welcome, there&apos;s no limit. Keepers are <span className="admin-muted">kept forever</span>.
                 The rest is deleted <span className="admin-muted">a year after the trip (videos after 3 months)</span>, so please curate before then.
               </p>
             </div>
           );
         })()}
 
-        <div className="flex flex-wrap items-center gap-3 mb-4">
-          <input ref={fileInput} type="file" accept="image/*" multiple onChange={(e) => upload(e.target.files)} className="hidden" id="memories-file" />
-          <label htmlFor="memories-file" className={`px-4 py-2 rounded-lg text-xs font-bold cursor-pointer transition-colors ${uploading ? "opacity-50 pointer-events-none" : ""} bg-[#0aa3c7] hover:bg-[#0aa3c7]/90 text-white`}>
-            {uploading ? `Uploading ${progress?.done}/${progress?.total}…` : `Upload photos for ${scopeLabel}`}
-          </label>
-
-          {/* "new photos are up" reminder — one press emails every participant their
-              gallery link (deduped per day, so a double click can't double-send) */}
-          {remind && remind.recipients > 0 && (
-            <div className="flex items-center gap-2.5 ml-auto">
-              {remindMsg
-                ? <span className="text-[11px] admin-faint">{remindMsg}</span>
-                : remind.lastSent && <span className="text-[11px] admin-faint">Last reminder {new Date(remind.lastSent).toLocaleDateString("en-GB", { day: "numeric", month: "short" })}</span>}
-              <button type="button" onClick={sendPhotoReminder} disabled={remindBusy}
-                title={`Emails all ${remind.recipients} participants of this week that new photos or videos are in their gallery.`}
-                className="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg text-xs font-bold transition-colors disabled:opacity-50 admin-heading"
-                style={{ border: "1px solid var(--admin-border)" }}>
-                <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="2" y="4" width="20" height="16" rx="2.5" /><path d="m2 7 10 6 10-6" /></svg>
-                {remindBusy ? "Sending…" : `Notify riders — new media (${remind.recipients})`}
-              </button>
-            </div>
-          )}
-        </div>
+        {/* "new photos are up" reminder — one press emails every participant their
+            gallery link (deduped per day, so a double click can't double-send) */}
+        {remind && remind.recipients > 0 && (
+          <div className="flex flex-wrap items-center justify-end gap-2.5 mb-4">
+            {remindMsg
+              ? <span className="text-[11px] admin-faint">{remindMsg}</span>
+              : remind.lastSent && <span className="text-[11px] admin-faint">Last reminder {new Date(remind.lastSent).toLocaleDateString("en-GB", { day: "numeric", month: "short" })}</span>}
+            <button type="button" onClick={sendPhotoReminder} disabled={remindBusy}
+              title={`Emails all ${remind.recipients} participants of this week that new photos or videos are in their gallery.`}
+              className="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg text-xs font-bold transition-colors disabled:opacity-50 admin-heading"
+              style={{ border: "1px solid var(--admin-border)" }}>
+              <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="2" y="4" width="20" height="16" rx="2.5" /><path d="m2 7 10 6 10-6" /></svg>
+              {remindBusy ? "Sending…" : `Notify riders — new media (${remind.recipients})`}
+            </button>
+          </div>
+        )}
 
         {loading ? (
           <p className="text-xs admin-faint">Loading…</p>
@@ -659,45 +723,14 @@ export function EditionMemoriesUploader({ editionId, initialVideoUrl }: { editio
       <div className="rounded-xl p-4" style={{ border: "1px solid var(--admin-border)", backgroundColor: "var(--admin-surface)" }}>
         <h3 className="text-sm font-bold admin-heading">Trip videos</h3>
         <p className="text-xs admin-faint mt-0.5 mb-3">
-          {compressUploads ? (
-            <>Drop in the <span className="admin-muted">full-size clips straight off the camera</span> — they&apos;re
-            <span className="admin-muted"> compressed right here in your browser</span> before upload, so only the small
-            web version is ever stored (the giant original never leaves this machine).</>
-          ) : (
-            <>Files upload <span className="admin-muted">exactly as-is</span> — use this only for clips you&apos;ve
-            <span className="admin-muted"> already compressed yourself</span> (compressing twice hurts quality).</>
-          )}{" "}
-          Same scope as photos: uploading to <span className="admin-muted">{scopeLabel}</span>.
+          Uploads go through the <span className="admin-muted">dropzone in the photos card above</span> — drop clips or whole
+          participant folders there and pick a quality in the popup. This is the video library for <span className="admin-muted">{scopeLabel}</span>.
         </p>
-        <label className="flex items-center gap-2 mb-3 text-xs admin-muted cursor-pointer select-none">
-          <input type="checkbox" checked={compressUploads} onChange={(e) => setCompressUploads(e.target.checked)} disabled={!!vidUp} />
-          Compress in browser before upload
-          <span className="admin-faint">— switch off for pre-compressed files</span>
-        </label>
 
         {!vidR2 ? (
           <p className="text-xs admin-faint">Video storage isn&apos;t switched on yet (R2 keys not set).</p>
         ) : (
           <>
-            <div className="flex items-center gap-3 mb-4">
-              <input ref={vidInput} type="file" accept="video/*" multiple onChange={(e) => uploadVideos(e.target.files)} className="hidden" id="memories-video" disabled={!!vidUp} />
-              <label htmlFor="memories-video" className={`px-4 py-2 rounded-lg text-xs font-bold cursor-pointer transition-colors ${vidUp ? "opacity-50 pointer-events-none" : ""} bg-[#0aa3c7] hover:bg-[#0aa3c7]/90 text-white`}>
-                {vidUp ? `${vidUp.phase === "compress" ? "Compressing" : "Uploading"} ${vidUp.done + 1}/${vidUp.total}…` : `Upload videos for ${scopeLabel}`}
-              </label>
-              {vidUp && <span className="text-xs admin-muted truncate max-w-[180px]">{vidUp.name}</span>}
-            </div>
-
-            {vidUp && (
-              <div className="mb-4">
-                <div className="h-2 rounded-full overflow-hidden" style={{ backgroundColor: "var(--admin-input-bg)" }}>
-                  <div className="h-full bg-[#0aa3c7] transition-[width] duration-150" style={{ width: `${vidUp.pct}%` }} />
-                </div>
-                <p className="text-[11px] admin-faint mt-1">
-                  {vidUp.phase === "compress" ? `Compressing in your browser — ${vidUp.pct}%` : `Uploading ${vidUp.done + 1}/${vidUp.total} — ${vidUp.pct}%`}. Keep this tab open (you can switch away — it keeps going and survives sleep &amp; blips), just don&apos;t close it.
-                </p>
-              </div>
-            )}
-
             {vidLoading ? (
               <p className="text-xs admin-faint">Loading…</p>
             ) : videos.length === 0 ? (
@@ -770,6 +803,89 @@ export function EditionMemoriesUploader({ editionId, initialVideoUrl }: { editio
           {videoSaved && <span className="text-xs text-green-400">Saved ✓</span>}
         </div>
       </div>
+
+      {/* Upload popup: video batches wait here for a quality choice, then the
+          whole run (photos included) shows its progress in one place. */}
+      {pending && (
+        <div className="fixed inset-0 z-[80] bg-black/60 flex items-center justify-center p-4"
+          onClick={() => { if (batchPhase !== "running") setPending(null); }}>
+          <div className="w-full max-w-md rounded-2xl p-5" style={{ border: "1px solid var(--admin-border)", backgroundColor: "var(--admin-surface)" }}
+            onClick={(e) => e.stopPropagation()}>
+            {batchPhase === "choose" && (
+              <>
+                <h3 className="text-sm font-bold admin-heading">Video quality</h3>
+                <p className="text-xs admin-faint mt-0.5 mb-3">
+                  {pending.nVideos} video{pending.nVideos === 1 ? "" : "s"}{pending.nPhotos ? ` + ${pending.nPhotos} photo${pending.nPhotos === 1 ? "" : "s"}` : ""} ready.
+                  Compression runs in your browser — the giant originals never upload.
+                </p>
+                <div className="space-y-2 mb-4">
+                  {([
+                    { id: "standard", name: "Standard · 1080p", desc: "6 Mbit/s + sharpening — great for the member gallery", tag: "recommended" },
+                    { id: "high", name: "High · 1080p", desc: "10 Mbit/s + sharpening — extra reserve for fast action & water spray", tag: null },
+                    { id: "asis", name: "Already compressed", desc: "Upload files exactly as they are — for clips compressed outside (double compression hurts quality)", tag: null },
+                  ] as { id: VidQuality; name: string; desc: string; tag: string | null }[]).map((o) => (
+                    <button key={o.id} type="button" onClick={() => setVidQuality(o.id)}
+                      className={`w-full text-left rounded-xl border px-3.5 py-2.5 transition-colors ${vidQuality === o.id ? "border-[#0aa3c7] bg-[#0aa3c7]/10" : ""}`}
+                      style={{ borderColor: vidQuality === o.id ? undefined : "var(--admin-border)" }}>
+                      <span className="text-xs font-bold admin-heading">{o.name}
+                        {o.tag && <span className="ml-2 text-[10px] font-bold text-[#0aa3c7] uppercase tracking-wide">{o.tag}</span>}
+                      </span>
+                      <span className="block text-[11px] admin-faint mt-0.5">{o.desc}</span>
+                    </button>
+                  ))}
+                </div>
+                <div className="flex items-center justify-end gap-2">
+                  <button type="button" onClick={() => setPending(null)}
+                    className="px-3.5 py-2 rounded-lg text-xs font-bold admin-muted" style={{ border: "1px solid var(--admin-border)" }}>Cancel</button>
+                  <button type="button"
+                    onClick={async () => {
+                      setBatchPhase("running");
+                      let clean = false;
+                      try { clean = await runBatch(pending, vidQuality); }
+                      catch (e) { console.warn("Batch failed", e); }
+                      finally { setBatchClean(clean); setBatchPhase("done"); }
+                    }}
+                    className="px-4 py-2 rounded-lg text-xs font-bold bg-[#0aa3c7] hover:bg-[#0aa3c7]/90 text-white">
+                    Start upload
+                  </button>
+                </div>
+              </>
+            )}
+            {batchPhase === "running" && (
+              <>
+                <h3 className="text-sm font-bold admin-heading">Uploading…</h3>
+                <p className="text-xs admin-faint mt-0.5 mb-3">Keep this tab open — you can switch away (it survives sleep &amp; network blips), just don&apos;t close it.</p>
+                {vidUp ? (
+                  <>
+                    <p className="text-xs admin-muted mb-1.5 truncate">
+                      {vidUp.phase === "compress" ? "Compressing" : "Uploading"} video {vidUp.done + 1}/{vidUp.total} — {vidUp.pct}% · {vidUp.name}
+                    </p>
+                    <div className="h-2 rounded-full overflow-hidden" style={{ backgroundColor: "var(--admin-input-bg)" }}>
+                      <div className="h-full bg-[#0aa3c7] transition-[width] duration-150" style={{ width: `${vidUp.pct}%` }} />
+                    </div>
+                  </>
+                ) : uploading && progress ? (
+                  <p className="text-xs admin-muted">Uploading photos {progress.done}/{progress.total}…</p>
+                ) : (
+                  <p className="text-xs admin-muted">Starting…</p>
+                )}
+              </>
+            )}
+            {batchPhase === "done" && (
+              <>
+                <h3 className="text-sm font-bold admin-heading">{batchClean ? "Done ✓" : "Finished — with problems"}</h3>
+                <div className="mt-2 mb-4 text-xs admin-muted space-y-0.5">
+                  {(dropReport ?? []).map((r, i) => <p key={i}>{r}</p>)}
+                </div>
+                <div className="flex justify-end">
+                  <button type="button" onClick={() => setPending(null)}
+                    className="px-4 py-2 rounded-lg text-xs font-bold bg-[#0aa3c7] hover:bg-[#0aa3c7]/90 text-white">Close</button>
+                </div>
+              </>
+            )}
+          </div>
+        </div>
+      )}
 
       {/* Lightbox — the front end's viewer, admin edition: chrome carries the
           counter, arrows walk, Esc closes. */}
