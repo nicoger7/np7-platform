@@ -32,11 +32,23 @@ export function canCompressInBrowser(): boolean {
 const MAX_SIDE = 1920;
 const even = (n: number) => Math.max(2, 2 * Math.round(n / 2)); // encoders want even dims
 
-/** Explicit targets instead of mediabunny's generic QUALITY_HIGH — mirrors the
- *  Creator Suite presets: Standard = FHD·6 Mbit/s, High = FHD·10 Mbit/s (action
- *  reserve). Values are for 1080p and scale with the actual pixel count. */
+/**
+ * Bitrate targets at 1080p; they scale with the real pixel count.
+ *
+ * These are DELIBERATELY far above the Creator Suite's ffmpeg presets (6 and 10
+ * Mbit/s), and the reason matters: ffmpeg drives Apple's encoder with CABAC and
+ * `-prio_speed 0`, while WebCodecs exposes no such knobs — the browser gives us
+ * a hardware encoder we cannot tune. At equal bitrate the browser output is
+ * visibly softer, so the only lever left is bits, and R2 storage is cheap
+ * next to a rider's one video from the week looking mushy.
+ *
+ * (The first version of this shipped 6 Mbit/s as "Standard", which was byte-for-
+ * byte the bitrate it replaced — an upgrade in name only. It also starved the
+ * sharpening pass: added detail the encoder then had no bits to keep, which
+ * makes a clip look worse, not better.)
+ */
 export type VideoQuality = "standard" | "high";
-const BITRATE_AT_1080 = { standard: 6_000_000, high: 10_000_000 } as const;
+const BITRATE_AT_1080 = { standard: 12_000_000, high: 20_000_000 } as const;
 
 export type CompressedVideo = { mp4: Blob; poster: Blob | null };
 
