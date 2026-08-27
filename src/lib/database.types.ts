@@ -222,6 +222,8 @@ export type Database = {
           label: string
           notes: string | null
           price: number | null
+          quantity: number
+          unit_price: number | null
         }
         Insert: {
           booking_id?: string | null
@@ -230,6 +232,8 @@ export type Database = {
           label: string
           notes?: string | null
           price?: number | null
+          quantity?: number
+          unit_price?: number | null
         }
         Update: {
           booking_id?: string | null
@@ -238,6 +242,8 @@ export type Database = {
           label?: string
           notes?: string | null
           price?: number | null
+          quantity?: number
+          unit_price?: number | null
         }
         Relationships: [
           {

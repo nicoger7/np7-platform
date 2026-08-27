@@ -52,13 +52,22 @@ export async function POST(
   const { id } = await params;
   const body = await request.json();
 
+  // The line total is computed HERE, never trusted from the form: `price` is
+  // what nine money surfaces read, so the invariant price = unit × qty has to
+  // hold even if a client sends something inconsistent (migration 189).
+  const qty = Math.max(1, Math.round(Number(body.quantity) || 1));
+  const unit = body.price === "" || body.price == null ? null : Number(body.price);
+  const round2 = (n: number) => Math.round((n + Number.EPSILON) * 100) / 100;
+
   const { data, error } = await client
     .from("exp_booking_addons")
     .insert({
       booking_id: id,
       component_id: body.component_id || null,
       label: body.label,
-      price: body.price || null,
+      quantity: qty,
+      unit_price: unit,
+      price: unit == null ? null : round2(unit * qty),
       notes: body.notes || null,
     })
     .select("*, exp_components(id, name, category, unit_cost, payment_mode, payment_note)")
