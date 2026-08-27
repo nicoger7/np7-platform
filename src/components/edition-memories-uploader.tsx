@@ -62,10 +62,12 @@ export function EditionMemoriesUploader({ editionId, initialVideoUrl }: { editio
   // migrates the old on/off compress toggle ("off" → as-is).
   type VidQuality = "standard" | "high" | "asis";
   const [vidQuality, setVidQuality] = useState<VidQuality>(() => {
-    if (typeof window === "undefined") return "standard";
+    if (typeof window === "undefined") return "high";
     const saved = localStorage.getItem("np7-video-quality");
-    if (saved === "standard" || saved === "high" || saved === "asis") return saved;
-    return localStorage.getItem("np7-video-compress") === "off" ? "asis" : "standard";
+    // "standard" is dropped as a remembered choice on purpose: everyone who
+    // picked it got the old, too-low bitrate. Let them land on the good one.
+    if (saved === "high" || saved === "asis") return saved;
+    return localStorage.getItem("np7-video-compress") === "off" ? "asis" : "high";
   });
   useEffect(() => {
     try { localStorage.setItem("np7-video-quality", vidQuality); } catch {}
@@ -820,9 +822,9 @@ export function EditionMemoriesUploader({ editionId, initialVideoUrl }: { editio
                 </p>
                 <div className="space-y-2 mb-4">
                   {([
-                    { id: "standard", name: "Standard · 1080p", desc: "6 Mbit/s + sharpening — great for the member gallery", tag: "recommended" },
-                    { id: "high", name: "High · 1080p", desc: "10 Mbit/s + sharpening — extra reserve for fast action & water spray", tag: null },
-                    { id: "asis", name: "Already compressed", desc: "Upload files exactly as they are — for clips compressed outside (double compression hurts quality)", tag: null },
+                    { id: "high", name: "Best · 1080p", desc: "20 Mbit/s + sharpening — for water, spray and fast action, which is most of what we shoot", tag: "recommended" },
+                    { id: "standard", name: "Smaller · 1080p", desc: "12 Mbit/s + sharpening — fine for calm shots and talking heads, roughly half the file size", tag: null },
+                    { id: "asis", name: "Already compressed", desc: "Upload files exactly as they are — best quality if they came out of the Creator Suite (compressing twice always hurts)", tag: "best quality" },
                   ] as { id: VidQuality; name: string; desc: string; tag: string | null }[]).map((o) => (
                     <button key={o.id} type="button" onClick={() => setVidQuality(o.id)}
                       className={`w-full text-left rounded-xl border px-3.5 py-2.5 transition-colors ${vidQuality === o.id ? "border-[#0aa3c7] bg-[#0aa3c7]/10" : ""}`}
