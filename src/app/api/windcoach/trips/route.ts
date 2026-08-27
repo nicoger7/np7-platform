@@ -19,7 +19,12 @@ export const dynamic = "force-dynamic";
  * `kind` rides along so wind.coach can hide 1–2 day events from a guide picker.
  */
 const PAST_DAYS = 180;
-const FUTURE_DAYS = 365;
+// Short on purpose. A guide is written AFTER a week, so a partner never needs
+// next season — and a 365-day window handed out every unannounced 2027 edition
+// we have staged. Draft and archived weeks are excluded for the same reason:
+// the season calendar is not the partner's business until it is public.
+const FUTURE_DAYS = 60;
+const HIDDEN_STATUS = ["draft", "archived"];
 
 export async function GET(req: NextRequest) {
   if (!windcoachAuthorized(req)) return NextResponse.json({ error: "Unauthorized." }, { status: 401 });
@@ -29,8 +34,9 @@ export async function GET(req: NextRequest) {
   const db = createAdminClient() as any;
   const { data, error } = await db
     .from("exp_editions")
-    .select("id,label,date_start,date_end,kind,archived_at,exp_experiences(title)")
+    .select("id,label,date_start,date_end,kind,status,archived_at,exp_experiences(title)")
     .is("archived_at", null)
+    .not("status", "in", `(${HIDDEN_STATUS.join(",")})`)
     .gte("date_end", day(-PAST_DAYS))
     .lte("date_start", day(FUTURE_DAYS))
     .order("date_start", { ascending: false });

@@ -81,7 +81,7 @@ export async function requireScope(req: Request, scope: Scope): Promise<KeyCheck
   const db = createAdminClient() as any;
   const { data: row } = await db
     .from("api_keys")
-    .select("id,name,scopes,revoked_at")
+    .select("id,name,scopes,revoked_at,use_count")
     .eq("key_hash", sha256(token))
     .maybeSingle();
 
@@ -93,7 +93,6 @@ export async function requireScope(req: Request, scope: Scope): Promise<KeyCheck
     }
     // Usage stamp — a key nobody uses is a key to revoke, and that is only
     // visible if we record it. Best-effort: never fail a call over telemetry.
-    void db.rpc("noop").then(() => {}).catch(() => {});
     void db
       .from("api_keys")
       .update({ last_used_at: new Date().toISOString(), last_used_scope: scope, use_count: (row.use_count ?? 0) + 1 })
