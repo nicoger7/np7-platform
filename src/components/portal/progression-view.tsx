@@ -126,14 +126,16 @@ function SkillInfo({ label, text }: { label: string; text: string }) {
         onFocus={() => setOpen(true)}
         onBlur={() => setOpen(false)}
         onKeyDown={(e) => { if (e.key === "Escape") setOpen(false); }}
-        className="grid place-items-center w-[15px] h-[15px] rounded-full text-[10px] font-black text-[#8a9aa0] bg-[#eef3f4] hover:bg-[#d9eef5] hover:text-[#0782a0] transition-colors"
+        className="self-center grid place-items-center w-4 h-4 rounded-full border border-[#cfdade] text-[10px] font-bold leading-none text-[#9aa6ac] bg-transparent hover:border-[#0aa3c7] hover:text-[#0782a0] transition-colors"
       >
         ?
       </button>
       {open && (
+        /* anchored to the ?'s left edge, opening down-right: stays inside the
+           card on every width instead of centring itself off the edge */
         <span
           role="tooltip"
-          className="absolute left-1/2 -translate-x-1/2 bottom-full mb-1.5 z-30 w-[228px] sm:w-[260px] rounded-lg px-3 py-2 text-[12px] leading-snug text-white bg-[#00374a] shadow-[0_8px_24px_rgba(0,55,74,0.28)]"
+          className="absolute left-0 top-full mt-1.5 z-30 w-[228px] sm:w-[260px] rounded-lg rounded-tl-sm px-3 py-2 text-[12px] leading-snug text-white bg-[#00374a] shadow-[0_8px_24px_rgba(0,55,74,0.28)]"
         >
           {text}
         </span>
@@ -175,9 +177,11 @@ function TrackCard({ track, onLog, onUndo, busyId, logError }: { track: Track } 
           const done = g.skills.filter(isDone).length;
           const complete = done === g.skills.length;
           const c = skillStateCounts(g.skills);
+          // no overflow-hidden on the band: it beheaded the skill tooltips at
+          // the edge ("…l adjustments"); the summary rounds itself instead.
           return (
-            <details key={g.band} className="group rounded-xl border border-[#f4ecdd] overflow-hidden [&_summary::-webkit-details-marker]:hidden">
-              <summary className="flex items-center gap-2.5 px-4 py-3.5 min-h-[52px] cursor-pointer select-none list-none bg-[#fbf6ec] hover:bg-[#f6efe0] transition-colors">
+            <details key={g.band} className="group rounded-xl border border-[#f4ecdd] [&_summary::-webkit-details-marker]:hidden">
+              <summary className="flex items-center gap-2.5 px-4 py-3.5 min-h-[52px] cursor-pointer select-none list-none bg-[#fbf6ec] hover:bg-[#f6efe0] transition-colors rounded-[11px] group-open:rounded-b-none">
                 <span className="shrink-0 text-[12.5px] font-black tracking-wide uppercase" style={{ color: complete ? "#1aa851" : "#8a9aa0" }}>
                   {RANKS[g.band]}
                 </span>
