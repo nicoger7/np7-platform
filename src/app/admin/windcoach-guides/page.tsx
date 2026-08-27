@@ -214,6 +214,65 @@ function GuidePreview({ guide }: { guide: Guide }) {
 
 // ─── Page ────────────────────────────────────────────────────────────────────
 
+/**
+ * Preview + send the rider's guide email.
+ *
+ * Deliberately two steps: a guide is a coach's personal read of someone's
+ * sailing, so it gets looked at before it leaves. Preview opens the exact mail
+ * that would go out; Send names the recipient in the confirm, and the server
+ * dedupes per guide so a double click can't send twice.
+ */
+function SendGuideMail({ guideId }: { guideId: string }) {
+  const [info, setInfo] = useState<{ recipient: string | null; name: string | null; lastSent: string | null; ready: boolean } | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [msg, setMsg] = useState<string | null>(null);
+
+  useEffect(() => {
+    fetch(`/api/admin/windcoach-guides/${guideId}/send`)
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d) => d && setInfo(d))
+      .catch(() => {});
+  }, [guideId]);
+
+  async function send() {
+    if (!info?.recipient) return;
+    const again = info.lastSent ? `\n\nThis guide was already emailed on ${fmtDate(info.lastSent)} — sending again will be skipped.` : "";
+    if (!confirm(`Email this training guide to ${info.name || info.recipient} (${info.recipient})?${again}`)) return;
+    setBusy(true);
+    setMsg(null);
+    try {
+      const r = await fetch(`/api/admin/windcoach-guides/${guideId}/send`, { method: "POST" });
+      const j = await r.json().catch(() => ({}));
+      if (!r.ok) throw new Error(j.error || "Could not send");
+      setMsg(j.status === "skipped" ? "Already sent earlier — not sent again" : `Sent to ${j.to} ✓`);
+      if (j.status === "sent") setInfo((s) => (s ? { ...s, lastSent: new Date().toISOString() } : s));
+    } catch (e) {
+      setMsg(e instanceof Error ? e.message : "Could not send");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  if (!info) return null;
+  return (
+    <>
+      <a href={`/api/admin/windcoach-guides/${guideId}/send?preview=1`} target="_blank" rel="noreferrer"
+        className="text-xs font-semibold text-[#0aa3c7] hover:underline">
+        Preview email
+      </a>
+      <button type="button" onClick={send} disabled={busy || !info.ready}
+        title={info.ready ? `Sends the guide email to ${info.recipient}` : "Attach this guide to a booking with an email address first"}
+        className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-colors disabled:opacity-40 bg-[#0aa3c7] hover:bg-[#0aa3c7]/90 text-white">
+        <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="2" y="4" width="20" height="16" rx="2.5" /><path d="m2 7 10 6 10-6" /></svg>
+        {busy ? "Sending…" : "Send mail"}
+      </button>
+      {msg
+        ? <span className="text-[11px] admin-muted">{msg}</span>
+        : info.lastSent && <span className="text-[11px] admin-faint">Emailed {fmtDate(info.lastSent)}</span>}
+    </>
+  );
+}
+
 export default function WindcoachGuidesPage() {
   const [guides, setGuides] = useState<Guide[]>([]);
   const [loading, setLoading] = useState(true);
@@ -380,9 +439,12 @@ export default function WindcoachGuidesPage() {
                           {g.booking ? "Detach" : "Send to review"}
                         </button>
                       </div>
-                      <button onClick={() => toggle(g.id)} className="mt-2 text-xs font-semibold text-[#0aa3c7] hover:underline">
-                        {expanded.has(g.id) ? "Hide guide" : "Show guide"}
-                      </button>
+                      <div className="mt-2 flex items-center gap-3 flex-wrap">
+                        <button onClick={() => toggle(g.id)} className="text-xs font-semibold text-[#0aa3c7] hover:underline">
+                          {expanded.has(g.id) ? "Hide guide" : "Show guide"}
+                        </button>
+                        {g.booking && <SendGuideMail guideId={g.id} />}
+                      </div>
                       {expanded.has(g.id) && <GuidePreview guide={g} />}
                     </div>
                   );

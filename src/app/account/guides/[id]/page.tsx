@@ -9,9 +9,18 @@ import { PortalChrome } from "@/components/portal/portal-chrome";
 export const metadata: Metadata = { title: "Your focus points — NP7" };
 export const dynamic = "force-dynamic";
 
-/** Phase 3 of the wind.coach integration fills this with the member's deep link
-    back into the app. While it is null, nothing clickable renders. */
-const CONTINUE_URL: string | null = null;
+/**
+ * Where the rider continues training. Env-driven so wind.coach can change its
+ * URL scheme without an NP7 deploy:
+ *   NEXT_PUBLIC_WINDCOACH_URL       the app's entry point
+ *   NEXT_PUBLIC_WINDCOACH_KEY_URL   per-chapter template, `{key}` substituted
+ * Nothing identity-bearing goes in these URLs — a guide page link can be
+ * forwarded, so a rider id in a query string would be a leak. Only ?src=np7.
+ */
+const WINDCOACH_URL = process.env.NEXT_PUBLIC_WINDCOACH_URL || "https://wind.coach";
+const WINDCOACH_KEY_URL = process.env.NEXT_PUBLIC_WINDCOACH_KEY_URL || null;
+const chapterUrl = (key: string) =>
+  WINDCOACH_KEY_URL && key ? WINDCOACH_KEY_URL.replace("{key}", encodeURIComponent(key)) : null;
 
 /** Canonical block order + display labels. Anything wind.coach sends that we
     don't know yet still renders (after the known kinds, in payload order) with
@@ -127,8 +136,19 @@ export default async function GuidePage({ params }: Props) {
                   </span>
                   <div className="min-w-0">
                     <h2 className="text-[18px] sm:text-[19px] font-black tracking-tight text-[#00374a] leading-tight">{fp.title}</h2>
-                    {/* wind.coach's book id, verbatim — how the rider finds the chapter in the app */}
-                    <span className="inline-block mt-1.5 font-mono text-[10.5px] font-bold px-2 py-0.5 rounded-md bg-[#00afdb]/10 text-[#0782a0] tracking-wide">wind.coach {fp.key}</span>
+                    {/* wind.coach's book id, verbatim — how the rider finds the
+                        chapter in the app. Becomes a real link the moment
+                        NEXT_PUBLIC_WINDCOACH_KEY_URL is set; until then it is
+                        still the reference to type in, so it always renders. */}
+                    {chapterUrl(fp.key) ? (
+                      <a href={chapterUrl(fp.key)!} target="_blank" rel="noreferrer"
+                        className="inline-flex items-center gap-1 mt-1.5 font-mono text-[10.5px] font-bold px-2 py-0.5 rounded-md bg-[#00afdb]/10 text-[#0782a0] tracking-wide hover:bg-[#00afdb]/20 transition-colors">
+                        wind.coach {fp.key}
+                        <svg className="w-3 h-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M7 17L17 7M9 7h8v8" /></svg>
+                      </a>
+                    ) : (
+                      <span className="inline-block mt-1.5 font-mono text-[10.5px] font-bold px-2 py-0.5 rounded-md bg-[#00afdb]/10 text-[#0782a0] tracking-wide">wind.coach {fp.key}</span>
+                    )}
                   </div>
                 </div>
                 {fp.summary && <p className="text-[13.5px] text-[#5a6b72] leading-relaxed mt-3">{fp.summary}</p>}
@@ -210,19 +230,38 @@ export default async function GuidePage({ params }: Props) {
             </section>
           )}
 
-          {/* Continue in wind.coach — the button exists here, but stays off until
-              Phase 3 fills CONTINUE_URL with the member's deep link. Nothing
-              clickable renders while it is null. */}
-          <div className="mt-8 text-center">
-            {CONTINUE_URL ? (
-              <a href={CONTINUE_URL} className="inline-flex items-center gap-2 px-7 py-3.5 rounded-full text-[14px] font-bold text-white bg-[#00afdb] hover:bg-[#15c0ec] transition-colors">
-                Continue in wind.coach
+          {/* Keep training — the guide ends by handing the rider somewhere, not
+              by stopping. Deep ocean like the hero so the page closes the way it
+              opened, with the sun hairline tying the two ends together. */}
+          <section className="mt-8 relative rounded-[22px] overflow-hidden" style={{ background: "linear-gradient(155deg,#00232f,#00374a 52%,#075b7d)" }}>
+            <div className="absolute top-0 inset-x-0 h-[3px]" style={{ background: "linear-gradient(90deg,#ffc42e,#f0774a 55%,#00afdb)" }} />
+            <div
+              className="absolute -right-16 -top-16 w-56 h-56 rounded-full opacity-[0.22] blur-2xl"
+              style={{ background: "radial-gradient(circle,#00afdb,transparent 70%)" }}
+              aria-hidden
+            />
+            <div className="relative p-6 sm:p-8 text-center">
+              <p className="text-[11px] font-bold tracking-[0.22em] uppercase text-[#8fe6f2] mb-2">Keep training</p>
+              <h2 className="text-[20px] sm:text-[23px] font-black tracking-[-0.01em] text-white leading-tight">
+                Take {n === 1 ? "it" : "them"} into the Wind Coach app
+              </h2>
+              <p className="text-[13.5px] text-white/75 leading-relaxed mt-2 max-w-[46ch] mx-auto">
+                Drills, video and progressions for {n === 1 ? "this focus point" : "every focus point above"} — so the week
+                keeps paying off long after you fly home.
+              </p>
+              <a
+                href={`${WINDCOACH_URL}${WINDCOACH_URL.includes("?") ? "&" : "?"}src=np7`}
+                target="_blank"
+                rel="noreferrer"
+                className="inline-flex items-center gap-2 mt-5 px-7 py-3.5 rounded-full text-[14px] font-bold text-[#00232f] transition-transform hover:scale-[1.03] active:scale-100"
+                style={{ background: "linear-gradient(100deg,#ffc42e,#f0a63a 55%,#f0774a)" }}
+              >
+                Open wind.coach
                 <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M5 12h14M13 6l6 6-6 6" /></svg>
               </a>
-            ) : (
-              <p className="text-[12.5px] text-[#9aa6ac]">Take these with you on the water. See you out there.</p>
-            )}
-          </div>
+              <p className="text-[11.5px] text-white/45 mt-4">See you on the water. 🤙</p>
+            </div>
+          </section>
         </div>
       </main>
     </>
