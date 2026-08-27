@@ -30,6 +30,11 @@ export function EditionMemoriesUploader({ editionId, initialVideoUrl }: { editio
   const [assignTarget, setAssignTarget] = useState(""); // picked rider — assignment fires on the button, not on pick
   const [viewer, setViewer] = useState<number | null>(null); // lightbox index into `photos` (click selects; the loupe enlarges)
   const fileInput = useRef<HTMLInputElement>(null);
+  // The one dropzone: mixed photos+videos land on the current scope; FOLDERS
+  // named exactly like a participant route their contents automatically.
+  const [dropBusy, setDropBusy] = useState(false);
+  const [dropOver, setDropOver] = useState(false);
+  const [dropReport, setDropReport] = useState<string[] | null>(null);
   // Peek galleries: show a couple of rows that fade into the card, with a
   // "Show all N" expander — same idea as the member gallery, so a big set never
   // pushes the video/highlight cards miles down the page.
@@ -172,22 +177,29 @@ export function EditionMemoriesUploader({ editionId, initialVideoUrl }: { editio
   }, [bookings, folderFor, listFolder]);
   useEffect(() => { if (bookings.length) refreshCounts(); }, [bookings, refreshCounts]);
 
-  async function upload(files: FileList | null) {
-    if (!files || files.length === 0) return;
+  // Core photo upload with an EXPLICIT target scope — the folder-drop router
+  // uploads for many riders in one batch, so the state scope can't be the truth.
+  async function uploadPhotoFiles(list: File[], scopeId: string) {
+    if (!list.length) return;
     setUploading(true);
-    setProgress({ done: 0, total: files.length });
-    const folder = folderFor(scope);
-    for (let i = 0; i < files.length; i++) {
+    setProgress({ done: 0, total: list.length });
+    const folder = folderFor(scopeId);
+    for (let i = 0; i < list.length; i++) {
       const fd = new FormData();
-      fd.append("file", files[i]);
+      fd.append("file", list[i]);
       fd.append("folder", folder);
       await fetch("/api/admin/images", { method: "POST", body: fd });
-      setProgress({ done: i + 1, total: files.length });
+      setProgress({ done: i + 1, total: list.length });
     }
     setUploading(false);
     setProgress(null);
-    if (fileInput.current) fileInput.current.value = "";
     load(); refreshCounts();
+  }
+
+  async function upload(files: FileList | null) {
+    if (!files || files.length === 0) return;
+    await uploadPhotoFiles(Array.from(files), scope);
+    if (fileInput.current) fileInput.current.value = "";
   }
 
   // Move the selected "Everyone" photos into one participant's private folder.
@@ -277,10 +289,11 @@ export function EditionMemoriesUploader({ editionId, initialVideoUrl }: { editio
     });
   }
 
-  async function presign(body: Record<string, string | undefined>) {
+  async function presign(body: Record<string, string | undefined>, scopeId?: string) {
+    const sc = scopeId !== undefined ? scopeId : scope;
     const res = await fetch("/api/admin/videos", {
       method: "POST", headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ editionId, bookingId: scope || undefined, ...body }),
+      body: JSON.stringify({ editionId, bookingId: sc || undefined, ...body }),
     });
     if (!res.ok) { const j = await res.json().catch(() => ({})); throw new Error(j.error || "Could not start upload."); }
     return res.json();
@@ -288,7 +301,11 @@ export function EditionMemoriesUploader({ editionId, initialVideoUrl }: { editio
 
   async function uploadVideos(files: FileList | null) {
     if (!files || files.length === 0) return;
-    const list = Array.from(files);
+    await uploadVideoFiles(Array.from(files), scope);
+  }
+
+  async function uploadVideoFiles(list: File[], scopeId: string) {
+    if (!list.length) return;
     // In-browser compressor (WebCodecs) — loaded on demand so the admin bundle
     // stays lean. On unsupported browsers we fall back to a raw upload.
     const compressor = await import("@/lib/video-compress").catch(() => null);
@@ -328,14 +345,14 @@ export function EditionMemoriesUploader({ editionId, initialVideoUrl }: { editio
           if (attempt > 0) await new Promise((r) => setTimeout(r, 1500 * attempt));
           try {
             if (compressed) {
-              const pre = await presign({ filename: file.name, contentType: "video/mp4", target: "video" });
+              const pre = await presign({ filename: file.name, contentType: "video/mp4", target: "video" }, scopeId);
               setVidUp({ name: file.name, pct: 0, done: i, total: list.length, phase: "upload" });
               await putToR2(pre.uploadUrl, compressed.mp4, "video/mp4", prog("upload"));
               if (compressed.poster && pre.posterUploadUrl) await putToR2(pre.posterUploadUrl, compressed.poster, "image/jpeg").catch(() => {});
             } else {
               // Fallback: raw original → _vidraw/ (compressed later by the fallback script).
               setVidUp({ name: file.name, pct: 0, done: i, total: list.length, phase: "upload" });
-              const pre = await presign({ filename: file.name, contentType: file.type });
+              const pre = await presign({ filename: file.name, contentType: file.type }, scopeId);
               await putToR2(pre.uploadUrl, file, file.type, prog("upload"));
             }
             ok = true;
@@ -373,6 +390,87 @@ export function EditionMemoriesUploader({ editionId, initialVideoUrl }: { editio
     setTimeout(() => setVideoSaved(false), 2000);
   }
 
+  // "Julia Prien" ≙ "julia-prien" ≙ "Julia  Prien " — folder names come from
+  // filesystems, participant names from humans; both get flattened before match.
+  const normName = (x: string) => x.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().replace(/[_\-.]+/g, " ").replace(/\s+/g, " ").trim();
+
+  /** Every file in the drop, tagged with its TOP-LEVEL folder (null = loose). */
+  async function filesFromDrop(dt: DataTransfer): Promise<{ folder: string | null; file: File }[]> {
+    const out: { folder: string | null; file: File }[] = [];
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const walk = (entry: any, folder: string | null): Promise<void> => new Promise((resolve) => {
+      if (!entry) return resolve();
+      if (entry.isFile) {
+        entry.file((f: File) => { if (!f.name.startsWith(".")) out.push({ folder, file: f }); resolve(); }, () => resolve());
+      } else if (entry.isDirectory) {
+        const owner = folder ?? entry.name; // nested subfolders keep the top-level owner
+        const reader = entry.createReader();
+        const readBatch = () => reader.readEntries(async (ents: unknown[]) => {
+          if (!ents.length) return resolve();
+          for (const e of ents) await walk(e, owner);
+          readBatch(); // readEntries hands out ≤100 per call — loop until empty
+        }, () => resolve());
+        readBatch();
+      } else resolve();
+    });
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const entries = Array.from(dt.items).map((it) => (it as any).webkitGetAsEntry?.()).filter(Boolean);
+    if (entries.length) { for (const e of entries) await walk(e, null); return out; }
+    // no entry API (older browser): loose files only
+    return Array.from(dt.files).filter((f) => !f.name.startsWith(".")).map((file) => ({ folder: null, file }));
+  }
+
+  async function handleDrop(dt: DataTransfer) {
+    if (dropBusy || uploading || !!vidUp) return;
+    setDropBusy(true);
+    setDropReport(null);
+    const report: string[] = [];
+    try {
+      const dropped = await filesFromDrop(dt);
+      if (!dropped.length) return;
+      // participant lookup by normalized name (contact name AND booking name's first segment)
+      const byName = new Map<string, string | "AMBIGUOUS">();
+      for (const b of bookings) {
+        for (const cand of [b.contact?.name, (b.name ?? "").split(" — ")[0].split(" - ")[0]]) {
+          if (!cand) continue;
+          const k = normName(cand);
+          if (!k) continue;
+          const prev = byName.get(k);
+          if (prev && prev !== b.id) byName.set(k, "AMBIGUOUS");
+          else byName.set(k, b.id);
+        }
+      }
+      // bucket: scope key ("" | bookingId) → files; unmatched folders are skipped loudly
+      const buckets = new Map<string, File[]>();
+      const skippedFolders = new Set<string>();
+      for (const { folder, file } of dropped) {
+        let target: string | null = null;
+        if (folder == null) target = scope;
+        else {
+          const hit = byName.get(normName(folder));
+          if (hit && hit !== "AMBIGUOUS") target = hit;
+          else { skippedFolders.add(folder + (hit === "AMBIGUOUS" ? " (two participants share this name)" : "")); continue; }
+        }
+        buckets.set(target, [...(buckets.get(target) ?? []), file]);
+      }
+      for (const [target, files] of buckets) {
+        const imgs = files.filter((f) => f.type.startsWith("image/"));
+        const vids = files.filter((f) => f.type.startsWith("video/"));
+        const other = files.length - imgs.length - vids.length;
+        const who = target === "" ? "Everyone" : (bookings.find((b) => b.id === target)?.contact?.name || bookings.find((b) => b.id === target)?.name || "participant");
+        if (imgs.length) await uploadPhotoFiles(imgs, target);
+        if (vids.length) await uploadVideoFiles(vids, target);
+        report.push(`${who}: ${imgs.length} photo${imgs.length === 1 ? "" : "s"}, ${vids.length} video${vids.length === 1 ? "" : "s"} ✓${other ? ` · ${other} other file${other === 1 ? "" : "s"} skipped` : ""}`);
+      }
+      for (const f of skippedFolders) report.push(`Folder "${f}" matches no participant — skipped.`);
+      if (!buckets.size && !skippedFolders.size) report.push("Nothing uploadable in that drop.");
+    } finally {
+      setDropBusy(false);
+      setDropReport(report);
+      loadVideos(); load(); refreshCounts();
+    }
+  }
+
   const scopeLabel = scope ? (bookings.find((b) => b.id === scope)?.contact?.name || bookings.find((b) => b.id === scope)?.name || "this participant") : "Everyone";
   const chip = (key: string, label: string) => (
     <button
@@ -402,6 +500,28 @@ export function EditionMemoriesUploader({ editionId, initialVideoUrl }: { editio
           {chip("", "👥 Everyone")}
           {bookings.map((b) => chip(b.id, b.contact?.name || b.name || "Participant"))}
           {bookings.length === 0 && <span className="text-xs admin-faint">No participants booked yet.</span>}
+        </div>
+
+        {/* THE dropzone — one target for the videographer's whole shoot */}
+        <div
+          onDragOver={(e) => { e.preventDefault(); setDropOver(true); }}
+          onDragLeave={() => setDropOver(false)}
+          onDrop={(e) => { e.preventDefault(); setDropOver(false); handleDrop(e.dataTransfer); }}
+          className={`rounded-xl border-2 border-dashed px-4 py-5 mb-4 text-center transition-colors ${dropOver ? "border-[#0aa3c7] bg-[#0aa3c7]/5" : ""}`}
+          style={{ borderColor: dropOver ? undefined : "var(--admin-border)" }}
+        >
+          <p className="text-sm font-bold admin-heading">
+            {dropBusy ? "Uploading the drop…" : `Drop photos & videos here → ${scopeLabel}`}
+          </p>
+          <p className="text-xs admin-faint mt-1">
+            Or drop <span className="admin-muted">whole folders named like participants</span> („Julia Prien/…") — each folder's
+            photos and videos land with that rider automatically. Unmatched folders are skipped, never guessed.
+          </p>
+          {dropReport && (
+            <div className="mt-2.5 text-left inline-block text-xs admin-muted space-y-0.5">
+              {dropReport.map((r, i) => <p key={i}>{r}</p>)}
+            </div>
+          )}
         </div>
 
         {/* Keepers requirement + 3-month retention disclaimer */}
