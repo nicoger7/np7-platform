@@ -16,6 +16,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import ImagePickerModal from "@/components/image-picker-modal";
+import PromoGallery from "@/components/admin/promo-gallery";
 import {
   GRADIENT_PRESETS,
   PROMO_FORMATS,
@@ -100,6 +101,7 @@ export default function PromoStudio() {
   const [saving, setSaving] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
   const [menu, setMenu] = useState<null | "elements" | "edition" | "designs" | "layers">(null);
+  const [gallery, setGallery] = useState(false);
 
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const wrapRef = useRef<HTMLDivElement>(null);
@@ -611,6 +613,11 @@ export default function PromoStudio() {
   };
 
   // -- inline text editing ----------------------------------------------------
+  /** The text layer currently selected, if any — drives the always-visible
+   *  editor strip. Double-click still works; this exists because the only hint
+   *  that it did was a grey line under a 1350px-tall artboard, i.e. off-screen. */
+  const selectedText = state.texts.find((t) => t.id === selected) ?? null;
+
   const editingLayer = state.texts.find((t) => t.id === editingText) ?? null;
   const editBox = editingText ? hitsRef.current.find((h) => h.id === editingText)?.box : null;
 
@@ -779,6 +786,49 @@ export default function PromoStudio() {
         </button>
       </div>
 
+      {/*
+       * Selected-element editor. Editing text already worked by double-clicking
+       * it on the artboard, but the only thing that said so was a grey hint line
+       * BELOW a 1350px artboard — permanently off-screen. A gesture nobody can
+       * discover is a feature nobody has, so the text is editable right here,
+       * in the open, the moment something is selected.
+       */}
+      {selectedText && (
+        <div className="flex flex-wrap items-end gap-3 mb-3 p-3 rounded-xl"
+          style={{ background: "var(--admin-surface,#fff)", border: "1px solid var(--admin-border,#ddd)" }}>
+          <div className="flex-1 min-w-[260px]">
+            <label className="block text-[10px] font-bold uppercase tracking-[0.12em] mb-1"
+              style={{ color: "var(--admin-text-muted,#666)" }}>
+              {TEXT_KIND_LABELS[selectedText.kind]} — text
+            </label>
+            <textarea
+              value={selectedText.text}
+              onChange={(e) => patchText(selectedText.id, (t) => (t.text = e.target.value.replace(/\r/g, "")))}
+              rows={selectedText.text.includes("\n") ? 2 : 1}
+              className="w-full px-3 py-1.5 rounded-lg text-sm resize-y"
+              style={{ background: "var(--admin-input-bg,#fff)", border: "1px solid var(--admin-border,#ddd)", color: "var(--admin-text,#111)" }}
+              placeholder="Type here…"
+            />
+          </div>
+          <div>
+            <label className="block text-[10px] font-bold uppercase tracking-[0.12em] mb-1"
+              style={{ color: "var(--admin-text-muted,#666)" }}>Size</label>
+            <input type="number" min={8} max={400} value={Math.round(selectedText.size)}
+              onChange={(e) => patchText(selectedText.id, (t) => (t.size = Math.max(8, Math.min(400, Number(e.target.value) || t.size))))}
+              className="w-20 px-2 py-1.5 rounded-lg text-sm"
+              style={{ background: "var(--admin-input-bg,#fff)", border: "1px solid var(--admin-border,#ddd)", color: "var(--admin-text,#111)" }} />
+          </div>
+          <button onClick={() => setSelected(null)}
+            className="px-3 py-1.5 rounded-lg text-xs font-bold"
+            style={{ border: "1px solid var(--admin-border,#ddd)", color: "var(--admin-text-muted,#666)" }}>
+            Done
+          </button>
+          <span className="text-[11px] w-full" style={{ color: "var(--admin-text-muted,#666)" }}>
+            Line breaks split the line. Wrap words in *stars* for the gold accent.
+          </span>
+        </div>
+      )}
+
       {/* ── dropdown menus ──────────────────────────────────────────────── */}
       {menu && (
         <div
@@ -883,6 +933,12 @@ export default function PromoStudio() {
           )}
           {menu === "designs" && (
               <div className="flex flex-col gap-1">
+                <button
+                  onClick={() => { setMenu(null); setGallery(true); }}
+                  className="mb-1 px-2 py-1.5 rounded-lg text-xs font-bold text-white bg-[#00afdb]"
+                >
+                  Browse all graphics ({designs.length})
+                </button>
                 {designs.map((d) => (
                   <div key={d.id} className="flex items-center gap-2">
                     <button onClick={() => loadDesign(d)} className="flex-1 text-left px-2 py-1 rounded hover:bg-black/5">
@@ -1118,6 +1174,36 @@ export default function PromoStudio() {
       <p className="pt-2 text-[11px]" style={{ color: "var(--admin-text-muted,#666)" }}>
         Click = select · drag = move · corners = size · edges = stretch X/Y · double-click text = edit · ⌫ = hide · arrows = nudge · *stars* = gold accent in the details/partner lines
       </p>
+
+      {gallery && (
+        <PromoGallery
+          designs={designs}
+          fonts={fontsRef.current}
+          currentId={designId}
+          onOpen={(d) => { loadDesign(d); setGallery(false); }}
+          onNew={() => { replaceState(defaultPromoState()); setDesignId(null); setGallery(false); }}
+          onClose={() => setGallery(false)}
+          onRename={async (d, name) => {
+            await fetch(`/api/admin/promo/designs/${d.id}`, {
+              method: "PATCH", headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ name }),
+            }).catch(() => {});
+            loadDesigns();
+          }}
+          onDuplicate={async (d) => {
+            await fetch("/api/admin/promo/designs", {
+              method: "POST", headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ name: `${d.name} copy`, format: d.format, state: d.state }),
+            }).catch(() => {});
+            loadDesigns();
+          }}
+          onDelete={async (d) => {
+            await fetch(`/api/admin/promo/designs/${d.id}`, { method: "DELETE" }).catch(() => {});
+            if (designId === d.id) setDesignId(null);
+            loadDesigns();
+          }}
+        />
+      )}
 
       {/* image picker */}
       {picker && (
