@@ -1101,21 +1101,19 @@ export default async function ExperienceDetailPage({ params, searchParams }: Pro
       {/* QUICK FACTS — blue, integrated into the dark hero zone. The light "your
           epic week" below now provides the clear break, so this can stay seamless.
 
-          A clinic SERIES has no facts to put here. Where and when are the chips
-          right above; the ticket is on the button beside them; and everything
-          else a band like this would say — group size, wind, airport — belongs
-          to ONE run and varies between them. Rather than three half-true lines,
-          the band comes down and the run states its own facts in its panel. */}
-      {clinicRuns.length <= 1 && (
+          A CLINIC has no facts to put here — and this is about the format, not
+          about how many runs it has. Where and when are the chips right above;
+          the ticket is on the button beside them; group size, wind and airport
+          belong to one run and are stated in that run's own panel. Gating this
+          on "more than one run" was wrong: archiving the second run made a
+          two-run series a one-run series and the bar came straight back. */}
+      {!clinic && (
       <section className="bg-[#00374a] text-white">
         <div className="max-w-[1200px] mx-auto px-6 sm:px-8"><div className="border-t border-white/10 py-6 grid grid-cols-2 sm:grid-cols-4 gap-y-6 gap-x-4">
           {([
-            { icon: "calendar", label: multi ? `${allEditions.length} weeks to choose` : "When", value: clinic
-                ? fmtShort(clinicRuns[0]?.start, clinicRuns[0]?.end)
-                : multi
-                  ? fmtShort(spanStart, spanEnd)
-                  : fmtShort(edition?.date_start, edition?.date_end) },
-            { icon: "pin", label: "Where", value: clinic?.location ?? experience.location ?? "" },
+            { icon: "calendar", label: multi ? `${allEditions.length} weeks to choose` : "When",
+              value: multi ? fmtShort(spanStart, spanEnd) : fmtShort(edition?.date_start, edition?.date_end) },
+            { icon: "pin", label: "Where", value: experience.location ?? "" },
             { icon: "wind", label: "Typical wind", value: windRange || (windDisplay ? `Sailing wind ${windDisplay} of days` : "Steady in season") },
             { icon: "plane", label: "Airport", value: experience.airport_code ?? "" },
           ] as { icon: string; label: string; value: string }[]).filter((f) => f.value).map((f) => (

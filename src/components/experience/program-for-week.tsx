@@ -221,7 +221,7 @@ export function ProgramForWeek({
    * the writing — and ONE control opens the rest. The scanner already has the
    * whole week in the arc above; the reader is one tap from all of it.
    */
-  const FOLD_AT = 3;
+  const FOLD_AT = 4;
   const [openAll, setOpenAll] = useState(false);
 
   // Nothing to show is nothing to render. Trips always have the built-in
@@ -315,23 +315,20 @@ export function ProgramForWeek({
 
       {/* THE LEDGER — every day open, each one stamped so the eye has somewhere
           to land, and the real date doing the work a bullet cannot. */}
-      <ol>
+      {/* Two columns once there is room. A day row uses about 60% of a wide
+          measure, so a single column spends the other 40% on nothing and makes
+          the section twice as long as it needs to be. The order stays
+          unambiguous because every row is numbered and dated — grid flows
+          across then down, which is the order the numbers already imply. */}
+      <ol
+        className={`lg:grid lg:grid-cols-2 lg:gap-x-12 ${folded ? "[mask-image:linear-gradient(to_bottom,#000_72%,transparent_100%)] [-webkit-mask-image:linear-gradient(to_bottom,#000_72%,transparent_100%)]" : ""}`}
+      >
         {shown.map((d, i) => {
           const when = dayStamp(start, i, end);
           return (
             <li
               key={i}
-              /* The last visible row fades out rather than stopping dead: a hard
-                 cut reads as the end of the section, a fade reads as more. A
-                 MASK is used rather than a gradient overlay because this
-                 component sits on white on a trip page and on #f7f7f7 on a
-                 clinic one — masking the content itself is the only version
-                 that cannot be the wrong colour. */
-              style={folded && i === shown.length - 1 ? {
-                WebkitMaskImage: "linear-gradient(to bottom, #000 30%, transparent 100%)",
-                maskImage: "linear-gradient(to bottom, #000 30%, transparent 100%)",
-              } : undefined}
-              className="py-6 sm:py-7 border-t border-[#e6eef0] first:border-t-0 first:pt-0"
+              className="py-6 sm:py-7 border-t border-[#e6eef0] first:border-t-0 first:pt-0 lg:[&:nth-child(2)]:border-t-0 lg:[&:nth-child(2)]:pt-0"
             >
               {/* THE DAY STAMP. A photograph's real job in a day list is to give
                   the eye a landing point and mark where one day ends and the
