@@ -34,6 +34,21 @@ describe("covered window", () => {
   it("counts a still-pending request, so a double-tap cannot double-charge", () => {
     expect(week([stay(START, "2026-09-21", "requested")]).end).toBe("2026-09-21");
   });
+
+  /* Nights the team arranged by hand live ONLY on the hotel row. Christian
+     Skodde's Kas Chicitu room runs 3–13 Dec against a 7–14 Dec week. */
+  it("counts the room the team actually booked, not just the trip week", () => {
+    const hand = { hotelId: "h", roomType: "Kas Chicitu", checkIn: "2026-09-08", checkOut: "2026-09-20" };
+    expect(coveredWindow(START, END, [], hand)).toEqual({ start: "2026-09-08", end: "2026-09-20" });
+  });
+
+  it("an early arrival on the room row is not quoted back as new", () => {
+    const hand = { hotelId: "h", roomType: "r", checkIn: "2026-09-08", checkOut: END };
+    // He arrived 8 Sep by arrangement; asking for the 7th is ONE more night.
+    expect(newNights(coveredWindow(START, END, [], hand), "2026-09-07", END).total).toBe(1);
+    // Without the room row this said 5 — the four nights he already had, again.
+    expect(newNights(coveredWindow(START, END, []), "2026-09-07", END).total).toBe(5);
+  });
 });
 
 describe("new nights", () => {
@@ -74,7 +89,7 @@ describe("new nights", () => {
 });
 
 describe("room matching", () => {
-  const room = { hotelId: "h-sorobon", roomType: "Garden View Studio" };
+  const room = { hotelId: "h-sorobon", roomType: "Garden View Studio", checkIn: null, checkOut: null };
   const comp = (o: Record<string, unknown>) => ({ category: "accommodation", ...o });
 
   it("offers the guest's own hotel and room type", () => {
@@ -105,7 +120,7 @@ describe("room matching", () => {
 });
 
 describe("what a member is offered", () => {
-  const room = { hotelId: "h-sorobon", roomType: "Garden View Studio" };
+  const room = { hotelId: "h-sorobon", roomType: "Garden View Studio", checkIn: null, checkOut: null };
   const here = { editionId: "ed-2027", room };
   const night = (o: Record<string, unknown> = {}) => ({
     category: "accommodation", hotel_id: "h-sorobon", room_type: "Garden View Studio", ...o,

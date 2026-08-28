@@ -18,7 +18,14 @@ import "server-only";
  * book again. Treating it as a span keeps the arithmetic obvious.
  */
 
-export type StayRoom = { hotelId: string | null; roomType: string | null };
+export type StayRoom = {
+  hotelId: string | null;
+  roomType: string | null;
+  /** What the team already booked at the hotel. Often WIDER than the trip week:
+   *  a guest who arranged early arrival by email has it here and nowhere else. */
+  checkIn: string | null;
+  checkOut: string | null;
+};
 export type CoveredWindow = { start: string | null; end: string | null };
 
 const DAY = 86_400_000;
@@ -36,24 +43,39 @@ const later = (a: string | null, b: string | null) => (!a ? b : !b ? a : a > b ?
 export async function guestRoom(db: any, bookingId: string): Promise<StayRoom | null> {
   const { data } = await db
     .from("exp_hotel_rooms")
-    .select("hotel_id,room_type,booking_id,extra_booking_ids,archived_at")
+    .select("hotel_id,room_type,check_in,check_out,booking_id,extra_booking_ids,archived_at")
     .is("archived_at", null);
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const row = ((data ?? []) as any[]).find(
     (r) => r.booking_id === bookingId || (Array.isArray(r.extra_booking_ids) && r.extra_booking_ids.includes(bookingId)),
   );
   if (!row) return null;
-  return { hotelId: row.hotel_id ?? null, roomType: row.room_type ?? null };
+  return {
+    hotelId: row.hotel_id ?? null,
+    roomType: row.room_type ?? null,
+    checkIn: row.check_in ?? null,
+    checkOut: row.check_out ?? null,
+  };
 }
 
 /**
  * Everything the guest is already sleeping through: the trip week, widened by
- * every accommodation add-on already requested or confirmed.
+ * every accommodation add-on AND by the room the team actually booked.
+ *
+ * That last part is not decoration. Nights arranged by hand — a guest emails
+ * "I'm arriving four days early", the team widens the hotel row — exist only on
+ * the room, never as an add-on. Counting against the trip week alone would
+ * quote all four of those nights back to him as new.
  */
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-export function coveredWindow(editionStart: string | null, editionEnd: string | null, addons: any[]): CoveredWindow {
-  let start = editionStart;
-  let end = editionEnd;
+export function coveredWindow(
+  editionStart: string | null,
+  editionEnd: string | null,
+  addons: any[],
+  room?: StayRoom | null,
+): CoveredWindow {
+  let start = earlier(editionStart, room?.checkIn ?? null);
+  let end = later(editionEnd, room?.checkOut ?? null);
   for (const a of addons ?? []) {
     const m = a?.meta;
     if (!m || typeof m !== "object") continue;

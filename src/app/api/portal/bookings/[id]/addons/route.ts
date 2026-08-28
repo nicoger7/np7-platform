@@ -46,7 +46,7 @@ export async function GET(_request: NextRequest, { params }: { params: Promise<{
   // What the guest already sleeps through, so the date picker can start after
   // it instead of re-offering nights they hold.
   const { data: bk } = await db.from("exp_bookings").select("exp_editions(date_start, date_end)").eq("id", id).maybeSingle();
-  const covered = coveredWindow(bk?.exp_editions?.date_start ?? null, bk?.exp_editions?.date_end ?? null, mine ?? []);
+  const covered = coveredWindow(bk?.exp_editions?.date_start ?? null, bk?.exp_editions?.date_end ?? null, mine ?? [], room);
 
   return NextResponse.json({ available, mine: mine ?? [], covered });
 }
@@ -130,7 +130,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     const { data: bk } = await db.from("exp_bookings").select("exp_editions(date_start, date_end)").eq("id", id).maybeSingle();
     const checkIn: string | null = typeof body.checkIn === "string" ? body.checkIn : null;
     const checkOut: string | null = typeof body.checkOut === "string" ? body.checkOut : null;
-    const covered = coveredWindow(bk?.exp_editions?.date_start ?? null, bk?.exp_editions?.date_end ?? null, liveAddons);
+    const covered = coveredWindow(bk?.exp_editions?.date_start ?? null, bk?.exp_editions?.date_end ?? null, liveAddons, room);
     const { before, after, total } = newNights(covered, checkIn, checkOut);
 
     if (total === 0) {
