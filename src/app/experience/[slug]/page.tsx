@@ -237,7 +237,22 @@ export default async function ExperienceDetailPage({ params, searchParams }: Pro
   const clinic = await getEventForSlug(slug, { preview: !!team }).catch(() => null);
   if (clinic && !team && (clinic.status !== "published" || !clinic.websiteVisible)) notFound();
   const clinicMember = clinic ? await getPortalUser().catch(() => null) : null;
-  let query = supabase
+  /*
+   * Team preview needs a reader that can SEE a draft.
+   *
+   * The module-level `supabase` client carries no session, so row-level
+   * security shows it published experiences only — which made the line below
+   * ("if not team, restrict to published") a promise the client could not keep.
+   * The old event page hid this by reading through the service role; routing
+   * clinics into this page exposed it as a 404 on every draft.
+   *
+   * Service role ONLY when a verified team member is asking. The public path is
+   * unchanged and still reads exactly what the public may read.
+   */
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const readDb: any = team ? createAdminClient() : supabase;
+
+  let query = readDb
     .from("exp_experiences")
     .select("id,title,location,currency,price,description,hero_image,gallery,airport_code,exp_editions(id,label,coaches,date_start,date_end,max_spots,spots_taken,deposit,status,launch_discount_pct,launch_price_until,public_from,video_analysis,photoshoot),exp_packages(id,name,price,status,archived_at,edition_id,category,gear_baseline,includes,exp_package_components(show_on_website,quantity,exp_components(name,description,category)))")
     .eq("slug", slug);
@@ -252,7 +267,7 @@ export default async function ExperienceDetailPage({ params, searchParams }: Pro
   // Fetch it tolerantly via an untyped client — if the table isn't created yet
   // (or has no row), fall back to evergreen content.
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const sb = supabase as any;
+  const sb = readDb;
   // Active-but-off-website (invite-only) experiences aren't publicly reachable.
   // Tolerant: the website_visible column errors pre-migration → treated as visible.
   const { data: visRow } = await sb.from("exp_experiences").select("website_visible").eq("id", experience.id).maybeSingle();
