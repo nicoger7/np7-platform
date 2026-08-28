@@ -15,6 +15,12 @@
 
 export const DEFAULT_WEEK_TITLE = "The best week of your windsurf year";
 
+/** A clinic is a few days, not a week away, so the trip's promise does not fit.
+ *  Same field, same editor — only the words you start from differ. */
+export const DEFAULT_CLINIC_TITLE = "What you'll take home";
+export const DEFAULT_CLINIC_INFO =
+  "Every session is built around the wind and around you: we watch the forecast, pick the window, and spend it on the water with a coach beside you — video, feedback, and one clear thing to work on next.";
+
 /** The paragraph under the "Your week" intro. Every NP7 week works this way,
  *  so it reads as the standard promise until a trip has something truer. */
 export const DEFAULT_WEEK_INFO =

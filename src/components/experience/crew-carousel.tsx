@@ -39,8 +39,10 @@ export function CrewCarousel({
           week over it would misattribute coaches on a booking surface. */}
       {multiWeek && label && hasOwnCrew && (
         <p className="text-[13.5px] text-[#5a6b72] -mt-5 mb-6">
-          Your coaches for <span className="font-bold text-[#00374a]">{label}</span>
-          <span className="text-[#9aa6ac]"> · pick another {unit} above to see its team</span>
+          {/* A one-coach clinic has a coach, not coaches — and no team to go
+              and see, so the hint changes with it. */}
+          Your {list.length === 1 ? "coach" : "coaches"} for <span className="font-bold text-[#00374a]">{label}</span>
+          <span className="text-[#9aa6ac]"> · pick another {unit} above to see {list.length === 1 ? "who is coaching it" : "its team"}</span>
         </p>
       )}
       <Carousel label="Coaches">

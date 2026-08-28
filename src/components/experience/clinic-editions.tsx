@@ -1,6 +1,5 @@
 "use client";
 
-import { useEffect, useState } from "react";
 import { useSelectedEdition } from "@/components/experience/selected-edition";
 
 /**
@@ -15,33 +14,36 @@ import { useSelectedEdition } from "@/components/experience/selected-edition";
  * — and a visitor who came to read about the coaching should never be thrown
  * back to the top of a fresh page for choosing a date.
  *
+ * The choice lives in SelectedEditionProvider rather than in this component,
+ * because three things follow it: this panel, the crew section further down,
+ * and the date chips up in the hero. One shared value keeps them from
+ * disagreeing about which clinic the visitor is looking at.
+ *
  * Every run's panel is rendered on the server and handed here as `panels`; this
  * component only decides which one is visible. That keeps the ticket box —
  * prices, deposits, balance dates — server-rendered and identical to what
  * checkout will charge.
  */
 export type ClinicRun = {
-  /** Edition id, so the rest of the page (the crew) follows the same choice. */
+  /** Edition id — the shared key the crew and the hero chips also select on. */
   editionId: string | null;
   place: string | null;
   dateLabel: string;
   slug: string | null;
 };
 
-export function ClinicEditions({
-  runs, panels, initialSlug = null,
-}: { runs: ClinicRun[]; panels: React.ReactNode[]; initialSlug?: string | null }) {
-  const start = Math.max(0, initialSlug ? runs.findIndex((r) => r.slug === initialSlug) : 0);
-  const [sel, setSel] = useState(start);
-  const { setId } = useSelectedEdition();
-  const run = runs[sel];
+/** Which run is on screen. Falls back to the first when the shared id is a week
+ *  this series does not have (a trip edition, or nothing selected yet). */
+export function runIndex(runs: ClinicRun[], id: string | null): number {
+  const i = runs.findIndex((r) => r.editionId && r.editionId === id);
+  return i === -1 ? 0 : i;
+}
 
-  /* The crew section lives further down the page and follows the shared
-     selection, so choosing a run here has to publish it. */
-  useEffect(() => {
-    const id = runs[sel]?.editionId;
-    if (id) setId(id);
-  }, [sel, runs, setId]);
+export function ClinicEditions({
+  runs, panels,
+}: { runs: ClinicRun[]; panels: React.ReactNode[] }) {
+  const { id, setId } = useSelectedEdition();
+  const sel = runIndex(runs, id);
 
   if (runs.length === 0) return null;
   const places = new Set(runs.map((r) => r.place).filter(Boolean));
@@ -60,11 +62,7 @@ export function ClinicEditions({
           <p className="text-[15.5px] text-[#6a7a80] mb-7 text-center max-w-[54ch] mx-auto">
             Everything below — the spot, the dates, your coach and the price — changes with the one you pick.
           </p>
-          <div
-            role="tablist"
-            aria-label="Choose a clinic"
-            className="flex flex-wrap justify-center gap-2.5"
-          >
+          <div role="tablist" aria-label="Choose a clinic" className="flex flex-wrap justify-center gap-2.5">
             {runs.map((r, i) => {
               const on = i === sel;
               return (
@@ -73,7 +71,7 @@ export function ClinicEditions({
                   role="tab"
                   type="button"
                   aria-selected={on}
-                  onClick={() => setSel(i)}
+                  onClick={() => r.editionId && setId(r.editionId)}
                   className={`rounded-2xl border px-5 py-3 text-left transition-all ${
                     on
                       ? "border-[#00afdb] bg-white shadow-[0_8px_28px_rgba(0,55,74,0.10)]"
@@ -93,7 +91,45 @@ export function ClinicEditions({
 
       {/* Only the chosen run is mounted: a hidden ticket box is still a form,
           and two of them on one page is two ways to buy the wrong clinic. */}
-      <div key={run?.slug ?? sel}>{panels[sel]}</div>
+      <div>{panels[sel]}</div>
+    </div>
+  );
+}
+
+/**
+ * The hero's run chips — place and date together, which is the pair that tells
+ * you whether a clinic is for you.
+ *
+ * They replace a summary line ("2 clinics · Avon, Oct 2026 · Hood River, Sept
+ * 2027") that spent the most valuable line on the page counting things. A chip
+ * selects its run and takes you to it, so the hero is a way IN to the clinics
+ * rather than a sentence about them.
+ */
+export function ClinicDateChips({ runs }: { runs: ClinicRun[] }) {
+  const { id, setId } = useSelectedEdition();
+  if (runs.length === 0) return null;
+  const sel = runIndex(runs, id);
+
+  return (
+    <div className="flex flex-wrap gap-2.5 mb-7">
+      {runs.map((r, i) => {
+        const on = runs.length > 1 && i === sel;
+        return (
+          <a
+            key={r.slug ?? i}
+            href="#packages"
+            onClick={() => r.editionId && setId(r.editionId)}
+            className={`group inline-flex items-baseline gap-2 rounded-full border px-4 py-2.5 transition-all ${
+              on
+                ? "border-white/80 bg-white/15 text-white"
+                : "border-white/30 text-white/85 hover:border-white/70 hover:bg-white/10"
+            }`}
+          >
+            <span className="text-[13.5px] font-black tracking-[-0.01em]">{r.place || "NP7 clinic"}</span>
+            <span className="text-[13px] text-white/65 group-hover:text-white/85">{r.dateLabel}</span>
+          </a>
+        );
+      })}
     </div>
   );
 }

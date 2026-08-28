@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { flags } from "@/lib/flags";
 import { WindMiniChart } from "@/components/experience/wind-mini-chart";
-import { DEFAULT_WEEK_INFO } from "@/lib/experience-defaults";
+import { DEFAULT_WEEK_INFO, DEFAULT_CLINIC_TITLE, DEFAULT_CLINIC_INFO } from "@/lib/experience-defaults";
 import { notFound } from "next/navigation";
 import { includeLine } from "@/lib/include-line";
 import { REVIEW_CATEGORIES } from "@/lib/review-categories";
@@ -15,7 +15,7 @@ import { supabase } from "@/lib/supabase";
 import { getTeamMember, getPortalUser } from "@/lib/auth";
 import { getEventForSlug, getEventRuns, type EventInfo } from "@/lib/events";
 import { ClinicTicketBox } from "@/components/experience/clinic-ticket-box";
-import { ClinicEditions, type ClinicRun } from "@/components/experience/clinic-editions";
+import { ClinicEditions, ClinicDateChips, type ClinicRun } from "@/components/experience/clinic-editions";
 import { SelectedEditionProvider } from "@/components/experience/selected-edition";
 import { CrewCarousel, type Guide } from "@/components/experience/crew-carousel";
 import { ProgramForWeek, type ProgramDay } from "@/components/experience/program-for-week";
@@ -598,13 +598,22 @@ export default async function ExperienceDetailPage({ params, searchParams }: Pro
   /** More than one place means the picker is a real choice, and the top of the
    *  page must stop claiming any single spot as THE spot. */
   const travellingClinic = clinicPlaces.length > 1;
-  // Two runs named in full, the rest counted — a hero line has no room for six.
-  const clinicRunLine = clinicRuns.length
-    ? [
-        ...clinicRuns.slice(0, 2).map((r) => [shortPlace(r.location), monthYear(r.start)].filter(Boolean).join(", ")),
-        ...(clinicRuns.length > 2 ? [`+${clinicRuns.length - 2} more`] : []),
-      ].filter(Boolean).join(" · ")
-    : "";
+  /** One description of the runs, shared by the hero chips and the selector, so
+   *  the two can never disagree about what is on sale. */
+  /* What is true of EVERY run, for the facts band. Runs with different caps
+     cannot honestly share one number, so they fall back to the promise they do
+     share — small — rather than quoting the biggest. */
+  const clinicCaps = [...new Set(
+    bookable.map((r) => allEditions.find((e) => e.id === r.editionId)?.max_spots)
+      .filter((n): n is number => typeof n === "number" && n > 0),
+  )];
+  const clinicGroupSize = clinicCaps.length === 1 ? `Max ${clinicCaps[0]} riders` : clinicCaps.length > 1 ? "Small group" : "";
+  const clinicRunChips: ClinicRun[] = bookable.map((r) => ({
+    editionId: r.editionId,
+    place: shortPlace(r.location),
+    dateLabel: fmtShort(r.dates[0]?.date_start, r.dates[0]?.date_end, true) || "Dates to come",
+    slug: r.editionSlug ?? null,
+  }));
   const tileImg = experience.hero_image; // listing tile / fallback
   const heroVideoUrl = content?.hero_video_url?.trim() ?? "";
   // Segment timestamps fetched separately so a pre-migration-018 missing column
@@ -682,6 +691,19 @@ export default async function ExperienceDetailPage({ params, searchParams }: Pro
     return false;
   };
   const outcomeItems = (customOutcomes.length ? customOutcomes : OUTCOMES).filter((o) => !mediaOutcomeOff(o));
+  /*
+   * The same section, cut for a clinic.
+   *
+   * A clinic promises fewer things than a week, so it shows THREE cards — the
+   * trip's six read as padding on a two-day format. The cards themselves are
+   * the ordinary `exp_content.week_outcomes` rows, editable in the same place,
+   * so trimming here never means writing clinic copy in code: whoever edits the
+   * list controls which three appear by ordering them.
+   */
+  const CLINIC_CARDS = 3;
+  const clinicOutcomes = clinic ? outcomeItems.slice(0, CLINIC_CARDS) : outcomeItems;
+  const clinicWeekTitle = content?.week_title?.trim() || (outcomesTpl?.title as string | undefined)?.trim() || DEFAULT_CLINIC_TITLE;
+  const clinicWeekInfo = content?.week_info?.trim() || DEFAULT_CLINIC_INFO;
   // Per-level versions of this section. Which levels appear is decided by what
   // the experience actually SELLS — the distinct coaching level across every
   // package on show — so a one-level trip renders exactly as before and a level
@@ -968,17 +990,15 @@ export default async function ExperienceDetailPage({ params, searchParams }: Pro
         <div className="relative w-full max-w-[1200px] mx-auto px-6 sm:px-8 pb-9 pt-28">
           <Reveal from="up">
             <div className="flex flex-wrap items-center gap-3 mb-4">
-              {/* A travelling series has no one location to stamp above the
-                  title, and its runs are clinics rather than weeks. */}
-              <span className="text-[12px] font-bold tracking-[0.2em] uppercase text-white/75">
+              {/* Where it happens is the first thing that decides whether a
+                  clinic is for you, so a travelling series names every coast —
+                  bigger than a trip's, because here it is the headline fact.
+                  The count chip that used to sit beside it is gone: "2 clinics"
+                  is arithmetic the chips below already show. */}
+              <span className={`font-bold tracking-[0.2em] uppercase text-white/75 ${travellingClinic ? "text-[13px] sm:text-[15px] text-white/90" : "text-[12px]"}`}>
                 {travellingClinic ? clinicPlaces.join(" · ") : (clinic?.location ?? experience.location)}
               </span>
-              {clinicRuns.length > 1 ? (
-                <span className="inline-flex items-center gap-1.5 text-[12px] font-semibold px-3 py-1 rounded-full text-[#5fd0e8] bg-[#00afdb]/15 border border-[#00afdb]/30">
-                  <span className="w-1.5 h-1.5 rounded-full bg-[#5fd0e8] animate-pulse" />
-                  {clinicRuns.length} clinics
-                </span>
-              ) : multi ? (
+              {clinicRuns.length > 0 ? null : multi ? (
                 <span className="inline-flex items-center gap-1.5 text-[12px] font-semibold px-3 py-1 rounded-full text-[#5fd0e8] bg-[#00afdb]/15 border border-[#00afdb]/30">
                   <span className="w-1.5 h-1.5 rounded-full bg-[#5fd0e8] animate-pulse" />
                   {allEditions.length} weeks{scarceLeft != null ? ` · one week down to ${scarceLeft}` : ""}
@@ -991,17 +1011,19 @@ export default async function ExperienceDetailPage({ params, searchParams }: Pro
               ) : null}
             </div>
             <h1 className="text-4xl sm:text-6xl lg:text-7xl font-black text-white leading-[0.98] tracking-[-0.035em] mb-4 max-w-[840px]">{experience.title}</h1>
-            {datesTBD ? (
+            {/* A clinic series gets CHIPS instead of a sentence: place and date
+                together, one per run, each a way into that clinic. The line it
+                replaces spent the hero counting ("2 clinics · Avon, Oct 2026 ·
+                Hood River, Sept 2027") — useless next to the chips themselves. */}
+            {clinicRuns.length > 0 ? (
+              <ClinicDateChips runs={clinicRunChips} />
+            ) : datesTBD ? (
               <p className="text-[16px] sm:text-[17px] text-white/70 mb-6">Dates coming soon — new weeks are announced regularly.</p>
             ) : (spanStart || edition) ? (
               <p className="text-[16px] sm:text-[17px] text-white/70 mb-6">
-                {clinicRuns.length > 1
-                  ? `${clinicRuns.length} clinics · ${clinicRunLine}`
-                  : clinic
-                    ? fmtRange(clinicRuns[0]?.start, clinicRuns[0]?.end)
-                    : multi
-                      ? `${fmtRange(spanStart, spanEnd)} · ${allEditions.length} weeks to choose from`
-                      : fmtRange(edition.date_start, edition.date_end)}
+                {multi
+                  ? `${fmtRange(spanStart, spanEnd)} · ${allEditions.length} weeks to choose from`
+                  : fmtRange(edition.date_start, edition.date_end)}
               </p>
             ) : null}
             <div className="flex flex-wrap items-center gap-3">
@@ -1038,8 +1060,12 @@ export default async function ExperienceDetailPage({ params, searchParams }: Pro
               those facts describe the SET of runs; the chosen run states its own
               below the selector. A dash is not a fact — empties are dropped. */}
           {([
+            // The chips in the hero already name every run's place and date, so
+            // repeating them here as "2 clinics · Oct 2026 · Sept 2027" spends
+            // the band on arithmetic. A series says what is true of ALL its runs
+            // instead — how many riders, what level, what you need to bring.
             clinicRuns.length > 1
-              ? { icon: "calendar", label: `${clinicRuns.length} clinics`, value: clinicRuns.map((r) => monthYear(r.start)).filter(Boolean).join(" · ") }
+              ? { icon: "users", label: "Group size", value: clinicGroupSize }
               : { icon: "calendar", label: multi ? `${allEditions.length} weeks to choose` : "When", value: clinic
                   ? fmtShort(clinicRuns[0]?.start, clinicRuns[0]?.end)
                   : multi
@@ -1049,7 +1075,11 @@ export default async function ExperienceDetailPage({ params, searchParams }: Pro
               value: travellingClinic
                 ? (clinicPlaces.length > 2 ? `${clinicPlaces.length} spots in ${experience.location ?? "the US"}` : clinicPlaces.join(" & "))
                 : (clinic?.location ?? experience.location ?? "") },
-            { icon: "wind", label: "Typical wind", value: travellingClinic ? "" : (windRange || (windDisplay ? `Sailing wind ${windDisplay} of days` : "Steady in season")) },
+            clinicRuns.length > 1
+              // Wind belongs to a spot, and a series has several — but the
+              // ticket is one number the whole series can be judged on.
+              ? { icon: "bolt", label: "Ticket", value: money(fromPrice, experience.currency) ? `From ${money(fromPrice, experience.currency)}` : "" }
+              : { icon: "wind", label: "Typical wind", value: windRange || (windDisplay ? `Sailing wind ${windDisplay} of days` : "Steady in season") },
             { icon: "plane", label: "Airport", value: travellingClinic ? "" : (experience.airport_code ?? "") },
           ] as { icon: string; label: string; value: string }[]).filter((f) => f.value).map((f) => (
             <div key={f.label} className="flex items-start gap-3">
@@ -1069,6 +1099,7 @@ export default async function ExperienceDetailPage({ params, searchParams }: Pro
         // is worse than a shorter nav.
         sections={([
           !clinic && { id: "week", label: "Your week" },
+          clinic && clinicOutcomes.length > 0 && { id: "week", label: "What you get" },
           { id: "method", label: "Coaching" },
           spotAbout && !clinic && { id: "spot", label: "The spot" },
           // The clinic selector IS the booking block, and it sits above the crew
@@ -1085,23 +1116,26 @@ export default async function ExperienceDetailPage({ params, searchParams }: Pro
       />
 
       {/* 1 · THE DREAM — your epic week (pinned scroll through the outcomes).
-          A clinic has no week to narrate; skipped rather than shown thin. */}
-      {!clinic && (
+          A clinic runs the SAME section under its own name: it is the "what you
+          get" walk-through, cut to three cards because a clinic promises fewer
+          things than a week and a thin list of six reads as padding. Same
+          exp_content fields, same editor — only the framing changes. */}
+      {clinicOutcomes.length > 0 && (
       <div id="week" className="scroll-mt-28">
       <EpicWeekScroll
-        outcomes={outcomeItems}
+        outcomes={clinicOutcomes}
         images={(() => {
           // explicit per-card image wins; empty slot falls back to gallery
           // position N — the old behaviour, so re-ordering the Media tab can
           // no longer silently reshuffle a card someone pinned a photo to
           const wk = Array.isArray(c?.week_images) ? (c.week_images as (string | null)[]) : [];
-          return outcomeItems.map((_, i) => wk[i] || vibeImages[i % Math.max(1, vibeImages.length)]).filter(Boolean) as string[];
+          return clinicOutcomes.map((_, i) => wk[i] || vibeImages[i % Math.max(1, vibeImages.length)]).filter(Boolean) as string[];
         })()}
-        eyebrow="YOUR EPIC WEEK"
-        levels={levelVariants}
-        title={weekTitle}
+        eyebrow={clinic ? "WHAT YOU GET" : "YOUR EPIC WEEK"}
+        levels={clinic ? undefined : levelVariants}
+        title={clinic ? clinicWeekTitle : weekTitle}
         intro={experience.description || "One week, fully immersed in the sport you love — epic conditions, world-class coaching, and a crew that feels like old friends by day two."}
-        weekInfo={weekInfo}
+        weekInfo={clinic ? clinicWeekInfo : weekInfo}
       />
       </div>
       )}
@@ -1350,13 +1384,7 @@ export default async function ExperienceDetailPage({ params, searchParams }: Pro
         <section id="packages" className="scroll-mt-28 py-16 sm:py-24 bg-[#f7f7f7]">
           <div className="max-w-[1000px] mx-auto px-6 sm:px-8">
             <ClinicEditions
-              initialSlug={pickedEdition ?? null}
-              runs={bookable.map((r): ClinicRun => ({
-                editionId: r.editionId,
-                place: shortPlace(r.location),
-                dateLabel: fmtShort(r.dates[0]?.date_start, r.dates[0]?.date_end, true) || "Dates to come",
-                slug: r.editionSlug ?? null,
-              }))}
+              runs={clinicRunChips}
               panels={bookable.map((r) => (
                 <div key={r.editionId ?? r.editionSlug} className="grid lg:grid-cols-[1.15fr_1fr] gap-9 lg:gap-14 items-start">
                   <div>
