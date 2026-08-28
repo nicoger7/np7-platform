@@ -115,6 +115,9 @@ export default function ContentEditorPage({ params }: { params: Promise<{ id: st
   const [windProbability, setWindProbability] = useState("");
   const [windRange, setWindRange] = useState("");
   const [noWindProgram, setNoWindProgram] = useState("");
+  /* The caveat under the day-by-day. Empty = the shipped default, which is what
+     both the trip and the clinic page render when nobody has written one. */
+  const [programNote, setProgramNote] = useState("");
 
   // Per-edition modules (guides/reviews differ per week)
   const [editions, setEditions] = useState<{ id: string; year: number | null; label: string | null }[]>([]);
@@ -209,6 +212,7 @@ export default function ContentEditorPage({ params }: { params: Promise<{ id: st
         setWindProbability(c.wind_probability ?? "");
         setWindRange(c.wind_range ?? "");
         setNoWindProgram(c.no_wind_program ?? "");
+        setProgramNote(c.program_note ?? "");
         setPackingList(c.packing_list ?? "");
         setPreTripNote(c.pre_trip_note ?? "");
       })
@@ -343,6 +347,7 @@ export default function ContentEditorPage({ params }: { params: Promise<{ id: st
         wind_probability: windProbability,
         wind_range: windRange,
         no_wind_program: noWindProgram,
+        program_note: programNote.trim() || null,
         packing_list: packingList,
         pre_trip_note: preTripNote,
       }),
@@ -828,6 +833,24 @@ export default function ContentEditorPage({ params }: { params: Promise<{ id: st
               </div>
             ))}
             <AddButton label="Add day" onClick={() => setProgram([...program, { title: "", description: "" }])} />
+          </div>
+          <div className="mt-5">
+            <label className="block text-xs font-semibold admin-muted mb-1">
+              Note under the schedule{" "}
+              <span className="admin-faint font-normal">
+                — the line that stops a published plan reading as a promise. Empty uses the default
+                &quot;depends on the wind&quot; wording.
+              </span>
+            </label>
+            <textarea
+              value={programNote}
+              onChange={(e) => setProgramNote(e.target.value)}
+              rows={2}
+              placeholder={isEvent
+                ? "This is what a great clinic looks like — the exact running order depends on the wind…"
+                : "This is what the ideal week looks like — the exact day-to-day depends on the wind…"}
+              className="admin-input w-full px-3 py-2 rounded-md border text-sm outline-none resize-y"
+            />
           </div>
           {/* The six-day default is a WEEK. Showing it on a two-day clinic
               tells you a fiction is live when nothing is. */}

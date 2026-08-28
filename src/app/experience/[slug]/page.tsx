@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { flags } from "@/lib/flags";
 import { WindMiniChart } from "@/components/experience/wind-mini-chart";
-import { DEFAULT_WEEK_INFO, DEFAULT_CLINIC_TITLE, DEFAULT_CLINIC_INFO } from "@/lib/experience-defaults";
+import { DEFAULT_WEEK_INFO, DEFAULT_CLINIC_TITLE, DEFAULT_CLINIC_INFO, DEFAULT_PROGRAM_NOTE, DEFAULT_CLINIC_PROGRAM_NOTE } from "@/lib/experience-defaults";
 import { notFound } from "next/navigation";
 import { packageIncludes, withMemberArea } from "@/lib/package-includes";
 import { REVIEW_CATEGORIES } from "@/lib/review-categories";
@@ -189,6 +189,7 @@ type ContentRow = {
   hero_image: string | null; hero_focus: string | null; hero_focus_shapes: Record<string, string> | null;
   hero_video_url: string | null; explainer_video_url: string | null; gallery: string[] | null; reviews: ReviewRow[] | null;
   no_wind_program: string | null; wind_probability: string | null; wind_range: string | null;
+  program_note: string | null;
 };
 type Detail = {
   id: string; title: string; location: string | null; currency: string | null; price: number | null;
@@ -293,7 +294,7 @@ export default async function ExperienceDetailPage({ params, searchParams }: Pro
   // Split the fetch so the newer media columns (added in migration 013) can't
   // break the existing text content if they haven't been applied yet.
   const [{ data: baseRaw }, { data: mediaRaw }] = await Promise.all([
-    sb.from("exp_content").select("location_about,week_info,daily_program,highlights,faq,week_title,week_outcomes,week_outcomes_by_level,method_intro,method_steps,method_template_id,outcomes_template_id,week_images").eq("experience_id", experience.id).maybeSingle(),
+    sb.from("exp_content").select("location_about,week_info,daily_program,highlights,faq,week_title,week_outcomes,week_outcomes_by_level,method_intro,method_steps,method_template_id,outcomes_template_id,week_images,program_note").eq("experience_id", experience.id).maybeSingle(),
     sb.from("exp_content").select("hero_image,hero_focus,hero_focus_shapes,hero_video_url,explainer_video_url,gallery,reviews,no_wind_program,wind_probability,wind_range").eq("experience_id", experience.id).maybeSingle(),
   ]);
   const content = (baseRaw || mediaRaw ? { ...(baseRaw ?? {}), ...(mediaRaw ?? {}) } : null) as ContentRow | null;
@@ -605,6 +606,11 @@ export default async function ExperienceDetailPage({ params, searchParams }: Pro
     const n = allEditions.find((e) => e.id === editionId)?.max_spots;
     return typeof n === "number" && n > 0 ? n : null;
   };
+  /* Each row can then say "Day 1 · Sat 10 Oct" instead of "Day 1" — the same
+     plan, against the reader's own calendar. */
+  const clinicStartDates: Record<string, string | null> = Object.fromEntries(
+    bookable.filter((r) => r.editionId).map((r) => [r.editionId as string, r.dates[0]?.date_start ?? null]),
+  );
   const clinicRunChips: ClinicRun[] = bookable.map((r) => ({
     editionId: r.editionId,
     place: shortPlace(r.location),
@@ -701,6 +707,9 @@ export default async function ExperienceDetailPage({ params, searchParams }: Pro
   const clinicOutcomes = clinic ? outcomeItems.slice(0, CLINIC_CARDS) : outcomeItems;
   const clinicWeekTitle = content?.week_title?.trim() || (outcomesTpl?.title as string | undefined)?.trim() || DEFAULT_CLINIC_TITLE;
   const clinicWeekInfo = content?.week_info?.trim() || DEFAULT_CLINIC_INFO;
+  /* One caveat, one field, both pages. A published schedule reads as a promise
+     unless something says the wind decides — so it must never be optional. */
+  const programNote = content?.program_note?.trim() || (clinic ? DEFAULT_CLINIC_PROGRAM_NOTE : DEFAULT_PROGRAM_NOTE);
   // Per-level versions of this section. Which levels appear is decided by what
   // the experience actually SELLS — the distinct coaching level across every
   // package on show — so a one-level trip renders exactly as before and a level
@@ -778,13 +787,15 @@ export default async function ExperienceDetailPage({ params, searchParams }: Pro
     : [];
   // …and a single week can override it (exp_editions.daily_program, migration 112).
   const programByEdition: Record<string, ProgramDay[]> = {};
+  /** A run's own photo, when it has one. */
+  const editionHero: Record<string, string> = {};
   /* The union of both edition lists. `allEditions` keeps weeks that have not
      STARTED, while a clinic stays sellable until it ENDS — so a clinic running
      right now sits in the selector but would be missing from this map, and
      would silently inherit the series program with nothing to show it had. */
   const programEdIds = [...new Set([...allEditions.map((e) => e.id), ...bookable.map((r) => r.editionId)].filter(Boolean))] as string[];
   if (programEdIds.length) {
-    const { data: edProg } = await sb.from("exp_editions").select("id,daily_program").in("id", programEdIds);
+    const { data: edProg } = await sb.from("exp_editions").select("id,daily_program,hero_image").in("id", programEdIds);
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     for (const r of ((edProg ?? []) as any[])) {
       if (Array.isArray(r.daily_program) && r.daily_program.length) {
@@ -792,8 +803,25 @@ export default async function ExperienceDetailPage({ params, searchParams }: Pro
           title: p.title?.trim() || `Day ${i + 1}`, description: p.description ?? "",
         }));
       }
+      if (typeof r.hero_image === "string" && r.hero_image.trim()) editionHero[r.id] = r.hero_image.trim();
     }
   }
+  /*
+   * Photos for the day rows, per run.
+   *
+   * A run's own hero photo is the only image we can honestly put next to its
+   * schedule. The experience gallery is shared, so on a series that TRAVELS it
+   * would put a Hatteras beach beside a Columbia Gorge day — the same wrong-
+   * coast mistake as a shared description. A series that stays in one place has
+   * no such problem and keeps the gallery. No image is a fine outcome: the rows
+   * still carry their real dates.
+   */
+  const clinicDayImages: Record<string, string[]> = Object.fromEntries(
+    bookable.filter((r) => r.editionId).map((r) => {
+      const own = editionHero[r.editionId as string];
+      return [r.editionId as string, own ? [own] : travellingClinic ? [] : vibeImages];
+    }),
+  );
   const faqItems: AccordionItem[] =
     (content?.faq ?? []).length > 0
       ? content!.faq!.map((f) => ({ title: f.q, content: <span className="whitespace-pre-line">{f.a}</span> }))
@@ -1369,7 +1397,7 @@ export default async function ExperienceDetailPage({ params, searchParams }: Pro
           <Reveal className="mb-10">
             <p className="text-[11px] font-bold tracking-[0.25em] text-[#00afdb] mb-3">DAY BY DAY</p>
             <h2 className="text-3xl sm:text-5xl font-black tracking-[-0.03em] text-[#00374a] mb-3">Your perfect week in {place}</h2>
-            <p className="text-[14.5px] text-[#7a8a90] leading-relaxed italic">This is what the ideal week looks like — the exact day-to-day depends on the wind. We chase the best conditions and adapt as we go.</p>
+            <p className="text-[14.5px] text-[#7a8a90] leading-relaxed italic">{programNote}</p>
           </Reveal>
           {/* follows the week picked in the booking block — a week can run its own plan */}
           <Reveal>
@@ -1492,6 +1520,10 @@ export default async function ExperienceDetailPage({ params, searchParams }: Pro
                 weekLabels={{}}
                 unit="clinic"
                 eyebrow="DAY BY DAY"
+                title="What your days look like"
+                note={programNote}
+                startDates={clinicStartDates}
+                imagesByEdition={clinicDayImages}
               />
             </Reveal>
           )}

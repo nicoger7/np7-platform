@@ -180,6 +180,9 @@ export async function PUT(
       ? body.method_steps.map((m: any) => ({ t: String(m?.t ?? ""), d: String(m?.d ?? ""), gameChanger: !!m?.gameChanger })).filter((m: { t: string; d: string }) => m.t.trim() || m.d.trim())
       : [],
     daily_program: program,
+    // Null, not "", so an untouched field keeps falling back to the shipped
+    // caveat rather than silently publishing a schedule with no caveat at all.
+    program_note: typeof body.program_note === "string" && body.program_note.trim() ? body.program_note.trim() : null,
     // Per-card photo overrides for the week outcomes; null slot = the old
     // positional gallery fallback. Stored as-is, trimmed of trailing nulls.
     week_images: Array.isArray(body.week_images)
@@ -237,6 +240,14 @@ export async function PUT(
   if (error && /(card_placement|hero_focus|tile_coaches)/.test(error.message || "")) {
     // eslint-disable-next-line @typescript-eslint/no-unused-vars
     const { card_placement: _cp, hero_focus: _hf, hero_focus_shapes: _hfs2, tile_coaches: _tc, ...rest } = row;
+    ({ data, error } = await db.from("exp_content").upsert(rest, { onConflict: "experience_id" }).select().single());
+  }
+
+  // Pre-migration-193 fallback: the day-by-day caveat is one optional column,
+  // and a missing one must not take a whole content save down with it.
+  if (error && /program_note/.test(error.message || "")) {
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    const { program_note: _pn, ...rest } = row;
     ({ data, error } = await db.from("exp_content").upsert(rest, { onConflict: "experience_id" }).select().single());
   }
 

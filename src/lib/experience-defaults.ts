@@ -26,6 +26,20 @@ export const DEFAULT_CLINIC_INFO =
 export const DEFAULT_WEEK_INFO =
   "Every day is built around the wind. We watch the forecast together, pick the best window, and spend it on the water with a coach beside you — video, feedback and a plan for tomorrow. When the wind takes a break, so do we: the place, the food, the people.";
 
+/**
+ * The caveat under the day-by-day.
+ *
+ * A published schedule reads as a promise unless something says otherwise, and
+ * NP7 weeks are built around the forecast — so this line is not decoration, it
+ * is the thing that keeps the plan honest. Same words on a trip and a clinic;
+ * `exp_content.program_note` overrides it per experience.
+ */
+export const DEFAULT_PROGRAM_NOTE =
+  "This is what the ideal week looks like — the exact day-to-day depends on the wind. We chase the best conditions and adapt as we go.";
+
+export const DEFAULT_CLINIC_PROGRAM_NOTE =
+  "This is what a great clinic looks like — the exact running order depends on the wind. We watch the forecast together and move the days around to catch the best of it.";
+
 export const DEFAULT_METHOD_INTRO =
   "Nico's proven coaching approach, developed teaching hundreds of thousands of windsurfers through YouTube and camps worldwide. Complex movements, broken into clear, actionable steps — tailored to you.";
 
