@@ -63,3 +63,30 @@ export function packageIncludes(pkg: {
     .map((l) => includeLine({ ...l?.exp_components, quantity: l?.quantity }))
     .filter(Boolean);
 }
+
+/**
+ * The NP7 member area rides on every package — a trip week and a clinic seat
+ * alike. It is not a component anyone would think to attach, and it is not
+ * optional, so it is appended rather than configured.
+ *
+ * What it PROMISES follows the run's own media flags, so a week that shoots no
+ * video never sells video-analysis clips. A hand-written mention wins outright:
+ * if someone has already written the member area into the list, they meant
+ * their wording, not ours.
+ */
+export function withMemberArea(
+  base: string[],
+  opts: { video?: boolean | null; photo?: boolean | null; unit?: "week" | "clinic" } = {},
+): string[] {
+  if (base.some((t) => /member area/i.test(t))) return base;
+  const video = opts.video !== false;
+  const photo = opts.photo !== false;
+  const unit = opts.unit ?? "week";
+  const media = video && photo
+    ? `all your ${unit}'s photos & videos, `
+    : photo ? `all your ${unit}'s photos, `
+    : video ? "your video-analysis clips, "
+    : "";
+  const docs = unit === "clinic" ? "clinic documents" : "trip documents";
+  return [...base, `NP7 member area — ${media}${docs} & progress tracker`];
+}

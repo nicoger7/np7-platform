@@ -1,5 +1,5 @@
 import { createAdminClient } from "@/lib/supabase";
-import { packageIncludes } from "@/lib/package-includes";
+import { packageIncludes, withMemberArea } from "@/lib/package-includes";
 
 /** A candidate / confirmed date for a standby (or fixed) event. */
 export type EventDate = {
@@ -160,7 +160,7 @@ export async function getEventForSlug(
   // in October, without one experience row per venue.
   const { data: edRows } = await db
     .from("exp_editions")
-    .select("id,slug,label,location,price,date_start,date_end,description")
+    .select("id,slug,label,location,price,date_start,date_end,description,video_analysis,photoshoot")
     .eq("experience_id", exp.id)
     .eq("kind", "event")
     /*
@@ -173,7 +173,7 @@ export async function getEventForSlug(
      */
     .in("status", opts.preview ? ["published", "draft"] : ["published"])
     .order("date_start");
-  type EdRow = { id: string; slug: string | null; label: string | null; location: string | null; price: number | null; date_start: string | null; date_end: string | null; description: string | null };
+  type EdRow = { id: string; slug: string | null; label: string | null; location: string | null; price: number | null; date_start: string | null; date_end: string | null; description: string | null; video_analysis?: boolean | null; photoshoot?: boolean | null };
   const editions = (edRows ?? []) as EdRow[];
 
   // One URL cannot sell two clinics. /experience/np7-race-clinic is the SERIES —
@@ -213,7 +213,14 @@ export async function getEventForSlug(
     pkg = usable.sort((a, b) => Number(a.deposit ?? Infinity) - Number(b.deposit ?? Infinity))[0] ?? null;
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const chosen = ((pkgRows ?? []) as any[]).find((p) => p.id === pkg?.id);
-    if (chosen) included = packageIncludes(chosen);
+    if (chosen) {
+      // The member area rides on a clinic seat exactly as it does on a trip
+      // week — same helper, so the two lists cannot drift apart, and worded
+      // for a clinic rather than a week.
+      included = withMemberArea(packageIncludes(chosen), {
+        video: pinned.video_analysis, photo: pinned.photoshoot, unit: "clinic",
+      });
+    }
   }
 
   /*

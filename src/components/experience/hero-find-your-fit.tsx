@@ -101,18 +101,53 @@ export function HeroFindYourFit({ src, poster, fallbackImages, fallbackFocus, ch
     // seek decodes from RAM, so the first scroll is as smooth as the last.
     // Fetch fails → the slideshow simply stays; nothing to time out, nothing
     // to judder.
+    /*
+     * Pulling ~12 MB into memory is a desktop luxury. On a metered or slow
+     * connection it is a long download for a background flourish, and until it
+     * lands the hero is carrying the photo slideshow anyway — so on those
+     * connections we simply keep the photos, which is the good fallback this
+     * component was already designed around.
+     */
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const conn = (navigator as any).connection;
+    const frugal = !!conn && (conn.saveData === true || /(^|-)(2g|3g)$/.test(String(conn.effectiveType ?? "")));
     let blobUrl = "";
-    fetch(video.currentSrc || video.src)
+    // Skipped rather than returned early: `raf`, `running` and the observer are
+    // declared below, so bailing out here would leave the cleanup closing over
+    // bindings that were never initialised.
+    if (!frugal) fetch(video.currentSrc || video.src)
       .then((r) => (r.ok ? r.blob() : Promise.reject(new Error(String(r.status)))))
       .then((b) => {
         if (!running) return;
         blobUrl = URL.createObjectURL(b);
         const keep = video.currentTime;
         video.src = blobUrl;
-        video.addEventListener("loadedmetadata", () => {
+        /*
+         * Hand over on a FRAME, not on dimensions.
+         *
+         * `loadedmetadata` fires at readyState 1: the width and height are
+         * known and nothing has been decoded. Fading the photos out there left
+         * phones showing an empty video element over the gradient — the hero
+         * with no background at all (Nico, on mobile). `loadeddata` is
+         * readyState 2, HAVE_CURRENT_DATA, which is the guarantee we actually
+         * need: there is a frame at the current position to paint.
+         *
+         * The muted play/pause is the second half of it. iOS will not paint a
+         * paused video that has never played, and swapping `src` to the blob
+         * threw away the priming the original source got — so without this the
+         * element stays blank however long you wait.
+         */
+        const handover = () => {
+          if (!running) return;
+          // A decoder that reports no dimensions has nothing to paint. Handing
+          // over to it hides the photos in exchange for an empty rectangle.
+          if (!video.videoWidth || !video.videoHeight) return;
           try { video.currentTime = keep; } catch { /* fine */ }
-          setVideoReady(true); // memory-backed and scrub-ready — fade the photos out
-        }, { once: true });
+          video.play().then(() => video.pause()).catch(() => { /* fine — the seek still paints */ });
+          setVideoReady(true); // memory-backed, decoded and scrub-ready
+        };
+        if (video.readyState >= 2) handover();
+        else video.addEventListener("loadeddata", handover, { once: true });
       })
       .catch(() => { /* slideshow keeps the hero — worse but beautiful */ });
 

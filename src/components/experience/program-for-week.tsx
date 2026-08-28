@@ -13,7 +13,7 @@ export type { ProgramDay };
  * only deliberately-customised weeks differ.
  */
 export function ProgramForWeek({
-  programByEdition, fallback, weekLabels, editionId, unit = "week",
+  programByEdition, fallback, weekLabels, editionId, unit = "week", eyebrow,
 }: {
   programByEdition: Record<string, ProgramDay[]>;
   fallback: ProgramDay[];
@@ -30,6 +30,14 @@ export function ProgramForWeek({
   editionId?: string | null;
   /** A clinic runs clinics, not weeks. */
   unit?: "week" | "clinic";
+  /**
+   * Rendered above the days, INSIDE the empty check.
+   *
+   * The caller cannot own this heading: whether there are any days depends on
+   * the edition selected in the browser, so a server-rendered title would sit
+   * over an empty box the moment someone picked a run with no program.
+   */
+  eyebrow?: string;
 }) {
   const { id: ctxId } = useSelectedEdition();
   const id = editionId ?? ctxId;
@@ -52,6 +60,7 @@ export function ProgramForWeek({
 
   return (
     <>
+      {eyebrow && <p className="text-[11px] font-bold tracking-[0.25em] text-[#00afdb] mb-4">{eyebrow}</p>}
       {multiWeek && label && (
         <p className="text-[13.5px] text-[#5a6b72] -mt-4 mb-6">
           The plan for <span className="font-bold text-[#00374a]">{label}</span>

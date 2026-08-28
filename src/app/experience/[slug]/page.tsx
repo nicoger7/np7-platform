@@ -3,7 +3,7 @@ import { flags } from "@/lib/flags";
 import { WindMiniChart } from "@/components/experience/wind-mini-chart";
 import { DEFAULT_WEEK_INFO, DEFAULT_CLINIC_TITLE, DEFAULT_CLINIC_INFO } from "@/lib/experience-defaults";
 import { notFound } from "next/navigation";
-import { packageIncludes } from "@/lib/package-includes";
+import { packageIncludes, withMemberArea } from "@/lib/package-includes";
 import { REVIEW_CATEGORIES } from "@/lib/review-categories";
 import { statsAreBlind } from "@/lib/wind-stats";
 import { firstNameInitial, publicProfileFor } from "@/lib/member-profile";
@@ -19,7 +19,7 @@ import { ClinicEditions, ClinicDateChips, type ClinicRun } from "@/components/ex
 import { SelectedEditionProvider } from "@/components/experience/selected-edition";
 import { CrewCarousel, type Guide } from "@/components/experience/crew-carousel";
 import { ProgramForWeek } from "@/components/experience/program-for-week";
-import { programForEdition, type ProgramDay } from "@/lib/program-days";
+import { type ProgramDay } from "@/lib/program-days";
 import { OceanHeader, NP7_LOGO } from "@/components/experience/ocean-header";
 import { Reveal } from "@/components/experience/reveal";
 import { Accordion, type AccordionItem } from "@/components/experience/accordion";
@@ -493,16 +493,9 @@ export default async function ExperienceDetailPage({ params, searchParams }: Pro
         // The shared builder (manual list wins, else the Web ✓ components in a
         // fixed order) — the clinic chips render from exactly the same lines.
         const base = packageIncludes(p);
-        // The member-area benefit rides on every package — what it PROMISES
-        // (photos, video clips) follows the week's own flags, so the overview
-        // never sells media a week doesn't shoot. Hand-written mentions win.
-        if (base.some((t) => /member area/i.test(t))) return base;
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const ped: any = allEditions.find((e) => e.id === p.edition_id) ?? edition;
-        const video = ped?.video_analysis !== false;
-        const photo = ped?.photoshoot !== false;
-        const media = video && photo ? "all your week's photos & videos, " : photo ? "all your week's photos, " : video ? "your video-analysis clips, " : "";
-        return [...base, `NP7 member area — ${media}trip documents & progress tracker`];
+        return withMemberArea(base, { video: ped?.video_analysis, photo: ped?.photoshoot });
       })(),
     };
   };
@@ -600,8 +593,6 @@ export default async function ExperienceDetailPage({ params, searchParams }: Pro
     end: r.dates[0]?.date_end ?? null,
   }));
   const shortPlace = (l: string | null | undefined) => l?.split(",")[0]?.trim() || null;
-  const monthYear = (d: string | null) =>
-    d ? new Date(d).toLocaleDateString("en-GB", { month: "short", year: "numeric", timeZone: "UTC" }) : null;
   const clinicPlaces = [...new Set(clinicRuns.map((r) => shortPlace(r.location)).filter(Boolean))] as string[];
   /** More than one place means the picker is a real choice, and the top of the
    *  page must stop claiming any single spot as THE spot. */
@@ -1401,11 +1392,6 @@ export default async function ExperienceDetailPage({ params, searchParams }: Pro
             <ClinicEditions
               runs={clinicRunChips}
               panels={bookable.map((r) => {
-                // Resolved HERE, on the server, for the run this panel is about
-                // — so the schedule can never describe a different clinic than
-                // the heading above it, and an empty one takes its own heading
-                // down with it rather than leaving a title over nothing.
-                const runDays = programForEdition(programByEdition, clinicProgramFallback, r.editionId);
                 const runIncluded = r.included ?? [];
                 const runAddons = r.addons ?? [];
                 return (
@@ -1439,20 +1425,6 @@ export default async function ExperienceDetailPage({ params, searchParams }: Pro
                           ))}
                         </div>
                       </>
-                    )}
-                    {runDays.length > 0 && (
-                      <div className="mt-9">
-                        <p className="text-[11px] font-bold tracking-[0.25em] text-[#00afdb] mb-4">DAY BY DAY</p>
-                        {/* Pinned to this run rather than reading the shared
-                            selection: the panel already knows which clinic it is. */}
-                        <ProgramForWeek
-                          editionId={r.editionId}
-                          programByEdition={programByEdition}
-                          fallback={clinicProgramFallback}
-                          weekLabels={{}}
-                          unit="clinic"
-                        />
-                      </div>
                     )}
                   </div>
                   <div>
@@ -1508,6 +1480,21 @@ export default async function ExperienceDetailPage({ params, searchParams }: Pro
               unit={clinic ? "clinic" : "week"}
             />
           </Reveal>
+          {/* A clinic's day-by-day sits UNDER the coach: you want to know who
+              is running it before you read what the days look like. It follows
+              the shared selection like the crew above it does, and carries its
+              own heading so an empty program takes the title with it. */}
+          {clinic && (
+            <Reveal className="mb-16">
+              <ProgramForWeek
+                programByEdition={programByEdition}
+                fallback={clinicProgramFallback}
+                weekLabels={{}}
+                unit="clinic"
+                eyebrow="DAY BY DAY"
+              />
+            </Reveal>
+          )}
           {/* anchor for the hero's review pill — Reveal doesn't take an id */}
           <span id="reviews" className="block scroll-mt-28" aria-hidden />
           <Reveal className="mb-8">
