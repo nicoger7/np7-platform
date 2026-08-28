@@ -26,6 +26,13 @@ export type { ProgramDay };
  * read one row at a time. Naming every day in a single glance — Arrival →
  * Stance → Focus → Transitions → Range → Together → Last session — turns seven
  * independent entries into a progression with a beginning and an end.
+ *
+ * This is close to what the premium expedition operators have converged on.
+ * Intrepid, Natural Habitat, Aracari and Original Travel all ship a day-by-day
+ * with ZERO per-day photography; the ones that collapse anything only do so
+ * where a day runs to 150+ words, and they still leave the day's identity
+ * visible. NP7 days are 30-50 words — Aracari length — which is squarely in the
+ * "collapse nothing" band.
  */
 
 /** "Day 1" is a position in a list. "Sat 10 Oct" is a plan you can hold against
@@ -106,9 +113,16 @@ export function ProgramForWeek({
       {/* THE ARC — the whole shape in one glance, before a word is read.
           Below three days there is no arc to see, only a duplicate of the list. */}
       {days.length > 2 && (
-        <ol className="flex flex-wrap items-center gap-x-2.5 gap-y-2 mb-9 pb-8 border-b border-[#e6eef0]">
+        /* On a phone this wraps to seven stacked lines and costs 180px before a
+           word of the plan is read, so it becomes a single edge-to-edge rail
+           instead. A horizontal rail is the wrong shape for CONTENT — that is
+           why the days below are a list — but it is the right shape for an
+           index, where the row is a glance rather than something to read. */
+        <ol className="flex items-center gap-x-2.5 gap-y-2 mb-9 pb-8 border-b border-[#e6eef0]
+                       flex-nowrap overflow-x-auto snap-x scroll-px-6 -mx-6 px-6 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden
+                       sm:flex-wrap sm:overflow-visible sm:mx-0 sm:px-0">
           {days.map((d, i) => (
-            <li key={i} className="flex items-center gap-2.5">
+            <li key={i} className="flex items-center gap-2.5 snap-start">
               <span className="text-[12.5px] font-bold text-[#00374a] bg-[#00afdb]/[0.08] px-3 py-1.5 rounded-full whitespace-nowrap">
                 {d.title?.trim() || `Day ${i + 1}`}
               </span>
@@ -118,38 +132,36 @@ export function ProgramForWeek({
         </ol>
       )}
 
-      {/* THE LEDGER — every day open, the number as texture rather than a
-          bullet, the date doing the work a bullet cannot. */}
+      {/* THE LEDGER — every day open, each one stamped so the eye has somewhere
+          to land, and the real date doing the work a bullet cannot. */}
       <ol>
         {days.map((d, i) => {
           const when = dayStamp(start, i);
           return (
-            <li
-              key={i}
-              className="grid grid-cols-[2.25rem_1fr] sm:grid-cols-[4.5rem_1fr] gap-x-4 sm:gap-x-8 py-6 sm:py-7 border-t border-[#e6eef0] first:border-t-0 first:pt-0"
-            >
-              {/* Low-contrast and large: it marks position without competing
-                  with the title for the eye. tabular-nums keeps the column
-                  straight once the count passes nine. */}
-              <span
-                aria-hidden
-                className="tabular-nums font-black leading-[0.78] tracking-[-0.05em] text-[34px] sm:text-[64px] text-[#00374a]/[0.13] select-none"
-              >
-                {i + 1}
-              </span>
-              <div className="min-w-0">
-                <p className="text-[11px] font-bold tracking-[0.2em] uppercase text-[#0aa3c7] mb-1.5">
-                  {when ? <>Day {i + 1} <span className="text-[#9aa6ac]">·</span> {when}</> : `Day ${i + 1}`}
-                </p>
-                <h3 className="text-[19px] sm:text-[23px] font-black tracking-[-0.02em] text-[#00374a] mb-2 text-balance">
-                  {d.title?.trim() || `Day ${i + 1}`}
-                </h3>
-                {d.description?.trim() && (
-                  <p className="text-[15px] sm:text-[15.5px] text-[#5a6b72] leading-relaxed whitespace-pre-line max-w-[68ch]">
-                    {d.description}
-                  </p>
+            <li key={i} className="py-6 sm:py-7 border-t border-[#e6eef0] first:border-t-0 first:pt-0">
+              {/* THE DAY STAMP. A photograph's real job in a day list is to give
+                  the eye a landing point and mark where one day ends and the
+                  next begins. A solid block does that with type alone — it is
+                  what the operators who ship NO per-day imagery all reach for —
+                  and unlike the photo it is there on a phone. */}
+              <div className="flex flex-wrap items-center gap-1.5 mb-3">
+                <span className="inline-flex items-center text-[11px] font-black tracking-[0.16em] uppercase text-white bg-[#00374a] rounded-md px-2.5 py-1.5 tabular-nums">
+                  Day {i + 1}
+                </span>
+                {when && (
+                  <span className="inline-flex items-center text-[11px] font-bold tracking-[0.14em] uppercase text-[#0aa3c7] bg-[#00afdb]/10 rounded-md px-2.5 py-1.5">
+                    {when}
+                  </span>
                 )}
               </div>
+              <h3 className="text-[20px] sm:text-[25px] font-black tracking-[-0.025em] text-[#00374a] mb-2 text-balance">
+                {d.title?.trim() || `Day ${i + 1}`}
+              </h3>
+              {d.description?.trim() && (
+                <p className="text-[15px] sm:text-[15.5px] text-[#5a6b72] leading-relaxed whitespace-pre-line max-w-[68ch]">
+                  {d.description}
+                </p>
+              )}
             </li>
           );
         })}
