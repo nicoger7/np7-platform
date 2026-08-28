@@ -219,7 +219,7 @@ export default async function ExperienceDetailPage({ params, searchParams }: Pro
   // EVENT experiences (page_template='event') get the slim ticket-first layout,
   // not the full trip page. Resolved by the event lib (service-role read of the
   // candidate dates); non-events return null and fall through.
-  const event = await getEventForSlug(slug).catch(() => null);
+  const event = await getEventForSlug(slug, { preview: !!team }).catch(() => null);
   if (event) {
     // Same visibility rules as trips: public only sees published + on-website.
     if (!team && (event.status !== "published" || !event.websiteVisible)) notFound();

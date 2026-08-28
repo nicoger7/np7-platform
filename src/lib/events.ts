@@ -126,7 +126,7 @@ export function eventPricing(price: number, depositPct: number, refundPct: numbe
  */
 export async function getEventForSlug(
   slug: string,
-  opts: { includeAllDates?: boolean; editionSlug?: string } = {},
+  opts: { includeAllDates?: boolean; editionSlug?: string; preview?: boolean } = {},
 ): Promise<EventInfo | null> {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const db = createAdminClient() as any;
@@ -154,7 +154,15 @@ export async function getEventForSlug(
     .select("id,slug,label,location,price,date_start,date_end,description")
     .eq("experience_id", exp.id)
     .eq("kind", "event")
-    .eq("status", "published")
+    /*
+     * The team sees drafts, the public does not.
+     *
+     * Without this a clinic being prepared shows its team preview with NO date,
+     * NO price and NO ticket box — the page cannot be judged before it is
+     * published, which is exactly backwards. The till is unaffected: checkout
+     * still sells published editions only, so previewing cannot take money.
+     */
+    .in("status", opts.preview ? ["published", "draft"] : ["published"])
     .order("date_start");
   type EdRow = { id: string; slug: string | null; label: string | null; location: string | null; price: number | null; date_start: string | null; date_end: string | null; description: string | null };
   const editions = (edRows ?? []) as EdRow[];
