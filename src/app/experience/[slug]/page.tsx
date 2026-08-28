@@ -273,7 +273,7 @@ export default async function ExperienceDetailPage({ params, searchParams }: Pro
 
   let query = readDb
     .from("exp_experiences")
-    .select("id,title,location,currency,price,description,hero_image,gallery,airport_code,exp_editions(id,label,coaches,date_start,date_end,max_spots,spots_taken,deposit,status,launch_discount_pct,launch_price_until,public_from,video_analysis,photoshoot),exp_packages(id,name,price,status,archived_at,edition_id,category,gear_baseline,includes,exp_package_components(show_on_website,quantity,exp_components(name,description,category)))")
+    .select("id,title,location,currency,price,description,hero_image,gallery,airport_code,exp_editions(id,label,coaches,date_start,date_end,max_spots,spots_taken,deposit,status,launch_discount_pct,launch_price_until,public_from,video_analysis,photoshoot,archived_at),exp_packages(id,name,price,status,archived_at,edition_id,category,gear_baseline,includes,exp_package_components(show_on_website,quantity,exp_components(name,description,category)))")
     .eq("slug", slug);
   if (!team) query = query.eq("status", "published");
   const { data: rows } = await query.order("status", { ascending: false }).limit(1);
@@ -314,6 +314,10 @@ export default async function ExperienceDetailPage({ params, searchParams }: Pro
   const viewerTier = viewer?.contactId ? await getMemberTier(viewer.contactId).catch(() => null) : null;
   const earlyAccess = !!team || viewerTier?.key === "crew" || viewerTier?.key === "legend";
   const allEditions = (experience.exp_editions ?? [])
+    // Archived = soft-deleted. Packages were already filtered this way; weeks
+    // were not, so archiving one in admin never took it off the site.
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    .filter((e) => !(e as any).archived_at)
     .filter((e) => editionVisible(e.status)
       // Off the front end the day it STARTS, not the day it ends — a week that
       // is already on the water sold "3 left" to the public for its whole run.

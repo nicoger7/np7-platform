@@ -172,6 +172,10 @@ export async function getEventForSlug(
      * still sells published editions only, so previewing cannot take money.
      */
     .in("status", opts.preview ? ["published", "draft"] : ["published"])
+    // Archived is the soft-delete truth across this platform. Without it,
+    // archiving a run in admin leaves it selling on the public page — the one
+    // thing archiving exists to stop.
+    .is("archived_at", null)
     .order("date_start");
   type EdRow = { id: string; slug: string | null; label: string | null; location: string | null; price: number | null; date_start: string | null; date_end: string | null; description: string | null; video_analysis?: boolean | null; photoshoot?: boolean | null };
   const editions = (edRows ?? []) as EdRow[];
@@ -349,6 +353,10 @@ export async function getEventRuns(
     .eq("experience_id", exp.id)
     .eq("kind", "event")
     .in("status", opts.preview ? ["published", "draft"] : ["published"])
+    // Archived is the soft-delete truth across this platform. Without it,
+    // archiving a run in admin leaves it selling on the public page — the one
+    // thing archiving exists to stop.
+    .is("archived_at", null)
     .order("date_start");
   const slugs = ((edRows ?? []) as { slug: string | null; date_start: string | null; date_end: string | null }[])
     // A run that is over stops being offered — it would otherwise sit in the
