@@ -827,10 +827,17 @@ export default async function ExperienceDetailPage({ params, searchParams }: Pro
       if (typeof r.hero_image === "string" && r.hero_image.trim()) editionHero[r.id] = r.hero_image.trim();
     }
   }
+  /*
+   * The built-in FAQ answers a TRIP: gear rental is included, dinners are out
+   * as a group, you reserve and pay by invoice. Every one of those is false on
+   * a clinic, which sells a seat, prices gear as an add-on and charges the card
+   * at checkout — so on a clinic with no FAQ of its own the section comes down
+   * rather than contradicting the page above it.
+   */
   const faqItems: AccordionItem[] =
     (content?.faq ?? []).length > 0
       ? content!.faq!.map((f) => ({ title: f.q, content: <span className="whitespace-pre-line">{f.a}</span> }))
-      : FAQ;
+      : clinic ? [] : FAQ;
   // Data-driven guides for the primary edition (fallback to brand defaults).
   // Fetched separately so missing tables (pre-migration 019) can't break the page.
   // Teams differ per WEEK, so fetch every edition's crew and let the page follow
@@ -952,12 +959,23 @@ export default async function ExperienceDetailPage({ params, searchParams }: Pro
     ? Math.round((placedReviews.reduce((a: number, r: { rating: number }) => a + r.rating, 0) / reviewCount) * 10) / 10
     : null;
 
+  /*
+   * A page with no reviews shows no reviews.
+   *
+   * The last resort here used to be MOMENTS — three brand-written quotes with
+   * five stars — so an experience nobody had reviewed still published a wall of
+   * testimonials and a 5.0. On a paid offer that is invented social proof, and
+   * on a US offer it is a false-advertising exposure. Real placed reviews win,
+   * hand-entered legacy ones stand in, and beyond that the section comes down
+   * (see reviewsShown).
+   */
   const reviewItems =
     placedReviews.length > 0
       ? placedReviews
       : (content?.reviews ?? []).length > 0
         ? content!.reviews!.map((r) => ({ quote: r.quote, name: r.name, country: r.country, image: r.image || BRAND_IMG.group, rating: Math.max(1, Math.min(5, r.rating || 5)), verified: false }))
-        : MOMENTS.map((m) => ({ ...m, rating: 5, verified: false }));
+        : [];
+  const reviewsShown = reviewItems.length > 0;
 
   // Destination quick-module (migration 022; tolerant — hidden until applied + linked)
   let destination: { slug: string | null; name: string; region: string | null; country: string | null; tagline: string | null; intro: string | null; hero_image: string | null } | null = null;
@@ -1145,7 +1163,7 @@ export default async function ExperienceDetailPage({ params, searchParams }: Pro
           !clinic && { id: "packages", label: "Packages" },
           !clinic && { id: "program", label: "Day by day" },
           { id: "crew", label: "Crew" },
-          { id: "faq", label: "FAQ" },
+          faqItems.length > 0 && { id: "faq", label: "FAQ" },
         ].filter(Boolean)) as NavSection[]}
         topClass="top-16"
         action={{ label: clinic ? "Get your spot" : soldOut ? "Waitlist" : "Reserve", href: "#packages" }}
@@ -1545,8 +1563,11 @@ export default async function ExperienceDetailPage({ params, searchParams }: Pro
           )}
           {/* anchor for the hero's review pill — Reveal doesn't take an id */}
           <span id="reviews" className="block scroll-mt-28" aria-hidden />
+          {/* No reviews, no reviews section — and never an asserted "★ 5.0"
+              with nothing behind it. */}
+          {reviewsShown && (<>
           <Reveal className="mb-8">
-            <p className="text-[11px] font-bold tracking-[0.25em] text-[#00afdb] mb-3">{reviewAvg != null ? `★ ${reviewAvg.toFixed(1)} — WHAT GUESTS SAY` : "★ 5.0 — WHAT GUESTS SAY"}</p>
+            <p className="text-[11px] font-bold tracking-[0.25em] text-[#00afdb] mb-3">{reviewAvg != null ? `★ ${reviewAvg.toFixed(1)} — WHAT GUESTS SAY` : "WHAT GUESTS SAY"}</p>
             <h2 className="text-3xl sm:text-4xl font-black tracking-[-0.03em] text-[#00374a]">Moments &amp; new friends</h2>
             {catAverages.length > 0 && (
               <div className="mt-4 flex flex-wrap gap-2">
@@ -1561,6 +1582,7 @@ export default async function ExperienceDetailPage({ params, searchParams }: Pro
           <Reveal>
             <GuestReviews items={reviewItems} />
           </Reveal>
+          </>)}
         </div>
       </section>
 
@@ -1578,13 +1600,15 @@ export default async function ExperienceDetailPage({ params, searchParams }: Pro
         </section>
       )}
 
-      {/* 9 · FAQ */}
+      {/* 9 · FAQ — absent rather than borrowed. */}
+      {faqItems.length > 0 && (
       <section id="faq" className="scroll-mt-28 py-16 sm:py-24 bg-[#fff7ec]">
         <div className="max-w-[760px] mx-auto px-6 sm:px-8">
           <Reveal className="mb-10 text-center"><p className="text-[11px] font-bold tracking-[0.25em] text-[#00afdb] mb-3">GOOD TO KNOW</p><h2 className="text-3xl sm:text-4xl font-black tracking-[-0.03em] text-[#00374a]">Questions, answered</h2></Reveal>
           <Reveal><Accordion items={faqItems} allowMultiple /></Reveal>
         </div>
       </section>
+      )}
 
       {/* 10 · FINAL CTA */}
       <section className="relative py-24 sm:py-32 bg-[#00374a] text-white overflow-hidden">
