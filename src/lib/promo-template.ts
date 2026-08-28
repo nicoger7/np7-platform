@@ -47,6 +47,19 @@ export interface ImageLayer {
   shadow?: boolean;
 }
 
+/**
+ * A free image from the media library — as many as you like.
+ *
+ * Photo, coach, flag and logo are FIXED slots: exactly one each, with their own
+ * meaning. Everything else a poster might need (a partner logo, a sponsor mark,
+ * a second rider, a sticker) had nowhere to go. These do, and they behave like
+ * the fixed slots: move, resize, reorder, hide.
+ */
+export interface FreeImageLayer extends ImageLayer {
+  id: string;      // "img-…", also the layer-order key
+  name: string;    // what the Layers panel calls it
+}
+
 /** Full-canvas NP7-brand gradient that fades to transparent — a designable
  *  scrim (extra warmth, a readability base, a colour mood) that lives in the
  *  layer stack like everything else. */
@@ -137,6 +150,8 @@ export interface PromoState {
   texts: TextLayer[];
   /** Optional NP7 gradient scrim — absent in designs saved before it existed. */
   gradient?: GradientLayer;
+  /** Free images added from the library. Absent in older saved designs. */
+  images?: FreeImageLayer[];
   /** Draw order of the movable layers, bottom→top. Photo + washes are always
    *  the base. Older saved designs may lack this — use promoOrder(). */
   order?: string[];
@@ -145,9 +160,12 @@ export interface PromoState {
 /** The effective layer order (bottom→top), tolerating pre-`order` designs. */
 export function promoOrder(state: PromoState): string[] {
   const base = state.gradient ? ["gradient"] : [];
-  const known = new Set([...base, "flag", "logo", "coach", ...state.texts.map((t) => t.id)]);
+  const imgs = (state.images ?? []).map((i) => i.id);
+  const known = new Set([...base, "flag", "logo", "coach", ...imgs, ...state.texts.map((t) => t.id)]);
   const stored = (state.order ?? []).filter((id) => known.has(id));
-  for (const id of [...base, "flag", "logo", ...state.texts.map((t) => t.id), "coach"])
+  // New free images default just under the coach — visible, but not covering
+  // the face that is usually the point of the poster.
+  for (const id of [...base, "flag", "logo", ...imgs, ...state.texts.map((t) => t.id), "coach"])
     if (!stored.includes(id)) stored.push(id);
   // gradient joins BELOW everything movable when an older order predates it
   if (state.gradient && !(state.order ?? []).includes("gradient")) {
@@ -221,7 +239,7 @@ export function defaultPromoState(): PromoState {
       { id: "subtitle", kind: "subtitle", visible: true, text: "The week before\nOBX Wind kicks off", size: 30, pos: { "45": { x: 56, y: 972 }, "916": { x: 56, y: 1450 } } },
       { id: "chip-gold", kind: "chip-gold", visible: true, text: "10–16 October 2026", size: 25, pos: { "45": { x: 56, y: 1078 }, "916": { x: 56, y: 1556 } } },
       { id: "chip-glass", kind: "chip-glass", visible: true, text: "Avon · Hatteras Island, NC", size: 25, pos: { "45": { x: 56, y: 1150 }, "916": { x: 56, y: 1628 } } },
-      { id: "details", kind: "details", visible: true, text: "*8 spots* · from *$950* · gear & stay at the spot", size: 23, pos: { "45": { x: 56, y: 1232 }, "916": { x: 56, y: 1710 } } },
+      { id: "details", kind: "details", visible: true, text: "*8 spots* · from *$850* · gear & stay at the spot", size: 23, pos: { "45": { x: 56, y: 1232 }, "916": { x: 56, y: 1710 } } },
       { id: "partner", kind: "partner", visible: true, text: "Partner event with Ocean Air Sports  ·  *np-seven.com*", size: 21, pos: { "45": { x: 56, y: 1272 }, "916": { x: 56, y: 1750 } } },
       { id: "with", kind: "with", visible: true, text: "Dennis Robinson", size: 34, pos: { "45": { x: 1024, y: 56 }, "916": { x: 1024, y: 104 } } },
     ],

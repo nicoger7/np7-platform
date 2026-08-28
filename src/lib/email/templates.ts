@@ -19,6 +19,13 @@ export type EmailVars = {
   /** wind.coach training guide for this booking — set by the cron ONLY when a
    *  stored guide exists, so `v.guideUrl ? … : ""` is the whole feature gate. */
   guideUrl?: string;
+  /** Why a requested add-on could not be arranged (usually "no availability"). */
+  declineReason?: string;
+  /** Focus-point titles, newline-separated — the guide mail lists them so the
+   *  rider recognises his own week before clicking. */
+  guidePoints?: string;
+  /** Who wrote the guide, when we know. */
+  coachName?: string;
   joinLink?: string;
   /** Newline-separated packing list (rendered as a checklist). */
   packingList?: string;
@@ -124,6 +131,28 @@ const checklist = (text?: string) => {
   const items = (text || "").split(/\r?\n/).map((s) => s.trim()).filter(Boolean);
   if (!items.length) return "";
   return `<ul style="margin:0 0 14px;padding-left:0;list-style:none;">${items.map((i) => `<li style="margin:0 0 7px;padding-left:22px;position:relative;"><span style="position:absolute;left:0;color:#1d9e75;font-weight:700;">✓</span>${esc(i)}</li>`).join("")}</ul>`;
+};
+
+/**
+ * The focus points as numbered cards — the whole point of the guide mail is
+ * that the rider recognises HIS week in it before he clicks anything. Numbers
+ * carry the sun gradient as a baked flat colour per index (Outlook's Word
+ * engine drops CSS gradients, so each badge gets a solid brand colour instead
+ * of a fade that would silently vanish for half the readers).
+ */
+const SUN_STEPS = ["#ffc42e", "#f7a01f", "#f47b20", "#e8623a", "#00afdb"];
+const focusList = (text?: string) => {
+  const items = (text || "").split(/\r?\n/).map((s) => s.trim()).filter(Boolean);
+  if (!items.length) return "";
+  return items
+    .map((title, i) => {
+      const c = SUN_STEPS[i % SUN_STEPS.length];
+      return `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin:0 0 10px;"><tr>
+<td width="34" valign="top" style="width:34px;padding-top:2px;"><div style="width:28px;height:28px;line-height:28px;border-radius:14px;background:${c};color:#ffffff;font-size:13px;font-weight:800;text-align:center;">${i + 1}</div></td>
+<td valign="top" style="padding-left:12px;font-size:16px;line-height:1.45;font-weight:700;color:#00374a;">${esc(title)}</td>
+</tr></table>`;
+    })
+    .join("");
 };
 
 /** Code-default templates, keyed by template_key. */
@@ -735,6 +764,56 @@ export const TEMPLATES: Record<string, (v: EmailVars, opts?: LayoutOpts) => Buil
           ? p(`If you had a great time, a short review means the world to us and helps other riders find their next trip:`) + emailButton("Leave a review", v.reviewLink)
           : p(`If you had a great time, we'd love to hear from you — just reply to this email, it makes our day.`)) +
         p(`Until the next session.<br>— Nico & the NP7 team`),
+    }),
+  }),
+
+  /**
+   * The training guide, sent on its own rather than as a line in the thank-you.
+   * It is the most personal thing a rider gets from the week — his own focus
+   * points, written by the coach who watched him sail — so it earns its own
+   * mail with the trip's hero photo on top. Sent by hand from
+   * /admin/windcoach-guides once the coach is happy with it.
+   */
+  guide_ready: (v, opts) => ({
+    subject: `Your training guide — ${v.experienceTitle ?? "your NP7 trip"} 🤙`,
+    html: emailLayout({
+      ...opts,
+      preheader: "Your personal focus points from the week, ready to train.",
+      bodyHtml:
+        greet(v) +
+        p(
+          `Your personal training guide from <strong>${esc(v.experienceTitle || "the week")}</strong> is ready.` +
+            (v.coachName ? ` ${esc(v.coachName)} put it together from what you worked on together on the water.` : "")
+        ) +
+        (v.guidePoints ? rule() + heading("Your focus points") + focusList(v.guidePoints) : "") +
+        p(`Each one comes with what to do, how it should feel, and the mistakes to watch for — plus the tip your coach gave you in person.`) +
+        (v.guideUrl ? emailButton("Open your training guide", v.guideUrl) : "") +
+        p(`It lives in your trip account, so it's there whenever you need it — before the next session, or the next trip.`) +
+        p(`See you on the water.<br>— Nico & the NP7 team`),
+    }),
+  }),
+
+  /**
+   * A requested extra we cannot do — almost always a full hotel.
+   *
+   * Exists because the request flow had no way to say no: the team could only
+   * confirm, or delete the row, which erased the ask and told the guest
+   * nothing. Somebody who asked for two extra nights and heard nothing assumes
+   * he has them. The mail is deliberately plain and offers a way forward.
+   */
+  addon_declined: (v, opts) => ({
+    subject: `About your request — ${v.addonLabel ?? "your extra"}`,
+    html: emailLayout({
+      ...opts,
+      preheader: "We couldn't arrange that one — here's why.",
+      bodyHtml:
+        greet(v) +
+        p(`You asked us about <strong>${esc(v.addonLabel || "an extra")}</strong> for ${esc(v.experienceTitle || "your trip")}, and unfortunately we can't make that one work.`) +
+        note(v.declineReason) +
+        p(`Nothing has been added to your balance, and the rest of your trip is unaffected.`) +
+        p(`If the dates are flexible, reply to this email and we'll see what else is possible — we'd rather find you something than leave it here.`) +
+        (v.bookingLink ? emailButton("Open my trip", v.bookingLink) : "") +
+        p(`— Nico &amp; the NP7 team`),
     }),
   }),
 

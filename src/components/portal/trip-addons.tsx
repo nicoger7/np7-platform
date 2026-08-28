@@ -131,6 +131,11 @@ export function TripAddons({ bookingId, depositPaid, hasDeposit, securingLabel, 
       .then((d) => {
         setAvailable(Array.isArray(d?.available) ? d.available : []);
         setMine(Array.isArray(d?.mine) ? d.mine : []);
+        // What the guest already sleeps through — the trip week widened by every
+        // night already requested or confirmed. The preview below MUST count
+        // against this and not the trip week, or it quotes nights the server
+        // (correctly) refuses to charge for a second time.
+        if (d?.covered) setCovered({ start: d.covered.start ?? null, end: d.covered.end ?? null });
         setLoading(false);
       })
       .catch(() => setLoading(false));
@@ -139,6 +144,7 @@ export function TripAddons({ bookingId, depositPaid, hasDeposit, securingLabel, 
 
   // Extra-night picker state (one accommodation offer being configured at a time).
   const [nightsFor, setNightsFor] = useState<string | null>(null);
+  const [covered, setCovered] = useState<{ start: string | null; end: string | null }>({ start: editionStart, end: editionEnd });
   const [nightForm, setNightForm] = useState<{ checkIn: string; checkOut: string }>({ checkIn: "", checkOut: "" });
   // Keyed by offer so the message lands under the card the member just tapped.
   const [requestErr, setRequestErr] = useState<{ id: string; msg: string } | null>(null);
@@ -208,8 +214,8 @@ export function TripAddons({ bookingId, depositPaid, hasDeposit, securingLabel, 
         if (period) {
           const u = period.unit; // "night" | "day"
           const open = nightsFor === a.id;
-          const before = Math.max(0, nightsBetween(nightForm.checkIn, editionStart));
-          const after = Math.max(0, nightsBetween(editionEnd, nightForm.checkOut));
+          const before = Math.max(0, nightsBetween(nightForm.checkIn, covered.start));
+          const after = Math.max(0, nightsBetween(covered.end, nightForm.checkOut));
           const total = before + after;
           const price = a.sell_price != null ? a.sell_price * total : null;
           const { hotel, title } = splitAddon(a.name, a.category);
@@ -233,7 +239,7 @@ export function TripAddons({ bookingId, depositPaid, hasDeposit, securingLabel, 
                       the member's own flight dates, which we pre-fill here. */}
                   {flightsSaved ? (
                     <p className="text-[12.5px] text-[#5a6b72] leading-snug">
-                      Suggested from your flights ({fmtDay(flights?.arrivalDate)} → {fmtDay(flights?.departureDate)}). Any {u} outside the trip week ({fmtDay(editionStart)}–{fmtDay(editionEnd)}) counts as an extra {u} — adjust below if needed.
+                      Suggested from your flights ({fmtDay(flights?.arrivalDate)} → {fmtDay(flights?.departureDate)}). You&apos;re booked from {fmtDay(covered.start)}–{fmtDay(covered.end)}; only {u}s outside that are charged as extra — adjust below if needed.
                     </p>
                   ) : (
                     <div className="rounded-lg bg-[#eef6f8] p-3 text-[12.5px] text-[#4a5b62] leading-snug">

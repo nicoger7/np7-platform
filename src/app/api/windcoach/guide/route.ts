@@ -55,8 +55,13 @@ export async function POST(request: NextRequest) {
 
   const key = String(body?.idempotency_key ?? "").trim();
   if (!key) return fail422("idempotency_key", "required");
+  // booking_id XOR email: at least one is required, booking_id wins when both
+  // are present. booking_id is the stronger key (the coach picked it from OUR
+  // own trip/rider lists), so with it there is nothing left to match — and
+  // wind.coach never has to hold a rider's address to send a guide.
+  const bookingIdIn = String(body?.booking_id ?? "").trim();
   const email = String(body?.participant?.email ?? "").trim().toLowerCase();
-  if (!email) return fail422("participant.email", "required");
+  if (!bookingIdIn && !email) return fail422("participant.email", "required unless booking_id is given");
 
   const focusPoints = body?.guide?.focus_points;
   if (!Array.isArray(focusPoints) || focusPoints.length === 0) {
@@ -98,11 +103,37 @@ export async function POST(request: NextRequest) {
   const { data: dupe } = await db.from("windcoach_guides").select("id,status").eq("idempotency_key", key).maybeSingle();
   if (dupe) return NextResponse.json({ status: wire(dupe.status), duplicate: true }, { status: 409 });
 
-  // ── Match: email → contact → that contact's bookings inside the trip window ──
   const tripStart = typeof body?.trip?.start === "string" ? body.trip.start : null;
   const tripEnd = typeof body?.trip?.end === "string" ? body.trip.end : null;
   let bookingId: string | null = null;
   let contactId: string | null = null;
+  // The email we STORE. Our column is not-null and the review queue shows it,
+  // so a booking_id-only payload resolves the contact's address here — it never
+  // travels over the wire.
+  let storedEmail = email;
+
+  // ── Direct: the coach picked this booking, so there is nothing to match. ──
+  if (bookingIdIn) {
+    const { data: bk } = await db
+      .from("exp_bookings")
+      .select("id, contact_id, contacts(email)")
+      .eq("id", bookingIdIn)
+      .maybeSingle();
+    if (bk) {
+      bookingId = String(bk.id);
+      contactId = bk.contact_id ?? null;
+      if (!storedEmail) storedEmail = String(bk.contacts?.email ?? "").trim().toLowerCase();
+    } else if (!email) {
+      // Nothing to fall back to, and an id we handed out should always resolve —
+      // say so rather than silently parking a guide nobody will look for.
+      return fail422("booking_id", "no such booking");
+    }
+    // A stale id WITH an email falls through to the fuzzy path below: never
+    // lose a guide over a bad id when there is still a way to place it.
+  }
+
+  // ── Fallback: email → contact → that contact's bookings inside the trip window ──
+  if (!bookingId) {
   const { data: contacts } = await db.from("contacts").select("id").ilike("email", email);
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const contactIds = ((contacts ?? []) as any[]).map((c) => c.id);
@@ -120,6 +151,7 @@ export async function POST(request: NextRequest) {
     });
     if (inWindow.length === 1) { bookingId = inWindow[0].id; contactId = inWindow[0].contact_id; }
   }
+  }
 
   const { data: row, error } = await db
     .from("windcoach_guides")
@@ -127,7 +159,7 @@ export async function POST(request: NextRequest) {
       idempotency_key: key,
       booking_id: bookingId,
       contact_id: contactId,
-      email,
+      email: storedEmail,
       name: body?.participant?.name ?? null,
       trip_label: body?.trip?.label ?? null,
       trip_start: tripStart,

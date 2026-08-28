@@ -20,6 +20,7 @@ export function SearchSelect({
   clearLabel = "None",
   disabled = false,
   emptyLabel = "No matches",
+  wideMenu = false,
 }: {
   value: string | null;
   onChange: (value: string | null) => void;
@@ -30,6 +31,10 @@ export function SearchSelect({
   clearLabel?: string;
   disabled?: boolean;
   emptyLabel?: string;
+  /** Let the menu grow past the trigger. For pickers in narrow grid cells whose
+   *  option labels are long ("Sorobon - 1 Night - Garden View Studio - Low
+   *  Season") — inheriting the trigger width truncated them into guesswork. */
+  wideMenu?: boolean;
 }) {
   const [open, setOpen] = useState(false);
   const [q, setQ] = useState("");
@@ -87,7 +92,7 @@ export function SearchSelect({
       </button>
 
       {open && (
-        <div className="absolute z-50 mt-1 w-full rounded-xl border shadow-[0_12px_34px_rgba(0,0,0,0.14)] overflow-hidden" style={{ borderColor: "var(--admin-border)", background: "var(--admin-surface)" }}>
+        <div className={`absolute z-50 mt-1 rounded-xl border shadow-[0_12px_34px_rgba(0,0,0,0.14)] overflow-hidden ${wideMenu ? "min-w-full w-max max-w-[min(560px,calc(100vw-2rem))]" : "w-full"}`} style={{ borderColor: "var(--admin-border)", background: "var(--admin-surface)" }}>
           <div className="p-2 border-b" style={{ borderColor: "var(--admin-border)" }}>
             <input
               ref={inputRef}
@@ -98,7 +103,7 @@ export function SearchSelect({
               className="w-full px-2.5 py-1.5 admin-input border rounded-lg text-sm focus:outline-none focus:border-[var(--admin-accent)]"
             />
           </div>
-          <div className="max-h-64 overflow-y-auto py-1" role="listbox">
+          <div className={`overflow-y-auto py-1 ${wideMenu ? "max-h-80" : "max-h-64"}`} role="listbox">
             {rows.length === 0 ? (
               <p className="px-3 py-2.5 text-sm admin-faint">{emptyLabel}</p>
             ) : (
@@ -116,7 +121,7 @@ export function SearchSelect({
                     style={active ? { color: "var(--admin-accent)", fontWeight: 600 } : undefined}
                   >
                     <span className={`flex-1 min-w-0 ${active ? "" : "admin-heading"}`}>
-                      <span className="block truncate">{o.label}</span>
+                      <span className={wideMenu ? "block" : "block truncate"}>{o.label}</span>
                       {o.sub && <span className="block truncate text-xs admin-faint">{o.sub}</span>}
                     </span>
                     {o.hint && <span className="shrink-0 text-xs admin-faint">{o.hint}</span>}

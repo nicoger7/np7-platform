@@ -56,6 +56,7 @@ export function HeroFindYourFit({ src, poster, fallbackImages, fallbackFocus, ch
   const scrimRef = useRef<HTMLDivElement>(null);
   const centerRef = useRef<HTMLDivElement>(null);
   const sunWashRef = useRef<HTMLDivElement>(null);
+  const heroScrimRef = useRef<HTMLDivElement>(null);
   const railRef = useRef<HTMLDivElement>(null);
   const activeRef = useRef(0);
   const [active, setActive] = useState(0);
@@ -67,6 +68,21 @@ export function HeroFindYourFit({ src, poster, fallbackImages, fallbackFocus, ch
   // video only takes over once it is fully in memory and scrub-ready. A laggy
   // first scroll is impossible — worst case the photos simply stay.
   const [videoReady, setVideoReady] = useState(false);
+  // Mirrored for the scroll driver, which writes styles imperatively and must
+  // not re-subscribe just to learn whether the video took over.
+  const videoReadyRef = useRef(false);
+  videoReadyRef.current = videoReady;
+  /*
+   * How hard the sun wash tints what is behind it.
+   *
+   * 0.6 is tuned for FOOTAGE: moving frames need a strong tint so the headline
+   * stays readable while the video scrubs. Laid over a still photograph it is
+   * far too much — the fallback hero came out drowned in gradient, which reads
+   * as "the image failed to load" rather than as a photo. A chosen still with
+   * its own focal point already carries the headline, so it gets a fraction.
+   */
+  const WASH_VIDEO = 0.6;
+  const WASH_PHOTO = 0.26;
 
   useEffect(() => {
     if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) { setMode("static"); return; }
@@ -126,6 +142,8 @@ export function HeroFindYourFit({ src, poster, fallbackImages, fallbackFocus, ch
 
       // hero logo fades out over the first part of its scene
       const he = clamp(p / (HERO_END * 0.7));
+      // the scrim exists for the copy, so it leaves with the copy
+      if (heroScrimRef.current) heroScrimRef.current.style.opacity = String(videoReadyRef.current ? 0 : Math.max(1 - he * 1.2, 0));
       if (heroRef.current) { heroRef.current.style.opacity = String(Math.max(1 - he * 1.2, 0)); heroRef.current.style.transform = `translateY(${-70 * he}px)`; heroRef.current.style.pointerEvents = he > 0.9 ? "none" : "auto"; }
       if (cueRef.current) cueRef.current.style.opacity = String(Math.max(1 - p / (HERO_END * 0.4), 0));
 
@@ -142,7 +160,10 @@ export function HeroFindYourFit({ src, poster, fallbackImages, fallbackFocus, ch
       if (centerRef.current) centerRef.current.style.opacity = String(fitIn * (1 - exit));
       // wash stays a tint from the very start (so the footage reads while it scrubs),
       // then eases further over the fits, then fades out with the rest
-      if (sunWashRef.current) sunWashRef.current.style.opacity = String((0.6 - fitIn * 0.25) * (1 - exit));
+      if (sunWashRef.current) {
+        const base = videoReadyRef.current ? WASH_VIDEO : WASH_PHOTO;
+        sunWashRef.current.style.opacity = String((base - fitIn * base * 0.42) * (1 - exit));
+      }
       if (fitRef.current) { fitRef.current.style.opacity = String(fitIn * (1 - exit)); fitRef.current.style.pointerEvents = fitIn > 0.5 && exit < 0.4 ? "auto" : "none"; }
       if (railRef.current) railRef.current.style.height = `${fp * 100}%`;
 
@@ -250,14 +271,35 @@ export function HeroFindYourFit({ src, poster, fallbackImages, fallbackFocus, ch
             </div>
           )}
         </div>
-        <div ref={sunWashRef} className="absolute inset-0 will-change-[opacity]" style={{ opacity: 0.6 }}>{sunWash}</div>
+        <div ref={sunWashRef} className="absolute inset-0 will-change-[opacity]" style={{ opacity: videoReady ? WASH_VIDEO : WASH_PHOTO }}>{sunWash}</div>
         {/* readability vignette — dark top & bottom for the cards/detail, clear centre */}
         <div ref={scrimRef} className="absolute inset-0 pointer-events-none" style={{ opacity: 0, background: "linear-gradient(to bottom, rgba(0,30,45,0.9) 0%, rgba(0,30,45,0) 24%, rgba(0,18,28,0) 60%, rgba(0,16,26,0.95) 100%)" }} aria-hidden />
         {/* centre dim behind the (now-centred) fit copy, so it reads over the footage */}
         <div ref={centerRef} className="absolute inset-0 pointer-events-none" style={{ opacity: 0, background: "radial-gradient(ellipse 60% 50% at 50% 52%, rgba(0,26,40,0.62) 0%, rgba(0,26,40,0.34) 45%, transparent 72%)" }} aria-hidden />
 
         {/* HERO (scene 0) */}
-        <div ref={heroRef} className="absolute inset-0 z-10 flex flex-col items-center justify-center text-center px-6 will-change-transform">{children}</div>
+        {/*
+         * Legibility scrim for the hero copy — a soft pool behind the words
+         * rather than a tint over the whole frame.
+         *
+         * The full-frame wash used to do this job at 0.6, which is right for
+         * moving footage and drowns a photograph. Dropping it to 0.26 gave the
+         * fallback its picture back and left the sub-headline (white at 85%,
+         * no shadow) sitting on bright turquoise. Darkening only where the text
+         * is keeps both: a readable headline AND a hero shot you can see.
+         * Rides with the copy, so it fades out on exactly the same curve.
+         */}
+        <div
+          ref={heroScrimRef}
+          className="absolute inset-0 z-[9] pointer-events-none"
+          style={{
+            opacity: videoReady ? 0 : 1,
+            background: "radial-gradient(ellipse 74% 52% at 50% 60%, rgba(0,24,34,0.66) 0%, rgba(0,24,34,0.40) 42%, rgba(0,24,34,0) 76%)",
+          }}
+          aria-hidden
+        />
+        <div ref={heroRef} className="absolute inset-0 z-10 flex flex-col items-center justify-center text-center px-6 will-change-transform"
+          style={{ textShadow: "0 2px 20px rgba(0,20,28,0.5), 0 1px 3px rgba(0,20,28,0.4)" }}>{children}</div>
 
         {/* scroll cue */}
         <div ref={cueRef} className="absolute bottom-8 left-1/2 -translate-x-1/2 z-10 text-white/70 animate-bounce" aria-hidden>

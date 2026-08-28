@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useRef, useCallback } from "react";
 import ImagePickerModal from "@/components/image-picker-modal";
+import PromoInsertModal from "@/components/admin/promo-insert";
 import { emailChrome } from "@/lib/email/layout";
 import { RichTextEditor } from "@/components/admin/rich-text-editor";
 
@@ -68,6 +69,8 @@ export default function CampaignsPage() {
   const [dirty, setDirty] = useState(false);
   const [saving, setSaving] = useState(false);
   const [pickingImage, setPickingImage] = useState(false);
+  // Reach for a graphic you already designed instead of rebuilding it here.
+  const [pickingPromo, setPickingPromo] = useState<null | "header" | "body">(null);
   const [presetOpen, setPresetOpen] = useState(false);
   // audience preview
   const [count, setCount] = useState<number | null>(null);
@@ -199,6 +202,24 @@ export default function CampaignsPage() {
 
   return (
     <div>
+      {pickingPromo && (
+        <PromoInsertModal
+          fonts={{ anton: "Anton", poppins: "Poppins" }}
+          onClose={() => setPickingPromo(null)}
+          onInsert={(url, design, format) => {
+            if (pickingPromo === "header") {
+              set("header_image", url);
+            } else {
+              // Centred, width-capped and with a real alt: an email client that
+              // blocks images should still say what was there.
+              const img = `<p style="margin:22px 0;text-align:center;"><img src="${url}" alt="${design.name.replace(/"/g, "&quot;")}" width="${format === "45" ? 520 : 380}" style="max-width:100%;height:auto;border-radius:12px;" /></p>`;
+              set("body", (form.body || "") + img);
+            }
+            setPickingPromo(null);
+          }}
+        />
+      )}
+
       {pickingImage && <ImagePickerModal defaultFolder="email" onSelect={(url) => { set("header_image", url); setPickingImage(false); }} onClose={() => setPickingImage(false)} />}
 
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between mb-6">
@@ -271,6 +292,21 @@ export default function CampaignsPage() {
                   ))}
                 </div>
               )}
+
+              <div className="flex flex-wrap items-center gap-2 mb-2">
+                <button type="button" onClick={() => setPickingPromo("body")}
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold admin-heading"
+                  style={{ border: "1px solid var(--admin-border)" }}>
+                  <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="3" width="18" height="18" rx="2.5" /><path d="m3 16 5-5 4 4 3-3 6 6" /><circle cx="9" cy="8.5" r="1.4" /></svg>
+                  Insert promo graphic
+                </button>
+                <button type="button" onClick={() => setPickingPromo("header")}
+                  className="px-3 py-1.5 rounded-lg text-xs font-medium admin-muted"
+                  style={{ border: "1px solid var(--admin-border)" }}>
+                  …as the header image
+                </button>
+                <span className="text-[11px] admin-faint">Rendered from Promo Studio at full size, in the shape you pick.</span>
+              </div>
 
               {/* body inside the live brand frame */}
               <RichTextEditor

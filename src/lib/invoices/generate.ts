@@ -68,14 +68,29 @@ export async function confirmedAddonLines(bookingId: string): Promise<{ label: s
   const db = getDb();
   const { data } = await db
     .from("exp_booking_addons")
-    .select("label,price,status,notes,payment_mode,exp_components(name)")
+    .select("label,price,quantity,unit_price,status,notes,payment_mode,exp_components(name)")
     .eq("booking_id", bookingId);
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   return ((data ?? []) as any[])
     .filter((a) => effectiveAddonStatus(a) === "confirmed")
     .filter((a) => a.payment_mode !== "direct")
     .filter((a) => Number(a.price) > 0)
-    .map((a) => ({ label: String(a.label || a.exp_components?.name || "Add-on"), price: round2(Number(a.price) || 0) }));
+    .map((a) => ({ label: addonLineLabel(a), price: round2(Number(a.price) || 0) }));
+}
+
+/** An add-on's invoice line. `price` is already the LINE TOTAL (migration 189),
+    so quantity only enters the LABEL — "Extra night × 5 (€295.80 each)" — which
+    is what a guest needs to check the number, and never the maths. */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function addonLineLabel(a: any): string {
+  const base = String(a.label || a.exp_components?.name || "Add-on");
+  const qty = Number(a.quantity) || 1;
+  if (qty < 2) return base;
+  const unit = a.unit_price != null ? Number(a.unit_price) : Number(a.price) / qty;
+  const each = Number.isFinite(unit)
+    ? ` (${unit.toLocaleString("de-DE", { style: "currency", currency: "EUR" })} each)`
+    : "";
+  return `${base} × ${qty}${each}`;
 }
 
 /** Confirmed, billable add-ons no issued invoice has picked up yet — the
@@ -85,7 +100,7 @@ export async function unbilledAddonLines(bookingId: string): Promise<{ id: strin
   const db = getDb();
   const { data } = await db
     .from("exp_booking_addons")
-    .select("id,label,price,status,notes,payment_mode,invoiced_in,exp_components(name)")
+    .select("id,label,price,quantity,unit_price,status,notes,payment_mode,invoiced_in,exp_components(name)")
     .eq("booking_id", bookingId)
     .is("invoiced_in", null);
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -93,7 +108,7 @@ export async function unbilledAddonLines(bookingId: string): Promise<{ id: strin
     .filter((a) => effectiveAddonStatus(a) === "confirmed")
     .filter((a) => a.payment_mode !== "direct")
     .filter((a) => Number(a.price) > 0)
-    .map((a) => ({ id: String(a.id), label: String(a.label || a.exp_components?.name || "Add-on"), price: round2(Number(a.price) || 0) }));
+    .map((a) => ({ id: String(a.id), label: addonLineLabel(a), price: round2(Number(a.price) || 0) }));
 }
 
 /** Total of the real (non-void) tax invoices already ISSUED for a booking. Used

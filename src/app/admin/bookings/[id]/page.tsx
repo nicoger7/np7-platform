@@ -85,12 +85,15 @@ interface Payment {
 interface Addon {
   id: string;
   label: string;
+  /** LINE TOTAL — unit_price × quantity. Every money surface reads this. */
   price: number | null;
+  quantity?: number | null;
+  unit_price?: number | null;
   notes: string | null;
   component_id: string | null;
   status: string | null;
   source: string | null;
-  meta?: { checkIn?: string | null; checkOut?: string | null; nightsBefore?: number; nightsAfter?: number; nights?: number; hotelConfirmed?: boolean } | null;
+  meta?: { checkIn?: string | null; checkOut?: string | null; nightsBefore?: number; nightsAfter?: number; nights?: number; hotelConfirmed?: boolean; declineReason?: string | null } | null;
   exp_components: { id: string; name: string; category: string; unit_cost: number; sell_price?: number | null; payment_mode?: string | null; payment_note?: string | null } | null;
 }
 
@@ -196,7 +199,7 @@ export function BookingDetailPane({ bookingId, onBack }: { bookingId: string; on
 
   // New add-on form
   const [showAddonForm, setShowAddonForm] = useState(false);
-  const [addonForm, setAddonForm] = useState({ component_id: "", label: "", price: "", notes: "" });
+  const [addonForm, setAddonForm] = useState({ component_id: "", label: "", price: "", qty: "1", notes: "" });
 
   // New payment form
   const [showPaymentForm, setShowPaymentForm] = useState(false);
@@ -416,7 +419,10 @@ export function BookingDetailPane({ bookingId, onBack }: { bookingId: string; on
     const body = {
       component_id: addonForm.component_id || null,
       label: addonForm.label || (components.find((c) => c.id === addonForm.component_id)?.name || "Add-on"),
+      // `price` here is the UNIT price; the server multiplies by quantity and
+      // stores the line total (migration 189).
       price: addonForm.price ? Number(addonForm.price) : null,
+      quantity: Math.max(1, Math.round(Number(addonForm.qty) || 1)),
       notes: addonForm.notes || null,
     };
     const res = await fetch(`/api/admin/bookings/${id}/addons`, {
@@ -428,13 +434,35 @@ export function BookingDetailPane({ bookingId, onBack }: { bookingId: string; on
       const addon = await res.json();
       setBooking((prev) => prev ? { ...prev, addons: [...prev.addons, addon] } : prev);
       setShowAddonForm(false);
-      setAddonForm({ component_id: "", label: "", price: "", notes: "" });
+      setAddonForm({ component_id: "", label: "", price: "", qty: "1", notes: "" });
     }
   }
 
   async function removeAddon(addonId: string) {
     await fetch(`/api/admin/bookings/${id}/addons?addon_id=${addonId}`, { method: "DELETE" });
     setBooking((prev) => prev ? { ...prev, addons: prev.addons.filter((a) => a.id !== addonId) } : prev);
+  }
+
+  /** Say no to a member's request — with a reason, which the guest is emailed.
+   *  Deleting the row instead (the × ) erased the ask and told them nothing. */
+  async function declineAddon(addonId: string) {
+    const reason = prompt(
+      "Why can't we do this? The guest is emailed this sentence.\n\nE.g. \"The hotel is fully booked those nights.\"",
+      "The hotel has no availability for those nights.",
+    );
+    if (reason === null) return; // cancelled
+    const res = await fetch(`/api/admin/bookings/${id}/addons`, {
+      method: "PATCH", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ addon_id: addonId, status: "declined", reason }),
+    });
+    if (res.ok) {
+      setBooking((prev) => prev ? {
+        ...prev,
+        addons: prev.addons.map((a) => a.id === addonId ? { ...a, status: "declined", price: 0 } : a),
+      } : prev);
+    } else {
+      alert((await res.json().catch(() => ({}))).error || "Could not decline");
+    }
   }
 
   async function confirmAddon(addonId: string, complimentary = false) {
@@ -653,12 +681,21 @@ export function BookingDetailPane({ bookingId, onBack }: { bookingId: string; on
   // without inflating what the customer actually owes.
   const totalPaid = sumReceived(booking.payments);
   const totalPending = sumExpected(booking.payments);
-  const outstanding = booking.agreed_price ? Math.max(0, Number(booking.agreed_price) - totalPaid) : 0;
-  const parsedPayAmount = parseAmount(paymentForm.amount);
   // Custom-price vs the package list (+ confirmed add-ons): discount / match / "as discussed".
   const confirmedAddonsTotal = booking.addons
     .filter((a) => effectiveAddonStatus(a) === "confirmed")
     .reduce((s, a) => s + (Number(a.price) || 0), 0);
+  /**
+   * What the guest still owes — the AGREED PRICE PLUS CONFIRMED ADD-ONS.
+   *
+   * This used to read agreed_price alone, so a booking with add-ons showed two
+   * different truths on one screen: the header said "Owed EUR 4,890" while the
+   * payments card said "Balance EUR 6,369". The header was the wrong one, and it
+   * also prefilled the Record-Payment box, suggesting an amount that matched
+   * neither the total, the balance, nor the open invoice.
+   */
+  const outstanding = Math.max(0, (Number(booking.agreed_price) || 0) + confirmedAddonsTotal - totalPaid);
+  const parsedPayAmount = parseAmount(paymentForm.amount);
   // A role without money access should see a booking with no money in it —
   // not zeros and blanks, which read as "nobody has paid" rather than "you
   // can't see this". The API already sends money_redacted; nothing read it.
@@ -676,6 +713,7 @@ export function BookingDetailPane({ bookingId, onBack }: { bookingId: string; on
 
   // ── Reconciliation: tie payments to invoices, derive balances ──
   const bookingTotal = (Number(booking.agreed_price) || 0) + confirmedAddonsTotal;
+  // (outstanding above is bookingTotal - totalPaid, floored at 0.)
   const reconInvoices: ReconInvoice[] = documents
     .filter((d) => (d.type || "").includes("invoice"))
     .map((d) => ({
@@ -762,7 +800,16 @@ export function BookingDetailPane({ bookingId, onBack }: { bookingId: string; on
           {!noMoney && (
           <div className="text-right mr-4">
             <div className="text-xs admin-faint">
-              Agreed: <span className="admin-muted font-medium">{booking.agreed_price ? `€${Number(booking.agreed_price).toLocaleString()}` : "—"}</span>
+              {/* "Agreed" is the PACKAGE price — it deliberately excludes
+                  add-ons, which is invisible until a booking has some and the
+                  header reads 4,890 next to a 6,369 trip total. Name it, and
+                  show the total it rolls up into. */}
+              Trip: <span className="admin-muted font-medium">{bookingTotal ? `€${bookingTotal.toLocaleString("de-DE")}` : "—"}</span>
+              {confirmedAddonsTotal > 0 && booking.agreed_price != null && (
+                <span className="admin-faint" title="Agreed package price plus confirmed add-ons">
+                  {" "}(€{Number(booking.agreed_price).toLocaleString("de-DE")} package + €{confirmedAddonsTotal.toLocaleString("de-DE")} add-ons)
+                </span>
+              )}
               {priceLabel.kind === "discount" && (
                 <span className="ml-2 inline-block px-1.5 py-0.5 rounded text-[10px] font-bold bg-green-500/15 text-green-400 align-middle" title={`List €${priceLabel.list.toLocaleString()}`}>{priceLabel.percentOff}% off</span>
               )}
@@ -1254,11 +1301,19 @@ export function BookingDetailPane({ bookingId, onBack }: { bookingId: string; on
                 onClick={() => {
                   const opening = !showPaymentForm;
                   setShowPaymentForm(opening);
-                  // Opening it: start from what is actually owed. That's the
-                  // amount being recorded almost every time, and it saves
-                  // retyping a figure whose formatting is easy to get wrong.
-                  if (opening && !paymentForm.amount && outstanding > 0) {
-                    setPaymentForm((f) => ({ ...f, amount: String(outstanding), type: totalPaid > 0 ? "final" : f.type }));
+                  // Start from the instalment that is actually due — the open
+                  // invoice the panel already suggests one line below — and only
+                  // fall back to the whole balance when nothing is invoiced yet.
+                  // Prefilling the full balance while a downpayment invoice is
+                  // open offers a number that matches nothing on the screen.
+                  const due = recon.nextDue?.remaining;
+                  const suggest = due && due > 0 ? due : outstanding;
+                  if (opening && !paymentForm.amount && suggest > 0) {
+                    setPaymentForm((f) => ({
+                      ...f,
+                      amount: String(suggest),
+                      type: totalPaid > 0 ? "final" : f.type,
+                    }));
                   }
                 }}
                 className="px-3 py-1.5 bg-[var(--admin-accent)] hover:bg-[var(--admin-accent)]/90 text-[var(--admin-accent-contrast)] text-xs font-bold rounded-lg transition-colors"
@@ -1501,10 +1556,11 @@ export function BookingDetailPane({ bookingId, onBack }: { bookingId: string; on
 
           {showAddonForm && (
             <div className="mb-4 p-4 rounded-xl admin-surface" style={{ border: "1px solid var(--admin-border)" }}>
-              <div className="grid grid-cols-3 gap-3 mb-3">
-                <div>
+              <div className="grid grid-cols-1 sm:grid-cols-[minmax(0,2fr)_minmax(0,1.4fr)_92px_110px] gap-3 mb-3">
+                <div className="min-w-0">
                   <label className={labelClass}>Component</label>
                   <SearchSelect
+                    wideMenu
                     value={addonForm.component_id || null}
                     onChange={(v) => {
                       const comp = components.find((c) => c.id === v);
@@ -1522,15 +1578,35 @@ export function BookingDetailPane({ bookingId, onBack }: { bookingId: string; on
                     searchPlaceholder="Search components…"
                   />
                 </div>
-                <div>
+                <div className="min-w-0">
                   <label className={labelClass}>Label *</label>
                   <input className={inputClass} value={addonForm.label} onChange={(e) => setAddonForm({ ...addonForm, label: e.target.value })} placeholder="Display name" />
                 </div>
-                <div>
-                  <label className={labelClass}>Price (€)</label>
+                <div className="min-w-0">
+                  <label className={labelClass}>Qty</label>
+                  <input className={inputClass} type="number" min="1" step="1" value={addonForm.qty}
+                    onChange={(e) => setAddonForm({ ...addonForm, qty: e.target.value })} />
+                </div>
+                <div className="min-w-0">
+                  <label className={labelClass}>Price each (€)</label>
                   <input className={inputClass} type="number" step="0.01" value={addonForm.price} onChange={(e) => setAddonForm({ ...addonForm, price: e.target.value })} />
                 </div>
               </div>
+              {/* The total is the number that lands on the invoice, so it is
+                  shown before saving rather than discovered afterwards. */}
+              {(() => {
+                const q = Math.max(1, Math.round(Number(addonForm.qty) || 1));
+                const u = Number(addonForm.price);
+                if (!addonForm.price || !Number.isFinite(u) || q < 2) return null;
+                const total = Math.round((u * q + Number.EPSILON) * 100) / 100;
+                return (
+                  <p className="text-xs admin-muted mb-3">
+                    {q} × €{u.toLocaleString("de-DE", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                    <span className="admin-faint"> = </span>
+                    <strong className="admin-heading">€{total.toLocaleString("de-DE", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</strong>
+                  </p>
+                );
+              })()}
               <div className="flex gap-2">
                 <button onClick={addAddon} disabled={!addonForm.label && !addonForm.component_id} className="px-3 py-1.5 bg-[var(--admin-accent)] hover:bg-[var(--admin-accent)]/90 disabled:opacity-40 text-[var(--admin-accent-contrast)] text-xs font-bold rounded-lg">
                   Add
@@ -1552,19 +1628,34 @@ export function BookingDetailPane({ bookingId, onBack }: { bookingId: string; on
               </div>
               {booking.addons.map((a) => {
                 const eff = effectiveAddonStatus(a);
-                if (eff === "declined") return null; // "no add-ons needed" marker — not shown to the team
+                // The member's "no add-ons needed" marker carries no component and
+                // is pure noise here. A REFUSED request does have one, and stays
+                // on screen: the team needs to see what was asked and turned down.
+                if (eff === "declined" && !a.component_id) return null;
+                const refused = eff === "declined";
                 const requested = eff === "requested";
                 // "Pay the supplier direct" add-ons: we arrange them, no money
                 // moves through NP7, so no invoice and no payment row.
                 const payDirect = a.exp_components?.payment_mode === "direct";
                 const isMember = a.source === "member" || (a.notes ?? "").startsWith("member:");
                 return (
-                <div key={a.id} className="grid grid-cols-[1fr_110px_90px_120px] gap-3 px-5 py-3" style={{ borderBottom: "1px solid var(--admin-border)" }}>
+                <div key={a.id} className={`grid grid-cols-[1fr_110px_90px_120px] gap-3 px-5 py-3 ${refused ? "opacity-55" : ""}`} style={{ borderBottom: "1px solid var(--admin-border)" }}>
                   <div className="min-w-0">
                     <div className="text-sm font-medium admin-heading truncate flex items-center gap-2">
+                      {/* Quantity leads the label: at a glance this row is five
+                          nights, not a mystery total five times the unit price. */}
+                      {(a.quantity ?? 1) > 1 && (
+                        <span className="shrink-0 text-[11px] font-bold px-1.5 py-0.5 rounded bg-[#0aa3c7]/15 text-[#0aa3c7] tabular-nums">{a.quantity}×</span>
+                      )}
                       {a.label}
                       {requested && <span className="shrink-0 text-[9px] font-bold uppercase tracking-wide px-1.5 py-0.5 rounded bg-amber-500/15 text-amber-500">Requested by member</span>}
                       {eff === "confirmed" && isMember && <span className="shrink-0 text-[9px] font-bold uppercase tracking-wide px-1.5 py-0.5 rounded bg-green-500/15 text-green-500">Confirmed</span>}
+                      {refused && (
+                        <span className="shrink-0 text-[9px] font-bold uppercase tracking-wide px-1.5 py-0.5 rounded bg-red-500/15 text-red-400"
+                          title={a.meta?.declineReason ? `Reason sent to the guest: ${a.meta.declineReason}` : "Declined"}>
+                          Couldn&apos;t do
+                        </span>
+                      )}
                     </div>
                     {a.notes && <div className="text-xs admin-faint truncate">{a.notes}</div>}
                     {(a.meta?.checkIn || a.meta?.checkOut) && (
@@ -1616,6 +1707,12 @@ export function BookingDetailPane({ bookingId, onBack }: { bookingId: string; on
                         <button onClick={() => confirmAddon(a.id, true)} title="Include it at no extra charge (price → €0)" className="text-[11px] font-medium px-2.5 py-1 rounded-md admin-surface hover:opacity-80 transition-opacity" style={{ border: "1px solid var(--admin-border)" }}>No charge</button>
                       </>
                       )
+                    )}
+                    {requested && (
+                      <button onClick={() => declineAddon(a.id)} title="We can't do this one — the guest is emailed your reason. Keeps the request on record; the × deletes it without a word."
+                        className="text-[11px] font-medium px-2.5 py-1 rounded-md admin-faint hover:text-red-400 transition-colors" style={{ border: "1px solid var(--admin-border)" }}>
+                        Can&apos;t do
+                      </button>
                     )}
                     <button onClick={() => removeAddon(a.id)} className="text-xs admin-faint hover:text-red-400 transition-colors">
                       <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M18 6L6 18M6 6l12 12" /></svg>

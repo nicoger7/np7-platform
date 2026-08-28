@@ -14,7 +14,7 @@ import type { Metadata } from "next";
 import { supabase } from "@/lib/supabase";
 import { getTeamMember, getPortalUser } from "@/lib/auth";
 import { getEventForSlug } from "@/lib/events";
-import { EventPage } from "@/components/experience/event-page";
+import { ClinicTicketBox } from "@/components/experience/clinic-ticket-box";
 import { SelectedEditionProvider } from "@/components/experience/selected-edition";
 import { CrewCarousel, type Guide } from "@/components/experience/crew-carousel";
 import { ProgramForWeek, type ProgramDay } from "@/components/experience/program-for-week";
@@ -219,13 +219,24 @@ export default async function ExperienceDetailPage({ params, searchParams }: Pro
   // EVENT experiences (page_template='event') get the slim ticket-first layout,
   // not the full trip page. Resolved by the event lib (service-role read of the
   // candidate dates); non-events return null and fall through.
-  const event = await getEventForSlug(slug).catch(() => null);
-  if (event) {
-    // Same visibility rules as trips: public only sees published + on-website.
-    if (!team && (event.status !== "published" || !event.websiteVisible)) notFound();
-    const member = await getPortalUser().catch(() => null);
-    return <EventPage event={event} isMember={!!member?.contactId} paid={paid === "1"} paidBookingId={paidBookingId ?? null} />;
-  }
+  /*
+   * A CLINIC is the trip page with the trip-sized parts taken out — not a
+   * second page.
+   *
+   * It used to be its own slim template, and that template quietly became the
+   * poor relation: a flat hero, one thin column and a dark method card doing
+   * all the work. Everything that makes an NP7 page feel like NP7 — the hero
+   * treatment, the quick facts, the spot, the crew, the gallery — lived only in
+   * the trip page and had to be rebuilt badly to appear here at all.
+   *
+   * So a clinic renders the SAME page and switches off what a one- or two-day
+   * format has no business showing: the pinned epic-week story, the certainty
+   * band built around a months-long payment plan, the package picker, and the
+   * day-by-day. The ticket box takes the packages' place.
+   */
+  const clinic = await getEventForSlug(slug, { preview: !!team }).catch(() => null);
+  if (clinic && !team && (clinic.status !== "published" || !clinic.websiteVisible)) notFound();
+  const clinicMember = clinic ? await getPortalUser().catch(() => null) : null;
   let query = supabase
     .from("exp_experiences")
     .select("id,title,location,currency,price,description,hero_image,gallery,airport_code,exp_editions(id,label,coaches,date_start,date_end,max_spots,spots_taken,deposit,status,launch_discount_pct,launch_price_until,public_from,video_analysis,photoshoot),exp_packages(id,name,price,status,archived_at,edition_id,category,gear_baseline,includes,exp_package_components(show_on_website,quantity,exp_components(name,description,category)))")
@@ -952,20 +963,25 @@ export default async function ExperienceDetailPage({ params, searchParams }: Pro
           long-form templates feel like one family. "Reserve" = persistent
           shortcut to the conversion module. */}
       <SectionNav
+        // A clinic switches off the week story, the packages and the day-by-day,
+        // so their tabs have to go with them — a nav link that scrolls nowhere
+        // is worse than a shorter nav.
         sections={([
-          { id: "week", label: "Your week" },
+          !clinic && { id: "week", label: "Your week" },
           { id: "method", label: "Coaching" },
           spotAbout && { id: "spot", label: "The spot" },
-          { id: "packages", label: "Packages" },
-          { id: "program", label: "Day by day" },
+          { id: "packages", label: clinic ? "Book" : "Packages" },
+          !clinic && { id: "program", label: "Day by day" },
           { id: "crew", label: "Crew" },
           { id: "faq", label: "FAQ" },
         ].filter(Boolean)) as NavSection[]}
         topClass="top-16"
-        action={{ label: soldOut ? "Waitlist" : "Reserve", href: "#packages" }}
+        action={{ label: clinic ? "Get your spot" : soldOut ? "Waitlist" : "Reserve", href: "#packages" }}
       />
 
-      {/* 1 · THE DREAM — your epic week (pinned scroll through the outcomes) */}
+      {/* 1 · THE DREAM — your epic week (pinned scroll through the outcomes).
+          A clinic has no week to narrate; skipped rather than shown thin. */}
+      {!clinic && (
       <div id="week" className="scroll-mt-28">
       <EpicWeekScroll
         outcomes={outcomeItems}
@@ -983,6 +999,7 @@ export default async function ExperienceDetailPage({ params, searchParams }: Pro
         weekInfo={weekInfo}
       />
       </div>
+      )}
       {/* Explainer video — Nico walks through the trip (hidden if no link) */}
       <ExplainerVideo url={content?.explainer_video_url} title={`Nico walks you through ${experience.title.replace(/^NP7 (Experience )?/i, "")}`} />
       {/* 2 · THE NP7 TRAINING SYSTEM — the unique mechanism */}
@@ -1024,7 +1041,9 @@ export default async function ExperienceDetailPage({ params, searchParams }: Pro
         </div>
       </section>
 
-      {/* 3 · CERTAINTY — you can count on it */}
+      {/* 3 · CERTAINTY — you can count on it — a promise about a months-long payment plan, which a
+          clinic paid in one go does not make. */}
+      {!clinic && (
       <section className="relative py-16 sm:py-24 bg-[#fff7ec] overflow-hidden">
         {/* wind drifting across the water — a bit of life behind the facts */}
         <div className="pointer-events-none absolute inset-0" aria-hidden>
@@ -1076,6 +1095,7 @@ export default async function ExperienceDetailPage({ params, searchParams }: Pro
           )}
         </div>
       </section>
+      )}
 
       {/* 4 · THE SPOT — the destination link lives INSIDE it (no separate banner) */}
       {spotAbout && (
@@ -1149,7 +1169,23 @@ export default async function ExperienceDetailPage({ params, searchParams }: Pro
         </section>
       )}
 
-      {/* 5 · PACKAGES + BOOKING */}
+      {/* 5 · BOOKING — packages for a trip, one ticket for a clinic.
+          A clinic has no level to pick and no room to choose: it is one seat at
+          one price, so the picker would be a form with a single option. */}
+      {clinic ? (
+        <section id="packages" className="scroll-mt-28 py-16 sm:py-24 bg-[#f7f7f7]">
+          <div className="max-w-[1000px] mx-auto px-6 sm:px-8">
+            <Reveal className="text-center max-w-[620px] mx-auto mb-10">
+              <p className="text-[11px] font-bold tracking-[0.25em] text-[#00afdb] mb-3">YOUR SPOT</p>
+              <h2 className="text-3xl sm:text-5xl font-black tracking-[-0.03em] text-[#00374a] mb-4">Grab your place</h2>
+              <p className="text-[16px] text-[#6a7a80]">One seat, one price — accommodation and gear you arrange yourself, so you only pay for the coaching.</p>
+            </Reveal>
+            <div className="max-w-[440px] mx-auto">
+              <ClinicTicketBox event={clinic} isMember={!!clinicMember?.contactId} paid={paid === "1"} paidBookingId={paidBookingId ?? null} />
+            </div>
+          </div>
+        </section>
+      ) : (
       <section id="packages" className="scroll-mt-28 py-16 sm:py-24 bg-[#f7f7f7]">
         <div className="max-w-[1200px] mx-auto px-6 sm:px-8">
           <Reveal className="text-center max-w-[600px] mx-auto mb-12">
@@ -1183,8 +1219,10 @@ export default async function ExperienceDetailPage({ params, searchParams }: Pro
           )}
         </div>
       </section>
+      )}
 
-      {/* 6 · YOUR PERFECT WEEK */}
+      {/* 6 · YOUR PERFECT WEEK — a day-by-day belongs to a week. */}
+      {!clinic && (
       <section id="program" className="scroll-mt-28 py-16 sm:py-24">
         <div className="max-w-[760px] mx-auto px-6 sm:px-8">
           {highlights.length > 0 && (
@@ -1209,6 +1247,7 @@ export default async function ExperienceDetailPage({ params, searchParams }: Pro
           </Reveal>
         </div>
       </section>
+      )}
 
       {/* 7 · PROOF — coaches & reviews (crew = your coaches + the riders you'll share the week with) */}
       <section id="crew" className="scroll-mt-28 py-16 sm:py-24 bg-[#f7f7f7]">
