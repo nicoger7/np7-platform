@@ -1,5 +1,20 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase";
+import { revalidateExperienceById } from "@/lib/revalidate-public";
+
+/**
+ * The public experience page is ISR'd at revalidate = 3600, and the "what's
+ * included" list on both the trip package cards and the clinic chips is built
+ * from these links. Without a revalidate, an operator ticks Web ✓, reloads,
+ * sees nothing change and concludes the feature is broken — for up to an hour.
+ */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+async function refreshPublicPage(client: any, packageId: string) {
+  try {
+    const { data } = await client.from("exp_packages").select("experience_id").eq("id", packageId).maybeSingle();
+    if (data?.experience_id) await revalidateExperienceById(client, data.experience_id);
+  } catch { /* revalidation is best-effort; never fail the write over it */ }
+}
 
 // GET /api/admin/packages/:id/components — list components in a package
 export async function GET(
@@ -45,6 +60,7 @@ export async function POST(
     return NextResponse.json({ error: error.message }, { status: 400 });
   }
 
+  await refreshPublicPage(client, id);
   return NextResponse.json(data, { status: 201 });
 }
 
@@ -72,6 +88,7 @@ export async function PATCH(
     .select("*, exp_components(id, name, category, unit_cost, sell_price)")
     .single();
   if (error) return NextResponse.json({ error: error.message }, { status: 400 });
+  await refreshPublicPage(client, id);
   return NextResponse.json(data);
 }
 
@@ -102,5 +119,6 @@ export async function DELETE(
     return NextResponse.json({ error: error.message }, { status: 400 });
   }
 
+  await refreshPublicPage(client, id);
   return NextResponse.json({ success: true });
 }

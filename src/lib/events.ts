@@ -1,4 +1,5 @@
 import { createAdminClient } from "@/lib/supabase";
+import { packageIncludes } from "@/lib/package-includes";
 
 /** A candidate / confirmed date for a standby (or fixed) event. */
 export type EventDate = {
@@ -10,6 +11,10 @@ export type EventDate = {
   max_spots: number | null;
   sort_order: number;
 };
+
+/** One thing you can add to a clinic. Display only — the team adds it to the
+ *  invoice; nothing here is sold at checkout. */
+export type EventAddon = { name: string; description: string | null; price: number | null };
 
 export type EventInfo = {
   id: string;
@@ -34,6 +39,10 @@ export type EventInfo = {
   dates: EventDate[];
   /** The edition being sold, when this page is pinned to one. */
   editionSlug?: string | null;
+  /** What the ticket contains, from the run's own package. */
+  included?: string[];
+  /** What you can add to this run, shown but not sold on the page. */
+  addons?: EventAddon[];
   /** Other upcoming clinics in the same series, for "other dates". */
   siblings?: { slug: string; label: string | null; location: string | null; date_start: string | null; date_end: string | null }[];
 };
@@ -187,16 +196,55 @@ export async function getEventForSlug(
   // One active package is the normal shape for an event; if a clinic ever has
   // several, the cheapest deposit wins rather than an arbitrary row.
   let pkg: { id: string; deposit: number | null; final_days_before: number | null } | null = null;
+  /* What the ticket contains, as display lines. It is resolved from the SAME
+     package row that supplies the deposit and the balance date, so the chips
+     and the price can never end up describing different products. */
+  let included: string[] = [];
   if (pinned) {
     const { data: pkgRows } = await db
       .from("exp_packages")
-      .select("id,deposit,final_days_before,price,status,website_visible")
+      // Never select unit_cost or sell_price on a component here: this list is
+      // rendered to the public, and only name/description/category are display.
+      .select("id,deposit,final_days_before,price,status,website_visible,includes,exp_package_components(show_on_website,quantity,exp_components(name,description,category))")
       .eq("edition_id", pinned.id)
       .eq("status", "active")
       .is("archived_at", null);
     const usable = ((pkgRows ?? []) as { id: string; deposit: number | null; final_days_before: number | null }[]);
     pkg = usable.sort((a, b) => Number(a.deposit ?? Infinity) - Number(b.deposit ?? Infinity))[0] ?? null;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const chosen = ((pkgRows ?? []) as any[]).find((p) => p.id === pkg?.id);
+    if (chosen) included = packageIncludes(chosen);
   }
+
+  /*
+   * The add-on shelf: what you can add to this run, shown but not sold here.
+   *
+   * Scoped to the run (`edition_id`) so Hood River can rent different gear than
+   * Hatteras, and tolerant of an unapplied migration — an events page must not
+   * 500 because a column is missing. Projected field by field rather than
+   * spread, so `sell_price` reaches the browser only as a resolved number and
+   * `unit_cost` never leaves the server at all.
+   */
+  const addons: EventAddon[] = pinned
+    ? await (async () => {
+        try {
+          const { data } = await db
+            .from("exp_components")
+            .select("id,name,description,sell_price,offer_at_booking,is_global,experience_id,edition_id,offer_sort,archived_at")
+            .eq("offer_at_booking", true)
+            .is("archived_at", null);
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          return ((data ?? []) as any[])
+            .filter((c) => (c.is_global || c.experience_id === exp.id) && (!c.edition_id || c.edition_id === pinned!.id))
+            .sort((a, b) => (a.offer_sort ?? 1e9) - (b.offer_sort ?? 1e9) || String(a.name).localeCompare(String(b.name)))
+            .map((c) => ({
+              name: String(c.name),
+              description: (c.description as string | null) ?? null,
+              price: c.sell_price == null ? null : Number(c.sell_price),
+            }));
+        } catch { return []; }
+      })()
+    : [];
 
   /**
    * Where a date comes from, settled.
@@ -255,6 +303,8 @@ export async function getEventForSlug(
     websiteVisible: exp.website_visible !== false,
     dates: shown.length ? shown : dates,
     editionSlug: pinned?.slug ?? null,
+    included,
+    addons,
     siblings: editions
       .filter((e) => e.id !== pinned?.id && e.slug && (e.date_end ?? e.date_start ?? "") >= today)
       .map((e) => ({ slug: e.slug as string, label: e.label, location: e.location, date_start: e.date_start, date_end: e.date_end })),

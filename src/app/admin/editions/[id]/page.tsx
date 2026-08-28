@@ -30,6 +30,7 @@ import { CapacityPanel, SpotsLeftCell, type CapacityData } from "@/components/ad
 import { PackageRoomPool } from "@/components/admin/package-room-pool";
 import { EditionMailing } from "@/components/admin/edition-mailing";
 import { PACKAGE_LEVEL_OPTIONS, packageLevelLabel } from "@/lib/package-levels";
+import { EditionProgramEditor } from "@/components/admin/edition-program-editor";
 
 // Edition detail sub-tabs. The order is reorderable by drag-and-drop and saved
 // per admin in localStorage (each team member keeps their own preferred order).
@@ -128,6 +129,9 @@ interface Edition {
   /** Where this edition happens. Null = inherit the experience's location —
    *  which is every trip. An event series fills it in per date. */
   location?: string | null;
+  /** The run's own paragraph on the public page. Null = inherit the
+   *  experience's, which a travelling series must not do. */
+  description?: string | null;
   video_analysis?: boolean | null;
   photoshoot?: boolean | null;
   spots_taken: number;
@@ -400,6 +404,10 @@ export default function EditionDetailPage({
   const [duplicating, setDuplicating] = useState(false);
   const [dupExperiences, setDupExperiences] = useState<{ id: string; title: string }[]>([]);
   const [edition, setEdition] = useState<Edition | null>(null);
+  /* The experience-level day-by-day, used only to SEED a run that opts into its
+     own. Fetched here because the program editor takes it as a prop and a
+     clinic is edited on this page, not under Content. */
+  const [seriesProgram, setSeriesProgram] = useState<{ title: string; description: string }[]>([]);
   const [bookings, setBookings] = useState<Booking[]>([]);
   const [packages, setPackages] = useState<Package[]>([]);
   const [costs, setCosts] = useState<Cost[]>([]);
@@ -711,6 +719,14 @@ export default function EditionDetailPage({
         setBrandInEmails(d.hero_in_emails !== false);
         setBrandNote(d.pre_trip_note ?? ""); setBrandPacking(d.packing_list ?? "");
         setLoading(false);
+        // Seed source for a run that opts into its own day-by-day. Best-effort:
+        // an experience with no content row just seeds an empty list.
+        if (d?.experience_id) {
+          fetch(`/api/admin/content/${d.experience_id}`)
+            .then((r) => r.json())
+            .then((c) => setSeriesProgram(Array.isArray(c?.daily_program) ? c.daily_program : []))
+            .catch(() => {});
+        }
       });
     loadCapacity();
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -944,6 +960,7 @@ export default function EditionDetailPage({
         event_mode: edition.event_mode ?? null,
         event_deposit_pct: edition.event_deposit_pct ?? null,
         event_refund_pct: edition.event_refund_pct ?? null,
+        description: edition.description ?? null,
       }),
     });
     setSaving(false);
@@ -1295,7 +1312,9 @@ export default function EditionDetailPage({
               <option value="event">Clinic — coaching only, guest books their own stay</option>
             </select>
             <p className="text-[11px] admin-faint mt-1">
-              A clinic gets the slim page: no packages, no rooms, no day-by-day — one ticket at one price.
+              A clinic sells one seat at one price and the guest books their own stay — so no rooms, and
+              no package picker. It still has a package behind the ticket (that is where the deposit and
+              the &quot;what&apos;s included&quot; list live) and it can still run its own day-by-day.
               Length has nothing to do with it; a seven-day clinic is still a clinic.
             </p>
           </div>
@@ -1312,6 +1331,34 @@ export default function EditionDetailPage({
                 placeholder="e.g. 850"
               />
               <p className="text-[11px] admin-faint mt-1">One seat, one price. Leave blank to fall back to the experience&apos;s price.</p>
+            </div>
+          )}
+
+          {/* The paragraph the clinic page prints under the place and dates.
+              It had no field anywhere and could only be set with SQL, which for
+              a travelling series is the one piece of copy that MUST differ per
+              run — the same reason the description overrides the experience's. */}
+          {isEventEdition && (
+            <div>
+              <label className={labelClass}>About this clinic<PublicBadge note="Shown on the clinic page under the place and dates" /></label>
+              <textarea
+                className={`${inputClass} min-h-[120px]`}
+                value={edition.description ?? ""}
+                onChange={(e) => update("description", e.target.value || null)}
+                placeholder="What makes this run different — the spot, the conditions, who it suits."
+              />
+              <p className="text-[11px] admin-faint mt-1">
+                Describes THIS run, not the series. Empty falls back to the experience&apos;s description.
+              </p>
+            </div>
+          )}
+
+          {/* Per-run day-by-day. The editor already existed but only under
+              Content → Per-edition, which is not where anyone edits a clinic. */}
+          {isEventEdition && (
+            <div>
+              <label className={labelClass}>Day by day<PublicBadge note="Shown on the clinic page under what's included" /></label>
+              <EditionProgramEditor editionId={id} fallback={seriesProgram} unit="clinic" />
             </div>
           )}
 

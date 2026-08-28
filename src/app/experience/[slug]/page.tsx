@@ -3,7 +3,7 @@ import { flags } from "@/lib/flags";
 import { WindMiniChart } from "@/components/experience/wind-mini-chart";
 import { DEFAULT_WEEK_INFO, DEFAULT_CLINIC_TITLE, DEFAULT_CLINIC_INFO } from "@/lib/experience-defaults";
 import { notFound } from "next/navigation";
-import { includeLine } from "@/lib/include-line";
+import { packageIncludes } from "@/lib/package-includes";
 import { REVIEW_CATEGORIES } from "@/lib/review-categories";
 import { statsAreBlind } from "@/lib/wind-stats";
 import { firstNameInitial, publicProfileFor } from "@/lib/member-profile";
@@ -18,7 +18,8 @@ import { ClinicTicketBox } from "@/components/experience/clinic-ticket-box";
 import { ClinicEditions, ClinicDateChips, type ClinicRun } from "@/components/experience/clinic-editions";
 import { SelectedEditionProvider } from "@/components/experience/selected-edition";
 import { CrewCarousel, type Guide } from "@/components/experience/crew-carousel";
-import { ProgramForWeek, type ProgramDay } from "@/components/experience/program-for-week";
+import { ProgramForWeek } from "@/components/experience/program-for-week";
+import { programForEdition, type ProgramDay } from "@/lib/program-days";
 import { OceanHeader, NP7_LOGO } from "@/components/experience/ocean-header";
 import { Reveal } from "@/components/experience/reveal";
 import { Accordion, type AccordionItem } from "@/components/experience/accordion";
@@ -176,14 +177,6 @@ function CertaintyIcon({ name }: { name: string }) {
 type Edition = { id: string; label: string | null; coaches: string | null; date_start: string | null; date_end: string | null; max_spots: number | null; spots_taken: number | null; deposit: number | null; status: string | null };
 type PackageRow = { id: string; name: string; price: number | null; status: string | null; edition_id: string | null; category: string | null; includes: unknown; exp_package_components?: { show_on_website: boolean | null; quantity?: number | null; exp_components: { name: string | null; description: string | null; category?: string | null } | null }[] | null };
 
-/** Coerce the jsonb `exp_packages.includes` into a clean list of display strings. */
-function parseIncludes(raw: unknown): string[] {
-  if (!Array.isArray(raw)) return [];
-  return raw
-    .map((it) => (typeof it === "string" ? it : it && typeof it === "object" ? String((it as Record<string, unknown>).name ?? (it as Record<string, unknown>).label ?? (it as Record<string, unknown>).text ?? "") : ""))
-    .map((s) => s.trim())
-    .filter(Boolean);
-}
 type ProgramItem = { title: string; description: string };
 type FaqRow = { q: string; a: string };
 type ReviewRow = { name: string; country: string; quote: string; rating: number; image: string };
@@ -433,14 +426,42 @@ export default async function ExperienceDetailPage({ params, searchParams }: Pro
       const db = createAdminClient() as any;
       const { data } = await db
         .from("exp_components")
-        .select("id,name,description,sell_price,offer_at_booking,is_global,experience_id,archived_at")
+        .select("id,name,description,sell_price,offer_at_booking,is_global,experience_id,edition_id,offer_sort,archived_at")
         .eq("offer_at_booking", true)
         .is("archived_at", null);
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      return ((data ?? []) as any[])
+      const rows = ((data ?? []) as any[])
         .filter((c) => Number(c.sell_price) > 0 && (c.is_global || c.experience_id === experience.id))
-        .map((c) => ({ id: String(c.id), name: String(c.name), description: (c.description as string | null) ?? null, price: Number(c.sell_price) }));
-    } catch { return []; }
+        .sort((a, b) => (a.offer_sort ?? 1e9) - (b.offer_sort ?? 1e9) || String(a.name).localeCompare(String(b.name)));
+      /*
+       * EDITION SCOPE. A component pinned to a week belongs to that week only —
+       * the same rule offeredToBooking() enforces in the member area, and which
+       * this public list never applied. Without it a rate written for one run
+       * ("Board rental — Hatteras") is offered, quoted AND billed on every other
+       * week of the experience. Nothing carries offer_at_booking today, so
+       * nobody has been charged wrongly; it goes live the moment someone ticks
+       * the box on one of the 44 edition-scoped components.
+       *
+       * The list therefore has to follow the week the visitor picked, not the
+       * week the page happened to open on — so it is built per edition and the
+       * booking block reads the one matching its own selection.
+       */
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const shape = (list: any[]) => list.map((c) => ({
+        id: String(c.id), name: String(c.name),
+        description: (c.description as string | null) ?? null, price: Number(c.sell_price),
+      }));
+      return {
+        // Unscoped extras only: the safe answer when we do not know the week.
+        all: shape(rows.filter((c) => !c.edition_id)),
+        byEdition: Object.fromEntries(
+          allEditions.map((e) => [e.id, shape(rows.filter((c) => !c.edition_id || c.edition_id === e.id))]),
+        ) as Record<string, { id: string; name: string; description: string | null; price: number }[]>,
+        rows,
+      };
+    } catch {
+      return { all: [], byEdition: {}, rows: [] as { id: string; name: string; description: string | null; price: number; edition_id: string | null; offer_sort: number | null }[] };
+    }
   })();
 
   const packagesByEdition: Record<string, RealPackage[]> = {};
@@ -469,22 +490,9 @@ export default async function ExperienceDetailPage({ params, searchParams }: Pro
       // the components ✓-checked for the website, each shown with its Website text
       // (exp_components.description, name as fallback).
       includes: (() => {
-        const manual = parseIncludes(p.includes);
-        // Fixed order, not database order. The rows come back in whatever order
-        // the join produces, so two weeks holding the SAME components listed
-        // them differently and the copies looked like different products.
-        // Coaching first (it is the trip), then where you sleep, then the rest.
-        const RANK: Record<string, number> = { coaching: 0, accommodation: 1, gear: 2, meals: 3, transport: 4, other: 5 };
-        const rank = (c?: string | null) => RANK[(c ?? "").toLowerCase()] ?? 6;
-        const base = manual.length ? manual : (p.exp_package_components ?? [])
-          .filter((l) => l?.show_on_website)
-          .slice()
-          .sort((a, b) => {
-            const d = rank(a?.exp_components?.category) - rank(b?.exp_components?.category);
-            return d !== 0 ? d : (a?.exp_components?.name ?? "").localeCompare(b?.exp_components?.name ?? "");
-          })
-          .map((l) => includeLine({ ...l?.exp_components, quantity: l?.quantity }))
-          .filter(Boolean);
+        // The shared builder (manual list wins, else the Web ✓ components in a
+        // fixed order) — the clinic chips render from exactly the same lines.
+        const base = packageIncludes(p);
         // The member-area benefit rides on every package — what it PROMISES
         // (photos, video clips) follows the week's own flags, so the overview
         // never sells media a week doesn't shoot. Hand-written mentions win.
@@ -600,14 +608,12 @@ export default async function ExperienceDetailPage({ params, searchParams }: Pro
   const travellingClinic = clinicPlaces.length > 1;
   /** One description of the runs, shared by the hero chips and the selector, so
    *  the two can never disagree about what is on sale. */
-  /* What is true of EVERY run, for the facts band. Runs with different caps
-     cannot honestly share one number, so they fall back to the promise they do
-     share — small — rather than quoting the biggest. */
-  const clinicCaps = [...new Set(
-    bookable.map((r) => allEditions.find((e) => e.id === r.editionId)?.max_spots)
-      .filter((n): n is number => typeof n === "number" && n > 0),
-  )];
-  const clinicGroupSize = clinicCaps.length === 1 ? `Max ${clinicCaps[0]} riders` : clinicCaps.length > 1 ? "Small group" : "";
+  /* Group size belongs to ONE run — Hatteras can take eight and the Gorge six —
+     so it is stated per run in the panel and never averaged across the series. */
+  const capFor = (editionId: string | null) => {
+    const n = allEditions.find((e) => e.id === editionId)?.max_spots;
+    return typeof n === "number" && n > 0 ? n : null;
+  };
   const clinicRunChips: ClinicRun[] = bookable.map((r) => ({
     editionId: r.editionId,
     place: shortPlace(r.location),
@@ -768,10 +774,26 @@ export default async function ExperienceDetailPage({ params, searchParams }: Pro
     (content?.daily_program ?? []).length > 0
       ? content!.daily_program!.map((p, i) => ({ title: p.title?.trim() || `Day ${i + 1}`, description: p.description ?? "" }))
       : ITINERARY.map((it, i) => ({ title: it.title || `Day ${i + 1}`, description: typeof it.content === "string" ? it.content : "" }));
+  /*
+   * A clinic gets the series program as its default and NOTHING else.
+   *
+   * The trip chain ends in the built-in six-day ITINERARY, which on a weekend
+   * clinic would advertise "Day 6 · Final session" to somebody who is there for
+   * two days. A run with no program of its own, in a series with none either,
+   * shows no day-by-day at all.
+   */
+  const clinicProgramFallback: ProgramDay[] = (content?.daily_program ?? []).length > 0
+    ? content!.daily_program!.map((p, i) => ({ title: p.title?.trim() || `Day ${i + 1}`, description: p.description ?? "" }))
+    : [];
   // …and a single week can override it (exp_editions.daily_program, migration 112).
   const programByEdition: Record<string, ProgramDay[]> = {};
-  if (allEditions.length) {
-    const { data: edProg } = await sb.from("exp_editions").select("id,daily_program").in("id", allEditions.map((e) => e.id));
+  /* The union of both edition lists. `allEditions` keeps weeks that have not
+     STARTED, while a clinic stays sellable until it ENDS — so a clinic running
+     right now sits in the selector but would be missing from this map, and
+     would silently inherit the series program with nothing to show it had. */
+  const programEdIds = [...new Set([...allEditions.map((e) => e.id), ...bookable.map((r) => r.editionId)].filter(Boolean))] as string[];
+  if (programEdIds.length) {
+    const { data: edProg } = await sb.from("exp_editions").select("id,daily_program").in("id", programEdIds);
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     for (const r of ((edProg ?? []) as any[])) {
       if (Array.isArray(r.daily_program) && r.daily_program.length) {
@@ -1053,34 +1075,25 @@ export default async function ExperienceDetailPage({ params, searchParams }: Pro
       </section>
 
       {/* QUICK FACTS — blue, integrated into the dark hero zone. The light "your
-          epic week" below now provides the clear break, so this can stay seamless. */}
+          epic week" below now provides the clear break, so this can stay seamless.
+
+          A clinic SERIES has no facts to put here. Where and when are the chips
+          right above; the ticket is on the button beside them; and everything
+          else a band like this would say — group size, wind, airport — belongs
+          to ONE run and varies between them. Rather than three half-true lines,
+          the band comes down and the run states its own facts in its panel. */}
+      {clinicRuns.length <= 1 && (
       <section className="bg-[#00374a] text-white">
         <div className="max-w-[1200px] mx-auto px-6 sm:px-8"><div className="border-t border-white/10 py-6 grid grid-cols-2 sm:grid-cols-4 gap-y-6 gap-x-4">
-          {/* A travelling series has no single "where" and no single airport, so
-              those facts describe the SET of runs; the chosen run states its own
-              below the selector. A dash is not a fact — empties are dropped. */}
           {([
-            // The chips in the hero already name every run's place and date, so
-            // repeating them here as "2 clinics · Oct 2026 · Sept 2027" spends
-            // the band on arithmetic. A series says what is true of ALL its runs
-            // instead — how many riders, what level, what you need to bring.
-            clinicRuns.length > 1
-              ? { icon: "users", label: "Group size", value: clinicGroupSize }
-              : { icon: "calendar", label: multi ? `${allEditions.length} weeks to choose` : "When", value: clinic
-                  ? fmtShort(clinicRuns[0]?.start, clinicRuns[0]?.end)
-                  : multi
-                    ? fmtShort(spanStart, spanEnd)
-                    : fmtShort(edition?.date_start, edition?.date_end) },
-            { icon: "pin", label: travellingClinic ? "Locations" : "Where",
-              value: travellingClinic
-                ? (clinicPlaces.length > 2 ? `${clinicPlaces.length} spots in ${experience.location ?? "the US"}` : clinicPlaces.join(" & "))
-                : (clinic?.location ?? experience.location ?? "") },
-            clinicRuns.length > 1
-              // Wind belongs to a spot, and a series has several — but the
-              // ticket is one number the whole series can be judged on.
-              ? { icon: "bolt", label: "Ticket", value: money(fromPrice, experience.currency) ? `From ${money(fromPrice, experience.currency)}` : "" }
-              : { icon: "wind", label: "Typical wind", value: windRange || (windDisplay ? `Sailing wind ${windDisplay} of days` : "Steady in season") },
-            { icon: "plane", label: "Airport", value: travellingClinic ? "" : (experience.airport_code ?? "") },
+            { icon: "calendar", label: multi ? `${allEditions.length} weeks to choose` : "When", value: clinic
+                ? fmtShort(clinicRuns[0]?.start, clinicRuns[0]?.end)
+                : multi
+                  ? fmtShort(spanStart, spanEnd)
+                  : fmtShort(edition?.date_start, edition?.date_end) },
+            { icon: "pin", label: "Where", value: clinic?.location ?? experience.location ?? "" },
+            { icon: "wind", label: "Typical wind", value: windRange || (windDisplay ? `Sailing wind ${windDisplay} of days` : "Steady in season") },
+            { icon: "plane", label: "Airport", value: experience.airport_code ?? "" },
           ] as { icon: string; label: string; value: string }[]).filter((f) => f.value).map((f) => (
             <div key={f.label} className="flex items-start gap-3">
               <span className="text-[#00afdb] mt-0.5"><FactIcon name={f.icon} /></span>
@@ -1089,6 +1102,7 @@ export default async function ExperienceDetailPage({ params, searchParams }: Pro
           ))}
         </div></div>
       </section>
+      )}
 
       {/* sticky sub-nav — same component as the destination pages, so the two
           long-form templates feel like one family. "Reserve" = persistent
@@ -1331,7 +1345,8 @@ export default async function ExperienceDetailPage({ params, searchParams }: Pro
               <EditionBooking
                 editions={editionsLite}
                 packagesByEdition={packagesByEdition}
-                extras={bookingExtras}
+                extras={bookingExtras.all}
+                extrasByEdition={bookingExtras.byEdition}
                 launchByEdition={advantageByEdition}
                 currency={experience.currency ?? undefined}
                 experienceId={experience.id}
@@ -1385,7 +1400,15 @@ export default async function ExperienceDetailPage({ params, searchParams }: Pro
           <div className="max-w-[1000px] mx-auto px-6 sm:px-8">
             <ClinicEditions
               runs={clinicRunChips}
-              panels={bookable.map((r) => (
+              panels={bookable.map((r) => {
+                // Resolved HERE, on the server, for the run this panel is about
+                // — so the schedule can never describe a different clinic than
+                // the heading above it, and an empty one takes its own heading
+                // down with it rather than leaving a title over nothing.
+                const runDays = programForEdition(programByEdition, clinicProgramFallback, r.editionId);
+                const runIncluded = r.included ?? [];
+                const runAddons = r.addons ?? [];
+                return (
                 <div key={r.editionId ?? r.editionSlug} className="grid lg:grid-cols-[1.15fr_1fr] gap-9 lg:gap-14 items-start">
                   <div>
                     <p className="text-[11px] font-bold tracking-[0.25em] text-[#00afdb] mb-3">
@@ -1394,19 +1417,79 @@ export default async function ExperienceDetailPage({ params, searchParams }: Pro
                     <h3 className="text-3xl sm:text-4xl font-black tracking-[-0.03em] text-[#00374a] mb-4">
                       {r.location || experience.title}
                     </h3>
+                    {/* Per RUN, because the cap is: one spot can take eight
+                        riders where another takes six. */}
+                    {capFor(r.editionId) != null && (
+                      <p className="inline-flex items-center gap-2 text-[13px] font-bold text-[#00374a] bg-[#00afdb]/10 px-3.5 py-1.5 rounded-full mb-4">
+                        Max {capFor(r.editionId)} riders
+                      </p>
+                    )}
                     {r.description && (
                       <p className="text-[16px] text-[#5a6b72] leading-relaxed whitespace-pre-line">{r.description}</p>
+                    )}
+                    {/* What the ticket contains, from this run's own package —
+                        the same lines the trip package cards show, in the pill
+                        style the page already uses for highlights. */}
+                    {runIncluded.length > 0 && (
+                      <>
+                        <p className="text-[11px] font-bold tracking-[0.25em] text-[#00afdb] mt-8 mb-3">WHAT&apos;S INCLUDED</p>
+                        <div className="flex flex-wrap gap-2">
+                          {runIncluded.map((line) => (
+                            <span key={line} className="text-[12.5px] font-semibold text-[#00374a] bg-[#00afdb]/10 px-3.5 py-1.5 rounded-full">{line}</span>
+                          ))}
+                        </div>
+                      </>
+                    )}
+                    {runDays.length > 0 && (
+                      <div className="mt-9">
+                        <p className="text-[11px] font-bold tracking-[0.25em] text-[#00afdb] mb-4">DAY BY DAY</p>
+                        {/* Pinned to this run rather than reading the shared
+                            selection: the panel already knows which clinic it is. */}
+                        <ProgramForWeek
+                          editionId={r.editionId}
+                          programByEdition={programByEdition}
+                          fallback={clinicProgramFallback}
+                          weekLabels={{}}
+                          unit="clinic"
+                        />
+                      </div>
                     )}
                   </div>
                   <div>
                     <p className="text-[11px] font-bold tracking-[0.25em] text-[#00afdb] mb-3">YOUR SPOT</p>
                     <ClinicTicketBox event={r} isMember={!!clinicMember?.contactId} paid={paid === "1"} paidBookingId={paidBookingId ?? null} />
-                    <p className="text-[13px] text-[#6a7a80] mt-4 leading-relaxed">
-                      One seat, one price — accommodation and gear you arrange yourself, so you only pay for the coaching.
-                    </p>
+                    {/* The shelf: what you CAN add, priced honestly, sold by a
+                        human. A checkbox here would promise a till that does not
+                        exist yet — the clinic checkout charges one line. */}
+                    {runAddons.length > 0 ? (
+                      <div className="mt-6 rounded-2xl border border-[#e3e9ec] bg-white p-5">
+                        <p className="text-[11px] font-bold tracking-[0.2em] uppercase text-[#00afdb] mb-3">Add to your clinic</p>
+                        <ul className="space-y-3">
+                          {runAddons.map((a) => (
+                            <li key={a.name} className="flex items-baseline justify-between gap-4">
+                              <span>
+                                <span className="block text-[14px] font-bold text-[#00374a]">{a.name}</span>
+                                {a.description && <span className="block text-[12.5px] text-[#6a7a80] mt-0.5">{a.description}</span>}
+                              </span>
+                              <span className="shrink-0 text-[14px] font-black text-[#00374a] tabular-nums">
+                                {a.price != null ? money(a.price, r.currency) : "on request"}
+                              </span>
+                            </li>
+                          ))}
+                        </ul>
+                        <p className="text-[12px] text-[#8a969b] mt-4 leading-relaxed">
+                          Not part of the ticket — tell us when you book and we&apos;ll add it to your invoice.
+                        </p>
+                      </div>
+                    ) : runIncluded.length === 0 ? (
+                      <p className="text-[13px] text-[#6a7a80] mt-4 leading-relaxed">
+                        One seat, one price — accommodation and gear you arrange yourself, so you only pay for the coaching.
+                      </p>
+                    ) : null}
                   </div>
                 </div>
-              ))}
+                );
+              })}
             />
           </div>
         </section>

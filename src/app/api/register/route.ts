@@ -224,12 +224,16 @@ export async function POST(request: NextRequest) {
   if (extraIds.length) {
     const { data: comps } = await db
       .from("exp_components")
-      .select("id,name,sell_price,payment_mode,offer_at_booking,experience_id,is_global,archived_at")
+      .select("id,name,sell_price,payment_mode,offer_at_booking,experience_id,edition_id,is_global,archived_at")
       .in("id", extraIds);
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const valid = ((comps ?? []) as any[]).filter((c) =>
       c.offer_at_booking && !c.archived_at && Number(c.sell_price) > 0 &&
-      (c.is_global || c.experience_id === exp.id));
+      (c.is_global || c.experience_id === exp.id) &&
+      // The ids come from the request body, so this is the LAST line of defence
+      // before a component priced for one week is billed against another. The
+      // quote endpoint applies the same rule, so the two cannot disagree.
+      (!c.edition_id || c.edition_id === (editionId ?? null)));
     if (valid.length) {
       await db.from("exp_booking_addons").insert(valid.map((c) => ({
         booking_id: booking.id,

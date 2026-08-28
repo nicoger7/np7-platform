@@ -122,7 +122,10 @@ export async function PUT(
 
   // hero_image / hero_in_emails (047) + pre_trip_note (051) are optional columns —
   // strip & retry if they aren't there yet so the rest of an edition save still works.
-  const PENDING_OPTIONAL = ["hero_image", "hero_in_emails", "pre_trip_note", "daily_program", "packing_list", "final_details_note", "launch_discount_pct", "launch_price_until", "video_analysis", "photoshoot"];
+  // Columns that may not exist yet in every environment. The update below is an
+  // unfiltered passthrough, so ONE unknown key 400s the whole save — a new field
+  // has to degrade to a silent strip rather than break the edition page.
+  const PENDING_OPTIONAL = ["hero_image", "hero_in_emails", "pre_trip_note", "daily_program", "packing_list", "final_details_note", "launch_discount_pct", "launch_price_until", "video_analysis", "photoshoot", "description", "destination_id"];
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const run = (payload: Record<string, unknown>) => (client as any)
     .from("exp_editions")

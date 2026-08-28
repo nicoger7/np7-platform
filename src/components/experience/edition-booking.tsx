@@ -27,6 +27,7 @@ export function EditionBooking({
   editions,
   packagesByEdition,
   extras = [],
+  extrasByEdition,
   launchByEdition,
   currency = "EUR",
   experienceId,
@@ -36,6 +37,10 @@ export function EditionBooking({
   editions: EditionLite[];
   packagesByEdition: Record<string, RealPackage[]>;
   extras?: BookingExtra[];
+  /** Extras per week. A component pinned to one edition must not be sellable on
+   *  another, so the list follows the week you picked rather than the week the
+   *  page opened on; `extras` is the unscoped fallback. */
+  extrasByEdition?: Record<string, BookingExtra[]>;
   launchByEdition?: Record<string, { pct: number; until?: string | null; label?: string } | null>;
   currency?: string;
   experienceId: string;
@@ -47,6 +52,7 @@ export function EditionBooking({
   const { id: sel, setId: setSel } = useSelectedEdition();
   const ed = editions.find((e) => e.id === sel) ?? editions[0];
   const packages = ed ? packagesByEdition[ed.id] ?? [] : [];
+  const weekExtras = (ed && extrasByEdition?.[ed.id]) || extras;
   const multi = editions.length > 1;
   const selectedFull = ed?.spotsLeft != null && ed.spotsLeft <= 0;
 
@@ -186,7 +192,7 @@ export function EditionBooking({
         <PackagePicker
           key={ed?.id}
           packages={packages}
-          extras={extras}
+          extras={weekExtras}
           currency={currency}
           launch={launchByEdition?.[ed?.id ?? ""] ?? null}
           heroImage={heroImage}

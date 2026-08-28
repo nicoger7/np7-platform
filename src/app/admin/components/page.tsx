@@ -32,6 +32,8 @@ interface Component {
   sell_price: number | null;
   addon_available: boolean;
   offer_at_booking?: boolean;
+  /** Where it sits in the booking-time / clinic add-on list (migration 192). */
+  offer_sort?: number | null;
   gear_option?: string | null;
   payment_mode?: string | null;
   payment_note?: string | null;
@@ -137,7 +139,7 @@ export default function ComponentsPage() {
   );
   const emptyForm = {
     name: "", category: "coaching", description: "", unit_cost: "", sell_price: "",
-    addon_available: false, offer_at_booking: false, gear_option: "", payment_mode: "np7", payment_note: "", notes: "", is_global: true, experience_id: "", edition_id: "",
+    addon_available: false, offer_at_booking: false, offer_sort: null as number | null, gear_option: "", payment_mode: "np7", payment_note: "", notes: "", is_global: true, experience_id: "", edition_id: "",
     hotel_id: "", room_type: "",
   };
   const [form, setForm] = useState(emptyForm);
@@ -243,6 +245,7 @@ export default function ComponentsPage() {
       sell_price: c.sell_price?.toString() || "",
       addon_available: c.addon_available || false,
       offer_at_booking: c.offer_at_booking || false,
+      offer_sort: c.offer_sort ?? null,
       gear_option: c.gear_option || "",
       payment_mode: c.payment_mode || "np7",
       payment_note: c.payment_note || "",
@@ -276,6 +279,7 @@ export default function ComponentsPage() {
       sell_price: form.sell_price ? Number(form.sell_price) : null,
       addon_available: form.addon_available,
       offer_at_booking: form.offer_at_booking ?? false,
+      offer_sort: form.offer_sort ?? null,
       gear_option: form.gear_option || null,
       payment_mode: form.payment_mode,
       payment_note: form.payment_mode === "direct" ? (form.payment_note.trim() || null) : null,
@@ -390,8 +394,22 @@ export default function ComponentsPage() {
           </label>
           <label className="flex items-center gap-2 text-sm admin-heading cursor-pointer mt-2">
             <input type="checkbox" checked={form.offer_at_booking ?? false} onChange={(e) => setForm({ ...form, offer_at_booking: e.target.checked })} className="w-4 h-4 accent-[#0aa3c7]" />
-            Offer at booking <span className="admin-faint text-xs">— optional extra checkbox in the public booking flow; price = sell price</span>
+            Offer at booking <span className="admin-faint text-xs">— optional extra in the public booking flow and on a clinic&apos;s add-on shelf; price = sell price</span>
           </label>
+          {(form.offer_at_booking ?? false) && (
+            <div className="mt-3">
+              <label className="block text-xs font-semibold admin-muted mb-1">
+                Order <span className="admin-faint font-normal">— where it sits in that list. Lowest first; blank sorts last, then by name.</span>
+              </label>
+              <input
+                type="number"
+                className="admin-input border rounded-lg px-3 py-2 text-sm w-28"
+                value={form.offer_sort ?? ""}
+                onChange={(e) => setForm({ ...form, offer_sort: e.target.value === "" ? null : Number(e.target.value) })}
+                placeholder="1"
+              />
+            </div>
+          )}
           <div className="mt-3">
             <label className="block text-xs font-semibold admin-muted mb-1">
               Gear role <span className="admin-faint font-normal">— makes this component govern the public Rental / Storage / Own-gear toggle for its experience &amp; scope (sell price = the money truth)</span>

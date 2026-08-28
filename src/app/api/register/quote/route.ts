@@ -62,12 +62,16 @@ export async function GET(request: NextRequest) {
   if (extraIds.length) {
     const { data: comps } = await db
       .from("exp_components")
-      .select("id,sell_price,offer_at_booking,archived_at,is_global,experience_id")
+      .select("id,sell_price,offer_at_booking,archived_at,is_global,experience_id,edition_id")
       .in("id", extraIds);
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     extrasTotal = ((comps ?? []) as any[])
       .filter((c) => c.offer_at_booking && !c.archived_at && Number(c.sell_price) > 0 &&
-        (c.is_global || !edition?.experience_id || c.experience_id === edition.experience_id))
+        (c.is_global || !edition?.experience_id || c.experience_id === edition.experience_id) &&
+        // A component pinned to one week cannot be quoted against another —
+        // the ids arrive from the querystring, so this is also the check that
+        // stops a hand-edited URL pricing in another week's extra.
+        (!c.edition_id || c.edition_id === (editionId || null)))
       .reduce((n2, c) => n2 + Number(c.sell_price), 0);
   }
 

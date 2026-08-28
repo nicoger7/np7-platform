@@ -9,7 +9,14 @@ type Day = { title: string; description: string };
  * (the normal case). On = this week runs its own schedule, which the public trip
  * page shows whenever that week is selected.
  */
-export function EditionProgramEditor({ editionId, fallback }: { editionId: string; fallback: Day[] }) {
+export function EditionProgramEditor({ editionId, fallback, unit = "week" }: {
+  editionId: string;
+  fallback: Day[];
+  /** What one edition is called here. A clinic series runs clinics, and
+   *  "this week runs its own day-by-day" on a weekend clinic reads as somebody
+   *  else's screen — same prop CrewCarousel and ProgramForWeek already take. */
+  unit?: "week" | "clinic";
+}) {
   const [days, setDays] = useState<Day[] | null>(null); // null = inherit
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -45,7 +52,7 @@ export function EditionProgramEditor({ editionId, fallback }: { editionId: strin
     }
   }
 
-  if (loading) return <p className="text-xs admin-faint">Loading this week&apos;s program…</p>;
+  if (loading) return <p className="text-xs admin-faint">Loading this {unit}&apos;s program…</p>;
 
   const custom = days !== null;
   const list = days ?? fallback;
@@ -60,9 +67,9 @@ export function EditionProgramEditor({ editionId, fallback }: { editionId: strin
             setDays(next); save(next);
           }} />
         <span>
-          <span className="block text-[13px] font-bold admin-heading">This week runs its own day-by-day</span>
+          <span className="block text-[13px] font-bold admin-heading">This {unit} runs its own day-by-day</span>
           <span className="block text-xs admin-faint mt-0.5 leading-relaxed">
-            Off — inherits the experience&apos;s program (what most weeks do). On — seeded from it, then edit freely; only this week changes.
+            Off — inherits the experience&apos;s program (what most {unit === "clinic" ? "clinics do" : "weeks do"}). On — seeded from it, then edit freely; only this {unit} changes.
           </span>
         </span>
       </label>
@@ -89,7 +96,7 @@ export function EditionProgramEditor({ editionId, fallback }: { editionId: strin
               className="text-[12.5px] font-semibold text-[var(--admin-accent)] hover:underline">+ Add day</button>
             <button type="button" disabled={saving} onClick={() => save(list)}
               className="ml-auto rounded-lg bg-[var(--admin-accent)] text-[var(--admin-accent-contrast)] text-sm font-semibold px-4 py-2 disabled:opacity-50">
-              {saving ? "Saving…" : "Save this week's program"}
+              {saving ? "Saving…" : `Save this ${unit}'s program`}
             </button>
           </div>
         </div>
