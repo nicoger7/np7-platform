@@ -410,6 +410,45 @@ export default function PromoStudio() {
     orig: { x: number; y: number; w: number; h: number; size?: number; fx?: number; fy?: number };
   }>(null);
 
+  /**
+   * Which element is under the pointer — forgivingly.
+   *
+   * Hit boxes are in DESIGN pixels, so at the ~37% zoom the artboard fits at,
+   * the details line's 33px box is twelve pixels tall on screen and sits
+   * fourteen from the partner line. Both were effectively untappable: correct
+   * geometry, unusable target.
+   *
+   * So a near-miss counts. Exact hits still win outright and the topmost of
+   * those wins, which keeps precise clicking exact; only when nothing is hit
+   * squarely do we look at boxes grown to a sane on-screen size, and then the
+   * one whose centre is nearest the pointer wins — so two stacked thin lines
+   * resolve to the one actually aimed at.
+   */
+  const MIN_HIT_PX = 26;
+  const hitAt = (p: { x: number; y: number }): HitBox | null => {
+    const inside = (b: HitBox["box"], pad = 0) =>
+      p.x >= b.x - pad && p.x <= b.x + b.w + pad && p.y >= b.y - pad && p.y <= b.y + b.h + pad;
+    // The photo covers the whole artboard, so it is an exact hit EVERYWHERE.
+    // Letting it into this first pass made the forgiving pass unreachable and
+    // a one-pixel miss on a text line selected the backdrop instead.
+    const real = hitsRef.current.filter((h) => h.id !== "photo");
+    const exact = [...real].reverse().find((h) => inside(h.box));
+    if (exact) return exact;
+    const grow = Math.max(0, (MIN_HIT_PX / Math.max(scale, 0.05)) / 2);
+    let best: HitBox | null = null;
+    let bestD = Infinity;
+    for (const h of real) {
+      if (!inside(h.box, grow)) continue;
+      const cx = h.box.x + h.box.w / 2;
+      const cy = h.box.y + h.box.h / 2;
+      // Vertical distance dominates: stacked text lines differ in y, not x.
+      const d = Math.abs(p.y - cy) * 3 + Math.abs(p.x - cx) * 0.15;
+      if (d < bestD) { bestD = d; best = h; }
+    }
+    // Nothing near: the backdrop, which is what an empty click should select.
+    return best ?? hitsRef.current.find((h) => h.id === "photo" && inside(h.box)) ?? null;
+  };
+
   const toCanvas = (e: { clientX: number; clientY: number }) => {
     const r = wrapRef.current!.getBoundingClientRect();
     return { x: (e.clientX - r.left) / scale, y: (e.clientY - r.top) / scale };
@@ -539,10 +578,7 @@ export default function PromoStudio() {
   const onCanvasPointerDown = (e: React.PointerEvent) => {
     if (editingText) return;
     const p = toCanvas(e);
-    // topmost hit wins (hits are bottom-first)
-    const hit = [...hitsRef.current]
-      .reverse()
-      .find((h) => p.x >= h.box.x && p.x <= h.box.x + h.box.w && p.y >= h.box.y && p.y <= h.box.y + h.box.h);
+    const hit = hitAt(p);
     const id = hit?.id ?? null;
     setSelected(id);
     setMenu(null);
@@ -571,9 +607,7 @@ export default function PromoStudio() {
 
   const onDoubleClick = (e: React.MouseEvent) => {
     const p = toCanvas(e);
-    const hit = [...hitsRef.current]
-      .reverse()
-      .find((h) => p.x >= h.box.x && p.x <= h.box.x + h.box.w && p.y >= h.box.y && p.y <= h.box.y + h.box.h);
+    const hit = hitAt(p);
     if (hit && stateRef.current.texts.some((t) => t.id === hit.id)) {
       setSelected(hit.id);
       setEditingText(hit.id);

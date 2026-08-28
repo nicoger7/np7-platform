@@ -288,14 +288,28 @@ function drawCoachLayer(ctx: CanvasRenderingContext2D, state: PromoState, fmt: P
       const OFF = 10000;
       ctx.save();
       if (state.coach.shadow) {
-        ctx.shadowColor = "rgba(0,10,16,0.5)";
-        ctx.shadowBlur = 8;
-        ctx.shadowOffsetX = -16 + OFF;
-        ctx.shadowOffsetY = 12;
+        /*
+         * Two passes, both SOFT. The first version used blur 8 at half opacity,
+         * which at this canvas size is essentially a hard edge — it traced the
+         * cutout in near-black and read as a box behind the coach rather than
+         * as a shadow.
+         *
+         * Now it is how a real one falls: a wide ambient pass that only implies
+         * depth, and a nearer contact pass that grounds the figure. Neither is
+         * dark on its own; the impression comes from the two overlapping. Blur
+         * scales with the figure so a 9:16 coach is not lit differently from a
+         * 4:5 one.
+         */
+        const k = Math.max(b.w, b.h) / 700; // 4:5 default box ≈ 1
+        ctx.shadowColor = "rgba(0,12,20,0.26)";
+        ctx.shadowBlur = 96 * k;
+        ctx.shadowOffsetX = -26 * k + OFF;
+        ctx.shadowOffsetY = 30 * k;
         ctx.drawImage(coachImg, b.x - OFF, b.y, b.w, b.h);
-        ctx.shadowBlur = 44;
-        ctx.shadowOffsetX = -30 + OFF;
-        ctx.shadowOffsetY = 24;
+        ctx.shadowColor = "rgba(0,12,20,0.22)";
+        ctx.shadowBlur = 34 * k;
+        ctx.shadowOffsetX = -10 * k + OFF;
+        ctx.shadowOffsetY = 12 * k;
         ctx.drawImage(coachImg, b.x - OFF, b.y, b.w, b.h);
         ctx.shadowColor = "transparent";
       }
