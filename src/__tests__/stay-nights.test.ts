@@ -5,7 +5,7 @@
  * Scenario throughout: a trip week running Sat 12 Sep → Sat 19 Sep 2026.
  */
 import { describe, it, expect } from "vitest";
-import { coveredWindow, newNights, matchesRoom } from "@/lib/stay-nights";
+import { coveredWindow, newNights, matchesRoom, offeredToBooking } from "@/lib/stay-nights";
 
 const START = "2026-09-12";
 const END = "2026-09-19";
@@ -89,16 +89,61 @@ describe("room matching", () => {
     expect(matchesRoom(comp({ hotel_id: "h-sorobon", room_type: "Ocean Front Beach House" }), room)).toBe(false);
   });
 
-  it("hides an unlinked component rather than mispricing it", () => {
-    expect(matchesRoom(comp({ hotel_id: null, room_type: null }), room)).toBe(false);
+  it("keeps an UNLINKED accommodation extra — a partner upgrade is not a night rate", () => {
+    expect(matchesRoom(comp({ hotel_id: null, room_type: null }), room)).toBe(true);
+    expect(matchesRoom(comp({ hotel_id: null, room_type: null }), null)).toBe(true);
   });
 
-  it("hides accommodation when we don't know where the guest sleeps", () => {
+  it("hides a room-specific rate when we don't know where the guest sleeps", () => {
     expect(matchesRoom(comp({ hotel_id: "h-sorobon", room_type: "Garden View Studio" }), null)).toBe(false);
   });
 
   it("leaves non-accommodation extras alone — gear and transfers are for everyone", () => {
     expect(matchesRoom({ category: "gear", hotel_id: null, room_type: null }, room)).toBe(true);
     expect(matchesRoom({ category: "transfer" }, null)).toBe(true);
+  });
+});
+
+describe("what a member is offered", () => {
+  const room = { hotelId: "h-sorobon", roomType: "Garden View Studio" };
+  const here = { editionId: "ed-2027", room };
+  const night = (o: Record<string, unknown> = {}) => ({
+    category: "accommodation", hotel_id: "h-sorobon", room_type: "Garden View Studio", ...o,
+  });
+
+  it("offers the guest's own room night WITHOUT anyone ticking a box", () => {
+    // The whole point of migration 190: Bonaire had forty guests who could not
+    // ask for a night because addon_available was never set.
+    expect(offeredToBooking(night({ addon_available: false }), here)).toBe(true);
+  });
+
+  it("respects an explicit block", () => {
+    expect(offeredToBooking(night({ extra_nights_blocked: true }), here)).toBe(false);
+  });
+
+  it("hides last year's rate — the edition-scope bug", () => {
+    // Alaçatı: same name, €210 pinned to 2026 and €231 to 2027.
+    expect(offeredToBooking(night({ edition_id: "ed-2026" }), here)).toBe(false);
+    expect(offeredToBooking(night({ edition_id: "ed-2027" }), here)).toBe(true);
+  });
+
+  it("keeps an unscoped component available to every week", () => {
+    expect(offeredToBooking(night({ edition_id: null }), here)).toBe(true);
+  });
+
+  it("still refuses another guest's room", () => {
+    expect(offeredToBooking(night({ hotel_id: "h-wanapa" }), here)).toBe(false);
+  });
+
+  it("leaves generic extras opt-IN — gear is a decision per trip", () => {
+    const gear = { category: "gear", addon_available: false };
+    expect(offeredToBooking(gear, here)).toBe(false);
+    expect(offeredToBooking({ ...gear, addon_available: true }, here)).toBe(true);
+  });
+
+  it("treats an unlinked accommodation extra as a generic opt-in", () => {
+    const upgrade = { category: "accommodation", hotel_id: null, room_type: null };
+    expect(offeredToBooking(upgrade, here)).toBe(false);
+    expect(offeredToBooking({ ...upgrade, addon_available: true }, here)).toBe(true);
   });
 });

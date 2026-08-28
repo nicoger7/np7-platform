@@ -2,14 +2,14 @@ import { NextRequest, NextResponse } from "next/server";
 import { requirePortalApi } from "@/lib/auth";
 import { createAdminClient } from "@/lib/supabase";
 import { effectiveAddonStatus, noteForStatus } from "@/lib/addons";
-import { guestRoom, coveredWindow, newNights, matchesRoom } from "@/lib/stay-nights";
+import { guestRoom, coveredWindow, newNights, offeredToBooking } from "@/lib/stay-nights";
 
 // Member-facing add-ons for a booking. Members can request components flagged
 // addon_available; the team confirms them in admin (status flips to 'confirmed').
 
 async function ownedBooking(db: ReturnType<typeof createAdminClient>, id: string, contactId: string) {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const { data } = await (db as any).from("exp_bookings").select("id, experience_id").eq("id", id).eq("contact_id", contactId).maybeSingle();
+  const { data } = await (db as any).from("exp_bookings").select("id, experience_id, edition_id").eq("id", id).eq("contact_id", contactId).maybeSingle();
   return data ?? null;
 }
 
@@ -24,7 +24,12 @@ export async function GET(_request: NextRequest, { params }: { params: Promise<{
   if (!booking) return NextResponse.json({ error: "Booking not found" }, { status: 404 });
 
   const expId = booking.experience_id;
-  let availQ = db.from("exp_components").select("id,name,category,description,sell_price,experience_id,is_global,payment_mode,payment_note,hotel_id,room_type").eq("addon_available", true);
+  // No addon_available filter in the query any more: room nights are opt-OUT
+  // and generic extras opt-IN, so the decision moved into offeredToBooking().
+  let availQ = db
+    .from("exp_components")
+    .select("id,name,category,description,sell_price,experience_id,edition_id,is_global,payment_mode,payment_note,hotel_id,room_type,addon_available,extra_nights_blocked")
+    .is("archived_at", null);
   if (expId) availQ = availQ.or(`experience_id.eq.${expId},experience_id.is.null,is_global.eq.true`);
   const { data: availableRaw } = await availQ;
 
@@ -34,7 +39,9 @@ export async function GET(_request: NextRequest, { params }: { params: Promise<{
   // bed they cannot sleep in, at a price that is not theirs.
   const room = await guestRoom(db, id);
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const available = ((availableRaw ?? []) as any[]).filter((c) => matchesRoom(c, room));
+  const available = ((availableRaw ?? []) as any[]).filter((c) =>
+    offeredToBooking(c, { editionId: booking.edition_id ?? null, room }),
+  );
 
   // What the guest already sleeps through, so the date picker can start after
   // it instead of re-offering nights they hold.
@@ -88,14 +95,19 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
   const component_id = body.component_id;
   if (!component_id) return NextResponse.json({ error: "Missing component" }, { status: 400 });
 
-  const { data: comp } = await db.from("exp_components").select("id,name,category,sell_price,addon_available,payment_mode,payment_note,hotel_id,room_type").eq("id", component_id).maybeSingle();
-  if (!comp || !comp.addon_available) return NextResponse.json({ error: "Not available" }, { status: 400 });
+  const { data: comp } = await db
+    .from("exp_components")
+    .select("id,name,category,sell_price,addon_available,extra_nights_blocked,payment_mode,payment_note,hotel_id,room_type,edition_id,archived_at")
+    .eq("id", component_id)
+    .maybeSingle();
+  if (!comp || comp.archived_at) return NextResponse.json({ error: "Not available" }, { status: 400 });
 
-  // Accommodation is only sellable for the guest's own room — checked here too,
-  // not just hidden in the list, because the list is a UI and this is the till.
+  // The till applies exactly the rule the menu applied — edition scope, the
+  // guest's own room, opt-out for nights and opt-in for everything else. A list
+  // is a UI; this is where money is agreed.
   const room = await guestRoom(db, id);
-  if (!matchesRoom(comp, room)) {
-    return NextResponse.json({ error: "That room isn't yours to extend." }, { status: 400 });
+  if (!offeredToBooking(comp, { editionId: booking.edition_id ?? null, room })) {
+    return NextResponse.json({ error: "That extra isn't available on your booking." }, { status: 400 });
   }
 
   const { data: existing } = await db.from("exp_booking_addons").select("id,status,notes,meta").eq("booking_id", id);

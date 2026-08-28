@@ -86,10 +86,51 @@ export function newNights(
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 export function matchesRoom(component: any, room: StayRoom | null): boolean {
   if (component?.category !== "accommodation") return true;
-  // Unlinked components stay hidden rather than mispriced: a component with no
-  // hotel cannot be checked against the guest's room, and offering the wrong
-  // room at the wrong rate is worse than offering nothing.
-  if (!component?.hotel_id || !component?.room_type) return false;
+  /*
+   * Only ROOM-SPECIFIC components are filtered — the ones carrying a hotel and
+   * room type, i.e. the per-night rates. Those must match the guest's own room
+   * or they quote a bed at someone else's rate.
+   *
+   * An accommodation component WITHOUT a room link is not a night rate; it is a
+   * generic extra like "Partner Upgrade (Single→Double)". Hiding those was the
+   * first version of this rule and it silently removed a legitimate, bookable
+   * offer — a stricter filter that costs a real sale, to guard against a
+   * mispricing these rows cannot cause.
+   */
+  if (!component?.hotel_id || !component?.room_type) return true;
   if (!room?.hotelId || !room?.roomType) return false;
   return component.hotel_id === room.hotelId && component.room_type === room.roomType;
+}
+
+/** A per-night rate for one specific room — the kind of component that prices
+ *  an extended stay. Distinguished from generic accommodation extras (a partner
+ *  upgrade) purely by carrying a hotel AND a room type. */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export function isRoomNight(component: any): boolean {
+  return component?.category === "accommodation" && Boolean(component?.hotel_id) && Boolean(component?.room_type);
+}
+
+/**
+ * Should this component appear in a member's add-on list?
+ *
+ * Three rules, in order:
+ *
+ *  1. EDITION SCOPE. A component pinned to an edition belongs to that week
+ *     only. Without this an Alaçatı 2027 guest saw both the 2026 rate (€210)
+ *     and the 2027 one (€231) — same name, two prices, no way to tell which is
+ *     theirs. The offer list simply never checked edition_id.
+ *
+ *  2. THE GUEST'S OWN ROOM (matchesRoom).
+ *
+ *  3. Room nights are OPT-OUT, everything else stays OPT-IN. Asking to stay
+ *     longer in the room you already have needs no configuration — the hotel,
+ *     the room and the rate are all known — so it is offered unless someone
+ *     actively blocks it (migration 190). Gear, transfers and upgrades still
+ *     require addon_available, because those are real decisions per trip.
+ */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export function offeredToBooking(component: any, opts: { editionId: string | null; room: StayRoom | null }): boolean {
+  if (component?.edition_id && component.edition_id !== opts.editionId) return false;
+  if (!matchesRoom(component, opts.room)) return false;
+  return isRoomNight(component) ? component?.extra_nights_blocked !== true : component?.addon_available === true;
 }
