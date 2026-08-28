@@ -93,7 +93,7 @@ interface Addon {
   component_id: string | null;
   status: string | null;
   source: string | null;
-  meta?: { checkIn?: string | null; checkOut?: string | null; nightsBefore?: number; nightsAfter?: number; nights?: number; hotelConfirmed?: boolean } | null;
+  meta?: { checkIn?: string | null; checkOut?: string | null; nightsBefore?: number; nightsAfter?: number; nights?: number; hotelConfirmed?: boolean; declineReason?: string | null } | null;
   exp_components: { id: string; name: string; category: string; unit_cost: number; sell_price?: number | null; payment_mode?: string | null; payment_note?: string | null } | null;
 }
 
@@ -441,6 +441,28 @@ export function BookingDetailPane({ bookingId, onBack }: { bookingId: string; on
   async function removeAddon(addonId: string) {
     await fetch(`/api/admin/bookings/${id}/addons?addon_id=${addonId}`, { method: "DELETE" });
     setBooking((prev) => prev ? { ...prev, addons: prev.addons.filter((a) => a.id !== addonId) } : prev);
+  }
+
+  /** Say no to a member's request — with a reason, which the guest is emailed.
+   *  Deleting the row instead (the × ) erased the ask and told them nothing. */
+  async function declineAddon(addonId: string) {
+    const reason = prompt(
+      "Why can't we do this? The guest is emailed this sentence.\n\nE.g. \"The hotel is fully booked those nights.\"",
+      "The hotel has no availability for those nights.",
+    );
+    if (reason === null) return; // cancelled
+    const res = await fetch(`/api/admin/bookings/${id}/addons`, {
+      method: "PATCH", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ addon_id: addonId, status: "declined", reason }),
+    });
+    if (res.ok) {
+      setBooking((prev) => prev ? {
+        ...prev,
+        addons: prev.addons.map((a) => a.id === addonId ? { ...a, status: "declined", price: 0 } : a),
+      } : prev);
+    } else {
+      alert((await res.json().catch(() => ({}))).error || "Could not decline");
+    }
   }
 
   async function confirmAddon(addonId: string, complimentary = false) {
@@ -1606,14 +1628,18 @@ export function BookingDetailPane({ bookingId, onBack }: { bookingId: string; on
               </div>
               {booking.addons.map((a) => {
                 const eff = effectiveAddonStatus(a);
-                if (eff === "declined") return null; // "no add-ons needed" marker — not shown to the team
+                // The member's "no add-ons needed" marker carries no component and
+                // is pure noise here. A REFUSED request does have one, and stays
+                // on screen: the team needs to see what was asked and turned down.
+                if (eff === "declined" && !a.component_id) return null;
+                const refused = eff === "declined";
                 const requested = eff === "requested";
                 // "Pay the supplier direct" add-ons: we arrange them, no money
                 // moves through NP7, so no invoice and no payment row.
                 const payDirect = a.exp_components?.payment_mode === "direct";
                 const isMember = a.source === "member" || (a.notes ?? "").startsWith("member:");
                 return (
-                <div key={a.id} className="grid grid-cols-[1fr_110px_90px_120px] gap-3 px-5 py-3" style={{ borderBottom: "1px solid var(--admin-border)" }}>
+                <div key={a.id} className={`grid grid-cols-[1fr_110px_90px_120px] gap-3 px-5 py-3 ${refused ? "opacity-55" : ""}`} style={{ borderBottom: "1px solid var(--admin-border)" }}>
                   <div className="min-w-0">
                     <div className="text-sm font-medium admin-heading truncate flex items-center gap-2">
                       {/* Quantity leads the label: at a glance this row is five
@@ -1624,6 +1650,12 @@ export function BookingDetailPane({ bookingId, onBack }: { bookingId: string; on
                       {a.label}
                       {requested && <span className="shrink-0 text-[9px] font-bold uppercase tracking-wide px-1.5 py-0.5 rounded bg-amber-500/15 text-amber-500">Requested by member</span>}
                       {eff === "confirmed" && isMember && <span className="shrink-0 text-[9px] font-bold uppercase tracking-wide px-1.5 py-0.5 rounded bg-green-500/15 text-green-500">Confirmed</span>}
+                      {refused && (
+                        <span className="shrink-0 text-[9px] font-bold uppercase tracking-wide px-1.5 py-0.5 rounded bg-red-500/15 text-red-400"
+                          title={a.meta?.declineReason ? `Reason sent to the guest: ${a.meta.declineReason}` : "Declined"}>
+                          Couldn&apos;t do
+                        </span>
+                      )}
                     </div>
                     {a.notes && <div className="text-xs admin-faint truncate">{a.notes}</div>}
                     {(a.meta?.checkIn || a.meta?.checkOut) && (
@@ -1675,6 +1707,12 @@ export function BookingDetailPane({ bookingId, onBack }: { bookingId: string; on
                         <button onClick={() => confirmAddon(a.id, true)} title="Include it at no extra charge (price → €0)" className="text-[11px] font-medium px-2.5 py-1 rounded-md admin-surface hover:opacity-80 transition-opacity" style={{ border: "1px solid var(--admin-border)" }}>No charge</button>
                       </>
                       )
+                    )}
+                    {requested && (
+                      <button onClick={() => declineAddon(a.id)} title="We can't do this one — the guest is emailed your reason. Keeps the request on record; the × deletes it without a word."
+                        className="text-[11px] font-medium px-2.5 py-1 rounded-md admin-faint hover:text-red-400 transition-colors" style={{ border: "1px solid var(--admin-border)" }}>
+                        Can&apos;t do
+                      </button>
                     )}
                     <button onClick={() => removeAddon(a.id)} className="text-xs admin-faint hover:text-red-400 transition-colors">
                       <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M18 6L6 18M6 6l12 12" /></svg>

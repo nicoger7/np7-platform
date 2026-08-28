@@ -19,6 +19,8 @@ export type EmailVars = {
   /** wind.coach training guide for this booking — set by the cron ONLY when a
    *  stored guide exists, so `v.guideUrl ? … : ""` is the whole feature gate. */
   guideUrl?: string;
+  /** Why a requested add-on could not be arranged (usually "no availability"). */
+  declineReason?: string;
   /** Focus-point titles, newline-separated — the guide mail lists them so the
    *  rider recognises his own week before clicking. */
   guidePoints?: string;
@@ -788,6 +790,30 @@ export const TEMPLATES: Record<string, (v: EmailVars, opts?: LayoutOpts) => Buil
         (v.guideUrl ? emailButton("Open your training guide", v.guideUrl) : "") +
         p(`It lives in your trip account, so it's there whenever you need it — before the next session, or the next trip.`) +
         p(`See you on the water.<br>— Nico & the NP7 team`),
+    }),
+  }),
+
+  /**
+   * A requested extra we cannot do — almost always a full hotel.
+   *
+   * Exists because the request flow had no way to say no: the team could only
+   * confirm, or delete the row, which erased the ask and told the guest
+   * nothing. Somebody who asked for two extra nights and heard nothing assumes
+   * he has them. The mail is deliberately plain and offers a way forward.
+   */
+  addon_declined: (v, opts) => ({
+    subject: `About your request — ${v.addonLabel ?? "your extra"}`,
+    html: emailLayout({
+      ...opts,
+      preheader: "We couldn't arrange that one — here's why.",
+      bodyHtml:
+        greet(v) +
+        p(`You asked us about <strong>${esc(v.addonLabel || "an extra")}</strong> for ${esc(v.experienceTitle || "your trip")}, and unfortunately we can't make that one work.`) +
+        note(v.declineReason) +
+        p(`Nothing has been added to your balance, and the rest of your trip is unaffected.`) +
+        p(`If the dates are flexible, reply to this email and we'll see what else is possible — we'd rather find you something than leave it here.`) +
+        (v.bookingLink ? emailButton("Open my trip", v.bookingLink) : "") +
+        p(`— Nico &amp; the NP7 team`),
     }),
   }),
 

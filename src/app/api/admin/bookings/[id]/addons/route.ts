@@ -113,6 +113,13 @@ export async function PATCH(
   const status: AddonStatus = body.status === "declined" ? "declined" : "confirmed";
   const patch: Record<string, unknown> = { status };
   if (status === "confirmed") patch.confirmed_at = new Date().toISOString();
+  // Why we said no, kept on the row: the guest is told, and the team can see
+  // months later why a request was refused rather than guessing.
+  const declineReason = typeof body.reason === "string" ? body.reason.trim().slice(0, 300) : "";
+  if (status === "declined") {
+    patch.price = 0; // a refused extra must never sit in a total
+    patch.meta = { ...((body.meta as Record<string, unknown>) ?? {}), declineReason: declineReason || null, declinedAt: new Date().toISOString() };
+  }
   // "Confirm, no charge": include the add-on but don't bill for it (price → 0),
   // so the agreed price / balance is unchanged. Default confirm charges extra.
   if (status === "confirmed" && body.complimentary === true) patch.price = 0;
@@ -228,6 +235,35 @@ export async function PATCH(
           // both buckets, only when there is more than this one add-on to show
           addonsOurs: confirmedAll.length > 1 && ours.length ? ours.map((a) => `${nameOf(a)} — ${money(Number(a.price) || 0)}`).join("\n") : undefined,
           addonsDirect: confirmedAll.length > 1 && direct.length ? direct.map((a) => `${nameOf(a)} (pay on site)`).join("\n") : undefined,
+          bookingLink: `${process.env.NEXT_PUBLIC_SITE_URL ?? ""}/account/bookings/${id}`,
+        },
+      }).catch(() => {});
+    }
+  }
+
+  // Telling the guest NO matters as much as telling him yes. Somebody who asked
+  // for two extra nights and hears nothing assumes he has them, and turns up
+  // expecting a room. Only member-made requests get this mail — an admin tidying
+  // up a row he added himself should not fire an email at anyone.
+  if (status === "declined" && (data?.source === "member" || String(data?.notes ?? "").startsWith("member:"))) {
+    const { data: bk } = await client
+      .from("exp_bookings")
+      .select("contacts(name,email), exp_experiences(title)")
+      .eq("id", id)
+      .maybeSingle();
+    const email = bk?.contacts?.email;
+    if (email) {
+      await sendEmail({
+        to: email,
+        templateKey: "addon_declined",
+        manual: true,
+        bookingId: id,
+        dedupeKey: `addon_declined:${body.addon_id}`,
+        vars: {
+          firstName: (bk?.contacts?.name ?? "").split(" ")[0] || "there",
+          experienceTitle: bk?.exp_experiences?.title ?? "",
+          addonLabel: String(data?.label ?? data?.exp_components?.name ?? "your extra"),
+          declineReason: declineReason || undefined,
           bookingLink: `${process.env.NEXT_PUBLIC_SITE_URL ?? ""}/account/bookings/${id}`,
         },
       }).catch(() => {});
