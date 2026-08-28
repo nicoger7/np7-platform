@@ -19,6 +19,25 @@ function parseIncluded(v: unknown): string[] {
 }
 
 /** Compact date range, e.g. "Sat 23 Nov" or "23–24 Nov 2026". */
+/**
+ * What to call this thing, in words, based on how long it actually runs.
+ *
+ * The page was written for a local afternoon: "Not just a session", "In your
+ * ticket", "Bring your gear and your stoke". Over a seven-day clinic in North
+ * Carolina that reads like the wrong product. One template can serve both —
+ * it just has to stop hard-coding the short one.
+ */
+function spanWords(start: string | null, end: string | null): { noun: string; adj: string } {
+  if (!start) return { noun: "session", adj: "session" };
+  const days = end && end !== start
+    ? Math.round((Date.parse(end) - Date.parse(start)) / 86_400_000) + 1
+    : 1;
+  if (days <= 1) return { noun: "session", adj: "day" };
+  if (days === 2) return { noun: "weekend", adj: "weekend" };
+  if (days <= 5) return { noun: `${days} days`, adj: "clinic" };
+  return { noun: "week", adj: "week" };
+}
+
 function fmtRange(start: string, end: string | null): string {
   const s = new Date(start);
   const d = (x: Date) => x.toLocaleDateString("en-GB", { weekday: "short", day: "numeric", month: "short" });
@@ -72,6 +91,8 @@ export async function EventPage({ event, isMember, paid, paidBookingId = null }:
   const about = (content?.location_about || event.description || "").trim();
   const gallery = (Array.isArray(content?.gallery) ? content.gallery : []).filter(Boolean).slice(0, 6) as string[];
   const included = parseIncluded(exp?.whats_included).slice(0, 8);
+  const firstDate = event.dates[0] ?? null;
+  const span = spanWords(firstDate?.date_start ?? null, firstDate?.date_end ?? null);
   type EdCoach = {
     name_override: string | null; role_override: string | null; bio_override: string | null; image_override: string | null;
     exp_coaches: Coach | null;
@@ -166,7 +187,7 @@ export async function EventPage({ event, isMember, paid, paidBookingId = null }:
           {about ? (
             <p className="text-[16.5px] leading-[1.6] text-[#3a4a50] whitespace-pre-line [text-wrap:pretty]">{about}</p>
           ) : (
-            <p className="text-[16.5px] leading-[1.6] text-[#3a4a50]">A focused NP7 session on the water. Bring your gear and your stoke — we&apos;ll handle the rest.</p>
+            <p className="text-[16.5px] leading-[1.6] text-[#3a4a50]">A focused NP7 {span.noun} on the water. Bring your gear and your stoke — we&apos;ll handle the rest.</p>
           )}
 
           {/* THE COACHING — this is why an NP7 day is different from a normal session */}
@@ -174,7 +195,7 @@ export async function EventPage({ event, isMember, paid, paidBookingId = null }:
             <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_80%_10%,rgba(0,175,219,0.28),transparent_55%)]" aria-hidden />
             <div className="relative">
               <p className="text-[11px] font-black uppercase tracking-[0.2em] text-[#8fe6f2]">Coaching that changes your riding</p>
-              <h2 className="text-2xl sm:text-3xl font-black tracking-[-0.02em] mt-2">Not just a session — the NP7 Method</h2>
+              <h2 className="text-2xl sm:text-3xl font-black tracking-[-0.02em] mt-2">Not just a {span.adj} — the NP7 Method</h2>
               <p className="text-[15px] text-white/75 leading-relaxed mt-3 max-w-[560px]">
                 Every move broken into steps that click, video analysis so you see yourself, and a focus point you take home. It&apos;s the whole rider — technique, fundamentals, mindset and the fun that keeps you coming back.
               </p>
@@ -186,7 +207,7 @@ export async function EventPage({ event, isMember, paid, paidBookingId = null }:
           {included.length > 0 && (
             <div className="mt-10">
               <p className="text-[11px] font-black uppercase tracking-[0.2em] text-[#0a7f9e]">What&apos;s included</p>
-              <h2 className="text-2xl font-black tracking-[-0.02em] text-[#00374a] mt-2">In your ticket</h2>
+              <h2 className="text-2xl font-black tracking-[-0.02em] text-[#00374a] mt-2">In your {span.noun === "week" ? "week" : "ticket"}</h2>
               <ul className="mt-4 grid sm:grid-cols-2 gap-x-6 gap-y-2.5">
                 {included.map((it) => (
                   <li key={it} className="flex items-start gap-2.5 text-[15px] text-[#3a4a50]">
