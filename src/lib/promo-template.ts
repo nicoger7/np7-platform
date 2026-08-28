@@ -221,7 +221,7 @@ export function defaultPromoState(): PromoState {
       { id: "subtitle", kind: "subtitle", visible: true, text: "The week before\nOBX Wind kicks off", size: 30, pos: { "45": { x: 56, y: 972 }, "916": { x: 56, y: 1450 } } },
       { id: "chip-gold", kind: "chip-gold", visible: true, text: "10–16 October 2026", size: 25, pos: { "45": { x: 56, y: 1078 }, "916": { x: 56, y: 1556 } } },
       { id: "chip-glass", kind: "chip-glass", visible: true, text: "Avon · Hatteras Island, NC", size: 25, pos: { "45": { x: 56, y: 1150 }, "916": { x: 56, y: 1628 } } },
-      { id: "details", kind: "details", visible: true, text: "*8 spots* · from *$950* · gear & stay at the spot", size: 23, pos: { "45": { x: 56, y: 1232 }, "916": { x: 56, y: 1710 } } },
+      { id: "details", kind: "details", visible: true, text: "*8 spots* · from *$850* · gear & stay at the spot", size: 23, pos: { "45": { x: 56, y: 1232 }, "916": { x: 56, y: 1710 } } },
       { id: "partner", kind: "partner", visible: true, text: "Partner event with Ocean Air Sports  ·  *np-seven.com*", size: 21, pos: { "45": { x: 56, y: 1272 }, "916": { x: 56, y: 1750 } } },
       { id: "with", kind: "with", visible: true, text: "Dennis Robinson", size: 34, pos: { "45": { x: 1024, y: 56 }, "916": { x: 1024, y: 104 } } },
     ],
