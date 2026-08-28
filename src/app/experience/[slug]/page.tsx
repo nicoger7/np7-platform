@@ -13,9 +13,9 @@ import { packageLevelLabel } from "@/lib/package-levels";
 import type { Metadata } from "next";
 import { supabase } from "@/lib/supabase";
 import { getTeamMember, getPortalUser } from "@/lib/auth";
-import { getEventForSlug } from "@/lib/events";
+import { getEventForSlug, getEventRuns, type EventInfo } from "@/lib/events";
 import { ClinicTicketBox } from "@/components/experience/clinic-ticket-box";
-import { ClinicOtherDates } from "@/components/experience/clinic-other-dates";
+import { ClinicEditions, type ClinicRun } from "@/components/experience/clinic-editions";
 import { SelectedEditionProvider } from "@/components/experience/selected-edition";
 import { CrewCarousel, type Guide } from "@/components/experience/crew-carousel";
 import { ProgramForWeek, type ProgramDay } from "@/components/experience/program-for-week";
@@ -42,7 +42,9 @@ import { DestinationDeepDive } from "@/components/experience/destination-deep-di
 
 export const revalidate = 3600;
 
-type Props = { params: Promise<{ slug: string }>; searchParams?: Promise<{ paid?: string; b?: string }> };
+/** `edition` arrives only from /experience/<series>/<edition>, which renders
+ *  this very component so one clinic looks exactly like its series. */
+type Props = { params: Promise<{ slug: string; edition?: string }>; searchParams?: Promise<{ paid?: string; b?: string }> };
 
 /* -------- evergreen brand content (per-trip fields come from admin later) -------- */
 // Our own shots on our own CDN (R2) — no third-party hosting.
@@ -211,7 +213,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
 }
 
 export default async function ExperienceDetailPage({ params, searchParams }: Props) {
-  const { slug } = await params;
+  const { slug, edition: pickedEdition } = await params;
   const { paid, b: paidBookingId } = (await searchParams) ?? {};
   // Team members can preview drafts + off-website experiences (the admin
   // "Preview page" button); the public only ever sees published ones.
@@ -235,8 +237,15 @@ export default async function ExperienceDetailPage({ params, searchParams }: Pro
    * band built around a months-long payment plan, the package picker, and the
    * day-by-day. The ticket box takes the packages' place.
    */
-  const clinic = await getEventForSlug(slug, { preview: !!team }).catch(() => null);
+  const clinic = await getEventForSlug(slug, { preview: !!team, editionSlug: pickedEdition }).catch(() => null);
   if (clinic && !team && (clinic.status !== "published" || !clinic.websiteVisible)) notFound();
+  /* A second path segment only means something for a clinic series. Anything
+     else — /experience/np7-bonaire/typo — has to 404 rather than quietly serve
+     the trip page under a URL that does not exist. */
+  if (pickedEdition && clinic?.editionSlug !== pickedEdition) notFound();
+  /* ALL upcoming runs, because the series is one page with a selector in it —
+     the visitor compares Hatteras against the Gorge without leaving. */
+  const runs: EventInfo[] = clinic ? await getEventRuns(slug, { preview: !!team }) : [];
   const clinicMember = clinic ? await getPortalUser().catch(() => null) : null;
   /*
    * Team preview needs a reader that can SEE a draft.
@@ -307,7 +316,11 @@ export default async function ExperienceDetailPage({ params, searchParams }: Pro
   const multi = allEditions.length > 1;
   const datesTBD = allEditions.length === 0; // published experience, no upcoming week yet
   // "primary" edition = soonest upcoming (drives hero defaults)
-  const edition = allEditions.find((e) => e.date_start && e.date_start >= today) ?? allEditions[0];
+  /* Except on a clinic series, where the visitor has PICKED a run — and the
+     crew, the dates and the price below the picker must all describe that one,
+     not whichever happens to be next. */
+  const clinicEdition = clinic?.editionId ? allEditions.find((e) => e.id === clinic.editionId) : null;
+  const edition = clinicEdition ?? allEditions.find((e) => e.date_start && e.date_start >= today) ?? allEditions[0];
   /**
    * Availability, per week AND per package.
    *
@@ -548,6 +561,35 @@ export default async function ExperienceDetailPage({ params, searchParams }: Pro
     : spotsLeft === 0;
   const spanStart = allEditions[0]?.date_start ?? edition?.date_start ?? null;
   const spanEnd = allEditions[allEditions.length - 1]?.date_end ?? edition?.date_end ?? null;
+  /*
+   * A TRIP runs the same week over and over, so "12 Sep – 24 Oct · 4 weeks to
+   * choose from" reads as a season and is true.
+   *
+   * A CLINIC SERIES does not. Its runs are scattered — Hatteras in October,
+   * the Gorge eleven months later — and joining the first start to the last end
+   * produced "10 October – 11 September 2027", a range that spans a year of
+   * nothing and reads backwards. So a series names its runs instead of
+   * pretending to be one long season.
+   */
+  const clinicRuns = runs.map((r) => ({
+    location: r.location,
+    start: r.dates[0]?.date_start ?? null,
+    end: r.dates[0]?.date_end ?? null,
+  }));
+  const shortPlace = (l: string | null | undefined) => l?.split(",")[0]?.trim() || null;
+  const monthYear = (d: string | null) =>
+    d ? new Date(d).toLocaleDateString("en-GB", { month: "short", year: "numeric", timeZone: "UTC" }) : null;
+  const clinicPlaces = [...new Set(clinicRuns.map((r) => shortPlace(r.location)).filter(Boolean))] as string[];
+  /** More than one place means the picker is a real choice, and the top of the
+   *  page must stop claiming any single spot as THE spot. */
+  const travellingClinic = clinicPlaces.length > 1;
+  // Two runs named in full, the rest counted — a hero line has no room for six.
+  const clinicRunLine = clinicRuns.length
+    ? [
+        ...clinicRuns.slice(0, 2).map((r) => [shortPlace(r.location), monthYear(r.start)].filter(Boolean).join(", ")),
+        ...(clinicRuns.length > 2 ? [`+${clinicRuns.length - 2} more`] : []),
+      ].filter(Boolean).join(" · ")
+    : "";
   const tileImg = experience.hero_image; // listing tile / fallback
   const heroVideoUrl = content?.hero_video_url?.trim() ?? "";
   // Segment timestamps fetched separately so a pre-migration-018 missing column
@@ -574,7 +616,10 @@ export default async function ExperienceDetailPage({ params, searchParams }: Pro
     ? galleryImgs
     : [heroMediaImage, BRAND_IMG.action, BRAND_IMG.group, BRAND_IMG.spot, BRAND_IMG.ease, BRAND_IMG.coach]
   ).filter(Boolean);
-  const place = experience.location?.split(",")[0] ?? "the water";
+  /* A trip has one home. A clinic SERIES does not — "NP7 Coaching Clinics USA"
+     lives at Hatteras in October and Hood River next September, so the place
+     has to come off the chosen run or the page says the wrong coast. */
+  const place = (clinic?.location || experience.location)?.split(",")[0] ?? "the water";
 
   // editable website content (falls back to evergreen when empty)
   const locationAbout = content?.location_about?.trim() ?? "";
@@ -926,7 +971,13 @@ export default async function ExperienceDetailPage({ params, searchParams }: Pro
               <p className="text-[16px] sm:text-[17px] text-white/70 mb-6">Dates coming soon — new weeks are announced regularly.</p>
             ) : (spanStart || edition) ? (
               <p className="text-[16px] sm:text-[17px] text-white/70 mb-6">
-                {multi ? `${fmtRange(spanStart, spanEnd)} · ${allEditions.length} weeks to choose from` : fmtRange(edition.date_start, edition.date_end)}
+                {clinicRuns.length > 1
+                  ? `${clinicRuns.length} clinics · ${clinicRunLine}`
+                  : clinic
+                    ? fmtRange(clinicRuns[0]?.start, clinicRuns[0]?.end)
+                    : multi
+                      ? `${fmtRange(spanStart, spanEnd)} · ${allEditions.length} weeks to choose from`
+                      : fmtRange(edition.date_start, edition.date_end)}
               </p>
             ) : null}
             <div className="flex flex-wrap items-center gap-3">
@@ -959,14 +1010,24 @@ export default async function ExperienceDetailPage({ params, searchParams }: Pro
           epic week" below now provides the clear break, so this can stay seamless. */}
       <section className="bg-[#00374a] text-white">
         <div className="max-w-[1200px] mx-auto px-6 sm:px-8"><div className="border-t border-white/10 py-6 grid grid-cols-2 sm:grid-cols-4 gap-y-6 gap-x-4">
+          {/* A travelling series has no single "where" and no single airport, so
+              those facts describe the SET of runs; the chosen run states its own
+              below the selector. A dash is not a fact — empties are dropped. */}
           {([
-            { icon: "calendar", label: multi ? `${allEditions.length} weeks to choose` : "When", value: multi
-                ? fmtShort(spanStart, spanEnd)
-                : fmtShort(edition?.date_start, edition?.date_end) },
-            { icon: "pin", label: "Where", value: experience.location ?? "—" },
-            { icon: "wind", label: "Typical wind", value: windRange || (windDisplay ? `Sailing wind ${windDisplay} of days` : "Steady in season") },
-            { icon: "plane", label: "Airport", value: experience.airport_code ?? "—" },
-          ] as const).map((f) => (
+            clinicRuns.length > 1
+              ? { icon: "calendar", label: `${clinicRuns.length} clinics`, value: clinicRuns.map((r) => monthYear(r.start)).filter(Boolean).join(" · ") }
+              : { icon: "calendar", label: multi ? `${allEditions.length} weeks to choose` : "When", value: clinic
+                  ? fmtShort(clinicRuns[0]?.start, clinicRuns[0]?.end)
+                  : multi
+                    ? fmtShort(spanStart, spanEnd)
+                    : fmtShort(edition?.date_start, edition?.date_end) },
+            { icon: "pin", label: travellingClinic ? "Locations" : "Where",
+              value: travellingClinic
+                ? (clinicPlaces.length > 2 ? `${clinicPlaces.length} spots in ${experience.location ?? "the US"}` : clinicPlaces.join(" & "))
+                : (clinic?.location ?? experience.location ?? "") },
+            { icon: "wind", label: "Typical wind", value: travellingClinic ? "" : (windRange || (windDisplay ? `Sailing wind ${windDisplay} of days` : "Steady in season")) },
+            { icon: "plane", label: "Airport", value: travellingClinic ? "" : (experience.airport_code ?? "") },
+          ] as { icon: string; label: string; value: string }[]).filter((f) => f.value).map((f) => (
             <div key={f.label} className="flex items-start gap-3">
               <span className="text-[#00afdb] mt-0.5"><FactIcon name={f.icon} /></span>
               <span><span className="block text-[10px] font-bold tracking-[0.15em] uppercase text-white/40">{f.label}</span><span className="block text-[13.5px] font-bold">{f.value}</span></span>
@@ -985,14 +1046,14 @@ export default async function ExperienceDetailPage({ params, searchParams }: Pro
         sections={([
           !clinic && { id: "week", label: "Your week" },
           { id: "method", label: "Coaching" },
-          spotAbout && { id: "spot", label: "The spot" },
-          // A clinic books after the crew and the photos have made the case, so
-          // "Book" sits there in the nav too — a jump list that disagrees with
-          // the page teaches people not to trust it.
+          spotAbout && !clinic && { id: "spot", label: "The spot" },
+          // The clinic selector IS the booking block, and it sits above the crew
+          // so the crew shown is the one you just picked — the nav has to agree
+          // with that order or it teaches people not to trust it.
+          clinic && runs.length > 0 && { id: "packages", label: runs.length > 1 ? "Dates" : "Book" },
           !clinic && { id: "packages", label: "Packages" },
           !clinic && { id: "program", label: "Day by day" },
           { id: "crew", label: "Crew" },
-          clinic && { id: "packages", label: "Book" },
           { id: "faq", label: "FAQ" },
         ].filter(Boolean)) as NavSection[]}
         topClass="top-16"
@@ -1117,8 +1178,10 @@ export default async function ExperienceDetailPage({ params, searchParams }: Pro
       </section>
       )}
 
-      {/* 4 · THE SPOT — the destination link lives INSIDE it (no separate banner) */}
-      {spotAbout && (
+      {/* 4 · THE SPOT — the destination link lives INSIDE it (no separate banner).
+          A clinic series has no single spot; each run states its own inside the
+          selector panel below. */}
+      {spotAbout && !clinic && (
         <section id="spot" className="scroll-mt-28 py-16 sm:py-24">
           {/* two columns already from md — stacked full-width only on phones, where
               a 16:9 crop keeps the image from eating the whole viewport */}
@@ -1256,6 +1319,47 @@ export default async function ExperienceDetailPage({ params, searchParams }: Pro
       </section>
       )}
 
+      {/* 6½ · THE SELECTOR — where the series page stops describing the format
+          and starts describing ONE run. Everything above is series-level; the
+          panel below, and the crew that follows it, belong to the chosen clinic. */}
+      {clinic && runs.length > 0 && (
+        <section id="packages" className="scroll-mt-28 py-16 sm:py-24 bg-[#f7f7f7]">
+          <div className="max-w-[1000px] mx-auto px-6 sm:px-8">
+            <ClinicEditions
+              initialSlug={pickedEdition ?? null}
+              runs={runs.map((r): ClinicRun => ({
+                editionId: r.editionId,
+                place: shortPlace(r.location),
+                dateLabel: fmtShort(r.dates[0]?.date_start, r.dates[0]?.date_end, true) || "Dates to come",
+                slug: r.editionSlug ?? null,
+              }))}
+              panels={runs.map((r) => (
+                <div key={r.editionId ?? r.editionSlug} className="grid lg:grid-cols-[1.15fr_1fr] gap-9 lg:gap-14 items-start">
+                  <div>
+                    <p className="text-[11px] font-bold tracking-[0.25em] text-[#00afdb] mb-3">
+                      {[shortPlace(r.location), fmtShort(r.dates[0]?.date_start, r.dates[0]?.date_end, true)].filter(Boolean).join(" · ").toUpperCase()}
+                    </p>
+                    <h3 className="text-3xl sm:text-4xl font-black tracking-[-0.03em] text-[#00374a] mb-4">
+                      {r.location || experience.title}
+                    </h3>
+                    {r.description && (
+                      <p className="text-[16px] text-[#5a6b72] leading-relaxed whitespace-pre-line">{r.description}</p>
+                    )}
+                  </div>
+                  <div>
+                    <p className="text-[11px] font-bold tracking-[0.25em] text-[#00afdb] mb-3">YOUR SPOT</p>
+                    <ClinicTicketBox event={r} isMember={!!clinicMember?.contactId} paid={paid === "1"} paidBookingId={paidBookingId ?? null} />
+                    <p className="text-[13px] text-[#6a7a80] mt-4 leading-relaxed">
+                      One seat, one price — accommodation and gear you arrange yourself, so you only pay for the coaching.
+                    </p>
+                  </div>
+                </div>
+              ))}
+            />
+          </div>
+        </section>
+      )}
+
       {/* 7 · PROOF — coaches & reviews (crew = your coaches + the riders you'll share the week with) */}
       <section id="crew" className="scroll-mt-28 py-16 sm:py-24 bg-[#f7f7f7]">
         <div className="max-w-[1100px] mx-auto px-6 sm:px-8">
@@ -1302,25 +1406,6 @@ export default async function ExperienceDetailPage({ params, searchParams }: Pro
           <Reveal><GalleryStrip images={galleryImgs} /></Reveal>
         </section>
       )}
-
-      {/* A clinic books LAST. The method, the spot, the crew and the photos
-          make the case; only then the ticket — and with it the other runs of
-          this format, which for a travelling series are other PLACES. */}
-      {clinic && (<>
-        <section id="packages" className="scroll-mt-28 py-16 sm:py-24 bg-[#f7f7f7]">
-          <div className="max-w-[1000px] mx-auto px-6 sm:px-8">
-            <Reveal className="text-center max-w-[620px] mx-auto mb-10">
-              <p className="text-[11px] font-bold tracking-[0.25em] text-[#00afdb] mb-3">YOUR SPOT</p>
-              <h2 className="text-3xl sm:text-5xl font-black tracking-[-0.03em] text-[#00374a] mb-4">Grab your place</h2>
-              <p className="text-[16px] text-[#6a7a80]">One seat, one price — accommodation and gear you arrange yourself, so you only pay for the coaching.</p>
-            </Reveal>
-            <div className="max-w-[440px] mx-auto">
-              <ClinicTicketBox event={clinic} isMember={!!clinicMember?.contactId} paid={paid === "1"} paidBookingId={paidBookingId ?? null} />
-            </div>
-          </div>
-        </section>
-        <ClinicOtherDates event={clinic} />
-      </>)}
 
       {/* 9 · FAQ */}
       <section id="faq" className="scroll-mt-28 py-16 sm:py-24 bg-[#fff7ec]">

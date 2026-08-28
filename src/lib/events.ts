@@ -260,3 +260,45 @@ export async function getEventForSlug(
       .map((e) => ({ slug: e.slug as string, label: e.label, location: e.location, date_start: e.date_start, date_end: e.date_end })),
   };
 }
+
+/**
+ * Every upcoming run of a clinic series, each loaded exactly the way the page
+ * would load it on its own.
+ *
+ * The series is ONE page with a selector in it, not a page per date, so the
+ * whole set has to be on the page at once — the visitor switches between runs
+ * without a navigation. Each run goes through `getEventForSlug` rather than a
+ * second, lighter assembly: the ticket box reads a dozen fields (the package's
+ * deposit, the balance due date, which date is on sale, whether the clinic has
+ * already run) and a parallel loader would eventually disagree with the till
+ * about one of them.
+ *
+ * Ordered by date. Empty for anything that is not an event experience.
+ */
+export async function getEventRuns(
+  slug: string,
+  opts: { preview?: boolean } = {},
+): Promise<EventInfo[]> {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const db = createAdminClient() as any;
+  const { data: exp } = await db
+    .from("exp_experiences").select("id,page_template").eq("slug", slug).maybeSingle();
+  if (!exp || exp.page_template !== "event") return [];
+
+  const today = new Date().toISOString().slice(0, 10);
+  const { data: edRows } = await db
+    .from("exp_editions")
+    .select("slug,date_start,date_end")
+    .eq("experience_id", exp.id)
+    .eq("kind", "event")
+    .in("status", opts.preview ? ["published", "draft"] : ["published"])
+    .order("date_start");
+  const slugs = ((edRows ?? []) as { slug: string | null; date_start: string | null; date_end: string | null }[])
+    // A run that is over stops being offered — it would otherwise sit in the
+    // selector quoting a balance due date that has already gone.
+    .filter((e) => e.slug && (e.date_end ?? e.date_start ?? "") >= today)
+    .map((e) => e.slug as string);
+
+  const runs = await Promise.all(slugs.map((s) => getEventForSlug(slug, { ...opts, editionSlug: s })));
+  return runs.filter((r): r is EventInfo => !!r);
+}

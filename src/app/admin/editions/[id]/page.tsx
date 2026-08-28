@@ -115,9 +115,16 @@ interface Edition {
   computed_price_to: number | null;
   deposit: number | null;
   max_spots: number | null;
-  /** 'event' = a 1–2 day clinic (migration 157): no mailing chain, no arrivals,
-   *  no rooms, no level caps — those all describe a travelled week. */
+  /** 'event' = a CLINIC: coaching only, the guest books their own bed, so no
+   *  mailing chain, no arrivals, no rooms, no level caps — those all describe a
+   *  week where NP7 booked the accommodation. Length has nothing to do with it:
+   *  the OBX week is seven days and still a clinic. */
   kind?: string | null;
+  /** Ticket price for a clinic. Trips price through their packages instead. */
+  price?: number | null;
+  event_mode?: string | null;
+  event_deposit_pct?: number | null;
+  event_refund_pct?: number | null;
   /** Where this edition happens. Null = inherit the experience's location —
    *  which is every trip. An event series fills it in per date. */
   location?: string | null;
@@ -921,6 +928,22 @@ export default function EditionDetailPage({
         video_analysis: edition.video_analysis ?? null,
         photoshoot: edition.photoshoot ?? null,
         notion_id: edition.notion_id,
+        /*
+         * The four that were rendered, typed into, and thrown away.
+         *
+         * `location` has an input on this very page (a clinic series travels —
+         * Hatteras in October, Hood River in September), but it was missing
+         * from this list, so saving silently discarded it. `kind` had no field
+         * at all, which meant a new edition was always a trip and invisible to
+         * the clinic logic. `price` likewise: a clinic's ticket price could
+         * only ever be set in the database.
+         */
+        location: edition.location ?? null,
+        kind: edition.kind ?? null,
+        price: edition.price ?? null,
+        event_mode: edition.event_mode ?? null,
+        event_deposit_pct: edition.event_deposit_pct ?? null,
+        event_refund_pct: edition.event_refund_pct ?? null,
       }),
     });
     setSaving(false);
@@ -1257,6 +1280,41 @@ export default function EditionDetailPage({
           {/* Where THIS edition happens. A trip inherits its experience's place
               and leaves this blank; an event series is a format that travels,
               so the venue is the edition's own fact. */}
+          {/* FORMAT — the switch that decides which page this week gets.
+              It had no field at all, so a from-scratch edition was always a
+              trip and simply never appeared as a clinic; the only way to make
+              one was to duplicate an existing clinic. */}
+          <div>
+            <label className={labelClass}>Format</label>
+            <select
+              className={inputClass}
+              value={edition.kind === "event" ? "event" : "trip"}
+              onChange={(e) => update("kind", e.target.value)}
+            >
+              <option value="trip">Trip — NP7 books the accommodation</option>
+              <option value="event">Clinic — coaching only, guest books their own stay</option>
+            </select>
+            <p className="text-[11px] admin-faint mt-1">
+              A clinic gets the slim page: no packages, no rooms, no day-by-day — one ticket at one price.
+              Length has nothing to do with it; a seven-day clinic is still a clinic.
+            </p>
+          </div>
+
+          {isEventEdition && (
+            <div>
+              <label className={labelClass}>Ticket price ({edition.currency || "EUR"})<PublicBadge note="The price shown on the clinic page and charged at checkout" /></label>
+              <input
+                className={inputClass}
+                type="number"
+                step="0.01"
+                value={edition.price ?? ""}
+                onChange={(e) => update("price", e.target.value === "" ? null : Number(e.target.value))}
+                placeholder="e.g. 850"
+              />
+              <p className="text-[11px] admin-faint mt-1">One seat, one price. Leave blank to fall back to the experience&apos;s price.</p>
+            </div>
+          )}
+
           {isEventEdition && (
             <div>
               <label className={labelClass}>Location<PublicBadge note="Shown on the event page and in the member area for this date" /></label>
