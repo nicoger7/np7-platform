@@ -246,6 +246,21 @@ export default async function ExperienceDetailPage({ params, searchParams }: Pro
   /* ALL upcoming runs, because the series is one page with a selector in it —
      the visitor compares Hatteras against the Gorge without leaving. */
   const runs: EventInfo[] = clinic ? await getEventRuns(slug, { preview: !!team }) : [];
+  /*
+   * A clinic with nothing coming up is not a page.
+   *
+   * `runs` holds UPCOMING clinics only. The Race Clinic's single edition ran on
+   * 15 August, so the public page had nothing left to sell — a live URL whose
+   * whole job is to say "that already happened". A trip between seasons keeps
+   * its page (the next week is announced on the same experience); a clinic
+   * series does not, because a format nobody can book is just a dead end.
+   *
+   * The team still previews it, which is where the next edition gets prepared —
+   * and still sees the ticket box, whose "this clinic has run" state is the
+   * honest answer to why the page is hidden.
+   */
+  if (clinic && runs.length === 0 && !team) notFound();
+  const bookable: EventInfo[] = runs.length ? runs : clinic ? [clinic] : [];
   const clinicMember = clinic ? await getPortalUser().catch(() => null) : null;
   /*
    * Team preview needs a reader that can SEE a draft.
@@ -1059,7 +1074,7 @@ export default async function ExperienceDetailPage({ params, searchParams }: Pro
           // The clinic selector IS the booking block, and it sits above the crew
           // so the crew shown is the one you just picked — the nav has to agree
           // with that order or it teaches people not to trust it.
-          clinic && runs.length > 0 && { id: "packages", label: runs.length > 1 ? "Dates" : "Book" },
+          clinic && bookable.length > 0 && { id: "packages", label: bookable.length > 1 ? "Dates" : "Book" },
           !clinic && { id: "packages", label: "Packages" },
           !clinic && { id: "program", label: "Day by day" },
           { id: "crew", label: "Crew" },
@@ -1331,18 +1346,18 @@ export default async function ExperienceDetailPage({ params, searchParams }: Pro
       {/* 6½ · THE SELECTOR — where the series page stops describing the format
           and starts describing ONE run. Everything above is series-level; the
           panel below, and the crew that follows it, belong to the chosen clinic. */}
-      {clinic && runs.length > 0 && (
+      {clinic && bookable.length > 0 && (
         <section id="packages" className="scroll-mt-28 py-16 sm:py-24 bg-[#f7f7f7]">
           <div className="max-w-[1000px] mx-auto px-6 sm:px-8">
             <ClinicEditions
               initialSlug={pickedEdition ?? null}
-              runs={runs.map((r): ClinicRun => ({
+              runs={bookable.map((r): ClinicRun => ({
                 editionId: r.editionId,
                 place: shortPlace(r.location),
                 dateLabel: fmtShort(r.dates[0]?.date_start, r.dates[0]?.date_end, true) || "Dates to come",
                 slug: r.editionSlug ?? null,
               }))}
-              panels={runs.map((r) => (
+              panels={bookable.map((r) => (
                 <div key={r.editionId ?? r.editionSlug} className="grid lg:grid-cols-[1.15fr_1fr] gap-9 lg:gap-14 items-start">
                   <div>
                     <p className="text-[11px] font-bold tracking-[0.25em] text-[#00afdb] mb-3">

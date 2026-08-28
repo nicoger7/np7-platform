@@ -38,6 +38,8 @@ export type RawExperience = {
   description: string | null;
   hero_image: string | null;
   destination_id: string | null;
+  /** 'event' = a clinic series (one page, a selector, several runs). */
+  page_template?: string | null;
   exp_editions: Edition[] | null;
 };
 
@@ -78,7 +80,7 @@ export async function getExperienceCards(viewer?: { tierKey: "rider" | "crew" | 
   const { data } = await supabase
     .from("exp_experiences")
     .select(
-      "id,title,slug,location,price,currency,description,hero_image,destination_id,exp_packages(price,status,edition_id,website_visible),exp_editions(id,date_start,date_end,max_spots,spots_taken,status,active,coaches,launch_discount_pct,launch_price_until,public_from)"
+      "id,title,slug,location,price,currency,description,hero_image,destination_id,page_template,exp_packages(price,status,edition_id,website_visible),exp_editions(id,date_start,date_end,max_spots,spots_taken,status,active,coaches,launch_discount_pct,launch_price_until,public_from)"
     )
     .eq("status", "published");
 
@@ -101,7 +103,17 @@ export async function getExperienceCards(viewer?: { tierKey: "rider" | "crew" | 
     return prices.length ? Math.min(...prices) : null;
   };
 
-  const withEd = ((data as RawExperience[] | null) ?? []).filter((exp) => !hiddenIds.has(exp.id)).map((exp) => ({ ...exp, ed: nextEdition(exp.exp_editions) }));
+  const withEd = ((data as RawExperience[] | null) ?? [])
+    .filter((exp) => !hiddenIds.has(exp.id))
+    .map((exp) => ({ ...exp, ed: nextEdition(exp.exp_editions) }))
+    /*
+     * A trip between seasons keeps its tile — the next week lands on the same
+     * experience and "Dates coming soon" is a real promise. A CLINIC SERIES with
+     * nothing upcoming is a dead end: the tile would advertise a format nobody
+     * can book, into a page that has stopped selling. It comes back the moment a
+     * new run is published.
+     */
+    .filter((exp) => exp.page_template !== "event" || !!exp.ed);
   // Per-package availability rolled up to the week: a week is bookable while
   // any one of its packages still has room, so a full hotel no longer hides the
   // no-hotel packages that have no beds to lose.
@@ -238,6 +250,12 @@ export async function getExperienceCards(viewer?: { tierKey: "rider" | "crew" | 
             && (!e.public_from || e.public_from <= today))
           .sort((a, b) => (a.date_start! < b.date_start! ? -1 : 1));
         if (ups.length <= 1) return fmtRange(exp.ed?.date_start, exp.ed?.date_end);
+        /* A clinic series is scattered, not a season: its runs can be eleven
+           months apart, so a first-to-last span reads as a year-long trip.
+           Name the next one and count the rest. */
+        if (exp.page_template === "event") {
+          return `${fmtRange(ups[0].date_start, ups[0].date_end)} · +${ups.length - 1} more`;
+        }
         const last = ups[ups.length - 1];
         return `${fmtRange(ups[0].date_start, last.date_end ?? last.date_start)} · ${ups.length} weeks`;
       })(),
