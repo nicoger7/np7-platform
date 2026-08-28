@@ -953,8 +953,17 @@ export default async function ExperienceDetailPage({ params, searchParams }: Pro
         <div className="relative w-full max-w-[1200px] mx-auto px-6 sm:px-8 pb-9 pt-28">
           <Reveal from="up">
             <div className="flex flex-wrap items-center gap-3 mb-4">
-              <span className="text-[12px] font-bold tracking-[0.2em] uppercase text-white/75">{experience.location}</span>
-              {multi ? (
+              {/* A travelling series has no one location to stamp above the
+                  title, and its runs are clinics rather than weeks. */}
+              <span className="text-[12px] font-bold tracking-[0.2em] uppercase text-white/75">
+                {travellingClinic ? clinicPlaces.join(" · ") : (clinic?.location ?? experience.location)}
+              </span>
+              {clinicRuns.length > 1 ? (
+                <span className="inline-flex items-center gap-1.5 text-[12px] font-semibold px-3 py-1 rounded-full text-[#5fd0e8] bg-[#00afdb]/15 border border-[#00afdb]/30">
+                  <span className="w-1.5 h-1.5 rounded-full bg-[#5fd0e8] animate-pulse" />
+                  {clinicRuns.length} clinics
+                </span>
+              ) : multi ? (
                 <span className="inline-flex items-center gap-1.5 text-[12px] font-semibold px-3 py-1 rounded-full text-[#5fd0e8] bg-[#00afdb]/15 border border-[#00afdb]/30">
                   <span className="w-1.5 h-1.5 rounded-full bg-[#5fd0e8] animate-pulse" />
                   {allEditions.length} weeks{scarceLeft != null ? ` · one week down to ${scarceLeft}` : ""}
@@ -1370,6 +1379,7 @@ export default async function ExperienceDetailPage({ params, searchParams }: Pro
               coachesByEdition={coachesByEdition}
               fallback={guideItems}
               weekLabels={Object.fromEntries(editionsLite.map((e) => [e.id, e.label]))}
+              unit={clinic ? "clinic" : "week"}
             />
           </Reveal>
           {/* anchor for the hero's review pill — Reveal doesn't take an id */}
@@ -1434,10 +1444,14 @@ export default async function ExperienceDetailPage({ params, searchParams }: Pro
               {typeof spotsLeft === "number" && spotsLeft > 0 && spotsLeft <= SCARCE_AT && (
                 <span className="inline-flex items-center gap-1.5 text-[12px] font-semibold text-[#5fd0e8] bg-[#00afdb]/15 border border-[#00afdb]/30 px-3 py-1 rounded-full mb-6"><span className="w-1.5 h-1.5 rounded-full bg-[#5fd0e8] animate-pulse" />Only {spotsLeft} spots left</span>
               )}
-              <h2 className="text-3xl sm:text-5xl font-black tracking-[-0.03em] mb-5 leading-[1.05]">Your dream week is real.<br />Make it yours.</h2>
-              <p className="text-[17px] text-white/55 mb-9">{hasDeposit ? `Reserve with a ${depositPretty} deposit — just your name and contact details. After payment, we'll reach out personally to sort every detail.` : "Reserve your spot in seconds — just your name and contact details, no payment yet. We'll then reach out personally to sort every detail."}</p>
+              {/* A clinic is not a week away, and it has no deposit plan to
+                  promise — it sells one seat. */}
+              <h2 className="text-3xl sm:text-5xl font-black tracking-[-0.03em] mb-5 leading-[1.05]">
+                {clinic ? <>Coaching that sticks.<br />Take your seat.</> : <>Your dream week is real.<br />Make it yours.</>}
+              </h2>
+              <p className="text-[17px] text-white/55 mb-9">{clinic ? "Pick the clinic that suits you, grab your seat, and we'll be in touch with everything you need before you fly." : hasDeposit ? `Reserve with a ${depositPretty} deposit — just your name and contact details. After payment, we'll reach out personally to sort every detail.` : "Reserve your spot in seconds — just your name and contact details, no payment yet. We'll then reach out personally to sort every detail."}</p>
               <div className="flex flex-wrap items-center justify-center gap-3">
-                <Link href="#packages" data-track="reserve_cta" data-track-label="final" className="px-8 py-4 rounded-full text-[14px] font-bold text-[#00374a] bg-white hover:-translate-y-0.5 transition-all">{hasDeposit ? `Reserve my spot · ${depositPretty}` : "Reserve my spot"}</Link>
+                <Link href="#packages" data-track="reserve_cta" data-track-label="final" className="px-8 py-4 rounded-full text-[14px] font-bold text-[#00374a] bg-white hover:-translate-y-0.5 transition-all">{clinic ? "Get your spot" : hasDeposit ? `Reserve my spot · ${depositPretty}` : "Reserve my spot"}</Link>
                 <Link href={`mailto:experience@np-seven.com?subject=Question: ${experience.title}`} className="px-8 py-4 rounded-full text-[14px] font-bold text-white border-[1.5px] border-white/40 hover:bg-white/10 transition-all">Ask us anything</Link>
               </div>
             </>

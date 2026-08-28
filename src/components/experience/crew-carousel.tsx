@@ -17,11 +17,14 @@ function waHref(v: string): string {
  * the shared selection rather than being stuck on the default week.
  */
 export function CrewCarousel({
-  coachesByEdition, fallback, weekLabels,
+  coachesByEdition, fallback, weekLabels, unit = "week",
 }: {
   coachesByEdition: Record<string, Guide[]>;
   fallback: Guide[];
   weekLabels: Record<string, string>;
+  /** What one edition is called here. A clinic series sells clinics, not weeks,
+   *  and "pick another week" on a two-day clinic reads as someone else's page. */
+  unit?: "week" | "clinic";
 }) {
   const { id } = useSelectedEdition();
   const hasOwnCrew = !!(id && coachesByEdition[id]?.length);
@@ -37,7 +40,7 @@ export function CrewCarousel({
       {multiWeek && label && hasOwnCrew && (
         <p className="text-[13.5px] text-[#5a6b72] -mt-5 mb-6">
           Your coaches for <span className="font-bold text-[#00374a]">{label}</span>
-          <span className="text-[#9aa6ac]"> · pick another week above to see its team</span>
+          <span className="text-[#9aa6ac]"> · pick another {unit} above to see its team</span>
         </p>
       )}
       <Carousel label="Coaches">
