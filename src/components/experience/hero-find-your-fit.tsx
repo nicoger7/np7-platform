@@ -142,6 +142,19 @@ export function HeroFindYourFit({ src, poster, fallbackImages, fallbackFocus, ch
           // A decoder that reports no dimensions has nothing to paint. Handing
           // over to it hides the photos in exchange for an empty rectangle.
           if (!video.videoWidth || !video.videoHeight) return;
+          /*
+           * Never swap out from under someone who is already scrolling.
+           *
+           * The 12 MB blob lands whenever the connection allows, and on a slow
+           * one that is several seconds in — by which time the visitor is
+           * scrubbing the hero. The photos then cross-fade away mid-scroll and
+           * a different picture appears underneath, which reads as a glitch
+           * rather than as an upgrade. So the handover only happens at rest, at
+           * the top: either the video is there from the first frame, or this
+           * visit keeps the photographs, which are a good hero in their own
+           * right. Nothing is lost — the next visit has it cached.
+           */
+          if (window.scrollY > 40) { running = false; return; }
           try { video.currentTime = keep; } catch { /* fine */ }
           video.play().then(() => video.pause()).catch(() => { /* fine — the seek still paints */ });
           setVideoReady(true); // memory-backed, decoded and scrub-ready
