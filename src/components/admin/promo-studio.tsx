@@ -57,7 +57,7 @@ const clamp = (v: number, min: number, max: number) => Math.max(min, Math.min(ma
 
 function handlesFor(id: string, isText: boolean): string[] {
   if (isText) return ["nw", "ne", "sw", "se"];
-  if (id === "flag" || id === "coach" || id === "logo") return ["nw", "n", "ne", "e", "se", "s", "sw", "w"];
+  if (id === "flag" || id === "coach" || id === "logo" || id.startsWith("img-")) return ["nw", "n", "ne", "e", "se", "s", "sw", "w"];
   return [];
 }
 
@@ -93,7 +93,7 @@ export default function PromoStudio() {
   const [editingText, setEditingText] = useState<string | null>(null);
   const [scale, setScale] = useState(0.5);
   const [, setImgTick] = useState(0); // bumps when an image finishes loading
-  const [picker, setPicker] = useState<null | "photo" | "coach" | "logo">(null);
+  const [picker, setPicker] = useState<null | "photo" | "coach" | "logo" | "add" | "add-replace">(null);
   const [coaches, setCoaches] = useState<Coach[]>([]);
   const [editions, setEditions] = useState<EditionRow[]>([]);
   const [designs, setDesigns] = useState<DesignRow[]>([]);
@@ -294,7 +294,10 @@ export default function PromoStudio() {
       else if (id === "flag") s.flag.visible = visible;
       else if (id === "coach") s.coach.visible = visible;
       else if (id === "logo") s.logo.visible = visible;
-      else {
+      else if (id.startsWith("img-")) {
+        const im = (s.images ?? []).find((i) => i.id === id);
+        if (im) im.visible = visible;
+      } else {
         const t = s.texts.find((x) => x.id === id);
         if (t) t.visible = visible;
       }
@@ -449,6 +452,17 @@ export default function PromoStudio() {
     return best ?? hitsRef.current.find((h) => h.id === "photo" && inside(h.box)) ?? null;
   };
 
+  /** The box-bearing layer behind an id — fixed slots AND free library images.
+   *  Four separate ternaries used to spell out flag/coach/logo; adding a fifth
+   *  kind to each of them is how one of them gets missed. */
+  const boxLayerOf = (st: PromoState, id: string | null) => {
+    if (id === "flag") return st.flag;
+    if (id === "coach") return st.coach;
+    if (id === "logo") return st.logo;
+    if (id?.startsWith("img-")) return (st.images ?? []).find((i) => i.id === id) ?? null;
+    return null;
+  };
+
   const toCanvas = (e: { clientX: number; clientY: number }) => {
     const r = wrapRef.current!.getBoundingClientRect();
     return { x: (e.clientX - r.left) / scale, y: (e.clientY - r.top) / scale };
@@ -472,8 +486,10 @@ export default function PromoStudio() {
     if (id === "photo") {
       orig.fx = s.photo.focal[s.format].x;
       orig.fy = s.photo.focal[s.format].y;
-    } else if (id === "flag" || id === "coach" || id === "logo") {
-      const b = (id === "flag" ? s.flag : id === "coach" ? s.coach : s.logo).box[s.format];
+    } else if (id === "flag" || id === "coach" || id === "logo" || id.startsWith("img-")) {
+      const layer0 = boxLayerOf(s, id);
+      if (!layer0) return null;
+      const b = layer0.box[s.format];
       Object.assign(orig, b);
     } else {
       const t = s.texts.find((x) => x.id === id);
@@ -514,7 +530,8 @@ export default function PromoStudio() {
         return s;
       }
       if (d.id === "flag" || d.id === "coach" || d.id === "logo") {
-        const layer = d.id === "flag" ? s.flag : d.id === "coach" ? s.coach : s.logo;
+        const layer = boxLayerOf(s, d.id);
+        if (!layer) return s;
         const b = layer.box[f];
         if (d.mode === "move") {
           b.x = Math.round(d.orig.x + dx);
@@ -620,8 +637,10 @@ export default function PromoStudio() {
     const nudge = (dx: number, dy: number) => {
       patch((s) => {
         const f = s.format;
-        if (selected === "flag" || selected === "coach" || selected === "logo") {
-          const b = (selected === "flag" ? s.flag : selected === "coach" ? s.coach : s.logo).box[f];
+        if (selected === "flag" || selected === "coach" || selected === "logo" || selected?.startsWith("img-")) {
+          const bl = boxLayerOf(s, selected);
+          if (!bl) return s;
+          const b = bl.box[f];
           b.x += dx;
           b.y += dy;
         } else if (selected !== "photo") {
@@ -666,6 +685,7 @@ export default function PromoStudio() {
     if (id === "logo") return "Logo";
     if (id === "coach") return "Coach";
     if (id === "gradient") return "NP7 gradient";
+    if (id.startsWith("img-")) return (state.images ?? []).find((i) => i.id === id)?.name ?? "Image";
     const t = state.texts.find((x) => x.id === id);
     return t ? TEXT_KIND_LABELS[t.kind] : id;
   };
@@ -674,6 +694,7 @@ export default function PromoStudio() {
     if (id === "logo") return state.logo.visible;
     if (id === "coach") return state.coach.visible;
     if (id === "gradient") return state.gradient?.visible ?? false;
+    if (id.startsWith("img-")) return (state.images ?? []).find((i) => i.id === id)?.visible ?? false;
     return state.texts.find((x) => x.id === id)?.visible ?? false;
   };
   // Drag & drop reordering in the Layers panel. `over` is the insertion SLOT
@@ -815,6 +836,11 @@ export default function PromoStudio() {
         <button onClick={() => exportPng([fmt])} className="px-3 py-1.5 rounded-lg text-xs font-bold text-white bg-[#0a2a33]">
           Export PNG
         </button>
+        <button onClick={() => setPicker("add")} className="px-3 py-1.5 rounded-lg text-xs font-bold"
+          style={{ border: "1px solid var(--admin-border,#ddd)", color: "var(--admin-text,#111)" }}
+          title="Drop any image from the media library onto the artboard">
+          + Image
+        </button>
         <button onClick={() => exportPng(["45", "916"])} className="px-3 py-1.5 rounded-lg text-xs font-bold text-white bg-[#0a2a33]">
           Export both
         </button>
@@ -827,6 +853,49 @@ export default function PromoStudio() {
        * discover is a feature nobody has, so the text is editable right here,
        * in the open, the moment something is selected.
        */}
+      {/* A selected library image: swap it, give it the house shadow, remove it. */}
+      {selected?.startsWith("img-") && (() => {
+        const im = (state.images ?? []).find((i) => i.id === selected);
+        if (!im) return null;
+        return (
+          <div className="flex flex-wrap items-center gap-3 mb-3 p-3 rounded-xl"
+            style={{ background: "var(--admin-surface,#fff)", border: "1px solid var(--admin-border,#ddd)" }}>
+            <span className="text-[10px] font-bold uppercase tracking-[0.12em]" style={{ color: "var(--admin-text-muted,#666)" }}>Image</span>
+            <input
+              value={im.name}
+              onChange={(e) => patch((st) => {
+                const x = (st.images ?? []).find((i) => i.id === im.id);
+                if (x) x.name = e.target.value.slice(0, 40);
+                return st;
+              })}
+              className="px-2 py-1.5 rounded-lg text-sm w-44"
+              style={{ background: "var(--admin-input-bg,#fff)", border: "1px solid var(--admin-border,#ddd)", color: "var(--admin-text,#111)" }}
+              title="What the Layers panel calls it"
+            />
+            <button onClick={() => setPicker("add-replace")} className="px-3 py-1.5 rounded-lg text-xs font-bold"
+              style={{ border: "1px solid var(--admin-border,#ddd)", color: "var(--admin-text,#111)" }}>Replace…</button>
+            <label className="flex items-center gap-1.5 text-xs cursor-pointer select-none" style={{ color: "var(--admin-text,#111)" }}>
+              <input type="checkbox" checked={im.shadow ?? false}
+                onChange={(e) => patch((st) => {
+                  const x = (st.images ?? []).find((i) => i.id === im.id);
+                  if (x) x.shadow = e.target.checked;
+                  return st;
+                })} />
+              shadow
+            </label>
+            <button
+              onClick={() => patch((st) => {
+                st.images = (st.images ?? []).filter((i) => i.id !== im.id);
+                st.order = (st.order ?? []).filter((x) => x !== im.id);
+                return st;
+              })}
+              className="ml-auto px-3 py-1.5 rounded-lg text-xs font-bold"
+              style={{ border: "1px solid var(--admin-border,#ddd)", color: "#e05a3a" }}
+            >Remove</button>
+          </div>
+        );
+      })()}
+
       {selectedText && (
         <div className="flex flex-wrap items-end gap-3 mb-3 p-3 rounded-xl"
           style={{ background: "var(--admin-surface,#fff)", border: "1px solid var(--admin-border,#ddd)" }}>
@@ -1248,6 +1317,39 @@ export default function PromoStudio() {
               if (picker === "photo") s.photo.src = url;
               if (picker === "coach") s.coach.src = url;
               if (picker === "logo") s.logo.src = url;
+              if (picker === "add-replace" && selected?.startsWith("img-")) {
+                const x = (s.images ?? []).find((i) => i.id === selected);
+                if (x) x.src = url;
+              }
+              if (picker === "add") {
+                /*
+                 * A new library image. It lands CENTRED at a modest size rather
+                 * than at 0,0 or full-bleed: a layer you cannot see is a layer
+                 * you think failed to add, and one covering the artboard hides
+                 * the poster you were looking at.
+                 */
+                const { w: cw, h: ch } = PROMO_FORMATS[s.format];
+                const side = Math.round(cw * 0.42);
+                const box = { x: Math.round((cw - side) / 2), y: Math.round((ch - side) / 2), w: side, h: side };
+                const other = PROMO_FORMATS[s.format === "45" ? "916" : "45"];
+                const oSide = Math.round(other.w * 0.42);
+                const oBox = { x: Math.round((other.w - oSide) / 2), y: Math.round((other.h - oSide) / 2), w: oSide, h: oSide };
+                const id = `img-${Date.now().toString(36)}${Math.round(Math.random() * 1e4).toString(36)}`;
+                const name = (url.split("/").pop() || "Image").replace(/\.[a-z0-9]+$/i, "").replace(/[-_]+/g, " ").slice(0, 28);
+                const layer = {
+                  id, name, src: url, visible: true, shadow: false,
+                  box: s.format === "45"
+                    ? { "45": box, "916": oBox }
+                    : { "45": oBox, "916": box },
+                } as (NonNullable<PromoState["images"]>)[number];
+                s.images = [...(s.images ?? []), layer];
+                // Just under the coach, so a new sticker never lands on the face.
+                const ord = promoOrder(s).filter((x) => x !== id);
+                const at = Math.max(0, ord.indexOf("coach"));
+                ord.splice(at, 0, id);
+                s.order = ord;
+                queueMicrotask(() => setSelected(id));
+              }
               return s;
             });
             setPicker(null);

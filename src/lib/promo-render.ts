@@ -57,9 +57,12 @@ export function getCachedImage(src: string | null): HTMLImageElement | null {
 
 /** Every image URL a state references — preload before drawing. */
 export function promoImageSources(state: PromoState): string[] {
-  return [state.photo.src, state.flag.src, state.coach.src, state.logo.src].filter(
-    (s): s is string => !!s
-  );
+  // Free images belong here too: anything missing from this list is simply not
+  // in the cache when drawPromo runs, and draws as nothing at all.
+  return [
+    state.photo.src, state.flag.src, state.coach.src, state.logo.src,
+    ...(state.images ?? []).map((i) => i.src),
+  ].filter((s): s is string => !!s);
 }
 
 // -- gradient helper ----------------------------------------------------------
@@ -193,6 +196,7 @@ export function drawPromo(
     else if (layerId === "flag") drawFlagLayer(ctx, state, fmt, hits);
     else if (layerId === "logo") drawLogoLayer(ctx, state, fmt, hits);
     else if (layerId === "coach") drawCoachLayer(ctx, state, fmt, hits);
+    else if (layerId.startsWith("img-")) drawFreeImage(ctx, state, fmt, hits, layerId);
     else {
       const t = state.texts.find((x) => x.id === layerId);
       if (t?.visible) hits.push({ id: t.id, box: drawText(ctx, t, fmt, fonts, opts?.skipTextId === t.id) });
@@ -318,6 +322,43 @@ function drawCoachLayer(ctx: CanvasRenderingContext2D, state: PromoState, fmt: P
     }
     hits.push({ id: "coach", box: { ...b } });
   }
+}
+
+/** A free library image. Same drawing contract as the coach, minus the meaning:
+ *  it is whatever the designer dropped in, at whatever box they gave it. */
+function drawFreeImage(
+  ctx: CanvasRenderingContext2D,
+  state: PromoState,
+  fmt: PromoFormat,
+  hits: HitBox[],
+  id: string,
+) {
+  const layer = (state.images ?? []).find((i) => i.id === id);
+  if (!layer?.visible || !layer.src) return;
+  const img = getCachedImage(layer.src);
+  const b = layer.box[fmt];
+  if (img) {
+    ctx.save();
+    if (layer.shadow) {
+      // Same soft two-pass falloff the coach uses — one shadow language.
+      const k = Math.max(b.w, b.h) / 700;
+      const OFF = 10000;
+      ctx.shadowColor = "rgba(0,12,20,0.26)";
+      ctx.shadowBlur = 96 * k;
+      ctx.shadowOffsetX = -26 * k + OFF;
+      ctx.shadowOffsetY = 30 * k;
+      ctx.drawImage(img, b.x - OFF, b.y, b.w, b.h);
+      ctx.shadowColor = "rgba(0,12,20,0.22)";
+      ctx.shadowBlur = 34 * k;
+      ctx.shadowOffsetX = -10 * k + OFF;
+      ctx.shadowOffsetY = 12 * k;
+      ctx.drawImage(img, b.x - OFF, b.y, b.w, b.h);
+      ctx.shadowColor = "transparent";
+    }
+    ctx.drawImage(img, b.x, b.y, b.w, b.h);
+    ctx.restore();
+  }
+  hits.push({ id, box: { ...b } });
 }
 
 // -- text kinds ---------------------------------------------------------------

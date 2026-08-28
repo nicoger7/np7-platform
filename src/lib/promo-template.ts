@@ -47,6 +47,19 @@ export interface ImageLayer {
   shadow?: boolean;
 }
 
+/**
+ * A free image from the media library — as many as you like.
+ *
+ * Photo, coach, flag and logo are FIXED slots: exactly one each, with their own
+ * meaning. Everything else a poster might need (a partner logo, a sponsor mark,
+ * a second rider, a sticker) had nowhere to go. These do, and they behave like
+ * the fixed slots: move, resize, reorder, hide.
+ */
+export interface FreeImageLayer extends ImageLayer {
+  id: string;      // "img-…", also the layer-order key
+  name: string;    // what the Layers panel calls it
+}
+
 /** Full-canvas NP7-brand gradient that fades to transparent — a designable
  *  scrim (extra warmth, a readability base, a colour mood) that lives in the
  *  layer stack like everything else. */
@@ -137,6 +150,8 @@ export interface PromoState {
   texts: TextLayer[];
   /** Optional NP7 gradient scrim — absent in designs saved before it existed. */
   gradient?: GradientLayer;
+  /** Free images added from the library. Absent in older saved designs. */
+  images?: FreeImageLayer[];
   /** Draw order of the movable layers, bottom→top. Photo + washes are always
    *  the base. Older saved designs may lack this — use promoOrder(). */
   order?: string[];
@@ -145,9 +160,12 @@ export interface PromoState {
 /** The effective layer order (bottom→top), tolerating pre-`order` designs. */
 export function promoOrder(state: PromoState): string[] {
   const base = state.gradient ? ["gradient"] : [];
-  const known = new Set([...base, "flag", "logo", "coach", ...state.texts.map((t) => t.id)]);
+  const imgs = (state.images ?? []).map((i) => i.id);
+  const known = new Set([...base, "flag", "logo", "coach", ...imgs, ...state.texts.map((t) => t.id)]);
   const stored = (state.order ?? []).filter((id) => known.has(id));
-  for (const id of [...base, "flag", "logo", ...state.texts.map((t) => t.id), "coach"])
+  // New free images default just under the coach — visible, but not covering
+  // the face that is usually the point of the poster.
+  for (const id of [...base, "flag", "logo", ...imgs, ...state.texts.map((t) => t.id), "coach"])
     if (!stored.includes(id)) stored.push(id);
   // gradient joins BELOW everything movable when an older order predates it
   if (state.gradient && !(state.order ?? []).includes("gradient")) {
