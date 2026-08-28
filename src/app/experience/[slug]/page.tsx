@@ -620,6 +620,15 @@ export default async function ExperienceDetailPage({ params, searchParams }: Pro
   const clinicEndDates: Record<string, string | null> = Object.fromEntries(
     bookable.filter((r) => r.editionId).map((r) => [r.editionId as string, r.dates[0]?.date_end ?? null]),
   );
+  const weekStartDates: Record<string, string | null> = Object.fromEntries(
+    allEditions.map((e) => [e.id, e.date_start ?? null]),
+  );
+  const weekEndDates: Record<string, string | null> = Object.fromEntries(
+    allEditions.map((e) => [e.id, e.date_end ?? null]),
+  );
+  const clinicPlaces_: Record<string, string | null> = Object.fromEntries(
+    bookable.filter((r) => r.editionId).map((r) => [r.editionId as string, r.location ?? null]),
+  );
   const clinicRunChips: ClinicRun[] = bookable.map((r) => ({
     editionId: r.editionId,
     place: shortPlace(r.location),
@@ -799,13 +808,15 @@ export default async function ExperienceDetailPage({ params, searchParams }: Pro
     : [];
   // …and a single week can override it (exp_editions.daily_program, migration 112).
   const programByEdition: Record<string, ProgramDay[]> = {};
+  /** A run's own photograph — ONE, for the day-by-day masthead. */
+  const editionHero: Record<string, string> = {};
   /* The union of both edition lists. `allEditions` keeps weeks that have not
      STARTED, while a clinic stays sellable until it ENDS — so a clinic running
      right now sits in the selector but would be missing from this map, and
      would silently inherit the series program with nothing to show it had. */
   const programEdIds = [...new Set([...allEditions.map((e) => e.id), ...bookable.map((r) => r.editionId)].filter(Boolean))] as string[];
   if (programEdIds.length) {
-    const { data: edProg } = await sb.from("exp_editions").select("id,daily_program").in("id", programEdIds);
+    const { data: edProg } = await sb.from("exp_editions").select("id,daily_program,hero_image").in("id", programEdIds);
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     for (const r of ((edProg ?? []) as any[])) {
       if (Array.isArray(r.daily_program) && r.daily_program.length) {
@@ -813,6 +824,7 @@ export default async function ExperienceDetailPage({ params, searchParams }: Pro
           title: p.title?.trim() || `Day ${i + 1}`, description: p.description ?? "",
         }));
       }
+      if (typeof r.hero_image === "string" && r.hero_image.trim()) editionHero[r.id] = r.hero_image.trim();
     }
   }
   const faqItems: AccordionItem[] =
@@ -1398,6 +1410,14 @@ export default async function ExperienceDetailPage({ params, searchParams }: Pro
               programByEdition={programByEdition}
               fallback={programFallback}
               weekLabels={Object.fromEntries(editionsLite.map((e) => [e.id, e.label]))}
+              startDates={weekStartDates}
+              endDates={weekEndDates}
+              imageByEdition={editionHero}
+              /* A trip runs every week in the same place, so one shared photo
+                 and one shared place name are honest here — unlike a clinic
+                 series, which travels. */
+              fallbackImage={heroMediaImage}
+              fallbackPlace={experience.location}
             />
           </Reveal>
         </div>
@@ -1517,6 +1537,11 @@ export default async function ExperienceDetailPage({ params, searchParams }: Pro
                 note={programNote}
                 startDates={clinicStartDates}
                 endDates={clinicEndDates}
+                imageByEdition={editionHero}
+                placeByEdition={clinicPlaces_}
+                /* No fallbackImage on a travelling series: the shared gallery is
+                   what produced the wrong-coast pairing. A run with no photo of
+                   its own simply has no masthead. */
               />
             </Reveal>
           )}

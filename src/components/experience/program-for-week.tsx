@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useSelectedEdition } from "./selected-edition";
 import { programForEdition, type ProgramDay } from "@/lib/program-days";
 
@@ -53,6 +53,87 @@ function dayStamp(start: string | null | undefined, offset: number, end?: string
   return d.toLocaleDateString("en-GB", { weekday: "short", day: "numeric", month: "short", timeZone: "UTC" });
 }
 
+/**
+ * The index label for a day.
+ *
+ * The arc is a glance, not a read: at full length seven titles cannot fit on
+ * one line at ANY realistic width, so the row always broke six-and-one and the
+ * last day sat orphaned on its own line. Shortening is what makes the chain
+ * fit, and the shortening is derived rather than authored — nobody should have
+ * to write a title twice.
+ *
+ * The title is kept whole while it is short enough to be read at a glance.
+ * Past that it is cut at its natural seam — "Arrival & first sail" is about
+ * arrival, "Last session & where next" is about the last session — and only if
+ * there is still no seam does it fall back to trimming on a word boundary. The
+ * full title is always a few centimetres below in the row itself, so the index
+ * never has to carry the whole meaning.
+ */
+const SHORT_AT = 18;
+export function shortDayLabel(title: string): string {
+  const t = title.trim();
+  if (t.length <= SHORT_AT) return t;
+  const head = t.split(/\s*[&+·—–,]\s+/)[0]?.trim();
+  if (head && head.length && head.length <= SHORT_AT) return head;
+  const source = head && head.length < t.length ? head : t;
+  const words = source.split(/\s+/);
+  let out = "";
+  for (const w of words) {
+    if (out && (out + " " + w).length > SHORT_AT) break;
+    out = out ? `${out} ${w}` : w;
+  }
+  return (out || source.slice(0, SHORT_AT)).replace(/[\s&+·,—–-]+$/, "");
+}
+
+/** "10 – 16 Oct 2026" — the run's own dates, written once across the masthead
+ *  rather than repeated on every row. */
+function spanLabel(start?: string | null, end?: string | null): string | null {
+  if (!start) return null;
+  const s = new Date(`${start}T00:00:00Z`);
+  if (Number.isNaN(s.getTime())) return null;
+  const d = (x: Date) => x.toLocaleDateString("en-GB", { day: "numeric", month: "short", timeZone: "UTC" });
+  if (!end || end === start) return `${d(s)} ${s.getUTCFullYear()}`;
+  const e = new Date(`${end}T00:00:00Z`);
+  if (Number.isNaN(e.getTime())) return `${d(s)} ${s.getUTCFullYear()}`;
+  return `${d(s)} – ${d(e)} ${e.getUTCFullYear()}`;
+}
+
+/**
+ * A slow drift on the masthead as the section passes.
+ *
+ * Deliberately small — 
+ * the photograph is a backdrop for a schedule, not the subject. Honours
+ * prefers-reduced-motion by never starting, and the end state is correct if it
+ * never runs at all: the image is already in position, the transform only
+ * nudges it.
+ */
+function useParallax(enabled: boolean) {
+  const wrap = useRef<HTMLDivElement>(null);
+  const img = useRef<HTMLImageElement>(null);
+  useEffect(() => {
+    if (!enabled) return;
+    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+    const w = wrap.current, i = img.current;
+    if (!w || !i) return;
+    let raf = 0, running = true, visible = false;
+    const io = new IntersectionObserver(([e]) => { visible = e.isIntersecting; }, { rootMargin: "120px" });
+    io.observe(w);
+    const tick = () => {
+      if (!running) return;
+      if (visible) {
+        const r = w.getBoundingClientRect();
+        // -1 above the viewport, +1 below it
+        const p = Math.max(-1, Math.min(1, (r.top + r.height / 2 - window.innerHeight / 2) / (window.innerHeight / 2 + r.height / 2)));
+        i.style.transform = `translate3d(0, ${(p * 5).toFixed(2)}%, 0) scale(1.12)`;
+      }
+      raf = requestAnimationFrame(tick);
+    };
+    raf = requestAnimationFrame(tick);
+    return () => { running = false; cancelAnimationFrame(raf); io.disconnect(); };
+  }, [enabled]);
+  return { wrap, img };
+}
+
 function Arrow() {
   return (
     <svg className="w-3.5 h-3.5 shrink-0 text-[#00afdb]/45" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
@@ -64,6 +145,7 @@ function Arrow() {
 export function ProgramForWeek({
   programByEdition, fallback, weekLabels, editionId, unit = "week",
   eyebrow, title, note, startDates, endDates,
+  imageByEdition, placeByEdition, fallbackImage, fallbackPlace,
 }: {
   programByEdition: Record<string, ProgramDay[]>;
   fallback: ProgramDay[];
@@ -98,6 +180,21 @@ export function ProgramForWeek({
    * seven. Past the run's end we stop stamping dates rather than invent them.
    */
   endDates?: Record<string, string | null>;
+  /**
+   * ONE photograph for the whole run — never one per day.
+   *
+   * Per-day imagery was tried twice and failed twice: cycled gallery shots
+   * never matched the day text (2026-07-08), and a single run hero repeated by
+   * modulo put the same picture beside all seven days. The honest form is a
+   * masthead: one image, bound to the run, captioned with that run's place and
+   * dates, so it cannot be a Hatteras shot above a Columbia Gorge day.
+   */
+  imageByEdition?: Record<string, string | null>;
+  placeByEdition?: Record<string, string | null>;
+  /** For a trip, every week is the same place, so one shared photo is honest.
+   *  A travelling clinic series passes nothing here on purpose. */
+  fallbackImage?: string | null;
+  fallbackPlace?: string | null;
 }) {
   const { id: ctxId } = useSelectedEdition();
   const id = editionId ?? ctxId;
@@ -107,6 +204,10 @@ export function ProgramForWeek({
   const multiWeek = Object.keys(weekLabels).length > 1;
   const start = id ? startDates?.[id] : null;
   const end = id ? endDates?.[id] : null;
+  const image = (id ? imageByEdition?.[id] : null) ?? fallbackImage ?? null;
+  const place = (id ? placeByEdition?.[id] : null) ?? fallbackPlace ?? null;
+  const span = spanLabel(start, end);
+  const { wrap: mastRef, img: mastImgRef } = useParallax(!!image);
   /*
    * ONE fold, not one per row.
    *
@@ -131,7 +232,8 @@ export function ProgramForWeek({
 
   // Folding two rows saves nothing and costs a click, so it only kicks in when
   // there is genuinely a scroll to spare.
-  const folded = !openAll && days.length > FOLD_AT + 1;
+  const foldable = days.length > FOLD_AT + 1;
+  const folded = foldable && !openAll;
   const shown = folded ? days.slice(0, FOLD_AT) : days;
 
   return (
@@ -144,6 +246,44 @@ export function ProgramForWeek({
           The plan for <span className="font-bold text-[#00374a]">{label}</span>
           {custom?.length ? <span className="text-[#5a6b72]"> · this {unit} runs its own schedule</span> : null}
         </p>
+      )}
+
+      {/* THE MASTHEAD — one photograph for the run, captioned with the run's own
+          place and dates. This is the honest form of imagery here: bound to the
+          run rather than to a day, so it can never sit above a day it does not
+          belong to, and there is exactly one of it so nothing repeats. On a
+          phone it is the FIRST thing in the section, not hidden behind a
+          breakpoint the way the old strip was. */}
+      {image && (
+        <figure ref={mastRef} className="relative mb-9 overflow-hidden rounded-3xl bg-[#00374a] shadow-[0_18px_44px_rgba(0,55,74,0.14)]">
+          <div className="aspect-[3/2] sm:aspect-[21/9]">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              ref={mastImgRef}
+              src={image}
+              alt=""
+              loading="lazy"
+              decoding="async"
+              className="absolute inset-0 h-full w-full object-cover will-change-transform"
+              style={{ transform: "scale(1.12)" }}
+            />
+          </div>
+          <div className="absolute inset-0 bg-gradient-to-t from-[#00374a]/85 via-[#00374a]/25 to-transparent" aria-hidden />
+          {(place || span) && (
+            <figcaption className="absolute inset-x-0 bottom-0 p-5 sm:p-7">
+              {place && (
+                <p className="text-[15px] sm:text-[19px] font-black tracking-[-0.02em] text-white drop-shadow-[0_2px_12px_rgba(0,0,0,0.4)]">
+                  {place}
+                </p>
+              )}
+              {span && (
+                <p className="text-[12px] sm:text-[13px] font-bold tracking-[0.18em] uppercase text-white/80 mt-1">
+                  {span}
+                </p>
+              )}
+            </figcaption>
+          )}
+        </figure>
       )}
 
       {/* THE ARC — the whole shape in one glance, before a word is read.
@@ -166,7 +306,7 @@ export function ProgramForWeek({
             <li key={i} className="flex items-center gap-2.5 snap-start">
               {i > 0 && <Arrow />}
               <span className="text-[12.5px] font-bold text-[#00374a] bg-[#00afdb]/[0.08] px-3 py-1.5 rounded-full whitespace-nowrap">
-                {d.title?.trim() || `Day ${i + 1}`}
+                {shortDayLabel(d.title?.trim() || `Day ${i + 1}`)}
               </span>
             </li>
           ))}
@@ -179,7 +319,20 @@ export function ProgramForWeek({
         {shown.map((d, i) => {
           const when = dayStamp(start, i, end);
           return (
-            <li key={i} className="py-6 sm:py-7 border-t border-[#e6eef0] first:border-t-0 first:pt-0">
+            <li
+              key={i}
+              /* The last visible row fades out rather than stopping dead: a hard
+                 cut reads as the end of the section, a fade reads as more. A
+                 MASK is used rather than a gradient overlay because this
+                 component sits on white on a trip page and on #f7f7f7 on a
+                 clinic one — masking the content itself is the only version
+                 that cannot be the wrong colour. */
+              style={folded && i === shown.length - 1 ? {
+                WebkitMaskImage: "linear-gradient(to bottom, #000 30%, transparent 100%)",
+                maskImage: "linear-gradient(to bottom, #000 30%, transparent 100%)",
+              } : undefined}
+              className="py-6 sm:py-7 border-t border-[#e6eef0] first:border-t-0 first:pt-0"
+            >
               {/* THE DAY STAMP. A photograph's real job in a day list is to give
                   the eye a landing point and mark where one day ends and the
                   next begins. A solid block does that with type alone — it is
@@ -208,14 +361,21 @@ export function ProgramForWeek({
         })}
       </ol>
 
-      {folded && (
+      {/* One control, and it goes both ways. A fold that only opens is a trap:
+          you cannot put back what you unfolded, so a long section stays long
+          for the rest of the visit. */}
+      {foldable && (
         <button
           type="button"
-          onClick={() => setOpenAll(true)}
-          className="mt-7 inline-flex items-center gap-2 rounded-full border-[1.5px] border-[#00374a]/15 px-5 py-3 text-[13.5px] font-bold text-[#00374a] hover:border-[#00afdb] hover:bg-[#00afdb]/[0.06] transition-colors"
+          aria-expanded={openAll}
+          onClick={() => setOpenAll((v) => !v)}
+          className={`inline-flex items-center gap-2 rounded-full border-[1.5px] border-[#00374a]/15 px-5 py-3 text-[13.5px] font-bold text-[#00374a] hover:border-[#00afdb] hover:bg-[#00afdb]/[0.06] transition-colors ${folded ? "-mt-2" : "mt-7"}`}
         >
-          Show all {days.length} days
-          <svg className="w-4 h-4 text-[#0aa3c7]" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+          {folded ? `Show all ${days.length} days` : "Show fewer days"}
+          <svg
+            className={`w-4 h-4 text-[#0aa3c7] transition-transform ${folded ? "" : "rotate-180"}`}
+            viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden
+          >
             <path d="M6 9l6 6 6-6" />
           </svg>
         </button>
