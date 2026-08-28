@@ -45,7 +45,6 @@ export async function POST(request: NextRequest) {
     .select("id,title,slug,currency,price,page_template,event_mode,event_deposit_pct,event_refund_pct,status")
     .eq("id", body.experienceId).maybeSingle();
   if (!exp || exp.page_template !== "event") return bad("This event is no longer available.", 409);
-  if (exp.price == null || exp.price <= 0) return bad("This event has no ticket price set.", 409);
 
   const mode: "fixed" | "standby" = exp.event_mode === "standby" ? "standby" : "fixed";
   const { data: dateRows } = await db
@@ -64,12 +63,12 @@ export async function POST(request: NextRequest) {
   // would be charged one price for a different weekend.
   const { data: edRows } = await db
     .from("exp_editions")
-    .select("id,slug,price,date_start")
+    .select("id,slug,label,price,date_start,date_end,max_spots")
     .eq("experience_id", exp.id)
     .eq("kind", "event")
     .eq("status", "published")
     .order("date_start");
-  type EdRow = { id: string; slug: string | null; price: number | null; date_start: string | null };
+  type EdRow = { id: string; slug: string | null; label: string | null; price: number | null; date_start: string | null; date_end: string | null; max_spots: number | null };
   const editions = (edRows ?? []) as EdRow[];
   const wantSlug = typeof body.editionSlug === "string" ? body.editionSlug : null;
   const today = new Date().toISOString().slice(0, 10);
@@ -85,11 +84,19 @@ export async function POST(request: NextRequest) {
     selected = (body.dateIds ?? []).filter((id) => candidateIds.has(id));
     if (selected.length === 0) return bad("Please pick at least one date you can make it.");
   } else {
-    // The date row for the edition being sold — not "whichever came first".
+    /*
+     * The date row for the edition being sold — not "whichever came first".
+     *
+     * And if there is NO row: sell anyway. exp_event_dates is the pre-157 date
+     * model; a clinic created the way the admin now instructs has an edition
+     * and nothing in that table, and this used to answer 409 "no date yet" for
+     * a fully priced, fully dated, fully stocked clinic. The page offered the
+     * ticket and the till refused it. The edition IS the date.
+     */
     const forEdition = edition?.date_start ? dates.find((d) => d.date_start === edition.date_start) : null;
-    const confirmed = forEdition ?? dates.find((d) => d.status === "confirmed") ?? dates[0];
-    if (!confirmed) return bad("This event has no date yet.", 409);
-    selected = [confirmed.id];
+    const confirmed = forEdition ?? dates.find((d) => d.status === "confirmed") ?? dates[0] ?? null;
+    if (!confirmed && !edition) return bad("This event has no date yet.", 409);
+    selected = confirmed ? [confirmed.id] : [];
   }
 
   // Minors. A form can be bypassed; this cannot. Age is judged on the day they
@@ -97,7 +104,7 @@ export async function POST(request: NextRequest) {
   // that contract would be voidable and the waiver worthless. This runs BEFORE
   // the contact is resolved, because who is a minor decides whose account this
   // booking belongs to.
-  const eventDate = dates.find((d) => d.id === selected[0])?.date_start ?? null;
+  const eventDate = dates.find((d) => d.id === selected[0])?.date_start ?? edition?.date_start ?? null;
   const dob = typeof body.dob === "string" ? body.dob : null;
   const guardian = {
     guardianName: typeof body.guardianName === "string" ? body.guardianName.trim() : null,
@@ -165,6 +172,7 @@ export async function POST(request: NextRequest) {
   // The edition's own price wins — the same rule lib/events.ts uses to build
   // the number the buyer just read on the page.
   const price = Number(edition?.price ?? exp.price);
+  if (!Number.isFinite(price) || price <= 0) return bad("This event has no ticket price set.", 409);
   const { deposit } = eventPricing(price, exp.event_deposit_pct ?? 20, exp.event_refund_pct ?? 15);
 
   // A fixed-date clinic can still be sold as a part-payment: deposit now, the
@@ -193,13 +201,14 @@ export async function POST(request: NextRequest) {
 
   const chosenLabel = mode === "standby"
     ? `standby · ${selected.length} date${selected.length > 1 ? "s" : ""}`
-    : (dates.find((d) => d.id === selected[0])?.label ?? "fixed date");
+    : (dates.find((d) => d.id === selected[0])?.label ?? edition?.label ?? "fixed date");
 
   // Capacity. max_spots was read from the date row and never checked anywhere,
   // so a 12-place clinic would happily sell a 13th ticket — and the person who
   // finds out is the one standing on the beach. Count tickets that are actually
   // PAID (the webhook sets 'paid' / 'reserved'); an abandoned checkout must not
   // hold a place, because its Stripe session simply expires.
+  const SOLD = ["paid", "reserved", "confirmed", "attended"];
   for (const dateId of selected) {
     const row = dates.find((d) => d.id === dateId);
     const cap = row?.max_spots ?? null;
@@ -210,9 +219,27 @@ export async function POST(request: NextRequest) {
       .eq("experience_id", exp.id)
       .contains("event_date_ids", [dateId]);
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const sold = ((taken ?? []) as any[]).filter((b) => ["paid", "reserved", "confirmed", "attended"].includes(String(b.status ?? "").toLowerCase())).length;
+    const sold = ((taken ?? []) as any[]).filter((b) => SOLD.includes(String(b.status ?? "").toLowerCase())).length;
     if (sold >= cap) {
       return bad(row?.label ? `${row.label} is fully booked — no spots left.` : "This date is fully booked — no spots left.", 409);
+    }
+  }
+  /*
+   * A clinic with no legacy date row still has a cap, and dropping the 409
+   * above must not quietly drop the capacity check with it — overselling a
+   * clinic is worse than refusing to sell one, because the person who finds
+   * out is standing on the beach. Count against the EDITION, which is what
+   * every booking carries anyway.
+   */
+  if (selected.length === 0 && edition?.max_spots && edition.max_spots > 0) {
+    const { data: taken } = await db
+      .from("exp_bookings")
+      .select("id, status")
+      .eq("edition_id", edition.id);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const sold = ((taken ?? []) as any[]).filter((b) => SOLD.includes(String(b.status ?? "").toLowerCase())).length;
+    if (sold >= edition.max_spots) {
+      return bad(edition.label ? `${edition.label} is fully booked — no spots left.` : "This clinic is fully booked — no spots left.", 409);
     }
   }
 
