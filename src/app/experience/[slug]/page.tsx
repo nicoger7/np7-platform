@@ -615,6 +615,11 @@ export default async function ExperienceDetailPage({ params, searchParams }: Pro
   const clinicStartDates: Record<string, string | null> = Object.fromEntries(
     bookable.filter((r) => r.editionId).map((r) => [r.editionId as string, r.dates[0]?.date_start ?? null]),
   );
+  /* Paired with the starts on purpose: a two-day clinic that inherits the
+     series' seven-day program must not print dates for days it does not have. */
+  const clinicEndDates: Record<string, string | null> = Object.fromEntries(
+    bookable.filter((r) => r.editionId).map((r) => [r.editionId as string, r.dates[0]?.date_end ?? null]),
+  );
   const clinicRunChips: ClinicRun[] = bookable.map((r) => ({
     editionId: r.editionId,
     place: shortPlace(r.location),
@@ -1511,6 +1516,7 @@ export default async function ExperienceDetailPage({ params, searchParams }: Pro
                 title="What your days look like"
                 note={programNote}
                 startDates={clinicStartDates}
+                endDates={clinicEndDates}
               />
             </Reveal>
           )}

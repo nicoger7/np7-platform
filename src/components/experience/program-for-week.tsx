@@ -38,11 +38,18 @@ export type { ProgramDay };
 
 /** "Day 1" is a position in a list. "Sat 10 Oct" is a plan you can hold against
  *  your own calendar and book flights around. */
-function dayStamp(start: string | null | undefined, offset: number): string | null {
+function dayStamp(start: string | null | undefined, offset: number, end?: string | null): string | null {
   if (!start) return null;
   const d = new Date(`${start}T00:00:00Z`);
   if (Number.isNaN(d.getTime())) return null;
   d.setUTCDate(d.getUTCDate() + offset);
+  // A day past the end of the run gets no date. This happens whenever a short
+  // run inherits a longer series program, and a wrong date is far worse than
+  // no date — somebody books a flight on it.
+  if (end) {
+    const last = new Date(`${end}T00:00:00Z`);
+    if (!Number.isNaN(last.getTime()) && d.getTime() > last.getTime()) return null;
+  }
   return d.toLocaleDateString("en-GB", { weekday: "short", day: "numeric", month: "short", timeZone: "UTC" });
 }
 
@@ -56,7 +63,7 @@ function Arrow() {
 
 export function ProgramForWeek({
   programByEdition, fallback, weekLabels, editionId, unit = "week",
-  eyebrow, title, note, startDates,
+  eyebrow, title, note, startDates, endDates,
 }: {
   programByEdition: Record<string, ProgramDay[]>;
   fallback: ProgramDay[];
@@ -84,6 +91,13 @@ export function ProgramForWeek({
   note?: string;
   /** Edition id → its first day, so each row can carry a real date. */
   startDates?: Record<string, string | null>;
+  /**
+   * Edition id → its LAST day. Not decoration: a run inherits the series
+   * program when it has none of its own, so a three-day clinic inherits a
+   * seven-day week and would print confident, wrong dates for days four to
+   * seven. Past the run's end we stop stamping dates rather than invent them.
+   */
+  endDates?: Record<string, string | null>;
 }) {
   const { id: ctxId } = useSelectedEdition();
   const id = editionId ?? ctxId;
@@ -92,6 +106,7 @@ export function ProgramForWeek({
   const label = id ? weekLabels[id] : undefined;
   const multiWeek = Object.keys(weekLabels).length > 1;
   const start = id ? startDates?.[id] : null;
+  const end = id ? endDates?.[id] : null;
   /*
    * ONE fold, not one per row.
    *
@@ -123,11 +138,11 @@ export function ProgramForWeek({
     <>
       {eyebrow && <p className="text-[11px] font-bold tracking-[0.25em] text-[#00afdb] mb-3">{eyebrow}</p>}
       {title && <h2 className="text-3xl sm:text-5xl font-black tracking-[-0.03em] text-[#00374a] mb-3">{title}</h2>}
-      {note && <p className="text-[14.5px] text-[#7a8a90] leading-relaxed italic mb-8 max-w-[62ch]">{note}</p>}
+      {note && <p className="text-[14.5px] text-[#5a6b72] leading-relaxed italic mb-8 max-w-[62ch]">{note}</p>}
       {multiWeek && label && (
         <p className="text-[13.5px] text-[#5a6b72] -mt-4 mb-6">
           The plan for <span className="font-bold text-[#00374a]">{label}</span>
-          {custom?.length ? <span className="text-[#9aa6ac]"> · this {unit} runs its own schedule</span> : null}
+          {custom?.length ? <span className="text-[#5a6b72]"> · this {unit} runs its own schedule</span> : null}
         </p>
       )}
 
@@ -162,7 +177,7 @@ export function ProgramForWeek({
           to land, and the real date doing the work a bullet cannot. */}
       <ol>
         {shown.map((d, i) => {
-          const when = dayStamp(start, i);
+          const when = dayStamp(start, i, end);
           return (
             <li key={i} className="py-6 sm:py-7 border-t border-[#e6eef0] first:border-t-0 first:pt-0">
               {/* THE DAY STAMP. A photograph's real job in a day list is to give
