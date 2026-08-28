@@ -769,6 +769,9 @@ export default async function ExperienceDetailPage({ params, searchParams }: Pro
   const highlights = (content?.highlights ?? []).filter((h) => h && h.trim());
   // Deliberately NO per-day photos — cycled gallery shots never matched the day
   // text and looked unprofessional (Nico, 2026-07-08). Text-only timeline.
+  // Re-learned 2026-08-29: the clinic build broke this rule and proved it
+  // again, cycling ONE run hero across all seven days behind a desktop-only
+  // 240px crop. The day-by-day carries its story typographically instead.
   // The experience-level program is the default every week inherits…
   const programFallback: ProgramDay[] =
     (content?.daily_program ?? []).length > 0
@@ -787,15 +790,13 @@ export default async function ExperienceDetailPage({ params, searchParams }: Pro
     : [];
   // …and a single week can override it (exp_editions.daily_program, migration 112).
   const programByEdition: Record<string, ProgramDay[]> = {};
-  /** A run's own photo, when it has one. */
-  const editionHero: Record<string, string> = {};
   /* The union of both edition lists. `allEditions` keeps weeks that have not
      STARTED, while a clinic stays sellable until it ENDS — so a clinic running
      right now sits in the selector but would be missing from this map, and
      would silently inherit the series program with nothing to show it had. */
   const programEdIds = [...new Set([...allEditions.map((e) => e.id), ...bookable.map((r) => r.editionId)].filter(Boolean))] as string[];
   if (programEdIds.length) {
-    const { data: edProg } = await sb.from("exp_editions").select("id,daily_program,hero_image").in("id", programEdIds);
+    const { data: edProg } = await sb.from("exp_editions").select("id,daily_program").in("id", programEdIds);
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     for (const r of ((edProg ?? []) as any[])) {
       if (Array.isArray(r.daily_program) && r.daily_program.length) {
@@ -803,25 +804,8 @@ export default async function ExperienceDetailPage({ params, searchParams }: Pro
           title: p.title?.trim() || `Day ${i + 1}`, description: p.description ?? "",
         }));
       }
-      if (typeof r.hero_image === "string" && r.hero_image.trim()) editionHero[r.id] = r.hero_image.trim();
     }
   }
-  /*
-   * Photos for the day rows, per run.
-   *
-   * A run's own hero photo is the only image we can honestly put next to its
-   * schedule. The experience gallery is shared, so on a series that TRAVELS it
-   * would put a Hatteras beach beside a Columbia Gorge day — the same wrong-
-   * coast mistake as a shared description. A series that stays in one place has
-   * no such problem and keeps the gallery. No image is a fine outcome: the rows
-   * still carry their real dates.
-   */
-  const clinicDayImages: Record<string, string[]> = Object.fromEntries(
-    bookable.filter((r) => r.editionId).map((r) => {
-      const own = editionHero[r.editionId as string];
-      return [r.editionId as string, own ? [own] : travellingClinic ? [] : vibeImages];
-    }),
-  );
   const faqItems: AccordionItem[] =
     (content?.faq ?? []).length > 0
       ? content!.faq!.map((f) => ({ title: f.q, content: <span className="whitespace-pre-line">{f.a}</span> }))
@@ -1523,7 +1507,6 @@ export default async function ExperienceDetailPage({ params, searchParams }: Pro
                 title="What your days look like"
                 note={programNote}
                 startDates={clinicStartDates}
-                imagesByEdition={clinicDayImages}
               />
             </Reveal>
           )}

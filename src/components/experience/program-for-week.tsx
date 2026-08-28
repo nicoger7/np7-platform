@@ -1,13 +1,35 @@
 "use client";
 
-import { Accordion, type AccordionItem } from "./accordion";
 import { useSelectedEdition } from "./selected-edition";
 import { programForEdition, type ProgramDay } from "@/lib/program-days";
 
 export type { ProgramDay };
 
-/** "Day 1" is a position in a list. "Day 1 · Sat 10 Oct" is a plan — you can
- *  see it against your own calendar, and book flights around it. */
+/**
+ * The day-by-day.
+ *
+ * Three decisions, all of which were learned the hard way:
+ *
+ * NO PHOTOS. Nico ruled on this on 2026-07-08 — "cycled gallery shots never
+ * matched the day text and looked unprofessional" — and the clinic build broke
+ * the rule and proved him right twice over: one hero per run cycled by modulo
+ * put the SAME photograph beside all seven days, hard-cropped into a 240px edge
+ * strip that phones never even saw. A sequence does not need imagery to read as
+ * a story; it needs an arc, a position, and rhythm. Those are typographic.
+ *
+ * NOTHING IS COLLAPSED. Each day is one to three sentences. Hiding that behind
+ * a "+" costs seven taps to read seven short paragraphs, and the thing being
+ * hidden is exactly what someone deciding on a trip came to read. The accordion
+ * was solving a length problem this content does not have.
+ *
+ * THE ARC IS SHOWN FIRST. You cannot perceive the shape of a week you can only
+ * read one row at a time. Naming every day in a single glance — Arrival →
+ * Stance → Focus → Transitions → Range → Together → Last session — turns seven
+ * independent entries into a progression with a beginning and an end.
+ */
+
+/** "Day 1" is a position in a list. "Sat 10 Oct" is a plan you can hold against
+ *  your own calendar and book flights around. */
 function dayStamp(start: string | null | undefined, offset: number): string | null {
   if (!start) return null;
   const d = new Date(`${start}T00:00:00Z`);
@@ -16,14 +38,17 @@ function dayStamp(start: string | null | undefined, offset: number): string | nu
   return d.toLocaleDateString("en-GB", { weekday: "short", day: "numeric", month: "short", timeZone: "UTC" });
 }
 
-/**
- * The day-by-day for the week the visitor selected. Most weeks run the same
- * shape, so a week without its own program simply inherits the experience's —
- * only deliberately-customised weeks differ.
- */
+function Arrow() {
+  return (
+    <svg className="w-3.5 h-3.5 shrink-0 text-[#00afdb]/45" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+      <path d="M5 12h14M13 6l6 6-6 6" />
+    </svg>
+  );
+}
+
 export function ProgramForWeek({
   programByEdition, fallback, weekLabels, editionId, unit = "week",
-  eyebrow, title, note, startDates, imagesByEdition,
+  eyebrow, title, note, startDates,
 }: {
   programByEdition: Record<string, ProgramDay[]>;
   fallback: ProgramDay[];
@@ -33,9 +58,7 @@ export function ProgramForWeek({
    *
    * A clinic panel is server-rendered per run, so the run it describes is known
    * at render time. Reading the shared id there would reintroduce a way for the
-   * panel and its program to describe different clinics — the selector falls
-   * back to run 0 when the shared id is null, and this component would fall
-   * back to the experience program on the same input.
+   * panel and its program to describe different clinics.
    */
   editionId?: string | null;
   /** A clinic runs clinics, not weeks. */
@@ -53,9 +76,6 @@ export function ProgramForWeek({
   note?: string;
   /** Edition id → its first day, so each row can carry a real date. */
   startDates?: Record<string, string | null>;
-  /** Edition id → the photos its day rows may use, by position (short lists
-   *  repeat). Per edition, because a run's photos belong to its own place. */
-  imagesByEdition?: Record<string, string[]>;
 }) {
   const { id: ctxId } = useSelectedEdition();
   const id = editionId ?? ctxId;
@@ -64,25 +84,12 @@ export function ProgramForWeek({
   const label = id ? weekLabels[id] : undefined;
   const multiWeek = Object.keys(weekLabels).length > 1;
   const start = id ? startDates?.[id] : null;
-  const images = (id ? imagesByEdition?.[id] : null) ?? [];
 
   // Nothing to show is nothing to render. Trips always have the built-in
   // itinerary behind them, so this only ever fires for a clinic whose run and
-  // series both have an empty program — where an empty accordion under a live
+  // series both have an empty program — where an empty list under a live
   // heading would read as a page that failed to load.
   if (days.length === 0) return null;
-
-  const items: AccordionItem[] = days.map((d, i) => {
-    const when = dayStamp(start, i);
-    return {
-      eyebrow: when ? `Day ${i + 1} · ${when}` : `Day ${i + 1}`,
-      title: d.title?.trim() || `Day ${i + 1}`,
-      content: <span className="whitespace-pre-line">{d.description}</span>,
-      // The timeline card already knows how to carry a photo; giving each day
-      // one turns a list of headings into something you want to open.
-      image: images.length ? images[i % images.length] : undefined,
-    };
-  });
 
   return (
     <>
@@ -95,7 +102,58 @@ export function ProgramForWeek({
           {custom?.length ? <span className="text-[#9aa6ac]"> · this {unit} runs its own schedule</span> : null}
         </p>
       )}
-      <Accordion items={items} defaultOpen={0} variant="timeline" />
+
+      {/* THE ARC — the whole shape in one glance, before a word is read.
+          Below three days there is no arc to see, only a duplicate of the list. */}
+      {days.length > 2 && (
+        <ol className="flex flex-wrap items-center gap-x-2.5 gap-y-2 mb-9 pb-8 border-b border-[#e6eef0]">
+          {days.map((d, i) => (
+            <li key={i} className="flex items-center gap-2.5">
+              <span className="text-[12.5px] font-bold text-[#00374a] bg-[#00afdb]/[0.08] px-3 py-1.5 rounded-full whitespace-nowrap">
+                {d.title?.trim() || `Day ${i + 1}`}
+              </span>
+              {i < days.length - 1 && <Arrow />}
+            </li>
+          ))}
+        </ol>
+      )}
+
+      {/* THE LEDGER — every day open, the number as texture rather than a
+          bullet, the date doing the work a bullet cannot. */}
+      <ol>
+        {days.map((d, i) => {
+          const when = dayStamp(start, i);
+          return (
+            <li
+              key={i}
+              className="grid grid-cols-[2.25rem_1fr] sm:grid-cols-[4.5rem_1fr] gap-x-4 sm:gap-x-8 py-6 sm:py-7 border-t border-[#e6eef0] first:border-t-0 first:pt-0"
+            >
+              {/* Low-contrast and large: it marks position without competing
+                  with the title for the eye. tabular-nums keeps the column
+                  straight once the count passes nine. */}
+              <span
+                aria-hidden
+                className="tabular-nums font-black leading-[0.78] tracking-[-0.05em] text-[34px] sm:text-[64px] text-[#00374a]/[0.13] select-none"
+              >
+                {i + 1}
+              </span>
+              <div className="min-w-0">
+                <p className="text-[11px] font-bold tracking-[0.2em] uppercase text-[#0aa3c7] mb-1.5">
+                  {when ? <>Day {i + 1} <span className="text-[#9aa6ac]">·</span> {when}</> : `Day ${i + 1}`}
+                </p>
+                <h3 className="text-[19px] sm:text-[23px] font-black tracking-[-0.02em] text-[#00374a] mb-2 text-balance">
+                  {d.title?.trim() || `Day ${i + 1}`}
+                </h3>
+                {d.description?.trim() && (
+                  <p className="text-[15px] sm:text-[15.5px] text-[#5a6b72] leading-relaxed whitespace-pre-line max-w-[68ch]">
+                    {d.description}
+                  </p>
+                )}
+              </div>
+            </li>
+          );
+        })}
+      </ol>
     </>
   );
 }
