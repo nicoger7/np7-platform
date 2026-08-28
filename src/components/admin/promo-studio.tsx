@@ -463,9 +463,23 @@ export default function PromoStudio() {
     return null;
   };
 
+  /**
+   * Pointer → artboard coordinates.
+   *
+   * Derived ENTIRELY from the measured rect, never from the `scale` state. The
+   * two can disagree — `scale` is set by a ResizeObserver, so it lags any
+   * layout change by a frame, and the browser rounds the CSS size it actually
+   * paints. Dividing a live measurement by a stale number puts the cursor a
+   * little away from what it grabs, and the gap grows the further you are from
+   * the top-left corner. Measuring both ends is self-consistent by
+   * construction.
+   */
   const toCanvas = (e: { clientX: number; clientY: number }) => {
     const r = wrapRef.current!.getBoundingClientRect();
-    return { x: (e.clientX - r.left) / scale, y: (e.clientY - r.top) / scale };
+    return {
+      x: r.width ? (e.clientX - r.left) * (W / r.width) : 0,
+      y: r.height ? (e.clientY - r.top) * (H / r.height) : 0,
+    };
   };
 
   const selectedBox = (): { x: number; y: number; w: number; h: number } | null => {
@@ -501,6 +515,7 @@ export default function PromoStudio() {
     const move = (ev: PointerEvent) => onDrag(ev);
     const up = () => {
       dragRef.current = null;
+      setGuides({ v: [], h: [] }); // guides belong to the gesture, not the design
       window.removeEventListener("pointermove", move);
       window.removeEventListener("pointerup", up);
       window.removeEventListener("pointercancel", up);
@@ -510,6 +525,80 @@ export default function PromoStudio() {
     window.addEventListener("pointercancel", up);
   };
 
+  /**
+   * Snapping. Positioning by eye at 50% zoom means every element sits one or
+   * two pixels off the margin it was meant to share, and nothing quite lines up
+   * with anything else.
+   *
+   * Candidate lines come from the artboard (edges, safe margin, centre) and
+   * from every OTHER visible element (its edges and its centre) — so elements
+   * align to each other, not just to the page. The moving element offers its
+   * own left/centre/right (and top/middle/bottom); the closest pairing inside
+   * the threshold wins per axis, and the guides that actually bit are drawn.
+   *
+   * Threshold is in SCREEN pixels converted to artboard units, so it feels the
+   * same however far you are zoomed out. Hold Alt to place freely.
+   */
+  const SNAP_PX = 7;
+  const MARGIN = 56; // the template's own left/right margin
+  const [guides, setGuides] = useState<{ v: number[]; h: number[] }>({ v: [], h: [] });
+
+  /** Snap lines, weighted. The artboard's own margins and centre carry HALF the
+   *  apparent distance, so they win unless an element line is genuinely much
+   *  closer: the shared margin is the line a poster is actually built on, and
+   *  an unweighted nearest-wins kept stealing it for whatever element happened
+   *  to sit a few pixels nearer. */
+  type SnapLine = { at: number; w: number; k?: 0 | 1 | 2 };
+  const snapTargets = (movingId: string) => {
+    // 0.35, not 0.5: at 0.5 an element line six pixels away still beat the
+    // page margin fifteen away, which is the wrong instinct — the margin is
+    // where a poster's content belongs, and everything else is incidental.
+    const v: SnapLine[] = [0, MARGIN, W / 2, W - MARGIN, W].map((at) => ({ at, w: 0.35 }));
+    const h: SnapLine[] = [0, MARGIN, H / 2, H - MARGIN, H].map((at) => ({ at, w: 0.35 }));
+    for (const hit of hitsRef.current) {
+      if (hit.id === movingId || hit.id === "photo") continue;
+      const b = hit.box;
+      // `k` records WHICH edge this line is, so an element line only attracts
+      // the same edge: left↔left, centre↔centre, right↔right. Matching a right
+      // edge to some unrelated left edge is arithmetically a snap and visually
+      // a random jump. Canvas lines (k undefined) still attract any edge.
+      v.push({ at: b.x, w: 1, k: 0 }, { at: b.x + b.w / 2, w: 1, k: 1 }, { at: b.x + b.w, w: 1, k: 2 });
+      h.push({ at: b.y, w: 1, k: 0 }, { at: b.y + b.h / 2, w: 1, k: 1 }, { at: b.y + b.h, w: 1, k: 2 });
+    }
+    return { v, h };
+  };
+
+  /** Nudge a moving box onto nearby lines; returns the correction + what bit. */
+  const snapBox = (
+    box: { x: number; y: number; w: number; h: number },
+    movingId: string,
+    tol: number,
+  ): { dx: number; dy: number; v: number[]; h: number[] } => {
+    const t = snapTargets(movingId);
+    const mine = (o: number, size: number) => [o, o + size / 2, o + size];
+    let dx = 0, dy = 0, bestX = tol, bestY = tol;
+    const vHit: number[] = [], hHit: number[] = [];
+    mine(box.x, box.w).forEach((edge, ki) => {
+      for (const target of t.v) {
+        if (target.k !== undefined && target.k !== ki) continue;
+        const gap = target.at - edge;
+        if (Math.abs(gap) > tol) continue;          // out of reach on the real distance
+        const score = Math.abs(gap) * target.w;     // …but judged on the weighted one
+        if (score < bestX) { bestX = score; dx = gap; vHit.length = 0; vHit.push(target.at); }
+      }
+    });
+    mine(box.y, box.h).forEach((edge, ki) => {
+      for (const target of t.h) {
+        if (target.k !== undefined && target.k !== ki) continue;
+        const gap = target.at - edge;
+        if (Math.abs(gap) > tol) continue;
+        const score = Math.abs(gap) * target.w;
+        if (score < bestY) { bestY = score; dy = gap; hHit.length = 0; hHit.push(target.at); }
+      }
+    });
+    return { dx, dy, v: vHit, h: hHit };
+  };
+
   const onDrag = (ev: PointerEvent) => {
     const d = dragRef.current;
     if (!d) return;
@@ -517,6 +606,17 @@ export default function PromoStudio() {
     const dx = p.x - d.startX;
     const dy = p.y - d.startY;
     const f = stateRef.current.format;
+    /*
+     * Threshold in SCREEN pixels so it feels the same at any zoom — but CAPPED
+     * in artboard units. On a small window the artboard sits at ~27%, where
+     * seven screen pixels are twenty-six design pixels: a purely horizontal
+     * drag was yanking the element two dozen pixels DOWN onto some line it was
+     * never near. Snapping should confirm what you were already aiming at, not
+     * relocate things.
+     */
+    const r = wrapRef.current?.getBoundingClientRect();
+    const tol = Math.min(SNAP_PX * (r?.width ? W / r.width : 2), 24);
+    let nextGuides: { v: number[]; h: number[] } = { v: [], h: [] };
     patch((s) => {
       if (d.id === "photo") {
         const img = getCachedImage(s.photo.src);
@@ -529,13 +629,20 @@ export default function PromoStudio() {
         if (dh > H + 1) fo.y = clamp((d.orig.fy ?? 50) + (dy * 100) / (H - dh), 0, 100);
         return s;
       }
-      if (d.id === "flag" || d.id === "coach" || d.id === "logo") {
+      if (d.id === "flag" || d.id === "coach" || d.id === "logo" || d.id.startsWith("img-")) {
         const layer = boxLayerOf(s, d.id);
         if (!layer) return s;
         const b = layer.box[f];
         if (d.mode === "move") {
-          b.x = Math.round(d.orig.x + dx);
-          b.y = Math.round(d.orig.y + dy);
+          let nx = d.orig.x + dx;
+          let ny = d.orig.y + dy;
+          if (!ev.altKey) {
+            const sn = snapBox({ x: nx, y: ny, w: d.orig.w, h: d.orig.h }, d.id, tol);
+            nx += sn.dx; ny += sn.dy;
+            nextGuides = { v: sn.v, h: sn.h };
+          }
+          b.x = Math.round(nx);
+          b.y = Math.round(ny);
         } else {
           resizeBox(b, d.orig, d.handle!, dx, dy);
         }
@@ -544,8 +651,22 @@ export default function PromoStudio() {
       const t = s.texts.find((x) => x.id === d.id);
       if (!t) return s;
       if (d.mode === "move") {
-        t.pos[f].x = Math.round(d.orig.x + dx);
-        t.pos[f].y = Math.round(d.orig.y + dy);
+        // A text's anchor is its top-left, but it should snap by what you SEE —
+        // so we snap the drawn box and move the anchor by the same correction.
+        const drawn = hitsRef.current.find((hb) => hb.id === d.id)?.box;
+        let nx = d.orig.x + dx;
+        let ny = d.orig.y + dy;
+        if (!ev.altKey && drawn) {
+          const sn = snapBox(
+            { x: nx + (drawn.x - t.pos[f].x), y: ny + (drawn.y - t.pos[f].y), w: drawn.w, h: drawn.h },
+            d.id,
+            tol,
+          );
+          nx += sn.dx; ny += sn.dy;
+          nextGuides = { v: sn.v, h: sn.h };
+        }
+        t.pos[f].x = Math.round(nx);
+        t.pos[f].y = Math.round(ny);
       } else {
         // corner drag scales the font size proportionally to the width change
         const sign = d.handle?.includes("w") ? -1 : 1;
@@ -554,6 +675,7 @@ export default function PromoStudio() {
       }
       return s;
     }, d.key);
+    setGuides(nextGuides);
   };
 
   const resizeBox = (
@@ -853,12 +975,19 @@ export default function PromoStudio() {
        * discover is a feature nobody has, so the text is editable right here,
        * in the open, the moment something is selected.
        */}
+      {/*
+       * Reserved slot for the selected-element editors. Its height is FIXED so
+       * that selecting something cannot change the layout: the artboard scales
+       * to the space left over, so a strip appearing on click would rescale and
+       * shift the very element you just grabbed, out from under the cursor.
+       */}
+      <div className="mb-3" style={{ height: 92, overflow: "hidden" }}>
       {/* A selected library image: swap it, give it the house shadow, remove it. */}
       {selected?.startsWith("img-") && (() => {
         const im = (state.images ?? []).find((i) => i.id === selected);
         if (!im) return null;
         return (
-          <div className="flex flex-wrap items-center gap-3 mb-3 p-3 rounded-xl"
+          <div className="flex flex-wrap items-center gap-3 p-3 rounded-xl"
             style={{ background: "var(--admin-surface,#fff)", border: "1px solid var(--admin-border,#ddd)" }}>
             <span className="text-[10px] font-bold uppercase tracking-[0.12em]" style={{ color: "var(--admin-text-muted,#666)" }}>Image</span>
             <input
@@ -897,7 +1026,7 @@ export default function PromoStudio() {
       })()}
 
       {selectedText && (
-        <div className="flex flex-wrap items-end gap-3 mb-3 p-3 rounded-xl"
+        <div className="flex flex-wrap items-end gap-3 p-3 rounded-xl"
           style={{ background: "var(--admin-surface,#fff)", border: "1px solid var(--admin-border,#ddd)" }}>
           <div className="flex-1 min-w-[260px]">
             <label className="block text-[10px] font-bold uppercase tracking-[0.12em] mb-1"
@@ -931,6 +1060,13 @@ export default function PromoStudio() {
           </span>
         </div>
       )}
+
+      {!selected && (
+        <p className="text-[11px] pt-1" style={{ color: "var(--admin-text-muted,#666)" }}>
+          Click an element to edit its text, size or image here.
+        </p>
+      )}
+      </div>
 
       {/* ── dropdown menus ──────────────────────────────────────────────── */}
       {menu && (
@@ -1089,6 +1225,16 @@ export default function PromoStudio() {
           onDoubleClick={onDoubleClick}
         >
           <canvas ref={canvasRef} style={{ width: W * scale, height: H * scale, borderRadius: 8, boxShadow: "0 8px 30px rgba(0,0,0,0.25)" }} />
+          {/* Alignment guides — only while a snap is actually biting, so they
+              read as confirmation rather than as chrome. */}
+          {guides.v.map((x, i) => (
+            <div key={`gv${i}`} className="absolute pointer-events-none"
+              style={{ left: x * scale, top: 0, width: 1, height: H * scale, background: "#00e5ff", opacity: 0.9 }} />
+          ))}
+          {guides.h.map((y, i) => (
+            <div key={`gh${i}`} className="absolute pointer-events-none"
+              style={{ top: y * scale, left: 0, height: 1, width: W * scale, background: "#00e5ff", opacity: 0.9 }} />
+          ))}
 
           {/* selection outline + handles */}
           {box && sel && !editingText && (
@@ -1275,7 +1421,7 @@ export default function PromoStudio() {
       </div>
 
       <p className="pt-2 text-[11px]" style={{ color: "var(--admin-text-muted,#666)" }}>
-        Click = select · drag = move · corners = size · edges = stretch X/Y · double-click text = edit · ⌫ = hide · arrows = nudge · *stars* = gold accent in the details/partner lines
+        Click = select · drag = move · corners = size · edges = stretch X/Y · double-click text = edit · ⌫ = hide · arrows = nudge · alt = ignore snapping · *stars* = gold accent in the details/partner lines
       </p>
 
       {gallery && (
