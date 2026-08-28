@@ -15,6 +15,7 @@ import { supabase } from "@/lib/supabase";
 import { getTeamMember, getPortalUser } from "@/lib/auth";
 import { getEventForSlug } from "@/lib/events";
 import { ClinicTicketBox } from "@/components/experience/clinic-ticket-box";
+import { ClinicOtherDates } from "@/components/experience/clinic-other-dates";
 import { SelectedEditionProvider } from "@/components/experience/selected-edition";
 import { CrewCarousel, type Guide } from "@/components/experience/crew-carousel";
 import { ProgramForWeek, type ProgramDay } from "@/components/experience/program-for-week";
@@ -985,9 +986,13 @@ export default async function ExperienceDetailPage({ params, searchParams }: Pro
           !clinic && { id: "week", label: "Your week" },
           { id: "method", label: "Coaching" },
           spotAbout && { id: "spot", label: "The spot" },
-          { id: "packages", label: clinic ? "Book" : "Packages" },
+          // A clinic books after the crew and the photos have made the case, so
+          // "Book" sits there in the nav too — a jump list that disagrees with
+          // the page teaches people not to trust it.
+          !clinic && { id: "packages", label: "Packages" },
           !clinic && { id: "program", label: "Day by day" },
           { id: "crew", label: "Crew" },
+          clinic && { id: "packages", label: "Book" },
           { id: "faq", label: "FAQ" },
         ].filter(Boolean)) as NavSection[]}
         topClass="top-16"
@@ -1187,20 +1192,7 @@ export default async function ExperienceDetailPage({ params, searchParams }: Pro
       {/* 5 · BOOKING — packages for a trip, one ticket for a clinic.
           A clinic has no level to pick and no room to choose: it is one seat at
           one price, so the picker would be a form with a single option. */}
-      {clinic ? (
-        <section id="packages" className="scroll-mt-28 py-16 sm:py-24 bg-[#f7f7f7]">
-          <div className="max-w-[1000px] mx-auto px-6 sm:px-8">
-            <Reveal className="text-center max-w-[620px] mx-auto mb-10">
-              <p className="text-[11px] font-bold tracking-[0.25em] text-[#00afdb] mb-3">YOUR SPOT</p>
-              <h2 className="text-3xl sm:text-5xl font-black tracking-[-0.03em] text-[#00374a] mb-4">Grab your place</h2>
-              <p className="text-[16px] text-[#6a7a80]">One seat, one price — accommodation and gear you arrange yourself, so you only pay for the coaching.</p>
-            </Reveal>
-            <div className="max-w-[440px] mx-auto">
-              <ClinicTicketBox event={clinic} isMember={!!clinicMember?.contactId} paid={paid === "1"} paidBookingId={paidBookingId ?? null} />
-            </div>
-          </div>
-        </section>
-      ) : (
+      {!clinic && (
       <section id="packages" className="scroll-mt-28 py-16 sm:py-24 bg-[#f7f7f7]">
         <div className="max-w-[1200px] mx-auto px-6 sm:px-8">
           <Reveal className="text-center max-w-[600px] mx-auto mb-12">
@@ -1310,6 +1302,25 @@ export default async function ExperienceDetailPage({ params, searchParams }: Pro
           <Reveal><GalleryStrip images={galleryImgs} /></Reveal>
         </section>
       )}
+
+      {/* A clinic books LAST. The method, the spot, the crew and the photos
+          make the case; only then the ticket — and with it the other runs of
+          this format, which for a travelling series are other PLACES. */}
+      {clinic && (<>
+        <section id="packages" className="scroll-mt-28 py-16 sm:py-24 bg-[#f7f7f7]">
+          <div className="max-w-[1000px] mx-auto px-6 sm:px-8">
+            <Reveal className="text-center max-w-[620px] mx-auto mb-10">
+              <p className="text-[11px] font-bold tracking-[0.25em] text-[#00afdb] mb-3">YOUR SPOT</p>
+              <h2 className="text-3xl sm:text-5xl font-black tracking-[-0.03em] text-[#00374a] mb-4">Grab your place</h2>
+              <p className="text-[16px] text-[#6a7a80]">One seat, one price — accommodation and gear you arrange yourself, so you only pay for the coaching.</p>
+            </Reveal>
+            <div className="max-w-[440px] mx-auto">
+              <ClinicTicketBox event={clinic} isMember={!!clinicMember?.contactId} paid={paid === "1"} paidBookingId={paidBookingId ?? null} />
+            </div>
+          </div>
+        </section>
+        <ClinicOtherDates event={clinic} />
+      </>)}
 
       {/* 9 · FAQ */}
       <section id="faq" className="scroll-mt-28 py-16 sm:py-24 bg-[#fff7ec]">
