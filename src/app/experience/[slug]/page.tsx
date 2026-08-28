@@ -1466,7 +1466,7 @@ export default async function ExperienceDetailPage({ params, searchParams }: Pro
                           ))}
                         </ul>
                         <p className="text-[12px] text-[#8a969b] mt-4 leading-relaxed">
-                          Not part of the ticket — tell us when you book and we&apos;ll add it to your invoice.
+                          Not part of the ticket.
                         </p>
                       </div>
                     ) : runIncluded.length === 0 ? (
