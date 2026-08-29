@@ -1427,6 +1427,7 @@ export default async function ExperienceDetailPage({ params, searchParams }: Pro
                 experienceId={experience.id}
                 experienceTitle={experience.title}
                 heroImage={heroMediaImage}
+                showAllTrips={flags.showExperience}
               />
             </Reveal>
           ) : (
@@ -1699,7 +1700,12 @@ export default async function ExperienceDetailPage({ params, searchParams }: Pro
           </div>
           <div className="flex flex-wrap items-center justify-center sm:justify-end gap-x-5 gap-y-2">
             <Link href="/widerruf" className="text-white/70 underline underline-offset-2 hover:text-white transition-colors">Withdraw from contract</Link>
-            <Link href="/experience" className="hover:text-white transition-colors">← All experiences</Link>
+            {/* Only when there is an index to go back TO. A page opened by
+                direct link (public_by_link) sits in a world that is otherwise
+                hidden, so this link would land a visitor on a login wall. */}
+            {flags.showExperience && (
+              <Link href="/experience" className="hover:text-white transition-colors">← All experiences</Link>
+            )}
           </div>
         </div>
       </footer>

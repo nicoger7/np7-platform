@@ -25,6 +25,7 @@ interface Experience {
   cancellation_policy: string | null;
   active_status: string | null;
   website_visible: boolean | null;
+  public_by_link?: boolean | null;
   notion_id: string | null;
   destination_id: string | null;
   page_template: string | null;
@@ -187,6 +188,7 @@ export default function ExperienceDetailPage({
         cancellation_policy: exp.cancellation_policy,
         active_status: exp.active_status,
         website_visible: exp.website_visible,
+        public_by_link: exp.public_by_link,
         notion_id: exp.notion_id,
         page_template: exp.page_template,
         airport_distance: exp.airport_distance,
@@ -515,6 +517,30 @@ export default function ExperienceDetailPage({
                 <span className="absolute top-0.5 w-4 h-4 rounded-full bg-white transition-all" style={{ left: exp.website_visible === false ? "2px" : "18px" }} />
               </span>
               <span className="admin-heading">{exp.website_visible === false ? "Off website (invite-only)" : "Shown on website"}</span>
+            </button>
+          </div>
+
+          {/* Open by direct link while the public Experience section is still
+              hidden. This is how ONE page goes live for a mailing without
+              revealing every trip: the detail page opens, /experience itself
+              and every other slug stay shut, and the switches above still
+              govern — unpublish or take it off the website and the door closes
+              again. Once the whole section is public this does nothing. */}
+          <div>
+            <label className={labelClass}>Open by direct link</label>
+            <p className="text-xs admin-faint mb-2">Let anyone with the link open this one page while the public Experience section is still hidden — for a mailing or an ad. The index and every other trip stay hidden. Needs Status = Published and Public website = on.</p>
+            <button
+              onClick={() => update("public_by_link", exp.public_by_link !== true)}
+              className="inline-flex items-center gap-2.5 px-4 py-2 rounded-lg text-sm font-medium border transition-colors"
+              style={{ borderColor: "var(--admin-border)", backgroundColor: "var(--admin-surface)" }}
+            >
+              <span
+                className="relative inline-block w-9 h-5 rounded-full transition-colors"
+                style={{ backgroundColor: exp.public_by_link === true ? "#0aa3c7" : "var(--admin-input-border)" }}
+              >
+                <span className="absolute top-0.5 w-4 h-4 rounded-full bg-white transition-all" style={{ left: exp.public_by_link === true ? "18px" : "2px" }} />
+              </span>
+              <span className="admin-heading">{exp.public_by_link === true ? "Anyone with the link" : "Members & team only"}</span>
             </button>
           </div>
           </div>

@@ -33,6 +33,7 @@ export function EditionBooking({
   experienceId,
   experienceTitle,
   heroImage,
+  showAllTrips = true,
 }: {
   editions: EditionLite[];
   packagesByEdition: Record<string, RealPackage[]>;
@@ -46,6 +47,10 @@ export function EditionBooking({
   experienceId: string;
   experienceTitle: string;
   heroImage?: string | null;
+  /** Is there a public experiences index to send people to? A page opened by
+   *  direct link while the world is hidden has none, and the link would land a
+   *  sold-out visitor on a login wall. */
+  showAllTrips?: boolean;
 }) {
   // The selected week is shared page-wide (see SelectedEditionProvider) so the
   // crew section below follows whichever week you pick here.
@@ -184,8 +189,10 @@ export function EditionBooking({
 
           <div className="mt-5 pt-4 border-t border-[#f0e6d6] flex flex-col sm:flex-row items-center justify-center gap-2.5 sm:gap-4 text-center">
             <a href={`mailto:experience@np-seven.com?subject=Waitlist: ${experienceTitle}${ed?.label ? " · " + ed.label : ""}`} className="text-[13px] font-bold text-[#5a6b72] hover:text-[#00374a] transition-colors">Waitlist this week — tell me if a spot opens</a>
-            <span className="hidden sm:inline text-[#d3dbde]">·</span>
-            <a href="/experience" className="text-[13px] font-bold text-[#00afdb] hover:underline">Explore other trips →</a>
+            {showAllTrips && <span className="hidden sm:inline text-[#d3dbde]">·</span>}
+            {showAllTrips && (
+              <a href="/experience" className="text-[13px] font-bold text-[#00afdb] hover:underline">Explore other trips →</a>
+            )}
           </div>
         </div>
       ) : packages.length > 0 ? (

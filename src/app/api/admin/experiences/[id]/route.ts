@@ -113,11 +113,11 @@ export async function PATCH(
     "notes", "active_status", "location_lat",
     "location_lng", "notion_id", "destination_id",
     "page_template", "airport_distance", "transport_options",
-    "website_visible",
+    "website_visible", "public_by_link",
   ];
   // Columns from migrations that may not be applied yet — if the DB rejects them
   // we strip and retry so saving never breaks before the migration is run.
-  const PENDING_OPTIONAL = ["page_template", "airport_distance", "transport_options", "website_visible"];
+  const PENDING_OPTIONAL = ["page_template", "airport_distance", "transport_options", "website_visible", "public_by_link"];
   const sanitized = Object.fromEntries(
     Object.entries(body).filter(([k]) => allowed.includes(k))
   );
