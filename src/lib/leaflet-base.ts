@@ -1,8 +1,16 @@
 /**
- * Shared Leaflet base layers for every spotguide map: the CARTO street map plus
+ * Shared Leaflet base layers for every spotguide map: a light street map plus
  * an Esri World Imagery satellite layer, with a small "Satellite / Map" toggle
  * control on the map itself. The rider's choice sticks (localStorage), so every
  * map across the spotguide opens in their preferred view.
+ *
+ * BOTH layers are Esri, and keyless on purpose. The street map used to be
+ * CARTO's voyager tiles, which were keyless when they were wired up and are
+ * not any more: CARTO now answers an unauthenticated request with a 200 and a
+ * tile that has "API KEY REQUIRED" stamped diagonally across it. Nothing
+ * errored, nothing logged — every public map just quietly filled with
+ * watermarks. A tile server that fails by SERVING something is worth
+ * remembering: monitoring a status code would never have caught it.
  *
  * Client-only (call inside the components' dynamic-leaflet effect).
  */
@@ -11,14 +19,28 @@ const PREF_KEY = "np7:map-satellite";
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 export function attachBaseLayers(L: any, map: any, opts: { labels?: boolean } = {}) {
-  const street = L.tileLayer(
-    `https://{s}.basemaps.cartocdn.com/rastertiles/${opts.labels ? "voyager" : "voyager_nolabels"}/{z}/{x}/{y}{r}.png`,
-    {
-      attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> &copy; <a href="https://carto.com/attributions">CARTO</a>',
-      subdomains: "abcd",
-      maxZoom: 19,
-    }
-  );
+  const ESRI = "https://server.arcgisonline.com/ArcGIS/rest/services";
+  const esriAttr = "Tiles &copy; Esri";
+  const base = L.tileLayer(`${ESRI}/Canvas/World_Light_Gray_Base/MapServer/tile/{z}/{y}/{x}`, {
+    attribution: esriAttr,
+    maxZoom: 19,
+  });
+  /*
+   * Labels are a SEPARATE layer here, where CARTO baked them into the tile.
+   * That is why the labelled variant is a group rather than one URL: the
+   * callers that pass `labels: false` want a quiet backdrop for their own
+   * markers, and an unlabelled Esri canvas is exactly that.
+   */
+  const street = opts.labels
+    ? L.layerGroup([
+        base,
+        L.tileLayer(`${ESRI}/Canvas/World_Light_Gray_Reference/MapServer/tile/{z}/{y}/{x}`, {
+          attribution: esriAttr,
+          maxZoom: 19,
+          pane: "overlayPane",
+        }),
+      ])
+    : base;
   // Keyless Esri imagery — the same source as our satellite hero fallbacks.
   const sat = L.tileLayer(
     "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}",
