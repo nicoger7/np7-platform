@@ -88,6 +88,22 @@ export function EditionMemoriesUploader({ editionId, initialVideoUrl }: { editio
   // before anything uploads; photo-only batches skip the popup entirely.
   type Staged = { buckets: [string, File[]][]; skipped: string[]; nPhotos: number; nVideos: number };
   const [pending, setPending] = useState<Staged | null>(null);
+  /**
+   * What did NOT land last time, kept as live File handles so Retry costs one
+   * click instead of a second drag.
+   *
+   * A browser never hands out a filesystem path — there is nothing to re-read
+   * from disk later. What it does hand out is the File itself, and that stays
+   * readable for as long as the page lives, which is exactly as long as the
+   * button is on screen. A reload drops the handles, and then re-dropping is
+   * the only way back; the report says so rather than offering a button that
+   * would fail.
+   *
+   * The video quality choice rides along, so a retry re-uses the answer already
+   * given instead of re-opening the popup to ask again.
+   */
+  const [retry, setRetry] = useState<{ staged: Staged; mode: VidQuality | null } | null>(null);
+  const retryCount = retry ? retry.staged.buckets.reduce((n, [, fs]) => n + fs.length, 0) : 0;
   const [batchPhase, setBatchPhase] = useState<"choose" | "running" | "done">("choose");
   const [batchClean, setBatchClean] = useState(true); // false → the popup says so instead of "Done ✓"
   const dropInput = useRef<HTMLInputElement>(null); // click-to-browse twin of the dropzone
@@ -202,16 +218,20 @@ export function EditionMemoriesUploader({ editionId, initialVideoUrl }: { editio
 
   // Core photo upload with an EXPLICIT target scope — the folder-drop router
   // uploads for many riders in one batch, so the state scope can't be the truth.
-  /** Returns the names that did NOT land. A network blip must never take the
+  /** Returns the FILES that did NOT land. A network blip must never take the
    *  whole batch down: each file retries, failures are collected, and the
    *  `finally` guarantees `uploading` is cleared — a stuck flag would freeze
-   *  the dropzone, which is now the only way in. */
-  async function uploadPhotoFiles(list: File[], scopeId: string): Promise<string[]> {
+   *  the dropzone, which is now the only way in.
+   *
+   *  The failures come back as File objects rather than names so the caller can
+   *  offer a Retry that re-sends the exact same bytes. Names would only be good
+   *  enough to print. */
+  async function uploadPhotoFiles(list: File[], scopeId: string): Promise<File[]> {
     if (!list.length) return [];
     setUploading(true);
     setProgress({ done: 0, total: list.length });
     const folder = folderFor(scopeId);
-    const failed: string[] = [];
+    const failed: File[] = [];
     try {
       for (let i = 0; i < list.length; i++) {
         let ok = false;
@@ -225,7 +245,7 @@ export function EditionMemoriesUploader({ editionId, initialVideoUrl }: { editio
             ok = res.ok;
           } catch { /* offline / aborted — retry */ }
         }
-        if (!ok) failed.push(list[i].name);
+        if (!ok) failed.push(list[i]);
         setProgress({ done: i + 1, total: list.length });
       }
     } finally {
@@ -336,9 +356,9 @@ export function EditionMemoriesUploader({ editionId, initialVideoUrl }: { editio
     return res.json();
   }
 
-  /** Returns the names that did NOT land, same contract as uploadPhotoFiles —
-   *  the caller folds them into the batch report. */
-  async function uploadVideoFiles(list: File[], scopeId: string, mode: VidQuality): Promise<string[]> {
+  /** Returns the FILES that did NOT land, same contract as uploadPhotoFiles —
+   *  the caller folds them into the batch report and into Retry. */
+  async function uploadVideoFiles(list: File[], scopeId: string, mode: VidQuality): Promise<File[]> {
     if (!list.length) return [];
     // In-browser compressor (WebCodecs) — loaded on demand so the admin bundle
     // stays lean. On unsupported browsers we fall back to a raw upload.
@@ -348,7 +368,7 @@ export function EditionMemoriesUploader({ editionId, initialVideoUrl }: { editio
     await acquireWakeLock();
     const onVis = () => { if (document.visibilityState === "visible") acquireWakeLock(); };
     document.addEventListener("visibilitychange", onVis);
-    const failed: string[] = [];
+    const failed: File[] = [];
     try {
       for (let i = 0; i < list.length; i++) {
         const file = list[i];
@@ -392,7 +412,7 @@ export function EditionMemoriesUploader({ editionId, initialVideoUrl }: { editio
             ok = true;
           } catch (e) { lastErr = e; }
         }
-        if (!ok) { failed.push(file.name); console.warn(`Upload failed after retries: ${file.name}`, lastErr); }
+        if (!ok) { failed.push(file); console.warn(`Upload failed after retries: ${file.name}`, lastErr); }
       }
     } finally {
       document.removeEventListener("visibilitychange", onVis);
@@ -501,7 +521,11 @@ export function EditionMemoriesUploader({ editionId, initialVideoUrl }: { editio
   async function runBatch(staged: Staged, mode: VidQuality | null): Promise<boolean> {
     setDropBusy(true);
     setDropReport(null);
+    setRetry(null);
     const report: string[] = [];
+    // Failures, still bucketed by the rider they were routed to — a retry has to
+    // preserve the routing, or a rider's clips would land in Everyone.
+    const failedBuckets: [string, File[]][] = [];
     let clean = true;
     try {
       for (const [target, files] of staged.buckets) {
@@ -509,24 +533,37 @@ export function EditionMemoriesUploader({ editionId, initialVideoUrl }: { editio
         const vids = files.filter((f) => f.type.startsWith("video/"));
         const other = files.length - imgs.length - vids.length;
         const who = target === "" ? "Everyone" : (bookings.find((b) => b.id === target)?.contact?.name || bookings.find((b) => b.id === target)?.name || "participant");
-        let bad: string[] = [];
+        let bad: File[] = [];
+        let stoppedEarly = false;
         try {
           if (imgs.length) bad = bad.concat(await uploadPhotoFiles(imgs, target));
           if (vids.length && mode) bad = bad.concat(await uploadVideoFiles(vids, target, mode));
+          // No quality answer means uploadVideoFiles was never called, so those
+          // clips did not go anywhere. Reporting them as landed would be a lie.
+          else if (vids.length) bad = bad.concat(vids);
         } catch (e) {
           console.warn("Upload batch error", e);
-          bad = bad.concat(["(the run stopped early)"]);
+          // The run died mid-bucket, so which files landed is unknowable from
+          // here. Everything goes back on the retry pile: re-sending one that
+          // already made it overwrites it with itself, which costs nothing and
+          // is far better than silently leaving a gap in someone's week.
+          stoppedEarly = true;
+          bad = [...imgs, ...vids];
         }
-        // Count only what actually landed — a report that says "✓" for files
-        // that never uploaded is worse than no report at all.
-        const okImgs = imgs.length - bad.filter((n) => imgs.some((f) => f.name === n)).length;
-        const okVids = vids.length - bad.filter((n) => vids.some((f) => f.name === n)).length;
-        if (bad.length) clean = false;
+        // Match on file IDENTITY, not name. Two riders' cameras both produce a
+        // DJI_0001.mp4, and matching by name marked the innocent one failed.
+        const badSet = new Set(bad);
+        const okImgs = imgs.filter((f) => !badSet.has(f)).length;
+        const okVids = vids.filter((f) => !badSet.has(f)).length;
+        if (bad.length) { clean = false; failedBuckets.push([target, bad]); }
         report.push(
           `${who}: ${okImgs} photo${okImgs === 1 ? "" : "s"}, ${okVids} video${okVids === 1 ? "" : "s"}${bad.length ? "" : " ✓"}${other ? ` · ${other} other file${other === 1 ? "" : "s"} skipped` : ""}`
         );
         if (bad.length) {
-          report.push(`⚠ ${bad.length} didn't upload — re-drop ${bad.slice(0, 4).join(", ")}${bad.length > 4 ? " …" : ""}`);
+          const names = bad.map((f) => f.name);
+          report.push(
+            `⚠ ${bad.length} didn't upload${stoppedEarly ? " (the run stopped early)" : ""} — ${names.slice(0, 4).join(", ")}${names.length > 4 ? " …" : ""}`
+          );
         }
       }
       for (const f of staged.skipped) { clean = false; report.push(`Folder "${f}" matches no participant — skipped.`); }
@@ -534,9 +571,37 @@ export function EditionMemoriesUploader({ editionId, initialVideoUrl }: { editio
     } finally {
       setDropBusy(false);
       setDropReport(report);
+      // Arm Retry with exactly what failed — nothing else is re-sent.
+      setRetry(
+        failedBuckets.length
+          ? {
+              staged: {
+                buckets: failedBuckets,
+                skipped: [],
+                nPhotos: failedBuckets.reduce((n, [, fs]) => n + fs.filter((f) => f.type.startsWith("image/")).length, 0),
+                nVideos: failedBuckets.reduce((n, [, fs]) => n + fs.filter((f) => f.type.startsWith("video/")).length, 0),
+              },
+              mode,
+            }
+          : null,
+      );
       loadVideos(); load(); refreshCounts();
     }
     return clean;
+  }
+
+  /** Re-send only what failed. It re-enters the same batch runner with the same
+   *  per-rider routing and the same quality answer, so a retry continues the
+   *  original drop rather than starting a new one that would ask again. */
+  async function runRetry() {
+    if (!retry || dropBusy || uploading || !!vidUp) return;
+    const again = retry;
+    const inPopup = !!pending;
+    if (inPopup) setBatchPhase("running");
+    let clean = false;
+    try { clean = await runBatch(again.staged, again.mode); }
+    catch (e) { console.warn("Retry batch failed", e); }
+    finally { if (inPopup) { setBatchClean(clean); setBatchPhase("done"); } }
   }
 
   async function handleDrop(dt: DataTransfer) {
@@ -605,6 +670,15 @@ export function EditionMemoriesUploader({ editionId, initialVideoUrl }: { editio
           {dropReport && (
             <div className="mt-2.5 text-left inline-block text-xs admin-muted space-y-0.5">
               {dropReport.map((r, i) => <p key={i}>{r}</p>)}
+              {retry && !dropBusy && (
+                /* stopPropagation is load-bearing: the whole dropzone is a
+                   click target that opens the file picker, so without it a
+                   retry would also pop a browse dialog over the top. */
+                <button type="button" onClick={(e) => { e.stopPropagation(); void runRetry(); }}
+                  className="mt-2 px-3 py-1.5 rounded-lg text-xs font-bold bg-[#0aa3c7] hover:bg-[#0aa3c7]/90 text-white">
+                  Retry {retryCount} failed
+                </button>
+              )}
             </div>
           )}
         </div>
@@ -909,9 +983,16 @@ export function EditionMemoriesUploader({ editionId, initialVideoUrl }: { editio
                 <div className="mt-2 mb-4 text-xs admin-muted space-y-0.5">
                   {(dropReport ?? []).map((r, i) => <p key={i}>{r}</p>)}
                 </div>
-                <div className="flex justify-end">
+                <div className="flex justify-end gap-2">
+                  {retry && (
+                    <button type="button" onClick={() => void runRetry()} disabled={dropBusy}
+                      className="px-4 py-2 rounded-lg text-xs font-bold bg-[#0aa3c7] hover:bg-[#0aa3c7]/90 text-white disabled:opacity-50">
+                      Retry {retryCount} failed
+                    </button>
+                  )}
                   <button type="button" onClick={() => setPending(null)}
-                    className="px-4 py-2 rounded-lg text-xs font-bold bg-[#0aa3c7] hover:bg-[#0aa3c7]/90 text-white">Close</button>
+                    style={retry ? { borderColor: "var(--admin-border)" } : undefined}
+                    className={`px-4 py-2 rounded-lg text-xs font-bold ${retry ? "border admin-muted" : "bg-[#0aa3c7] hover:bg-[#0aa3c7]/90 text-white"}`}>Close</button>
                 </div>
               </>
             )}
