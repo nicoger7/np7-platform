@@ -1067,6 +1067,18 @@ export default async function ExperienceDetailPage({ params, searchParams }: Pro
         <div className="absolute inset-x-0 bottom-0 h-1/3 bg-[radial-gradient(ellipse_70%_100%_at_50%_100%,rgba(255,150,60,0.12),transparent_70%)]" aria-hidden />
         <div className="relative w-full max-w-[1200px] mx-auto px-6 sm:px-8 pb-9 pt-28">
           <Reveal from="up">
+            {/* Every route into this page is a dead end otherwise: the header's
+                "Experiences" link goes to the landing hero, not to the list, so
+                somebody comparing trips had to use the browser's back button. */}
+            <Link
+              href="/experience#experiences"
+              className="inline-flex items-center gap-1.5 mb-5 text-[12.5px] font-bold text-white/70 hover:text-white transition-colors"
+            >
+              <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+                <path d="M19 12H5M11 18l-6-6 6-6" />
+              </svg>
+              All experiences
+            </Link>
             <div className="flex flex-wrap items-center gap-3 mb-4">
               {/* Where it happens is the first thing that decides whether a
                   clinic is for you, so a travelling series names every coast —

@@ -39,6 +39,19 @@ const FITS_END = (HERO_SCENES + N * FIT_SCENES) / TOTAL;    // fits done, dive-o
 
 const clamp = (v: number) => (v < 0 ? 0 : v > 1 ? 1 : v);
 
+/**
+ * The scroll-scrubbed video is OFF.
+ *
+ * It kept arriving late and cross-fading in over the photographs mid-scroll —
+ * a 12 MB clip pulled into memory before it can take over, landing whenever
+ * the connection allowed. Every attempt to time that handover well produced
+ * another edge (blank on mobile, a dead animation loop, a washed-out hero), so
+ * for now the hero is simply the photographs, which are a good hero and are
+ * always there. The machinery is left intact behind this flag rather than
+ * deleted, so turning it back on is one line.
+ */
+const USE_VIDEO = false;
+
 const sunWash = (
   <>
     <div className="absolute inset-0" style={{ background: "linear-gradient(180deg, rgba(255,196,46,0.78) 0%, rgba(244,123,32,0.60) 30%, rgba(0,175,219,0.42) 64%, rgba(26,163,199,0.58) 100%)" }} aria-hidden />
@@ -98,15 +111,18 @@ export function HeroFindYourFit({ src, poster, fallbackImages, fallbackFocus, ch
   useEffect(() => {
     if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) { setMode("static"); return; }
     const wrap = wrapRef.current, video = videoRef.current;
-    if (!wrap || !video) return;
+    // The loop drives the scrub, the zoom, the fit choreography AND the sun
+    // wash. Only the scrub needs a video, so a missing one must not stop it —
+    // bailing here is what blanked the hero once already.
+    if (!wrap) return;
     let duration = 0, ready = false, current = 0;
-    const onMeta = () => { duration = video.duration || 0; ready = duration > 0; video.play().then(() => video.pause()).catch(() => {}); };
+    const onMeta = () => { if (!video) return; duration = video.duration || 0; ready = duration > 0; video.play().then(() => video.pause()).catch(() => {}); };
     const onError = () => setVideoReady(false); // slideshow stays — the failure state IS the loading state
-    video.addEventListener("loadedmetadata", onMeta);
-    video.addEventListener("error", onError);
+    video?.addEventListener("loadedmetadata", onMeta);
+    video?.addEventListener("error", onError);
     // If metadata already loaded before this listener attached (cached / fast load),
     // the event won't fire again — prime it now so scrubbing actually starts.
-    if (video.readyState >= 1 && video.duration) onMeta();
+    if (video && video.readyState >= 1 && video.duration) onMeta();
     // Smoothness is memory, not codec: the whole clip (~12 MB) is pulled once
     // into a blob, and ONLY then does the video replace the slideshow — every
     // seek decodes from RAM, so the first scroll is as smooth as the last.
@@ -126,7 +142,7 @@ export function HeroFindYourFit({ src, poster, fallbackImages, fallbackFocus, ch
     // Skipped rather than returned early: `raf`, `running` and the observer are
     // declared below, so bailing out here would leave the cleanup closing over
     // bindings that were never initialised.
-    if (!frugal) fetch(video.currentSrc || video.src)
+    if (video && !frugal) fetch(video.currentSrc || video.src)
       .then((r) => (r.ok ? r.blob() : Promise.reject(new Error(String(r.status)))))
       .then((b) => {
         if (!running) return;
@@ -193,7 +209,7 @@ export function HeroFindYourFit({ src, poster, fallbackImages, fallbackFocus, ch
         // is still in flight is what made the scrub judder (Safari queues or
         // drops them). Gate on `seeking` — the eased `current` keeps gliding,
         // so the next allowed seek lands on the freshest position anyway.
-        if (video.readyState >= 1 && !video.seeking && Math.abs(video.currentTime - t) > 0.01) {
+        if (video && video.readyState >= 1 && !video.seeking && Math.abs(video.currentTime - t) > 0.01) {
           try { video.currentTime = t; } catch { /* seeking mid-load */ }
         }
       }
@@ -237,7 +253,7 @@ export function HeroFindYourFit({ src, poster, fallbackImages, fallbackFocus, ch
     const io = new IntersectionObserver(([e]) => { running = e.isIntersecting; if (running && !raf) raf = requestAnimationFrame(tick); else if (!running && raf) { cancelAnimationFrame(raf); raf = 0; } }, { threshold: 0 });
     io.observe(wrap);
     raf = requestAnimationFrame(tick);
-    return () => { running = false; cancelAnimationFrame(raf); io.disconnect(); video.removeEventListener("loadedmetadata", onMeta); video.removeEventListener("error", onError); if (blobUrl) URL.revokeObjectURL(blobUrl); };
+    return () => { running = false; cancelAnimationFrame(raf); io.disconnect(); video?.removeEventListener("loadedmetadata", onMeta); video?.removeEventListener("error", onError); if (blobUrl) URL.revokeObjectURL(blobUrl); };
   }, []);
 
   function goTo(i: number) {
@@ -314,14 +330,16 @@ export function HeroFindYourFit({ src, poster, fallbackImages, fallbackFocus, ch
       <div className="sticky top-0 h-[100svh] min-h-[560px] overflow-hidden">
         {/* video backdrop — runs the whole way, then fades out into the ocean */}
         <div ref={zoomRef} className="absolute inset-0 will-change-transform">
-          <video ref={videoRef} src={src} poster={poster} muted playsInline preload="auto" tabIndex={-1} aria-hidden disablePictureInPicture className="absolute inset-0 w-full h-full object-cover pointer-events-none" />
+          {USE_VIDEO && (
+            <video ref={videoRef} src={src} poster={poster} muted playsInline preload="auto" tabIndex={-1} aria-hidden disablePictureInPicture className="absolute inset-0 w-full h-full object-cover pointer-events-none" />
+          )}
           {/* The photos ARE the loading state: they cover the video until it is
               memory-backed, then fade away. And they are not a random slideshow:
               ONE photo per Find-your-fit element — scrolling to the next fit
               fades the next photo in, so the fallback tells the same story the
               video would (Nico, 2026-08-27). */}
           {fallbackImages && fallbackImages.length > 0 && (
-            <div className={`absolute inset-0 transition-opacity duration-1000 ${videoReady ? "opacity-0 pointer-events-none" : "opacity-100"}`} aria-hidden>
+            <div className={`absolute inset-0 transition-opacity duration-1000 ${USE_VIDEO && videoReady ? "opacity-0 pointer-events-none" : "opacity-100"}`} aria-hidden>
               {fallbackImages.map((img, i) => (
                 <div key={i}
                   className="absolute inset-0 bg-cover transition-opacity duration-1000"
