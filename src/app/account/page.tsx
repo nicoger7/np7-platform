@@ -245,8 +245,28 @@ export default async function AccountHome() {
                     <p className="text-[11px] font-bold tracking-[0.18em] uppercase text-[#9aa6ac]">Book your next trip</p>
                     <Link href="/experience" className="text-[12.5px] font-bold text-[#00afdb] hover:underline">All trips →</Link>
                   </div>
+                  {/*
+                    * Show a number that FILLS the grid.
+                    *
+                    * Every bookable trip was rendered into a two-column grid, so
+                    * three of them left one card alone in the bottom-left with a
+                    * card-sized hole beside it. The count now follows the shape:
+                    * two on a phone (one column), and a whole number of rows on
+                    * anything wider — so two or four, never three. "All trips"
+                    * above already carries whoever wants the rest.
+                    */}
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                    {bookableTrips.map((c) => <ExpTileCardCompact key={c.id} exp={c} />)}
+                    {(() => {
+                      const n = bookableTrips.length;
+                      // ≤2 stands as-is; above that, drop to an even count and cap at 4.
+                      const fit = n <= 2 ? n : Math.min(4, n - (n % 2));
+                      return bookableTrips.slice(0, fit).map((c, i) => (
+                        // A phone shows two; the rest appear once there are two columns to fill.
+                        <div key={c.id} className={i >= 2 ? "hidden sm:block" : undefined}>
+                          <ExpTileCardCompact exp={c} />
+                        </div>
+                      ));
+                    })()}
                   </div>
                 </div>
               )}
