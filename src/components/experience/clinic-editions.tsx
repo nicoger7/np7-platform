@@ -119,13 +119,16 @@ export function ClinicDateChips({ runs }: { runs: ClinicRun[] }) {
             key={r.slug ?? i}
             href="#packages"
             onClick={() => r.editionId && setId(r.editionId)}
+            /* The picked run wears the brand's warm accent rather than another
+               white outline — on a hero that is otherwise all white-on-blue it
+               is the one element that says which clinic you are looking at. */
             className={`group inline-flex items-baseline gap-2 rounded-full border px-4 py-2.5 transition-all ${
               on
-                ? "border-white/80 bg-white/15 text-white"
-                : "border-white/30 text-white/85 hover:border-white/70 hover:bg-white/10"
+                ? "border-[#ffc42e]/70 bg-[#ffc42e]/15 text-white"
+                : "border-white/30 text-white/85 hover:border-[#ffc42e]/60 hover:bg-white/10"
             }`}
           >
-            <span className="text-[13.5px] font-black tracking-[-0.01em]">{r.place || "NP7 clinic"}</span>
+            <span className={`text-[13.5px] font-black tracking-[-0.01em] ${on ? "text-[#ffc42e]" : ""}`}>{r.place || "NP7 clinic"}</span>
             <span className="text-[13px] text-white/65 group-hover:text-white/85">{r.dateLabel}</span>
           </a>
         );
