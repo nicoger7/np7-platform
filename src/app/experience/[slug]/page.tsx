@@ -1048,9 +1048,23 @@ export default async function ExperienceDetailPage({ params, searchParams }: Pro
         <div className="absolute inset-0 bg-gradient-to-t from-[#00374a] via-[#00374a]/55 to-transparent" />
         {/* soft top scrim, only for the floating header's legibility over a bright sky */}
         <div className="absolute inset-x-0 top-0 h-28 bg-gradient-to-b from-black/30 to-transparent" aria-hidden />
-        {/* warm sun glow — the brand's "sun to sea" warmth, now clearly in frame */}
-        <div className="absolute inset-0 bg-[radial-gradient(ellipse_58%_50%_at_80%_8%,rgba(244,123,32,0.34),transparent_56%)]" aria-hidden />
-        <div className="absolute inset-x-0 bottom-0 h-1/3 bg-[radial-gradient(ellipse_70%_100%_at_50%_100%,rgba(255,150,60,0.14),transparent_70%)]" aria-hidden />
+        {/* SUN TO SEA — the brand gradient the landing hero uses, on the same
+            stops (#ffc42e → #f47b20 → the ocean). Two passes: soft-light tints
+            the photograph rather than painting over it, and a light normal pass
+            underneath gives it presence where the dark scrim would otherwise
+            eat it. Warm at the top where the sky is, ocean at the bottom where
+            the title sits — so nothing costs the headline any contrast. */}
+        <div
+          className="absolute inset-0 mix-blend-soft-light"
+          style={{ background: "linear-gradient(180deg, #ffc42e 0%, #f47b20 18%, transparent 42%)" }}
+          aria-hidden
+        />
+        <div
+          className="absolute inset-x-0 top-0 h-1/3"
+          style={{ background: "linear-gradient(180deg, rgba(255,196,46,0.16) 0%, rgba(244,123,32,0.09) 45%, transparent 100%)" }}
+          aria-hidden
+        />
+        <div className="absolute inset-x-0 bottom-0 h-1/3 bg-[radial-gradient(ellipse_70%_100%_at_50%_100%,rgba(255,150,60,0.12),transparent_70%)]" aria-hidden />
         <div className="relative w-full max-w-[1200px] mx-auto px-6 sm:px-8 pb-9 pt-28">
           <Reveal from="up">
             <div className="flex flex-wrap items-center gap-3 mb-4">
