@@ -9,8 +9,12 @@ import { useAdminEnv } from "@/app/admin/env-context";
  *  browse into, and the world you're working in decides where you land (and
  *  therefore where an upload goes) without locking you out of the other. */
 const WORLDS = [
-  { id: "experience", label: "NP7 Experience", folder: "experience" },
-  { id: "hardware", label: "NP7 Hardware", folder: "hardware" },
+  // The folder names are the REAL ones in the bucket. "experience" (singular)
+  // was a folder that has never existed — the bucket has "experiences" — so
+  // File Storage opened on an empty page every time, with 637 MB of photos one
+  // level away. "products" is where hardware imagery actually lives.
+  { id: "experience", label: "NP7 Experience", folder: "experiences" },
+  { id: "hardware", label: "NP7 Hardware", folder: "products" },
 ] as const;
 
 interface FileItem {
@@ -22,6 +26,19 @@ interface FileItem {
   size: number;
   type: string | null;
   updatedAt: string;
+  /** Friendly name for a UUID folder — the API resolves memories/{editionId}
+   *  and …/p/{bookingId} to the trip and the rider. It was being computed on
+   *  every request and then thrown away here, which is why the memories tree
+   *  read as rows of random hex. */
+  label?: string | null;
+}
+
+/** Library-scale sizes. formatSize() below stops at MB, which is right for one
+ *  file and wrong for a whole folder — 668 MB is fine, 1193.4 MB is not. */
+function bigSize(bytes: number) {
+  if (bytes >= 1024 ** 3) return `${(bytes / 1024 ** 3).toFixed(2)} GB`;
+  if (bytes >= 1024 ** 2) return `${Math.round(bytes / 1024 ** 2)} MB`;
+  return `${Math.max(1, Math.round(bytes / 1024))} KB`;
 }
 
 function formatSize(bytes: number) {
@@ -35,7 +52,7 @@ export default function ImagesPage() {
   const adminEnv = useAdminEnv();
   // Hardware admins land in the hardware folder, Experience admins in theirs;
   // both can still step out to the other world or the shared root.
-  const homeFolder = adminEnv === "hardware" ? "hardware" : "experience";
+  const homeFolder = adminEnv === "hardware" ? "products" : "experiences";
   const [files, setFiles] = useState<FileItem[]>([]);
   const [folder, setFolder] = useState(homeFolder);
   const [loading, setLoading] = useState(true);
@@ -49,6 +66,13 @@ export default function ImagesPage() {
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [movingSelected, setMovingSelected] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  // What is actually in storage. Read once — it is a single aggregate, not a
+  // bucket walk — and shown above the browser so the number is there before you
+  // go looking for it.
+  const [usage, setUsage] = useState<{ folders: { folder: string; files: number; bytes: number }[]; total: { files: number; bytes: number } | null } | null>(null);
+  useEffect(() => {
+    fetch("/api/admin/storage-usage").then((r) => r.json()).then(setUsage).catch(() => {});
+  }, []);
 
   const fetchFiles = useCallback(async () => {
     setLoading(true);
@@ -238,7 +262,22 @@ export default function ImagesPage() {
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between mb-6">
         <div>
           <h1 className="text-2xl font-bold admin-heading mb-1">Images</h1>
-          <p className="text-sm admin-muted">Manage your media files</p>
+          {/* What is in here, before you go hunting for it. Memories is called
+              out on its own because it is the folder that grows by itself —
+              every trip adds to it and nothing removes it until the purge. */}
+          {usage?.total ? (
+            <p className="text-sm admin-muted">
+              {bigSize(usage.total.bytes)} across {usage.total.files.toLocaleString("en-GB")} files
+              {(() => {
+                const m = usage.folders.find((f) => f.folder === "memories");
+                return m ? (
+                  <span className="admin-faint"> · memories {bigSize(m.bytes)} ({m.files.toLocaleString("en-GB")})</span>
+                ) : null;
+              })()}
+            </p>
+          ) : (
+            <p className="text-sm admin-muted">Manage your media files</p>
+          )}
         </div>
         <div className="flex gap-3">
           <button
@@ -431,8 +470,11 @@ export default function ImagesPage() {
                     >
                       <path d="M2 6a2 2 0 012-2h5l2 2h9a2 2 0 012 2v10a2 2 0 01-2 2H4a2 2 0 01-2-2V6z" />
                     </svg>
-                    <span className="text-xs admin-muted group-hover:admin-heading truncate max-w-full transition-colors">
-                      {item.name}
+                    <span
+                      className="text-xs admin-muted group-hover:admin-heading truncate max-w-full transition-colors"
+                      title={item.label ? `${item.label} · ${item.name}` : item.name}
+                    >
+                      {item.label || item.name}
                     </span>
                   </button>
                 ))}
