@@ -1598,6 +1598,57 @@ export function BookingDetailPane({ bookingId, onBack }: { bookingId: string; on
                   <input className={inputClass} type="number" step="0.01" value={addonForm.price} onChange={(e) => setAddonForm({ ...addonForm, price: e.target.value })} />
                 </div>
               </div>
+              {/* WHICH NIGHTS. Only for dated extras — accommodation is counted in
+                  nights, gear rental in days; a transfer or a lesson has no
+                  period and gets no fields.
+
+                  This is not bookkeeping detail. The portal works out what a
+                  guest may still book by looking at the stay it can SEE, and a
+                  night added here without dates is invisible to it — so the
+                  guest can be quoted, and charged, for nights we already gave
+                  them. It is also what puts the dates on their trip page
+                  instead of a bare line. */}
+              {(() => {
+                const cat = components.find((c) => c.id === addonForm.component_id)?.category ?? "";
+                const unit = cat === "accommodation" ? "night" : cat === "gear" ? "day" : null;
+                if (!unit) return null;
+                const inD = addonForm.checkIn, outD = addonForm.checkOut;
+                const span = inD && outD
+                  ? Math.round((Date.parse(outD) - Date.parse(inD)) / 86_400_000)
+                  : null;
+                return (
+                  <div className="mb-3">
+                    <div className="grid grid-cols-1 sm:grid-cols-[160px_160px_1fr] gap-3 items-end">
+                      <div>
+                        <label className={labelClass}>Check-in</label>
+                        <input className={inputClass} type="date" value={inD}
+                          onChange={(e) => setAddonForm({ ...addonForm, checkIn: e.target.value })} />
+                      </div>
+                      <div>
+                        <label className={labelClass}>Check-out</label>
+                        <input className={inputClass} type="date" value={outD}
+                          onChange={(e) => {
+                            const v = e.target.value;
+                            const n = addonForm.checkIn && v
+                              ? Math.round((Date.parse(v) - Date.parse(addonForm.checkIn)) / 86_400_000)
+                              : null;
+                            // Quantity follows the dates so the two can never
+                            // disagree — price = unit × qty is read by nine
+                            // money surfaces.
+                            setAddonForm({ ...addonForm, checkOut: v, qty: n && n > 0 ? String(n) : addonForm.qty });
+                          }} />
+                      </div>
+                      <p className="text-[11px] admin-faint leading-snug">
+                        {span != null && span > 0
+                          ? `${span} ${unit}${span === 1 ? "" : "s"} — quantity set to match.`
+                          : span != null
+                            ? "Check-out must be after check-in."
+                            : `Which ${unit}s this covers. Without them the guest's trip page shows no dates, and the system cannot tell they already have these ${unit}s — so it could charge them again.`}
+                      </p>
+                    </div>
+                  </div>
+                );
+              })()}
               {/* The total is the number that lands on the invoice, so it is
                   shown before saving rather than discovered afterwards. */}
               {(() => {
