@@ -1049,8 +1049,7 @@ export default async function ExperienceDetailPage({ params, searchParams }: Pro
         {/* soft top scrim, only for the floating header's legibility over a bright sky */}
         <div className="absolute inset-x-0 top-0 h-28 bg-gradient-to-b from-black/30 to-transparent" aria-hidden />
         {/* warm sun glow — the brand's "sun to sea" warmth, now clearly in frame */}
-        <div className="absolute inset-0 bg-[radial-gradient(ellipse_58%_50%_at_80%_8%,rgba(255,196,46,0.30),transparent_56%)] mix-blend-soft-light" aria-hidden />
-        <div className="absolute inset-0 bg-[radial-gradient(ellipse_58%_50%_at_80%_8%,rgba(244,123,32,0.26),transparent_56%)]" aria-hidden />
+        <div className="absolute inset-0 bg-[radial-gradient(ellipse_58%_50%_at_80%_8%,rgba(244,123,32,0.34),transparent_56%)]" aria-hidden />
         <div className="absolute inset-x-0 bottom-0 h-1/3 bg-[radial-gradient(ellipse_70%_100%_at_50%_100%,rgba(255,150,60,0.14),transparent_70%)]" aria-hidden />
         <div className="relative w-full max-w-[1200px] mx-auto px-6 sm:px-8 pb-9 pt-28">
           <Reveal from="up">
@@ -1060,12 +1059,10 @@ export default async function ExperienceDetailPage({ params, searchParams }: Pro
                   bigger than a trip's, because here it is the headline fact.
                   The count chip that used to sit beside it is gone: "2 clinics"
                   is arithmetic the chips below already show. */}
-              {/* Sun yellow, not white. Everything in this hero was neutral —
-                  white eyebrow, white title, white buttons over a cool photo —
-                  so the top of the page read as a stock travel hero rather than
-                  as NP7. The warm end of "sun to sea" belongs on the first line
-                  you read; the ocean is already the photograph. */}
-              <span className={`font-bold tracking-[0.2em] uppercase text-[#ffc42e] drop-shadow-[0_2px_10px_rgba(0,0,0,0.35)] ${travellingClinic ? "text-[13px] sm:text-[15px]" : "text-[12px]"}`}>
+              {/* Same eyebrow as a trip hero — white, not a warm variant. The
+                  clinic header is meant to read as the SAME header, not as its
+                  own thing (Nico, with the Alaçatı hero as the reference). */}
+              <span className={`font-bold tracking-[0.2em] uppercase text-white/75 ${travellingClinic ? "text-[13px] sm:text-[15px]" : "text-[12px]"}`}>
                 {/* Short place names, always — one run or six. A single-run
                     series printed its full location ("AVON, HATTERAS ISLAND,
                     NORTH CAROLINA"), which reads as if the series IS that town;
