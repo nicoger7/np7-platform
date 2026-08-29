@@ -288,7 +288,10 @@ export default async function BookingDetail({ params }: Props) {
     // — the one who took the risk on a new trip — that nobody else wanted it.
     // Until the group is real, say that it's forming, and only ever count up.
     {
-      key: "crew", label: "Crew", tab: isEvent ? "crew" : "trip",
+      // On a trip the crew lives INSIDE the Trip tab, so switching tab is not
+      // enough — if that tab is already open, nothing moves. The anchor takes
+      // you to the section itself.
+      key: "crew", label: "Crew", tab: isEvent ? "crew" : "trip", anchor: "crew",
       value: crew.going > 1 ? `${crew.going} going` : "Forming",
       sub: crew.going > 1 ? "meet them" : "you're in early — bring a friend",
       tone: "cyan",

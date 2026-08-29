@@ -3,7 +3,18 @@
 import { useEffect, useState } from "react";
 
 type Tone = "coral" | "amber" | "green" | "cyan";
-export type TripTile = { key: string; label: string; value: string; sub?: string; tone: Tone; tab?: string; attention?: boolean; done?: boolean; cta?: string };
+export type TripTile = {
+  key: string; label: string; value: string; sub?: string; tone: Tone; tab?: string;
+  attention?: boolean; done?: boolean; cta?: string;
+  /**
+   * Section to scroll to after the tab switches.
+   *
+   * Switching alone is invisible when the section already lives in the tab you
+   * are on — the Crew tile sat inside the Trip tab, so on a trip whose Trip tab
+   * was already open, tapping "16 going · meet them" did nothing at all.
+   */
+  anchor?: string;
+};
 export type TripTab = { key: string; label: string; attention?: boolean; content: React.ReactNode };
 
 const LBL: Record<Tone, string> = { coral: "#993c1d", amber: "#9a6b16", green: "#0f6e56", cyan: "#0782a0" };
@@ -96,7 +107,19 @@ export function TripView({ hero, tiles, tabs, initial, title, statusLabel }: { h
             t.attention ? "bg-[#fff8ef] border-[#f4c99a] shadow-[0_2px_10px_rgba(244,123,32,0.08)]" : t.done ? "bg-white border-[#e4efe9]" : "bg-white border-[#f0e6d6]"
           }`;
           return t.tab ? (
-            <button key={t.key} onClick={() => t.tab && setActive(t.tab)} className={`${base} transition-all hover:-translate-y-0.5 hover:shadow-[0_10px_24px_rgba(0,55,74,0.07)]`}>{inner}</button>
+            <button
+              key={t.key}
+              onClick={() => {
+                if (t.tab) setActive(t.tab);
+                // After the tab has rendered — same two-step the hash links use.
+                if (t.anchor) {
+                  requestAnimationFrame(() =>
+                    document.getElementById(t.anchor as string)?.scrollIntoView({ behavior: "smooth", block: "start" }),
+                  );
+                }
+              }}
+              className={`${base} transition-all hover:-translate-y-0.5 hover:shadow-[0_10px_24px_rgba(0,55,74,0.07)]`}
+            >{inner}</button>
           ) : (
             <div key={t.key} className={base}>{inner}</div>
           );
