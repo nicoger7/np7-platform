@@ -713,16 +713,16 @@ export default async function ExperienceDetailPage({ params, searchParams }: Pro
   };
   const outcomeItems = (customOutcomes.length ? customOutcomes : OUTCOMES).filter((o) => !mediaOutcomeOff(o));
   /*
-   * The same section, cut for a clinic.
+   * The same section, for a clinic.
    *
-   * A clinic promises fewer things than a week, so it shows THREE cards — the
-   * trip's six read as padding on a two-day format. The cards themselves are
-   * the ordinary `exp_content.week_outcomes` rows, editable in the same place,
-   * so trimming here never means writing clinic copy in code: whoever edits the
-   * list controls which three appear by ordering them.
+   * It used to cut to the first three, on the theory that a clinic promises
+   * fewer things than a week and the trip's six defaults read as padding. That
+   * was right while the cards were generic defaults and wrong the moment
+   * somebody wrote real ones: four authored cards became three on the page,
+   * with the fourth dropped silently and no way to tell from the admin. The
+   * author decides how many there are — the ordering already controls priority.
    */
-  const CLINIC_CARDS = 3;
-  const clinicOutcomes = clinic ? outcomeItems.slice(0, CLINIC_CARDS) : outcomeItems;
+  const clinicOutcomes = outcomeItems;
   const clinicWeekTitle = content?.week_title?.trim() || (outcomesTpl?.title as string | undefined)?.trim() || DEFAULT_CLINIC_TITLE;
   const clinicWeekInfo = content?.week_info?.trim() || DEFAULT_CLINIC_INFO;
   /* One caveat, one field, both pages. A published schedule reads as a promise
