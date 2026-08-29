@@ -82,7 +82,18 @@ export function HeroFindYourFit({ src, poster, fallbackImages, fallbackFocus, ch
    * its own focal point already carries the headline, so it gets a fraction.
    */
   const WASH_VIDEO = 0.6;
-  const WASH_PHOTO = 0.26;
+  /*
+   * The signature sun-to-sea overlay has to read on the photographs too.
+   *
+   * 0.26 was tuned when the photos were a loading state that lasted a second —
+   * a light tint under a picture about to be replaced. They can now be the
+   * hero for the whole visit (a slow connection, Save-Data, or an arrival that
+   * came in mid-scroll), and at 0.26 the brand colour was simply absent: a
+   * plain stock photograph where the site's most recognisable treatment should
+   * be. Still below the video's 0.6, because a still frame carries more of its
+   * own colour than footage does.
+   */
+  const WASH_PHOTO = 0.5;
 
   useEffect(() => {
     if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) { setMode("static"); return; }
@@ -154,7 +165,7 @@ export function HeroFindYourFit({ src, poster, fallbackImages, fallbackFocus, ch
            * visit keeps the photographs, which are a good hero in their own
            * right. Nothing is lost — the next visit has it cached.
            */
-          if (window.scrollY > 40) { running = false; return; }
+          if (window.scrollY > 40) return;
           try { video.currentTime = keep; } catch { /* fine */ }
           video.play().then(() => video.pause()).catch(() => { /* fine — the seek still paints */ });
           setVideoReady(true); // memory-backed, decoded and scrub-ready
