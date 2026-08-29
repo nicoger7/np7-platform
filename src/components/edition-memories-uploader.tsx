@@ -15,6 +15,14 @@ import { useState, useEffect, useCallback, useRef } from "react";
  */
 type Booking = { id: string; name: string | null; contact: { name: string | null } | null };
 
+/** Library-scale sizes: a week of drone clips is gigabytes, and "18644.2 MB"
+ *  is not a number anyone reads. */
+function bigBytes(bytes: number) {
+  if (bytes >= 1024 ** 3) return `${(bytes / 1024 ** 3).toFixed(2)} GB`;
+  if (bytes >= 1024 ** 2) return `${Math.round(bytes / 1024 ** 2)} MB`;
+  return `${Math.max(1, Math.round(bytes / 1024))} KB`;
+}
+
 export function EditionMemoriesUploader({ editionId, initialVideoUrl }: { editionId: string; initialVideoUrl: string | null }) {
   const [bookings, setBookings] = useState<Booking[]>([]);
   const [scope, setScope] = useState<string>(""); // "" = everyone, else bookingId
@@ -55,6 +63,10 @@ export function EditionMemoriesUploader({ editionId, initialVideoUrl }: { editio
   const [videos, setVideos] = useState<Vid[]>([]);
   const [vidR2, setVidR2] = useState(true);
   const [vidLoading, setVidLoading] = useState(true);
+  /* What this week's memories actually occupy — photos from the catalogue,
+     videos from R2, counted together. Read once; it is two aggregates, not a
+     bucket walk. */
+  const [usage, setUsage] = useState<{ photos: { files: number; bytes: number }; video: { files: number; bytes: number }; combined: { files: number; bytes: number } } | null>(null);
   const [vidUp, setVidUp] = useState<{ name: string; pct: number; done: number; total: number; phase: "compress" | "upload" } | null>(null);
   // Per-batch video quality, chosen in the upload popup. "asis" = the files
   // were already compressed outside (Creator Suite etc.) — upload them EXACTLY
@@ -297,6 +309,9 @@ export function EditionMemoriesUploader({ editionId, initialVideoUrl }: { editio
     setVidLoading(false);
   }, [editionId, scope]);
   useEffect(() => { loadVideos(); }, [loadVideos]);
+  useEffect(() => {
+    fetch(`/api/admin/storage-usage?editionId=${editionId}`).then((r) => r.json()).then(setUsage).catch(() => {});
+  }, [editionId]);
 
   // PUT one blob straight to R2 via a presigned URL, reporting % as it goes.
   function putToR2(url: string, body: Blob, contentType: string, onPct?: (p: number) => void) {
@@ -593,6 +608,21 @@ export function EditionMemoriesUploader({ editionId, initialVideoUrl }: { editio
             </div>
           )}
         </div>
+
+        {/* What this week is costing in storage. Memories is the folder that
+            grows by itself — every trip adds to it and nothing leaves until the
+            purge — so the number belongs where the uploading happens, not only
+            in File Storage. Absent rather than zero if the read fails. */}
+        {usage?.combined ? (
+          <p className="text-xs admin-faint mb-3">
+            This week&apos;s memories: <span className="admin-muted font-semibold">{bigBytes(usage.combined.bytes)}</span>
+            {" "}across {usage.combined.files.toLocaleString("en-GB")} files
+            <span className="admin-faint">
+              {" "}· {usage.photos.files.toLocaleString("en-GB")} photos {bigBytes(usage.photos.bytes)}
+              {usage.video.files > 0 ? ` · ${usage.video.files.toLocaleString("en-GB")} videos ${bigBytes(usage.video.bytes)}` : ""}
+            </span>
+          </p>
+        ) : null}
 
         {/* Keepers requirement + 3-month retention disclaimer */}
         {(() => {

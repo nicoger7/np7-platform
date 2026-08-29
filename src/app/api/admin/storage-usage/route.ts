@@ -24,16 +24,46 @@ import { listUnderPrefix, r2VideoEnabled } from "@/lib/r2-presign";
  */
 export const runtime = "nodejs";
 
-export async function GET(_request: NextRequest) {
+export async function GET(request: NextRequest) {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user || !(await isActiveTeamMember(user.id))) {
     return Response.json({ error: "Unauthorized" }, { status: 401 });
   }
 
+  // Scoped to one edition — what THIS week's memories occupy, which is the
+  // number that means something on the week's own page. Whole-bucket totals
+  // still come back when no edition is named.
+  const editionId = request.nextUrl.searchParams.get("editionId");
+
   try {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const admin = createAdminClient() as any;
+
+    if (editionId) {
+      const { data: photoRows } = await admin.rpc("storage_usage_for_prefix", { p_prefix: `memories/${editionId}/` });
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const ph = ((photoRows ?? []) as any[])[0] ?? { files: 0, bytes: 0 };
+      const photos = { files: Number(ph.files ?? 0), bytes: Number(ph.bytes ?? 0) };
+      let video = { files: 0, bytes: 0 };
+      if (r2VideoEnabled()) {
+        try {
+          const [done, raw] = await Promise.all([
+            listUnderPrefix(`_video/${editionId}/`),
+            listUnderPrefix(`_vidraw/${editionId}/`),
+          ]);
+          const all = [...done, ...raw];
+          video = { files: all.length, bytes: all.reduce((n, o) => n + (o.size || 0), 0) };
+        } catch { /* a usage number must never break the page */ }
+      }
+      return Response.json({
+        scope: "edition",
+        photos,
+        video,
+        combined: { files: photos.files + video.files, bytes: photos.bytes + video.bytes },
+      });
+    }
+
     const { data, error } = await admin.rpc("storage_usage_by_folder");
     if (error) throw error;
     // eslint-disable-next-line @typescript-eslint/no-explicit-any

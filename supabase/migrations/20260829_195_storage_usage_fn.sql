@@ -25,3 +25,20 @@ $fn$;
 
 revoke all on function storage_usage_by_folder() from public, anon, authenticated;
 grant execute on function storage_usage_by_folder() to service_role;
+
+-- The same reading, scoped to one prefix — "what does THIS week's memories
+-- occupy", which is the number that means something on the week's own page.
+create or replace function storage_usage_for_prefix(p_prefix text)
+returns table(files bigint, bytes bigint)
+language sql
+security definer
+set search_path = storage, public
+as $fn$
+  select count(*)::bigint,
+         coalesce(sum((metadata->>'size')::bigint), 0)::bigint
+    from storage.objects
+   where bucket_id = 'assets' and name like p_prefix || '%';
+$fn$;
+
+revoke all on function storage_usage_for_prefix(text) from public, anon, authenticated;
+grant execute on function storage_usage_for_prefix(text) to service_role;

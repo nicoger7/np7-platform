@@ -800,19 +800,43 @@ export async function getTripGalleryGroupsForBooking(editionId: string, viewerBo
 
 export type TripVideo = { url: string; poster: string | null; stem: string };
 
-/** Ready (compressed) trip videos a member can watch: their own personal clips
-    plus the week's shared ones. Raw uploads still being compressed are excluded
-    (they only exist under _vidraw/ until jibe's box finishes). */
+/** Ready (compressed) trip videos a member can watch, under the SAME sharing
+    rule as the photos: their own clips, the week's shared ones, and the clips
+    of every OTHER participant who has crew-sharing switched on. Raw uploads
+    still being compressed are excluded (they only exist under _vidraw/ until
+    jibe's box finishes).
+
+    Videos used to stop at "own + everyone". On a week where every clip had been
+    filed against a rider — which is what the uploader does when you drop a
+    participant folder — that meant each person saw only their own handful and
+    anybody without clips of their own saw nothing at all, while the same
+    week's PHOTOS were shared freely. One toggle, both media types. */
 export async function getTripVideosForBooking(editionId: string, viewerBookingId: string): Promise<TripVideo[]> {
   const { listUnderPrefix, cdnUrlFor, r2VideoEnabled } = await import("./r2-presign");
   if (!r2VideoEnabled()) return [];
-  const prefixes = [`_video/${editionId}/p/${viewerBookingId}/`, `_video/${editionId}/`];
+
+  // Same query and same rule as getTripGalleryGroupsForBooking — tolerant of a
+  // pre-migration bucket where the column is absent (default = shared).
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const db = createAdminClient() as any;
+  let rows = await db.from("exp_bookings").select("id, photos_shared").eq("edition_id", editionId);
+  if (rows.error) rows = await db.from("exp_bookings").select("id").eq("edition_id", editionId);
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const sharers = ((rows.data ?? []) as any[]).filter((r) => r.id !== viewerBookingId && r.photos_shared !== false);
+
+  const prefixes = [
+    `_video/${editionId}/p/${viewerBookingId}/`,   // yours first
+    `_video/${editionId}/`,                        // then the week's shared pool
+    ...sharers.map((r) => `_video/${editionId}/p/${r.id}/`),
+  ];
   const seen = new Set<string>();
   const out: TripVideo[] = [];
   for (const pfx of prefixes) {
     const objs = await listUnderPrefix(pfx).catch(() => []);
-    // The "Everyone" prefix recurses into /p/… — keep only this member's own subtree there.
-    const scoped = pfx.endsWith(`/p/${viewerBookingId}/`)
+    // The "Everyone" prefix recurses into /p/… — at that level keep only the
+    // shared clips, since the per-rider folders are listed explicitly above
+    // (and a rider who does NOT share must not leak in through the recursion).
+    const scoped = pfx.includes(`/p/`)
       ? objs
       : objs.filter((o) => !o.key.includes(`/${editionId}/p/`));
     const posters = new Map(
