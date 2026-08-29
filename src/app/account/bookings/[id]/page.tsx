@@ -232,12 +232,19 @@ export default async function BookingDetail({ params }: Props) {
   const tiles: TripTile[] = [
     {
       key: "payment", label: "Payment", tab: "payment",
-      value: fullyPaid ? "Paid" : nextMilestone ? (money(dueNow, cur) ?? "—") : "—",
-      sub: fullyPaid ? "all done" : dueShort ? `due ${dueShort}` : undefined,
+      /*
+       * A clinic is bought outright, so it has no deposit→balance milestones.
+       * This tile was reading the TRIP plan regardless, and computePaymentPlan
+       * falls back to a €300 deposit when the package has none — which is why
+       * an $850 ticket showed "USD 300" while the hero and the panel below it
+       * both said 850. What is owed on an event is simply what is unpaid.
+       */
+      value: fullyPaid ? "Paid" : isEvent ? (money(eventOutstanding, cur) ?? "—") : nextMilestone ? (money(dueNow, cur) ?? "—") : "—",
+      sub: fullyPaid ? "all done" : isEvent ? (eventPartPaid ? "balance" : "to secure your spot") : dueShort ? `due ${dueShort}` : undefined,
       tone: fullyPaid ? "green" : !depositPaid ? "coral" : "amber",
       done: fullyPaid,
-      attention: !fullyPaid && !!nextMilestone,
-      cta: !fullyPaid && nextMilestone ? (depositPaid ? "Pay balance" : "Pay now") : undefined,
+      attention: !fullyPaid && (isEvent || !!nextMilestone),
+      cta: fullyPaid ? undefined : isEvent ? "Pay now" : nextMilestone ? (depositPaid ? "Pay balance" : "Pay now") : undefined,
     },
     ...(isEvent ? [] : [{
       key: "flights", label: "Arrival", tab: (tripStarted ? undefined : "prep") as TripTile["tab"],
@@ -286,9 +293,24 @@ export default async function BookingDetail({ params }: Props) {
         {fullyPaid
           ? "Paid by card at booking. Your receipt came from Stripe; anything else you need is under Docs."
           : eventPartPaid
-            ? `Your deposit is paid and your spot is confirmed. The rest${eventBalanceDueLabel ? ` is due ${eventBalanceDueLabel}` : " is due before the clinic"} — we'll send you a link, or you can settle it with us directly.`
+            ? `Your spot is confirmed. The rest${eventBalanceDueLabel ? ` is due ${eventBalanceDueLabel}` : " is due before the clinic"}.`
             : "Your spot is held once the ticket is paid."}
       </p>
+      {/* The panel used to state the amount owed and stop there — the tile said
+          "Pay now", switched to this tab, and offered nothing to pay with. The
+          balance page re-derives what is outstanding server-side, so the link
+          can never carry a stale amount. */}
+      {!fullyPaid && b.experience?.slug && (
+        <a
+          href={`/experience/${b.experience.slug}/balance?booking=${b.id}`}
+          className="mt-4 inline-flex items-center gap-2 rounded-full bg-[#00374a] px-5 py-3 text-[14px] font-bold text-white hover:-translate-y-0.5 transition-transform"
+        >
+          Pay {money(Math.max(0, (total ?? 0) - paid), cur)}
+          <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+            <path d="M5 12h14M13 6l6 6-6 6" />
+          </svg>
+        </a>
+      )}
     </div>
   );
 
