@@ -1069,16 +1069,24 @@ export default async function ExperienceDetailPage({ params, searchParams }: Pro
           <Reveal from="up">
             {/* Every route into this page is a dead end otherwise: the header's
                 "Experiences" link goes to the landing hero, not to the list, so
-                somebody comparing trips had to use the browser's back button. */}
-            <Link
-              href="/experience#experiences"
-              className="inline-flex items-center gap-1.5 mb-5 text-[12.5px] font-bold text-white/70 hover:text-white transition-colors"
-            >
-              <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
-                <path d="M19 12H5M11 18l-6-6 6-6" />
-              </svg>
-              All experiences
-            </Link>
+                somebody comparing trips had to use the browser's back button.
+
+                Hidden when there is no list to go back to. A page opened by
+                direct link (public_by_link) is public while /experience itself
+                still redirects to the login wall, so for the one visitor this
+                link matters most to — someone arriving cold from a mailing —
+                it was the fastest route out of the page. */}
+            {flags.showExperience && (
+              <Link
+                href="/experience#experiences"
+                className="inline-flex items-center gap-1.5 mb-5 text-[12.5px] font-bold text-white/70 hover:text-white transition-colors"
+              >
+                <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+                  <path d="M19 12H5M11 18l-6-6 6-6" />
+                </svg>
+                All experiences
+              </Link>
+            )}
             <div className="flex flex-wrap items-center gap-3 mb-4">
               {/* Where it happens is the first thing that decides whether a
                   clinic is for you, so a travelling series names every coast —
