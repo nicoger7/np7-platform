@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { Slideshow } from "@/components/experience/slideshow";
+import { FOCUS_CLASS, FOCUS_CSS, focusVars, parseFocus } from "@/lib/placement";
 import { useEffect, useRef, useState } from "react";
 
 /**
@@ -59,7 +60,7 @@ const sunWash = (
   </>
 );
 
-export function HeroFindYourFit({ src, poster, fallbackImages, fallbackFocus, children }: { src: string; poster: string; fallbackImages?: string[]; fallbackFocus?: (string | null)[]; children?: React.ReactNode }) {
+export function HeroFindYourFit({ src, poster, fallbackImages, fallbackFocus, children }: { src: string; poster: string; fallbackImages?: string[]; fallbackFocus?: (string | Record<string, string> | null)[]; children?: React.ReactNode }) {
   const wrapRef = useRef<HTMLElement>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
   const zoomRef = useRef<HTMLDivElement>(null);
@@ -96,17 +97,27 @@ export function HeroFindYourFit({ src, poster, fallbackImages, fallbackFocus, ch
    */
   const WASH_VIDEO = 0.6;
   /*
-   * The signature sun-to-sea overlay has to read on the photographs too.
+   * The signature sun-to-sea overlay, at full strength.
    *
-   * 0.26 was tuned when the photos were a loading state that lasted a second —
-   * a light tint under a picture about to be replaced. They can now be the
-   * hero for the whole visit (a slow connection, Save-Data, or an arrival that
-   * came in mid-scroll), and at 0.26 the brand colour was simply absent: a
-   * plain stock photograph where the site's most recognisable treatment should
-   * be. Still below the video's 0.6, because a still frame carries more of its
-   * own colour than footage does.
+   * This was 0.26 when the photographs were a one-second loading state — a
+   * light tint under a picture about to be replaced — then 0.5 when they
+   * became a likely final state. With the video off they are the ONLY state,
+   * so the two strengths have nothing left to distinguish and holding the
+   * photo one back just makes the brand overlay quieter than the reference.
+   * Same value as the video's now.
    */
-  const WASH_PHOTO = 0.5;
+  const WASH_PHOTO = 0.6;
+  /*
+   * How much of the darkening behind the logo and headline is kept.
+   *
+   * The scrim dropped to ZERO the moment the video took over, so it was only
+   * ever a stand-in for the second or two the photograph was on screen — and
+   * it was tuned to be safe rather than pretty. Now that the photograph is the
+   * hero permanently, that full-strength version reads as a heavy shadow
+   * behind the logo. The wash above already darkens the middle, and the copy
+   * carries its own text-shadow, so this only has to take the edge off.
+   */
+  const PHOTO_SCRIM = 0.45;
 
   useEffect(() => {
     if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) { setMode("static"); return; }
@@ -218,7 +229,7 @@ export function HeroFindYourFit({ src, poster, fallbackImages, fallbackFocus, ch
       // hero logo fades out over the first part of its scene
       const he = clamp(p / (HERO_END * 0.7));
       // the scrim exists for the copy, so it leaves with the copy
-      if (heroScrimRef.current) heroScrimRef.current.style.opacity = String(videoReadyRef.current ? 0 : Math.max(1 - he * 1.2, 0));
+      if (heroScrimRef.current) heroScrimRef.current.style.opacity = String(videoReadyRef.current ? 0 : PHOTO_SCRIM * Math.max(1 - he * 1.2, 0));
       if (heroRef.current) { heroRef.current.style.opacity = String(Math.max(1 - he * 1.2, 0)); heroRef.current.style.transform = `translateY(${-70 * he}px)`; heroRef.current.style.pointerEvents = he > 0.9 ? "none" : "auto"; }
       if (cueRef.current) cueRef.current.style.opacity = String(Math.max(1 - p / (HERO_END * 0.4), 0));
 
@@ -306,7 +317,7 @@ export function HeroFindYourFit({ src, poster, fallbackImages, fallbackFocus, ch
   if (mode === "static") {
     return (
       <>
-        <section className="relative w-full h-[100svh] min-h-[640px] overflow-hidden">
+        <section className="relative w-full h-[100dvh] min-h-[640px] overflow-hidden">
           {fallbackImages && fallbackImages.length > 1
             ? <div className="absolute inset-0" aria-hidden><Slideshow images={fallbackImages} interval={6000} /></div>
             : <div className="absolute inset-0 bg-cover bg-center" style={{ backgroundImage: `url('${poster}')` }} aria-hidden />}
@@ -326,8 +337,15 @@ export function HeroFindYourFit({ src, poster, fallbackImages, fallbackFocus, ch
   }
 
   return (
-    <section ref={wrapRef} id="find-your-fit" className="relative w-full bg-[#1aa3c7]" style={{ height: `${TOTAL * 100}vh` }}>
-      <div className="sticky top-0 h-[100svh] min-h-[560px] overflow-hidden">
+    <section ref={wrapRef} id="find-your-fit" className="relative w-full bg-[#00374a]" style={{ height: `${TOTAL * 100}vh` }}>
+      <style>{FOCUS_CSS}</style>
+      {/* dvh, not svh. `svh` is the SMALLEST viewport — the height with the
+          browser chrome showing — so the moment a phone hides its address bar
+          the sticky pane is shorter than the screen and the section's own
+          background shows through underneath it. That is the cyan bar along the
+          bottom, present for the whole scroll. `dvh` tracks the viewport as the
+          chrome comes and goes, so the pane always fills it. */}
+      <div className="sticky top-0 h-[100dvh] min-h-[560px] overflow-hidden">
         {/* video backdrop — runs the whole way, then fades out into the ocean */}
         <div ref={zoomRef} className="absolute inset-0 will-change-transform">
           {USE_VIDEO && (
@@ -340,10 +358,21 @@ export function HeroFindYourFit({ src, poster, fallbackImages, fallbackFocus, ch
               video would (Nico, 2026-08-27). */}
           {fallbackImages && fallbackImages.length > 0 && (
             <div className={`absolute inset-0 transition-opacity duration-1000 ${USE_VIDEO && videoReady ? "opacity-0 pointer-events-none" : "opacity-100"}`} aria-hidden>
+              {/* Framing per screen shape, not one crop for every device. A
+                  landscape photo on a 9:19.5 phone is scaled up hard and loses
+                  most of its width, so the point of interest a desktop crop
+                  keeps can end up off-screen. Each entry may now be a plain
+                  string (the desktop crop, exactly as before) or
+                  {phone,tablet,desktop} — the same shape the trip hero already
+                  uses, so the editor idiom is the one that exists. */}
               {fallbackImages.map((img, i) => (
                 <div key={i}
-                  className="absolute inset-0 bg-cover transition-opacity duration-1000"
-                  style={{ backgroundImage: `url('${img}')`, backgroundPosition: fallbackFocus?.[i] || "50% 50%", opacity: Math.min(bgIdx, fallbackImages.length - 1) === i ? 1 : 0 }} />
+                  className={`absolute inset-0 bg-cover transition-opacity duration-1000 ${FOCUS_CLASS}`}
+                  style={{
+                    backgroundImage: `url('${img}')`,
+                    ...focusVars(parseFocus(fallbackFocus?.[i] ?? "50% 50%")),
+                    opacity: Math.min(bgIdx, fallbackImages.length - 1) === i ? 1 : 0,
+                  }} />
               ))}
             </div>
           )}
@@ -370,7 +399,7 @@ export function HeroFindYourFit({ src, poster, fallbackImages, fallbackFocus, ch
           ref={heroScrimRef}
           className="absolute inset-0 z-[9] pointer-events-none"
           style={{
-            opacity: videoReady ? 0 : 1,
+            opacity: videoReady ? 0 : PHOTO_SCRIM,
             background: "radial-gradient(ellipse 74% 52% at 50% 60%, rgba(0,24,34,0.66) 0%, rgba(0,24,34,0.40) 42%, rgba(0,24,34,0) 76%)",
           }}
           aria-hidden
