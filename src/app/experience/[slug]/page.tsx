@@ -1060,7 +1060,13 @@ export default async function ExperienceDetailPage({ params, searchParams }: Pro
                   The count chip that used to sit beside it is gone: "2 clinics"
                   is arithmetic the chips below already show. */}
               <span className={`font-bold tracking-[0.2em] uppercase text-white/75 ${travellingClinic ? "text-[13px] sm:text-[15px] text-white/90" : "text-[12px]"}`}>
-                {travellingClinic ? clinicPlaces.join(" · ") : (clinic?.location ?? experience.location)}
+                {/* Short place names, always — one run or six. A single-run
+                    series printed its full location ("AVON, HATTERAS ISLAND,
+                    NORTH CAROLINA"), which reads as if the series IS that town;
+                    add a second run and the same line silently became "AVON ·
+                    HOOD RIVER". Same shape either way now, and it never
+                    over-claims where the format happens. */}
+                {clinicPlaces.length ? clinicPlaces.join(" · ") : (clinic?.location ?? experience.location)}
               </span>
               {clinicRuns.length > 0 ? null : multi ? (
                 <span className="inline-flex items-center gap-1.5 text-[12px] font-semibold px-3 py-1 rounded-full text-[#5fd0e8] bg-[#00afdb]/15 border border-[#00afdb]/30">
@@ -1475,12 +1481,24 @@ export default async function ExperienceDetailPage({ params, searchParams }: Pro
                         style the page already uses for highlights. */}
                     {runIncluded.length > 0 && (
                       <>
-                        <p className="text-[11px] font-bold tracking-[0.25em] text-[#00afdb] mt-8 mb-3">WHAT&apos;S INCLUDED</p>
-                        <div className="flex flex-wrap gap-2">
+                        <p className="text-[11px] font-bold tracking-[0.25em] text-[#00afdb] mt-8 mb-4">WHAT&apos;S INCLUDED</p>
+                        {/* A checklist, not pills. These lines are sentences —
+                            "Small group — eight riders maximum, so you are never
+                            queuing for attention" — and a pill around a sentence
+                            is a lozenge, not a chip. Ticks also say the thing
+                            the shape was trying to: each of these you GET. */}
+                        <ul className="grid gap-x-8 gap-y-3 sm:grid-cols-2">
                           {runIncluded.map((line) => (
-                            <span key={line} className="text-[12.5px] font-semibold text-[#00374a] bg-[#00afdb]/10 px-3.5 py-1.5 rounded-full">{line}</span>
+                            <li key={line} className="flex items-start gap-2.5">
+                              <span className="mt-[3px] shrink-0 grid place-items-center w-[18px] h-[18px] rounded-full bg-[#00afdb]/12 text-[#0aa3c7]">
+                                <svg className="w-[11px] h-[11px]" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+                                  <path d="M20 6L9 17l-5-5" />
+                                </svg>
+                              </span>
+                              <span className="text-[14.5px] text-[#4a5b62] leading-[1.45]">{line}</span>
+                            </li>
                           ))}
-                        </div>
+                        </ul>
                       </>
                     )}
                   </div>

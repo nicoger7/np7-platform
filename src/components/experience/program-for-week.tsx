@@ -136,7 +136,7 @@ function useParallax(enabled: boolean) {
 
 function Arrow() {
   return (
-    <svg className="w-3.5 h-3.5 shrink-0 text-[#00afdb]/45" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+    <svg className="w-3.5 h-3.5 shrink-0 text-[#f47b20]/70" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
       <path d="M5 12h14M13 6l6 6-6 6" />
     </svg>
   );
@@ -340,7 +340,11 @@ export function ProgramForWeek({
                   Day {i + 1}
                 </span>
                 {when && (
-                  <span className="inline-flex items-center text-[11px] font-bold tracking-[0.14em] uppercase text-[#0aa3c7] bg-[#00afdb]/10 rounded-md px-2.5 py-1.5">
+                  /* Warm against the teal stamp beside it — NP7 runs sun-to-sea,
+                     not all-cyan, and a second cyan chip made the pair read as
+                     one flat block. #9a4d0c rather than the brand #f47b20
+                     because orange on white is ~2.9:1 and this is 11px text. */
+                  <span className="inline-flex items-center text-[11px] font-bold tracking-[0.14em] uppercase text-[#9a4d0c] bg-[#f47b20]/[0.13] rounded-md px-2.5 py-1.5">
                     {when}
                   </span>
                 )}
@@ -370,7 +374,7 @@ export function ProgramForWeek({
         >
           {folded ? `Show all ${days.length} days` : "Show fewer days"}
           <svg
-            className={`w-4 h-4 text-[#0aa3c7] transition-transform ${folded ? "" : "rotate-180"}`}
+            className={`w-4 h-4 text-[#f47b20] transition-transform ${folded ? "" : "rotate-180"}`}
             viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden
           >
             <path d="M6 9l6 6 6-6" />

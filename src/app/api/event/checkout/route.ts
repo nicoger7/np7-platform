@@ -26,6 +26,9 @@ type Body = {
   firstName?: string; lastName?: string; email?: string; phone?: string;
   /** Participant's DOB — decides whether a guardian is legally required. */
   dob?: string | null;
+  /** Adults-only runs ask for this instead of a date of birth. Only honoured
+   *  when the EDITION actually says adults_only — never trusted on its own. */
+  adultConfirmed?: boolean;
   guardianName?: string | null; guardianEmail?: string | null;
   guardianPhone?: string | null; guardianRelationship?: string | null;
 };
@@ -63,12 +66,12 @@ export async function POST(request: NextRequest) {
   // would be charged one price for a different weekend.
   const { data: edRows } = await db
     .from("exp_editions")
-    .select("id,slug,label,price,date_start,date_end,max_spots")
+    .select("id,slug,label,price,date_start,date_end,max_spots,adults_only")
     .eq("experience_id", exp.id)
     .eq("kind", "event")
     .eq("status", "published")
     .order("date_start");
-  type EdRow = { id: string; slug: string | null; label: string | null; price: number | null; date_start: string | null; date_end: string | null; max_spots: number | null };
+  type EdRow = { id: string; slug: string | null; label: string | null; price: number | null; date_start: string | null; date_end: string | null; max_spots: number | null; adults_only?: boolean | null };
   const editions = (edRows ?? []) as EdRow[];
   const wantSlug = typeof body.editionSlug === "string" ? body.editionSlug : null;
   const today = new Date().toISOString().slice(0, 10);
@@ -112,9 +115,21 @@ export async function POST(request: NextRequest) {
     guardianPhone: typeof body.guardianPhone === "string" ? body.guardianPhone.trim() : null,
     guardianRelationship: typeof body.guardianRelationship === "string" ? body.guardianRelationship.trim() : null,
   };
-  const participantProblem = checkParticipant(dob, eventDate, guardian);
+  /*
+   * On an adults-only run there is no date of birth to check — the buyer
+   * asserts capacity instead. The flag is re-read from the EDITION here rather
+   * than taken from the request: the browser decides what to ask for, the
+   * server decides what it accepts, and a posted "adultConfirmed" against a run
+   * that does take juniors must not skip the guardian rules.
+   */
+  const adultsOnly = edition?.adults_only === true;
+  const adultConfirmed = body.adultConfirmed === true;
+  if (adultsOnly && !adultConfirmed) {
+    return bad("Please confirm the participant is 18 or over — this clinic is for adults.", 400);
+  }
+  const participantProblem = adultsOnly ? null : checkParticipant(dob, eventDate, guardian);
   if (participantProblem) return bad(participantProblem, 400);
-  const minor = isMinorOn(dob, eventDate) === true;
+  const minor = !adultsOnly && isMinorOn(dob, eventDate) === true;
 
   // For a minor the GUARDIAN is the contracting party, so the account, the
   // confirmation email and the waiver invitation must reach them — not the
@@ -258,7 +273,10 @@ export async function POST(request: NextRequest) {
     status: mode === "standby" ? "reserved" : "lead",
     agreed_price: price,
     event_date_ids: selected,
-    participant_dob: dob,
+    // Null on an adults-only run — there is no date to store, and the buyer's
+    // 18+ assertion is recorded in the notes below so the file still shows what
+    // was agreed at checkout.
+    participant_dob: adultsOnly ? null : dob,
     // For a minor the guardian is the contracting party — recorded on the
     // booking so every downstream surface (invoice, emails, waiver) knows who
     // is actually responsible, not just who rides.
@@ -266,7 +284,7 @@ export async function POST(request: NextRequest) {
     guardian_email: minor ? guardian.guardianEmail : null,
     guardian_phone: minor ? guardian.guardianPhone : null,
     guardian_relationship: minor ? guardian.guardianRelationship : null,
-    notes: `Event ticket (${mode}) · ${chosenLabel} · phone: ${phone} · ${
+    notes: `Event ticket (${mode})${adultsOnly ? " · confirmed 18+ at checkout (adults-only run)" : ""} · ${chosenLabel} · phone: ${phone} · ${
       mode === "standby"
         ? `deposit ${eur(amount, exp.currency)}`
         : plan.partPayment

@@ -132,6 +132,9 @@ interface Edition {
   /** The run's own paragraph on the public page. Null = inherit the
    *  experience's, which a travelling series must not do. */
   description?: string | null;
+  /** No under-18s on this run — the ticket then asks for one 18+ confirmation
+   *  instead of a date of birth. */
+  adults_only?: boolean | null;
   video_analysis?: boolean | null;
   photoshoot?: boolean | null;
   spots_taken: number;
@@ -961,6 +964,7 @@ export default function EditionDetailPage({
         event_deposit_pct: edition.event_deposit_pct ?? null,
         event_refund_pct: edition.event_refund_pct ?? null,
         description: edition.description ?? null,
+        adults_only: edition.adults_only ?? false,
       }),
     });
     setSaving(false);
@@ -1350,6 +1354,27 @@ export default function EditionDetailPage({
               <p className="text-[11px] admin-faint mt-1">
                 Describes THIS run, not the series. Empty falls back to the experience&apos;s description.
               </p>
+            </div>
+          )}
+
+          {isEventEdition && (
+            <div>
+              <label className="flex items-start gap-2.5 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={edition.adults_only === true}
+                  onChange={(e) => update("adults_only", e.target.checked)}
+                  className="mt-0.5 w-4 h-4 accent-[#0aa3c7] shrink-0"
+                />
+                <span>
+                  <span className="block text-[13px] font-bold admin-heading">Adults only (18+)</span>
+                  <span className="block text-[11px] admin-faint mt-0.5">
+                    The ticket asks for a single &quot;18 or over&quot; confirmation instead of a date of birth.
+                    Leave OFF if under-18s can join — then we ask for the date of birth and collect the
+                    guardian&apos;s details, because a minor cannot sign the waiver themselves.
+                  </span>
+                </span>
+              </label>
             </div>
           )}
 

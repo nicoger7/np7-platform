@@ -15,7 +15,7 @@ export type TicketDate = { id: string; label: string; sub?: string };
  * "we'll follow up" when Stripe isn't configured yet).
  */
 export function EventTicket({
-  experienceId, mode, priceLabel, depositLabel, balanceLabel, refundLabel, dates, fixedDate, isMember, eventDate, editionSlug = null, location = null,
+  experienceId, mode, priceLabel, depositLabel, balanceLabel, refundLabel, dates, fixedDate, isMember, eventDate, editionSlug = null, location = null, adultsOnly = false,
   partPayment = false, dueNowLabel = null, planBalanceLabel = null, balanceDueLabel = null,
 }: {
   experienceId: string;
@@ -32,6 +32,10 @@ export function EventTicket({
   /** Which clinic in the series this box is selling — the server prices and
    *  books against THIS edition rather than guessing. */
   editionSlug?: string | null;
+  /** This run takes no under-18s, so one confirmation replaces the date of
+   *  birth. The server re-reads the run's own flag — this only decides what to
+   *  ASK for, never what is accepted. */
+  adultsOnly?: boolean;
   /** Where the event is — only used to pick a sensible default dial code. */
   location?: string | null;
   /** A fixed-date clinic sold as deposit-now, balance-before. Read off the
@@ -61,14 +65,15 @@ export function EventTicket({
   // to. The form asks everyone their date of birth and reveals the guardian
   // block only when it's needed, so adults aren't taxed for the juniors.
   const [dob, setDob] = useState("");
+  const [adultOk, setAdultOk] = useState(false);
   const [gName, setGName] = useState("");
   const [gEmail, setGEmail] = useState("");
   const [gPhone, setGPhone] = useState("");
   const [gRel, setGRel] = useState("");
-  const minor = isMinorOn(dob || null, eventDate ?? null);
+  const minor = !adultsOnly && isMinorOn(dob || null, eventDate ?? null);
   const fullPhone = joinPhone(dial, phone);
   const fullGPhone = joinPhone(gDial, gPhone);
-  const guardianProblem = dob ? checkParticipant(dob, eventDate ?? null, { guardianName: gName, guardianEmail: gEmail, guardianPhone: fullGPhone, guardianRelationship: gRel }) : null;
+  const guardianProblem = adultsOnly ? null : dob ? checkParticipant(dob, eventDate ?? null, { guardianName: gName, guardianEmail: gEmail, guardianPhone: fullGPhone, guardianRelationship: gRel }) : null;
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [done, setDone] = useState(false);
@@ -87,7 +92,8 @@ export function EventTicket({
           editionSlug,
           dateIds: mode === "standby" ? picked : fixedDate ? [fixedDate.id] : [],
           firstName, lastName, email, phone: fullPhone,
-          dob: dob || null,
+          dob: adultsOnly ? null : dob || null,
+          adultConfirmed: adultsOnly ? adultOk : undefined,
           guardianName: gName || null, guardianEmail: gEmail || null,
           guardianPhone: fullGPhone || null, guardianRelationship: gRel || null,
         }),
@@ -113,7 +119,7 @@ export function EventTicket({
   const input = "w-full rounded-xl border border-[#dfe6e9] bg-white text-[#0a2a33] placeholder:text-[#9aa6ac] px-4 py-3 text-[15px] outline-none focus:border-[#00afdb] transition-colors";
   const canSubmit = (mode === "fixed" || picked.length > 0)
     && (isMember || (firstName.trim() && lastName.trim() && /\S+@\S+\.\S+/.test(email)))
-    && !!dob && !guardianProblem;
+    && (adultsOnly ? adultOk : !!dob) && !guardianProblem;
 
   return (
     <form onSubmit={submit} className="rounded-2xl bg-white border border-[#e3e9ec] shadow-[0_18px_50px_rgba(0,40,55,0.1)] p-6 sm:p-7">
@@ -188,10 +194,28 @@ export function EventTicket({
           to live inside the guest-only block, which left members permanently
           unable to book. */}
       <div className="mt-5 grid gap-2.5 sm:grid-cols-2">
-        <label className="sm:col-span-2 block">
-          <span className="block text-[12.5px] font-semibold text-[#5a6b72] mb-1">Participant&apos;s date of birth</span>
-          <input className={`${input} w-full`} type="date" value={dob} onChange={(e) => setDob(e.target.value)} max={eventDate ?? undefined} />
-        </label>
+        {adultsOnly ? (
+          /* Nothing here needs a date. The question was only ever "is this a
+             minor", and on a run that takes none the answer is fixed — so it
+             becomes one tap instead of a date picker on every adult. */
+          <label className="sm:col-span-2 flex items-start gap-3 cursor-pointer">
+            <input
+              type="checkbox"
+              checked={adultOk}
+              onChange={(e) => setAdultOk(e.target.checked)}
+              className="mt-0.5 w-4 h-4 accent-[#00afdb] shrink-0"
+            />
+            <span className="text-[13px] text-[#5a6b72] leading-relaxed">
+              I confirm the participant is <span className="font-semibold text-[#00374a]">18 or over</span>.
+              <span className="block text-[12px] text-[#7a8a90] mt-0.5">This clinic is for adults — we can&apos;t take under-18s on it.</span>
+            </span>
+          </label>
+        ) : (
+          <label className="sm:col-span-2 block">
+            <span className="block text-[12.5px] font-semibold text-[#5a6b72] mb-1">Participant&apos;s date of birth</span>
+            <input className={`${input} w-full`} type="date" value={dob} onChange={(e) => setDob(e.target.value)} max={eventDate ?? undefined} />
+          </label>
+        )}
 
         {minor && (
           <div className="sm:col-span-2 rounded-xl bg-[#fff8e8] border border-[#f2dfae] p-3.5 grid gap-2.5 sm:grid-cols-2">

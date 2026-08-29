@@ -99,6 +99,7 @@ export async function ClinicTicketBox({
       isMember={isMember}
       eventDate={(confirmed ?? event.dates[0])?.date_start ?? null}
       editionSlug={event.editionSlug ?? null}
+      adultsOnly={event.adultsOnly === true}
       location={event.location}
       partPayment={event.plan.partPayment}
       dueNowLabel={money(event.plan.dueNow, cur)}
