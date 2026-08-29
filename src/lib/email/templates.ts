@@ -843,9 +843,37 @@ export const TEMPLATES: Record<string, (v: EmailVars, opts?: LayoutOpts) => Buil
 
 const FALLBACK_KEYS = Object.keys(TEMPLATES);
 
+/**
+ * `{{?var}} … {{/var}}` — a stretch that disappears when the variable is empty.
+ *
+ * The code templates build their fact cards with facts(), which silently drops
+ * a row whose value is missing. A flat editable body has no such power: written
+ * as "Where: {{location}}" it renders a bare, dangling "Where:" the moment an
+ * edition has no location — and `location` IS nullable (a clinic FORMAT is
+ * deliberately not a place). That would ship on the receipt a buyer keeps as
+ * proof of payment.
+ *
+ * The guard belongs here rather than inside each body, because the bodies are
+ * editable: the next person to write "Dates: {{dates}}" in the admin editor
+ * would walk into exactly the same trap. Unbalanced or unknown markers are left
+ * alone and then stripped as ordinary tokens, so a half-typed block degrades to
+ * nothing worse than today.
+ */
+function stripEmptyBlocks(s: string, v: EmailVars): string {
+  return s.replace(
+    /\{\{\?\s*(\w+)\s*\}\}([\s\S]*?)\{\{\/\s*(\w+)\s*\}\}/g,
+    (whole, open, inner, close) => {
+      if (open !== close) return whole; // mismatched — not ours to touch
+      return String(v[open] ?? "").trim() ? inner : "";
+    },
+  );
+}
+
 /** Replace {{var}} tokens in a DB-stored override body/subject. */
 function interpolate(s: string, v: EmailVars): string {
-  return s.replace(/\{\{\s*(\w+)\s*\}\}/g, (_, k) => esc(v[k] ?? ""));
+  // Optional stretches resolve FIRST: once {{var}} has become "" there is no
+  // way to tell an absent value from a deliberately blank one.
+  return stripEmptyBlocks(s, v).replace(/\{\{\s*(\w+)\s*\}\}/g, (_, k) => esc(v[k] ?? ""));
 }
 
 /**

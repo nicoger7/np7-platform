@@ -32,6 +32,21 @@ export const DEFAULT_SUBJECTS: Record<string, string> = {
   addon_confirmed: "Confirmed: {{addonLabel}} — {{experienceTitle}}",
   hw_return_received: "We got your return request — order {{orderNumber}}",
   hw_order_confirmation: "Order {{orderNumber}} confirmed — welcome to NP7 Hardware 🤙",
+  event_ticket_confirmed: "You're in! 🤙 {{experienceTitle}}",
+  event_deposit_received: "Deposit received — {{experienceTitle}}",
+  event_part_received: "You're in! 🤙 {{experienceTitle}}",
+  waiver_final_call: "One thing left before {{experienceTitle}} — your waiver",
+  event_date_confirmed_balance: "It's on! 🤙 {{experienceTitle}} — date confirmed",
+  event_date_not_running: "{{experienceTitle}} — your dates didn't make it",
+  addon_declined: "About your request — {{addonLabel}}",
+  voucher_expiry_reminder: "Your NP7 gift voucher runs out on {{redeemByLabel}}",
+  invoice_sent: "Your invoice for {{experienceTitle}}{{?amount}} — {{amount}}{{/amount}}",
+  payment_shortfall_reminder: "Almost there — a little left on {{experienceTitle}} 🌊",
+  tier_expiry_reminder: "Your {{tierLabel}} status runs out{{?validUntilLabel}} on {{validUntilLabel}}{{/validUntilLabel}}",
+  crew_forming: "Your crew for {{experienceTitle}} is coming together 🤙",
+  guide_ready: "Your training guide — {{experienceTitle}} 🤙",
+  skills_verified: "Your coach signed off new skills 🤙",
+  password_reset: "Reset your NP7 password",
 };
 
 export const DEFAULT_BODIES: Record<string, string> = {
@@ -169,14 +184,20 @@ export const DEFAULT_BODIES: Record<string, string> = {
 
   // Hardware: formal acknowledgement of a WITHDRAWAL declaration (Directive
   // 2023/2673 — durable-medium confirmation, German legal wording first).
+  // §356a Widerruf acknowledgement — sent by the ONLINE WITHDRAWAL FUNCTION, not
+  // by a hardware return. The default used to be the hw_return_received copy
+  // ({{orderNumber}}, {{items}}, {{orderLink}} — none of which this mail is ever
+  // given), so opening it in the editor showed the wrong email entirely, and
+  // saving it would have shipped a legally required acknowledgement with blanks
+  // where the declaration's content belongs. It now mirrors the code.
   withdrawal_received:
-    P("Guten Tag {{firstName}},") +
-    P("hiermit bestätigen wir den Eingang Ihres Widerrufs zur Bestellung <strong>{{orderNumber}}</strong> ({{items}}) am {{declaredDate}}. Diese E-Mail ist Ihre Eingangsbestätigung.") +
-    P("<strong>So geht es weiter:</strong> Wir melden uns mit den Rücksendeinformationen. Boards und sperrige Artikel bitte nicht selbst versenden — wir organisieren die Abholung.") +
-    P("Die Rückerstattung erfolgt innerhalb von 14 Tagen auf das ursprüngliche Zahlungsmittel.") +
-    P("<em>English: we confirm receipt of your withdrawal for order {{orderNumber}} on {{declaredDate}}. We'll send return instructions — don't ship bulky items yourself. Your refund goes to the original payment method within 14 days.</em>") +
-    BTN("Bestellung ansehen / View order", "orderLink") +
-    P("Bei Fragen einfach antworten." + SIGN),
+    P("Guten Tag {{name}},") +
+    P("hiermit bestätigen wir den <strong>Eingang</strong> Ihrer Widerrufserklärung über unsere Online-Widerrufsfunktion auf np-seven.com.") +
+    P("<strong>Inhalt Ihrer Erklärung:</strong><br>Name: {{name}}<br>Vertrag / Bestell- bzw. Gutscheinnummer: {{contractRef}}{{?note}}<br>Ihre Anmerkung: {{note}}{{/note}}") +
+    P("<strong>Eingegangen am:</strong> {{receivedDate}} um {{receivedTime}} Uhr (deutsche Zeit).") +
+    P("Wir prüfen Ihre Erklärung und melden uns zeitnah mit den nächsten Schritten (z.&nbsp;B. zur Rückabwicklung). Diese Bestätigung dokumentiert nur den Eingang.") +
+    P("<em>English: this confirms RECEIPT of your withdrawal declaration submitted via our online withdrawal function, including its content and the date and time of receipt. We'll follow up shortly.</em>") +
+    P("— NP7 GmbH"),
 
   // Hardware: web-shop order confirmation with bank-transfer instructions.
   hw_order_confirmation:
@@ -195,4 +216,150 @@ export const DEFAULT_BODIES: Record<string, string> = {
     P("Once the gear is back and checked, your refund goes to the original payment method within 14 days.") +
     BTN("View your order", "orderLink") +
     P("Any questions, just reply." + SIGN),
+
+  // ── Events (fixed clinics + stand-by) ──────────────────────────────────────
+  // `location` and `dates` are both nullable — an edition need not carry either,
+  // and a clinic FORMAT is deliberately not a place. The code templates hide an
+  // empty row automatically (facts() filters them); here that job is done by the
+  // {{?var}}…{{/var}} blocks, so a missing value takes its whole clause with it.
+
+  event_ticket_confirmed:
+    P("Hey {{firstName}} 🤙") +
+    P("Your spot on <strong>{{experienceTitle}}</strong>{{?dates}} ({{dates}}){{/dates}} is booked and paid — see you on the water. 🌊") +
+    P("<strong>Paid:</strong> {{amount}}{{?location}}<br><strong>Where:</strong> {{location}}{{/location}}") +
+    P("We've set up your <strong>NP7 account</strong>, where you'll find your booking, your documents and — after the event — your photos and video.") +
+    BTN("Open my account", "activationLink") +
+    P("<strong>One thing before you ride.</strong> Everyone on the water signs a short waiver. It takes a minute{{?waiverLink}} — <a href=\"{{waiverLink}}\" style=\"color:#0aa3c7;font-weight:700;\">sign it here</a>{{/waiverLink}}. If the participant is under 18, a parent or guardian signs it.") +
+    P("Any questions, just reply to this email." + SIGN),
+
+  // STAND-BY deposit. The date is NOT confirmed and this mail must not pretend
+  // otherwise — so it deliberately carries no date line at all, however tempting.
+  event_deposit_received:
+    P("Hey {{firstName}} 🤙") +
+    P("Your deposit is in and your spot is held. We confirm the date once the forecast lands — you'll hear from us as soon as it does, and the balance is due then.") +
+    P("<strong>Event:</strong> {{experienceTitle}}{{?location}}<br><strong>Where:</strong> {{location}}{{/location}}<br><strong>Deposit paid:</strong> {{amount}}") +
+    BTN("Open my account", "activationLink") +
+    P("Any questions, just reply." + SIGN),
+
+  // The opposite case: a deposit on a FIXED clinic. The date is set and the
+  // balance has a real deadline, so this one may and must say so.
+  event_part_received:
+    P("Hey {{firstName}} 🤙") +
+    P("Your deposit of <strong>{{amount}}</strong> is in and your spot is <strong>confirmed</strong> — see you on the water. 🌊") +
+    P("You're booked on <strong>{{experienceTitle}}</strong>{{?location}} in {{location}}{{/location}}{{?dates}} ({{dates}}){{/dates}}.") +
+    P("Still to pay: <strong>{{balance}}</strong>{{?balanceDue}}, due <strong>{{balanceDue}}</strong>{{/balanceDue}}.") +
+    P("We've set up your <strong>NP7 account</strong>, where you'll find your booking, your invoice and — after the clinic — your photos.") +
+    BTN("Open my account", "activationLink") +
+    P("<strong>One thing before you ride.</strong> Everyone on the water signs a short waiver. It takes a minute{{?waiverLink}} — <a href=\"{{waiverLink}}\" style=\"color:#0aa3c7;font-weight:700;\">sign it here</a>{{/waiverLink}}. If the participant is under 18, a parent or guardian signs it.") +
+    P("Any questions, just reply to this email." + SIGN),
+
+  event_date_confirmed_balance:
+    P("Hey {{firstName}} 🤙") +
+    P("Great news — the forecast landed and <strong>{{experienceTitle}}</strong> is confirmed. Your deposit holds the spot; the balance locks it in.") +
+    P("<strong>Balance due:</strong> {{balance}}") +
+    BTN("Pay the balance", "balanceLink") +
+    P("See you on the water. 🌊" + SIGN),
+
+  event_date_not_running:
+    P("Hey {{firstName}} 🤙") +
+    P("We've locked in a date for <strong>{{experienceTitle}}</strong> — unfortunately not one of the dates you could make. Sorry we couldn't line the wind up with your calendar this time.") +
+    P("Your refund of <strong>{{refund}}</strong> goes back to your card automatically over the next few days — nothing to do on your side.") +
+    P("Next forecast window, we'd love another shot." + SIGN),
+
+  waiver_final_call:
+    P("Hey {{firstName}} 🤙") +
+    P("We're nearly there — <strong>{{experienceTitle}}</strong>{{?dates}} ({{dates}}){{/dates}} is coming up fast, and there's one thing still open on your side: your <strong>waiver &amp; health declaration</strong>.") +
+    P("Everyone riding with us signs one — a quick health check and the usual insurance bit. It's the last thing we need before we can get you on the water, and it takes about a minute.") +
+    BTN("Sign my waiver — 1 minute", "waiverLink") +
+    P("The button signs you straight in, so there's no password to remember. If it's expired by the time you click, just reply and we'll send a fresh one.") +
+    P("Already signed? Then you're all set and you can ignore this. 🤙"),
+
+  // ── Money ──────────────────────────────────────────────────────────────────
+
+  invoice_sent:
+    P("Hey {{firstName}} 🤙") +
+    P("Here's your invoice for <strong>{{experienceTitle}}</strong>{{?amount}}, <strong>{{amount}}</strong>{{/amount}} — attached as a PDF.") +
+    P("Please pay by <strong>bank transfer</strong>{{?reference}} and quote the reference <strong>{{reference}}</strong> so we can match it to your booking straight away{{/reference}}.") +
+    BTN("View my booking", "bookingLink") +
+    P("Any questions, just reply — happy to help." + SIGN),
+
+  payment_shortfall_reminder:
+    P("Hey {{firstName}} 🤙") +
+    P("We're getting really excited for <strong>{{experienceTitle}}</strong>{{?dates}} ({{dates}}){{/dates}} — it's going to be a good one. 🤩") +
+    P("There's just <strong>{{balance}}</strong> left to settle your balance. A quick bank transfer{{?reference}} quoting <strong>{{reference}}</strong>{{/reference}} and you're all set.") +
+    BTN("View my booking & pay", "bookingLink") +
+    P("Thanks so much — can't wait to ride with you." + SIGN),
+
+  addon_declined:
+    P("Hey {{firstName}} 🤙") +
+    P("You asked us about <strong>{{addonLabel}}</strong> for {{experienceTitle}}, and unfortunately we can't make that one work.") +
+    "{{?declineReason}}" + P("{{declineReason}}") + "{{/declineReason}}" +
+    P("Nothing has been added to your balance, and the rest of your trip is unaffected.") +
+    BTN("Open my trip", "bookingLink") +
+    P("If you're flexible, reply to this email and we'll see what else is possible — we'd rather find you something than leave it here." + SIGN),
+
+  // ── Vouchers ───────────────────────────────────────────────────────────────
+
+  voucher_purchased:
+    P("Hey {{firstName}} 🤙") +
+    P("Thank you — your <strong>{{amount}}</strong> gift voucher{{?experienceTitle}} towards <strong>{{experienceTitle}}</strong>{{/experienceTitle}} is confirmed and ready. 🎁") +
+    P("It's attached as a <strong>printable PDF</strong> — print it, hand it over or send it on. The code is <strong>{{voucherCode}}</strong>, and it can be redeemed any time.") +
+    P("Thanks for giving the gift of riding." + SIGN),
+
+  voucher_gift:
+    P("Hey {{firstName}} 🤙") +
+    P("<strong>{{fromName}}</strong> has gifted you a <strong>{{amount}}</strong> voucher{{?experienceTitle}} towards <strong>{{experienceTitle}}</strong>{{/experienceTitle}} — a coached windsurf, wing &amp; foil adventure. 🌊") +
+    P("Your voucher (code <strong>{{voucherCode}}</strong>) is attached as a printable PDF. To use it, pick a trip and we'll take it straight off your booking:") +
+    BTN("Explore the trips", "joinLink") +
+    P("See you on the water." + SIGN),
+
+  voucher_expiry_reminder:
+    P("Hey {{firstName}} 🤙") +
+    P("A friendly heads-up: your NP7 gift voucher <strong>{{code}}</strong> over <strong>{{amountLabel}}</strong> is valid until <strong>{{redeemByLabel}}</strong> — after that it expires.") +
+    P("Redeeming is easy: pick any experience, mention the code when you book, and we take it straight off the invoice.") +
+    BTN("Browse the experiences", "browseLink") +
+    P("Not sure which week fits? Just reply — we'll help you pick." + SIGN),
+
+  // ── Member area ────────────────────────────────────────────────────────────
+
+  crew_forming:
+    P("Hey {{firstName}} 🤙") +
+    P("<strong>{{experienceTitle}}</strong>{{?dates}} ({{dates}}){{/dates}} is about two months away, and the crew is taking shape.") +
+    P("This is the good bit: people start comparing flights, sorting shared transfers, and arguing about sail sizes long before anyone lands.") +
+    "{{?whatsappLink}}" + P("<strong>Come and say hi:</strong>") + BTN("Join the group chat", "whatsappLink") + "{{/whatsappLink}}" +
+    P("No rush on anything else — your packing list and arrival details follow closer to the trip.") +
+    BTN("Open my trip details", "bookingLink") +
+    P("See you on the water." + SIGN),
+
+  guide_ready:
+    P("Hey {{firstName}} 🤙") +
+    P("Your personal training guide from <strong>{{experienceTitle}}</strong> is ready{{?coachName}} — {{coachName}} put it together from what you worked on out on the water{{/coachName}}.") +
+    "{{?guidePoints}}" +
+      P("<strong>Your focus points from the week:</strong>") +
+      '<p style="margin:0 0 14px;white-space:pre-line;">{{guidePoints}}</p>' +
+    "{{/guidePoints}}" +
+    P("Each one comes with what to do, how it should feel, and the mistakes to watch for — plus the tip your coach gave you in person.") +
+    BTN("Open my training guide", "guideUrl") +
+    P("It lives in your trip account, so it's there whenever you need it — before the next session, or the next trip." + SIGN),
+
+  skills_verified:
+    P("Hey {{firstName}} 🤙") +
+    P("Good news from the water: your coach verified <strong>{{skillCount}}</strong> new skills{{?experienceTitle}} after <strong>{{experienceTitle}}</strong>{{/experienceTitle}} on your NP7 progress ladder.") +
+    "{{?levelLabel}}" + P("Your verified rank now reads <strong>{{levelLabel}}</strong>.") + "{{/levelLabel}}" +
+    BTN("See my progress", "portalLink") +
+    P("Keep it rolling — the next trip builds straight on top." + SIGN),
+
+  tier_expiry_reminder:
+    P("Hey {{firstName}} 🤙") +
+    P("A heads-up from your NP7 ladder: your <strong>{{tierLabel}}</strong> status{{?validUntilLabel}} is valid until <strong>{{validUntilLabel}}</strong>, and after that{{/validUntilLabel}} it steps down — and the perks with it.") +
+    P("Keeping it is simple: ride with us again.{{?keepRule}} {{keepRule}}{{/keepRule}}") +
+    BTN("See the upcoming weeks", "tripsLink") +
+    P("Your member prices are already on the tiles when you're signed in." + SIGN),
+
+  // No greeting by name and no sign-off: this is the one mail that may reach
+  // someone who did not ask for it, so it stays plain and says so.
+  password_reset:
+    P("Someone asked to reset the password for this NP7 account — usually that someone is you.") +
+    BTN("Set a new password", "resetLink") +
+    P("The link works once and expires after an hour. If you didn't request this, you can safely ignore this email — your password stays as it is."),
 };
