@@ -236,43 +236,34 @@ export default async function AccountHome() {
                   ))}
                 </div>
               ) : null}
-              {/* Book your next trip — the loop's on-ramp, in the same column
-                  as the trips so the profile card never floats alone. Compact
-                  cards, but the REAL branded tile imagery (one source). */}
-              {bookableTrips.length > 0 && (
-                <div className={tripCards.length ? "mt-6" : undefined}>
-                  <div className="flex items-baseline justify-between mb-3">
-                    <p className="text-[11px] font-bold tracking-[0.18em] uppercase text-[#9aa6ac]">Book your next trip</p>
-                    <Link href="/experience" className="text-[12.5px] font-bold text-[#00afdb] hover:underline">All trips →</Link>
-                  </div>
-                  {/*
-                    * Show a number that FILLS the grid.
-                    *
-                    * Every bookable trip was rendered into a two-column grid, so
-                    * three of them left one card alone in the bottom-left with a
-                    * card-sized hole beside it. The count now follows the shape:
-                    * two on a phone (one column), and a whole number of rows on
-                    * anything wider — so two or four, never three. "All trips"
-                    * above already carries whoever wants the rest.
-                    */}
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                    {(() => {
-                      const n = bookableTrips.length;
-                      // ≤2 stands as-is; above that, drop to an even count and cap at 4.
-                      const fit = n <= 2 ? n : Math.min(4, n - (n % 2));
-                      return bookableTrips.slice(0, fit).map((c, i) => (
-                        // A phone shows two; the rest appear once there are two columns to fill.
-                        <div key={c.id} className={i >= 2 ? "hidden sm:block" : undefined}>
-                          <ExpTileCardCompact exp={c} />
-                        </div>
-                      ));
-                    })()}
-                  </div>
-                </div>
-              )}
+
 
             </div>
           </div>
+
+
+          {/* Book your next trip — full width, OUTSIDE the two-column grid.
+              It used to sit in the left column beside the sticky profile card,
+              which capped it at ~62% of the page: two tiles and a card-sized
+              hole to their right on every wide screen, with the space under the
+              profile card going unused. Out here it gets the whole row.
+
+              auto-fit rather than a fixed column count, so the tiles always
+              fill the row whatever the number: empty tracks collapse, so two
+              trips stretch across the width instead of leaving a gap, and the
+              earlier even-count rule is no longer needed to avoid an orphan.
+              Still capped at four — "All trips" carries the rest. */}
+          {bookableTrips.length > 0 && (
+            <div className="mt-6">
+              <div className="flex items-baseline justify-between mb-3">
+                <p className="text-[11px] font-bold tracking-[0.18em] uppercase text-[#9aa6ac]">Book your next trip</p>
+                <Link href="/experience" className="text-[12.5px] font-bold text-[#00afdb] hover:underline">All trips →</Link>
+              </div>
+              <div className="grid gap-3 grid-cols-[repeat(auto-fit,minmax(240px,1fr))]">
+                {bookableTrips.slice(0, 4).map((c) => <ExpTileCardCompact key={c.id} exp={c} />)}
+              </div>
+            </div>
+          )}
 
           {/* Your progression — the ladder gets real estate on the home, not just a
               chip: rank + 6-rung ladder + per-discipline breakdown, linking to the
