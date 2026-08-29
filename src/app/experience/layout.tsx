@@ -1,9 +1,9 @@
-import { notFound } from "next/navigation";
 import { headers } from "next/headers";
 import { BotIdClient } from "botid/client";
 import { flags } from "@/lib/flags";
 import { canSeeExperienceWorld } from "@/lib/auth";
 import { createAdminClient } from "@/lib/supabase";
+import { redirectToMemberLogin } from "@/lib/member-gate";
 
 // Hidden in production until SHOW_EXPERIENCE=true — a plain 404, no public hint.
 // Exceptions: the gift-voucher purchase page stays open (standalone commerce
@@ -15,7 +15,9 @@ export default async function ExperienceLayout({ children }: { children: React.R
   const path = ((await headers()).get("x-np7-pathname") ?? "").split("?")[0];
   const isGift = path.startsWith("/experience/gift");
   if (!isGift && !(await canSeeExperienceWorld(flags.showExperience)) && !(await publicByLink(path))) {
-    notFound();
+    // Members can see this world already, so someone arriving logged out is
+    // asked to sign in and sent back here — not told the page does not exist.
+    await redirectToMemberLogin("/experience");
   }
   return (
     <>

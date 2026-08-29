@@ -199,7 +199,7 @@ export function BookingDetailPane({ bookingId, onBack }: { bookingId: string; on
 
   // New add-on form
   const [showAddonForm, setShowAddonForm] = useState(false);
-  const [addonForm, setAddonForm] = useState({ component_id: "", label: "", price: "", qty: "1", notes: "" });
+  const [addonForm, setAddonForm] = useState({ component_id: "", label: "", price: "", qty: "1", notes: "", checkIn: "", checkOut: "" });
 
   // New payment form
   const [showPaymentForm, setShowPaymentForm] = useState(false);
@@ -424,6 +424,12 @@ export function BookingDetailPane({ bookingId, onBack }: { bookingId: string; on
       price: addonForm.price ? Number(addonForm.price) : null,
       quantity: Math.max(1, Math.round(Number(addonForm.qty) || 1)),
       notes: addonForm.notes || null,
+      // The nights this covers. Without them a hand-added stay is invisible to
+      // the covered-window maths, so the guest can be quoted — and charged —
+      // for nights we already gave them. It is also what puts the dates on
+      // their trip page instead of a bare line.
+      checkIn: addonForm.checkIn || null,
+      checkOut: addonForm.checkOut || null,
     };
     const res = await fetch(`/api/admin/bookings/${id}/addons`, {
       method: "POST",
@@ -434,7 +440,7 @@ export function BookingDetailPane({ bookingId, onBack }: { bookingId: string; on
       const addon = await res.json();
       setBooking((prev) => prev ? { ...prev, addons: [...prev.addons, addon] } : prev);
       setShowAddonForm(false);
-      setAddonForm({ component_id: "", label: "", price: "", qty: "1", notes: "" });
+      setAddonForm({ component_id: "", label: "", price: "", qty: "1", notes: "", checkIn: "", checkOut: "" });
     }
   }
 

@@ -6,6 +6,7 @@ import type { Metadata } from "next";
 import { supabase, createAdminClient } from "@/lib/supabase";
 import { flags } from "@/lib/flags";
 import { canSeeExperienceWorld } from "@/lib/auth";
+import { redirectToMemberLogin } from "@/lib/member-gate";
 import { OceanHeader } from "@/components/experience/ocean-header";
 import { NP7_EXPERIENCE_LOGO, SUN_TO_SEA } from "@/components/shared/brand";
 import { Reveal } from "@/components/experience/reveal";
@@ -98,9 +99,14 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
 }
 
 export default async function DestinationPage({ params }: Props) {
-  // Same guard as generateMetadata above — 404 before any query or render work.
-  if (!(await canSeeExperienceWorld(flags.showExperience))) notFound();
+  // Same guard as generateMetadata above — decided before any query or render
+  // work. A member may see this page, so a logged-out visitor is asked to sign
+  // in and returned HERE rather than told it does not exist. The slug is read
+  // first on purpose: the middleware does not stamp x-np7-pathname on
+  // /destinations, so this is the only place that knows which page was wanted,
+  // and sending everyone to the index would lose the link they followed.
   const { slug } = await params;
+  if (!(await canSeeExperienceWorld(flags.showExperience))) await redirectToMemberLogin(`/destinations/${slug}`);
   const res = await getDestination(slug).catch(() => null);
   if (!res) notFound();
   const { destination: d, trips, hotels } = res;

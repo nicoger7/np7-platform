@@ -2,6 +2,7 @@ import { NextRequest } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase";
 import { isActiveTeamMember } from "@/lib/admin-auth";
+import { listUnderPrefix, r2VideoEnabled } from "@/lib/r2-presign";
 
 /**
  * How much is actually in storage.
@@ -13,6 +14,13 @@ import { isActiveTeamMember } from "@/lib/admin-auth";
  *
  * Returns the whole bucket broken down by top-level folder, so "memories" can
  * be shown on its own without a second round trip.
+ *
+ * Videos are counted SEPARATELY, out of R2, because they only exist there —
+ * photos are uploaded to R2 and mirrored into this bucket, so adding the two
+ * totals together would count every photograph twice. What is reported is
+ * therefore: the catalogue (photos, once) plus the video library (R2 only).
+ * R2's derived copies — the photo mirror and `_thumb/` — are real storage but
+ * not more MEDIA, so they stay out of the headline.
  */
 export const runtime = "nodejs";
 
@@ -35,9 +43,27 @@ export async function GET(_request: NextRequest) {
       bytes: Number(r.bytes ?? 0),
     }));
     const total = rows.reduce((a, r) => ({ files: a.files + r.files, bytes: a.bytes + r.bytes }), { files: 0, bytes: 0 });
-    return Response.json({ folders: rows, total });
+
+    // Videos live only in R2, so they need a listing — bounded, and never
+    // allowed to fail the whole read-out.
+    let video: { files: number; bytes: number } | null = null;
+    if (r2VideoEnabled()) {
+      try {
+        const [done, raw] = await Promise.all([listUnderPrefix("_video/"), listUnderPrefix("_vidraw/")]);
+        const all = [...done, ...raw];
+        video = { files: all.length, bytes: all.reduce((n, o) => n + (o.size || 0), 0) };
+      } catch { video = null; }
+    }
+
+    return Response.json({
+      folders: rows,
+      total,
+      video,
+      // What the two together actually occupy, which is the number to watch.
+      combined: { files: total.files + (video?.files ?? 0), bytes: total.bytes + (video?.bytes ?? 0) },
+    });
   } catch {
     // Never break the page over a usage read-out.
-    return Response.json({ folders: [], total: null });
+    return Response.json({ folders: [], total: null, video: null, combined: null });
   }
 }

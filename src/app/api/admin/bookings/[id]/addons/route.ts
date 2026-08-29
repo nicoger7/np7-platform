@@ -59,7 +59,27 @@ export async function POST(
   const unit = body.price === "" || body.price == null ? null : Number(body.price);
   const round2 = (n: number) => Math.round((n + Number.EPSILON) * 100) / 100;
 
-  const { data, error } = await client
+  /*
+   * The nights a hand-added stay covers.
+   *
+   * coveredWindow() widens a guest's stay from `meta.checkIn/checkOut`, so an
+   * add-on entered here WITHOUT them is invisible to it: the guest can then
+   * request nights in the portal and be quoted — and charged — for nights the
+   * team already gave them. It is also what puts the dates on their trip page
+   * instead of a bare line. Stored in the same shape the member route writes,
+   * so both paths read identically.
+   */
+  const isoDay = (v: unknown) => (typeof v === "string" && /^\d{4}-\d{2}-\d{2}$/.test(v) ? v : null);
+  const checkIn = isoDay(body.checkIn);
+  const checkOut = isoDay(body.checkOut);
+  const nights = checkIn && checkOut
+    ? Math.max(0, Math.round((Date.parse(checkOut) - Date.parse(checkIn)) / 86_400_000))
+    : null;
+  const meta = checkIn || checkOut
+    ? { checkIn, checkOut, ...(nights != null ? { nights, unit: "night" } : {}) }
+    : {};
+
+  const { data, error } = await (client as unknown as { from: (t: string) => { insert: (v: Record<string, unknown>) => { select: (s: string) => { single: () => Promise<{ data: unknown; error: { message: string } | null }> } } } })
     .from("exp_booking_addons")
     .insert({
       booking_id: id,
@@ -69,6 +89,7 @@ export async function POST(
       unit_price: unit,
       price: unit == null ? null : round2(unit * qty),
       notes: body.notes || null,
+      meta,
     })
     .select("*, exp_components(id, name, category, unit_cost, payment_mode, payment_note)")
     .single();
