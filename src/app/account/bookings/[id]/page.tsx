@@ -22,7 +22,7 @@ import { RedeemVoucher } from "@/components/portal/redeem-voucher";
 import { CrewCard } from "@/components/portal/crew-card";
 import { InvitePanel } from "@/components/portal/invite-panel";
 import { getInvitesForBooking, resolveRewards } from "@/lib/invites";
-import { computePaymentPlan, amountDueNow } from "@/lib/payments";
+import { computePaymentPlan, amountDueNow, addDays, PAYMENT_DEFAULTS, type Milestone } from "@/lib/payments";
 import { describePrice } from "@/lib/pricing";
 import { createAdminClient } from "@/lib/supabase";
 import { PackingChecklist } from "@/components/portal/packing-checklist";
@@ -179,6 +179,26 @@ export default async function BookingDetail({ params }: Props) {
   // have taken a second €100. Part-paid = money in, money still owed.
   const eventPartPaid = isEvent && !fullyPaid && paid > 0.01;
   const eventOutstanding = Math.max(0, (total ?? 0) - paid);
+  /*
+   * A clinic cancels under the SAME policy as a trip, so it uses the same
+   * component — it just has one payment rather than a deposit→balance ladder.
+   * Expressed as a single refundable milestone, CancelTrip's existing branches
+   * come out right: nothing paid is free, inside the window is a full refund,
+   * past it the amount paid is the cancellation fee. The window is anchored to
+   * the booking, because a clinic ticket is paid at checkout.
+   */
+  const eventRefundDays = payCfg?.deposit_refund_days ?? PAYMENT_DEFAULTS.depositRefundDays;
+  const eventBookedAt: string | null = payRow?.created_at ? String(payRow.created_at).slice(0, 10) : null;
+  const eventCancelMilestones: Milestone[] = [{
+    kind: "deposit",
+    label: "Ticket",
+    amount: total ?? 0,
+    cumulative: total ?? 0,
+    dueDate: null,
+    dueLabel: "Pay to secure your spot",
+    status: paid > 0.01 ? "paid" : "due",
+    refundableUntil: eventBookedAt ? addDays(eventBookedAt, eventRefundDays) : null,
+  }];
   const eventBalanceDue = plan.find((m) => m.kind === "final")?.dueDate ?? null;
   const eventBalanceDueLabel = eventBalanceDue
     ? new Date(`${eventBalanceDue}T00:00:00Z`).toLocaleDateString("en-GB", { day: "numeric", month: "long", year: "numeric", timeZone: "UTC" })
