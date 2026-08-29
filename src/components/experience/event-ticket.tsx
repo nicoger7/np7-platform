@@ -71,19 +71,34 @@ export function EventTicket({
   const homeDial = dialForLocation(location);
   const [dial, setDial] = useState(homeDial);
   const [gDial, setGDial] = useState(homeDial);
-  // Under 18, a rider can't validly contract or waive anything — a parent has
-  // to. The form asks everyone their date of birth and reveals the guardian
-  // block only when it's needed, so adults aren't taxed for the juniors.
+  /*
+   * Under 18, a rider can't validly contract or waive anything — a parent has
+   * to. So the question the form must answer is only ever "is this a minor".
+   *
+   * It asks that directly, unticked by default, instead of making every adult
+   * fill in a date of birth to prove they are one. Roughly ninety-nine buyers
+   * in a hundred are adults; taxing all of them with a date picker to catch the
+   * hundredth put a field in front of the Book button that almost nobody needed.
+   * Ticking the box is what reveals the date of birth and the guardian block.
+   */
   const [dob, setDob] = useState("");
+  const [under18, setUnder18] = useState(false);
   const [adultOk, setAdultOk] = useState(false);
   const [gName, setGName] = useState("");
   const [gEmail, setGEmail] = useState("");
   const [gPhone, setGPhone] = useState("");
   const [gRel, setGRel] = useState("");
-  const minor = !adultsOnly && isMinorOn(dob || null, eventDate ?? null);
+  // Declared, not derived: the guardian block has to appear the moment they say
+  // "under 18", before there is a date of birth to derive anything from.
+  const declaredMinor = !adultsOnly && under18;
+  const minor = declaredMinor;
   const fullPhone = joinPhone(dial, phone);
   const fullGPhone = joinPhone(gDial, gPhone);
-  const guardianProblem = adultsOnly ? null : dob ? checkParticipant(dob, eventDate ?? null, { guardianName: gName, guardianEmail: gEmail, guardianPhone: fullGPhone, guardianRelationship: gRel }) : null;
+  // Only a declared minor is validated — checkParticipant demands a date of
+  // birth, which an adult is no longer asked for.
+  const guardianProblem = declaredMinor
+    ? checkParticipant(dob || null, eventDate ?? null, { guardianName: gName, guardianEmail: gEmail, guardianPhone: fullGPhone, guardianRelationship: gRel })
+    : null;
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [done, setDone] = useState(false);
@@ -102,8 +117,11 @@ export function EventTicket({
           editionSlug,
           dateIds: mode === "standby" ? picked : fixedDate ? [fixedDate.id] : [],
           firstName, lastName, email, phone: fullPhone,
-          dob: adultsOnly ? null : dob || null,
-          adultConfirmed: adultsOnly ? adultOk : undefined,
+          // A date of birth travels ONLY for a declared minor. Its absence is
+          // the adult assertion, which `adultConfirmed` states outright so the
+          // server never has to infer it from a missing field.
+          dob: declaredMinor ? dob || null : null,
+          adultConfirmed: adultsOnly ? adultOk : !declaredMinor,
           guardianName: gName || null, guardianEmail: gEmail || null,
           guardianPhone: fullGPhone || null, guardianRelationship: gRel || null,
         }),
@@ -129,7 +147,7 @@ export function EventTicket({
   const input = "w-full rounded-xl border border-[#dfe6e9] bg-white text-[#0a2a33] placeholder:text-[#9aa6ac] px-4 py-3 text-[15px] outline-none focus:border-[#00afdb] transition-colors";
   const canSubmit = (mode === "fixed" || picked.length > 0)
     && (isMember || (firstName.trim() && lastName.trim() && /\S+@\S+\.\S+/.test(email)))
-    && (adultsOnly ? adultOk : !!dob) && !guardianProblem;
+    && (adultsOnly ? adultOk : (!declaredMinor || !!dob)) && !guardianProblem;
 
   return (
     <form onSubmit={submit} className="rounded-2xl bg-white border border-[#e3e9ec] shadow-[0_18px_50px_rgba(0,40,55,0.1)] p-6 sm:p-7">
@@ -222,10 +240,26 @@ export function EventTicket({
             </span>
           </label>
         ) : (
-          <label className="sm:col-span-2 block">
-            <span className="block text-[12.5px] font-semibold text-[#5a6b72] mb-1">Participant&apos;s date of birth</span>
-            <input className={`${input} w-full`} type="date" value={dob} onChange={(e) => setDob(e.target.value)} max={eventDate ?? undefined} />
-          </label>
+          <>
+            <label className="sm:col-span-2 flex items-start gap-3 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={under18}
+                onChange={(e) => { setUnder18(e.target.checked); if (!e.target.checked) setDob(""); }}
+                className="mt-0.5 w-4 h-4 accent-[#00afdb] shrink-0"
+              />
+              <span className="text-[13px] text-[#5a6b72] leading-relaxed">
+                The participant is <span className="font-semibold text-[#00374a]">under 18</span>.
+                <span className="block text-[12px] text-[#7a8a90] mt-0.5">Juniors are welcome — a parent or guardian just has to book and sign for them.</span>
+              </span>
+            </label>
+            {under18 && (
+              <label className="sm:col-span-2 block">
+                <span className="block text-[12.5px] font-semibold text-[#5a6b72] mb-1">Participant&apos;s date of birth</span>
+                <input className={`${input} w-full`} type="date" value={dob} onChange={(e) => setDob(e.target.value)} max={eventDate ?? undefined} />
+              </label>
+            )}
+          </>
         )}
 
         {minor && (

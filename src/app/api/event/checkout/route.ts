@@ -127,9 +127,23 @@ export async function POST(request: NextRequest) {
   if (adultsOnly && !adultConfirmed) {
     return bad("Please confirm the participant is 18 or over — this clinic is for adults.", 400);
   }
-  const participantProblem = adultsOnly ? null : checkParticipant(dob, eventDate, guardian);
+  /*
+   * A date of birth arrives ONLY when the buyer ticked "under 18"; its absence
+   * IS the adult assertion (the client states it outright as adultConfirmed).
+   * So the rule enforced here is not "everyone declares an age" but the one
+   * that actually matters: a booking that NAMES a minor must name a guardian.
+   *
+   * Nothing more was ever being verified. A date of birth typed into a form is
+   * a claim exactly like a tick-box is, so asking every adult for one bought no
+   * extra certainty — it only put a field nobody needed in front of the button.
+   *
+   * A DOB that turns out to be 18+ passes as an adult rather than erroring:
+   * someone who ticked the box by mistake should be sold a ticket, not lectured.
+   */
+  const declaredMinor = !adultsOnly && typeof dob === "string" && dob.trim() !== "";
+  const participantProblem = declaredMinor ? checkParticipant(dob, eventDate, guardian) : null;
   if (participantProblem) return bad(participantProblem, 400);
-  const minor = !adultsOnly && isMinorOn(dob, eventDate) === true;
+  const minor = declaredMinor && isMinorOn(dob, eventDate) === true;
 
   // For a minor the GUARDIAN is the contracting party, so the account, the
   // confirmation email and the waiver invitation must reach them — not the
@@ -276,7 +290,8 @@ export async function POST(request: NextRequest) {
     // Null on an adults-only run — there is no date to store, and the buyer's
     // 18+ assertion is recorded in the notes below so the file still shows what
     // was agreed at checkout.
-    participant_dob: adultsOnly ? null : dob,
+    // Only a declared minor has one — an adult was never asked.
+    participant_dob: declaredMinor ? dob : null,
     // For a minor the guardian is the contracting party — recorded on the
     // booking so every downstream surface (invoice, emails, waiver) knows who
     // is actually responsible, not just who rides.

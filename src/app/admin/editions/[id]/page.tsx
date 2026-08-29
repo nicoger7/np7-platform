@@ -1391,9 +1391,10 @@ export default function EditionDetailPage({
                 <span>
                   <span className="block text-[13px] font-bold admin-heading">Adults only (18+)</span>
                   <span className="block text-[11px] admin-faint mt-0.5">
-                    The ticket asks for a single &quot;18 or over&quot; confirmation instead of a date of birth.
-                    Leave OFF if under-18s can join — then we ask for the date of birth and collect the
-                    guardian&apos;s details, because a minor cannot sign the waiver themselves.
+                    The ticket asks for a single &quot;18 or over&quot; confirmation. Leave OFF if under-18s
+                    can join — then the ticket instead offers an unticked &quot;the participant is under 18&quot;
+                    box, and only ticking it asks for the date of birth and the guardian&apos;s details,
+                    because a minor cannot sign the waiver themselves.
                   </span>
                 </span>
               </label>
