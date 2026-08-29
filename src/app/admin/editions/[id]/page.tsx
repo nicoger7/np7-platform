@@ -1338,6 +1338,28 @@ export default function EditionDetailPage({
             </div>
           )}
 
+          {/* The line under the price. A clinic sold abroad is charged in the
+              run's own currency and the buyer's bank does the conversion, so a
+              foreign-currency figure here has to read as an estimate — one
+              price, plus a courtesy. Writing a second real price here is how a
+              buyer ends up arguing about which number they agreed to. */}
+          {isEventEdition && (
+            <div>
+              <label className={labelClass}>Note under the price<PublicBadge note="Small grey line under the ticket price" /></label>
+              <input
+                className={inputClass}
+                value={edition.pricing_details ?? ""}
+                onChange={(e) => update("pricing_details", e.target.value || null)}
+                placeholder="e.g. ≈ $870 — the exact dollar amount depends on your bank's rate."
+              />
+              <p className="text-[11px] admin-faint mt-1">
+                Optional. For a clinic sold abroad, this is where the rough foreign-currency figure goes.
+                Keep it clearly an estimate — the charge is always {edition.currency || "EUR"}, and the
+                buyer&apos;s bank sets the rate.
+              </p>
+            </div>
+          )}
+
           {/* The paragraph the clinic page prints under the place and dates.
               It had no field anywhere and could only be set with SQL, which for
               a travelling series is the one piece of copy that MUST differ per

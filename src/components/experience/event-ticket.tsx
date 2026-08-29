@@ -17,6 +17,7 @@ export type TicketDate = { id: string; label: string; sub?: string };
 export function EventTicket({
   experienceId, mode, priceLabel, depositLabel, balanceLabel, refundLabel, dates, fixedDate, isMember, eventDate, editionSlug = null, location = null, adultsOnly = false,
   partPayment = false, dueNowLabel = null, planBalanceLabel = null, balanceDueLabel = null,
+  priceNote = null,
 }: {
   experienceId: string;
   mode: "fixed" | "standby";
@@ -38,6 +39,15 @@ export function EventTicket({
   adultsOnly?: boolean;
   /** Where the event is — only used to pick a sensible default dial code. */
   location?: string | null;
+  /**
+   * A line under the price, editable per run (`exp_editions.pricing_details`).
+   *
+   * It exists for a clinic sold abroad: the charge is in the run's own currency
+   * and the buyer's bank does any conversion, so a dollar figure here is a
+   * courtesy and must read as an estimate, never as a second price. Empty for
+   * every run that does not need one.
+   */
+  priceNote?: string | null;
   /** A fixed-date clinic sold as deposit-now, balance-before. Read off the
    *  package's deposit + "final due N days before", same as any trip. */
   partPayment?: boolean;
@@ -140,6 +150,7 @@ export function EventTicket({
           of {priceLabel} total · balance {planBalanceLabel} due{balanceDueLabel ? ` ${balanceDueLabel}` : " before the clinic"}
         </p>
       )}
+      {priceNote && <p className="text-[12.5px] text-[#6a7a80] mt-1">{priceNote}</p>}
 
       {/* fixed date line */}
       {mode === "fixed" && fixedDate && (

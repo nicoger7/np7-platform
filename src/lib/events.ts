@@ -46,6 +46,10 @@ export type EventInfo = {
   /** This run takes no under-18s, so the ticket asks for one 18+ confirmation
    *  instead of a date of birth. */
   adultsOnly?: boolean;
+  /** A line under the price, per run. A clinic sold abroad is charged in the
+   *  run's own currency and the buyer's bank does any conversion, so this is
+   *  where the courtesy estimate goes — an estimate, never a second price. */
+  priceNote?: string | null;
   /** Other upcoming clinics in the same series, for "other dates". */
   siblings?: { slug: string; label: string | null; location: string | null; date_start: string | null; date_end: string | null }[];
 };
@@ -163,7 +167,7 @@ export async function getEventForSlug(
   // in October, without one experience row per venue.
   const { data: edRows } = await db
     .from("exp_editions")
-    .select("id,slug,label,location,price,date_start,date_end,description,video_analysis,photoshoot,adults_only")
+    .select("id,slug,label,location,price,date_start,date_end,description,video_analysis,photoshoot,adults_only,pricing_details")
     .eq("experience_id", exp.id)
     .eq("kind", "event")
     /*
@@ -180,7 +184,7 @@ export async function getEventForSlug(
     // thing archiving exists to stop.
     .is("archived_at", null)
     .order("date_start");
-  type EdRow = { id: string; slug: string | null; label: string | null; location: string | null; price: number | null; date_start: string | null; date_end: string | null; description: string | null; video_analysis?: boolean | null; photoshoot?: boolean | null; adults_only?: boolean | null };
+  type EdRow = { id: string; slug: string | null; label: string | null; location: string | null; price: number | null; date_start: string | null; date_end: string | null; description: string | null; video_analysis?: boolean | null; photoshoot?: boolean | null; adults_only?: boolean | null; pricing_details?: string | null };
   const editions = (edRows ?? []) as EdRow[];
 
   // One URL cannot sell two clinics. /experience/np7-race-clinic is the SERIES —
@@ -320,6 +324,7 @@ export async function getEventForSlug(
     included,
     addons,
     adultsOnly: pinned?.adults_only === true,
+    priceNote: pinned?.pricing_details ?? null,
     siblings: editions
       .filter((e) => e.id !== pinned?.id && e.slug && (e.date_end ?? e.date_start ?? "") >= today)
       .map((e) => ({ slug: e.slug as string, label: e.label, location: e.location, date_start: e.date_start, date_end: e.date_end })),
