@@ -29,7 +29,7 @@ import {
 } from "@/lib/payments";
 import { effectiveAddonStatus } from "@/lib/addons";
 import { includeLine } from "@/lib/include-line";
-import { sumReceived } from "@/lib/payment-totals";
+import { sumReceived, type PaymentLike } from "@/lib/payment-totals";
 
 // ─── DB helpers ───────────────────────────────────────────────────────────────
 
@@ -120,6 +120,33 @@ export async function issuedInvoiceTotal(bookingId: string): Promise<number> {
   return round2(((data ?? []) as { amount: number | null; type: string }[])
     .filter((d) => ["deposit_invoice", "downpayment_invoice", "final_invoice", "addon_invoice", "credit_note"].includes(d.type))
     .reduce((s, d) => s + (Number(d.amount) || 0), 0));
+}
+
+/**
+ * Issued tax invoices, net of what has already been paid against them.
+ *
+ * This is the part of the debt that a document already stands for and money has
+ * NOT yet settled. The final invoice must subtract it, or it re-bills whatever
+ * an earlier invoice covered — while subtracting the gross would double-count
+ * any invoice that has been paid, since the payment is subtracted too.
+ */
+export async function unpaidIssuedInvoiceTotal(bookingId: string): Promise<number> {
+  const db = getDb();
+  const [{ data: docs }, { data: pays }] = await Promise.all([
+    db.from("documents").select("id,amount,type,status").eq("booking_id", bookingId).eq("status", "issued"),
+    db.from("exp_payments").select("amount,direction,type,status,document_id").eq("booking_id", bookingId),
+  ]);
+  const billed = ((docs ?? []) as { id: string; amount: number | null; type: string }[])
+    .filter((d) => ["deposit_invoice", "downpayment_invoice", "final_invoice", "addon_invoice", "credit_note"].includes(d.type));
+  const ids = new Set(billed.map((d) => d.id));
+  const gross = round2(billed.reduce((s, d) => s + (Number(d.amount) || 0), 0));
+  // Only money allocated TO one of those invoices — a payment against a
+  // pro-forma settles the trip, not a particular tax invoice, and is handled by
+  // `received` on the caller's side.
+  const paidAgainst = sumReceived(
+    ((pays ?? []) as (PaymentLike & { document_id?: string | null })[]).filter((p) => p.document_id && ids.has(p.document_id)),
+  );
+  return round2(Math.max(0, gross - paidAgainst));
 }
 
 /** One place for the money: trip total (agreed + confirmed add-ons), how much has
@@ -336,22 +363,30 @@ export async function generateDocument(input: GenerateInput): Promise<DocumentRo
   const depositAmt = milestoneAmount("deposit", cfg, state);
   const downpaymentAmt = milestoneAmount("downpayment", cfg, state);
   /**
-   * Final = what is actually still owed: the trip total minus money RECEIVED.
+   * Final = what is actually still owed, and "owed" has two forms.
    *
-   * It used to be `total − already invoiced`, which broke in both directions.
-   * Andreas Burmeister had paid €3,950 of €4,595 and owed €645; nothing had been
-   * invoiced, so this stored €4,595 while the PDF printed €2,297.50 from its own
-   * separate formula. One invoice, two numbers, neither the debt.
+   * It used to be `total − already invoiced`, which broke one way: Andreas
+   * Burmeister had paid €3,950 of €4,595 and owed €645, but nothing had been
+   * invoiced, so this stored €4,595 while the PDF printed €2,297.50 from its
+   * own separate formula. One invoice, two numbers, neither the debt.
    *
-   * Received also keeps add-ons behaving: anything added after an earlier
-   * invoice simply lands in the final, because it raises the total and nothing
-   * has been paid against it.
+   * Then it became `total − received`, which broke the other way, and did so on
+   * a live booking: an add-on invoice for €2,103.75 was issued and unpaid, so
+   * the final invoice — seeing no money against it — billed the whole trip
+   * again. Two issued tax invoices totalling €9,097.50 against a €6,993.75
+   * trip, both holding gapless §14 numbers, and an add-on invoice cannot even
+   * be credit-noted.
+   *
+   * Both are true at once: a debt is settled by money OR by a tax invoice that
+   * already stands for it. Subtract each exactly once — an invoice net of what
+   * has been paid against it, so a paid invoice is not deducted twice.
    */
-  const [received, addonLines] = await Promise.all([
+  const [received, addonLines, unpaidInvoiced] = await Promise.all([
     bookingReceivedTotal(bookingId),
     confirmedAddonLines(bookingId),
+    unpaidIssuedInvoiceTotal(bookingId),
   ]);
-  const finalAmt = round2(Math.max(0, total - received));
+  const finalAmt = round2(Math.max(0, total - received - unpaidInvoiced));
 
   // Add-on invoice: bills exactly the confirmed extras nothing has invoiced
   // yet — an interim document for things added AFTER the down-payment, so the

@@ -2,7 +2,7 @@ import Link from "next/link";
 import { redirect, notFound } from "next/navigation";
 import type { Metadata } from "next";
 import { getPortalUser } from "@/lib/auth";
-import { getMemberBooking, getBookingPaid } from "@/lib/portal-data";
+import { getMemberBooking, getBookingPaid, getConfirmedAddonsTotal } from "@/lib/portal-data";
 import { fmtDates, money, bookingStatus, isSecured } from "@/lib/portal-status";
 import { computePaymentPlan } from "@/lib/payments";
 import { createAdminClient } from "@/lib/supabase";
@@ -80,8 +80,9 @@ export default async function ConfirmationPage({ params }: { params: Promise<{ i
   const venue = ((extra?.exp_editions as { location?: string } | null)?.location) || (exp?.location as string | null) || null;
   const included = ((exp?.whats_included as string[] | null) ?? []).filter(Boolean);
 
-  const [paid, payRow] = await Promise.all([
+  const [paid, addonsTotal, payRow] = await Promise.all([
     getBookingPaid(b.id),
+    getConfirmedAddonsTotal(b.id).catch(() => 0),
     db.from("exp_bookings")
       .select("created_at, exp_packages(deposit,downpayment_percent,final_days_before,deposit_refund_days)")
       .eq("id", b.id).maybeSingle()
@@ -97,9 +98,20 @@ export default async function ConfirmationPage({ params }: { params: Promise<{ i
       final_days_before: payCfg?.final_days_before ?? null,
       deposit_refund_days: payCfg?.deposit_refund_days ?? null,
     },
-    { total: b.agreed_price ?? 0, paidAmount: paid, editionStart: b.edition?.date_start ?? null, bookedAt: payRow?.created_at ?? null }
+    /*
+     * The SAME total the invoices bill: package + confirmed add-ons.
+     *
+     * This fed agreed_price alone, so a guest with extra nights read a
+     * document where every number was computed from a trip he wasn't on:
+     * "Trip total €4,890" (his was €6,993.75), a 50% downpayment of €2,445
+     * marked PAID against a €3,184.50 payment, and "Still to pay €1,705.50"
+     * — the one figure on the page that was almost right, by coincidence,
+     * being package-minus-paid. Same plan function as everywhere else, but a
+     * different input is a different answer.
+     */
+    { total: (b.agreed_price ?? 0) + addonsTotal, paidAmount: paid, editionStart: b.edition?.date_start ?? null, bookedAt: payRow?.created_at ?? null }
   ).filter((m) => m.amount > 0);
-  const outstanding = Math.max(0, (b.agreed_price ?? 0) - paid);
+  const outstanding = Math.max(0, (b.agreed_price ?? 0) + addonsTotal - paid);
 
   return (
     <main className="min-h-[100svh] bg-[#eef3f4] py-8 print:bg-white print:py-0">
@@ -169,7 +181,15 @@ export default async function ConfirmationPage({ params }: { params: Promise<{ i
             )}
             <table className="w-full mt-4 text-[14px]">
               <tbody>
-                <tr className="border-b border-[#eef2f3]"><td className="py-2.5 text-[#6a7a80]">{isEvent ? "Ticket" : "Trip total (per person)"}</td><td className="py-2.5 text-right font-bold text-[#00374a]">{money(b.agreed_price, cur) ?? "—"}</td></tr>
+                <tr className="border-b border-[#eef2f3]"><td className="py-2.5 text-[#6a7a80]">{isEvent ? "Ticket" : "Package (per person)"}</td><td className="py-2.5 text-right font-bold text-[#00374a]">{money(b.agreed_price, cur) ?? "—"}</td></tr>
+                {/* Extra nights and other confirmed extras — itemised on the
+                    trip page; here the one line that makes the total add up. */}
+                {addonsTotal > 0 && (
+                  <tr className="border-b border-[#eef2f3]"><td className="py-2.5 text-[#6a7a80]">Extra nights &amp; add-ons</td><td className="py-2.5 text-right font-bold text-[#00374a]">+ {money(addonsTotal, cur)}</td></tr>
+                )}
+                {addonsTotal > 0 && (
+                  <tr className="border-b border-[#eef2f3]"><td className="py-2.5 text-[#6a7a80]">Trip total</td><td className="py-2.5 text-right font-bold text-[#00374a]">{money((b.agreed_price ?? 0) + addonsTotal, cur)}</td></tr>
+                )}
                 {/* A ticket is bought outright. Printing "Deposit — secures your
                     spot" and a €0 balance against a paid-in-full purchase
                     invents a plan the buyer never agreed to. */}
