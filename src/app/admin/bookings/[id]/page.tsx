@@ -89,6 +89,9 @@ interface Addon {
   price: number | null;
   quantity?: number | null;
   unit_price?: number | null;
+  /** The invoice this row was billed on. Non-null makes it immutable —
+   *  re-pricing it would bill the same nights twice. */
+  invoiced_in?: string | null;
   notes: string | null;
   component_id: string | null;
   status: string | null;
@@ -442,6 +445,32 @@ export function BookingDetailPane({ bookingId, onBack }: { bookingId: string; on
       setShowAddonForm(false);
       setAddonForm({ component_id: "", label: "", price: "", qty: "1", notes: "", checkIn: "", checkOut: "" });
     }
+  }
+
+  /* Editing a row in place. The alternative — delete and re-add — silently
+     drops `invoiced_in` (the only double-billing lock) and mints a new id, which
+     re-sends the guest a confirmation for nights they already know about. */
+  const [editAddon, setEditAddon] = useState<{ id: string; quantity: string; unit_price: string; checkIn: string; checkOut: string } | null>(null);
+  const [editErr, setEditErr] = useState("");
+  const [editBusy, setEditBusy] = useState(false);
+
+  async function saveAddonEdit() {
+    if (!editAddon) return;
+    setEditBusy(true); setEditErr("");
+    const res = await fetch(`/api/admin/bookings/${id}/addons`, {
+      method: "PATCH", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        edit: true, addon_id: editAddon.id,
+        quantity: Number(editAddon.quantity) || 1,
+        unit_price: editAddon.unit_price === "" ? undefined : Number(editAddon.unit_price),
+        checkIn: editAddon.checkIn || null, checkOut: editAddon.checkOut || null,
+      }),
+    });
+    const j = await res.json().catch(() => ({}));
+    setEditBusy(false);
+    if (!res.ok) { setEditErr(j.error || "Could not save."); return; }
+    setBooking((prev) => prev ? { ...prev, addons: prev.addons.map((a) => a.id === j.id ? { ...a, ...j } : a) } : prev);
+    setEditAddon(null);
   }
 
   async function removeAddon(addonId: string) {
@@ -1771,10 +1800,56 @@ export function BookingDetailPane({ bookingId, onBack }: { bookingId: string; on
                         Can&apos;t do
                       </button>
                     )}
+                    <button
+                      onClick={() => { setEditErr(""); setEditAddon(editAddon?.id === a.id ? null : {
+                        id: a.id,
+                        quantity: String(a.quantity ?? 1),
+                        unit_price: String(a.unit_price ?? (a.quantity ? Number(a.price) / Number(a.quantity) : a.price) ?? ""),
+                        checkIn: a.meta?.checkIn ?? "", checkOut: a.meta?.checkOut ?? "",
+                      }); }}
+                      title={a.invoiced_in ? `On invoice ${a.invoiced_in} — editing needs a credit note` : "Change the nights, dates or price"}
+                      className="text-xs admin-faint hover:text-[#0aa3c7] transition-colors">
+                      <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 20h9M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z" /></svg>
+                    </button>
                     <button onClick={() => removeAddon(a.id)} className="text-xs admin-faint hover:text-red-400 transition-colors">
                       <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M18 6L6 18M6 6l12 12" /></svg>
                     </button>
                   </div>
+                  {editAddon?.id === a.id && (
+                    <div className="col-span-4 mt-2 rounded-lg p-3 flex flex-wrap items-end gap-3" style={{ background: "var(--admin-surface)", border: "1px solid var(--admin-border)" }}>
+                      <label className="text-[11px] admin-faint">
+                        <span className="block mb-1 font-semibold">Nights / qty</span>
+                        <input type="number" min={1} className="w-20 px-2 py-1.5 rounded-md text-sm admin-input" value={editAddon.quantity}
+                          onChange={(e) => setEditAddon({ ...editAddon, quantity: e.target.value })} />
+                      </label>
+                      <label className="text-[11px] admin-faint">
+                        <span className="block mb-1 font-semibold">Price each (€)</span>
+                        <input type="number" step="0.01" min={0} className="w-28 px-2 py-1.5 rounded-md text-sm admin-input" value={editAddon.unit_price}
+                          onChange={(e) => setEditAddon({ ...editAddon, unit_price: e.target.value })} />
+                      </label>
+                      <label className="text-[11px] admin-faint">
+                        <span className="block mb-1 font-semibold">Check-in</span>
+                        <input type="date" className="px-2 py-1.5 rounded-md text-sm admin-input" value={editAddon.checkIn}
+                          onChange={(e) => setEditAddon({ ...editAddon, checkIn: e.target.value })} />
+                      </label>
+                      <label className="text-[11px] admin-faint">
+                        <span className="block mb-1 font-semibold">Check-out</span>
+                        <input type="date" className="px-2 py-1.5 rounded-md text-sm admin-input" value={editAddon.checkOut}
+                          onChange={(e) => setEditAddon({ ...editAddon, checkOut: e.target.value })} />
+                      </label>
+                      {/* The line total is derived, never typed — it is what the
+                          invoice bills, and two numbers that can disagree will. */}
+                      <span className="text-[11px] admin-faint self-center">
+                        line total <strong className="admin-heading">€{((Number(editAddon.unit_price) || 0) * (Number(editAddon.quantity) || 0)).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</strong>
+                      </span>
+                      <div className="flex items-center gap-2 ml-auto">
+                        <button onClick={() => setEditAddon(null)} className="text-[11px] font-medium px-2.5 py-1.5 rounded-md admin-faint" style={{ border: "1px solid var(--admin-border)" }}>Cancel</button>
+                        <button onClick={saveAddonEdit} disabled={editBusy}
+                          className="text-[11px] font-bold px-3 py-1.5 rounded-md bg-[var(--admin-accent)] text-[var(--admin-accent-contrast)] disabled:opacity-50">{editBusy ? "Saving…" : "Save"}</button>
+                      </div>
+                      {editErr && <p className="w-full text-[11px] font-semibold text-red-400">{editErr}</p>}
+                    </div>
+                  )}
                 </div>
                 );
               })}

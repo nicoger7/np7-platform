@@ -161,6 +161,24 @@ export async function PUT(request: NextRequest) {
   const { id, sleeps, ...updates } = body;
   const admin = getServiceClient();
 
+  /*
+   * A room with a guest in it is "assigned"; an empty one is not.
+   *
+   * `status` and `booking_id` were two independent fields saying the same
+   * thing, so they drifted: production has 23 rooms marked assigned with
+   * nobody in them, and rooms showing "available · Jens Hahn" in the very same
+   * line of the list. The status is now derived whenever the guest changes,
+   * which is the only moment it can go stale.
+   *
+   * "held" is left alone on purpose — it is a real third state (blocked at the
+   * hotel, deliberately unsold) that has no guest and must not be flipped to
+   * available just because nobody is in it.
+   */
+  if ("booking_id" in updates && updates.status === undefined) {
+    const { data: cur } = await admin.from("exp_hotel_rooms").select("status").eq("id", id).maybeSingle();
+    if (cur?.status !== "held") updates.status = updates.booking_id ? "assigned" : "available";
+  }
+
   // "The hotel took this one back" only ever applies to a room we have NOT
   // sold: once a guest books, NP7 blocks the room at the hotel, so it cannot be
   // pulled. Releasing an occupied room would quietly leave a paid guest with

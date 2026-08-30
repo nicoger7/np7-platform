@@ -131,6 +131,64 @@ export async function PATCH(
     return NextResponse.json(upd);
   }
 
+  /*
+   * EDIT an existing row — nights, dates, unit price.
+   *
+   * There was no way to do this. Changing three nights to four meant deleting
+   * the row and adding it again, which looks harmless and is not: `invoiced_in`
+   * is the only thing stopping an add-on being billed a second time, and a
+   * fresh row is born without it. The confirmation email dedupes on the row id
+   * too, so the guest gets told about the same nights twice.
+   *
+   * So editing is a real operation, and an invoiced row is refused outright
+   * rather than quietly rewritten — that correction needs a credit note, which
+   * is a human decision.
+   */
+  if (body.edit === true) {
+    const { data: row, error: rowErr } = await client
+      .from("exp_booking_addons").select("id, price, quantity, unit_price, meta, invoiced_in")
+      .eq("id", body.addon_id).eq("booking_id", id).maybeSingle();
+    if (rowErr) return NextResponse.json({ error: rowErr.message }, { status: 400 });
+    if (!row) return NextResponse.json({ error: "Add-on not found." }, { status: 404 });
+    if (row.invoiced_in) {
+      return NextResponse.json(
+        { error: `This add-on is already on invoice ${row.invoiced_in}. Editing it would bill those nights twice — issue a credit note instead.` },
+        { status: 409 },
+      );
+    }
+
+    const isDate = (v: unknown): v is string => typeof v === "string" && /^\d{4}-\d{2}-\d{2}$/.test(v);
+    const qty = Number.isFinite(Number(body.quantity)) && Number(body.quantity) > 0 ? Math.round(Number(body.quantity)) : (row.quantity ?? 1);
+    // The unit price is what the row is priced FROM; `price` stays the line
+    // total, because nine surfaces read it as one.
+    const unit = Number.isFinite(Number(body.unit_price)) && Number(body.unit_price) >= 0
+      ? Number(body.unit_price)
+      : (row.unit_price ?? (row.quantity ? Number(row.price) / Number(row.quantity) : Number(row.price)) ?? 0);
+
+    const meta: Record<string, unknown> = { ...((row.meta as Record<string, unknown>) ?? {}) };
+    if (isDate(body.checkIn)) meta.checkIn = body.checkIn;
+    if (isDate(body.checkOut)) meta.checkOut = body.checkOut;
+    if (body.checkIn === null) delete meta.checkIn;
+    if (body.checkOut === null) delete meta.checkOut;
+    // Nights follow the dates when both are present, so the row can never claim
+    // a span and a count that disagree.
+    if (isDate(meta.checkIn) && isDate(meta.checkOut)) {
+      meta.nights = Math.max(0, Math.round((Date.parse(meta.checkOut as string) - Date.parse(meta.checkIn as string)) / 86_400_000));
+      meta.unit = "night";
+    }
+
+    const { data: upd, error: updErr } = await client
+      .from("exp_booking_addons")
+      .update({ quantity: qty, unit_price: unit, price: Number((unit * qty).toFixed(2)), meta })
+      .eq("id", body.addon_id).eq("booking_id", id)
+      .select("*, exp_components(name, category, sell_price, payment_mode, payment_note)").single();
+    if (updErr) return NextResponse.json({ error: updErr.message }, { status: 400 });
+
+    // The trip total moved, so the open pro-forma has to follow it.
+    after(() => resyncBookingBilling(id).catch((e) => console.error("[addons] resync after edit failed:", e)));
+    return NextResponse.json(upd);
+  }
+
   const status: AddonStatus = body.status === "declined" ? "declined" : "confirmed";
   const patch: Record<string, unknown> = { status };
   if (status === "confirmed") patch.confirmed_at = new Date().toISOString();
