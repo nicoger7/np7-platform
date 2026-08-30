@@ -1,4 +1,5 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest, NextResponse, after } from "next/server";
+import { autoAssignRoom, becameSecured } from "@/lib/room-assign";
 import { createAdminClient } from "@/lib/supabase";
 import { getRequestAccess } from "@/lib/admin-auth";
 import { effectiveCanSeeField } from "@/lib/access";
@@ -77,6 +78,15 @@ export async function PATCH(
   const { id } = await params;
   const body = await request.json();
 
+  // The previous status, read before the write — the room assignment below
+  // fires on the TRANSITION into a secured state, not on every save of an
+  // already-secured booking.
+  let oldStatus: string | null = null;
+  if (typeof body.status === "string") {
+    const { data: prev } = await client.from("exp_bookings").select("status").eq("id", id).maybeSingle();
+    oldStatus = (prev as { status?: string | null } | null)?.status ?? null;
+  }
+
   const { data, error } = await client
     .from("exp_bookings")
     .update({ ...body, updated_at: new Date().toISOString() })
@@ -86,6 +96,20 @@ export async function PATCH(
 
   if (error) {
     return NextResponse.json({ error: error.message }, { status: 400 });
+  }
+
+  /*
+   * Securing the spot is when the bed becomes real: put the guest into a free
+   * room of the type their package sells. Best-effort and AFTER the response —
+   * the status change must never fail because the hotel sheet is odd, and
+   * "no-free-room" is a state the Hotel Rooms page shows, not an error.
+   */
+  if (typeof body.status === "string" && becameSecured(oldStatus, body.status)) {
+    after(async () => {
+      const r = await autoAssignRoom(client, id);
+      if (r.outcome === "assigned") console.log(`[rooms] auto-assigned ${r.room} to booking ${id}`);
+      else if (r.outcome === "no-free-room") console.warn(`[rooms] no free ${r.roomType} for booking ${id}`);
+    });
   }
 
   return NextResponse.json(data);

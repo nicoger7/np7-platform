@@ -1,4 +1,5 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest, NextResponse, after } from "next/server";
+import { autoAssignRoom } from "@/lib/room-assign";
 import { bookingPrice } from "@/lib/tier-perks";
 import { createAdminClient } from "@/lib/supabase";
 import { sendEmail } from "@/lib/email/send";
@@ -148,6 +149,14 @@ export async function POST(request: NextRequest) {
     .select("id")
     .single();
   if (bErr) return bad("Could not create your reservation. Please try again.", 500);
+
+  // A reservation is born secured, so the bed is blocked right away — same
+  // rule as the admin status flip, best-effort, never in the request path.
+  after(async () => {
+    const r = await autoAssignRoom(db, booking.id);
+    if (r.outcome === "assigned") console.log(`[rooms] auto-assigned ${r.room} to booking ${booking.id}`);
+    else if (r.outcome === "no-free-room") console.warn(`[rooms] no free ${r.roomType} for booking ${booking.id}`);
+  });
 
   // Reservation-saved (no online payment completed) — confirm + nudge to pay.
   async function reservationSaved() {
