@@ -50,6 +50,10 @@ export type EventInfo = {
    *  run's own currency and the buyer's bank does any conversion, so this is
    *  where the courtesy estimate goes — an estimate, never a second price. */
   priceNote?: string | null;
+  /** Seats still free on THIS run, from exp_edition_pool — the one definition
+   *  of "taken" that counts a paid deposit on a booking still at 'reserved'.
+   *  null when the run has no cap. */
+  spotsLeft?: number | null;
   /** Other upcoming clinics in the same series, for "other dates". */
   siblings?: { slug: string; label: string | null; location: string | null; date_start: string | null; date_end: string | null }[];
 };
@@ -297,6 +301,16 @@ export async function getEventForSlug(
 
   const soonest = pinned;
 
+  /* Seats left on the pinned run. exp_edition_pool (migration 143) is the
+     single SQL definition of "taken" — the others in this codebase disagreed
+     about whether a paid deposit on a still-'reserved' booking counts, and it
+     does. Never allowed to fail the page: no pool row simply means no count. */
+  let pool: { free: number | null } | null = null;
+  if (pinned?.id) {
+    const { data: p } = await db.from("exp_edition_pool").select("free").eq("edition_id", pinned.id).maybeSingle();
+    pool = (p as { free: number | null } | null) ?? null;
+  }
+
   return {
     id: exp.id,
     title: exp.title,
@@ -325,6 +339,7 @@ export async function getEventForSlug(
     addons,
     adultsOnly: pinned?.adults_only === true,
     priceNote: pinned?.pricing_details ?? null,
+    spotsLeft: pool?.free ?? null,
     siblings: editions
       .filter((e) => e.id !== pinned?.id && e.slug && (e.date_end ?? e.date_start ?? "") >= today)
       .map((e) => ({ slug: e.slug as string, label: e.label, location: e.location, date_start: e.date_start, date_end: e.date_end })),

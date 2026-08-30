@@ -101,6 +101,7 @@ export async function ClinicTicketBox({
       editionSlug={event.editionSlug ?? null}
       adultsOnly={event.adultsOnly === true}
       priceNote={event.priceNote ?? null}
+      spotsLeft={event.spotsLeft ?? null}
       location={event.location}
       partPayment={event.plan.partPayment}
       dueNowLabel={money(event.plan.dueNow, cur)}

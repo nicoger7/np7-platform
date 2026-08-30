@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { usePathname } from "next/navigation";
 import { isMinorOn, checkParticipant } from "@/lib/minors";
+import { scarcityLabel } from "@/lib/scarcity";
 import { PhoneField, joinPhone, dialForLocation } from "@/components/experience/phone-field";
 
 export type TicketDate = { id: string; label: string; sub?: string };
@@ -17,7 +18,7 @@ export type TicketDate = { id: string; label: string; sub?: string };
 export function EventTicket({
   experienceId, mode, priceLabel, depositLabel, balanceLabel, refundLabel, dates, fixedDate, isMember, eventDate, editionSlug = null, location = null, adultsOnly = false,
   partPayment = false, dueNowLabel = null, planBalanceLabel = null, balanceDueLabel = null,
-  priceNote = null,
+  priceNote = null, spotsLeft = null,
 }: {
   experienceId: string;
   mode: "fixed" | "standby";
@@ -48,6 +49,9 @@ export function EventTicket({
    * every run that does not need one.
    */
   priceNote?: string | null;
+  /** Seats still free on this run, or null when it is uncapped. Only ever
+   *  surfaces as a phrase — see scarcityLabel. */
+  spotsLeft?: number | null;
   /** A fixed-date clinic sold as deposit-now, balance-before. Read off the
    *  package's deposit + "final due N days before", same as any trip. */
   partPayment?: boolean;
@@ -169,6 +173,19 @@ export function EventTicket({
         </p>
       )}
       {priceNote && <p className="text-[12.5px] text-[#6a7a80] mt-1">{priceNote}</p>}
+      {/* Scarcity, and only when it is real. Above the threshold this renders
+          nothing at all rather than "spots available", which is a sentence that
+          reassures the reader they can come back another day. */}
+      {scarcityLabel(spotsLeft) && (
+        <p className={`mt-2.5 inline-flex items-center gap-1.5 text-[12.5px] font-bold px-3 py-1 rounded-full ${
+          (spotsLeft ?? 0) <= 0 ? "bg-[#f47b20] text-white" : "bg-[#fff4e8] text-[#a8560c] border border-[#f6d8b4]"
+        }`}>
+          {(spotsLeft ?? 0) > 0 && (
+            <span className="w-1.5 h-1.5 rounded-full bg-[#f47b20]" aria-hidden />
+          )}
+          {scarcityLabel(spotsLeft)}
+        </p>
+      )}
 
       {/* fixed date line */}
       {mode === "fixed" && fixedDate && (
