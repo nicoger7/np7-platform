@@ -145,9 +145,15 @@ export default async function BookingDetail({ params }: Props) {
               title: (b.experience?.title ?? "").replace(/^NP7\s*(Signature\s+)?(Experience|EXP)\b\s*[-–—·:]*\s*/i, "").trim() || "NP7 Experience",
               sub: b.edition?.date_start ? new Date(b.edition.date_start).toLocaleDateString("en-GB", { month: "short", year: "numeric" }) : undefined,
             }} />
-          <div className="mt-3">
-            <PhotoSharingToggle bookingId={b.id} initialShared={photosShared} />
-          </div>
+        </div>
+      )}
+      {/* The sharing switch governs photos AND clips, so it must appear for a
+          rider who has only clips — it used to sit inside the photos block, and
+          somebody with video and no photos had their clips shared by default
+          with no control anywhere to turn it off. */}
+      {(photoCount > 0 || tripVideos.length > 0) && (
+        <div className="mb-3">
+          <PhotoSharingToggle bookingId={b.id} initialShared={photosShared} />
         </div>
       )}
       {b.edition?.memories_video_url && (

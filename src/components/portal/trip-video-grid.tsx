@@ -24,6 +24,7 @@ export function TripVideoGrid({ videos, bookingId, fallbackPoster, title = "Trip
   const [openIdx, setOpenIdx] = useState<number | null>(null);
   const [expanded, setExpanded] = useState(false);
   const [starErr, setStarErr] = useState("");
+  const [filter, setFilter] = useState<string | null>(null); // which rider's clips
   const cardRef = useRef<HTMLDivElement>(null); // scroll back here on "Show less"
 
   useEffect(() => {
@@ -75,12 +76,17 @@ export function TripVideoGrid({ videos, bookingId, fallbackPoster, title = "Trip
   for (const g of sections) {
     g.items.sort((a, b) => (keepers.has(b.stem) ? 1 : 0) - (keepers.has(a.stem) ? 1 : 0));
   }
-  // One flat list in display order — the lightbox walks every clip in the week,
-  // across sections, so its indices must be the flattened ones.
+  // One flat list in display order. The lightbox walks EVERY clip in the week,
+  // filtered or not, so each thumbnail carries its absolute index into this.
   const flat = sections.flatMap((g) => g.items);
+  const absIdx = new Map(flat.map((v, i) => [v.stem, i] as const));
   const open = openIdx != null ? flat[openIdx] : null;
-  const hasMore = flat.length > PREVIEW;
-  const cutoff = !expanded && hasMore ? PREVIEW : flat.length;
+  const filtered = filter ? flat.filter((v) => v.groupKey === filter) : flat;
+  const hasMore = filtered.length > PREVIEW;
+  const visible = !expanded && hasMore ? filtered.slice(0, PREVIEW) : filtered;
+  const nameShort = (t: string) => t.split(/\s+/)[0] || t;
+  const nameInitials = (t: string) =>
+    t.split(/\s+/).filter(Boolean).slice(0, 2).map((w) => w[0]).join("").toUpperCase() || "?";
 
   return (
     <div ref={cardRef} className="scroll-mt-24 rounded-xl border border-[#f0e6d6] bg-[#fffdf9] overflow-hidden">
@@ -92,23 +98,40 @@ export function TripVideoGrid({ videos, bookingId, fallbackPoster, title = "Trip
         <h3 className="text-[15px] font-black tracking-[-0.01em] text-[#00374a]">{title}</h3>
         <span className="ml-auto text-[13px] text-[#9aa6ac] tabular-nums">{flat.length}</span>
       </div>
-      <div className="px-4 pb-4">
-      {sections.map((g) => {
-        const start = flat.indexOf(g.items[0]);
-        const shown = g.items.filter((_, i) => start + i < cutoff);
-        if (!shown.length) return null;
-        return (
-        <div key={g.key} className="mb-3 last:mb-0">
-        {/* Only worth a heading when there is more than one section — a week
-            with a single block of clips should not sprout a label. */}
-        {sections.length > 1 && (
-          <p className="text-[12px] font-bold text-[#5a6b72] mb-1.5">
-            {g.label}<span className="ml-1.5 font-normal text-[#9aa6ac] tabular-nums">{g.items.length}</span>
-          </p>
-        )}
+
+      {/* Source chips — All · Week videos · each rider. Identical language to
+          "Everyone's photos", because a week should read the same whichever
+          medium you open; only worth showing when there is more than one
+          source to choose between. */}
+      {sections.length > 1 && (
+        <div className="px-4 flex flex-wrap gap-1.5">
+          <button type="button" onClick={() => { setFilter(null); setExpanded(false); }}
+            className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-[12.5px] font-bold border transition-colors ${filter === null ? "bg-[#00afdb] text-white border-[#00afdb]" : "bg-white text-[#00374a] border-[#e2e9ec] hover:border-[#00afdb]"}`}>
+            All <span className="opacity-70 tabular-nums">{flat.length}</span>
+          </button>
+          {sections.map((g) => {
+            const on = filter === g.key;
+            const shared = g.key === "everyone";
+            return (
+              <button key={g.key} type="button"
+                onClick={() => { setFilter(on ? null : g.key); setExpanded(false); }}
+                className={`inline-flex items-center gap-1.5 rounded-full pl-1 pr-2.5 py-1 text-[12.5px] font-bold border transition-colors ${on ? "bg-[#00afdb] text-white border-[#00afdb]" : "bg-white text-[#00374a] border-[#e2e9ec] hover:border-[#00afdb]"}`}>
+                <span className={`w-6 h-6 rounded-full grid place-items-center ${on ? "bg-white/25 text-white" : shared ? "bg-[#f47b20]/15 text-[#f47b20]" : "bg-[#dceef2] text-[#00748f]"}`}>
+                  {shared
+                    ? <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><rect x="2" y="4" width="20" height="16" rx="3" /><path d="m10 9 5 3-5 3z" /></svg>
+                    : <span className="text-[10px] font-bold">{g.key === "mine" ? "YOU" : nameInitials(g.label)}</span>}
+                </span>
+                {g.key === "mine" || shared ? g.label : nameShort(g.label)}{" "}
+                <span className="opacity-70 tabular-nums">{g.items.length}</span>
+              </button>
+            );
+          })}
+        </div>
+      )}
+      <div className="px-4 pb-4 pt-3">
       <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-2.5">
-        {shown.map((v, j) => {
-          const i = start + j;
+        {visible.map((v) => {
+          const i = absIdx.get(v.stem) ?? 0;
           const kept = keepers.has(v.stem);
           return (
             <button key={v.stem} type="button" onClick={() => setOpenIdx(i)}
@@ -128,12 +151,9 @@ export function TripVideoGrid({ videos, bookingId, fallbackPoster, title = "Trip
           );
         })}
       </div>
-        </div>
-        );
-      })}
       {hasMore && (
         <button type="button" onClick={() => { if (expanded) requestAnimationFrame(() => cardRef.current?.scrollIntoView({ behavior: "smooth", block: "start" })); setExpanded((v) => !v); }} className="mt-2 inline-flex items-center gap-1.5 text-[13px] font-bold text-[#00afdb]">
-          {expanded ? "Show less" : `Show all ${flat.length} videos`}
+          {expanded ? "Show less" : `Show all ${filtered.length} videos`}
           <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d={expanded ? "M18 15l-6-6-6 6" : "M6 9l6 6 6-6"} /></svg>
         </button>
       )}

@@ -4,9 +4,14 @@ import { useState } from "react";
 import { mutate } from "@/lib/mutate";
 
 /**
- * Member control: let the other participants on this trip see MY personal photos
- * in the shared gallery. Default on. Toggling is optimistic + persisted via
+ * Member control: let the other participants on this trip see MY personal
+ * photos AND clips. Default on. Toggling is optimistic + persisted via
  * /api/portal/bookings/:id/photo-sharing (tolerant of migration 060).
+ *
+ * The one flag governs both media types. It used to govern only photos, and
+ * when videos were brought under it the wording here was not updated — so the
+ * switch quietly decided something it did not mention. A consent control has to
+ * name everything it consents to.
  */
 export function PhotoSharingToggle({ bookingId, initialShared }: { bookingId: string; initialShared: boolean }) {
   const [shared, setShared] = useState(initialShared);
@@ -49,11 +54,11 @@ export function PhotoSharingToggle({ bookingId, initialShared }: { bookingId: st
           <span className="absolute top-0.5 w-4 h-4 rounded-full bg-white transition-all" style={{ left: shared ? "18px" : "2px" }} />
         </span>
         <span className="min-w-0">
-          <span className="block text-[13.5px] font-bold text-[#00374a]">Share my photos with the crew</span>
+          <span className="block text-[13.5px] font-bold text-[#00374a]">Share my photos &amp; videos with the crew</span>
           <span className="block text-[12px] text-[#8a9aa0] mt-0.5">
             {shared
-              ? "Your photos appear in the other participants' galleries. Yours always lead your own."
-              : "Only you can see your personal photos. The week's shared shots stay visible to everyone."}
+              ? "Your photos and clips appear in the other participants' galleries. Yours always lead your own."
+              : "Only you can see your personal photos and clips. The week's shared shots stay visible to everyone."}
           </span>
         </span>
       </button>
