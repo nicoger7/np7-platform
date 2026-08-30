@@ -173,8 +173,19 @@ export default async function AccountHome() {
             </div>
           )}
 
-          {/* main + level sidebar — one column on mobile, two on desktop */}
-          <div className="mt-6 grid lg:grid-cols-[1.6fr_1fr] gap-5 items-start">
+          {/*
+           * Main + level sidebar — one column on mobile, two on desktop.
+           *
+           * The second column only exists when there is something to put in it.
+           * With no upcoming trip the left cell rendered nothing while the grid
+           * still reserved 1.6fr for it, so the profile card sat alone against a
+           * card-shaped hole — the page looked broken rather than empty. A
+           * member with nothing booked is the one most likely to be new, and a
+           * hole is a poor first impression. Now the row collapses and the
+           * profile card spans it, with "Book your next trip" below carrying the
+           * action, which is the right thing for that member anyway.
+           */}
+          <div className={`mt-6 grid gap-5 items-start ${tripCards.length > 0 ? "lg:grid-cols-[1.6fr_1fr]" : "grid-cols-1"}`}>
             {/* level card: first on mobile, right sidebar on desktop */}
             {lvl && profile && (
               <aside className="lg:order-2 lg:sticky lg:top-32">
@@ -192,7 +203,9 @@ export default async function AccountHome() {
               </aside>
             )}
 
-            {/* your trips — one card each, carrying its own action */}
+            {/* your trips — one card each, carrying its own action. Omitted
+                entirely when empty: an empty cell still costs a grid gap. */}
+            {tripCards.length > 0 && (
             <div className="lg:order-1">
               {/* A clinic is not a trip, and calling it one on the member's own
                   home page is the first thing they read. Say what they actually
@@ -239,6 +252,7 @@ export default async function AccountHome() {
 
 
             </div>
+            )}
           </div>
 
 
