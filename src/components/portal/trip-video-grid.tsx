@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { TripVideo } from "@/lib/portal-data";
 import { mutate } from "@/lib/mutate";
+import { KEEPER_LIMIT, keeperLimitMessage } from "@/lib/keepers";
 
 function StarIcon({ filled }: { filled: boolean }) {
   return <svg className="w-4 h-4" viewBox="0 0 24 24" fill={filled ? "currentColor" : "none"} stroke="currentColor" strokeWidth="2" strokeLinejoin="round"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z" /></svg>;
@@ -35,6 +36,11 @@ export function TripVideoGrid({ videos, bookingId, fallbackPoster, title = "Trip
   const toggle = useCallback(async (stem: string) => {
     const wasKept = keepers.has(stem); // previous state, so a failed write can be reverted
     const starred = !wasKept;
+    // Same cap as the photos, counted separately — three clips of their own.
+    if (starred && keepers.size >= KEEPER_LIMIT) {
+      setStarErr(keeperLimitMessage("video"));
+      return;
+    }
     setKeepers((s) => { const n = new Set(s); starred ? n.add(stem) : n.delete(stem); return n; });
     setStarErr("");
     const r = await mutate("/api/portal/memories/stars", {
@@ -53,11 +59,28 @@ export function TripVideoGrid({ videos, bookingId, fallbackPoster, title = "Trip
   }, [keepers, bookingId]);
 
   if (videos.length === 0) return null;
-  // Keepers first — starred clips float to the top of the grid.
-  const sorted = [...videos].sort((a, b) => (keepers.has(b.stem) ? 1 : 0) - (keepers.has(a.stem) ? 1 : 0));
-  const open = openIdx != null ? sorted[openIdx] : null;
-  const hasMore = sorted.length > PREVIEW;
-  const visible = !expanded && hasMore ? sorted.slice(0, PREVIEW) : sorted;
+  /*
+   * Sectioned by person, exactly like the photo gallery: yours, the week's
+   * shared pool, then one block per rider who shares. The clips arrive from
+   * portal-data already in that order, so grouping here only has to preserve
+   * it — and keepers float to the top WITHIN a section rather than jumping out
+   * of the person they belong to.
+   */
+  const sections: { key: string; label: string; items: TripVideo[] }[] = [];
+  for (const v of videos) {
+    let g = sections.find((x) => x.key === v.groupKey);
+    if (!g) { g = { key: v.groupKey, label: v.groupLabel, items: [] }; sections.push(g); }
+    g.items.push(v);
+  }
+  for (const g of sections) {
+    g.items.sort((a, b) => (keepers.has(b.stem) ? 1 : 0) - (keepers.has(a.stem) ? 1 : 0));
+  }
+  // One flat list in display order — the lightbox walks every clip in the week,
+  // across sections, so its indices must be the flattened ones.
+  const flat = sections.flatMap((g) => g.items);
+  const open = openIdx != null ? flat[openIdx] : null;
+  const hasMore = flat.length > PREVIEW;
+  const cutoff = !expanded && hasMore ? PREVIEW : flat.length;
 
   return (
     <div ref={cardRef} className="scroll-mt-24 rounded-xl border border-[#f0e6d6] bg-[#fffdf9] overflow-hidden">
@@ -67,11 +90,25 @@ export function TripVideoGrid({ videos, bookingId, fallbackPoster, title = "Trip
           <svg className="w-[18px] h-[18px]" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="2" y="4" width="20" height="16" rx="3" /><path d="m10 9 5 3-5 3z" fill="currentColor" stroke="none" /></svg>
         </span>
         <h3 className="text-[15px] font-black tracking-[-0.01em] text-[#00374a]">{title}</h3>
-        <span className="ml-auto text-[13px] text-[#9aa6ac] tabular-nums">{sorted.length}</span>
+        <span className="ml-auto text-[13px] text-[#9aa6ac] tabular-nums">{flat.length}</span>
       </div>
       <div className="px-4 pb-4">
+      {sections.map((g) => {
+        const start = flat.indexOf(g.items[0]);
+        const shown = g.items.filter((_, i) => start + i < cutoff);
+        if (!shown.length) return null;
+        return (
+        <div key={g.key} className="mb-3 last:mb-0">
+        {/* Only worth a heading when there is more than one section — a week
+            with a single block of clips should not sprout a label. */}
+        {sections.length > 1 && (
+          <p className="text-[12px] font-bold text-[#5a6b72] mb-1.5">
+            {g.label}<span className="ml-1.5 font-normal text-[#9aa6ac] tabular-nums">{g.items.length}</span>
+          </p>
+        )}
       <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-2.5">
-        {visible.map((v, i) => {
+        {shown.map((v, j) => {
+          const i = start + j;
           const kept = keepers.has(v.stem);
           return (
             <button key={v.stem} type="button" onClick={() => setOpenIdx(i)}
@@ -91,13 +128,18 @@ export function TripVideoGrid({ videos, bookingId, fallbackPoster, title = "Trip
           );
         })}
       </div>
+        </div>
+        );
+      })}
       {hasMore && (
         <button type="button" onClick={() => { if (expanded) requestAnimationFrame(() => cardRef.current?.scrollIntoView({ behavior: "smooth", block: "start" })); setExpanded((v) => !v); }} className="mt-2 inline-flex items-center gap-1.5 text-[13px] font-bold text-[#00afdb]">
-          {expanded ? "Show less" : `Show all ${sorted.length} videos`}
+          {expanded ? "Show less" : `Show all ${flat.length} videos`}
           <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d={expanded ? "M18 15l-6-6-6 6" : "M6 9l6 6 6-6"} /></svg>
         </button>
       )}
-      <p className="text-[11.5px] text-[#9aa6ac] mt-2">Videos stay for 3 months after the trip — star the ones you want to keep forever.</p>
+      <p className="text-[11.5px] text-[#9aa6ac] mt-2">
+        Videos stay for 3 months after the trip — star up to {KEEPER_LIMIT} to keep forever ({keepers.size} of {KEEPER_LIMIT} kept).
+      </p>
       {starErr && <p className="text-[12.5px] font-semibold text-[#c4621a] mt-1.5 leading-snug">{starErr}</p>}
       </div>
 
@@ -109,7 +151,7 @@ export function TripVideoGrid({ videos, bookingId, fallbackPoster, title = "Trip
           starErr={starErr}
           onClose={() => setOpenIdx(null)}
           onPrev={openIdx > 0 ? () => setOpenIdx(openIdx - 1) : undefined}
-          onNext={openIdx < sorted.length - 1 ? () => setOpenIdx(openIdx + 1) : undefined}
+          onNext={openIdx < flat.length - 1 ? () => setOpenIdx(openIdx + 1) : undefined}
         />
       )}
     </div>

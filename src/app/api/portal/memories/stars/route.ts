@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requirePortalApi } from "@/lib/auth";
 import { createAdminClient } from "@/lib/supabase";
+import { KEEPER_LIMIT, keeperLimitMessage } from "@/lib/keepers";
 
 /**
  * Member-picked "keepers" — the photos/videos a participant wants kept forever
@@ -35,6 +36,9 @@ export async function GET(request: NextRequest) {
   return NextResponse.json({
     photos: rows.filter((r) => r.kind === "photo").map((r) => r.ref),
     videos: rows.filter((r) => r.kind === "video").map((r) => r.ref),
+    // The client renders "2 of 3" from this rather than hard-coding the number
+    // in three places and letting them drift apart.
+    limit: KEEPER_LIMIT,
   });
 }
 
@@ -55,6 +59,25 @@ export async function POST(request: NextRequest) {
     const { error } = await admin.from("memory_stars").delete().eq("kind", kind).eq("ref", ref).eq("booking_id", bookingId);
     if (error) return NextResponse.json({ error: error.message }, { status: 500 });
     return NextResponse.json({ ok: true, starred: false });
+  }
+  /*
+   * The cap, enforced HERE because here is the only place it cannot be clicked
+   * around. The grids grey the star out at three, but a disabled button is a
+   * courtesy, not a rule — and this table is what the retention sweep spares.
+   *
+   * Re-starring something already kept must stay free: it is an upsert, it adds
+   * nothing, and counting it would make the fourth tap on a photo you already
+   * own fail for no reason a member could understand.
+   */
+  const { data: already } = await admin.from("memory_stars")
+    .select("id").eq("kind", kind).eq("ref", ref).eq("booking_id", bookingId).maybeSingle();
+  if (!already) {
+    const { count } = await admin.from("memory_stars")
+      .select("id", { count: "exact", head: true })
+      .eq("booking_id", bookingId).eq("kind", kind);
+    if ((count ?? 0) >= KEEPER_LIMIT) {
+      return NextResponse.json({ error: keeperLimitMessage(kind), limit: KEEPER_LIMIT }, { status: 409 });
+    }
   }
   const { error } = await admin.from("memory_stars")
     .upsert({ edition_id: booking.edition_id, booking_id: bookingId, kind, ref }, { onConflict: "kind,ref" });

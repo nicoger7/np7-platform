@@ -5,6 +5,7 @@ import type { GalleryGroup } from "@/lib/portal-data";
 import { cdnImage } from "@/lib/img";
 import { mutate } from "@/lib/mutate";
 import { ShareSheet } from "./share-sheet";
+import { KEEPER_LIMIT, keeperLimitMessage } from "@/lib/keepers";
 
 /**
  * The participant's trip-photo gallery, split into foldable groups:
@@ -69,6 +70,13 @@ export function MemberGallery({
     if (!keeperBookingId) return;
     const starred = !keepers.has(ref);
     setKeeperErr("");
+    // Stop at the cap before the optimistic add, so the star never lights up on
+    // a photo the server is about to refuse. Unstarring is always allowed —
+    // that is how you swap one out.
+    if (starred && keepers.size >= KEEPER_LIMIT) {
+      setKeeperErr(keeperLimitMessage("photo"));
+      return;
+    }
     setKeepers((s) => { const n = new Set(s); starred ? n.add(ref) : n.delete(ref); return n; }); // optimistic
     // Only a network throw used to revert; an expired session or a rejected
     // booking (401/403) left the star glowing gold on a photo the keepers table
@@ -256,8 +264,11 @@ export function MemberGallery({
     <>
       {keeperBookingId && (
         <div className="rounded-2xl border border-[#f6d9a8] bg-[#fff8ec] px-4 py-3 mb-4">
-          <p className="text-[13.5px] font-bold text-[#00374a]">⭐ Choose your keepers{keepers.size > 0 ? ` — ${keepers.size} saved` : ""}</p>
-          <p className="text-[12.5px] text-[#8a6a2a] mt-0.5 leading-snug">Tap the star on the photos you want to keep forever. Photos stay for a year after the trip (videos 3 months) — starred keepers stay for good.</p>
+          <p className="text-[13.5px] font-bold text-[#00374a]">⭐ Choose your keepers — {keepers.size} of {KEEPER_LIMIT} kept</p>
+          <p className="text-[12.5px] text-[#8a6a2a] mt-0.5 leading-snug">
+            Photos stay for a year after the trip (videos 3 months). Star up to {KEEPER_LIMIT} to keep forever
+            {keepers.size >= KEEPER_LIMIT ? " — unstar one to swap it." : "."}
+          </p>
           {/* The star reverted — say why here, next to the keepers explainer, so the
               member knows the photo is NOT protected yet and stars it again. */}
           {keeperErr && <p className="text-[12.5px] font-semibold text-[#c4621a] mt-1.5 leading-snug">{keeperErr}</p>}

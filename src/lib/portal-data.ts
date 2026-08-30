@@ -798,7 +798,12 @@ export async function getTripGalleryGroupsForBooking(editionId: string, viewerBo
   return groups;
 }
 
-export type TripVideo = { url: string; poster: string | null; stem: string };
+export type TripVideo = {
+  url: string; poster: string | null; stem: string;
+  /** Which section this clip belongs to — the same split the photos use, so a
+   *  week reads the same whichever medium you open. */
+  groupKey: string; groupLabel: string; groupKind: "mine" | "everyone" | "participant";
+};
 
 /** Ready (compressed) trip videos a member can watch, under the SAME sharing
     rule as the photos: their own clips, the week's shared ones, and the clips
@@ -819,19 +824,30 @@ export async function getTripVideosForBooking(editionId: string, viewerBookingId
   // pre-migration bucket where the column is absent (default = shared).
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const db = createAdminClient() as any;
-  let rows = await db.from("exp_bookings").select("id, photos_shared").eq("edition_id", editionId);
-  if (rows.error) rows = await db.from("exp_bookings").select("id").eq("edition_id", editionId);
+  let rows = await db.from("exp_bookings").select("id, name, photos_shared, contacts(name)").eq("edition_id", editionId);
+  if (rows.error) rows = await db.from("exp_bookings").select("id, name").eq("edition_id", editionId);
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const sharers = ((rows.data ?? []) as any[]).filter((r) => r.id !== viewerBookingId && r.photos_shared !== false);
 
-  const prefixes = [
-    `_video/${editionId}/p/${viewerBookingId}/`,   // yours first
-    `_video/${editionId}/`,                        // then the week's shared pool
-    ...sharers.map((r) => `_video/${editionId}/p/${r.id}/`),
+  /* Each prefix carries the section it belongs to, so the clips come back
+     already grouped the way the photos are — yours, the week's, then one per
+     rider who shares. They used to arrive as one undifferentiated wall, which
+     on a week where every clip is filed against a person is the one shape that
+     throws away what the uploader carefully worked out. */
+  const prefixes: { pfx: string; key: string; label: string; kind: "mine" | "everyone" | "participant" }[] = [
+    { pfx: `_video/${editionId}/p/${viewerBookingId}/`, key: "mine", label: "Your videos", kind: "mine" },
+    { pfx: `_video/${editionId}/`, key: "everyone", label: "Week videos", kind: "everyone" },
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    ...sharers.map((r: any) => ({
+      pfx: `_video/${editionId}/p/${r.id}/`,
+      key: `p:${r.id}`,
+      label: personName(r.contacts?.name || r.name) || "A fellow rider",
+      kind: "participant" as const,
+    })),
   ];
   const seen = new Set<string>();
   const out: TripVideo[] = [];
-  for (const pfx of prefixes) {
+  for (const { pfx, key, label, kind } of prefixes) {
     const objs = await listUnderPrefix(pfx).catch(() => []);
     // The "Everyone" prefix recurses into /p/… — at that level keep only the
     // shared clips, since the per-rider folders are listed explicitly above
@@ -857,7 +873,10 @@ export async function getTripVideosForBooking(editionId: string, viewerBookingId
         posterUrl = cdnUrlFor(p.key) + (Number.isFinite(v) ? `?v=${v}` : "");
       }
       // stem = key minus the _video/ root + extension — the ref keepers use.
-      out.push({ url: cdnUrlFor(o.key), poster: posterUrl, stem: base.replace(/^_video\//, "") });
+      out.push({
+        url: cdnUrlFor(o.key), poster: posterUrl, stem: base.replace(/^_video\//, ""),
+        groupKey: key, groupLabel: label, groupKind: kind,
+      });
     }
   }
   return out;
