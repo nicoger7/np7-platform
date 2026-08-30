@@ -5,7 +5,7 @@
  * Scenario throughout: a trip week running Sat 12 Sep → Sat 19 Sep 2026.
  */
 import { describe, it, expect } from "vitest";
-import { coveredWindow, newNights, matchesRoom, offeredToBooking } from "@/lib/stay-nights";
+import { coveredWindow, newNights, matchesRoom, offeredToBooking, deriveStay } from "@/lib/stay-nights";
 
 const START = "2026-09-12";
 const END = "2026-09-19";
@@ -160,5 +160,63 @@ describe("what a member is offered", () => {
     const upgrade = { category: "accommodation", hotel_id: null, room_type: null };
     expect(offeredToBooking(upgrade, here)).toBe(false);
     expect(offeredToBooking({ ...upgrade, addon_available: true }, here)).toBe(true);
+  });
+});
+
+/**
+ * Deriving the bill from the ROOM rows.
+ *
+ * The fixture is a real booking (Bonaire Week I, Nov 2026): the guest flies in
+ * two days early and out four days late, and the hotel cannot hold his studio
+ * for the last three nights, so he moves to a beach house. Hand-written
+ * add-ons had this as five studio nights — wrong count AND wrong room — which
+ * is what this whole derivation exists to stop.
+ */
+describe("deriveStay", () => {
+  const WEEK_START = "2026-11-30";
+  const WEEK_END = "2026-12-06";
+  const STUDIO = { hotelId: "sorobon", roomType: "Garden View Studio", checkIn: "2026-11-28", checkOut: "2026-12-07" };
+  const BEACH = { hotelId: "sorobon", roomType: "Garden View Beach House", checkIn: "2026-12-07", checkOut: "2026-12-10" };
+
+  it("splits the extra nights by the room actually slept in", () => {
+    const d = deriveStay([STUDIO, BEACH], WEEK_START, WEEK_END, "Garden View Studio");
+    expect(d.stay).toEqual({ start: "2026-11-28", end: "2026-12-10" });
+    // 12 nights slept, 6 in the package week → 6 extra, in two rooms
+    expect(d.extra.map((s) => [s.roomType, s.nights])).toEqual([
+      ["Garden View Studio", 2],          // 28 + 29 Nov, before the week
+      ["Garden View Studio", 1],          // 6 Dec, after the week
+      ["Garden View Beach House", 3],     // 7, 8, 9 Dec
+    ]);
+    expect(d.extra.reduce((n, s) => n + s.nights, 0)).toBe(6);
+  });
+
+  it("does not price a forced upgrade inside the package week", () => {
+    // Same guest, but the hotel moves him a day EARLY — 5 Dec falls inside the week.
+    const studio = { ...STUDIO, checkOut: "2026-12-05" };
+    const beach = { ...BEACH, checkIn: "2026-12-05" };
+    const d = deriveStay([studio, beach], WEEK_START, WEEK_END, "Garden View Studio");
+    expect(d.upgrades.map((s) => [s.roomType, s.nights])).toEqual([["Garden View Beach House", 1]]);
+    // and that night is NOT billed as an extra
+    expect(d.extra.some((s) => s.from === "2026-12-05")).toBe(false);
+  });
+
+  it("charges nothing when the stay is exactly the package week", () => {
+    const exact = { ...STUDIO, checkIn: WEEK_START, checkOut: WEEK_END };
+    const d = deriveStay([exact], WEEK_START, WEEK_END, "Garden View Studio");
+    expect(d.extra).toEqual([]);
+    expect(d.upgrades).toEqual([]);
+  });
+
+  it("ignores room rows with no dates rather than inventing nights", () => {
+    const undated = { hotelId: "sorobon", roomType: "Garden View Studio", checkIn: null, checkOut: null };
+    expect(deriveStay([undated], WEEK_START, WEEK_END, "Garden View Studio").extra).toEqual([]);
+  });
+
+  it("lets the later row win where two rooms claim the same night", () => {
+    // The move was entered but the original stay never shortened.
+    const stale = { ...STUDIO, checkOut: "2026-12-10" };
+    const d = deriveStay([stale, BEACH], WEEK_START, WEEK_END, "Garden View Studio");
+    expect(d.extra.reduce((n, s) => n + s.nights, 0)).toBe(6); // not 9
+    expect(d.extra.at(-1)).toMatchObject({ roomType: "Garden View Beach House", nights: 3 });
   });
 });

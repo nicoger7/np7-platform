@@ -156,3 +156,119 @@ export function offeredToBooking(component: any, opts: { editionId: string | nul
   if (!matchesRoom(component, opts.room)) return false;
   return isRoomNight(component) ? component?.extra_nights_blocked !== true : component?.addon_available === true;
 }
+
+/* ────────────────────────────────────────────────────────────────────────────
+ * Deriving the stay from the ROOM rows.
+ *
+ * Everything above answers "how many nights is this guest adding", which is the
+ * question a member asks when they extend. This answers the operator's version:
+ * given the rooms we actually hold for them, what should they be billed?
+ *
+ * The two differ in one way that matters. Above, the stay is a single span,
+ * because a guest extends at one end or the other. Here it is a span PER ROOM,
+ * because a stay can change rooms half-way through — Sorobon runs out of the
+ * studio on the 7th and moves the guest to a beach house, and those three
+ * nights cost EUR 110 more each. A single span cannot express that, and a
+ * hand-written add-on gets it wrong: the real case that prompted this had one
+ * row of five studio nights standing in for three studio and three beach-house
+ * nights, and was short a night as well.
+ * ──────────────────────────────────────────────────────────────────────────── */
+
+/** A run of consecutive nights in one room. `to` is the check-out date, so the
+ *  nights are [from, to) and `nights` is their count. */
+export type StaySegment = {
+  hotelId: string | null;
+  roomType: string | null;
+  from: string;
+  to: string;
+  nights: number;
+};
+
+export type StayDerivation = {
+  /** Every night slept, across every room row. */
+  stay: CoveredWindow;
+  /** Nights OUTSIDE the package week, grouped by the room slept in. These are
+   *  the billable ones. */
+  extra: StaySegment[];
+  /**
+   * Nights INSIDE the package week spent in a room type the package does not
+   * sell — a forced upgrade, e.g. the hotel cannot hold the booked room.
+   *
+   * Deliberately NOT priced. Whether the guest pays the difference or NP7
+   * absorbs it is a commercial decision about whose fault the move was, and a
+   * derivation that quietly billed for it would charge people for the hotel's
+   * availability problem.
+   */
+  upgrades: StaySegment[];
+};
+
+const iso = (d: Date) => d.toISOString().slice(0, 10);
+const addDays = (day: string, n: number) => iso(new Date(Date.parse(day) + n * DAY));
+
+/**
+ * One entry per night slept, mapped to the room slept in.
+ *
+ * Later rows win on an overlap. Two rows covering the same night is a data
+ * error rather than a real double booking, and taking the later one matches how
+ * a move is entered: the original stay is shortened and the new room added, but
+ * if the shortening is forgotten the NEW room is still the truth.
+ */
+function nightsByRoom(rooms: StayRoom[]): Map<string, StayRoom> {
+  const map = new Map<string, StayRoom>();
+  for (const r of rooms) {
+    if (!r.checkIn || !r.checkOut) continue; // an undated row describes no nights
+    for (let d = r.checkIn; d < r.checkOut; d = addDays(d, 1)) map.set(d, r);
+  }
+  return map;
+}
+
+/** Collapse consecutive nights in the same room into one segment. */
+function segmentize(nightList: [string, StayRoom][]): StaySegment[] {
+  const out: StaySegment[] = [];
+  for (const [day, room] of nightList) {
+    const last = out[out.length - 1];
+    const contiguous =
+      last && last.to === day && last.hotelId === (room.hotelId ?? null) && last.roomType === (room.roomType ?? null);
+    if (contiguous) {
+      last.to = addDays(day, 1);
+      last.nights += 1;
+    } else {
+      out.push({
+        hotelId: room.hotelId ?? null,
+        roomType: room.roomType ?? null,
+        from: day,
+        to: addDays(day, 1),
+        nights: 1,
+      });
+    }
+  }
+  return out;
+}
+
+export function deriveStay(
+  rooms: StayRoom[],
+  editionStart: string | null,
+  editionEnd: string | null,
+  packageRoomType: string | null,
+): StayDerivation {
+  const byNight = nightsByRoom(rooms);
+  const all = [...byNight.entries()].sort((a, b) => (a[0] < b[0] ? -1 : 1));
+  if (all.length === 0) return { stay: { start: null, end: null }, extra: [], upgrades: [] };
+
+  // The package week covers [editionStart, editionEnd) — check-out day is not a
+  // night. With no dates on the edition nothing is included, so every night the
+  // guest sleeps reads as extra; that is the honest answer, not a silent zero.
+  const included = (day: string) =>
+    Boolean(editionStart && editionEnd && day >= editionStart && day < editionEnd);
+
+  const extraNights = all.filter(([d]) => !included(d));
+  const insideNights = all.filter(
+    ([d, r]) => included(d) && packageRoomType != null && (r.roomType ?? null) !== packageRoomType,
+  );
+
+  return {
+    stay: { start: all[0][0], end: addDays(all[all.length - 1][0], 1) },
+    extra: segmentize(extraNights),
+    upgrades: segmentize(insideNights),
+  };
+}
