@@ -29,6 +29,8 @@ type Scheduled = {
   kind: "transactional" | "lifecycle";
   enabled: boolean; canDisable: boolean;
   missing: string[]; uses: Uses[]; sent: number; lastSent: string | null;
+  /** Condition-driven mail an admin may hand-send: who it reaches + how many qualify now. */
+  manualSendable?: boolean; manualTargets?: string | null; manualEligible?: number;
 };
 type Data = {
   startDate: string | null; endDate: string | null;
@@ -84,8 +86,11 @@ export function EditionMailing({ editionId }: { editionId: string }) {
   });
 
   /** Catch-up send for a mail whose window already passed. */
-  async function sendNow(key: string, name: string, guests: number) {
-    if (!confirm(`Send "${name}" now to ${guests} secured guest${guests === 1 ? "" : "s"}?\n\nIts window has passed, so this is a catch-up. Anyone who already got it is skipped automatically.`)) return;
+  async function sendNow(key: string, name: string, guests: number, targets?: string) {
+    const prompt = targets
+      ? `Send "${name}" now to ${guests} guest${guests === 1 ? "" : "s"} — ${targets}?\n\nOnly the guests who qualify right now receive it; anyone who already got it is skipped automatically.`
+      : `Send "${name}" now to ${guests} secured guest${guests === 1 ? "" : "s"}?\n\nIts window has passed, so this is a catch-up. Anyone who already got it is skipped automatically.`;
+    if (!confirm(prompt)) return;
     setSending(key); setMsg(null);
     try {
       const r = await fetch(`/api/admin/editions/${editionId}/mailing`, {
@@ -190,7 +195,7 @@ function MailRow({
 }: {
   m: Scheduled; i: number; editionId: string; securedGuests: number; lifecycleLive: boolean;
   isOpen: boolean; onToggle: () => void; sending: string | null;
-  onSendNow: (key: string, name: string, guests: number) => void; onSaved: () => void;
+  onSendNow: (key: string, name: string, guests: number, targets?: string) => void; onSaved: () => void;
 }) {
   const gone = m.sent > 0;
   const blocked = m.missing.length > 0;
@@ -233,6 +238,17 @@ function MailRow({
               {sending === m.key ? "Sending…" : "Send now →"}
             </button>
           )}
+          {/* Condition-driven mail (incl. the switched-OFF ones): a hand-send to
+              exactly the guests who qualify right now — the balance invoice to
+              those who still owe, never a blanket blast. Disabled at zero. */}
+          {!blocked && m.whenKind === "condition" && m.manualSendable && (
+            <button
+              onClick={() => onSendNow(m.key, m.name, m.manualEligible ?? 0, m.manualTargets ?? undefined)}
+              disabled={sending === m.key || (m.manualEligible ?? 0) === 0}
+              className="block ml-auto mb-0.5 text-[12px] font-bold text-[#0aa3c7] hover:underline disabled:opacity-40 disabled:no-underline">
+              {sending === m.key ? "Sending…" : `Send now${(m.manualEligible ?? 0) > 0 ? ` → ${m.manualEligible}` : ""}`}
+            </button>
+          )}
           {gone ? (
             <>
               <span className="block text-[12.5px] font-bold text-green-500">Sent to {m.sent}</span>
@@ -243,6 +259,8 @@ function MailRow({
               <span className="block text-[12.5px] admin-muted">{past ? "Window passed" : "Due"}</span>
               <span className="block text-[11px] admin-faint">{fmtDay(m.dueAt)}</span>
             </>
+          ) : m.manualSendable ? (
+            <span className="block text-[11.5px] admin-faint">{m.manualEligible ?? 0} qualify now</span>
           ) : (
             <span className="block text-[12.5px] admin-faint">Not yet</span>
           )}

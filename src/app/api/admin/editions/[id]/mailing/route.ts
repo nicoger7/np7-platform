@@ -4,6 +4,7 @@ import { requireTeamMember, requireSectionEdit } from "@/lib/admin-auth";
 import { createAdminClient } from "@/lib/supabase";
 import { AUTOMATIONS, CANNOT_DISABLE, lifecycleLive } from "@/lib/email/automations";
 import { listSendTiming, timingAnchor, resolveEditionContent, mailAppliesTo, MAIL_REQUIREMENTS, CONTENT_LABELS, type ContentKey } from "@/lib/email/readiness";
+import { MANUAL_CONDITIONAL, loadConditionalEligibility } from "@/lib/email/manual-eligibility";
 
 export const dynamic = "force-dynamic";
 
@@ -80,6 +81,11 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
   // passes, photos appear), so they have no date at all and were rendering as a
   // bare "—" with "Due —" next to it, which reads like something is broken.
   // `whenKind` lets the panel keep them apart and say so.
+  // How many guests each condition-driven mail would reach if hand-sent now —
+  // the "Send now → N" count on the OFF conditional rows. Same payment engine
+  // the cron uses, so the number is honest.
+  const { countByKey } = await loadConditionalEligibility(db, id);
+
   // An event is a 1–2 day clinic: most of this series never fires for it, and
   // listing mails that cannot send reads as a to-do list of work that isn't
   // real. Same rule the cron and the readiness check use.
@@ -136,6 +142,11 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
       })),
       sent: sentByTemplate[a.key]?.sent ?? 0,
       lastSent: sentByTemplate[a.key]?.last ?? null,
+      // Condition-driven mails an admin may hand-send: whether it's one, who it
+      // reaches (plain words), and how many qualify right now.
+      manualSendable: !!MANUAL_CONDITIONAL[a.key],
+      manualTargets: MANUAL_CONDITIONAL[a.key]?.targets ?? null,
+      manualEligible: countByKey[a.key] ?? 0,
     };
   }).sort((x, y) => {
     // One key per mail — the previous comparator consulted the OTHER side's
@@ -190,7 +201,8 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
   // crafted request could fire e.g. deposit_confirmation with half its vars
   // missing — nothing in the UI offered that, which is exactly why the API
   // must not accept it.
-  if (!timingAnchor(templateKey)) {
+  const isConditional = !!MANUAL_CONDITIONAL[templateKey];
+  if (!timingAnchor(templateKey) && !isConditional) {
     return NextResponse.json({ error: "That mail isn't a scheduled one — it can't be catch-up sent from here." }, { status: 400 });
   }
 
@@ -202,6 +214,47 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
   const missing = (MAIL_REQUIREMENTS[templateKey]?.blocking ?? []).filter((k) => !values[k]);
   if (missing.length) {
     return NextResponse.json({ error: `Still missing ${missing.join(", ")} — fill it in first.` }, { status: 400 });
+  }
+
+  const origin = process.env.NEXT_PUBLIC_SITE_URL || "https://www.np-seven.com";
+  const fmtD = (x: string) => new Date(x).toLocaleDateString("en-GB", { day: "numeric", month: "short" });
+  const fmtDue = (iso: string) => new Date(iso + "T00:00:00Z").toLocaleDateString("en-GB", { day: "numeric", month: "long", year: "numeric", timeZone: "UTC" });
+  const money = (n: number) => `€${n.toLocaleString("en-US", { minimumFractionDigits: n % 1 ? 2 : 0, maximumFractionDigits: 2 })}`;
+  const range = (s: string | null, e: string | null) =>
+    s ? (e ? `${fmtD(s)} – ${fmtD(e)} ${new Date(e).getFullYear()}` : `${fmtD(s)} ${new Date(s).getFullYear()}`) : undefined;
+
+  // Condition-driven mail: send only to the guests the same payment engine says
+  // qualify (balance owed, unsecured, …) — never a blanket blast. Each still
+  // dedupes per booking, so pressing twice is safe; the manual dedupe key is
+  // separate from the cron's so an admin can deliberately send even if the
+  // automated one already went.
+  if (isConditional) {
+    const { byKey } = await loadConditionalEligibility(db, id);
+    const eligible = byKey[templateKey] ?? [];
+    let sent = 0, skipped = 0;
+    for (const g of eligible) {
+      if (!g.email) { skipped++; continue; }
+      const res = await sendEmail({
+        to: g.email,
+        templateKey,
+        manual: true,
+        dedupeKey: `${templateKey}:manual:${g.id}`,
+        vars: {
+          firstName: g.firstName,
+          balance: g.balance > 0 ? money(g.balance) : undefined,
+          downpayment: g.securingAmount != null ? money(g.securingAmount) : undefined,
+          dueDate: g.securingDue ? fmtDue(g.securingDue) : undefined,
+          dates: range(g.start, g.end),
+          whatsappLink: g.whatsappLink ?? values.whatsappLink ?? undefined,
+          bookingLink: `${origin}/account`,
+          tripLink: `${origin}/account/bookings/${g.id}`,
+        },
+        bookingId: g.id,
+        contactId: g.contactId ?? undefined,
+      });
+      if (res.status === "sent") sent++; else skipped++;
+    }
+    return NextResponse.json({ ok: true, sent, skipped });
   }
 
   const { data: bookings } = await db
@@ -221,8 +274,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     }
   }
 
-  const origin = process.env.NEXT_PUBLIC_SITE_URL || "https://www.np-seven.com";
-  const fmt = (x: string) => new Date(x).toLocaleDateString("en-GB", { day: "numeric", month: "short" });
+  const fmt = fmtD;
   let sent = 0, skipped = 0;
 
   // Pre-trip mail goes to secured guests only — the same rule the cron applies.
