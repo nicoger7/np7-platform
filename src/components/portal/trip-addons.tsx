@@ -252,21 +252,26 @@ export function TripAddons({ bookingId, depositPaid, hasDeposit, securingLabel, 
                 <div className="mt-3 pt-3 border-t border-[#eef2f0] space-y-3">
                   {/* Anything outside the trip week is an "extra" — worked out from
                       the member's own flight dates, which we pre-fill here. */}
+                  {/* The question is the ROOM, not the plane: when do they want to
+                      check in and out. Flights only pre-fill a sensible default —
+                      landing at 23:00 and checking in the next day is normal, and
+                      conflating the two is how a guest gets billed a night they
+                      never sleep. */}
                   {flightsSaved ? (
                     <p className="text-[12.5px] text-[#5a6b72] leading-snug">
-                      Suggested from your flights ({fmtDay(flights?.arrivalDate)} → {fmtDay(flights?.departureDate)}). You&apos;re booked from {fmtDay(covered.start)}–{fmtDay(covered.end)}; only {u}s outside that are charged as extra — adjust below if needed.
+                      When do you want to <strong>check in and check out</strong>? Pre-filled from your flights ({fmtDay(flights?.arrivalDate)} → {fmtDay(flights?.departureDate)}) — adjust freely. Your week covers {fmtDay(covered.start)}–{fmtDay(covered.end)}; only {u}s outside that are charged as extra.
                     </p>
                   ) : (
                     <div className="rounded-lg bg-[#eef6f8] p-3 text-[12.5px] text-[#4a5b62] leading-snug">
-                      <p className="font-bold text-[#00374a] mb-0.5">Add your flights and we&apos;ll do the maths</p>
-                      <p>Enter when you arrive &amp; leave and we auto-calculate the extra {plural(u, 2)} — or set the dates below.</p>
+                      <p className="font-bold text-[#00374a] mb-0.5">When do you want the room?</p>
+                      <p>Set your check-in and check-out below — we calculate the extra {plural(u, 2)} automatically. Tip: add your flight dates first and we&apos;ll pre-fill this.</p>
                       <button onClick={goToFlights} className="mt-1.5 inline-flex items-center gap-1 font-bold text-[#00afdb] hover:underline">Add flight dates →</button>
                     </div>
                   )}
                   <div className="grid grid-cols-2 gap-2">
-                    <label className="block"><span className="block text-[11px] font-bold uppercase tracking-wide text-[#9aa6ac] mb-1">Arrive</span>
+                    <label className="block"><span className="block text-[11px] font-bold uppercase tracking-wide text-[#9aa6ac] mb-1">Check-in</span>
                       <input type="date" value={nightForm.checkIn} onChange={(e) => setNightForm((f) => ({ ...f, checkIn: e.target.value }))} className={dateInput} /></label>
-                    <label className="block"><span className="block text-[11px] font-bold uppercase tracking-wide text-[#9aa6ac] mb-1">Leave</span>
+                    <label className="block"><span className="block text-[11px] font-bold uppercase tracking-wide text-[#9aa6ac] mb-1">Check-out</span>
                       <input type="date" value={nightForm.checkOut} onChange={(e) => setNightForm((f) => ({ ...f, checkOut: e.target.value }))} className={dateInput} /></label>
                   </div>
                   <p className="text-[13px] text-[#00374a]">
