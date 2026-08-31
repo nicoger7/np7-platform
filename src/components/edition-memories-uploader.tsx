@@ -193,6 +193,12 @@ export function EditionMemoriesUploader({ editionId, initialVideoUrl }: { editio
     } finally { setRemindBusy(false); }
   }
 
+  /** The server's video key naming (safeName in r2-presign.ts), mirrored here
+   *  because that module is server-only. Must stay in lockstep — dedupe
+   *  compares what a dropped file WOULD be called against what already exists. */
+  const stemOf = (filename: string) =>
+    filename.replace(/\.[^.]+$/, "").normalize("NFKD").replace(/[^\w.-]+/g, "-").replace(/-+/g, "-").replace(/^-|-$/g, "").slice(0, 120) || "clip";
+
   const listFolder = useCallback(async (folder: string) => {
     const res = await fetch(`/api/admin/images?folder=${encodeURIComponent(folder)}`);
     const data = await res.json();
@@ -474,7 +480,15 @@ export function EditionMemoriesUploader({ editionId, initialVideoUrl }: { editio
   /** Bucket a batch by target scope. Batches WITH videos park in the quality
    *  popup first; photo-only batches upload straight away. */
   function stageIncoming(items: { folder: string | null; file: File }[]) {
-    if (dropBusy || uploading || !!vidUp || pending) return;
+    if (dropBusy || uploading || !!vidUp) return;
+    /* A finished batch's popup used to swallow the next drop without a word —
+       drop again while "Done" was still on screen and nothing happened, which
+       reads as "the uploader is broken". Finished means finished: the popup
+       yields to the new batch. Only a RUNNING batch still blocks. */
+    if (pending) {
+      if (batchPhase !== "done") return;
+      setPending(null);
+    }
     // participant lookup by normalized name (contact name AND booking name's first segment)
     const byName = new Map<string, string | "AMBIGUOUS">();
     for (const b of bookings) {
@@ -529,9 +543,39 @@ export function EditionMemoriesUploader({ editionId, initialVideoUrl }: { editio
     let clean = true;
     try {
       for (const [target, files] of staged.buckets) {
-        const imgs = files.filter((f) => f.type.startsWith("image/"));
-        const vids = files.filter((f) => f.type.startsWith("video/"));
+        let imgs = files.filter((f) => f.type.startsWith("image/"));
+        let vids = files.filter((f) => f.type.startsWith("video/"));
         const other = files.length - imgs.length - vids.length;
+        /*
+         * Duplicate detection — the property that makes RE-DROPPING EVERYTHING
+         * safe. After a half-failed 90-file batch nobody wants to pick out the
+         * five stragglers by hand; drop the whole folder again and only what
+         * is missing uploads. Photos match on filename in the target folder;
+         * videos on the server's stem naming — and only "ready" clips count,
+         * because re-uploading under the same name is the documented remedy
+         * for a clip stuck in processing, and dedupe must not block the cure.
+         * Best-effort: if either lookup fails, upload everything rather than
+         * refuse anything.
+         */
+        let dupes = 0;
+        try {
+          if (imgs.length) {
+            const have = new Set((await listFolder(folderFor(target))).map((x: { name: string }) => x.name));
+            const fresh = imgs.filter((f) => !have.has(f.name));
+            dupes += imgs.length - fresh.length; imgs = fresh;
+          }
+          if (vids.length) {
+            const qs = new URLSearchParams({ editionId, ...(target ? { bookingId: target } : {}) });
+            const d = await fetch(`/api/admin/videos?${qs}`).then((r) => r.json()).catch(() => null);
+            const have = new Set(
+              ((d?.items ?? []) as { stem: string; status: string }[])
+                .filter((i) => i.status === "ready")
+                .map((i) => String(i.stem).split("/").pop()),
+            );
+            const fresh = vids.filter((f) => !have.has(stemOf(f.name)));
+            dupes += vids.length - fresh.length; vids = fresh;
+          }
+        } catch { /* dedupe is a convenience, never a gate */ }
         const who = target === "" ? "Everyone" : (bookings.find((b) => b.id === target)?.contact?.name || bookings.find((b) => b.id === target)?.name || "participant");
         let bad: File[] = [];
         let stoppedEarly = false;
@@ -557,7 +601,7 @@ export function EditionMemoriesUploader({ editionId, initialVideoUrl }: { editio
         const okVids = vids.filter((f) => !badSet.has(f)).length;
         if (bad.length) { clean = false; failedBuckets.push([target, bad]); }
         report.push(
-          `${who}: ${okImgs} photo${okImgs === 1 ? "" : "s"}, ${okVids} video${okVids === 1 ? "" : "s"}${bad.length ? "" : " ✓"}${other ? ` · ${other} other file${other === 1 ? "" : "s"} skipped` : ""}`
+          `${who}: ${okImgs} photo${okImgs === 1 ? "" : "s"}, ${okVids} video${okVids === 1 ? "" : "s"}${bad.length ? "" : " ✓"}${dupes ? ` · ${dupes} already there — skipped` : ""}${other ? ` · ${other} other file${other === 1 ? "" : "s"} skipped` : ""}`
         );
         if (bad.length) {
           const names = bad.map((f) => f.name);
@@ -605,7 +649,7 @@ export function EditionMemoriesUploader({ editionId, initialVideoUrl }: { editio
   }
 
   async function handleDrop(dt: DataTransfer) {
-    if (dropBusy || uploading || !!vidUp || pending) return;
+    if (dropBusy || uploading || !!vidUp || (pending && batchPhase !== "done")) return;
     const dropped = await filesFromDrop(dt);
     if (dropped.length) stageIncoming(dropped);
   }
