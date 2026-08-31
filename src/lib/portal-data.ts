@@ -940,6 +940,15 @@ export async function getVideoDownloadsRemaining(bookingId: string): Promise<num
   return Math.max(0, MEMORY_DOWNLOAD_LIMIT - used);
 }
 
+/** Has this booking already left a review? Gates the "Leave a review" nudge —
+    it kept nagging forever after the member had already written one. */
+export async function getBookingHasReview(bookingId: string): Promise<boolean> {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const db = createAdminClient() as any;
+  const { data } = await db.from("exp_reviews").select("id").eq("booking_id", bookingId).limit(1).maybeSingle();
+  return !!data;
+}
+
 /** Total of confirmed add-ons on a booking — added to what the member owes.
     Uses the effective status (status column or notes sentinel) so requested/declined
     rows don't count, pre- or post-migration. */
