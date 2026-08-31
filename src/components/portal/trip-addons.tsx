@@ -36,7 +36,16 @@ function splitAddon(name: string, category?: string | null): { hotel: string | n
   let rest = parts;
   if (parts.length >= 2) { hotel = parts[0]; rest = parts.slice(1); }
   let title = rest.join(" · ");
-  if (category === "accommodation") title = title.replace(/^extra nights?\s+/i, "");
+  if (category === "accommodation") {
+    title = title
+      .replace(/^extra nights?\s+/i, "")
+      // "1 Night · Garden View Beach House · Low Season" is the rate card's
+      // own name — the per-unit prefix and the season tier are pricing
+      // internals. The guest is choosing dates for a room, so the card says
+      // the room; the price line already says "per night".
+      .replace(/^\d+\s*nights?\s*·\s*/i, "")
+      .replace(/\s*·\s*(low|high)\s*season$/i, "");
+  }
   return { hotel, title: title || clean };
 }
 
@@ -49,10 +58,16 @@ function money(n: number | null) {
     dates (any time outside the trip week is "extra"). Everything else is a flat
     request. */
 const PERIOD: Record<string, { unit: string; add: string }> = {
-  accommodation: { unit: "night", add: "Add nights" },
-  gear: { unit: "day", add: "Add days" },
+  accommodation: { unit: "night", add: "Choose dates" },
+  gear: { unit: "day", add: "Choose dates" },
 };
 const plural = (unit: string, n: number) => `${unit}${n !== 1 ? "s" : ""}`;
+
+/** A component's description may be the WEBSITE line with the {n} placeholder
+ *  ("{n} nights at Sorobon…"), which the public included-list fills from the
+ *  package. Here the guest hasn't picked dates yet, so there is no n — and a
+ *  literal "{n} nights" on a booking page reads as a bug, because it is one. */
+const guestDescription = (d: string | null) => (d && !d.includes("{n}") ? d : null);
 
 export function TripAddons({ bookingId, depositPaid, hasDeposit, securingLabel, initialFlights, arrival, editionStart, editionEnd, groupLink, joinedGroup }: { bookingId: string; depositPaid: boolean; hasDeposit: boolean; securingLabel: string; initialFlights: FlightInfo | null; arrival: ArrivalInfo | null; editionStart: string | null; editionEnd: string | null; groupLink?: string | null; joinedGroup?: boolean }) {
   const [available, setAvailable] = useState<Available[]>([]);
@@ -226,7 +241,7 @@ export function TripAddons({ bookingId, depositPaid, hasDeposit, securingLabel, 
                   {hotel && <p className="text-[10.5px] font-bold uppercase tracking-[0.1em] text-[#9aa6ac] leading-none mb-1">{hotel}</p>}
                   <p className="text-[14.5px] font-bold text-[#00374a] leading-tight">{title}</p>
                   {a.sell_price != null && <p className="text-[12.5px] text-[#5a6b72] mt-0.5"><span className="font-bold text-[#00374a]">{money(a.sell_price)}</span> / {u}</p>}
-                  {a.description && <p className="text-[12px] text-[#9aa6ac] mt-0.5 truncate">{a.description}</p>}
+                  {guestDescription(a.description) && <p className="text-[12px] text-[#9aa6ac] mt-0.5 truncate">{guestDescription(a.description)}</p>}
                 </div>
                 {!open && (
                   <button onClick={() => openNights(a.id)}
@@ -289,7 +304,7 @@ export function TripAddons({ bookingId, depositPaid, hasDeposit, securingLabel, 
                 ) : (
                   a.sell_price != null && <p className="text-[12.5px] text-[#5a6b72] mt-0.5"><span className="font-bold text-[#00374a]">{money(a.sell_price)}</span></p>
                 )}
-                {a.description && <p className="text-[12px] text-[#9aa6ac] mt-0.5 truncate">{a.description}</p>}
+                {guestDescription(a.description) && <p className="text-[12px] text-[#9aa6ac] mt-0.5 truncate">{guestDescription(a.description)}</p>}
               </div>
               <button onClick={() => request(a.id)} disabled={busy === a.id}
                 className="shrink-0 px-4 py-2 rounded-full text-[12.5px] font-bold text-white bg-[#00afdb] hover:bg-[#15c0ec] disabled:opacity-60 transition-colors">
