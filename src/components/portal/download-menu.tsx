@@ -9,9 +9,10 @@ import { useState } from "react";
  * "all" whenever the member had no own uploads, which read as all-or-nothing.
  *
  * Choice semantics live with the caller; this component only encodes the
- * shared rule: a choice with `usesCredit` burns one of the booking's full
- * downloads (photos and videos each have their own 3), "just yours" never
- * does. A single available choice skips the chooser and downloads directly.
+ * shared rule: every bulk zip — own media included — burns one of the
+ * booking's full downloads (photos and videos each have their own 3).
+ * Only viewing/saving individual items is unlimited. A single available
+ * choice skips the chooser and downloads directly.
  */
 export type DownloadChoice = {
   key: string;
@@ -73,7 +74,6 @@ export function DownloadMenu({ label, unit, choices, remaining, busy, error, onP
               >
                 {c.label}
                 <span className="opacity-60 tabular-nums font-semibold">{c.count} {unit}{c.count === 1 ? "" : "s"}</span>
-                {c.usesCredit && <span className="text-[11px] font-semibold text-[#c4621a]/80">· uses a download</span>}
               </button>
             );
           })}

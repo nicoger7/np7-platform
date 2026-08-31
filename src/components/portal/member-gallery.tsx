@@ -148,19 +148,9 @@ export function MemberGallery({
     URL.revokeObjectURL(href);
   }
 
-  // "My photos" = the member's own shots — their own, so no download cap.
-  async function downloadMine() {
-    if (!minePhotos.length) return;
-    setErr("");
-    setZipping(true);
-    try { await zipAndSave(minePhotos, "my-photos.zip"); }
-    catch { setErr("Couldn't build the download. Please try again."); }
-    finally { setZipping(false); }
-  }
-
-  // Anything beyond the member's own shots — capped per booking. "Week memories"
-  // (the shared pool alone) and "everything" both count as one full download:
-  // the cap protects egress, and the shared pool IS the bulk of it.
+  // EVERY bulk zip — own photos included — counts as one of the booking's full
+  // downloads (founder ruling): the cap protects egress, and a member's own
+  // gallery is professional-shot bulk too. Individual photos stay unlimited.
   async function downloadCapped(urls: string[], filename: string) {
     if (!bookingId || !urls.length) return;
     setErr("");
@@ -418,7 +408,7 @@ export function MemberGallery({
           busy={zipping ? "Preparing…" : undefined}
           error={err || undefined}
           choices={[
-            { key: "mine", label: "Just yours", count: minePhotos.length },
+            { key: "mine", label: "Just yours", count: minePhotos.length, usesCredit: true },
             // Only offer the shared pool alone when it isn't the whole gallery anyway.
             ...(hasOthers && new Set(everyonePhotos).size < uniqueAll.length
               ? [{ key: "week", label: "Week memories", count: new Set(everyonePhotos).size, usesCredit: true }]
@@ -426,7 +416,7 @@ export function MemberGallery({
             ...(hasOthers ? [{ key: "all", label: "Everything", count: uniqueAll.length, usesCredit: true }] : []),
           ]}
           onPick={(k) => {
-            if (k === "mine") downloadMine();
+            if (k === "mine") downloadCapped(minePhotos, "my-photos.zip");
             else if (k === "week") downloadCapped([...new Set(everyonePhotos)], "week-memories.zip");
             else downloadCapped(uniqueAll, "trip-photos.zip");
           }}

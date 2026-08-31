@@ -110,18 +110,9 @@ export function TripVideoGrid({ videos, bookingId, fallbackPoster, title = "Trip
   const othersExist = videos.length > mineClips.length;
   const videoDownloadable = downloadsRemaining != null;
 
-  // Own clips: the member's own footage, so no cap — mirrors "Just yours" photos.
-  async function downloadMyVideos() {
-    if (!mineClips.length || zipProgress) return;
-    setDlErr("");
-    setZipProgress("Preparing…");
-    try { await zipVideos(mineClips, "my-videos"); }
-    catch { setDlErr("Couldn't build the download. Please try again."); }
-    finally { setZipProgress(""); }
-  }
-
-  // Beyond own clips — capped per booking, like the photo package. The shared
-  // pool alone and the whole week both count as one full download.
+  // EVERY bulk zip — own clips included — counts as one of the booking's full
+  // video downloads, mirroring the photo ruling. Watching or saving a single
+  // clip from the player stays unlimited.
   async function downloadCappedVideos(items: TripVideo[], baseName: string) {
     if (zipProgress || !items.length) return;
     setDlErr("");
@@ -249,14 +240,14 @@ export function TripVideoGrid({ videos, bookingId, fallbackPoster, title = "Trip
           busy={zipProgress || undefined}
           error={dlErr || undefined}
           choices={[
-            { key: "mine", label: "Just yours", count: mineClips.length },
+            { key: "mine", label: "Just yours", count: mineClips.length, usesCredit: true },
             ...(othersExist && weekClips.length > 0 && weekClips.length < videos.length
               ? [{ key: "week", label: "Week videos", count: weekClips.length, usesCredit: true }]
               : []),
             ...(othersExist ? [{ key: "all", label: "Everything", count: videos.length, usesCredit: true }] : []),
           ]}
           onPick={(k) => {
-            if (k === "mine") downloadMyVideos();
+            if (k === "mine") downloadCappedVideos(mineClips, "my-videos");
             else if (k === "week") downloadCappedVideos(weekClips, "week-videos");
             else downloadCappedVideos(videos, "trip-videos");
           }}

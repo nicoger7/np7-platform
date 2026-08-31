@@ -148,15 +148,6 @@ export default async function BookingDetail({ params }: Props) {
             }} />
         </div>
       )}
-      {/* The sharing switch governs photos AND clips, so it must appear for a
-          rider who has only clips — it used to sit inside the photos block, and
-          somebody with video and no photos had their clips shared by default
-          with no control anywhere to turn it off. */}
-      {(photoCount > 0 || tripVideos.length > 0) && (
-        <div className="mb-3">
-          <PhotoSharingToggle bookingId={b.id} initialShared={photosShared} />
-        </div>
-      )}
       {b.edition?.memories_video_url && (
         <a href={b.edition.memories_video_url} target="_blank" className="inline-flex items-center gap-2 text-[14px] font-bold text-[#00afdb] hover:underline">
           <svg className="w-4 h-4" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z" /></svg>
@@ -164,6 +155,15 @@ export default async function BookingDetail({ params }: Props) {
       )}
       {/* individual clips — the same grid (and keeper stars) as Account → Memories */}
       <TripVideoGrid videos={tripVideos} bookingId={b.id} downloadsRemaining={videoDownloadsRemaining} />
+      {/* The sharing switch governs photos AND clips, so it appears whenever either
+          exists (a rider with only clips still needs the off-switch) — below BOTH
+          sections, per founder request, closing the media block rather than
+          splitting photos from videos. */}
+      {(photoCount > 0 || tripVideos.length > 0) && (
+        <div className="mt-3">
+          <PhotoSharingToggle bookingId={b.id} initialShared={photosShared} />
+        </div>
+      )}
     </>
   );
 
