@@ -45,11 +45,23 @@ const TONE_CLASS: Record<"amber" | "green" | "slate", string> = {
 
 const STATUS_FILTERS: (VoucherStatus | "")[] = ["", "pending", "active", "redeemed", "expired", "cancelled"];
 
+type ExpOption = { id: string; title: string };
+type FormState = {
+  id: string | null; // null = create
+  amount: string; recipient_name: string; recipient_email: string;
+  experience_id: string; notes: string; redeem_by: string; activate: boolean;
+};
+const EMPTY_FORM: FormState = { id: null, amount: "", recipient_name: "", recipient_email: "", experience_id: "", notes: "", redeem_by: "", activate: true };
+
 export default function VouchersPage() {
   const [vouchers, setVouchers] = useState<VoucherRow[]>([]);
+  const [experiences, setExperiences] = useState<ExpOption[]>([]);
   const [loading, setLoading] = useState(true);
   const [filterStatus, setFilterStatus] = useState<VoucherStatus | "">("");
   const [busy, setBusy] = useState<string | null>(null);
+  const [form, setForm] = useState<FormState | null>(null); // open modal state
+  const [formErr, setFormErr] = useState("");
+  const [saving, setSaving] = useState(false);
 
   const fetchVouchers = useCallback(async () => {
     setLoading(true);
@@ -59,6 +71,7 @@ export default function VouchersPage() {
     if (res.ok) {
       const data = await res.json();
       setVouchers(data.vouchers || []);
+      if (Array.isArray(data.experiences)) setExperiences(data.experiences);
     }
     setLoading(false);
   }, [filterStatus]);
@@ -82,6 +95,50 @@ export default function VouchersPage() {
     }
   }
 
+  async function saveForm() {
+    if (!form) return;
+    setSaving(true);
+    setFormErr("");
+    const isEdit = !!form.id;
+    const fields = {
+      amount: form.amount, recipient_name: form.recipient_name, recipient_email: form.recipient_email,
+      experience_id: form.experience_id || null, notes: form.notes, redeem_by: form.redeem_by || null,
+    };
+    const res = await fetch(isEdit ? `/api/admin/vouchers/${form.id}` : "/api/admin/vouchers", {
+      method: isEdit ? "PATCH" : "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(isEdit ? { action: "update", fields } : { ...fields, activate: form.activate }),
+    });
+    setSaving(false);
+    if (res.ok) { setForm(null); fetchVouchers(); }
+    else {
+      const d = await res.json().catch(() => ({}));
+      setFormErr(d.error || "Couldn't save the voucher.");
+    }
+  }
+
+  async function remove(v: VoucherRow) {
+    if (!confirm(`Delete voucher ${v.code}? This can't be undone.`)) return;
+    setBusy(v.id);
+    const res = await fetch(`/api/admin/vouchers/${v.id}`, { method: "DELETE" });
+    setBusy(null);
+    if (res.ok) fetchVouchers();
+    else {
+      const d = await res.json().catch(() => ({}));
+      alert(d.error || "Couldn't delete the voucher.");
+    }
+  }
+
+  function openEdit(v: VoucherRow) {
+    setFormErr("");
+    setForm({
+      id: v.id, amount: String(v.amount ?? ""), recipient_name: v.recipient_name ?? v.recipient?.name ?? "",
+      recipient_email: v.recipient_email ?? v.recipient?.email ?? "",
+      experience_id: v.exp_experiences?.id ?? "", notes: (v as { notes?: string | null }).notes ?? "",
+      redeem_by: v.redeem_by ?? "", activate: false,
+    });
+  }
+
   const inputClass =
     "px-3 py-2 admin-input border rounded-lg text-sm focus:outline-none focus:border-[var(--admin-accent)] focus:ring-1 focus:ring-[var(--admin-accent)] transition-colors";
   const pendingCount = vouchers.filter((v) => v.status === "pending").length;
@@ -98,6 +155,13 @@ export default function VouchersPage() {
             )}
           </p>
         </div>
+        <button
+          onClick={() => { setFormErr(""); setForm({ ...EMPTY_FORM }); }}
+          className="self-start px-4 py-2 rounded-lg text-sm font-bold text-white transition-colors"
+          style={{ background: "var(--admin-accent)" }}
+        >
+          + New voucher
+        </button>
       </div>
 
       {/* Filters */}
@@ -189,6 +253,15 @@ export default function VouchersPage() {
                       {busy === v.id ? "…" : "Mark paid"}
                     </button>
                   )}
+                  {v.status !== "redeemed" && (
+                    <button
+                      onClick={() => openEdit(v)}
+                      disabled={busy === v.id}
+                      className="text-[11px] text-[#0aa3c7] hover:text-[#0aa3c7]/80 transition-colors"
+                    >
+                      Edit
+                    </button>
+                  )}
                   {(v.status === "pending" || v.status === "active") && (
                     <button
                       onClick={() => act(v.id, "cancel")}
@@ -198,10 +271,85 @@ export default function VouchersPage() {
                       Cancel
                     </button>
                   )}
+                  {["pending", "cancelled", "expired"].includes(v.status) && !v.redeemed_booking_id && (
+                    <button
+                      onClick={() => remove(v)}
+                      disabled={busy === v.id}
+                      className="text-[11px] text-red-400/60 hover:text-red-400 transition-colors"
+                    >
+                      Delete
+                    </button>
+                  )}
                 </div>
               </div>
             );
           })}
+        </div>
+      )}
+
+      {form && (
+        <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4" onClick={() => setForm(null)}>
+          <div
+            className="w-full max-w-md rounded-xl p-5 admin-surface"
+            style={{ border: "1px solid var(--admin-border)" }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h2 className="text-lg font-bold admin-heading mb-4">{form.id ? "Edit voucher" : "New voucher"}</h2>
+            <div className="space-y-3">
+              <div>
+                <label className="block text-[11px] font-bold uppercase tracking-wide admin-faint mb-1">Amount (EUR) *</label>
+                <input type="number" min="1" className={`${inputClass} w-full`} value={form.amount}
+                  onChange={(e) => setForm({ ...form, amount: e.target.value })} />
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-[11px] font-bold uppercase tracking-wide admin-faint mb-1">Recipient name</label>
+                  <input className={`${inputClass} w-full`} value={form.recipient_name}
+                    onChange={(e) => setForm({ ...form, recipient_name: e.target.value })} />
+                </div>
+                <div>
+                  <label className="block text-[11px] font-bold uppercase tracking-wide admin-faint mb-1">Recipient email</label>
+                  <input className={`${inputClass} w-full`} value={form.recipient_email}
+                    onChange={(e) => setForm({ ...form, recipient_email: e.target.value })} />
+                </div>
+              </div>
+              <div>
+                <label className="block text-[11px] font-bold uppercase tracking-wide admin-faint mb-1">Restricted to experience</label>
+                <select className={`${inputClass} w-full`} value={form.experience_id}
+                  onChange={(e) => setForm({ ...form, experience_id: e.target.value })}>
+                  <option value="">Any experience</option>
+                  {experiences.map((x) => <option key={x.id} value={x.id}>{x.title}</option>)}
+                </select>
+              </div>
+              <div>
+                <label className="block text-[11px] font-bold uppercase tracking-wide admin-faint mb-1">Use by</label>
+                <input type="date" className={`${inputClass} w-full`} value={form.redeem_by}
+                  onChange={(e) => setForm({ ...form, redeem_by: e.target.value })} />
+                {!form.id && <p className="text-[11px] admin-faint mt-1">Empty = 1 year from activation (2 for value vouchers over €5k).</p>}
+              </div>
+              <div>
+                <label className="block text-[11px] font-bold uppercase tracking-wide admin-faint mb-1">Internal notes</label>
+                <textarea rows={2} className={`${inputClass} w-full`} value={form.notes}
+                  onChange={(e) => setForm({ ...form, notes: e.target.value })} />
+              </div>
+              {!form.id && (
+                <label className="flex items-center gap-2 text-sm admin-heading">
+                  <input type="checkbox" checked={form.activate}
+                    onChange={(e) => setForm({ ...form, activate: e.target.checked })} />
+                  Activate immediately (no bank transfer to wait for)
+                </label>
+              )}
+              {formErr && <p className="text-sm text-red-400">{formErr}</p>}
+            </div>
+            <div className="flex justify-end gap-2 mt-5">
+              <button onClick={() => setForm(null)} className="px-4 py-2 rounded-lg text-sm admin-muted">Cancel</button>
+              <button onClick={saveForm} disabled={saving}
+                className="px-4 py-2 rounded-lg text-sm font-bold text-white disabled:opacity-50"
+                style={{ background: "var(--admin-accent)" }}>
+                {saving ? "Saving…" : form.id ? "Save changes" : "Create voucher"}
+              </button>
+            </div>
+          </div>
         </div>
       )}
     </div>

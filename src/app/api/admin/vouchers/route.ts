@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase";
+import { generateVoucherCode } from "@/lib/vouchers";
 
 // Admin routes are gated by middleware; no per-route auth check needed.
 
@@ -44,5 +45,56 @@ export async function GET(request: NextRequest) {
     }
   }
 
-  return NextResponse.json({ vouchers: data ?? [] });
+  // Experiences for the create/edit form's restriction dropdown — one payload,
+  // so the page needs no second endpoint.
+  const { data: experiences } = await db
+    .from("exp_experiences").select("id, title").is("archived_at", null).order("title");
+
+  return NextResponse.json({ vouchers: data ?? [], experiences: experiences ?? [] });
+}
+
+// ─── POST /api/admin/vouchers ──────────────────────────────────────────────────
+// Admin-issued voucher (goodwill, compensation, partner gift) — unlike the shop
+// flow there's no buyer and no bank transfer to wait for, so `activate: true`
+// makes it immediately redeemable.
+export async function POST(request: NextRequest) {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const db = createAdminClient() as any;
+  const body = await request.json().catch(() => ({}));
+
+  const amount = Number(body.amount);
+  if (!Number.isFinite(amount) || amount <= 0) {
+    return NextResponse.json({ error: "A voucher needs a positive amount." }, { status: 400 });
+  }
+
+  const now = new Date().toISOString();
+  const activate = body.activate === true;
+  const months = amount > 5000 && !body.experience_id ? 24 : 12; // same rule as activation
+  const rb = new Date(now); rb.setMonth(rb.getMonth() + months);
+
+  const { data, error } = await db
+    .from("gift_vouchers")
+    .insert({
+      code: generateVoucherCode(),
+      recipient_name: body.recipient_name || null,
+      recipient_email: body.recipient_email || null,
+      recipient_contact_id: body.recipient_contact_id || null,
+      experience_id: body.experience_id || null,
+      amount,
+      currency: body.currency || "EUR",
+      message: body.message || null,
+      notes: body.notes || null,
+      status: activate ? "active" : "pending",
+      ...(activate ? { paid_at: now, issued_at: now, redeem_by: rb.toISOString().slice(0, 10) } : {}),
+    })
+    .select()
+    .single();
+
+  if (error) {
+    if (isMissingTable(error.message)) {
+      return NextResponse.json({ error: "Run migration 036 first (gift_vouchers table missing)." }, { status: 503 });
+    }
+    return NextResponse.json({ error: error.message }, { status: 400 });
+  }
+  return NextResponse.json({ ok: true, voucher: data });
 }
