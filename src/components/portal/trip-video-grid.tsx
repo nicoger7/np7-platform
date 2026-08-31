@@ -244,11 +244,18 @@ export function TripVideoGrid({ videos, bookingId, fallbackPoster, title = "Trip
             ...(othersExist && weekClips.length > 0 && weekClips.length < videos.length
               ? [{ key: "week", label: "Week videos", count: weekClips.length, usesCredit: true }]
               : []),
+            // The selected rider chip becomes a download choice — "download just
+            // Thomas's clips" — on weeks like Alaçatı where every clip is filed
+            // per rider and there is no shared pool to offer.
+            ...(filter && filter !== "mine" && filtered.length < videos.length
+              ? [{ key: "filtered", label: `Only ${nameShort(sections.find((g) => g.key === filter)?.label ?? "this rider")}`, count: filtered.length, usesCredit: true }]
+              : []),
             ...(othersExist ? [{ key: "all", label: "Everything", count: videos.length, usesCredit: true }] : []),
           ]}
           onPick={(k) => {
             if (k === "mine") downloadCappedVideos(mineClips, "my-videos");
             else if (k === "week") downloadCappedVideos(weekClips, "week-videos");
+            else if (k === "filtered") downloadCappedVideos(filtered, "rider-videos");
             else downloadCappedVideos(videos, "trip-videos");
           }}
         />

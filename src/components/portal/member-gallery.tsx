@@ -413,11 +413,17 @@ export function MemberGallery({
             ...(hasOthers && new Set(everyonePhotos).size < uniqueAll.length
               ? [{ key: "week", label: "Week memories", count: new Set(everyonePhotos).size, usesCredit: true }]
               : []),
+            // The selected crew chip becomes a download choice — "everyone" is
+            // already covered by Week memories above, so only rider chips add one.
+            ...(crewFilter && crewFilter !== "everyone" && crewFiltered.length > 0 && crewFiltered.length < uniqueAll.length
+              ? [{ key: "filtered", label: `Only ${nameShort(groups.find((g) => g.key === crewFilter)?.label ?? "this rider")}`, count: crewFiltered.length, usesCredit: true }]
+              : []),
             ...(hasOthers ? [{ key: "all", label: "Everything", count: uniqueAll.length, usesCredit: true }] : []),
           ]}
           onPick={(k) => {
             if (k === "mine") downloadCapped(minePhotos, "my-photos.zip");
             else if (k === "week") downloadCapped([...new Set(everyonePhotos)], "week-memories.zip");
+            else if (k === "filtered") downloadCapped([...new Set(crewFiltered.map((it) => it.src))], "rider-photos.zip");
             else downloadCapped(uniqueAll, "trip-photos.zip");
           }}
         />
