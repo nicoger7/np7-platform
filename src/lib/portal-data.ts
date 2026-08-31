@@ -21,6 +21,8 @@ export type MemberBooking = {
   downpayment_received: boolean | null;
   final_payment_received: boolean | null;
   created_at: string | null;
+  /** Group bookings: the payer's booking that covers this one (migration 198). */
+  covered_by_booking_id?: string | null;
   experience: { title: string; slug: string; currency: string | null; cancellation_policy: string | null; hero_image: string | null; location?: string | null; tileAuto?: boolean; coachName?: string | null; coachCutout?: string | null } | null;
   edition: {
     id: string; label: string | null; date_start: string | null; date_end: string | null; deposit: number | null;
@@ -40,7 +42,7 @@ export type MemberBooking = {
 };
 
 const SELECT =
-  "id,status,experience_id,agreed_price,downpayment_received,final_payment_received,created_at,wa_group,flight_info," +
+  "id,status,experience_id,agreed_price,downpayment_received,final_payment_received,created_at,wa_group,flight_info,covered_by_booking_id," +
   "exp_experiences(title,slug,currency,cancellation_policy,hero_image,location)," +
   "exp_editions(id,label,kind,date_start,date_end,deposit,whatsapp_group_link,memories_video_url,hero_image)," +
   "exp_packages(name,price)";
@@ -51,6 +53,7 @@ function shape(b: any): MemberBooking {
     id: b.id, status: b.status, experience_id: b.experience_id, agreed_price: b.agreed_price,
     downpayment_received: b.downpayment_received, final_payment_received: b.final_payment_received,
     created_at: b.created_at,
+    covered_by_booking_id: b.covered_by_booking_id ?? null,
     experience: b.exp_experiences ?? null,
     edition: b.exp_editions ?? null,
     pkg: b.exp_packages ?? null,

@@ -127,7 +127,7 @@ export async function GET(req: NextRequest) {
 
   const { data: bookings } = await db
     .from("exp_bookings")
-    .select("id,status,experience_id,edition_id,agreed_price,deposit_received,downpayment_received,final_payment_received,created_at,contacts(name,email),exp_experiences(title,slug),exp_editions(kind,date_start,date_end,deposit,whatsapp_group_link),exp_packages(deposit,deposit_refund_days,downpayment_percent,final_days_before)")
+    .select("id,covered_by_booking_id,status,experience_id,edition_id,agreed_price,deposit_received,downpayment_received,final_payment_received,created_at,contacts(name,email),exp_experiences(title,slug),exp_editions(kind,date_start,date_end,deposit,whatsapp_group_link),exp_packages(deposit,deposit_refund_days,downpayment_percent,final_days_before)")
     .not("status", "in", "(lost)");
 
   // Pre-trip content (packing list + personal note) per experience — written once
@@ -207,6 +207,20 @@ export async function GET(req: NextRequest) {
     }
   }
 
+  // Group bookings (migration 198): the payer's plan spans the whole group, a
+  // covered guest is never payment-chased. Extra owed per payer = Σ covered
+  // (agreed + confirmed add-ons); covered bookings keep their own price for the
+  // P&L, only the money mails are pooled.
+  const coveredExtraBy = new Map<string, number>();
+  const isCovered = new Set<string>();
+  for (const b of bookings ?? []) {
+    const payer = (b as { covered_by_booking_id?: string | null }).covered_by_booking_id;
+    if (!payer) continue;
+    isCovered.add(b.id);
+    const own = (Number(b.agreed_price) || 0) + (addonsBy.get(b.id) ?? 0);
+    coveredExtraBy.set(payer, (coveredExtraBy.get(payer) ?? 0) + own);
+  }
+
   const signedWaivers = new Set<string>();
   if (bookingIds.length) {
     const { data: sigs } = await db.from("exp_waiver_signatures").select("booking_id").in("booking_id", bookingIds);
@@ -263,7 +277,7 @@ export async function GET(req: NextRequest) {
     const payState = {
       // The trip total is the price PLUS confirmed add-ons — the same total the
       // invoice engine and the member's payment plan use.
-      total: (b.agreed_price ?? 0) + (addonsBy.get(b.id) ?? 0),
+      total: (b.agreed_price ?? 0) + (addonsBy.get(b.id) ?? 0) + (coveredExtraBy.get(b.id) ?? 0),
       paidAmount: receivedBy.get(b.id) ?? 0,
       editionStart: start,
       bookedAt: b.created_at ?? null,
@@ -282,7 +296,7 @@ export async function GET(req: NextRequest) {
     // Awaiting their first payment (down-payment OR deposit) — includes free-signup
     // LEADS (the new funnel) so they're nudged to secure their spot, not just the
     // older deposit-first "reserved" rows. Tolerant of legacy statuses.
-    const awaitingDeposit = ["lead", "reserved", "payment_pending"].includes(status);
+    const awaitingDeposit = ["lead", "reserved", "payment_pending"].includes(status) && !isCovered.has(b.id);
     const depositPaid = b.downpayment_received || ["confirmed", "downpayment_paid", "paid", "attended"].includes(status);
     /**
      * Paid, by hand and by ledger — deliberately two different questions.
@@ -387,7 +401,7 @@ export async function GET(req: NextRequest) {
     // (due within 7 days) and r2 is a debt that is STILL OWED — a deadline that
     // passed before go-live does not make the money less outstanding. tripLive
     // already stops us nagging about trips that have been and gone.
-    if (tripLive && depositPaid && !balancePaid && finalMs && finalMs.amount > 0 && daysToFinalDue != null) {
+    if (tripLive && depositPaid && !balancePaid && !isCovered.has(b.id) && finalMs && finalMs.amount > 0 && daysToFinalDue != null) {
       if (daysToFinalDue <= 7 && daysToFinalDue >= 0) bump("balance", await send("balance_invoice_reminder", `balance_invoice_reminder:r1:${b.id}`));
       if (daysToFinalDue <= -3 && (daysToStart == null || daysToStart > 0)) bump("balance", await send("balance_invoice_reminder", `balance_invoice_reminder:r2:${b.id}`));
     }
@@ -396,7 +410,7 @@ export async function GET(req: NextRequest) {
     //     Not for an event: a ticket is paid in full AT checkout, so this fires
     //     immediately after the confirmation mail and promises the pre-trip
     //     chain that the guard below correctly suppresses.
-    if (tripLive && !isEvent && depositPaid && balanceSettled && (b.agreed_price ?? 0) > 0
+    if (tripLive && !isEvent && depositPaid && balanceSettled && !isCovered.has(b.id) && (b.agreed_price ?? 0) > 0
         && eventLive(lastPaidAt.get(b.id) ?? null)) {
       bump("balance_paid", await send("balance_paid_confirmation", `balance_paid_confirmation:${b.id}`));
     }

@@ -35,7 +35,15 @@ function goBack(router: { replace: (href: string) => void }, backHref: string) {
 // so strip a leading "CODE - " for display.
 const cleanPackageName = (name: string) => name.replace(/^[A-Za-z0-9]+\s*[-–—]\s*/, "").trim() || name;
 
+type GroupInfo = {
+  covered_by: { id: string; name: string | null } | null;
+  covers: { id: string; name: string | null; agreed_price: number | null }[];
+  edition_peers: { id: string; name: string | null; status: string | null }[];
+};
+
 interface BookingDetail {
+  group?: GroupInfo;
+  covered_by_booking_id?: string | null;
   id: string;
   name: string;
   experience_id: string | null;
@@ -1048,6 +1056,54 @@ export function BookingDetailPane({ bookingId, onBack }: { bookingId: string; on
               onChange={(e) => update("agreed_price", e.target.value ? Number(e.target.value) : null)}
             />
             <p className="text-[11px] admin-faint mt-1">Pre-filled from the selected package — type your own price to override (it sticks).</p>
+          </div>
+
+          {/* Group booking (migration 198): one payer covers several travellers.
+              Linking here is the whole admin flow in phase 1 — the public
+              multi-person booking form comes later. */}
+          <div>
+            <label className={labelClass}>Group booking</label>
+            {booking.group?.covers && booking.group.covers.length > 0 ? (
+              <div className="rounded-lg p-3 bg-[var(--admin-accent)]/5 text-sm" style={{ border: "1px solid rgba(10,163,199,0.15)" }}>
+                <p className="admin-heading font-semibold mb-1">Pays for {booking.group.covers.length} other{booking.group.covers.length === 1 ? "" : "s"}:</p>
+                {booking.group.covers.map((c) => (
+                  <p key={c.id} className="admin-muted text-[13px]">
+                    <a href={`/admin/bookings/${c.id}`} className="text-[#0aa3c7] hover:underline">{c.name ?? "Unnamed"}</a>
+                    {c.agreed_price != null && <span className="admin-faint"> · €{Number(c.agreed_price).toLocaleString("de-DE")}</span>}
+                  </p>
+                ))}
+                <p className="text-[11px] admin-faint mt-1.5">Their trips are billed through THIS booking — one plan, one invoice, group total.</p>
+              </div>
+            ) : (
+              <>
+                <select
+                  className={`${inputClass} max-w-md`}
+                  value={booking.covered_by_booking_id ?? ""}
+                  onChange={async (e) => {
+                    const v = e.target.value || null;
+                    const res = await fetch(`/api/admin/bookings/${id}`, {
+                      method: "PATCH",
+                      headers: { "Content-Type": "application/json" },
+                      body: JSON.stringify({ covered_by_booking_id: v }),
+                    });
+                    if (res.ok)
+
+ window.location.reload();
+                    else alert("Couldn't update the group link.");
+                  }}
+                >
+                  <option value="">— pays for themselves —</option>
+                  {(booking.group?.edition_peers ?? []).map((pb) => (
+                    <option key={pb.id} value={pb.id}>Covered by {pb.name ?? "Unnamed"}{pb.status ? ` (${pb.status})` : ""}</option>
+                  ))}
+                </select>
+                <p className="text-[11px] admin-faint mt-1">
+                  {booking.covered_by_booking_id
+                    ? "This guest is never invoiced or payment-chased — money runs through the payer. Their portal says who covers them."
+                    : "Link this booking to a payer on the same week and all invoices + payment mail move to the payer, while this booking keeps its own price for the P&L."}
+                </p>
+              </>
+            )}
           </div>
 
           {/* Computed: total paid + outstanding */}

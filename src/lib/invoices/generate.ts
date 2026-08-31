@@ -28,6 +28,7 @@ import {
   type BookingPaymentState,
 } from "@/lib/payments";
 import { effectiveAddonStatus } from "@/lib/addons";
+import { coveredExtraTotal, getCoverer } from "@/lib/group-booking";
 import { includeLine } from "@/lib/include-line";
 import { sumReceived, type PaymentLike } from "@/lib/payment-totals";
 
@@ -267,7 +268,7 @@ async function resolveBooking(bookingId: string): Promise<ResolvedBooking> {
   const { data, error } = await db
     .from("exp_bookings")
     .select(
-      `id, contact_id, experience_id, edition_id, package_id,
+      `id, contact_id, experience_id, edition_id, package_id, covered_by_booking_id,
        agreed_price, downpayment_received, final_payment_received, notes, created_at,
        contacts(name, email, billing_address, billing_postal_code, billing_city, billing_country),
        exp_experiences(title, slug),
@@ -359,7 +360,23 @@ export async function generateDocument(input: GenerateInput): Promise<DocumentRo
   // so every stage below reflects extras the same way the member's plan does.
   // Deposit honours an edition-level override; the rest (down-payment %, final
   // timing) comes from the package.
-  const { total } = await bookingBillingTotals(bookingId, booking.agreed_price ?? 0);
+  // Group bookings (migration 198): a covered booking is never invoiced — its
+  // money runs through the payer. Refuse with a pointer instead of producing a
+  // document the covered guest was never meant to receive. The booking
+  // confirmation stays per person: it confirms the spot, not the money.
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  if ((booking as any).covered_by_booking_id && type !== "booking_confirmation") {
+    const payer = await getCoverer(getDb(), bookingId);
+    throw new Error(
+      `This booking is covered by ${payer?.payerName ?? "another booking"} — generate invoices on the payer's booking.`
+    );
+  }
+  // The payer's documents bill the WHOLE group: own trip + every covered one
+  // (each keeps its own agreed_price for the P&L and the VAT margin — only the
+  // invoicing is pooled here).
+  const coveredExtra = await coveredExtraTotal(getDb(), bookingId);
+  const { total: ownTotal } = await bookingBillingTotals(bookingId, booking.agreed_price ?? 0);
+  const total = round2(ownTotal + coveredExtra);
   const cfg: PackagePaymentConfig = {
     deposit: computeDeposit(booking),
     downpayment_percent: booking.exp_packages?.downpayment_percent ?? null,

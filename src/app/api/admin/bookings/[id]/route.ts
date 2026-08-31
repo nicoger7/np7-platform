@@ -69,6 +69,23 @@ export async function GET(
     }
   }
 
+  // Group bookings (migration 198): who pays for this one / whom it pays for,
+  // and the edition's other bookings so the Details tab can offer the link
+  // without a second request.
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const bd: any = booking.data;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const anyClient = client as any; // covered_by_booking_id is newer than database.types.ts
+  const [covererRow, coversRows, peersRows] = await Promise.all([
+    bd?.covered_by_booking_id
+      ? anyClient.from("exp_bookings").select("id, contacts(name)").eq("id", bd.covered_by_booking_id).maybeSingle()
+      : Promise.resolve({ data: null }),
+    anyClient.from("exp_bookings").select("id, agreed_price, contacts(name)").eq("covered_by_booking_id", id),
+    bd?.edition_id
+      ? anyClient.from("exp_bookings").select("id, status, contacts(name)").eq("edition_id", bd.edition_id).neq("id", id)
+      : Promise.resolve({ data: [] }),
+  ]);
+
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   let out: Record<string, any> = {
     ...booking.data,
@@ -76,6 +93,14 @@ export async function GET(
     addons: addons.data || [],
     tasks: tasks.data || [],
     hotel_rooms: rooms,
+    group: {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      covered_by: covererRow.data ? { id: (covererRow.data as any).id, name: (covererRow.data as any).contacts?.name ?? null } : null,
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      covers: ((coversRows.data ?? []) as any[]).map((b) => ({ id: b.id, name: b.contacts?.name ?? null, agreed_price: b.agreed_price ?? null })),
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      edition_peers: ((peersRows.data ?? []) as any[]).map((b) => ({ id: b.id, name: b.contacts?.name ?? null, status: b.status ?? null })),
+    },
   };
 
   // Field redaction by role: money (prices/payments), costs (component costs),

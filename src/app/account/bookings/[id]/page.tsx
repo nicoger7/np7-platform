@@ -25,6 +25,7 @@ import { getInvitesForBooking, resolveRewards } from "@/lib/invites";
 import { computePaymentPlan, amountDueNow, addDays, PAYMENT_DEFAULTS, type Milestone } from "@/lib/payments";
 import { describePrice } from "@/lib/pricing";
 import { createAdminClient } from "@/lib/supabase";
+import { getCoverer, getCoveredBookings, coveredExtraTotal } from "@/lib/group-booking";
 import { PackingChecklist } from "@/components/portal/packing-checklist";
 
 export const metadata: Metadata = { title: "My trip — NP7" };
@@ -61,8 +62,18 @@ export default async function BookingDetail({ params }: Props) {
   ]);
   const packingItems = (preTrip.packingList ?? "").split("\n").map((s) => s.trim()).filter(Boolean);
 
+  // Group bookings (migration 198): a covered guest sees no money at all; a
+  // payer's plan bills the whole group on top of their own trip. Each covered
+  // booking keeps its own price for the P&L — only the money view is pooled.
+  const gdb = createAdminClient();
+  const [coverer, coveredList] = await Promise.all([
+    b.covered_by_booking_id ? getCoverer(gdb, b.id).catch(() => null) : Promise.resolve(null),
+    getCoveredBookings(gdb, b.id).catch(() => []),
+  ]);
+  const coveredExtra = coveredList.reduce((s, c) => s + c.total, 0);
   const baseTotal = b.agreed_price ?? null;
-  const total = baseTotal != null ? baseTotal + addonsTotal : addonsTotal > 0 ? addonsTotal : null;
+  const ownTotal = baseTotal != null ? baseTotal + addonsTotal : addonsTotal > 0 ? addonsTotal : null;
+  const total = ownTotal != null ? ownTotal + coveredExtra : coveredExtra > 0 ? coveredExtra : null;
   // How the member's price compares to the package list (+ confirmed add-ons):
   // a discount, an exact match, or a negotiated "as discussed" figure.
   const priceLabel = describePrice({ agreedPrice: b.agreed_price, packagePrice: b.pkg?.price ?? null, addonsTotal });
@@ -346,7 +357,21 @@ export default async function BookingDetail({ params }: Props) {
     </div>
   );
 
-  const paymentBody = (
+  const payerFirst = (coverer?.payerName ?? "").split(" ")[0] || "someone else";
+  const coveredPaymentBody = (
+    <div className="rounded-2xl border border-[#e8f1f4] bg-[#f7fbfc] px-5 py-6">
+      <p className="text-[15px] font-bold text-[#00374a] leading-snug">
+        Nothing to pay here — {coverer?.payerName ?? "someone else"} is covering your spot.
+      </p>
+      <p className="text-[13px] text-[#6a7a80] leading-relaxed mt-1.5">
+        Your trip is part of a group booking. Questions about payment? {payerFirst} has the details.
+      </p>
+      {b.agreed_price != null && (
+        <p className="text-[12.5px] text-[#9aa6ac] mt-3">Your package: {money(b.agreed_price + addonsTotal, cur)}</p>
+      )}
+    </div>
+  );
+  const paymentBody = b.covered_by_booking_id ? coveredPaymentBody : (
     <>
       <Row label="Package" value={b.pkg?.name ?? "—"} />
       {addonsTotal > 0 && <Row label="Confirmed add-ons" value={`+ ${money(addonsTotal, cur)}`} />}
@@ -366,6 +391,11 @@ export default async function BookingDetail({ params }: Props) {
             <span className="ml-2 text-[12px] font-medium text-[#9aa6ac] align-middle">as discussed</span>
           </>
         } />
+      )}
+      {coveredList.length > 0 && (
+        <p className="mt-3 text-[12.5px] text-[#6a7a80] leading-snug">
+          This plan covers <strong className="text-[#00374a]">{coveredList.length + 1} spots</strong> — yours and {coveredList.map((c) => (c.guestName ?? "a fellow rider").split(" ")[0]).join(", ")}. One plan, one invoice.
+        </p>
       )}
       <div className="mt-3.5">
         <PaymentPlan milestones={plan} currency={cur} total={total ?? 0} paid={paid} voucherCredit={voucherCredit} />
