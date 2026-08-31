@@ -3,7 +3,7 @@ import { defaultCancellationPolicy } from "@/lib/cancellation-policy";
 import { redirect, notFound } from "next/navigation";
 import type { Metadata } from "next";
 import { getPortalUser } from "@/lib/auth";
-import { getMemberBooking, getTripGalleryGroupsForBooking, getTripVideosForBooking, getBookingPhotoSharing, getBookingPaid, getBookingHotel, getBookingStay, getEditionCoaches, getMemoryDownloadsRemaining, getVideoDownloadsRemaining, getBookingHasReview, getConfirmedAddonsTotal, getBookingFlights, getExperienceArrivalInfo, getCrewProfiles, getPreTripContent, getGuidesForBooking } from "@/lib/portal-data";
+import { getMemberBooking, getTripGalleryGroupsForBooking, getTripVideosForBooking, getBookingPhotoSharing, getBookingPaid, getBookingHotel, getBookingStay, getEditionCoaches, getMemoryDownloadsRemaining, getVideoDownloadsRemaining, getBookingHasReview, getBookingVoucherCredit, getConfirmedAddonsTotal, getBookingFlights, getExperienceArrivalInfo, getCrewProfiles, getPreTripContent, getGuidesForBooking } from "@/lib/portal-data";
 import { bookingStatus, fmtDates, money, isSecured } from "@/lib/portal-status";
 import { isAttending } from "@/lib/types";
 import { PortalChrome } from "@/components/portal/portal-chrome";
@@ -40,7 +40,7 @@ export default async function BookingDetail({ params }: Props) {
   if (!b) notFound();
 
   const chip = bookingStatus(b);
-  const [galleryGroups, paid, hotel, stay, coaches, downloadsRemaining, addonsTotal, flights, arrival, crew, photosShared, preTrip, tripVideos, guides, videoDownloadsRemaining, hasReview] = await Promise.all([
+  const [galleryGroups, paid, hotel, stay, coaches, downloadsRemaining, addonsTotal, flights, arrival, crew, photosShared, preTrip, tripVideos, guides, videoDownloadsRemaining, hasReview, voucherCredit] = await Promise.all([
     b.edition?.id ? getTripGalleryGroupsForBooking(b.edition.id, b.id).catch(() => []) : Promise.resolve([]),
     getBookingPaid(b.id).catch(() => 0),
     getBookingHotel(b.id).catch(() => null),
@@ -57,6 +57,7 @@ export default async function BookingDetail({ params }: Props) {
     getGuidesForBooking(b.id).catch(() => []),
     getVideoDownloadsRemaining(b.id).catch(() => 3),
     getBookingHasReview(b.id).catch(() => false),
+    getBookingVoucherCredit(b.id).catch(() => 0),
   ]);
   const packingItems = (preTrip.packingList ?? "").split("\n").map((s) => s.trim()).filter(Boolean);
 
@@ -367,7 +368,7 @@ export default async function BookingDetail({ params }: Props) {
         } />
       )}
       <div className="mt-3.5">
-        <PaymentPlan milestones={plan} currency={cur} total={total ?? 0} paid={paid} />
+        <PaymentPlan milestones={plan} currency={cur} total={total ?? 0} paid={paid} voucherCredit={voucherCredit} />
       </div>
       {/* How to pay + the invoice/pro-forma (with the bank details & reference)
           right where the money is — not buried in a separate documents tab. */}

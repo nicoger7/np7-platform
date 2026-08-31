@@ -16,9 +16,12 @@ export function PaymentPlan({
   currency = "EUR",
   total,
   paid,
+  voucherCredit = 0,
 }: {
   milestones: Milestone[];
   currency?: string;
+  /** Portion of `paid` that came from gift-voucher redemptions. */
+  voucherCredit?: number;
   total: number;
   paid: number;
 }) {
@@ -96,6 +99,9 @@ export function PaymentPlan({
       <div className="mt-4 pt-4 border-t border-[#f3ede2] space-y-1.5">
         <div className="flex justify-between text-[13.5px]"><span className="text-[#6a7a80]">Trip total</span><span className="font-bold text-[#00374a] tabular-nums">{money(total, currency)}</span></div>
         {paid > 0 && <div className="flex justify-between text-[13.5px]"><span className="text-[#6a7a80]">Paid so far</span><span className="font-bold text-green-600 tabular-nums">{money(paid, currency)} ✓</span></div>}
+        {voucherCredit > 0 && (
+          <div className="flex justify-between text-[12.5px]"><span className="text-[#9aa6ac] pl-3">incl. gift voucher</span><span className="font-semibold text-[#8a6a2a] tabular-nums">🎁 {money(voucherCredit, currency)}</span></div>
+        )}
         <div className="flex justify-between text-[14px]">
           <span className="font-bold text-[#00374a]">{paidInFull ? "Status" : "Balance due"}</span>
           <span className={`font-extrabold tabular-nums ${paidInFull ? "text-green-600" : "text-[#00374a]"}`}>{paidInFull ? "Paid in full ✓" : money(balance, currency)}</span>

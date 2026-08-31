@@ -940,6 +940,19 @@ export async function getVideoDownloadsRemaining(bookingId: string): Promise<num
   return Math.max(0, MEMORY_DOWNLOAD_LIMIT - used);
 }
 
+/** Money on this booking that arrived as gift-voucher redemptions — shown as its
+    own line under "Paid so far" so a voucher never masquerades as a discount. */
+export async function getBookingVoucherCredit(bookingId: string): Promise<number> {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const db = createAdminClient() as any;
+  const { data } = await db.from("exp_payments")
+    .select("amount, method, direction, status")
+    .eq("booking_id", bookingId).eq("method", "voucher");
+  return (data ?? [])
+    .filter((p: { direction?: string; status?: string }) => p.direction === "revenue" && p.status === "paid")
+    .reduce((sum: number, p: { amount: number | null }) => sum + (Number(p.amount) || 0), 0);
+}
+
 /** Has this booking already left a review? Gates the "Leave a review" nudge —
     it kept nagging forever after the member had already written one. */
 export async function getBookingHasReview(bookingId: string): Promise<boolean> {
