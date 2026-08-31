@@ -2,6 +2,7 @@ import { NextRequest, NextResponse, after } from "next/server";
 import { autoAssignRoom, becameSecured } from "@/lib/room-assign";
 import { createAdminClient } from "@/lib/supabase";
 import { getRequestAccess } from "@/lib/admin-auth";
+import { dbErrorMessage } from "@/lib/admin-errors";
 import { effectiveCanSeeField } from "@/lib/access";
 
 // GET /api/admin/bookings/:id — get booking with all related data
@@ -140,6 +141,15 @@ export async function PATCH(
     oldStatus = (prev as { status?: string | null } | null)?.status ?? null;
   }
 
+  // Same two guards the create route applies — an edit can put a booking into
+  // exactly the states creation refuses (no guest, negative price).
+  if ("agreed_price" in body && body.agreed_price != null && Number(body.agreed_price) < 0) {
+    return NextResponse.json({ error: "The price can't be negative. Use a payment or a credit note to give money back." }, { status: 400 });
+  }
+  if ("contact_id" in body && !body.contact_id) {
+    return NextResponse.json({ error: "A booking needs a guest — it can't be cleared." }, { status: 400 });
+  }
+
   const { data, error } = await client
     .from("exp_bookings")
     .update({ ...body, updated_at: new Date().toISOString() })
@@ -148,7 +158,7 @@ export async function PATCH(
     .single();
 
   if (error) {
-    return NextResponse.json({ error: error.message }, { status: 400 });
+    return NextResponse.json({ error: dbErrorMessage(error, "Couldn't save the booking — please try again.") }, { status: 400 });
   }
 
   /*

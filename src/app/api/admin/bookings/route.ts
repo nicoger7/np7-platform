@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase";
+import { dbErrorMessage } from "@/lib/admin-errors";
 import { getRequestAccess } from "@/lib/admin-auth";
 import { effectiveCanSeeField } from "@/lib/access";
 import { sumReceived, sumExpected, paidState } from "@/lib/payment-totals";
@@ -101,6 +102,37 @@ export async function POST(request: NextRequest) {
   const client = createAdminClient();
   const body = await request.json();
 
+  /*
+   * A booking is a person on a trip — refuse the ones that are neither.
+   *
+   * This route inserted the request body verbatim. The New Booking form does
+   * require an experience and a guest, but the route is the only thing standing
+   * between a mistyped script and the bookings table, and it stood aside: a
+   * walkthrough created a guest-less booking and a EUR -500 one, both accepted.
+   * A booking with no guest can never be invoiced, mailed or housed; a negative
+   * price silently subtracts from an edition's P&L.
+   */
+  if (!body?.experience_id) {
+    return NextResponse.json({ error: "Choose an experience for this booking." }, { status: 400 });
+  }
+  if (!body?.contact_id) {
+    return NextResponse.json({ error: "A booking needs a guest — pick or create a contact first." }, { status: 400 });
+  }
+  if (body.agreed_price != null && Number(body.agreed_price) < 0) {
+    return NextResponse.json({ error: "The price can't be negative. Use a payment or a credit note to give money back." }, { status: 400 });
+  }
+  // A week belongs to one experience; crossing them makes a booking whose
+  // dates, packages and rooms all contradict each other.
+  if (body.edition_id) {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { data: ed } = await (client as any)
+      .from("exp_editions").select("experience_id").eq("id", body.edition_id).maybeSingle();
+    if (!ed) return NextResponse.json({ error: "That week doesn't exist (any more) — pick it again." }, { status: 400 });
+    if (ed.experience_id !== body.experience_id) {
+      return NextResponse.json({ error: "That week belongs to a different experience — pick a week of the chosen experience." }, { status: 400 });
+    }
+  }
+
   const { data, error } = await client
     .from("exp_bookings")
     .insert(body)
@@ -108,7 +140,7 @@ export async function POST(request: NextRequest) {
     .single();
 
   if (error) {
-    return NextResponse.json({ error: error.message }, { status: 400 });
+    return NextResponse.json({ error: dbErrorMessage(error, "Couldn't create the booking — please try again.") }, { status: 400 });
   }
 
   return NextResponse.json(data, { status: 201 });

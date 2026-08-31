@@ -622,6 +622,30 @@ export function BookingDetailPane({ bookingId, onBack }: { bookingId: string; on
   async function addPayment() {
     const amount = parseAmount(paymentForm.amount);
     if (amount === null || amount === 0) return;
+    /*
+     * Far more than is owed? Say the number out loud before it is money.
+     *
+     * Overpayments are real (a guest rounds up, a transfer covers two trips),
+     * so this asks rather than blocks — but a walkthrough recorded EUR 99,999
+     * against a EUR 2,870 booking without a murmur, and nothing downstream
+     * would have queried it either. Computed here from the booking rather than
+     * read from the render scope, so it cannot drift from what the card shows.
+     */
+    if (booking && (paymentForm.direction || "revenue") !== "cost" && amount > 0) {
+      const addons = booking.addons
+        .filter((a) => effectiveAddonStatus(a) === "confirmed")
+        .reduce((sum, a) => sum + (Number(a.price) || 0), 0);
+      const owed = Math.max(0, (Number(booking.agreed_price) || 0) + addons - sumReceived(booking.payments));
+      const over = amount - owed;
+      // A little over is rounding; a lot over is a typo worth a second look.
+      if (over > 1 && (owed === 0 || over > owed * 0.1)) {
+        const fmt = (n: number) => `€${n.toLocaleString("de-DE", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+        const line = owed === 0
+          ? `This booking has nothing outstanding, and you're recording ${fmt(amount)}.`
+          : `That's ${fmt(over)} more than the ${fmt(owed)} still owed.`;
+        if (!confirm(`${line}\n\nRecord it anyway?`)) return;
+      }
+    }
     const body = {
       amount,
       type: paymentForm.type,
