@@ -162,6 +162,9 @@ interface AvailablePackage {
   name: string;
   category?: string | null;
   price: number | null;
+  /** Which hotel this package sleeps in — two same-named packages in one week
+      differ only by this. */
+  hotels?: { name: string | null } | null;
 }
 
 const STATUSES = [
@@ -185,6 +188,18 @@ export function BookingDetailPane({ bookingId, onBack }: { bookingId: string; on
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
+  /*
+   * Unsaved edits, tracked out loud.
+   *
+   * Every field on this page is local until Save — but the header recomputes
+   * Trip/Paid/Owed from that local state, so choosing a package made the money
+   * change instantly and the page looked saved. A walkthrough on 1 Sep 2026 set
+   * package + price + status, reloaded, and lost all three without a word. The
+   * page keeps its explicit Save (a typo in a price must not become real the
+   * moment it is typed) and instead says when something is pending, and stops
+   * the tab from taking the work with it.
+   */
+  const [dirty, setDirty] = useState(false);
   const [flightsDirty, setFlightsDirty] = useState(false);
   const [tab, setTab] = useState<"details" | "payments" | "addons" | "rooms" | "documents" | "notes">("details");
   // Back target — honour ?from= (e.g. opened from a member) so "back" returns to
@@ -276,7 +291,17 @@ export function BookingDetailPane({ bookingId, onBack }: { bookingId: string; on
 
   function update(field: string, value: unknown) {
     setBooking((prev) => (prev ? { ...prev, [field]: value } : prev));
+    setDirty(true);
   }
+
+  // The browser's own guard — it covers reload, tab close and back, which no
+  // in-app dialog can intercept.
+  useEffect(() => {
+    if (!dirty) return;
+    const warn = (e: BeforeUnloadEvent) => { e.preventDefault(); e.returnValue = ""; };
+    window.addEventListener("beforeunload", warn);
+    return () => window.removeEventListener("beforeunload", warn);
+  }, [dirty]);
 
   async function fetchNotes() {
     const res = await fetch(`/api/admin/bookings/${id}/notes`);
@@ -381,6 +406,7 @@ export function BookingDetailPane({ bookingId, onBack }: { bookingId: string; on
       setFlightsDirty(false);
     }
     setSaving(false);
+    setDirty(false);
     setSaved(true);
     setTimeout(() => setSaved(false), 2000);
   }
@@ -881,12 +907,15 @@ export function BookingDetailPane({ bookingId, onBack }: { bookingId: string; on
           <button onClick={handleDelete} className="px-3 py-2 text-xs text-red-400/60 hover:text-red-400 transition-colors">
             Delete
           </button>
+          {dirty && !saving && (
+            <span className="text-xs font-semibold text-amber-500 mr-1">Unsaved changes</span>
+          )}
           <button
             onClick={handleSave}
             disabled={saving}
-            className="px-4 py-2 bg-[var(--admin-accent)] hover:bg-[var(--admin-accent)]/90 disabled:opacity-50 text-[var(--admin-accent-contrast)] text-sm font-bold rounded-lg transition-colors"
+            className={`px-4 py-2 disabled:opacity-50 text-sm font-bold rounded-lg transition-colors ${dirty ? "bg-amber-500 hover:bg-amber-500/90 text-[#1a1207] ring-2 ring-amber-400/40" : "bg-[var(--admin-accent)] hover:bg-[var(--admin-accent)]/90 text-[var(--admin-accent-contrast)]"}`}
           >
-            {saving ? "Saving..." : saved ? "Saved!" : "Save"}
+            {saving ? "Saving..." : saved ? "Saved!" : dirty ? "Save changes" : "Save"}
           </button>
         </div>
       </div>
@@ -963,7 +992,16 @@ export function BookingDetailPane({ bookingId, onBack }: { bookingId: string; on
                   // Two packages can share a name ("No Hotel" beginner AND
                   // advanced) — the coaching level (exp_packages.category)
                   // is the distinguishing fact, so say it.
-                  label: cleanPackageName(pkg.name) + (pkg.category ? ` — ${pkg.category[0].toUpperCase()}${pkg.category.slice(1)}` : ""),
+                  //
+                  // And one week can sell the SAME name in two different
+                  // hotels: Alaçatı Week I lists "Advanced – Standard Room"
+                  // at EUR 4,350 (REF Carsi) and EUR 5,100 (REF Koyici),
+                  // identical in every visible field. Picking by price alone
+                  // is a EUR 750 coin-flip, so name the hotel — the answer was
+                  // already in exp_packages.hotel_id, just never shown.
+                  label: cleanPackageName(pkg.name)
+                    + (pkg.category ? ` — ${pkg.category[0].toUpperCase()}${pkg.category.slice(1)}` : "")
+                    + (pkg.hotels?.name ? ` · ${pkg.hotels.name}` : ""),
                   hint: pkg.price ? `€${pkg.price}` : undefined,
                 }))}
                 placeholder="No package"

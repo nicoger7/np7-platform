@@ -340,6 +340,31 @@ export default function HotelRoomsPage() {
         if (!confirm(`These dates overlap this room's ${who}. The slot can't host both — unless the hotel covers it (then tick "Hotel confirmed").\n\nSave anyway?`)) return;
       }
     }
+    /*
+     * Taking a bed off the guest who has it.
+     *
+     * Re-pointing an occupied week row at another booking used to save
+     * silently: the first guest lost their room with no warning and no trace,
+     * and nothing anywhere said it had happened. Moving people between rooms is
+     * legitimate, so this asks rather than refuses — it just refuses to do it
+     * behind the employee's back.
+     */
+    if (weekEditId !== "new") {
+      const current = selUnitWeeks.find((w) => w.id === weekEditId);
+      const hadGuest = current?.booking?.id ?? null;
+      const wantsGuest = weekForm.booking_id || null;
+      if (hadGuest && wantsGuest !== hadGuest) {
+        const loser = current?.booking?.name?.split(" — ")[0] || "the current guest";
+        const takingOver = wantsGuest
+          ? editionBookings.find((b) => b.id === wantsGuest)?.name?.split(" — ")[0] || "another guest"
+          : null;
+        const msg = takingOver
+          ? `${u.name} is currently ${loser}'s room. Move it to ${takingOver}?\n\n${loser} will be left without a room.`
+          : `${u.name} is currently ${loser}'s room. Free it up?\n\n${loser} will be left without a room.`;
+        if (!confirm(msg)) return;
+      }
+    }
+
     setSavingWeek(true);
     const body = {
       room_id: u.id, experience_id: u.experience_id || null, name: u.name, hotel_id: u.hotel_id || null, hotel: u.hotel || null,

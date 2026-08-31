@@ -11,7 +11,7 @@ export async function GET(request: NextRequest) {
 
   let query = client
     .from("exp_packages")
-    .select("*, exp_experiences(title)")
+    .select("*, exp_experiences(title), hotels(name)")
     // sort_order first so a hand-set order always wins — but nothing sets it,
     // so every row ties at 0 and Postgres returned heap order: the list looked
     // shuffled and reshuffled itself on edits. Category then price breaks the
