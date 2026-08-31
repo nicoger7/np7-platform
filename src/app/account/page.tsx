@@ -46,8 +46,21 @@ export default async function AccountHome() {
     getExperienceCards(tier ? { tierKey: tier.key, tierLabel: tier.label } : null).then((r) => r.cards).catch(() => []),
   ]);
   const ownPhotoCount = await getProfilePhotoChoices(user.contactId).then((p) => p.length).catch(() => 0);
+  // An experience the member already has an UPCOMING booking in doesn't need
+  // selling — "book your next trip" means the next one, not the one they're
+  // packing for. A PAST trip hides nothing: rebooking Bonaire next season is
+  // exactly what this row is for. (`bookings` is already cancelled/lost-free.)
+  const today = new Date().toISOString().slice(0, 10);
+  const upcomingBookedSlugs = new Set(
+    bookings
+      .filter((b) => (b.edition?.date_end ?? b.edition?.date_start ?? "") >= today)
+      .map((b) => b.experience?.slug)
+      .filter(Boolean)
+  );
   // Only weeks you can actually book — a "dates coming soon" tile sells nothing here.
-  const bookableTrips = nextTrips.filter((c) => c.dateLabel !== "Dates coming soon").slice(0, 3);
+  const bookableTrips = nextTrips
+    .filter((c) => c.dateLabel !== "Dates coming soon" && !upcomingBookedSlugs.has(c.slug))
+    .slice(0, 3);
   const first = user.name?.split(" ")[0] ?? "there";
 
   // Suggest setting a password if the member has only ever used magic links — but
@@ -79,7 +92,6 @@ export default async function AccountHome() {
       }
     : null;
 
-  const today = new Date().toISOString().slice(0, 10);
   const upcoming = bookings
     .filter((b) => b.edition?.date_start && b.edition.date_start >= today)
     .sort((a, b) => ((a.edition?.date_start ?? "") < (b.edition?.date_start ?? "") ? -1 : 1));
