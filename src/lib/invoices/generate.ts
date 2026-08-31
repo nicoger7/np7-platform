@@ -123,12 +123,24 @@ export async function issuedInvoiceTotal(bookingId: string): Promise<number> {
 }
 
 /**
- * Issued tax invoices, net of what has already been paid against them.
+ * Issued tax invoices, net of the money already received against the booking.
  *
  * This is the part of the debt that a document already stands for and money has
- * NOT yet settled. The final invoice must subtract it, or it re-bills whatever
- * an earlier invoice covered — while subtracting the gross would double-count
- * any invoice that has been paid, since the payment is subtracted too.
+ * NOT yet settled. The final invoice subtracts it, or it re-bills whatever an
+ * earlier invoice covered — while subtracting the gross would double-count any
+ * invoice that has been paid, since the payment is subtracted too.
+ *
+ * It nets against ALL received revenue, not only payments carrying a
+ * `document_id`. The allocation-only version quietly broke the common case: a
+ * down-payment tax invoice is issued, the guest pays it by bank transfer, and
+ * that payment lands on the booking with no `document_id` linking it to the
+ * invoice (Sven Heinsohn's Bonaire booking — invoice #0028 issued, €2,895 paid,
+ * unallocated). The invoice then read as fully unpaid AND the payment was
+ * subtracted as `received`, so the €2,895 down-payment was deducted twice and
+ * the final invoice — a real €2,895 still owed — refused to generate with
+ * "nothing to invoice". Netting against total received settles issued invoices
+ * first, so each debt is subtracted exactly once regardless of allocation:
+ * finalAmt = total − received − max(0, issued − received) = total − max(received, issued).
  */
 export async function unpaidIssuedInvoiceTotal(bookingId: string): Promise<number> {
   const db = getDb();
@@ -138,15 +150,13 @@ export async function unpaidIssuedInvoiceTotal(bookingId: string): Promise<numbe
   ]);
   const billed = ((docs ?? []) as { id: string; amount: number | null; type: string }[])
     .filter((d) => ["deposit_invoice", "downpayment_invoice", "final_invoice", "addon_invoice", "credit_note"].includes(d.type));
-  const ids = new Set(billed.map((d) => d.id));
   const gross = round2(billed.reduce((s, d) => s + (Number(d.amount) || 0), 0));
-  // Only money allocated TO one of those invoices — a payment against a
-  // pro-forma settles the trip, not a particular tax invoice, and is handled by
-  // `received` on the caller's side.
-  const paidAgainst = sumReceived(
-    ((pays ?? []) as (PaymentLike & { document_id?: string | null })[]).filter((p) => p.document_id && ids.has(p.document_id)),
-  );
-  return round2(Math.max(0, gross - paidAgainst));
+  // Received money settles issued invoices first — a bank transfer against a
+  // pro-forma or booking pays down the tax invoice it corresponds to even when
+  // nothing wrote the link. The caller subtracts the same `received` from the
+  // trip total, and `max(0, …)` keeps the two subtractions from overlapping.
+  const received = sumReceived((pays ?? []) as PaymentLike[]);
+  return round2(Math.max(0, gross - received));
 }
 
 /** One place for the money: trip total (agreed + confirmed add-ons), how much has
