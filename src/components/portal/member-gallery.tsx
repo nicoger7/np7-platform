@@ -5,6 +5,7 @@ import type { GalleryGroup } from "@/lib/portal-data";
 import { cdnImage } from "@/lib/img";
 import { mutate } from "@/lib/mutate";
 import { ShareSheet } from "./share-sheet";
+import { DownloadMenu } from "./download-menu";
 import { KEEPER_LIMIT, keeperLimitMessage } from "@/lib/keepers";
 
 /**
@@ -157,9 +158,11 @@ export function MemberGallery({
     finally { setZipping(false); }
   }
 
-  // "All photos" = the whole gallery (incl. shared) — capped per booking.
-  async function downloadAll() {
-    if (!bookingId) return;
+  // Anything beyond the member's own shots — capped per booking. "Week memories"
+  // (the shared pool alone) and "everything" both count as one full download:
+  // the cap protects egress, and the shared pool IS the bulk of it.
+  async function downloadCapped(urls: string[], filename: string) {
+    if (!bookingId || !urls.length) return;
     setErr("");
     setZipping(true);
     try {
@@ -171,7 +174,7 @@ export function MemberGallery({
         return;
       }
       const { remaining: rem } = await res.json();
-      await zipAndSave(uniqueAll, "trip-photos.zip");
+      await zipAndSave(urls, filename);
       setRemaining(typeof rem === "number" ? rem : Math.max(0, remaining - 1));
     } catch {
       setErr("Couldn't build the download. Please try again.");
@@ -408,37 +411,27 @@ export function MemberGallery({
       )}
 
       {downloadable && (
-        <div className="flex flex-wrap items-center gap-2.5 mt-4">
-          {minePhotos.length > 0 && (
-            <button
-              type="button"
-              onClick={downloadMine}
-              disabled={zipping}
-              className="inline-flex items-center gap-2 px-5 py-2.5 rounded-full text-[13.5px] font-bold text-[#00374a] bg-white border border-[#dde6e9] hover:border-[#00afdb] disabled:opacity-50 transition-colors"
-            >
-              <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3" /></svg>
-              Download my photos
-            </button>
-          )}
-          {hasOthers && (
-            <button
-              type="button"
-              onClick={downloadAll}
-              disabled={zipping || remaining <= 0}
-              className="inline-flex items-center gap-2 px-5 py-2.5 rounded-full text-[13.5px] font-bold text-white bg-[#00afdb] hover:bg-[#15c0ec] disabled:opacity-50 transition-colors"
-            >
-              <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3" /></svg>
-              {zipping ? "Preparing…" : "Download all photos"}
-            </button>
-          )}
-          {hasOthers && (
-            <span className="text-[12.5px] text-[#8a9aa0]">
-              {remaining > 0 ? `${remaining} full download${remaining === 1 ? "" : "s"} left` : "No full downloads left"}
-            </span>
-          )}
-        </div>
+        <DownloadMenu
+          label="Download photos"
+          unit="photo"
+          remaining={remaining}
+          busy={zipping ? "Preparing…" : undefined}
+          error={err || undefined}
+          choices={[
+            { key: "mine", label: "Just yours", count: minePhotos.length },
+            // Only offer the shared pool alone when it isn't the whole gallery anyway.
+            ...(hasOthers && new Set(everyonePhotos).size < uniqueAll.length
+              ? [{ key: "week", label: "Week memories", count: new Set(everyonePhotos).size, usesCredit: true }]
+              : []),
+            ...(hasOthers ? [{ key: "all", label: "Everything", count: uniqueAll.length, usesCredit: true }] : []),
+          ]}
+          onPick={(k) => {
+            if (k === "mine") downloadMine();
+            else if (k === "week") downloadCapped([...new Set(everyonePhotos)], "week-memories.zip");
+            else downloadCapped(uniqueAll, "trip-photos.zip");
+          }}
+        />
       )}
-      {err && <p className="text-[12.5px] text-[#c4621a] mt-2">{err}</p>}
 
       {open !== null && (
         <div className="fixed inset-0 z-[100] bg-black/90 backdrop-blur-sm flex items-center justify-center p-4" onClick={() => setOpen(null)}>

@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import type { TripVideo } from "@/lib/portal-data";
 import { mutate } from "@/lib/mutate";
 import { KEEPER_LIMIT, keeperLimitMessage } from "@/lib/keepers";
+import { DownloadMenu } from "./download-menu";
 
 function StarIcon({ filled }: { filled: boolean }) {
   return <svg className="w-4 h-4" viewBox="0 0 24 24" fill={filled ? "currentColor" : "none"} stroke="currentColor" strokeWidth="2" strokeLinejoin="round"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z" /></svg>;
@@ -105,21 +106,24 @@ export function TripVideoGrid({ videos, bookingId, fallbackPoster, title = "Trip
   }, []);
 
   const mineClips = videos.filter((v) => v.groupKind === "mine");
+  const weekClips = videos.filter((v) => v.groupKind === "everyone");
   const othersExist = videos.length > mineClips.length;
   const videoDownloadable = downloadsRemaining != null;
 
-  // Own clips: the member's own footage, so no cap — mirrors "Download my photos".
+  // Own clips: the member's own footage, so no cap — mirrors "Just yours" photos.
   async function downloadMyVideos() {
     if (!mineClips.length || zipProgress) return;
     setDlErr("");
+    setZipProgress("Preparing…");
     try { await zipVideos(mineClips, "my-videos"); }
     catch { setDlErr("Couldn't build the download. Please try again."); }
     finally { setZipProgress(""); }
   }
 
-  // Whole week (incl. shared) — capped per booking, like the photo package.
-  async function downloadAllVideos() {
-    if (zipProgress) return;
+  // Beyond own clips — capped per booking, like the photo package. The shared
+  // pool alone and the whole week both count as one full download.
+  async function downloadCappedVideos(items: TripVideo[], baseName: string) {
+    if (zipProgress || !items.length) return;
     setDlErr("");
     setZipProgress("Preparing…");
     try {
@@ -130,7 +134,7 @@ export function TripVideoGrid({ videos, bookingId, fallbackPoster, title = "Trip
         return;
       }
       const { remaining: rem } = await res.json();
-      await zipVideos(videos, "trip-videos");
+      await zipVideos(items, baseName);
       setRemaining(typeof rem === "number" ? rem : Math.max(0, remaining - 1));
     } catch {
       setDlErr("Couldn't build the download. Please try again.");
@@ -238,40 +242,29 @@ export function TripVideoGrid({ videos, bookingId, fallbackPoster, title = "Trip
         </button>
       )}
       {videoDownloadable && (
-        <div className="flex flex-wrap items-center gap-2.5 mt-3">
-          {mineClips.length > 0 && (
-            <button
-              type="button"
-              onClick={downloadMyVideos}
-              disabled={!!zipProgress}
-              className="inline-flex items-center gap-2 px-5 py-2.5 rounded-full text-[13.5px] font-bold text-[#00374a] bg-white border border-[#dde6e9] hover:border-[#00afdb] disabled:opacity-50 transition-colors"
-            >
-              <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3" /></svg>
-              Download my videos
-            </button>
-          )}
-          {othersExist && (
-            <button
-              type="button"
-              onClick={downloadAllVideos}
-              disabled={!!zipProgress || remaining <= 0}
-              className="inline-flex items-center gap-2 px-5 py-2.5 rounded-full text-[13.5px] font-bold text-white bg-[#00afdb] hover:bg-[#15c0ec] disabled:opacity-50 transition-colors"
-            >
-              <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3" /></svg>
-              {zipProgress ? zipProgress : "Download all videos"}
-            </button>
-          )}
-          {othersExist && (
-            <span className="text-[12.5px] text-[#8a9aa0]">
-              {remaining > 0 ? `${remaining} full download${remaining === 1 ? "" : "s"} left` : "No full downloads left"}
-            </span>
-          )}
-        </div>
+        <DownloadMenu
+          label="Download videos"
+          unit="clip"
+          remaining={remaining}
+          busy={zipProgress || undefined}
+          error={dlErr || undefined}
+          choices={[
+            { key: "mine", label: "Just yours", count: mineClips.length },
+            ...(othersExist && weekClips.length > 0 && weekClips.length < videos.length
+              ? [{ key: "week", label: "Week videos", count: weekClips.length, usesCredit: true }]
+              : []),
+            ...(othersExist ? [{ key: "all", label: "Everything", count: videos.length, usesCredit: true }] : []),
+          ]}
+          onPick={(k) => {
+            if (k === "mine") downloadMyVideos();
+            else if (k === "week") downloadCappedVideos(weekClips, "week-videos");
+            else downloadCappedVideos(videos, "trip-videos");
+          }}
+        />
       )}
       {videoDownloadable && othersExist && (
         <p className="text-[11.5px] text-[#9aa6ac] mt-1.5">A whole week of clips is big — it arrives as a few numbered zip files. Keep the tab open until the last one lands.</p>
       )}
-      {dlErr && <p className="text-[12.5px] text-[#c4621a] mt-2">{dlErr}</p>}
       <p className="text-[11.5px] text-[#9aa6ac] mt-2">
         Videos stay for 3 months after the trip — star up to {KEEPER_LIMIT} to keep forever ({keepers.size} of {KEEPER_LIMIT} kept).
       </p>
