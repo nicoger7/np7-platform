@@ -39,6 +39,7 @@ export type Automation = {
 export const AUTOMATIONS: Automation[] = [
   { key: "account_magic_link", name: "Login / sign-up link", stage: "Account", trigger: "When someone signs up or requests a login link", division: "experience", kind: "transactional" , source: "guest" },
   { key: "reservation_received", name: "Welcome / how it works", stage: "Register", trigger: "Right after someone registers (free)", division: "experience", kind: "transactional" , source: "guest" },
+  { key: "group_spot_covered", name: "Booked by someone else", stage: "Register", trigger: "When a payer books a spot for someone else — tells them it is covered and links their trip page", division: "experience", kind: "transactional", source: "guest" },
   { key: "trip_invite", name: "Invite a friend", stage: "Referral", trigger: "When a member emails a friend an invite to their trip", division: "experience", kind: "transactional" , source: "guest" },
   { key: "voucher_purchased", name: "Gift voucher — buyer", stage: "Vouchers", trigger: "When you confirm a gift-voucher payment (PDF attached)", division: "experience", kind: "transactional" , source: "staff" },
   { key: "voucher_gift", name: "Gift voucher — recipient", stage: "Vouchers", trigger: "Delivered to the recipient when a voucher is confirmed (PDF attached)", division: "experience", kind: "transactional" , source: "staff" },

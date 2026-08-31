@@ -38,7 +38,12 @@ export type ReserveContext = {
   spotsLeft?: number | null;
   /** Riders already secured for this week — honest social proof, only when high. */
   going?: number | null;
+  /** Every package bookable this week — a companion picks their own from these. */
+  weekPackages?: { id: string; label: string; price: number }[];
 };
+
+/** One extra person the payer is booking and paying for. */
+type Companion = { firstName: string; lastName: string; email: string; packageId: string };
 
 /**
  * Free, low-friction registration. Guests give just First name · Last name ·
@@ -47,6 +52,22 @@ export type ReserveContext = {
  * from the member account. Logged-in members skip the form (one-tap register).
  */
 export function ReserveModal({ ctx, onClose }: { ctx: ReserveContext; onClose: () => void }) {
+  // Group booking: people the payer adds to this booking. Each becomes their
+  // own booking, covered by the payer's (migration 198) — one payment plan,
+  // one invoice, but a real trip page each.
+  const [companions, setCompanions] = useState<Companion[]>([]);
+  const [groupConsent, setGroupConsent] = useState(false);
+  const weekPackages = ctx.weekPackages ?? [];
+  const canAddPeople = weekPackages.length > 0;
+  const addCompanion = () =>
+    setCompanions((cs) => (cs.length >= 6 ? cs : [...cs, { firstName: "", lastName: "", email: "", packageId: ctx.packageId }]));
+  const setCompanionField = (i: number, field: keyof Companion, value: string) =>
+    setCompanions((cs) => cs.map((c, j) => (j === i ? { ...c, [field]: value } : c)));
+  const removeCompanion = (i: number) => setCompanions((cs) => cs.filter((_, j) => j !== i));
+  const priceOf = (id: string) => weekPackages.find((p) => p.id === id)?.price ?? 0;
+  const groupTotal = ctx.price + companions.reduce((sum, c) => sum + priceOf(c.packageId), 0);
+  const money = (n: number) => `${ctx.currency === "USD" ? "$" : "€"}${n.toLocaleString("en-US")}`;
+
   const [firstName, setFirstName] = useState("");
   const [lastName, setLastName] = useState("");
   const [email, setEmail] = useState("");
@@ -126,6 +147,7 @@ export function ReserveModal({ ctx, onClose }: { ctx: ReserveContext; onClose: (
           extras: ctx.extras ?? [],
           firstName, lastName, email, marketingOptIn,
           trap, filledMs: Date.now() - openedAt,
+          companions: companions.filter((c) => c.firstName.trim() && c.email.trim()),
         }),
       });
       const json = await res.json();
@@ -158,7 +180,12 @@ export function ReserveModal({ ctx, onClose }: { ctx: ReserveContext; onClose: (
             <div className="mx-auto w-14 h-14 rounded-full bg-[#00afdb] grid place-items-center mb-5">
               <svg className="w-7 h-7 text-white" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><path d="M20 6L9 17l-5-5" /></svg>
             </div>
-            <h3 className="text-2xl font-black tracking-[-0.02em] text-[#00374a] mb-2">You&apos;re registered! 🤙</h3>
+            <h3 className="text-2xl font-black tracking-[-0.02em] text-[#00374a] mb-2">{companions.length > 0 ? `${companions.length + 1} spots held! 🤙` : "You're registered! 🤙"}</h3>
+            {companions.length > 0 && (
+              <p className="text-[13.5px] text-[#5a6b72] leading-relaxed mb-3">
+                {companions.map((c) => c.firstName.trim()).filter(Boolean).join(", ")} {companions.length === 1 ? "gets" : "get"} their own trip page by email — with nothing to pay. The whole group is on <strong>your</strong> payment plan.
+              </p>
+            )}
             <p className="text-[14.5px] text-[#5a6b72] leading-relaxed mb-6">We&apos;ve emailed you how it works. When you&apos;re ready, <strong>secure your spot</strong> with the refundable downpayment in your account — no rush, you&apos;ve got time.</p>
             <a href="/account" className="inline-block px-7 py-3.5 rounded-full text-[13.5px] font-bold text-white bg-[#00afdb]">Open my account</a>
             <button onClick={onClose} className="block w-full mt-3 text-[12.5px] font-semibold text-[#7a8a90] hover:text-[#00374a]">Done</button>
@@ -290,6 +317,68 @@ export function ReserveModal({ ctx, onClose }: { ctx: ReserveContext; onClose: (
                 </div>
                 <input required type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="Email" autoComplete="email" className={`w-full mb-4 ${inputCls}`} />
 
+                {/* Group booking — collapsed until asked for, because most
+                    people book alone and an empty roster is noise. Each person
+                    added becomes their own booking with their own trip page;
+                    only the money stays here, with the payer. */}
+                {canAddPeople && (
+                  <div className="mb-5">
+                    {companions.length === 0 ? (
+                      <button type="button" onClick={addCompanion}
+                        className="text-[13px] font-bold text-[#00afdb] hover:underline">
+                        + Booking for more than one person?
+                      </button>
+                    ) : (
+                      <div className="rounded-2xl border border-[#e8f1f4] bg-[#f7fbfc] p-3.5">
+                        <p className="text-[12.5px] font-bold text-[#00374a] mb-2.5">Who else is coming?</p>
+                        {companions.map((c, i) => (
+                          <div key={i} className="mb-3 pb-3 border-b border-[#e8f1f4] last:border-0 last:mb-0 last:pb-0">
+                            <div className="grid grid-cols-2 gap-2 mb-2">
+                              <input value={c.firstName} onChange={(e) => setCompanionField(i, "firstName", e.target.value)} placeholder="First name" className={inputCls} />
+                              <input value={c.lastName} onChange={(e) => setCompanionField(i, "lastName", e.target.value)} placeholder="Last name" className={inputCls} />
+                            </div>
+                            <input type="email" value={c.email} onChange={(e) => setCompanionField(i, "email", e.target.value)} placeholder="Their email — for their own trip page" className={`w-full mb-2 ${inputCls}`} />
+                            <div className="flex items-center gap-2">
+                              <select value={c.packageId} onChange={(e) => setCompanionField(i, "packageId", e.target.value)} className={`flex-1 ${inputCls}`}>
+                                {weekPackages.map((p) => (
+                                  <option key={p.id} value={p.id}>{p.label} — {money(p.price)}</option>
+                                ))}
+                              </select>
+                              <button type="button" onClick={() => removeCompanion(i)} className="text-[12px] font-semibold text-[#9aa6ac] hover:text-red-500 px-1">Remove</button>
+                            </div>
+                          </div>
+                        ))}
+                        {companions.length < 6 && (
+                          <button type="button" onClick={addCompanion} className="text-[12.5px] font-bold text-[#00afdb] hover:underline">+ Add another person</button>
+                        )}
+                        <div className="mt-3 pt-3 border-t border-[#e8f1f4]">
+                          <div className="flex justify-between text-[13px] mb-0.5">
+                            <span className="text-[#5a6b72]">You — {ctx.accommodation}</span>
+                            <span className="font-bold text-[#00374a] tabular-nums">{money(ctx.price)}</span>
+                          </div>
+                          {companions.map((c, i) => (
+                            <div key={i} className="flex justify-between text-[13px] mb-0.5">
+                              <span className="text-[#5a6b72]">{c.firstName.trim() || `Person ${i + 2}`}</span>
+                              <span className="font-bold text-[#00374a] tabular-nums">{money(priceOf(c.packageId))}</span>
+                            </div>
+                          ))}
+                          <div className="flex justify-between text-[14px] pt-1.5 mt-1 border-t border-[#e8f1f4]">
+                            <span className="font-bold text-[#00374a]">Total for {companions.length + 1} spots</span>
+                            <span className="font-extrabold text-[#00374a] tabular-nums">{money(groupTotal)}</span>
+                          </div>
+                          <p className="text-[11.5px] text-[#8a9aa0] leading-snug mt-2">
+                            One payment plan, one invoice — all of it to you. Everyone else gets their own trip page with nothing to pay.
+                          </p>
+                        </div>
+                        <label className="flex items-start gap-2.5 mt-3 cursor-pointer">
+                          <input type="checkbox" checked={groupConsent} onChange={(e) => setGroupConsent(e.target.checked)} className="mt-0.5 w-4 h-4 accent-[#00afdb]" />
+                          <span className="text-[12px] text-[#5a6b72] leading-snug">I have their okay to give NP7 their details, and I&apos;ll let them know we&apos;ll be in touch.</span>
+                        </label>
+                      </div>
+                    )}
+                  </div>
+                )}
+
                 <label className="flex items-start gap-2.5 mb-5 cursor-pointer">
                   <input type="checkbox" checked={marketingOptIn} onChange={(e) => setMarketingOptIn(e.target.checked)} className="mt-0.5 w-4 h-4 accent-[#00afdb]" />
                   <span className="text-[12.5px] text-[#5a6b72] leading-snug">Keep me posted on trips, tips &amp; the odd offer. <span className="text-[#9aa6ac]">(optional — you&apos;ll still get everything about your booking)</span></span>
@@ -297,9 +386,9 @@ export function ReserveModal({ ctx, onClose }: { ctx: ReserveContext; onClose: (
 
                 {error && <p className="text-[13px] text-red-500 mb-4">{error}</p>}
 
-                <button type="submit" disabled={submitting}
+                <button type="submit" disabled={submitting || (companions.length > 0 && !groupConsent)}
                   className="w-full px-7 py-4 rounded-full text-[15px] font-bold text-white bg-[#00afdb] shadow-[0_6px_24px_rgba(0,175,219,0.35)] hover:bg-[#15c0ec] disabled:opacity-60 transition-all">
-                  {submitting ? "One sec…" : "Register free"}
+                  {submitting ? "One sec…" : companions.length > 0 ? `Register ${companions.length + 1} spots — free` : "Register free"}
                 </button>
                 <p className="mt-3 text-center text-[12px] text-[#9aa6ac] leading-snug">{reassurance}</p>
               </form>

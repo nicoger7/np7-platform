@@ -7,6 +7,8 @@ import { createAdminClient } from "@/lib/supabase";
 import { sendEmail } from "@/lib/email/send";
 import { getPortalUser } from "@/lib/auth";
 import { composeBookingName } from "@/lib/booking-name";
+import { validateCompanions, createCompanionBookings, MAX_COMPANIONS, type CompanionInput } from "@/lib/group-register";
+import { ensureMemberAccount } from "@/lib/members";
 import { attachBookingToInvite } from "@/lib/invites";
 import { getMemberTier } from "@/lib/member-tier";
 import { generateDocument } from "@/lib/invoices/generate";
@@ -44,6 +46,9 @@ type Body = {
   trap?: string;
   /** How long the form was open before submit, in ms. */
   filledMs?: number;
+  /** Group booking: other people this payer is booking and paying for. Each
+      becomes its own booking linked by covered_by_booking_id (migration 198). */
+  companions?: CompanionInput[];
 };
 
 function bad(msg: string, status = 400) {
@@ -136,6 +141,16 @@ export async function POST(request: NextRequest) {
 
   const fullName = `${firstName} ${lastName}`.trim();
 
+  // Group booking: validate every companion against THIS experience and week
+  // before a single row is written — a rejected companion must not leave the
+  // payer with a half-created group.
+  const rawCompanions = Array.isArray(body.companions) ? body.companions.slice(0, MAX_COMPANIONS + 1) : [];
+  const companionCheck = await validateCompanions(db, rawCompanions, {
+    experienceId: exp.id, editionId: editionId ?? null, payerEmail: email,
+  });
+  if (!companionCheck.ok) return bad(companionCheck.error, 400);
+  const companions = companionCheck.companions;
+
   // Contact: member's own → reuse by email → create. Marketing consent is set
   // best-effort (column from migration 030) so registration never breaks on it.
   if (!contactId) {
@@ -182,6 +197,23 @@ export async function POST(request: NextRequest) {
   const { data: booking, error: bErr } = await db
     .from("exp_bookings").insert({ ...bookingPayload, status: "lead" }).select("id").single();
   if (bErr) return bad("Could not complete your registration. Please try again.", 500);
+
+  // The companions become their own bookings, covered by this one. Created
+  // BEFORE the pro-forma runs in after(), so the payer's document already
+  // pools the whole group.
+  const createdCompanions = companions.length
+    ? await createCompanionBookings(db, companions, {
+        payerBookingId: booking.id,
+        payerName: fullName,
+        experienceId: exp.id,
+        experienceTitle: exp.title,
+        editionId: editionId ?? null,
+        editionLabel: edition?.label ?? null,
+        editionStart: edition?.date_start ?? null,
+        edition,
+        botFlag,
+      })
+    : [];
 
   // Gear choice (Model A): rental is included in the package price — only a
   // choice AWAY from it writes a row: ONE delta add-on referencing the real
@@ -285,7 +317,34 @@ export async function POST(request: NextRequest) {
       attachments,
       dedupeKey: `registration_welcome:${booking.id}`,
     }).catch(() => {});
+
+    // Each covered guest gets their own member account + a mail that says who
+    // is paying and links straight to their trip page. Never a payment ask —
+    // the money lives on the payer's booking.
+    for (const c of createdCompanions) {
+      try {
+        const acc = await ensureMemberAccount({
+          contactId: c.contactId, email: c.email, origin, next: `/account/bookings/${c.bookingId}`,
+        });
+        await sendEmail({
+          to: c.email,
+          templateKey: "group_spot_covered",
+          vars: {
+            firstName: c.firstName,
+            inviterName: firstName,
+            experienceTitle: exp.title,
+            editionLabel: edition?.label ?? undefined,
+            packageName: c.packageName,
+            activationLink: "link" in acc ? acc.link : `${origin}/account`,
+          },
+          bookingId: c.bookingId,
+          contactId: c.contactId,
+          experienceId: exp.id,
+          dedupeKey: `group_covered:${c.bookingId}`,
+        }).catch(() => {});
+      } catch { /* one companion's mail must never break the rest */ }
+    }
   });
 
-  return NextResponse.json({ ok: true, bookingId: booking.id });
+  return NextResponse.json({ ok: true, bookingId: booking.id, companions: createdCompanions.map((c) => ({ firstName: c.firstName, email: c.email })) });
 }

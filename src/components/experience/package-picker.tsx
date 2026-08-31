@@ -658,6 +658,9 @@ export function PackagePicker({ packages, extras = [], currency = "EUR", reserve
               extras: [...pickedExtras],
               extrasLabel: extras.filter((x) => pickedExtras.has(x.id)).map((x) => x.name).join(" · ") || null,
               currency,
+              // A companion picks from the SAME week's packages — the price
+              // shown is the launch price, exactly like the payer's.
+              weekPackages: packages.map((p) => ({ id: p.id, label: `${p.level} · ${p.accommodation}`, price: lp(p.price) })),
             } satisfies ReserveContext
           }
           onClose={() => setShowReserve(false)}

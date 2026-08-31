@@ -362,6 +362,21 @@ export const TEMPLATES: Record<string, (v: EmailVars, opts?: LayoutOpts) => Buil
     }),
   }),
 
+  group_spot_covered: (v, opts) => ({
+    subject: `${v.inviterName ?? "Someone"} booked you onto ${v.experienceTitle ?? "an NP7 trip"} 🤙`,
+    html: emailLayout({
+      ...opts,
+      preheader: `Your spot is booked and paid for by ${v.inviterName ?? "someone else"} — here's your trip page.`,
+      bodyHtml:
+        greet(v) +
+        p(`${v.inviterName ?? "Someone"} has booked you a spot on <strong>${v.experienceTitle ?? "an NP7 Experience"}</strong>${v.editionLabel ? ` — ${v.editionLabel}` : ""}${v.dates ? `, ${v.dates}` : ""}.`) +
+        p(`<strong>There is nothing for you to pay.</strong> ${v.inviterName ?? "They"} is covering your spot${v.packageName ? ` (${v.packageName})` : ""}. Questions about the money side? Ask ${v.inviterName ?? "them"} — we bill them, never you.`) +
+        (v.activationLink ? emailButton("Open my trip page", v.activationLink) : "") +
+        p(`Your own trip page is where you sign your waiver, add your flight times and tell us about your level — that part is yours. Later it fills up with the week's photos and videos.`) +
+        p(`If this wasn't meant for you, just reply to this email and we'll take you off.`),
+    }),
+  }),
+
   trip_invite: (v, opts) => ({
     subject: `${v.inviterName ?? "A friend"} invited you to ${v.experienceTitle ?? "an NP7 trip"} 🌊`,
     html: emailLayout({
