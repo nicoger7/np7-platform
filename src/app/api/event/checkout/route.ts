@@ -75,10 +75,16 @@ export async function POST(request: NextRequest) {
   const editions = (edRows ?? []) as EdRow[];
   const wantSlug = typeof body.editionSlug === "string" ? body.editionSlug : null;
   const today = new Date().toISOString().slice(0, 10);
+  /* Only runs that have not ENDED are for sale. The fallback to editions[0]
+     existed for a series whose one edition starts mid-window, but it also let
+     a series whose only edition lay in the PAST keep selling it — a €100
+     deposit against a balance dated before the clinic even ran. */
+  const notOver = (e: EdRow) => ((e.date_end ?? e.date_start ?? "") >= today);
   const edition: EdRow | null = wantSlug
     ? editions.find((e) => e.slug === wantSlug) ?? null
-    : editions.find((e) => (e.date_start ?? "") >= today) ?? editions[0] ?? null;
+    : editions.find((e) => (e.date_start ?? "") >= today) ?? editions.find(notOver) ?? null;
   if (wantSlug && !edition) return bad("That date is no longer on sale.", 409);
+  if (edition && !notOver(edition)) return bad("This clinic has already run.", 409);
 
   // Resolve which dates this booking is against.
   let selected: string[];

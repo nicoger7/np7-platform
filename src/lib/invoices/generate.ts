@@ -412,10 +412,19 @@ export async function generateDocument(input: GenerateInput): Promise<DocumentRo
   // Deadline: securing = sign-up + refund window; final balance = trip start − final_days_before.
   const refundDays = cfg.deposit_refund_days ?? PAYMENT_DEFAULTS.depositRefundDays;
   const finalDaysBefore = cfg.final_days_before ?? PAYMENT_DEFAULTS.finalDaysBefore;
+  /*
+   * Same clamp as computePaymentPlan: a final-stage payment request must never
+   * be born overdue. `start − final_days_before` can predate the signup itself
+   * (a live pro-forma carried a due date two months in the past), and a
+   * document that asks for money by a date already gone reads as a mistake,
+   * not a deadline.
+   */
+  const secureDue = booking.created_at ? addDays(booking.created_at, refundDays) : null;
+  const finalStageDue = booking.exp_editions?.date_start ? addDays(booking.exp_editions.date_start, -finalDaysBefore) : null;
   const proformaDue =
     proformaMilestone === "final"
-      ? (booking.exp_editions?.date_start ? addDays(booking.exp_editions.date_start, -finalDaysBefore) : null)
-      : (booking.created_at ? addDays(booking.created_at, refundDays) : null);
+      ? (finalStageDue && secureDue && finalStageDue < secureDue ? secureDue : finalStageDue)
+      : secureDue;
 
   // One open pro-forma per booking. If one is already issued, this call UPDATES
   // it in place (a resync after an add-on change) — keeping its existing PF
@@ -604,6 +613,26 @@ export async function generateDocument(input: GenerateInput): Promise<DocumentRo
   // Update-in-place for an existing pro-forma (resync after an add-on change) —
   // its PDF was just re-uploaded above (upsert); refresh amount/due/meta. New
   // documents are inserted.
+  /*
+   * A FINAL invoice economically contains every confirmed, still-unstamped
+   * add-on — its amount is total − received − other invoices, and the add-ons
+   * are inside that total. But only the addon_invoice path ever wrote
+   * invoiced_in, so rows billed inside a final stayed unstamped and the
+   * "Add-on invoice" button could bill the same nights a SECOND time on a
+   * fresh gapless number. Stamp them with the final's id; pay-direct rows are
+   * the supplier's money and stay out.
+   */
+  async function stampFinalAddons(docId: string) {
+    if (type !== "final_invoice") return;
+    await admin.from("exp_booking_addons")
+      .update({ invoiced_in: docId })
+      .eq("booking_id", bookingId)
+      .eq("status", "confirmed")
+      .is("invoiced_in", null)
+      .gt("price", 0)
+      .or("payment_mode.is.null,payment_mode.eq.np7");
+  }
+
   if (reuseRow) {
     const { data: updated, error: updErr } = await admin
       .from("documents")
@@ -612,6 +641,7 @@ export async function generateDocument(input: GenerateInput): Promise<DocumentRo
       .select()
       .single();
     if (updErr) throw new Error(`Failed to re-issue ${reuseRow.invoice_number}: ${updErr.message}`);
+    await stampFinalAddons(reuseRow.id);
     return Object.assign(updated as DocumentRow, { pdf: pdfBuffer });
   }
 
@@ -646,6 +676,7 @@ export async function generateDocument(input: GenerateInput): Promise<DocumentRo
       .update({ invoiced_in: (inserted as DocumentRow).id })
       .in("id", billedAddons.map((a) => a.id));
   }
+  await stampFinalAddons((inserted as DocumentRow).id);
 
   // Callers that email the document right away get the buffer for free
   // (saves a signed-URL download round-trip).

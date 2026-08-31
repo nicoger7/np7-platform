@@ -112,7 +112,16 @@ export function computePaymentPlan(cfg: PackagePaymentConfig, state: BookingPaym
   // Deposit-payment date only as a fallback for legacy rows missing bookedAt.
   const downpaymentAnchor = state.bookedAt ?? state.depositReceivedAt ?? null;
   const downpaymentDue = downpaymentAnchor ? addDays(downpaymentAnchor, refundDays) : null;
-  const finalDue = state.editionStart ? addDays(state.editionStart, -finalDaysBefore) : null;
+  /*
+   * The final may never fall due BEFORE the downpayment. `start − final_days_
+   * before` says nothing about when the guest signed up, so a late signup —
+   * Bonaire sells its November weeks all summer — was quoted a plan whose last
+   * instalment predated its first, and every final-stage pro-forma carried a
+   * deadline already in the past. Clamped to the downpayment's own due date:
+   * for a genuinely late signup both stages simply fall due together.
+   */
+  const finalTarget = state.editionStart ? addDays(state.editionStart, -finalDaysBefore) : null;
+  const finalDue = finalTarget && downpaymentDue && finalTarget < downpaymentDue ? downpaymentDue : finalTarget;
 
   // Prefer the actual paid amount (cumulative thresholds); fall back to flags.
   const byAmount = typeof state.paidAmount === "number";
