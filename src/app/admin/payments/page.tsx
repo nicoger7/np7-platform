@@ -11,6 +11,10 @@ interface Payment {
   method: string | null;
   reference: string | null;
   date: string | null;
+  /** Set by every newer writer (Stripe webhook, voucher redemption, settle) —
+      the money engine reads it, the list used to ignore it. */
+  received_at?: string | null;
+  created_at?: string | null;
   status: string | null;
   invoice_type: string | null;
   unmatched: boolean | null;
@@ -45,6 +49,19 @@ function signedAmount(amount: number | null, direction: string | null) {
   const out = direction === "cost" ? v >= 0 : v < 0; // cost=out unless credited back; revenue=out only if negative
   return `${out ? "−" : "+"}${money(Math.abs(v))}`;
 }
+/**
+ * When the money moved, from whichever column holds it.
+ *
+ * `date` is the hand-entered one; Stripe payments, voucher redemptions and the
+ * settle flow write `received_at` instead. The list read only `date`, so 30 of
+ * 148 payments — including every recent one — showed "—" and sank to the
+ * bottom of a newest-first list, which read as "we lost the date" when the
+ * date was sitting in the next column. Same precedence the totals use.
+ */
+function paymentDate(p: { date?: string | null; received_at?: string | null; created_at?: string | null }): string | null {
+  return p.date ?? p.received_at ?? p.created_at ?? null;
+}
+
 function fmtDate(d: string | null) {
   if (!d) return "—";
   return new Date(d).toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" });
@@ -69,7 +86,13 @@ export default function PaymentsPage() {
   useEffect(() => { load(); }, []);
   function load() {
     fetch("/api/admin/payments").then((r) => r.json()).then((d) => {
-      setPayments(Array.isArray(d) ? d : []);
+      // Re-sort on the SAME effective date the rows display, so a payment
+      // that carries only `received_at` sits where its date says, not at the
+      // bottom. The server can't order on a coalesce, and the list is not
+      // paginated, so this is the honest place to do it.
+      const rows: Payment[] = Array.isArray(d) ? d : [];
+      rows.sort((a, b) => (paymentDate(b) ?? "").localeCompare(paymentDate(a) ?? ""));
+      setPayments(rows);
       setLoading(false);
     });
   }
@@ -102,7 +125,7 @@ export default function PaymentsPage() {
     setForm({
       amount: p.amount?.toString() ?? "", direction: p.direction ?? "revenue",
       type: p.type ?? "final", method: p.method ?? "bank_transfer",
-      status: p.status ?? "paid", date: p.date ?? "", reference: p.reference ?? "",
+      status: p.status ?? "paid", date: (paymentDate(p) ?? "").slice(0, 10), reference: p.reference ?? "",
       notes: p.notes ?? "",
     });
   }
@@ -131,7 +154,7 @@ export default function PaymentsPage() {
   function exportCsv() {
     const cols = ["date", "amount", "direction", "type", "method", "reference", "status", "linked"];
     const rows = filtered.map((p) => [
-      p.date ?? "", p.amount ?? "", p.direction ?? "", p.type ?? "", p.method ?? "",
+      paymentDate(p) ?? "", p.amount ?? "", p.direction ?? "", p.type ?? "", p.method ?? "",
       (p.reference ?? "").replace(/"/g, '""'),
       p.status ?? "",
       (p.exp_bookings?.name ?? p.contacts?.name ?? p.vendors?.name ?? "").replace(/"/g, '""'),
@@ -217,7 +240,7 @@ export default function PaymentsPage() {
                 onClick={() => startEdit(p)}
                 onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = "var(--admin-surface-hover)")}
                 onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = "transparent")}>
-                <span className="text-xs admin-muted">{fmtDate(p.date)}</span>
+                <span className="text-xs admin-muted">{fmtDate(paymentDate(p))}</span>
                 <span className={`text-sm font-medium ${p.direction === "cost" ? "text-red-400" : "text-green-400"}`}>
                   {signedAmount(p.amount, p.direction)}
                 </span>
@@ -273,7 +296,7 @@ export default function PaymentsPage() {
                 <button key={p.id} onClick={() => startEdit(p)} className="w-full text-left px-4 py-2.5 flex items-center justify-between gap-2 transition-colors" style={{ borderBottom: "1px solid var(--admin-border)", backgroundColor: editId === p.id ? "var(--admin-surface-hover)" : "transparent" }}>
                   <span className="min-w-0">
                     <span className={`text-sm font-medium ${p.direction === "cost" ? "text-red-400" : "text-green-400"}`}>{signedAmount(p.amount, p.direction)}</span>
-                    <span className="block text-[11px] admin-faint truncate">{fmtDate(p.date)} · {p.reference || p.exp_bookings?.name || p.contacts?.name || p.vendors?.name || "—"}</span>
+                    <span className="block text-[11px] admin-faint truncate">{fmtDate(paymentDate(p))} · {p.reference || p.exp_bookings?.name || p.contacts?.name || p.vendors?.name || "—"}</span>
                   </span>
                   <span className={`shrink-0 text-[9px] px-1.5 py-0.5 rounded font-bold uppercase ${
                     p.status === "paid" ? "bg-green-500/15 text-green-400" :

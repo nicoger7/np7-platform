@@ -16,8 +16,12 @@ export async function GET(request: NextRequest) {
     .select(
       "*, exp_bookings(name, status), contacts(name), vendors(name), exp_experiences(title)"
     )
-    // Newest first; undated rows sink to the bottom (they otherwise default to
-    // their import date — see the backfill — but stay robust if any are null).
+    // Newest first. Ordering by `date` alone buried every recent payment: the
+    // newer writers (Stripe, voucher redemption, settle) fill `received_at`
+    // instead, so those rows counted as undated and sank to the bottom of a
+    // newest-first list. created_at is the tiebreaker and, for those rows, the
+    // real recency signal — the client re-sorts on the same effective date the
+    // list displays.
     .order("date", { ascending: false, nullsFirst: false })
     .order("created_at", { ascending: false });
 
