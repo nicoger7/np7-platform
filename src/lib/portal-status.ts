@@ -1,5 +1,6 @@
 import type { MemberBooking } from "@/lib/portal-data";
 import { normalizeBookingStatus } from "@/lib/types";
+import { formatMoney } from "@/lib/money";
 
 export type StatusChip = { label: string; tone: "amber" | "blue" | "green" | "gray" };
 
@@ -93,7 +94,7 @@ export function fmtDates(start?: string | null, end?: string | null) {
 }
 
 export function money(n: number | null | undefined, currency?: string | null) {
-  if (n == null) return null;
-  const sym = currency === "EUR" || !currency ? "€" : `${currency} `;
-  return `${sym}${n.toLocaleString("en-US")}`;
+  // Same rule the admin uses — see lib/money: whole amounts stay clean, cents
+  // always get both digits ("€1,705.5" was a real line on a real booking).
+  return formatMoney(n, currency, "en-US");
 }

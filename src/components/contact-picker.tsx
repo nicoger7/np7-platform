@@ -140,9 +140,18 @@ export function ContactPicker({ value, display, onChange, placeholder = "Search 
                 <input
                   value={newEmail}
                   onChange={(e) => setNewEmail(e.target.value)}
-                  placeholder="Email (optional)"
-                  className="w-full mb-1.5 px-3 py-2 admin-input border rounded-lg text-sm focus:outline-none focus:border-[#0aa3c7]"
+                  placeholder="Email"
+                  className="w-full mb-1 px-3 py-2 admin-input border rounded-lg text-sm focus:outline-none focus:border-[#0aa3c7]"
                 />
+                {/* Still optional — a walk-in whose address you'll get later is
+                    a real contact. But "(optional)" undersold what is lost:
+                    without an address this guest can never be sent an invoice,
+                    a pre-trip mail or a login to their own trip page. */}
+                <p className="text-[10.5px] admin-faint mb-1.5 px-1 leading-snug">
+                  {newEmail.trim()
+                    ? "They'll get their booking mail and trip-page login here."
+                    : "Without an email this guest gets no invoice, no trip mail and no login — you can add it later."}
+                </p>
                 <button
                   type="button"
                   onClick={createContact}

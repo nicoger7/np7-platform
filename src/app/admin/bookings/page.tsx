@@ -8,6 +8,7 @@ import { parseFlightNote } from "@/lib/flights";
 import { NewBookingModal } from "@/components/new-booking-modal";
 import { normalizeBookingStatus } from "@/lib/types";
 import { editionLabel, editionSortKey } from "@/lib/edition-label";
+import { formatAmount } from "@/lib/money";
 import { BookingDetailPane } from "./[id]/page";
 import { PaneBoundary } from "@/components/admin/pane-boundary";
 
@@ -284,10 +285,15 @@ function BookingsInner() {
         <div>
           <h1 className="text-2xl font-bold admin-heading mb-1">Bookings</h1>
           <p className="text-sm admin-muted">
-            {/* while searching/filtering, say what you're actually looking at */}
-            {filtered.length === bookings.length
-              ? `${bookings.length} booking${bookings.length !== 1 ? "s" : ""} across all experiences`
-              : `${filtered.length} of ${bookings.length} booking${bookings.length !== 1 ? "s" : ""}`}
+            {/* while searching/filtering, say what you're actually looking at.
+                And while the list is still on its way, do NOT say "0 bookings":
+                for the second before the data lands that reads as an empty
+                business, not as a page that hasn't finished loading. */}
+            {loading
+              ? "Loading bookings…"
+              : filtered.length === bookings.length
+                ? `${bookings.length} booking${bookings.length !== 1 ? "s" : ""} across all experiences`
+                : `${filtered.length} of ${bookings.length} booking${bookings.length !== 1 ? "s" : ""}`}
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-2 sm:gap-3">
@@ -492,18 +498,18 @@ function BookingsInner() {
               )}
               {visibleColumns.has("agreed_price") && (
                 <span className="text-xs admin-muted self-center">
-                  {b.agreed_price ? `€${Number(b.agreed_price).toLocaleString()}` : "—"}
+                  {b.agreed_price ? `€${formatAmount(Number(b.agreed_price))}` : "—"}
                 </span>
               )}
               {visibleColumns.has("total_paid") && (
                 <span className="text-xs admin-muted self-center">
-                  {b.total_paid ? `€${Number(b.total_paid).toLocaleString()}` : "—"}
+                  {b.total_paid ? `€${formatAmount(Number(b.total_paid))}` : "—"}
                 </span>
               )}
               {visibleColumns.has("outstanding") && (
                 <span className={`text-xs self-center font-medium ${b.outstanding > 0 ? "text-amber-400" : "text-green-400"}`}>
                   {b.outstanding > 0
-                    ? `€${b.outstanding.toLocaleString()}`
+                    ? `€${formatAmount(b.outstanding)}`
                     : b.agreed_price
                     ? "✓ Paid"
                     : "—"}
@@ -571,7 +577,7 @@ function BookingsInner() {
                       )}
                       <div className="flex items-center justify-between">
                         {b.agreed_price ? (
-                          <span className="text-[11px] admin-muted">€{Number(b.agreed_price).toLocaleString()}</span>
+                          <span className="text-[11px] admin-muted">€{formatAmount(Number(b.agreed_price))}</span>
                         ) : <span />}
                         {b.fly_in && (
                           <span className="text-[10px] admin-faint">{formatDate(b.fly_in)}</span>

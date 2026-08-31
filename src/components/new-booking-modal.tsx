@@ -7,7 +7,8 @@ import { editionOptionLabel, editionSortKey } from "@/lib/edition-label";
 import { composeBookingName } from "@/lib/booking-name";
 import { SearchSelect } from "@/components/admin/search-select";
 
-interface Exp { id: string; title: string; code: string | null }
+/** `status` distinguishes a live experience from one still being planned. */
+interface Exp { id: string; title: string; code: string | null; status?: string | null }
 interface Ed { id: string; experience_id: string; year: number | null; label: string | null; date_start: string | null; date_end: string | null }
 
 /** Create a booking: experience → edition → participant (search/create) → go. */
@@ -27,7 +28,7 @@ export function NewBookingModal({ onClose }: { onClose: () => void }) {
       fetch("/api/admin/editions").then((r) => r.json()),
     ]).then(([exps, eds]) => {
       const list = Array.isArray(exps) ? exps : exps.experiences || [];
-      setExperiences(list.map((e: Record<string, string>) => ({ id: e.id, title: e.title, code: e.code ?? null })));
+      setExperiences(list.map((e: Record<string, string>) => ({ id: e.id, title: e.title, code: e.code ?? null, status: e.status ?? null })));
       setEditions(Array.isArray(eds) ? eds : []);
     });
   }, []);
@@ -86,7 +87,14 @@ export function NewBookingModal({ onClose }: { onClose: () => void }) {
             <SearchSelect
               value={expId || null}
               onChange={(v) => { setExpId(v ?? ""); setEdId(""); }}
-              options={experiences.map((e) => ({ value: e.id, label: e.title }))}
+              /* Croatia, Greece and "September (TBD)" are trips being planned,
+                 not trips that exist — they sat in this list looking exactly
+                 like Bonaire. Still selectable (an early enquiry is real), just
+                 no longer disguised. */
+              options={experiences.map((e) => ({
+                value: e.id,
+                label: e.title + (e.status && e.status !== "published" && e.status !== "active" ? " · draft" : ""),
+              }))}
               placeholder="Select experience…" searchPlaceholder="Search experiences…" allowClear={false}
             />
           </div>
@@ -96,7 +104,14 @@ export function NewBookingModal({ onClose }: { onClose: () => void }) {
             <SearchSelect
               value={edId || null}
               onChange={(v) => setEdId(v ?? "")}
-              options={edOptions.map((e) => ({ value: e.id, label: editionOptionLabel(e) }))}
+              /* A finished week can still take a booking (a late entry, an
+                 archive row) — but it must not look like the upcoming one two
+                 lines above it, which is how someone lands a new guest on last
+                 August's trip. Marked, not hidden. */
+              options={edOptions.map((e) => {
+                const over = e.date_end ? new Date(e.date_end) < new Date() : false;
+                return { value: e.id, label: editionOptionLabel(e) + (over ? " · past" : "") };
+              })}
               placeholder="No specific edition" clearLabel="No specific edition" searchPlaceholder="Search editions…" disabled={!expId}
             />
           </div>
