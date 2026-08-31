@@ -63,6 +63,38 @@ export async function promoteProformaIfPaid(bookingId: string): Promise<{ promot
     const milestone = pf.meta?.milestone === "deposit" ? "deposit" : pf.meta?.milestone === "final" ? "final" : "downpayment";
     const realType = milestone === "deposit" ? ("deposit_invoice" as const) : milestone === "final" ? ("final_invoice" as const) : ("downpayment_invoice" as const);
 
+    /*
+     * Already invoiced BY HAND? Then this pro-forma is a payment request for a
+     * debt that a real tax invoice already documents — void it, generate
+     * nothing.
+     *
+     * The atomic claim below only defends against two payments racing each
+     * other. It cannot see the other door into the same milestone: an admin
+     * pressing "Down-Payment Invoice" on the booking. Walk both doors and the
+     * guest ends up with two issued invoices for one obligation (a walkthrough
+     * on 1 Sep 2026 produced #0040 and #0041, EUR 1,435 each, for a single
+     * EUR 1,435 down-payment). Two tax invoices for one debt is a real
+     * bookkeeping problem, not a cosmetic one.
+     */
+    const { data: alreadyReal } = await db
+      .from("documents")
+      .select("id, invoice_number")
+      .eq("booking_id", bookingId)
+      .eq("type", realType)
+      .eq("status", "issued")
+      .limit(1);
+    if (alreadyReal && alreadyReal.length > 0) {
+      await db
+        .from("documents")
+        .update({
+          status: "void",
+          meta: { ...(pf.meta ?? {}), superseded_by: alreadyReal[0].id,
+                  superseded_reason: `paid → ${realType} ${alreadyReal[0].invoice_number ?? ""} already issued by hand` },
+        })
+        .eq("id", pf.id).eq("status", "issued");
+      continue; // settle the next open pro-forma, if any
+    }
+
     // CLAIM this pro-forma atomically (void it, conditioned on still-issued). If we
     // didn't win the claim (0 rows), a parallel payment write already promoted it —
     // bail so we never mint a duplicate tax invoice. Only the winner generates.

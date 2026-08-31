@@ -157,6 +157,37 @@ export async function PATCH(
    * the status change must never fail because the hotel sheet is odd, and
    * "no-free-room" is a state the Hotel Rooms page shows, not an error.
    */
+  /*
+   * Dropped out? Hand the bed back.
+   *
+   * The "Cancel booking…" dialog already releases the room, but the status
+   * dropdown is the other door to the same outcome — and it left the room
+   * `assigned` with the guest's dates on it. Nobody sees a held bed for a lost
+   * booking until the hotel sheet is read by hand in the season, so the week
+   * looks one room fuller than it is. Best-effort and AFTER the response: the
+   * status change must never fail because the hotel sheet is odd.
+   *
+   * Deliberately NOT touching rooms shared with someone else
+   * (extra_booking_ids): that bed belongs to the guest who still holds it.
+   */
+  const becameLost = (s: string | null | undefined) => String(s ?? "").toLowerCase() === "lost" || String(s ?? "").toLowerCase() === "cancelled";
+  if (typeof body.status === "string" && becameLost(body.status) && !becameLost(oldStatus)) {
+    after(async () => {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const { error } = await (client as any)
+        .from("exp_hotel_rooms")
+        .update({
+          booking_id: null, status: "available", hotel_confirmed: false, hotel_confirmed_at: null,
+          check_in: null, check_out: null, transfer_need: false, partner_tag_along: null,
+          updated_at: new Date().toISOString(),
+        })
+        .eq("booking_id", id)
+        .is("archived_at", null);
+      if (error) console.error("[rooms] release on lost failed:", error.message);
+      else console.log(`[rooms] released bed(s) held by lost booking ${id}`);
+    });
+  }
+
   if (typeof body.status === "string" && becameSecured(oldStatus, body.status)) {
     after(async () => {
       const r = await autoAssignRoom(client, id);
