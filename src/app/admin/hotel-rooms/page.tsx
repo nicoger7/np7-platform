@@ -138,15 +138,29 @@ export default function HotelRoomsPage() {
   }, [weekForm.edition_id]);
 
   // ── group occupancy under its physical room ──────────────────────────────────
+  /*
+   * A row's hotel, resolved by ID with the legacy text as fallback.
+   *
+   * The hotel filter offers names from the hotels table ("Sorobon Beach
+   * Resort") while old room rows carried nicknames ("Sorobon"). Comparing the
+   * two hid every Sorobon room: the units failed the filter, and their week
+   * rows — pointing at now-absent cards — were then dropped by the
+   * no-resurrect rule below. An entire resort vanished with no error. Matching
+   * on hotel_id makes the text cosmetic again, which is all it was ever meant
+   * to be.
+   */
+  const hotelNameOf = (hid?: string | null, legacy?: string | null) =>
+    (hid && hotelOptions.find((h) => h.id === hid)?.name) || legacy || null;
+
   const filteredOcc = occupancy.filter((r) => {
-    if (filterHotel && r.hotel !== filterHotel) return false;
+    if (filterHotel && hotelNameOf(r.hotel_id, r.hotel) !== filterHotel) return false;
     if (filterExperience && r.experience_id !== filterExperience) return false;
     if (filterEdition && r.edition_id !== filterEdition) return false;
     if (filterYear && String(r.edition?.year ?? "") !== filterYear) return false;
     return true;
   });
   const filteredUnits = units.filter((u) => {
-    if (filterHotel && u.hotel !== filterHotel) return false;
+    if (filterHotel && hotelNameOf(u.hotel_id, u.hotel) !== filterHotel) return false;
     if (filterExperience && u.experience_id !== filterExperience && !(u.experience_ids ?? []).includes(filterExperience)) return false;
     return true;
   });
@@ -171,7 +185,7 @@ export default function HotelRoomsPage() {
     .sort((a, b) => (a.unit.name || "").localeCompare(b.unit.name || ""));
   // hotel → physical rooms
   const byHotel = groupList.reduce<Record<string, { unit: RoomUnit; weeks: Occupancy[] }[]>>((acc, g) => {
-    const h = g.unit.hotel || "—";
+    const h = hotelNameOf(g.unit.hotel_id, g.unit.hotel) || "—";
     (acc[h] = acc[h] || []).push(g);
     return acc;
   }, {});
