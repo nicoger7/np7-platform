@@ -305,7 +305,10 @@ export function ProgramForWeek({
           {days.map((d, i) => (
             <li key={i} className="flex items-center gap-2.5 snap-start">
               {i > 0 && <Arrow />}
-              <span className="text-[12.5px] font-bold text-[#00374a] bg-[#00afdb]/[0.08] px-3 py-1.5 rounded-full whitespace-nowrap">
+              {/* Warm like the date stamps below and the arrows between — the old
+                  8%-cyan tint read icy and off-palette between orange arrows on
+                  the cream page (founder flag). */}
+              <span className="text-[12.5px] font-bold text-[#00374a] bg-[#f47b20]/[0.10] px-3 py-1.5 rounded-full whitespace-nowrap">
                 {shortDayLabel(d.title?.trim() || `Day ${i + 1}`)}
               </span>
             </li>
