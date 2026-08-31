@@ -39,6 +39,11 @@ export async function GET(
     client
       .from("exp_hotel_rooms")
       .select("*")
+      // Archived = soft-deleted. It vanishes from the Hotel Rooms page but was
+      // still shown on the booking, so a room someone deleted (Stephan Swart's
+      // extra-nights room, archived while it stayed linked to his booking) read
+      // as an active assignment here and nowhere else — the two views disagreed.
+      .is("archived_at", null)
       .or(`booking_id.eq.${id},extra_booking_ids.cs.{${id}}`),
   ]);
 
