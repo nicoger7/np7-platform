@@ -31,7 +31,15 @@ export async function GET(
       .select("*")
       .eq("booking_id", id)
       .order("due_date"),
-    client.from("exp_hotel_rooms").select("*").eq("booking_id", id),
+    // A guest sleeps in a room in one of two ways: it is THEIR row
+    // (booking_id), or they share someone else's (extra_booking_ids, the
+    // "Also in this room" list). Matching only booking_id made the link
+    // one-directional — the Hotel Rooms page showed the sharer in the room
+    // while their own booking claimed "No hotel rooms assigned".
+    client
+      .from("exp_hotel_rooms")
+      .select("*")
+      .or(`booking_id.eq.${id},extra_booking_ids.cs.{${id}}`),
   ]);
 
   if (booking.error) {
@@ -41,13 +49,28 @@ export async function GET(
     );
   }
 
+  // On a shared room the row belongs to someone else's booking — say whose,
+  // so the UI can render "sharing — main guest: <name>" instead of implying
+  // the guest holds a room of their own.
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const rooms: Record<string, any>[] = hotelRooms.data || [];
+  const mainIds = [...new Set(rooms.filter((r) => r.booking_id && r.booking_id !== id).map((r) => r.booking_id as string))];
+  if (mainIds.length) {
+    const { data: mains } = await client.from("exp_bookings").select("id, contacts(name)").in("id", mainIds);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const nameById = new Map(((mains ?? []) as any[]).map((b) => [b.id, b.contacts?.name ?? null]));
+    for (const r of rooms) {
+      if (r.booking_id && r.booking_id !== id) r.main_guest_name = nameById.get(r.booking_id) ?? null;
+    }
+  }
+
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   let out: Record<string, any> = {
     ...booking.data,
     payments: payments.data || [],
     addons: addons.data || [],
     tasks: tasks.data || [],
-    hotel_rooms: hotelRooms.data || [],
+    hotel_rooms: rooms,
   };
 
   // Field redaction by role: money (prices/payments), costs (component costs),

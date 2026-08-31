@@ -109,6 +109,11 @@ interface HotelRoom {
   check_in: string | null;
   check_out: string | null;
   hotel_confirmed?: boolean;
+  /** Whose row this is. When it isn't THIS booking's id, the guest is a
+   *  sharer on someone else's room (extra_booking_ids). */
+  booking_id?: string | null;
+  /** The room owner's name — only set on rooms this booking merely shares. */
+  main_guest_name?: string | null;
 }
 
 interface BookingDocument {
@@ -1874,6 +1879,14 @@ export function BookingDetailPane({ bookingId, onBack }: { bookingId: string; on
                     <div className="text-sm font-medium admin-heading">{room.name}</div>
                     <div className="text-xs admin-faint">{room.hotel} • {room.room_type}</div>
                   </div>
+                  {/* A room this guest only SHARES — the row belongs to the main
+                      guest's booking; without the badge it reads as their own. */}
+                  {room.booking_id && room.booking_id !== id && (
+                    <span className="inline-block px-2 py-0.5 rounded text-[10px] font-semibold bg-purple-500/15 text-purple-400"
+                      title="Sharing someone else's room — no room of their own on this booking">
+                      sharing{room.main_guest_name ? ` — main guest: ${room.main_guest_name}` : ""}
+                    </span>
+                  )}
                   <span className={`inline-block px-2 py-0.5 rounded text-[10px] font-bold uppercase ${
                     room.status === "assigned" ? "bg-blue-500/15 text-blue-400" :
                     room.status === "held" ? "bg-amber-500/15 text-amber-400" :
