@@ -3,7 +3,7 @@ import { defaultCancellationPolicy } from "@/lib/cancellation-policy";
 import { redirect, notFound } from "next/navigation";
 import type { Metadata } from "next";
 import { getPortalUser } from "@/lib/auth";
-import { getMemberBooking, getTripGalleryGroupsForBooking, getTripVideosForBooking, getBookingPhotoSharing, getBookingPaid, getBookingHotel, getBookingStay, getEditionCoaches, getMemoryDownloadsRemaining, getConfirmedAddonsTotal, getBookingFlights, getExperienceArrivalInfo, getCrewProfiles, getPreTripContent, getGuidesForBooking } from "@/lib/portal-data";
+import { getMemberBooking, getTripGalleryGroupsForBooking, getTripVideosForBooking, getBookingPhotoSharing, getBookingPaid, getBookingHotel, getBookingStay, getEditionCoaches, getMemoryDownloadsRemaining, getVideoDownloadsRemaining, getConfirmedAddonsTotal, getBookingFlights, getExperienceArrivalInfo, getCrewProfiles, getPreTripContent, getGuidesForBooking } from "@/lib/portal-data";
 import { bookingStatus, fmtDates, money, isSecured } from "@/lib/portal-status";
 import { isAttending } from "@/lib/types";
 import { PortalChrome } from "@/components/portal/portal-chrome";
@@ -40,7 +40,7 @@ export default async function BookingDetail({ params }: Props) {
   if (!b) notFound();
 
   const chip = bookingStatus(b);
-  const [galleryGroups, paid, hotel, stay, coaches, downloadsRemaining, addonsTotal, flights, arrival, crew, photosShared, preTrip, tripVideos, guides] = await Promise.all([
+  const [galleryGroups, paid, hotel, stay, coaches, downloadsRemaining, addonsTotal, flights, arrival, crew, photosShared, preTrip, tripVideos, guides, videoDownloadsRemaining] = await Promise.all([
     b.edition?.id ? getTripGalleryGroupsForBooking(b.edition.id, b.id).catch(() => []) : Promise.resolve([]),
     getBookingPaid(b.id).catch(() => 0),
     getBookingHotel(b.id).catch(() => null),
@@ -55,6 +55,7 @@ export default async function BookingDetail({ params }: Props) {
     b.experience_id ? getPreTripContent(b.experience_id).catch(() => ({ packingList: null, preTripNote: null })) : Promise.resolve({ packingList: null, preTripNote: null }),
     b.edition?.id ? getTripVideosForBooking(b.edition.id, b.id).catch(() => []) : Promise.resolve([]),
     getGuidesForBooking(b.id).catch(() => []),
+    getVideoDownloadsRemaining(b.id).catch(() => 3),
   ]);
   const packingItems = (preTrip.packingList ?? "").split("\n").map((s) => s.trim()).filter(Boolean);
 
@@ -162,7 +163,7 @@ export default async function BookingDetail({ params }: Props) {
           Watch your week&apos;s video</a>
       )}
       {/* individual clips — the same grid (and keeper stars) as Account → Memories */}
-      <TripVideoGrid videos={tripVideos} bookingId={b.id} />
+      <TripVideoGrid videos={tripVideos} bookingId={b.id} downloadsRemaining={videoDownloadsRemaining} />
     </>
   );
 

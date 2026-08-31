@@ -930,6 +930,16 @@ export async function getMemoryDownloadsRemaining(bookingId: string): Promise<nu
   return Math.max(0, MEMORY_DOWNLOAD_LIMIT - used);
 }
 
+/** Same cap for the video package, counted separately (migration 196) — a member
+    burning their photo downloads keeps their video ones, and vice versa. */
+export async function getVideoDownloadsRemaining(bookingId: string): Promise<number> {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const db = createAdminClient() as any;
+  const { data } = await db.from("exp_bookings").select("video_download_count").eq("id", bookingId).maybeSingle();
+  const used = data?.video_download_count ?? 0;
+  return Math.max(0, MEMORY_DOWNLOAD_LIMIT - used);
+}
+
 /** Total of confirmed add-ons on a booking — added to what the member owes.
     Uses the effective status (status column or notes sentinel) so requested/declined
     rows don't count, pre- or post-migration. */

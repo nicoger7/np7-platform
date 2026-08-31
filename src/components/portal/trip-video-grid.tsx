@@ -19,13 +19,16 @@ function StarIcon({ filled }: { filled: boolean }) {
  */
 const PREVIEW = 8; // videos shown before "Show all" (~2 grid rows)
 
-export function TripVideoGrid({ videos, bookingId, fallbackPoster, title = "Trip videos" }: { videos: TripVideo[]; bookingId: string; fallbackPoster?: string; title?: string }) {
+export function TripVideoGrid({ videos, bookingId, fallbackPoster, title = "Trip videos", downloadsRemaining }: { videos: TripVideo[]; bookingId: string; fallbackPoster?: string; title?: string; downloadsRemaining?: number }) {
   const [keepers, setKeepers] = useState<Set<string>>(new Set());
   const [openIdx, setOpenIdx] = useState<number | null>(null);
   const [expanded, setExpanded] = useState(false);
   const [starErr, setStarErr] = useState("");
   const [filter, setFilter] = useState<string | null>(null); // which rider's clips
   const cardRef = useRef<HTMLDivElement>(null); // scroll back here on "Show less"
+  const [remaining, setRemaining] = useState(downloadsRemaining ?? 0);
+  const [zipProgress, setZipProgress] = useState(""); // "" = idle
+  const [dlErr, setDlErr] = useState("");
 
   useEffect(() => {
     fetch(`/api/portal/memories/stars?bookingId=${bookingId}`)
@@ -58,6 +61,83 @@ export function TripVideoGrid({ videos, bookingId, fallbackPoster, title = "Trip
       setStarErr(`${starred ? "Couldn't keep that clip" : "Couldn't unstar that clip"} — it is not saved. ${r.error}`);
     }
   }, [keepers, bookingId]);
+
+  /*
+   * "Download all videos" — same UX as the photo gallery, different mechanics.
+   * A week's clips run to several GIGABYTES (226 clips × ~15 MB), so one
+   * JSZip blob like the photos use would exhaust tab memory and crash. Instead
+   * the clips are fetched SEQUENTIALLY and flushed as numbered zip parts
+   * (trip-videos-part1.zip, part2, …) whenever a part passes ~450 MB. Videos
+   * are already compressed, so parts use STORE — zipping is packaging here,
+   * not compression.
+   */
+  const PART_LIMIT = 450 * 1024 * 1024;
+  const zipVideos = useCallback(async (items: TripVideo[], baseName: string) => {
+    const { default: JSZip } = await import("jszip");
+    let zip = new JSZip();
+    let partBytes = 0;
+    let partNo = 1;
+    const parts = items.length; // for progress text only
+    const save = async (final: boolean) => {
+      if (partBytes === 0) return;
+      const suffix = final && partNo === 1 ? "" : `-part${partNo}`;
+      const blob = await zip.generateAsync({ type: "blob", compression: "STORE" });
+      const href = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = href;
+      a.download = `${baseName}${suffix}.zip`;
+      a.click();
+      URL.revokeObjectURL(href);
+      zip = new JSZip();
+      partBytes = 0;
+      partNo += 1;
+    };
+    for (let i = 0; i < items.length; i++) {
+      setZipProgress(`Preparing… clip ${i + 1} of ${parts}`);
+      const v = items[i];
+      const blob = await fetch(v.url).then((r) => { if (!r.ok) throw new Error(String(r.status)); return r.blob(); });
+      const ext = (v.url.split(".").pop() || "mp4").split("?")[0].slice(0, 4);
+      zip.file(`${v.stem}.${ext}`, blob);
+      partBytes += blob.size;
+      if (partBytes >= PART_LIMIT) await save(false);
+    }
+    await save(true);
+  }, []);
+
+  const mineClips = videos.filter((v) => v.groupKind === "mine");
+  const othersExist = videos.length > mineClips.length;
+  const videoDownloadable = downloadsRemaining != null;
+
+  // Own clips: the member's own footage, so no cap — mirrors "Download my photos".
+  async function downloadMyVideos() {
+    if (!mineClips.length || zipProgress) return;
+    setDlErr("");
+    try { await zipVideos(mineClips, "my-videos"); }
+    catch { setDlErr("Couldn't build the download. Please try again."); }
+    finally { setZipProgress(""); }
+  }
+
+  // Whole week (incl. shared) — capped per booking, like the photo package.
+  async function downloadAllVideos() {
+    if (zipProgress) return;
+    setDlErr("");
+    setZipProgress("Preparing…");
+    try {
+      const res = await fetch(`/api/portal/bookings/${bookingId}/video-download`, { method: "POST" });
+      if (!res.ok) {
+        setRemaining(0);
+        setDlErr(res.status === 403 ? "You've used all your video downloads — the clips stay available to watch." : "Couldn't start the download. Please try again.");
+        return;
+      }
+      const { remaining: rem } = await res.json();
+      await zipVideos(videos, "trip-videos");
+      setRemaining(typeof rem === "number" ? rem : Math.max(0, remaining - 1));
+    } catch {
+      setDlErr("Couldn't build the download. Please try again.");
+    } finally {
+      setZipProgress("");
+    }
+  }
 
   if (videos.length === 0) return null;
   /*
@@ -157,6 +237,41 @@ export function TripVideoGrid({ videos, bookingId, fallbackPoster, title = "Trip
           <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d={expanded ? "M18 15l-6-6-6 6" : "M6 9l6 6 6-6"} /></svg>
         </button>
       )}
+      {videoDownloadable && (
+        <div className="flex flex-wrap items-center gap-2.5 mt-3">
+          {mineClips.length > 0 && (
+            <button
+              type="button"
+              onClick={downloadMyVideos}
+              disabled={!!zipProgress}
+              className="inline-flex items-center gap-2 px-5 py-2.5 rounded-full text-[13.5px] font-bold text-[#00374a] bg-white border border-[#dde6e9] hover:border-[#00afdb] disabled:opacity-50 transition-colors"
+            >
+              <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3" /></svg>
+              Download my videos
+            </button>
+          )}
+          {othersExist && (
+            <button
+              type="button"
+              onClick={downloadAllVideos}
+              disabled={!!zipProgress || remaining <= 0}
+              className="inline-flex items-center gap-2 px-5 py-2.5 rounded-full text-[13.5px] font-bold text-white bg-[#00afdb] hover:bg-[#15c0ec] disabled:opacity-50 transition-colors"
+            >
+              <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3" /></svg>
+              {zipProgress ? zipProgress : "Download all videos"}
+            </button>
+          )}
+          {othersExist && (
+            <span className="text-[12.5px] text-[#8a9aa0]">
+              {remaining > 0 ? `${remaining} full download${remaining === 1 ? "" : "s"} left` : "No full downloads left"}
+            </span>
+          )}
+        </div>
+      )}
+      {videoDownloadable && othersExist && (
+        <p className="text-[11.5px] text-[#9aa6ac] mt-1.5">A whole week of clips is big — it arrives as a few numbered zip files. Keep the tab open until the last one lands.</p>
+      )}
+      {dlErr && <p className="text-[12.5px] text-[#c4621a] mt-2">{dlErr}</p>}
       <p className="text-[11.5px] text-[#9aa6ac] mt-2">
         Videos stay for 3 months after the trip — star up to {KEEPER_LIMIT} to keep forever ({keepers.size} of {KEEPER_LIMIT} kept).
       </p>
