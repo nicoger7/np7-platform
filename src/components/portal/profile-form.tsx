@@ -15,8 +15,13 @@ export function ProfileForm({ profile }: { profile: MemberProfile }) {
     tshirt_size: profile.tshirt_size ?? "",
     diet_allergies: profile.diet_allergies ?? "",
     date_of_birth: profile.date_of_birth ?? "",
+    billing_address: profile.billing_address ?? "",
+    billing_postal_code: profile.billing_postal_code ?? "",
+    billing_city: profile.billing_city ?? "",
+    billing_country: profile.billing_country ?? "",
     marketing_opt_in: !!profile.marketing_opt_in,
   });
+  const hasBilling = Boolean(profile.billing_address);
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
   const [error, setError] = useState("");
@@ -72,6 +77,25 @@ export function ProfileForm({ profile }: { profile: MemberProfile }) {
           <div><label className={label}>Date of birth</label><input type="date" className={field} value={f.date_of_birth} onChange={(e) => set("date_of_birth", e.target.value)} /></div>
           <div className="sm:col-span-2"><label className={label}>Diet / allergies</label><textarea rows={2} className={`${field} resize-y`} value={f.diet_allergies} onChange={(e) => set("diet_allergies", e.target.value)} placeholder="Vegetarian, nut allergy, …" /></div>
         </div>
+        {/* The billing address, asked for where it costs nothing.
+            It is not needed to sign up and it is not needed to hold a spot —
+            it is needed on the invoice, which is why it sits here rather than
+            in front of the booking button. */}
+        <div className="mt-7 pt-6 border-t border-[#f0e6d6]">
+          <h3 className="text-[11px] font-bold tracking-[0.2em] uppercase text-[#00afdb] mb-1.5">Billing address</h3>
+          <p className="text-[13px] text-[#6a7a80] mb-4 max-w-[52ch]">
+            {hasBilling
+              ? "This is the name and address that appears on your invoices."
+              : "We only need this for your invoice — it takes a moment and means your paperwork is complete when you pay."}
+          </p>
+          <div className="grid sm:grid-cols-2 gap-4">
+            <div className="sm:col-span-2"><label className={label}>Street and number</label><input className={field} value={f.billing_address} onChange={(e) => set("billing_address", e.target.value)} placeholder="Graskamp 8" /></div>
+            <div><label className={label}>Postcode</label><input className={field} value={f.billing_postal_code} onChange={(e) => set("billing_postal_code", e.target.value)} placeholder="24217" /></div>
+            <div><label className={label}>City</label><input className={field} value={f.billing_city} onChange={(e) => set("billing_city", e.target.value)} placeholder="Schönberg" /></div>
+            <div className="sm:col-span-2"><label className={label}>Country</label><input className={field} value={f.billing_country} onChange={(e) => set("billing_country", e.target.value)} placeholder="Germany" /></div>
+          </div>
+        </div>
+
         <label className="flex items-start gap-2.5 mt-5 cursor-pointer">
           <input type="checkbox" checked={f.marketing_opt_in} onChange={(e) => set("marketing_opt_in", e.target.checked)} className="mt-0.5 w-4 h-4 accent-[#00afdb]" />
           <span className="text-[13px] text-[#6a7a80] leading-relaxed">Send me news about new NP7 experiences and early-bird dates. (You can opt out anytime.)</span>

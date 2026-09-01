@@ -251,6 +251,10 @@ export type MemberProfile = {
   name: string; email: string | null; phone: string | null; country: string | null;
   tshirt_size: string | null; diet_allergies: string | null; date_of_birth: string | null;
   level: string | null; marketing_opt_in: boolean | null;
+  /** Where the invoice goes. Empty for everyone until they are asked — see the
+   *  portal profile route for why they never were. */
+  billing_address: string | null; billing_postal_code: string | null;
+  billing_city: string | null; billing_country: string | null;
   // community-profile fields (migration 035) — null/empty until applied
   username: string | null; avatar_url: string | null; display_city: string | null;
   visibility: Visibility;
@@ -262,7 +266,7 @@ export async function getMemberProfile(contactId: string): Promise<MemberProfile
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const db = createAdminClient() as any;
   const { data } = await db.from("contacts")
-    .select("name,email,phone,country,tshirt_size,diet_allergies,date_of_birth,level,marketing_opt_in")
+    .select("name,email,phone,country,tshirt_size,diet_allergies,date_of_birth,level,marketing_opt_in,billing_address,billing_postal_code,billing_city,billing_country")
     .eq("id", contactId).maybeSingle();
   if (!data) return null;
   // 035 and 036 columns live in SEPARATE tolerant reads so applying one without

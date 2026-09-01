@@ -26,6 +26,18 @@ export async function PUT(request: NextRequest) {
     base.tshirt_size = t && ["xs", "s", "m", "l", "xl", "xxl"].includes(t) ? t : null;
   }
   if (str(body.diet_allergies) !== undefined) base.diet_allergies = str(body.diet_allergies);
+  /*
+   * The billing address, which a member has never been able to give us.
+   * Not one of 14,767 contacts had one, so every invoice NP7 has issued went
+   * out without a recipient address — fine for a private customer who is owed
+   * no invoice at all, not fine the moment a company books, and useless if a
+   * receivable ever has to be chased. Asked for where it costs nothing: with
+   * the payment request, not at signup.
+   */
+  if (str(body.billing_address) !== undefined) base.billing_address = str(body.billing_address);
+  if (str(body.billing_postal_code) !== undefined) base.billing_postal_code = str(body.billing_postal_code);
+  if (str(body.billing_city) !== undefined) base.billing_city = str(body.billing_city);
+  if (str(body.billing_country) !== undefined) base.billing_country = str(body.billing_country);
   if (str(body.date_of_birth) !== undefined) base.date_of_birth = str(body.date_of_birth) || null;
   if (typeof body.marketing_opt_in === "boolean") {
     base.marketing_opt_in = body.marketing_opt_in;
