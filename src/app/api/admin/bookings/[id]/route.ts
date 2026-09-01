@@ -17,7 +17,7 @@ export async function GET(
     client
       .from("exp_bookings")
       .select(
-        "*, contacts(name, email, phone, country, level, tshirt_size, diet_allergies), billing_contact:contacts!billing_contact_id(id, name, email), exp_experiences(title, slug), exp_editions(year, date_start, date_end, deposit, kind), exp_packages(name, price, deposit, downpayment_percent, final_days_before, deposit_refund_days)"
+        "*, contacts(name, email, phone, country, level, tshirt_size, diet_allergies), exp_experiences(title, slug), exp_editions(year, date_start, date_end, deposit, kind), exp_packages(name, price, deposit, downpayment_percent, final_days_before, deposit_refund_days)"
       )
       .eq("id", id)
       .single(),
@@ -70,6 +70,18 @@ export async function GET(
     }
   }
 
+  /*
+   * Who the invoices go to, when that is not the traveller (migration 200).
+   * Read separately rather than embedded: billing_contact_id deliberately has
+   * no foreign key — a second key from exp_bookings to contacts makes every
+   * short `contacts(...)` embed on this table ambiguous, which took the whole
+   * admin down once already.
+   */
+  const billingContactId = (booking.data as { billing_contact_id?: string | null } | null)?.billing_contact_id ?? null;
+  const billingContact = billingContactId
+    ? ((await client.from("contacts").select("id, name, email").eq("id", billingContactId).maybeSingle()).data ?? null)
+    : null;
+
   // Group bookings (migration 198): who pays for this one / whom it pays for,
   // and the edition's other bookings so the Details tab can offer the link
   // without a second request.
@@ -90,6 +102,7 @@ export async function GET(
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   let out: Record<string, any> = {
     ...booking.data,
+    billing_contact: billingContact,
     payments: payments.data || [],
     addons: addons.data || [],
     tasks: tasks.data || [],
