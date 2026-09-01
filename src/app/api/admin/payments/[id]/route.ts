@@ -1,5 +1,15 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest, NextResponse, after } from "next/server";
 import { createAdminClient } from "@/lib/supabase";
+import { settleInvoices } from "@/lib/invoices/generate";
+
+/** Editing or removing a payment changes which invoices it covers — see
+    settleInvoices. Best-effort and after the response: the ledger is the
+    record, the stamps are a reading of it. */
+function resettle(bookingId: string | null | undefined) {
+  if (!bookingId) return;
+  after(() => settleInvoices(bookingId).catch((e) =>
+    console.error("invoice settle failed", e instanceof Error ? e.message : e)));
+}
 
 // GET /api/admin/payments/:id
 export async function GET(
@@ -32,6 +42,7 @@ export async function PATCH(
     .select()
     .single();
   if (error) return NextResponse.json({ error: error.message }, { status: 400 });
+  resettle((data as { booking_id?: string | null } | null)?.booking_id);
   return NextResponse.json(data);
 }
 
@@ -42,7 +53,11 @@ export async function DELETE(
 ) {
   const client = createAdminClient();
   const { id } = await params;
+  // Read the booking before the row is gone — afterwards there is nothing to
+  // re-settle against.
+  const { data: row } = await client.from("exp_payments").select("booking_id").eq("id", id).maybeSingle();
   const { error } = await client.from("exp_payments").delete().eq("id", id);
   if (error) return NextResponse.json({ error: error.message }, { status: 400 });
+  resettle((row as { booking_id?: string | null } | null)?.booking_id);
   return NextResponse.json({ success: true });
 }

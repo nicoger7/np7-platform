@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse, after } from "next/server";
 import { createAdminClient } from "@/lib/supabase";
 import { promoteProformaIfPaid } from "@/lib/invoices/promote";
+import { settleInvoices } from "@/lib/invoices/generate";
 
 // GET /api/admin/payments — list payments with related data
 export async function GET(request: NextRequest) {
@@ -123,6 +124,10 @@ export async function POST(request: NextRequest) {
   if (bookingId) {
     after(() => promoteProformaIfPaid(bookingId).catch((e) =>
       console.error("proforma promotion failed", e instanceof Error ? e.message : e)
+    ));
+    // Which invoices this money settles — see settleInvoices.
+    after(() => settleInvoices(bookingId).catch((e) =>
+      console.error("invoice settle failed", e instanceof Error ? e.message : e)
     ));
   }
 

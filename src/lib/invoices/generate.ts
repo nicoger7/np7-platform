@@ -30,7 +30,7 @@ import {
 import { effectiveAddonStatus } from "@/lib/addons";
 import { coveredExtraTotal, getCoverer } from "@/lib/group-booking";
 import { includeLine } from "@/lib/include-line";
-import { sumReceived, type PaymentLike } from "@/lib/payment-totals";
+import { sumReceived, isReceived, type PaymentLike } from "@/lib/payment-totals";
 
 // ─── DB helpers ───────────────────────────────────────────────────────────────
 
@@ -40,6 +40,10 @@ function getDb() {
 }
 
 const round2 = (n: number) => Math.round((n + Number.EPSILON) * 100) / 100;
+
+/** The documents that represent money owed or given back — as opposed to a
+    booking confirmation, a pro-forma request or a Sicherungsschein. */
+const BILLABLE_TYPES = ["deposit_invoice", "downpayment_invoice", "final_invoice", "addon_invoice", "credit_note"];
 
 /** Sum of CONFIRMED add-ons on a booking — billable, part of the trip total
     everywhere (member plan + invoices). Matches getBookingAddonsTotal in
@@ -150,7 +154,7 @@ export async function unpaidIssuedInvoiceTotal(bookingId: string): Promise<numbe
     db.from("exp_payments").select("amount,direction,type,status,document_id").eq("booking_id", bookingId),
   ]);
   const billed = ((docs ?? []) as { id: string; amount: number | null; type: string }[])
-    .filter((d) => ["deposit_invoice", "downpayment_invoice", "final_invoice", "addon_invoice", "credit_note"].includes(d.type));
+    .filter((d) => BILLABLE_TYPES.includes(d.type));
   const gross = round2(billed.reduce((s, d) => s + (Number(d.amount) || 0), 0));
   // Received money settles issued invoices first — a bank transfer against a
   // pro-forma or booking pays down the tax invoice it corresponds to even when
@@ -158,6 +162,87 @@ export async function unpaidIssuedInvoiceTotal(bookingId: string): Promise<numbe
   // trip total, and `max(0, …)` keeps the two subtractions from overlapping.
   const received = sumReceived((pays ?? []) as PaymentLike[]);
   return round2(Math.max(0, gross - received));
+}
+
+/**
+ * Stamp which invoices the money that has arrived actually settles.
+ *
+ * `documents.paid_at` has existed since the table did and nothing ever wrote
+ * it, so every invoice in the finance list read "open" for ever — including
+ * the ones for guests who paid in full months ago. The list could show a
+ * gapless sequence and a grand total and still not answer the one question
+ * anybody asks it: what is still outstanding?
+ *
+ * A payment is not tied to an invoice number — a bank transfer arrives against
+ * a booking — so settle OLDEST FIRST, which is both the legal default and what
+ * a person does by hand. A credit note is money the guest no longer owes, so
+ * it pays the pile down exactly like a transfer, on the day it was issued.
+ *
+ * Two things this deliberately does NOT do. It never marks an invoice paid in
+ * part: half a transfer against a €2,895 final leaves it open, because half an
+ * invoice is not a settled one. And it recomputes from scratch every time
+ * rather than incrementing, so deleting a payment that was recorded by mistake
+ * un-marks the invoice it was covering instead of leaving the lie behind.
+ */
+export async function settleInvoices(bookingId: string): Promise<void> {
+  const db = getDb();
+  const [{ data: docs }, { data: pays }] = await Promise.all([
+    db.from("documents")
+      .select("id,amount,type,status,paid_at,issued_at,created_at")
+      .eq("booking_id", bookingId)
+      .eq("status", "issued")
+      .order("issued_at", { ascending: true })
+      .order("created_at", { ascending: true }),
+    db.from("exp_payments")
+      .select("amount,direction,type,status,date,received_at,created_at")
+      .eq("booking_id", bookingId),
+  ]);
+
+  type Doc = { id: string; amount: number | null; type: string; paid_at: string | null; issued_at: string | null; created_at: string | null };
+  const all = ((docs ?? []) as Doc[]).filter((d) => BILLABLE_TYPES.includes(d.type));
+  const invoices = all.filter((d) => d.type !== "credit_note");
+  if (invoices.length === 0) return;
+
+  /*
+   * The date an invoice was settled is the day the money that covered it
+   * landed — not the day this function happened to run. Worth the extra
+   * bookkeeping: it is the column the accountant reads, and "today" on every
+   * row would be worse than empty.
+   */
+  const when = (r: { date?: string | null; received_at?: string | null; created_at?: string | null }) =>
+    r.date ?? r.received_at ?? r.created_at ?? null;
+  const credits = all
+    .filter((d) => d.type === "credit_note")
+    .map((d) => ({ at: d.issued_at ?? d.created_at ?? null, amount: Math.abs(Number(d.amount) || 0) }));
+  const money = [
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    ...((pays ?? []) as any[]).filter((p) => isReceived(p as PaymentLike))
+      .map((p) => ({ at: when(p), amount: (p.type === "refund" ? -1 : 1) * (Number(p.amount) || 0) })),
+    ...credits,
+  ].sort((a, b) => String(a.at ?? "").localeCompare(String(b.at ?? "")));
+
+  let running = 0;
+  const paidAtFor: (string | null)[] = [];
+  let cursor = 0;
+  let pot = 0;
+  for (const inv of invoices) {
+    running = round2(running + (Number(inv.amount) || 0));
+    while (pot + 0.005 < running && cursor < money.length) {
+      pot = round2(pot + money[cursor].amount);
+      cursor += 1;
+    }
+    paidAtFor.push(pot + 0.005 >= running ? (money[cursor - 1]?.at ?? null) : null);
+  }
+
+  await Promise.all(invoices.map(async (inv, i) => {
+    const should = paidAtFor[i];
+    const has = inv.paid_at;
+    if (should && !has) {
+      await db.from("documents").update({ paid_at: should }).eq("id", inv.id);
+    } else if (!should && has) {
+      await db.from("documents").update({ paid_at: null }).eq("id", inv.id);
+    }
+  }));
 }
 
 /** One place for the money: trip total (agreed + confirmed add-ons), how much has
@@ -704,6 +789,12 @@ export async function generateDocument(input: GenerateInput): Promise<DocumentRo
       .in("id", billedAddons.map((a) => a.id));
   }
   await stampFinalAddons((inserted as DocumentRow).id);
+
+  // Money often arrives BEFORE the paper: Sven Heinsohn's final invoice was
+  // issued against a booking that was already settled. Re-run the allocation
+  // now so the new document is not born reading "open".
+  await settleInvoices(bookingId).catch((e) =>
+    console.warn("[invoices] settle after issue failed (non-fatal):", e instanceof Error ? e.message : e));
 
   // Callers that email the document right away get the buffer for free
   // (saves a signed-URL download round-trip).

@@ -12,7 +12,7 @@
 
 import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase";
-import { generateDocument } from "@/lib/invoices/generate";
+import { generateDocument, settleInvoices } from "@/lib/invoices/generate";
 import { eur } from "@/lib/stripe";
 
 // ─── Stripe signature verification (no stripe npm package needed) ─────────────
@@ -264,6 +264,10 @@ async function onEventPayment(
       }
     }
   }
+
+  // The card cleared, so the invoice this charge covers is settled.
+  await settleInvoices(bookingId).catch((e) =>
+    console.warn("[webhook] invoice settle failed (non-fatal):", e instanceof Error ? e.message : e));
 
   // An event buyer becomes a member, exactly like a trip buyer.
   //

@@ -3,6 +3,7 @@ import { createClient as createServiceClient } from "@supabase/supabase-js";
 import { NextRequest, after } from "next/server";
 import { isActiveTeamMember } from "@/lib/admin-auth";
 import { promoteProformaIfPaid } from "@/lib/invoices/promote";
+import { settleInvoices } from "@/lib/invoices/generate";
 
 function getServiceClient() {
   return createServiceClient(
@@ -107,6 +108,9 @@ export async function POST(
   after(() => promoteProformaIfPaid(id).catch((e) =>
     console.error("proforma promotion failed", e instanceof Error ? e.message : e)
   ));
+  after(() => settleInvoices(id).catch((e) =>
+    console.error("invoice settle failed", e instanceof Error ? e.message : e)
+  ));
 
   return Response.json({ payment: data });
 }
@@ -143,6 +147,11 @@ export async function DELETE(request: NextRequest, { params }: { params: Promise
   if (!/^alloc[#:]/.test(ref)) {
     const { error } = await admin.from("exp_payments").delete().eq("id", row.id);
     if (error) return Response.json({ error: error.message }, { status: 400 });
+    // Taking money back out has to un-settle whatever it was covering, or the
+    // invoice keeps claiming it was paid by a row that no longer exists.
+    after(() => settleInvoices(id).catch((e) =>
+      console.error("invoice settle failed", e instanceof Error ? e.message : e)
+    ));
     return Response.json({ ok: true, removed: 1 });
   }
 
