@@ -41,6 +41,34 @@ function getDb() {
 
 const round2 = (n: number) => Math.round((n + Number.EPSILON) * 100) / 100;
 
+/**
+ * Whose name and address belong on the invoice.
+ *
+ * Normally the traveller's — they booked, they pay. But a trip is often bought
+ * BY someone else FOR them: a birthday present, a parent paying for a grown
+ * child, an employer sending someone. Then the customer is the buyer, and
+ * §14 UStG wants the buyer's full name and address on the document, not the
+ * traveller's. `billing_contact_id` (migration 200) records that; null means
+ * the ordinary case and nothing changes.
+ */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+type InvoiceContact = { id?: string | null; name: string | null; email: string | null; billing_address: string | null; billing_postal_code: string | null; billing_city: string | null; billing_country: string | null };
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+async function invoiceRecipient(booking: any): Promise<{ contact: InvoiceContact | null; billToId: string | null }> {
+  const own = (booking?.contacts ?? null) as InvoiceContact | null;
+  const billToId = (booking?.billing_contact_id ?? null) as string | null;
+  if (!billToId) return { contact: own, billToId: null };
+  const { data } = await getDb()
+    .from("contacts")
+    .select("id, name, email, billing_address, billing_postal_code, billing_city, billing_country")
+    .eq("id", billToId)
+    .maybeSingle();
+  // A billing contact that has gone missing must not silently address the
+  // invoice to the traveller instead — that would be a wrong document, quietly.
+  if (!data) throw new Error(`billing_contact_id ${billToId} not found — cannot address this invoice`);
+  return { contact: data as InvoiceContact, billToId };
+}
+
 /** The documents that represent money owed or given back — as opposed to a
     booking confirmation, a pro-forma request or a Sicherungsschein. */
 const BILLABLE_TYPES = ["deposit_invoice", "downpayment_invoice", "final_invoice", "addon_invoice", "credit_note"];
@@ -354,6 +382,7 @@ async function resolveBooking(bookingId: string): Promise<ResolvedBooking> {
     .from("exp_bookings")
     .select(
       `id, contact_id, experience_id, edition_id, package_id, covered_by_booking_id,
+       billing_contact_id,
        agreed_price, downpayment_received, final_payment_received, notes, created_at,
        contacts(name, email, billing_address, billing_postal_code, billing_city, billing_country),
        exp_experiences(title, slug),
@@ -596,7 +625,7 @@ export async function generateDocument(input: GenerateInput): Promise<DocumentRo
   }
 
   // 3. Build InvoiceData for template
-  const contact = booking.contacts;
+  const { contact, billToId } = await invoiceRecipient(booking);
   const ed = booking.exp_editions;
   const exp = booking.exp_experiences;
   const pkg = booking.exp_packages;
@@ -684,6 +713,7 @@ export async function generateDocument(input: GenerateInput): Promise<DocumentRo
   const docRow = {
     booking_id: bookingId,
     contact_id: booking.contact_id,
+    bill_to_contact_id: billToId,
     division,
     type,
     invoice_number: invoiceNumber,
@@ -871,7 +901,8 @@ export async function generateCreditNote(input: CreditNoteInput): Promise<Docume
 
   const division = o.division ?? "experience";
   const [booking, company] = await Promise.all([resolveBooking(input.bookingId), resolveCompanySettings(division)]);
-  const contact = booking.contacts;
+  // A credit note has to reach whoever the invoice did.
+  const { contact, billToId } = await invoiceRecipient(booking);
   const year = new Date().getFullYear();
   const seq = await allocateInvoiceNumber(division, year);
   const invoiceNumber = formatInvoiceNumber(company.invoice_prefix, year, seq);
@@ -911,6 +942,7 @@ export async function generateCreditNote(input: CreditNoteInput): Promise<Docume
   const docRow = {
     booking_id: input.bookingId,
     contact_id: booking.contact_id,
+    bill_to_contact_id: billToId,
     division,
     type: "credit_note" as const,
     invoice_number: invoiceNumber,

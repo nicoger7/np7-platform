@@ -50,6 +50,9 @@ interface BookingDetail {
   edition_id: string | null;
   package_id: string | null;
   contact_id: string | null;
+  /** Who the invoices go to, when that is not the traveller (migration 200). */
+  billing_contact_id?: string | null;
+  billing_contact?: { id: string; name: string | null; email: string | null } | null;
   status: string;
   fly_in: string | null;
   fly_out: string | null;
@@ -1068,6 +1071,28 @@ export function BookingDetailPane({ bookingId, onBack }: { bookingId: string; on
                 </button>
               )}
             </div>
+          </div>
+
+          {/* Who gets the invoice, when that is not the person travelling.
+              A birthday present, a parent paying for a grown child, an employer
+              sending someone — the traveller's name on the bill would be wrong,
+              and §14 UStG wants the buyer's. Empty is the ordinary case. */}
+          <div>
+            <label className={labelClass}>
+              Invoice to <span className="admin-faint font-normal">· only if someone else is paying</span>
+            </label>
+            <ContactPicker
+              value={booking.billing_contact_id ?? null}
+              display={booking.billing_contact ? { id: booking.billing_contact.id, name: booking.billing_contact.name ?? "", email: booking.billing_contact.email } : null}
+              onChange={(cid) => update("billing_contact_id", cid)}
+            />
+            {booking.billing_contact_id && (
+              <p className="text-[11px] admin-faint mt-1.5">
+                Invoices and credit notes for this booking are addressed to{" "}
+                <strong className="admin-muted">{booking.billing_contact?.name ?? "this contact"}</strong>, not to the guest.
+                Documents already issued keep the name they were issued with.
+              </p>
+            )}
           </div>
 
           {/* Contact info — read-only card, or inline editor when editing */}
