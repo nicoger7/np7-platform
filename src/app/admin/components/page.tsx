@@ -157,27 +157,31 @@ export default function ComponentsPage() {
     fetchData();
   }, []);
 
+  /*
+   * The list is what the page is for; the other four requests only feed the
+   * filter dropdowns and the edit form. They used to sit inside one
+   * Promise.all with the list, so "Loading…" lasted as long as the SLOWEST of
+   * five cold functions — and because three of them had no catch, one failed
+   * response left the page loading forever. On a cold visit the audit saw a
+   * blank "Loading…" for 8+ seconds that only rendered once you typed
+   * something, which happened to force a re-render past the gate.
+   *
+   * Now the list shows the moment it arrives; the dropdowns fill in behind it.
+   */
   function fetchData() {
-    Promise.all([
-      fetch("/api/admin/components").then((r) => r.json()),
-      fetch("/api/admin/experiences").then((r) => r.json()),
-      fetch("/api/admin/editions").then((r) => r.json()),
-      fetch("/api/admin/hotels").then((r) => r.json()).catch(() => ({})),
-      fetch("/api/admin/rooms").then((r) => r.json()).catch(() => ({})),
-    ]).then(([comps, exps, eds, hot, rms]) => {
-      setHotels(((hot?.hotels ?? []) as { id: string | null; name: string }[]).filter((h) => h.id) as { id: string; name: string }[]);
-      setAllRooms(Array.isArray(rms?.rooms) ? rms.rooms : []);
-      setComponents(comps || []);
-      setExperiences(
-        (exps.experiences || exps || []).map((e: Record<string, string>) => ({
-          id: e.id,
-          title: e.title,
-          code: e.code ?? null,
-        }))
-      );
-      setEditions(Array.isArray(eds) ? eds : []);
+    const json = (u: string) => fetch(u).then((r) => r.json()).catch(() => null);
+    json("/api/admin/components").then((comps) => {
+      setComponents(Array.isArray(comps) ? comps : []);
       setLoading(false);
     });
+    json("/api/admin/experiences").then((exps) => {
+      const list = exps?.experiences || (Array.isArray(exps) ? exps : []);
+      setExperiences(list.map((e: Record<string, string>) => ({ id: e.id, title: e.title, code: e.code ?? null })));
+    });
+    json("/api/admin/editions").then((eds) => setEditions(Array.isArray(eds) ? eds : []));
+    json("/api/admin/hotels").then((hot) =>
+      setHotels(((hot?.hotels ?? []) as { id: string | null; name: string }[]).filter((h) => h.id) as { id: string; name: string }[]));
+    json("/api/admin/rooms").then((rms) => setAllRooms(Array.isArray(rms?.rooms) ? rms.rooms : []));
   }
 
   // Distinct categories (base + any custom ones already in use) for the datalist + filters
