@@ -162,16 +162,23 @@ export default function DocumentsPage() {
     all: docs.length,
   }), [docs]);
 
-  // Money, stated the way an invoice list has to state it: what stands, what
-  // was cancelled, what has been settled. A void invoice is not revenue and a
-  // credit note is negative revenue, so neither may be summed with the rest.
+  /*
+   * Money, stated the way an invoice list has to state it: what stands, what
+   * was cancelled, what has been settled. A void invoice is not revenue.
+   *
+   * A credit note is ALREADY STORED NEGATIVE (NP7-XP-2026-0024 is -1,495), so
+   * it is added like every other row. Subtracting it — the obvious-looking
+   * `charges - credits` — negates a negative and inflates the total by twice
+   * the credit: Dimitri Lagendijk's three documents come to exactly his 2,550
+   * price, and this read them as 5,540.
+   */
   const totals = useMemo(() => {
     const live = shown.filter((d) => d.status !== "void");
     const sum = (rows: DocumentRow[]) => rows.reduce((t, d) => t + (Number(d.amount) || 0), 0);
     const credits = live.filter((d) => d.type === "credit_note");
     const charges = live.filter((d) => d.type !== "credit_note");
     return {
-      issued: sum(charges) - sum(credits),
+      issued: sum(charges) + sum(credits),
       issuedCount: charges.length,
       credited: sum(credits),
       creditCount: credits.length,
