@@ -357,6 +357,13 @@ function PageFooter({ company, invoiceNumber }: { company: CompanySettings; invo
 }
 
 // ─── Line-item tables ────────────────────────────────────────────────────────
+//
+// Every renderer below prints `data.amountDue` — the figure the document was
+// issued with — and never re-derives it. The fallbacks keep documents produced
+// before this render exactly as they did.
+//
+// Line ITEMS are still itemised: a guest should see what the extra money
+// bought. Only the total is fixed, because the total is the claim.
 
 /** Pro-forma = payment request for the SECURING payment (deposit if configured,
     else the downpayment). Deliberately shows a single gross amount and no VAT
@@ -425,9 +432,10 @@ function DepositInvoiceLines({ data }: { data: InvoiceData }) {
   const packageDesc = booking.packageName ? `Package: ${booking.packageName}` : "";
 
   // Net / VAT / gross for standard mode
-  const depositNet = isMargin ? booking.deposit : booking.deposit / (1 + vatRate / 100);
-  const depositVat = isMargin ? 0 : booking.deposit - depositNet;
-  const balance = booking.agreedPrice - booking.deposit;
+  const deposit = data.amountDue ?? booking.deposit;
+  const depositNet = isMargin ? deposit : deposit / (1 + vatRate / 100);
+  const depositVat = isMargin ? 0 : deposit - depositNet;
+  const balance = booking.agreedPrice - deposit;
 
   return (
     <View>
@@ -467,7 +475,7 @@ function DepositInvoiceLines({ data }: { data: InvoiceData }) {
         )}
         <View style={s.grandTotalRow}>
           <Text style={s.grandLabel}>Amount due (deposit):</Text>
-          <Text style={s.grandValue}>{formatMoney(booking.deposit, currency)}</Text>
+          <Text style={s.grandValue}>{formatMoney(deposit, currency)}</Text>
         </View>
       </View>
 
@@ -495,7 +503,7 @@ function DownpaymentInvoiceLines({ data }: { data: InvoiceData }) {
   const description = [experience.title, edition?.label].filter(Boolean).join(" · ");
   const packageDesc = booking.packageName ? `Package: ${booking.packageName}` : "";
 
-  const downpayment = booking.downpayment;
+  const downpayment = data.amountDue ?? booking.downpayment;
   const dpNet = isMargin ? downpayment : downpayment / (1 + vatRate / 100);
   const dpVat = isMargin ? 0 : downpayment - dpNet;
   // What's been invoiced before this one, and what's left after it.
@@ -568,7 +576,7 @@ function AddonInvoiceLines({ data }: { data: InvoiceData }) {
   const isMargin = company.vat_mode === "margin";
   const vatRate = company.vat_rate ?? 0;
   const items = booking.billedAddons ?? [];
-  const totalAmt = items.reduce((n, a) => n + a.price, 0);
+  const totalAmt = data.amountDue ?? items.reduce((n, a) => n + a.price, 0);
   const net = isMargin ? totalAmt : totalAmt / (1 + vatRate / 100);
   const vat = isMargin ? 0 : totalAmt - net;
   const remaining = Math.max(0, booking.agreedPrice - (booking.received ?? 0) - totalAmt);
@@ -639,7 +647,11 @@ function FinalInvoiceLines({ data }: { data: InvoiceData }) {
    * email and the guest's bank statement.
    */
   const received = booking.received ?? 0;
-  const balance = Math.max(0, booking.agreedPrice - received);
+  /* The stored figure, which also nets off invoices already issued and unpaid —
+     `agreedPrice - received` alone double-bills whatever an open add-on invoice
+     already claims, which is exactly how Andreas Burmeister's final invoice
+     came to be issued and voided three times. */
+  const balance = data.amountDue ?? Math.max(0, booking.agreedPrice - received);
   const addons = booking.addons ?? [];
   // agreedPrice is the whole trip. Show the package on its own line so the
   // add-ons are visible rather than swallowed by a package price €645 too high.
@@ -650,7 +662,9 @@ function FinalInvoiceLines({ data }: { data: InvoiceData }) {
 
   const totalNet = isMargin ? booking.agreedPrice : booking.agreedPrice / (1 + vatRate / 100);
   const advanceNet = isMargin ? received : received / (1 + vatRate / 100);
-  const balanceNet = totalNet - advanceNet;
+  // Derived FROM the balance, so the VAT split can never describe a different
+  // number than the one the invoice is claiming.
+  const balanceNet = isMargin ? balance : balance / (1 + vatRate / 100);
   const balanceVat = isMargin ? 0 : balance - balanceNet;
 
   return (

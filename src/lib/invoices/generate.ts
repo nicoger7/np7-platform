@@ -599,6 +599,26 @@ export async function generateDocument(input: GenerateInput): Promise<DocumentRo
     throw new Error("No un-invoiced add-ons on this booking — every confirmed extra is already on an invoice.");
   }
 
+  /*
+   * ONE number, decided here, used by both the paper and the record.
+   *
+   * This used to be computed AFTER the PDF had been rendered and uploaded, so
+   * the document could not print the figure it was about to be filed with —
+   * every line renderer re-derived its own instead. Whenever the two
+   * derivations disagreed the invoice carried two different numbers: Andreas
+   * Burmeister's final invoice stored €4,595 and printed €2,297.50; Charlotte
+   * Baerenz's payment request stored €5,790 and printed €2,895 under a
+   * "Down-Payment" heading. Both are the same fault, and it is structural, not
+   * arithmetic: an invoice is a statement about a moment, and a formula
+   * evaluated twice is not one statement.
+   */
+  let amount: number | null = null;
+  if (type === "proforma_invoice") amount = proformaAmt;
+  else if (type === "deposit_invoice") amount = depositAmt;
+  else if (type === "downpayment_invoice") amount = downpaymentAmt;
+  else if (type === "final_invoice") amount = finalAmt;
+  else if (type === "addon_invoice") amount = addonAmt;
+
   // 2. Allocate invoice number. Pro-formas do NOT burn the gapless tax-invoice
   // counter — they get a deterministic PF reference (stage-coded, unique per
   // booking+stage) the rider quotes on the transfer, matched by reconciliation.
@@ -678,7 +698,8 @@ export async function generateDocument(input: GenerateInput): Promise<DocumentRo
       : null,
     dueDate: isProforma ? proformaDue : null,
     // What the paper must print — not a formula for it to re-derive.
-    ...(isProforma ? { amountDue: proformaAmt, milestone: proformaMilestone } : {}),
+    ...(amount != null ? { amountDue: amount } : {}),
+    ...(isProforma ? { milestone: proformaMilestone } : {}),
   };
 
   // 4. Render PDF
@@ -703,13 +724,8 @@ export async function generateDocument(input: GenerateInput): Promise<DocumentRo
     throw new Error(`Failed to upload PDF to storage: ${uploadError.message}`);
   }
 
-  // 6. Determine amount for the documents row
-  let amount: number | null = null;
-  if (type === "proforma_invoice") amount = proformaAmt;
-  else if (type === "deposit_invoice") amount = depositAmt;
-  else if (type === "downpayment_invoice") amount = downpaymentAmt;
-  else if (type === "final_invoice") amount = finalAmt;
-  else if (type === "addon_invoice") amount = addonAmt;
+  // 6. The amount was decided before the PDF was rendered — see above. It is
+  // deliberately NOT recomputed here, so the row and the paper cannot drift.
 
   // 7. Insert documents row
   const docRow = {
