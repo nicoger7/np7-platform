@@ -401,6 +401,11 @@ export default function EditionDetailPage({
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
+  /* Same trap the booking page had: every field here is local until Save, and
+     this page carries far more of them — dates, capacity, launch price, the
+     whole operations block. Leaving without saving used to lose the lot in
+     silence. */
+  const [dirty, setDirty] = useState(false);
   const [dupOpen, setDupOpen] = useState(false);
   const [dupTarget, setDupTarget] = useState<"existing" | "new">("existing");
   const [dupExpId, setDupExpId] = useState("");
@@ -971,6 +976,7 @@ export default function EditionDetailPage({
       }),
     });
     setSaving(false);
+    setDirty(false);
     /*
      * Moving a week moves its beds — say so, and say what stayed behind.
      *
@@ -1024,8 +1030,17 @@ export default function EditionDetailPage({
     }
   }
 
+  // Covers reload, tab close and back — the ways an in-app dialog can't catch.
+  useEffect(() => {
+    if (!dirty) return;
+    const warn = (e: BeforeUnloadEvent) => { e.preventDefault(); e.returnValue = ""; };
+    window.addEventListener("beforeunload", warn);
+    return () => window.removeEventListener("beforeunload", warn);
+  }, [dirty]);
+
   function update(field: string, value: unknown) {
     setEdition((prev) => (prev ? { ...prev, [field]: value } : prev));
+    setDirty(true);
   }
 
   if (loading) {
@@ -1211,13 +1226,16 @@ export default function EditionDetailPage({
           >
             Delete
           </button>
+          {tab === "details" && dirty && !saving && (
+            <span className="text-xs font-semibold text-amber-500 mr-1">Unsaved changes</span>
+          )}
           {tab === "details" && (
             <button
               onClick={handleSave}
               disabled={saving}
-              className="px-4 py-2 bg-[var(--admin-accent)] hover:bg-[var(--admin-accent)]/90 disabled:opacity-50 text-[var(--admin-accent-contrast)] text-sm font-bold rounded-lg transition-colors"
+              className={`px-4 py-2 disabled:opacity-50 text-sm font-bold rounded-lg transition-colors ${dirty ? "bg-amber-500 hover:bg-amber-500/90 text-[#1a1207] ring-2 ring-amber-400/40" : "bg-[var(--admin-accent)] hover:bg-[var(--admin-accent)]/90 text-[var(--admin-accent-contrast)]"}`}
             >
-              {saving ? "Saving..." : saved ? "Saved!" : "Save"}
+              {saving ? "Saving..." : saved ? "Saved!" : dirty ? "Save changes" : "Save"}
             </button>
           )}
         </div>

@@ -509,9 +509,27 @@ export default function AdminShell({
   useEffect(() => {
     const savedTheme = localStorage.getItem("np7-admin-theme") as Theme | null;
     if (savedTheme && themes[savedTheme]) setTheme(savedTheme);
+    /*
+     * The page you are on wins over the world you were last in.
+     *
+     * The world came from localStorage alone, so opening an Experience URL
+     * directly — a link, a bookmark, a fresh tab — while the last world was
+     * Magazine left the sidebar showing Magazine's nav next to Hotel Rooms
+     * content, with no route back except the switcher. The path knows which
+     * world it belongs to; ask it first.
+     */
     const savedEnv = localStorage.getItem("np7-admin-env") as Environment | null;
-    if (savedEnv && navByEnv[savedEnv] && canEnterEnv(access, savedEnv as Environment)) {
-      setEnv(savedEnv);
+    const envOfPath = (Object.keys(navByEnv) as Environment[]).find((e) =>
+      navByEnv[e].some((g) =>
+        g.items.some((i) => i.href !== "/admin" && (pathname === i.href || pathname.startsWith(`${i.href}/`))),
+      ),
+    );
+    const wanted = envOfPath ?? savedEnv;
+    if (wanted && navByEnv[wanted] && canEnterEnv(access, wanted as Environment)) {
+      setEnv(wanted);
+      if (envOfPath && envOfPath !== savedEnv) {
+        try { localStorage.setItem("np7-admin-env", envOfPath); } catch { /* private mode */ }
+      }
     }
     try {
       const savedCollapsed = JSON.parse(localStorage.getItem("np7-admin-collapsed") || "[]");
