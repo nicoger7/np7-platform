@@ -99,7 +99,21 @@ export async function POST(
   { params }: RouteContext
 ) {
   const { id } = await params;
-  const body: { type?: string; milestone?: string } = await request.json();
+  const body: { type?: string; milestone?: string; reuseDocumentId?: string } = await request.json();
+
+  /*
+   * Re-issue a corrected copy of a document that has NOT been sent, keeping its
+   * number.
+   *
+   * generateDocument has always supported this and nothing could reach it. It
+   * is the right repair for an invoice whose figures were wrong before anyone
+   * saw them: deleting it would leave a hole in a gapless sequence, and a
+   * Storno would burn two more numbers to fix paper that never left the
+   * building. The generator refuses outright once sent_at is set — then a
+   * Storno really is the only honest correction.
+   */
+  const reuseDocumentId = typeof body.reuseDocumentId === "string" && body.reuseDocumentId
+    ? body.reuseDocumentId : undefined;
 
   const type = body.type as DocumentType | undefined;
 
@@ -133,7 +147,11 @@ export async function POST(
   const safeType = type as GeneratableType;
 
   try {
-    const row = await generateDocument({ bookingId: id, type: safeType, ...(milestone ? { milestone } : {}) });
+    const row = await generateDocument({
+      bookingId: id, type: safeType,
+      ...(milestone ? { milestone } : {}),
+      ...(reuseDocumentId ? { reuseDocumentId } : {}),
+    });
 
     // Attach a fresh signed URL to the returned row
     const db = createAdminClient();
