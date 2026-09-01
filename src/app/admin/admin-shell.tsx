@@ -7,7 +7,6 @@ import { useState, useEffect, useRef } from "react";
 import { createClient } from "@/lib/supabase/client";
 import type { User } from "@supabase/supabase-js";
 import { effectiveCanAccess, effectiveCanEnterWorld, type EffectiveAccess, type WorldId } from "@/lib/access";
-import { AccountSwitcher } from "@/components/admin/account-switcher";
 import { AdminInstallPrompt } from "@/components/pwa/admin-install-prompt";
 import { ActiveTimeHeartbeat } from "@/components/admin/active-time-heartbeat";
 import { CommandPalette, type PaletteItem } from "@/components/admin/command-palette";
@@ -555,11 +554,27 @@ export default function AdminShell({
     router.push(newEnv === "analytics" ? (navByEnv.analytics[0]?.items[0]?.href ?? "/admin/analytics") : "/admin");
   }
 
+  /*
+   * One-time cleanup: the retired account switcher left access + refresh tokens
+   * in localStorage on every machine that ever used it. Removing the feature
+   * does not remove what it already wrote, so wipe it wherever the admin loads.
+   */
+  useEffect(() => {
+    try { window.localStorage.removeItem("np7-admin-accounts"); } catch { /* private mode */ }
+  }, []);
+
   async function handleLogout() {
-    // Local scope only: clears THIS session but keeps the account's refresh token
-    // valid + cached, so logging into another account lets you switch back
-    // (the account-switcher's "Forget all" does a full clear).
-    await supabase.auth.signOut({ scope: "local" });
+    /*
+     * A full sign-out — the refresh token dies with it.
+     *
+     * This used to be scope:"local" so the account switcher could hop back into
+     * a "logged out" account without a password. That switcher is gone (it kept
+     * access + refresh tokens in localStorage, where any script on the page
+     * could read them), and with it the reason to leave a live token behind
+     * after someone pressed Sign out.
+     */
+    await supabase.auth.signOut();
+    try { window.localStorage.removeItem("np7-admin-accounts"); } catch { /* private mode */ }
     router.push("/admin/login");
     router.refresh();
   }
@@ -848,7 +863,7 @@ export default function AdminShell({
             </div>
           )}
           <div className="flex items-center justify-between mb-2">
-            <AccountSwitcher currentEmail={user.email ?? ""} currentUserId={user.id} />
+            <span className="text-xs truncate" style={{ color: "var(--admin-text-faint)" }}>{user.email ?? ""}</span>
             <button
               onClick={toggleTheme}
               className="w-7 h-7 flex items-center justify-center rounded-lg transition-colors"
