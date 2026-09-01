@@ -17,11 +17,22 @@
  * the 7 mornings" — and suppresses every automatic rule.
  */
 
-/** "night" → "nights", "Lunch" → "Lunches", "day" → "days". Leaves plurals be. */
+/**
+ * "night" → "nights", "Lunch" → "Lunches", "day" → "days". Leaves plurals be.
+ *
+ * The "leaves plurals be" rule used to sit LAST and could never fire: the -es
+ * rule above it matched every word ending in s, so anything already plural got
+ * a second ending. A component written "nights at the only beachfront hotel"
+ * rendered "6 nightses at the only beachfront hotel" on the Tenerife package.
+ *
+ * Order matters, and so does telling -s from -ss. A word ending in a single s
+ * is already plural (nights, days); one ending in ss, x, z, ch or sh is a
+ * singular that takes -es (class, box, lunch).
+ */
 function pluralise(word: string): string {
-  if (/(s|x|z|ch|sh)$/i.test(word)) return `${word}es`;
+  if (/ss$|[xz]$|(ch|sh)$/i.test(word)) return `${word}es`;
+  if (/s$/i.test(word)) return word;            // already plural — leave it alone
   if (/[^aeiou]y$/i.test(word)) return `${word.slice(0, -1)}ies`;
-  if (/s$/i.test(word)) return word;
   return `${word}s`;
 }
 

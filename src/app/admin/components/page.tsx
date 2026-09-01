@@ -7,6 +7,7 @@ import { SearchableSelect } from "@/components/admin/searchable-select";
 import { editionLabel, editionOptionLabel, editionSortKey } from "@/lib/edition-label";
 import { SearchSelect } from "@/components/admin/search-select";
 import { suggestComponentName, suggestComponentWebsiteText } from "@/lib/package-name";
+import { includeLine } from "@/lib/include-line";
 
 interface Experience {
   id: string;
@@ -356,7 +357,30 @@ export default function ComponentsPage() {
         <div><label className={labelClass}>Sell Price (€)</label><input className={inputClass} type="number" step="0.01" value={form.sell_price} onChange={(e) => setForm({ ...form, sell_price: e.target.value })} placeholder="0.00" /></div>
       </div>
       <div className="grid grid-cols-2 gap-4 mb-4">
-        <div><label className={labelClass}>Website text <span className="normal-case font-normal admin-faint">— how it appears in a package's &quot;What's included&quot;</span></label><input className={inputClass} value={form.description} onChange={(e) => { setTextTouched(true); setForm({ ...form, description: e.target.value }); }} placeholder="e.g. night at Hotel Playa Surf" /><p className="text-[11px] admin-faint mt-1">Write it for <strong className="admin-muted">ONE</strong> — the package&apos;s quantity supplies the number. &ldquo;night at Hotel Playa Surf&rdquo; × 7 shows as &ldquo;7 nights at Hotel Playa Surf&rdquo;. Never type the number yourself; use <code>{"{n}"}</code> if you need it mid-sentence. Blank = the component name is used.</p>
+        <div><label className={labelClass}>Website text <span className="normal-case font-normal admin-faint">— how it appears in a package's &quot;What's included&quot;</span></label><input className={inputClass} value={form.description} onChange={(e) => { setTextTouched(true); setForm({ ...form, description: e.target.value }); }} placeholder="e.g. night at Hotel Playa Surf" /><p className="text-[11px] admin-faint mt-1">Write it for <strong className="admin-muted">ONE</strong> — a hotel component is one night, and the package decides how many. Never type the number yourself; use <code>{"{n}"}</code> if you need it mid-sentence. Blank = the component name is used.</p>
+          {/* A rule you read is a rule you can misread. The preview shows the
+              actual output, which is how "nights at the only beachfront hotel"
+              would have been caught before it reached a package as
+              "6 nightses at the only beachfront hotel". */}
+          {form.description.trim() && (() => {
+            const first = /^([A-Za-z\u00C0-\u00FF]+)(\s|$)/.exec(form.description.trim())?.[1] ?? "";
+            const looksPlural = /[^s]s$/i.test(first) && !form.description.includes("{n}");
+            return (
+              <div className="mt-1.5">
+                <p className="text-[11px] admin-faint">
+                  In a 6-night package this reads:{" "}
+                  <span className="admin-heading font-medium">
+                    {includeLine({ name: form.name, description: form.description, category: form.category, quantity: 6 })}
+                  </span>
+                </p>
+                {looksPlural && (
+                  <p className="text-[11px] text-amber-500 mt-1">
+                    &ldquo;{first}&rdquo; is already plural — write it for one ({first.replace(/s$/i, "")}) and let the package multiply it.
+                  </p>
+                )}
+              </div>
+            );
+          })()}
           {(() => {
             const sug = suggestComponentWebsiteText({ category: form.category, hotelName: hotels.find((h) => h.id === form.hotel_id)?.name, roomType: form.room_type });
             return sug && form.description.trim() !== sug ? (
@@ -395,40 +419,58 @@ export default function ComponentsPage() {
         )}
         <div><label className={labelClass}>Notes</label><input className={inputClass} value={form.notes} onChange={(e) => setForm({ ...form, notes: e.target.value })} /></div>
       </div>
-      <div className="grid grid-cols-3 gap-4 mb-4">
-        <div className="flex items-end pb-1">
-          <label className="flex items-center gap-2 cursor-pointer">
-            <input type="checkbox" checked={form.addon_available} onChange={(e) => setForm({ ...form, addon_available: e.target.checked })} className="w-4 h-4 accent-[#0aa3c7]" />
-            <span className="text-sm admin-muted">Add-on available</span>
-          </label>
-          <label className="flex items-center gap-2 text-sm admin-heading cursor-pointer mt-2">
-            <input type="checkbox" checked={form.offer_at_booking ?? false} onChange={(e) => setForm({ ...form, offer_at_booking: e.target.checked })} className="w-4 h-4 accent-[#0aa3c7]" />
-            Offer at booking <span className="admin-faint text-xs">— optional extra in the public booking flow and on a clinic&apos;s add-on shelf; price = sell price</span>
-          </label>
-          {(form.offer_at_booking ?? false) && (
-            <div className="mt-3">
-              <label className="block text-xs font-semibold admin-muted mb-1">
-                Order <span className="admin-faint font-normal">— where it sits in that list. Lowest first; blank sorts last, then by name.</span>
-              </label>
-              <input
-                type="number"
-                className="admin-input border rounded-lg px-3 py-2 text-sm w-28"
-                value={form.offer_sort ?? ""}
-                onChange={(e) => setForm({ ...form, offer_sort: e.target.value === "" ? null : Number(e.target.value) })}
-                placeholder="1"
-              />
-            </div>
-          )}
-          <div className="mt-3">
+      {/*
+        These four controls were nested inside one cell of a three-column grid,
+        and that cell was a flex ROW — so they laid out side by side while their
+        own top margins said they were meant to stack. The long explanations got
+        a sliver of width and wrapped one word per line, and two thirds of the
+        row sat empty beside them. They are one vertical block; the layout now
+        says so.
+      */}
+      <div className="mb-4 space-y-4">
+        <label className="flex items-start gap-2.5 cursor-pointer">
+          <input type="checkbox" checked={form.addon_available} onChange={(e) => setForm({ ...form, addon_available: e.target.checked })} className="mt-0.5 w-4 h-4 accent-[#0aa3c7] shrink-0" />
+          <span>
+            <span className="block text-sm admin-heading">Add-on available</span>
+            <span className="block text-xs admin-faint mt-0.5">Can be added to a booking by hand, after it exists.</span>
+          </span>
+        </label>
+
+        <label className="flex items-start gap-2.5 cursor-pointer">
+          <input type="checkbox" checked={form.offer_at_booking ?? false} onChange={(e) => setForm({ ...form, offer_at_booking: e.target.checked })} className="mt-0.5 w-4 h-4 accent-[#0aa3c7] shrink-0" />
+          <span>
+            <span className="block text-sm admin-heading">Offer at booking</span>
+            <span className="block text-xs admin-faint mt-0.5 max-w-[68ch]">
+              An optional extra in the public booking flow and on a clinic&apos;s add-on shelf. The guest pays the sell price.
+            </span>
+          </span>
+        </label>
+
+        {(form.offer_at_booking ?? false) && (
+          <div className="pl-6">
             <label className="block text-xs font-semibold admin-muted mb-1">
-              Gear role <span className="admin-faint font-normal">— makes this component govern the public Rental / Storage / Own-gear toggle for its experience &amp; scope (sell price = the money truth)</span>
+              Order <span className="admin-faint font-normal">— where it sits in that list. Lowest first; blank sorts last, then by name.</span>
             </label>
-            <select className="admin-input border rounded-lg px-3 py-2 text-sm" value={form.gear_option ?? ""} onChange={(e) => setForm({ ...form, gear_option: e.target.value })}>
-              <option value="">Not a gear option</option>
-              <option value="rental">Rental — the gear-rental option</option>
-              <option value="storage">Storage — the own-gear storage option</option>
-            </select>
+            <input
+              type="number"
+              className="admin-input border rounded-lg px-3 py-2 text-sm w-28"
+              value={form.offer_sort ?? ""}
+              onChange={(e) => setForm({ ...form, offer_sort: e.target.value === "" ? null : Number(e.target.value) })}
+              placeholder="1"
+            />
           </div>
+        )}
+
+        <div>
+          <label className="block text-xs font-semibold admin-muted mb-1">Gear role</label>
+          <p className="text-xs admin-faint mb-1.5 max-w-[68ch]">
+            Makes this component govern the public Rental / Storage / Own-gear toggle for its experience and scope. The sell price is the money truth.
+          </p>
+          <select className="admin-input border rounded-lg px-3 py-2 text-sm w-full max-w-sm" value={form.gear_option ?? ""} onChange={(e) => setForm({ ...form, gear_option: e.target.value })}>
+            <option value="">Not a gear option</option>
+            <option value="rental">Rental — the gear-rental option</option>
+            <option value="storage">Storage — the own-gear storage option</option>
+          </select>
         </div>
       </div>
       {/* Payment mode belongs under the "Add-on available" row it depends on —
