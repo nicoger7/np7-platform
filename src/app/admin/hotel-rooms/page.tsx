@@ -87,6 +87,12 @@ export default function HotelRoomsPage() {
   const [editionBookings, setEditionBookings] = useState<{ id: string; name: string }[]>([]);
   const [loading, setLoading] = useState(true);
   const [filterHotel, setFilterHotel] = useState("");
+  /* Free-text search. Four dropdowns answer "show me this week's Alaçatı rooms";
+     none of them answers "where is Carsi Standard 3?", which is the question you
+     actually have with a guest on the phone. At 69 rooms that is scrolling; the
+     trip list is growing, and so is the hotel list. */
+  const [roomQuery, setRoomQuery] = useState("");
+  const [expPickerQuery, setExpPickerQuery] = useState("");
   const [filterExperience, setFilterExperience] = useState("");
   const [filterYear, setFilterYear] = useState("");
   const [filterEdition, setFilterEdition] = useState("");
@@ -159,9 +165,23 @@ export default function HotelRoomsPage() {
     if (filterYear && String(r.edition?.year ?? "") !== filterYear) return false;
     return true;
   });
+  const q = roomQuery.trim().toLowerCase();
+  // A guest's name finds the room they sleep in — the lookup that happens most.
+  const unitIdsMatchingGuest = new Set(
+    q
+      ? occupancy
+          .filter((r) => (r.booking?.name ?? "").toLowerCase().includes(q))
+          .map((r) => r.room_id)
+          .filter(Boolean) as string[]
+      : [],
+  );
   const filteredUnits = units.filter((u) => {
     if (filterHotel && hotelNameOf(u.hotel_id, u.hotel) !== filterHotel) return false;
     if (filterExperience && u.experience_id !== filterExperience && !(u.experience_ids ?? []).includes(filterExperience)) return false;
+    if (q) {
+      const hay = `${u.name ?? ""} ${u.room_type ?? ""} ${hotelNameOf(u.hotel_id, u.hotel) ?? ""} ${u.room_number ?? ""}`.toLowerCase();
+      if (!hay.includes(q) && !unitIdsMatchingGuest.has(u.id)) return false;
+    }
     return true;
   });
 
@@ -439,7 +459,11 @@ const labelClass = "block text-xs font-medium admin-muted mb-1";
         <div>
           <h1 className="text-2xl font-bold admin-heading mb-1">Hotel Rooms</h1>
           <p className="text-sm admin-muted">
-            {groupList.length} room{groupList.length !== 1 ? "s" : ""} across {Object.keys(byHotel).length} hotel{Object.keys(byHotel).length !== 1 ? "s" : ""}
+            {/* Never "0 rooms across 0 hotels" while the data is still coming —
+                that reads as an empty hotel sheet, not an unfinished page. */}
+            {loading
+              ? "Loading rooms…"
+              : `${groupList.length} room${groupList.length !== 1 ? "s" : ""} across ${Object.keys(byHotel).length} hotel${Object.keys(byHotel).length !== 1 ? "s" : ""}`}
           </p>
         </div>
         <button onClick={() => startUnit("new")} className="px-4 py-2 bg-[var(--admin-accent)] hover:bg-[var(--admin-accent)]/90 text-[var(--admin-accent-contrast)] text-sm font-bold rounded-lg transition-colors">New Room</button>
@@ -519,7 +543,20 @@ const labelClass = "block text-xs font-medium admin-muted mb-1";
                     <>
                       <div className="fixed inset-0 z-20" onClick={() => setExpPickerOpen(false)} />
                       <div className="absolute z-30 left-0 right-0 top-full mt-1 max-h-[260px] overflow-y-auto rounded-xl py-1" style={{ border: "1px solid var(--admin-border)", background: "var(--admin-bg)", boxShadow: "0 8px 24px rgba(0,0,0,0.3)" }}>
-                        {experiences.map((ex) => {
+                        {/* Every other picker in the admin searches; this one made
+                            you scroll a list that grows with every new trip. */}
+                        <div className="px-2 pb-1 pt-0.5 sticky top-0" style={{ background: "var(--admin-bg)" }}>
+                          <input
+                            autoFocus
+                            value={expPickerQuery}
+                            onChange={(e) => setExpPickerQuery(e.target.value)}
+                            placeholder="Search experiences…"
+                            className="admin-input text-xs px-2 py-1 rounded-md w-full"
+                          />
+                        </div>
+                        {experiences
+                          .filter((ex) => !expPickerQuery.trim() || (ex.title ?? "").toLowerCase().includes(expPickerQuery.trim().toLowerCase()))
+                          .map((ex) => {
                           const on = unitForm.experience_ids.includes(ex.id);
                           return (
                             <button key={ex.id} type="button"
@@ -624,7 +661,13 @@ const labelClass = "block text-xs font-medium admin-muted mb-1";
       ) : (
       <>
         {/* Filters */}
-        <div className="flex items-center gap-3 mb-5">
+        <div className="flex flex-wrap items-center gap-3 mb-5">
+          <input
+            value={roomQuery}
+            onChange={(e) => setRoomQuery(e.target.value)}
+            placeholder="Search room, type, hotel or guest…"
+            className="admin-input text-sm px-3 py-1.5 rounded-lg w-[260px]"
+          />
           <select value={filterHotel} onChange={(e) => setFilterHotel(e.target.value)} className="admin-input text-sm px-3 py-1.5 rounded-lg">
             <option value="">All Hotels</option>
             {hotelOptions.map((h) => <option key={h.id} value={h.name}>{h.name}</option>)}
@@ -641,8 +684,8 @@ const labelClass = "block text-xs font-medium admin-muted mb-1";
             <option value="">All weeks</option>
             {filterEditions.map((ed) => <option key={ed.id} value={ed.id}>{editionLabel(ed)}</option>)}
           </select>
-          {(filterHotel || filterExperience || filterYear || filterEdition) && (
-            <button onClick={() => { setFilterHotel(""); setFilterExperience(""); setFilterYear(""); setFilterEdition(""); }} className="text-xs admin-faint hover:admin-muted transition-colors">Clear filters</button>
+          {(filterHotel || filterExperience || filterYear || filterEdition || roomQuery) && (
+            <button onClick={() => { setFilterHotel(""); setFilterExperience(""); setFilterYear(""); setFilterEdition(""); setRoomQuery(""); }} className="text-xs admin-faint hover:admin-muted transition-colors">Clear filters</button>
           )}
         </div>
 

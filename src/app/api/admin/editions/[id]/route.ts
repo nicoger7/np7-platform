@@ -120,6 +120,15 @@ export async function PUT(
   const { id } = await params;
   const body = await request.json();
 
+  // The dates BEFORE the save — a week that moves has to take its beds with it.
+  let oldDates: { date_start: string | null; date_end: string | null } | null = null;
+  if ("date_start" in body || "date_end" in body) {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { data: prev } = await (client as any)
+      .from("exp_editions").select("date_start, date_end").eq("id", id).maybeSingle();
+    oldDates = prev ?? null;
+  }
+
   // hero_image / hero_in_emails (047) + pre_trip_note (051) are optional columns —
   // strip & retry if they aren't there yet so the rest of an edition save still works.
   // Columns that may not exist yet in every environment. The update below is an
@@ -142,8 +151,55 @@ export async function PUT(
     return NextResponse.json({ error: error.message }, { status: 400 });
   }
 
+  /*
+   * Move the week, move the beds.
+   *
+   * A room week is stamped with the edition's dates when a guest is housed. If
+   * the trip is then moved, the edition said one thing and every assigned room
+   * still said the other: a walkthrough shifted a week from 1–7 to 8–14 June and
+   * the guest's room stayed on 1–7 — the hotel booked for the wrong week, the
+   * member's trip page showing the old one, and not a word anywhere.
+   *
+   * Only rows that still carry the OLD edition window are moved. A room with
+   * its own dates (extra nights, an early arrival) is somebody's deliberate
+   * exception and is left exactly where it is — reported, not touched.
+   */
+  let roomsMoved = 0;
+  let roomsLeft = 0;
+  if (oldDates && (oldDates.date_start || oldDates.date_end)) {
+    const newStart = (data?.date_start ?? null) as string | null;
+    const newEnd = (data?.date_end ?? null) as string | null;
+    const moved = oldDates.date_start !== newStart || oldDates.date_end !== newEnd;
+    if (moved && newStart && newEnd) {
+      try {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const { data: rows } = await (client as any)
+          .from("exp_hotel_rooms")
+          .select("id, check_in, check_out")
+          .eq("edition_id", id)
+          .is("archived_at", null);
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const all = (rows ?? []) as any[];
+        const onOldWindow = all.filter(
+          (r) => r.check_in === oldDates!.date_start && r.check_out === oldDates!.date_end,
+        );
+        roomsLeft = all.length - onOldWindow.length;
+        if (onOldWindow.length) {
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          const { error: rErr } = await (client as any)
+            .from("exp_hotel_rooms")
+            .update({ check_in: newStart, check_out: newEnd, updated_at: new Date().toISOString() })
+            .in("id", onOldWindow.map((r) => r.id));
+          if (!rErr) roomsMoved = onOldWindow.length;
+        }
+      } catch (e) {
+        console.error("[editions] room re-dating failed:", e instanceof Error ? e.message : e);
+      }
+    }
+  }
+
   revalidateExperience(data?.exp_experiences?.slug ?? null);
-  return NextResponse.json(data);
+  return NextResponse.json({ ...data, rooms_moved: roomsMoved, rooms_kept_custom_dates: roomsLeft });
 }
 
 // PATCH /api/admin/editions/:id — partial update (alias for PUT)

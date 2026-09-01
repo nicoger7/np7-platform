@@ -407,6 +407,8 @@ export default function EditionDetailPage({
   const [duplicating, setDuplicating] = useState(false);
   const [dupExperiences, setDupExperiences] = useState<{ id: string; title: string }[]>([]);
   const [edition, setEdition] = useState<Edition | null>(null);
+  /** The label the slug was last derived from — lets a hand-edited slug stay put. */
+  const slugSourceRef = useRef<string>("");
   /* The experience-level day-by-day, used only to SEED a run that opts into its
      own. Fetched here because the program editor takes it as a prop and a
      clinic is edited on this page, not under Content. */
@@ -717,7 +719,8 @@ export default function EditionDetailPage({
     fetch(`/api/admin/editions/${id}`)
       .then((r) => r.json())
       .then((d) => {
-        setEdition(d);
+        slugSourceRef.current = (d?.label ?? "");
+      setEdition(d);
         setBrandImg(d.hero_image || "");
         setBrandInEmails(d.hero_in_emails !== false);
         setBrandNote(d.pre_trip_note ?? ""); setBrandPacking(d.packing_list ?? "");
@@ -923,7 +926,7 @@ export default function EditionDetailPage({
   async function handleSave() {
     if (!edition) return;
     setSaving(true);
-    await fetch(`/api/admin/editions/${id}`, {
+    const res = await fetch(`/api/admin/editions/${id}`, {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
@@ -968,6 +971,26 @@ export default function EditionDetailPage({
       }),
     });
     setSaving(false);
+    /*
+     * Moving a week moves its beds — say so, and say what stayed behind.
+     *
+     * Silence here is what made the old bug invisible: the dates changed on
+     * screen and every assigned room quietly kept the old ones. Now the save
+     * reports what it did, and names the rooms it deliberately did NOT touch
+     * (extra nights and other hand-set stays), because those are the ones a
+     * human still has to look at.
+     */
+    try {
+      const j = await res.json();
+      const moved = Number(j?.rooms_moved ?? 0);
+      const kept = Number(j?.rooms_kept_custom_dates ?? 0);
+      if (moved > 0 || kept > 0) {
+        const parts: string[] = [];
+        if (moved > 0) parts.push(`${moved} room week${moved === 1 ? "" : "s"} moved to the new dates.`);
+        if (kept > 0) parts.push(`${kept} room${kept === 1 ? "" : "s"} kept ${kept === 1 ? "its" : "their"} own dates (extra nights or a hand-set stay) — check ${kept === 1 ? "it" : "them"} in Hotel Rooms.`);
+        alert(parts.join("\n\n"));
+      }
+    } catch { /* a save that worked must not fail on its own summary */ }
     setSaved(true);
     setTimeout(() => setSaved(false), 2000);
   }
@@ -1270,7 +1293,29 @@ export default function EditionDetailPage({
               <input
                 className={inputClass}
                 value={edition.label || ""}
-                onChange={(e) => update("label", e.target.value || null)}
+                onChange={(e) => {
+                  const label = e.target.value || null;
+                  update("label", label);
+                  /*
+                   * Keep the slug following the label — until someone edits it.
+                   *
+                   * A new week is born "New edition" and gets its slug from
+                   * that. Rename it to "Week I" and the public URL stayed
+                   * .../new-edition, because nothing connected the two. Only a
+                   * slug that still matches the OLD auto-shape is rewritten;
+                   * a hand-set one is somebody's decision and is left alone.
+                   */
+                  const auto = (t: string) => t.toLowerCase().normalize("NFKD")
+                    .replace(/[\u0300-\u036f]/g, "").replace(/[^a-z0-9]+/g, "-")
+                    .replace(/^-+|-+$/g, "");
+                  const base = auto(edition.exp_experiences?.title || "");
+                  const prevAuto = base ? `${base}-${auto(slugSourceRef.current || "")}` : auto(slugSourceRef.current || "");
+                  if (!edition.slug || edition.slug === prevAuto) {
+                    const next = base ? `${base}-${auto(label ?? "")}` : auto(label ?? "");
+                    update("slug", next || null);
+                  }
+                  slugSourceRef.current = label ?? "";
+                }}
                 placeholder="e.g. Week II"
               />
             </div>

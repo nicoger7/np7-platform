@@ -117,6 +117,10 @@ export default function ComponentsPage() {
   const [editions, setEditions] = useState<Edition[]>([]);
   const [loading, setLoading] = useState(true);
   const [filterCategory, setFilterCategory] = useState("");
+  /* The experience picker searches; the component list itself did not. With
+     every new trip and hotel this table grows, and "which one was the airport
+     transfer?" is a name question, not a category one. */
+  const [compQuery, setCompQuery] = useState("");
   const [filterExperience, setFilterExperience] = useState("");
   const [filterEdition, setFilterEdition] = useState("");
   const [showNew, setShowNew] = useState(false);
@@ -204,7 +208,12 @@ export default function ComponentsPage() {
     ? editions.filter((e) => e.experience_id === filterExperience)
     : editions
   ).slice().sort((a, b) => editionSortKey(a).localeCompare(editionSortKey(b)));
+  const cq = compQuery.trim().toLowerCase();
   const filtered = components.filter((c) => {
+    if (cq) {
+      const hay = `${c.name ?? ""} ${c.description ?? ""} ${c.category ?? ""} ${c.room_type ?? ""}`.toLowerCase();
+      if (!hay.includes(cq)) return false;
+    }
     if (filterCategory && c.category !== filterCategory) return false;
     if (filterExperience && !(c.is_global || c.experience_id === filterExperience)) return false;
     if (filterEdition && c.edition_id !== filterEdition) return false;
@@ -534,6 +543,12 @@ export default function ComponentsPage() {
       <>
       {/* Filters */}
       <div className="flex flex-wrap items-center gap-2 mb-3">
+        <input
+          value={compQuery}
+          onChange={(e) => setCompQuery(e.target.value)}
+          placeholder="Search components…"
+          className="admin-input text-sm px-3 py-1.5 rounded-lg w-[220px]"
+        />
         {/* growing lists get search; the fixed category pills below stay as-is */}
         <div className="w-56">
           <SearchSelect
