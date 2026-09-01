@@ -99,7 +99,7 @@ export async function POST(
   { params }: RouteContext
 ) {
   const { id } = await params;
-  const body: { type?: string; milestone?: string; reuseDocumentId?: string } = await request.json();
+  const body: { type?: string; milestone?: string; reuseDocumentId?: string; amount?: number; amountReason?: string } = await request.json();
 
   /*
    * Re-issue a corrected copy of a document that has NOT been sent, keeping its
@@ -114,6 +114,14 @@ export async function POST(
    */
   const reuseDocumentId = typeof body.reuseDocumentId === "string" && body.reuseDocumentId
     ? body.reuseDocumentId : undefined;
+
+  /*
+   * An amount set by hand, for the cases the milestone formulas cannot name.
+   * The generator does the validating — it refuses a non-positive figure and
+   * refuses one with no reason — so this only has to pass them through.
+   */
+  const amount = typeof body.amount === "number" && Number.isFinite(body.amount) ? body.amount : undefined;
+  const amountReason = typeof body.amountReason === "string" ? body.amountReason : undefined;
 
   const type = body.type as DocumentType | undefined;
 
@@ -151,6 +159,7 @@ export async function POST(
       bookingId: id, type: safeType,
       ...(milestone ? { milestone } : {}),
       ...(reuseDocumentId ? { reuseDocumentId } : {}),
+      ...(amount != null ? { amount, amountReason } : {}),
     });
 
     // Attach a fresh signed URL to the returned row

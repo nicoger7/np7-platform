@@ -629,6 +629,24 @@ export async function generateDocument(input: GenerateInput): Promise<DocumentRo
   else if (type === "final_invoice") amount = finalAmt;
   else if (type === "addon_invoice") amount = addonAmt;
 
+  // A figure set by hand overrides the formula — see GenerateInput.amount. It
+  // must be a real positive number and it must say why, because an amount that
+  // departs from the calculation is exactly the one someone will query later.
+  const calculatedAmount = amount;
+  const overrideAmount = input.amount != null ? round2(Number(input.amount)) : null;
+  if (overrideAmount != null) {
+    if (!Number.isFinite(overrideAmount) || overrideAmount <= 0) {
+      throw new Error("A hand-set invoice amount has to be a positive number.");
+    }
+    if (!String(input.amountReason ?? "").trim()) {
+      throw new Error("Say why this amount differs from the calculated one — it is stored on the invoice.");
+    }
+    if (amount == null) {
+      throw new Error("This document type has no amount to override.");
+    }
+    amount = overrideAmount;
+  }
+
   // 2. Allocate invoice number. Pro-formas do NOT burn the gapless tax-invoice
   // counter — they get a deterministic PF reference (stage-coded, unique per
   // booking+stage) the rider quotes on the transfer, matched by reconciliation.
@@ -777,6 +795,11 @@ export async function generateDocument(input: GenerateInput): Promise<DocumentRo
       edition_label: ed?.label ?? null,
       package_name: pkg?.name ?? null,
       ...(isProforma ? { milestone: proformaMilestone } : {}),
+      // An amount set by hand carries its justification and what the formula
+      // would have produced, so the deviation is legible years later.
+      ...(overrideAmount != null
+        ? { amount_set_by_hand: true, amount_reason: String(input.amountReason).trim(), amount_calculated: calculatedAmount }
+        : {}),
     },
   };
 

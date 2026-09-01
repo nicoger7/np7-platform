@@ -97,6 +97,21 @@ export type GenerateInput = {
    * rewrites the same number's PDF and row rather than issuing a new one.
    */
   reuseDocumentId?: string;
+  /**
+   * Invoice a specific amount instead of the one the milestone formula derives.
+   *
+   * The formulas assume two things: that stages are invoiced in payment order,
+   * and that the price does not move after money has arrived. Jens Hahn broke
+   * both — he paid 50% of his trip, then upgraded, so the 3,184.50 that
+   * actually arrived is neither 50% of the new total (3,496.88) nor the
+   * outstanding balance (3,809.25), and no formula could name it.
+   *
+   * A person who knows what was agreed has to be able to say the number. The
+   * reason is required and stored on the document, so a figure that departs
+   * from the calculation always carries the sentence explaining why.
+   */
+  amount?: number;
+  amountReason?: string;
 };
 
 export const DIVISIONS: Division[] = ["experience", "hardware"];

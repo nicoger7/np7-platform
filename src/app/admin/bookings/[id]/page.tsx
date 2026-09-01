@@ -227,6 +227,12 @@ export function BookingDetailPane({ bookingId, onBack }: { bookingId: string; on
   // "proforma_full" is not a document type — it is the same pro-forma asked for
   // over the whole outstanding amount, and it needs its own spinner.
   const [generating, setGenerating] = useState<DocumentType | "proforma_full" | null>(null);
+  /* Invoicing an amount the milestone formulas cannot name — an upgrade after
+     a part payment, a figure agreed on the phone. Closed by default: it is the
+     exception, and the calculated amount is right almost every time. */
+  const [customDoc, setCustomDoc] = useState<{ open: boolean; type: DocumentType; amount: string; reason: string; busy: boolean }>(
+    { open: false, type: "downpayment_invoice", amount: "", reason: "", busy: false }
+  );
 
   // Reference data
   const [experiences, setExperiences] = useState<AvailableExperience[]>([]);
@@ -335,6 +341,26 @@ export function BookingDetailPane({ bookingId, onBack }: { bookingId: string; on
       setDocuments(data.documents || []);
     }
     setDocsLoading(false);
+  }
+
+  async function generateCustomDocument() {
+    const amount = parseAmount(customDoc.amount);
+    if (amount === null || amount <= 0) { alert("Enter the amount to invoice."); return; }
+    if (!customDoc.reason.trim()) { alert("Say why this differs from the calculated amount — it is stored on the invoice."); return; }
+    setCustomDoc((c) => ({ ...c, busy: true }));
+    const res = await fetch(`/api/admin/bookings/${id}/documents`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ type: customDoc.type, amount, amountReason: customDoc.reason.trim() }),
+    });
+    setCustomDoc((c) => ({ ...c, busy: false }));
+    if (!res.ok) {
+      const j = await res.json().catch(() => ({}));
+      alert(j.error ?? "Could not issue that invoice.");
+      return;
+    }
+    setCustomDoc({ open: false, type: "downpayment_invoice", amount: "", reason: "", busy: false });
+    await fetchDocuments();
   }
 
   async function generateDocument(type: DocumentType, milestone?: "deposit" | "downpayment" | "final") {
@@ -2107,7 +2133,67 @@ export function BookingDetailPane({ bookingId, onBack }: { bookingId: string; on
             >
               {generating === "proforma_full" ? "Generating..." : "Pro-forma · full amount"}
             </button>
+            <button
+              onClick={() => setCustomDoc((c) => ({ ...c, open: !c.open }))}
+              className="px-3 py-1.5 admin-muted hover:admin-heading text-xs font-bold rounded-lg transition-colors"
+              style={{ border: "1px dashed var(--admin-border)" }}
+            >
+              Set the amount myself…
+            </button>
           </div>
+
+          {/* The formulas assume stages are invoiced in payment order and that
+              the price does not move afterwards. An upgrade after a part payment
+              breaks both, and then no calculation can name the money that
+              actually arrived — a person has to. */}
+          {customDoc.open && (
+            <div className="rounded-xl p-4 mb-4" style={{ border: "1px solid var(--admin-border)", backgroundColor: "var(--admin-surface)" }}>
+              <p className="text-xs admin-faint mb-3 max-w-[70ch]">
+                Use this when the calculated figure cannot describe what was agreed — an upgrade after a part payment,
+                a price settled on the phone. The reason is stored on the invoice.
+              </p>
+              <div className="flex flex-wrap items-end gap-3">
+                <div>
+                  <label className="block text-xs font-medium admin-muted mb-1.5">Invoice type</label>
+                  <select
+                    className="admin-input border rounded-lg px-3 py-2 text-sm"
+                    value={customDoc.type}
+                    onChange={(e) => setCustomDoc((c) => ({ ...c, type: e.target.value as DocumentType }))}
+                  >
+                    <option value="deposit_invoice">Deposit Invoice</option>
+                    <option value="downpayment_invoice">Down-Payment Invoice</option>
+                    <option value="final_invoice">Final Invoice</option>
+                    <option value="addon_invoice">Add-on Invoice</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-xs font-medium admin-muted mb-1.5">Amount (€)</label>
+                  <input
+                    className="admin-input border rounded-lg px-3 py-2 text-sm w-32"
+                    value={customDoc.amount}
+                    onChange={(e) => setCustomDoc((c) => ({ ...c, amount: e.target.value }))}
+                    placeholder="3184.50"
+                  />
+                </div>
+                <div className="flex-1 min-w-[260px]">
+                  <label className="block text-xs font-medium admin-muted mb-1.5">Why this amount</label>
+                  <input
+                    className="admin-input border rounded-lg px-3 py-2 text-sm w-full"
+                    value={customDoc.reason}
+                    onChange={(e) => setCustomDoc((c) => ({ ...c, reason: e.target.value }))}
+                    placeholder="Down payment paid before the room upgrade"
+                  />
+                </div>
+                <button
+                  onClick={generateCustomDocument}
+                  disabled={customDoc.busy}
+                  className="px-4 py-2 bg-[var(--admin-accent)] hover:bg-[var(--admin-accent)]/90 disabled:opacity-50 text-[var(--admin-accent-contrast)] text-xs font-bold rounded-lg transition-colors"
+                >
+                  {customDoc.busy ? "Issuing…" : "Issue invoice"}
+                </button>
+              </div>
+            </div>
+          )}
 
           {genError && (
             <div className="mb-4 px-4 py-3 rounded-lg text-sm text-red-400" style={{ backgroundColor: "rgba(239,68,68,0.08)", border: "1px solid rgba(239,68,68,0.2)" }}>
