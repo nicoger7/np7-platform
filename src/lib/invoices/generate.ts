@@ -175,13 +175,23 @@ export async function issuedInvoiceTotal(bookingId: string): Promise<number> {
  * first, so each debt is subtracted exactly once regardless of allocation:
  * finalAmt = total − received − max(0, issued − received) = total − max(received, issued).
  */
-export async function unpaidIssuedInvoiceTotal(bookingId: string): Promise<number> {
+export async function unpaidIssuedInvoiceTotal(bookingId: string, excludeDocumentId?: string): Promise<number> {
   const db = getDb();
   const [{ data: docs }, { data: pays }] = await Promise.all([
     db.from("documents").select("id,amount,type,status").eq("booking_id", bookingId).eq("status", "issued"),
     db.from("exp_payments").select("amount,direction,type,status,document_id").eq("booking_id", bookingId),
   ]);
   const billed = ((docs ?? []) as { id: string; amount: number | null; type: string }[])
+    /*
+     * A document being RE-ISSUED must not count itself as already invoiced.
+     *
+     * Re-issuing keeps the row, so it is still 'issued' while its replacement
+     * is computed — and a final invoice that subtracts its own amount lands on
+     * a different figure every time. Jens Hahn's NP7-XP-2026-0025 held the
+     * correct €1,705.50, was re-issued to correct its PDF, and came back
+     * €3,184.50: total − received − (itself + the add-on invoice).
+     */
+    .filter((d) => d.id !== excludeDocumentId)
     .filter((d) => BILLABLE_TYPES.includes(d.type));
   const gross = round2(billed.reduce((s, d) => s + (Number(d.amount) || 0), 0));
   // Received money settles issued invoices first — a bank transfer against a
@@ -525,7 +535,7 @@ export async function generateDocument(input: GenerateInput): Promise<DocumentRo
   const [received, addonLines, unpaidInvoiced] = await Promise.all([
     bookingReceivedTotal(bookingId),
     confirmedAddonLines(bookingId),
-    unpaidIssuedInvoiceTotal(bookingId),
+    unpaidIssuedInvoiceTotal(bookingId, input.reuseDocumentId),
   ]);
   const finalAmt = round2(Math.max(0, total - received - unpaidInvoiced));
 
