@@ -192,6 +192,13 @@ export default function HotelRoomsPage() {
     // list (deleted, or filtered out), the row must not resurrect it as a
     // synthetic card — that made "Delete room" look like it did nothing.
     if (r.room_id) { groupMap[r.room_id]?.weeks.push(r); continue; }
+    // A legacy row with no room_id gets a synthetic card — and that card has to
+    // obey the search too. It didn't: typing a guest's name still listed every
+    // roomless week in the system, which looked like the search was ignored.
+    if (q) {
+      const hay = `${r.name ?? ""} ${r.room_type ?? ""} ${r.hotel ?? ""} ${r.room_number ?? ""} ${r.booking?.name ?? ""}`.toLowerCase();
+      if (!hay.includes(q)) continue;
+    }
     const key = `name:${r.experience_id ?? ""}|${r.hotel ?? ""}|${r.name}`;
     if (!groupMap[key]) {
       groupMap[key] = { unit: { id: key, experience_id: r.experience_id, hotel: r.hotel, name: r.name, room_type: r.room_type, room_number: r.room_number, comments: r.comments }, weeks: [] };
