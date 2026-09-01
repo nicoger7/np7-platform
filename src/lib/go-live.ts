@@ -93,9 +93,22 @@ export type ExperienceReport = {
   nextStart: string | null;
   checks: CheckResult[];
   editions: EditionReport[];
-  /** Blockers across the experience AND its upcoming editions. */
+  /** Blockers across the experience AND its upcoming editions that are actually
+   *  on sale. A draft week's gaps are counted separately — see draftBlockers. */
   blockers: number;
   warnings: number;
+  /**
+   * Gaps in weeks that are still DRAFTS, kept out of the headline count.
+   *
+   * A trip selling in ninety days was reading "3 blocking" because next
+   * season's draft weeks had no packages yet — which is what a draft is. An
+   * employee then went hunting for a fault in the week that sells, found
+   * nothing, and learned to distrust the number. With five destinations across
+   * two seasons that is the page's whole future: permanently red, permanently
+   * ignored. Nothing is hidden — the draft weeks still list every check when
+   * the card is open — it just is not called a blocker until the week is real.
+   */
+  draftBlockers: number;
   /**
    * How urgent this trip's gaps are, which is not the same as how broken it is.
    *   selling   — on the website with a week ahead: a gap here costs money now
@@ -458,6 +471,11 @@ export async function runGoLiveChecks(): Promise<ExperienceReport[]> {
 
     const nextStart = (edReports.map((r) => r.dateStart).filter(Boolean).sort()[0] ?? null) as string | null;
 
+    // A week nobody can buy yet is setup work, not a fault.
+    const isDraft = (r: EditionReport) => String(r.status ?? "").toLowerCase() === "draft";
+    const liveEds = edReports.filter((r) => !isDraft(r));
+    const draftEds = edReports.filter(isDraft);
+
     reports.push({
       id,
       title: String(e.title ?? "Untitled"),
@@ -466,8 +484,9 @@ export async function runGoLiveChecks(): Promise<ExperienceReport[]> {
       nextStart,
       checks: expChecks,
       editions: edReports,
-      blockers: expChecks.filter((k) => !k.ok && k.severity === "blocker").length + edReports.reduce((s, r) => s + r.blockers, 0),
-      warnings: expChecks.filter((k) => !k.ok && k.severity === "warning").length + edReports.reduce((s, r) => s + r.warnings, 0),
+      blockers: expChecks.filter((k) => !k.ok && k.severity === "blocker").length + liveEds.reduce((s, r) => s + r.blockers, 0),
+      warnings: expChecks.filter((k) => !k.ok && k.severity === "warning").length + liveEds.reduce((s, r) => s + r.warnings, 0),
+      draftBlockers: draftEds.reduce((s, r) => s + r.blockers, 0),
       tier: nextStart == null
         ? "unscheduled"
         : (e.status === "published" && e.website_visible !== false ? "selling" : "upcoming"),
@@ -478,7 +497,7 @@ export async function runGoLiveChecks(): Promise<ExperienceReport[]> {
       // "3 blocking" makes you open the card to find out.
       blockerLabels: [...new Set([
         ...expChecks.filter((k) => !k.ok && k.severity === "blocker").map((k) => k.label),
-        ...edReports.flatMap((r) => r.checks.filter((k) => !k.ok && k.severity === "blocker").map((k) => k.label)),
+        ...liveEds.flatMap((r) => r.checks.filter((k) => !k.ok && k.severity === "blocker").map((k) => k.label)),
       ])],
     });
   }

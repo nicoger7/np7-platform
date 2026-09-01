@@ -58,6 +58,9 @@ export default function VouchersPage() {
   const [experiences, setExperiences] = useState<ExpOption[]>([]);
   const [loading, setLoading] = useState(true);
   const [filterStatus, setFilterStatus] = useState<VoucherStatus | "">("");
+  /* Someone rings up holding a card: "my code is NP7-…" or "it's for Anna".
+     A status dropdown does not answer that, and the list only grows. */
+  const [search, setSearch] = useState("");
   const [busy, setBusy] = useState<string | null>(null);
   const [form, setForm] = useState<FormState | null>(null); // open modal state
   const [formErr, setFormErr] = useState("");
@@ -142,6 +145,12 @@ export default function VouchersPage() {
   const inputClass =
     "px-3 py-2 admin-input border rounded-lg text-sm focus:outline-none focus:border-[var(--admin-accent)] focus:ring-1 focus:ring-[var(--admin-accent)] transition-colors";
   const pendingCount = vouchers.filter((v) => v.status === "pending").length;
+  const shown = vouchers.filter((v) => {
+    const q = search.trim().toLowerCase();
+    if (!q) return true;
+    return `${v.code} ${v.recipient_name ?? ""} ${v.recipient_email ?? ""} ${v.buyer?.name ?? ""} ${v.buyer?.email ?? ""} ${v.exp_experiences?.title ?? ""}`
+      .toLowerCase().includes(q);
+  });
 
   return (
     <div>
@@ -175,13 +184,28 @@ export default function VouchersPage() {
             <option key={s || "all"} value={s}>{s ? STATUS_LABEL[s] : "All statuses"}</option>
           ))}
         </select>
+        <input
+          className={inputClass}
+          placeholder="Search code, recipient or buyer..."
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+        />
+        {(search || filterStatus) && (
+          <button
+            onClick={() => { setSearch(""); setFilterStatus(""); }}
+            className="px-3 py-2 text-xs admin-muted rounded-lg transition-colors"
+            style={{ border: "1px solid var(--admin-border)" }}
+          >
+            Clear
+          </button>
+        )}
       </div>
 
       {loading ? (
         <div className="py-12 text-center text-sm admin-faint">Loading...</div>
-      ) : vouchers.length === 0 ? (
+      ) : shown.length === 0 ? (
         <div className="py-16 text-center">
-          <p className="text-sm admin-faint">No gift vouchers yet</p>
+          <p className="text-sm admin-faint">{vouchers.length === 0 ? "No gift vouchers yet" : "No voucher matches that"}</p>
         </div>
       ) : (
         <div className="rounded-xl admin-tablecard" style={{ border: "1px solid var(--admin-border)" }}>
@@ -199,7 +223,7 @@ export default function VouchersPage() {
           </div>
 
           {/* Rows */}
-          {vouchers.map((v) => {
+          {shown.map((v) => {
             const tone = STATUS_TONE[v.status] ?? "slate";
             const recipient = v.recipient?.name || v.recipient_name || v.recipient_email || "— (self / unclaimed)";
             return (

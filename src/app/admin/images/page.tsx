@@ -62,6 +62,7 @@ export default function ImagesPage() {
   const [cropping, setCropping] = useState<FileItem | null>(null);
   const [moving, setMoving] = useState<FileItem | null>(null);
   const [uploadPicker, setUploadPicker] = useState(false);
+  const [fileQuery, setFileQuery] = useState("");
   const [pendingFiles, setPendingFiles] = useState<File[] | null>(null);
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [movingSelected, setMovingSelected] = useState(false);
@@ -201,6 +202,8 @@ export default function ImagesPage() {
   }
 
   function navigateToFolder(folderPath: string) {
+    // A filter left over from the last folder makes the new one look empty.
+    setFileQuery("");
     setFolder(folderPath);
   }
 
@@ -254,8 +257,19 @@ export default function ImagesPage() {
   }
 
   const breadcrumbs = folder ? folder.split("/").filter(Boolean) : [];
-  const folders = files.filter((f) => f.isFolder);
-  const images = files.filter((f) => !f.isFolder);
+  /*
+   * A filename filter for the folder you are standing in.
+   *
+   * The library only grows — every trip adds a set of photos — and the way to
+   * find "the one with the yacht" was to scroll a grid. Deliberately scoped to
+   * the current folder rather than searching the whole bucket: the folders ARE
+   * the organising idea here (destination, experience, memories/{edition}),
+   * and a flat global search would quietly undo them.
+   */
+  const needle = fileQuery.trim().toLowerCase();
+  const matches = (f: FileItem) => !needle || f.name.toLowerCase().includes(needle);
+  const folders = files.filter((f) => f.isFolder && matches(f));
+  const images = files.filter((f) => !f.isFolder && matches(f));
 
   return (
     <div>
@@ -280,6 +294,13 @@ export default function ImagesPage() {
           )}
         </div>
         <div className="flex gap-3">
+          <input
+            value={fileQuery}
+            onChange={(e) => setFileQuery(e.target.value)}
+            placeholder="Filter this folder…"
+            className="px-3 py-2 rounded-lg text-sm admin-input outline-none focus:border-[var(--admin-accent)] w-48"
+            style={{ border: "1px solid var(--admin-border)" }}
+          />
           <button
             onClick={handleCreateFolder}
             className="px-4 py-2 admin-surface admin-muted text-sm font-medium rounded-lg transition-colors"

@@ -18,6 +18,9 @@ interface Payment {
   status: string | null;
   invoice_type: string | null;
   unmatched: boolean | null;
+  /** Set by the list API: the same reference and amount appears more than once.
+      Not proof — bank line numbers repeat — but worth a human look. */
+  possible_duplicate?: boolean;
   notes: string | null;
   booking_id: string | null;
   experience_id: string | null;
@@ -79,6 +82,7 @@ export default function PaymentsPage() {
   const [fDir, setFDir] = useState("");
   const [fStatus, setFStatus] = useState("");
   const [unmatchedOnly, setUnmatchedOnly] = useState(false);
+  const [dupesOnly, setDupesOnly] = useState(false);
   const [showNew, setShowNew] = useState(false);
   const [editId, setEditId] = useState<string | null>(null);
   const [form, setForm] = useState(emptyForm);
@@ -101,13 +105,16 @@ export default function PaymentsPage() {
     if (fDir && p.direction !== fDir) return false;
     if (fStatus && p.status !== fStatus) return false;
     if (unmatchedOnly && !p.unmatched) return false;
+    if (dupesOnly && !p.possible_duplicate) return false;
     if (search) {
       const q = search.toLowerCase();
       const hay = `${p.reference ?? ""} ${p.notes ?? ""} ${p.exp_bookings?.name ?? ""} ${p.contacts?.name ?? ""} ${p.vendors?.name ?? ""} ${p.exp_experiences?.title ?? ""}`.toLowerCase();
       if (!hay.includes(q)) return false;
     }
     return true;
-  }), [payments, fDir, fStatus, unmatchedOnly, search]);
+  }), [payments, fDir, fStatus, unmatchedOnly, dupesOnly, search]);
+
+  const dupeCount = useMemo(() => payments.filter((p) => p.possible_duplicate).length, [payments]);
 
   const totals = useMemo(() => {
     let rev = 0, cost = 0, pending = 0;
@@ -141,7 +148,20 @@ export default function PaymentsPage() {
     if (editId) {
       await fetch(`/api/admin/payments/${editId}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
     } else {
-      await fetch(`/api/admin/payments`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+      let res = await fetch(`/api/admin/payments`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+      // A reference that already carries this exact amount is nearly always the
+      // same transfer written down twice. Ask once; a second transfer that
+      // genuinely shares a statement line still gets through.
+      if (res.status === 409) {
+        const j = await res.json().catch(() => ({}));
+        if (!confirm(`${j.error ?? "This payment looks like a duplicate."}\n\nSave it anyway?`)) return;
+        res = await fetch(`/api/admin/payments`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ ...body, confirmDuplicate: true }) });
+      }
+      if (!res.ok) {
+        const j = await res.json().catch(() => ({}));
+        alert(j.error ?? "Could not save the payment.");
+        return;
+      }
     }
     setShowNew(false); setEditId(null); setForm(emptyForm); load();
   }
@@ -216,8 +236,17 @@ export default function PaymentsPage() {
           <input type="checkbox" checked={unmatchedOnly} onChange={(e) => setUnmatchedOnly(e.target.checked)} className="accent-[#0aa3c7]" />
           Unmatched only
         </label>
-        {(search || fDir || fStatus || unmatchedOnly) && (
-          <button onClick={() => { setSearch(""); setFDir(""); setFStatus(""); setUnmatchedOnly(false); }} className="text-xs admin-faint hover:admin-muted transition-colors">Clear</button>
+        {/* The same money entered twice sums quietly into revenue and the
+            edition P&L, and the second copy usually carries no booking — so it
+            hides in the unmatched pile. Give it its own door. */}
+        {dupeCount > 0 && (
+          <label className="flex items-center gap-2 text-xs text-amber-400 cursor-pointer select-none">
+            <input type="checkbox" checked={dupesOnly} onChange={(e) => setDupesOnly(e.target.checked)} className="accent-amber-400" />
+            Possible duplicates ({dupeCount})
+          </label>
+        )}
+        {(search || fDir || fStatus || unmatchedOnly || dupesOnly) && (
+          <button onClick={() => { setSearch(""); setFDir(""); setFStatus(""); setUnmatchedOnly(false); setDupesOnly(false); }} className="text-xs admin-faint hover:admin-muted transition-colors">Clear</button>
         )}
         <span className="text-xs admin-faint ml-auto">{filtered.length} shown</span>
       </div>
@@ -260,7 +289,13 @@ export default function PaymentsPage() {
                     <svg className="w-3 h-3 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6M15 3h6v6M10 14 21 3" /></svg>
                   </a>
                 ) : (
-                  <span className="text-xs admin-muted truncate">{p.reference ?? "—"}</span>
+                  <span className="text-xs admin-muted truncate inline-flex items-center gap-1.5">
+                    {p.reference ?? "—"}
+                    {p.possible_duplicate && (
+                      <span title="Another payment carries this reference for the same amount — check the bank statement before this counts as revenue twice."
+                        className="shrink-0 px-1 py-0.5 rounded bg-amber-500/15 text-amber-400 text-[9px] font-bold uppercase tracking-wide">dup?</span>
+                    )}
+                  </span>
                 )}
                 <span className="text-xs admin-muted truncate">
                   {p.booking_id && p.exp_bookings ? (

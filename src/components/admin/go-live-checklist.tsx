@@ -357,6 +357,12 @@ export function GoLiveList({ reports, onRefresh, openId }: { reports: Experience
 
   const totalBlockers = reports.reduce((s, e) => s + e.blockers, 0);
   const notReady = reports.filter((e) => e.blockers > 0).length;
+  const draftWork = reports.reduce((s, e) => s + e.draftBlockers, 0);
+  // Said out loud rather than quietly dropped: next season's weeks still need
+  // building, they are just not what "blocking" means.
+  const draftLine = draftWork > 0
+    ? ` ${draftWork} more sit in weeks that are still drafts.`
+    : "";
 
   return (
     <>
@@ -365,7 +371,7 @@ export function GoLiveList({ reports, onRefresh, openId }: { reports: Experience
       <div className="flex items-start justify-between gap-4 flex-wrap mb-5">
         <p className="text-sm admin-muted max-w-[64ch]">
           {totalBlockers === 0
-            ? "Nothing is blocking any trip."
+            ? `Nothing is blocking any trip.${draftLine}`
             : <>
                 <strong className="text-red-400">{totalBlockers} blocker{totalBlockers === 1 ? "" : "s"}</strong> across {notReady} trip{notReady === 1 ? "" : "s"}. Only weeks still ahead are counted.
                 {/* A total is not a deadline. The trip selling soonest with
@@ -382,6 +388,7 @@ export function GoLiveList({ reports, onRefresh, openId }: { reports: Experience
                     </>
                   );
                 })()}
+                {draftLine}
               </>}
         </p>
         <DoneToggle value={showDone} onChange={setShowDone} />
@@ -399,8 +406,11 @@ export function GoLiveList({ reports, onRefresh, openId }: { reports: Experience
           };
           const groupLabel = i === 0 || reports[i - 1].tier !== e.tier ? TIER_LABEL[e.tier] : null;
           const isOpen = open.has(e.id);
-          const clean = e.blockers === 0 && e.warnings === 0;
-          const total = e.checks.length + e.editions.reduce((s, x) => s + x.checks.length, 0);
+          const clean = e.blockers === 0 && e.warnings === 0 && e.draftBlockers === 0;
+          // Count only the weeks the headline counts, or a trip whose 2027
+          // drafts are untouched would read "ready" with a full bar.
+          const live = e.editions.filter((x) => String(x.status ?? "").toLowerCase() !== "draft");
+          const total = e.checks.length + live.reduce((s, x) => s + x.checks.length, 0);
           const done = total - e.blockers - e.warnings;
           return (
             <div key={e.id} id={`trip-${e.id}`} className="scroll-mt-6">
@@ -442,6 +452,14 @@ export function GoLiveList({ reports, onRefresh, openId }: { reports: Experience
                     )}
                   </span>
                   {e.blockers > 0 && <span className="shrink-0 mt-0.5 text-[11px] font-bold px-2 py-0.5 rounded bg-red-500/15 text-red-400">{e.blockers} blocking</span>}
+                  {/* Next season, still being built. Shown so it is never lost,
+                      kept out of red so it never competes with a week on sale. */}
+                  {e.draftBlockers > 0 && (
+                    <span
+                      title="Gaps in weeks that are still drafts — set-up work, not a fault. Open the card to see them."
+                      className="shrink-0 mt-0.5 text-[11px] font-bold px-2 py-0.5 rounded admin-surface admin-faint"
+                    >{e.draftBlockers} in drafts</span>
+                  )}
                   {e.warnings > 0 && <span className="shrink-0 mt-0.5 text-[11px] font-bold px-2 py-0.5 rounded bg-amber-500/15 text-amber-500">{e.warnings} to polish</span>}
                   {clean && <span className="shrink-0 mt-0.5 text-[11px] font-bold px-2 py-0.5 rounded bg-green-500/15 text-green-500">ready</span>}
                   <Progress done={done} total={total} />

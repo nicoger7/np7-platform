@@ -24,6 +24,13 @@ export default function EmailLogPage() {
    * 149 rows — so after a send nobody discovered the one address that failed.
    */
   const [view, setView] = useState<"all" | "problem" | "opened" | "delivered">("all");
+  /*
+   * "Did the guest get the mail?" is the question this page exists to answer,
+   * and until now answering it meant scrolling. The log only grows — every
+   * booking mail, every reminder, every campaign send lands here — so by next
+   * season the one address someone is asking about is a thousand rows down.
+   */
+  const [q, setQ] = useState("");
   const [testTo, setTestTo] = useState("");
   const [testing, setTesting] = useState(false);
   const [testMsg, setTestMsg] = useState<{ ok: boolean; text: string } | null>(null);
@@ -106,16 +113,26 @@ export default function EmailLogPage() {
         );
       })()}
 
+      <input
+        value={q}
+        onChange={(e) => setQ(e.target.value)}
+        placeholder="Search by address, subject or template…"
+        className="w-full max-w-sm px-3 py-2 mb-4 rounded-lg text-sm admin-input admin-border border outline-none focus:border-[var(--admin-accent)]"
+        style={{ backgroundColor: "var(--admin-input-bg)" }}
+      />
+
       {loading ? <p className="text-sm admin-faint">Loading…</p> : rows.length === 0 ? (
         <p className="text-sm admin-faint">No emails yet.</p>
       ) : (
         <div className="grid gap-1.5">
           {rows.filter((r) => {
             const problem = r.status === "failed" || r.last_event === "bounced" || r.last_event === "complained";
-            if (view === "problem") return problem;
-            if (view === "opened") return !!r.opened_at;
-            if (view === "delivered") return r.last_event === "delivered" || r.last_event === "opened" || !!r.opened_at;
-            return true;
+            if (view === "problem" && !problem) return false;
+            if (view === "opened" && !r.opened_at) return false;
+            if (view === "delivered" && !(r.last_event === "delivered" || r.last_event === "opened" || r.opened_at)) return false;
+            const needle = q.trim().toLowerCase();
+            if (!needle) return true;
+            return `${r.to_email} ${r.subject ?? ""} ${r.template_key ?? ""}`.toLowerCase().includes(needle);
           }).map((r) => (
             <div
               key={r.id}

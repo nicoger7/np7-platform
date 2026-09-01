@@ -57,6 +57,31 @@ export async function POST(
   const body = await request.json();
   const admin = getServiceClient();
 
+  /*
+   * The same transfer, written down twice.
+   *
+   * Statement lines 229 (€3,765) and 233 (€2,445) were each recorded here by
+   * hand AND imported again from the accounting sheet, so €6,210 of Bonaire
+   * revenue counted twice — and nobody noticed, because the import's copy
+   * carried no booking and sat in the unmatched pile while still summing into
+   * revenue and the edition P&L. The database cannot stop this: `reference` is
+   * also the box a bank line number goes in, and those legitimately repeat
+   * (migration 165 narrowed the unique index to Stripe intents for exactly
+   * that reason). So ask the person who is looking at the statement.
+   */
+  const ref = String(body?.reference ?? "").trim();
+  if (ref && !ref.startsWith("pi_") && !body?.confirmDuplicate) {
+    const { data: same } = await admin
+      .from("exp_payments").select("id").eq("reference", ref).eq("amount", body.amount).limit(1);
+    if ((same as { id: string }[] | null)?.length) {
+      return Response.json({
+        error: `A payment with reference "${ref}" for the same amount is already recorded. If this really is a second transfer, save it again to confirm.`,
+        needsConfirm: true,
+      }, { status: 409 });
+    }
+  }
+  delete body.confirmDuplicate;
+
   let { data, error } = await admin
     .from("exp_payments")
     .insert({ ...body, booking_id: id })

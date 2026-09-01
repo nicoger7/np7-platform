@@ -244,17 +244,38 @@ export async function POST(request: NextRequest) {
   // PAID (the webhook sets 'paid' / 'reserved'); an abandoned checkout must not
   // hold a place, because its Stripe session simply expires.
   const SOLD = ["paid", "reserved", "confirmed", "attended"];
+  /*
+   * ...and 'reserved' is exactly the status a STAND-BY ticket is given BEFORE
+   * Stripe is even opened. So an abandoned stand-by checkout held its place for
+   * ever — the seat came off sale and nothing ever put it back. The comment
+   * above always said an abandoned checkout must not hold a place; the list it
+   * was built from just happened to include the pre-payment state.
+   *
+   * An unpaid ticket THIS ROUTE created holds its seat only while its checkout
+   * session could still be completed (24h, Stripe's own expiry). Anything an
+   * employee entered by hand is trusted as-is — they may well have taken the
+   * money by transfer — which is why the self-serve rows are identified by the
+   * notes prefix only this route writes.
+   */
+  const SESSION_TTL_MS = 24 * 60 * 60 * 1000;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const holdsASpot = (b: any) => {
+    if (!SOLD.includes(String(b.status ?? "").toLowerCase())) return false;
+    if (!String(b.notes ?? "").startsWith("Event ticket (")) return true;
+    if (b.downpayment_received || b.final_payment_received) return true;
+    return Date.now() - Date.parse(b.created_at) < SESSION_TTL_MS;
+  };
   for (const dateId of selected) {
     const row = dates.find((d) => d.id === dateId);
     const cap = row?.max_spots ?? null;
     if (cap == null || cap <= 0) continue;
     const { data: taken } = await db
       .from("exp_bookings")
-      .select("id, status")
+      .select("id, status, notes, created_at, downpayment_received, final_payment_received")
       .eq("experience_id", exp.id)
       .contains("event_date_ids", [dateId]);
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const sold = ((taken ?? []) as any[]).filter((b) => SOLD.includes(String(b.status ?? "").toLowerCase())).length;
+    const sold = ((taken ?? []) as any[]).filter(holdsASpot).length;
     if (sold >= cap) {
       return bad(row?.label ? `${row.label} is fully booked — no spots left.` : "This date is fully booked — no spots left.", 409);
     }
@@ -269,10 +290,10 @@ export async function POST(request: NextRequest) {
   if (selected.length === 0 && edition?.max_spots && edition.max_spots > 0) {
     const { data: taken } = await db
       .from("exp_bookings")
-      .select("id, status")
+      .select("id, status, notes, created_at, downpayment_received, final_payment_received")
       .eq("edition_id", edition.id);
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const sold = ((taken ?? []) as any[]).filter((b) => SOLD.includes(String(b.status ?? "").toLowerCase())).length;
+    const sold = ((taken ?? []) as any[]).filter(holdsASpot).length;
     if (sold >= edition.max_spots) {
       return bad(edition.label ? `${edition.label} is fully booked — no spots left.` : "This clinic is fully booked — no spots left.", 409);
     }
@@ -284,7 +305,7 @@ export async function POST(request: NextRequest) {
   // booking migration 157 exists to prevent.
   const editionId = edition?.id ?? null;
 
-  const { data: booking, error: bErr } = await db.from("exp_bookings").insert({
+  const fields = {
     name: composeBookingName({ contactName: fullName, experienceTitle: exp.title }),
     contact_id: contactId,
     experience_id: exp.id,
@@ -312,8 +333,63 @@ export async function POST(request: NextRequest) {
           ? `deposit ${eur(amount, exp.currency)} of ${eur(price, exp.currency)}, balance ${eur(plan.balance, exp.currency)} due ${plan.balanceDue ?? "before the clinic"}`
           : `full ${eur(amount, exp.currency)}`
     } via Stripe`,
-  }).select("id").single();
-  if (bErr) return bad("Could not create your booking. Please try again.", 500);
+  };
+
+  /*
+   * One buyer, one booking — even when they come back and try again.
+   *
+   * The row is written BEFORE Stripe, so every abandoned checkout left a
+   * booking behind: a back button, a declined card, a typo in the email, and
+   * the next attempt minted a SECOND booking. Ian Black bought one clinic
+   * ticket on 30 August and the platform recorded two — a 'lead' at 20:18 and
+   * the paid one at 20:22. The ghost is not cosmetic: it counts in open
+   * revenue, it sits in the guest list the coach reads on the beach, and the
+   * lead-chasing mails go on writing to someone who has already paid.
+   *
+   * So look for this buyer's own unfinished attempt at this same clinic and
+   * reuse it. Deliberately narrow: their contact, this experience, this
+   * edition, nothing paid on it, and only a row THIS route wrote (the notes
+   * prefix) — a lead an employee entered by hand is somebody's work and is
+   * never overwritten. Stripe's metadata carries the same booking id either
+   * way, so whichever session they end up completing lands on the same row.
+   */
+  let reuseId: string | null = null;
+  {
+    let sel = db
+      .from("exp_bookings")
+      .select("id, downpayment_received, final_payment_received")
+      .eq("contact_id", contactId)
+      .eq("experience_id", exp.id)
+      .in("status", ["lead", "reserved"])
+      .like("notes", "Event ticket (%")
+      .order("created_at", { ascending: false })
+      .limit(1);
+    sel = editionId ? sel.eq("edition_id", editionId) : sel.is("edition_id", null);
+    const { data: prior } = await sel;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const row = ((prior ?? []) as any[])[0] ?? null;
+    if (row && !row.downpayment_received && !row.final_payment_received) {
+      // Belt and braces: a payment row means money moved even if the booking
+      // flags never got set, and that booking is not a spare to write over.
+      const { data: paid } = await db.from("exp_payments").select("id").eq("booking_id", row.id).limit(1);
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      if (!((paid ?? []) as any[]).length) reuseId = row.id as string;
+    }
+  }
+
+  let bookingId: string;
+  if (reuseId) {
+    const { error: uErr } = await db
+      .from("exp_bookings")
+      .update({ ...fields, updated_at: new Date().toISOString() })
+      .eq("id", reuseId);
+    if (uErr) return bad("Could not create your booking. Please try again.", 500);
+    bookingId = reuseId;
+  } else {
+    const { data: created, error: bErr } = await db.from("exp_bookings").insert(fields).select("id").single();
+    if (bErr || !created) return bad("Could not create your booking. Please try again.", 500);
+    bookingId = created.id as string;
+  }
 
   // No Stripe yet → save the booking, tell the client to expect a follow-up.
   const origin = request.headers.get("origin") ?? `https://${request.headers.get("host")}`;
@@ -328,21 +404,21 @@ export async function POST(request: NextRequest) {
       amountCents: Math.round(amount * 100),
     },
     currency: exp.currency ?? "eur",
-    successUrl: `${origin}/experience/${exp.slug}?paid=1&b=${booking.id}`,
+    successUrl: `${origin}/experience/${exp.slug}?paid=1&b=${bookingId}`,
     cancelUrl: `${origin}/experience/${exp.slug}`,
     customerEmail: email,
-    metadata: { booking_id: booking.id, kind, experience_id: exp.id },
-    paymentIntentDescription: `NP7 event · ${mode} · booking ${booking.id}`,
+    metadata: { booking_id: bookingId, kind, experience_id: exp.id },
+    paymentIntentDescription: `NP7 event · ${mode} · booking ${bookingId}`,
   });
 
   if (!session) {
-    return NextResponse.json({ ok: true, noPayment: true, bookingId: booking.id });
+    return NextResponse.json({ ok: true, noPayment: true, bookingId });
   }
   const charged = mode === "standby"
     ? `deposit ${eur(amount, exp.currency)} of ${eur(price, exp.currency)}`
     : plan.partPayment
       ? `deposit ${eur(amount, exp.currency)} of ${eur(price, exp.currency)}, balance ${eur(plan.balance, exp.currency)} due ${plan.balanceDue ?? "before the clinic"}`
       : `full ${eur(amount, exp.currency)}`;
-  await db.from("exp_bookings").update({ notes: `Event ticket (${mode}) · ${chosenLabel} · phone: ${phone} · ${charged} · session ${session.id}` }).eq("id", booking.id);
+  await db.from("exp_bookings").update({ notes: `Event ticket (${mode}) · ${chosenLabel} · phone: ${phone} · ${charged} · session ${session.id}` }).eq("id", bookingId);
   return NextResponse.json({ url: session.url });
 }

@@ -661,11 +661,23 @@ export function BookingDetailPane({ bookingId, onBack }: { bookingId: string; on
     // expired session, a 403 from a role, a 500 from the insert — every one of
     // them resolved, skipped the block, and left the form sitting there with
     // no error and no payment. Money that someone believed they had recorded.
-    const r = await mutate<{ payment: Payment }>(`/api/admin/bookings/${id}/payments`, {
+    let r = await mutate<{ payment: Payment }>(`/api/admin/bookings/${id}/payments`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(body),
     });
+    // A reference that already carries this exact amount is almost always the
+    // same transfer recorded twice — which is how €6,210 of Bonaire money came
+    // to be counted twice. Ask, don't block: a second transfer that genuinely
+    // shares a bank statement line still gets through on the second click.
+    if (!r.ok && r.status === 409) {
+      if (!confirm(`${r.error}\n\nRecord it anyway?`)) return;
+      r = await mutate<{ payment: Payment }>(`/api/admin/bookings/${id}/payments`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ...body, confirmDuplicate: true }),
+      });
+    }
     if (!r.ok) return reportFailure(r);
     setBooking((prev) => prev ? { ...prev, payments: [...prev.payments, r.data.payment] } : prev);
     setShowPaymentForm(false);
