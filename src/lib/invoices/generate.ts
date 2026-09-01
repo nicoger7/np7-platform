@@ -677,6 +677,8 @@ export async function generateDocument(input: GenerateInput): Promise<DocumentRo
         }
       : null,
     dueDate: isProforma ? proformaDue : null,
+    // What the paper must print — not a formula for it to re-derive.
+    ...(isProforma ? { amountDue: proformaAmt, milestone: proformaMilestone } : {}),
   };
 
   // 4. Render PDF

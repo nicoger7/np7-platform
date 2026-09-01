@@ -112,6 +112,18 @@ export type InvoiceData = {
   company: CompanySettings;
   invoiceNumber: string | null;
   invoiceDate: string;         // ISO date string
+  /**
+   * What THIS document asks for, and which stage it stands in for.
+   *
+   * The pro-forma used to recompute its own figure from the milestone split —
+   * `deposit > 0 ? deposit : downpayment` — which quietly ignored the amount
+   * the document was actually issued with. Ask for the full balance and the
+   * record said EUR 5,790 while the PDF printed EUR 2,895 and called itself a
+   * down-payment. One document, two numbers, and the customer transfers the
+   * wrong one. The paper now prints what was billed.
+   */
+  amountDue?: number;
+  milestone?: "deposit" | "downpayment" | "final";
   booking: {
     id: string;
     agreedPrice: number;
@@ -352,11 +364,17 @@ function PageFooter({ company, invoiceNumber }: { company: CompanySettings; invo
 function ProformaLines({ data }: { data: InvoiceData }) {
   const { booking, company, experience, edition } = data;
   const currency = booking.currency || company.currency;
-  const securing = booking.deposit > 0 ? booking.deposit : booking.downpayment;
-  const securingLabel = booking.deposit > 0 ? "Deposit" : "Down-Payment";
+  // The amount this document was issued with — never recomputed here. The
+  // fallback keeps older documents rendering as they always did.
+  const milestone = data.milestone ?? (booking.deposit > 0 ? "deposit" : "downpayment");
+  const securing = data.amountDue ?? (booking.deposit > 0 ? booking.deposit : booking.downpayment);
+  const securingLabel =
+    milestone === "final" ? "Payment in full"
+    : milestone === "deposit" ? "Deposit"
+    : "Down-Payment";
   const description = [experience.title, edition?.label].filter(Boolean).join(" · ");
   const packageDesc = booking.packageName ? `Package: ${booking.packageName}` : "";
-  const remaining = booking.agreedPrice - securing;
+  const remaining = Math.max(0, booking.agreedPrice - securing);
 
   return (
     <View>
@@ -368,7 +386,7 @@ function ProformaLines({ data }: { data: InvoiceData }) {
 
       <View style={s.tableRow}>
         <View style={s.col_desc}>
-          <Text style={{ fontFamily: "Helvetica-Bold" }}>{description} – {securingLabel} (secures your spot)</Text>
+          <Text style={{ fontFamily: "Helvetica-Bold" }}>{description} – {securingLabel}{milestone === "final" ? "" : " (secures your spot)"}</Text>
           {packageDesc ? <Text style={s.smallText}>{packageDesc}</Text> : null}
           {booking.packageIncludes?.length ? <Text style={s.smallText}>Incl. {booking.packageIncludes.join(" · ")}</Text> : null}
         </View>
