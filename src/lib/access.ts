@@ -108,6 +108,7 @@ export const SECTIONS: Section[] = [
   // unmapped made its writes fail-open for view-only roles.
   { key: "hotel_rooms", label: "Hotel rooms", world: "experience", group: "Operations", paths: ["/admin/hotel-rooms", "/api/admin/hotel-rooms", "/api/admin/rooms"] },
   { key: "hotels", label: "Hotels", world: "experience", group: "Operations", paths: ["/admin/hotels", "/api/admin/hotels"] },
+  { key: "centers", label: "Centers", world: "experience", group: "Operations", paths: ["/admin/centers", "/api/admin/centers"] },
   { key: "packages", label: "Packages", world: "experience", group: "Operations", paths: ["/admin/packages", "/api/admin/packages"] },
   { key: "components", label: "Components", world: "experience", group: "Operations", paths: ["/admin/components", "/api/admin/components"] },
   // Experience · Website

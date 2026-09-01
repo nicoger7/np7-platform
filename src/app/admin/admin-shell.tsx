@@ -69,6 +69,7 @@ const navByEnv: Record<Environment, NavGroup[]> = {
         { label: "Signature Trips", href: "/admin/applications", icon: "star" },
         { label: "Hotel Rooms", href: "/admin/hotel-rooms", icon: "bed" },
         { label: "Hotels", href: "/admin/hotels", icon: "building" },
+        { label: "Centers", href: "/admin/centers", icon: "sail" },
         { label: "Packages", href: "/admin/packages", icon: "box" },
         { label: "Components", href: "/admin/components", icon: "puzzle" },
       ],
@@ -340,6 +341,12 @@ const icons: Record<string, React.ReactNode> = {
     <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
       <rect x="2" y="7" width="20" height="14" rx="2" />
       <path d="M16 21V5a2 2 0 00-2-2h-4a2 2 0 00-2 2v16" />
+    </svg>
+  ),
+  sail: (
+    <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M7 20V3c6.2 2.2 9.6 7.2 10 14H7" />
+      <path d="M4 20h16" />
     </svg>
   ),
   person: (

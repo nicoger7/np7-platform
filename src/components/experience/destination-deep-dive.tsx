@@ -90,8 +90,9 @@ type Destination = {
   wind_stats: WindStats | null;
 };
 type Hotel = { id: string; name: string; image_url: string | null; images: string[] | null; description: string | null; website: string | null; location: string | null };
+type Center = Hotel;
 
-async function getData(slug: string): Promise<{ d: Destination; hotels: Hotel[]; tripMonths: number[] } | null> {
+async function getData(slug: string): Promise<{ d: Destination; hotels: Hotel[]; centers: Center[]; tripMonths: number[] } | null> {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const sb = supabase as any;
   const { data: d } = await sb.from("destinations").select("*").eq("slug", slug).eq("status", "published").maybeSingle();
@@ -143,13 +144,27 @@ async function getData(slug: string): Promise<{ d: Destination; hotels: Hotel[];
     }
   } catch { /* optional */ }
 
-  return { d, hotels, tripMonths };
+  // Same centers auto-pull as the destination page — a center names its
+  // destination outright, because no package points at it the way one points
+  // at a hotel.
+  let centers: Center[] = [];
+  try {
+    const { data } = await sb
+      .from("centers")
+      .select("id,name,image_url,images,description,website,location")
+      .eq("destination_id", d.id)
+      .is("archived_at", null)
+      .order("name");
+    centers = (data ?? []) as Center[];
+  } catch { /* optional */ }
+
+  return { d, hotels, centers, tripMonths };
 }
 
 export async function DestinationDeepDive({ slug }: { slug: string }) {
   const res = await getData(slug).catch(() => null);
   if (!res) return null;
-  const { d, hotels, tripMonths } = res;
+  const { d, hotels, centers, tripMonths } = res;
 
   const place = [d.region, d.country].filter(Boolean).join(" · ");
   const hero = d.hero_image || (d.gallery?.[0] ?? "");
@@ -173,6 +188,11 @@ export async function DestinationDeepDive({ slug }: { slug: string }) {
       key: `h-${h.id}`, image: h.image_url || h.images?.[0] || "", name: h.name,
       sub: h.location ?? undefined, description: h.description ?? undefined,
       href: h.website ?? undefined, hrefLabel: "Visit hotel ↗", tag: "Where you stay",
+    })),
+    ...centers.map((c): Place => ({
+      key: `c-${c.id}`, image: c.image_url || c.images?.[0] || "", name: c.name,
+      sub: c.location ?? undefined, description: c.description ?? undefined,
+      href: c.website ?? undefined, hrefLabel: "Visit centre ↗", tag: "Where you ride",
     })),
     ...partners.map((p, i): Place => ({
       key: `p-${i}`, image: p.image ?? "", name: p.name!,

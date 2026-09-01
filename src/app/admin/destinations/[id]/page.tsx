@@ -244,7 +244,7 @@ export default function DestinationEditor({ params }: { params: Promise<{ id: st
         {/* Partners */}
         <div>
           <label className={labelClass}>Local partners</label>
-          <p className="text-[11px] admin-faint mb-2">Hotels show automatically from the trips&apos; packages. Add other local partners (surf school, rental, transfer) here — give each a logo or photo.</p>
+          <p className="text-[11px] admin-faint mb-2">Hotels show automatically from the trips&apos; packages, and centers from Admin → Centers. This list is for everything else — restaurant, beach bar, transfer, rental. Give each a logo or photo.</p>
           <div className="space-y-2">
             {partners.map((p, i) => (
               <div key={i} className="flex items-start gap-2">

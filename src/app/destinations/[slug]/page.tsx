@@ -41,8 +41,9 @@ type Destination = {
 };
 type Trip = { id: string; title: string; slug: string; hero_image: string | null; location: string | null };
 type Hotel = { id: string; name: string; image_url: string | null; images: string[] | null; description: string | null; website: string | null; location: string | null };
+type Center = Hotel;
 
-async function getDestination(slug: string): Promise<{ destination: Destination; trips: Trip[]; hotels: Hotel[] } | null> {
+async function getDestination(slug: string): Promise<{ destination: Destination; trips: Trip[]; hotels: Hotel[]; centers: Center[] } | null> {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const sb = supabase as any;
   const { data: destination } = await sb.from("destinations").select("*").eq("slug", slug).eq("status", "published").maybeSingle();
@@ -82,7 +83,23 @@ async function getDestination(slug: string): Promise<{ destination: Destination;
     }
   } catch { /* hotels are optional — never block the page */ }
 
-  return { destination, trips: tripList, hotels };
+  // Centers auto-pull. A hotel is found through the packages that sell its
+  // rooms; a center sells nothing, so it names its destination outright. No
+  // photo filter either, unlike the hotels above: a `centers` row only exists
+  // because someone created it FOR this grid, so hiding a photo-less one would
+  // just make a freshly added center look broken.
+  let centers: Center[] = [];
+  try {
+    const { data } = await sb
+      .from("centers")
+      .select("id,name,image_url,images,description,website,location")
+      .eq("destination_id", destination.id)
+      .is("archived_at", null)
+      .order("name");
+    centers = (data ?? []) as Center[];
+  } catch { /* optional — never block the page */ }
+
+  return { destination, trips: tripList, hotels, centers };
 }
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
@@ -109,7 +126,7 @@ export default async function DestinationPage({ params }: Props) {
   if (!(await canSeeExperienceWorld(flags.showExperience))) await redirectToMemberLogin(`/destinations/${slug}`);
   const res = await getDestination(slug).catch(() => null);
   if (!res) notFound();
-  const { destination: d, trips, hotels } = res;
+  const { destination: d, trips, hotels, centers } = res;
 
   const place = [d.region, d.country].filter(Boolean).join(" · ");
   const hero = d.hero_image || (d.gallery?.[0] ?? "");
@@ -138,14 +155,20 @@ export default async function DestinationPage({ params }: Props) {
   // a faint photographic backdrop behind the deep-ocean conditions band
   const condBg = gallery[1] || gallery[0] || hero;
 
-  // "Local partners" = where you stay (hotels, auto-pulled) + the other local
-  // spots (surf station, restaurant…), shown together as one richer grid.
+  // "Local partners" = where you stay (hotels) + where you ride (centers), both
+  // auto-pulled, + the hand-typed rest (restaurant, beach bar…), shown together
+  // as one richer grid — in the order the section's own subtitle promises.
   type Place = { key: string; image: string; name: string; sub?: string; description?: string; href?: string; hrefLabel?: string; tag?: string };
   const places: Place[] = [
     ...hotels.map((h): Place => ({
       key: `h-${h.id}`, image: h.image_url || h.images?.[0] || "", name: h.name,
       sub: h.location ?? undefined, description: h.description ?? undefined,
       href: h.website ?? undefined, hrefLabel: "Visit hotel ↗", tag: "Where you stay",
+    })),
+    ...centers.map((c): Place => ({
+      key: `c-${c.id}`, image: c.image_url || c.images?.[0] || "", name: c.name,
+      sub: c.location ?? undefined, description: c.description ?? undefined,
+      href: c.website ?? undefined, hrefLabel: "Visit centre ↗", tag: "Where you ride",
     })),
     ...partners.map((p, i): Place => ({
       key: `p-${i}`, image: p.image ?? "", name: p.name!,

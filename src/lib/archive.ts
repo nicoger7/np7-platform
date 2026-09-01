@@ -37,6 +37,7 @@ export const ARCHIVE_ENTITIES: ArchiveEntity[] = [
   { key: "components", table: "exp_components", label: "Component", plural: "Components", titleCol: "name", subtitleCols: ["category"] },
   { key: "contacts", table: "contacts", label: "Contact / member", plural: "Contacts & members", titleCol: "name", subtitleCols: ["email"], href: (id) => `/admin/members/${id}` },
   { key: "hotels", table: "hotels", label: "Hotel", plural: "Hotels", titleCol: "name", subtitleCols: ["location"] },
+  { key: "centers", table: "centers", label: "Center", plural: "Centers", titleCol: "name", subtitleCols: ["location"] },
   { key: "rooms", table: "exp_hotel_rooms", label: "Room booking (week)", plural: "Room bookings (weeks)", titleCol: "name", subtitleCols: ["hotel", "room_type"] },
   { key: "room_units", table: "exp_rooms", label: "Room (physical)", plural: "Rooms (physical)", titleCol: "name", subtitleCols: ["hotel", "room_type"] },
   { key: "vendors", table: "vendors", label: "Vendor", plural: "Vendors", titleCol: "name", subtitleCols: ["category"] },
