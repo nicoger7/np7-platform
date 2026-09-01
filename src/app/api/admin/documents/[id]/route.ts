@@ -78,6 +78,30 @@ export async function PATCH(
     updates.status = body.status;
   }
 
+  /*
+   * An invoice the customer already holds cannot be cancelled by us alone.
+   *
+   * Void is the right tool for paper that never left the house: the row keeps
+   * its number, stays visible and reads "void", so the gapless sequence still
+   * tells a complete story. Once it has been SENT that stops being true — the
+   * customer has a valid invoice in their own books, and a flag flipped over
+   * here reaches nobody. The correction they need is a Storno: its own
+   * document, its own number, showing what was reversed.
+   *
+   * That generator already exists (generateCreditNote — "Storno…" on the
+   * booking's Documents tab). This only stops the wrong door being used.
+   */
+  if (body.status === "void") {
+    const { data: doc } = await db
+      .from("documents").select("sent_at, type, invoice_number").eq("id", id).maybeSingle();
+    const isTax = doc && !["proforma_invoice", "booking_confirmation"].includes(String(doc.type));
+    if (doc?.sent_at && isTax) {
+      return NextResponse.json({
+        error: `${doc.invoice_number ?? "This invoice"} has already been sent to the customer, so voiding it here would change nothing on their side. Issue a Storno instead — "Storno…" on this invoice.`,
+      }, { status: 409 });
+    }
+  }
+
   if (Object.keys(updates).length === 0) {
     return NextResponse.json({ error: "Nothing to update." }, { status: 400 });
   }

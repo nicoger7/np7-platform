@@ -126,6 +126,16 @@ export default function DocumentsPage() {
   const [filterTo, setFilterTo] = useState("");
   const [search, setSearch] = useState("");
   const [debounced, setDebounced] = useState("");
+  const [unbilled, setUnbilled] = useState<{ since: string | null; total: number; rows: { id: string; name: string | null; gap: number }[] } | null>(null);
+
+  // Money in, no invoice out. Loaded once — it answers a question about the
+  // whole book, not about whatever is filtered on screen.
+  useEffect(() => {
+    fetch("/api/admin/documents/unbilled")
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d) => d && setUnbilled(d))
+      .catch(() => {});
+  }, []);
 
   useEffect(() => {
     const t = setTimeout(() => setDebounced(search.trim()), 250);
@@ -209,7 +219,11 @@ export default function DocumentsPage() {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ status: "void" }),
     });
-    if (res.ok) fetchDocs();
+    if (res.ok) { fetchDocs(); return; }
+    // An invoice already in the customer's hands is refused here and told to
+    // use a Storno instead — swallowing that left the button looking broken.
+    const j = await res.json().catch(() => ({}));
+    alert(j.error ?? "Couldn't void this document.");
   }
 
   const inputClass =
@@ -301,6 +315,29 @@ export default function DocumentsPage() {
               <div className="text-[11px] admin-faint mt-0.5">{c.sub}</div>
             </div>
           ))}
+        </div>
+      )}
+
+      {/* The gap the invoice list cannot show, because it is about documents
+          that do not exist. */}
+      {unbilled && unbilled.rows.length > 0 && (
+        <div className="rounded-xl px-4 py-3.5 mb-4" style={{ border: "1px solid rgb(245 158 11 / 0.5)", backgroundColor: "rgb(245 158 11 / 0.07)" }}>
+          <div className="flex items-baseline gap-2 flex-wrap mb-1.5">
+            <span className="text-[10px] font-bold tracking-[0.1em] uppercase text-amber-500">Money in, no invoice</span>
+            <span className="text-sm font-bold admin-heading">{formatMoney(unbilled.total)}</span>
+            <span className="text-xs admin-faint">
+              across {unbilled.rows.length} booking{unbilled.rows.length !== 1 ? "s" : ""}
+              {unbilled.since ? ` · counted since ${new Date(unbilled.since).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" })}, when this company issued its first invoice` : ""}
+            </span>
+          </div>
+          <div className="flex flex-wrap gap-x-4 gap-y-1">
+            {unbilled.rows.slice(0, 8).map((r) => (
+              <Link key={r.id} href={`/admin/bookings/${r.id}`} className="text-xs admin-muted hover:text-[#0aa3c7]">
+                {r.name ?? "Booking"} <span className="font-medium tabular-nums text-amber-500">{formatMoney(r.gap)}</span>
+              </Link>
+            ))}
+            {unbilled.rows.length > 8 && <span className="text-xs admin-faint">+{unbilled.rows.length - 8} more</span>}
+          </div>
         </div>
       )}
 
