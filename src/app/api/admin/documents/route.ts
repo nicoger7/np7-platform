@@ -70,7 +70,10 @@ export async function GET(request: NextRequest) {
     ? [
         `invoice_number.ilike.%${q}%`,
         `title.ilike.%${q}%`,
-        ...(contactIds.length ? [`contact_id.in.(${contactIds.join(",")})`] : []),
+        // Both the traveller AND whoever the invoice is addressed to — Charlotte
+        // Baerenz's pro-forma was unfindable by her name because it hangs off
+        // Uwe's booking and she only appears as bill_to_contact_id.
+        ...(contactIds.length ? [`contact_id.in.(${contactIds.join(",")})`, `bill_to_contact_id.in.(${contactIds.join(",")})`] : []),
       ].join(",")
     : null;
 
