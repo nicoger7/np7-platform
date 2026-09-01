@@ -1,12 +1,24 @@
 import { NextRequest, NextResponse, after } from "next/server";
 import { createAdminClient } from "@/lib/supabase";
 import { settleInvoices } from "@/lib/invoices/generate";
+import { promoteProformaIfPaid } from "@/lib/invoices/promote";
 
 /** Editing or removing a payment changes which invoices it covers — see
     settleInvoices. Best-effort and after the response: the ledger is the
     record, the stamps are a reading of it. */
 function resettle(bookingId: string | null | undefined) {
   if (!bookingId) return;
+  /*
+   * Promotion belongs here too. It ran on CREATE only, so a payment corrected
+   * afterwards — or one imported straight into the table — left its pro-forma
+   * standing as a payment request that had already been met. Jens Hahn paid
+   * €3,184.50 against PF-…-0EDA5F-DP on 30 August and no tax invoice was ever
+   * issued for it, which is why every later figure on that booking came out
+   * wrong: the money could not be attached to a document, so the formulas
+   * netted it against whichever invoice happened to be open.
+   */
+  after(() => promoteProformaIfPaid(bookingId).catch((e) =>
+    console.error("proforma promotion failed", e instanceof Error ? e.message : e)));
   after(() => settleInvoices(bookingId).catch((e) =>
     console.error("invoice settle failed", e instanceof Error ? e.message : e)));
 }
