@@ -99,9 +99,23 @@ export async function POST(
   { params }: RouteContext
 ) {
   const { id } = await params;
-  const body: { type?: string } = await request.json();
+  const body: { type?: string; milestone?: string } = await request.json();
 
   const type = body.type as DocumentType | undefined;
+
+  /*
+   * Which stage a payment request is for.
+   *
+   * A pro-forma defaults to the securing payment — the deposit, or the
+   * down-payment when there is no deposit. That is right for a trip booked a
+   * year out, and wrong whenever the stages have collapsed: Uwe Baerenz's
+   * Bonaire week starts in 104 days with the balance due in 14, so billing
+   * 50% now and the rest a fortnight later is two transfers where one will do.
+   * "final" asks for everything still outstanding.
+   */
+  const milestone = ["deposit", "downpayment", "final"].includes(String(body.milestone))
+    ? (body.milestone as "deposit" | "downpayment" | "final")
+    : undefined;
 
   if (
     !type ||
@@ -119,7 +133,7 @@ export async function POST(
   const safeType = type as GeneratableType;
 
   try {
-    const row = await generateDocument({ bookingId: id, type: safeType });
+    const row = await generateDocument({ bookingId: id, type: safeType, ...(milestone ? { milestone } : {}) });
 
     // Attach a fresh signed URL to the returned row
     const db = createAdminClient();

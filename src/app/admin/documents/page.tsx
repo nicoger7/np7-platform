@@ -213,7 +213,7 @@ export default function DocumentsPage() {
     <div>
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between mb-5">
         <div>
-          <h1 className="text-2xl font-bold admin-heading">Finance Documents</h1>
+          <h1 className="text-2xl font-bold admin-heading">Invoices</h1>
           <p className="text-sm admin-muted mt-0.5">
             {loading ? "Loading…" : `${shown.length} ${view === "invoices" ? "invoice" : "document"}${shown.length !== 1 ? "s" : ""}`}
           </p>

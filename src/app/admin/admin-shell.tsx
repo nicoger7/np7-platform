@@ -111,11 +111,19 @@ const navByEnv: Record<Environment, NavGroup[]> = {
       ],
     },
     {
+      // The money, in the order someone doing the books works through it:
+      // what we billed, what came in, what it cost us, then the counterparties.
+      //
+      // "Invoices" used to live in ADMINISTRATION as "Documents", between
+      // Waivers and Company Settings — nowhere near Payments, and under a name
+      // that does not say invoice. Nobody looking for a bill would have found
+      // it, which is why it read as missing.
       label: "FINANCE",
       items: [
+        { label: "Invoices", href: "/admin/documents", icon: "file" },
         { label: "Payments", href: "/admin/payments", icon: "receipt" },
-        { label: "Gift Vouchers", href: "/admin/vouchers", icon: "gift" },
         { label: "Experience Costs", href: "/admin/exp-costs", icon: "chartline" },
+        { label: "Gift Vouchers", href: "/admin/vouchers", icon: "gift" },
         { label: "Vendors", href: "/admin/vendors", icon: "truck" },
       ],
     },
@@ -134,7 +142,6 @@ const navByEnv: Record<Environment, NavGroup[]> = {
       label: "ADMINISTRATION",
       items: [
         { label: "Waivers", href: "/admin/waivers", icon: "file" },
-        { label: "Documents", href: "/admin/documents", icon: "file" },
         { label: "Company Settings", href: "/admin/settings", icon: "cog" },
       ],
     },

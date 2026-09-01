@@ -224,7 +224,9 @@ export function BookingDetailPane({ bookingId, onBack }: { bookingId: string; on
   const [notes, setNotes] = useState<BookingNote[]>([]);
   const [noteDraft, setNoteDraft] = useState("");
   const [genError, setGenError] = useState<string | null>(null);
-  const [generating, setGenerating] = useState<DocumentType | null>(null);
+  // "proforma_full" is not a document type — it is the same pro-forma asked for
+  // over the whole outstanding amount, and it needs its own spinner.
+  const [generating, setGenerating] = useState<DocumentType | "proforma_full" | null>(null);
 
   // Reference data
   const [experiences, setExperiences] = useState<AvailableExperience[]>([]);
@@ -335,13 +337,13 @@ export function BookingDetailPane({ bookingId, onBack }: { bookingId: string; on
     setDocsLoading(false);
   }
 
-  async function generateDocument(type: DocumentType) {
-    setGenerating(type);
+  async function generateDocument(type: DocumentType, milestone?: "deposit" | "downpayment" | "final") {
+    setGenerating(milestone === "final" && type === "proforma_invoice" ? "proforma_full" : type);
     setGenError(null);
     const res = await fetch(`/api/admin/bookings/${id}/documents`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ type }),
+      body: JSON.stringify({ type, ...(milestone ? { milestone } : {}) }),
     });
     if (res.ok) {
       await fetchDocuments();
@@ -2092,6 +2094,19 @@ export function BookingDetailPane({ bookingId, onBack }: { bookingId: string; on
                   : "Booking Confirmation"}
               </button>
             ))}
+            {/* A pro-forma asks for the securing payment by default, which is
+                right for a trip a year out. When the stages have collapsed —
+                the balance falling due weeks after the deposit — one request
+                for everything beats two transfers a fortnight apart. */}
+            <button
+              onClick={() => generateDocument("proforma_invoice", "final")}
+              disabled={generating === "proforma_full"}
+              title="One payment request for everything still outstanding, instead of the securing payment only."
+              className="px-3 py-1.5 admin-surface admin-muted hover:admin-heading text-xs font-bold rounded-lg transition-colors"
+              style={{ border: "1px solid var(--admin-border)" }}
+            >
+              {generating === "proforma_full" ? "Generating..." : "Pro-forma · full amount"}
+            </button>
           </div>
 
           {genError && (
