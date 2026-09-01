@@ -232,7 +232,7 @@ export async function settleInvoices(bookingId: string): Promise<void> {
       .order("issued_at", { ascending: true })
       .order("created_at", { ascending: true }),
     db.from("exp_payments")
-      .select("amount,direction,type,status,date,received_at,created_at")
+      .select("amount,direction,type,status,date,received_at,created_at,document_id")
       .eq("booking_id", bookingId),
   ]);
 
@@ -252,10 +252,33 @@ export async function settleInvoices(bookingId: string): Promise<void> {
   const credits = all
     .filter((d) => d.type === "credit_note")
     .map((d) => ({ at: d.issued_at ?? d.created_at ?? null, amount: Math.abs(Number(d.amount) || 0) }));
+  /*
+   * A payment can NAME the invoice it settles (exp_payments.document_id, set
+   * from the invoice picker on the booking's payment form). Where someone has
+   * said so, that beats the oldest-first default — they know which obligation
+   * the transfer was for and the allocation should not second-guess them.
+   *
+   * Jens Hahn is the case: his add-on invoice was issued before his
+   * down-payment invoice existed, so oldest-first marked the add-ons paid with
+   * money that was plainly the down payment. Only the money nobody has assigned
+   * falls back to oldest-first.
+   */
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const received = ((pays ?? []) as any[]).filter((p) => isReceived(p as PaymentLike))
+    .map((p) => ({ at: when(p), amount: (p.type === "refund" ? -1 : 1) * (Number(p.amount) || 0), doc: (p.document_id ?? null) as string | null }));
+
+  const assigned = new Map<string, { amount: number; at: string | null }>();
+  for (const r of received) {
+    if (!r.doc) continue;
+    const prev = assigned.get(r.doc);
+    assigned.set(r.doc, {
+      amount: round2((prev?.amount ?? 0) + r.amount),
+      at: [prev?.at ?? null, r.at].filter(Boolean).sort().pop() ?? null,
+    });
+  }
+
   const money = [
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    ...((pays ?? []) as any[]).filter((p) => isReceived(p as PaymentLike))
-      .map((p) => ({ at: when(p), amount: (p.type === "refund" ? -1 : 1) * (Number(p.amount) || 0) })),
+    ...received.filter((r) => !r.doc).map((r) => ({ at: r.at, amount: r.amount })),
     ...credits,
   ].sort((a, b) => String(a.at ?? "").localeCompare(String(b.at ?? "")));
 
@@ -264,12 +287,21 @@ export async function settleInvoices(bookingId: string): Promise<void> {
   let cursor = 0;
   let pot = 0;
   for (const inv of invoices) {
-    running = round2(running + (Number(inv.amount) || 0));
+    const amt = Number(inv.amount) || 0;
+    const own = assigned.get(inv.id);
+    // Directly assigned and enough to cover it — settled, on the day that money
+    // landed, and it never touches the shared pot.
+    if (own && own.amount + 0.005 >= amt) {
+      paidAtFor.push(own.at);
+      continue;
+    }
+    // Otherwise the shortfall is drawn from the unassigned money, oldest first.
+    running = round2(running + amt - (own?.amount ?? 0));
     while (pot + 0.005 < running && cursor < money.length) {
       pot = round2(pot + money[cursor].amount);
       cursor += 1;
     }
-    paidAtFor.push(pot + 0.005 >= running ? (money[cursor - 1]?.at ?? null) : null);
+    paidAtFor.push(pot + 0.005 >= running ? (money[cursor - 1]?.at ?? own?.at ?? null) : null);
   }
 
   await Promise.all(invoices.map(async (inv, i) => {
