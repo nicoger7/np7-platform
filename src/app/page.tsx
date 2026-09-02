@@ -12,6 +12,7 @@ export const metadata: Metadata = {
 
 import { cdn } from "@/lib/cdn";
 import { createAdminClient } from "@/lib/supabase";
+import { parseTaglines } from "@/components/experience/rotating-tagline";
 
 const NP7_LOGO = cdn('logos/np7-logo.png');
 const NP7_EXPERIENCE_LOGO = cdn('logos/np7-experience-logo.png');
@@ -47,10 +48,23 @@ export default async function LandingPage() {
       return d;
     }
   })();
+  // The rotating headlines live with the rest of the landing copy, so the splash
+  // and /experience read one list and Nico edits it in one place.
+  const taglines = await (async () => {
+    try {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const db = createAdminClient() as any;
+      const { data } = await db.from("site_settings").select("value").eq("key", "experience_landing_hero").maybeSingle();
+      return parseTaglines((data?.value ?? {}).taglines);
+    } catch {
+      return [];
+    }
+  })();
+
   // Until a public world is live (production), keep the existing brand splash + a small
   // member-login link, exactly as production looks today. Once SHOW_EXPERIENCE /
   // SHOW_HARDWARE is on, the new internal landing below takes over.
-  if (!flags.showExperience && !flags.showHardware) return <LaunchLanding showBlog={flags.showBlog} />;
+  if (!flags.showExperience && !flags.showHardware) return <LaunchLanding showBlog={flags.showBlog} taglines={taglines} />;
   return (
     <main className="relative w-full h-[100svh] flex flex-col overflow-hidden md:flex-row bg-black">
       {/* ---------------------------------------------------------------- */}

@@ -34,6 +34,9 @@ const FRONT_DEFAULTS = {
 } as const;
 
 const LANDING_DEFAULTS = {
+  /* One headline per line, `BIG TEXT | small text`. Empty = the single
+     tagline/subline pair below is the whole headline, exactly as before. */
+  taglines: "",
   tagline: "The No. 1 windsurf holiday.",
   subline: "Chase the ride, find your crew — world-class coaching, community and everything arranged for you.",
   cta1: "Explore experiences",
@@ -280,6 +283,23 @@ export default function HomeContentPage() {
             <Card title="Hero copy" dot="#0aa3c7">
               <Field label="Big tagline (H1)" value={landing.tagline ?? ""} onChange={setL("tagline")} />
               <Field label="Subline" value={landing.subline ?? ""} onChange={setL("subline")} rows={2} />
+              {/* Rotation. Left empty, the two fields above are the headline and
+                  nothing about the page changes. */}
+              <Field
+                label="Rotating headlines"
+                hint={"optional. One per line: big text, then | , then the small line under it. A visitor gets a different one each time they come back. Empty means the two fields above always show."}
+                value={landing.taglines ?? ""}
+                onChange={setL("taglines")}
+                rows={8}
+              />
+              {(landing.taglines ?? "").trim() ? (
+                <p className="text-xs admin-faint">
+                  {(landing.taglines ?? "").split("\n").filter((l) => l.trim()).length} headlines in rotation.
+                  {(landing.taglines ?? "").split("\n").some((l) => l.trim() && !l.includes("|"))
+                    ? " One of them has no | , so it shows with no small line under it."
+                    : ""}
+                </p>
+              ) : null}
               <div className="grid sm:grid-cols-2 gap-3">
                 <Field label="Button 1" value={landing.cta1 ?? ""} onChange={setL("cta1")} />
                 <Field label="Button 2" value={landing.cta2 ?? ""} onChange={setL("cta2")} />

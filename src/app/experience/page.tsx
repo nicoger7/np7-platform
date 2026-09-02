@@ -23,6 +23,7 @@ import { cdn } from "@/lib/cdn";
 
 const NP7_EXPERIENCE_LOGO = cdn('logos/np7-experience-logo.png');
 import { createAdminClient } from "@/lib/supabase";
+import { RotatingTagline, parseTaglines, type TaglinePair } from "@/components/experience/rotating-tagline";
 
 const HERO_VIDEO = cdn('hero/windsurf-hero.mp4');
 const HERO_POSTER = cdn('hero/windsurf-hero-poster.jpg');
@@ -56,7 +57,7 @@ export default async function ExperienceOverviewPage() {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const db = createAdminClient() as any;
       const { data } = await db.from("site_settings").select("value").eq("key", "experience_landing_hero").maybeSingle();
-      const v = (data?.value ?? {}) as { video?: string; poster?: string; images?: string[]; tagline?: string; subline?: string; cta1?: string; cta2?: string; upcomingEyebrow?: string; upcomingTitle?: string; upcomingSub?: string };
+      const v = (data?.value ?? {}) as { video?: string; poster?: string; images?: string[]; tagline?: string; subline?: string; taglines?: string; cta1?: string; cta2?: string; upcomingEyebrow?: string; upcomingTitle?: string; upcomingSub?: string };
       const imgs = Array.isArray(v.images) ? v.images.filter((x) => typeof x === "string" && x.trim()) : [];
       const t = (x?: string, d = "") => (typeof x === "string" && x.trim() ? x.trim() : d);
       return {
@@ -68,6 +69,7 @@ export default async function ExperienceOverviewPage() {
           : HERO_FALLBACK_FOCUS,
         tagline: t(v.tagline, "The No.\u20091 windsurf holiday."),
         subline: t(v.subline, "Chase the ride, find your crew — world-class coaching, community and everything arranged for you."),
+        taglines: t(v.taglines, ""),
         cta1: t(v.cta1, "Explore experiences"),
         cta2: t(v.cta2, "See destinations"),
         upcomingEyebrow: t(v.upcomingEyebrow, "NEXT ON THE WATER"),
@@ -79,12 +81,29 @@ export default async function ExperienceOverviewPage() {
         video: HERO_VIDEO, poster: HERO_POSTER, images: HERO_FALLBACKS, imageFocus: HERO_FALLBACK_FOCUS,
         tagline: "The No.\u20091 windsurf holiday.",
         subline: "Chase the ride, find your crew — world-class coaching, community and everything arranged for you.",
+        taglines: "",
         cta1: "Explore experiences", cta2: "See destinations",
         upcomingEyebrow: "NEXT ON THE WATER", upcomingTitle: "Upcoming experiences",
         upcomingSub: "Pick a date, pack your harness — we'll handle the rest.",
       };
     }
   })();
+  /*
+   * The headline rotates. Admin keeps the list (Admin → Website → Landing);
+   * with none set, the single tagline/subline pair below is the whole list and
+   * nothing about the page changes.
+   *
+   * The starting line is chosen HERE, on the server, from the clock: the page
+   * is ISR with revalidate = 3600, so the pick moves with the cache instead of
+   * making every visit a dynamic render. The visitor's browser takes it from
+   * there (see RotatingTagline).
+   */
+  const heroPairs: TaglinePair[] = (() => {
+    const parsed = parseTaglines(hero.taglines);
+    return parsed.length ? parsed : [{ tagline: hero.tagline, subline: hero.subline }];
+  })();
+  const heroIndex = Math.floor(Date.now() / 3_600_000) % heroPairs.length;
+
   const { cards: expCards, experiences } = await getExperienceCards();
 
   // The gift card's backdrop = a dedicated plain photo (GIFT_PHOTO). We no longer
@@ -149,12 +168,12 @@ export default async function ExperienceOverviewPage() {
           alt="NP7 Experience"
           className="w-[280px] sm:w-[400px] lg:w-[460px] h-auto drop-shadow-[0_6px_30px_rgba(0,0,0,0.55)] mb-7"
         />
-        <h1 className="text-3xl sm:text-5xl lg:text-[56px] font-black text-white leading-[0.98] tracking-[-0.03em] drop-shadow-[0_4px_30px_rgba(0,0,0,0.3)]">
-          {hero.tagline}
-        </h1>
-        <p className="mt-5 text-[16px] sm:text-[19px] text-white/85 max-w-[520px] font-medium">
-          {hero.subline}
-        </p>
+        <RotatingTagline
+          pairs={heroPairs}
+          startIndex={heroIndex}
+          h1ClassName="text-3xl sm:text-5xl lg:text-[56px] font-black text-white leading-[0.98] tracking-[-0.03em] drop-shadow-[0_4px_30px_rgba(0,0,0,0.3)]"
+          pClassName="mt-5 text-[16px] sm:text-[19px] text-white/85 max-w-[520px] font-medium"
+        />
         <div className="mt-9 flex flex-wrap items-center justify-center gap-3">
           <Link
             href="#experiences"

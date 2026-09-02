@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { RotatingTagline, type TaglinePair } from "@/components/experience/rotating-tagline";
 
 /**
  * Holding landing for the soft launch: the existing public brand splash (the same
@@ -35,7 +36,7 @@ const boxStyle = {
 
 const itemBg = "linear-gradient(135deg, rgba(255,255,255,0.06) 0%, rgba(255,255,255,0.02) 100%)";
 
-export function LaunchLanding({ showBlog = false }: { showBlog?: boolean }) {
+export function LaunchLanding({ showBlog = false, taglines = [] }: { showBlog?: boolean; taglines?: TaglinePair[] }) {
   return (
     <main className="relative min-h-screen flex items-center justify-center overflow-hidden">
       {/* Background photo */}
@@ -66,10 +67,24 @@ export function LaunchLanding({ showBlog = false }: { showBlog?: boolean }) {
 
       {/* Content */}
       <div className="relative z-10 w-full max-w-[1200px] mx-auto px-6 py-16">
-        <div className="flex justify-center mb-10">
+        <div className="flex justify-center mb-7">
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img src={`${STORAGE}/logos/np7-logo.png`} alt="NP7" className="h-14 w-auto invert drop-shadow-[0_2px_12px_rgba(0,0,0,0.5)]" />
         </div>
+
+        {/* The headline rotates per visitor (see RotatingTagline). With no list
+            set in the admin there is none, and the splash looks exactly as it
+            did. Also the page's only h1, which it was missing entirely. */}
+        {taglines.length > 0 && (
+          <div className="text-center mb-9 max-w-[640px] mx-auto">
+            <RotatingTagline
+              pairs={taglines}
+              startIndex={0}
+              h1ClassName="text-[22px] sm:text-[30px] font-black text-white tracking-[-0.02em] leading-[1.1] drop-shadow-[0_2px_16px_rgba(0,0,0,0.5)]"
+              pClassName="mt-2 text-[14px] sm:text-[15.5px] text-white/60 font-medium"
+            />
+          </div>
+        )}
 
         <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
           {/* Hardware */}
