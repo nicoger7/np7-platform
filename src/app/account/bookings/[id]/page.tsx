@@ -116,6 +116,17 @@ export default async function BookingDetail({ params }: Props) {
     .catch(() => null);
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const payCfg: any = payRow?.exp_packages ?? null;
+  // Settled stage invoices are the agreement — see BookingPaymentState.settledStages.
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { data: settledDocs } = await (createAdminClient() as any)
+    .from("documents").select("type, amount")
+    .eq("booking_id", b.id).eq("status", "issued").not("paid_at", "is", null)
+    .in("type", ["deposit_invoice", "downpayment_invoice"]);
+  const settledStages = { deposit: 0, downpayment: 0 } as { deposit: number; downpayment: number };
+  for (const d of ((settledDocs ?? []) as { type: string; amount: number | null }[])) {
+    if (d.type === "deposit_invoice") settledStages.deposit += Number(d.amount) || 0;
+    if (d.type === "downpayment_invoice") settledStages.downpayment += Number(d.amount) || 0;
+  }
   const plan = computePaymentPlan(
     {
       deposit: b.edition?.deposit ?? payCfg?.deposit ?? null,
@@ -124,7 +135,7 @@ export default async function BookingDetail({ params }: Props) {
       deposit_refund_days: payCfg?.deposit_refund_days ?? null,
     },
     // bookedAt anchors the no-deposit downpayment deadline (registration + X days).
-    { total: total ?? 0, paidAmount: paid, editionStart: b.edition?.date_start ?? null, bookedAt: payRow?.created_at ?? null }
+    { total: total ?? 0, paidAmount: paid, editionStart: b.edition?.date_start ?? null, bookedAt: payRow?.created_at ?? null, settledStages }
   );
 
   // "Secured" = the first real payment milestone is paid (the deposit, or — when

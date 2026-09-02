@@ -50,7 +50,9 @@ export function buildWhatsNext(input: {
     const paid = m.status === "paid";
     steps.push({
       when: due,
-      label: m.kind === "final" ? `Balance · ${money(m.amount)}` : `${m.kind === "deposit" ? "Deposit" : "Down-payment"} · ${money(m.amount)}`,
+      // A clinic is bought outright: its one milestone is the ticket, not a
+      // down-payment on something larger.
+      label: m.kind === "final" ? `Balance · ${money(m.amount)}` : `${isEvent ? "Ticket" : m.kind === "deposit" ? "Deposit" : "Down-payment"} · ${money(m.amount)}`,
       detail: paid ? "Received — thank you." : m.kind === "final" ? "Bank transfer, details in your payment plan." : "Secures your spot. Fully refundable for 14 days.",
       done: paid,
       href: paid ? undefined : "#payment",

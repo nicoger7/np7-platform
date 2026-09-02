@@ -47,6 +47,15 @@ export type BookingPaymentState = {
   depositReceived?: boolean | null;
   downpaymentReceived?: boolean | null;
   finalPaymentReceived?: boolean | null;
+  /**
+   * A stage that has an issued AND settled tax invoice, with the amount that
+   * invoice carried. Once that document exists it is the agreement, and the
+   * percentage formula must stop second-guessing it: Jens Hahn paid his 50%
+   * down-payment (€3,184.50, invoice 0042, settled), then upgraded his rooms,
+   * and his trip page read "Down-payment €3,496.88 — due" because 50% of the
+   * NEW total is more than he paid. The document says what was agreed.
+   */
+  settledStages?: { deposit?: number | null; downpayment?: number | null } | null;
 };
 
 export type Milestone = {
@@ -101,9 +110,16 @@ export function computePaymentPlan(cfg: PackagePaymentConfig, state: BookingPaym
   const refundDays = cfg.deposit_refund_days ?? PAYMENT_DEFAULTS.depositRefundDays;
   const finalDaysBefore = cfg.final_days_before ?? PAYMENT_DEFAULTS.finalDaysBefore;
 
-  const depositAmt = round(Math.min(depositCfg, total || depositCfg));
-  const downpaymentTarget = round(total * (dpPct / 100));
+  const settledDeposit = state.settledStages?.deposit ?? null;
+  const settledDown = state.settledStages?.downpayment ?? null;
+  const depositAmt = settledDeposit != null && settledDeposit > 0
+    ? round(settledDeposit)
+    : round(Math.min(depositCfg, total || depositCfg));
+  const downpaymentTarget = settledDown != null && settledDown > 0
+    ? round(depositAmt + settledDown)
+    : round(total * (dpPct / 100));
   const downpaymentAmt = round(Math.max(0, downpaymentTarget - depositAmt));
+  // The balance is whatever the settled stages leave — never a re-derived share.
   const finalAmt = round(Math.max(0, total - depositAmt - downpaymentAmt));
 
   const refundableUntil = state.depositReceivedAt ? addDays(state.depositReceivedAt, refundDays) : null;
@@ -126,8 +142,8 @@ export function computePaymentPlan(cfg: PackagePaymentConfig, state: BookingPaym
   // Prefer the actual paid amount (cumulative thresholds); fall back to flags.
   const byAmount = typeof state.paidAmount === "number";
   const paidAmt = state.paidAmount ?? 0;
-  const depositPaid = byAmount ? paidAmt + 0.01 >= depositAmt : !!state.depositReceived;
-  const downPaid = byAmount ? paidAmt + 0.01 >= downpaymentTarget : !!state.downpaymentReceived;
+  const depositPaid = (settledDeposit != null && settledDeposit > 0) || (byAmount ? paidAmt + 0.01 >= depositAmt : !!state.depositReceived);
+  const downPaid = (settledDown != null && settledDown > 0) || (byAmount ? paidAmt + 0.01 >= downpaymentTarget : !!state.downpaymentReceived);
   const finalPaid = byAmount ? paidAmt + 0.01 >= total && total > 0 : !!state.finalPaymentReceived;
 
   const all: Milestone[] = [
