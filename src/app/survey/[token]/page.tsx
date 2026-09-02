@@ -1,12 +1,13 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
-import { getSurveyForToken, getSurvey, getSurveyByOpenToken, joinSurveyAsMember, submitResponse } from "@/lib/surveys";
+import { getSurveyForToken, getSurvey, getSurveyByOpenToken, joinSurveyAsMember } from "@/lib/surveys";
 import { getPortalUser, getTeamMember } from "@/lib/auth";
 import { SurveyForm } from "@/components/portal/survey-form";
 import { resolveSurveyInfo, type SurveyInfo } from "@/lib/surveys";
 import { HeroVideo } from "@/components/experience/hero-video";
 import { SurveyQuick } from "@/components/portal/survey-quick";
+import { StampOpened } from "@/components/shared/stamp-opened";
 import { SurveyJoin } from "@/components/portal/survey-join";
 import { satImage } from "@/lib/satellite";
 
@@ -71,27 +72,24 @@ export default async function SurveyPage({ params, searchParams }: Props) {
     }
   }
 
-  // One-click registration (quick surveys): the email button's link carries the
-  // answer — save it BEFORE first paint, then bounce to a clean URL so a refresh
-  // can't re-save and the page opens already in the "you're in" state.
-  // (any survey with dated trips can carry one-tap email buttons — not just quick)
-  if (!isPreview && !isOpenLink && pick && survey.status === "open" && response !== undefined) {
-    const valid = new Set(survey.destinations.map((d) => d.key));
-    const existingPicks = response?.other_destinations ?? [];
-    if (pick === "none") {
-      const note = "Can't make it this time";
-      await submitResponse(token, { top_destination: null, other_destinations: [], weeks: [], budget_ok: response?.budget_ok ?? null, looking_for: note });
-      redirect(`/survey/${token}?saved=1`);
-    } else if (valid.has(pick)) {
-      const merged = existingPicks.includes(pick) ? existingPicks : [...existingPicks, pick];
-      // keep an existing star; a lone pick is implicitly the favourite
-      const top = response?.top_destination && merged.includes(response.top_destination)
-        ? response.top_destination
-        : merged.length === 1 ? merged[0] : null;
-      await submitResponse(token, { top_destination: top, other_destinations: merged, weeks: [], budget_ok: response?.budget_ok ?? null, looking_for: response?.looking_for?.startsWith("Can't make it") ? null : response?.looking_for ?? null });
-      redirect(`/survey/${token}?saved=1`);
-    }
-  }
+  /*
+   * The date chips in the invite email carry ?pick=<key>, and this used to SAVE
+   * that answer while serving the GET, before first paint.
+   *
+   * A mail scanner walks a message top to bottom and fetches every link in it.
+   * So an invited guest could be recorded as available for all seven dates and
+   * then, because the "can't make it" link sits last in the mail and the write
+   * replaced the whole row, filed as a refusal. Silently, without opening
+   * anything. The admin would read a completed survey nobody had filled in.
+   *
+   * The chip now only ARMS the answer: the page opens with that date already
+   * selected and one button to confirm it. Nothing is written until a person
+   * presses that button. Scanners fetch URLs, they do not press buttons.
+   */
+  const validKeys = new Set(survey.destinations.map((d) => d.key));
+  const armed = !isPreview && !isOpenLink && pick && survey.status === "open" && (pick === "none" || validKeys.has(pick))
+    ? pick
+    : null;
 
   const user = await getPortalUser().catch(() => null);
   const firstName = contactName?.split(/\s+/)[0] || null;
@@ -134,6 +132,9 @@ export default async function SurveyPage({ params, searchParams }: Props) {
 
   return (
     <main className="min-h-[100svh] bg-[#fdf6ea]">
+      {/* "opened" is stamped from the browser, not from this render — a preview
+          card or a scanner fetching the link is not a person reading it. */}
+      {!isPreview && !isOpenLink && <StampOpened url={`/api/survey/${token}/opened`} />}
       {isPreview && (
         <div className="sticky top-0 z-30 bg-[#0a2a33] text-white text-[12.5px] font-bold text-center py-2 px-4">
           👁 Preview — exactly what an invited member sees. Try it end-to-end; nothing you submit here is saved.
@@ -189,8 +190,8 @@ export default async function SurveyPage({ params, searchParams }: Props) {
         ) : (
           <>
             {survey.quick
-              ? <SurveyQuick survey={survey} token={token} existing={response} preview={isPreview} justSaved={saved === "1"} infoByKey={infoByKey} />
-              : <SurveyForm survey={survey} token={token} contactName={contactName} existing={response} preview={isPreview} infoByKey={infoByKey} />}
+              ? <SurveyQuick survey={survey} token={token} existing={response} preview={isPreview} justSaved={saved === "1"} infoByKey={infoByKey} armed={armed} />
+              : <SurveyForm survey={survey} token={token} contactName={contactName} existing={response} preview={isPreview} infoByKey={infoByKey} armed={armed} />}
             {!user && !isPreview && (
               <p className="text-[12.5px] text-[#9a8a6a] text-center mt-6">
                 Have an NP7 account? <Link href="/account" className="font-semibold text-[#b0791e] hover:underline">Log in</Link> — not required, this invitation is already personal to you.

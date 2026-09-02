@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { getInviteLanding } from "@/lib/invites";
+import { StampOpened } from "@/components/shared/stamp-opened";
 import { JoinSignup } from "@/components/join/join-signup";
 import { flags } from "@/lib/flags";
 
@@ -50,6 +51,10 @@ export default async function JoinPage({ params }: Props) {
   }
 
   const { invite, inviterName, experience, edition, package: pkg, images } = landing;
+  // "Opened" comes from the browser, not from this render: a WhatsApp or Slack
+  // preview card fetches the link the moment the inviter pastes it, and used to
+  // mark the invite opened before the friend had seen a thing.
+  const stamp = <StampOpened url={`/api/join/${token}/opened`} />;
   const hero = edition?.hero_image || experience.hero_image || null;
   const currency = experience.currency || "EUR";
   const dates = fmtRange(edition?.date_start ?? null, edition?.date_end ?? null);
@@ -66,6 +71,7 @@ export default async function JoinPage({ params }: Props) {
 
   return (
     <Shell>
+      {stamp}
       <div className="rounded-2xl bg-white border border-[#f0e6d6] overflow-hidden shadow-sm">
         {/* Hero */}
         <div className="relative h-[180px] bg-[#0f6e56]">

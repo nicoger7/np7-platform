@@ -25,21 +25,29 @@ function tripImage(rows: SurveyDestination[]): string | null {
   return withCoord ? satImage(withCoord.lat as number, withCoord.lng as number, { dLat: 0.05, w: 1200, h: 760 }) : null;
 }
 
-export function SurveyForm({ survey, token, contactName, existing, preview = false, infoByKey = {} }: {
+export function SurveyForm({ survey, token, contactName, existing, preview = false, infoByKey = {}, armed = null }: {
   survey: Survey; token: string; contactName: string | null; existing: SurveyResponse | null; preview?: boolean;
   /** Resolved info-button content per place key (server-side, see resolveSurveyInfo). */
   infoByKey?: Record<string, SurveyInfo>;
+  /** The date key the email chip carried. Pre-ticked here, never pre-saved:
+   *  the form's own submit button is what writes. */
+  armed?: string | null;
 }) {
+  const armedDate = armed && armed !== "none" ? armed : null;
   const fmt = (n: number) => new Intl.NumberFormat("en-IE", { style: "currency", currency: survey.currency || "EUR", maximumFractionDigits: 0 }).format(n);
   const fmtDay = (s: string, withYear = false) => new Date(s).toLocaleDateString("en-GB", { day: "numeric", month: "short", ...(withYear ? { year: "numeric" } : {}) });
   const fmtWeek = (start: string | null, end: string | null) => (start && end ? `${fmtDay(start)} – ${fmtDay(end, true)}` : start || end ? fmtDay((start || end)!, true) : "");
 
   const [topDest, setTopDest] = useState<string | null>(existing?.top_destination ?? null);
-  const [alsoDest, setAlsoDest] = useState<Set<string>>(new Set(existing?.other_destinations ?? []));
+  const [alsoDest, setAlsoDest] = useState<Set<string>>(() => {
+    const base = new Set(existing?.other_destinations ?? []);
+    if (armedDate) base.add(armedDate);
+    return base;
+  });
   const [weeks, setWeeks] = useState<Set<string>>(new Set(existing?.weeks ?? []));
   const [budgetOk, setBudgetOk] = useState<"yes" | "maybe" | "no" | null>(existing?.budget_ok ?? null);
   const [lookingFor, setLookingFor] = useState(existing?.looking_for ?? "");
-  const [chosen, setChosen] = useState<Set<string>>(new Set([...(existing?.top_destination ? [existing.top_destination] : []), ...(existing?.other_destinations ?? [])]));
+  const [chosen, setChosen] = useState<Set<string>>(new Set([...(existing?.top_destination ? [existing.top_destination] : []), ...(existing?.other_destinations ?? []), ...(armedDate ? [armedDate] : [])]));
   const [busy, setBusy] = useState(false);
   const [done, setDone] = useState(false);
   const [err, setErr] = useState("");

@@ -442,6 +442,19 @@ async function findOrCreateOpenInvite(surveyId: string, contactId: string, first
 
 /** The member form's data for a token: the survey, who they are, and any
  *  existing response. Marks the invite "opened" on first view. */
+/**
+ * Stamp an invite as opened. Called from the browser (POST /api/survey/:token/
+ * opened), never while serving the page: getSurveyForToken used to do this on
+ * GET, so every mail scanner and link preview counted as an open and the admin
+ * read engagement that nobody had.
+ */
+export async function markSurveyInviteOpened(token: string): Promise<void> {
+  const sb = db();
+  const { data: inv } = await sb.from("exp_survey_invites").select("id, status").eq("token", token).maybeSingle();
+  if (!inv || inv.status !== "invited") return;
+  await sb.from("exp_survey_invites").update({ status: "opened", opened_at: new Date().toISOString() }).eq("id", inv.id);
+}
+
 export async function getSurveyForToken(token: string): Promise<{
   survey: Survey; invite: SurveyInvite; contactName: string | null; loggedInMatchesInvitee: boolean; response: SurveyResponse | null;
 } | null> {
@@ -454,9 +467,6 @@ export async function getSurveyForToken(token: string): Promise<{
     sb.from("contacts").select("name").eq("id", inv.contact_id).maybeSingle(),
     sb.from("exp_survey_responses").select("*").eq("invite_id", inv.id).maybeSingle(),
   ]);
-  if (inv.status === "invited") {
-    await sb.from("exp_survey_invites").update({ status: "opened", opened_at: new Date().toISOString() }).eq("id", inv.id);
-  }
   return {
     survey,
     invite: {

@@ -148,15 +148,24 @@ function parseIncludes(raw: unknown): string[] {
     .filter(Boolean);
 }
 
-/** Everything the public /join page needs. Marks the invite "opened" (best-effort). */
+/**
+ * Stamp a referral invite as opened. Called from the browser (POST
+ * /api/join/:token/opened), never while serving the page: a WhatsApp or Slack
+ * preview card fetches the link the moment it is pasted, so doing this on GET
+ * marked the invite opened before the friend had seen anything.
+ */
+export async function markInviteOpened(token: string): Promise<void> {
+  const db = createAdminClient() as DB;
+  const { data: invite } = await db.from("trip_invites").select("id, status").eq("token", token).maybeSingle();
+  if (!invite || invite.status !== "sent") return;
+  await db.from("trip_invites").update({ status: "opened", opened_at: new Date().toISOString() }).eq("id", invite.id).then(() => {}, () => {});
+}
+
+/** Everything the public /join page needs. A pure read. */
 export async function getInviteLanding(token: string): Promise<InviteLanding | null> {
   const db = createAdminClient() as DB;
   const { data: invite } = await db.from("trip_invites").select("*").eq("token", token).maybeSingle();
   if (!invite) return null;
-
-  if (invite.status === "sent") {
-    await db.from("trip_invites").update({ status: "opened", opened_at: new Date().toISOString() }).eq("id", invite.id).then(() => {}, () => {});
-  }
 
   const [inviter, exp, ed, pkg, content] = await Promise.all([
     invite.inviter_contact_id ? db.from("contacts").select("name").eq("id", invite.inviter_contact_id).maybeSingle() : Promise.resolve({ data: null }),

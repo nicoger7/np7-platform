@@ -5,10 +5,13 @@ import type { Survey, SurveyResponse, SurveyInfo } from "@/lib/surveys";
 import { SurveyInfoButtons } from "@/components/portal/survey-info-buttons";
 
 /**
- * The one-tap interest survey. The invite email's buttons already registered an
- * answer (the link carries it); this page confirms it and lets the rider adjust —
- * every tap saves instantly, there is no submit button. Deliberately tiny:
- * "would you join, and which dates?" — nothing else.
+ * The one-tap interest survey. Every tap on this page saves instantly, there is
+ * no submit button. Deliberately tiny: "would you join, and which dates?".
+ *
+ * `armed` is the date the email chip carried. It arrives selected but UNSAVED,
+ * with a single confirm button, because the link alone is not consent: a mail
+ * scanner fetching every URL in the invite would otherwise have answered the
+ * whole survey on the guest's behalf.
  */
 
 const DECLINE_NOTE = "Can't make it this time";
@@ -25,16 +28,27 @@ function fmtRange(start?: string | null, end?: string | null): string {
   return f((start ?? end)!, full);
 }
 
-export function SurveyQuick({ survey, token, existing, preview = false, justSaved = false, infoByKey = {} }: {
+export function SurveyQuick({ survey, token, existing, preview = false, justSaved = false, infoByKey = {}, armed = null }: {
   survey: Survey; token: string; existing?: SurveyResponse | null; preview?: boolean; justSaved?: boolean;
   /** Resolved info-button content per place key. The quick survey is the one
    *  most people actually see, so it needs these as much as the long form. */
   infoByKey?: Record<string, SurveyInfo>;
+  /** The date key the email chip carried, or "none" for its decline link.
+   *  Pre-selected on screen, written only once the rider confirms. */
+  armed?: string | null;
 }) {
   const dated = survey.destinations.filter((d) => d.start || d.end);
-  const [picks, setPicks] = useState<Set<string>>(new Set(existing?.other_destinations ?? []));
+  const armedDate = armed && armed !== "none" ? armed : null;
+  const armedDecline = armed === "none";
+  const [picks, setPicks] = useState<Set<string>>(() => {
+    const base = new Set(existing?.other_destinations ?? []);
+    if (armedDate) base.add(armedDate);
+    return armedDecline ? new Set<string>() : base;
+  });
   const [topKey, setTopKey] = useState<string | null>(existing?.top_destination ?? null);
-  const [declined, setDeclined] = useState(!!existing && (existing.other_destinations ?? []).length === 0 && !!existing.looking_for?.startsWith(DECLINE_NOTE));
+  const [declined, setDeclined] = useState(armedDecline || (!!existing && (existing.other_destinations ?? []).length === 0 && !!existing.looking_for?.startsWith(DECLINE_NOTE)));
+  // Armed but not yet confirmed: nothing has been written for this visit.
+  const [pending, setPending] = useState(!!armed);
   const [msg, setMsg] = useState(() => {
     const lf = existing?.looking_for ?? "";
     return lf.startsWith(DECLINE_NOTE) ? lf.slice(DECLINE_NOTE.length).replace(/^\s*—\s*/, "") : lf;
@@ -68,16 +82,16 @@ export function SurveyQuick({ survey, token, existing, preview = false, justSave
     const next = new Set(picks);
     if (next.has(key)) next.delete(key); else next.add(key);
     const nextTop = topKey && next.has(topKey) ? topKey : null;
-    setPicks(next); setDeclined(false); setTopKey(nextTop);
+    setPicks(next); setDeclined(false); setTopKey(nextTop); setPending(false);
     persist(next, false, msg, nextTop);
   }
   function star(key: string) {
     const nextTop = topKey === key ? null : key;
-    setTopKey(nextTop);
+    setTopKey(nextTop); setPending(false);
     persist(picks, false, msg, nextTop);
   }
   function decline() {
-    setPicks(new Set()); setDeclined(true); setTopKey(null);
+    setPicks(new Set()); setDeclined(true); setTopKey(null); setPending(false);
     persist(new Set(), true, msg, null);
   }
 
@@ -98,14 +112,39 @@ export function SurveyQuick({ survey, token, existing, preview = false, justSave
         </span>
       </div>
 
+      {/* Armed from the email: shown, not saved. One press writes it. */}
+      {pending && (
+        <div className="mb-6 rounded-2xl border-2 border-[#f0a500] bg-[#fff8e8] p-5 text-center">
+          <p className="text-[15.5px] font-black text-[#00374a]">
+            {armedDecline
+              ? "Tell us you can't make it?"
+              : `Save ${dated.find((d) => d.key === armedDate)?.label ?? "this date"}?`}
+          </p>
+          <p className="text-[13px] text-[#6a7a80] mt-1">
+            {armedDecline
+              ? "We'll stop asking about this trip."
+              : "It's picked below. One press and we've got it."}
+          </p>
+          <button
+            type="button"
+            onClick={() => { setPending(false); persist(picks, declined, msg, topKey); }}
+            className="mt-4 w-full sm:w-auto sm:px-10 rounded-xl bg-[#f0a500] text-white font-black text-[15px] py-3 hover:bg-[#d99400] transition-colors"
+          >
+            {armedDecline ? "Yes, I'm out this time" : "Yes, save it"}
+          </button>
+        </div>
+      )}
+
       {/* state headline — warm, personal, zero-pressure */}
       <div className="text-center mb-7">
-        {declined ? (
+        {/* While a pick is only armed, nothing is stored yet — so don't tell the
+            rider they're on the list. The confirm button above is the truth. */}
+        {declined && !pending ? (
           <>
             <h2 className="text-[24px] sm:text-[30px] font-black tracking-[-0.02em] text-[#00374a]">All good — thanks for telling us 🤙</h2>
             <p className="text-[14.5px] text-[#6a7a80] mt-2">Changed your mind? Just tap a date below — it saves instantly.</p>
           </>
-        ) : picks.size > 0 ? (
+        ) : picks.size > 0 && !pending ? (
           <>
             <h2 className="text-[24px] sm:text-[30px] font-black tracking-[-0.02em] text-[#1f9e57]">You&apos;re on the list 🌊</h2>
             <p className="text-[14.5px] text-[#6a7a80] mt-2">No commitment — this just tells us who&apos;s keen. Tap to adjust anytime.{picks.size >= 2 && !topKey ? <> <span className="font-semibold text-[#b0791e]">Star ⭐ your favourite.</span></> : null}</p>
