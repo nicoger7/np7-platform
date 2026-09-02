@@ -81,8 +81,8 @@ export function AuthForm({ onLoggedIn, compact = false, initialMode = "login", n
         <h2 className="text-[17px] font-bold text-[#00374a] mb-1.5">Check your inbox</h2>
         <p className="text-[14px] text-[#6a7a80] leading-relaxed">
           {sent === "register"
-            ? <>We&apos;ve started your account and emailed a link to <strong>{email}</strong> to finish setting it up. You can add a password once you&apos;re in.</>
-            : <>If an account exists for <strong>{email}</strong>, we&apos;ve sent a secure login link. It expires shortly, so use it soon.</>}
+            ? <>We&apos;ve started your account and emailed a link to <strong>{email}</strong>. Open it and press the log-in button to finish. You can add a password once you&apos;re in.</>
+            : <>If an account exists for <strong>{email}</strong>, we&apos;ve sent a secure login link. Open it and press the log-in button on the page it shows. It expires shortly, so use it soon.</>}
         </p>
         <button onClick={() => { setSent(null); setMode("login"); }} className={`${linkBtn} mt-5`}>← Back to log in</button>
       </div>
