@@ -99,7 +99,7 @@ This buys three more things:
 - A forwarded WhatsApp link shows the trip without handing over an account.
 - A typo costs one bounce instead of an account.
 
-It also sidesteps the fact that a Supabase magic-link OTP expires (typically 1h) — a "logs her straight in" button in an email read the next morning lands on `/account/login?error=expired` (`src/app/account/auth/confirm/route.ts:18`).
+It also sidesteps the fact that a Supabase magic-link OTP expires (typically 1h) — a "logs her straight in" button in an email read the next morning lands on the confirm page, whose button then finds the token dead and redirects to `/account/login?error=expired` (`src/app/account/auth/confirm/verify/route.ts`).
 
 ### 2.5 One combined invoice, one reference — but it lives on the lead's booking
 

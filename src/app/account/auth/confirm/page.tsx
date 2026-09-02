@@ -21,10 +21,17 @@ import { NP7_LOGO } from "@/components/experience/ocean-header";
  */
 export const metadata = {
   title: "Log in — NP7",
-  // The token sits in the query string: keep it out of search engines and out
-  // of the Referer header of anything this page links to.
+  // The token sits in the query string: keep it out of search engines, and out
+  // of the Referer header of anything this page links to off-site.
   robots: { index: false, follow: false },
-  referrer: "no-referrer" as const,
+  // "same-origin", NOT "no-referrer". Under no-referrer the browser sends
+  // `Origin: null` on this page's own form POST (Fetch: a non-GET request with
+  // that policy serializes its origin as null), which the verify route's CSRF
+  // check then reads as a cross-site submission and refuses. The first cut of
+  // this fix shipped that way and rejected every real login while curl, which
+  // sets Origin by hand, sailed through. same-origin still strips the Referer
+  // for anything off-site, so the token stays put.
+  referrer: "same-origin" as const,
 };
 
 export default async function ConfirmPage({
