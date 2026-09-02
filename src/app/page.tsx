@@ -25,6 +25,16 @@ const Arrow = () => (
   </svg>
 );
 
+/*
+ * The homepage reads its copy from site_settings, but it was fully static: the
+ * DB read happened at BUILD time, so every edit in Admin → Website → Homepage
+ * sat there invisibly until the next deploy, while the admin cheerfully said
+ * "live within the hour". Hourly ISR makes that sentence true. The page is
+ * still served from the cache, so this costs one regeneration an hour, not a
+ * render per visit.
+ */
+export const revalidate = 3600;
+
 export default async function LandingPage() {
   // Admin copy (Admin → Website → Homepage, site_settings `home_page`).
   // Shipped strings are the floor — a missing row changes nothing.
