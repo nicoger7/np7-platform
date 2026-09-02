@@ -59,7 +59,7 @@ export function GiftBuyForm({ experiences, packages = [] }: { experiences: Exp[]
     });
     setBusy(false);
     const j = await res.json().catch(() => ({}));
-    if (res.ok) { track("voucher_buy", { amount, experience: expId || "any" }); setDone({ code: j.voucher?.code, amount: j.voucher?.amount ?? amount, currency: j.voucher?.currency ?? currency, pay: j.pay ?? null }); }
+    if (res.ok) { track("voucher_buy", { amount, currency, experience: expId || "any" }); setDone({ code: j.voucher?.code, amount: j.voucher?.amount ?? amount, currency: j.voucher?.currency ?? currency, pay: j.pay ?? null }); }
     else { setError(j.error || "Couldn't create the voucher — please try again."); }
   }
 

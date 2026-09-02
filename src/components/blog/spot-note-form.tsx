@@ -57,6 +57,7 @@ export function SpotNoteForm({ slug, spotName, accent }: { slug: string; spotNam
         </button>
         {authOpen && (
           <AuthModal
+            source="spot_note"
             initialMode="register"
             title={isGuide ? "Share your tip" : "Add your local knowledge"}
             subtitle="Log in or join (free) to share a tip"

@@ -42,7 +42,7 @@ export default async function AccountLoginPage({ searchParams }: { searchParams:
         )}
 
         <div className="bg-white rounded-2xl p-7">
-          <AuthForm next={safeNext} initialMode={expired ? "magic" : "login"} />
+          <AuthForm next={safeNext} initialMode={expired ? "magic" : "login"} source="login_page" />
         </div>
 
         <p className="text-center text-[12px] text-white/40 mt-6">

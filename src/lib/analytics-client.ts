@@ -5,7 +5,7 @@
  */
 
 import { hasAnalyticsConsent } from "@/components/shared/cookie-consent";
-import { metaForward } from "@/lib/meta-pixel";
+import { metaForward, metaStandardEvent } from "@/lib/meta-pixel";
 import { hasAuthCookie } from "@/lib/has-auth-cookie";
 
 const VID_KEY = "np7_vid"; // stable-ish visitor id (localStorage)
@@ -132,10 +132,15 @@ export function track(event: string, meta?: Record<string, unknown>): void {
   try {
     if (typeof window === "undefined") return;
     if (window.top !== window.self) return; // never track inside an iframe (e.g. the admin heatmap preview)
+    // Conversions get one id that both sinks share: Meta receives it as the
+    // dedup key, and we store it below so a future Conversions API call can
+    // replay the same conversion without it being counted twice. Only real
+    // conversions get one — a scroll-depth ping has nothing to deduplicate.
+    const eventId = metaStandardEvent(event) ? rid() : undefined;
     // Forward conversions to Meta — self-gated on its OWN marketing consent, so
     // it stays independent of first-party analytics consent (and is inert until
     // a Pixel id + marketing consent both exist).
-    metaForward(event, meta);
+    metaForward(event, meta, eventId);
     if (!hasAnalyticsConsent()) return;
     const path = window.location.pathname;
     const params = new URLSearchParams(window.location.search);
@@ -151,7 +156,7 @@ export function track(event: string, meta?: Record<string, unknown>): void {
       device: device(),
       experienceSlug: experienceSlug(path),
       authed: isAuthed(),
-      meta: meta || undefined,
+      meta: eventId ? { ...(meta ?? {}), event_id: eventId } : meta || undefined,
     };
     enqueue(payload);
   } catch {

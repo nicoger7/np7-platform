@@ -54,11 +54,19 @@ export function loadMetaPixel(): void {
   window.fbq("init", META_PIXEL_ID);
 }
 
-/** Fire a Meta standard event. No-op unless the pixel is enabled + loaded. */
-export function metaTrack(event: string, params?: Record<string, unknown>): void {
+/**
+ * Fire a Meta standard event. No-op unless the pixel is enabled + loaded.
+ *
+ * `eventId` is Meta's deduplication key. Sending the same id from the browser
+ * and (later) from the server-side Conversions API makes Meta count the
+ * conversion once instead of twice. Passing it now costs nothing and means CAPI
+ * can be switched on later without re-instrumenting every call site.
+ */
+export function metaTrack(event: string, params?: Record<string, unknown>, eventId?: string): void {
   try {
     if (!metaEnabled() || !window.fbq) return;
-    window.fbq("track", event, params || {});
+    if (eventId) window.fbq("track", event, params || {}, { eventID: eventId });
+    else window.fbq("track", event, params || {});
   } catch {
     /* never break the page */
   }
@@ -72,8 +80,33 @@ const EVENT_MAP: Record<string, string> = {
   voucher_buy: "Purchase",
 };
 
+/** The Meta standard event an internal event maps to, or null if it isn't a conversion. */
+export function metaStandardEvent(event: string): string | null {
+  return EVENT_MAP[event] ?? null;
+}
+
+/**
+ * Translate our internal event meta into the params Meta actually understands.
+ * Only fields that help optimisation, never anything identifying: no name, no
+ * email, no free text a visitor typed.
+ */
+function metaParams(std: string, meta?: Record<string, unknown>): Record<string, unknown> {
+  const p: Record<string, unknown> = {};
+  if (!meta) return p;
+  if (std === "Purchase") {
+    // A Purchase without a value teaches Meta's optimiser nothing.
+    const value = Number(meta.amount);
+    if (Number.isFinite(value) && value > 0) p.value = value;
+    p.currency = typeof meta.currency === "string" && meta.currency ? meta.currency : "EUR";
+  }
+  if (typeof meta.experience === "string") p.content_name = meta.experience;
+  if (typeof meta.package === "string") p.content_ids = [meta.package];
+  if (typeof meta.source === "string") p.content_category = meta.source;
+  return p;
+}
+
 /** Forward an internal event to Meta if it maps to a standard event. */
-export function metaForward(event: string, meta?: Record<string, unknown>): void {
+export function metaForward(event: string, meta?: Record<string, unknown>, eventId?: string): void {
   const std = EVENT_MAP[event];
-  if (std) metaTrack(std, meta);
+  if (std) metaTrack(std, metaParams(std, meta), eventId);
 }

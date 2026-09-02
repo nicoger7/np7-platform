@@ -66,6 +66,7 @@ export function SignupGate({ accent = "#00afdb" }: { accent?: string }) {
 
       {open && (
         <AuthModal
+          source="blog_gate"
           initialMode={open === "register" ? "register" : "login"}
           title={open === "register" ? "Join NP7 — free" : "Welcome back"}
           subtitle={open === "register" ? "One tap to finish reading and unlock the library" : "Log in to keep reading"}

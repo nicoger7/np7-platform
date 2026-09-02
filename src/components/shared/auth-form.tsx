@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
+import { track } from "@/lib/analytics-client";
 
 export type Mode = "login" | "magic" | "register";
 
@@ -12,7 +13,7 @@ export type Mode = "login" | "magic" | "register";
  * popup and on the /account/login fallback page. `initialMode` lets a caller
  * (e.g. the blog signup gate) open straight into "create account".
  */
-export function AuthForm({ onLoggedIn, compact = false, initialMode = "login", next: nextOverride }: { onLoggedIn?: () => void; compact?: boolean; initialMode?: Mode; /** Where to land after login (e.g. back to an open survey). Defaults to the page the form sits on. */ next?: string }) {
+export function AuthForm({ onLoggedIn, compact = false, initialMode = "login", next: nextOverride, source = "account" }: { onLoggedIn?: () => void; compact?: boolean; initialMode?: Mode; /** Where to land after login (e.g. back to an open survey). Defaults to the page the form sits on. */ next?: string; /** Which surface opened the form. Rides along on the Lead so the blog gate can be told apart from the header. */ source?: string }) {
   const router = useRouter();
   const supabase = createClient();
 
@@ -58,10 +59,14 @@ export function AuthForm({ onLoggedIn, compact = false, initialMode = "login", n
         return;
       }
       // register
-      await fetch("/api/portal/register", {
+      const res = await fetch("/api/portal/register", {
         method: "POST", headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ email, name: `${firstName.trim()} ${lastName.trim()}`.trim(), next }),
       });
+      // A free account is the Lead the ad campaigns optimise for, and this is
+      // the low-friction path (header, blog gate, spotguide wall). The reserve
+      // modal fires its own. Only on a real success — a failed POST is not a lead.
+      if (res.ok) track("register", { source });
       setSent("register"); setBusy(false);
     } catch {
       setError("Something went wrong — please try again.");

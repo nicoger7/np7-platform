@@ -178,7 +178,7 @@ export function MemberButton({
         </div>
       )}
 
-      {auth && <AuthModal initialMode={auth} onClose={() => setAuth(null)} />}
+      {auth && <AuthModal initialMode={auth} onClose={() => setAuth(null)} source="header" />}
     </div>
   );
 }

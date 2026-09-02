@@ -20,12 +20,15 @@ export function AuthModal({
   title = "My NP7",
   subtitle = "Log in to manage your trips & gear",
   onLoggedIn,
+  source = "account",
 }: {
   onClose: () => void;
   initialMode?: Mode;
   title?: string;
   subtitle?: string;
   onLoggedIn?: () => void;
+  /** Which surface opened the modal — rides along on the Lead. */
+  source?: string;
 }) {
   const router = useRouter();
 
@@ -47,6 +50,7 @@ export function AuthModal({
         <AuthForm
           compact
           initialMode={initialMode}
+          source={source}
           onLoggedIn={onLoggedIn ?? (() => { onClose(); router.push("/account"); router.refresh(); })}
         />
       </div>
