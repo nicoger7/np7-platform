@@ -27,6 +27,8 @@ import { describePrice } from "@/lib/pricing";
 import { createAdminClient } from "@/lib/supabase";
 import { getCoverer, getCoveredBookings, coveredExtraTotal } from "@/lib/group-booking";
 import { PackingChecklist } from "@/components/portal/packing-checklist";
+import { WhatsNext, buildWhatsNext } from "@/components/portal/whats-next";
+import { getSendTiming } from "@/lib/email/readiness";
 
 export const metadata: Metadata = { title: "My trip — NP7" };
 export const dynamic = "force-dynamic";
@@ -193,6 +195,29 @@ export default async function BookingDetail({ params }: Props) {
   const isEvent = b.edition?.kind === "event";
   const fullyPaid = total != null && total > 0 && paid >= total;
   const nextMilestone = plan.find((m) => m.status !== "paid");
+
+  // The dated steps a guest keeps asking about — derived from the same
+  // schedule the mail cron runs on, so the page and the inbox never disagree.
+  const [timing, companyRow] = await Promise.all([
+    getSendTiming().catch(() => ({ before: {} as Record<string, number | null | undefined> })),
+    // company_settings is newer than database.types.ts — same escape hatch the invoice code uses.
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    (createAdminClient() as any).from("company_settings").select("email, phone").eq("division", "experience").maybeSingle(),
+  ]);
+  const whatsNext = tripEnded ? [] : buildWhatsNext({
+    now,
+    start: startsAt,
+    end: b.edition?.date_end ? new Date(b.edition.date_end) : null,
+    plan,
+    depositPaid,
+    fullyPaid,
+    isEvent,
+    timingBefore: (timing as { before: Record<string, number | null | undefined> }).before ?? {},
+    whatsappLink: b.edition?.whatsapp_group_link ?? null,
+    joinedGroup: !!b.wa_group,
+    money: (n) => money(n, cur) ?? String(n),
+  });
+  const contactRow = (companyRow.data ?? null) as { email: string | null; phone: string | null } | null;
   // An event ticket used to be all-or-nothing, so anything short of the full
   // price read as "payment pending — book again". A rider who paid the €100
   // deposit on a €400 clinic is SECURED, and telling them to book again would
@@ -685,7 +710,15 @@ export default async function BookingDetail({ params }: Props) {
             />
           </div>
 
-          <TripView hero={!tripEnded ? <NextStepHero {...hero} /> : null} tiles={tiles} tabs={tabs} initial={initialTab} title={b.experience?.title ?? "Your trip"} statusLabel={chip.label} />
+          <TripView
+            hero={!tripEnded ? (
+              <>
+                <NextStepHero {...hero} />
+                <WhatsNext steps={whatsNext} contact={{ email: contactRow?.email ?? null, phone: contactRow?.phone ?? null }} />
+              </>
+            ) : null}
+            tiles={tiles} tabs={tabs} initial={initialTab} title={b.experience?.title ?? "Your trip"} statusLabel={chip.label}
+          />
         </div>
       </main>
     </>

@@ -5,10 +5,10 @@
  *   1. NEXT_PUBLIC_META_PIXEL_ID must be set (no id → the script never loads), AND
  *   2. the visitor must have given MARKETING consent (np7_consent_marketing="yes").
  *
- * The current cookie banner only offers essential/analytics consent and never
- * sets the marketing key — so today this is completely inert and the site's
- * "no third-party tracking" promise holds. To go live: set the Pixel id in env
- * AND add a Marketing option to the cookie banner + update the privacy policy.
+ * The cookie banner (components/shared/cookie-consent.tsx) offers a separate
+ * Marketing toggle (default off) that sets that key and fires "np7-consent", so
+ * the only switch left is the env var. Pixel id: dataset 1169038255308964 in
+ * the NP7 GmbH portfolio (set in Vercel prod+preview on 2026-09-02).
  *
  * Privacy: only standard events, no PII in params. Pair with the server-side
  * Conversions API later for iOS/ad-blocker resilience (event_id dedup).

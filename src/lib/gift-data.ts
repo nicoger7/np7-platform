@@ -27,12 +27,28 @@ export async function loadGiftData(): Promise<{ experiences: GiftExp[]; heroes: 
   // Public packages, deduped to one tier per name (lowest "from" price).
   let packages: GiftPkg[] = [];
   if (ids.length) {
-    const { data: pkgRows } = await sb.from("exp_packages").select("id, name, price, experience_id, sort_order, status, website_visible").in("experience_id", ids).order("sort_order");
+    /*
+     * The gift shop must offer exactly what the booking flow sells, no more.
+     * It used to drop only `archived` rows, so a package parked as `draft`
+     * (Bonaire's "Premium Ocean Front", €6,090, never released) was buyable
+     * as a gift, and packages that exist only on a past or unpublished week
+     * were merged into the generic "any week" list. Same rule as go-live.ts:
+     * active, visible, priced, and on a published week that is still ahead
+     * (or on no week at all).
+     */
+    const today = new Date().toISOString().slice(0, 10);
+    const { data: edRows } = await sb.from("exp_editions").select("id, status, date_end").in("experience_id", ids);
+    const liveEditions = new Set(
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      ((edRows ?? []) as any[]).filter((e) => e.status === "published" && (!e.date_end || e.date_end >= today)).map((e) => e.id),
+    );
+    const { data: pkgRows } = await sb.from("exp_packages").select("id, name, price, experience_id, edition_id, sort_order, status, website_visible, archived_at").in("experience_id", ids).order("sort_order");
     const tierName = (n: unknown) => String(n || "").replace(/^[A-Za-z]{2,5}\s*\d+\s*[-–—]\s*/, "").trim();
     const byKey = new Map<string, GiftPkg>();
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     for (const p of ((pkgRows ?? []) as any[])) {
-      if (p.status === "archived" || p.website_visible === false || p.price == null) continue;
+      if (p.archived_at || p.status !== "active" || p.website_visible === false || p.price == null) continue;
+      if (p.edition_id && !liveEditions.has(p.edition_id)) continue;
       const name = tierName(p.name) || p.name;
       const key = `${p.experience_id}|${name.toLowerCase()}`;
       const cur = byKey.get(key);

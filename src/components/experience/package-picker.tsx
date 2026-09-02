@@ -397,7 +397,17 @@ export function PackagePicker({ packages, extras = [], currency = "EUR", reserve
 
               // Hotel card: photo + name + blurb; the chosen hotel unfolds its rooms.
               const single = g.rooms.length === 1;
-              const cheapest = g.rooms[0];
+              /*
+               * The card's click used to select g.rooms[0] — the cheapest room,
+               * whether or not anyone could still book it. Bonaire Week I: the
+               * cheapest Sorobon type (Garden View Studio) was full while Ocean
+               * Front still had a bed, so tapping "Sorobon Beach Resort" picked a
+               * sold-out room, `selected` fell back to Wanapa, and the card did
+               * nothing — with no hint why. Pick the cheapest AVAILABLE room; and
+               * when there is none, say so instead of ignoring the tap.
+               */
+              const groupSold = g.rooms.every(isSoldOut);
+              const cheapest = g.rooms.find((r) => !isSoldOut(r)) ?? g.rooms[0];
               const photos = [g.image, ...(g.images ?? [])].filter(Boolean) as string[];
               const idx = Math.min(photoIdx[g.key] ?? 0, Math.max(0, photos.length - 1));
               return (
@@ -439,9 +449,10 @@ export function PackagePicker({ packages, extras = [], currency = "EUR", reserve
                   )}
 
                   <button
-                    onClick={() => !groupActive && setAccId(cheapest.id)}
+                    onClick={() => !groupActive && !groupSold && setAccId(cheapest.id)}
                     aria-pressed={groupActive}
-                    className="w-full flex items-stretch gap-4 text-left p-3"
+                    disabled={groupSold}
+                    className={`w-full flex items-stretch gap-4 text-left p-3 ${groupSold ? "opacity-55 cursor-not-allowed" : ""}`}
                   >
                     {!groupActive && g.image && (
                       <span
@@ -468,6 +479,7 @@ export function PackagePicker({ packages, extras = [], currency = "EUR", reserve
                         <Radio on={groupActive} />
                         <span className="text-[12px] font-semibold text-[#7a8a90]">
                           {single ? roomLabel(cheapest, g.hotelName) : `${g.rooms.length} room types`}
+                          {groupSold && <span className="ml-2 text-[10px] font-bold uppercase tracking-wide text-[#9aa6ac]">Sold out</span>}
                         </span>
                       </span>
                     </span>
