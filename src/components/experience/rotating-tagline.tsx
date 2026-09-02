@@ -53,7 +53,15 @@ export function RotatingTagline({
       // private mode, storage blocked: fall through and just show the server's pick
     }
 
-    const next = seen === startIndex ? (startIndex + 1) % len : startIndex;
+    /*
+     * Walk the list, don't just dodge a repeat. Checking only for a collision
+     * with the server's pick made the splash alternate between the first two
+     * lines forever, because there the server always starts at 0 and the third
+     * headline was unreachable. Stepping from what they last saw visits every
+     * line in turn; when that step happens to land on what the server already
+     * rendered, there is nothing to swap and no fade.
+     */
+    const next = seen === null ? startIndex : (seen + 1) % len;
     try { window.localStorage.setItem(KEY, String(next)); } catch { /* nothing to do */ }
     if (next === startIndex) return;
 
