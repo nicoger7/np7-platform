@@ -1,4 +1,5 @@
 import { createAdminClient } from "@/lib/supabase";
+import { programForEdition, type ProgramDay } from "@/lib/program-days";
 import { isAttending, normalizeBookingStatus, isLostStatus } from "@/lib/types";
 import { effectiveAddonStatus } from "@/lib/addons";
 import { parseFlightNote, type FlightInfo } from "@/lib/flights";
@@ -102,14 +103,37 @@ async function enrichMoney(db: any, bookings: MemberBooking[]): Promise<void> {
 }
 
 /** The experience's pre-trip content (written once in admin → Event Content →
-    Pre-trip): the packing list and Nico's personal note. Same source the
-    pre-trip emails use, so the trip account shows exactly what the emails
-    promise is "in your account". */
-export async function getPreTripContent(experienceId: string): Promise<{ packingList: string | null; preTripNote: string | null }> {
+    Pre-trip): the packing list, Nico's personal note, and the shape of the week.
+    Same source the pre-trip emails use, so the trip account shows exactly what
+    the emails promise is "in your account". */
+export async function getPreTripContent(
+  experienceId: string,
+  editionId?: string | null,
+): Promise<{ packingList: string | null; preTripNote: string | null; program: ProgramDay[] }> {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const db = createAdminClient() as any;
-  const { data } = await db.from("exp_content").select("packing_list,pre_trip_note").eq("experience_id", experienceId).maybeSingle();
-  return { packingList: data?.packing_list ?? null, preTripNote: data?.pre_trip_note ?? null };
+  const [cRes, eRes] = await Promise.all([
+    db.from("exp_content").select("packing_list,pre_trip_note,daily_program").eq("experience_id", experienceId).maybeSingle(),
+    editionId
+      ? db.from("exp_editions").select("daily_program").eq("id", editionId).maybeSingle()
+      : Promise.resolve({ data: null }),
+  ]);
+  const clean = (rows: unknown): ProgramDay[] =>
+    (Array.isArray(rows) ? rows : []).map((row, i) => {
+      const r = (row ?? {}) as { title?: string; description?: string };
+      return { title: r.title?.trim() || `Day ${i + 1}`, description: r.description ?? "" };
+    });
+  /* This run's own week wins when it has one, the experience's otherwise: the
+     SAME rule the public page runs, not a second copy of it. Deliberately no
+     fallback to the shipped sample week. A guest who paid must never be shown a
+     generic itinerary dressed up as their own. Nothing written means nothing
+     renders. */
+  const program = programForEdition(
+    editionId && Array.isArray(eRes?.data?.daily_program) ? { [editionId]: clean(eRes.data.daily_program) } : {},
+    clean(cRes.data?.daily_program),
+    editionId ?? null,
+  );
+  return { packingList: cRes.data?.packing_list ?? null, preTripNote: cRes.data?.pre_trip_note ?? null, program };
 }
 
 /** Attach the auto-branded-tile data (tile_auto + default/head coach) to each

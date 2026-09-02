@@ -55,7 +55,9 @@ export default async function BookingDetail({ params }: Props) {
     b.experience_id ? getExperienceArrivalInfo(b.experience_id).catch(() => null) : Promise.resolve(null),
     b.edition?.id ? getCrewProfiles(b.edition.id, user.contactId).catch(() => ({ going: 0, sharing: 0, profiles: [] })) : Promise.resolve({ going: 0, sharing: 0, profiles: [] }),
     getBookingPhotoSharing(b.id).catch(() => true),
-    b.experience_id ? getPreTripContent(b.experience_id).catch(() => ({ packingList: null, preTripNote: null })) : Promise.resolve({ packingList: null, preTripNote: null }),
+    b.experience_id
+      ? getPreTripContent(b.experience_id, b.edition?.id ?? null).catch(() => ({ packingList: null, preTripNote: null, program: [] }))
+      : Promise.resolve({ packingList: null, preTripNote: null, program: [] }),
     b.edition?.id ? getTripVideosForBooking(b.edition.id, b.id).catch(() => []) : Promise.resolve([]),
     getGuidesForBooking(b.id).catch(() => []),
     getVideoDownloadsRemaining(b.id).catch(() => 3),
@@ -228,6 +230,15 @@ export default async function BookingDetail({ params }: Props) {
     joinedGroup: !!b.wa_group,
     money: (n) => money(n, cur) ?? String(n),
   });
+  /* The day the "Final details" mail really lands, taken from the same
+     admin-editable schedule the timeline above prints (getSendTiming). Derived,
+     never typed, so the promise under the day-by-day and the timeline can never
+     drift apart when Nico moves a lead time. */
+  const finalDetailsLead = ((timing as { before: Record<string, number | null | undefined> }).before ?? {}).pre_trip_final;
+  const finalDetailsAt = startsAt && finalDetailsLead != null
+    ? new Date(startsAt.getTime() - finalDetailsLead * 86_400_000)
+    : null;
+
   const contactRow = (companyRow.data ?? null) as { email: string | null; phone: string | null } | null;
   // An event ticket used to be all-or-nothing, so anything short of the full
   // price read as "payment pending — book again". A rider who paid the €100
@@ -508,6 +519,51 @@ export default async function BookingDetail({ params }: Props) {
           <p className="text-[14px] text-[#3a4a50] leading-relaxed whitespace-pre-line">{preTrip.preTripNote}</p>
         </div>
       )}
+      {/* THE SHAPE OF THE WEEK.
+          This run's own day-by-day when it has one, the experience's otherwise
+          (resolved in getPreTripContent). Nothing written means nothing renders:
+          a "day by day" heading over an empty box reads as a page that failed to
+          load, and the promise underneath would turn into an apology for content
+          we do not have.
+          Not the public ProgramForWeek component: that is built for the sales
+          page, with a parallax masthead and a fold, and it reads a page-wide
+          edition context the portal has no provider for. What is shared is the
+          part worth sharing, which program this run gets. */}
+      {preTrip.program.length > 0 && (
+        <div id="program" className="scroll-mt-28 rounded-2xl border border-[#f0e6d6] bg-white p-5">
+          <p className="text-[11px] font-bold tracking-[0.14em] uppercase text-[#9aa6ac] mb-2">Your week, day by day</p>
+          <ol>
+            {preTrip.program.map((d, i) => {
+              const when = tripDayDate(b.edition?.date_start, i, b.edition?.date_end);
+              return (
+                <li key={i} className="py-3.5 border-t border-[#f3ede2] first:border-t-0 first:pt-0">
+                  <div className="flex flex-wrap items-baseline gap-x-2.5 gap-y-0.5">
+                    <span className="text-[11px] font-black tracking-[0.14em] uppercase text-[#c4621a] tabular-nums">Day {i + 1}</span>
+                    {when && <span className="text-[11.5px] font-semibold text-[#9aa6ac] tabular-nums">{when}</span>}
+                  </div>
+                  <p className="text-[14.5px] font-bold text-[#00374a] leading-snug mt-1">{d.title}</p>
+                  {d.description.trim() && (
+                    <p className="text-[13.5px] text-[#5a6b72] leading-relaxed mt-1 whitespace-pre-line">{d.description}</p>
+                  )}
+                </li>
+              );
+            })}
+          </ol>
+          {/* The promise, and it only ever sits under days that exist. */}
+          <p className="text-[12.5px] text-[#6a7a80] leading-snug mt-3 pt-3 border-t border-[#f3ede2]">
+            This is the shape of your week. The exact running order comes{" "}
+            {finalDetailsAt ? (
+              <strong className="text-[#00374a]">
+                {finalDetailsAt.toLocaleDateString("en-GB", { day: "numeric", month: "long" })}
+              </strong>
+            ) : (
+              "a few days before you fly"
+            )}
+            , once the forecast is close enough to read.
+          </p>
+        </div>
+      )}
+
       {/* wind.coach training guide(s) matched to this booking — only when one
           actually landed; no empty promise card. */}
       {guides.length > 0 && (
@@ -767,6 +823,25 @@ function normalizeWa(v: string): string {
   if (/^wa\.me\//i.test(s)) return `https://${s}`;
   const digits = s.replace(/[^\d]/g, "");
   return digits ? `https://wa.me/${digits}` : s;
+}
+
+/**
+ * The real date of day N of this run.
+ *
+ * Past the last day it returns null rather than a date: a run that inherits a
+ * longer week from its experience would otherwise print a confident, wrong date
+ * for a day it does not have, and somebody would book a flight on it.
+ */
+function tripDayDate(start: string | null | undefined, offset: number, end?: string | null): string | null {
+  if (!start) return null;
+  const d = new Date(`${start}T00:00:00Z`);
+  if (Number.isNaN(d.getTime())) return null;
+  d.setUTCDate(d.getUTCDate() + offset);
+  if (end) {
+    const last = new Date(`${end}T00:00:00Z`);
+    if (!Number.isNaN(last.getTime()) && d.getTime() > last.getTime()) return null;
+  }
+  return d.toLocaleDateString("en-GB", { weekday: "short", day: "numeric", month: "short", timeZone: "UTC" });
 }
 
 function Row({ label, value, tone }: { label: string; value: React.ReactNode; tone?: "green" | "amber" }) {

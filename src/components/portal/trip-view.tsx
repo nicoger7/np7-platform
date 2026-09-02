@@ -54,7 +54,25 @@ export function TripView({ hero, tiles, tabs, initial, title, statusLabel }: { h
   // anchor jump can't reach them — intercept the click and switch tab instead.
   // A few anchors target a section that lives inside a tab (e.g. #crew is in the
   // Trip tab): switch to that tab, then scroll to the section.
-  const SUB_ANCHOR: Record<string, string> = { crew: "trip" };
+  const SUB_ANCHOR: Record<string, string> = { crew: "trip", program: "trip" };
+
+  /* A mail can point straight at a section (…/bookings/<id>#program). Tabs are
+     swapped in and out of the DOM, so on arrival the target usually is not there
+     yet and the browser has nothing to scroll to: the guest lands on whatever
+     tab opens by default and never sees what the mail promised. Read the hash
+     once on mount, open the tab that owns it, then scroll. */
+  useEffect(() => {
+    const hash = window.location.hash.slice(1);
+    if (!hash) return;
+    const tab = tabs.some((t) => t.key === hash) ? hash : SUB_ANCHOR[hash];
+    if (!tab || !tabs.some((t) => t.key === tab)) return;
+    setActive(tab);
+    requestAnimationFrame(() =>
+      document.getElementById(tab === hash ? "trip-content" : hash)?.scrollIntoView({ behavior: "smooth", block: "start" })
+    );
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   function handleHashNav(e: React.MouseEvent) {
     const a = (e.target as HTMLElement).closest?.('a[href^="#"]') as HTMLAnchorElement | null;
     if (!a) return;
