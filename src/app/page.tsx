@@ -12,7 +12,7 @@ export const metadata: Metadata = {
 
 import { cdn } from "@/lib/cdn";
 import { createAdminClient } from "@/lib/supabase";
-import { parseTaglines } from "@/components/experience/rotating-tagline";
+import { parseTaglines } from "@/lib/taglines";
 
 const NP7_LOGO = cdn('logos/np7-logo.png');
 const NP7_EXPERIENCE_LOGO = cdn('logos/np7-experience-logo.png');

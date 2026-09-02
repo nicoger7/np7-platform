@@ -1,5 +1,6 @@
 import Link from "next/link";
-import { RotatingTagline, type TaglinePair } from "@/components/experience/rotating-tagline";
+import { RotatingTagline } from "@/components/experience/rotating-tagline";
+import type { TaglinePair } from "@/lib/taglines";
 
 /**
  * Holding landing for the soft launch: the existing public brand splash (the same

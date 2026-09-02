@@ -23,7 +23,8 @@ import { cdn } from "@/lib/cdn";
 
 const NP7_EXPERIENCE_LOGO = cdn('logos/np7-experience-logo.png');
 import { createAdminClient } from "@/lib/supabase";
-import { RotatingTagline, parseTaglines, type TaglinePair } from "@/components/experience/rotating-tagline";
+import { RotatingTagline } from "@/components/experience/rotating-tagline";
+import { parseTaglines, type TaglinePair } from "@/lib/taglines";
 
 const HERO_VIDEO = cdn('hero/windsurf-hero.mp4');
 const HERO_POSTER = cdn('hero/windsurf-hero-poster.jpg');
