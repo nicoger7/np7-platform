@@ -57,6 +57,15 @@ const navByEnv: Record<Environment, NavGroup[]> = {
         { label: "Equipment", href: "/admin/knowledge?view=equipment", icon: "puzzle" },
       ],
     },
+    {
+      // The staff handbook is knowledge too, and it was sitting under TEAM
+      // between Employees and Roles, where it read as an HR record rather than
+      // something you go and read.
+      label: "TRAINING",
+      items: [
+        { label: "Academy", href: "/admin/learning", icon: "cap" },
+      ],
+    },
   ],
   experience: [
     {
@@ -131,8 +140,12 @@ const navByEnv: Record<Environment, NavGroup[]> = {
     {
       label: "TEAM",
       items: [
-        // First in the group, and the only entry here everyone can open: the
-        // rest of TEAM is managing people, this is being one.
+        /* Academy is listed HERE as well as in the Knowledge world. It is the
+           staff handbook, so it belongs with knowledge, but the roles that
+           exist today (Admin, NP7 Experience Media) do not hold the Knowledge
+           world, and dropping it from TEAM would take the handbook out of
+           their sidebar. Nav items already repeat per world here, Dashboard and
+           File Storage do the same. */
         { label: "Academy", href: "/admin/learning", icon: "cap" },
         { label: "Employees", href: "/admin/team", icon: "person" },
         { label: "Roles", href: "/admin/roles", icon: "shield" },

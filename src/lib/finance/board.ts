@@ -102,8 +102,16 @@ export type Pnl = {
   opex: PnlLine;
   development: PnlLine;
   totalCosts: PnlLine;
+  /** The trading result. Financing is deliberately not in it. */
   result: PnlLine;
+  /** Share capital, investor tranches, loans. Money in that was not earned, so
+   *  it never touches the result or a margin, and always moves the bank. */
+  financing: PnlLine;
+  /** result + financing, which is what the account actually sees. */
+  cashMovement: PnlLine;
+  /** Running cash position, month by month. */
   accumulated: number[];
+  /** Deepest the position goes. This is the number a year needs funding for. */
   lowestPoint: number;
   grossMarginPct: number | null;
   netMarginPct: number | null;
@@ -203,17 +211,24 @@ function assemblePnl(
   const cogs = line(bucket.cogs);
   const opex = line(bucket.opex);
   const development = line(bucket.development);
+  const financing = line(bucket.financing);
   const grossProfit = line(revenue.byMonth.map((v, i) => r2(v - cogs.byMonth[i])));
   const totalCosts = line(cogs.byMonth.map((v, i) => r2(v + opex.byMonth[i] + development.byMonth[i])));
   const result = line(revenue.byMonth.map((v, i) => r2(v - totalCosts.byMonth[i])));
+  const cashMovement = line(result.byMonth.map((v, i) => r2(v + financing.byMonth[i])));
 
+  // The running line follows CASH, not the result: a month can lose money and
+  // still end richer because a tranche landed, and that is the month you need
+  // to see correctly.
   const accumulated: number[] = [];
   let running = openingBalance;
-  for (const m of result.byMonth) { running = r2(running + m); accumulated.push(running); }
+  for (const m of cashMovement.byMonth) { running = r2(running + m); accumulated.push(running); }
 
   return {
-    revenue, cogs, grossProfit, opex, development, totalCosts, result, accumulated,
+    revenue, cogs, grossProfit, opex, development, totalCosts, result,
+    financing, cashMovement, accumulated,
     lowestPoint: accumulated.length ? Math.min(...accumulated) : 0,
+    // Margins are trading measures. Financing is not in the denominator either.
     grossMarginPct: pct(grossProfit.total, revenue.total),
     netMarginPct: pct(result.total, revenue.total),
   };
@@ -314,7 +329,7 @@ export function buildBoard(input: {
   const cost = groupsFor("cost");
 
   // ── P&L: every row counted once, under the line its category belongs to ──
-  const GROUPS = ["revenue", "cogs", "opex", "development"] as const;
+  const GROUPS = ["revenue", "cogs", "opex", "development", "financing"] as const;
   const emptyBucket = () => Object.fromEntries(GROUPS.map((g) => [g, zero12()])) as Record<string, number[]>;
   const plannedBucket = emptyBucket();
   const actualBucket = emptyBucket();

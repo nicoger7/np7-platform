@@ -135,6 +135,12 @@ export const SECTIONS: Section[] = [
   // authoring APIs here is what stops a view-only role from rewriting them:
   // effectiveCanWrite fails closed on an unclaimed admin path, but only a
   // section can express "reachable by all, editable by some".
+  /* The Academy's nav entry moved to the Knowledge world, but this stays on
+     `experience` on purpose. This grant decides who may WRITE the handbook, and
+     the Admin and NP7 Experience Media roles hold `experience` and not
+     `knowledge`: switching it would have quietly taken authoring away from
+     them. Reading is unaffected either way, /admin/learning is a personal path
+     above. A menu tidy-up must not become a permission change. */
   { key: "learning", label: "Academy (write staff training)", world: "experience", group: "Team", paths: ["/admin/learning", "/api/admin/learning"] },
   // Experience · Finance
   { key: "payments", label: "Payments", world: "experience", group: "Finance", paths: ["/admin/payments", "/api/admin/payments"] },

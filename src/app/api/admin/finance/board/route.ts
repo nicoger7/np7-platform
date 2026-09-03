@@ -113,11 +113,34 @@ export async function GET(req: NextRequest) {
     for (const v of ((vs ?? []) as { id: string; name: string }[])) vendorNames.set(v.id, v.name);
   }
 
+  // Where the cash line starts. A year does not begin at zero when the year
+  // before it ended with money in the account, and the Sep-to-May plan crosses
+  // exactly one such boundary. Sum what every earlier plan in force moved.
+  let openingBalance = 0;
+  if (entity) {
+    const { data: priorPlans } = await db
+      .from("fin_plans").select("id").eq("entity_id", entity.id).lt("year", year).eq("status", "active");
+    const priorIds = ((priorPlans ?? []) as { id: string }[]).map((p) => p.id);
+    if (priorIds.length) {
+      const { data: priorLines } = await db
+        .from("fin_plan_lines").select("category_id,amount_net").in("plan_id", priorIds);
+      const groupOf = new Map(categories.map((c) => [c.id, c.pnl_group]));
+      for (const l of ((priorLines ?? []) as { category_id: string | null; amount_net: number }[])) {
+        const g = l.category_id ? groupOf.get(l.category_id) : null;
+        const amount = Number(l.amount_net) || 0;
+        // money in less money out, financing included: this is a bank balance
+        if (g === "revenue" || g === "financing") openingBalance += amount;
+        else openingBalance -= amount;
+      }
+      openingBalance = Math.round(openingBalance * 100) / 100;
+    }
+  }
+
   const board = buildBoard({
     entity, plan, year, categories,
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     lines: lines as any, allocations: allocations as any, actuals: actuals as any,
-    allocatedActualIds, editionLabels, vendorNames,
+    allocatedActualIds, editionLabels, vendorNames, openingBalance,
   });
 
   return NextResponse.json({ ...board, entities: entityList, categories, plans });

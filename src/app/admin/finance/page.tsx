@@ -302,6 +302,24 @@ export default function FinancePage() {
                 </div>
               )}
 
+              {/* Funding, kept visually apart from trading because it is not
+                  earned and never belongs in a margin. */}
+              {board.pnlPlanned.financing.total !== 0 && (
+                <div className="grid border-t" style={{ gridTemplateColumns: GRID, borderColor: "var(--admin-input-border)" }}>
+                  <div className="px-3 py-2 text-[11px] font-bold admin-heading sticky left-0 z-10"
+                       style={{ background: "var(--admin-card-bg, inherit)" }}>
+                    Funding
+                    <span className="ml-2 font-normal admin-faint">capital and tranches, not revenue</span>
+                  </div>
+                  {board.pnlPlanned.financing.byMonth.map((v, i) => (
+                    <div key={i} className="px-2 py-2 text-right text-[11px] tabular-nums admin-muted">{eur(v)}</div>
+                  ))}
+                  <div className="px-3 py-2 text-right text-[11px] tabular-nums admin-heading font-semibold">
+                    {eur(board.pnlPlanned.financing.total, false)}
+                  </div>
+                </div>
+              )}
+
               {/* net */}
               <div className="grid border-t-2 font-bold" style={{ gridTemplateColumns: GRID, borderColor: "var(--admin-accent)" }}>
                 <div className="px-3 py-2.5 text-xs admin-heading sticky left-0 z-10" style={{ background: "var(--admin-card-bg, inherit)" }}>
@@ -333,8 +351,10 @@ export default function FinancePage() {
               <div className="grid border-t" style={{ gridTemplateColumns: GRID, borderColor: "var(--admin-input-border)" }}>
                 <div className="px-3 py-2 text-[11px] font-bold admin-heading sticky left-0 z-10"
                      style={{ background: "var(--admin-card-bg, inherit)" }}>
-                  Running position
-                  <span className="ml-2 font-normal admin-faint">cumulative</span>
+                  Cash position
+                  <span className="ml-2 font-normal admin-faint">
+                    {board.openingBalance !== 0 ? `opening ${eur(board.openingBalance, false)}` : "closing balance each month"}
+                  </span>
                 </div>
                 {board.pnlPlanned.accumulated.map((v, i) => (
                   <div key={i} className={`px-2 py-2 text-right text-[11px] tabular-nums font-medium ${v < 0 ? "text-red-400" : "admin-muted"}`}>
@@ -434,6 +454,8 @@ function KeyNumbers({ planned, actual }: { planned: Pnl; actual: Pnl }) {
     { label: "Development", p: planned.development.total, a: actual.development.total, good: "down" },
     { label: "Total costs", p: planned.totalCosts.total, a: actual.totalCosts.total, good: "down" },
     { label: "Result before tax", p: planned.result.total, a: actual.result.total, good: "up", strong: true },
+    { label: "Funding", p: planned.financing.total, a: actual.financing.total, good: "up", hint: "share capital and investor tranches, not earned" },
+    { label: "Cash movement", p: planned.cashMovement.total, a: actual.cashMovement.total, good: "up", strong: true, hint: "result plus funding, which is what the bank sees" },
   ];
 
   return (
@@ -475,7 +497,9 @@ function KeyNumbers({ planned, actual }: { planned: Pnl; actual: Pnl }) {
         <Stat label="Gross margin" value={planned.grossMarginPct == null ? "—" : `${planned.grossMarginPct}%`} />
         <Stat label="Net margin" value={planned.netMarginPct == null ? "—" : `${planned.netMarginPct}%`} />
         <Stat label="Lowest position" value={eurExact(planned.lowestPoint)} warn={planned.lowestPoint < 0}
-              hint="the deepest the running balance goes, which is what the year needs funding for" />
+              hint="the deepest the cash balance goes, which is what the year needs funding for" />
+        <Stat label="Closing position" value={eurExact(planned.accumulated[11] ?? 0)}
+              warn={(planned.accumulated[11] ?? 0) < 0} hint="where the year ends" />
       </div>
     </div>
   );
