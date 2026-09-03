@@ -153,12 +153,12 @@ export default function FinancePage() {
   const t = board?.totals;
 
   return (
-    <div className="p-4 sm:p-6 space-y-5">
+    <div className="fin p-4 sm:p-6 space-y-5">
       {/* ── Header ─────────────────────────────────────────────── */}
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold admin-heading mb-1">Budget</h1>
-          <p className="text-sm admin-muted">
+          <h1 className="text-[28px] font-semibold admin-heading mb-0.5" style={{ letterSpacing: "-.028em" }}>Budget</h1>
+          <p className="fin-sub max-w-prose">
             Plan what a company spends and earns, month by month. Real costs attach to a planned
             line and update it themselves.
           </p>
@@ -232,14 +232,10 @@ export default function FinancePage() {
       </div>
 
       {board?.plan && (
-        <div className="flex gap-1 p-1 rounded-lg admin-input border w-fit">
+        <div className="fin-seg" role="tablist" aria-label="Budget view">
           {([["dashboard", "Dashboard"], ["timeline", "Timeline"], ["grid", "Grid"]] as const).map(([v, label]) => (
-            <button key={v} onClick={() => setView(v)}
-                    className={`px-3 py-1.5 rounded text-xs font-semibold transition-colors ${
-                      view === v ? "bg-[var(--admin-accent)] text-[var(--admin-accent-contrast)]" : "admin-muted"
-                    }`}>
-              {label}
-            </button>
+            <button key={v} role="tab" aria-selected={view === v} data-on={view === v}
+                    onClick={() => setView(v)}>{label}</button>
           ))}
         </div>
       )}
@@ -263,13 +259,13 @@ export default function FinancePage() {
 
       {/* ── No plan yet ────────────────────────────────────────── */}
       {!board?.entity ? (
-        <div className="admin-card border rounded-xl p-8 text-center">
+        <div className="fin-card text-center py-10">
           <p className="admin-muted text-sm">
             No company is set up for this world yet, so there is nothing to budget.
           </p>
         </div>
       ) : !board?.plan ? (
-        <div className="admin-card border rounded-xl p-8 text-center space-y-3">
+        <div className="fin-card text-center space-y-3 py-10">
           <p className="admin-muted text-sm">
             No budget for {entities.find((e) => e.key === selectedEntity)?.name ?? "this company"} in {year} yet.
           </p>
@@ -298,7 +294,7 @@ export default function FinancePage() {
           )}
 
           {/* ── The grid ─────────────────────────────────────────── */}
-          <div className={`admin-card border rounded-xl overflow-x-auto ${view === "grid" ? "" : "hidden"}`}>
+          <div className={`fin-card !p-0 overflow-x-auto ${view === "grid" ? "" : "hidden"}`}>
             <div style={{ minWidth: 1180 }}>
               {/* month header */}
               <div className="grid text-[10px] uppercase tracking-wider admin-faint font-semibold border-b"
@@ -415,7 +411,7 @@ export default function FinancePage() {
 
           {/* ── Costs with nowhere to go ─────────────────────────── */}
           {view !== "timeline" && board.unallocated.length > 0 && (
-            <div className="admin-card border rounded-xl p-4 space-y-2">
+            <div className="fin-card space-y-2">
               <h2 className="text-sm font-bold admin-heading">
                 Recorded but not attached
                 <span className="ml-2 text-xs font-normal admin-muted">
@@ -489,56 +485,62 @@ function KeyNumbers({ planned, actual }: { planned: Pnl; actual: Pnl }) {
     { label: "Revenue", p: planned.revenue.total, a: actual.revenue.total, good: "up" },
     { label: "Cost of goods", p: planned.cogs.total, a: actual.cogs.total, good: "down", hint: "what a sold unit or a delivered trip directly costs" },
     { label: "Gross profit", p: planned.grossProfit.total, a: actual.grossProfit.total, good: "up", strong: true },
+    { label: "Stock bought", p: planned.inventory.total, a: actual.inventory.total, good: "down", hint: "out of the bank, not a cost until it sells" },
     { label: "Operating costs", p: planned.opex.total, a: actual.opex.total, good: "down" },
     { label: "Development", p: planned.development.total, a: actual.development.total, good: "down" },
-    { label: "Total costs", p: planned.totalCosts.total, a: actual.totalCosts.total, good: "down" },
     { label: "Result before tax", p: planned.result.total, a: actual.result.total, good: "up", strong: true },
     { label: "Funding", p: planned.financing.total, a: actual.financing.total, good: "up", hint: "share capital and investor tranches, not earned" },
-    { label: "Cash movement", p: planned.cashMovement.total, a: actual.cashMovement.total, good: "up", strong: true, hint: "result plus funding, which is what the bank sees" },
   ];
 
   return (
-    <div className="admin-card border rounded-xl overflow-hidden">
-      <div className="grid text-[10px] uppercase tracking-wider admin-faint font-semibold border-b px-4 py-2"
-           style={{ gridTemplateColumns: "1fr 8rem 8rem 6rem", borderColor: "var(--admin-input-border)" }}>
-        <span>Key numbers</span>
-        <span className="text-right">Planned</span>
-        <span className="text-right">Actual</span>
-        <span className="text-right">Difference</span>
+    <div className="fin-card">
+      <div className="flex items-start justify-between gap-6 flex-wrap">
+        <div>
+          <div className="fin-label">Cash movement</div>
+          <div className={`fin-hero ${planned.cashMovement.total < 0 ? "text-red-400" : ""}`}>
+            {eurExact(planned.cashMovement.total)}
+          </div>
+          <div className="fin-sub mt-0.5">result plus funding, which is what the bank sees</div>
+        </div>
+        <div className="flex gap-8">
+          <Stat label="Gross margin"
+                value={planned.grossMarginPct == null ? "—" : `${planned.grossMarginPct}%`}
+                hint={planned.marginMeaningful ? undefined
+                  : "Withheld: this plan buys stock faster than it records cost of sale, so any margin off it is an artefact."} />
+          <Stat label="Lowest position" value={eurExact(planned.lowestPoint)} warn={planned.lowestPoint < 0}
+                hint="the deepest the cash balance goes, which is what the year needs funding for" />
+        </div>
       </div>
 
-      {rows.map((r) => {
-        const diff = r.a - r.p;
-        const helpful = r.good === "up" ? diff >= 0 : diff <= 0;
-        return (
-          <div key={r.label}
-               className="grid px-4 py-1.5 border-b items-baseline"
-               style={{ gridTemplateColumns: "1fr 8rem 8rem 6rem", borderColor: "var(--admin-input-border)" }}>
-            <span className={`text-xs ${r.strong ? "font-bold admin-heading" : "admin-muted"}`}>
-              {r.label}
-              {r.hint && <span className="ml-2 text-[10px] admin-faint font-normal hidden md:inline">{r.hint}</span>}
-            </span>
-            <span className={`text-right text-xs tabular-nums ${r.strong ? "font-bold" : ""} ${r.p < 0 ? "text-red-400" : "admin-heading"}`}>
-              {eurExact(r.p)}
-            </span>
-            <span className={`text-right text-xs tabular-nums ${r.a === 0 ? "admin-faint" : r.a < 0 ? "text-red-400" : "admin-heading"}`}>
-              {r.a === 0 ? "not yet" : eurExact(r.a)}
-            </span>
-            <span className={`text-right text-[11px] tabular-nums ${r.a === 0 ? "admin-faint" : helpful ? "text-green-400" : "text-amber-400"}`}>
-              {r.a === 0 ? "" : `${diff >= 0 ? "+" : ""}${eur(diff, false)}`}
-            </span>
-          </div>
-        );
-      })}
-
-      <div className="grid px-4 py-2 gap-y-1"
-           style={{ gridTemplateColumns: "repeat(auto-fit, minmax(9rem, 1fr))" }}>
-        <Stat label="Gross margin" value={planned.grossMarginPct == null ? "—" : `${planned.grossMarginPct}%`} />
-        <Stat label="Net margin" value={planned.netMarginPct == null ? "—" : `${planned.netMarginPct}%`} />
-        <Stat label="Lowest position" value={eurExact(planned.lowestPoint)} warn={planned.lowestPoint < 0}
-              hint="the deepest the cash balance goes, which is what the year needs funding for" />
-        <Stat label="Closing position" value={eurExact(planned.accumulated[11] ?? 0)}
-              warn={(planned.accumulated[11] ?? 0) < 0} hint="where the year ends" />
+      <div className="mt-5 fin-rule">
+        <div className="grid px-1 pt-2.5 pb-1 fin-label"
+             style={{ gridTemplateColumns: "1fr 8.5rem 8.5rem 6.5rem" }}>
+          <span>Line</span><span className="text-right">Planned</span>
+          <span className="text-right">Actual</span><span className="text-right">Difference</span>
+        </div>
+        {rows.map((r) => {
+          const diff = r.a - r.p;
+          const helpful = r.good === "up" ? diff >= 0 : diff <= 0;
+          return (
+            <div key={r.label} className="fin-row grid px-1 py-[7px] items-baseline rounded-lg"
+                 style={{ gridTemplateColumns: "1fr 8.5rem 8.5rem 6.5rem" }}>
+              <span className={`text-[13px] ${r.strong ? "fin-num font-semibold" : "admin-muted"}`}
+                    style={{ letterSpacing: "-.01em" }}>
+                {r.label}
+                {r.hint && <span className="ml-2 text-[11px] admin-faint hidden lg:inline">{r.hint}</span>}
+              </span>
+              <span className={`text-right text-[13px] tabular-nums ${r.strong ? "font-semibold" : ""} ${r.p < 0 ? "text-red-400" : "fin-num"}`}>
+                {eurExact(r.p)}
+              </span>
+              <span className={`text-right text-[13px] tabular-nums ${r.a === 0 ? "admin-faint" : r.a < 0 ? "text-red-400" : "fin-num"}`}>
+                {r.a === 0 ? "not yet" : eurExact(r.a)}
+              </span>
+              <span className={`text-right text-[12px] tabular-nums ${r.a === 0 ? "admin-faint" : helpful ? "text-green-400" : "text-amber-400"}`}>
+                {r.a === 0 ? "" : `${diff >= 0 ? "+" : ""}${eur(diff, false)}`}
+              </span>
+            </div>
+          );
+        })}
       </div>
     </div>
   );
@@ -547,8 +549,10 @@ function KeyNumbers({ planned, actual }: { planned: Pnl; actual: Pnl }) {
 function Stat({ label, value, warn, hint }: { label: string; value: string; warn?: boolean; hint?: string }) {
   return (
     <div title={hint}>
-      <div className="text-[10px] uppercase tracking-wider admin-faint font-semibold">{label}</div>
-      <div className={`text-sm font-bold tabular-nums ${warn ? "text-red-400" : "admin-heading"}`}>{value}</div>
+      <div className="fin-label">{label}</div>
+      <div className={`text-[19px] font-semibold tabular-nums mt-0.5 ${warn ? "text-red-400" : "fin-num"}`}
+           style={{ letterSpacing: "-.02em" }}>{value}</div>
+      {hint && value === "—" && <div className="fin-sub mt-0.5 max-w-[15rem]">not meaningful here</div>}
     </div>
   );
 }

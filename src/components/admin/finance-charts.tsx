@@ -25,23 +25,99 @@ const eur2 = (n: number) =>
   n.toLocaleString("de-DE", { style: "currency", currency: "EUR", minimumFractionDigits: 2 });
 
 export const VIZ_CSS = `
-.viz { --s-revenue:#2a78d6; --s-cogs:#eb6834; --s-inventory:#1baf7a;
+.viz, .fin { --s-revenue:#2a78d6; --s-cogs:#eb6834; --s-inventory:#1baf7a;
        --s-opex:#eda100; --s-development:#e87ba4; --s-funding:#008300;
-       --viz-line:#0b0b0b; --viz-grid:#e4e3df; --viz-neg:#e34948; --viz-neg-band:#fbeaea; }
+       --viz-line:#0b0b0b; --viz-grid:rgba(15,23,42,.07); --viz-neg:#e34948;
+       --viz-neg-band:rgba(227,73,72,.07);
+       --fin-hairline:rgba(15,23,42,.08);
+       --fin-raise:0 1px 1px rgba(15,23,42,.04), 0 8px 24px -14px rgba(15,23,42,.22);
+       --fin-inset:rgba(15,23,42,.045);
+       --fin-pill:#ffffff;
+       --fin-pill-shadow:0 1px 3px rgba(15,23,42,.14), 0 0 0 .5px rgba(15,23,42,.06); }
+/* Follow the ADMIN's own switch first. The OS setting only decides when the
+   admin has not said, which in practice it always has. */
+[data-admin-theme="light"] .viz, [data-admin-theme="light"] .fin { color-scheme: light; }
 @media (prefers-color-scheme: dark) {
-  :root:where(:not([data-theme="light"])) .viz {
+  :where(:not([data-admin-theme="light"])) .viz,
+  :where(:not([data-admin-theme="light"])) .fin,
+  .viz:where(:not([data-admin-theme="light"] *)),
+  .fin:where(:not([data-admin-theme="light"] *)) {
     --s-revenue:#3987e5; --s-cogs:#d95926; --s-inventory:#199e70;
     --s-opex:#c98500; --s-development:#d55181; --s-funding:#008300;
-    --viz-line:#f2f2f0; --viz-grid:#2b2f37; --viz-neg:#e66767; --viz-neg-band:#3a1f1f;
+    --viz-line:#f2f2f0; --viz-grid:rgba(255,255,255,.07); --viz-neg:#e66767;
+    --viz-neg-band:rgba(230,103,103,.09);
+    --fin-hairline:rgba(255,255,255,.09);
+    --fin-raise:0 1px 1px rgba(0,0,0,.4), 0 10px 30px -16px rgba(0,0,0,.8);
+    --fin-inset:rgba(255,255,255,.05);
+    --fin-pill:rgba(255,255,255,.12);
+    --fin-pill-shadow:0 1px 3px rgba(0,0,0,.5), 0 0 0 .5px rgba(255,255,255,.08);
   }
 }
-:root[data-theme="dark"] .viz {
+/* Both combinators: the attribute usually sits on an ancestor (.admin-root),
+   but it can land on the same element, and a descendant selector never
+   matches itself. */
+[data-admin-theme="dark"] .viz, [data-admin-theme="dark"] .fin,
+[data-admin-theme="dark"].viz, [data-admin-theme="dark"].fin {
   --s-revenue:#3987e5; --s-cogs:#d95926; --s-inventory:#199e70;
   --s-opex:#c98500; --s-development:#d55181; --s-funding:#008300;
-  --viz-line:#f2f2f0; --viz-grid:#2b2f37; --viz-neg:#e66767; --viz-neg-band:#3a1f1f;
+  --viz-line:#f2f2f0; --viz-grid:rgba(255,255,255,.07); --viz-neg:#e66767;
+  --viz-neg-band:rgba(230,103,103,.09);
+  --fin-hairline:rgba(255,255,255,.09);
+  --fin-raise:0 1px 1px rgba(0,0,0,.4), 0 10px 30px -16px rgba(0,0,0,.8);
+  --fin-inset:rgba(255,255,255,.05);
+  --fin-pill:rgba(255,255,255,.12);
+  --fin-pill-shadow:0 1px 3px rgba(0,0,0,.5), 0 0 0 .5px rgba(255,255,255,.08);
+}
+
+/* Type: the platform face first, numerals always tabular so a column of money
+   lines up and a changing figure does not shuffle its neighbours. */
+.fin, .viz {
+  font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "SF Pro Display",
+               "Segoe UI", system-ui, sans-serif;
+  font-variant-numeric: tabular-nums;
+  -webkit-font-smoothing: antialiased;
 }
 .viz text { fill: var(--admin-text-muted); font-variant-numeric: tabular-nums; }
 .viz .viz-strong { fill: var(--admin-text); }
+
+/* Surfaces: a hairline and a soft lift instead of a drawn box. */
+.fin-card {
+  background: var(--admin-surface);
+  border: .5px solid var(--fin-hairline);
+  border-radius: 18px;
+  box-shadow: var(--fin-raise);
+  padding: 20px 22px;
+}
+.fin-title { font-size: 15px; font-weight: 600; letter-spacing: -.012em; color: var(--admin-text); }
+.fin-sub   { font-size: 12px; color: var(--admin-text-faint); letter-spacing: -.005em; }
+.fin-label { font-size: 11px; font-weight: 500; letter-spacing: .04em; text-transform: uppercase;
+             color: var(--admin-text-faint); }
+.fin-hero  { font-size: clamp(30px, 4.4vw, 42px); font-weight: 600; letter-spacing: -.03em;
+             line-height: 1.02; color: var(--admin-text); }
+.fin-num   { font-weight: 500; letter-spacing: -.015em; color: var(--admin-text); }
+.fin-rule  { border-top: .5px solid var(--fin-hairline); }
+
+/* Segmented control. */
+.fin-seg { display: inline-flex; gap: 2px; padding: 2px; border-radius: 12px;
+           background: var(--fin-inset); }
+.fin-seg button {
+  appearance: none; border: 0; background: transparent; cursor: pointer;
+  font: 500 12.5px/1 -apple-system, BlinkMacSystemFont, system-ui, sans-serif;
+  letter-spacing: -.01em; color: var(--admin-text-muted);
+  padding: 7px 14px; border-radius: 10px;
+  transition: background .22s cubic-bezier(.32,.72,0,1), color .22s ease, box-shadow .22s ease;
+}
+.fin-seg button[data-on="true"] {
+  background: var(--fin-pill); color: var(--admin-text); box-shadow: var(--fin-pill-shadow);
+}
+.fin-seg button:focus-visible { outline: 2px solid var(--admin-accent); outline-offset: 2px; }
+
+.fin-row { transition: background .18s ease; }
+.fin-row:hover { background: var(--fin-inset); }
+
+@media (prefers-reduced-motion: reduce) {
+  .fin-seg button, .fin-row { transition: none; }
+}
 `;
 
 const SERIES = [
@@ -57,8 +133,9 @@ function Legend({ keys }: { keys: readonly string[] }) {
   return (
     <div className="flex flex-wrap gap-x-4 gap-y-1.5 mt-2">
       {SERIES.filter((s) => keys.includes(s.key)).map((s) => (
-        <span key={s.key} className="inline-flex items-center gap-1.5 text-[11px] admin-muted">
-          <span className="w-2.5 h-2.5 rounded-sm shrink-0" style={{ background: `var(${s.varName})` }} />
+        <span key={s.key} className="inline-flex items-center gap-1.5 text-[11.5px] admin-muted"
+              style={{ letterSpacing: "-.01em" }}>
+          <span className="w-2 h-2 rounded-full shrink-0" style={{ background: `var(${s.varName})` }} />
           {s.label}
         </span>
       ))}
@@ -66,14 +143,20 @@ function Legend({ keys }: { keys: readonly string[] }) {
   );
 }
 
-function Frame({ title, subtitle, children, footer }: {
-  title: string; subtitle?: string; children: React.ReactNode; footer?: React.ReactNode;
+function Frame({ title, subtitle, hero, children, footer }: {
+  title: string; subtitle?: string; hero?: React.ReactNode;
+  children: React.ReactNode; footer?: React.ReactNode;
 }) {
   return (
-    <div className="admin-card border rounded-xl p-4 viz">
-      <h3 className="text-sm font-bold admin-heading">{title}</h3>
-      {subtitle && <p className="text-[11px] admin-faint mb-2">{subtitle}</p>}
-      {children}
+    <div className="fin-card viz fin">
+      <div className="flex items-start justify-between gap-4 flex-wrap">
+        <div>
+          <h3 className="fin-title">{title}</h3>
+          {subtitle && <p className="fin-sub mt-0.5 max-w-prose">{subtitle}</p>}
+        </div>
+        {hero}
+      </div>
+      <div className="mt-4">{children}</div>
       {footer}
     </div>
   );
@@ -83,7 +166,7 @@ function Frame({ title, subtitle, children, footer }: {
 
 export function CashChart({ pnl, opening }: { pnl: Pnl; opening: number }) {
   const [hover, setHover] = useState<number | null>(null);
-  const W = 720, H = 240, L = 64, R = 16, T = 16, B = 28;
+  const W = 720, H = 220, L = 8, R = 8, T = 26, B = 26;
   const pts = pnl.accumulated;
   const lo = Math.min(0, ...pts, opening);
   const hi = Math.max(0, ...pts, opening);
@@ -92,56 +175,72 @@ export function CashChart({ pnl, opening }: { pnl: Pnl; opening: number }) {
   const y = (v: number) => T + (hi - v) * (H - T - B) / span;
   const zeroY = y(0);
 
+  // A rounded polyline reads calmer than corners at every month.
   const path = pts.map((v, i) => `${i === 0 ? "M" : "L"}${x(i)},${y(v)}`).join(" ");
   const area = `${path} L${x(11)},${zeroY} L${x(0)},${zeroY} Z`;
   const lowIdx = pts.indexOf(pnl.lowestPoint);
-  const ticks = [hi, hi - span / 2, lo].filter((v, i, a) => a.indexOf(v) === i);
+  const closing = pts[11] ?? 0;
+  const shown = hover ?? 11;
 
   return (
-    <Frame title="Cash position"
-           subtitle={`Closing balance each month${opening !== 0 ? `, opening at ${eur0(opening)}` : ""}. The low point is what the year needs funding for.`}>
+    <Frame
+      title="Cash position"
+      subtitle={opening !== 0 ? `Opening at ${eur0(opening)}. The low point is what the year needs funding for.`
+                              : "Closing balance each month. The low point is what the year needs funding for."}
+      hero={
+        <div className="text-right">
+          <div className="fin-label">{hover === null ? "Year end" : MONTHS[shown]}</div>
+          <div className={`fin-hero ${pts[shown] < 0 ? "text-red-400" : ""}`}>{eur0(pts[shown])}</div>
+          <div className="fin-sub mt-0.5">
+            low {eur0(pnl.lowestPoint)} · {MONTHS[lowIdx >= 0 ? lowIdx : 0]}
+          </div>
+        </div>
+      }
+    >
       <svg viewBox={`0 0 ${W} ${H}`} className="w-full h-auto" role="img"
-           aria-label={`Cash position by month. Lowest ${eur2(pnl.lowestPoint)}, closing ${eur2(pts[11] ?? 0)}.`}>
-        {/* months where the balance is under water */}
+           aria-label={`Cash position by month. Lowest ${eur2(pnl.lowestPoint)}, closing ${eur2(closing)}.`}>
+        <defs>
+          <linearGradient id="cashFill" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stopColor="var(--s-revenue)" stopOpacity="0.20" />
+            <stop offset="100%" stopColor="var(--s-revenue)" stopOpacity="0" />
+          </linearGradient>
+        </defs>
+
+        {/* months under water, tinted rather than boxed */}
         {pts.map((v, i) => v < 0 ? (
           <rect key={i} x={x(i) - (W - L - R) / 22} y={T} width={(W - L - R) / 11} height={H - T - B}
                 fill="var(--viz-neg-band)" />
         ) : null)}
-        {ticks.map((v) => (
-          <g key={v}>
-            <line x1={L} x2={W - R} y1={y(v)} y2={y(v)} stroke="var(--viz-grid)" strokeWidth="1" />
-            <text x={L - 8} y={y(v) + 3} textAnchor="end" fontSize="10">{eur0(v)}</text>
-          </g>
-        ))}
-        <line x1={L} x2={W - R} y1={zeroY} y2={zeroY} stroke="var(--viz-line)" strokeWidth="1.5" opacity="0.45" />
-        <path d={area} fill="var(--s-revenue)" opacity="0.07" />
-        <path d={path} fill="none" stroke="var(--viz-line)" strokeWidth="2"
+
+        <line x1={L} x2={W - R} y1={zeroY} y2={zeroY} stroke="var(--viz-grid)" strokeWidth="1" />
+        <path d={area} fill="url(#cashFill)" />
+        <path d={path} fill="none" stroke="var(--viz-line)" strokeWidth="2.25"
               strokeLinejoin="round" strokeLinecap="round" />
-        {pts.map((v, i) => (
-          <circle key={i} cx={x(i)} cy={y(v)} r={hover === i ? 5 : 3.5}
-                  fill={v < 0 ? "var(--viz-neg)" : "var(--viz-line)"}
-                  stroke="var(--admin-surface)" strokeWidth="2" />
-        ))}
-        {lowIdx >= 0 && (
-          <text x={x(lowIdx)} y={y(pts[lowIdx]) + (pts[lowIdx] < 0 ? 20 : -12)} textAnchor="middle"
-                fontSize="10" className="viz-strong" fontWeight="700">
-            low {eur0(pnl.lowestPoint)}
-          </text>
+
+        {/* one resting dot at the end, the rest appear under the cursor */}
+        <circle cx={x(11)} cy={y(closing)} r="4" fill="var(--viz-line)"
+                stroke="var(--admin-surface)" strokeWidth="2.5" />
+        {hover !== null && (
+          <g>
+            <line x1={x(hover)} x2={x(hover)} y1={T} y2={H - B} stroke="var(--viz-grid)" strokeWidth="1" />
+            <circle cx={x(hover)} cy={y(pts[hover])} r="5"
+                    fill={pts[hover] < 0 ? "var(--viz-neg)" : "var(--viz-line)"}
+                    stroke="var(--admin-surface)" strokeWidth="2.5" />
+          </g>
         )}
+
         {MONTHS.map((m, i) => (
-          <text key={m} x={x(i)} y={H - 8} textAnchor="middle" fontSize="10">{m}</text>
+          <text key={m} x={x(i)} y={H - 8} textAnchor="middle" fontSize="10.5"
+                opacity={hover === null || hover === i ? 1 : 0.45}>{m}</text>
         ))}
-        {/* hit targets wider than the marks */}
         {MONTHS.map((_, i) => (
-          <rect key={i} x={x(i) - (W - L - R) / 22} y={T} width={(W - L - R) / 11} height={H - T - B}
+          <rect key={i} x={x(i) - (W - L - R) / 22} y={0} width={(W - L - R) / 11} height={H}
                 fill="transparent" onMouseEnter={() => setHover(i)} onMouseLeave={() => setHover(null)} />
         ))}
       </svg>
       {hover !== null && (
-        <p className="text-[11px] admin-muted mt-1">
-          <span className="font-semibold admin-heading">{MONTHS[hover]}</span>
-          {" · closing "}<span className="font-semibold admin-heading">{eur2(pts[hover])}</span>
-          {" · moved "}{eur2(pnl.cashMovement.byMonth[hover])}
+        <p className="fin-sub mt-1">
+          moved <span className="fin-num">{eur2(pnl.cashMovement.byMonth[hover])}</span> in {MONTHS[hover]}
         </p>
       )}
     </Frame>
@@ -243,7 +342,7 @@ export function ObjectChart({ nodes }: { nodes: CostObjectNode[] }) {
       <div className="flex flex-col gap-3 mt-1">
         {rows.map((n) => (
           <div key={n.id} className="grid gap-1" style={{ gridTemplateColumns: "8rem 1fr" }}>
-            <span className="text-xs admin-heading font-semibold self-center truncate" title={n.name}>{n.name}</span>
+            <span className="text-[13px] fin-num self-center truncate" title={n.name}>{n.name}</span>
             <div className="flex flex-col gap-1">
               <Bar label="in" value={n.total.revenue} max={max} varName="--s-revenue" />
               <Bar label="out" value={cost(n)} max={max} varName="--s-cogs" />
@@ -260,11 +359,11 @@ function Bar({ label, value, max, varName }: { label: string; value: number; max
   const pct = max > 0 ? Math.max(0, (value / max) * 100) : 0;
   return (
     <div className="flex items-center gap-2">
-      <div className="flex-1 h-4 rounded-sm relative" style={{ background: "var(--viz-grid)" }}>
-        <div className="h-4 rounded-sm" style={{ width: `${pct}%`, background: `var(${varName})` }} />
+      <div className="flex-1 h-2.5 rounded-full relative overflow-hidden" style={{ background: "var(--fin-inset)" }}>
+        <div className="h-2.5 rounded-full" style={{ width: `${pct}%`, background: `var(${varName})` }} />
       </div>
-      <span className="text-[11px] tabular-nums admin-muted w-24 text-right shrink-0">
-        {label} {eur0(value)}
+      <span className="text-[11.5px] tabular-nums admin-muted w-28 text-right shrink-0" style={{ letterSpacing: "-.01em" }}>
+        {label} <span className="fin-num">{eur0(value)}</span>
       </span>
     </div>
   );

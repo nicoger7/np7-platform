@@ -706,6 +706,11 @@ export default function AdminShell({
   return (
     <div
       className="admin-root min-h-screen lg:flex"
+      // The admin's light/dark switch is inline CSS variables in React state, so
+      // it never reaches prefers-color-scheme or a root data-theme. Anything
+      // styled by stylesheet rather than by those variables (the finance charts)
+      // needs to know which theme is on, and this attribute is how it finds out.
+      data-admin-theme={theme}
       style={{
         ...Object.fromEntries(Object.entries(vars)),
         backgroundColor: "var(--admin-bg)",
