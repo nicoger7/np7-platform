@@ -112,7 +112,7 @@ export const SECTIONS: Section[] = [
   { key: "packages", label: "Packages", world: "experience", group: "Operations", paths: ["/admin/packages", "/api/admin/packages"] },
   { key: "components", label: "Components", world: "experience", group: "Operations", paths: ["/admin/components", "/api/admin/components"] },
   // Experience · Website
-  { key: "file_storage", label: "File storage", world: "experience", group: "Website", paths: ["/admin/images", "/api/admin/images", "/api/admin/memories", "/api/admin/videos"] },
+  { key: "file_storage", label: "File storage", world: "experience", group: "Website", paths: ["/admin/images", "/api/admin/images", "/api/admin/memories", "/api/admin/videos", "/api/admin/media"] },
   { key: "event_content", label: "Event content", world: "experience", group: "Website", paths: ["/admin/content", "/api/admin/content", "/api/admin/events", "/api/admin/event-dates", "/api/admin/youtube"] },
   { key: "members", label: "Member management", world: "experience", group: "Website", paths: ["/admin/members", "/api/admin/members"] },
   { key: "magazine", label: "Magazine", world: "experience", group: "Website", paths: ["/admin/blog", "/api/admin/blog"] },
