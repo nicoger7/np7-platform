@@ -239,6 +239,62 @@ export default async function BookingDetail({ params }: Props) {
     ? new Date(startsAt.getTime() - finalDetailsLead * 86_400_000)
     : null;
 
+  /* THE SHAPE OF THE WEEK.
+     This run's own day-by-day when it has one, the experience's otherwise
+     (resolved in getPreTripContent). Nothing written means nothing renders: a
+     "day by day" heading over an empty box reads as a page that failed to load,
+     and the promise underneath would turn into an apology for content we do not
+     have.
+     Built here rather than inline in the Trip tab because an EVENT booking has
+     no Trip tab at all (see the tabs array below) — the OBX clinic carries a
+     seven-day programme on its edition and showed none of it. Same block, two
+     homes.
+     Not the public ProgramForWeek component: that is built for the sales page,
+     with a parallax masthead and a fold, and it reads a page-wide edition
+     context the portal has no provider for. What is shared is the part worth
+     sharing, which programme this run gets. */
+  const dayByDay = preTrip.program.length > 0 ? (
+    <details id="program" className="scroll-mt-28 rounded-2xl border border-[#f0e6d6] bg-white group" open={isEvent}>
+      <summary className="flex items-center justify-between gap-3 p-5 cursor-pointer list-none [&::-webkit-details-marker]:hidden">
+        <div>
+          <p className="text-[11px] font-bold tracking-[0.14em] uppercase text-[#9aa6ac]">Your ideal week</p>
+          <p className="text-[13.5px] text-[#5a6b72] mt-0.5">
+            How a week here runs, {preTrip.program.length} days. The wind writes the real one.
+          </p>
+        </div>
+        <span className="text-[12px] font-bold text-[#00afdb] shrink-0 group-open:hidden">Show</span>
+        <span className="text-[12px] font-bold text-[#00afdb] shrink-0 hidden group-open:inline">Hide</span>
+      </summary>
+      <div className="px-5 pb-5">
+        <ol>
+          {preTrip.program.map((d, i) => {
+            const when = tripDayDate(b.edition?.date_start, i, b.edition?.date_end);
+            return (
+              <li key={i} className="py-3.5 border-t border-[#f3ede2]">
+                <div className="flex flex-wrap items-baseline gap-x-2.5 gap-y-0.5">
+                  <span className="text-[11px] font-black tracking-[0.14em] uppercase text-[#c4621a] tabular-nums">Day {i + 1}</span>
+                  {when && <span className="text-[11.5px] font-semibold text-[#9aa6ac] tabular-nums">{when}</span>}
+                </div>
+                <p className="text-[14.5px] font-bold text-[#00374a] leading-snug mt-1">{d.title}</p>
+                {d.description.trim() && (
+                  <p className="text-[13.5px] text-[#5a6b72] leading-relaxed mt-1 whitespace-pre-line">{d.description}</p>
+                )}
+              </li>
+            );
+          })}
+        </ol>
+        {/* Said once, at the bottom, where someone who read the days is asking
+            "so is this what happens?". Named as the ideal week up top so the
+            question never has to form. */}
+        <p className="text-[12.5px] text-[#6a7a80] leading-snug mt-3 pt-3 border-t border-[#f3ede2]">
+          This is the ideal week, not a timetable. We follow the forecast, so the running order
+          moves with it. The detailed plan for your days comes in the crew chat shortly before
+          you fly.
+        </p>
+      </div>
+    </details>
+  ) : null;
+
   const contactRow = (companyRow.data ?? null) as { email: string | null; phone: string | null } | null;
   // An event ticket used to be all-or-nothing, so anything short of the full
   // price read as "payment pending — book again". A rider who paid the €100
@@ -519,51 +575,6 @@ export default async function BookingDetail({ params }: Props) {
           <p className="text-[14px] text-[#3a4a50] leading-relaxed whitespace-pre-line">{preTrip.preTripNote}</p>
         </div>
       )}
-      {/* THE SHAPE OF THE WEEK.
-          This run's own day-by-day when it has one, the experience's otherwise
-          (resolved in getPreTripContent). Nothing written means nothing renders:
-          a "day by day" heading over an empty box reads as a page that failed to
-          load, and the promise underneath would turn into an apology for content
-          we do not have.
-          Not the public ProgramForWeek component: that is built for the sales
-          page, with a parallax masthead and a fold, and it reads a page-wide
-          edition context the portal has no provider for. What is shared is the
-          part worth sharing, which program this run gets. */}
-      {preTrip.program.length > 0 && (
-        <div id="program" className="scroll-mt-28 rounded-2xl border border-[#f0e6d6] bg-white p-5">
-          <p className="text-[11px] font-bold tracking-[0.14em] uppercase text-[#9aa6ac] mb-2">Your week, day by day</p>
-          <ol>
-            {preTrip.program.map((d, i) => {
-              const when = tripDayDate(b.edition?.date_start, i, b.edition?.date_end);
-              return (
-                <li key={i} className="py-3.5 border-t border-[#f3ede2] first:border-t-0 first:pt-0">
-                  <div className="flex flex-wrap items-baseline gap-x-2.5 gap-y-0.5">
-                    <span className="text-[11px] font-black tracking-[0.14em] uppercase text-[#c4621a] tabular-nums">Day {i + 1}</span>
-                    {when && <span className="text-[11.5px] font-semibold text-[#9aa6ac] tabular-nums">{when}</span>}
-                  </div>
-                  <p className="text-[14.5px] font-bold text-[#00374a] leading-snug mt-1">{d.title}</p>
-                  {d.description.trim() && (
-                    <p className="text-[13.5px] text-[#5a6b72] leading-relaxed mt-1 whitespace-pre-line">{d.description}</p>
-                  )}
-                </li>
-              );
-            })}
-          </ol>
-          {/* The promise, and it only ever sits under days that exist. */}
-          <p className="text-[12.5px] text-[#6a7a80] leading-snug mt-3 pt-3 border-t border-[#f3ede2]">
-            This is the shape of your week. The exact running order comes{" "}
-            {finalDetailsAt ? (
-              <strong className="text-[#00374a]">
-                {finalDetailsAt.toLocaleDateString("en-GB", { day: "numeric", month: "long" })}
-              </strong>
-            ) : (
-              "a few days before you fly"
-            )}
-            , once the forecast is close enough to read.
-          </p>
-        </div>
-      )}
-
       {/* wind.coach training guide(s) matched to this booking — only when one
           actually landed; no empty promise card. */}
       {guides.length > 0 && (
@@ -644,6 +655,7 @@ export default async function BookingDetail({ params }: Props) {
           </div>
         </div>
       )}
+      {dayByDay}
       {coaches.length > 0 && (
         <div>
           <p className="text-[11px] font-bold tracking-[0.14em] uppercase text-[#9aa6ac] mb-3">Your team</p>
@@ -753,8 +765,12 @@ export default async function BookingDetail({ params }: Props) {
   // Crew tile pointed at a "trip" tab that events didn't have, so the tile did
   // nothing at all.
   const crewTab: TripTab = { key: "crew", label: "Crew", content: crewContent };
+  /* Events have no Trip tab, so the programme needs a home of its own. Only
+     when there is one to show — an empty tab is worse than no tab. */
+  const programTab: TripTab = { key: "program", label: "Programme", content: <div className="space-y-6">{dayByDay}</div> };
+  const eventTabs = (base: TripTab[]) => (dayByDay ? [base[0], programTab, ...base.slice(1)] : base);
   const tabs: TripTab[] = isEvent
-    ? (tripStarted ? [photosTab, crewTab, docsTab, paymentTab] : [paymentTab, crewTab, docsTab, photosTab])
+    ? eventTabs(tripStarted ? [photosTab, crewTab, docsTab, paymentTab] : [paymentTab, crewTab, docsTab, photosTab])
     : tripStarted ? [photosTab, paymentTab, tripTab, docsTab] : [paymentTab, prepTab, tripTab, docsTab, photosTab];
   const initialTab = tripStarted ? "photos" : isEvent ? (fullyPaid ? "docs" : "payment") : !depositPaid ? "payment" : "prep";
 
