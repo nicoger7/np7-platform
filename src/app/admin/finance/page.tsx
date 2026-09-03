@@ -229,7 +229,13 @@ export default function FinancePage() {
       )}
 
       {/* ── No plan yet ────────────────────────────────────────── */}
-      {!board?.plan ? (
+      {!board?.entity ? (
+        <div className="admin-card border rounded-xl p-8 text-center">
+          <p className="admin-muted text-sm">
+            No company is set up for this world yet, so there is nothing to budget.
+          </p>
+        </div>
+      ) : !board?.plan ? (
         <div className="admin-card border rounded-xl p-8 text-center space-y-3">
           <p className="admin-muted text-sm">
             No budget for {entities.find((e) => e.key === selectedEntity)?.name ?? "this company"} in {year} yet.

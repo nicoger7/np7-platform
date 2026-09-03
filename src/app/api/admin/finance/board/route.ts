@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase";
 import { getRequestAccess } from "@/lib/admin-auth";
 import { effectiveCanSeeField } from "@/lib/access";
-import { buildBoard, type BoardCategory, type BoardEntity, type BoardPlan } from "@/lib/finance/board";
+import { buildBoard, entitiesForWorld, type BoardCategory, type BoardEntity, type BoardPlan } from "@/lib/finance/board";
 
 /**
  * GET /api/admin/finance/board?entity=<key|id>&year=YYYY&plan=<id>
@@ -32,10 +32,11 @@ export async function GET(req: NextRequest) {
 
   const { data: entities } = await db
     .from("fin_entities").select("id,key,name,role,division,status,active_from,note").order("sort");
-  const entityList = (entities ?? []) as BoardEntity[];
+  // Scoped BEFORE anything is chosen, so an entity from the other world cannot
+  // be reached even by passing its key in the query string.
+  const entityList = entitiesForWorld((entities ?? []) as BoardEntity[], world);
   const entity =
     entityList.find((e) => e.id === entityParam || e.key === entityParam) ??
-    (world ? entityList.find((e) => e.division === world) : undefined) ??
     entityList[0] ?? null;
 
   // Experience and Hardware are being separated into their own companies, so

@@ -99,6 +99,22 @@ export type Board = {
   }[];
 };
 
+/**
+ * Which companies belong to an admin world.
+ *
+ * Experience and Hardware are becoming separate companies, so the other side's
+ * books are not offered here at all. Deselecting them would not be separation;
+ * it would just be a default. An unknown world sees everything, which is what
+ * the holding view will want later.
+ */
+export function entitiesForWorld<T extends { division: string | null }>(
+  entities: T[],
+  world: string | null | undefined,
+): T[] {
+  if (world !== "experience" && world !== "hardware") return entities;
+  return entities.filter((e) => e.division === world);
+}
+
 export const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
 
 export const r2 = (n: number) => Math.round((Number(n) || 0) * 100) / 100;

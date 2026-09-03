@@ -4,7 +4,7 @@
  * Run: npx tsx --env-file=.env.local --tsconfig tsconfig.json <this file>
  */
 import { createClient } from "@supabase/supabase-js";
-import { buildBoard, rowKey, monthDate, r2 } from "@/lib/finance/board";
+import { buildBoard, entitiesForWorld, rowKey, monthDate, r2 } from "@/lib/finance/board";
 
 const db = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -131,6 +131,16 @@ async function main() {
   check("an entity exists for each side",
     ents.some((e: any) => e.division === "experience") && ents.some((e: any) => e.division === "hardware"),
     ents.map((e: any) => `${e.key}:${e.division}`));
+
+  const inExp = entitiesForWorld(ents, "experience").map((e: any) => e.key);
+  const inHw = entitiesForWorld(ents, "hardware").map((e: any) => e.key);
+  check("Experience world offers only Experience companies",
+    inExp.includes("np7-gmbh") && inExp.includes("np7-experience") && !inExp.includes("np7-hardware"), inExp);
+  check("Hardware world offers only the hardware company",
+    inHw.includes("np7-hardware") && !inHw.includes("np7-gmbh") && !inHw.includes("np7-experience"), inHw);
+  check("a world with no company gets nothing, not everything",
+    entitiesForWorld([{ division: "experience" }], "hardware").length === 0);
+  check("an unknown world still sees everything", entitiesForWorld(ents, null).length === ents.length);
 
   console.log("\n── row identity ────────────────────────────────");
   check("same label + different edition = different rows",
