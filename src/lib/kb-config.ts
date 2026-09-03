@@ -98,9 +98,10 @@ export const KB_TEMPLATES: Record<"skill" | "equipment", KbSectionTemplate[]> = 
         { key: "also_called", label: "Also called", kind: "list", itemLabel: "name",
           ask: "What else do guests call it?",
           fields: [{ key: "name", label: "Name", kind: "text", required: true, ask: "" }] },
-        { key: "video_url", label: "Reference video", kind: "url",
-          ask: "Is there a reference video (YouTube or Wind Coach)?" },
-        { key: "video_note", label: "What to watch for", kind: "text", ask: "" },
+        /* "Reference video" and "What to watch for" lived here and asked for a
+           link to somebody else's YouTube. The Videos tab below attaches OUR
+           clips, from our own weeks, so the field was asking for the weaker
+           version of a thing the section already does properly. */
         NOTES,
       ],
     },
@@ -166,7 +167,10 @@ export const KB_TEMPLATES: Record<"skill" | "equipment", KbSectionTemplate[]> = 
             { key: "dose", label: "Dose", kind: "text", ask: "How many reps, or how long?" },
             { key: "easier", label: "Make it easier", kind: "text", ask: "How do you simplify it?" },
             { key: "harder", label: "Make it harder", kind: "text", ask: "How do you progress it?" },
-            { key: "video_url", label: "Video", kind: "url", ask: "" },
+            /* Kept, and only here. Media attaches to a SECTION, so a clip of
+               one specific drill has nowhere else to live until attachments can
+               hang off a row. Remove this the day they can. */
+            { key: "video_url", label: "Video of this drill", kind: "url", ask: "" },
           ] },
         NOTES,
       ],
@@ -225,7 +229,6 @@ export const KB_TEMPLATES: Record<"skill" | "equipment", KbSectionTemplate[]> = 
             { key: "label", label: "Label", kind: "text", required: true, ask: "" },
             { key: "value", label: "Value", kind: "text", required: true, ask: "" },
           ] },
-        { key: "video_url", label: "Video", kind: "url", ask: "" },
         NOTES,
       ],
     },
