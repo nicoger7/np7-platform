@@ -46,8 +46,18 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     .eq("entry_id", id).order("sort_order", { ascending: false }).limit(1).maybeSingle();
   let next = (last?.sort_order ?? -1) + 1;
 
+  /* Skip what is already on this section. The unique index cannot catch a
+     repeat while section_key is null (NULLs are distinct in an index), so the
+     check lives here rather than pretending the database does it. */
+  const { data: have } = await db.from("kb_media").select("ref")
+    .eq("entry_id", id).eq("section_key", sectionKey ?? "");
+  const seen = new Set(((have ?? []) as { ref: string }[]).map((r) => r.ref));
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const rows = items.map((i: any) => ({
+  const fresh = items.filter((i: any) => !seen.has(String(i.ref)));
+  if (!fresh.length) return NextResponse.json({ ok: true, added: 0 });
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const rows = fresh.map((i: any) => ({
     entry_id: id,
     section_key: sectionKey,
     kind: i.kind === "video" ? "video" : "photo",
@@ -58,9 +68,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     source: ["library", "memories", "upload"].includes(i.source) ? i.source : "library",
     sort_order: next++,
   }));
-  // Same photo on the same section twice is a slip, not a choice: the unique
-  // index catches it and we quietly keep the first.
-  const { error } = await db.from("kb_media").upsert(rows, { onConflict: "entry_id,section_key,ref", ignoreDuplicates: true });
+  const { error } = await db.from("kb_media").insert(rows);
   if (error) return NextResponse.json({ error: error.message }, { status: 400 });
   return NextResponse.json({ ok: true, added: rows.length });
 }
