@@ -78,7 +78,14 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en" className={`${poppins.variable} ${anton.variable} antialiased`}>
+    <html
+      lang="en"
+      className={`${poppins.variable} ${anton.variable} antialiased`}
+      /* SECTION_SCRIPT stamps data-np7-section on <html> before first paint, so
+         the attribute React hydrates against is one it never rendered. Same
+         deal as a dark-mode theme script — the mismatch is the design. */
+      suppressHydrationWarning
+    >
       <body className="min-h-screen flex flex-col">
         {/* Both run before any page markup is parsed, so the world-spanning
             pages (Magazine, Spotguide, About) can be cached world-neutral and

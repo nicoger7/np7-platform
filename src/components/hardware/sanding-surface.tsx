@@ -114,6 +114,9 @@ export function SandingSurface() {
 
     // the visible coat = primer minus both masks (rebuilt, never compounded)
     const rebuild = () => {
+      // A 0x0 canvas is an invalid drawImage SOURCE, so the two masks below
+      // would throw InvalidStateError rather than draw nothing.
+      if (coat.width === 0 || coat.height === 0) return;
       ctx.globalCompositeOperation = "source-over";
       ctx.globalAlpha = 1;
       ctx.clearRect(0, 0, coat.width, coat.height);
@@ -129,6 +132,11 @@ export function SandingSurface() {
       const r = section.getBoundingClientRect();
       const w = Math.round(r.width * S);
       const h = Math.round(r.height * S);
+      // The section is display:none until the pre-paint script picks a world,
+      // and a hidden element measures 0x0. Sizing the masks to that would make
+      // them unusable as sources; leave every canvas alone and wait for the
+      // ResizeObserver to hand us a real box.
+      if (w === 0 || h === 0) return;
       for (const c of [carbon, coat, fresh, wear]) { c.width = w; c.height = h; }
       // A canvas is a REPLACED element: `inset-0` does NOT stretch it, so it
       // takes its layout size from the backing store — at S=2 that made the

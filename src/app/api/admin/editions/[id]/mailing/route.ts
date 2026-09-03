@@ -201,6 +201,17 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
   // crafted request could fire e.g. deposit_confirmation with half its vars
   // missing — nothing in the UI offered that, which is exactly why the API
   // must not accept it.
+  /* A test copy: render this week's mail exactly as a guest would receive it,
+     but send the single copy to one address and to nobody else. Worth having
+     as a real feature rather than a one-off script, because the alternative
+     for "what does this actually look like" is pressing the catch-up button
+     and mailing forty guests to find out. It reuses the same content checks
+     and the same var building below, so what arrives IS the guest's mail. */
+  const testTo = typeof body.testTo === "string" ? body.testTo.trim().toLowerCase() : "";
+  if (testTo && !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(testTo)) {
+    return NextResponse.json({ error: "That test address doesn't look like an email." }, { status: 400 });
+  }
+
   const isConditional = !!MANUAL_CONDITIONAL[templateKey];
   if (!timingAnchor(templateKey) && !isConditional) {
     return NextResponse.json({ error: "That mail isn't a scheduled one — it can't be catch-up sent from here." }, { status: 400 });
@@ -231,6 +242,26 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
   if (isConditional) {
     const { byKey } = await loadConditionalEligibility(db, id);
     const eligible = byKey[templateKey] ?? [];
+    if (testTo) {
+      const g = eligible[0];
+      const res = await sendEmail({
+        to: testTo,
+        templateKey,
+        manual: true,
+        dedupeKey: `${templateKey}:test:${id}:${Date.now()}`,
+        vars: {
+          firstName: "Nico",
+          balance: g && g.balance > 0 ? money(g.balance) : money(3809.25),
+          downpayment: g?.securingAmount != null ? money(g.securingAmount) : money(3184.5),
+          dueDate: g?.securingDue ? fmtDue(g.securingDue) : fmtDue(new Date().toISOString().slice(0, 10)),
+          dates: range(g?.start ?? null, g?.end ?? null),
+          whatsappLink: g?.whatsappLink ?? values.whatsappLink ?? undefined,
+          bookingLink: `${origin}/account`,
+          tripLink: `${origin}/account`,
+        },
+      });
+      return NextResponse.json({ ok: true, test: true, to: testTo, status: res.status, hadRealCandidate: !!g });
+    }
     let sent = 0, skipped = 0;
     for (const g of eligible) {
       if (!g.email) { skipped++; continue; }
@@ -276,6 +307,38 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
 
   const fmt = fmtD;
   let sent = 0, skipped = 0;
+
+  /* Test mode diverts BEFORE the loop over guests, so there is no path where a
+     test send can reach a real inbox: it borrows the first secured booking's
+     data for realistic content and mails exactly one copy. */
+  if (testTo) {
+    const rows = (bookings ?? []) as Record<string, any>[];
+    const b = rows.find((x) => x.downpayment_received || SECURED.includes(String(x.status))) ?? rows[0];
+    if (!b) return NextResponse.json({ error: "This week has no booking to build a realistic test from." }, { status: 400 });
+    const s2 = b.exp_editions?.date_start as string | null;
+    const e2 = b.exp_editions?.date_end as string | null;
+    const res = await sendEmail({
+      to: testTo,
+      templateKey,
+      manual: true,
+      // A fresh key every time: a test you cannot repeat is not a test.
+      dedupeKey: `${templateKey}:test:${id}:${Date.now()}`,
+      vars: {
+        firstName: "Nico",
+        experienceTitle: b.exp_experiences?.title,
+        dates: s2 ? (e2 ? `${fmt(s2)} – ${fmt(e2)} ${new Date(e2).getFullYear()}` : `${fmt(s2)} ${new Date(s2).getFullYear()}`) : undefined,
+        preTripNote: values.preTripNote ?? undefined,
+        finalDetailsNote: values.finalDetailsNote ?? undefined,
+        packingList: values.packingList ?? undefined,
+        whatsappLink: b.exp_editions?.whatsapp_group_link ?? values.whatsappLink ?? undefined,
+        bookingLink: `${origin}/account`,
+        tripLink: `${origin}/account/bookings/${b.id}`,
+      },
+      // No bookingId and no contactId: a test must never land in a guest's
+      // history or count as their mail.
+    });
+    return NextResponse.json({ ok: true, test: true, to: testTo, status: res.status });
+  }
 
   // Pre-trip mail goes to secured guests only — the same rule the cron applies.
   for (const b of (bookings ?? []) as Record<string, any>[]) {
