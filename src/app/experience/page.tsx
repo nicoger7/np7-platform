@@ -178,7 +178,10 @@ export default async function ExperienceOverviewPage() {
         <div className="mt-9 flex flex-wrap items-center justify-center gap-3">
           <Link
             href="#experiences"
-            className="px-7 py-4 rounded-full text-[14px] font-bold text-[#00374a] bg-white shadow-[0_8px_30px_rgba(255,255,255,0.25)] hover:-translate-y-0.5 transition-all"
+            /* A WHITE glow under a white pill only works over dark water. Over Bonaire
+               midday it spread into a haze around the button and read as a rendering
+               fault. A tight dark shadow lifts it off any hero we ever put behind it. */
+            className="px-7 py-4 rounded-full text-[14px] font-bold text-[#00374a] bg-white shadow-[0_6px_20px_rgba(0,25,35,0.3)] hover:-translate-y-0.5 transition-all"
           >
             {hero.cta1}
           </Link>
