@@ -25,7 +25,13 @@ type Media = {
 type Edition = { id: string; title: string };
 type Video = { stem: string; status: string; url: string | null; poster: string | null };
 
-export function KbMediaPanel({ entryId, sectionKey }: { entryId: string; sectionKey: string }) {
+export function KbMediaPanel({ entryId, sectionKey, sections = [] }: {
+  entryId: string;
+  /** null = the entry's whole library, shown in its own tab. */
+  sectionKey: string | null;
+  /** Offered per item so a photo can name the section it illustrates. */
+  sections?: { key: string; label: string }[];
+}) {
   const [media, setMedia] = useState<Media[]>([]);
   const [tab, setTab] = useState<"photos" | "videos">("photos");
   const [picking, setPicking] = useState(false);
@@ -37,7 +43,8 @@ export function KbMediaPanel({ entryId, sectionKey }: { entryId: string; section
 
   const load = useCallback(async () => {
     const r = await fetch(`/api/admin/kb/${entryId}/media`).then((x) => x.json()).catch(() => null);
-    setMedia(((r?.media ?? []) as Media[]).filter((m) => m.section_key === sectionKey));
+    const all = (r?.media ?? []) as Media[];
+    setMedia(sectionKey === null ? all : all.filter((m) => m.section_key === sectionKey));
   }, [entryId, sectionKey]);
   useEffect(() => { load(); }, [load]);
 
@@ -57,6 +64,32 @@ export function KbMediaPanel({ entryId, sectionKey }: { entryId: string; section
     load();
   }
 
+  /* Upload, not just pick. The library route already downscales, mirrors and
+     returns the key, so this is the same path the website images take and the
+     file lands in R2 like everything else. */
+  async function uploadFiles(files: FileList) {
+    setBusy(true); setErr("");
+    const added: Partial<Media>[] = [];
+    for (const file of Array.from(files)) {
+      const fd = new FormData();
+      fd.append("file", file);
+      fd.append("folder", "knowledge");
+      const r = await fetch("/api/admin/images", { method: "POST", body: fd }).then((x) => x.json()).catch(() => null);
+      if (r?.url) added.push({ kind: "photo", ref: r.path || r.url, url: r.url });
+      else setErr(r?.error || "That upload did not go through.");
+    }
+    setBusy(false);
+    if (added.length) attach(added, "upload");
+  }
+
+  async function assignSection(id: string, key: string) {
+    await fetch(`/api/admin/kb/${entryId}/media`, {
+      method: "PATCH", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ mediaId: id, sectionKey: key || null }),
+    }).catch(() => {});
+    load();
+  }
+
   async function saveCaption(id: string, caption: string) {
     await fetch(`/api/admin/kb/${entryId}/media`, {
       method: "PATCH", headers: { "Content-Type": "application/json" },
@@ -70,7 +103,24 @@ export function KbMediaPanel({ entryId, sectionKey }: { entryId: string; section
     const r = await fetch("/api/admin/editions").then((x) => x.json()).catch(() => null);
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const rows = (r?.editions ?? r ?? []) as any[];
-    setEditions(rows.map((e) => ({ id: e.id, title: e.title || e.label || e.name || e.id })).filter((e) => e.id));
+    /* This list was unreadable: exp_editions has no `title`, so the fallback
+       printed raw UUIDs, and the ones that did have a label showed "Week I"
+       five times over with nothing to tell them apart. An edition is only
+       identifiable as experience plus week plus when. Newest first, because a
+       clip you want is far more likely to be from the last trip than the
+       first. */
+    const fmt = (d?: string | null) => (d ? new Date(d).toLocaleDateString("en-GB", { month: "short", year: "numeric" }) : "");
+    setEditions(
+      rows
+        .filter((e) => e?.id)
+        .sort((a, b) => String(b.date_start ?? "").localeCompare(String(a.date_start ?? "")))
+        .map((e) => {
+          const exp = e.exp_experiences?.title ?? "";
+          const week = String(e.label ?? "").trim();
+          const when = fmt(e.date_start);
+          return { id: e.id, title: [exp, week, when].filter(Boolean).join(" · ") || e.id };
+        })
+    );
   }
 
   async function loadVideos(id: string) {
@@ -100,10 +150,17 @@ export function KbMediaPanel({ entryId, sectionKey }: { entryId: string; section
           Videos {clips.length ? `· ${clips.length}` : ""}
         </button>
         {tab === "photos" && (
-          <button type="button" onClick={() => setPicking(true)} disabled={busy}
-            className="ml-auto text-[12px] font-semibold" style={{ color: "#0aa3c7" }}>
-            + Pick from memories
-          </button>
+          <div className="ml-auto flex items-center gap-3">
+            <label className="text-[12px] font-semibold cursor-pointer" style={{ color: "#0aa3c7" }}>
+              + Upload
+              <input type="file" accept="image/*" multiple hidden disabled={busy}
+                onChange={(e) => { if (e.target.files?.length) uploadFiles(e.target.files); e.target.value = ""; }} />
+            </label>
+            <button type="button" onClick={() => setPicking(true)} disabled={busy}
+              className="text-[12px] font-semibold" style={{ color: "#0aa3c7" }}>
+              + Pick from memories
+            </button>
+          </div>
         )}
       </div>
 
@@ -123,6 +180,14 @@ export function KbMediaPanel({ entryId, sectionKey }: { entryId: string; section
                       onBlur={(e) => saveCaption(m.id, e.target.value)}
                       className="w-full admin-input text-[11px] px-1.5 py-1 rounded border outline-none"
                       style={{ borderColor: "var(--admin-border)" }} />
+                    {sections.length > 0 && (
+                      <select value={m.section_key ?? ""} onChange={(e) => assignSection(m.id, e.target.value)}
+                        className="w-full admin-input text-[11px] px-1.5 py-1 rounded border outline-none mt-1"
+                        style={{ borderColor: "var(--admin-border)" }}>
+                        <option value="">no section</option>
+                        {sections.map((x) => <option key={x.key} value={x.key}>{x.label}</option>)}
+                      </select>
+                    )}
                     <button type="button" onClick={() => detach(m.id)}
                       className="text-[10.5px] mt-1" style={{ color: "#c0392b" }}>Remove</button>
                   </div>

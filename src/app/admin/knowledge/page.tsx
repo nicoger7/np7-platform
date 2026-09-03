@@ -53,6 +53,10 @@ export default function KnowledgePage() {
   const [assisting, setAssisting] = useState(false);
   const [chat, setChat] = useState<{ role: string; text: string; at?: string }[]>([]);
   const [openCount, setOpenCount] = useState(0);
+  /* One section at a time. Twelve fields plus a media panel per section made
+     the entry a scroll nobody reached the bottom of, so the sections become
+     tabs and media gets one of its own. */
+  const [tab, setTab] = useState<string>("what");
   const [toast, setToast] = useState("");
   // Two halves of one environment: the sidebar links land on skills or
   // equipment; window.location keeps us out of the useSearchParams/Suspense
@@ -70,7 +74,7 @@ export default function KnowledgePage() {
   useEffect(() => { loadShelf(); }, [loadShelf]);
 
   async function openEntry(row: ShelfRow) {
-    setChat([]); setOpenCount(0); setDump("");
+    setChat([]); setOpenCount(0); setDump(""); setTab("what");
     let id = row.entryId;
     if (!id) {
       const r = await fetch("/api/admin/kb", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ kind: row.kind, refKey: row.refKey, title: row.label }) }).then((x) => x.json());
@@ -262,7 +266,38 @@ export default function KnowledgePage() {
               </div>
             </div>
 
-            {sections.map((s) => (
+            {/* Section tabs. The dot carries the status and the count carries
+                the work left, so the tab strip is also the to-do list. */}
+            <div className="flex flex-wrap gap-1.5">
+              {sections.map((s) => (
+                <button key={s.key} type="button" onClick={() => setTab(s.key)}
+                  className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[12px] font-bold transition-colors ${tab === s.key ? "text-white" : "admin-muted"}`}
+                  style={tab === s.key ? { backgroundColor: "#0aa3c7" } : { border: "1px solid var(--admin-border)" }}>
+                  <span className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: dot(s.status) }} />
+                  {s.label}
+                  {s.openQuestions.length > 0 && (
+                    <span className="text-[10px] opacity-70">{s.openQuestions.length}</span>
+                  )}
+                </button>
+              ))}
+              <button type="button" onClick={() => setTab("__media")}
+                className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[12px] font-bold transition-colors ${tab === "__media" ? "text-white" : "admin-muted"}`}
+                style={tab === "__media" ? { backgroundColor: "#0aa3c7" } : { border: "1px solid var(--admin-border)" }}>
+                Photos &amp; videos
+              </button>
+            </div>
+
+            {tab === "__media" && openId && (
+              <div className="rounded-xl p-4 sm:p-5" style={{ border: "1px solid var(--admin-border)", backgroundColor: "var(--admin-surface)" }}>
+                <h3 className="text-sm font-bold admin-heading mb-1">Photos &amp; videos</h3>
+                <p className="text-[11.5px] admin-faint mb-3">
+                  Everything on this skill. Pick from a week&apos;s memories, or upload your own. Each one can point at the section it illustrates.
+                </p>
+                <KbMediaPanel entryId={openId} sectionKey={null} sections={sections.map((x) => ({ key: x.key, label: x.label }))} />
+              </div>
+            )}
+
+            {sections.filter((s) => s.key === tab).map((s) => (
               <div key={s.key} className="rounded-xl p-4 sm:p-5" style={{ border: "1px solid var(--admin-border)", backgroundColor: "var(--admin-surface)" }}>
                 <div className="flex items-center gap-2 mb-1">
                   <span className="w-2 h-2 rounded-full" style={{ backgroundColor: dot(s.status) }} />
@@ -277,9 +312,9 @@ export default function KnowledgePage() {
                   publicFields={s.publicFields}
                   onSave={(next) => saveSection(s.key, next)}
                 />
-                {/* Media for THIS section: a photo of the mistake belongs under
-                    the mistake, not in one pile at the bottom of the entry. */}
-                {openId && <KbMediaPanel entryId={openId} sectionKey={s.key} />}
+                {/* Media lives in its own tab now, and each item names the
+                    section it belongs to, so a photo of a mistake still sits
+                    with that mistake without every section carrying a panel. */}
                 {s.status !== "complete" && s.openQuestions.length > 0 && (
                   <div className="mt-2">
                     {s.openQuestions.map((q, i) => <p key={i} className="text-[11.5px]" style={{ color: "#b97608" }}>? {q}</p>)}
