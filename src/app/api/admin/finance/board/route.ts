@@ -25,15 +25,26 @@ export async function GET(req: NextRequest) {
   const year = Number(searchParams.get("year")) || new Date().getFullYear();
   const entityParam = searchParams.get("entity");
   const planParam = searchParams.get("plan");
+  // Which admin world the page is being viewed from. With no explicit entity
+  // chosen it decides the default, so opening Budget in Hardware lands on the
+  // hardware company rather than on whatever sorts first.
+  const world = searchParams.get("world");
 
   const { data: entities } = await db
     .from("fin_entities").select("id,key,name,role,division,status,active_from,note").order("sort");
   const entityList = (entities ?? []) as BoardEntity[];
   const entity =
-    entityList.find((e) => e.id === entityParam || e.key === entityParam) ?? entityList[0] ?? null;
+    entityList.find((e) => e.id === entityParam || e.key === entityParam) ??
+    (world ? entityList.find((e) => e.division === world) : undefined) ??
+    entityList[0] ?? null;
 
-  const { data: cats } = await db
-    .from("fin_categories").select("id,key,name,kind,sort").is("archived_at", null).order("sort");
+  // Experience and Hardware are being separated into their own companies, so
+  // they do not share a planning vocabulary. A category with no division is
+  // shared on purpose: rent is the same idea whichever company pays it.
+  let catQuery = db
+    .from("fin_categories").select("id,key,name,kind,sort,division").is("archived_at", null).order("sort");
+  if (entity?.division) catQuery = catQuery.or(`division.is.null,division.eq.${entity.division}`);
+  const { data: cats } = await catQuery;
   const categories = (cats ?? []) as BoardCategory[];
 
   // Plans for this entity + year; the caller may pin one, otherwise prefer the

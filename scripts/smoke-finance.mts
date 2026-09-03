@@ -110,6 +110,28 @@ async function main() {
   check("the attached bill is NOT in unallocated",
     !board.unallocated.some((u) => u.description === "SMOKE Sorobon invoice"));
 
+  console.log("\n── experience and hardware are separated ───────");
+  // Replicates the board route's category filter: a division's own categories
+  // plus the shared ones, never the other side's.
+  const scoped = (division: string) =>
+    cats.filter((c: any) => c.division === null || c.division === division).map((c: any) => c.key);
+  const expCats = scoped("experience");
+  const hwCats = scoped("hardware");
+  check("Experience sees Reisevorleistungen", expCats.includes("cost-travel-input"));
+  check("Experience does NOT see 3PL or goods",
+    !expCats.includes("cost-fulfilment") && !expCats.includes("cost-goods"));
+  check("Hardware sees goods and freight",
+    hwCats.includes("cost-goods") && hwCats.includes("cost-freight"));
+  check("Hardware does NOT see Reisevorleistungen or coaches",
+    !hwCats.includes("cost-travel-input") && !hwCats.includes("cost-coaches"));
+  check("both still share rent, salaries and bank fees",
+    ["cost-rent", "cost-personnel", "cost-bank"].every((k) => expCats.includes(k) && hwCats.includes(k)));
+
+  const { data: ents } = await db.from("fin_entities").select("key,division").order("sort");
+  check("an entity exists for each side",
+    ents.some((e: any) => e.division === "experience") && ents.some((e: any) => e.division === "hardware"),
+    ents.map((e: any) => `${e.key}:${e.division}`));
+
   console.log("\n── row identity ────────────────────────────────");
   check("same label + different edition = different rows",
     rowKey({ category_id: "c", label: "Hotel", edition_id: "e1", vendor_id: null }) !==

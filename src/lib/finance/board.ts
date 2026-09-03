@@ -20,6 +20,8 @@ export type BoardCategory = {
   name: string;
   kind: Kind;
   sort: number;
+  /** Which side of the business plans with it. null means both. */
+  division: string | null;
 };
 
 export type BoardEntity = {

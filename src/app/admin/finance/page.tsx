@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import type { Board, BoardGroup, BoardRow, BoardCategory, BoardEntity, BoardPlan } from "@/lib/finance/board";
 import { MONTHS } from "@/lib/finance/board";
 import { RecordCostDialog } from "@/components/admin/record-cost-dialog";
+import { useAdminEnv } from "@/app/admin/env-context";
 
 /* The budget grid: rows are cost or revenue items, columns are the twelve
    months of one company's year. Planned amounts are typed straight into the
@@ -19,13 +20,17 @@ const eurExact = (n: number) =>
 const GRID = "minmax(240px, 260px) repeat(12, minmax(78px, 1fr)) minmax(104px, 116px)";
 
 export default function FinancePage() {
+  const env = useAdminEnv();
   const [board, setBoard] = useState<Board | null>(null);
   const [entities, setEntities] = useState<BoardEntity[]>([]);
   const [categories, setCategories] = useState<BoardCategory[]>([]);
   const [plans, setPlans] = useState<BoardPlan[]>([]);
-  const [entityKey, setEntityKey] = useState<string>("");
   const [year, setYear] = useState<number>(new Date().getFullYear());
-  const [planId, setPlanId] = useState<string>("");
+  // A pick belongs to the world it was made in. Switching worlds re-renders this
+  // page in place, and an Experience company left selected in the Hardware world
+  // would quietly show the wrong company's books.
+  const [entityPick, setEntityPick] = useState<{ world: string; key: string } | null>(null);
+  const [planPick, setPlanPick] = useState<{ world: string; id: string } | null>(null);
   const [loading, setLoading] = useState(true);
   const [nonce, setNonce] = useState(0);
   const [busy, setBusy] = useState(false);
@@ -35,9 +40,11 @@ export default function FinancePage() {
   const [editing, setEditing] = useState<{ rowKey: string; month: number } | null>(null);
   const [draft, setDraft] = useState("");
 
-  // `entityKey` and `planId` hold what the user PICKED, not what is shown. Empty
-  // means "let the server choose", and the choice comes back on the board, so
+  // These hold what the user PICKED, not what is shown. Empty means "let the
+  // server choose for this world", and the choice comes back on the board, so
   // selecting never has to be echoed back into state and cannot loop.
+  const entityKey = entityPick?.world === env ? entityPick.key : "";
+  const planId = planPick?.world === env ? planPick.id : "";
   const selectedEntity = entityKey || board?.entity?.key || "";
   const selectedPlan = planId || board?.plan?.id || "";
 
@@ -46,6 +53,7 @@ export default function FinancePage() {
     const qs = new URLSearchParams({ year: String(year) });
     if (entityKey) qs.set("entity", entityKey);
     if (planId) qs.set("plan", planId);
+    if (env === "experience" || env === "hardware") qs.set("world", env);
     fetch(`/api/admin/finance/board?${qs}`)
       .then(async (res) => {
         const data = await res.json().catch(() => ({}));
@@ -60,7 +68,7 @@ export default function FinancePage() {
       })
       .catch(() => { if (!cancelled) { setError("Could not reach the budget."); setLoading(false); } });
     return () => { cancelled = true; };
-  }, [entityKey, year, planId, nonce]);
+  }, [entityKey, year, planId, nonce, env]);
 
   /** Re-read the board after a write. */
   const reload = useCallback(() => setNonce((n) => n + 1), []);
@@ -112,7 +120,7 @@ export default function FinancePage() {
     setBusy(false);
     if (!res.ok) { setError((await res.json().catch(() => ({}))).error ?? "Could not create the plan."); return; }
     const plan = await res.json();
-    setPlanId(plan.id);
+    setPlanPick({ world: env, id: plan.id });
     reload();
   }
 
@@ -169,7 +177,7 @@ export default function FinancePage() {
           {entities.map((e) => (
             <button
               key={e.key}
-              onClick={() => { setEntityKey(e.key); setPlanId(""); }}
+              onClick={() => { setEntityPick({ world: env, key: e.key }); setPlanPick(null); }}
               className={`px-3 py-1.5 rounded-lg text-xs font-semibold border transition-colors ${
                 selectedEntity === e.key
                   ? "bg-[var(--admin-accent)] text-[var(--admin-accent-contrast)] border-transparent"
@@ -184,15 +192,15 @@ export default function FinancePage() {
         </div>
 
         <div className="flex items-center gap-1 ml-auto">
-          <button onClick={() => { setYear(year - 1); setPlanId(""); }} className="px-2 py-1.5 rounded-lg border admin-input text-sm">‹</button>
+          <button onClick={() => { setYear(year - 1); setPlanPick(null); }} className="px-2 py-1.5 rounded-lg border admin-input text-sm">‹</button>
           <span className="px-3 py-1.5 text-sm font-bold admin-heading tabular-nums">{year}</span>
-          <button onClick={() => { setYear(year + 1); setPlanId(""); }} className="px-2 py-1.5 rounded-lg border admin-input text-sm">›</button>
+          <button onClick={() => { setYear(year + 1); setPlanPick(null); }} className="px-2 py-1.5 rounded-lg border admin-input text-sm">›</button>
         </div>
 
         {plans.length > 0 && (
           <select
             value={selectedPlan}
-            onChange={(e) => setPlanId(e.target.value)}
+            onChange={(e) => setPlanPick({ world: env, id: e.target.value })}
             className="admin-input border rounded-lg px-2 py-1.5 text-xs"
           >
             {plans.map((p) => (

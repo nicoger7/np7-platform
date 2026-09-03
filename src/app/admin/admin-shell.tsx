@@ -186,6 +186,14 @@ const navByEnv: Record<Environment, NavGroup[]> = {
         { label: "Returns", href: "/admin/returns", icon: "inbox" },
       ],
     },
+    {
+      // Hardware is becoming its own company, so it gets its own books rather
+      // than a line inside the Experience finance section.
+      label: "FINANCE",
+      items: [
+        { label: "Budget", href: "/admin/finance", icon: "chartline" },
+      ],
+    },
   ],
   "product-dev": [
     {
