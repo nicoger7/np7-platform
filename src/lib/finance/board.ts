@@ -101,8 +101,12 @@ export type Pnl = {
   grossProfit: PnlLine;
   opex: PnlLine;
   development: PnlLine;
+  /** Stock bought and the freight that lands it. Money out of the bank, and
+   *  NOT a cost in the result until the goods are sold. */
+  inventory: PnlLine;
+  /** cogs + opex + development. Inventory is not in it. */
   totalCosts: PnlLine;
-  /** The trading result. Financing is deliberately not in it. */
+  /** The trading result. Inventory and financing are deliberately not in it. */
   result: PnlLine;
   /** Share capital, investor tranches, loans. Money in that was not earned, so
    *  it never touches the result or a margin, and always moves the bank. */
@@ -115,6 +119,9 @@ export type Pnl = {
   lowestPoint: number;
   grossMarginPct: number | null;
   netMarginPct: number | null;
+  /** False when the plan is buying stock faster than it records cost of sale,
+   *  which makes any margin off it an artefact rather than a measure. */
+  marginMeaningful: boolean;
 };
 
 export type Board = {
@@ -212,10 +219,17 @@ function assemblePnl(
   const opex = line(bucket.opex);
   const development = line(bucket.development);
   const financing = line(bucket.financing);
+  const inventory = line(bucket.inventory);
   const grossProfit = line(revenue.byMonth.map((v, i) => r2(v - cogs.byMonth[i])));
   const totalCosts = line(cogs.byMonth.map((v, i) => r2(v + opex.byMonth[i] + development.byMonth[i])));
   const result = line(revenue.byMonth.map((v, i) => r2(v - totalCosts.byMonth[i])));
-  const cashMovement = line(result.byMonth.map((v, i) => r2(v + financing.byMonth[i])));
+  // Cash sees everything: the trading result, the stock bought, the money raised.
+  const cashMovement = line(result.byMonth.map((v, i) => r2(v - inventory.byMonth[i] + financing.byMonth[i])));
+
+  // A gross margin only means something when the cost of what was sold is
+  // recorded. Buying 230 boards to sell 50 is an inventory purchase, and
+  // dividing by it produces a number that looks like a margin and is not one.
+  const marginMeaningful = cogs.total > 0 && inventory.total <= cogs.total;
 
   // The running line follows CASH, not the result: a month can lose money and
   // still end richer because a tranche landed, and that is the month you need
@@ -226,11 +240,12 @@ function assemblePnl(
 
   return {
     revenue, cogs, grossProfit, opex, development, totalCosts, result,
-    financing, cashMovement, accumulated,
+    inventory, financing, cashMovement, accumulated,
     lowestPoint: accumulated.length ? Math.min(...accumulated) : 0,
-    // Margins are trading measures. Financing is not in the denominator either.
-    grossMarginPct: pct(grossProfit.total, revenue.total),
-    netMarginPct: pct(result.total, revenue.total),
+    // Margins are trading measures. Neither financing nor stock is in them.
+    grossMarginPct: marginMeaningful ? pct(grossProfit.total, revenue.total) : null,
+    netMarginPct: marginMeaningful ? pct(result.total, revenue.total) : null,
+    marginMeaningful,
   };
 }
 
@@ -329,7 +344,7 @@ export function buildBoard(input: {
   const cost = groupsFor("cost");
 
   // ── P&L: every row counted once, under the line its category belongs to ──
-  const GROUPS = ["revenue", "cogs", "opex", "development", "financing"] as const;
+  const GROUPS = ["revenue", "cogs", "inventory", "opex", "development", "financing"] as const;
   const emptyBucket = () => Object.fromEntries(GROUPS.map((g) => [g, zero12()])) as Record<string, number[]>;
   const plannedBucket = emptyBucket();
   const actualBucket = emptyBucket();

@@ -5,6 +5,9 @@ import type { Board, BoardGroup, BoardRow, BoardCategory, BoardEntity, BoardPlan
 import { MONTHS } from "@/lib/finance/board";
 import { RecordCostDialog } from "@/components/admin/record-cost-dialog";
 import { useAdminEnv } from "@/app/admin/env-context";
+import { CashChart, FlowChart, ObjectChart, VIZ_CSS } from "@/components/admin/finance-charts";
+import { FinanceTimeline } from "@/components/admin/finance-timeline";
+import type { CostObjectNode } from "@/lib/finance/objects";
 
 /* The budget grid: rows are cost or revenue items, columns are the twelve
    months of one company's year. Planned amounts are typed straight into the
@@ -39,6 +42,8 @@ export default function FinancePage() {
   const [recordFor, setRecordFor] = useState<{ row: BoardRow; month: number } | null>(null);
   const [editing, setEditing] = useState<{ rowKey: string; month: number } | null>(null);
   const [draft, setDraft] = useState("");
+  const [view, setView] = useState<"grid" | "dashboard" | "timeline">("dashboard");
+  const [objects, setObjects] = useState<CostObjectNode[] | null>(null);
 
   // These hold what the user PICKED, not what is shown. Empty means "let the
   // server choose for this world", and the choice comes back on the board, so
@@ -67,6 +72,10 @@ export default function FinancePage() {
         setLoading(false);
       })
       .catch(() => { if (!cancelled) { setError("Could not reach the budget."); setLoading(false); } });
+    fetch(`/api/admin/finance/objects?${qs}`)
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d) => { if (!cancelled && d) setObjects(d.planned ?? []); })
+      .catch(() => { /* the dashboard degrades to totals without it */ });
     return () => { cancelled = true; };
   }, [entityKey, year, planId, nonce, env]);
 
@@ -222,6 +231,19 @@ export default function FinancePage() {
         )}
       </div>
 
+      {board?.plan && (
+        <div className="flex gap-1 p-1 rounded-lg admin-input border w-fit">
+          {([["dashboard", "Dashboard"], ["timeline", "Timeline"], ["grid", "Grid"]] as const).map(([v, label]) => (
+            <button key={v} onClick={() => setView(v)}
+                    className={`px-3 py-1.5 rounded text-xs font-semibold transition-colors ${
+                      view === v ? "bg-[var(--admin-accent)] text-[var(--admin-accent-contrast)]" : "admin-muted"
+                    }`}>
+              {label}
+            </button>
+          ))}
+        </div>
+      )}
+
       {/* An entity here is a BUSINESS. Until Experience has its own GmbH the
           invoices go out under the holding's name, and whoever is budgeting
           should not have to remember that. */}
@@ -257,11 +279,26 @@ export default function FinancePage() {
         </div>
       ) : (
         <>
+          <style dangerouslySetInnerHTML={{ __html: VIZ_CSS }} />
+
           {/* ── Key numbers, in the order the business plan reports them ── */}
           <KeyNumbers planned={board.pnlPlanned} actual={board.pnlActual} />
 
+          {view === "dashboard" && (
+            <div className="flex flex-col gap-4">
+              <CashChart pnl={board.pnlPlanned} opening={board.openingBalance} />
+              <FlowChart pnl={board.pnlPlanned} />
+              <ObjectChart nodes={objects ?? []} />
+            </div>
+          )}
+
+          {view === "timeline" && (
+            <FinanceTimeline board={board}
+                             categoryGroup={new Map(categories.map((c) => [c.id, c.pnl_group]))} />
+          )}
+
           {/* ── The grid ─────────────────────────────────────────── */}
-          <div className="admin-card border rounded-xl overflow-x-auto">
+          <div className={`admin-card border rounded-xl overflow-x-auto ${view === "grid" ? "" : "hidden"}`}>
             <div style={{ minWidth: 1180 }}>
               {/* month header */}
               <div className="grid text-[10px] uppercase tracking-wider admin-faint font-semibold border-b"
@@ -369,13 +406,15 @@ export default function FinancePage() {
             </div>
           </div>
 
-          <p className="text-[11px] admin-faint">
-            Grey is planned, colour is what actually happened. Click any cell to change the plan.
-            Amounts are net, because the VAT comes back.
-          </p>
+          {view === "grid" && (
+            <p className="text-[11px] admin-faint">
+              Grey is planned, colour is what actually happened. Click any cell to change the plan.
+              Amounts are net, because the VAT comes back.
+            </p>
+          )}
 
           {/* ── Costs with nowhere to go ─────────────────────────── */}
-          {board.unallocated.length > 0 && (
+          {view !== "timeline" && board.unallocated.length > 0 && (
             <div className="admin-card border rounded-xl p-4 space-y-2">
               <h2 className="text-sm font-bold admin-heading">
                 Recorded but not attached
