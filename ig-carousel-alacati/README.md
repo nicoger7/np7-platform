@@ -3,10 +3,18 @@
 7-slide feed carousel (1080x1350, 4:5) plus a 9:16 story version of slide 1.
 Concept: open with a fake 1-star "complaint" that's actually a boast (the
 scroll-stopper), land on five real verified 5-star reviews from Alaçatı,
-close with a plain call to action for the next Alaçatı week. Revised
-2026-09-03 per owner feedback: the satire slide now uses the ad board's own
-approved copy (two variants, 01 and 01b), and every slide carries real
-Alaçatı photography under the NP7 ocean wash.
+close with a plain call to action for the next Alaçatı week.
+
+Revised twice on 2026-09-03, both times per owner feedback:
+1. The satire slide now uses the ad board's own approved copy (two
+   variants, 01 and 01b) instead of an invented line.
+2. The five review slides (02-06) now each carry a real photo of that
+   specific reviewer, from their own week at Alaçatı (17 Aug 2026) — not
+   generic library water/gear shots. The satire slide (01/01b) and the
+   story are the one exception and deliberately still carry no recognisable
+   guest, since faking a complaint over a real guest's face would be wrong
+   regardless of consent. Slide 07 (the CTA) was out of scope for the photo
+   change and keeps its original library shot.
 
 ## Where things are
 
@@ -71,7 +79,7 @@ reproduce the PNGs exactly.
 
 ## Photography + legibility wash
 
-Every slide now carries real NP7 Experience Alaçatı photography, full-bleed,
+Every slide carries real NP7 Experience Alaçatı photography, full-bleed,
 sourced from R2 (`https://media.np-seven.com/<url-encoded key>`). Over the
 photo sits a layered readability wash — a horizontal scrim (strong, deep
 ocean, on the left where every slide's text block lives, fading toward the
@@ -81,65 +89,85 @@ the existing sun-to-sea brand tint as a soft-light accent on top. The wave
 signature and page counter are unchanged. Text also carries a soft drop
 shadow so it stays legible over the brighter parts of any given photo.
 
-### Photos used
+Both the crop's focal point and the wash's strength are tuned **per slide**
+now (`focalX` / `washStrength` in `build.mjs`), not applied uniformly — a
+real guest filling much of the frame needs different handling than a distant
+library shot did. For each of the five reviewer photos the horizontal focal
+point was set by hand after looking at the source image, so the crop keeps
+the reviewer fully in frame while sliding the calmer half of the water under
+the text block; Thomas's shot (04) is close and wide enough across the frame
+that there wasn't a clean calm side to crop toward, so that slide instead
+gets a stronger wash (`washStrength: 1.18`) rather than an awkward crop.
 
-| Slide | Photo (R2 key, `experiences/np7-alacati/…`) |
-|---|---|
-| 01 / 01b / story (satire) | `place/distant-sailor-empty-bay.jpg` — the widest, emptiest water in the set, exactly matching the brief's "the satire slide reads best over the emptiest, widest water." 01 and 01b are alternates of the *same* slide (only one is meant to run in an actual post), so they intentionally share this photo rather than each claiming a distinct one from a limited safe set. |
-| 02 (Ziad, Bahrain) | `place/lone-sailor-wide-bay.jpg` |
-| 03 (Giuseppe, Italy) | `place/tiny-sailor-wide-seascape.jpg` |
-| 04 (Thomas, Sweden) | `place/wide-bay-with-sailors.jpg` |
-| 05 (Andreas, Brasil) | `action/rider-small-in-wide-bay.jpg` |
-| 06 (Michael, Austria) | `action/two-sails-across-the-bay.jpg` |
-| 07 (CTA) | `place/lone-board-on-blue-bay.jpg` |
+### Photo policy this round (owner override)
 
-No photo repeats across the seven actual slide positions (01-or-01b counts
-as one position, since they're mutually exclusive alternates).
+The previous round's rule — no recognisable guest anywhere, because there is
+still no `may_use_in_marketing` flag in the database — has been overridden
+by the owner **for the five review slides only**: "images are not good, take
+from this year, and ideally the pictures of the actual participants." Slides
+02–06 now each show a real photo of that reviewer, from their own booking's
+photo folder, all from the same trip (NP7 Experience Alaçatı, 17 Aug 2026).
+The owner's override does not extend to slide 1: a fake review is exactly
+the place a real guest's face must never appear, whatever the consent
+situation, so 01/01b/story keep the same empty-water library shot as before.
+Slide 07 (the CTA) wasn't mentioned in the new brief and keeps its original
+library photo — "everything else unchanged."
 
-### Photos rejected (face-safety pass)
+### Reviewer photos used (slides 02–06)
 
-All 12 supplied files were downloaded and inspected two ways: first as
-close-up crops, then — because a tight crop overstates risk — composited
-exactly as the real render would use them (a 1080-wide "cover" fit,
-centered, no extra zoom) and viewed at that true output scale, since that's
-the honest test of "readable at 1080px." Rejected:
+Sourced by querying `media_assets` (column `key`) filtered on each
+reviewer's `booking_id` — not just the starting examples given, since each
+folder holds 20–51 photos. Non-drone stills (the trip photographer's
+`memories/ALACATI2026-*.jpg` catalog, plus a few `_video/…_Lars####.jpg`
+stills from a second photographer) were downloaded per reviewer, laid out as
+a contact sheet, and picked for "reads as a person having a good week," per
+the brief — a close, sharp, engaged shot beats a drone frame where the rider
+is a dot, which is the opposite bias from last round's "no identifiable
+face" pass.
 
-- **`action/windfoiler-flying-over-flat-water.jpg`** — the rider is close
-  and angled toward camera; face is clearly, unmistakably readable even at
-  true render scale. Rejected outright.
-- **`action/distant-rider-flat-water.jpg`** — despite the filename, this
-  rider is large and close in frame with an unobstructed, clearly smiling
-  face. Rejected.
-- **`action/distant-rider-planing-in-bay.jpg`** — same athlete, same
-  session as `rider-small-in-wide-bay.jpg` (identical outfit, board,
-  helmet-cam), but framed larger/closer, so the face reads more clearly.
-  Since `rider-small-in-wide-bay.jpg` covers the same maneuver more safely,
-  using both would also mean the same recognisable-looking guest appearing
-  twice in one carousel. Rejected in favour of the smaller one.
-- **`place/shaded-beach-club-terrace.jpg`** — multiple guests at
-  conversational distance; several faces are legible. Rejected.
-- **`place/beach-club-huts-and-boards.jpg`** — a group of roughly a dozen
-  guests, clearly readable faces throughout (reads like a briefing/lineup
-  photo). Rejected outright.
+| Slide | Reviewer | Photo (R2 key, `experiences/np7-alacati/…`) | Why this frame |
+|---|---|---|---|
+| 02 | Ziad Khoury | `_video/123ad479-.../p/d5edc7dc-.../.../ALACATI2026-118.jpg`* | Mid-water, pointing off-frame, clearly grinning — sharp face, and the open water he's gesturing into doubles as calm space for the text. Skipped the two more dramatic foiling-action frames from the same folder (`…-139.jpg`, `…-140.jpg`) because the sail's own graphics/branding filled most of the frame and would have fought the quote text. |
+| 03 | Giuseppe Picentino | `memories/123ad479-.../p/612a19ee-.../ALACATI2026-119-2.jpg` | Close, sharp, mid-task carrying his gear — full torso in frame, calm water top-left for the text block. A tighter head-and-shoulders alternate (`…-120-2.jpg`) was also strong but felt less "having a good week" than the full-body, engaged version. |
+| 04 | Thomas Jönsson | `memories/123ad479-.../p/f02ddda0-.../ALACATI2026-189.jpg` | Animated hands, clean plain-water background (the cleanest of any candidate), unmistakably him alone. Deliberately avoided several other frames in his folder that show him with a woman (hugging, a bar toast, a kiss) — Thomas's own consent doesn't cover whoever that is, and there's no reason to guess at a bystander's willingness to appear in an ad. |
+| 05 | Andreas Burmeister | `memories/123ad479-.../p/ef9b4556-.../ALACATI2026-130.jpg` | Clear, close, looking toward camera, big open-water band above him. A same-week `_Lars1695.jpg` sailing-action shot was a close second but is a smaller source file (1280×720) that would have needed a ~1.9x upscale to cover 1080×1350 — this one needed none. |
+| 06 | Michael Bongar | `memories/123ad479-.../p/145597ae-.../ALACATI2026-46.jpg` | A mid-air, arm-thrown-up celebration shot — about as literal a match for "for sure not my last one!" as the folder had, sharp face, huge calm water up top for the headline. The clear pick once this frame turned up on the contact sheet. |
 
-Approved with a specific note, since these were the closer calls:
+*Full keys are long; the table abbreviates the shared trip/photographer path
+(`_video/123ad479-4ab9-4e47-b10f-9dff0339f58a/p/<booking_id>/…`) for
+readability — every file actually used is embedded in the matching
+`html/0N-*.html` and was downloaded straight from
+`https://media.np-seven.com/<url-encoded key>`.
 
-- **`action/rider-small-in-wide-bay.jpg`** (used, slide 05) — same rider as
-  the two rejected planing/flat-water shots above, but framed smaller and
-  further away; at true 1080px scale the face is an unreadable few pixels,
-  not a resolvable feature set.
-- **`action/two-sails-across-the-bay.jpg`** (used, slide 06) — the lead
-  rider's face is substantially obscured by spray at true scale; verified
-  with an additional zoomed crop that no facial features survive the spray.
-- **`place/lone-board-on-blue-bay.jpg`** (used, slide 07) — a distant
-  paddleboarder wears a cap and dark sunglasses and reads as an unresolvable
-  blur at 1080px; in the final centred crop for this slide the paddleboarder
-  falls outside the visible frame entirely, leaving only the riderless board
-  in the water.
+No reviewer's folder came up empty — all five had at least one usable close
+frame, so the "fall back to a wide shot from the same week" case in the
+brief didn't come up.
 
-No slide shows a readable face. No stock or lifestyle photography was
-substituted for the rejected files — slides simply drew from the remaining
-approved pool.
+### Slides that kept their previous-round photo
+
+- **01 / 01b / story (satire)** — `place/distant-sailor-empty-bay.jpg`, the
+  widest, emptiest water in the original 12-photo set, per "the satire slide
+  reads best over the emptiest, widest water." No recognisable guest, on
+  purpose — see "Photo policy this round" above.
+- **07 (CTA)** — `place/lone-board-on-blue-bay.jpg`, unchanged; a riderless
+  board in open water, out of scope for this round's reviewer-photo request.
+
+### Photos rejected in the original 12-photo library set (prior round)
+
+Kept here for context on why 01/01b/story and 07 use what they use. All 12
+originally-supplied library files were downloaded and inspected two ways:
+close-up crops, then composited exactly as the real render would use them (a
+1080-wide "cover" fit, centered) and viewed at that true output scale, since
+that's the honest test of "readable at 1080px." Rejected for a readable
+face: `action/windfoiler-flying-over-flat-water.jpg`,
+`action/distant-rider-flat-water.jpg`, `action/distant-rider-planing-in-bay.jpg`
+(same athlete as an approved frame, but larger/closer),
+`place/shaded-beach-club-terrace.jpg` and `place/beach-club-huts-and-boards.jpg`
+(both multi-guest group shots with several legible faces). Approved:
+`action/rider-small-in-wide-bay.jpg`, `action/two-sails-across-the-bay.jpg`
+(face obscured by spray) and `place/lone-board-on-blue-bay.jpg` (paddleboarder
+unresolvable at scale, and in fact falls outside the final crop entirely) —
+only the last of these three is still in use, on slide 07.
 
 ## Ad board convention on the satire slide (slide 1 / 1b)
 
@@ -250,3 +278,15 @@ be a reasonable swap if a 6th slide is ever wanted.
 - Slide 1/1b deliberately carry no "Experience Alaçatı" location tag
   (unlike slides 2–7) since the joke is meant to land as a universal NP7
   hook before the carousel narrows to Alaçatı specifically.
+- **A reviewer's own consent doesn't extend to whoever else is in their
+  photos.** Thomas Jönsson's folder included several warm, clearly personal
+  shots with a woman (a hug, a bar toast, a kiss) who is presumably his
+  partner. Even with the owner's override authorizing each reviewer's own
+  face on their slide, nothing establishes that second person's consent to
+  appear in an ad, so none of those frames were used — slide 04 uses a
+  photo of Thomas alone instead.
+- **Source resolution mattered for the focal-point choice on slide 05.** A
+  same-week Lars-photographed action shot of Andreas was a close second
+  pick, but at 1280×720 it would have needed roughly a 1.9x upscale to
+  cover the 1080×1350 canvas; the `memories/ALACATI2026-130.jpg` frame used
+  instead is 2048×1365 natively, needing effectively no upscaling.
