@@ -1,4 +1,4 @@
-import { emailLayout, emailButton, esc, type Division } from "./layout";
+import { emailLayout, emailButton, emailPill, esc, type Division } from "./layout";
 
 export type EmailVars = {
   firstName?: string;
@@ -175,14 +175,16 @@ const focusList = (text?: string) => {
 const whatsNextBlock = (v: EmailVars): string =>
   p(
     `<strong>What happens next.</strong> ` +
-    `We open the crew WhatsApp group${v.crewChatWhen ? ` around <strong>${esc(v.crewChatWhen)}</strong>` : " a few weeks before the trip"}, ` +
-    `and you'll meet the others there before you fly. ` +
+    (v.crewChatWhen === "open"
+      ? `The crew WhatsApp group is already open, and that is where you'll meet the others before you fly. `
+      : `We open the crew WhatsApp group${v.crewChatWhen ? ` around <strong>${esc(v.crewChatWhen)}</strong>` : " a few weeks before the trip"}, ` +
+        `and you'll meet the others there before you fly. `) +
     `The week's outline is already written: it's on the trip page` +
     (v.experienceLink ? ` (<a href="${esc(v.experienceLink)}" style="color:#0aa3c7;font-weight:700;">have a look</a>)` : "") +
     ` and under <strong>Trip</strong> in your account. The exact running order follows a few days before you fly, once we can read the forecast.`
   ) +
   (v.supportWhatsapp
-    ? p(`Questions in between? <a href="${esc(v.supportWhatsapp)}" style="color:#0aa3c7;font-weight:700;">Message us on WhatsApp</a> or just reply to this mail.`)
+    ? p(`Questions in between? Message us, or just reply to this mail.`) + emailPill("Ask us on WhatsApp", v.supportWhatsapp)
     : p(`Questions in between? Just reply to this mail.`));
 
 
@@ -196,7 +198,7 @@ export const TEMPLATES: Record<string, (v: EmailVars, opts?: LayoutOpts) => Buil
         greet(v) +
         p(`You're registered for <strong>${esc(v.experienceTitle || "")}${v.editionLabel ? " · " + esc(v.editionLabel) : ""}</strong> — awesome to have you. Here's how it works from here:`) +
         p(`<strong>1. Secure your spot.</strong> Attached are your payment details (pro-forma invoice) — pay the downpayment by bank transfer within the window shown and your place is locked in.${v.refundDays ? ` Fully refundable for ${esc(String(v.refundDays))} days after you pay, so there's plenty of time to sort flights.` : ""}`) +
-        p(`<strong>2. Plan it with us.</strong> Manage your booking and meet your crew in your trip account.${v.addonsSummary ? ` This trip also offers ${esc(v.addonsSummary)} — you can add those any time.` : ""}`) +
+        p(`<strong>2. Plan it with us.</strong> Manage your booking and meet your crew in your trip account.${v.addonsSummary ? ` You can also add ${esc(v.addonsSummary)} any time.` : ""}`) +
         p(`<strong>3. Pay the balance later</strong> by bank transfer, in good time before the trip.`) +
         (v.bookingLink ? emailButton("Secure my spot", v.bookingLink) : "") +
         whatsNextBlock(v) +

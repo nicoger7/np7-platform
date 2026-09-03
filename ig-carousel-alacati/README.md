@@ -5,13 +5,13 @@ Concept: open with a fake 1-star "complaint" that's actually a boast (the
 scroll-stopper), land on five real verified 5-star reviews from Alaçatı,
 close with a plain call to action for the next Alaçatı week.
 
-Revised three times on 2026-09-03, each time per owner feedback:
+Revised four times on 2026-09-03, each time per owner feedback:
 1. The satire slide now uses the ad board's own approved copy (two
    variants, 01 and 01b) instead of an invented line.
 2. The five review slides (02-06) now each carry a real photo of that
    specific reviewer, from their own week at Alaçatı (17 Aug 2026) — not
    generic library water/gear shots. The satire slide (01/01b) and the
-   story are the one exception and deliberately still carry no recognisable
+   story were the one exception and deliberately still carry no recognisable
    guest, since faking a complaint over a real guest's face would be wrong
    regardless of consent. Slide 07 (the CTA) was out of scope for the photo
    change and keeps its original library shot.
@@ -20,10 +20,18 @@ Revised three times on 2026-09-03, each time per owner feedback:
    Michael's photo was swapped — the first pick read as a wipeout, not a
    celebration; (c) slide 1's photo was searched for a specific "pointing at
    camera" shot from another NP7 ad — not found, documented below, slide 1
-   keeps its empty-water photo; (d) Thomas's photo was swapped to the
-   couple shot the owner named from the site's own Experience-landing hero
-   rotation, which explicitly overrides the previous round's
-   no-bystander-in-frame caution for this one photo only.
+   kept its empty-water photo for the moment; (d) Thomas's photo was
+   swapped to the couple shot the owner named from the site's own
+   Experience-landing hero rotation, which explicitly overrides the
+   previous round's no-bystander-in-frame caution for this one photo only.
+4. Two final corrections: (a) the round-3 logo swap had a real bug — the
+   NP7 mark was being flex-stretched to nearly double its correct width on
+   every slide (measured 118×30px rendered vs. a correct 63×30px; see
+   "Brand recipe reused" below for the root cause, the fix, and the
+   measured before/after) — fixed and verified pixel-for-pixel, not by
+   eye; (b) slide 1's empty-water photo was replaced with a real wipeout
+   frame, since the owner correctly read it as a placeholder — see
+   "Round 4" below.
 
 ## Where things are
 
@@ -97,6 +105,69 @@ reproduce the PNGs exactly.
   files, and the pre-inverted mark, are not committed to the repo (see
   "What it was rendered with" — the build script lives outside the repo);
   the `html/*.html` files carry them as embedded base64, same as the fonts.
+
+### The logo distortion bug (round 4) — diagnosed, fixed, and measured
+
+The round-3 logo swap shipped with a real bug: the NP7 mark was stretched
+almost 2x wider than it should have been on every single slide. Root
+cause, as the owner correctly diagnosed: `.brand` is
+`display:flex; flex-direction:column`, and column-direction flex containers
+default `align-items` to `stretch`. The mark `<img>` only had `height:30px`
+set — no `width` — so on that direct flex child, `stretch` filled it out to
+the container's cross-axis (width) instead of preserving its own aspect
+ratio. The nested `.tag-row` (the Experience-logo + "Alaçatı" row) escaped
+the same fate essentially by accident: `.tag-row` itself is a `row`-direction
+flex container with `align-items:center` already set, so *its* image child
+was never a direct target of `.brand`'s column-stretch — only `.tag-row` as
+a whole could have been stretched, and since row-direction children don't
+grow to fill unused space without `flex-grow`, the image inside it kept its
+own size regardless of how wide `.tag-row` became.
+
+**Fix** — exactly as instructed, not by guessing a width: `align-items:
+flex-start` added to both `.brand` and `.tag-row`, and `width:auto` added
+explicitly to both `.mark-img` and `.tag-row img`, so neither can be
+stretched again regardless of which one was actually affected.
+
+**Verified by measurement, not by eye.** Intrinsic PNG size (Pillow
+`Image.size`) vs. the rendered bbox (measured off the actual PNG pixels —
+threshold-scan for non-background pixels, isolating the logo from adjacent
+text/letters by finding the column gap that separates them):
+
+| | Intrinsic PNG | Expected render @ set height | Rendered — before fix | Rendered — after fix |
+|---|---|---|---|---|
+| NP7 mark (`.mark-img`, height:30px) | 1342×637 (ratio 2.107) | 63.2×30px | **118×30px (ratio 3.93)** — confirmed distorted | **63×30px (ratio 2.10)** — matches |
+| Experience script logo (`.tag-row img`, height:26px) | 1479×1036 (ratio 1.428) | 37.1×26px | 37×26px (ratio 1.423) — already correct | 37×26px (ratio 1.423) — unchanged |
+
+The "before" column isn't a guess — the actual pre-fix HTML/PNG for slide 02
+was still sitting in this repo's git history (this environment auto-commits
+snapshots), so it was measured directly (`git show HEAD:ig-carousel-alacati/slides/02-ziad-1080x1350.png`),
+then cross-checked by reverting the CSS in the build script and re-rendering
+to confirm the same 118×30px reproduced. Worth flagging honestly: at a
+glance, even zoomed in, the 118px-wide mark does *not* look obviously wrong
+— it reads as a slightly wide, slightly thin "NP7" and nothing more. That's
+exactly why the owner asked for a measurement instead of a look, and it was
+the right call — eyeballing this one first would have missed it, which is
+what happened last round.
+
+**The Experience logo was never actually distorted** — it measured correct
+both before and after, for the structural reason above (it was never a
+direct child of the stretching container). No fix was needed there beyond
+the defensive `width:auto` now in place.
+
+**The inversion step did not resize or pad either PNG.** Checked by
+re-reading the Pillow preprocessing code: the mark goes through
+`.convert("RGBA")` → split channels → `ImageOps.invert()` on the RGB only →
+re-merge with the original alpha → `.getbbox()` → `.crop()`. Only `invert()`
+(a per-pixel colour operation) and `.crop()` (trims transparent margin, does
+not resample) touch the image — there is no `.resize()` anywhere in that
+path. The dimension change from the untouched source (`np7-logo.png`,
+1382×677) to the processed file (`np7-mark-white.png`, 1342×637) is exactly
+that bbox trim removing transparent padding around the glyph, not a resize
+— confirmed because the two aren't a uniform scale of each other (source
+ratio 2.041 vs. trimmed ratio 2.107; a resize preserves ratio, a crop of
+asymmetric padding does not). The same applies to the Experience logo
+(1519×1076 source → 1479×1036 trimmed). Both are legitimate, expected trims,
+not distortions.
 - **Stars + "Verified" badge** — the star glyph pattern and the pill-shaped
   checkmark "Verified" badge mirror `src/components/experience/guest-reviews.tsx`
   (`stars()` helper, gold `#ffd24a`-family colour, and the `M20 6L9 17l-5-5`
@@ -233,20 +304,69 @@ beat the owner wanted. If the asset exists, it's most likely outside
 `media_assets` entirely (a Canva/Promo Studio export, a Meta ad library
 asset, or similar) and would need a pointer from the owner to locate.
 
+### Round 4 photo correction — slide 1 (01 / 01b / story)
+
+The empty-water photo (`place/distant-sailor-empty-bay.jpg`, carried since
+round 2) was correctly called out as a placeholder that read as one. The
+new brief: something that carries the line's own feeling — "One star.
+Blisters, sunburn, and a grin that will not leave." — spray, a wipeout, a
+hand on a boom, the end of a long day. With one absolute constraint: no
+recognisable guest face, because a fabricated review is exactly the wrong
+place for a real person's face regardless of consent.
+
+Searched the curated Alaçatı library (`experiences/np7-alacati/**`) for
+`crash`, `splash`, `spray`, `wipeout`, `boom`, `hands`, `sunset`, `tired`,
+`beach`, `gear` — the trip's raw `memories/*` dump has no descriptive
+filenames to search by keyword, so it wasn't a candidate source for this
+kind of targeted look. 16 candidates came back; the strongest, face-safe
+finalists:
+
+- **`action/crash-splash-legs-in-spray.jpg` — used.** Only a pair of legs
+  and feet, thrown up out of a wall of spray; the rider is completely
+  hidden by the water itself. This is a hard face-safety pass by
+  construction, not a judgement call, and it's the most literal "wipeout"
+  in the set — arguably the single most physical, brutal frame available.
+- **`action/sail-crash-in-water.jpg` — rejected, not for a face (there
+  isn't one — a hand is visible gripping the boom, the rider is otherwise
+  hidden under the capsized sail), but because it reads more as a
+  gear-wreck than a person getting wrecked, which felt like a weaker match
+  for "blisters, sunburn."** Still fully safe if a future slide wants a
+  "hand on a boom" beat specifically.
+- **`action/orange-wing-close-up-spray.jpg` — rejected on caution, not
+  certainty.** A wing-foiler mid-capsize, submerged in spray at the moment
+  of impact; very likely face-safe (the face area is obscured by water at
+  full resolution) but with slightly more residual doubt than the other two
+  since a sliver near the helmet strap isn't 100% conclusively clear the
+  way "only legs are visible" is. Passed over in favour of the cleaner call.
+- **`action/rider-catapult-over-boom.jpg` — rejected, face visible.** The
+  most dramatic single frame in the set — a rider mid-catapult, thrown
+  clear of the board — but his face is turned toward camera and clearly
+  readable. This is the one genuinely rejected *for* a face, not for taste.
+
+Other candidates considered and passed over for being calmer/less "brutal"
+than the four above (all are face-safe, kept as fallback options if this
+pick doesn't land): `action/crash-splash-on-water.jpg`,
+`action/distant-crash-behind-buoys.jpg`, `action/distant-crash-in-bay.jpg`,
+`action/legs-and-board-in-spray.jpg`, `action/splash-as-crew-falls-off-sup.jpg`,
+`action/rider-crashing-into-water.jpg`, `action/rider-crashing-into-jibe.jpg`,
+`action/rider-crashing-onto-sail.jpg`. Rejected outright regardless of
+drama: `learning/participant-holding-boom-alone.jpg` (dryland boom drill,
+face fully visible, no wipeout energy at all).
+
+The wash on slide 1 was tuned down from the round-3 experiment
+(`washStrength: 1.0`, same as the reviewer action shots) rather than pushed
+stronger — the spray photo is bright and busy enough that a heavier scrim
+just muddied the "physical" feeling the brief asked for, without actually
+buying any extra text legibility over the plainer library shot it replaced.
+
 ### Slides that kept their previous-round photo
 
-- **01 / 01b / story (satire)** — `place/distant-sailor-empty-bay.jpg`, the
-  widest, emptiest water in the original 12-photo set, per "the satire slide
-  reads best over the emptiest, widest water." No recognisable guest, on
-  purpose — see "Photo policy this round" above. Round 3 asked for a
-  specific "pointing at camera" replacement here; that search came up empty
-  (see "Round 3 photo corrections" below), so this slide is unchanged.
 - **07 (CTA)** — `place/lone-board-on-blue-bay.jpg`, unchanged; a riderless
   board in open water, out of scope for this round's reviewer-photo request.
 
 ### Photos rejected in the original 12-photo library set (prior round)
 
-Kept here for context on why 01/01b/story and 07 use what they use. All 12
+Kept here for context on why 07 (and, until round 4, the satire slide) use what they use. All 12
 originally-supplied library files were downloaded and inspected two ways:
 close-up crops, then composited exactly as the real render would use them (a
 1080-wide "cover" fit, centered) and viewed at that true output scale, since
@@ -347,9 +467,10 @@ be a reasonable swap if a 6th slide is ever wanted.
   board convention" above) — the brief was explicit not to invent a new
   line, so the board's number was kept as given.
 - **01 vs 01b are alternates, not sequential carousel slides** — both were
-  rendered per the brief, sharing one background photo (the emptiest, since
-  that's what the brief said reads best for the satire slide) since only
-  one of the two will ever run in an actual post.
+  rendered per the brief, sharing one background photo since only one of
+  the two will ever run in an actual post. That shared photo changed in
+  round 4 (see "Round 4 photo correction" above) but the alternates-share-
+  one-photo logic itself didn't.
 - **No review-platform chrome** (no Google/Trustpilot-style logo or star
   widget) was used on the satire slide — it's an original NP7-styled card,
   not a copy of any real platform's UI, so the satire never risks reading

@@ -128,6 +128,20 @@ export function emailButton(label: string, href: string, division: Division = "e
 </td></tr></table>`;
 }
 
+/**
+ * A quiet pill. WhatsApp deserves a button, not a text link buried in a
+ * sentence, but it must not compete with the mail's real call to action, so it
+ * is outlined rather than filled. Table markup for the same reason the primary
+ * button uses it: Outlook's Word engine ignores a styled <a> on its own.
+ */
+export function emailPill(label: string, href: string, division: Division = "experience"): string {
+  const t = THEMES[division];
+  return `<table role="presentation" cellpadding="0" cellspacing="0" style="margin:14px 0;"><tr>
+<td align="center" style="border-radius:999px;border:2px solid ${t.accent};">
+<a href="${href}" target="_blank" style="display:inline-block;padding:10px 22px;font-size:14px;font-weight:700;color:${t.accent};text-decoration:none;border-radius:999px;">${esc(label)}</a>
+</td></tr></table>`;
+}
+
 export function esc(s: string): string {
   return String(s).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]!));
 }

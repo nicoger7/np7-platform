@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { sendEmail } from "@/lib/email/send";
+import { nextStepsVars } from "@/lib/email/next-steps";
 import { requireTeamMember, requireSectionEdit } from "@/lib/admin-auth";
 import { createAdminClient } from "@/lib/supabase";
 import { AUTOMATIONS, CANNOT_DISABLE, lifecycleLive } from "@/lib/email/automations";
@@ -290,7 +291,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
 
   const { data: bookings } = await db
     .from("exp_bookings")
-    .select("id, status, downpayment_received, contact_id, contacts(name,email), exp_experiences(title), exp_editions(date_start,date_end,whatsapp_group_link)")
+    .select("id, status, downpayment_received, contact_id, experience_id, contacts(name,email), exp_experiences(title), exp_editions(date_start,date_end,whatsapp_group_link)")
     .eq("edition_id", id);
 
   // The waiver reminder has a per-guest condition the dedupe key can't cover:
@@ -306,6 +307,15 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
   }
 
   const fmt = fmtD;
+  /* Built once for the week and spread into every send below, test copy
+     included. Two mails about the same trip must not answer "when does the
+     crew chat open" differently. */
+  const firstBooking = ((bookings ?? []) as Record<string, any>[])[0];
+  const nextSteps = await nextStepsVars({
+    experienceId: firstBooking?.experience_id ?? null,
+    editionId: id,
+    origin,
+  });
   let sent = 0, skipped = 0;
 
   /* Test mode diverts BEFORE the loop over guests, so there is no path where a
@@ -333,6 +343,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
         whatsappLink: b.exp_editions?.whatsapp_group_link ?? values.whatsappLink ?? undefined,
         bookingLink: `${origin}/account`,
         tripLink: `${origin}/account/bookings/${b.id}`,
+        ...nextSteps,
         /* The waiver reminder's whole job is the button, and the first test
            copy arrived without one because this list was a hand-copied subset
            of the real send's. A test that quietly omits a variable tests the
@@ -369,6 +380,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
         bookingLink: `${origin}/account`,
         tripLink: `${origin}/account/bookings/${b.id}`,
         waiverLink: `${origin}/account/bookings/${b.id}/waiver`,
+        ...nextSteps,
       },
       bookingId: b.id,
       contactId: b.contact_id,

@@ -313,7 +313,7 @@ export async function POST(request: NextRequest) {
         refundDays: Number(edition?.deposit ?? pkg.deposit ?? 0) > 0 ? String(pkg.deposit_refund_days ?? 14) : undefined,
         // The crew chat date, the trip page, WhatsApp for questions, and the
         // add-ons this trip actually offers. All derived, none typed.
-        ...(await nextStepsVars({ experienceId: exp.id, editionId: edition?.id ?? null, origin })),
+        ...(await nextStepsVars({ experienceId: exp.id, editionId: edition?.id ?? null, packageId: pkg.id, origin })),
       },
       bookingId: booking.id,
       contactId,
