@@ -148,8 +148,8 @@ export function KbSectionEditor({
                 className="ml-auto text-[10.5px] font-semibold px-2 py-0.5 rounded-full border transition-colors"
                 style={pub.includes(f.key)
                   ? { backgroundColor: "#0aa3c7", borderColor: "#0aa3c7", color: "#fff" }
-                  : border}>
-                {pub.includes(f.key) ? "👁 members see this" : "internal"}
+                  : { borderColor: "var(--admin-border)", opacity: 0.6 }}>
+                {pub.includes(f.key) ? "👁 members see this" : "internal · release"}
               </button>
             )}
           </div>

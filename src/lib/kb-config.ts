@@ -39,8 +39,15 @@ export type KbField = {
   minItems?: number;
   itemLabel?: string;
   fields?: KbField[];
-  /** Members can see this field. Default false, see the header. */
+  /** A person is ALLOWED to release this field to members. Without it the
+   *  field has no visibility switch at all, because releasing it is not an
+   *  option the product offers. */
   public?: boolean;
+  /** Released the moment the section is created. Exactly one field carries
+   *  this today, the guest-facing sentence, because that is the only thing
+   *  members are actually shown. Everything else starts internal and waits for
+   *  a person to decide. */
+  publicByDefault?: boolean;
   /** The assistant never writes this field (notes, and anything human-only). */
   humanOnly?: boolean;
 };
@@ -76,7 +83,7 @@ export const KB_TEMPLATES: Record<"skill" | "equipment", KbSectionTemplate[]> = 
       key: "what", label: "What it is",
       hint: "One sentence a guest understands, and what it looks like when it is right.",
       fields: [
-        { key: "one_liner", label: "One sentence", kind: "text", required: true, public: true,
+        { key: "one_liner", label: "One sentence", kind: "text", required: true, public: true, publicByDefault: true,
           ask: "How would you explain this skill in one sentence to a guest?",
           help: "This is the sentence members read on their Progress page." },
         { key: "looks_like", label: "Looks like this when it is right", kind: "longtext", required: true, public: true,
@@ -203,7 +210,7 @@ export const KB_TEMPLATES: Record<"skill" | "equipment", KbSectionTemplate[]> = 
     {
       key: "what", label: "What it is", hint: "Plain language, and the job it physically does.",
       fields: [
-        { key: "one_liner", label: "One sentence", kind: "text", required: true, public: true,
+        { key: "one_liner", label: "One sentence", kind: "text", required: true, public: true, publicByDefault: true,
           ask: "What is it, in one guest-friendly sentence?" },
         { key: "its_job", label: "The job it does", kind: "longtext", required: true, public: true,
           ask: "What does it physically do?" },

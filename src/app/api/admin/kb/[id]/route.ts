@@ -5,10 +5,9 @@ import { KB_TEMPLATES, openQuestionsFor, sectionStatus, type KbSectionTemplate }
 
 export const dynamic = "force-dynamic";
 
-/** The fields a section starts life with released to members: whatever the
- *  template marks public, which today is the guest-facing one-liner and the
- *  rest of "What it is". Everything else is ours. */
-const defaultPublic = (t: KbSectionTemplate) => t.fields.filter((f) => f.public).map((f) => f.key);
+/** Released the moment a section is created: the guest-facing sentence, and
+ *  nothing else. Other fields may be released, but a person has to say so. */
+const defaultPublic = (t: KbSectionTemplate) => t.fields.filter((f) => f.publicByDefault).map((f) => f.key);
 
 /**
  * GET — the entry with its sections, spec-merged: every section of the
