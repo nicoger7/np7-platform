@@ -22,6 +22,8 @@ export type BoardCategory = {
   sort: number;
   /** Which side of the business plans with it. null means both. */
   division: string | null;
+  /** Where it sits in the P&L: revenue | cogs | opex | development. */
+  pnl_group: string | null;
 };
 
 export type BoardEntity = {
@@ -81,6 +83,32 @@ export type BoardGroup = {
   actualTotal: number;
 };
 
+/** One P&L line across the year. */
+export type PnlLine = { byMonth: number[]; total: number };
+
+/**
+ * The P&L the business plan reports, computed from the same rows the grid
+ * shows. Revenue less cost of goods gives the gross profit and the margin that
+ * actually says whether the products work; operating and development costs sit
+ * below it, because they do not scale with a sold unit.
+ *
+ * `accumulated` is the running position and is the number people reach for
+ * first: it answers when money is on the account, not whether the year adds up.
+ */
+export type Pnl = {
+  revenue: PnlLine;
+  cogs: PnlLine;
+  grossProfit: PnlLine;
+  opex: PnlLine;
+  development: PnlLine;
+  totalCosts: PnlLine;
+  result: PnlLine;
+  accumulated: number[];
+  lowestPoint: number;
+  grossMarginPct: number | null;
+  netMarginPct: number | null;
+};
+
 export type Board = {
   entity: BoardEntity | null;
   plan: BoardPlan | null;
@@ -95,6 +123,11 @@ export type Board = {
     costPlannedTotal: number;    costActualTotal: number;
     netPlannedTotal: number;     netActualTotal: number;
   };
+  pnlPlanned: Pnl;
+  pnlActual: Pnl;
+  /** Where the running position starts. Carried in from earlier years later;
+   *  0 for now, so `accumulated` is this year's movement. */
+  openingBalance: number;
   /** Actuals that landed in this entity+year with nothing to attach them to.
    *  Not an error: an unplanned cost is a finding worth showing. */
   unallocated: {
@@ -153,6 +186,39 @@ type RawActual = {
   incurred_on: string; category_id: string | null; vendor_id: string | null;
 };
 
+const line = (byMonth: number[]): PnlLine => ({
+  byMonth,
+  total: r2(byMonth.reduce((a, b) => a + b, 0)),
+});
+
+const pct = (part: number, whole: number): number | null =>
+  whole === 0 ? null : Math.round((part / whole) * 1000) / 10;
+
+/** Assemble one P&L from month sums already bucketed by P&L group. */
+function assemblePnl(
+  bucket: Record<string, number[]>,
+  openingBalance: number,
+): Pnl {
+  const revenue = line(bucket.revenue);
+  const cogs = line(bucket.cogs);
+  const opex = line(bucket.opex);
+  const development = line(bucket.development);
+  const grossProfit = line(revenue.byMonth.map((v, i) => r2(v - cogs.byMonth[i])));
+  const totalCosts = line(cogs.byMonth.map((v, i) => r2(v + opex.byMonth[i] + development.byMonth[i])));
+  const result = line(revenue.byMonth.map((v, i) => r2(v - totalCosts.byMonth[i])));
+
+  const accumulated: number[] = [];
+  let running = openingBalance;
+  for (const m of result.byMonth) { running = r2(running + m); accumulated.push(running); }
+
+  return {
+    revenue, cogs, grossProfit, opex, development, totalCosts, result, accumulated,
+    lowestPoint: accumulated.length ? Math.min(...accumulated) : 0,
+    grossMarginPct: pct(grossProfit.total, revenue.total),
+    netMarginPct: pct(result.total, revenue.total),
+  };
+}
+
 export function buildBoard(input: {
   entity: BoardEntity | null;
   plan: BoardPlan | null;
@@ -164,6 +230,7 @@ export function buildBoard(input: {
   allocatedActualIds: Set<string>;
   editionLabels: Map<string, string>;
   vendorNames: Map<string, string>;
+  openingBalance?: number;
 }): Board {
   const { entity, plan, year, categories, lines, allocations, actuals } = input;
 
@@ -246,6 +313,26 @@ export function buildBoard(input: {
   const revenue = groupsFor("revenue");
   const cost = groupsFor("cost");
 
+  // ── P&L: every row counted once, under the line its category belongs to ──
+  const GROUPS = ["revenue", "cogs", "opex", "development"] as const;
+  const emptyBucket = () => Object.fromEntries(GROUPS.map((g) => [g, zero12()])) as Record<string, number[]>;
+  const plannedBucket = emptyBucket();
+  const actualBucket = emptyBucket();
+  for (const row of rowsByKey.values()) {
+    const cat = row.categoryId ? catById.get(row.categoryId) : undefined;
+    // An uncategorised cost still has to land somewhere, and overheads is the
+    // honest default: counting it as cost of goods would flatter the margin.
+    const group = cat?.pnl_group ?? (cat?.kind === "revenue" ? "revenue" : "opex");
+    if (!GROUPS.includes(group as typeof GROUPS[number])) continue;
+    for (let i = 0; i < 12; i++) {
+      plannedBucket[group][i] = r2(plannedBucket[group][i] + row.cells[i].planned);
+      actualBucket[group][i] = r2(actualBucket[group][i] + row.cells[i].actual);
+    }
+  }
+  const openingBalance = input.openingBalance ?? 0;
+  const pnlPlanned = assemblePnl(plannedBucket, openingBalance);
+  const pnlActual = assemblePnl(actualBucket, openingBalance);
+
   const sumGroups = (gs: BoardGroup[], field: "plannedByMonth" | "actualByMonth") => {
     const out = zero12();
     for (const g of gs) for (let i = 0; i < 12; i++) out[i] = r2(out[i] + g[field][i]);
@@ -273,6 +360,7 @@ export function buildBoard(input: {
 
   return {
     entity, plan, year, revenue, cost,
+    pnlPlanned, pnlActual, openingBalance,
     totals: {
       revenuePlanned, revenueActual, costPlanned, costActual, netPlanned, netActual,
       revenuePlannedTotal: total(revenuePlanned), revenueActualTotal: total(revenueActual),

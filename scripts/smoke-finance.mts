@@ -110,6 +110,27 @@ async function main() {
   check("the attached bill is NOT in unallocated",
     !board.unallocated.some((u) => u.description === "SMOKE Sorobon invoice"));
 
+  console.log("\n── the P&L the business plan reports ───────────");
+  const P = board.pnlPlanned;
+  check("revenue 30,000", P.revenue.total === 30000, P.revenue.total);
+  check("cost of goods 8,000 (Reisevorleistungen, not overhead)", P.cogs.total === 8000, P.cogs.total);
+  check("gross profit 22,000", P.grossProfit.total === 22000, P.grossProfit.total);
+  check("gross margin 73.3%", P.grossMarginPct === 73.3, P.grossMarginPct);
+  check("operating costs 10,800 (rent x12)", P.opex.total === 10800, P.opex.total);
+  check("development 0", P.development.total === 0, P.development.total);
+  check("total costs 18,800", P.totalCosts.total === 18800, P.totalCosts.total);
+  check("result before tax 11,200", P.result.total === 11200, P.result.total);
+  check("net margin 37.3%", P.netMarginPct === 37.3, P.netMarginPct);
+
+  // running position: rent only until March, then the trip lands
+  check("running position Feb = -1,800", P.accumulated[1] === -1800, P.accumulated[1]);
+  check("running position Mar = 13,300", P.accumulated[2] === 13300, P.accumulated[2]);
+  check("running position Dec = the year's result", P.accumulated[11] === P.result.total, P.accumulated[11]);
+  check("lowest point = -1,800, which is what the year needs funding for",
+    P.lowestPoint === -1800, P.lowestPoint);
+  check("an over-budget actual shows in the actual P&L", board.pnlActual.cogs.total === 8340,
+    board.pnlActual.cogs.total);
+
   console.log("\n── experience and hardware are separated ───────");
   // Replicates the board route's category filter: a division's own categories
   // plus the shared ones, never the other side's.

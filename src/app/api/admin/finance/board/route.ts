@@ -43,7 +43,7 @@ export async function GET(req: NextRequest) {
   // they do not share a planning vocabulary. A category with no division is
   // shared on purpose: rent is the same idea whichever company pays it.
   let catQuery = db
-    .from("fin_categories").select("id,key,name,kind,sort,division").is("archived_at", null).order("sort");
+    .from("fin_categories").select("id,key,name,kind,sort,division,pnl_group").is("archived_at", null).order("sort");
   if (entity?.division) catQuery = catQuery.or(`division.is.null,division.eq.${entity.division}`);
   const { data: cats } = await catQuery;
   const categories = (cats ?? []) as BoardCategory[];

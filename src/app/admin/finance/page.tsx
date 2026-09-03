@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import type { Board, BoardGroup, BoardRow, BoardCategory, BoardEntity, BoardPlan } from "@/lib/finance/board";
+import type { Board, BoardGroup, BoardRow, BoardCategory, BoardEntity, BoardPlan, Pnl } from "@/lib/finance/board";
 import { MONTHS } from "@/lib/finance/board";
 import { RecordCostDialog } from "@/components/admin/record-cost-dialog";
 import { useAdminEnv } from "@/app/admin/env-context";
@@ -257,12 +257,8 @@ export default function FinancePage() {
         </div>
       ) : (
         <>
-          {/* ── Summary ──────────────────────────────────────────── */}
-          <div className="grid gap-3 sm:grid-cols-3">
-            <Summary label="Revenue" planned={t!.revenuePlannedTotal} actual={t!.revenueActualTotal} good="up" />
-            <Summary label="Cost" planned={t!.costPlannedTotal} actual={t!.costActualTotal} good="down" />
-            <Summary label="Net" planned={t!.netPlannedTotal} actual={t!.netActualTotal} good="up" strong />
-          </div>
+          {/* ── Key numbers, in the order the business plan reports them ── */}
+          <KeyNumbers planned={board.pnlPlanned} actual={board.pnlActual} />
 
           {/* ── The grid ─────────────────────────────────────────── */}
           <div className="admin-card border rounded-xl overflow-x-auto">
@@ -289,6 +285,23 @@ export default function FinancePage() {
                        onSave={saveCell} onDelete={deleteRow} onRecord={(row, month) => setRecordFor({ row, month })} />
               ))}
 
+              {/* gross profit, so the margin is visible without doing arithmetic */}
+              {board.pnlPlanned.revenue.total !== 0 && (
+                <div className="grid border-t" style={{ gridTemplateColumns: GRID, borderColor: "var(--admin-input-border)" }}>
+                  <div className="px-3 py-2 text-[11px] font-bold admin-heading sticky left-0 z-10"
+                       style={{ background: "var(--admin-card-bg, inherit)" }}>
+                    Gross profit
+                    <span className="ml-2 font-normal admin-faint">revenue less cost of goods</span>
+                  </div>
+                  {board.pnlPlanned.grossProfit.byMonth.map((v, i) => (
+                    <div key={i} className="px-2 py-2 text-right text-[11px] tabular-nums admin-muted">{eur(v)}</div>
+                  ))}
+                  <div className="px-3 py-2 text-right text-[11px] tabular-nums admin-heading font-semibold">
+                    {eur(board.pnlPlanned.grossProfit.total, false)}
+                  </div>
+                </div>
+              )}
+
               {/* net */}
               <div className="grid border-t-2 font-bold" style={{ gridTemplateColumns: GRID, borderColor: "var(--admin-accent)" }}>
                 <div className="px-3 py-2.5 text-xs admin-heading sticky left-0 z-10" style={{ background: "var(--admin-card-bg, inherit)" }}>
@@ -311,6 +324,26 @@ export default function FinancePage() {
                       {eur(t!.netActualTotal)}
                     </div>
                   )}
+                </div>
+              </div>
+
+              {/* The running position. The question everyone actually asks is
+                  not whether the year adds up, it is when money is on the
+                  account, and that is this row. */}
+              <div className="grid border-t" style={{ gridTemplateColumns: GRID, borderColor: "var(--admin-input-border)" }}>
+                <div className="px-3 py-2 text-[11px] font-bold admin-heading sticky left-0 z-10"
+                     style={{ background: "var(--admin-card-bg, inherit)" }}>
+                  Running position
+                  <span className="ml-2 font-normal admin-faint">cumulative</span>
+                </div>
+                {board.pnlPlanned.accumulated.map((v, i) => (
+                  <div key={i} className={`px-2 py-2 text-right text-[11px] tabular-nums font-medium ${v < 0 ? "text-red-400" : "admin-muted"}`}>
+                    {eur(v)}
+                  </div>
+                ))}
+                <div className={`px-3 py-2 text-right text-[11px] tabular-nums font-semibold ${board.pnlPlanned.lowestPoint < 0 ? "text-red-400" : "admin-heading"}`}
+                     title="Lowest point across the year, which is the funding the plan needs">
+                  low {eur(board.pnlPlanned.lowestPoint, false)}
                 </div>
               </div>
             </div>
@@ -386,25 +419,73 @@ function SectionLabel({ children }: { children: React.ReactNode }) {
   );
 }
 
-function Summary({ label, planned, actual, good, strong }: {
-  label: string; planned: number; actual: number; good: "up" | "down"; strong?: boolean;
-}) {
-  const diff = actual - planned;
-  const helpful = good === "up" ? diff >= 0 : diff <= 0;
+/**
+ * The same lines the business plan reports, in the same order, so a budget and
+ * the plan can be read against each other without translating. Gross profit is
+ * the one that says whether the products work; the running low point is the one
+ * that says how much money the year needs.
+ */
+function KeyNumbers({ planned, actual }: { planned: Pnl; actual: Pnl }) {
+  const rows: { label: string; p: number; a: number; hint?: string; strong?: boolean; good: "up" | "down" }[] = [
+    { label: "Revenue", p: planned.revenue.total, a: actual.revenue.total, good: "up" },
+    { label: "Cost of goods", p: planned.cogs.total, a: actual.cogs.total, good: "down", hint: "what a sold unit or a delivered trip directly costs" },
+    { label: "Gross profit", p: planned.grossProfit.total, a: actual.grossProfit.total, good: "up", strong: true },
+    { label: "Operating costs", p: planned.opex.total, a: actual.opex.total, good: "down" },
+    { label: "Development", p: planned.development.total, a: actual.development.total, good: "down" },
+    { label: "Total costs", p: planned.totalCosts.total, a: actual.totalCosts.total, good: "down" },
+    { label: "Result before tax", p: planned.result.total, a: actual.result.total, good: "up", strong: true },
+  ];
+
   return (
-    <div className="admin-card border rounded-xl p-4">
+    <div className="admin-card border rounded-xl overflow-hidden">
+      <div className="grid text-[10px] uppercase tracking-wider admin-faint font-semibold border-b px-4 py-2"
+           style={{ gridTemplateColumns: "1fr 8rem 8rem 6rem", borderColor: "var(--admin-input-border)" }}>
+        <span>Key numbers</span>
+        <span className="text-right">Planned</span>
+        <span className="text-right">Actual</span>
+        <span className="text-right">Difference</span>
+      </div>
+
+      {rows.map((r) => {
+        const diff = r.a - r.p;
+        const helpful = r.good === "up" ? diff >= 0 : diff <= 0;
+        return (
+          <div key={r.label}
+               className="grid px-4 py-1.5 border-b items-baseline"
+               style={{ gridTemplateColumns: "1fr 8rem 8rem 6rem", borderColor: "var(--admin-input-border)" }}>
+            <span className={`text-xs ${r.strong ? "font-bold admin-heading" : "admin-muted"}`}>
+              {r.label}
+              {r.hint && <span className="ml-2 text-[10px] admin-faint font-normal hidden md:inline">{r.hint}</span>}
+            </span>
+            <span className={`text-right text-xs tabular-nums ${r.strong ? "font-bold" : ""} ${r.p < 0 ? "text-red-400" : "admin-heading"}`}>
+              {eurExact(r.p)}
+            </span>
+            <span className={`text-right text-xs tabular-nums ${r.a === 0 ? "admin-faint" : r.a < 0 ? "text-red-400" : "admin-heading"}`}>
+              {r.a === 0 ? "not yet" : eurExact(r.a)}
+            </span>
+            <span className={`text-right text-[11px] tabular-nums ${r.a === 0 ? "admin-faint" : helpful ? "text-green-400" : "text-amber-400"}`}>
+              {r.a === 0 ? "" : `${diff >= 0 ? "+" : ""}${eur(diff, false)}`}
+            </span>
+          </div>
+        );
+      })}
+
+      <div className="grid px-4 py-2 gap-y-1"
+           style={{ gridTemplateColumns: "repeat(auto-fit, minmax(9rem, 1fr))" }}>
+        <Stat label="Gross margin" value={planned.grossMarginPct == null ? "—" : `${planned.grossMarginPct}%`} />
+        <Stat label="Net margin" value={planned.netMarginPct == null ? "—" : `${planned.netMarginPct}%`} />
+        <Stat label="Lowest position" value={eurExact(planned.lowestPoint)} warn={planned.lowestPoint < 0}
+              hint="the deepest the running balance goes, which is what the year needs funding for" />
+      </div>
+    </div>
+  );
+}
+
+function Stat({ label, value, warn, hint }: { label: string; value: string; warn?: boolean; hint?: string }) {
+  return (
+    <div title={hint}>
       <div className="text-[10px] uppercase tracking-wider admin-faint font-semibold">{label}</div>
-      <div className={`mt-1 tabular-nums font-bold ${strong ? "text-2xl" : "text-xl"} ${planned < 0 ? "text-red-400" : "admin-heading"}`}>
-        {eurExact(planned)}
-      </div>
-      <div className="text-xs admin-muted mt-0.5 tabular-nums">
-        actual {eurExact(actual)}
-        {actual !== 0 && (
-          <span className={`ml-2 font-medium ${helpful ? "text-green-400" : "text-amber-400"}`}>
-            {diff >= 0 ? "+" : ""}{eurExact(diff)}
-          </span>
-        )}
-      </div>
+      <div className={`text-sm font-bold tabular-nums ${warn ? "text-red-400" : "admin-heading"}`}>{value}</div>
     </div>
   );
 }
@@ -509,20 +590,27 @@ function AddRowDialog({ categories, year, planId, onClose, onDone }: {
   const [label, setLabel] = useState("");
   const [categoryId, setCategoryId] = useState(categories.find((c) => c.kind === "cost")?.id ?? "");
   const [amount, setAmount] = useState("");
-  const [everyMonth, setEveryMonth] = useState(false);
+  // Three ways a number arrives: it happens once, it repeats, or it is a
+  // year's budget that still has to land somewhere. The business plan spreads
+  // annual figures with weight profiles; even twelfths is the honest default
+  // until someone sets a real seasonality.
+  const [spread, setSpread] = useState<"once" | "each" | "year">("once");
   const [month, setMonth] = useState(new Date().getMonth() + 1);
   const [saving, setSaving] = useState(false);
   const [err, setErr] = useState<string | null>(null);
+  const amountNum = Number(amount.replace(",", ".")) || 0;
 
   async function submit() {
     if (!label.trim()) { setErr("Give the row a name."); return; }
+    const entered = Number(amount.replace(",", ".")) || 0;
+    const allMonths = Array.from({ length: 12 }, (_, i) => i + 1);
     setSaving(true);
     const res = await fetch("/api/admin/finance/lines", {
       method: "PUT", headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         plan_id: planId, year, label: label.trim(), category_id: categoryId || null,
-        months: everyMonth ? Array.from({ length: 12 }, (_, i) => i + 1) : [month],
-        amount_net: Number(amount.replace(",", ".")) || 0,
+        months: spread === "once" ? [month] : allMonths,
+        amount_net: spread === "year" ? Math.round((entered / 12) * 100) / 100 : entered,
       }),
     });
     setSaving(false);
@@ -556,17 +644,30 @@ function AddRowDialog({ categories, year, planId, onClose, onDone }: {
         </div>
         <div>
           <label className="block text-xs font-semibold admin-muted mb-1">Month</label>
-          <select value={month} onChange={(e) => setMonth(Number(e.target.value))} disabled={everyMonth}
+          <select value={month} onChange={(e) => setMonth(Number(e.target.value))} disabled={spread !== "once"}
                   className="w-full admin-input border rounded-lg px-3 py-2 text-sm disabled:opacity-40">
             {MONTHS.map((m, i) => <option key={m} value={i + 1}>{m} {year}</option>)}
           </select>
         </div>
       </div>
 
-      <label className="flex items-center gap-2 text-xs admin-muted mb-4">
-        <input type="checkbox" checked={everyMonth} onChange={(e) => setEveryMonth(e.target.checked)} />
-        Every month of {year}, for things like rent and salaries
-      </label>
+      <div className="mb-4 space-y-1.5">
+        {([
+          ["once", `Once, in the month above`],
+          ["each", `That amount every month of ${year}, for rent and salaries`],
+          ["year", `That is the whole year's budget, spread evenly`],
+        ] as const).map(([value, text]) => (
+          <label key={value} className="flex items-center gap-2 text-xs admin-muted cursor-pointer">
+            <input type="radio" name="spread" checked={spread === value} onChange={() => setSpread(value)} />
+            {text}
+          </label>
+        ))}
+        {spread === "year" && amountNum > 0 && (
+          <p className="text-[11px] admin-faint pl-5">
+            {eurExact(amountNum)} over twelve months is {eurExact(Math.round((amountNum / 12) * 100) / 100)} a month.
+          </p>
+        )}
+      </div>
 
       {err && <p className="text-xs text-red-400 mb-3">{err}</p>}
 
