@@ -41,7 +41,12 @@ export type KbField = {
   fields?: KbField[];
   /** A person is ALLOWED to release this field to members. Without it the
    *  field has no visibility switch at all, because releasing it is not an
-   *  option the product offers. */
+   *  option the product offers.
+   *
+   *  Exactly ONE field per entry kind carries this today, the guest-facing
+   *  sentence, because that is the only thing the member portal renders. Five
+   *  switches down one section implied five decisions where there is one, and
+   *  four of them would have changed nothing. */
   public?: boolean;
   /** Released the moment the section is created. Exactly one field carries
    *  this today, the guest-facing sentence, because that is the only thing
@@ -86,16 +91,16 @@ export const KB_TEMPLATES: Record<"skill" | "equipment", KbSectionTemplate[]> = 
         { key: "one_liner", label: "One sentence", kind: "text", required: true, public: true, publicByDefault: true,
           ask: "How would you explain this skill in one sentence to a guest?",
           help: "This is the sentence members read on their Progress page." },
-        { key: "looks_like", label: "Looks like this when it is right", kind: "longtext", required: true, public: true,
+        { key: "looks_like", label: "Looks like this when it is right", kind: "longtext", required: true,
           ask: "What does it look like when it is right? The picture coach and rider share." },
-        { key: "why_it_matters", label: "Why it matters", kind: "longtext", public: true,
+        { key: "why_it_matters", label: "Why it matters", kind: "longtext",
           ask: "What does it unlock? Why should a rider want it?" },
-        { key: "also_called", label: "Also called", kind: "list", itemLabel: "name", public: true,
+        { key: "also_called", label: "Also called", kind: "list", itemLabel: "name",
           ask: "What else do guests call it?",
           fields: [{ key: "name", label: "Name", kind: "text", required: true, ask: "" }] },
-        { key: "video_url", label: "Reference video", kind: "url", public: true,
+        { key: "video_url", label: "Reference video", kind: "url",
           ask: "Is there a reference video (YouTube or Wind Coach)?" },
-        { key: "video_note", label: "What to watch for", kind: "text", public: true, ask: "" },
+        { key: "video_note", label: "What to watch for", kind: "text", ask: "" },
         NOTES,
       ],
     },
@@ -212,15 +217,15 @@ export const KB_TEMPLATES: Record<"skill" | "equipment", KbSectionTemplate[]> = 
       fields: [
         { key: "one_liner", label: "One sentence", kind: "text", required: true, public: true, publicByDefault: true,
           ask: "What is it, in one guest-friendly sentence?" },
-        { key: "its_job", label: "The job it does", kind: "longtext", required: true, public: true,
+        { key: "its_job", label: "The job it does", kind: "longtext", required: true,
           ask: "What does it physically do?" },
-        { key: "key_numbers", label: "Key numbers", kind: "list", itemLabel: "number", public: true,
+        { key: "key_numbers", label: "Key numbers", kind: "list", itemLabel: "number",
           ask: "Which numbers identify it?",
           fields: [
             { key: "label", label: "Label", kind: "text", required: true, ask: "" },
             { key: "value", label: "Value", kind: "text", required: true, ask: "" },
           ] },
-        { key: "video_url", label: "Video", kind: "url", public: true, ask: "" },
+        { key: "video_url", label: "Video", kind: "url", ask: "" },
         NOTES,
       ],
     },
