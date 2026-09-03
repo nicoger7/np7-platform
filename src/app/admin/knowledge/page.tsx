@@ -1,5 +1,8 @@
 "use client";
 
+import { KbSectionEditor } from "@/components/admin/kb-section-editor";
+import type { KbField } from "@/lib/kb-config";
+
 import { useEffect, useState, useCallback } from "react";
 
 /**
@@ -19,8 +22,11 @@ type ShelfRow = {
   sections: { total: number; complete: number };
 };
 type Section = {
-  key: string; label: string; hint: string; questions: string[];
-  content: string; status: string; openQuestions: string[];
+  key: string; label: string; hint: string;
+  fields: KbField[];
+  data: Record<string, unknown>;
+  status: string; openQuestions: string[];
+  publicFields: string[];
 };
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type Entry = any;
@@ -83,17 +89,16 @@ export default function KnowledgePage() {
     else setToast(r.error || "Could not create.");
   }
 
-  async function saveSection(key: string, content: string) {
+  /* The server recomputes status and the open questions from the data, so this
+     sends the section and then re-reads it rather than guessing locally. */
+  async function saveSection(key: string, next: { data?: Record<string, unknown>; publicFields?: string[] }) {
     if (!openId) return;
-    setSections((ss) => ss.map((s) => (s.key === key ? { ...s, content, status: s.status === "missing" && content.trim() ? "draft" : s.status } : s)));
-    await fetch(`/api/admin/kb/${openId}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ section: { key, content, status: content.trim() ? undefined : "missing" } }) }).catch(() => {});
-  }
-
-  async function toggleVisible() {
-    if (!openId || !entry) return;
-    const v = !entry.website_visible;
-    setEntry({ ...entry, website_visible: v });
-    await fetch(`/api/admin/kb/${openId}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ website_visible: v }) }).catch(() => {});
+    await fetch(`/api/admin/kb/${openId}`, {
+      method: "PATCH", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ section: { key, ...next } }),
+    }).catch(() => {});
+    const d = await fetch(`/api/admin/kb/${openId}`).then((x) => x.json()).catch(() => null);
+    if (d?.entry) { setEntry(d.entry); setSections(d.sections); }
     loadShelf();
   }
 
@@ -187,10 +192,11 @@ export default function KnowledgePage() {
               <div className="flex flex-wrap items-center gap-3">
                 <h2 className="text-lg font-bold admin-heading flex-1 min-w-0 truncate">{entry.title}</h2>
                 <span className="text-[10px] font-bold uppercase px-2 py-1 rounded" style={{ backgroundColor: entry.status === "complete" ? "rgba(34,197,94,0.15)" : "rgba(245,158,11,0.15)", color: entry.status === "complete" ? "#22c55e" : "#f59e0b" }}>{entry.status}</span>
-                <label className="flex items-center gap-2 text-xs admin-muted cursor-pointer">
-                  <input type="checkbox" checked={!!entry.website_visible} onChange={toggleVisible} className="w-4 h-4 accent-[var(--admin-accent)]" />
-                  Show to members
-                </label>
+                {/* No "Show to members" here any more. It sat at the top of the
+                    entry and read as "publish all of this", while the portal
+                    only ever showed the one-liner. The switch now lives on the
+                    field it releases, inside the section. */}
+                <span className="text-[11px] admin-faint">visibility sits on the field, in the sections below</span>
               </div>
               {/* braindump */}
               <div className="mt-4">
@@ -222,10 +228,14 @@ export default function KnowledgePage() {
                   <h3 className="text-sm font-bold admin-heading">{s.label}</h3>
                   <span className="text-[10px] uppercase admin-faint ml-auto">{s.status}</span>
                 </div>
-                <p className="text-[11.5px] admin-faint mb-2">{s.hint}</p>
-                <textarea defaultValue={s.content} rows={Math.max(3, Math.min(14, s.content.split("\n").length + 1))}
-                  onBlur={(e) => { if (e.target.value !== s.content) saveSection(s.key, e.target.value); }}
-                  className="w-full admin-input border rounded-xl px-3 py-2.5 text-sm outline-none focus:border-[#0aa3c7] font-mono leading-relaxed" style={{ borderColor: "var(--admin-border)" }} />
+                <p className="text-[11.5px] admin-faint mb-3">{s.hint}</p>
+                <KbSectionEditor
+                  key={`${s.key}:${s.status}`}
+                  fields={s.fields}
+                  data={s.data}
+                  publicFields={s.publicFields}
+                  onSave={(next) => saveSection(s.key, next)}
+                />
                 {s.status !== "complete" && s.openQuestions.length > 0 && (
                   <div className="mt-2">
                     {s.openQuestions.map((q, i) => <p key={i} className="text-[11.5px]" style={{ color: "#b97608" }}>? {q}</p>)}
