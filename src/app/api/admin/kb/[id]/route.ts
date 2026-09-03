@@ -86,9 +86,19 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
        template actually allows out. A rogue payload cannot publish the
        coaching method by naming a field that was never meant to be public. */
     const allowed = new Set(t.fields.filter((f) => f.public).map((f) => f.key));
+    /* Seed the release defaults on the row's FIRST write. The column defaults
+       to an empty array, so without this the guest-facing sentence was created
+       already withheld and the switch beside it started off: the template's
+       default never reached the database, only the GET fallback, which stops
+       applying the moment a row exists. */
+    const { data: existing } = await db.from("kb_sections")
+      .select("id, public_fields").eq("entry_id", id).eq("section_key", s.key).maybeSingle();
+    const seeded = existing ? null : defaultPublic(t);
+
     const row = {
       entry_id: id,
       section_key: s.key,
+      ...(seeded ? { public_fields: seeded } : {}),
       ...(s.data != null
         ? { data, status: sectionStatus(t, data), open_questions: openQuestionsFor(t, data) }
         : {}),
