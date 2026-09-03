@@ -23,6 +23,12 @@ interface ImagePickerModalProps {
    *  once — for galleries, where picking one at a time meant reopening the
    *  dialog per photo. `onSelect` still fires per double-click. */
   onSelectMany?: (urls: string[]) => void;
+  /** The whole file, not just its URL. A memory's storage path is the only
+   *  thing that says which week and which rider it came from, and the
+   *  knowledge base stores that path as its stable handle. Added beside
+   *  `onSelect` rather than widening it, so the seventeen existing call sites
+   *  stay untouched. */
+  onSelectItem?: (item: { url: string; path?: string; name?: string }) => void;
 }
 
 function formatSize(bytes: number) {
@@ -121,7 +127,7 @@ function safeName(file: File) {
   return `${base}-${Date.now()}-${Math.random().toString(36).slice(2, 6)}.${ext}`;
 }
 
-export default function ImagePickerModal({ onSelect, onClose, defaultFolder, onSelectMany }: ImagePickerModalProps) {
+export default function ImagePickerModal({ onSelect, onClose, defaultFolder, onSelectMany, onSelectItem }: ImagePickerModalProps) {
   const [view, setView] = useState<"all" | "folders">("all");
   const [all, setAll] = useState<FileItem[]>([]);
   const [folderFiles, setFolderFiles] = useState<FileItem[]>([]);
@@ -362,7 +368,7 @@ export default function ImagePickerModal({ onSelect, onClose, defaultFolder, onS
                           if (multi) setMultiSel((s) => { const n = new Set(s); if (n.has(item.url!)) n.delete(item.url!); else n.add(item.url!); return n; });
                           else setSelected(item.url);
                         }}
-                        onDoubleClick={() => item.url && onSelect(item.url)}
+                        onDoubleClick={() => { if (!item.url) return; onSelectItem?.({ url: item.url, path: item.path, name: item.name }); onSelect(item.url); }}
                         title={item.path}
                         className="group relative rounded-xl overflow-hidden text-left transition-all"
                         style={{ border: isSelected ? "2px solid #0aa3c7" : "1px solid var(--admin-border)", boxShadow: isSelected ? "0 0 0 3px rgba(10,163,199,0.25)" : "none" }}
@@ -416,7 +422,7 @@ export default function ImagePickerModal({ onSelect, onClose, defaultFolder, onS
                 Add {multiSel.size || ""} photo{multiSel.size === 1 ? "" : "s"}
               </button>
             ) : (
-              <button onClick={() => selected && onSelect(selected)} disabled={!selected} className="px-5 py-2 bg-[#0aa3c7] hover:bg-[#0aa3c7]/90 disabled:opacity-30 text-white text-sm font-bold rounded-lg transition-colors">Select</button>
+              <button onClick={() => { if (!selected) return; const it = [...all, ...folderFiles].find((f) => f.url === selected); onSelectItem?.({ url: selected, path: it?.path, name: it?.name }); onSelect(selected); }} disabled={!selected} className="px-5 py-2 bg-[#0aa3c7] hover:bg-[#0aa3c7]/90 disabled:opacity-30 text-white text-sm font-bold rounded-lg transition-colors">Select</button>
             )}
           </div>
         </div>

@@ -1,6 +1,7 @@
 "use client";
 
 import { KbSectionEditor } from "@/components/admin/kb-section-editor";
+import { KbMediaPanel } from "@/components/admin/kb-media-panel";
 import type { KbField } from "@/lib/kb-config";
 
 import { useEffect, useState, useCallback } from "react";
@@ -236,6 +237,9 @@ export default function KnowledgePage() {
                   publicFields={s.publicFields}
                   onSave={(next) => saveSection(s.key, next)}
                 />
+                {/* Media for THIS section: a photo of the mistake belongs under
+                    the mistake, not in one pile at the bottom of the entry. */}
+                {openId && <KbMediaPanel entryId={openId} sectionKey={s.key} />}
                 {s.status !== "complete" && s.openQuestions.length > 0 && (
                   <div className="mt-2">
                     {s.openQuestions.map((q, i) => <p key={i} className="text-[11.5px]" style={{ color: "#b97608" }}>? {q}</p>)}
