@@ -18,6 +18,7 @@
 
 import { createAdminClient } from "@/lib/supabase";
 import { sendEmail } from "@/lib/email/send";
+import { nextStepsVars } from "@/lib/email/next-steps";
 import { paymentInflow } from "@/lib/reconcile";
 import { generateDocument, bookingBillingTotals, issuedInvoiceTotal } from "./generate";
 import type { DocumentRow } from "./types";
@@ -117,7 +118,9 @@ export async function promoteProformaIfPaid(bookingId: string): Promise<{ promot
       try {
         const { data: bk } = await db
           .from("exp_bookings")
-          .select("contacts(name,email), exp_experiences(title)")
+          // experience_id and edition_id come along for the next-steps block:
+          // without them the mail would promise a crew chat with no date.
+          .select("experience_id, edition_id, contacts(name,email), exp_experiences(title)")
           .eq("id", bookingId)
           .maybeSingle();
         const email = bk?.contacts?.email;
@@ -139,6 +142,15 @@ export async function promoteProformaIfPaid(bookingId: string): Promise<{ promot
               amount: amountStr,
               reference: real.invoice_number || "",
               bookingLink: `${process.env.NEXT_PUBLIC_SITE_URL ?? ""}/account/bookings/${bookingId}`,
+              /* On the bank-transfer path this mail IS the "you're in" moment,
+                 and it fires on the down-payment, not only on the balance. So
+                 the next steps belong here: the crew chat, where the week's
+                 outline already lives, and how to reach us. */
+              ...(await nextStepsVars({
+                experienceId: bk?.experience_id ?? null,
+                editionId: bk?.edition_id ?? null,
+                origin: process.env.NEXT_PUBLIC_SITE_URL ?? "https://www.np-seven.com",
+              })),
             },
           });
           await db.from("documents").update({ sent_at: new Date().toISOString() }).eq("id", realId).then(() => {}, () => {});

@@ -124,9 +124,9 @@ real guest filling much of the frame needs different handling than a distant
 library shot did. For each of the five reviewer photos the horizontal focal
 point was set by hand after looking at the source image, so the crop keeps
 the reviewer fully in frame while sliding the calmer half of the water under
-the text block; Thomas's shot (04) is close and wide enough across the frame
-that there wasn't a clean calm side to crop toward, so that slide instead
-gets a stronger wash (`washStrength: 1.18`) rather than an awkward crop.
+the text block; Thomas's shot (04, the couple photo) is wide across the
+frame with no clean calm side to crop toward, so that slide instead gets a
+stronger wash (`washStrength: 1.22`) rather than an awkward crop.
 
 ### Photo policy this round (owner override)
 

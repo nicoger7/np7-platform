@@ -13,6 +13,14 @@ export type EmailVars = {
   resetLink?: string;
   bookingLink?: string;
   whatsappLink?: string;
+  /** wa.me link for questions, from company_settings.phone. Not the crew group. */
+  supportWhatsapp?: string;
+  /** When the crew chat opens, worded as a date. From the admin mail schedule. */
+  crewChatWhen?: string;
+  /** The public trip page, where the day-by-day lives. */
+  experienceLink?: string;
+  /** "Extra nights, gear, transfers" — only when this trip actually offers some. */
+  addonsSummary?: string;
   /** admin-set subject for a survey invite; empty = the built-in one */
   surveySubject?: string;
   reviewLink?: string;
@@ -156,6 +164,28 @@ const focusList = (text?: string) => {
 };
 
 /** Code-default templates, keyed by template_key. */
+/**
+ * What happens next, said once and reused.
+ *
+ * Nico: the paid mail "doesn't explain about the whatsapp group which will
+ * create and that the preliminary schedule is the one on the experience page
+ * and in the trip tab under my trip". Written three times it would drift three
+ * ways, so it lives here and every mail that needs it calls it.
+ */
+const whatsNextBlock = (v: EmailVars): string =>
+  p(
+    `<strong>What happens next.</strong> ` +
+    `We open the crew WhatsApp group${v.crewChatWhen ? ` around <strong>${esc(v.crewChatWhen)}</strong>` : " a few weeks before the trip"}, ` +
+    `and you'll meet the others there before you fly. ` +
+    `The week's outline is already written: it's on the trip page` +
+    (v.experienceLink ? ` (<a href="${esc(v.experienceLink)}" style="color:#0aa3c7;font-weight:700;">have a look</a>)` : "") +
+    ` and under <strong>Trip</strong> in your account. The exact running order follows a few days before you fly, once we can read the forecast.`
+  ) +
+  (v.supportWhatsapp
+    ? p(`Questions in between? <a href="${esc(v.supportWhatsapp)}" style="color:#0aa3c7;font-weight:700;">Message us on WhatsApp</a> or just reply to this mail.`)
+    : p(`Questions in between? Just reply to this mail.`));
+
+
 export const TEMPLATES: Record<string, (v: EmailVars, opts?: LayoutOpts) => Built> = {
   reservation_received: (v, opts) => ({
     subject: `You're registered — ${v.experienceTitle ?? "NP7 Experience"} 🤙`,
@@ -166,10 +196,11 @@ export const TEMPLATES: Record<string, (v: EmailVars, opts?: LayoutOpts) => Buil
         greet(v) +
         p(`You're registered for <strong>${esc(v.experienceTitle || "")}${v.editionLabel ? " · " + esc(v.editionLabel) : ""}</strong> — awesome to have you. Here's how it works from here:`) +
         p(`<strong>1. Secure your spot.</strong> Attached are your payment details (pro-forma invoice) — pay the downpayment by bank transfer within the window shown and your place is locked in.${v.refundDays ? ` Fully refundable for ${esc(String(v.refundDays))} days after you pay, so there's plenty of time to sort flights.` : ""}`) +
-        p(`<strong>2. Plan it with us.</strong> Manage your booking, add extra nights and meet your crew — all in your trip account.`) +
+        p(`<strong>2. Plan it with us.</strong> Manage your booking and meet your crew in your trip account.${v.addonsSummary ? ` This trip also offers ${esc(v.addonsSummary)} — you can add those any time.` : ""}`) +
         p(`<strong>3. Pay the balance later</strong> by bank transfer, in good time before the trip.`) +
         (v.bookingLink ? emailButton("Secure my spot", v.bookingLink) : "") +
-        p(`Any questions, just reply — we're happy to help.<br>— Nico & the NP7 team`),
+        whatsNextBlock(v) +
+        p(`— Nico &amp; the NP7 team`),
     }),
   }),
 
@@ -544,7 +575,11 @@ export const TEMPLATES: Record<string, (v: EmailVars, opts?: LayoutOpts) => Buil
         p(`Great news — your payment${v.amount ? ` of <strong>${esc(v.amount)}</strong>` : ""} for <strong>${esc(v.experienceTitle || "your NP7 trip")}</strong> has arrived. Your spot is secured! 🎉`) +
         p(`Attached is your official invoice${v.reference ? ` (<strong>${esc(v.reference)}</strong>)` : ""} for your records — it replaces the pro-forma payment request.`) +
         (v.bookingLink ? emailButton("View my booking", v.bookingLink) : "") +
-        p(`Next up: plan your trip in your account — flights, extra nights, your crew. See you on the water!<br>— Nico &amp; the NP7 team`),
+        // Nico: this belongs after the DOWN-PAYMENT, not only after the balance.
+        // On the bank-transfer path this mail is the "you're in" moment, so the
+        // next steps belong here rather than months later.
+        whatsNextBlock(v) +
+        p(`See you on the water.<br>— Nico &amp; the NP7 team`),
     }),
   }),
 
@@ -626,10 +661,13 @@ export const TEMPLATES: Record<string, (v: EmailVars, opts?: LayoutOpts) => Buil
       preheader: "Your balance is settled — everything's ready for your trip.",
       bodyHtml:
         greet(v) +
-        p(`Your balance is paid in full — everything's sorted for <strong>${esc(v.experienceTitle || "")}${v.dates ? " (" + esc(v.dates) + ")" : ""}</strong>. Nothing left to do but count down the days. 🌊`) +
-        p(`Closer to departure we'll send your final pre-trip details — packing list, arrival info and your group chat. It's all in your trip account too:`) +
+        // The title fell back to an empty string, so a real guest read
+        // "everything's sorted for ." with a hole in the sentence.
+        p(`Your balance is paid in full — everything's sorted for <strong>${esc(v.experienceTitle || "your trip")}${v.dates ? " (" + esc(v.dates) + ")" : ""}</strong>. Nothing left to do but count down the days. 🌊`) +
+        p(`Closer to departure we'll send your packing list and arrival info. It's all in your trip account too:`) +
         (v.bookingLink ? emailButton("Open my trip", v.bookingLink) : "") +
-        p(`See you on the water.<br>— Nico & the NP7 team`),
+        whatsNextBlock(v) +
+        p(`See you on the water.<br>— Nico &amp; the NP7 team`),
     }),
   }),
 

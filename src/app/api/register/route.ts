@@ -5,6 +5,7 @@ import { checkBotId } from "botid/server";
 import { resolveGearInfo, gearDelta, parseGearChoice, parseGearBaseline } from "@/lib/gear-choice";
 import { createAdminClient } from "@/lib/supabase";
 import { sendEmail } from "@/lib/email/send";
+import { nextStepsVars } from "@/lib/email/next-steps";
 import { getPortalUser } from "@/lib/auth";
 import { composeBookingName } from "@/lib/booking-name";
 import { validateCompanions, createCompanionBookings, MAX_COMPANIONS, type CompanionInput } from "@/lib/group-register";
@@ -310,6 +311,9 @@ export async function POST(request: NextRequest) {
       vars: {
         firstName, experienceTitle: exp.title, editionLabel: edition?.label ?? undefined, bookingLink: `${origin}/account`,
         refundDays: Number(edition?.deposit ?? pkg.deposit ?? 0) > 0 ? String(pkg.deposit_refund_days ?? 14) : undefined,
+        // The crew chat date, the trip page, WhatsApp for questions, and the
+        // add-ons this trip actually offers. All derived, none typed.
+        ...(await nextStepsVars({ experienceId: exp.id, editionId: edition?.id ?? null, origin })),
       },
       bookingId: booking.id,
       contactId,

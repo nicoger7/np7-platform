@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { publicOrigin } from "@/lib/public-origin";
 import { createAdminClient } from "@/lib/supabase";
 import { sendEmail } from "@/lib/email/send";
+import { nextStepsVars } from "@/lib/email/next-steps";
 import { getMemoryPhotosForBooking } from "@/lib/portal-data";
 import { computePaymentPlan, dueUrgency, balanceDue } from "@/lib/payments";
 import { sumReceived } from "@/lib/payment-totals";
@@ -353,6 +354,11 @@ export async function GET(req: NextRequest) {
       bookingLink: `${origin}/account`,
       waiverLink: `${origin}/account/bookings/${b.id}/waiver`,
       tripLink: `${origin}/account/bookings/${b.id}`,
+      /* The "what happens next" block: when the crew chat opens, where the
+         week's outline already is, and WhatsApp for questions. Derived from the
+         same schedule that sends the crew mail, so the promise and the send
+         move together. */
+      ...(await nextStepsVars({ experienceId: b.experience_id ?? null, editionId: b.edition_id ?? null, origin })),
       // pre-trip content: edition note overrides the experience note; packing list is per-experience
       preTripNote: (editionNotes.get(b.edition_id ?? "") || c.pre_trip_note || "") || undefined,
       finalDetailsNote: editionFinal.get(b.edition_id ?? "") || undefined,
