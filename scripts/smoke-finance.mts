@@ -21,8 +21,8 @@ const check = (name: string, cond: boolean, got?: unknown) => {
 
 async function main() {
   console.log("\n── setup ───────────────────────────────────────");
-  const { data: entity } = await db.from("fin_entities").select("*").eq("key", "np7-gmbh").single();
-  check("entity np7-gmbh exists", !!entity, entity?.name);
+  const { data: entity } = await db.from("fin_entities").select("*").eq("key", "np7-experience").single();
+  check("entity np7-experience exists", !!entity, entity?.name);
 
   const { data: cats } = await db.from("fin_categories").select("*").order("sort");
   const hotel = cats.find((c: any) => c.key === "cost-travel-input");
@@ -134,10 +134,12 @@ async function main() {
 
   const inExp = entitiesForWorld(ents, "experience").map((e: any) => e.key);
   const inHw = entitiesForWorld(ents, "hardware").map((e: any) => e.key);
-  check("Experience world offers only Experience companies",
-    inExp.includes("np7-gmbh") && inExp.includes("np7-experience") && !inExp.includes("np7-hardware"), inExp);
-  check("Hardware world offers only the hardware company",
-    inHw.includes("np7-hardware") && !inHw.includes("np7-gmbh") && !inHw.includes("np7-experience"), inHw);
+  check("Experience world offers only NP7 Experience",
+    inExp.length === 1 && inExp[0] === "np7-experience", inExp);
+  check("Hardware world offers only NP7 Hardware",
+    inHw.length === 1 && inHw[0] === "np7-hardware", inHw);
+  check("the holding is not a budgetable entity",
+    !ents.some((e: any) => e.key === "np7-gmbh") && ents.length === 2, ents.map((e: any) => e.key));
   check("a world with no company gets nothing, not everything",
     entitiesForWorld([{ division: "experience" }], "hardware").length === 0);
   check("an unknown world still sees everything", entitiesForWorld(ents, null).length === ents.length);

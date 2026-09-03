@@ -31,7 +31,7 @@ export async function GET(req: NextRequest) {
   const world = searchParams.get("world");
 
   const { data: entities } = await db
-    .from("fin_entities").select("id,key,name,role,division,status,active_from,note").order("sort");
+    .from("fin_entities").select("id,key,name,role,division,status,active_from,legal_name,own_entity_from,note").order("sort");
   // Scoped BEFORE anything is chosen, so an entity from the other world cannot
   // be reached even by passing its key in the query string.
   const entityList = entitiesForWorld((entities ?? []) as BoardEntity[], world);

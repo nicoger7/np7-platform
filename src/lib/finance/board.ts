@@ -32,6 +32,10 @@ export type BoardEntity = {
   division: string | null;
   status: string;
   active_from: string | null;
+  /** The GmbH carrying this business today, which is not always its own. */
+  legal_name: string | null;
+  /** When it gets its own legal entity. Null means it already has one. */
+  own_entity_from: string | null;
   note: string | null;
 };
 

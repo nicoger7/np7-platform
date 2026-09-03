@@ -222,6 +222,17 @@ export default function FinancePage() {
         )}
       </div>
 
+      {/* An entity here is a BUSINESS. Until Experience has its own GmbH the
+          invoices go out under the holding's name, and whoever is budgeting
+          should not have to remember that. */}
+      {board?.entity?.own_entity_from && board.entity.legal_name && (
+        <p className="text-[11px] admin-faint">
+          Legally {board.entity.legal_name} until{" "}
+          {new Date(board.entity.own_entity_from).toLocaleDateString("en-GB", { day: "numeric", month: "long", year: "numeric" })}
+          , when {board.entity.name} GmbH takes over.
+        </p>
+      )}
+
       {error && (
         <div className="px-3 py-2 rounded-lg text-sm bg-red-500/10 text-red-400 border border-red-500/20">
           {error}
