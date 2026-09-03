@@ -38,7 +38,7 @@ function scopeOf(key: string): { scope: string; kind: "photo" | "video" | "other
   return { scope: "library", kind: VID.test(key) ? "video" : IMG.test(key) ? "photo" : "other", editionId: null, bookingId: null };
 }
 
-type Seen = { key: string; bytes: number | null; inR2: boolean; inSupabase: boolean };
+type Seen = { key: string; bytes: number | null; inR2: boolean; inSupabase: boolean; modified: string | null };
 
 /** Walk the Supabase bucket breadth-first; it has no recursive list. */
 async function crawlSupabase(db: ReturnType<typeof createAdminClient>, out: Map<string, Seen>) {
@@ -60,6 +60,8 @@ async function crawlSupabase(db: ReturnType<typeof createAdminClient>, out: Map<
           bytes: (f.metadata?.size as number) ?? prev?.bytes ?? null,
           inR2: prev?.inR2 ?? false,
           inSupabase: true,
+          // Whichever store answers, the file's OWN time wins over the crawl's.
+          modified: prev?.modified ?? f.updated_at ?? f.created_at ?? null,
         });
       }
       if (data.length < 1000) break;
@@ -80,7 +82,7 @@ export async function POST(request: NextRequest) {
   if (r2VideoEnabled()) {
     const objs = await listUnderPrefix("");
     for (const o of objs) {
-      seen.set(o.key, { key: o.key, bytes: o.size ?? null, inR2: true, inSupabase: false });
+      seen.set(o.key, { key: o.key, bytes: o.size ?? null, inR2: true, inSupabase: false, modified: o.lastModified });
     }
   }
   await crawlSupabase(db, seen);
@@ -101,6 +103,7 @@ export async function POST(request: NextRequest) {
       scope: s.scope,
       edition_id: s.editionId,
       booking_id: s.bookingId,
+      modified_at: f.modified,
       seen_at: runAt,
       missing_since: null,
       updated_at: runAt,
