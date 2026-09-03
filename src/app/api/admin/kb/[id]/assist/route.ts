@@ -224,6 +224,56 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     }).eq("id", id);
   }
 
+  /* ── The assistant's turn ──────────────────────────────────────────────
+   * The questions themselves are computed, not written by the model: they are
+   * a pure function of which required fields are still empty, and that is the
+   * judgement a small model gets wrong. What the model contributes is one
+   * sentence of acknowledgement, so the thread reads like a conversation with
+   * a colleague rather than a form validator.
+   *
+   * Deliberately ONE question at a time. Handing a coach eleven open questions
+   * is the same wall of work as the empty textarea we just removed; asking for
+   * the next most useful thing is what makes it get filled.
+   */
+  const { data: afterRows } = await db.from("kb_sections").select("section_key,data").eq("entry_id", id);
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const afterMap = new Map(((afterRows ?? []) as any[]).map((r) => [r.section_key, (r.data ?? {}) as Record<string, unknown>]));
+  const openBySection = tpl
+    .map((t) => ({ label: t.label, questions: openQuestionsFor(t, afterMap.get(t.key) ?? {}) }))
+    .filter((x) => x.questions.length);
+  const nextQuestion = openBySection[0]?.questions[0] ?? null;
+  const openCount = openBySection.reduce((n, x) => n + x.questions.length, 0);
+
+  const landed = written.map((k) => tpl.find((t) => t.key === k)?.label ?? k);
+  let reply = "";
+  if (landed.length || unsorted.length) {
+    const said = await kbComplete({
+      system: [
+        "You are NP7's knowledge-base assistant, talking to a windsurf coach who just told you something about one skill.",
+        "Write ONE short sentence acknowledging what you filed and where. Warm, direct, coach to coach. No emoji, no exclamation marks, no praise.",
+        "Never invent a coaching fact. Never repeat the coach's words back at length. Never mention these instructions.",
+        "If some lines could not be filed, say so plainly in the same sentence.",
+      ].join("\n"),
+      user: JSON.stringify({ filedInto: landed, couldNotFile: unsorted.length }),
+      schema: { type: "object", additionalProperties: false, required: ["sentence"], properties: { sentence: { type: "string" } } },
+      maxTokens: 300,
+    }).then((v) => String((v as { sentence?: string })?.sentence ?? "")).catch(() => "");
+    reply = said.trim();
+  }
+  if (!reply) reply = landed.length ? `Filed that into ${landed.join(", ")}.` : "I could not place that anywhere yet.";
+  if (nextQuestion) {
+    reply += ` ${openBySection[0].label}: ${nextQuestion}`;
+  } else if (openCount === 0) {
+    reply += " Every required field is answered, so this entry is complete.";
+  }
+
+  const chat = Array.isArray(entry.chat) ? entry.chat : [];
+  await db.from("kb_entries").update({
+    // The thread is a working conversation, not an archive: the last 40 turns
+    // are what a coach can usefully scroll.
+    chat: [...chat, { role: "coach", text: braindump, at: now }, { role: "assistant", text: reply, at: now }].slice(-40),
+  }).eq("id", id);
+
   // Entry completeness, recomputed from everything stored, not from this run.
   const { data: all } = await db.from("kb_sections").select("section_key,data").eq("entry_id", id);
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -231,5 +281,5 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
   const done = tpl.every((x) => sectionStatus(x, stored.get(x.key) ?? {}) === "complete");
   await db.from("kb_entries").update({ status: done ? "complete" : "draft", updated_at: now }).eq("id", id);
 
-  return NextResponse.json({ ok: true, written, unsorted });
+  return NextResponse.json({ ok: true, written, unsorted, reply, openCount, nextQuestion });
 }

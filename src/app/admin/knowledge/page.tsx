@@ -51,7 +51,8 @@ export default function KnowledgePage() {
   const [sections, setSections] = useState<Section[]>([]);
   const [dump, setDump] = useState("");
   const [assisting, setAssisting] = useState(false);
-  const [questions, setQuestions] = useState<{ section: string; question: string }[]>([]);
+  const [chat, setChat] = useState<{ role: string; text: string; at?: string }[]>([]);
+  const [openCount, setOpenCount] = useState(0);
   const [toast, setToast] = useState("");
   // Two halves of one environment: the sidebar links land on skills or
   // equipment; window.location keeps us out of the useSearchParams/Suspense
@@ -69,7 +70,7 @@ export default function KnowledgePage() {
   useEffect(() => { loadShelf(); }, [loadShelf]);
 
   async function openEntry(row: ShelfRow) {
-    setQuestions([]); setDump("");
+    setChat([]); setOpenCount(0); setDump("");
     let id = row.entryId;
     if (!id) {
       const r = await fetch("/api/admin/kb", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ kind: row.kind, refKey: row.refKey, title: row.label }) }).then((x) => x.json());
@@ -79,7 +80,12 @@ export default function KnowledgePage() {
     }
     setOpenId(id);
     const d = await fetch(`/api/admin/kb/${id}`).then((r) => r.json()).catch(() => null);
-    if (d?.entry) { setEntry(d.entry); setSections(d.sections); }
+    if (d?.entry) {
+      setEntry(d.entry);
+      setSections(d.sections);
+      setChat(Array.isArray(d.entry.chat) ? d.entry.chat : []);
+      setOpenCount(d.sections.reduce((n: number, x: Section) => n + x.openQuestions.length, 0));
+    }
   }
 
   async function newEquipment() {
@@ -99,22 +105,40 @@ export default function KnowledgePage() {
       body: JSON.stringify({ section: { key, ...next } }),
     }).catch(() => {});
     const d = await fetch(`/api/admin/kb/${openId}`).then((x) => x.json()).catch(() => null);
-    if (d?.entry) { setEntry(d.entry); setSections(d.sections); }
+    if (d?.entry) {
+      setEntry(d.entry);
+      setSections(d.sections);
+      setChat(Array.isArray(d.entry.chat) ? d.entry.chat : []);
+      setOpenCount(d.sections.reduce((n: number, x: Section) => n + x.openQuestions.length, 0));
+    }
     loadShelf();
   }
 
   async function assist() {
     if (!openId || !dump.trim()) return;
-    setAssisting(true); setQuestions([]);
+    setAssisting(true);
+    const mine = dump;
+    // Show the coach's own line immediately; the reply lands when it lands.
+    setChat((c) => [...c, { role: "coach", text: mine }]);
     const r = await fetch(`/api/admin/kb/${openId}/assist`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ braindump: dump }) }).then((x) => x.json()).catch(() => null);
     setAssisting(false);
-    if (!r?.ok) { setToast(r?.error || "Assistant failed — try again."); return; }
+    if (!r?.ok) {
+      setToast(r?.error || "Assistant failed — try again.");
+      setChat((c) => c.slice(0, -1));   // put their words back rather than eating them
+      return;
+    }
     setDump("");
-    setQuestions(r.openQuestions ?? []);
+    setChat((c) => [...c, { role: "assistant", text: r.reply || "Filed." }]);
+    setOpenCount(r.openCount ?? 0);
     const d = await fetch(`/api/admin/kb/${openId}`).then((x) => x.json()).catch(() => null);
-    if (d?.entry) { setEntry(d.entry); setSections(d.sections); }
+    if (d?.entry) {
+      setEntry(d.entry);
+      setSections(d.sections);
+      setChat(Array.isArray(d.entry.chat) ? d.entry.chat : []);
+      setOpenCount(d.sections.reduce((n: number, x: Section) => n + x.openQuestions.length, 0));
+    }
     loadShelf();
-    setToast(r.complete ? "All sections complete ✓" : `Sorted in — ${r.openQuestions?.length ?? 0} questions still open.`);
+    if (r.unsorted?.length) setToast(`${r.unsorted.length} line${r.unsorted.length === 1 ? "" : "s"} could not be placed — they are kept on the entry.`);
   }
 
   const dot = (s: string) => s === "complete" ? "#22c55e" : s === "draft" ? "#f59e0b" : "var(--admin-border)";
@@ -199,27 +223,43 @@ export default function KnowledgePage() {
                     field it releases, inside the section. */}
                 <span className="text-[11px] admin-faint">visibility sits on the field, in the sections below</span>
               </div>
-              {/* braindump */}
-              <div className="mt-4">
-                <textarea value={dump} onChange={(e) => setDump(e.target.value)} rows={4}
-                  placeholder="Braindump — write your thoughts as they come. The assistant sorts them into the sections below and asks what's still missing."
+              {/* The thread. It used to be a one-shot box: dump, sort, done,
+                  and the open questions sat silently under each section where
+                  someone had to go looking for them. Now the assistant says
+                  what it filed and asks the next thing, and the same box is
+                  where you answer. */}
+              <div className="mt-4 space-y-3">
+                {chat.length > 0 && (
+                  <div className="rounded-xl p-3 max-h-[320px] overflow-y-auto space-y-2.5" style={{ border: "1px solid var(--admin-border)" }}>
+                    {chat.map((m, i) => (
+                      <div key={i} className={m.role === "coach" ? "text-right" : ""}>
+                        <div className={`inline-block max-w-[85%] text-left rounded-xl px-3 py-2 text-[13px] leading-relaxed whitespace-pre-line ${m.role === "coach" ? "" : "admin-muted"}`}
+                          style={m.role === "coach"
+                            ? { backgroundColor: "var(--admin-accent-weak)" }
+                            : { border: "1px solid var(--admin-border)" }}>
+                          {m.text}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+                <textarea value={dump} onChange={(e) => setDump(e.target.value)} rows={chat.length ? 3 : 4}
+                  onKeyDown={(e) => { if ((e.metaKey || e.ctrlKey) && e.key === "Enter") assist(); }}
+                  placeholder={chat.length
+                    ? "Answer, or just keep talking. Cmd+Enter sends."
+                    : "Braindump — write your thoughts as they come. The assistant sorts them into the sections below and asks what's still missing."}
                   className="w-full admin-input border rounded-xl px-3 py-2.5 text-sm outline-none focus:border-[#0aa3c7]" style={{ borderColor: "var(--admin-border)" }} />
-                <div className="flex items-center gap-3 mt-2">
+                <div className="flex flex-wrap items-center gap-3">
                   <button onClick={assist} disabled={assisting || !dump.trim()}
                     className="px-4 py-2 rounded-lg text-sm font-bold disabled:opacity-40" style={{ backgroundColor: "var(--admin-accent)", color: "var(--admin-accent-contrast)" }}>
-                    {assisting ? "Sorting in…" : "Sort it in"}
+                    {assisting ? "Sorting in…" : chat.length ? "Send" : "Sort it in"}
                   </button>
-                  <span className="text-[11px] admin-faint">Nothing is overwritten — the assistant merges into what&apos;s there.</span>
+                  <span className="text-[11px] admin-faint">
+                    Nothing is overwritten, the assistant merges into what&apos;s there.
+                    {openCount > 0 && ` ${openCount} question${openCount === 1 ? "" : "s"} still open.`}
+                  </span>
                 </div>
               </div>
-              {questions.length > 0 && (
-                <div className="mt-4 rounded-lg px-4 py-3" style={{ border: "1px solid rgba(245,158,11,0.4)", backgroundColor: "rgba(245,158,11,0.07)" }}>
-                  <p className="text-[12px] font-bold mb-1.5" style={{ color: "#f59e0b" }}>Still open — answer these in your next braindump:</p>
-                  {questions.map((q, i) => (
-                    <p key={i} className="text-[12.5px] admin-muted leading-relaxed">• <span className="admin-faint">[{q.section}]</span> {q.question}</p>
-                  ))}
-                </div>
-              )}
             </div>
 
             {sections.map((s) => (
