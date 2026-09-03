@@ -120,6 +120,7 @@ const navByEnv: Record<Environment, NavGroup[]> = {
       // it, which is why it read as missing.
       label: "FINANCE",
       items: [
+        { label: "Budget", href: "/admin/finance", icon: "chartline" },
         { label: "Invoices", href: "/admin/documents", icon: "file" },
         { label: "Payments", href: "/admin/payments", icon: "receipt" },
         { label: "Experience Costs", href: "/admin/exp-costs", icon: "chartline" },
