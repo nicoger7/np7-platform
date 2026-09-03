@@ -333,6 +333,11 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
         whatsappLink: b.exp_editions?.whatsapp_group_link ?? values.whatsappLink ?? undefined,
         bookingLink: `${origin}/account`,
         tripLink: `${origin}/account/bookings/${b.id}`,
+        /* The waiver reminder's whole job is the button, and the first test
+           copy arrived without one because this list was a hand-copied subset
+           of the real send's. A test that quietly omits a variable tests the
+           wrong mail. Keep this identical to the loop below. */
+        waiverLink: `${origin}/account/bookings/${b.id}/waiver`,
       },
       // No bookingId and no contactId: a test must never land in a guest's
       // history or count as their mail.

@@ -5,7 +5,7 @@ Concept: open with a fake 1-star "complaint" that's actually a boast (the
 scroll-stopper), land on five real verified 5-star reviews from Alaçatı,
 close with a plain call to action for the next Alaçatı week.
 
-Revised twice on 2026-09-03, both times per owner feedback:
+Revised three times on 2026-09-03, each time per owner feedback:
 1. The satire slide now uses the ad board's own approved copy (two
    variants, 01 and 01b) instead of an invented line.
 2. The five review slides (02-06) now each carry a real photo of that
@@ -15,6 +15,15 @@ Revised twice on 2026-09-03, both times per owner feedback:
    guest, since faking a complaint over a real guest's face would be wrong
    regardless of consent. Slide 07 (the CTA) was out of scope for the photo
    change and keeps its original library shot.
+3. Four more corrections: (a) the top-left brand mark on every slide is now
+   the real NP7 logo file, not typeset text drawn to look like one; (b)
+   Michael's photo was swapped — the first pick read as a wipeout, not a
+   celebration; (c) slide 1's photo was searched for a specific "pointing at
+   camera" shot from another NP7 ad — not found, documented below, slide 1
+   keeps its empty-water photo; (d) Thomas's photo was swapped to the
+   couple shot the owner named from the site's own Experience-landing hero
+   rotation, which explicitly overrides the previous round's
+   no-bystander-in-frame caution for this one photo only.
 
 ## Where things are
 
@@ -66,8 +75,28 @@ reproduce the PNGs exactly.
   big place name (e.g. "ALAÇATI"), reused on the CTA slide's headline.
 - **Type** — Poppins (the brand's body/display face per
   `src/app/layout.tsx`) for all copy and quotes; Anton (the tile place-name
-  face) for the "NP7." wordmark and the CTA headline. Both loaded at
-  weights already used elsewhere in the app (Poppins 400–900, Anton 400).
+  face) for the CTA headline. Both loaded at weights already used elsewhere
+  in the app (Poppins 400–900, Anton 400).
+- **The real logo, not a typeset lookalike** — the top-left brand mark on
+  every slide was originally "NP7." set in Anton to *look like* a logo,
+  which the owner correctly called out: that's not the actual logo, it's a
+  wordmark drawn to resemble one. It's now the real
+  `https://media.np-seven.com/logos/np7-logo.png` file. That file is black
+  artwork on a transparent background, made for light surfaces — the app
+  itself applies a CSS `invert()` over dark photos (see e.g. the site
+  header), so the same inversion was done here, but in canvas (Pillow:
+  invert the RGB channels, keep the alpha) rather than a CSS filter, since
+  the logo is baked into a static PNG for the render rather than styled
+  live. On slides 2–7 the "Alaçatı" location tag also swapped its typeset
+  "EXPERIENCE" for the real
+  `https://media.np-seven.com/logos/np7-experience-logo.png` script logo —
+  the same file `src/app/api/share-card/route.ts` stamps onto the app's own
+  branded social images, so it's the established asset for exactly this
+  use case. That file is already colourful (the "sun to sea" script mark)
+  and reads fine on the dark wash with no inversion needed. Both source
+  files, and the pre-inverted mark, are not committed to the repo (see
+  "What it was rendered with" — the build script lives outside the repo);
+  the `html/*.html` files carry them as embedded base64, same as the fonts.
 - **Stars + "Verified" badge** — the star glyph pattern and the pill-shaped
   checkmark "Verified" badge mirror `src/components/experience/guest-reviews.tsx`
   (`stars()` helper, gold `#ffd24a`-family colour, and the `M20 6L9 17l-5-5`
@@ -125,13 +154,13 @@ the brief — a close, sharp, engaged shot beats a drone frame where the rider
 is a dot, which is the opposite bias from last round's "no identifiable
 face" pass.
 
-| Slide | Reviewer | Photo (R2 key, `experiences/np7-alacati/…`) | Why this frame |
+| Slide | Reviewer | Photo (R2 key) | Why this frame |
 |---|---|---|---|
-| 02 | Ziad Khoury | `_video/123ad479-.../p/d5edc7dc-.../.../ALACATI2026-118.jpg`* | Mid-water, pointing off-frame, clearly grinning — sharp face, and the open water he's gesturing into doubles as calm space for the text. Skipped the two more dramatic foiling-action frames from the same folder (`…-139.jpg`, `…-140.jpg`) because the sail's own graphics/branding filled most of the frame and would have fought the quote text. |
+| 02 | Ziad Khoury | `.../experiences/np7-alacati/.../p/d5edc7dc-.../ALACATI2026-118.jpg`* | Mid-water, pointing off-frame, clearly grinning — sharp face, and the open water he's gesturing into doubles as calm space for the text. Skipped the two more dramatic foiling-action frames from the same folder (`…-139.jpg`, `…-140.jpg`) because the sail's own graphics/branding filled most of the frame and would have fought the quote text. |
 | 03 | Giuseppe Picentino | `memories/123ad479-.../p/612a19ee-.../ALACATI2026-119-2.jpg` | Close, sharp, mid-task carrying his gear — full torso in frame, calm water top-left for the text block. A tighter head-and-shoulders alternate (`…-120-2.jpg`) was also strong but felt less "having a good week" than the full-body, engaged version. |
-| 04 | Thomas Jönsson | `memories/123ad479-.../p/f02ddda0-.../ALACATI2026-189.jpg` | Animated hands, clean plain-water background (the cleanest of any candidate), unmistakably him alone. Deliberately avoided several other frames in his folder that show him with a woman (hugging, a bar toast, a kiss) — Thomas's own consent doesn't cover whoever that is, and there's no reason to guess at a bystander's willingness to appear in an ad. |
+| 04 | Thomas Jönsson | `memories/123ad479-4ab9-4e47-b10f-9dff0339f58a/ALACATI2026-200.jpg` | **Changed in round 3** — the owner named this specific shot: Thomas with his wife, "the one used on the homepage." Confirmed in `site_settings.experience_landing_hero.images`, the image rotation on the public Experience landing page — it's the only couple photo in that rotation (the other is a solo shaka shot), so no ambiguity about which frame was meant. This is an edition-level file, not filed under Thomas's own booking folder. The owner's naming a picture he already publishes himself overrides last round's bystander caution for this one photo only — see "Other judgement calls." |
 | 05 | Andreas Burmeister | `memories/123ad479-.../p/ef9b4556-.../ALACATI2026-130.jpg` | Clear, close, looking toward camera, big open-water band above him. A same-week `_Lars1695.jpg` sailing-action shot was a close second but is a smaller source file (1280×720) that would have needed a ~1.9x upscale to cover 1080×1350 — this one needed none. |
-| 06 | Michael Bongar | `memories/123ad479-.../p/145597ae-.../ALACATI2026-46.jpg` | A mid-air, arm-thrown-up celebration shot — about as literal a match for "for sure not my last one!" as the folder had, sharp face, huge calm water up top for the headline. The clear pick once this frame turned up on the contact sheet. |
+| 06 | Michael Bongar | `memories/123ad479-.../p/145597ae-.../ALACATI2026-8-3.jpg` | **Changed in round 3** — the original pick (`…-46.jpg`) was a mid-air moment that the owner read as a wipeout, not a celebration, which is fair: it's him falling backward off the board, arm up mid-fall. This replacement shows him actively sailing, upright, turned toward camera with a genuine smile — "sailing... happy," per the owner's own framing, not a crash. |
 
 *Full keys are long; the table abbreviates the shared trip/photographer path
 (`_video/123ad479-4ab9-4e47-b10f-9dff0339f58a/p/<booking_id>/…`) for
@@ -143,12 +172,75 @@ No reviewer's folder came up empty — all five had at least one usable close
 frame, so the "fall back to a wide shot from the same week" case in the
 brief didn't come up.
 
+### Round 3 photo corrections (2026-09-03, same day)
+
+**Michael (06).** Re-browsed his full folder (51 files, not just the
+original 11-photo sample) and built a bigger contact sheet. The replacement,
+`ALACATI2026-8-3.jpg`, is landscape-oriented like every other reviewer slide,
+which matters: a second candidate, a portrait close-up of him laughing
+(`ALACATI2026-92-2.jpg`, genuinely the warmest expression in his whole
+folder), was tried first and discarded — cropping a 1365×2048 portrait onto
+a 1080×1350 canvas only has vertical play, and there was no way to slide his
+face out from behind the headline text without either cropping his face out
+entirely or overlapping the attribution line instead. Fighting the geometry
+wasn't worth it once a landscape shot with a genuine smile turned up.
+
+**Thomas (04).** Searched three places for "the one used on the homepage":
+his own `exp_reviews` row (has a `photo_url` field, pointing at
+`ALACATI2026-22.jpg` in his own booking folder — not a couple photo, so not
+the one), `exp_content` for the Alaçatı experience (no match), and
+`site_settings` (`home_page` and `experience_landing_hero` keys, found by
+reading how `src/app/page.tsx` sources the homepage). The hero rotation's
+5-image list included two Alaçatı-edition photos with no booking folder
+(`ALACATI2026-79-2.jpg`, a solo guy giving a peace sign, and
+`ALACATI2026-200.jpg`, a couple) — the couple one is the only possible match
+and is now confirmed as slide 04's photo.
+
+**Slide 1 — searched for the "pointing at camera" shot, did not find it.**
+Searched `media_assets.key` for `shaka`, `point`, `grin`, `waving`, `fist`
+(all candidates the brief named), then broadened to `finger`, `camera`,
+`to-camera`, `at-camera`, plus a check for `ads/`, `marketing/`,
+`meta-ads/`, `brand/ads/` key prefixes in case it lived outside the trip
+galleries — nothing under an ads/marketing path exists in `media_assets`.
+The full candidate set actually inspected:
+
+- `experiences/np7-alacati/people/coach-waving-fist-in-water.jpg` — a raised
+  fist, not a point.
+- `experiences/np7-alacati/people/coach-waving-from-water.jpg` — a wave.
+- `experiences/np7-alacati/people/participant-shaka-grinning-water.jpg` and
+  `participant-shaka-in-water.jpg` — a shaka (hang-loose) sign, thumb and
+  pinky extended, not a pointed finger.
+- `experiences/np7-alacati/coaches/coach-portrait-shaka-sign.jpg` — shaka
+  again.
+- `experiences/np7-alacati/action/grinning-rider-full-speed.jpg` and
+  `experiences/np7-alacati/people/wingfoiler-waving-in-water.jpg` — grinning
+  or waving mid-action, no point.
+- `experiences/np7-alacati/learning/coach-pointing-during-briefing.jpg` and
+  `coach-pointing-while-explaining.jpg` — these two are actually captioned
+  "pointing," and were checked closest, at full resolution. Both show a
+  coach mid-briefing pointing at a fellow guest or a piece of rigging, not
+  at the lens — in both his gaze and his hand are aimed off to the side, not
+  toward camera.
+- `experiences/np7-alacati/coaches/coach-portrait-looking-camera.jpg` — a
+  calm portrait that does look at the camera, but with no hand gesture at
+  all.
+
+None of these show a finger actually pointed into the lens the way the
+owner described. Per the brief's own instruction not to settle, slide 1
+keeps the empty-water photo it already had rather than substituting a
+shaka, a wave, or a briefing gesture for the specific "pointing at camera"
+beat the owner wanted. If the asset exists, it's most likely outside
+`media_assets` entirely (a Canva/Promo Studio export, a Meta ad library
+asset, or similar) and would need a pointer from the owner to locate.
+
 ### Slides that kept their previous-round photo
 
 - **01 / 01b / story (satire)** — `place/distant-sailor-empty-bay.jpg`, the
   widest, emptiest water in the original 12-photo set, per "the satire slide
   reads best over the emptiest, widest water." No recognisable guest, on
-  purpose — see "Photo policy this round" above.
+  purpose — see "Photo policy this round" above. Round 3 asked for a
+  specific "pointing at camera" replacement here; that search came up empty
+  (see "Round 3 photo corrections" below), so this slide is unchanged.
 - **07 (CTA)** — `place/lone-board-on-blue-bay.jpg`, unchanged; a riderless
   board in open water, out of scope for this round's reviewer-photo request.
 
@@ -278,13 +370,19 @@ be a reasonable swap if a 6th slide is ever wanted.
 - Slide 1/1b deliberately carry no "Experience Alaçatı" location tag
   (unlike slides 2–7) since the joke is meant to land as a universal NP7
   hook before the carousel narrows to Alaçatı specifically.
-- **A reviewer's own consent doesn't extend to whoever else is in their
-  photos.** Thomas Jönsson's folder included several warm, clearly personal
-  shots with a woman (a hug, a bar toast, a kiss) who is presumably his
-  partner. Even with the owner's override authorizing each reviewer's own
-  face on their slide, nothing establishes that second person's consent to
-  appear in an ad, so none of those frames were used — slide 04 uses a
-  photo of Thomas alone instead.
+- **A reviewer's own consent doesn't automatically extend to whoever else
+  is in their photos — but the owner can name an exception.** Round 2:
+  Thomas Jönsson's own folder included several warm, personal shots with a
+  woman (a hug, a bar toast, a kiss) who is presumably his partner; nothing
+  established her consent to appear in an ad, so none of those frames were
+  used and slide 04 showed Thomas alone instead. Round 3: the owner
+  specifically asked for "the shot of Thomas with his wife, the one used on
+  the homepage" — a picture NP7 already publishes on its own public
+  Experience landing page. Naming a specific, already-published image is a
+  different, stronger thing than a folder of candid holiday photos, so this
+  was treated as the owner clearing that one exact photo rather than as a
+  general go-ahead to use any Thomas-plus-partner frame — slide 04 now uses
+  that specific image (`ALACATI2026-200.jpg`) and no other.
 - **Source resolution mattered for the focal-point choice on slide 05.** A
   same-week Lars-photographed action shot of Andreas was a close second
   pick, but at 1280×720 it would have needed roughly a 1.9x upscale to
