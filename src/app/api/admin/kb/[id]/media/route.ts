@@ -65,7 +65,10 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     url: String(i.url),
     poster_url: i.posterUrl ?? null,
     caption: i.caption ?? null,
-    source: ["library", "memories", "upload"].includes(i.source) ? i.source : "library",
+    // The caller may name the source once for the whole batch (the picker
+    // does) or per item; both are honoured, and an unknown value falls back
+    // rather than being written through.
+    source: ["library", "memories", "upload"].includes(i.source ?? body.source) ? (i.source ?? body.source) : "library",
     sort_order: next++,
   }));
   const { error } = await db.from("kb_media").insert(rows);
