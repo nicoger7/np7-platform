@@ -583,7 +583,13 @@ export default function AdminShell({
     setEnvMenuOpen(false);
     // "/admin" is the FINANCE dashboard — analytics deliberately doesn't carry
     // it, so entering that world lands on its own first page instead.
-    router.push(newEnv === "analytics" ? (navByEnv.analytics[0]?.items[0]?.href ?? "/admin/analytics") : "/admin");
+    // A world without the finance dashboard has to land somewhere of its own,
+    // or switching into it drops you on the very page it does not show.
+    router.push(
+      ["analytics", "knowledge"].includes(newEnv)
+        ? (navByEnv[newEnv][0]?.items[0]?.href ?? "/admin")
+        : "/admin"
+    );
   }
 
   /*
@@ -629,10 +635,14 @@ export default function AdminShell({
     label: "GENERAL",
     items: ["experience", "hardware"].includes(env) ? [archiveItem] : [fileStorageItem, archiveItem],
   };
-  // Analytics is a pure visitor-behaviour world — the shared HOME → Dashboard is
-  // the finance dashboard (open revenue, unmatched payments), so it stays out of
-  // this environment entirely. Visitor behaviour is its home.
-  const allSections = [...(env === "analytics" ? [] : [sharedNavTop]), ...navByEnv[env], bottomGroup];
+  /* The shared HOME → Dashboard is the FINANCE dashboard: open revenue,
+     unmatched payments, mails going out, latest bookings. Two worlds have no
+     business showing it. Analytics is pure visitor behaviour, and Knowledge is
+     the coaching brain, where a panel of overdue to-dos and unmatched payments
+     is somebody else's job on somebody else's screen. Each of those worlds
+     opens on its own first section instead. */
+  const NO_FINANCE_HOME = ["analytics", "knowledge"];
+  const allSections = [...(NO_FINANCE_HOME.includes(env) ? [] : [sharedNavTop]), ...navByEnv[env], bottomGroup];
   // Hide nav the member's role can't reach (middleware enforces it server-side too).
   const sections = allSections
     .map((g) => ({ ...g, items: g.items.filter((i) => effectiveCanAccess(access, i.href)) }))
