@@ -7,6 +7,7 @@ import { RecordCostDialog } from "@/components/admin/record-cost-dialog";
 import { useAdminEnv } from "@/app/admin/env-context";
 import { CashChart, FlowChart, ObjectChart, VIZ_CSS } from "@/components/admin/finance-charts";
 import { FinanceTimeline } from "@/components/admin/finance-timeline";
+import { Roadmap } from "@/components/admin/roadmap";
 import type { CostObjectNode } from "@/lib/finance/objects";
 
 /* The budget grid: rows are cost or revenue items, columns are the twelve
@@ -42,7 +43,7 @@ export default function FinancePage() {
   const [recordFor, setRecordFor] = useState<{ row: BoardRow; month: number } | null>(null);
   const [editing, setEditing] = useState<{ rowKey: string; month: number } | null>(null);
   const [draft, setDraft] = useState("");
-  const [view, setView] = useState<"grid" | "dashboard" | "timeline">("dashboard");
+  const [view, setView] = useState<"grid" | "dashboard" | "timeline" | "roadmap">("dashboard");
   const [objects, setObjects] = useState<CostObjectNode[] | null>(null);
 
   // These hold what the user PICKED, not what is shown. Empty means "let the
@@ -233,7 +234,7 @@ export default function FinancePage() {
 
       {board?.plan && (
         <div className="fin-seg" role="tablist" aria-label="Budget view">
-          {([["dashboard", "Dashboard"], ["timeline", "Timeline"], ["grid", "Grid"]] as const).map(([v, label]) => (
+          {([["dashboard", "Dashboard"], ["roadmap", "Roadmap"], ["timeline", "Timeline"], ["grid", "Grid"]] as const).map(([v, label]) => (
             <button key={v} role="tab" aria-selected={view === v} data-on={view === v}
                     onClick={() => setView(v)}>{label}</button>
           ))}
@@ -287,6 +288,8 @@ export default function FinancePage() {
               <ObjectChart nodes={objects ?? []} />
             </div>
           )}
+
+          {view === "roadmap" && <Roadmap world={env} />}
 
           {view === "timeline" && (
             <FinanceTimeline board={board}
@@ -410,7 +413,7 @@ export default function FinancePage() {
           )}
 
           {/* ── Costs with nowhere to go ─────────────────────────── */}
-          {view !== "timeline" && board.unallocated.length > 0 && (
+          {view !== "timeline" && view !== "roadmap" && board.unallocated.length > 0 && (
             <div className="fin-card space-y-2">
               <h2 className="text-sm font-bold admin-heading">
                 Recorded but not attached
