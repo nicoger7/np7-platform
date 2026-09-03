@@ -148,6 +148,41 @@ export function MemberGallery({
     URL.revokeObjectURL(href);
   }
 
+  /*
+   * Save the one photo you are looking at.
+   *
+   * Deliberately outside the cap. The cap exists to stop somebody zipping four
+   * hundred full-size shots, and DownloadMenu already says so in its own words:
+   * "Only viewing/saving individual items is unlimited". That sentence was true
+   * of the intent and false of the product — the lightbox offered Share and
+   * nothing else, so the one thing a guest wants most, the good shot of
+   * themselves, was the one thing they could not take without spending a full
+   * download on the whole week.
+   *
+   * Fetched as a blob rather than handed to <a download>: the files sit on
+   * media.np-seven.com, and a cross-origin download attribute is ignored, which
+   * opens the image in a tab instead of saving it.
+   */
+  const [saving, setSaving] = useState<string | null>(null);
+  async function savePhoto(url: string) {
+    setSaving(url);
+    setErr("");
+    try {
+      const blob = await fetch(url).then((r) => r.blob());
+      const ext = (url.split("/").pop() || "photo.jpg").split("?")[0].split(".").pop() || "jpg";
+      const href = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = href;
+      a.download = `np7-${Date.now()}.${ext}`;
+      a.click();
+      URL.revokeObjectURL(href);
+    } catch {
+      setErr("Couldn't save that photo. Try again, or use the download button below the gallery.");
+    } finally {
+      setSaving(null);
+    }
+  }
+
   // EVERY bulk zip — own photos included — counts as one of the booking's full
   // downloads (founder ruling): the cap protects egress, and a member's own
   // gallery is professional-shot bulk too. Individual photos stay unlimited.
@@ -434,14 +469,26 @@ export function MemberGallery({
           <button aria-label="Close" className="absolute top-5 right-5 w-11 h-11 rounded-full bg-white/10 hover:bg-white/20 text-white grid place-items-center" onClick={() => setOpen(null)}>
             <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><path d="M18 6L6 18M6 6l12 12" /></svg>
           </button>
-          {/* Share this shot as a branded NP7 story card — own + shared "everyone" only */}
-          {shareableSet.has(flat[open]) && (
-            <button onClick={(e) => { e.stopPropagation(); setShare(flat[open]); }}
-              className="absolute top-5 left-5 z-10 inline-flex items-center gap-2 px-4 py-2 rounded-full text-[13px] font-bold text-[#00374a] bg-white/95 hover:bg-white shadow-lg transition-colors">
-              <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="M4 12v7a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-7" /><path d="M16 6l-4-4-4 4" /><path d="M12 2v14" /></svg>
-              Share to story
+          {/* Share as a branded story card (own + shared "everyone" only), and
+              save the single shot, which costs nothing. */}
+          <div className="absolute top-5 left-5 z-10 flex items-center gap-2">
+            {shareableSet.has(flat[open]) && (
+              <button onClick={(e) => { e.stopPropagation(); setShare(flat[open]); }}
+                className="inline-flex items-center gap-2 px-4 py-2 rounded-full text-[13px] font-bold text-[#00374a] bg-white/95 hover:bg-white shadow-lg transition-colors">
+                <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="M4 12v7a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-7" /><path d="M16 6l-4-4-4 4" /><path d="M12 2v14" /></svg>
+                Share to story
+              </button>
+            )}
+            <button
+              aria-label="Save this photo"
+              disabled={saving === flat[open]}
+              onClick={(e) => { e.stopPropagation(); savePhoto(flat[open]); }}
+              className="inline-flex items-center gap-2 px-4 py-2 rounded-full text-[13px] font-bold text-[#00374a] bg-white/95 hover:bg-white shadow-lg transition-colors disabled:opacity-60"
+            >
+              <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 3v12" /><path d="M8 11l4 4 4-4" /><path d="M4 19h16" /></svg>
+              {saving === flat[open] ? "Saving…" : "Save"}
             </button>
-          )}
+          </div>
           <button aria-label="Previous" className="absolute left-3 sm:left-6 w-12 h-12 rounded-full bg-white/10 hover:bg-white/20 text-white grid place-items-center" onClick={(e) => { e.stopPropagation(); setOpen((i) => (i === null ? i : (i - 1 + flat.length) % flat.length)); }}>
             <svg className="w-6 h-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M15 18l-6-6 6-6" /></svg>
           </button>
