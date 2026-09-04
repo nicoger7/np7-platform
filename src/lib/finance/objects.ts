@@ -41,11 +41,25 @@ export type ObjectFigures = {
   /** null when the object buys stock faster than it records cost of sale, or
    *  earns nothing. Better an absent number than a confident wrong one. */
   marginPct: number | null;
+
+  /** Units BOUGHT and units SOLD, counted separately because in any one window
+   *  they differ: 230 boards ordered against 50 pre-sold. Averaging one number
+   *  across both sides would make the unit cost and the unit price both wrong. */
+  unitsBought: number;
+  unitsSold: number;
+  /** What one costs to land: goods and freight only. Overheads and development
+   *  do not scale with a unit and are deliberately not in it. */
+  unitCost: number | null;
+  /** What one sells for, net. */
+  unitRevenue: number | null;
+  /** The gap. This is the number "what does a Slalom 72 make us" asks for. */
+  unitMargin: number | null;
 };
 
 const empty = (): ObjectFigures => ({
   revenue: 0, cogs: 0, inventory: 0, opex: 0, development: 0,
   grossProfit: 0, contribution: 0, marginPct: null,
+  unitsBought: 0, unitsSold: 0, unitCost: null, unitRevenue: null, unitMargin: null,
 });
 
 const add = (a: ObjectFigures, b: ObjectFigures): ObjectFigures => ({
@@ -54,7 +68,10 @@ const add = (a: ObjectFigures, b: ObjectFigures): ObjectFigures => ({
   inventory: r2(a.inventory + b.inventory),
   opex: r2(a.opex + b.opex),
   development: r2(a.development + b.development),
+  unitsBought: r2(a.unitsBought + b.unitsBought),
+  unitsSold: r2(a.unitsSold + b.unitsSold),
   grossProfit: 0, contribution: 0, marginPct: null,
+  unitCost: null, unitRevenue: null, unitMargin: null,
 });
 
 function derive(f: ObjectFigures): ObjectFigures {
@@ -66,12 +83,24 @@ function derive(f: ObjectFigures): ObjectFigures {
     f.revenue > 0 && f.cogs > 0 && f.inventory <= f.cogs
       ? Math.round((f.grossProfit / f.revenue) * 1000) / 10
       : null;
+
+  // Per unit. The landed cost of one is goods plus the freight that brought it,
+  // over how many were bought; what one earns is revenue over how many were
+  // sold. Neither is an average of the other, which is why the counts are two.
+  const landed = r2(f.cogs + f.inventory);
+  f.unitCost = f.unitsBought > 0 ? r2(landed / f.unitsBought) : null;
+  f.unitRevenue = f.unitsSold > 0 ? r2(f.revenue / f.unitsSold) : null;
+  f.unitMargin = f.unitCost != null && f.unitRevenue != null ? r2(f.unitRevenue - f.unitCost) : null;
   return f;
 }
 
 type RawObject = { id: string; name: string; kind: string; parent_id: string | null; sort: number };
 /** One allocated amount: how much of a line or an actual landed on an object. */
-export type Contribution = { objectId: string; group: string | null; amount: number };
+export type Contribution = {
+  objectId: string; group: string | null; amount: number;
+  /** Share-applied units, or 0 when the line does not say how many. */
+  quantity?: number;
+};
 
 /**
  * Build the tree with both own and rolled-up figures.
@@ -87,6 +116,11 @@ export function buildObjectTree(
   for (const c of contributions) {
     const f = own.get(c.objectId);
     if (!f) continue;
+    const q = c.quantity ?? 0;
+    if (q) {
+      if (c.group === "revenue") f.unitsSold = r2(f.unitsSold + q);
+      else if (c.group === "cogs" || c.group === "inventory") f.unitsBought = r2(f.unitsBought + q);
+    }
     switch (c.group) {
       case "revenue": f.revenue = r2(f.revenue + c.amount); break;
       case "cogs": f.cogs = r2(f.cogs + c.amount); break;

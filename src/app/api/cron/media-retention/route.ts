@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { cronAuthorized } from "@/lib/cron-auth";
 import { createClient as createServiceClient } from "@supabase/supabase-js";
 import { listUnderPrefix, deleteKeys, r2VideoEnabled } from "@/lib/r2-presign";
 
@@ -28,12 +29,6 @@ const BUCKET = "assets";
 function db() {
   return createServiceClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!);
 }
-function authorized(req: NextRequest): boolean {
-  const secret = process.env.CRON_SECRET;
-  if (!secret) return true; // not configured → allow (dev); set in prod
-  const header = req.headers.get("authorization");
-  return header === `Bearer ${secret}` || new URL(req.url).searchParams.get("secret") === secret;
-}
 
 /** Recursively list every non-folder file under a Supabase Storage prefix. */
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -62,7 +57,7 @@ function videoStem(key: string): string {
 }
 
 export async function GET(req: NextRequest) {
-  if (!authorized(req)) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  if (!cronAuthorized(req)) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   const live = process.env.MEDIA_RETENTION_LIVE === "true";
   const admin = db();
   const daysAgo = (d: number) => new Date(Date.now() - d * 86400000).toISOString().slice(0, 10);

@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { cronAuthorized } from "@/lib/cron-auth";
 import { publicOrigin } from "@/lib/public-origin";
 import { createAdminClient } from "@/lib/supabase";
 import { sendEmail } from "@/lib/email/send";
@@ -35,12 +36,6 @@ export const maxDuration = 60;
  * The 96 Notion-migrated pipeline_rules remain the team-editable source of truth
  * in /admin/pipeline-rules; this runner sends the transactional sequence.
  */
-function authorized(req: NextRequest): boolean {
-  const secret = process.env.CRON_SECRET;
-  if (!secret) return true; // not configured → allow (dev); set CRON_SECRET in prod
-  const header = req.headers.get("authorization");
-  return header === `Bearer ${secret}` || new URL(req.url).searchParams.get("secret") === secret;
-}
 
 function fmtRange(start?: string | null, end?: string | null) {
   if (!start) return undefined;
@@ -50,7 +45,7 @@ function fmtRange(start?: string | null, end?: string | null) {
 }
 
 export async function GET(req: NextRequest) {
-  if (!authorized(req)) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  if (!cronAuthorized(req)) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   // NEVER the request host. Vercel invokes a cron at the DEPLOYMENT's own
   // URL (np7-platform-<hash>-<team>.vercel.app), not the custom domain — so

@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { cronAuthorized } from "@/lib/cron-auth";
 import { createAdminClient } from "@/lib/supabase";
 import { fetchWindStatsBoth } from "@/lib/wind-stats";
 
@@ -19,15 +20,9 @@ const BATCH = 12;
  * this only tops up spots that have coordinates but missing/old stats — a few
  * per run to stay well within limits. Wire in vercel.json (e.g. weekly).
  */
-function authorized(req: NextRequest): boolean {
-  const secret = process.env.CRON_SECRET;
-  if (!secret) return true;
-  const header = req.headers.get("authorization");
-  return header === `Bearer ${secret}` || new URL(req.url).searchParams.get("secret") === secret;
-}
 
 export async function GET(req: NextRequest) {
-  if (!authorized(req)) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  if (!cronAuthorized(req)) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const db = createAdminClient() as any;

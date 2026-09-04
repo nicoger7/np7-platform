@@ -47,8 +47,8 @@ export async function GET(req: NextRequest) {
   const plannedContribs: Contribution[] = [];
   if (planIds.length) {
     const { data: lines } = await db
-      .from("fin_plan_lines").select("id,category_id,amount_net").in("plan_id", planIds);
-    const lineById = new Map(((lines ?? []) as { id: string; category_id: string | null; amount_net: number }[])
+      .from("fin_plan_lines").select("id,category_id,amount_net,quantity").in("plan_id", planIds);
+    const lineById = new Map(((lines ?? []) as { id: string; category_id: string | null; amount_net: number; quantity: number | null }[])
       .map((l) => [l.id, l]));
     const ids = [...lineById.keys()];
     if (ids.length) {
@@ -61,6 +61,7 @@ export async function GET(req: NextRequest) {
           objectId: a.cost_object_id,
           group: l.category_id ? groupOf.get(l.category_id) ?? null : null,
           amount: r2((Number(l.amount_net) || 0) * (Number(a.share) || 0) / 100),
+          quantity: r2((Number(l.quantity) || 0) * (Number(a.share) || 0) / 100),
         });
       }
     }
@@ -69,9 +70,9 @@ export async function GET(req: NextRequest) {
   // ── actual: allocated shares of what was recorded in the year ──────────────
   const actualContribs: Contribution[] = [];
   const { data: actuals } = await db
-    .from("fin_actuals").select("id,category_id,amount_net")
+    .from("fin_actuals").select("id,category_id,amount_net,quantity")
     .eq("entity_id", entity.id).gte("incurred_on", `${year}-01-01`).lte("incurred_on", `${year}-12-31`);
-  const actualById = new Map(((actuals ?? []) as { id: string; category_id: string | null; amount_net: number }[])
+  const actualById = new Map(((actuals ?? []) as { id: string; category_id: string | null; amount_net: number; quantity: number | null }[])
     .map((a) => [a.id, a]));
   if (actualById.size) {
     const { data: allocs } = await db
@@ -83,6 +84,7 @@ export async function GET(req: NextRequest) {
         objectId: a.cost_object_id,
         group: rec.category_id ? groupOf.get(rec.category_id) ?? null : null,
         amount: r2((Number(rec.amount_net) || 0) * (Number(a.share) || 0) / 100),
+        quantity: r2((Number(rec.quantity) || 0) * (Number(a.share) || 0) / 100),
       });
     }
   }

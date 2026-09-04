@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { cronAuthorized } from "@/lib/cron-auth";
 import { createAdminClient } from "@/lib/supabase";
 import { commitHoursCosts, planHoursCosts } from "@/lib/hours-cost";
 
@@ -19,15 +20,9 @@ export const maxDuration = 60;
  * The admin button on the Costs tab calls the same code for "I just logged
  * hours and want the number now".
  */
-function authorized(req: NextRequest): boolean {
-  const secret = process.env.CRON_SECRET;
-  if (!secret) return true; // not configured → allow (dev); set in prod
-  const header = req.headers.get("authorization");
-  return header === `Bearer ${secret}` || new URL(req.url).searchParams.get("secret") === secret;
-}
 
 export async function GET(req: NextRequest) {
-  if (!authorized(req)) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  if (!cronAuthorized(req)) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   // ?dry=1 reports without writing — for checking what tonight would do.
   if (new URL(req.url).searchParams.get("dry") === "1") {

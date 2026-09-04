@@ -356,9 +356,18 @@ export const dynamic = "force-dynamic";
 export async function POST(request: NextRequest): Promise<NextResponse> {
   const webhookSecret = process.env.STRIPE_WEBHOOK_SECRET;
 
-  // Pre-config / development: no secret configured → accept and no-op
+  /* Answering 200 here was worse than failing. "received: true" tells Stripe
+     the event was handled, so it never retries and the event is gone: a
+     deployment with no secret would silently drop payments, balances never
+     settled and deposits never recorded, while Stripe's dashboard shows every
+     delivery green. A 500 makes Stripe retry with backoff for days, which is
+     exactly the window in which someone notices and sets the variable. */
   if (!webhookSecret) {
-    return NextResponse.json({ received: true, note: "no-op: STRIPE_WEBHOOK_SECRET not set" });
+    console.error("[stripe] STRIPE_WEBHOOK_SECRET is not set — refusing so Stripe retries.");
+    return NextResponse.json(
+      { error: "webhook not configured" },
+      { status: 500 },
+    );
   }
 
   const rawBody = await request.text();
