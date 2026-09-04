@@ -23,6 +23,7 @@ import { GuideNotes } from "@/components/blog/guide-notes";
 import { type SpotNote } from "@/components/blog/spots-accordion";
 import { PostBody, splitForTeaser } from "@/components/blog/post-body";
 import { SignupGate } from "@/components/blog/signup-gate";
+import { jsonLdScript } from "@/lib/json-ld";
 
 export const revalidate = 3600;
 
@@ -202,7 +203,7 @@ export default async function BlogPostPage({ params }: Props) {
       <script
         type="application/ld+json"
         dangerouslySetInnerHTML={{
-          __html: JSON.stringify({
+          __html: jsonLdScript({
             "@context": "https://schema.org",
             "@type": "Article",
             headline: post.title,

@@ -18,6 +18,7 @@ import { VerifyDestination } from "@/components/spotguide/verify-destination";
 import { SpotMap } from "@/components/spotguide/spot-map";
 import { HeroVideo } from "@/components/experience/hero-video";
 import { flags } from "@/lib/flags";
+import { jsonLdScript } from "@/lib/json-ld";
 
 /**
  * The destination page's whole render, shared by the two routes that reach it:
@@ -85,7 +86,7 @@ export async function DestinationView({
   return (
     <>
       <SectionHeader section={section} />
-      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }} />
+      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: jsonLdScript(jsonLd) }} />
       <main className="bg-[#fff7ec] min-h-[100svh]">
         {/* hero */}
         <header className="relative overflow-hidden flex flex-col min-h-[360px] sm:min-h-[460px]" style={{ background: chrome.heroBackground }}>
