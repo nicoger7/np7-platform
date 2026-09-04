@@ -15,7 +15,6 @@ interface Todo {
   experience_id: string | null;
   task_rule_id: string | null;
   notes: string | null;
-  team_members: { id: string; name: string } | null;
   exp_experiences: { id: string; title: string } | null;
   task_rule: { id: string; name: string } | null;
 }
@@ -173,7 +172,7 @@ export default function TodosPage() {
           const numB = Number(bVal);
           return sortDir === "asc" ? numA - numB : numB - numA;
         }
-        else if (sortKey === "assignee") { aVal = a.team_members?.name; bVal = b.team_members?.name; }
+        else if (sortKey === "assignee") { aVal = a.assignee ?? undefined; bVal = b.assignee ?? undefined; }
         else if (sortKey === "experience") { aVal = a.exp_experiences?.title; bVal = b.exp_experiences?.title; }
         else if (sortKey === "task_rule") { aVal = a.task_rule?.name; bVal = b.task_rule?.name; }
         else { aVal = a[sortKey as keyof Todo]; bVal = b[sortKey as keyof Todo]; }
@@ -287,7 +286,7 @@ export default function TodosPage() {
                 <span className="self-center"><span className={`inline-block px-2 py-0.5 rounded text-[10px] font-bold uppercase ${statusColor(t.status)}`}>{(t.status || "open").replace("_", " ")}</span></span>
               )}
               {visibleColumns.has("assignee") && (
-                <span className="text-xs admin-muted self-center truncate">{t.team_members?.name || "—"}</span>
+                <span className="text-xs admin-muted self-center truncate">{t.assignee || "—"}</span>
               )}
               {visibleColumns.has("experience") && (
                 <span className="text-xs admin-muted self-center truncate">{t.exp_experiences?.title || "—"}</span>
