@@ -18,13 +18,17 @@ async function guard() {
 /** Columns a milestone is allowed to write back into. Anything not on this list
  *  is read-only no matter what a row claims, so a bad `source_field` can never
  *  reach an arbitrary column. */
-const WRITE_BACK: Record<string, { table: string; column: string; monthOnly?: boolean }> = {
+const WRITE_BACK: Record<string, { table: string; column: string; monthOnly?: boolean; endColumn?: string }> = {
   "hw_purchase_orders.order_date":            { table: "hw_purchase_orders", column: "order_date" },
   "hw_purchase_orders.ex_factory_planned":    { table: "hw_purchase_orders", column: "ex_factory_planned" },
   "hw_purchase_orders.expected_receipt_date": { table: "hw_purchase_orders", column: "expected_receipt_date" },
   // The budget keys a line by the first of its month, so a drag inside one month
   // changes nothing there and a drag across months moves the money.
   "fin_plan_lines.month":                     { table: "fin_plan_lines", column: "month", monthOnly: true },
+  // Moving a trip on the roadmap moves the trip. Only the start: the end is
+  // written alongside it below, because a trip that keeps its length is what
+  // dragging one means, and stretching it is a separate gesture.
+  "exp_editions.date_start":                  { table: "exp_editions", column: "date_start", endColumn: "date_end" },
 };
 
 const SELECT =
@@ -159,11 +163,17 @@ export async function PATCH(req: NextRequest) {
     const rowId = before.purchase_order_id ?? before.plan_line_id ?? before.edition_id;
     if (rule && rowId) {
       const value = rule.monthOnly ? `${String(b.starts_on).slice(0, 7)}-01` : b.starts_on;
-      const { error: backErr } = await db.from(rule.table).update({ [rule.column]: value }).eq("id", rowId);
+      // A trip has two dates and dragging it moves both. The end is only written
+      // when the caller sent one, so resizing and moving both do the right thing
+      // and a milestone with no end never invents one.
+      const patchBack: Record<string, unknown> = { [rule.column]: value };
+      if (rule.endColumn && b.ends_on) patchBack[rule.endColumn] = b.ends_on;
+      const { error: backErr } = await db.from(rule.table).update(patchBack).eq("id", rowId);
       // The milestone moved either way; a failed write-back is worth saying so
       // nobody assumes the purchase order followed it.
-      wroteBack = backErr ? `could not update ${rule.table}.${rule.column}: ${backErr.message}`
-                          : `${rule.table}.${rule.column} updated to ${value}`;
+      wroteBack = backErr
+        ? `could not update ${rule.table}.${rule.column}: ${backErr.message}`
+        : `${rule.table}.${Object.keys(patchBack).join(" and ")} updated to ${value}`;
     }
   }
   return NextResponse.json({ ...data, wroteBack });
