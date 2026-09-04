@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { requireTeamApi } from "@/lib/auth";
 import { listInvites, sendSurveyInviteEmail } from "@/lib/surveys";
 import { requireAdminGate } from "@/lib/admin-auth";
+import { publicOrigin } from "@/lib/public-origin";
 // POST /api/admin/surveys/:id/invites/send — email every invite that hasn't been
 // emailed yet (the admin's explicit "send" button). Add first, review the list,
 // remove anyone, THEN send — instead of mailing at add-time. Double-press safe:
@@ -12,7 +13,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
   const auth = await requireTeamApi();
   if (!auth.ok) return auth.res;
   const { id } = await params;
-  const origin = new URL(request.url).origin;
+  const origin = publicOrigin();
 
   const invites = await listInvites(id);
   // open-link joiners invited themselves — never blast them the invite email

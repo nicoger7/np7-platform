@@ -14,7 +14,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase";
 import { generateDocument, settleInvoices } from "@/lib/invoices/generate";
 import { eur } from "@/lib/stripe";
-
+import { publicOrigin } from "@/lib/public-origin";
 // ─── Stripe signature verification (no stripe npm package needed) ─────────────
 
 async function verifyStripeSignature(
@@ -281,7 +281,7 @@ async function onEventPayment(
   const contact = booking.contacts;
   if (contact?.email) {
     const firstName: string | undefined = (contact.name ?? "").split(" ")[0] || undefined;
-    const origin = process.env.NEXT_PUBLIC_SITE_URL || "https://www.np-seven.com";
+    const origin = publicOrigin();
     let activationLink = `${origin}/account/login`;
     try {
       const { ensureMemberAccount } = await import("@/lib/members");
@@ -385,9 +385,9 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     return NextResponse.json({ error: "Invalid JSON" }, { status: 400 });
   }
 
-  // Derive request origin for links (portal, activation)
-  const host = request.headers.get("host") ?? "";
-  const origin = `https://${host}`;
+  // Links in these mails go to the guest, so they name the real site, never
+  // the host Stripe happened to call. See lib/public-origin.
+  const origin = publicOrigin();
 
   // A card pays instantly, so completed arrives already 'paid'. SEPA Direct
   // Debit, Klarna and bank transfers — the methods an EU buyer is most likely

@@ -4,7 +4,8 @@ import { createAdminClient } from "@/lib/supabase";
 import { ensureMemberAccount } from "@/lib/members";
 import { sendEmail } from "@/lib/email/send";
 import { createApplication, getMemberApplication, findOrCreateContact, type MediaKind } from "@/lib/signature";
-
+import { publicOrigin } from "@/lib/public-origin";
+import { rateLimited, LIMITS } from "@/lib/rate-limit";
 export const runtime = "nodejs";
 
 // POST /api/signature/apply — apply for a Signature Trip.
@@ -14,6 +15,9 @@ export const runtime = "nodejs";
 //    it logs them in and flips the application to verified ("makes it real").
 // A verified application is required to be considered — a fake email never verifies.
 export async function POST(request: NextRequest) {
+  const tooMany = await rateLimited(request, { name: "signature-apply", policy: LIMITS.signup });
+  if (tooMany) return tooMany;
+
   const b = await request.json().catch(() => ({}));
   const media = b.media && (b.media.kind === "video" || b.media.kind === "audio") && typeof b.media.contentType === "string"
     ? { kind: b.media.kind as MediaKind, contentType: b.media.contentType as string }
@@ -65,7 +69,7 @@ export async function POST(request: NextRequest) {
   if ("error" in res) return NextResponse.json({ error: res.error }, { status: 400 });
 
   // email the magic login link — clicking it verifies the application.
-  const origin = request.headers.get("origin") ?? `https://${request.headers.get("host")}`;
+  const origin = publicOrigin();
   const acc = await ensureMemberAccount({ contactId, email, origin, next: "/signature" });
   if ("link" in acc) {
     await sendEmail({

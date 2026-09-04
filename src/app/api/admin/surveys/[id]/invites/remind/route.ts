@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { requireTeamApi } from "@/lib/auth";
 import { listInvites, sendSurveyReminderEmail } from "@/lib/surveys";
 import { requireAdminGate } from "@/lib/admin-auth";
+import { publicOrigin } from "@/lib/public-origin";
 // POST /api/admin/surveys/:id/invites/remind — nudge the silent invitees.
 // body: { target: "all" | "opened" | "unopened", subject?: string }
 //
@@ -19,7 +20,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
   const body = await request.json().catch(() => ({}));
   const target: string = body?.target === "opened" || body?.target === "unopened" ? body.target : "all";
   const subject: string | undefined = typeof body?.subject === "string" && body.subject.trim() ? body.subject.trim() : undefined;
-  const origin = new URL(request.url).origin;
+  const origin = publicOrigin();
 
   const invites = await listInvites(id);
   const eligible = invites.filter((i) =>

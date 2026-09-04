@@ -13,7 +13,8 @@ import { ensureMemberAccount } from "@/lib/members";
 import { attachBookingToInvite } from "@/lib/invites";
 import { getMemberTier } from "@/lib/member-tier";
 import { generateDocument } from "@/lib/invoices/generate";
-
+import { publicOrigin } from "@/lib/public-origin";
+import { rateLimited, LIMITS } from "@/lib/rate-limit";
 /**
  * Free, low-friction registration (the redesigned funnel).
  *
@@ -57,6 +58,9 @@ function bad(msg: string, status = 400) {
 }
 
 export async function POST(request: NextRequest) {
+  const tooMany = await rateLimited(request, { name: "register", policy: LIMITS.signup });
+  if (tooMany) return tooMany;
+
   // Invisible bot check (Vercel BotID) — FLAGS, never blocks.
   //
   // It used to answer a bot verdict with a 403. A real customer signing up for
@@ -288,7 +292,7 @@ export async function POST(request: NextRequest) {
     await attachBookingToInvite(inviteToken, contactId, booking.id);
   }
 
-  const origin = request.headers.get("origin") ?? `https://${request.headers.get("host")}`;
+  const origin = publicOrigin();
 
   // Welcome email + PRO-FORMA payment request in ONE send, generated in the
   // background so registration stays instant. The pro-forma gives the rider

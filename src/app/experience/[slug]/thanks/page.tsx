@@ -1,12 +1,12 @@
 import Link from "next/link";
 import { flags } from "@/lib/flags";
-import { headers } from "next/headers";
 import type { Metadata } from "next";
 import { createAdminClient } from "@/lib/supabase";
 import { OceanHeader, NP7_LOGO } from "@/components/experience/ocean-header";
 import { ensureMemberAccount } from "@/lib/members";
 import { sendEmail } from "@/lib/email/send";
 
+import { publicOrigin } from "@/lib/public-origin";
 function fmtRange(start?: string | null, end?: string | null) {
   if (!start) return undefined;
   const s = new Date(start), e = end ? new Date(end) : null;
@@ -28,8 +28,7 @@ async function onDepositPaid(bookingId: string) {
   const contact = booking?.contacts;
   if (!contact?.email) return;
 
-  const h = await headers();
-  const origin = h.get("origin") ?? `https://${h.get("host")}`;
+  const origin = publicOrigin();
   const firstName = (contact.name ?? "").split(" ")[0] || undefined;
 
   const acct = await ensureMemberAccount({ contactId: booking.contact_id, email: contact.email, origin }).catch(() => null);

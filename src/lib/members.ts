@@ -1,6 +1,7 @@
 import { createAdminClient } from "@/lib/supabase";
 import { sendEmail } from "@/lib/email/send";
 import type { EmailVars } from "@/lib/email/templates";
+import { safeOrigin } from "@/lib/public-origin";
 
 /** Look up an auth user id by email (small user base — listUsers is fine). */
 async function findAuthUserByEmail(email: string): Promise<string | undefined> {
@@ -18,7 +19,10 @@ async function findAuthUserByEmail(email: string): Promise<string | undefined> {
 }
 
 function confirmLink(origin: string, tokenHash: string, next = "/account") {
-  return `${origin}/account/auth/confirm?token_hash=${encodeURIComponent(tokenHash)}&type=magiclink&next=${encodeURIComponent(next)}`;
+  // This URL carries a live one-time login token, so the host is not up for
+  // negotiation. safeOrigin replaces anything that is not ours; see the note
+  // there for how a caller-supplied origin used to get here.
+  return `${safeOrigin(origin)}/account/auth/confirm?token_hash=${encodeURIComponent(tokenHash)}&type=magiclink&next=${encodeURIComponent(next)}`;
 }
 
 /**

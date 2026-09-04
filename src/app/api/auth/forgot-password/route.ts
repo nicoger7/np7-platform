@@ -1,7 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase";
 import { sendEmail } from "@/lib/email/send";
+import { publicOrigin } from "@/lib/public-origin";
 
+import { rateLimited, LIMITS } from "@/lib/rate-limit";
 /**
  * "Forgot password?" on the admin login.
  *
@@ -22,6 +24,9 @@ import { sendEmail } from "@/lib/email/send";
  * receives nothing.
  */
 export async function POST(request: NextRequest) {
+  const tooMany = await rateLimited(request, { name: "forgot-password", policy: LIMITS.mailToAnyAddress });
+  if (tooMany) return tooMany;
+
   let body: { email?: string };
   try {
     body = await request.json();
@@ -31,13 +36,22 @@ export async function POST(request: NextRequest) {
   const email = (body.email ?? "").trim().toLowerCase();
   if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) return NextResponse.json({ ok: true });
 
+  // Per-recipient counter as well as per-caller: this mails an admin recovery
+  // token, so one address is exactly what an attacker would hammer. The reply
+  // is the same { ok: true } as always, so it says nothing about the account.
+  const tooManyForThem = await rateLimited(request, {
+    name: "forgot-password", policy: LIMITS.mailToAnyAddress, subject: email,
+  });
+  if (tooManyForThem) return NextResponse.json({ ok: true });
+
   const admin = createAdminClient();
   const { data: linkData, error } = await admin.auth.admin.generateLink({ type: "recovery", email });
   const tokenHash = linkData?.properties?.hashed_token;
   // Unknown account → same answer, no mail. Never say which it was.
   if (error || !tokenHash) return NextResponse.json({ ok: true });
 
-  const { origin } = new URL(request.url);
+  // An admin recovery token. It goes to the real site or nowhere.
+  const origin = publicOrigin();
   const resetLink = `${origin}/account/auth/confirm?token_hash=${encodeURIComponent(tokenHash)}&type=recovery&next=${encodeURIComponent("/admin/reset-password")}`;
 
   await sendEmail({

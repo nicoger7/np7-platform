@@ -2,7 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase";
 import { ensureMemberAccount } from "@/lib/members";
 import { sendEmail } from "@/lib/email/send";
-
+import { publicOrigin } from "@/lib/public-origin";
+import { rateLimited, LIMITS } from "@/lib/rate-limit";
 /**
  * Self-service registration (magic-link signup). Finds or creates a contact,
  * provisions a member auth account, and emails a one-time link to finish — no
@@ -11,6 +12,9 @@ import { sendEmail } from "@/lib/email/send";
  * Always answers generically (never reveals whether an account already existed).
  */
 export async function POST(request: NextRequest) {
+  const tooMany = await rateLimited(request, { name: "portal-register", policy: LIMITS.signup });
+  if (tooMany) return tooMany;
+
   let email = "", name = "", nextRaw: unknown = "";
   try {
     ({ email, name, next: nextRaw } = await request.json());
@@ -24,7 +28,7 @@ export async function POST(request: NextRequest) {
   }
   const next = typeof nextRaw === "string" && /^\/(?!\/)/.test(nextRaw) ? nextRaw : undefined;
 
-  const origin = request.headers.get("origin") ?? `https://${request.headers.get("host")}`;
+  const origin = publicOrigin();
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const db = createAdminClient() as any;
 

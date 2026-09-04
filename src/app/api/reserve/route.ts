@@ -6,7 +6,8 @@ import { sendEmail } from "@/lib/email/send";
 import { getPortalUser } from "@/lib/auth";
 import { paidSpotsByEdition, spotsLeftFrom } from "@/lib/availability";
 import { composeBookingName } from "@/lib/booking-name";
-
+import { publicOrigin } from "@/lib/public-origin";
+import { rateLimited, LIMITS } from "@/lib/rate-limit";
 /**
  * Public reservation endpoint.
  *
@@ -36,6 +37,9 @@ function bad(msg: string, status = 400) {
 }
 
 export async function POST(request: NextRequest) {
+  const tooMany = await rateLimited(request, { name: "reserve", policy: LIMITS.signup });
+  if (tooMany) return tooMany;
+
   let body: Body;
   try {
     body = await request.json();
@@ -181,7 +185,7 @@ export async function POST(request: NextRequest) {
   }
 
   // Stripe Checkout session for the deposit (REST API, form-encoded).
-  const origin = request.headers.get("origin") ?? `https://${request.headers.get("host")}`;
+  const origin = publicOrigin();
   const editionLabel = edition?.label ? ` — ${edition.label}` : "";
 
   // Members get a Stripe Customer so they can opt to save their card.

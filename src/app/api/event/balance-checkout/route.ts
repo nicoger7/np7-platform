@@ -2,7 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase";
 import { createCheckoutSession, eur } from "@/lib/stripe";
 import { outstandingForBooking } from "@/lib/events";
-
+import { publicOrigin } from "@/lib/public-origin";
+import { rateLimited, LIMITS } from "@/lib/rate-limit";
 /**
  * Standby balance checkout — the buyer pays the remaining amount once their date
  * is confirmed. Reached from the "pay your balance" email link (the booking id
@@ -11,6 +12,9 @@ import { outstandingForBooking } from "@/lib/events";
 const bad = (msg: string, status = 400) => NextResponse.json({ error: msg }, { status });
 
 export async function POST(request: NextRequest) {
+  const tooMany = await rateLimited(request, { name: "event-balance", policy: LIMITS.signup });
+  if (tooMany) return tooMany;
+
   let bookingId: string | undefined;
   try { bookingId = (await request.json())?.bookingId; } catch { return bad("Invalid request"); }
   if (!bookingId) return bad("Missing booking.");
@@ -30,7 +34,7 @@ export async function POST(request: NextRequest) {
   const { balance } = await outstandingForBooking(db, bookingId, price).then((r) => ({ balance: r.outstanding }));
   if (balance <= 0) return bad("Nothing left to pay.", 409);
 
-  const origin = request.headers.get("origin") ?? `https://${request.headers.get("host")}`;
+  const origin = publicOrigin();
   const cur = b.exp_experiences.currency ?? "EUR";
   const session = await createCheckoutSession({
     line: { name: `${b.exp_experiences.title} · balance`, description: `Remaining balance on your ${eur(price, cur)} ticket.`, amountCents: Math.round(balance * 100) },

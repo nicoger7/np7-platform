@@ -4,6 +4,7 @@ import { createAdminClient } from "@/lib/supabase";
 import { getSurvey, surveyInviteVars } from "@/lib/surveys";
 import { renderTemplate } from "@/lib/email/templates";
 import { requireAdminGate } from "@/lib/admin-auth";
+import { publicOrigin } from "@/lib/public-origin";
 // GET /api/admin/surveys/:id/email-preview — the invite email exactly as it
 // will send, built through the same vars builder the real send uses. The
 // buttons link to the team-only /survey/preview-… page so they're clickable.
@@ -17,7 +18,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
   const survey = await getSurvey(id);
   if (!survey) return new Response("Survey not found", { status: 404 });
 
-  const origin = new URL(request.url).origin;
+  const origin = publicOrigin();
   const vars = surveyInviteVars(survey, "Nico", `${origin}/survey/preview-${id}`);
 
   // same copy override + header image the real send would pick up

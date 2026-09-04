@@ -2,7 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { getPortalUser } from "@/lib/auth";
 import { createAdminClient } from "@/lib/supabase";
 import { createInvite, getInvitesForBooking, sendInviteEmail } from "@/lib/invites";
-
+import { publicOrigin } from "@/lib/public-origin";
+import { rateLimited, LIMITS } from "@/lib/rate-limit";
 /**
  * Member-side "invite a friend to this trip".
  * GET  ?bookingId=…  → the invites the member created for their booking.
@@ -40,6 +41,9 @@ export async function GET(request: NextRequest) {
 }
 
 export async function POST(request: NextRequest) {
+  const tooMany = await rateLimited(request, { name: "portal-invite", policy: LIMITS.write });
+  if (tooMany) return tooMany;
+
   const user = await getPortalUser({ allowPreview: false });
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
@@ -76,7 +80,7 @@ export async function POST(request: NextRequest) {
   // mail hiccup shouldn't lose the invite; the member can still copy the link.
   let emailed = false;
   if (body.send && email) {
-    const origin = request.headers.get("origin") ?? `https://${request.headers.get("host")}`;
+    const origin = publicOrigin();
     try {
       const status = await sendInviteEmail(invite.id, `${origin}/join/${invite.token}`);
       emailed = status === "sent";

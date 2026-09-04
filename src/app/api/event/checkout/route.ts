@@ -5,7 +5,8 @@ import { composeBookingName } from "@/lib/booking-name";
 import { checkParticipant, isMinorOn } from "@/lib/minors";
 import { createCheckoutSession, eur } from "@/lib/stripe";
 import { eventPricing, eventDepositPlan } from "@/lib/events";
-
+import { publicOrigin } from "@/lib/public-origin";
+import { rateLimited, LIMITS } from "@/lib/rate-limit";
 /**
  * Public event-ticket checkout.
  *
@@ -36,6 +37,9 @@ type Body = {
 const bad = (msg: string, status = 400) => NextResponse.json({ error: msg }, { status });
 
 export async function POST(request: NextRequest) {
+  const tooMany = await rateLimited(request, { name: "event-checkout", policy: LIMITS.signup });
+  if (tooMany) return tooMany;
+
   let body: Body;
   try { body = await request.json(); } catch { return bad("Invalid request"); }
   if (!body.experienceId) return bad("Missing event.");
@@ -392,7 +396,7 @@ export async function POST(request: NextRequest) {
   }
 
   // No Stripe yet → save the booking, tell the client to expect a follow-up.
-  const origin = request.headers.get("origin") ?? `https://${request.headers.get("host")}`;
+  const origin = publicOrigin();
   const session = await createCheckoutSession({
     line: {
       name: mode === "standby" || plan.partPayment ? `${exp.title} · deposit` : `${exp.title} · ticket`,

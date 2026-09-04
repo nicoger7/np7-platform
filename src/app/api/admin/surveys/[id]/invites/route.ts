@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { requireTeamApi } from "@/lib/auth";
 import { listInvites, addInvites, removeInvite, sendSurveyInviteEmail, contactIdsByTag } from "@/lib/surveys";
 import { requireAdminGate } from "@/lib/admin-auth";
+import { publicOrigin } from "@/lib/public-origin";
 // GET /api/admin/surveys/:id/invites — invites joined with contact + response.
 export async function GET(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const denied = await requireAdminGate();
@@ -38,7 +39,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     return NextResponse.json({ error: "Pick at least one member." }, { status: 400 });
   }
   const created = await addInvites(id, ids);
-  const origin = new URL(request.url).origin;
+  const origin = publicOrigin();
   let emailed = 0;
   if (sendEmail) {
     for (const inv of created) {
