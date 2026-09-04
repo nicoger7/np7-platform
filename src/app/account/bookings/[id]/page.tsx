@@ -30,6 +30,7 @@ import { PackingChecklist } from "@/components/portal/packing-checklist";
 import { WhatsNext, buildWhatsNext } from "@/components/portal/whats-next";
 import { getSendTiming } from "@/lib/email/readiness";
 
+import { GuideCard } from "@/components/portal/guide-card";
 export const metadata: Metadata = { title: "My trip — NP7" };
 export const dynamic = "force-dynamic";
 
@@ -591,7 +592,10 @@ export default async function BookingDetail({ params }: Props) {
       )}
       {/* wind.coach training guide(s) matched to this booking — only when one
           actually landed; no empty promise card. */}
-      {guides.length > 0 && (
+      {/* Promoted into the hero once the trip has ended, so it is not repeated
+          here. Before that, a guide is unusual but possible, and this is where
+          it belongs. */}
+      {guides.length > 0 && !tripEnded && (
         <div>
           <p className="text-[11px] font-bold tracking-[0.14em] uppercase text-[#9aa6ac] mb-2">Your focus points</p>
           <div className="space-y-3">
@@ -812,11 +816,18 @@ export default async function BookingDetail({ params }: Props) {
           </div>
 
           <TripView
+            /* Before the trip, the hero is the next thing to do. After it, that
+               slot went empty, and the guide, which is the one thing that
+               actually arrives after a trip, sat near the bottom of the Trip tab
+               where nobody looked. So it takes the slot it was leaving vacant.
+               Same card as the home, so a rider recognises it in both places. */
             hero={!tripEnded ? (
               <>
                 <NextStepHero {...hero} />
                 <WhatsNext steps={whatsNext} contact={{ email: contactRow?.email ?? null, phone: contactRow?.phone ?? null }} />
               </>
+            ) : guides.length > 0 ? (
+              <GuideCard guide={guides[0]} unread={!guides[0].openedAt} />
             ) : null}
             tiles={tiles} tabs={tabs} initial={initialTab} title={b.experience?.title ?? "Your trip"} statusLabel={chip.label}
           />

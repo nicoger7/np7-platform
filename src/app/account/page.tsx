@@ -3,7 +3,7 @@ import { redirect } from "next/navigation";
 import type { Metadata } from "next";
 import { getPortalUser, getTeamMember } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
-import { getMemberBookings, getMemberBannerImages, getMemberProfile, getMemberProgression, getProfilePhotoChoices } from "@/lib/portal-data";
+import { getMemberBookings, getMemberBannerImages, getMemberProfile, getMemberProgression, getProfilePhotoChoices, getMemberGuides } from "@/lib/portal-data";
 import { getExperienceCards } from "@/lib/experience-cards";
 import { getMemberTier } from "@/lib/member-tier";
 import { ExpTileCardCompact } from "@/components/experience/upcoming-experiences";
@@ -14,6 +14,7 @@ import { PortalChrome } from "@/components/portal/portal-chrome";
 import { MemberHomeBanner } from "@/components/portal/member-home-banner";
 import { LevelHomeCard } from "@/components/portal/level-home-card";
 import { HomeProgress } from "@/components/portal/home-progress";
+import { GuideCard } from "@/components/portal/guide-card";
 import { SetupProgress, type SetupStep } from "@/components/portal/setup-progress";
 import { SetPasswordPrompt } from "@/components/portal/set-password-prompt";
 import { getMemberApplication } from "@/lib/signature";
@@ -37,14 +38,19 @@ export default async function AccountHome() {
     redirect("/account/login");
   }
   const tier = await getMemberTier(user.contactId).catch(() => null);
-  const [bookings, bannerImages, profile, progression, signatureApp, nextTrips] = await Promise.all([
+  const [bookings, bannerImages, profile, progression, signatureApp, nextTrips, guides] = await Promise.all([
     getMemberBookings(user.contactId),
     getMemberBannerImages(user.contactId).catch(() => []),
     getMemberProfile(user.contactId).catch(() => null),
     getMemberProgression(user.contactId).catch(() => null),
     getMemberApplication(user.contactId).catch(() => null),
     getExperienceCards(tier ? { tierKey: tier.key, tierLabel: tier.label } : null).then((r) => r.cards).catch(() => []),
+    getMemberGuides(user.contactId).catch(() => []),
   ]);
+  // The guide is the most personal thing NP7 makes and it used to live at the
+  // bottom of one booking's Trip tab, where nobody found it. Unread, it leads
+  // the home. Read, it becomes a tile like the rest.
+  const unreadGuides = guides.filter((g) => !g.openedAt);
   const ownPhotoCount = await getProfilePhotoChoices(user.contactId).then((p) => p.length).catch(() => 0);
   // An experience the member already has an UPCOMING booking in doesn't need
   // selling — "book your next trip" means the next one, not the one they're
@@ -164,6 +170,22 @@ export default async function AccountHome() {
           {setupSteps.length > 0 && (
             <div className="mt-6">
               <SetupProgress steps={setupSteps} />
+            </div>
+          )}
+
+          {/* A guide nobody has read yet. High on the page on purpose: it lands
+              days after a trip with no announcement, and until now the only way
+              to find it was to open the right booking and scroll. It drops back
+              to a tile the moment it is opened. */}
+          {unreadGuides.length > 0 && (
+            <div className="mt-6 space-y-3">
+              {unreadGuides.slice(0, 2).map((g) => <GuideCard key={g.id} guide={g} unread />)}
+              {unreadGuides.length > 2 && (
+                <Link href="/account/guides" className="inline-flex items-center gap-1.5 text-[13px] font-bold text-[#00afdb] hover:gap-2.5 transition-all">
+                  {unreadGuides.length - 2} more waiting
+                  <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M5 12h14M13 6l6 6-6 6" /></svg>
+                </Link>
+              )}
             </div>
           )}
 
@@ -301,27 +323,69 @@ export default async function AccountHome() {
             </div>
           )}
 
-          {/* Quick links — uniform, single accent; a row across the bottom on desktop */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 mt-6">
-            <SectionCard href="/account/trips" title="My trips" desc={bookings.length ? `${bookings.length} trip${bookings.length === 1 ? "" : "s"} · prep, photos` : "Book your first adventure"} icon={<path d="M3 7l9-4 9 4-9 4-9-4zM3 7v10l9 4 9-4V7M12 11v10" />} />
-            {bookings.length > 0 && <SectionCard href="/account/memories" title="My memories" desc="Photos from all your trips" icon={<><rect x="3" y="3" width="18" height="18" rx="2" /><circle cx="8.5" cy="8.5" r="1.5" /><path d="m21 15-5-5L5 21" /></>} />}
-            {flags.showGear && <SectionCard href="/account/gear" title="My gear" desc="Board & fin orders" icon={<><rect x="3" y="3" width="18" height="18" rx="2" /><path d="M3 9h18M9 21V9" /></>} />}
-            {flags.showExperience && <SectionCard href="/experience" title="Explore" desc="Trips & destinations" icon={<><circle cx="12" cy="12" r="9" /><path d="M3 12h18M12 3a15 15 0 0 1 0 18 15 15 0 0 1 0-18z" /></>} />}
+          {/* What a member comes back for: the trips, the photos from them, and
+              what their coach told them to work on. Three of a kind, so they sit
+              in a row of three rather than being scattered through a row of four
+              with the shop and the catalogue. Gear and Explore are a different
+              errand and sit quieter, below. */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 mt-6">
+            <SectionCard
+              href="/account/trips" title="My trips" tone="ocean"
+              desc={bookings.length ? `${bookings.length} trip${bookings.length === 1 ? "" : "s"} · prep, photos` : "Book your first adventure"}
+              icon={<path d="M3 7l9-4 9 4-9 4-9-4zM3 7v10l9 4 9-4V7M12 11v10" />}
+            />
+            <SectionCard
+              href="/account/memories" title="My memories" tone="ocean"
+              desc={bookings.length ? "Photos and video from your weeks" : "Your photos gather here after a trip"}
+              icon={<><rect x="3" y="3" width="18" height="18" rx="2" /><circle cx="8.5" cy="8.5" r="1.5" /><path d="m21 15-5-5L5 21" /></>}
+            />
+            <SectionCard
+              href="/account/guides" title="My focus points" tone="ocean"
+              badge={unreadGuides.length > 0 ? `${unreadGuides.length} new` : undefined}
+              desc={guides.length ? `${guides.length} guide${guides.length === 1 ? "" : "s"} from your coaches` : "What to work on next, after a trip"}
+              icon={<><path d="M12 3v3M12 18v3M3 12h3M18 12h3" /><circle cx="12" cy="12" r="4" /></>}
+            />
           </div>
+          {(flags.showGear || flags.showExperience) && (
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mt-3">
+              {flags.showGear && <SectionCard href="/account/gear" title="My gear" desc="Board & fin orders" icon={<><rect x="3" y="3" width="18" height="18" rx="2" /><path d="M3 9h18M9 21V9" /></>} />}
+              {flags.showExperience && <SectionCard href="/experience" title="Explore" desc="Trips & destinations" icon={<><circle cx="12" cy="12" r="9" /><path d="M3 12h18M12 3a15 15 0 0 1 0 18 15 15 0 0 1 0-18z" /></>} />}
+            </div>
+          )}
         </div>
       </main>
     </>
   );
 }
 
-function SectionCard({ href, title, desc, icon }: { href: string; title: string; desc: string; icon: React.ReactNode }) {
+/**
+ * `tone: "ocean"` is for the three cards a member actually comes back for. They
+ * were the same flat white box as the shop link, which made the row read as
+ * five equal errands. The icon now sits on the brand gradient and the card
+ * lifts a little further, so the row has a subject.
+ */
+function SectionCard({ href, title, desc, icon, tone, badge }: { href: string; title: string; desc: string; icon: React.ReactNode; tone?: "ocean"; badge?: string }) {
+  const ocean = tone === "ocean";
   return (
-    <Link href={href} className="group bg-white rounded-2xl border border-[#f0e6d6] p-5 flex items-start gap-3.5 hover:-translate-y-0.5 hover:shadow-[0_16px_40px_rgba(0,55,74,0.08)] transition-all">
-      <span className="shrink-0 w-10 h-10 rounded-xl grid place-items-center bg-[#00afdb]/10 text-[#00afdb]">
+    <Link
+      href={href}
+      className={`group relative bg-white rounded-2xl border p-5 flex items-start gap-3.5 transition-all ${ocean
+        ? "border-[#e6dcc9] hover:-translate-y-1 hover:shadow-[0_20px_46px_rgba(0,55,74,0.11)] hover:border-[#cfe7ef]"
+        : "border-[#f0e6d6] hover:-translate-y-0.5 hover:shadow-[0_16px_40px_rgba(0,55,74,0.08)]"}`}
+    >
+      <span
+        className={`shrink-0 w-11 h-11 rounded-xl grid place-items-center ${ocean ? "text-white" : "bg-[#00afdb]/10 text-[#00afdb]"}`}
+        style={ocean ? { background: "linear-gradient(150deg,#00374a,#0782a0 60%,#00afdb)" } : undefined}
+      >
         <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round">{icon}</svg>
       </span>
-      <div className="min-w-0">
-        <h3 className="text-[16px] font-extrabold tracking-[-0.01em] text-[#00374a] group-hover:text-[#00afdb] transition-colors">{title}</h3>
+      <div className="min-w-0 flex-1">
+        <div className="flex items-center gap-2">
+          <h3 className="text-[16px] font-extrabold tracking-[-0.01em] text-[#00374a] group-hover:text-[#00afdb] transition-colors truncate">{title}</h3>
+          {badge && (
+            <span className="shrink-0 text-[10px] font-black uppercase tracking-[0.1em] px-2 py-0.5 rounded-full bg-[#ffc42e] text-[#3a2a05]">{badge}</span>
+          )}
+        </div>
         <p className="text-[13px] text-[#6a7a80] leading-snug mt-0.5">{desc}</p>
       </div>
     </Link>

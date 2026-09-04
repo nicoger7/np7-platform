@@ -2,7 +2,7 @@ import Link from "next/link";
 import { redirect, notFound } from "next/navigation";
 import type { Metadata } from "next";
 import { getPortalUser } from "@/lib/auth";
-import { getGuideForMember, type GuideBlock } from "@/lib/portal-data";
+import { getGuideForMember, markGuideOpened, type GuideBlock } from "@/lib/portal-data";
 import { fmtDates } from "@/lib/portal-status";
 import { PortalChrome } from "@/components/portal/portal-chrome";
 
@@ -69,6 +69,13 @@ export default async function GuidePage({ params }: Props) {
   if (!user) redirect("/account/login");
   const guide = await getGuideForMember(id, user.contactId);
   if (!guide) notFound();
+
+  /* Reading it here is what makes it read everywhere: the home stops leading
+     with it and it settles into the list. Not while an admin is previewing as
+     this member, because looking over someone's shoulder must not spend their
+     badge. Fire and forget, since a failed stamp is a guide that stays new,
+     which is the harmless direction. */
+  if (!user.preview) void markGuideOpened(guide.id).catch(() => {});
 
   const firstName = (guide.name ?? user.name ?? "").trim().split(/\s+/)[0] || null;
   const dateLabel = guide.trip_start ? fmtDates(guide.trip_start, guide.trip_end) : null;

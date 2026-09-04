@@ -1190,11 +1190,11 @@ export type BookingGuideSummary = { id: string; trip_label: string | null; creat
     label, when, how many focus points) for the trip page to offer the link.
     Only 'stored' guides count: a guide in the review queue isn't matched yet.
     Tolerant of migration 154 being unapplied → empty. */
-export async function getGuidesForBooking(bookingId: string): Promise<BookingGuideSummary[]> {
+export async function getGuidesForBooking(bookingId: string): Promise<MemberGuideSummary[]> {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const db = createAdminClient() as any;
   const { data, error } = await db.from("windcoach_guides")
-    .select("id,trip_label,created_at,focus_points")
+    .select("id,booking_id,trip_label,trip_start,trip_end,created_at,opened_at,focus_points")
     .eq("booking_id", bookingId).eq("status", "stored")
     .order("created_at", { ascending: false });
   if (error || !data) return [];
@@ -1214,14 +1214,81 @@ export async function getGuidesForBooking(bookingId: string): Promise<BookingGui
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   return (newestPerTrip as any[]).map((g) => ({
     id: g.id,
+    bookingId: g.booking_id ?? null,
     trip_label: g.trip_label ?? null,
     created_at: g.created_at ?? null,
+    tripStart: g.trip_start ?? null,
+    tripEnd: g.trip_end ?? null,
+    openedAt: g.opened_at ?? null,
     focusPointCount: Array.isArray(g.focus_points) ? g.focus_points.length : 0,
     // The first titles give the trip card something concrete to promise.
     focusTitles: (Array.isArray(g.focus_points) ? g.focus_points : [])
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       .map((fp: any) => String(fp?.title ?? "").trim()).filter(Boolean).slice(0, 3),
   }));
+}
+
+export type MemberGuideSummary = BookingGuideSummary & {
+  bookingId: string | null;
+  tripStart: string | null;
+  tripEnd: string | null;
+  openedAt: string | null;
+};
+
+/**
+ * Every guide this member can read, newest first.
+ *
+ * The trip page only ever knew about one booking's guides. The home needs the
+ * whole shelf: one card while something is unread, a quiet list once it is not.
+ * Matched the same two ways getGuideForMember allows, by contact and through
+ * their own bookings, because early guides were attached by booking alone.
+ */
+export async function getMemberGuides(contactId: string): Promise<MemberGuideSummary[]> {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const db = createAdminClient() as any;
+  const { data: bks } = await db.from("exp_bookings").select("id").eq("contact_id", contactId);
+  const bookingIds = ((bks ?? []) as { id: string }[]).map((b) => b.id);
+  const ors = [`contact_id.eq.${contactId}`];
+  if (bookingIds.length) ors.push(`booking_id.in.(${bookingIds.join(",")})`);
+  const { data, error } = await db.from("windcoach_guides")
+    .select("id,booking_id,trip_label,trip_start,trip_end,created_at,opened_at,focus_points")
+    .eq("status", "stored").or(ors.join(","))
+    .order("created_at", { ascending: false });
+  if (error || !data) return [];
+  // Same rule as the trip page: a resend is a new row, so newest wins per trip.
+  const seen = new Set<string>();
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  return (data as any[]).filter((g) => {
+    const label = String(g.trip_label ?? g.id).trim().toLowerCase();
+    if (seen.has(label)) return false;
+    seen.add(label);
+    return true;
+  }).map((g) => ({
+    id: g.id,
+    bookingId: g.booking_id ?? null,
+    trip_label: g.trip_label ?? null,
+    created_at: g.created_at ?? null,
+    tripStart: g.trip_start ?? null,
+    tripEnd: g.trip_end ?? null,
+    openedAt: g.opened_at ?? null,
+    focusPointCount: Array.isArray(g.focus_points) ? g.focus_points.length : 0,
+    focusTitles: (Array.isArray(g.focus_points) ? g.focus_points : [])
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      .map((fp: any) => String(fp?.title ?? "").trim()).filter(Boolean).slice(0, 3),
+  }));
+}
+
+/**
+ * Stamp a guide as read, once.
+ *
+ * Deliberately not called when an admin is previewing the portal as this
+ * member: looking over someone's shoulder must not spend their "new" badge.
+ */
+export async function markGuideOpened(guideId: string): Promise<void> {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const db = createAdminClient() as any;
+  await db.from("windcoach_guides").update({ opened_at: new Date().toISOString() })
+    .eq("id", guideId).is("opened_at", null);
 }
 
 export type GuideBlock = { kind: string; text: string };
