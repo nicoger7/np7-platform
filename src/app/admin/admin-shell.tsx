@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { VIZ_CSS } from "@/components/admin/finance-charts";
 import { PageHelp } from "@/components/admin/page-help";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useState, useEffect, useRef } from "react";
@@ -747,6 +748,12 @@ export default function AdminShell({
 
   return (
     <div
+      /* Deliberately NOT `fin` here. The brief called this step a no-op, but
+         `.fin` is not only a token scope: it also sets the system font stack and
+         tabular numerals, so on the root it would restyle every character in the
+         admin in one commit. The tokens (--fin-hairline, --fin-raise) hang off
+         `.fin` too, so a page opts in by putting `fin` on ITS OWN container when
+         it is converted. The stylesheet below is global; the opt-in is per page. */
       className="admin-root min-h-screen lg:flex"
       // The admin's light/dark switch is inline CSS variables in React state, so
       // it never reaches prefers-color-scheme or a root data-theme. Anything
@@ -762,6 +769,11 @@ export default function AdminShell({
       {/* Desktop gets a gentle zoom so the team doesn't squint; never on mobile,
           where it would overflow the viewport. */}
       <style>{`@media (min-width:1024px){.admin-root{zoom:1.1}}`}</style>
+      {/* Injected once for the whole admin. It was previously added by each
+          finance component separately, which meant three copies of the same
+          stylesheet on a page that showed all three, and none at all on every
+          other page. Imported, never forked: the finance work owns that string. */}
+      <style dangerouslySetInnerHTML={{ __html: VIZ_CSS }} />
 
       {/* ── Mobile top app bar ── */}
       <header
