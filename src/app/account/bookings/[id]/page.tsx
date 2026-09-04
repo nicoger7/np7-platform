@@ -547,6 +547,15 @@ export default async function BookingDetail({ params }: Props) {
     <>
       <TripAddons bookingId={b.id} depositPaid={depositPaid} hasDeposit={hasDeposit} securingLabel={securingLabel} initialFlights={flights} arrival={arrival} editionStart={b.edition?.date_start ?? null} editionEnd={b.edition?.date_end ?? null} groupLink={b.edition?.whatsapp_group_link ?? null} joinedGroup={!!b.wa_group} />
       <div className="mt-5 pt-4 border-t border-[#f3ede2]"><ExtraNightsButton bookingId={b.id} /></div>
+      {/* Packing belongs in Prep, not in Trip. It is a question you have before
+          you fly, and Prep is the tab a guest lands on before the trip and the
+          one the tab set drops the moment the trip starts, so the list retires
+          itself without a date condition anywhere. */}
+      {packingItems.length > 0 && (
+        <div className="mt-6 pt-5 border-t border-[#f3ede2]">
+          <PackingChecklist bookingId={b.id} items={packingItems} />
+        </div>
+      )}
       <div className="mt-6 pt-5 border-t border-[#f3ede2]">
         <p className="text-[11px] font-bold tracking-[0.14em] uppercase text-[#9aa6ac] mb-2.5">Participation waiver</p>
         {waiverBody}
@@ -627,7 +636,6 @@ export default async function BookingDetail({ params }: Props) {
           </div>
         </div>
       )}
-      {packingItems.length > 0 && <PackingChecklist bookingId={b.id} items={packingItems} />}
       {hotel && (
         <div>
           <p className="text-[11px] font-bold tracking-[0.14em] uppercase text-[#9aa6ac] mb-2">Your stay</p>

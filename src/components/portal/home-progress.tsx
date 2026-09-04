@@ -94,7 +94,8 @@ export function HomeProgress({ progression, selfLevel, avatarUrl, initials }: { 
           </div>
         ))}
       </div>
-      <div className="flex justify-between mt-1.5 text-[10.5px] text-[#7fa6b3]">
+      {/* Same reason as the Progress hero: clipped to "Interm…" on a phone. */}
+      <div className="hidden sm:flex justify-between mt-1.5 text-[10.5px] text-[#7fa6b3]">
         {ladder.map((r) => (
           <span key={r.name} className="text-center truncate px-0.5" style={{ flex: `${r.weight} 1 0%`, ...(r.current ? { color: "#fff", fontWeight: 700 } : r.done ? { color: "#9fc9d6" } : {}) }}>{r.name}</span>
         ))}

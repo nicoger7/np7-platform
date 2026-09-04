@@ -274,7 +274,12 @@ export function ProgressionView({ progression, avatarUrl, initials }: { progress
             </div>
           ))}
         </div>
-        <div className="flex justify-between mt-1.5 text-[10.5px]" style={{ color: "#7fa6b3" }}>
+        {/* Hidden on a phone. Six words in a 310px card is "Interm…", "Advan…",
+            "Semi-…", which is noise, not a legend, and it read that way long
+            before the rungs had different widths. The rank is named in full
+            right above, the chip says what is next, and the bar now narrows
+            toward the top, so nothing is lost by not clipping six words. */}
+        <div className="hidden sm:flex justify-between mt-1.5 text-[10.5px]" style={{ color: "#7fa6b3" }}>
           {ladder.map((r) => (
             <span key={r.name} className="text-center truncate px-0.5" style={{ flex: `${r.weight} 1 0%`, ...(r.current ? { color: "#fff", fontWeight: 700 } : r.done ? { color: "#9fc9d6" } : {}) }}>{r.name}</span>
           ))}
