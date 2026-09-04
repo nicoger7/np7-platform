@@ -14,6 +14,9 @@ import { CostObjectPanel } from "@/components/admin/cost-object-panel";
 import { BusinessChat } from "@/components/admin/business-chat";
 import { BudgetSources, type Sources } from "@/components/admin/budget-sources";
 import { ScopePicker } from "@/components/admin/scope-picker";
+import { PeriodPicker, RowControls } from "@/components/admin/budget-controls";
+import { clipPnl, monthsIn, periodLabel, isFullYear, FULL_YEAR, type Period } from "@/lib/finance/period";
+import { applyToGroup, NO_FILTER, isFiltering, type RowFilter, type RowSort } from "@/lib/finance/rows";
 import type { CostObjectNode } from "@/lib/finance/objects";
 
 /* The budget grid: rows are cost or revenue items, columns are the twelve
@@ -27,7 +30,10 @@ const eur = (n: number, dash = true) =>
 const eurExact = (n: number) =>
   n.toLocaleString("de-DE", { style: "currency", currency: "EUR", minimumFractionDigits: 2 });
 
-const GRID = "minmax(240px, 260px) repeat(12, minmax(78px, 1fr)) minmax(104px, 116px)";
+/* Narrowing to a quarter should make the columns breathe, not leave a third of
+   the table empty, so the month column grows as there are fewer of them. */
+const gridFor = (n: number) =>
+  `minmax(240px, 260px) repeat(${n}, minmax(${n >= 10 ? 78 : n >= 6 ? 108 : 150}px, 1fr)) minmax(104px, 116px)`;
 
 /**
  * The budget, for one company.
@@ -71,6 +77,11 @@ export function Budget({ world }: { world?: AdminEnv }) {
   const [openObject, setOpenObject] = useState<string | null>(null);
   // How overheads are shared out over the ranges. A view, never stored.
   const [driver, setDriver] = useState<"none" | "revenue" | "units" | "equal">("none");
+  // Which part of the year, and which rows of it. Both are ways of looking at a
+  // plan that is already loaded, so neither refetches anything.
+  const [period, setPeriod] = useState<Period>(FULL_YEAR);
+  const [filter, setFilter] = useState<RowFilter>(NO_FILTER);
+  const [sort, setSort] = useState<RowSort>("plan");
 
   // These hold what the user PICKED, not what is shown. Empty means "let the
   // server choose for this world", and the choice comes back on the board, so
@@ -185,6 +196,30 @@ export function Budget({ world }: { world?: AdminEnv }) {
 
   const catById = useMemo(() => new Map(categories.map((c) => [c.id, c])), [categories]);
 
+  const months = useMemo(() => monthsIn(period), [period]);
+
+  /* The P&L, the headline and the year column all answer for whatever slice of
+     the year is on screen. The dashboard charts deliberately do not: a cash
+     curve clipped to one quarter loses the thing it is for, which is showing
+     you the shape of the whole year and where the bottom of it is. */
+  const shownPlanned = useMemo(() => (board ? clipPnl(board.pnlPlanned, period) : null), [board, period]);
+  const shownActual = useMemo(() => (board ? clipPnl(board.pnlActual, period) : null), [board, period]);
+
+  /* Filtering and sorting are ways of looking, so they reach the grid and
+     nothing else. Hide a row and the P&L above is unchanged, because you have
+     not decided anything by searching for something. */
+  const grid = useMemo(() => {
+    if (!board) return { revenue: [], cost: [], hidden: 0, shown: 0 };
+    let hidden = 0, shown = 0;
+    const run = (groups: BoardGroup[]) => groups.map((g) => {
+      const out = applyToGroup(g, filter, sort, period);
+      hidden += out.hidden; shown += out.group.rows.length;
+      return out.group;
+    });
+    return { revenue: run(board.revenue), cost: run(board.cost), hidden, shown };
+  }, [board, filter, sort, period]);
+
+
   if (loading && !board) {
     return <div className="p-6 admin-muted text-sm">Loading the budget…</div>;
   }
@@ -241,6 +276,11 @@ export function Budget({ world }: { world?: AdminEnv }) {
           <button onClick={() => { setYear(year + 1); setPlanPick(null); }}
                   aria-label="Next year" className="px-2 py-1 rounded-md admin-muted hover:bg-[var(--fin-inset)]">›</button>
         </div>
+
+        <span className="w-px self-stretch" style={{ background: "var(--fin-hairline)" }} />
+
+        {/* which part of it */}
+        <PeriodPicker value={period} onChange={setPeriod} />
 
         {/* what of it */}
         {filterObjects.length > 0 && (
@@ -333,9 +373,10 @@ export function Budget({ world }: { world?: AdminEnv }) {
           <style dangerouslySetInnerHTML={{ __html: VIZ_CSS }} />
 
           {/* One line you can read without scrolling. Everything below is detail. */}
-          <Overview pnl={board.pnlPlanned} scopeName={scope?.name ?? null} />
+          <Overview pnl={shownPlanned!} scopeName={scope?.name ?? null}
+                    periodName={isFullYear(period) ? null : periodLabel(period, year)} />
 
-          {view === "grid" && <KeyNumbers planned={board.pnlPlanned} actual={board.pnlActual} />}
+          {view === "grid" && <KeyNumbers planned={shownPlanned!} actual={shownActual!} />}
 
           {view === "dashboard" && (
             <div className="flex flex-col gap-4">
@@ -352,7 +393,7 @@ export function Budget({ world }: { world?: AdminEnv }) {
                   The full P&amp;L
                   <span className="fin-sub font-normal"> · every line, planned against actual</span>
                 </summary>
-                <div className="mt-4"><KeyNumbers planned={board.pnlPlanned} actual={board.pnlActual} /></div>
+                <div className="mt-4"><KeyNumbers planned={shownPlanned!} actual={shownActual!} /></div>
               </details>
             </div>
           )}
@@ -365,96 +406,116 @@ export function Budget({ world }: { world?: AdminEnv }) {
           )}
 
           {/* ── The grid ─────────────────────────────────────────── */}
+          {view === "grid" && (
+            <div className="fin-card !py-2.5 !px-3 flex items-center justify-between gap-3 flex-wrap">
+              <span className="fin-sub">
+                {isFullYear(period) ? "The whole year" : periodLabel(period, year)}
+                {isFiltering(filter) && `, ${grid.shown} ${grid.shown === 1 ? "row" : "rows"} shown`}
+              </span>
+              <RowControls filter={filter} onFilter={setFilter} sort={sort} onSort={setSort}
+                           shown={grid.shown} hidden={grid.hidden} />
+            </div>
+          )}
+
           <div className={`fin-card !p-0 overflow-x-auto ${view === "grid" ? "" : "hidden"}`}>
-            <div style={{ minWidth: 1180 }}>
+            <div style={{ minWidth: months.length >= 10 ? 1180 : 720 }}>
               {/* month header */}
               <div className="grid text-[10px] uppercase tracking-wider admin-faint font-semibold border-b"
-                   style={{ gridTemplateColumns: GRID, borderColor: "var(--admin-input-border)" }}>
+                   style={{ gridTemplateColumns: gridFor(months.length), borderColor: "var(--admin-input-border)" }}>
                 <div className="px-3 py-2 sticky left-0 z-10" style={{ background: "var(--admin-card-bg, inherit)" }}>Item</div>
-                {MONTHS.map((m) => <div key={m} className="px-2 py-2 text-right">{m}</div>)}
-                <div className="px-3 py-2 text-right">Year</div>
+                {months.map((m) => <div key={m} className="px-2 py-2 text-right">{MONTHS[m - 1]}</div>)}
+                <div className="px-3 py-2 text-right">{isFullYear(period) ? "Year" : "Total"}</div>
               </div>
 
-              {board.revenue.length > 0 && <SectionLabel>Revenue</SectionLabel>}
-              {board.revenue.map((g) => (
-                <Group key={g.category?.id ?? "rev-other"} group={g}
+              {grid.revenue.length > 0 && <SectionLabel>Revenue</SectionLabel>}
+              {grid.revenue.map((g) => (
+                <Group key={g.category?.id ?? "rev-other"} group={g} months={months}
                        editing={editing} setEditing={setEditing} draft={draft} setDraft={setDraft}
                        onSave={saveCell} onDelete={deleteRow} onRecord={(row, month) => setRecordFor({ row, month })}
                        onAllocate={setAllocating} />
               ))}
 
-              {board.cost.length > 0 && <SectionLabel>Costs</SectionLabel>}
-              {board.cost.map((g) => (
-                <Group key={g.category?.id ?? "uncategorised"} group={g}
+              {grid.cost.length > 0 && <SectionLabel>Costs</SectionLabel>}
+              {grid.cost.map((g) => (
+                <Group key={g.category?.id ?? "uncategorised"} group={g} months={months}
                        editing={editing} setEditing={setEditing} draft={draft} setDraft={setDraft}
                        onSave={saveCell} onDelete={deleteRow} onRecord={(row, month) => setRecordFor({ row, month })}
                        onAllocate={setAllocating} />
               ))}
 
               {/* gross profit, so the margin is visible without doing arithmetic */}
-              {board.pnlPlanned.revenue.total !== 0 && (
-                <div className="grid border-t" style={{ gridTemplateColumns: GRID, borderColor: "var(--admin-input-border)" }}>
+              {shownPlanned!.revenue.total !== 0 && (
+                <div className="grid border-t" style={{ gridTemplateColumns: gridFor(months.length), borderColor: "var(--admin-input-border)" }}>
                   <div className="px-3 py-2 text-[11px] font-bold admin-heading sticky left-0 z-10"
                        style={{ background: "var(--admin-card-bg, inherit)" }}>
                     Gross profit
                     <span className="ml-2 font-normal admin-faint">revenue less cost of goods</span>
                   </div>
-                  {board.pnlPlanned.grossProfit.byMonth.map((v, i) => (
+                  {shownPlanned!.grossProfit.byMonth.map((v, i) => (
                     <div key={i} className="px-2 py-2 text-right text-[11px] tabular-nums admin-muted">{eur(v)}</div>
                   ))}
                   <div className="px-3 py-2 text-right text-[11px] tabular-nums admin-heading font-semibold">
-                    {eur(board.pnlPlanned.grossProfit.total, false)}
+                    {eur(shownPlanned!.grossProfit.total, false)}
                   </div>
                 </div>
               )}
 
               {/* Funding, kept visually apart from trading because it is not
                   earned and never belongs in a margin. */}
-              {board.pnlPlanned.financing.total !== 0 && (
-                <div className="grid border-t" style={{ gridTemplateColumns: GRID, borderColor: "var(--admin-input-border)" }}>
+              {shownPlanned!.financing.total !== 0 && (
+                <div className="grid border-t" style={{ gridTemplateColumns: gridFor(months.length), borderColor: "var(--admin-input-border)" }}>
                   <div className="px-3 py-2 text-[11px] font-bold admin-heading sticky left-0 z-10"
                        style={{ background: "var(--admin-card-bg, inherit)" }}>
                     Funding
                     <span className="ml-2 font-normal admin-faint">capital and tranches, not revenue</span>
                   </div>
-                  {board.pnlPlanned.financing.byMonth.map((v, i) => (
+                  {shownPlanned!.financing.byMonth.map((v, i) => (
                     <div key={i} className="px-2 py-2 text-right text-[11px] tabular-nums admin-muted">{eur(v)}</div>
                   ))}
                   <div className="px-3 py-2 text-right text-[11px] tabular-nums admin-heading font-semibold">
-                    {eur(board.pnlPlanned.financing.total, false)}
+                    {eur(shownPlanned!.financing.total, false)}
                   </div>
                 </div>
               )}
 
               {/* net */}
-              <div className="grid border-t-2 font-bold" style={{ gridTemplateColumns: GRID, borderColor: "var(--admin-accent)" }}>
+              <div className="grid border-t-2 font-bold" style={{ gridTemplateColumns: gridFor(months.length), borderColor: "var(--admin-accent)" }}>
                 <div className="px-3 py-2.5 text-xs admin-heading sticky left-0 z-10" style={{ background: "var(--admin-card-bg, inherit)" }}>
                   Net
                 </div>
-                {t!.netPlanned.map((v, i) => (
-                  <div key={i} className="px-2 py-2.5 text-right text-[11px] tabular-nums">
-                    <div className={v < 0 ? "text-red-400" : "admin-heading"}>{eur(v)}</div>
-                    {t!.netActual[i] !== 0 && (
-                      <div className={`text-[10px] font-medium ${t!.netActual[i] < 0 ? "text-red-400" : "text-green-400"}`}>
-                        {eur(t!.netActual[i])}
-                      </div>
-                    )}
-                  </div>
-                ))}
-                <div className="px-3 py-2.5 text-right text-[11px] tabular-nums">
-                  <div className={t!.netPlannedTotal < 0 ? "text-red-400" : "admin-heading"}>{eur(t!.netPlannedTotal, false)}</div>
-                  {t!.netActualTotal !== 0 && (
-                    <div className={`text-[10px] ${t!.netActualTotal < 0 ? "text-red-400" : "text-green-400"}`}>
-                      {eur(t!.netActualTotal)}
+                {months.map((m) => {
+                  const v = t!.netPlanned[m - 1], a = t!.netActual[m - 1];
+                  return (
+                    <div key={m} className="px-2 py-2.5 text-right text-[11px] tabular-nums">
+                      <div className={v < 0 ? "text-red-400" : "admin-heading"}>{eur(v)}</div>
+                      {a !== 0 && (
+                        <div className={`text-[10px] font-medium ${a < 0 ? "text-red-400" : "text-green-400"}`}>{eur(a)}</div>
+                      )}
                     </div>
-                  )}
+                  );
+                })}
+                <div className="px-3 py-2.5 text-right text-[11px] tabular-nums">
+                  {(() => {
+                    // The window's own net, so the last column always equals the
+                    // row of months printed to the left of it.
+                    const np = r2(months.reduce((x, m) => x + (t!.netPlanned[m - 1] ?? 0), 0));
+                    const na = r2(months.reduce((x, m) => x + (t!.netActual[m - 1] ?? 0), 0));
+                    return (
+                      <>
+                        <div className={np < 0 ? "text-red-400" : "admin-heading"}>{eur(np, false)}</div>
+                        {na !== 0 && (
+                          <div className={`text-[10px] ${na < 0 ? "text-red-400" : "text-green-400"}`}>{eur(na)}</div>
+                        )}
+                      </>
+                    );
+                  })()}
                 </div>
               </div>
 
               {/* The running position. The question everyone actually asks is
                   not whether the year adds up, it is when money is on the
                   account, and that is this row. */}
-              <div className="grid border-t" style={{ gridTemplateColumns: GRID, borderColor: "var(--admin-input-border)" }}>
+              <div className="grid border-t" style={{ gridTemplateColumns: gridFor(months.length), borderColor: "var(--admin-input-border)" }}>
                 <div className="px-3 py-2 text-[11px] font-bold admin-heading sticky left-0 z-10"
                      style={{ background: "var(--admin-card-bg, inherit)" }}>
                   Cash position
@@ -462,14 +523,16 @@ export function Budget({ world }: { world?: AdminEnv }) {
                     {board.openingBalance !== 0 ? `opening ${eur(board.openingBalance, false)}` : "closing balance each month"}
                   </span>
                 </div>
-                {board.pnlPlanned.accumulated.map((v, i) => (
+                {shownPlanned!.accumulated.map((v, i) => (
                   <div key={i} className={`px-2 py-2 text-right text-[11px] tabular-nums font-medium ${v < 0 ? "text-red-400" : "admin-muted"}`}>
                     {eur(v)}
                   </div>
                 ))}
-                <div className={`px-3 py-2 text-right text-[11px] tabular-nums font-semibold ${board.pnlPlanned.lowestPoint < 0 ? "text-red-400" : "admin-heading"}`}
-                     title="Lowest point across the year, which is the funding the plan needs">
-                  low {eur(board.pnlPlanned.lowestPoint, false)}
+                <div className={`px-3 py-2 text-right text-[11px] tabular-nums font-semibold ${shownPlanned!.lowestPoint < 0 ? "text-red-400" : "admin-heading"}`}
+                     title={isFullYear(period)
+                       ? "Lowest point across the year, which is the funding the plan needs"
+                       : "Lowest point inside this window. The balance still counts from January."}>
+                  low {eur(shownPlanned!.lowestPoint, false)}
                 </div>
               </div>
             </div>
@@ -561,7 +624,15 @@ export function Budget({ world }: { world?: AdminEnv }) {
  * anything. This is the summary, and it is deliberately small, because the
  * things worth knowing at a glance are few.
  */
-function Overview({ pnl, scopeName }: { pnl: Pnl; scopeName: string | null }) {
+function Overview({ pnl, scopeName, periodName }: {
+  pnl: Pnl; scopeName: string | null;
+  /** Set only when part of a year is being looked at, so the headline can say
+   *  which part rather than silently answering a narrower question. */
+  periodName: string | null;
+}) {
+  // The last month SHOWN, not December: a quarter's closing balance is the
+  // balance at the end of that quarter.
+  const closing = pnl.accumulated.at(-1) ?? 0;
   const cells: { label: string; value: string; tone?: "good" | "bad"; hint?: string }[] = [
     { label: "Revenue", value: eur(pnl.revenue.total, false) },
     { label: "Costs", value: eur(r2(pnl.totalCosts.total + pnl.inventory.total), false),
@@ -570,13 +641,18 @@ function Overview({ pnl, scopeName }: { pnl: Pnl; scopeName: string | null }) {
     ...(pnl.financing.total ? [{ label: "Funding", value: eur(pnl.financing.total, false) }] : []),
     { label: "Low point", value: eur(pnl.lowestPoint, false), tone: pnl.lowestPoint < 0 ? "bad" : "good",
       hint: "the deepest the balance goes, which is what needs funding" },
-    { label: "Year end", value: eur(pnl.accumulated[11] ?? 0, false),
-      tone: (pnl.accumulated[11] ?? 0) >= 0 ? "good" : "bad" },
+    { label: periodName ? "Ends at" : "Year end", value: eur(closing, false),
+      tone: closing >= 0 ? "good" : "bad",
+      hint: periodName ? `The balance at the end of ${periodName}, counted from January` : undefined },
     ...(pnl.grossMarginPct != null ? [{ label: "Gross margin", value: `${pnl.grossMarginPct}%` }] : []),
   ];
   return (
     <div className="fin-card !py-3.5">
-      {scopeName && <div className="fin-label mb-2">{scopeName} only</div>}
+      {(scopeName || periodName) && (
+        <div className="fin-label mb-2">
+          {[periodName, scopeName && `${scopeName} only`].filter(Boolean).join(" · ")}
+        </div>
+      )}
       <div className="grid gap-x-6 gap-y-3" style={{ gridTemplateColumns: `repeat(auto-fit, minmax(8.5rem, 1fr))` }}>
         {cells.map((c) => (
           <div key={c.label} title={c.hint}>
@@ -686,8 +762,11 @@ function Stat({ label, value, warn, hint }: { label: string; value: string; warn
   );
 }
 
-function Group({ group, editing, setEditing, draft, setDraft, onSave, onDelete, onRecord, onAllocate }: {
+function Group({ group, months, editing, setEditing, draft, setDraft, onSave, onDelete, onRecord, onAllocate }: {
   group: BoardGroup;
+  /** Which of the twelve to draw. The group's own arrays stay full-length, so
+   *  narrowing the view never loses a number, it only stops printing it. */
+  months: number[];
   editing: { rowKey: string; month: number } | null;
   setEditing: (v: { rowKey: string; month: number } | null) => void;
   draft: string; setDraft: (v: string) => void;
@@ -698,20 +777,24 @@ function Group({ group, editing, setEditing, draft, setDraft, onSave, onDelete, 
 }) {
   return (
     <div>
-      <div className="grid border-b" style={{ gridTemplateColumns: GRID, borderColor: "var(--admin-input-border)" }}>
+      <div className="grid border-b" style={{ gridTemplateColumns: gridFor(months.length), borderColor: "var(--admin-input-border)" }}>
         <div className="px-3 py-1.5 text-[11px] font-bold admin-heading sticky left-0 z-10 truncate"
              style={{ background: "var(--admin-card-bg, inherit)" }}>
           {group.category?.name ?? "Uncategorised"}
         </div>
-        {group.plannedByMonth.map((v, i) => (
-          <div key={i} className="px-2 py-1.5 text-right text-[10px] tabular-nums admin-muted font-semibold">{eur(v)}</div>
+        {months.map((m) => (
+          <div key={m} className="px-2 py-1.5 text-right text-[10px] tabular-nums admin-muted font-semibold">
+            {eur(group.plannedByMonth[m - 1] ?? 0)}
+          </div>
         ))}
-        <div className="px-3 py-1.5 text-right text-[10px] tabular-nums admin-heading font-bold">{eur(group.plannedTotal, false)}</div>
+        <div className="px-3 py-1.5 text-right text-[10px] tabular-nums admin-heading font-bold">
+          {eur(r2(months.reduce((x, m) => x + (group.plannedByMonth[m - 1] ?? 0), 0)), false)}
+        </div>
       </div>
 
       {group.rows.map((row) => (
         <div key={row.key} className="grid border-b group hover:bg-[var(--admin-accent-weak)]/30"
-             style={{ gridTemplateColumns: GRID, borderColor: "var(--admin-input-border)" }}>
+             style={{ gridTemplateColumns: gridFor(months.length), borderColor: "var(--admin-input-border)" }}>
           <div className="px-3 py-1.5 sticky left-0 z-10 flex items-center gap-2 min-w-0"
                style={{ background: "var(--admin-card-bg, inherit)" }}>
             <button onClick={() => onAllocate(row)}
@@ -734,7 +817,7 @@ function Group({ group, editing, setEditing, draft, setDraft, onSave, onDelete, 
             </button>
           </div>
 
-          {row.cells.map((cell) => {
+          {row.cells.filter((c) => months.includes(c.month)).map((cell) => {
             const isEditing = editing?.rowKey === row.key && editing.month === cell.month;
             const over = cell.actual > cell.planned && cell.planned > 0;
             return (

@@ -57,7 +57,29 @@ for (const [table, col] of [["fin_plans","entity_id"], ["fin_cost_objects","enti
 const { data: hwPlans } = await db.from("fin_plans").select("id").eq("entity_id", hwId);
 const { data: expPlans } = await db.from("fin_plans").select("id").eq("entity_id", expId);
 check("Performance has plans of its own", hwPlans.length > 0, hwPlans.length);
-check("Experience has none yet, so nothing of its can leak", expPlans.length === 0, expPlans.length);
+check("Experience has plans of its own", expPlans.length > 0, expPlans.length);
+// The separation that matters is not that one side is empty, it is that no
+// single plan is reachable from both. Experience having a budget of its own is
+// the point; sharing one would be the failure.
+check("no plan belongs to both companies",
+      !hwPlans.some((h: any) => expPlans.some((e: any) => e.id === h.id)));
+const { data: allPlanLines } = await db.from("fin_plan_lines").select("id,plan_id");
+const hwPlanIds = new Set(hwPlans.map((p: any) => p.id));
+const expPlanIds = new Set(expPlans.map((p: any) => p.id));
+const orphanLines = allPlanLines.filter((l: any) => !hwPlanIds.has(l.plan_id) && !expPlanIds.has(l.plan_id));
+check("every budget line hangs off one company's plan", orphanLines.length === 0, orphanLines.length);
+// An Experience line pointing at a Performance product, or the reverse, would
+// put one company's costs on the other's board however well the ids separate.
+const { data: xLinks } = await db.from("fin_line_objects").select("plan_line_id,cost_object_id");
+const { data: xObjs } = await db.from("fin_cost_objects").select("id,entity_id");
+const objEntity = new Map(xObjs.map((o: any) => [o.id, o.entity_id]));
+const linePlan = new Map(allPlanLines.map((l: any) => [l.id, l.plan_id]));
+const crossedAlloc = xLinks.filter((a: any) => {
+  const planId = linePlan.get(a.plan_line_id);
+  const side = hwPlanIds.has(planId) ? hwId : expPlanIds.has(planId) ? expId : null;
+  return side != null && objEntity.get(a.cost_object_id) !== side;
+});
+check("no line is allocated to the other company's cost object", crossedAlloc.length === 0, crossedAlloc.length);
 
 const { data: cats } = await db.from("fin_categories").select("key,division");
 const hwOnly = cats.filter((c: any) => c.division === "hardware").map((c: any) => c.key);

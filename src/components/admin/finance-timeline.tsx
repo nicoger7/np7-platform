@@ -22,7 +22,14 @@ export function FinanceTimeline({ board, categoryGroup }: {
   board: Board;
   categoryGroup: Map<string, string | null>;
 }) {
-  const [open, setOpen] = useState<number | null>(null);
+  // A set, not a single index: these are twelve independent cards side by side,
+  // and opening March is not a reason to close February.
+  const [open, setOpen] = useState<Set<number>>(() => new Set());
+  const toggle = (i: number) => setOpen((prev) => {
+    const next = new Set(prev);
+    if (!next.delete(i)) next.add(i);
+    return next;
+  });
 
   const byMonth = useMemo(() => {
     const out: Event[][] = Array.from({ length: 12 }, () => []);
@@ -64,9 +71,9 @@ export function FinanceTimeline({ board, categoryGroup }: {
         <div className="grid gap-1" style={{ gridTemplateColumns: "repeat(12, 1fr)" }}>
           {MONTHS.map((m, i) => {
             const moved = byMonth[i].reduce((s, x) => s + x.amount, 0);
-            const active = open === i;
+            const active = open.has(i);
             return (
-              <button key={m} onClick={() => setOpen(active ? null : i)}
+              <button key={m} onClick={() => toggle(i)}
                       className={`flex flex-col items-center gap-1 rounded-lg p-1 transition-colors ${active ? "bg-[var(--admin-accent-weak)]" : "hover:bg-[var(--admin-accent-weak)]"}`}
                       title={`${m}: ${byMonth[i].length} items, ${eur0(moved)} moved`}>
                 <div className="w-full flex items-end justify-center" style={{ height: 64 }}>
@@ -96,7 +103,7 @@ export function FinanceTimeline({ board, categoryGroup }: {
           const evs = byMonth[i];
           const inTotal = evs.filter((e) => e.inflow).reduce((s, e) => s + e.amount, 0);
           const outTotal = evs.filter((e) => !e.inflow).reduce((s, e) => s + e.amount, 0);
-          const expanded = open === i;
+          const expanded = open.has(i);
           const shown = expanded ? evs : evs.slice(0, 5);
           return (
             <div key={i} className="fin-card !p-0 overflow-hidden">
@@ -135,7 +142,7 @@ export function FinanceTimeline({ board, categoryGroup }: {
                   </div>
                 ))}
                 {evs.length > 5 && (
-                  <button onClick={() => setOpen(expanded ? null : i)}
+                  <button onClick={() => toggle(i)}
                           className="fin-sub text-left mt-1 px-1 -mx-1 py-1 rounded hover:bg-[var(--fin-inset)]">
                     {expanded ? "Show less" : `${evs.length - 5} more`}
                   </button>

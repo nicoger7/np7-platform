@@ -346,6 +346,8 @@ function MilestoneEditor({ item, lanes, entityId, onClose, onSaved }: {
 }) {
   const [f, setF] = useState(item);
   const [saving, setSaving] = useState(false);
+  // Two presses to delete, so the first one can be a mistake.
+  const [confirmingDelete, setConfirmingDelete] = useState(false);
   const [err, setErr] = useState<string | null>(null);
   const isNew = !item.id;
 
@@ -364,12 +366,22 @@ function MilestoneEditor({ item, lanes, entityId, onClose, onSaved }: {
     onSaved();
   }
 
+  // window.confirm is a native dialog the page does not control: in some
+  // embedded browsers it never appears and simply returns false, so pressing
+  // Remove did nothing at all and said nothing about why. The confirmation is
+  // now the button itself, and a failed delete is reported instead of swallowed.
   async function remove() {
-    if (!confirm(`Remove "${f.title}" from the roadmap?`)) return;
-    setSaving(true);
-    await fetch("/api/admin/roadmap", { method: "DELETE", headers: { "Content-Type": "application/json" },
+    if (!confirmingDelete) { setConfirmingDelete(true); return; }
+    setSaving(true); setErr(null);
+    const res = await fetch("/api/admin/roadmap", { method: "DELETE", headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ id: f.id }) });
-    setSaving(false); onSaved();
+    setSaving(false);
+    if (!res.ok) {
+      setConfirmingDelete(false);
+      setErr((await res.json().catch(() => ({}))).error ?? "Could not remove it.");
+      return;
+    }
+    onSaved();
   }
 
   const laneValue = f.project_id ? `proj:${f.project_id}` : f.product_id ? `prod:${f.product_id}`
@@ -449,7 +461,13 @@ function MilestoneEditor({ item, lanes, entityId, onClose, onSaved }: {
 
         {err && <p className="text-xs text-red-400 mb-3">{err}</p>}
         <div className="flex justify-between gap-2">
-          {!isNew ? <button onClick={remove} className="px-3 py-2 text-sm rounded-lg border admin-input">Remove</button> : <span />}
+          {!isNew ? (
+            <button onClick={remove} disabled={saving}
+                    className="px-3 py-2 text-sm rounded-lg border admin-input disabled:opacity-50"
+                    style={confirmingDelete ? { borderColor: "rgb(239 68 68 / .5)", color: "rgb(248 113 113)" } : undefined}>
+              {confirmingDelete ? "Really remove it?" : "Remove"}
+            </button>
+          ) : <span />}
           <div className="flex gap-2">
             <button onClick={onClose} className="px-3 py-2 text-sm rounded-lg border admin-input">Cancel</button>
             <button onClick={save} disabled={saving}
