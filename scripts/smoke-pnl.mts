@@ -148,8 +148,12 @@ if (!plan) {
   check("nothing is left in stock at the end of the year", p.closingStock.total === 0, p.closingStock.total);
   check("the result is the business plan's own 182k, not 586k",
         Math.abs(p.result.total - 182_477.5) < 1, p.result.total);
-  check("with no financing, result and cash agree",
-        Math.abs(p.result.total - p.cashMovement.total) < 1, [p.result.total, p.cashMovement.total]);
+  // Funding is money in that was never earned, so it moves the bank and never
+  // the result. Stating it this way holds whether or not a tranche is planned.
+  check("cash exceeds the result by exactly the funding, and by nothing else",
+        Math.abs((p.cashMovement.total - p.financing.total) - p.result.total) < 1,
+        [p.cashMovement.total, p.financing.total, p.result.total]);
+  check("funding is not in the result", Math.abs(p.result.total - 182_477.5) < 1, p.result.total);
   check("a margin can finally be quoted", p.grossMarginPct !== null, p.grossMarginPct);
 }
 
