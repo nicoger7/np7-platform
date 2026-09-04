@@ -1,3 +1,5 @@
+import { sanitizeWaiverHtml } from "@/lib/sanitize";
+
 /** Bump when the default wording changes materially (so we know which version each person signed). */
 export const WAIVER_VERSION = 2;
 
@@ -56,9 +58,19 @@ export const DEFAULT_WAIVER = `
 <p>I confirm that I have read and understood this agreement, that I have had the opportunity to ask questions, and that I am signing it freely.</p>
 `;
 
-/** Replace {{var}} tokens (escaped). */
+/**
+ * Replace {{var}} tokens (escaped), then sanitize the whole document.
+ *
+ * esc() only ever protected the VALUES. The template itself is
+ * exp_experiences.waiver_text — admin-editable HTML that goes straight to
+ * dangerouslySetInnerHTML on a page a member signs. Sanitizing here rather than
+ * at each call site means every render of a waiver is filtered, including any
+ * added later; substitution happens first so the sanitizer sees the final
+ * document rather than a half-built one.
+ */
 export function renderWaiver(text: string, vars: WaiverVars): string {
-  return text.replace(/\{\{\s*(\w+)\s*\}\}/g, (_, k) => esc((vars as Record<string, string | undefined>)[k] ?? ""));
+  const filled = text.replace(/\{\{\s*(\w+)\s*\}\}/g, (_, k) => esc((vars as Record<string, string | undefined>)[k] ?? ""));
+  return sanitizeWaiverHtml(filled);
 }
 
 /** Company vars (legal name, address line, city, email) from a company_settings row. */

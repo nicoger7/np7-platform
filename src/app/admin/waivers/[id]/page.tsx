@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { createAdminClient } from "@/lib/supabase";
+import { sanitizeWaiverHtml } from "@/lib/sanitize";
 
 export const dynamic = "force-dynamic";
 export const metadata = { title: "Signed waiver — NP7 Admin" };
@@ -87,9 +88,12 @@ export default async function AdminWaiverPage({ params }: { params: Promise<{ id
 
       <div className="rounded-xl p-5" style={{ border: "1px solid var(--admin-border)", backgroundColor: "var(--admin-surface)" }}>
         <h2 className="text-sm font-bold admin-heading mb-3">What they agreed to</h2>
+        {/* The archived snapshot of what this person signed. It was stored before
+            renderWaiver sanitized, so filter it on the way to the screen too — an
+            old row must not be able to run script in an admin session. */}
         {w.waiver_text ? (
           <div className="admin-heading text-[13.5px] leading-relaxed max-h-[520px] overflow-y-auto rounded-lg bg-white text-[#0a2a33] p-4" style={{ border: "1px solid var(--admin-border)" }}
-            dangerouslySetInnerHTML={{ __html: w.waiver_text }} />
+            dangerouslySetInnerHTML={{ __html: sanitizeWaiverHtml(w.waiver_text) }} />
         ) : (
           <p className="text-xs text-amber-500">
             Not archived for this signature — it was signed before we started storing the wording.

@@ -1,5 +1,7 @@
 "use client";
 
+import { sanitizeLessonHtml } from "@/lib/sanitize";
+
 import { useEffect, useRef, useState } from "react";
 
 /**
@@ -49,7 +51,12 @@ export function RichTextEditor({
     if (source) return;
     const el = ref.current;
     if (el && value !== last.current && value !== el.innerHTML) {
-      el.innerHTML = value || "";
+      /* Filtered on the way in, not only on the way out. This editor loads
+         stored email-template and campaign bodies, so a payload that reached
+         those columns before the write-side filter existed would run the moment
+         somebody opened the composer, with no send and no preview involved.
+         The branch's fix covered lessons and waivers and missed this one. */
+      el.innerHTML = sanitizeLessonHtml(value || "");
       last.current = value;
       hist.current = [value || ""];
       ptr.current = 0;

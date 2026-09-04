@@ -3,6 +3,7 @@ import { createAdminClient } from "@/lib/supabase";
 import { createClient } from "@/lib/supabase/server";
 import { getActiveTeamMember, getRequestAccess } from "@/lib/admin-auth";
 import { effectiveCanEdit } from "@/lib/access";
+import { sanitizeLessonHtml } from "@/lib/sanitize";
 
 /**
  * The two questions every academy route asks first.
@@ -51,12 +52,25 @@ export function clean(v: unknown): unknown {
   return v === "" ? null : v;
 }
 
+/** Columns that hold author-written HTML and go to dangerouslySetInnerHTML.
+ *  `body` is a lesson, `description` is a course blurb — both render through
+ *  LessonBody. Sanitizing inside pick() rather than at each call site means a
+ *  new write route cannot forget: there is one door into these columns. */
+const HTML_FIELDS = new Set(["body", "description"]);
+
 /** Copy only the whitelisted keys out of a request body. The whitelist is the
  *  only place a column becomes writable — note what is absent from both:
- *  id, course_id, created_at. A lesson does not change course by PATCH. */
+ *  id, course_id, created_at. A lesson does not change course by PATCH.
+ *
+ *  HTML columns are sanitized here, on the way in, so a payload never reaches
+ *  the database. The read side sanitizes again — see lib/sanitize for why both. */
 export function pick<T extends string>(body: Record<string, unknown>, keys: readonly T[]): Record<string, unknown> {
   const out: Record<string, unknown> = {};
-  for (const k of keys) if (k in body) out[k] = clean(body[k]);
+  for (const k of keys) {
+    if (!(k in body)) continue;
+    const v = clean(body[k]);
+    out[k] = HTML_FIELDS.has(k) && typeof v === "string" ? sanitizeLessonHtml(v) : v;
+  }
   return out;
 }
 

@@ -8,6 +8,7 @@ import { useAdminEnv } from "@/app/admin/env-context";
 import { CashChart, FlowChart, ObjectChart, VIZ_CSS } from "@/components/admin/finance-charts";
 import { FinanceTimeline } from "@/components/admin/finance-timeline";
 import { Roadmap } from "@/components/admin/roadmap";
+import { AllocateDialog } from "@/components/admin/allocate-dialog";
 import type { CostObjectNode } from "@/lib/finance/objects";
 
 /* The budget grid: rows are cost or revenue items, columns are the twelve
@@ -45,6 +46,7 @@ export default function FinancePage() {
   const [draft, setDraft] = useState("");
   const [view, setView] = useState<"grid" | "dashboard" | "timeline" | "roadmap">("dashboard");
   const [objects, setObjects] = useState<CostObjectNode[] | null>(null);
+  const [allocating, setAllocating] = useState<BoardRow | null>(null);
 
   // These hold what the user PICKED, not what is shown. Empty means "let the
   // server choose for this world", and the choice comes back on the board, so
@@ -311,14 +313,16 @@ export default function FinancePage() {
               {board.revenue.map((g) => (
                 <Group key={g.category?.id ?? "rev-other"} group={g}
                        editing={editing} setEditing={setEditing} draft={draft} setDraft={setDraft}
-                       onSave={saveCell} onDelete={deleteRow} onRecord={(row, month) => setRecordFor({ row, month })} />
+                       onSave={saveCell} onDelete={deleteRow} onRecord={(row, month) => setRecordFor({ row, month })}
+                       onAllocate={setAllocating} />
               ))}
 
               {board.cost.length > 0 && <SectionLabel>Costs</SectionLabel>}
               {board.cost.map((g) => (
                 <Group key={g.category?.id ?? "uncategorised"} group={g}
                        editing={editing} setEditing={setEditing} draft={draft} setDraft={setDraft}
-                       onSave={saveCell} onDelete={deleteRow} onRecord={(row, month) => setRecordFor({ row, month })} />
+                       onSave={saveCell} onDelete={deleteRow} onRecord={(row, month) => setRecordFor({ row, month })}
+                       onAllocate={setAllocating} />
               ))}
 
               {/* gross profit, so the margin is visible without doing arithmetic */}
@@ -407,8 +411,8 @@ export default function FinancePage() {
 
           {view === "grid" && (
             <p className="text-[11px] admin-faint">
-              Grey is planned, colour is what actually happened. Click any cell to change the plan.
-              Amounts are net, because the VAT comes back.
+              Grey is planned, colour is what actually happened. Click any cell to change the plan, or a
+              row's name to say what it was for. Amounts are net, because the VAT comes back.
             </p>
           )}
 
@@ -444,6 +448,15 @@ export default function FinancePage() {
           planId={board.plan.id}
           onClose={() => setShowAdd(false)}
           onDone={() => { setShowAdd(false); reload(); }}
+        />
+      )}
+
+      {allocating && board?.plan && (
+        <AllocateDialog
+          row={{ plan_id: board.plan.id, category_id: allocating.categoryId, label: allocating.label,
+                 edition_id: allocating.editionId, vendor_id: allocating.vendorId }}
+          onClose={() => setAllocating(null)}
+          onSaved={() => { setAllocating(null); reload(); }}
         />
       )}
 
@@ -560,7 +573,7 @@ function Stat({ label, value, warn, hint }: { label: string; value: string; warn
   );
 }
 
-function Group({ group, editing, setEditing, draft, setDraft, onSave, onDelete, onRecord }: {
+function Group({ group, editing, setEditing, draft, setDraft, onSave, onDelete, onRecord, onAllocate }: {
   group: BoardGroup;
   editing: { rowKey: string; month: number } | null;
   setEditing: (v: { rowKey: string; month: number } | null) => void;
@@ -568,6 +581,7 @@ function Group({ group, editing, setEditing, draft, setDraft, onSave, onDelete, 
   onSave: (row: BoardRow, month: number, raw: string) => void;
   onDelete: (row: BoardRow) => void;
   onRecord: (row: BoardRow, month: number) => void;
+  onAllocate: (row: BoardRow) => void;
 }) {
   return (
     <div>
@@ -587,7 +601,11 @@ function Group({ group, editing, setEditing, draft, setDraft, onSave, onDelete, 
              style={{ gridTemplateColumns: GRID, borderColor: "var(--admin-input-border)" }}>
           <div className="px-3 py-1.5 sticky left-0 z-10 flex items-center gap-2 min-w-0"
                style={{ background: "var(--admin-card-bg, inherit)" }}>
-            <span className="text-xs admin-heading truncate" title={row.label}>{row.label}</span>
+            <button onClick={() => onAllocate(row)}
+                    className="text-xs admin-heading truncate text-left hover:underline decoration-dotted underline-offset-2"
+                    title={`${row.label}\nClick to say what this was for`}>
+              {row.label}
+            </button>
             {row.editionLabel && (
               <span className="text-[9px] px-1 py-0.5 rounded bg-[var(--admin-accent-weak)] admin-muted shrink-0 truncate max-w-[90px]"
                     title={row.editionLabel}>

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { notArchived } from "@/lib/archive";
 import { actingMember, learningDb } from "../guard";
 import type { CourseCard, LearningCourse, LearningLesson, LessonCard } from "@/lib/learning";
+import { sanitizeLessonHtml } from "@/lib/sanitize";
 
 /**
  * GET /api/admin/learning/read — what the reader sees, and only that.
@@ -39,8 +40,18 @@ export async function GET(request: NextRequest) {
       .from("tr_lessons").select("*").eq("course_id", (course as LearningCourse).id)
       .eq("status", "published").order("sort_order");
 
-    const lessons = (notArchived(rows) as LearningLesson[]).map((l) => ({ ...l, completed: completed.has(l.id) }));
-    return NextResponse.json({ member: { id: me.id, name: me.name }, course, lessons });
+    // Sanitize on the way OUT as well as on the way in. The two pages that show
+    // this are client components, so they cannot sanitize without shipping the
+    // sanitizer to the browser — and sanitizing in the browser is too late
+    // anyway. Anything already stored, or written through a path added later,
+    // is neutralised here.
+    const lessons = (notArchived(rows) as LearningLesson[]).map((l) => ({
+      ...l,
+      body: sanitizeLessonHtml(l.body),
+      completed: completed.has(l.id),
+    }));
+    const safeCourse = { ...(course as LearningCourse), description: sanitizeLessonHtml((course as LearningCourse).description) };
+    return NextResponse.json({ member: { id: me.id, name: me.name }, course: safeCourse, lessons });
   }
 
   const { data: courseRows, error } = await db
