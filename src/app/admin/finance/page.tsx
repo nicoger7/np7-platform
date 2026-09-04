@@ -11,6 +11,7 @@ import { FinanceTimeline } from "@/components/admin/finance-timeline";
 import { Roadmap } from "@/components/admin/roadmap";
 import { AllocateDialog } from "@/components/admin/allocate-dialog";
 import { CostObjectPanel } from "@/components/admin/cost-object-panel";
+import { BusinessChat } from "@/components/admin/business-chat";
 import type { CostObjectNode } from "@/lib/finance/objects";
 
 /* The budget grid: rows are cost or revenue items, columns are the twelve
@@ -171,113 +172,99 @@ export default function FinancePage() {
 
   return (
     <div className="fin p-4 sm:p-6 space-y-5">
-      {/* ── Header ─────────────────────────────────────────────── */}
-      <div className="flex flex-wrap items-start justify-between gap-4">
-        <div>
-          <h1 className="text-[28px] font-semibold admin-heading mb-0.5" style={{ letterSpacing: "-.028em" }}>Budget</h1>
-          <p className="fin-sub max-w-prose">
-            Plan what a company spends and earns, month by month. Real costs attach to a planned
-            line and update it themselves.
-          </p>
-        </div>
-        <div className="flex flex-wrap items-center gap-2">
-          <button
-            onClick={() => setShowAdd(true)}
-            disabled={!board?.plan}
-            className="px-4 py-2 admin-btn-primary text-sm font-bold rounded-lg disabled:opacity-40"
-          >
-            + Add row
-          </button>
-          <button
-            onClick={() => setRecordFor({ row: null as unknown as BoardRow, month: 0 })}
-            className="px-4 py-2 text-sm font-semibold rounded-lg border admin-input"
-          >
+      {/* ── One toolbar ──────────────────────────────────────────
+          Four stacked rows of controls sat above the first number: title,
+          company, filter, tabs. Each was one line tall and none of them was
+          the content. They are one bar now, and the things that change what
+          you are looking at sit together on the left of it. */}
+      <div className="flex flex-wrap items-baseline justify-between gap-x-6 gap-y-2">
+        <h1 className="text-[28px] font-semibold admin-heading" style={{ letterSpacing: "-.028em" }}>Budget</h1>
+        <p className="fin-sub max-w-prose flex-1 min-w-[16rem]">
+          Plan what a company spends and earns, month by month. Real costs attach to a planned
+          line and update it themselves.
+        </p>
+        <div className="flex items-center gap-2">
+          <button onClick={() => setRecordFor({ row: null as unknown as BoardRow, month: 0 })}
+                  className="px-3.5 py-2 text-[13px] font-medium rounded-lg border admin-input">
             Record a cost
           </button>
+          <button onClick={() => setShowAdd(true)} disabled={!board?.plan}
+                  className="px-3.5 py-2 admin-btn-primary text-[13px] font-semibold rounded-lg disabled:opacity-40">
+            Add row
+          </button>
         </div>
       </div>
 
-      {/* ── Company · year · version ────────────────────────────── */}
-      <div className="flex flex-wrap items-center gap-2">
-        <div className="flex flex-wrap gap-1.5">
-          {entities.map((e) => (
-            <button
-              key={e.key}
-              onClick={() => { setEntityPick({ world: env, key: e.key }); setPlanPick(null); }}
-              className={`px-3 py-1.5 rounded-lg text-xs font-semibold border transition-colors ${
-                selectedEntity === e.key
-                  ? "bg-[var(--admin-accent)] text-[var(--admin-accent-contrast)] border-transparent"
-                  : "admin-input admin-muted"
-              }`}
-              title={e.note ?? undefined}
-            >
-              {e.name}
-              {e.status === "planned" && <span className="ml-1.5 opacity-60">planned</span>}
-            </button>
-          ))}
-        </div>
-
-        <div className="flex items-center gap-1 ml-auto">
-          <button onClick={() => { setYear(year - 1); setPlanPick(null); }} className="px-2 py-1.5 rounded-lg border admin-input text-sm">‹</button>
-          <span className="px-3 py-1.5 text-sm font-bold admin-heading tabular-nums">{year}</span>
-          <button onClick={() => { setYear(year + 1); setPlanPick(null); }} className="px-2 py-1.5 rounded-lg border admin-input text-sm">›</button>
-        </div>
-
-        {plans.length > 1 && (
-          <select
-            value={selectedPlan}
-            onChange={(e) => setPlanPick({ world: env, id: e.target.value })}
-            className="admin-input border rounded-lg px-2 py-1.5 text-xs"
-          >
-            {plans.map((p) => (
-              <option key={p.id} value={p.id}>{p.name} · {p.status}</option>
-            ))}
-          </select>
-        )}
-        {board?.plan && (
-          <>
-            {board.plan.status !== "active" && (
-              <button onClick={() => setPlanStatus("active")} className="px-2.5 py-1.5 rounded-lg border admin-input text-xs font-semibold">
-                Put in force
+      <div className="fin-card !py-2.5 !px-3 flex flex-wrap items-center gap-x-3 gap-y-2">
+        {/* which company */}
+        {entities.length > 1 ? (
+          <div className="fin-seg">
+            {entities.map((e) => (
+              <button key={e.key} data-on={selectedEntity === e.key} title={e.note ?? undefined}
+                      onClick={() => { setEntityPick({ world: env, key: e.key }); setPlanPick(null); }}>
+                {e.name}
               </button>
-            )}
-            <button onClick={() => createPlan(board.plan!.id)}
-                    title="Copy this plan so you can change one and compare. Not needed until you want scenarios."
-                    className="px-2.5 py-1.5 rounded-lg border admin-input text-xs admin-muted">
-              Fork
-            </button>
+            ))}
+          </div>
+        ) : entities[0] ? (
+          <span className="text-[13px] fin-num px-1" title={entities[0].note ?? undefined}>{entities[0].name}</span>
+        ) : null}
+
+        <span className="w-px self-stretch" style={{ background: "var(--fin-hairline)" }} />
+
+        {/* which year */}
+        <div className="flex items-center gap-0.5">
+          <button onClick={() => { setYear(year - 1); setPlanPick(null); }}
+                  aria-label="Previous year" className="px-2 py-1 rounded-md admin-muted hover:bg-[var(--fin-inset)]">‹</button>
+          <span className="text-[13px] font-semibold fin-num tabular-nums w-11 text-center">{year}</span>
+          <button onClick={() => { setYear(year + 1); setPlanPick(null); }}
+                  aria-label="Next year" className="px-2 py-1 rounded-md admin-muted hover:bg-[var(--fin-inset)]">›</button>
+        </div>
+
+        {/* what of it */}
+        {filterObjects.length > 0 && (
+          <>
+            <span className="w-px self-stretch" style={{ background: "var(--fin-hairline)" }} />
+            <select value={objectId} aria-label="Show only"
+                    onChange={(e) => setObjectPick(e.target.value ? { world: env, id: e.target.value } : null)}
+                    className="admin-input border rounded-lg px-2.5 py-1.5 text-[13px] max-w-[14rem]">
+              <option value="">Everything</option>
+              {objectTree(filterObjects).map(({ o, depth }) => (
+                <option key={o.id} value={o.id}>{"\u00a0\u00a0".repeat(depth)}{o.name}</option>
+              ))}
+            </select>
           </>
         )}
-      </div>
 
-      {filterObjects.length > 0 && (
-        <div className="flex items-center gap-2 flex-wrap">
-          <label className="fin-label" htmlFor="fin-scope">Showing</label>
-          <select id="fin-scope" value={objectId}
-                  onChange={(e) => setObjectPick(e.target.value ? { world: env, id: e.target.value } : null)}
-                  className="admin-input border rounded-lg px-2.5 py-1.5 text-xs">
-            <option value="">Everything</option>
-            {objectTree(filterObjects).map(({ o, depth }) => (
-              <option key={o.id} value={o.id}>{"\u00a0\u00a0".repeat(depth)}{o.name}</option>
-            ))}
+        {plans.length > 1 && (
+          <select value={selectedPlan} aria-label="Plan version"
+                  onChange={(e) => setPlanPick({ world: env, id: e.target.value })}
+                  className="admin-input border rounded-lg px-2.5 py-1.5 text-[13px]">
+            {plans.map((p) => <option key={p.id} value={p.id}>{p.name} · {p.status}</option>)}
           </select>
-          {scope && (
-            <span className="fin-sub">
-              only what is allocated to {scope.name}. Funding belongs to no product, so the running
-              line here is this project&rsquo;s own contribution from zero, not a bank balance.
-            </span>
+        )}
+
+        {/* how to look at it */}
+        <div className="ml-auto flex items-center gap-2">
+          {board?.plan && board.plan.status !== "active" && (
+            <button onClick={() => setPlanStatus("active")}
+                    className="px-2.5 py-1.5 rounded-lg border admin-input text-[12px] font-semibold">Put in force</button>
+          )}
+          {board?.plan && (
+            <button onClick={() => createPlan(board.plan!.id)}
+                    title="Copy this plan so you can change one and compare. Not needed until you want scenarios."
+                    className="px-2.5 py-1.5 rounded-lg text-[12px] admin-faint hover:bg-[var(--fin-inset)]">Fork</button>
+          )}
+          {board?.plan && (
+            <div className="fin-seg" role="tablist" aria-label="Budget view">
+              {([["dashboard", "Dashboard"], ["roadmap", "Roadmap"], ["timeline", "Timeline"], ["grid", "Grid"]] as const).map(([v, label]) => (
+                <button key={v} role="tab" aria-selected={view === v} data-on={view === v}
+                        onClick={() => setView(v)}>{label}</button>
+              ))}
+            </div>
           )}
         </div>
-      )}
-
-      {board?.plan && (
-        <div className="fin-seg" role="tablist" aria-label="Budget view">
-          {([["dashboard", "Dashboard"], ["roadmap", "Roadmap"], ["timeline", "Timeline"], ["grid", "Grid"]] as const).map(([v, label]) => (
-            <button key={v} role="tab" aria-selected={view === v} data-on={view === v}
-                    onClick={() => setView(v)}>{label}</button>
-          ))}
-        </div>
-      )}
+      </div>
 
       {/* An entity here is a BUSINESS. Until Experience has its own GmbH the
           invoices go out under the holding's name, and whoever is budgeting
@@ -328,6 +315,8 @@ export default function FinancePage() {
                 <FlowChart pnl={board.pnlPlanned} />
                 <ObjectChart nodes={objects ?? []} onOpen={setOpenObject} driver={driver} onDriver={setDriver} />
               </div>
+              <BusinessChat entityName={board.entity?.name} year={year} />
+
               <details className="fin-card">
                 <summary className="fin-title cursor-pointer select-none">
                   The full P&amp;L

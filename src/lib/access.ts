@@ -102,6 +102,20 @@ export type Section = {
   group: string;
   /** /admin + /api/admin path prefixes this section owns. */
   paths: string[];
+  /**
+   * The page serves every world and scopes its own data to the one you are in.
+   *
+   * The catalogue gives each section exactly one world, which is right for a
+   * page that belongs to one. Budget and File Storage do not: Budget shows NP7
+   * Performance's books in Performance and NP7 Experience's in Experience, and
+   * it decides that from the world itself. Tagging it "experience" then made a
+   * Performance-only role unable to open its OWN company's budget.
+   *
+   * For these, the world gate is skipped and the section grant alone decides.
+   * That is safe because entering a world is gated separately: a role holding
+   * only Performance can never be in Experience to ask for its numbers.
+   */
+  shared?: boolean;
 };
 
 /** The admin sections a role can be granted, mirroring the sidebar nav. */
@@ -119,7 +133,7 @@ export const SECTIONS: Section[] = [
   { key: "packages", label: "Packages", world: "experience", group: "Operations", paths: ["/admin/packages", "/api/admin/packages"] },
   { key: "components", label: "Components", world: "experience", group: "Operations", paths: ["/admin/components", "/api/admin/components"] },
   // Experience · Website
-  { key: "file_storage", label: "File storage", world: "experience", group: "Website", paths: ["/admin/images", "/api/admin/images", "/api/admin/memories", "/api/admin/videos", "/api/admin/media"] },
+  { key: "file_storage", label: "File storage", world: "experience", group: "Website", shared: true, paths: ["/admin/images", "/api/admin/images", "/api/admin/memories", "/api/admin/videos", "/api/admin/media"] },
   { key: "event_content", label: "Event content", world: "experience", group: "Website", paths: ["/admin/content", "/api/admin/content", "/api/admin/events", "/api/admin/event-dates", "/api/admin/youtube"] },
   { key: "members", label: "Member management", world: "experience", group: "Website", paths: ["/admin/members", "/api/admin/members"] },
   { key: "magazine", label: "Magazine", world: "experience", group: "Website", paths: ["/admin/blog", "/api/admin/blog"] },
@@ -189,7 +203,7 @@ export const SECTIONS: Section[] = [
   // what makes Owner edits WORK at all: writes to an unclaimed /api/admin path
   // fail closed for everyone — which is exactly how the Owner spent a morning
   // staring at "view access here, not edit" on his own knowledge base.
-  { key: "finance", label: "Finance & budget", world: "experience", group: "Finance", paths: ["/admin/finance", "/api/admin/finance"] },
+  { key: "finance", label: "Finance & budget", world: "experience", group: "Finance", shared: true, paths: ["/admin/finance", "/api/admin/finance"] },
   { key: "knowledge", label: "Knowledge Base", world: "knowledge", group: "Knowledge", paths: ["/admin/knowledge", "/api/admin/kb"] },
   { key: "tier_perks", label: "Tier perks", world: "experience", group: "Website", paths: ["/admin/perks", "/api/admin/tier-perks"] },
   { key: "templates", label: "Page templates", world: "experience", group: "Website", paths: ["/admin/templates", "/admin/home", "/api/admin/templates", "/api/admin/site-settings"] },
@@ -401,7 +415,7 @@ export function effectiveCanAccess(eff: EffectiveAccess, path: string): boolean 
   if (eff.kind === "tier") return canAccess(eff.level, path);
   const sec = sectionForPath(path);
   if (!sec) return true;
-  if (!eff.access.worlds.includes(sec.world)) return false;
+  if (!sec.shared && !eff.access.worlds.includes(sec.world)) return false;
   return roleSectionLevel(eff.access, sec.key) !== "none";
 }
 
@@ -422,7 +436,7 @@ export function effectiveCanWrite(eff: EffectiveAccess, path: string): boolean {
   if (eff.kind === "tier") return canAccess(eff.level, path);
   const sec = sectionForPath(path);
   if (!sec) return false;
-  if (!eff.access.worlds.includes(sec.world)) return false;
+  if (!sec.shared && !eff.access.worlds.includes(sec.world)) return false;
   return roleSectionLevel(eff.access, sec.key) === "edit";
 }
 

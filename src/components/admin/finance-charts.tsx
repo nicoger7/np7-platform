@@ -199,7 +199,7 @@ export function CashChart({ pnl, opening, scopeName }: { pnl: Pnl; opening: numb
         </div>
       }
     >
-      <svg viewBox={`0 0 ${W} ${H}`} className="w-full h-auto" style={{ maxHeight: 240 }} role="img"
+      <svg viewBox={`0 0 ${W} ${H}`} className="w-full h-auto" role="img"
            aria-label={`Cash position by month. Lowest ${eur2(pnl.lowestPoint)}, closing ${eur2(closing)}.`}>
         <defs>
           <linearGradient id="cashFill" x1="0" y1="0" x2="0" y2="1">
@@ -275,7 +275,7 @@ export function FlowChart({ pnl }: { pnl: Pnl }) {
   return (
     <Frame title="Money in and out"
            subtitle="Above the line is money arriving, below it is money leaving. Stock bought is money out that is not yet a cost.">
-      <svg viewBox={`0 0 ${W} ${H}`} className="w-full h-auto" style={{ maxHeight: 250 }} role="img"
+      <svg viewBox={`0 0 ${W} ${H}`} className="w-full h-auto" role="img"
            aria-label="Money in and out by month, split by kind.">
         <line x1={L} x2={W - R} y1={zeroY} y2={zeroY} stroke="var(--viz-line)" strokeWidth="1.5" opacity="0.45" />
         <text x={L - 8} y={T + 10} textAnchor="end" fontSize="12">{eur0(maxIn)}</text>
