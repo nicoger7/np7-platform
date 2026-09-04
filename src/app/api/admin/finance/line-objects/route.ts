@@ -1,16 +1,19 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase";
 import { getRequestAccess } from "@/lib/admin-auth";
-import { moneyWorlds } from "@/lib/finance/guard";
+import { assertPlan, moneyWorlds } from "@/lib/finance/guard";
 import { r2 } from "@/lib/finance/board";
+import { type WorldId } from "@/lib/access";
 
-async function guard() {
+/** Refuses, or hands back the worlds this caller may see money in. */
+async function guard(): Promise<NextResponse | { worlds: WorldId[] }> {
   const access = await getRequestAccess();
   // No identity is not permission.
-  if (!access || !moneyWorlds(access).length) {
+  const worlds = access ? moneyWorlds(access) : [];
+  if (!access || !worlds.length) {
     return NextResponse.json({ error: "You don't have access to financials." }, { status: 403 });
   }
-  return null;
+  return { worlds };
 }
 
 /**
@@ -45,11 +48,13 @@ const identFrom = (src: Record<string, string | null>): RowIdent => ({
 
 /** GET /api/admin/finance/line-objects?plan_id=&label=&category_id=&… */
 export async function GET(req: NextRequest) {
-  const denied = await guard(); if (denied) return denied;
+  const gate = await guard(); if (gate instanceof NextResponse) return gate;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const db = createAdminClient() as any;
   const { searchParams } = new URL(req.url);
   const ident = identFrom(Object.fromEntries(searchParams.entries()));
+  const wrongCompany = await assertPlan(db, ident.plan_id, gate.worlds);
+  if (wrongCompany) return wrongCompany;
   if (!ident.plan_id || !ident.label) {
     return NextResponse.json({ error: "Which row?" }, { status: 400 });
   }
@@ -91,12 +96,14 @@ export async function GET(req: NextRequest) {
  * body: { …row identity, allocations: [{ cost_object_id, share }] }
  */
 export async function PUT(req: NextRequest) {
-  const denied = await guard(); if (denied) return denied;
+  const gate = await guard(); if (gate instanceof NextResponse) return gate;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const db = createAdminClient() as any;
   const body = await req.json();
   const ident = identFrom(body);
   if (!ident.plan_id || !ident.label) return NextResponse.json({ error: "Which row?" }, { status: 400 });
+  const wrongCompany = await assertPlan(db, ident.plan_id, gate.worlds);
+  if (wrongCompany) return wrongCompany;
 
   const allocations = (Array.isArray(body.allocations) ? body.allocations : [])
     .map((a: { cost_object_id: string; share: unknown }) => ({

@@ -73,3 +73,85 @@ export async function requireMoneyAccess(
 
 /** True when the result of requireMoneyAccess is a refusal. */
 export const isDenied = (r: MoneyAccess | NextResponse): r is NextResponse => r instanceof NextResponse;
+
+/* ── Owning the record, not just the page ─────────────────────────────────────
+ *
+ * Gating the ROUTE is not enough. Every one of these endpoints takes an id in
+ * the query string or the body, looks it up with the service-role client and
+ * acts on it, without ever asking which company the id belongs to. Somebody
+ * with Performance access could read, edit and delete NP7 Experience's plans,
+ * budget lines, recorded costs and allocations simply by naming them.
+ *
+ * These resolve an id back to the company that owns it and refuse when that
+ * company is not one the caller may see. Each is one extra query, which is the
+ * right price for the thing the two companies are legally required to have.
+ */
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+type Db = any;
+
+const REFUSE = () =>
+  NextResponse.json({ error: "That belongs to another company." }, { status: 403 });
+
+/** The world an entity trades in, or null when it is unknown. */
+async function worldOfEntity(db: Db, entityId: string | null | undefined): Promise<WorldId | null> {
+  if (!entityId) return null;
+  const { data } = await db.from("fin_entities").select("division").eq("id", entityId).maybeSingle();
+  const d = data?.division;
+  return d === "experience" || d === "hardware" ? d : null;
+}
+
+/** Refuse unless `entityId` is a company this caller may see money in. */
+export async function assertEntity(
+  db: Db, entityId: string | null | undefined, worlds: WorldId[],
+): Promise<NextResponse | null> {
+  const world = await worldOfEntity(db, entityId);
+  // An entity that does not exist, or that belongs to no world, is not a
+  // licence to proceed. Unknown is refused, not waved through.
+  return world && worlds.includes(world) ? null : REFUSE();
+}
+
+/** Refuse unless the plan belongs to a company this caller may see. */
+export async function assertPlan(
+  db: Db, planId: string | null | undefined, worlds: WorldId[],
+): Promise<NextResponse | null> {
+  if (!planId) return REFUSE();
+  const { data } = await db.from("fin_plans").select("entity_id").eq("id", planId).maybeSingle();
+  return assertEntity(db, data?.entity_id, worlds);
+}
+
+/** Refuse unless the cost object belongs to a company this caller may see. */
+export async function assertObject(
+  db: Db, objectId: string | null | undefined, worlds: WorldId[],
+): Promise<NextResponse | null> {
+  if (!objectId) return REFUSE();
+  const { data } = await db.from("fin_cost_objects").select("entity_id").eq("id", objectId).maybeSingle();
+  return assertEntity(db, data?.entity_id, worlds);
+}
+
+/** Refuse unless the recorded cost belongs to a company this caller may see. */
+export async function assertActual(
+  db: Db, actualId: string | null | undefined, worlds: WorldId[],
+): Promise<NextResponse | null> {
+  if (!actualId) return REFUSE();
+  const { data } = await db.from("fin_actuals").select("entity_id").eq("id", actualId).maybeSingle();
+  return assertEntity(db, data?.entity_id, worlds);
+}
+
+/** Refuse unless the budget line's plan belongs to a company this caller may see. */
+export async function assertLine(
+  db: Db, lineId: string | null | undefined, worlds: WorldId[],
+): Promise<NextResponse | null> {
+  if (!lineId) return REFUSE();
+  const { data } = await db.from("fin_plan_lines").select("plan_id").eq("id", lineId).maybeSingle();
+  return assertPlan(db, data?.plan_id, worlds);
+}
+
+/** Pick the world to work in: the one asked for when allowed, else the
+ *  caller's own. Never both companies, which is what a missing world used to
+ *  mean and is how the other company's entity could be reached by id alone. */
+export function clampWorld(asked: string | null | undefined, worlds: WorldId[]): WorldId {
+  return asked === "experience" || asked === "hardware"
+    ? (worlds.includes(asked) ? asked : worlds[0])
+    : worlds[0];
+}

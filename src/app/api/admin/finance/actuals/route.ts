@@ -2,17 +2,21 @@ import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase";
 import { getRequestAccess } from "@/lib/admin-auth";
 import { moneyWorlds } from "@/lib/finance/guard";
+import { type WorldId } from "@/lib/access";
 import { r2 } from "@/lib/finance/board";
 
-async function guard() {
+/** Refuses, or hands back the worlds this caller may see money in. The routes
+ *  need those: every id they accept has to be checked against them. */
+async function guard(): Promise<NextResponse | { worlds: WorldId[] }> {
   const access = await getRequestAccess();
   // No identity is not permission: getRequestAccess() returns null for an
   // unauthenticated or non-team caller, and `access && …` let exactly that
   // caller through to the service-role client below.
-  if (!access || !moneyWorlds(access).length) {
+  const worlds = access ? moneyWorlds(access) : [];
+  if (!access || !worlds.length) {
     return NextResponse.json({ error: "You don't have access to financials." }, { status: 403 });
   }
-  return null;
+  return { worlds };
 }
 
 /**
@@ -20,7 +24,7 @@ async function guard() {
  * The pool of real costs, for the attach picker and the actuals list.
  */
 export async function GET(req: NextRequest) {
-  const denied = await guard(); if (denied) return denied;
+  const gate = await guard(); if (gate instanceof NextResponse) return gate;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const db = createAdminClient() as any;
   const { searchParams } = new URL(req.url);
@@ -67,7 +71,7 @@ export async function GET(req: NextRequest) {
  * separately from exp_payments.
  */
 export async function POST(req: NextRequest) {
-  const denied = await guard(); if (denied) return denied;
+  const gate = await guard(); if (gate instanceof NextResponse) return gate;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const db = createAdminClient() as any;
   const body = await req.json();

@@ -1,19 +1,23 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase";
 import { getRequestAccess } from "@/lib/admin-auth";
-import { moneyWorlds } from "@/lib/finance/guard";
+import { assertPlan, moneyWorlds } from "@/lib/finance/guard";
+import { type WorldId } from "@/lib/access";
 import { monthDate } from "@/lib/finance/board";
 import { recordChange, currentActor } from "@/lib/finance/audit";
 
-async function guard() {
+/** Refuses, or hands back the worlds this caller may see money in. The routes
+ *  need those: every id they accept has to be checked against them. */
+async function guard(): Promise<NextResponse | { worlds: WorldId[] }> {
   const access = await getRequestAccess();
   // No identity is not permission: getRequestAccess() returns null for an
   // unauthenticated or non-team caller, and `access && …` let exactly that
   // caller through to the service-role client below.
-  if (!access || !moneyWorlds(access).length) {
+  const worlds = access ? moneyWorlds(access) : [];
+  if (!access || !worlds.length) {
     return NextResponse.json({ error: "You don't have access to financials." }, { status: 403 });
   }
-  return null;
+  return { worlds };
 }
 
 type RowIdent = {
@@ -45,7 +49,7 @@ function whereRow(q: any, ident: RowIdent) {
  *         confidence?, months: number[], amount_net: number }
  */
 export async function PUT(req: NextRequest) {
-  const denied = await guard(); if (denied) return denied;
+  const gate = await guard(); if (gate instanceof NextResponse) return gate;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const db = createAdminClient() as any;
   const body = await req.json();
@@ -53,6 +57,8 @@ export async function PUT(req: NextRequest) {
   const label = String(body.label ?? "").trim();
   if (!label) return NextResponse.json({ error: "A row needs a name." }, { status: 400 });
   if (!body.plan_id) return NextResponse.json({ error: "No plan selected." }, { status: 400 });
+  const wrongCompany = await assertPlan(db, body.plan_id, gate.worlds);
+  if (wrongCompany) return wrongCompany;
 
   const year = Number(body.year);
   if (!year) return NextResponse.json({ error: "Which year?" }, { status: 400 });
@@ -131,7 +137,7 @@ export async function PUT(req: NextRequest) {
  * body: { plan_id, from: {category_id,label,edition_id,vendor_id}, to: {...} }
  */
 export async function PATCH(req: NextRequest) {
-  const denied = await guard(); if (denied) return denied;
+  const gate = await guard(); if (gate instanceof NextResponse) return gate;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const db = createAdminClient() as any;
   const { plan_id, from, to } = await req.json();
@@ -182,11 +188,13 @@ export async function PATCH(req: NextRequest) {
  * money was still spent.
  */
 export async function DELETE(req: NextRequest) {
-  const denied = await guard(); if (denied) return denied;
+  const gate = await guard(); if (gate instanceof NextResponse) return gate;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const db = createAdminClient() as any;
   const body = await req.json();
   if (!body.plan_id || !body.label) return NextResponse.json({ error: "Which row?" }, { status: 400 });
+  const wrongCompany = await assertPlan(db, body.plan_id, gate.worlds);
+  if (wrongCompany) return wrongCompany;
 
   const { error } = await whereRow(db.from("fin_plan_lines"), {
     plan_id: body.plan_id,

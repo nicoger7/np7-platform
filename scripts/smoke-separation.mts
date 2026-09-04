@@ -89,5 +89,31 @@ check("Reisevorleistungen is Experience only", expOnly.includes("cost-travel-inp
 check("goods and freight are Performance only",
   hwOnly.includes("cost-goods") && hwOnly.includes("cost-freight"), hwOnly);
 
+console.log("\n── an id is not a licence ──────────────────────");
+// Gating the route was never enough: every endpoint takes an id and acts on it.
+// These prove a Performance-only caller cannot reach Experience by naming it.
+const { assertEntity, assertPlan, assertObject, assertActual, assertLine } =
+  await import("@/lib/finance/guard");
+const HW_ONLY: ("experience" | "hardware")[] = ["hardware"];
+const BOTH: ("experience" | "hardware")[] = ["experience", "hardware"];
+const { data: expPlan } = await db.from("fin_plans").select("id").eq("entity_id", expId).limit(1).maybeSingle();
+const { data: expObj } = await db.from("fin_cost_objects").select("id").eq("entity_id", expId).limit(1).maybeSingle();
+const { data: expLine } = expPlan
+  ? await db.from("fin_plan_lines").select("id").eq("plan_id", expPlan.id).limit(1).maybeSingle()
+  : { data: null };
+const { data: hwPlan } = await db.from("fin_plans").select("id").eq("entity_id", hwId).limit(1).maybeSingle();
+
+check("a hardware caller is refused Experience's company", !!(await assertEntity(db, expId, HW_ONLY)));
+check("...and allowed its own", (await assertEntity(db, hwId, HW_ONLY)) === null);
+check("a hardware caller is refused an Experience plan", !!(await assertPlan(db, expPlan?.id, HW_ONLY)));
+check("...and allowed a Performance one", (await assertPlan(db, hwPlan?.id, HW_ONLY)) === null);
+check("a hardware caller is refused an Experience cost object", !!(await assertObject(db, expObj?.id, HW_ONLY)));
+check("a hardware caller is refused an Experience budget line", !!(await assertLine(db, expLine?.id, HW_ONLY)));
+check("somebody with both worlds reaches both",
+      (await assertEntity(db, expId, BOTH)) === null && (await assertEntity(db, hwId, BOTH)) === null);
+check("an id that does not exist is refused, not waved through",
+      !!(await assertEntity(db, "00000000-0000-0000-0000-000000000000", BOTH)));
+check("a missing id is refused", !!(await assertPlan(db, null, BOTH)) && !!(await assertActual(db, undefined, BOTH)));
+
 console.log(`\n${fail === 0 ? "ALL GREEN" : "FAILURES"} — ${pass} passed, ${fail} failed\n`);
 process.exit(fail === 0 ? 0 : 1);

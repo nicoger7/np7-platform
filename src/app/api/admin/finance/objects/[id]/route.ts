@@ -4,7 +4,7 @@ import { getRequestAccess, requireAdminGate } from "@/lib/admin-auth";
 import { r2 } from "@/lib/finance/board";
 import { buildObjectTree, subtreeFigures, type Contribution } from "@/lib/finance/objects";
 import { subtreeOf } from "@/lib/finance/scope";
-import { moneyWorlds } from "@/lib/finance/guard";
+import {assertEntity, moneyWorlds} from "@/lib/finance/guard";
 /**
  * Everything about one product line, project or size, in one answer.
  *
@@ -31,6 +31,9 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
     .select("id,entity_id,name,kind,note,parent_id,sort,ref_table,ref_id,supplier_id")
     .eq("id", id).maybeSingle();
   if (!object) return NextResponse.json({ error: "No such thing." }, { status: 404 });
+  // The id alone used to be enough to read another company's product economics.
+  const wrongCompany = await assertEntity(db, object.entity_id, moneyWorlds(access));
+  if (wrongCompany) return wrongCompany;
 
   const { data: siblings } = await db
     .from("fin_cost_objects").select("id,name,kind,parent_id,sort")

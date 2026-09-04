@@ -1,18 +1,22 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase";
 import { getRequestAccess } from "@/lib/admin-auth";
-import { moneyWorlds } from "@/lib/finance/guard";
+import { assertActual, assertLine, moneyWorlds } from "@/lib/finance/guard";
+import { type WorldId } from "@/lib/access";
 import { r2 } from "@/lib/finance/board";
 
-async function guard() {
+/** Refuses, or hands back the worlds this caller may see money in. The routes
+ *  need those: every id they accept has to be checked against them. */
+async function guard(): Promise<NextResponse | { worlds: WorldId[] }> {
   const access = await getRequestAccess();
   // No identity is not permission: getRequestAccess() returns null for an
   // unauthenticated or non-team caller, and `access && …` let exactly that
   // caller through to the service-role client below.
-  if (!access || !moneyWorlds(access).length) {
+  const worlds = access ? moneyWorlds(access) : [];
+  if (!access || !worlds.length) {
     return NextResponse.json({ error: "You don't have access to financials." }, { status: 403 });
   }
-  return null;
+  return { worlds };
 }
 
 /**
@@ -24,10 +28,15 @@ async function guard() {
  * of a cost's allocations can never exceed the cost.
  */
 export async function POST(req: NextRequest) {
-  const denied = await guard(); if (denied) return denied;
+  const gate = await guard(); if (gate instanceof NextResponse) return gate;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const db = createAdminClient() as any;
   const { actual_id, plan_line_id, amount } = await req.json();
+  // Both ends have to be ours: an Experience invoice must not be attachable to
+  // a Performance budget line, in either direction.
+  const worlds = gate.worlds;
+  const notOurs = (await assertActual(db, actual_id, worlds)) ?? (await assertLine(db, plan_line_id, worlds));
+  if (notOurs) return notOurs;
   if (!actual_id || !plan_line_id) {
     return NextResponse.json({ error: "Needs a cost and a line to attach it to." }, { status: 400 });
   }
@@ -60,11 +69,14 @@ export async function POST(req: NextRequest) {
 
 /** DELETE /api/admin/finance/allocations — detach. The cost itself survives. */
 export async function DELETE(req: NextRequest) {
-  const denied = await guard(); if (denied) return denied;
+  const gate = await guard(); if (gate instanceof NextResponse) return gate;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const db = createAdminClient() as any;
   const { actual_id, plan_line_id } = await req.json();
   if (!actual_id || !plan_line_id) return NextResponse.json({ error: "Which attachment?" }, { status: 400 });
+  const worlds = gate.worlds;
+  const notOurs = (await assertActual(db, actual_id, worlds)) ?? (await assertLine(db, plan_line_id, worlds));
+  if (notOurs) return notOurs;
   const { error } = await db.from("fin_actual_allocations")
     .delete().eq("actual_id", actual_id).eq("plan_line_id", plan_line_id);
   if (error) return NextResponse.json({ error: error.message }, { status: 400 });

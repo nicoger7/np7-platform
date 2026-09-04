@@ -1,17 +1,21 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase";
 import { getRequestAccess } from "@/lib/admin-auth";
-import { moneyWorlds } from "@/lib/finance/guard";
+import { assertEntity, assertPlan, moneyWorlds } from "@/lib/finance/guard";
+import { type WorldId } from "@/lib/access";
 
-async function guard() {
+/** Refuses, or hands back the worlds this caller may see money in. The routes
+ *  need those: every id they accept has to be checked against them. */
+async function guard(): Promise<NextResponse | { worlds: WorldId[] }> {
   const access = await getRequestAccess();
   // No identity is not permission: getRequestAccess() returns null for an
   // unauthenticated or non-team caller, and `access && …` let exactly that
   // caller through to the service-role client below.
-  if (!access || !moneyWorlds(access).length) {
+  const worlds = access ? moneyWorlds(access) : [];
+  if (!access || !worlds.length) {
     return NextResponse.json({ error: "You don't have access to financials." }, { status: 403 });
   }
-  return null;
+  return { worlds };
 }
 
 /**
@@ -25,7 +29,7 @@ async function guard() {
  * is a separate, deliberate PATCH.
  */
 export async function POST(req: NextRequest) {
-  const denied = await guard(); if (denied) return denied;
+  const gate = await guard(); if (gate instanceof NextResponse) return gate;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const db = createAdminClient() as any;
   const body = await req.json();
@@ -33,6 +37,9 @@ export async function POST(req: NextRequest) {
   const year = Number(body.year);
   if (!year) return NextResponse.json({ error: "Which year?" }, { status: 400 });
   if (!body.entity_id) return NextResponse.json({ error: "Which company?" }, { status: 400 });
+  // Naming a company is not the same as being allowed to budget for it.
+  const wrongCompany = await assertEntity(db, body.entity_id, gate.worlds);
+  if (wrongCompany) return wrongCompany;
 
   const { data: siblings } = await db
     .from("fin_plans").select("id,status,name").eq("entity_id", body.entity_id).eq("year", year);
@@ -77,13 +84,15 @@ export async function POST(req: NextRequest) {
  * question "which plan are we working to" always has exactly one answer.
  */
 export async function PATCH(req: NextRequest) {
-  const denied = await guard(); if (denied) return denied;
+  const gate = await guard(); if (gate instanceof NextResponse) return gate;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const db = createAdminClient() as any;
   const { id, name, note, status } = await req.json();
   if (!id) return NextResponse.json({ error: "Which plan?" }, { status: 400 });
 
   if (status === "active") {
+    const notOurs = await assertPlan(db, id, gate.worlds);
+    if (notOurs) return notOurs;
     const { data: plan } = await db.from("fin_plans").select("entity_id,year").eq("id", id).maybeSingle();
     if (plan) {
       await db.from("fin_plans").update({ status: "archived" })

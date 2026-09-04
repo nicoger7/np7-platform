@@ -3,7 +3,7 @@ import { createAdminClient } from "@/lib/supabase";
 import { getRequestAccess, requireAdminGate } from "@/lib/admin-auth";
 import { entitiesForWorld, r2, type BoardEntity } from "@/lib/finance/board";
 import { buildObjectTree, spreadOverheads, type Contribution, type OverheadDriver } from "@/lib/finance/objects";
-import { moneyWorlds } from "@/lib/finance/guard";
+import {assertEntity, clampWorld, moneyWorlds} from "@/lib/finance/guard";
 /**
  * GET /api/admin/finance/objects?entity=&year=&world=
  *
@@ -24,7 +24,10 @@ export async function GET(req: NextRequest) {
   const db = createAdminClient() as any;
   const { searchParams } = new URL(req.url);
   const year = Number(searchParams.get("year")) || new Date().getFullYear();
-  const world = searchParams.get("world");
+  // Clamped to the caller's own worlds; a missing world used to mean "both
+  // companies", which is how the other one's entity was reachable by id.
+  const allowedWorlds = moneyWorlds(access);
+  const world = clampWorld(searchParams.get("world"), allowedWorlds);
   const entityParam = searchParams.get("entity");
   // How the overheads are shared out, if at all. Named on screen, never stored.
   const driverParam = searchParams.get("driver");
@@ -36,6 +39,8 @@ export async function GET(req: NextRequest) {
   const list = entitiesForWorld((entities ?? []) as BoardEntity[], world);
   const entity = list.find((e) => e.id === entityParam || e.key === entityParam) ?? list[0] ?? null;
   if (!entity) return NextResponse.json({ entity: null, tree: [], planned: [], actual: [] });
+  const wrongCompany = await assertEntity(db, entity.id, allowedWorlds);
+  if (wrongCompany) return wrongCompany;
 
   const { data: objects } = await db
     .from("fin_cost_objects").select("id,name,kind,parent_id,sort")
