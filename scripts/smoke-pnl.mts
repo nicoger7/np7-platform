@@ -12,7 +12,7 @@
  * Run: npx tsx --env-file=.env.local --tsconfig tsconfig.json scripts/smoke-pnl.mts
  */
 import { createClient } from "@supabase/supabase-js";
-import { buildBoard, monthDate, type BoardCategory } from "@/lib/finance/board";
+import { buildBoard, monthDate, PLAN_LINE_COLUMNS, type BoardCategory } from "@/lib/finance/board";
 
 const db = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -133,11 +133,13 @@ const plan = plans?.[0];
 if (!plan) {
   check("the 2027 Performance plan exists", false);
 } else {
+  // The SAME columns the route asks for. Asking for more here is how the last
+  // bug hid: the test saw quantity, production did not.
   const { data: lines } = await db.from("fin_plan_lines")
-    .select("id,category_id,label,month,amount_net,edition_id,vendor_id,confidence,included,quantity")
+    .select(PLAN_LINE_COLUMNS)
     .eq("plan_id", plan.id);
   const p = buildBoard({
-    entity: ents.find((e: any) => e.id === HW), plan, year: 2027, categories: cats,
+    entity: ents.find((e: { id: string }) => e.id === HW), plan, year: 2027, categories: cats,
     lines, allocations: [], actuals: [], allocatedActualIds: new Set(),
     editionLabels: new Map(), vendorNames: new Map(), openingBalance: 0,
   }).pnlPlanned;
@@ -155,6 +157,23 @@ if (!plan) {
         [p.cashMovement.total, p.financing.total, p.result.total]);
   check("funding is not in the result", Math.abs(p.result.total - 182_477.5) < 1, p.result.total);
   check("a margin can finally be quoted", p.grossMarginPct !== null, p.grossMarginPct);
+  console.log(`    gross margin ${p.grossMarginPct}% · result ${eur(p.result.total)}`);
+
+  /* The column list is load-bearing, so prove it rather than trust it. Strip
+     quantity, as the route used to, and the answer silently reverts to the
+     wrong one. Anyone who removes it from PLAN_LINE_COLUMNS fails here. */
+  check("PLAN_LINE_COLUMNS carries quantity", PLAN_LINE_COLUMNS.includes("quantity"));
+  const stripped = (lines as Record<string, unknown>[]).map((l) => {
+    const rest = { ...l }; delete rest.quantity; return rest;
+  });
+  const blind = buildBoard({
+    entity: ents.find((e: { id: string }) => e.id === HW), plan, year: 2027, categories: cats,
+    lines: stripped as never, allocations: [], actuals: [], allocatedActualIds: new Set(),
+    editionLabels: new Map(), vendorNames: new Map(), openingBalance: 0,
+  }).pnlPlanned;
+  check("without quantity the P&L reverts to the wrong answer, which is why it must be queried",
+        blind.costOfSales.total === 0 && Math.abs(blind.result.total - p.result.total) > 400_000,
+        [blind.result.total, p.result.total]);
 }
 
 console.log(`\n${fail === 0 ? "ALL GREEN" : "FAILURES"} — ${pass} passed, ${fail} failed\n`);

@@ -178,6 +178,21 @@ export function entitiesForWorld<T extends { division: string | null }>(
   return entities.filter((e) => e.division === world);
 }
 
+/**
+ * Exactly the columns buildBoard reads.
+ *
+ * The board route selected everything except `quantity`, so unitsBought and
+ * unitsSold were always zero, sell-through was always zero, and stock never
+ * became a cost. The dashboard went on reporting a 586.377 EUR result and a 91%
+ * margin while the test asserting 182.477 passed, because the TEST asked for
+ * quantity and the route did not.
+ *
+ * A test that queries differently from the code it is testing proves nothing.
+ * Both use this now.
+ */
+export const PLAN_LINE_COLUMNS =
+  "id,category_id,label,month,amount_net,edition_id,vendor_id,confidence,included,quantity";
+
 export const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
 
 export const r2 = (n: number) => Math.round((Number(n) || 0) * 100) / 100;

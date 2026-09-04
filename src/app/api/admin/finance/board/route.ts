@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase";
 import { getRequestAccess, requireAdminGate } from "@/lib/admin-auth";
-import { buildBoard, entitiesForWorld, type BoardCategory, type BoardEntity, type BoardPlan } from "@/lib/finance/board";
+import { buildBoard, entitiesForWorld, PLAN_LINE_COLUMNS, type BoardCategory, type BoardEntity, type BoardPlan } from "@/lib/finance/board";
 import { subtreeOf, shareInScope, scaleToScope, type Allocation } from "@/lib/finance/scope";
 import { collectSources } from "@/lib/finance/collect-sources";
 import { moneyWorlds } from "@/lib/finance/guard";
@@ -119,7 +119,7 @@ export async function GET(req: NextRequest) {
   if (plan) {
     const { data: l } = await db
       .from("fin_plan_lines")
-      .select("id,category_id,label,month,amount_net,edition_id,vendor_id,confidence,included")
+      .select(PLAN_LINE_COLUMNS)
       .eq("plan_id", plan.id);
     lines = l ?? [];
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
