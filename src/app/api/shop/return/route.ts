@@ -3,12 +3,16 @@ import { createAdminClient } from "@/lib/supabase";
 import { logOrderEvent } from "@/lib/hardware/orders-server";
 import { sendEmail } from "@/lib/email/send";
 
+import { rateLimited, LIMITS } from "@/lib/rate-limit";
 // POST /api/shop/return — the customer's withdrawal/return declaration
 // (entered from the order page or the withdrawal button). Public, keyed by the
 // order's public_token. Creates a `requested` return; the ack email is the
 // legally required durable-medium confirmation.
 // Body: { token, lines: [{ order_line_id, quantity, reason_code }], message? }
 export async function POST(request: NextRequest) {
+  const tooMany = await rateLimited(request, { name: "shop-return", policy: LIMITS.write });
+  if (tooMany) return tooMany;
+
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const db = createAdminClient() as any;
   const body = await request.json().catch(() => null);

@@ -1,7 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase";
 
+import { rateLimited, LIMITS } from "@/lib/rate-limit";
 export async function POST(req: NextRequest) {
+  const tooMany = await rateLimited(req, { name: "hw-inquiry", policy: LIMITS.write });
+  if (tooMany) return tooMany;
+
   let body: Record<string, unknown>;
   try {
     body = await req.json();

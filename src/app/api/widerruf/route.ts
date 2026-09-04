@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase";
 import { sendEmail } from "@/lib/email/send";
 
+import { rateLimited, LIMITS } from "@/lib/rate-limit";
 /**
  * Online-Widerrufsfunktion (§ 356a BGB) — receives the consumer's withdrawal
  * statement from /widerruf. PUBLIC by design: the law forbids requiring a login.
@@ -17,6 +18,9 @@ function clip(v: unknown, max: number): string {
 }
 
 export async function POST(req: Request) {
+  const tooMany = await rateLimited(req, { name: "widerruf", policy: LIMITS.write });
+  if (tooMany) return tooMany;
+
   let body: Record<string, unknown> = {};
   try {
     body = await req.json();

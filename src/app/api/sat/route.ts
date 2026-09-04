@@ -2,6 +2,7 @@ import { NextRequest, after } from "next/server";
 import { satelliteHero } from "@/lib/satellite";
 import { r2Enabled, r2CdnBase, r2Has, uploadToR2 } from "@/lib/r2";
 
+import { rateLimited, LIMITS } from "@/lib/rate-limit";
 export const runtime = "nodejs";
 
 /**
@@ -41,6 +42,15 @@ export async function GET(req: NextRequest) {
   if (await r2Has(key)) {
     return new Response(null, { status: 302, headers: { Location: cachedUrl, "Cache-Control": SAT_CACHE } });
   }
+
+  // A miss costs an Esri export and an R2 write, and the key is built from
+  // coordinates the caller chose, so nudging lat/lng by a metre is a fresh miss
+  // every time. Limit the MISS path only: a cached location never reaches here,
+  // so someone reading their way through every spot on the site is unaffected
+  // while a script cannot mint unbounded writes. Falls back to Esri directly
+  // rather than erroring, so a limited caller still sees an image.
+  const flooding = await rateLimited(req, { name: "sat-miss", policy: LIMITS.write });
+  if (flooding) return Response.redirect(esri, 302);
 
   // First hit for this location: fetch Esri, stream it back now, cache in R2 after.
   try {

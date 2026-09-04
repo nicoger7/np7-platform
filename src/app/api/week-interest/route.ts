@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase";
 import { composeBookingName } from "@/lib/booking-name";
 
+import { rateLimited, LIMITS } from "@/lib/rate-limit";
 /**
  * "Tell me when this week goes live."
  *
@@ -24,6 +25,9 @@ function bad(msg: string, status = 400) {
 }
 
 export async function POST(request: NextRequest) {
+  const tooMany = await rateLimited(request, { name: "week-interest", policy: LIMITS.write });
+  if (tooMany) return tooMany;
+
   let body: Body;
   try {
     body = await request.json();

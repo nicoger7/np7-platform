@@ -5,12 +5,16 @@ import { getLocationsByCode } from "@/lib/hardware/ops-server";
 import { fmtCents } from "@/lib/hardware/orders";
 import { sendEmail } from "@/lib/email/send";
 
+import { rateLimited, LIMITS } from "@/lib/rate-limit";
 // POST /api/shop/checkout — the web shop's order placement (bank transfer v1;
 // Stripe joins as a payment step once keys exist). Public. Server-side pricing
 // only, and stock MUST reserve (HQ then 3PL) — the shop never oversells.
 // Body: { email, phone?, shipping_address{...country}, billing_address?, notes?,
 //         lines: [{variant_id, quantity}], accept_terms: true }
 export async function POST(request: NextRequest) {
+  const tooMany = await rateLimited(request, { name: "shop-checkout", policy: LIMITS.signup });
+  if (tooMany) return tooMany;
+
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const db = createAdminClient() as any;
   const body = await request.json().catch(() => null);
