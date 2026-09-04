@@ -22,7 +22,7 @@ type Media = {
   id: string; kind: "photo" | "video"; ref: string; url: string;
   poster_url: string | null; caption: string | null; section_key: string | null;
 };
-type Edition = { id: string; title: string };
+type Edition = { id: string; experience: string; week: string; when: string; start: string };
 type Video = { stem: string; status: string; url: string | null; poster: string | null };
 
 export function KbMediaPanel({ entryId, sectionKey, sections = [] }: {
@@ -110,17 +110,23 @@ export function KbMediaPanel({ entryId, sectionKey, sections = [] }: {
        clip you want is far more likely to be from the last trip than the
        first. */
     const fmt = (d?: string | null) => (d ? new Date(d).toLocaleDateString("en-GB", { month: "short", year: "numeric" }) : "");
-    setEditions(
-      rows
-        .filter((e) => e?.id)
-        .sort((a, b) => String(b.date_start ?? "").localeCompare(String(a.date_start ?? "")))
-        .map((e) => {
-          const exp = e.exp_experiences?.title ?? "";
-          const week = String(e.label ?? "").trim();
-          const when = fmt(e.date_start);
-          return { id: e.id, title: [exp, week, when].filter(Boolean).join(" · ") || e.id };
-        })
-    );
+    const list: Edition[] = rows
+      .filter((e) => e?.id)
+      .sort((a, b) => String(b.date_start ?? "").localeCompare(String(a.date_start ?? "")))
+      .map((e) => ({
+        id: e.id,
+        experience: (e.exp_experiences?.title ?? "Other").replace(/^NP7\s+(Experience\s+)?/i, ""),
+        week: String(e.label ?? "").trim(),
+        when: fmt(e.date_start),
+        start: String(e.date_start ?? ""),
+      }));
+    setEditions(list);
+    /* Open on the most recent week that has already happened. Clips only exist
+       for weeks that ran, and a picker that starts on a 2027 trip with nothing
+       in it looks broken before you have touched it. */
+    const today = new Date().toISOString().slice(0, 10);
+    const past = list.find((e) => e.start && e.start <= today);
+    if (past) loadVideos(past.id);
   }
 
   async function loadVideos(id: string) {
@@ -128,7 +134,7 @@ export function KbMediaPanel({ entryId, sectionKey, sections = [] }: {
     setVideos([]);
     if (!id) return;
     setBusy(true);
-    const r = await fetch(`/api/admin/videos?editionId=${id}`).then((x) => x.json()).catch(() => null);
+    const r = await fetch(`/api/admin/videos?editionId=${id}&scope=all`).then((x) => x.json()).catch(() => null);
     setBusy(false);
     setVideos(((r?.videos ?? []) as Video[]).filter((v) => v.status === "ready" && v.url));
   }
@@ -225,7 +231,17 @@ export function KbMediaPanel({ entryId, sectionKey, sections = [] }: {
               className="w-full admin-input border rounded-lg px-3 py-2 text-sm outline-none"
               style={{ borderColor: "var(--admin-border)" }}>
               <option value="">choose a week…</option>
-              {editions.map((e) => <option key={e.id} value={e.id}>{e.title}</option>)}
+              {/* Grouped by trip. Twenty flat lines of "Week I" told you nothing
+                  about which trip you were picking from. */}
+              {[...new Set(editions.map((e) => e.experience))].map((exp) => (
+                <optgroup key={exp} label={exp}>
+                  {editions.filter((e) => e.experience === exp).map((e) => (
+                    <option key={e.id} value={e.id}>
+                      {[e.week, e.when].filter(Boolean).join(" · ")}
+                    </option>
+                  ))}
+                </optgroup>
+              ))}
             </select>
           </div>
           {busy && <p className="text-[11.5px] admin-faint">Loading…</p>}

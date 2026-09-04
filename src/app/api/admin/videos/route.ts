@@ -30,8 +30,15 @@ function stem(key: string): string {
 /** R2 prefix listing recurses, so the "Everyone" prefix (…/{editionId}/) also
     returns the per-participant …/p/{bookingId}/ subtree. Drop it unless we're
     explicitly listing one participant. */
-function inScope(objs: R2Object[], editionId: string, bookingId?: string): R2Object[] {
+function inScope(objs: R2Object[], editionId: string, bookingId?: string, includeParticipants = false): R2Object[] {
   if (bookingId) return objs; // already a leaf prefix, nothing deeper
+  /* The gallery asks for the week's SHARED pool, so participant folders are
+     dropped. The knowledge base wants any clip from that week, and on Alacati
+     August 2026 every single one of the 226 clips sits in a participant folder,
+     so the week's own prefix is empty and the picker said "no finished clips"
+     about a week full of them. `all` opts out of the filter rather than
+     inverting it, so the gallery keeps the behaviour it needs. */
+  if (includeParticipants) return objs;
   const pSub = `/${editionId}/p/`;
   return objs.filter((o) => !o.key.includes(pSub));
 }
@@ -49,14 +56,15 @@ export async function GET(request: NextRequest) {
   const sp = request.nextUrl.searchParams;
   const editionId = sp.get("editionId") || "";
   const bookingId = sp.get("bookingId") || undefined;
+  const includeParticipants = sp.get("scope") === "all";
   if (!editionId) return Response.json({ error: "editionId required" }, { status: 400 });
 
   const [rawAll, doneAll] = await Promise.all([
     listUnderPrefix(scopeFolder("_vidraw", editionId, bookingId) + "/"),
     listUnderPrefix(scopeFolder("_video", editionId, bookingId) + "/"),
   ]);
-  const raw = inScope(rawAll, editionId, bookingId);
-  const done = inScope(doneAll, editionId, bookingId);
+  const raw = inScope(rawAll, editionId, bookingId, includeParticipants);
+  const done = inScope(doneAll, editionId, bookingId, includeParticipants);
 
   const readyByStem = new Map<string, { mp4?: R2Object; poster?: R2Object }>();
   for (const o of done) {

@@ -174,18 +174,17 @@ const focusList = (text?: string) => {
  */
 const whatsNextBlock = (v: EmailVars): string =>
   p(
-    `<strong>What happens next.</strong> ` +
+    `<strong>What happens next</strong><br>` +
     (v.crewChatWhen === "open"
-      ? `The crew WhatsApp group is already open, and that is where you'll meet the others before you fly. `
-      : `We open the crew WhatsApp group${v.crewChatWhen ? ` around <strong>${esc(v.crewChatWhen)}</strong>` : " a few weeks before the trip"}, ` +
-        `and you'll meet the others there before you fly. `) +
-    `The week's outline is already written: it's on the trip page` +
-    (v.experienceLink ? ` (<a href="${esc(v.experienceLink)}" style="color:#0aa3c7;font-weight:700;">have a look</a>)` : "") +
-    ` and under <strong>Trip</strong> in your account. The exact running order follows a few days before you fly, once we can read the forecast.`
+      ? `The crew chat is already running on WhatsApp. That's where you'll get to know the others before you even land. `
+      : `Around <strong>${v.crewChatWhen ? esc(v.crewChatWhen) : "a few weeks before"}</strong> we open the crew chat on WhatsApp, and you'll get to know the others there before you even land. `) +
+    `Want to know how the week looks? It's already written down` +
+    (v.experienceLink ? `, <a href="${esc(v.experienceLink)}" style="color:#0aa3c7;font-weight:700;">here on the trip page</a>` : "") +
+    ` and under <strong>Trip</strong> in your account. The day-by-day plan comes a few days before you fly, when the forecast finally tells us something useful.`
   ) +
   (v.supportWhatsapp
-    ? p(`Questions in between? Message us, or just reply to this mail.`) + emailPill("Ask us on WhatsApp", v.supportWhatsapp)
-    : p(`Questions in between? Just reply to this mail.`));
+    ? p(`Anything on your mind before then, just shout. WhatsApp is fastest, or hit reply.`) + emailPill("Message us on WhatsApp", v.supportWhatsapp)
+    : p(`Anything on your mind before then, just hit reply. 🤙`));
 
 
 export const TEMPLATES: Record<string, (v: EmailVars, opts?: LayoutOpts) => Built> = {

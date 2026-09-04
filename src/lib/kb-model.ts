@@ -31,8 +31,14 @@ export type KbCompleteArgs = {
 };
 
 export async function kbComplete({ system, user, schema, maxTokens = 8000 }: KbCompleteArgs): Promise<unknown> {
-  const apiKey = process.env.ANTHROPIC_API_KEY;
-  if (!apiKey) throw new Error("ANTHROPIC_API_KEY is not configured.");
+  /* Its own variable, on purpose. Nico's words: this key is ONLY for the
+     knowledge base. ANTHROPIC_API_KEY is shared with the spotguide cron and the
+     blog intake, so a budget meant for authoring skills would quietly get spent
+     writing spot descriptions. KB_ANTHROPIC_API_KEY is read first and the
+     shared one is only a fallback, so setting the dedicated key is what makes
+     the separation real. */
+  const apiKey = process.env.KB_ANTHROPIC_API_KEY || process.env.ANTHROPIC_API_KEY;
+  if (!apiKey) throw new Error("KB_ANTHROPIC_API_KEY is not configured.");
   const client = new Anthropic({ apiKey });
 
   const msg = await client.messages.create({
