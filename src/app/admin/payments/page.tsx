@@ -194,11 +194,14 @@ export default function PaymentsPage() {
   const deselect = () => { setShowNew(false); setEditId(null); setForm(emptyForm); };
 
   return (
-    <div>
+    /* `fin` is the opt-in: it brings the Budget pages' system face, tabular
+       numerals and surface tokens to THIS page only. Money in a table has to
+       line up, and a figure that changes must not shuffle its neighbours. */
+    <div className="fin">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between mb-6">
         <div>
-          <h1 className="text-2xl font-bold admin-heading mb-1">Payments</h1>
-          <p className="text-sm admin-muted">{payments.length} payment{payments.length !== 1 ? "s" : ""} — revenue & costs</p>
+          <h1 className="fin-hero mb-1">Payments</h1>
+          <p className="fin-sub">{payments.length} payment{payments.length !== 1 ? "s" : ""} · revenue and costs</p>
         </div>
         <div className="flex items-center gap-2">
           <button onClick={exportCsv} className="px-3 py-2 admin-surface admin-muted text-sm rounded-lg transition-colors" style={{ border: "1px solid var(--admin-border)" }}>Export CSV</button>
@@ -214,9 +217,9 @@ export default function PaymentsPage() {
           { label: "Net", value: money(totals.net), tone: totals.net < 0 ? "text-red-400" : "text-green-400" },
           { label: "Pending / overdue", value: money(totals.pending), tone: "text-amber-400" },
         ].map((c) => (
-          <div key={c.label} className="rounded-xl p-4" style={{ border: "1px solid var(--admin-border)", backgroundColor: "var(--admin-surface)" }}>
-            <div className="text-[10px] font-bold tracking-[0.1em] admin-faint uppercase mb-1">{c.label}</div>
-            <div className={`text-xl font-bold ${c.tone}`}>{c.value}</div>
+          <div key={c.label} className="fin-card">
+            <div className="fin-label mb-1.5">{c.label}</div>
+            <div className={`text-[26px] font-semibold tracking-[-.02em] ${c.tone}`}>{c.value}</div>
           </div>
         ))}
       </div>
@@ -258,19 +261,20 @@ export default function PaymentsPage() {
         filtered.length === 0 ? (
           <div className="py-16 text-center text-sm admin-faint">No payments match.</div>
         ) : (
-          <div className="rounded-xl admin-tablecard" style={{ border: "1px solid var(--admin-border)" }}>
-            <div className="grid grid-cols-[100px_110px_80px_90px_110px_1fr_90px_40px] gap-3 px-5 py-3 admin-surface" style={{ borderBottom: "1px solid var(--admin-border)" }}>
+          <div className="fin-card admin-tablecard" style={{ padding: 0, overflow: "hidden" }}>
+            <div className="grid grid-cols-[100px_110px_80px_90px_110px_1fr_90px_40px] gap-3 px-5 py-2.5 fin-rule" style={{ borderTop: 0 }}>
               {["Date", "Amount", "Dir", "Type", "Reference", "Linked to", "Status", ""].map((h, i) => (
-                <span key={i} className="text-[10px] font-bold tracking-[0.1em] admin-faint uppercase">{h}</span>
+                <span key={i} className={`fin-label${h === "Amount" ? " text-right" : ""}`}>{h}</span>
               ))}
             </div>
             {filtered.map((p) => (
-              <div key={p.id} className="grid grid-cols-[100px_110px_80px_90px_110px_1fr_90px_40px] gap-3 px-5 py-3 transition-colors group items-center cursor-pointer" style={{ borderBottom: "1px solid var(--admin-border)" }}
-                onClick={() => startEdit(p)}
-                onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = "var(--admin-surface-hover)")}
-                onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = "transparent")}>
+              /* The hover was two inline handlers writing style on every row.
+                 .fin-row does it in CSS, which also means prefers-reduced-motion
+                 can switch the transition off, which inline style cannot. */
+              <div key={p.id} className="fin-row fin-rule grid grid-cols-[100px_110px_80px_90px_110px_1fr_90px_40px] gap-3 px-5 py-1.5 group items-center cursor-pointer"
+                onClick={() => startEdit(p)}>
                 <span className="text-xs admin-muted">{fmtDate(paymentDate(p))}</span>
-                <span className={`text-sm font-medium ${p.direction === "cost" ? "text-red-400" : "text-green-400"}`}>
+                <span className={`fin-num text-[12.5px] text-right ${p.direction === "cost" ? "text-red-400" : "text-green-400"}`}>
                   {signedAmount(p.amount, p.direction)}
                 </span>
                 <span className="text-[10px]">
