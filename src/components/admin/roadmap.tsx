@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { VIZ_CSS } from "./finance-charts";
+import { estimateExtent, packLane } from "@/lib/finance/roadmap-layout";
 
 /**
  * The Zeitstrahl: drag a milestone and the date moves, in the database and, when
@@ -34,7 +35,7 @@ export type RoadmapItem = {
   source_table: string | null; source_field: string | null;
   amount_net: number | null; note: string | null; sort: number;
 };
-type Named = { id: string; name?: string; po_number?: string };
+type Named = { id: string; name?: string; po_number?: string; kind?: string };
 type Lanes = { products: Named[]; projects: Named[]; purchaseOrders: Named[]; costObjects: Named[] };
 
 const KIND_VAR: Record<string, string> = {
@@ -107,9 +108,13 @@ export function Roadmap({ world }: { world: string }) {
     const p = find(lanes.projects, i.project_id); if (p) return { key: `proj:${p.id}`, name: p.name!, group: "Projects" };
     const pr = find(lanes.products, i.product_id); if (pr) return { key: `prod:${pr.id}`, name: pr.name!, group: "Products" };
     const po = find(lanes.purchaseOrders, i.purchase_order_id); if (po) return { key: `po:${po.id}`, name: po.po_number!, group: "Orders" };
-    const co = find(lanes.costObjects, i.cost_object_id); if (co) return { key: `obj:${co.id}`, name: co.name!, group: "Ranges" };
+    const co = find(lanes.costObjects, i.cost_object_id);
+    if (co) return { key: `obj:${co.id}`, name: co.name!, group: co.kind === "overhead" ? "Overhead" : "Ranges" };
     return { key: "none", name: "Unassigned", group: "Other" };
   }, [lanes]);
+
+  const extentOf = useCallback(
+    (i: RoadmapItem) => estimateExtent(i, x, eur0), [x]);
 
   const grouped = useMemo(() => {
     const map = new Map<string, { name: string; group: string; items: RoadmapItem[] }>();
@@ -118,8 +123,13 @@ export function Roadmap({ world }: { world: string }) {
       if (!map.has(l.key)) map.set(l.key, { name: l.name, group: l.group, items: [] });
       map.get(l.key)!.items.push(i);
     }
-    return [...map.entries()].sort((a, b) => a[1].group.localeCompare(b[1].group) || a[1].name.localeCompare(b[1].name));
-  }, [items, laneOf]);
+    return [...map.entries()]
+      .sort((a, b) => a[1].group.localeCompare(b[1].group) || a[1].name.localeCompare(b[1].name))
+      .map(([key, lane]) => {
+        const { placed, rows } = packLane(lane.items, x, extentOf);
+        return [key, { ...lane, placed, height: 14 + rows * 30 }] as const;
+      });
+  }, [items, laneOf, x, extentOf]);
 
   // ── dragging ──────────────────────────────────────────────────────────────
   useEffect(() => {
@@ -196,7 +206,7 @@ export function Roadmap({ world }: { world: string }) {
             <div className="h-9 fin-label flex items-end px-4 pb-1.5">Lane</div>
             {grouped.map(([key, lane]) => (
               <div key={key} className="px-4 flex items-center border-t"
-                   style={{ height: 44 + (lane.items.length - 1) * 0, borderColor: "var(--fin-hairline)" }}>
+                   style={{ height: lane.height, borderColor: "var(--fin-hairline)" }}>
                 <div className="min-w-0">
                   <div className="text-[12.5px] fin-num truncate" title={lane.name}>{lane.name}</div>
                   <div className="fin-sub text-[10.5px]">{lane.group}</div>
@@ -223,13 +233,13 @@ export function Roadmap({ world }: { world: string }) {
               )}
 
               {grouped.map(([key, lane]) => (
-                <div key={key} className="relative border-t" style={{ height: 44, borderColor: "var(--fin-hairline)" }}>
+                <div key={key} className="relative border-t" style={{ height: lane.height, borderColor: "var(--fin-hairline)" }}>
                   {months.map((m) => (
                     <div key={m.left} className="absolute top-0 bottom-0 border-l"
                          style={{ left: m.left, borderColor: "var(--fin-hairline)", opacity: .6 }} />
                   ))}
-                  {lane.items.map((i) => (
-                    <Bar key={i.id} item={i} x={x}
+                  {lane.placed.map(({ item: i, row }) => (
+                    <Bar key={i.id} item={i} x={x} top={7 + row * 30}
                          dragging={drag?.id === i.id ? { mode: drag.mode, offset } : null}
                          onGrab={(mode, ev) => setDrag({ id: i.id, mode, x0: ev.clientX, s0: i.starts_on, e0: i.ends_on })}
                          onOpen={() => setEditing(i)} />
@@ -269,8 +279,8 @@ export function Roadmap({ world }: { world: string }) {
 
 /* ── one milestone ────────────────────────────────────────────────────────── */
 
-function Bar({ item, x, dragging, onGrab, onOpen }: {
-  item: RoadmapItem; x: (d: string) => number;
+function Bar({ item, x, top, dragging, onGrab, onOpen }: {
+  item: RoadmapItem; x: (d: string) => number; top: number;
   dragging: { mode: "move" | "resize"; offset: number } | null;
   onGrab: (mode: "move" | "resize", e: React.PointerEvent) => void;
   onOpen: () => void;
@@ -290,7 +300,7 @@ function Bar({ item, x, dragging, onGrab, onOpen }: {
     <>
       {slipped && (
         <div className="absolute pointer-events-none" title={`first planned ${item.baseline_starts_on}`}
-             style={{ left: x(item.baseline_starts_on!) - 4, top: 17, width: 9, height: 9, borderRadius: 9,
+             style={{ left: x(item.baseline_starts_on!) - 4, top: top + 7, width: 9, height: 9, borderRadius: 9,
                       border: "1px dashed var(--admin-text-faint)", opacity: .8 }} />
       )}
       <div
@@ -299,7 +309,7 @@ function Bar({ item, x, dragging, onGrab, onOpen }: {
         title={`${item.title}${item.amount_net ? ` · ${eur0(Number(item.amount_net))}` : ""}` +
                `${slipped ? ` · moved ${slipDays > 0 ? "+" : ""}${slipDays} days` : ""}\nDouble-click to edit`}
         className="absolute flex items-center gap-1.5 cursor-grab active:cursor-grabbing select-none"
-        style={{ left, top: 10, height: 24, zIndex: dragging ? 20 : 1 }}
+        style={{ left, top, height: 24, zIndex: dragging ? 20 : 1 }}
       >
         {span ? (
           <div className="rounded-full flex items-center px-2 h-6"
