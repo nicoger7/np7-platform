@@ -4,6 +4,7 @@ import { getRequestAccess } from "@/lib/admin-auth";
 import { effectiveCanSeeField } from "@/lib/access";
 import { buildBoard, entitiesForWorld, type BoardCategory, type BoardEntity, type BoardPlan } from "@/lib/finance/board";
 import { subtreeOf, shareInScope, scaleToScope, type Allocation } from "@/lib/finance/scope";
+import { collectSources } from "@/lib/finance/collect-sources";
 
 /**
  * GET /api/admin/finance/board?entity=<key|id>&year=YYYY&plan=<id>
@@ -11,6 +12,11 @@ import { subtreeOf, shareInScope, scaleToScope, type Allocation } from "@/lib/fi
  * Everything the budget grid needs in one round trip: the entity, the plan for
  * that year, every planned line, what has actually been booked against those
  * lines, and the actuals that are not attached to anything.
+ *
+ * Alongside the plan it reads the systems that already know the answer. What a
+ * purchase order commits and what a trip actually cost are not copied in here;
+ * they are read every time, so changing the order changes the budget and there
+ * is never a second version of the truth to reconcile.
  *
  * A missing plan is not an error. The first visit to a year has none, and the
  * grid renders empty with a button to create one.
@@ -189,13 +195,20 @@ export async function GET(req: NextRequest) {
     allocatedActualIds, editionLabels, vendorNames, openingBalance,
   });
 
+  // Read through to the systems that own the real numbers. Deliberately after
+  // buildBoard: the plan is the plan whether or not a supplier has been paid,
+  // and these figures sit beside it rather than quietly editing it.
+  const sources = await collectSources(
+    db, entity, year, (lines as { id: string }[]).map((l) => l.id),
+  );
+
   const { data: filterObjects } = entity
     ? await db.from("fin_cost_objects").select("id,name,kind,parent_id,sort")
         .eq("entity_id", entity.id).is("archived_at", null).order("sort")
     : { data: [] };
 
   return NextResponse.json({
-    ...board, entities: entityList, categories, plans,
+    ...board, entities: entityList, categories, plans, sources,
     filterObjects: filterObjects ?? [],
     scope: scope ? { id: objectParam, name: scopeName } : null,
   });

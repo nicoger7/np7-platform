@@ -12,6 +12,7 @@ import { Roadmap } from "@/components/admin/roadmap";
 import { AllocateDialog } from "@/components/admin/allocate-dialog";
 import { CostObjectPanel } from "@/components/admin/cost-object-panel";
 import { BusinessChat } from "@/components/admin/business-chat";
+import { BudgetSources, type Sources } from "@/components/admin/budget-sources";
 import { ScopePicker } from "@/components/admin/scope-picker";
 import type { CostObjectNode } from "@/lib/finance/objects";
 
@@ -40,6 +41,8 @@ export function Budget({ world }: { world?: AdminEnv }) {
   const shellEnv = useAdminEnv();
   const env = world ?? shellEnv;
   const [board, setBoard] = useState<Board | null>(null);
+  // Read live from the systems that own each number; see budget-sources.tsx.
+  const [sources, setSources] = useState<Sources | null>(null);
   const [entities, setEntities] = useState<BoardEntity[]>([]);
   const [categories, setCategories] = useState<BoardCategory[]>([]);
   const [plans, setPlans] = useState<BoardPlan[]>([]);
@@ -91,6 +94,7 @@ export function Budget({ world }: { world?: AdminEnv }) {
         if (cancelled) return;
         if (!res.ok) { setError(data.error ?? "Could not load the budget."); setLoading(false); return; }
         setBoard(data);
+        setSources(data.sources ?? null);
         setEntities(data.entities ?? []);
         setCategories(data.categories ?? []);
         setPlans(data.plans ?? []);
@@ -340,6 +344,7 @@ export function Budget({ world }: { world?: AdminEnv }) {
                 <FlowChart pnl={board.pnlPlanned} />
                 <ObjectChart nodes={objects ?? []} onOpen={setOpenObject} driver={driver} onDriver={setDriver} />
               </div>
+              <BudgetSources sources={sources} entityName={board.entity?.name} year={year} />
               <BusinessChat entityName={board.entity?.name} year={year} />
 
               <details className="fin-card">
