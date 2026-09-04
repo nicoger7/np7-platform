@@ -223,7 +223,7 @@ export default function FinancePage() {
           <button onClick={() => { setYear(year + 1); setPlanPick(null); }} className="px-2 py-1.5 rounded-lg border admin-input text-sm">›</button>
         </div>
 
-        {plans.length > 0 && (
+        {plans.length > 1 && (
           <select
             value={selectedPlan}
             onChange={(e) => setPlanPick({ world: env, id: e.target.value })}
@@ -241,8 +241,10 @@ export default function FinancePage() {
                 Put in force
               </button>
             )}
-            <button onClick={() => createPlan(board.plan!.id)} className="px-2.5 py-1.5 rounded-lg border admin-input text-xs">
-              Fork as new version
+            <button onClick={() => createPlan(board.plan!.id)}
+                    title="Copy this plan so you can change one and compare. Not needed until you want scenarios."
+                    className="px-2.5 py-1.5 rounded-lg border admin-input text-xs admin-muted">
+              Fork
             </button>
           </>
         )}

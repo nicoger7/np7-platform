@@ -62,11 +62,17 @@ export async function GET(req: NextRequest) {
   let plansQuery = db.from("fin_plans").select("id,entity_id,name,year,status,note").eq("year", year);
   if (entity) plansQuery = plansQuery.eq("entity_id", entity.id);
   const { data: plansRaw } = await plansQuery;
-  const plans = ((plansRaw ?? []) as BoardPlan[]).sort((a, b) => {
-    const rank = (s: string) => (s === "active" ? 0 : s === "draft" ? 1 : 2);
-    return rank(a.status) - rank(b.status) || a.name.localeCompare(b.name);
-  });
-  const plan = plans.find((p) => p.id === planParam) ?? plans[0] ?? null;
+  // Archived versions stay in the database as history but off the picker, so a
+  // year with one plan in force offers one plan. A specific archived version is
+  // still reachable by pinning its id.
+  const allPlans = (plansRaw ?? []) as BoardPlan[];
+  const plans = allPlans
+    .filter((p) => p.status !== "archived" || p.id === planParam)
+    .sort((a, b) => {
+      const rank = (s: string) => (s === "active" ? 0 : s === "draft" ? 1 : 2);
+      return rank(a.status) - rank(b.status) || a.name.localeCompare(b.name);
+    });
+  const plan = allPlans.find((p) => p.id === planParam) ?? plans[0] ?? null;
 
   // The object being filtered to, plus everything beneath it.
   let scope: Set<string> | null = null;
