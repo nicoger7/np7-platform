@@ -103,7 +103,7 @@ export async function GET(req: NextRequest) {
   if (plan) {
     const { data: l } = await db
       .from("fin_plan_lines")
-      .select("id,category_id,label,month,amount_net,edition_id,vendor_id,confidence")
+      .select("id,category_id,label,month,amount_net,edition_id,vendor_id,confidence,included")
       .eq("plan_id", plan.id);
     lines = l ?? [];
     // eslint-disable-next-line @typescript-eslint/no-explicit-any

@@ -234,13 +234,16 @@ function canEnterEnv(access: EffectiveAccess, id: Environment): boolean {
   return effectiveCanEnterWorld(access, id as WorldId);
 }
 
-const sharedNavTop: NavGroup = {
+/* Budget is per company, so its href depends on the world you are in. The old
+   shared /admin/finance read like one set of books for all of NP7 and never
+   was. */
+const homeGroupFor = (env: string): NavGroup => ({
   label: "HOME",
   items: [
     { label: "Dashboard", href: "/admin", icon: "grid" },
-    { label: "Budget", href: "/admin/finance", icon: "chartline" },
+    ...(budgetFor[env] ? [{ label: "Budget", href: budgetFor[env], icon: "chartline" }] : []),
   ],
-};
+});
 
 // Always-last items. Archive sits at the very bottom of the menu; File Storage
 // joins it only for envs that don't already list it under WEBSITE (experience does).
@@ -251,6 +254,11 @@ const archiveItem: NavItem = { label: "Archive", href: "/admin/archive", icon: "
    Performance had to switch worlds to add somebody to it. The role catalogue
    still gates both, so this only widens where the door is, never who holds a
    key to it. */
+const budgetFor: Record<string, string> = {
+  hardware: "/admin/performance/finance",
+  experience: "/admin/experience/finance",
+};
+
 const peopleItems: NavItem[] = [
   { label: "Team", href: "/admin/team", icon: "person" },
   { label: "Roles", href: "/admin/roles", icon: "shield" },
@@ -698,7 +706,7 @@ export default function AdminShell({
      is somebody else's job on somebody else's screen. Each of those worlds
      opens on its own first section instead. */
   const NO_FINANCE_HOME = ["analytics", "knowledge"];
-  const allSections = [...(NO_FINANCE_HOME.includes(env) ? [] : [sharedNavTop]), ...navByEnv[env], bottomGroup];
+  const allSections = [...(NO_FINANCE_HOME.includes(env) ? [] : [homeGroupFor(env)]), ...navByEnv[env], bottomGroup];
   // Hide nav the member's role can't reach (middleware enforces it server-side too).
   const sections = allSections
     .map((g) => ({ ...g, items: g.items.filter((i) => effectiveCanAccess(access, i.href)) }))
@@ -712,7 +720,7 @@ export default function AdminShell({
     for (const e of environments) {
       if (!canEnterEnv(access, e.id)) continue;
       const groups: NavGroup[] = [
-        sharedNavTop,
+        homeGroupFor(env),
         ...navByEnv[e.id],
         { label: "GENERAL", items: ["experience", "hardware"].includes(e.id) ? [archiveItem] : [fileStorageItem, archiveItem] },
       ];

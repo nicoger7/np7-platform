@@ -85,37 +85,61 @@ export function FinanceTimeline({ board, categoryGroup }: {
         </div>
       </div>
 
-      {/* month by month */}
-      <div className="flex flex-col gap-2">
+      {/* Month by month.
+          This was one column of every line in every month: twelve cards, around
+          two hundred rows, and on a wide screen the label sat at the far left
+          with its amount at the far right. Now the months are a grid, each shows
+          what it is worth and its biggest few items, and the rest opens where it
+          is rather than making the page longer. */}
+      <div className="grid gap-3" style={{ gridTemplateColumns: "repeat(auto-fill, minmax(21rem, 1fr))" }}>
         {live.map(({ i }) => {
           const evs = byMonth[i];
           const inTotal = evs.filter((e) => e.inflow).reduce((s, e) => s + e.amount, 0);
           const outTotal = evs.filter((e) => !e.inflow).reduce((s, e) => s + e.amount, 0);
-          const collapsed = open !== null && open !== i;
+          const expanded = open === i;
+          const shown = expanded ? evs : evs.slice(0, 5);
           return (
-            <div key={i} className={`fin-card !p-0 overflow-hidden ${collapsed ? "opacity-45" : ""}`}>
-              <button onClick={() => setOpen(open === i ? null : i)}
-                      className="fin-row w-full flex items-center gap-3 px-5 py-3 text-left">
-                <span className="text-[13px] font-semibold fin-num w-12 shrink-0">{MONTHS[i]}</span>
-                <span className="fin-sub shrink-0">{evs.length} item{evs.length === 1 ? "" : "s"}</span>
-                <span className="flex-1" />
-                {inTotal > 0 && <span className="text-[11px] tabular-nums" style={{ color: "var(--s-revenue)" }}>+{eur0(inTotal)}</span>}
-                {outTotal > 0 && <span className="text-[11px] tabular-nums" style={{ color: "var(--s-cogs)" }}>−{eur0(outTotal)}</span>}
-                <span className={`text-[11px] tabular-nums font-bold w-24 text-right ${cash[i] < 0 ? "text-red-400" : "admin-heading"}`}>
-                  {eur0(cash[i])}
-                </span>
-              </button>
-              <div className="px-5 pb-4 flex flex-col gap-1.5">
-                {evs.map((e, k) => (
-                  <div key={k} className="flex items-center gap-2.5 text-[12px]">
-                    <span className="w-[7px] h-[7px] rounded-full shrink-0" style={{ background: colourOf(e.group) }} />
-                    <span className="admin-muted flex-1 truncate" title={e.label}>{e.label}</span>
+            <div key={i} className="fin-card !p-0 overflow-hidden">
+              <div className="px-4 pt-3 pb-2">
+                <div className="flex items-baseline justify-between gap-2">
+                  <span className="text-[15px] font-semibold fin-num">{MONTHS[i]}</span>
+                  <span className={`text-[15px] font-semibold tabular-nums ${cash[i] < 0 ? "text-red-400" : "fin-num"}`}
+                        style={{ letterSpacing: "-.02em" }}>
+                    {eur0(cash[i])}
+                  </span>
+                </div>
+                <div className="flex items-baseline justify-between gap-2 mt-0.5">
+                  <span className="fin-sub">{evs.length} item{evs.length === 1 ? "" : "s"}</span>
+                  <span className="fin-sub tabular-nums">
+                    {inTotal > 0 && <span style={{ color: "var(--s-revenue)" }}>+{eur0(inTotal)}</span>}
+                    {inTotal > 0 && outTotal > 0 && " · "}
+                    {outTotal > 0 && <span style={{ color: "var(--s-cogs)" }}>−{eur0(outTotal)}</span>}
+                  </span>
+                </div>
+              </div>
+
+              <div className="px-4 pb-3 flex flex-col">
+                {shown.map((e, k) => (
+                  <div key={k} className="fin-row flex items-baseline gap-2 py-[3px] px-1 -mx-1 rounded text-[12.5px]">
+                    <span className="w-[6px] h-[6px] rounded-full shrink-0 translate-y-[-1px]"
+                          style={{ background: colourOf(e.group) }} />
+                    <span className="admin-muted truncate" title={e.label}>{e.label}</span>
+                    {/* the amount sits against the label, not against the far
+                        edge of a 1600px screen */}
+                    <span className="flex-1 border-b border-dotted self-end mb-1 mx-1"
+                          style={{ borderColor: "var(--fin-hairline)" }} />
                     <span className={`tabular-nums shrink-0 ${e.inflow ? "" : "admin-faint"}`}
                           style={e.inflow ? { color: "var(--s-revenue)" } : undefined}>
                       {e.inflow ? "+" : "−"}{eur0(e.amount)}
                     </span>
                   </div>
                 ))}
+                {evs.length > 5 && (
+                  <button onClick={() => setOpen(expanded ? null : i)}
+                          className="fin-sub text-left mt-1 px-1 -mx-1 py-1 rounded hover:bg-[var(--fin-inset)]">
+                    {expanded ? "Show less" : `${evs.length - 5} more`}
+                  </button>
+                )}
               </div>
             </div>
           );

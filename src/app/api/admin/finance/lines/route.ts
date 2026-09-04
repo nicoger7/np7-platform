@@ -3,6 +3,7 @@ import { createAdminClient } from "@/lib/supabase";
 import { getRequestAccess } from "@/lib/admin-auth";
 import { effectiveCanSeeField } from "@/lib/access";
 import { monthDate } from "@/lib/finance/board";
+import { recordChange, currentActor } from "@/lib/finance/audit";
 
 async function guard() {
   const access = await getRequestAccess();
@@ -109,11 +110,24 @@ export async function PUT(req: NextRequest) {
       });
     }
   }
+  await recordChange({
+    table: "fin_plan_lines", action: amount === 0 ? "delete" : "update",
+    summary: amount === 0
+      ? `Cleared "${label}" in ${months.length} month${months.length === 1 ? "" : "s"} of ${year}`
+      : `Set "${label}" to ${amount.toFixed(2)} EUR in ${months.length} month${months.length === 1 ? "" : "s"} of ${year}`,
+    after: { label, months, amount_net: amount },
+  });
   return NextResponse.json({ ok: true });
 }
 
 /**
- * PATCH /api/admin/finance/lines — rename or recategorise a whole row at once.
+ * PATCH /api/admin/finance/lines — rename, recategorise, or switch a row off.
+ *
+ * `to.included = false` is the what-if switch: the row keeps its lines, its
+ * amounts and its allocations, and stops counting toward anything. That is the
+ * difference between asking "what if we did not do this" and deleting it and
+ * typing it back in afterwards.
+ *
  * body: { plan_id, from: {category_id,label,edition_id,vendor_id}, to: {...} }
  */
 export async function PATCH(req: NextRequest) {
@@ -126,17 +140,40 @@ export async function PATCH(req: NextRequest) {
   const label = String(to.label ?? from.label ?? "").trim();
   if (!label) return NextResponse.json({ error: "A row needs a name." }, { status: 400 });
 
-  const { error } = await whereRow(db.from("fin_plan_lines"), { plan_id, ...from })
-    .update({
-      label,
-      category_id: to.category_id ?? from.category_id ?? null,
-      edition_id: to.edition_id ?? from.edition_id ?? null,
-      vendor_id: to.vendor_id ?? from.vendor_id ?? null,
-      confidence: to.confidence ?? undefined,
-      updated_at: new Date().toISOString(),
-    });
+  const { data: before } = await whereRow(
+    db.from("fin_plan_lines").select("id,label,included,amount_net"), { plan_id, ...from });
+  const rows = (before ?? []) as { id: string; included: boolean; amount_net: number }[];
+
+  const patch: Record<string, unknown> = {
+    label,
+    category_id: to.category_id ?? from.category_id ?? null,
+    edition_id: to.edition_id ?? from.edition_id ?? null,
+    vendor_id: to.vendor_id ?? from.vendor_id ?? null,
+    updated_at: new Date().toISOString(),
+  };
+  if (to.confidence !== undefined) patch.confidence = to.confidence;
+  if (typeof to.included === "boolean") patch.included = to.included;
+
+  const { error } = await whereRow(db.from("fin_plan_lines"), { plan_id, ...from }).update(patch);
   if (error) return NextResponse.json({ error: error.message }, { status: 400 });
-  return NextResponse.json({ ok: true });
+
+  const worth = rows.reduce((s2, r) => s2 + (Number(r.amount_net) || 0), 0);
+  const actor = await currentActor();
+  if (typeof to.included === "boolean" && rows.some((r) => r.included !== to.included)) {
+    await recordChange({
+      table: "fin_plan_lines", action: "update", actor,
+      summary: `${to.included ? "Put back into" : "Took out of"} the plan: "${from.label}" (${rows.length} month${rows.length === 1 ? "" : "s"}, ${worth.toFixed(2)} EUR)`,
+      before: { label: from.label, included: !to.included },
+      after: { label, included: to.included },
+    });
+  } else if (label !== from.label) {
+    await recordChange({
+      table: "fin_plan_lines", action: "update", actor,
+      summary: `Renamed "${from.label}" to "${label}"`,
+      before: { label: from.label }, after: { label },
+    });
+  }
+  return NextResponse.json({ ok: true, rows: rows.length });
 }
 
 /**
@@ -159,5 +196,10 @@ export async function DELETE(req: NextRequest) {
     vendor_id: body.vendor_id || null,
   }).delete();
   if (error) return NextResponse.json({ error: error.message }, { status: 400 });
+  await recordChange({
+    table: "fin_plan_lines", action: "delete",
+    summary: `Removed the row "${body.label}" from the plan for the whole year`,
+    before: { label: body.label, category_id: body.category_id ?? null },
+  });
   return NextResponse.json({ ok: true });
 }

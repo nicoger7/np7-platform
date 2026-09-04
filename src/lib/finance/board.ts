@@ -69,6 +69,8 @@ export type BoardRow = {
   vendorId: string | null;
   vendorName: string | null;
   confidence: string;
+  /** False = kept and shown, but left out of every total. The what-if switch. */
+  included: boolean;
   cells: BoardCell[];     // always 12, month 1..12
   plannedTotal: number;
   actualTotal: number;
@@ -140,6 +142,8 @@ export type Board = {
   };
   pnlPlanned: Pnl;
   pnlActual: Pnl;
+  /** Rows switched off. Shown so the plan never quietly omits something. */
+  excluded: { rows: number; amount: number };
   /** Where the running position starts. Carried in from earlier years later;
    *  0 for now, so `accumulated` is this year's movement. */
   openingBalance: number;
@@ -193,7 +197,7 @@ export const monthDate = (year: number, month: number) =>
 type RawLine = {
   id: string; category_id: string | null; label: string; month: string;
   amount_net: number | string | null; edition_id: string | null; vendor_id: string | null;
-  confidence: string | null;
+  confidence: string | null; included?: boolean | null;
 };
 type RawAlloc = { plan_line_id: string; amount: number | string | null };
 type RawActual = {
@@ -288,12 +292,16 @@ export function buildBoard(input: {
         vendorId: l.vendor_id,
         vendorName: l.vendor_id ? input.vendorNames.get(l.vendor_id) ?? null : null,
         confidence: l.confidence ?? "expected",
+        included: l.included !== false,
         cells: Array.from({ length: 12 }, (_, i) => ({ month: i + 1, lineId: null, planned: 0, actual: 0 })),
         plannedTotal: 0,
         actualTotal: 0,
       };
       rowsByKey.set(key, row);
     }
+    // One line switched off switches the row off: a cost you have taken out of
+    // the plan is out of it in every month, which is how a person means it.
+    if (l.included === false) row.included = false;
     const cell = row.cells[m - 1];
     cell.lineId = l.id;
     cell.planned = r2(cell.planned + Number(l.amount_net || 0));
@@ -328,6 +336,7 @@ export function buildBoard(input: {
     const plannedByMonth = zero12();
     const actualByMonth = zero12();
     for (const r of rows) {
+      if (!r.included) continue;
       for (let i = 0; i < 12; i++) {
         plannedByMonth[i] = r2(plannedByMonth[i] + r.cells[i].planned);
         actualByMonth[i] = r2(actualByMonth[i] + r.cells[i].actual);
@@ -349,6 +358,7 @@ export function buildBoard(input: {
   const plannedBucket = emptyBucket();
   const actualBucket = emptyBucket();
   for (const row of rowsByKey.values()) {
+    if (!row.included) continue;
     const cat = row.categoryId ? catById.get(row.categoryId) : undefined;
     // An uncategorised cost still has to land somewhere, and overheads is the
     // honest default: counting it as cost of goods would flatter the margin.
@@ -391,6 +401,10 @@ export function buildBoard(input: {
   return {
     entity, plan, year, revenue, cost,
     pnlPlanned, pnlActual, openingBalance,
+    excluded: (() => {
+      const off = [...rowsByKey.values()].filter((r) => !r.included);
+      return { rows: off.length, amount: r2(off.reduce((s2, r) => s2 + r.plannedTotal, 0)) };
+    })(),
     totals: {
       revenuePlanned, revenueActual, costPlanned, costActual, netPlanned, netActual,
       revenuePlannedTotal: total(revenuePlanned), revenueActualTotal: total(revenueActual),

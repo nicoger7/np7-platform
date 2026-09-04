@@ -35,13 +35,23 @@ export async function POST(req: NextRequest) {
   if (!body.entity_id) return NextResponse.json({ error: "Which company?" }, { status: 400 });
 
   const { data: siblings } = await db
-    .from("fin_plans").select("id,status").eq("entity_id", body.entity_id).eq("year", year);
+    .from("fin_plans").select("id,status,name").eq("entity_id", body.entity_id).eq("year", year);
+  const taken = new Set(((siblings ?? []) as { name: string }[]).map((p) => p.name));
   const isFirst = !(siblings ?? []).length;
+
+  /* A fork used to be named "Budget <year> v<count+1>". Delete one and the
+     count comes back down, so the next fork reuses a name that already exists.
+     Nico ended up with two "v3" and three "v5", all identical. Names are made
+     unique here instead of counted. */
+  const uniqueName = (base: string) => {
+    if (!taken.has(base)) return base;
+    for (let n = 2; ; n++) if (!taken.has(`${base} ${n}`)) return `${base} ${n}`;
+  };
 
   const { data: plan, error } = await db.from("fin_plans").insert({
     entity_id: body.entity_id,
     year,
-    name: String(body.name ?? "").trim() || (isFirst ? `Budget ${year}` : `Budget ${year} v${(siblings ?? []).length + 1}`),
+    name: uniqueName(String(body.name ?? "").trim() || (isFirst ? `Plan ${year}` : `Variant`)),
     // The first plan for a year is the one in force; a fork starts as a draft.
     status: isFirst ? "active" : "draft",
     note: body.note ?? null,
