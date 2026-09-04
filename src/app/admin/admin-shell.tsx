@@ -146,8 +146,6 @@ const navByEnv: Record<Environment, NavGroup[]> = {
            their sidebar. Nav items already repeat per world here, Dashboard and
            File Storage do the same. */
         { label: "Academy", href: "/admin/learning", icon: "cap" },
-        { label: "Employees", href: "/admin/team", icon: "person" },
-        { label: "Roles", href: "/admin/roles", icon: "shield" },
         { label: "Hours Log", href: "/admin/hours-log", icon: "clock" },
       ],
     },
@@ -247,6 +245,16 @@ const sharedNavTop: NavGroup = {
 // Always-last items. Archive sits at the very bottom of the menu; File Storage
 // joins it only for envs that don't already list it under WEBSITE (experience does).
 const archiveItem: NavItem = { label: "Archive", href: "/admin/archive", icon: "archive" };
+
+/* Who is on the team, and what they may see, is a question every world asks.
+   It used to live only under Experience's TEAM group, so a person working in
+   Performance had to switch worlds to add somebody to it. The role catalogue
+   still gates both, so this only widens where the door is, never who holds a
+   key to it. */
+const peopleItems: NavItem[] = [
+  { label: "Team", href: "/admin/team", icon: "person" },
+  { label: "Roles", href: "/admin/roles", icon: "shield" },
+];
 const fileStorageItem: NavItem = { label: "File Storage", href: "/admin/images", icon: "image" };
 
 // ─── Icons ───────────────────────────────────────────────────────────────────
@@ -678,7 +686,10 @@ export default function AdminShell({
   // already list it under WEBSITE (experience + hardware).
   const bottomGroup: NavGroup = {
     label: "GENERAL",
-    items: ["experience", "hardware"].includes(env) ? [archiveItem] : [fileStorageItem, archiveItem],
+    items: [
+      ...peopleItems,
+      ...(["experience", "hardware"].includes(env) ? [archiveItem] : [fileStorageItem, archiveItem]),
+    ],
   };
   /* The shared HOME → Dashboard is the FINANCE dashboard: open revenue,
      unmatched payments, mails going out, latest bookings. Two worlds have no
