@@ -25,6 +25,44 @@ const nextConfig: NextConfig = {
     ];
   },
 
+  /**
+   * Headers the browser needs in order to defend us.
+   *
+   * The site shipped without any of these, which meant a browser had to guess
+   * on every one: whether to keep using https, whether a sniffed content type
+   * beats the declared one, whether another site may put our admin in a frame,
+   * how much of the URL to leak to a third party. Every guess here is now ours.
+   *
+   * The CSP is deliberately three directives, not a full policy. A real
+   * default-src would have to allow inline styles, YouTube, Supabase, R2, the
+   * Meta pixel and Vercel's own scripts, which is most of the internet and
+   * protects almost nothing. These three cost nothing and close real doors:
+   * nobody can inject a <base> tag to re-point our relative URLs, no plugin
+   * content runs, and only we may frame our own pages.
+   */
+  async headers() {
+    const baseline = [
+      { key: "Strict-Transport-Security", value: "max-age=63072000; includeSubDomains" },
+      { key: "X-Content-Type-Options", value: "nosniff" },
+      { key: "X-Frame-Options", value: "SAMEORIGIN" },
+      { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },
+      { key: "Content-Security-Policy", value: "object-src 'none'; base-uri 'self'; frame-ancestors 'self'" },
+      { key: "Permissions-Policy", value: "browsing-topics=(), interest-cohort=(), payment=(), usb=()" },
+    ];
+    // Signed-in surfaces: never stored by a shared cache or a back button, and
+    // never indexed. Both are dynamic already; this says so out loud.
+    const priv = [
+      { key: "Cache-Control", value: "no-store, max-age=0" },
+      { key: "X-Robots-Tag", value: "noindex, nofollow" },
+    ];
+    return [
+      { source: "/:path*", headers: baseline },
+      { source: "/admin/:path*", headers: priv },
+      { source: "/api/admin/:path*", headers: priv },
+      { source: "/account/:path*", headers: priv },
+    ];
+  },
+
   // The blog moved up a level — from /experience/blog to the top-level /blog
   // (brand-neutral, spans both worlds). Keep old links and bookmarks working.
   async redirects() {
