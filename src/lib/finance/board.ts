@@ -104,11 +104,18 @@ export type Pnl = {
   opex: PnlLine;
   development: PnlLine;
   /** Stock bought and the freight that lands it. Money out of the bank, and
-   *  NOT a cost in the result until the goods are sold. */
+   *  not a cost in the result until the goods are sold. */
   inventory: PnlLine;
-  /** cogs + opex + development. Inventory is not in it. */
+  /** The part of that stock the plan actually sells in this year, which IS a
+   *  cost. Nothing used to move stock into the result, so a plan that bought
+   *  350 boards and sold 350 boards reported the profit without the boards. */
+  costOfSales: PnlLine;
+  /** Stock bought and not yet sold. Zero when the plan sells what it buys. */
+  closingStock: PnlLine;
+  /** cogs + costOfSales + opex + development. */
   totalCosts: PnlLine;
-  /** The trading result. Inventory and financing are deliberately not in it. */
+  /** The trading result. Financing is deliberately not in it; the cost of the
+   *  goods sold now is. */
   result: PnlLine;
   /** Share capital, investor tranches, loans. Money in that was not earned, so
    *  it never touches the result or a margin, and always moves the bank. */
@@ -198,6 +205,9 @@ type RawLine = {
   id: string; category_id: string | null; label: string; month: string;
   amount_net: number | string | null; edition_id: string | null; vendor_id: string | null;
   confidence: string | null; included?: boolean | null;
+  /** Units. Present on the lines that count things, absent on the rest, and it
+   *  is what tells the P&L how much of the stock bought was actually sold. */
+  quantity?: number | string | null;
 };
 type RawAlloc = { plan_line_id: string; amount: number | string | null };
 type RawActual = {
@@ -217,6 +227,9 @@ const pct = (part: number, whole: number): number | null =>
 function assemblePnl(
   bucket: Record<string, number[]>,
   openingBalance: number,
+  /** How much of the stock bought this year the plan also sells this year,
+   *  0..1, worked out from the unit counts on the lines themselves. */
+  sellThrough: number,
 ): Pnl {
   const revenue = line(bucket.revenue);
   const cogs = line(bucket.cogs);
@@ -224,16 +237,51 @@ function assemblePnl(
   const development = line(bucket.development);
   const financing = line(bucket.financing);
   const inventory = line(bucket.inventory);
-  const grossProfit = line(revenue.byMonth.map((v, i) => r2(v - cogs.byMonth[i])));
-  const totalCosts = line(cogs.byMonth.map((v, i) => r2(v + opex.byMonth[i] + development.byMonth[i])));
-  const result = line(revenue.byMonth.map((v, i) => r2(v - totalCosts.byMonth[i])));
-  // Cash sees everything: the trading result, the stock bought, the money raised.
-  const cashMovement = line(result.byMonth.map((v, i) => r2(v - inventory.byMonth[i] + financing.byMonth[i])));
 
-  // A gross margin only means something when the cost of what was sold is
-  // recorded. Buying 230 boards to sell 50 is an inventory purchase, and
-  // dividing by it produces a number that looks like a margin and is not one.
-  const marginMeaningful = cogs.total > 0 && inventory.total <= cogs.total;
+  /*
+   * Stock becoming a cost.
+   *
+   * Buying stock is not a cost; selling it is. Nothing here ever performed that
+   * second step, so inventory sat outside the result forever and a plan that
+   * bought and sold the same 350 boards inside one year reported its profit
+   * with the boards left out of it. That overstated the 2027 result by the
+   * whole 403.900 EUR of goods.
+   *
+   * The share that sells is not guessed: the lines carry unit counts, so units
+   * sold against units bought says how much of the stock was consumed. A plan
+   * with no unit counts gets a sell-through of zero and behaves exactly as
+   * before, which is the conservative answer when nothing is known.
+   *
+   * The cost is spread in proportion to REVENUE rather than to when the stock
+   * was paid for, because that is the month the sale happens in. Paying the
+   * factory in March for boards sold in July is a cash event in March and a
+   * cost in July, and the cash line below still sees March.
+   */
+  const share = Math.min(1, Math.max(0, sellThrough));
+  const costOfSalesTotal = r2(inventory.total * share);
+  const revenueTotal = revenue.total;
+  const costOfSales = line(
+    revenueTotal > 0
+      ? revenue.byMonth.map((v) => r2((v / revenueTotal) * costOfSalesTotal))
+      // No revenue to match against: leave it where the stock was bought.
+      : inventory.byMonth.map((v) => r2(v * share)),
+  );
+  const closingStock = line(inventory.byMonth.map((v, i) => r2(v - costOfSales.byMonth[i])));
+
+  const grossProfit = line(revenue.byMonth.map((v, i) => r2(v - cogs.byMonth[i] - costOfSales.byMonth[i])));
+  const totalCosts = line(cogs.byMonth.map((v, i) =>
+    r2(v + costOfSales.byMonth[i] + opex.byMonth[i] + development.byMonth[i])));
+  const result = line(revenue.byMonth.map((v, i) => r2(v - totalCosts.byMonth[i])));
+  // Cash is stated outright rather than derived from the result, because the
+  // result now contains a cost that is not a payment and the bank never sees it.
+  const cashMovement = line(revenue.byMonth.map((v, i) => r2(
+    v + financing.byMonth[i] - cogs.byMonth[i] - opex.byMonth[i]
+      - development.byMonth[i] - inventory.byMonth[i],
+  )));
+
+  // A margin means something once the cost of what was sold is in it. It still
+  // does not when stock is being built and nothing has been sold against it.
+  const marginMeaningful = revenue.total > 0 && (cogs.total + costOfSales.total) > 0;
 
   // The running line follows CASH, not the result: a month can lose money and
   // still end richer because a tranche landed, and that is the month you need
@@ -244,7 +292,7 @@ function assemblePnl(
 
   return {
     revenue, cogs, grossProfit, opex, development, totalCosts, result,
-    inventory, financing, cashMovement, accumulated,
+    inventory, costOfSales, closingStock, financing, cashMovement, accumulated,
     lowestPoint: accumulated.length ? Math.min(...accumulated) : 0,
     // Margins are trading measures. Neither financing nor stock is in them.
     grossMarginPct: marginMeaningful ? pct(grossProfit.total, revenue.total) : null,
@@ -369,9 +417,33 @@ export function buildBoard(input: {
       actualBucket[group][i] = r2(actualBucket[group][i] + row.cells[i].actual);
     }
   }
+  /*
+   * How much of the stock bought this year is also sold this year.
+   *
+   * Read off the unit counts the lines already carry: 350 boards bought against
+   * 350 boards sold is a sell-through of 1, and the stock is entirely a cost of
+   * this year. Units are counted on the LINES rather than the rows because a
+   * row is a label and the quantity lives per month.
+   *
+   * A plan with no unit counts anywhere gets zero, which reproduces the old
+   * behaviour exactly. That is the right default: without counts there is no
+   * evidence the stock was sold, and claiming a cost that may not have happened
+   * is the worse error of the two.
+   */
+  let unitsBought = 0, unitsSold = 0;
+  for (const l of lines) {
+    if (l.included === false) continue;
+    const cat = l.category_id ? catById.get(l.category_id) : undefined;
+    const q = Number(l.quantity) || 0;
+    if (q <= 0) continue;
+    if (cat?.pnl_group === "inventory") unitsBought += q;
+    else if (cat?.pnl_group === "revenue") unitsSold += q;
+  }
+  const sellThrough = unitsBought > 0 ? Math.min(1, unitsSold / unitsBought) : 0;
+
   const openingBalance = input.openingBalance ?? 0;
-  const pnlPlanned = assemblePnl(plannedBucket, openingBalance);
-  const pnlActual = assemblePnl(actualBucket, openingBalance);
+  const pnlPlanned = assemblePnl(plannedBucket, openingBalance, sellThrough);
+  const pnlActual = assemblePnl(actualBucket, openingBalance, sellThrough);
 
   const sumGroups = (gs: BoardGroup[], field: "plannedByMonth" | "actualByMonth") => {
     const out = zero12();

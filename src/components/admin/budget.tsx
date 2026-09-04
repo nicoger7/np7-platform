@@ -15,7 +15,7 @@ import { BusinessChat } from "@/components/admin/business-chat";
 import { BudgetSources, type Sources } from "@/components/admin/budget-sources";
 import { ScopePicker } from "@/components/admin/scope-picker";
 import { PeriodPicker, RowControls } from "@/components/admin/budget-controls";
-import { clipPnl, monthsIn, periodLabel, isFullYear, FULL_YEAR, type Period } from "@/lib/finance/period";
+import { clipPnl, monthsIn, periodLabel, isFullYear, rowTotals, FULL_YEAR, type Period } from "@/lib/finance/period";
 import { applyToGroup, NO_FILTER, isFiltering, type RowFilter, type RowSort } from "@/lib/finance/rows";
 import type { CostObjectNode } from "@/lib/finance/objects";
 
@@ -691,8 +691,12 @@ function KeyNumbers({ planned, actual }: { planned: Pnl; actual: Pnl }) {
   const rows: { label: string; p: number; a: number; hint?: string; strong?: boolean; good: "up" | "down" }[] = [
     { label: "Revenue", p: planned.revenue.total, a: actual.revenue.total, good: "up" },
     { label: "Cost of goods", p: planned.cogs.total, a: actual.cogs.total, good: "down", hint: "what a sold unit or a delivered trip directly costs" },
+    { label: "Cost of sales", p: planned.costOfSales.total, a: actual.costOfSales.total, good: "down",
+      hint: "the stock that was actually sold this year, which is what makes it a cost" },
     { label: "Gross profit", p: planned.grossProfit.total, a: actual.grossProfit.total, good: "up", strong: true },
-    { label: "Stock bought", p: planned.inventory.total, a: actual.inventory.total, good: "down", hint: "out of the bank, not a cost until it sells" },
+    { label: "Stock bought", p: planned.inventory.total, a: actual.inventory.total, good: "down", hint: "out of the bank, and only a cost once it sells" },
+    { label: "Left in stock", p: planned.closingStock.total, a: actual.closingStock.total, good: "down",
+      hint: "bought and not yet sold, so it is money out but not a cost" },
     { label: "Operating costs", p: planned.opex.total, a: actual.opex.total, good: "down" },
     { label: "Development", p: planned.development.total, a: actual.development.total, good: "down" },
     { label: "Result before tax", p: planned.result.total, a: actual.result.total, good: "up", strong: true },
@@ -707,13 +711,15 @@ function KeyNumbers({ planned, actual }: { planned: Pnl; actual: Pnl }) {
           <div className={`fin-hero ${planned.cashMovement.total < 0 ? "text-red-400" : ""}`}>
             {eurExact(planned.cashMovement.total)}
           </div>
-          <div className="fin-sub mt-0.5">result plus funding, which is what the bank sees</div>
+          <div className="fin-sub mt-0.5">
+            what the bank sees: the whole container is paid for when it ships, not when it sells
+          </div>
         </div>
         <div className="flex gap-8">
           <Stat label="Gross margin"
                 value={planned.grossMarginPct == null ? "—" : `${planned.grossMarginPct}%`}
                 hint={planned.marginMeaningful ? undefined
-                  : "Withheld: this plan buys stock faster than it records cost of sale, so any margin off it is an artefact."} />
+                  : "Withheld: nothing has been sold against the stock this plan is buying, so there is no margin to take."} />
           <Stat label="Lowest position" value={eurExact(planned.lowestPoint)} warn={planned.lowestPoint < 0}
                 hint="the deepest the cash balance goes, which is what the year needs funding for" />
         </div>
@@ -856,12 +862,22 @@ function Group({ group, months, editing, setEditing, draft, setDraft, onSave, on
           })}
 
           <div className="px-3 py-1.5 text-right text-[11px] tabular-nums">
-            <span className="admin-heading font-semibold block">{eur(row.plannedTotal, false)}</span>
-            {row.actualTotal !== 0 && (
-              <span className={`block text-[10px] ${row.actualTotal > row.plannedTotal ? "text-amber-400" : "text-green-400"}`}>
-                {eur(row.actualTotal)}
-              </span>
-            )}
+            {(() => {
+              /* The window's own totals. This printed row.plannedTotal, which
+                 is always twelve months, next to cells filtered to a quarter,
+                 so a Q1 view showed Q1 columns adding up to the whole year. */
+              const { planned, actual } = rowTotals(row, { from: months[0], to: months[months.length - 1] });
+              return (
+                <>
+                  <span className="admin-heading font-semibold block">{eur(planned, false)}</span>
+                  {actual !== 0 && (
+                    <span className={`block text-[10px] ${actual > planned ? "text-amber-400" : "text-green-400"}`}>
+                      {eur(actual)}
+                    </span>
+                  )}
+                </>
+              );
+            })()}
           </div>
         </div>
       ))}

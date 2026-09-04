@@ -569,6 +569,28 @@ export default function AdminShell({
   useEffect(() => {
     const savedTheme = localStorage.getItem("np7-admin-theme") as Theme | null;
     if (savedTheme && themes[savedTheme]) setTheme(savedTheme);
+    try {
+      const savedCollapsed = JSON.parse(localStorage.getItem("np7-admin-collapsed") || "[]");
+      if (Array.isArray(savedCollapsed)) setCollapsed(new Set(savedCollapsed));
+    } catch { /* ignore */ }
+  }, []);
+
+  /*
+   * Which world the shell is in, re-decided on every navigation.
+   *
+   * This ran once on mount, which meant the sidebar only ever agreed with the
+   * page you happened to land on first. Clicking through to NP7 Performance's
+   * budget pinned the CONTENT to Performance, because the route says so, while
+   * the menu, the company switcher and every nav link stayed on Experience.
+   * The two halves of the screen then described different companies, which for
+   * two legally separate businesses is the one thing that must never happen.
+   *
+   * Re-running it on `pathname` is the whole fix. It is safe to repeat: the
+   * inputs are the path and the stored world, both stable within a navigation,
+   * and an ambiguous path still defers to the world you were last in rather
+   * than yanking you somewhere.
+   */
+  useEffect(() => {
     /*
      * The page you are on wins over the world you were last in.
      *
@@ -602,17 +624,16 @@ export default function AdminShell({
     // The URL is the most explicit thing anyone can say, so it wins outright.
     const wanted = (fromUrl && navByEnv[fromUrl] ? fromUrl : undefined) ?? envOfPath ?? savedEnv;
     if (wanted && navByEnv[wanted] && canEnterEnv(access, wanted as Environment)) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- the world is
+      // genuinely derived from the route, and `wanted` is stable within a
+      // navigation, so this settles in one extra render rather than cascading.
       setEnv(wanted);
       if (wanted !== savedEnv) {
         try { localStorage.setItem("np7-admin-env", wanted); } catch { /* private mode */ }
       }
     }
-    try {
-      const savedCollapsed = JSON.parse(localStorage.getItem("np7-admin-collapsed") || "[]");
-      if (Array.isArray(savedCollapsed)) setCollapsed(new Set(savedCollapsed));
-    } catch { /* ignore */ }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [pathname, worldParam]);
 
   const toggleGroup = (label: string) => {
     setCollapsed((prev) => {

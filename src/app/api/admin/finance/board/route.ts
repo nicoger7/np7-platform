@@ -1,10 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase";
 import { getRequestAccess, requireAdminGate } from "@/lib/admin-auth";
-import { effectiveCanSeeField } from "@/lib/access";
 import { buildBoard, entitiesForWorld, type BoardCategory, type BoardEntity, type BoardPlan } from "@/lib/finance/board";
 import { subtreeOf, shareInScope, scaleToScope, type Allocation } from "@/lib/finance/scope";
 import { collectSources } from "@/lib/finance/collect-sources";
+import { moneyWorlds } from "@/lib/finance/guard";
 /**
  * GET /api/admin/finance/board?entity=<key|id>&year=YYYY&plan=<id>
  *
@@ -27,7 +27,7 @@ export async function GET(req: NextRequest) {
   // No identity is not permission: getRequestAccess() returns null for an
   // unauthenticated or non-team caller, and `access && …` let exactly that
   // caller through to the service-role client below.
-  if (!access || !effectiveCanSeeField(access, "money")) {
+  if (!access || !moneyWorlds(access).length) {
     return NextResponse.json({ error: "You don't have access to financials." }, { status: 403 });
   }
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -39,7 +39,16 @@ export async function GET(req: NextRequest) {
   // Which admin world the page is being viewed from. With no explicit entity
   // chosen it decides the default, so opening Budget in Hardware lands on the
   // hardware company rather than on whatever sorts first.
-  const world = searchParams.get("world");
+  //
+  // It arrives in the query string, so it is clamped rather than trusted: a
+  // caller who may only see Performance cannot ask for Experience and be handed
+  // it, and a caller who asks for nothing gets one of their own worlds instead
+  // of both companies. The two are legally separate; this is the seam.
+  const allowedWorlds = moneyWorlds(access);
+  const asked = searchParams.get("world");
+  const world = asked && allowedWorlds.includes(asked as (typeof allowedWorlds)[number])
+    ? asked
+    : allowedWorlds[0];
   // Narrow the whole board to one project, range or size. Everything downstream
   // (the P&L, the cash curve, the timeline) is computed from the scaled lines,
   // so one filter re-answers every question on the page rather than just the

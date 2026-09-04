@@ -1,18 +1,22 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase";
 import { getRequestAccess } from "@/lib/admin-auth";
-import { effectiveCanSeeField } from "@/lib/access";
+import { type WorldId } from "@/lib/access";
+import { moneyWorlds } from "@/lib/finance/guard";
 import { entitiesForWorld, type BoardEntity } from "@/lib/finance/board";
 
-async function guard() {
+/** Refuses, or hands back the worlds this caller may see money in. The worlds
+ *  matter: `world` arrives in the query string and must be clamped to them. */
+async function guard(): Promise<NextResponse | { worlds: WorldId[] }> {
   const access = await getRequestAccess();
   // No identity is not permission: getRequestAccess() returns null for an
   // unauthenticated or non-team caller, and `access && …` let exactly that
   // caller through to the service-role client below.
-  if (!access || !effectiveCanSeeField(access, "money")) {
+  const worlds = access ? moneyWorlds(access) : [];
+  if (!access || !worlds.length) {
     return NextResponse.json({ error: "You don't have access to financials." }, { status: 403 });
   }
-  return null;
+  return { worlds };
 }
 
 /** Columns a milestone is allowed to write back into. Anything not on this list
@@ -38,11 +42,16 @@ const SELECT =
 
 /** GET /api/admin/roadmap?entity=&world=&from=&to= */
 export async function GET(req: NextRequest) {
-  const denied = await guard(); if (denied) return denied;
+  const gate = await guard(); if (gate instanceof NextResponse) return gate;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const db = createAdminClient() as any;
   const { searchParams } = new URL(req.url);
-  const world = searchParams.get("world");
+  // Clamped, not trusted; see the note in the board route.
+  const allowedWorlds = gate.worlds;
+  const askedWorld = searchParams.get("world");
+  const world = askedWorld && allowedWorlds.includes(askedWorld as (typeof allowedWorlds)[number])
+    ? askedWorld
+    : allowedWorlds[0];
   const entityParam = searchParams.get("entity");
 
   const { data: entities } = await db
@@ -87,7 +96,7 @@ export async function GET(req: NextRequest) {
 
 /** POST /api/admin/roadmap — a new milestone. */
 export async function POST(req: NextRequest) {
-  const denied = await guard(); if (denied) return denied;
+  const gate = await guard(); if (gate instanceof NextResponse) return gate;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const db = createAdminClient() as any;
   const b = await req.json();
@@ -128,7 +137,7 @@ const EDITABLE = ["title", "kind", "status", "ends_on", "product_id", "project_i
  * table, the new date is written back there rather than drifting away from it.
  */
 export async function PATCH(req: NextRequest) {
-  const denied = await guard(); if (denied) return denied;
+  const gate = await guard(); if (gate instanceof NextResponse) return gate;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const db = createAdminClient() as any;
   const b = await req.json();
@@ -181,7 +190,7 @@ export async function PATCH(req: NextRequest) {
 
 /** DELETE /api/admin/roadmap — archive rather than destroy. */
 export async function DELETE(req: NextRequest) {
-  const denied = await guard(); if (denied) return denied;
+  const gate = await guard(); if (gate instanceof NextResponse) return gate;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const db = createAdminClient() as any;
   const { id } = await req.json();

@@ -1,13 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase";
 import { getRequestAccess } from "@/lib/admin-auth";
-import { effectiveCanSeeField } from "@/lib/access";
+import { moneyWorlds } from "@/lib/finance/guard";
 import { r2 } from "@/lib/finance/board";
 
 async function guard() {
   const access = await getRequestAccess();
   // No identity is not permission.
-  if (!access || !effectiveCanSeeField(access, "money")) {
+  if (!access || !moneyWorlds(access).length) {
     return NextResponse.json({ error: "You don't have access to financials." }, { status: 403 });
   }
   return null;

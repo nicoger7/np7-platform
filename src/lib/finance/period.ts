@@ -75,15 +75,16 @@ export function clipPnl(pnl: Pnl, period: Period): Pnl {
   const cogs = clipLine(pnl.cogs, months);
   const grossProfit = clipLine(pnl.grossProfit, months);
   const inventory = clipLine(pnl.inventory, months);
+  const costOfSales = clipLine(pnl.costOfSales, months);
+  const closingStock = clipLine(pnl.closingStock, months);
   const accumulated = months.map((m) => pnl.accumulated[m - 1] ?? 0);
 
-  // The same test as the full year: a margin means nothing while the stock
-  // bought outweighs the stock sold, and a short window makes that MORE likely,
-  // not less, because one container lands in one month.
-  const marginMeaningful = cogs.total > 0 && inventory.total <= cogs.total;
+  // The same test as the full year, applied to the window: a margin means
+  // something once the cost of what was sold is in it.
+  const marginMeaningful = revenue.total > 0 && (cogs.total + costOfSales.total) > 0;
 
   return {
-    revenue, cogs, grossProfit, inventory,
+    revenue, cogs, grossProfit, inventory, costOfSales, closingStock,
     opex: clipLine(pnl.opex, months),
     development: clipLine(pnl.development, months),
     totalCosts: clipLine(pnl.totalCosts, months),

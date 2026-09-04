@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase";
 import { getRequestAccess } from "@/lib/admin-auth";
-import { effectiveCanSeeField } from "@/lib/access";
+import { moneyWorlds } from "@/lib/finance/guard";
 import { monthDate } from "@/lib/finance/board";
 import { recordChange, currentActor } from "@/lib/finance/audit";
 
@@ -10,7 +10,7 @@ async function guard() {
   // No identity is not permission: getRequestAccess() returns null for an
   // unauthenticated or non-team caller, and `access && …` let exactly that
   // caller through to the service-role client below.
-  if (!access || !effectiveCanSeeField(access, "money")) {
+  if (!access || !moneyWorlds(access).length) {
     return NextResponse.json({ error: "You don't have access to financials." }, { status: 403 });
   }
   return null;

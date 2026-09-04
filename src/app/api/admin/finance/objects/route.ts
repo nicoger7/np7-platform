@@ -1,9 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase";
 import { getRequestAccess, requireAdminGate } from "@/lib/admin-auth";
-import { effectiveCanSeeField } from "@/lib/access";
 import { entitiesForWorld, r2, type BoardEntity } from "@/lib/finance/board";
 import { buildObjectTree, spreadOverheads, type Contribution, type OverheadDriver } from "@/lib/finance/objects";
+import { moneyWorlds } from "@/lib/finance/guard";
 /**
  * GET /api/admin/finance/objects?entity=&year=&world=
  *
@@ -17,7 +17,7 @@ export async function GET(req: NextRequest) {
   // No identity is not permission: getRequestAccess() returns null for an
   // unauthenticated or non-team caller, and `access && …` let exactly that
   // caller through to the service-role client below.
-  if (!access || !effectiveCanSeeField(access, "money")) {
+  if (!access || !moneyWorlds(access).length) {
     return NextResponse.json({ error: "You don't have access to financials." }, { status: 403 });
   }
   // eslint-disable-next-line @typescript-eslint/no-explicit-any

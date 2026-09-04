@@ -1,10 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase";
 import { getRequestAccess, requireAdminGate } from "@/lib/admin-auth";
-import { effectiveCanSeeField } from "@/lib/access";
 import { r2 } from "@/lib/finance/board";
 import { buildObjectTree, subtreeFigures, type Contribution } from "@/lib/finance/objects";
 import { subtreeOf } from "@/lib/finance/scope";
+import { moneyWorlds } from "@/lib/finance/guard";
 /**
  * Everything about one product line, project or size, in one answer.
  *
@@ -18,7 +18,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
   const denied = await requireAdminGate();
   if (denied) return denied;
   const access = await getRequestAccess();
-  if (!access || !effectiveCanSeeField(access, "money")) {
+  if (!access || !moneyWorlds(access).length) {
     return NextResponse.json({ error: "You don't have access to financials." }, { status: 403 });
   }
   const { id } = await params;

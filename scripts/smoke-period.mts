@@ -19,6 +19,7 @@ const pnl: Pnl = {
   revenue: line(twelve(100)), cogs: line(twelve(40)), grossProfit: line(twelve(60)),
   opex: line(twelve(10)), development: line(twelve(5)), totalCosts: line(twelve(55)),
   result: line(twelve(45)), inventory: line(twelve(0)), financing: line(twelve(0)),
+  costOfSales: line(twelve(0)), closingStock: line(twelve(0)),
   cashMovement: line(twelve(45)),
   accumulated: Array.from({ length: 12 }, (_, i) => 1000 + 45 * (i + 1)),
   lowestPoint: 1045, grossMarginPct: 60, netMarginPct: 45, marginMeaningful: true,
@@ -46,9 +47,18 @@ check("the low point is the lowest inside the window", q2.lowestPoint === 1180, 
 check("margins are recomputed, not inherited", q2.grossMarginPct === 60);
 check("a full year is returned untouched", clipPnl(pnl, FULL_YEAR) === pnl);
 
-const stocky: Pnl = { ...pnl, cogs: line(twelve(0)), inventory: line(twelve(500)) };
-check("a window where stock outweighs sales withholds the margin",
+// Stock going up with nothing sold against it: no cost of sale, so no margin.
+const stocky: Pnl = { ...pnl, revenue: line(twelve(0)), cogs: line(twelve(0)),
+                      inventory: line(twelve(500)), closingStock: line(twelve(500)) };
+check("a window with no sales withholds the margin",
       clipPnl(stocky, { from: 1, to: 3 }).grossMarginPct === null);
+// The same stock, now sold: the margin is real and the cost is in it.
+const sold: Pnl = { ...pnl, cogs: line(twelve(0)), inventory: line(twelve(40)),
+                    costOfSales: line(twelve(40)), closingStock: line(twelve(0)),
+                    grossProfit: line(twelve(60)) };
+const soldQ1 = clipPnl(sold, { from: 1, to: 3 });
+check("cost of sales is clipped like every other line", soldQ1.costOfSales.total === 120, soldQ1.costOfSales.total);
+check("...and it makes the margin meaningful again", soldQ1.grossMarginPct === 60, soldQ1.grossMarginPct);
 
 console.log("\nRows\n");
 const mk = (key: string, label: string, planned: number[], actual: number[] = twelve(0),
