@@ -12,7 +12,10 @@ import { effectiveAddonStatus } from "@/lib/addons";
 //   net       = received − costs
 export async function GET(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const access = await getRequestAccess();
-  if (access && !effectiveCanSeeField(access, "money")) {
+  // No identity is not permission: getRequestAccess() returns null for an
+  // unauthenticated or non-team caller, and `access && …` let exactly that
+  // caller through to the service-role client below.
+  if (!access || !effectiveCanSeeField(access, "money")) {
     return NextResponse.json({ error: "You don't have access to financials." }, { status: 403 });
   }
   const { id } = await params;

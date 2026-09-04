@@ -92,7 +92,9 @@ export async function GET(request: NextRequest) {
 
   // Field redaction: roles without "money" don't get prices/payments at all.
   const access = await getRequestAccess();
-  if (access && !effectiveCanSeeField(access, "money")) bookings = bookings.map(redactMoney);
+  // Redact unless the caller is proven allowed. `access &&` did the
+  // opposite: an unidentified caller saw the unredacted rows.
+  if (!access || !effectiveCanSeeField(access, "money")) bookings = bookings.map(redactMoney);
 
   return NextResponse.json({ bookings });
 }

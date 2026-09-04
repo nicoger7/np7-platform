@@ -56,7 +56,9 @@ export async function GET(request: NextRequest) {
   }
 
   const access = await getRequestAccess();
-  if (access && !effectiveCanSeeField(access, "contact_pii")) {
+  // Redact unless the caller is proven allowed. `access &&` did the
+  // opposite: an unidentified caller saw the unredacted rows.
+  if (!access || !effectiveCanSeeField(access, "contact_pii")) {
     data = (data || []).map(redactContactPii);
   }
 

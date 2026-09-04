@@ -29,6 +29,13 @@ const OWNER_ONLY = [
   "/admin/product-dev", "/api/admin/product-dev",
   // Permanent delete from the archive is owner-only (archive + restore are not).
   "/api/admin/archive/purge",
+  /* Finance: the budget planner and its actuals, across all three companies.
+     It shipped with migration 210 and was never registered here, so canAccess()
+     fell through to "allowed" and any manager-tier member could read the plan
+     and the real numbers for NP7 GmbH, Hardware and Experience, and add, change
+     or delete planned lines. Line 5 of this file has always said finance is
+     owner-only; it just never said it anywhere the code reads. */
+  "/admin/finance", "/api/admin/finance",
 ];
 
 export function normalizeLevel(v: unknown): AccessLevel {
@@ -182,6 +189,7 @@ export const SECTIONS: Section[] = [
   // what makes Owner edits WORK at all: writes to an unclaimed /api/admin path
   // fail closed for everyone — which is exactly how the Owner spent a morning
   // staring at "view access here, not edit" on his own knowledge base.
+  { key: "finance", label: "Finance & budget", world: "experience", group: "Finance", paths: ["/admin/finance", "/api/admin/finance"] },
   { key: "knowledge", label: "Knowledge Base", world: "knowledge", group: "Knowledge", paths: ["/admin/knowledge", "/api/admin/kb"] },
   { key: "tier_perks", label: "Tier perks", world: "experience", group: "Website", paths: ["/admin/perks", "/api/admin/tier-perks"] },
   { key: "templates", label: "Page templates", world: "experience", group: "Website", paths: ["/admin/templates", "/admin/home", "/api/admin/templates", "/api/admin/site-settings"] },
@@ -327,7 +335,7 @@ export function mergeAccess(list: RoleAccess[]): RoleAccess {
  *  Product Development is here because the build sheets ARE the manufacturing IP
  *  and the sources carry partners' personal contact details; `builtinAccess`
  *  otherwise hands every world except Analytics to Manager automatically. */
-export const OWNER_ONLY_SECTIONS = ["payments", "exp_costs", "vendors", "documents", "settings", "team", "hours_log", "analytics", "pd_knowledge", "pd_library"];
+export const OWNER_ONLY_SECTIONS = ["payments", "exp_costs", "vendors", "documents", "settings", "team", "hours_log", "analytics", "pd_knowledge", "pd_library", "finance"];
 
 /** Built-in roles. Their access is computed live from the catalog (so Owner always
  *  covers new sections); stored in team_roles with a system_key (migrations 049/059). */

@@ -18,7 +18,10 @@ export async function GET(
   // Roles without the "money" field grant (e.g. Photographer / Media) must NOT
   // see it. `access === null` = an owner/manager tier who sees everything.
   const access = await getRequestAccess();
-  if (access && !effectiveCanSeeField(access, "money")) {
+  // No identity is not permission: getRequestAccess() returns null for an
+  // unauthenticated or non-team caller, and `access && …` let exactly that
+  // caller through to the service-role client below.
+  if (!access || !effectiveCanSeeField(access, "money")) {
     return NextResponse.json({ error: "You don't have access to financials." }, { status: 403 });
   }
 
