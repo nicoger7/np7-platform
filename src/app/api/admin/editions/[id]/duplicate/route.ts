@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase";
-
+import { requireAdminGate } from "@/lib/admin-auth";
 const STRIP = new Set(["id", "created_at", "updated_at", "notion_id"]);
 const rand = () => Math.random().toString(36).slice(2, 6);
 function strip(row: Record<string, unknown>): Record<string, unknown> {
@@ -15,6 +15,8 @@ function strip(row: Record<string, unknown>): Record<string, unknown> {
 // Does NOT copy bookings / payments / rooms. 'new' spins up a fresh experience
 // template (copy) to hold the duplicated edition; 'existing' attaches it to experienceId.
 export async function POST(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  const denied = await requireAdminGate();
+  if (denied) return denied;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const db = createAdminClient() as any;
   const { id } = await params;

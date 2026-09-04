@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireTeamApi } from "@/lib/auth";
 import { listInvites, sendSurveyReminderEmail } from "@/lib/surveys";
-
+import { requireAdminGate } from "@/lib/admin-auth";
 // POST /api/admin/surveys/:id/invites/remind — nudge the silent invitees.
 // body: { target: "all" | "opened" | "unopened", subject?: string }
 //
@@ -11,6 +11,8 @@ import { listInvites, sendSurveyReminderEmail } from "@/lib/surveys";
 // split on the Resend open pixel, so the admin can nudge warm and cold
 // audiences with different expectations.
 export async function POST(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  const denied = await requireAdminGate();
+  if (denied) return denied;
   const auth = await requireTeamApi();
   if (!auth.ok) return auth.res;
   const { id } = await params;

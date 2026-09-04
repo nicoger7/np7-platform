@@ -1,9 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase";
 import { psiGateBlocks } from "@/lib/hardware/ops-server";
-
+import { requireAdminGate } from "@/lib/admin-auth";
 // POST /api/admin/purchasing/:id/payments — plan or record a factory payment
 export async function POST(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  const denied = await requireAdminGate();
+  if (denied) return denied;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const db = createAdminClient() as any;
   const { id } = await params;

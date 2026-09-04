@@ -1,9 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireTeamApi } from "@/lib/auth";
 import { listInvites, addInvites, removeInvite, sendSurveyInviteEmail, contactIdsByTag } from "@/lib/surveys";
-
+import { requireAdminGate } from "@/lib/admin-auth";
 // GET /api/admin/surveys/:id/invites — invites joined with contact + response.
 export async function GET(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  const denied = await requireAdminGate();
+  if (denied) return denied;
   const auth = await requireTeamApi();
   if (!auth.ok) return auth.res;
   const { id } = await params;
@@ -16,6 +18,8 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
 //                                        only counts who WOULD be added (new ones)
 // Returns the newly-created invites (with tokens) and, when sendEmail, the send results.
 export async function POST(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  const denied = await requireAdminGate();
+  if (denied) return denied;
   const auth = await requireTeamApi();
   if (!auth.ok) return auth.res;
   const { id } = await params;
@@ -47,6 +51,8 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
 
 // DELETE /api/admin/surveys/:id/invites?inviteId=... — remove one invite.
 export async function DELETE(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  const denied = await requireAdminGate();
+  if (denied) return denied;
   const auth = await requireTeamApi();
   if (!auth.ok) return auth.res;
   await params; // id not needed (inviteId is unique)

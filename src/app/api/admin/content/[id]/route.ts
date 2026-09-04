@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase";
 import { mergeFocus, splitFocus } from "@/lib/placement";
-
+import { requireAdminGate } from "@/lib/admin-auth";
 // The [id] segment is the experience_id that this content belongs to.
 
 type ProgramItem = { title: string; description: string };
@@ -49,6 +49,8 @@ export async function GET(
   _request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
+  const denied = await requireAdminGate();
+  if (denied) return denied;
   const client = createAdminClient();
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const db = client as any;
@@ -105,6 +107,8 @@ export async function PUT(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
+  const denied = await requireAdminGate();
+  if (denied) return denied;
   const client = createAdminClient();
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const db = client as any;

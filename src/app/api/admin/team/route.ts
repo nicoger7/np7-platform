@@ -1,7 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase";
-
+import { requireAdminGate } from "@/lib/admin-auth";
 export async function GET() {
+  const denied = await requireAdminGate();
+  if (denied) return denied;
   const client = createAdminClient();
   const { data, error } = await client.from("team_members").select("*").order("name");
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
@@ -36,6 +38,8 @@ export async function GET() {
 const PENDING_OPTIONAL = ["role_ids"];
 
 export async function POST(request: NextRequest) {
+  const denied = await requireAdminGate();
+  if (denied) return denied;
   const client = createAdminClient();
   const body = await request.json();
   // The "Role (job title)" is an optional free-text label. Empty → null so it

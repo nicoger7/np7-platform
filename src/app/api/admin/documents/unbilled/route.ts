@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase";
-
+import { requireAdminGate } from "@/lib/admin-auth";
 /**
  * Money that arrived and never got an invoice.
  *
@@ -20,6 +20,8 @@ const BILLABLE = ["deposit_invoice", "downpayment_invoice", "final_invoice", "ad
 const r2 = (n: number) => Math.round((n + Number.EPSILON) * 100) / 100;
 
 export async function GET() {
+  const denied = await requireAdminGate();
+  if (denied) return denied;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const db = createAdminClient() as any;
 

@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase";
-
+import { requireAdminGate } from "@/lib/admin-auth";
 /**
  * Spotguide contributor trust grants (see migration 066). Two roles:
  *   • moderator  — global; their edits/spots go live immediately
@@ -11,6 +11,8 @@ import { createAdminClient } from "@/lib/supabase";
 
 // GET /api/admin/spotguide/trust?contact=<id> — grants (optionally for one member)
 export async function GET(request: NextRequest) {
+  const denied = await requireAdminGate();
+  if (denied) return denied;
   const contact = (request.nextUrl.searchParams.get("contact") ?? "").trim();
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const db = createAdminClient() as any;
@@ -41,6 +43,8 @@ export async function GET(request: NextRequest) {
 
 // POST — grant. Body { contactId, role: 'moderator'|'specialist', destinationId?, note? }
 export async function POST(request: NextRequest) {
+  const denied = await requireAdminGate();
+  if (denied) return denied;
   const body = await request.json().catch(() => ({}));
   const contactId = (body.contactId ?? "").trim();
   const role = body.role === "specialist" ? "specialist" : body.role === "moderator" ? "moderator" : null;
@@ -68,6 +72,8 @@ export async function POST(request: NextRequest) {
 
 // DELETE ?id=<grant id> — revoke
 export async function DELETE(request: NextRequest) {
+  const denied = await requireAdminGate();
+  if (denied) return denied;
   const id = (request.nextUrl.searchParams.get("id") ?? "").trim();
   if (!id) return NextResponse.json({ error: "Missing id." }, { status: 400 });
   // eslint-disable-next-line @typescript-eslint/no-explicit-any

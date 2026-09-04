@@ -1,11 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase";
-
+import { requireAdminGate } from "@/lib/admin-auth";
 const LINE_SELECT = "*, hw_variants(id,name,sku,weight_g,box_l_mm,box_w_mm,box_h_mm,hw_products(id,name))";
 
 // POST /api/admin/purchasing/:id/lines — add a line (cost autofilled from the
 // supplier catalog when not given)
 export async function POST(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  const denied = await requireAdminGate();
+  if (denied) return denied;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const db = createAdminClient() as any;
   const { id } = await params;

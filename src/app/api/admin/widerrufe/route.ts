@@ -1,10 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase";
-
+import { requireAdminGate } from "@/lib/admin-auth";
 export const dynamic = "force-dynamic";
 
 /** Withdrawal declarations received via /widerruf (§ 356a BGB). Team-only. */
 export async function GET() {
+  const denied = await requireAdminGate();
+  if (denied) return denied;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const db = createAdminClient() as any;
   const { data, error } = await db
@@ -17,6 +19,8 @@ export async function GET() {
 }
 
 export async function PATCH(req: NextRequest) {
+  const denied = await requireAdminGate();
+  if (denied) return denied;
   const body = await req.json().catch(() => ({}));
   const id = typeof body.id === "string" ? body.id : "";
   const status = body.status === "processed" ? "processed" : "new";

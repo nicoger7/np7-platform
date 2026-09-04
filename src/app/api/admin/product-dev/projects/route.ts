@@ -1,11 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
 import { PD_ENTITIES, pdDb, pdCreate } from "@/lib/product-dev-api";
 import { notArchived } from "@/lib/archive";
-
+import { requireAdminGate } from "@/lib/admin-auth";
 const CFG = PD_ENTITIES.projects;
 
 // GET /api/admin/product-dev/projects — list with mold / build-sheet counts.
 export async function GET(request: NextRequest) {
+  const denied = await requireAdminGate();
+  if (denied) return denied;
   const db = pdDb();
   const search = request.nextUrl.searchParams.get("search");
 
@@ -39,5 +41,7 @@ export async function GET(request: NextRequest) {
 }
 
 export async function POST(request: NextRequest) {
+  const denied = await requireAdminGate();
+  if (denied) return denied;
   return pdCreate(CFG, request);
 }

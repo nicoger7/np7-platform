@@ -1,9 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase";
-
+import { requireAdminGate } from "@/lib/admin-auth";
 // POST { edition_id } → clone this cost line onto another edition (same experience
 // or the target edition's experience). Actual + notion_id are reset on the copy.
 export async function POST(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  const denied = await requireAdminGate();
+  if (denied) return denied;
   const { id } = await params;
   const { edition_id } = await req.json().catch(() => ({}));
   if (!edition_id) return NextResponse.json({ error: "Missing edition_id" }, { status: 400 });

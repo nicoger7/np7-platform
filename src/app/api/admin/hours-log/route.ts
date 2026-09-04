@@ -1,8 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase";
 import { getHoursActor } from "@/lib/hours-auth";
-
+import { requireAdminGate } from "@/lib/admin-auth";
 export async function GET(request: NextRequest) {
+  const denied = await requireAdminGate();
+  if (denied) return denied;
   const actor = await getHoursActor();
   if (!actor) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   const client = createAdminClient();
@@ -28,6 +30,8 @@ export async function GET(request: NextRequest) {
 }
 
 export async function POST(request: NextRequest) {
+  const denied = await requireAdminGate();
+  if (denied) return denied;
   const actor = await getHoursActor();
   if (!actor) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   const client = createAdminClient();

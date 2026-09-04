@@ -1,11 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase";
-import { getRequestAccess } from "@/lib/admin-auth";
-
+import { getRequestAccess, requireAdminGate } from "@/lib/admin-auth";
 /** Candidate/confirmed dates for an event experience. Admin-only. */
 const bad = (msg: string, status = 400) => NextResponse.json({ error: msg }, { status });
 
 export async function GET(request: NextRequest) {
+  const denied = await requireAdminGate();
+  if (denied) return denied;
   if (!(await getRequestAccess())) return bad("Not authorised.", 401);
   const experienceId = request.nextUrl.searchParams.get("experienceId");
   if (!experienceId) return bad("Missing experienceId.");
@@ -16,6 +17,8 @@ export async function GET(request: NextRequest) {
 }
 
 export async function POST(request: NextRequest) {
+  const denied = await requireAdminGate();
+  if (denied) return denied;
   if (!(await getRequestAccess())) return bad("Not authorised.", 401);
   const body = await request.json().catch(() => ({}));
   const { experienceId, date_start, date_end, label } = body;
@@ -32,6 +35,8 @@ export async function POST(request: NextRequest) {
 }
 
 export async function DELETE(request: NextRequest) {
+  const denied = await requireAdminGate();
+  if (denied) return denied;
   if (!(await getRequestAccess())) return bad("Not authorised.", 401);
   const id = request.nextUrl.searchParams.get("id");
   if (!id) return bad("Missing id.");

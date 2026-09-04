@@ -3,7 +3,7 @@ import Anthropic from "@anthropic-ai/sdk";
 import { requireTeamApi } from "@/lib/auth";
 import { createAdminClient } from "@/lib/supabase";
 import { CONDITIONS, INFRASTRUCTURE_TAGS, LEVELS } from "@/lib/spotguide";
-
+import { requireAdminGate } from "@/lib/admin-auth";
 /**
  * AI spot intake — paste ANY free text about a spot (a rider's WhatsApp
  * message, forum paragraph, jibe's research) and get a structured DRAFT spot
@@ -26,6 +26,8 @@ type Extracted = {
 };
 
 export async function POST(request: NextRequest) {
+  const denied = await requireAdminGate();
+  if (denied) return denied;
   const auth = await requireTeamApi();
   if (!auth.ok) return auth.res;
   const body = await request.json().catch(() => ({}));

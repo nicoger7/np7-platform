@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase";
-
+import { requireAdminGate } from "@/lib/admin-auth";
 // POST /api/admin/packages/:id/duplicate — copy a package + its component links.
 // Optional JSON body { editionId }: retarget the copy to another edition (used by
 // "duplicate set → year"). Retargeted copies keep the original name (same package,
@@ -9,6 +9,8 @@ export async function POST(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
+  const denied = await requireAdminGate();
+  if (denied) return denied;
   const client = createAdminClient();
   const { id } = await params;
   const body = await request.json().catch(() => ({} as { editionId?: string }));

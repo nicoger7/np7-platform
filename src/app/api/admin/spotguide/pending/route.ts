@@ -2,10 +2,12 @@ import { NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase";
 import { EDIT_FIELD_LABEL, humanEditValue, type EditableField } from "@/lib/spotguide-trust";
 import { COMMUNITY_VERIFY_THRESHOLD } from "@/lib/spotguide";
-
+import { requireAdminGate } from "@/lib/admin-auth";
 // GET /api/admin/spotguide/pending — member-submitted spots awaiting review +
 // member photos awaiting moderation, for the Spotguide moderation page.
 export async function GET() {
+  const denied = await requireAdminGate();
+  if (denied) return denied;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const db = createAdminClient() as any;
 

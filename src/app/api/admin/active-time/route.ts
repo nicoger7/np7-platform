@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase";
 import { getHoursActor } from "@/lib/hours-auth";
-
+import { requireAdminGate } from "@/lib/admin-auth";
 const IDLE_SECONDS = 5 * 60;       // pause the clock after 5 min of no activity
 const DAY_CAP = 10 * 60 * 60;      // never auto-suggest more than 10h/day
 const FLOOR_SECONDS = 15 * 60;     // ignore days under 15 min
@@ -14,6 +14,8 @@ function todayISO() { return new Date().toISOString().slice(0, 10); }
 // POST — a heartbeat. Accumulates the gap since the last ping if it's within the
 // idle window (so idle time and closed-tab gaps don't count).
 export async function POST(request: NextRequest) {
+  const denied = await requireAdminGate();
+  if (denied) return denied;
   const actor = await getHoursActor();
   if (!actor) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   const body = await request.json().catch(() => ({}));
@@ -45,6 +47,8 @@ export async function POST(request: NextRequest) {
 // GET — the member's unconfirmed tracked time (today + any earlier days they
 // haven't logged), for the Hours Log "log your tracked time" suggestion.
 export async function GET() {
+  const denied = await requireAdminGate();
+  if (denied) return denied;
   const actor = await getHoursActor();
   if (!actor) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -69,6 +73,8 @@ export async function GET() {
 // PATCH — mark a day's tracked time as confirmed (logged or dismissed) so it
 // stops being suggested.
 export async function PATCH(request: NextRequest) {
+  const denied = await requireAdminGate();
+  if (denied) return denied;
   const actor = await getHoursActor();
   if (!actor) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   const body = await request.json().catch(() => ({}));

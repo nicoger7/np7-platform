@@ -1,9 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase";
 import { missingArchivedCol } from "@/lib/archive";
-import { getRequestAccess } from "@/lib/admin-auth";
+import { getRequestAccess, requireAdminGate } from "@/lib/admin-auth";
 import { effectiveCanSeeField } from "@/lib/access";
-
 /** Null out a contact's personal data for roles without "contact_pii". */
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 export function redactContactPii<T extends Record<string, any>>(c: T): T {
@@ -12,6 +11,8 @@ export function redactContactPii<T extends Record<string, any>>(c: T): T {
 
 // GET /api/admin/contacts — list all contacts
 export async function GET(request: NextRequest) {
+  const denied = await requireAdminGate();
+  if (denied) return denied;
   const client = createAdminClient();
   const { searchParams } = new URL(request.url);
 
@@ -67,6 +68,8 @@ export async function GET(request: NextRequest) {
 
 // POST /api/admin/contacts — create a contact
 export async function POST(request: NextRequest) {
+  const denied = await requireAdminGate();
+  if (denied) return denied;
   const client = createAdminClient();
   const body = await request.json();
 

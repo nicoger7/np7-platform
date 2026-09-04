@@ -1,11 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
 import { RESERVED_COURSE_SLUGS, slugifyLearning, type LearningCourse } from "@/lib/learning";
 import { COURSE_FIELDS, learningDb, pick, requireAuthor } from "../guard";
-
+import { requireAdminGate } from "@/lib/admin-auth";
 /** GET /api/admin/learning/courses — the author's list: drafts included, with
  *  lesson counts and the owner's name. `?archived=1` shows the archived ones so
  *  a course deleted by mistake is one click from coming back. */
 export async function GET(request: NextRequest) {
+  const denied = await requireAdminGate();
+  if (denied) return denied;
   const db = learningDb();
   const archived = request.nextUrl.searchParams.get("archived") === "1";
 

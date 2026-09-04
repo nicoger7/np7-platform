@@ -2,11 +2,13 @@ import { NextRequest, NextResponse } from "next/server";
 import { softDelete } from "@/lib/archive";
 import { RESERVED_COURSE_SLUGS, slugifyLearning } from "@/lib/learning";
 import { COURSE_FIELDS, learningDb, pick, requireAuthor } from "../../guard";
-
+import { requireAdminGate } from "@/lib/admin-auth";
 /** GET — the whole course as the editor needs it: every lesson, drafts and all,
  *  plus the roles and team members the form's pickers offer. One payload, so
  *  clicking between lessons never waits on the network. */
 export async function GET(_request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  const denied = await requireAdminGate();
+  if (denied) return denied;
   const db = learningDb();
   const { id } = await params;
 

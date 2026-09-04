@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase";
-
+import { requireAdminGate } from "@/lib/admin-auth";
 // Gated by middleware (the "invites" section). Lists trip invites with the
 // inviter/invitee contacts and the trip, newest first. Tolerant of migration 050.
 
@@ -9,6 +9,8 @@ function isMissing(message?: string | null) {
 }
 
 export async function GET(request: NextRequest) {
+  const denied = await requireAdminGate();
+  if (denied) return denied;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const db = createAdminClient() as any;
   const status = new URL(request.url).searchParams.get("status");

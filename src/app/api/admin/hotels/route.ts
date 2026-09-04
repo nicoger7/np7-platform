@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase";
 import { notArchived } from "@/lib/archive";
-
+import { requireAdminGate } from "@/lib/admin-auth";
 // Fallback until the hotels table exists (migration 016)
 const LEGACY_HOTELS = [
   { id: null, name: "Sorobon", prefix: "SOR" },
@@ -15,6 +15,8 @@ const LEGACY_HOTELS = [
 
 // GET /api/admin/hotels — list hotels (DB-backed, legacy fallback)
 export async function GET() {
+  const denied = await requireAdminGate();
+  if (denied) return denied;
   const client = createAdminClient();
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const { data, error } = await (client as any).from("hotels").select("*").order("name");
@@ -27,6 +29,8 @@ export async function GET() {
 
 // POST /api/admin/hotels — add a hotel (name + prefix)
 export async function POST(request: NextRequest) {
+  const denied = await requireAdminGate();
+  if (denied) return denied;
   const client = createAdminClient();
   const body = await request.json();
   // eslint-disable-next-line @typescript-eslint/no-explicit-any

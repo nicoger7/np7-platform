@@ -1,9 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireTeamApi } from "@/lib/auth";
 import { listSurveys, createSurvey } from "@/lib/surveys";
-
+import { requireAdminGate } from "@/lib/admin-auth";
 // GET /api/admin/surveys — all surveys with invited/responded counts.
 export async function GET() {
+  const denied = await requireAdminGate();
+  if (denied) return denied;
   const auth = await requireTeamApi();
   if (!auth.ok) return auth.res;
   return NextResponse.json({ surveys: await listSurveys() });
@@ -11,6 +13,8 @@ export async function GET() {
 
 // POST /api/admin/surveys — create a survey (draft).
 export async function POST(request: NextRequest) {
+  const denied = await requireAdminGate();
+  if (denied) return denied;
   const auth = await requireTeamApi();
   if (!auth.ok) return auth.res;
   const body = await request.json().catch(() => ({}));

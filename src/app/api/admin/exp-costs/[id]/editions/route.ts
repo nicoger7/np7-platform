@@ -1,9 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase";
-
+import { requireAdminGate } from "@/lib/admin-auth";
 // PUT /api/admin/exp-costs/[id]/editions  body { allocations: [{edition_id, percent}] }
 // Replaces the cost's edition % split (migration 056). Empty → single-edition fallback.
 export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  const denied = await requireAdminGate();
+  if (denied) return denied;
   const { id } = await params;
   const body = await req.json().catch(() => ({}));
   // eslint-disable-next-line @typescript-eslint/no-explicit-any

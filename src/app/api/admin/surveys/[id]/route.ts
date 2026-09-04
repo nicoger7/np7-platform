@@ -1,9 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireTeamApi } from "@/lib/auth";
 import { getSurvey, updateSurvey, archiveSurvey } from "@/lib/surveys";
-
+import { requireAdminGate } from "@/lib/admin-auth";
 // GET /api/admin/surveys/:id
 export async function GET(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  const denied = await requireAdminGate();
+  if (denied) return denied;
   const auth = await requireTeamApi();
   if (!auth.ok) return auth.res;
   const { id } = await params;
@@ -14,6 +16,8 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
 
 // PUT /api/admin/surveys/:id — update survey fields.
 export async function PUT(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  const denied = await requireAdminGate();
+  if (denied) return denied;
   const auth = await requireTeamApi();
   if (!auth.ok) return auth.res;
   const { id } = await params;
@@ -25,6 +29,8 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
 
 // DELETE /api/admin/surveys/:id — soft delete (archive).
 export async function DELETE(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  const denied = await requireAdminGate();
+  if (denied) return denied;
   const auth = await requireTeamApi();
   if (!auth.ok) return auth.res;
   const { id } = await params;

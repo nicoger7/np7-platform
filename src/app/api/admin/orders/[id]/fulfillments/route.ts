@@ -2,12 +2,14 @@ import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase";
 import { logOrderEvent, latestLandedCosts, recalcFulfillmentStatus } from "@/lib/hardware/orders-server";
 import { getLocationsByCode, recordMovement } from "@/lib/hardware/ops-server";
-
+import { requireAdminGate } from "@/lib/admin-auth";
 // POST /api/admin/orders/:id/fulfillments — pack goods for an order.
 // Creation IS the stock consumption: reservations release, and each unit moves
 // location → CUSTOMER ('sale') carrying its latest landed cost (COGS).
 // Body: { lines: [{order_line_id, quantity}], location_code?, carrier?, tracking_number?, tracking_url? }
 export async function POST(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  const denied = await requireAdminGate();
+  if (denied) return denied;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const db = createAdminClient() as any;
   const { id } = await params;

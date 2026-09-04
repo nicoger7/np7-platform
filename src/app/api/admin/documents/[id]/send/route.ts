@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase";
 import { sendEmail } from "@/lib/email/send";
-
+import { requireAdminGate } from "@/lib/admin-auth";
 // Admin routes are gated by middleware; no per-route auth check needed.
 
 type RouteContext = { params: Promise<{ id: string }> };
@@ -9,6 +9,8 @@ type RouteContext = { params: Promise<{ id: string }> };
 // ─── POST /api/admin/documents/[id]/send ───────────────────────────────────────
 // Email an invoice (PDF attached) to the booking's customer and stamp documents.sent_at.
 export async function POST(request: NextRequest, { params }: RouteContext) {
+  const denied = await requireAdminGate();
+  if (denied) return denied;
   const { id } = await params;
   /* An explicit recipient, for checking a document before it reaches the
      customer. Nothing else changes — the same mail, the same attachment — so

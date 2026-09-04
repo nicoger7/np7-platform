@@ -2,7 +2,7 @@ import { NextRequest, NextResponse, after } from "next/server";
 import { createAdminClient } from "@/lib/supabase";
 import { settleInvoices } from "@/lib/invoices/generate";
 import { promoteProformaIfPaid } from "@/lib/invoices/promote";
-
+import { requireAdminGate } from "@/lib/admin-auth";
 /** Editing or removing a payment changes which invoices it covers — see
     settleInvoices. Best-effort and after the response: the ledger is the
     record, the stamps are a reading of it. */
@@ -28,6 +28,8 @@ export async function GET(
   _request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
+  const denied = await requireAdminGate();
+  if (denied) return denied;
   const client = createAdminClient();
   const { id } = await params;
   const { data, error } = await client
@@ -44,6 +46,8 @@ export async function PATCH(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
+  const denied = await requireAdminGate();
+  if (denied) return denied;
   const client = createAdminClient();
   const { id } = await params;
   const body = await request.json();
@@ -63,6 +67,8 @@ export async function DELETE(
   _request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
+  const denied = await requireAdminGate();
+  if (denied) return denied;
   const client = createAdminClient();
   const { id } = await params;
   // Read the booking before the row is gone — afterwards there is nothing to

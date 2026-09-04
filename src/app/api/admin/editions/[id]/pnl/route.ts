@@ -1,9 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase";
-import { getRequestAccess } from "@/lib/admin-auth";
+import { getRequestAccess, requireAdminGate } from "@/lib/admin-auth";
 import { effectiveCanSeeField } from "@/lib/access";
 import { effectiveAddonStatus } from "@/lib/addons";
-
 // GET /api/admin/editions/[id]/pnl — the real per-edition P&L:
 //   received  = Σ revenue payments (status paid) on this edition's bookings, minus refunds
 //   expected  = same, including not-yet-paid revenue
@@ -11,6 +10,8 @@ import { effectiveAddonStatus } from "@/lib/addons";
 //               (split costs: amount × percent for allocations landing on this edition)
 //   net       = received − costs
 export async function GET(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  const denied = await requireAdminGate();
+  if (denied) return denied;
   const access = await getRequestAccess();
   // No identity is not permission: getRequestAccess() returns null for an
   // unauthenticated or non-team caller, and `access && …` let exactly that

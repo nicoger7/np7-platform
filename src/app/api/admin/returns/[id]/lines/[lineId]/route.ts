@@ -1,8 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase";
-
+import { requireAdminGate } from "@/lib/admin-auth";
 // PATCH /api/admin/returns/:id/lines/:lineId — inspection verdict per line
 export async function PATCH(request: NextRequest, { params }: { params: Promise<{ id: string; lineId: string }> }) {
+  const denied = await requireAdminGate();
+  if (denied) return denied;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const db = createAdminClient() as any;
   const { id, lineId } = await params;

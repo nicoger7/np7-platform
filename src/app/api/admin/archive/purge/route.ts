@@ -1,10 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase";
 import { ARCHIVE_BY_KEY } from "@/lib/archive";
-
+import { requireAdminGate } from "@/lib/admin-auth";
 // PERMANENT delete from the archive — the only true delete. Owner-only: the path
 // /api/admin/archive/purge is in access.ts OWNER_ONLY, enforced by middleware.
 export async function POST(req: NextRequest) {
+  const denied = await requireAdminGate();
+  if (denied) return denied;
   const { entity, id } = await req.json().catch(() => ({}));
   const ent = ARCHIVE_BY_KEY[entity];
   if (!ent || !id) return NextResponse.json({ error: "Unknown entity or id." }, { status: 400 });

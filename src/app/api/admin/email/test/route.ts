@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { SENDERS } from "@/lib/email/layout";
-
+import { requireAdminGate } from "@/lib/admin-auth";
 /**
  * POST /api/admin/email/test  { to, subject?, html?, division? }
  * With just { to }: a one-off connectivity test (confirms API key + domain).
@@ -9,6 +9,8 @@ import { SENDERS } from "@/lib/email/layout";
  * Admin-only (enforced by middleware).
  */
 export async function POST(req: NextRequest) {
+  const denied = await requireAdminGate();
+  if (denied) return denied;
   let to = "";
   let subject: string | undefined;
   let html: string | undefined;

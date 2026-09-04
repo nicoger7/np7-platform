@@ -1,10 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
 import { pdDb, pdReplaceChildren } from "@/lib/product-dev-api";
-
+import { requireAdminGate } from "@/lib/admin-auth";
 const PLY_COLUMNS = ["ply_index", "material_id", "orientation", "template_ref", "length_cm", "width_mm", "stack", "note"] as const;
 
 // GET /api/admin/product-dev/layups/:id/plies
 export async function GET(_request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  const denied = await requireAdminGate();
+  if (denied) return denied;
   const { id } = await params;
   const { data, error } = await pdDb().from("pd_layup_plies").select("*").eq("layup_id", id).order("ply_index");
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
@@ -24,6 +26,8 @@ export async function GET(_request: NextRequest, { params }: { params: Promise<{
  * "fixing" that ordering would destroy the record.
  */
 export async function PUT(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  const denied = await requireAdminGate();
+  if (denied) return denied;
   const { id } = await params;
   const body = (await request.json().catch(() => ({}))) as { plies?: Record<string, unknown>[] };
   const incoming = Array.isArray(body.plies) ? body.plies : [];

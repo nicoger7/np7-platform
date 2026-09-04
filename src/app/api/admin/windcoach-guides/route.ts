@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireTeamApi } from "@/lib/auth";
 import { createAdminClient } from "@/lib/supabase";
-
+import { requireAdminGate } from "@/lib/admin-auth";
 /**
  * Admin review queue for wind.coach guides (table: windcoach_guides, migration 154).
  *
@@ -60,6 +60,8 @@ function escapeLike(s: string): string {
 }
 
 export async function GET(request: NextRequest) {
+  const denied = await requireAdminGate();
+  if (denied) return denied;
   const auth = await requireTeamApi();
   if (!auth.ok) return auth.res;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -130,6 +132,8 @@ export async function GET(request: NextRequest) {
 }
 
 export async function POST(request: NextRequest) {
+  const denied = await requireAdminGate();
+  if (denied) return denied;
   const auth = await requireTeamApi();
   if (!auth.ok) return auth.res;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any

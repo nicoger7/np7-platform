@@ -2,10 +2,9 @@ import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase";
 import { softDelete } from "@/lib/archive";
 import { flags } from "@/lib/flags";
-import { getRequestAccess } from "@/lib/admin-auth";
+import { getRequestAccess, requireAdminGate } from "@/lib/admin-auth";
 import { revalidateExperience } from "@/lib/revalidate-public";
 import { effectiveCanSeeField } from "@/lib/access";
-
 // Money columns on an edition — nulled for roles without the "money" grant.
 const EDITION_MONEY_FIELDS = [
   "price_from", "price_to", "deposit", "estimated_costs", "expected_revenue",
@@ -17,6 +16,8 @@ export async function GET(
   _request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
+  const denied = await requireAdminGate();
+  if (denied) return denied;
   const client = createAdminClient();
   const { id } = await params;
 
@@ -116,6 +117,8 @@ export async function PUT(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
+  const denied = await requireAdminGate();
+  if (denied) return denied;
   const client = createAdminClient();
   const { id } = await params;
   const body = await request.json();
@@ -207,6 +210,8 @@ export async function PATCH(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
+  const denied = await requireAdminGate();
+  if (denied) return denied;
   return PUT(request, { params });
 }
 
@@ -215,6 +220,8 @@ export async function DELETE(
   _request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
+  const denied = await requireAdminGate();
+  if (denied) return denied;
   const client = createAdminClient();
   const { id } = await params;
 

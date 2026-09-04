@@ -1,10 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase";
-
+import { requireAdminGate } from "@/lib/admin-auth";
 // GET /api/admin/exp-costs/[id]/links — everything the cost detail needs:
 // the cost's edition % split, its attached cost-payments (→ actual), and the
 // pool of cost-direction payments available to attach (with remaining amount).
 export async function GET(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  const denied = await requireAdminGate();
+  if (denied) return denied;
   const { id } = await params;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const db = createAdminClient() as any;

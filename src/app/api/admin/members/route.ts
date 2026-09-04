@@ -4,9 +4,8 @@ import { createAdminClient } from "@/lib/supabase";
 import { ensureMemberAccount } from "@/lib/members";
 import { sendEmail } from "@/lib/email/send";
 import { isAttending } from "@/lib/types";
-import { getRequestAccess } from "@/lib/admin-auth";
+import { getRequestAccess, requireAdminGate } from "@/lib/admin-auth";
 import { effectiveCanSeeField } from "@/lib/access";
-
 // (Auth enforced by middleware: /api/admin/* requires an active team member.)
 
 // Supabase REST caps every read at 1000 rows — since the 13.5k newsletter
@@ -30,6 +29,8 @@ const chunk = <T,>(arr: T[], n: number): T[][] =>
   Array.from({ length: Math.ceil(arr.length / n) }, (_, i) => arr.slice(i * n, i * n + n));
 
 export async function GET() {
+  const denied = await requireAdminGate();
+  if (denied) return denied;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const admin = createAdminClient() as any;
   const SELECT = "id,name,email,auth_user_id,created_at,marketing_opt_in";
@@ -131,6 +132,8 @@ export async function GET() {
 }
 
 export async function POST(request: NextRequest) {
+  const denied = await requireAdminGate();
+  if (denied) return denied;
   const { action, contactId } = await request.json().catch(() => ({}));
   if (!contactId) return NextResponse.json({ error: "Missing contact" }, { status: 400 });
   // eslint-disable-next-line @typescript-eslint/no-explicit-any

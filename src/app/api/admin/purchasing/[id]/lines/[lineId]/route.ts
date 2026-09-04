@@ -1,8 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase";
-
+import { requireAdminGate } from "@/lib/admin-auth";
 // PATCH /api/admin/purchasing/:id/lines/:lineId — qty/cost/notes
 export async function PATCH(request: NextRequest, { params }: { params: Promise<{ id: string; lineId: string }> }) {
+  const denied = await requireAdminGate();
+  if (denied) return denied;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const db = createAdminClient() as any;
   const { id, lineId } = await params;
@@ -22,6 +24,8 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
 
 // DELETE — only while nothing was shipped/received against the line
 export async function DELETE(_request: NextRequest, { params }: { params: Promise<{ id: string; lineId: string }> }) {
+  const denied = await requireAdminGate();
+  if (denied) return denied;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const db = createAdminClient() as any;
   const { id, lineId } = await params;

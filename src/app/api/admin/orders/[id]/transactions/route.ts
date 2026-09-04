@@ -2,11 +2,13 @@ import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase";
 import { toCents } from "@/lib/hardware/orders";
 import { logOrderEvent, recalcPaymentStatus } from "@/lib/hardware/orders-server";
-
+import { requireAdminGate } from "@/lib/admin-auth";
 // POST /api/admin/orders/:id/transactions — append to the money ledger.
 // Body: { type: "capture"|"refund", amount_eur, provider?, provider_ref?, reason? }
 // Refunds are stored NEGATIVE; payment_status is derived, never set by hand.
 export async function POST(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  const denied = await requireAdminGate();
+  if (denied) return denied;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const db = createAdminClient() as any;
   const { id } = await params;

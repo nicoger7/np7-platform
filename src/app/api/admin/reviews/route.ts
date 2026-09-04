@@ -1,8 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase";
-
+import { requireAdminGate } from "@/lib/admin-auth";
 // GET /api/admin/reviews?status= — the review pool (optionally filtered by status)
 export async function GET(request: NextRequest) {
+  const denied = await requireAdminGate();
+  if (denied) return denied;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const client = createAdminClient() as any;
   const status = new URL(request.url).searchParams.get("status");
@@ -18,6 +20,8 @@ export async function GET(request: NextRequest) {
 
 // POST /api/admin/reviews — manually create a review (pre-approved by default)
 export async function POST(request: NextRequest) {
+  const denied = await requireAdminGate();
+  if (denied) return denied;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const client = createAdminClient() as any;
   const body = await request.json();

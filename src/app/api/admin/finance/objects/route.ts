@@ -1,10 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase";
-import { getRequestAccess } from "@/lib/admin-auth";
+import { getRequestAccess, requireAdminGate } from "@/lib/admin-auth";
 import { effectiveCanSeeField } from "@/lib/access";
 import { entitiesForWorld, r2, type BoardEntity } from "@/lib/finance/board";
 import { buildObjectTree, spreadOverheads, type Contribution, type OverheadDriver } from "@/lib/finance/objects";
-
 /**
  * GET /api/admin/finance/objects?entity=&year=&world=
  *
@@ -12,6 +11,8 @@ import { buildObjectTree, spreadOverheads, type Contribution, type OverheadDrive
  * Shares are applied here so the tree never has to know they existed.
  */
 export async function GET(req: NextRequest) {
+  const denied = await requireAdminGate();
+  if (denied) return denied;
   const access = await getRequestAccess();
   // No identity is not permission: getRequestAccess() returns null for an
   // unauthenticated or non-team caller, and `access && …` let exactly that

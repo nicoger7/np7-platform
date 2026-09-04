@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase";
 import { revalidateExperienceById } from "@/lib/revalidate-public";
-
+import { requireAdminGate } from "@/lib/admin-auth";
 /**
  * The public experience page is ISR'd at revalidate = 3600, and the "what's
  * included" list on both the trip package cards and the clinic chips is built
@@ -21,6 +21,8 @@ export async function GET(
   _request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
+  const denied = await requireAdminGate();
+  if (denied) return denied;
   const client = createAdminClient();
   const { id } = await params;
 
@@ -41,6 +43,8 @@ export async function POST(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
+  const denied = await requireAdminGate();
+  if (denied) return denied;
   const client = createAdminClient();
   const { id } = await params;
   const body = await request.json();
@@ -69,6 +73,8 @@ export async function PATCH(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
+  const denied = await requireAdminGate();
+  if (denied) return denied;
   const client = createAdminClient();
   const { id } = await params;
   const body = await request.json();
@@ -97,6 +103,8 @@ export async function DELETE(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
+  const denied = await requireAdminGate();
+  if (denied) return denied;
   const client = createAdminClient();
   const { id } = await params;
   const { searchParams } = new URL(request.url);

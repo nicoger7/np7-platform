@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { requireTeamApi } from "@/lib/auth";
 import { createAdminClient } from "@/lib/supabase";
 import { fetchVideoText } from "@/lib/youtube";
-
+import { requireAdminGate } from "@/lib/admin-auth";
 /**
  * POST { url } — read a YouTube video as text.
  *
@@ -17,6 +17,8 @@ import { fetchVideoText } from "@/lib/youtube";
  * run. Nothing is lost and nothing needs configuring.
  */
 export async function POST(request: NextRequest) {
+  const denied = await requireAdminGate();
+  if (denied) return denied;
   const auth = await requireTeamApi();
   if (!auth.ok) return auth.res;
 

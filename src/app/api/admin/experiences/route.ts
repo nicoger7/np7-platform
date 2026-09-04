@@ -1,9 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase";
 import { notArchived } from "@/lib/archive";
-
+import { requireAdminGate } from "@/lib/admin-auth";
 // GET /api/admin/experiences — list all experiences
 export async function GET() {
+  const denied = await requireAdminGate();
+  if (denied) return denied;
   const client = createAdminClient();
 
   const { data, error } = await client
@@ -31,6 +33,8 @@ const ALLOWED_COLUMNS = [
 
 // POST /api/admin/experiences — create an experience (template fields only)
 export async function POST(request: NextRequest) {
+  const denied = await requireAdminGate();
+  if (denied) return denied;
   const client = createAdminClient();
   const body = await request.json();
 

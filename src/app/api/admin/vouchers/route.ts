@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase";
 import { generateVoucherCode } from "@/lib/vouchers";
-
+import { requireAdminGate } from "@/lib/admin-auth";
 // Admin routes are gated by middleware; no per-route auth check needed.
 
 function isMissingTable(message?: string | null) {
@@ -11,6 +11,8 @@ function isMissingTable(message?: string | null) {
 // ─── GET /api/admin/vouchers ───────────────────────────────────────────────────
 // Optional query params: status, experience_id
 export async function GET(request: NextRequest) {
+  const denied = await requireAdminGate();
+  if (denied) return denied;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const db = createAdminClient() as any;
   const { searchParams } = new URL(request.url);
@@ -58,6 +60,8 @@ export async function GET(request: NextRequest) {
 // flow there's no buyer and no bank transfer to wait for, so `activate: true`
 // makes it immediately redeemable.
 export async function POST(request: NextRequest) {
+  const denied = await requireAdminGate();
+  if (denied) return denied;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const db = createAdminClient() as any;
   const body = await request.json().catch(() => ({}));

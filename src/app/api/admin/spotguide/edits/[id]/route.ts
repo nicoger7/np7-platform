@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase";
 import { applyEditToSpot, ADMIN_APPLY_FIELDS } from "@/lib/spotguide-trust";
-
+import { requireAdminGate } from "@/lib/admin-auth";
 /**
  * POST /api/admin/spotguide/edits/:id — NP7 moderation of a member-suggested
  * edit. Body { action: 'approve'|'reject'|'merged' }.
@@ -11,6 +11,8 @@ import { applyEditToSpot, ADMIN_APPLY_FIELDS } from "@/lib/spotguide-trust";
  *   reject  — dismiss.
  */
 export async function POST(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  const denied = await requireAdminGate();
+  if (denied) return denied;
   const { id } = await params;
   const body = await request.json().catch(() => ({}));
   const action = body.action === "reject" ? "reject" : body.action === "merged" ? "merged" : "approve";

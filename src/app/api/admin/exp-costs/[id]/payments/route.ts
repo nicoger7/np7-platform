@@ -1,12 +1,14 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase";
-
+import { requireAdminGate } from "@/lib/admin-auth";
 // Attach / detach an actual expense payment (exp_payments direction='cost') to a
 // cost line, with an amount (partial allowed). Migration 057.
 function missing(m?: string | null) { return !!m && /relation|does not exist|schema cache/i.test(m); }
 
 // POST { payment_id, amount } → upsert the attachment.
 export async function POST(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  const denied = await requireAdminGate();
+  if (denied) return denied;
   const { id } = await params;
   const { payment_id, amount } = await req.json().catch(() => ({}));
   if (!payment_id) return NextResponse.json({ error: "Missing payment_id" }, { status: 400 });
@@ -24,6 +26,8 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
 
 // DELETE ?payment_id= → remove the attachment.
 export async function DELETE(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  const denied = await requireAdminGate();
+  if (denied) return denied;
   const { id } = await params;
   const payment_id = new URL(req.url).searchParams.get("payment_id");
   if (!payment_id) return NextResponse.json({ error: "Missing payment_id" }, { status: 400 });

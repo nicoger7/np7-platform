@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase";
 import { notArchived } from "@/lib/archive";
-
+import { requireAdminGate } from "@/lib/admin-auth";
 function slugify(name: string): string {
   return name
     .toLowerCase()
@@ -15,6 +15,8 @@ function randomSuffix(): string {
 
 // GET /api/admin/products — list products
 export async function GET(request: NextRequest) {
+  const denied = await requireAdminGate();
+  if (denied) return denied;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const client = createAdminClient() as any;
   const { searchParams } = new URL(request.url);
@@ -34,6 +36,8 @@ export async function GET(request: NextRequest) {
 
 // POST /api/admin/products — create a product
 export async function POST(request: NextRequest) {
+  const denied = await requireAdminGate();
+  if (denied) return denied;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const client = createAdminClient() as any;
   const body = await request.json();

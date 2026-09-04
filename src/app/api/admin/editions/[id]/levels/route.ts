@@ -2,12 +2,14 @@ import { NextRequest, NextResponse } from "next/server";
 import { requireTeamApi } from "@/lib/auth";
 import { createAdminClient } from "@/lib/supabase";
 import { getEditionCrewLevels, recomputeDerivedLevel } from "@/lib/portal-data";
-
+import { requireAdminGate } from "@/lib/admin-auth";
 type Ctx = { params: Promise<{ id: string }> };
 
 // GET — the whole cohort's level state + milestone catalog for the per-trip
 // batch review. (Per-rider actions reuse /api/admin/members/[id]/level.)
 export async function GET(_req: NextRequest, { params }: Ctx) {
+  const denied = await requireAdminGate();
+  if (denied) return denied;
   const auth = await requireTeamApi();
   if (!auth.ok) return auth.res;
   const { id } = await params;
@@ -17,6 +19,8 @@ export async function GET(_req: NextRequest, { params }: Ctx) {
 // POST — bulk: tick/untick one skill across several riders at once
 // ("everyone got planing this week"). Tolerant of migration 036 unapplied.
 export async function POST(req: NextRequest, { params }: Ctx) {
+  const denied = await requireAdminGate();
+  if (denied) return denied;
   const auth = await requireTeamApi();
   if (!auth.ok) return auth.res;
   await params; // edition id not needed — contact_ids carry the targets

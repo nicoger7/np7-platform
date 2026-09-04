@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase";
-
+import { requireAdminGate } from "@/lib/admin-auth";
 export const dynamic = "force-dynamic";
 
 /**
@@ -52,6 +52,8 @@ const empty = {
 };
 
 export async function GET(req: NextRequest) {
+  const denied = await requireAdminGate();
+  if (denied) return denied;
   const days = Math.min(180, Math.max(1, Number(new URL(req.url).searchParams.get("days")) || 30));
   const fromISO = new Date(Date.now() - days * 86400000).toISOString();
 

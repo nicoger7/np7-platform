@@ -1,9 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase";
 import { isAttending } from "@/lib/types";
-import { getRequestAccess } from "@/lib/admin-auth";
+import { getRequestAccess, requireAdminGate } from "@/lib/admin-auth";
 import { effectiveCanSeeField } from "@/lib/access";
-
 // A "confirmed head" = anyone whose spot is secured: status confirmed onward
 // (hold-deposit paid), tolerant of legacy rows via isAttending().
 
@@ -14,6 +13,8 @@ export async function GET(
   _request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
+  const denied = await requireAdminGate();
+  if (denied) return denied;
   // Money gate: this endpoint returns full P&L (revenue, costs, margins, profit).
   // Roles without the "money" field grant (e.g. Photographer / Media) must NOT
   // see it. `access === null` = an owner/manager tier who sees everything.

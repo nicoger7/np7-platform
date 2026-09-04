@@ -4,7 +4,7 @@ import { fetchWindStatsBoth } from "@/lib/wind-stats";
 import { summariseRatings, tallyForecastVotes, SPOT_CRITERIA_KEYS } from "@/lib/spotguide";
 import { publishDestinationIfEarned } from "@/lib/spotguide-trust";
 import { revalidateSpotguide } from "@/lib/revalidate-public";
-
+import { requireAdminGate } from "@/lib/admin-auth";
 const COLS = [
   "name", "slug", "lat", "lng", "level", "levels", "conditions", "wind_window",
   "infrastructure", "np7_forecast_models", "hero_image", "hero_focus", "gallery", "summary",
@@ -13,6 +13,8 @@ const COLS = [
 
 // GET /api/admin/spots/:id — spot + its member-rating summary + forecast tally
 export async function GET(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  const denied = await requireAdminGate();
+  if (denied) return denied;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const db = createAdminClient() as any;
   const { id } = await params;
@@ -38,6 +40,8 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
 
 // PATCH /api/admin/spots/:id
 export async function PATCH(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  const denied = await requireAdminGate();
+  if (denied) return denied;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const db = createAdminClient() as any;
   const { id } = await params;
@@ -109,6 +113,8 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
 
 // DELETE /api/admin/spots/:id
 export async function DELETE(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  const denied = await requireAdminGate();
+  if (denied) return denied;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const db = createAdminClient() as any;
   const { id } = await params;

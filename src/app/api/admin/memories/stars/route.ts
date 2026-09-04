@@ -1,8 +1,7 @@
 import { createClient } from "@/lib/supabase/server";
 import { createClient as createServiceClient } from "@supabase/supabase-js";
 import { NextRequest } from "next/server";
-import { isActiveTeamMember } from "@/lib/admin-auth";
-
+import { isActiveTeamMember, requireAdminGate } from "@/lib/admin-auth";
 export const runtime = "nodejs";
 
 function db() {
@@ -16,6 +15,8 @@ async function requireAuth() {
 
 // GET /api/admin/memories/stars?editionId=&bookingId=  → keepers for one scope
 export async function GET(request: NextRequest) {
+  const denied = await requireAdminGate();
+  if (denied) return denied;
   try { await requireAuth(); } catch { return Response.json({ error: "Unauthorized" }, { status: 401 }); }
   const sp = request.nextUrl.searchParams;
   const editionId = sp.get("editionId");
@@ -39,6 +40,8 @@ export async function GET(request: NextRequest) {
 
 // POST { editionId, bookingId?, kind, ref, starred }  → set/unset one keeper
 export async function POST(request: NextRequest) {
+  const denied = await requireAdminGate();
+  if (denied) return denied;
   try { await requireAuth(); } catch { return Response.json({ error: "Unauthorized" }, { status: 401 }); }
   const { editionId, bookingId, kind, ref, starred } = await request.json().catch(() => ({}));
   if (!editionId || !kind || !ref || (kind !== "photo" && kind !== "video")) {

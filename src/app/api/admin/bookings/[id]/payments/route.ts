@@ -1,10 +1,9 @@
 import { createClient } from "@/lib/supabase/server";
 import { createClient as createServiceClient } from "@supabase/supabase-js";
 import { NextRequest, after } from "next/server";
-import { isActiveTeamMember } from "@/lib/admin-auth";
+import { isActiveTeamMember, requireAdminGate } from "@/lib/admin-auth";
 import { promoteProformaIfPaid } from "@/lib/invoices/promote";
 import { settleInvoices } from "@/lib/invoices/generate";
-
 function getServiceClient() {
   return createServiceClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -25,6 +24,8 @@ export async function GET(
   _request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
+  const denied = await requireAdminGate();
+  if (denied) return denied;
   try {
     await requireAuth();
   } catch {
@@ -48,6 +49,8 @@ export async function POST(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
+  const denied = await requireAdminGate();
+  if (denied) return denied;
   try {
     await requireAuth();
   } catch {
@@ -123,6 +126,8 @@ export async function POST(
  * mirror too, so the money flows back to the source booking cleanly.
  */
 export async function DELETE(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  const denied = await requireAdminGate();
+  if (denied) return denied;
   try {
     await requireAuth();
   } catch {
@@ -187,6 +192,8 @@ export async function DELETE(request: NextRequest, { params }: { params: Promise
 /** Edit one payment row. Allocation rows are mirrored pairs and stay read-only:
  *  changing one side alone would silently move money on another booking. */
 export async function PATCH(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  const denied = await requireAdminGate();
+  if (denied) return denied;
   try {
     await requireAuth();
   } catch {

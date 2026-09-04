@@ -2,12 +2,14 @@ import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase";
 import { SHIPMENT_TRANSITIONS, type ShipmentStatus } from "@/lib/hardware/ops";
 import { getLocationsByCode, recordMovement } from "@/lib/hardware/ops-server";
-
+import { requireAdminGate } from "@/lib/admin-auth";
 // POST /api/admin/inbound/:id/status — { to }
 // booked → in_transit is the FOB moment: goods become OUR stock on the water
 // (supplier → TRANSIT movements, PO lines marked shipped, PO → shipped).
 // "received" is NOT reachable here — the /receive endpoint books stock + landed cost.
 export async function POST(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  const denied = await requireAdminGate();
+  if (denied) return denied;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const db = createAdminClient() as any;
   const { id } = await params;

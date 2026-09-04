@@ -4,7 +4,7 @@ import { after } from "next/server";
 import { resizeForStorage, makeThumb } from "@/lib/image-resize";
 import { r2Enabled, r2CdnBase, uploadToR2, deleteFromR2, keyFromR2Url } from "@/lib/r2";
 import { requirePdEdit } from "@/lib/product-dev-api";
-
+import { requireAdminGate } from "@/lib/admin-auth";
 /**
  * The Product Development media root.
  *
@@ -47,6 +47,8 @@ const isFolderItem = (item: { metadata?: unknown; id?: string | null }) => !item
 
 // GET /api/admin/product-dev/media?folder=&recursive=1
 export async function GET(request: NextRequest) {
+  const denied = await requireAdminGate();
+  if (denied) return denied;
   const sp = request.nextUrl.searchParams;
   const folder = scopedFolder(sp.get("folder"));
   const recursive = sp.get("recursive") === "1";

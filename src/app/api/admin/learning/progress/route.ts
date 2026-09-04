@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { actingMember, learningDb } from "../guard";
-
+import { requireAdminGate } from "@/lib/admin-auth";
 /**
  * POST /api/admin/learning/progress — "I opened this" / "I've got this".
  *
@@ -16,6 +16,8 @@ import { actingMember, learningDb } from "../guard";
  * Body: { lesson_id, opened?: true, completed?: boolean }
  */
 export async function POST(request: NextRequest) {
+  const denied = await requireAdminGate();
+  if (denied) return denied;
   const me = await actingMember();
   if (!me) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
 

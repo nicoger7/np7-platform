@@ -1,9 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase";
 import { ARCHIVE_ENTITIES, ARCHIVE_BY_KEY, missingArchivedCol } from "@/lib/archive";
-import { getRequestAccess } from "@/lib/admin-auth";
+import { getRequestAccess, requireAdminGate } from "@/lib/admin-auth";
 import { effectiveCanAccessSection, effectiveCanEditSection } from "@/lib/access";
-
 // Auth: middleware gates /api/admin. Archive + restore are allowed for any team
 // member; permanent delete lives at /api/admin/archive/purge (owner-only path).
 //
@@ -15,6 +14,8 @@ import { effectiveCanAccessSection, effectiveCanEditSection } from "@/lib/access
 
 // ─── GET — everything currently archived, grouped by entity ─────────────────────
 export async function GET() {
+  const denied = await requireAdminGate();
+  if (denied) return denied;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const db = createAdminClient() as any;
   const access = await getRequestAccess();
@@ -49,6 +50,8 @@ export async function GET() {
 
 // ─── POST — archive or restore one row ─────────────────────────────────────────
 export async function POST(req: NextRequest) {
+  const denied = await requireAdminGate();
+  if (denied) return denied;
   const { entity, id, action } = await req.json().catch(() => ({}));
   const ent = ARCHIVE_BY_KEY[entity];
   if (!ent || !id) return NextResponse.json({ error: "Unknown entity or id." }, { status: 400 });

@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase";
 import { getBookingPaid, getConfirmedAddonsTotal } from "@/lib/portal-data";
 import { sendEmail } from "@/lib/email/send";
-
+import { requireAdminGate } from "@/lib/admin-auth";
 // Admin routes are gated by middleware; no per-route auth check needed.
 type RouteContext = { params: Promise<{ id: string }> };
 const round2 = (n: number) => Math.round((n + Number.EPSILON) * 100) / 100;
@@ -12,6 +12,8 @@ const fmt = (n: number, c = "EUR") => new Intl.NumberFormat("en-GB", { style: "c
 // Body: { action: "accept_short", note? }  → accept what was paid as the full price
 //       { action: "remind_shortfall" }     → email the customer the remaining balance
 export async function POST(request: NextRequest, { params }: RouteContext) {
+  const denied = await requireAdminGate();
+  if (denied) return denied;
   const { id } = await params;
   const body: { action?: string; note?: string } = await request.json().catch(() => ({}));
   // eslint-disable-next-line @typescript-eslint/no-explicit-any

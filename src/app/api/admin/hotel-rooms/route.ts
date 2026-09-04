@@ -1,9 +1,8 @@
 import { createClient } from "@/lib/supabase/server";
 import { createClient as createServiceClient } from "@supabase/supabase-js";
 import { NextRequest } from "next/server";
-import { isActiveTeamMember } from "@/lib/admin-auth";
+import { isActiveTeamMember, requireAdminGate } from "@/lib/admin-auth";
 import { notArchived } from "@/lib/archive";
-
 function getServiceClient() {
   return createServiceClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -21,6 +20,8 @@ async function requireAuth() {
 }
 
 export async function GET(request: NextRequest) {
+  const denied = await requireAdminGate();
+  if (denied) return denied;
   try {
     await requireAuth();
   } catch {
@@ -124,6 +125,8 @@ async function writeSleeps(admin: any, roomId: string | null | undefined, sleeps
 }
 
 export async function POST(request: NextRequest) {
+  const denied = await requireAdminGate();
+  if (denied) return denied;
   try {
     await requireAuth();
   } catch {
@@ -151,6 +154,8 @@ export async function POST(request: NextRequest) {
 }
 
 export async function PUT(request: NextRequest) {
+  const denied = await requireAdminGate();
+  if (denied) return denied;
   try {
     await requireAuth();
   } catch {

@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase";
 import { revalidateSpotguide } from "@/lib/revalidate-public";
-
+import { requireAdminGate } from "@/lib/admin-auth";
 const COLS = [
   "name", "slug", "region", "country", "hero_image", "tagline", "intro",
   "wind_probability", "wind_season", "wind_speed", "best_season", "conditions",
@@ -16,6 +16,8 @@ const COLS = [
 
 // GET /api/admin/destinations/:id — destination + the trips that point to it
 export async function GET(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  const denied = await requireAdminGate();
+  if (denied) return denied;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const db = createAdminClient() as any;
   const { id } = await params;
@@ -38,6 +40,8 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
 
 // PATCH /api/admin/destinations/:id
 export async function PATCH(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  const denied = await requireAdminGate();
+  if (denied) return denied;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const db = createAdminClient() as any;
   const { id } = await params;
@@ -76,6 +80,8 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
 
 // DELETE /api/admin/destinations/:id
 export async function DELETE(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  const denied = await requireAdminGate();
+  if (denied) return denied;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const db = createAdminClient() as any;
   const { id } = await params;

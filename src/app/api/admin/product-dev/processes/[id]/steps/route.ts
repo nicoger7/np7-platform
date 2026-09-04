@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { pdDb, pdReplaceChildren } from "@/lib/product-dev-api";
-
+import { requireAdminGate } from "@/lib/admin-auth";
 const STEP_COLUMNS = [
   "step_no", "title", "body", "equipment",
   "temp_c_min", "temp_c_max", "pressure_t_min", "pressure_t_max", "duration_min",
@@ -10,6 +10,8 @@ const STEP_COLUMNS = [
 
 // GET /api/admin/product-dev/processes/:id/steps
 export async function GET(_request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  const denied = await requireAdminGate();
+  if (denied) return denied;
   const { id } = await params;
   const { data, error } = await pdDb().from("pd_process_steps").select("*").eq("process_id", id).order("step_no");
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
@@ -19,6 +21,8 @@ export async function GET(_request: NextRequest, { params }: { params: Promise<{
 // PUT — replace the whole step list, renumbered from 1 in the order given.
 // Same whole-table reasoning as the plies: reordering steps is the common edit.
 export async function PUT(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  const denied = await requireAdminGate();
+  if (denied) return denied;
   const { id } = await params;
   const body = (await request.json().catch(() => ({}))) as { steps?: Record<string, unknown>[] };
   const incoming = Array.isArray(body.steps) ? body.steps : [];

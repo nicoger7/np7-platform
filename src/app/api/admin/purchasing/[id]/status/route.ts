@@ -1,10 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase";
 import { PO_TRANSITIONS, type PoStatus } from "@/lib/hardware/ops";
-
+import { requireAdminGate } from "@/lib/admin-auth";
 // POST /api/admin/purchasing/:id/status — { to, note? } walk the PO ladder.
 // Every transition is validated against the allowlist and logged.
 export async function POST(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  const denied = await requireAdminGate();
+  if (denied) return denied;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const db = createAdminClient() as any;
   const { id } = await params;

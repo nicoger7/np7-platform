@@ -1,4 +1,6 @@
 import { NextResponse } from "next/server";
+import { headers } from "next/headers";
+import { verifyGate } from "@/lib/admin-gate";
 import { createAdminClient } from "@/lib/supabase";
 import { createClient } from "@/lib/supabase/server";
 import { normalizeLevel, normalizeAccess, mergeAccess, builtinAccess, roleSectionLevel, SECTIONS, type AccessLevel, type EffectiveAccess } from "@/lib/access";
@@ -137,4 +139,29 @@ export async function requireTeamMember(): Promise<NextResponse | null> {
   if (!(await isActiveTeamMember(user.id)))
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   return null;
+}
+
+/**
+ * The guard every /api/admin route runs first.
+ *
+ * middleware.ts is still the gate that decides. This only asks the request to
+ * prove that the gate ran: the middleware signs each authorized request, and a
+ * valid signature is one HMAC to check, no round trip. Anything else — no
+ * stamp, a forged one, an expired one, no signing key — falls through to the
+ * full database check, so a request that somehow skipped the middleware still
+ * has to be a real, active team member to get past this line.
+ *
+ * It cannot lock anyone out: the slow path is always there behind it.
+ */
+export async function requireAdminGate(): Promise<NextResponse | null> {
+  try {
+    const h = await headers();
+    const stamp = h.get("x-np7-gate");
+    if (stamp && (await verifyGate(stamp, h.get("x-np7-gate-method") ?? "", h.get("x-np7-gate-path") ?? ""))) {
+      return null;
+    }
+  } catch {
+    /* no request scope to read — fall through to the full check */
+  }
+  return requireTeamMember();
 }

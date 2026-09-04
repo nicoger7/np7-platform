@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase";
 import { softDelete } from "@/lib/archive";
-
+import { requireAdminGate } from "@/lib/admin-auth";
 const EDITABLE = [
   "name", "sku", "ean", "attributes", "weight_g", "box_l_mm", "box_w_mm", "box_h_mm",
   "hs_code", "customs_description", "country_of_origin", "preferential_origin",
@@ -11,6 +11,8 @@ const NUMERIC = new Set(["weight_g", "box_l_mm", "box_w_mm", "box_h_mm", "custom
 
 // PATCH /api/admin/variants/:id
 export async function PATCH(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  const denied = await requireAdminGate();
+  if (denied) return denied;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const db = createAdminClient() as any;
   const { id } = await params;
@@ -30,6 +32,8 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
 
 // DELETE /api/admin/variants/:id — archive
 export async function DELETE(_request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  const denied = await requireAdminGate();
+  if (denied) return denied;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const db = createAdminClient() as any;
   const { id } = await params;

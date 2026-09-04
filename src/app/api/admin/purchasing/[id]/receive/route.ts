@@ -1,12 +1,14 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase";
 import { getLocationsByCode, recordMovement, recalcPoReceiptStatus } from "@/lib/hardware/ops-server";
-
+import { requireAdminGate } from "@/lib/admin-auth";
 // POST /api/admin/purchasing/:id/receive — DIRECT receipt against PO lines
 // (air parcels, samples — no inbound shipment / landed-cost worksheet).
 // Body: { lines: [{ po_line_id, qty }], location_code?: "HQ", fx_rate?: 1 }
 // Landed unit cost = unit_cost × fx (no freight/duty allocation on this path).
 export async function POST(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  const denied = await requireAdminGate();
+  if (denied) return denied;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const db = createAdminClient() as any;
   const { id } = await params;

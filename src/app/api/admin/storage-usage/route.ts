@@ -1,9 +1,8 @@
 import { NextRequest } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase";
-import { isActiveTeamMember } from "@/lib/admin-auth";
+import { isActiveTeamMember, requireAdminGate } from "@/lib/admin-auth";
 import { listUnderPrefix, r2VideoEnabled } from "@/lib/r2-presign";
-
 /**
  * How much is actually in storage.
  *
@@ -25,6 +24,8 @@ import { listUnderPrefix, r2VideoEnabled } from "@/lib/r2-presign";
 export const runtime = "nodejs";
 
 export async function GET(request: NextRequest) {
+  const denied = await requireAdminGate();
+  if (denied) return denied;
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user || !(await isActiveTeamMember(user.id))) {

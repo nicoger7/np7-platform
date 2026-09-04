@@ -1,10 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase";
 import { logOrderEvent, releaseOrderReservations } from "@/lib/hardware/orders-server";
-
+import { requireAdminGate } from "@/lib/admin-auth";
 // POST /api/admin/orders/:id/status — { action: "cancel" | "complete" }
 // Cancel guards (blueprint §1 edge cases): nothing shipped, nothing still paid.
 export async function POST(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  const denied = await requireAdminGate();
+  if (denied) return denied;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const db = createAdminClient() as any;
   const { id } = await params;

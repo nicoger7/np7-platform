@@ -3,9 +3,11 @@ import { createAdminClient } from "@/lib/supabase";
 import { notArchived } from "@/lib/archive";
 import { createOrderCore, logOrderEvent } from "@/lib/hardware/orders-server";
 import { getLocationsByCode } from "@/lib/hardware/ops-server";
-
+import { requireAdminGate } from "@/lib/admin-auth";
 // GET /api/admin/orders — list with filters + line summaries
 export async function GET(request: NextRequest) {
+  const denied = await requireAdminGate();
+  if (denied) return denied;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const db = createAdminClient() as any;
   const { searchParams } = new URL(request.url);
@@ -43,6 +45,8 @@ export async function GET(request: NextRequest) {
 // Body: { email, contact_id?, country, lines: [{variant_id, quantity, unit_price_eur?}],
 //         shipping_address?, billing_address?, notes?, reserve?, location_code? }
 export async function POST(request: NextRequest) {
+  const denied = await requireAdminGate();
+  if (denied) return denied;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const db = createAdminClient() as any;
   const body = await request.json();

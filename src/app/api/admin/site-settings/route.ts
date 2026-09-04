@@ -1,12 +1,14 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase";
-
+import { requireAdminGate } from "@/lib/admin-auth";
 /**
  * Site-wide content knobs (site_settings, migration 176). Authz: the admin
  * middleware — this path is registered under the `templates` section, so
  * view-only roles read and edit roles write, like every other section.
  */
 export async function GET(request: NextRequest) {
+  const denied = await requireAdminGate();
+  if (denied) return denied;
   const key = new URL(request.url).searchParams.get("key");
   if (!key) return NextResponse.json({ error: "key required" }, { status: 400 });
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -16,6 +18,8 @@ export async function GET(request: NextRequest) {
 }
 
 export async function PUT(request: NextRequest) {
+  const denied = await requireAdminGate();
+  if (denied) return denied;
   let body: { key?: string; value?: unknown };
   try {
     body = await request.json();

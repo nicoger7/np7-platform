@@ -3,7 +3,7 @@ import { createAdminClient } from "@/lib/supabase";
 import { generateDocument } from "@/lib/invoices/generate";
 import { DOCUMENT_TYPES } from "@/lib/invoices/types";
 import type { DocumentType, GeneratableType } from "@/lib/invoices/types";
-
+import { requireAdminGate } from "@/lib/admin-auth";
 // Admin routes are gated by middleware; no per-route auth check needed.
 
 type RouteContext = { params: Promise<{ id: string }> };
@@ -37,6 +37,8 @@ export async function GET(
   _request: NextRequest,
   { params }: RouteContext
 ) {
+  const denied = await requireAdminGate();
+  if (denied) return denied;
   const { id } = await params;
   const db = createAdminClient();
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -98,6 +100,8 @@ export async function POST(
   request: NextRequest,
   { params }: RouteContext
 ) {
+  const denied = await requireAdminGate();
+  if (denied) return denied;
   const { id } = await params;
   const body: { type?: string; milestone?: string; reuseDocumentId?: string; amount?: number; amountReason?: string } = await request.json();
 

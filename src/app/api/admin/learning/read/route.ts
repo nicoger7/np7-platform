@@ -3,7 +3,7 @@ import { notArchived } from "@/lib/archive";
 import { actingMember, learningDb } from "../guard";
 import type { CourseCard, LearningCourse, LearningLesson, LessonCard } from "@/lib/learning";
 import { sanitizeLessonHtml } from "@/lib/sanitize";
-
+import { requireAdminGate } from "@/lib/admin-auth";
 /**
  * GET /api/admin/learning/read — what the reader sees, and only that.
  *
@@ -17,6 +17,8 @@ import { sanitizeLessonHtml } from "@/lib/sanitize";
  *                      is five minutes long and prev/next should not re-fetch.
  */
 export async function GET(request: NextRequest) {
+  const denied = await requireAdminGate();
+  if (denied) return denied;
   const me = await actingMember();
   if (!me) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
 

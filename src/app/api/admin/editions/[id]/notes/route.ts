@@ -1,12 +1,14 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase";
 import { createClient } from "@/lib/supabase/server";
-
+import { requireAdminGate } from "@/lib/admin-auth";
 // GET /api/admin/editions/:id/notes — list notes (newest first)
 export async function GET(
   _request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
+  const denied = await requireAdminGate();
+  if (denied) return denied;
   const client = createAdminClient();
   const { id } = await params;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -24,6 +26,8 @@ export async function POST(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
+  const denied = await requireAdminGate();
+  if (denied) return denied;
   const client = createAdminClient();
   const { id } = await params;
   const body = await request.json();
@@ -53,6 +57,8 @@ export async function DELETE(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
+  const denied = await requireAdminGate();
+  if (denied) return denied;
   const client = createAdminClient();
   const { id } = await params;
   const noteId = new URL(request.url).searchParams.get("note_id");

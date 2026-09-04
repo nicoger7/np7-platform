@@ -2,9 +2,11 @@ import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase";
 import { revalidateSpotguide } from "@/lib/revalidate-public";
 import { slugifySpot } from "@/lib/spotguide";
-
+import { requireAdminGate } from "@/lib/admin-auth";
 // GET /api/admin/spots?destination_id=… — list a destination's spots (all statuses)
 export async function GET(request: NextRequest) {
+  const denied = await requireAdminGate();
+  if (denied) return denied;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const db = createAdminClient() as any;
   const destinationId = request.nextUrl.searchParams.get("destination_id");
@@ -22,6 +24,8 @@ export async function GET(request: NextRequest) {
 
 // POST /api/admin/spots — create a draft spot under a destination
 export async function POST(request: NextRequest) {
+  const denied = await requireAdminGate();
+  if (denied) return denied;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const db = createAdminClient() as any;
   const body = await request.json();

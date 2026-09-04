@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase";
 import { fetchWindStatsBoth } from "@/lib/wind-stats";
-
+import { requireAdminGate } from "@/lib/admin-auth";
 /**
  * POST /api/admin/spots/:id/wind-stats — (re)compute the spot's wind climatology
  * from Open-Meteo (free, no key).
@@ -12,6 +12,8 @@ import { fetchWindStatsBoth } from "@/lib/wind-stats";
  * The chosen profile is stored on the spot so the weekly cron keeps using it.
  */
 export async function POST(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  const denied = await requireAdminGate();
+  if (denied) return denied;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const db = createAdminClient() as any;
   const { id } = await params;

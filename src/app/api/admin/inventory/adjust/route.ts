@@ -1,12 +1,14 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase";
 import { getLocationsByCode, recordMovement } from "@/lib/hardware/ops-server";
-
+import { requireAdminGate } from "@/lib/admin-auth";
 // POST /api/admin/inventory/adjust — manual correction with a reason.
 // Positive delta books stock in from LOSS; negative books it out to LOSS —
 // the ledger stays double-entry either way, and shrinkage is visible.
 // Body: { variant_id, location_id, delta, reason?, note }
 export async function POST(request: NextRequest) {
+  const denied = await requireAdminGate();
+  if (denied) return denied;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const db = createAdminClient() as any;
   const body = await request.json();

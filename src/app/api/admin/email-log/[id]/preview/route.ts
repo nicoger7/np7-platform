@@ -2,7 +2,7 @@ import { NextRequest } from "next/server";
 import { createAdminClient } from "@/lib/supabase";
 import { renderTemplate, TEMPLATES } from "@/lib/email/templates";
 import { resolveHeaderImage } from "@/lib/email/header-image";
-
+import { requireAdminGate } from "@/lib/admin-auth";
 // (Auth enforced by middleware, like the email-log list.)
 
 /**
@@ -41,6 +41,8 @@ const htmlRes = (body: string, status = 200) =>
 
 // GET /api/admin/email-log/:id/preview — re-render what this email looked like.
 export async function GET(_request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  const denied = await requireAdminGate();
+  if (denied) return denied;
   const { id } = await params;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const db = createAdminClient() as any;

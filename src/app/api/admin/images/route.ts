@@ -1,11 +1,10 @@
 import { createClient } from "@/lib/supabase/server";
 import { createClient as createServiceClient } from "@supabase/supabase-js";
 import { NextRequest, after } from "next/server";
-import { isActiveTeamMember } from "@/lib/admin-auth";
+import { isActiveTeamMember, requireAdminGate } from "@/lib/admin-auth";
 import { resizeForStorage, makeThumb } from "@/lib/image-resize";
 import { r2Enabled, r2CdnBase, uploadToR2, deleteFromR2, keyFromR2Url, moveInR2 } from "@/lib/r2";
 import { isScopedPath, scopedRootFor, crossesScope } from "@/lib/media-scopes";
-
 export const runtime = "nodejs"; // sharp (image resize) needs the Node runtime
 const BUCKET = "assets";
 
@@ -66,6 +65,8 @@ async function labelMemoryFolders(admin: any, folder: string, files: ListedFile[
 }
 
 export async function GET(request: NextRequest) {
+  const denied = await requireAdminGate();
+  if (denied) return denied;
   try {
     await requireAuth();
   } catch {
@@ -185,6 +186,8 @@ export async function GET(request: NextRequest) {
 }
 
 export async function POST(request: NextRequest) {
+  const denied = await requireAdminGate();
+  if (denied) return denied;
   try {
     await requireAuth();
   } catch {
@@ -250,6 +253,8 @@ export async function POST(request: NextRequest) {
 }
 
 export async function PUT(request: NextRequest) {
+  const denied = await requireAdminGate();
+  if (denied) return denied;
   try {
     await requireAuth();
   } catch {
@@ -280,6 +285,8 @@ export async function PUT(request: NextRequest) {
 }
 
 export async function PATCH(request: NextRequest) {
+  const denied = await requireAdminGate();
+  if (denied) return denied;
   try {
     await requireAuth();
   } catch {
@@ -326,6 +333,8 @@ export async function PATCH(request: NextRequest) {
 }
 
 export async function DELETE(request: NextRequest) {
+  const denied = await requireAdminGate();
+  if (denied) return denied;
   try {
     await requireAuth();
   } catch {

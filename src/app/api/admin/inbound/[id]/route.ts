@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase";
 import { softDelete } from "@/lib/archive";
-
+import { requireAdminGate } from "@/lib/admin-auth";
 const EDITABLE = [
   "reference", "mode", "incoterm", "container_no", "carrier", "forwarder",
   "etd", "eta", "ata", "customs_cleared_at", "notes",
@@ -9,6 +9,8 @@ const EDITABLE = [
 
 // GET /api/admin/inbound/:id — shipment bundle (lines with PO + variant context, costs)
 export async function GET(_request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  const denied = await requireAdminGate();
+  if (denied) return denied;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const db = createAdminClient() as any;
   const { id } = await params;
@@ -27,6 +29,8 @@ export async function GET(_request: NextRequest, { params }: { params: Promise<{
 
 // PATCH /api/admin/inbound/:id — meta fields (status has its own route)
 export async function PATCH(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  const denied = await requireAdminGate();
+  if (denied) return denied;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const db = createAdminClient() as any;
   const { id } = await params;
@@ -42,6 +46,8 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
 
 // DELETE /api/admin/inbound/:id — archive (not after goods moved)
 export async function DELETE(_request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  const denied = await requireAdminGate();
+  if (denied) return denied;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const db = createAdminClient() as any;
   const { id } = await params;

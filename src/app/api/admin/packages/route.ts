@@ -1,9 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase";
 import { notArchived } from "@/lib/archive";
-
+import { requireAdminGate } from "@/lib/admin-auth";
 // GET /api/admin/packages — list packages (optionally filtered by experience)
 export async function GET(request: NextRequest) {
+  const denied = await requireAdminGate();
+  if (denied) return denied;
   const client = createAdminClient();
   const { searchParams } = new URL(request.url);
   const experienceId = searchParams.get("experience_id");
@@ -87,6 +89,8 @@ const PENDING_OPTIONAL = ["hotel_id", "website_visible"];
 
 // POST /api/admin/packages — create a package
 export async function POST(request: NextRequest) {
+  const denied = await requireAdminGate();
+  if (denied) return denied;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const client = createAdminClient() as any;
   const body = await request.json();

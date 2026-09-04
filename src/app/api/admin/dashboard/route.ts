@@ -1,17 +1,18 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase";
 import { createClient } from "@/lib/supabase/server";
-import { getActiveTeamMember, getEffectiveAccess } from "@/lib/admin-auth";
+import { getActiveTeamMember, getEffectiveAccess, requireAdminGate } from "@/lib/admin-auth";
 import { effectiveCanAccess, effectiveCanEnterWorld, effectiveCanSeeField } from "@/lib/access";
 import { normalizeBookingStatus } from "@/lib/types";
 import { getUpcomingMails } from "@/lib/email/upcoming";
 import { runGoLiveChecks } from "@/lib/go-live";
-
 // GET /api/admin/dashboard — one aggregated payload for the ops dashboard.
 // Each admin world gets its OWN payload (`?world=hardware|magazine`); the
 // default is the Experience ops dashboard. Middleware already gates this to
 // active team members.
 export async function GET(request: NextRequest) {
+  const denied = await requireAdminGate();
+  if (denied) return denied;
   // Finance figures are owner-only — don't even send them to managers.
   // A role-based member additionally needs the `money` field grant to see ANY
   // money (booking prices, add-on prices) — so a photographer sees no numbers.

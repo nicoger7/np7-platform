@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase";
 import { softDelete } from "@/lib/archive";
-
+import { requireAdminGate } from "@/lib/admin-auth";
 const EDITABLE = [
   "name", "country", "currency", "default_incoterm", "default_payment_terms",
   "contact_name", "contact_email", "contact_phone", "website", "notes",
@@ -9,6 +9,8 @@ const EDITABLE = [
 
 // GET /api/admin/suppliers/:id — supplier + catalog (variant + product names joined)
 export async function GET(_request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  const denied = await requireAdminGate();
+  if (denied) return denied;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const db = createAdminClient() as any;
   const { id } = await params;
@@ -25,6 +27,8 @@ export async function GET(_request: NextRequest, { params }: { params: Promise<{
 
 // PATCH /api/admin/suppliers/:id
 export async function PATCH(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  const denied = await requireAdminGate();
+  if (denied) return denied;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const db = createAdminClient() as any;
   const { id } = await params;
@@ -40,6 +44,8 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
 
 // DELETE /api/admin/suppliers/:id — archive (soft delete)
 export async function DELETE(_request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  const denied = await requireAdminGate();
+  if (denied) return denied;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const db = createAdminClient() as any;
   const { id } = await params;

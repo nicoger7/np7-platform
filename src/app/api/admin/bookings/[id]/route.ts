@@ -1,15 +1,16 @@
 import { NextRequest, NextResponse, after } from "next/server";
 import { autoAssignRoom, becameSecured } from "@/lib/room-assign";
 import { createAdminClient } from "@/lib/supabase";
-import { getRequestAccess } from "@/lib/admin-auth";
+import { getRequestAccess, requireAdminGate } from "@/lib/admin-auth";
 import { dbErrorMessage } from "@/lib/admin-errors";
 import { effectiveCanSeeField } from "@/lib/access";
-
 // GET /api/admin/bookings/:id — get booking with all related data
 export async function GET(
   _request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
+  const denied = await requireAdminGate();
+  if (denied) return denied;
   const client = createAdminClient();
   const { id } = await params;
 
@@ -141,6 +142,8 @@ export async function PATCH(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
+  const denied = await requireAdminGate();
+  if (denied) return denied;
   const client = createAdminClient();
   const { id } = await params;
   const body = await request.json();
@@ -227,6 +230,8 @@ export async function DELETE(
   _request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
+  const denied = await requireAdminGate();
+  if (denied) return denied;
   const client = createAdminClient();
   const { id } = await params;
 

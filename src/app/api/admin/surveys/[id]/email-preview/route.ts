@@ -3,11 +3,13 @@ import { requireTeamApi } from "@/lib/auth";
 import { createAdminClient } from "@/lib/supabase";
 import { getSurvey, surveyInviteVars } from "@/lib/surveys";
 import { renderTemplate } from "@/lib/email/templates";
-
+import { requireAdminGate } from "@/lib/admin-auth";
 // GET /api/admin/surveys/:id/email-preview — the invite email exactly as it
 // will send, built through the same vars builder the real send uses. The
 // buttons link to the team-only /survey/preview-… page so they're clickable.
 export async function GET(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  const denied = await requireAdminGate();
+  if (denied) return denied;
   const auth = await requireTeamApi();
   if (!auth.ok) return auth.res;
   const { id } = await params;

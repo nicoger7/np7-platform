@@ -1,11 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase";
-import { getRequestAccess } from "@/lib/admin-auth";
+import { getRequestAccess, requireAdminGate } from "@/lib/admin-auth";
 import { effectiveCanSeeField } from "@/lib/access";
 import { buildBoard, entitiesForWorld, type BoardCategory, type BoardEntity, type BoardPlan } from "@/lib/finance/board";
 import { subtreeOf, shareInScope, scaleToScope, type Allocation } from "@/lib/finance/scope";
 import { collectSources } from "@/lib/finance/collect-sources";
-
 /**
  * GET /api/admin/finance/board?entity=<key|id>&year=YYYY&plan=<id>
  *
@@ -22,6 +21,8 @@ import { collectSources } from "@/lib/finance/collect-sources";
  * grid renders empty with a button to create one.
  */
 export async function GET(req: NextRequest) {
+  const denied = await requireAdminGate();
+  if (denied) return denied;
   const access = await getRequestAccess();
   // No identity is not permission: getRequestAccess() returns null for an
   // unauthenticated or non-team caller, and `access && …` let exactly that

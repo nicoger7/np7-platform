@@ -1,8 +1,7 @@
 import { createClient } from "@/lib/supabase/server";
 import { createClient as createServiceClient } from "@supabase/supabase-js";
 import { NextRequest } from "next/server";
-import { isActiveTeamMember } from "@/lib/admin-auth";
-
+import { isActiveTeamMember, requireAdminGate } from "@/lib/admin-auth";
 function getServiceClient() {
   return createServiceClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -21,6 +20,8 @@ export async function GET(
   _request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
+  const denied = await requireAdminGate();
+  if (denied) return denied;
   try {
     await requireAuth();
   } catch {
@@ -41,6 +42,8 @@ export async function GET(
 }
 
 export async function PUT(request: NextRequest) {
+  const denied = await requireAdminGate();
+  if (denied) return denied;
   try {
     await requireAuth();
   } catch {

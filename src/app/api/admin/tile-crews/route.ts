@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase";
-
+import { requireAdminGate } from "@/lib/admin-auth";
 /**
  * GET /api/admin/tile-crews — the resolved tile crew per experience, mirroring
  * the public card logic exactly: exp_content.tile_coaches override first, else
@@ -11,6 +11,8 @@ import { createAdminClient } from "@/lib/supabase";
  * every tile — alphabetically Dennis — which lied about who coaches what.
  */
 export async function GET() {
+  const denied = await requireAdminGate();
+  if (denied) return denied;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const db = createAdminClient() as any;
   const today = new Date().toISOString().slice(0, 10);

@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase";
-
+import { requireAdminGate } from "@/lib/admin-auth";
 // Admin routes are gated by middleware; no per-route auth check needed.
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -43,6 +43,8 @@ function flattenNames(row: Record<string, unknown>): Record<string, unknown> {
 // Optional query params: division, type, from (ISO date), to (ISO date), q
 
 export async function GET(request: NextRequest) {
+  const denied = await requireAdminGate();
+  if (denied) return denied;
   const db = createAdminClient();
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const dbAny = db as any;

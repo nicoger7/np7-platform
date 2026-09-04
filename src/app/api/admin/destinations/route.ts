@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase";
 import { revalidateSpotguide } from "@/lib/revalidate-public";
-
+import { requireAdminGate } from "@/lib/admin-auth";
 function slugify(s: string) {
   return s.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
 }
@@ -9,6 +9,8 @@ function slugify(s: string) {
 // GET /api/admin/destinations — list, enriched with how many experiences link to
 // each place (its "Experience hat"). A place with 0 links is spotguide-only.
 export async function GET() {
+  const denied = await requireAdminGate();
+  if (denied) return denied;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const db = createAdminClient() as any;
   const { data, error } = await db.from("destinations").select("*").order("sort_order").order("name");
@@ -24,6 +26,8 @@ export async function GET() {
 
 // POST /api/admin/destinations — create
 export async function POST(request: NextRequest) {
+  const denied = await requireAdminGate();
+  if (denied) return denied;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const db = createAdminClient() as any;
   const body = await request.json();

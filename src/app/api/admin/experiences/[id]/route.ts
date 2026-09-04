@@ -3,12 +3,14 @@ import { createAdminClient } from "@/lib/supabase";
 import { softDelete } from "@/lib/archive";
 import { isAttending } from "@/lib/types";
 import { revalidateExperience } from "@/lib/revalidate-public";
-
+import { requireAdminGate } from "@/lib/admin-auth";
 // GET /api/admin/experiences/:id — get experience with editions
 export async function GET(
   _request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
+  const denied = await requireAdminGate();
+  if (denied) return denied;
   const client = createAdminClient();
   const { id } = await params;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -99,6 +101,8 @@ export async function PATCH(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
+  const denied = await requireAdminGate();
+  if (denied) return denied;
   const client = createAdminClient();
   const { id } = await params;
   const body = await request.json();
@@ -144,6 +148,8 @@ export async function DELETE(
   _request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
+  const denied = await requireAdminGate();
+  if (denied) return denied;
   const client = createAdminClient();
   const { id } = await params;
 

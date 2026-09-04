@@ -1,8 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase";
-
+import { requireAdminGate } from "@/lib/admin-auth";
 // PATCH /api/admin/purchasing/:id/milestones/:mid
 export async function PATCH(request: NextRequest, { params }: { params: Promise<{ id: string; mid: string }> }) {
+  const denied = await requireAdminGate();
+  if (denied) return denied;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const db = createAdminClient() as any;
   const { id, mid } = await params;
@@ -19,6 +21,8 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
 
 // DELETE /api/admin/purchasing/:id/milestones/:mid
 export async function DELETE(_request: NextRequest, { params }: { params: Promise<{ id: string; mid: string }> }) {
+  const denied = await requireAdminGate();
+  if (denied) return denied;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const db = createAdminClient() as any;
   const { id, mid } = await params;

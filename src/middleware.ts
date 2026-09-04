@@ -2,6 +2,7 @@ import { createServerClient } from "@supabase/ssr";
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import { NextResponse, type NextRequest } from "next/server";
 import { normalizeLevel, normalizeAccess, mergeAccess, builtinAccess, effectiveCanAccess, effectiveCanWrite, type EffectiveAccess } from "@/lib/access";
+import { signGate, GATE_HEADERS } from "@/lib/admin-gate";
 
 function svc(): SupabaseClient {
   return createClient(
@@ -54,6 +55,7 @@ export async function middleware(request: NextRequest) {
     // Expose the path to RSC layouts (so the Experience layout can keep
     // /experience/gift open while the rest of the site is hidden).
     const requestHeaders = new Headers(request.headers);
+    for (const h of GATE_HEADERS) requestHeaders.delete(h);
     requestHeaders.set("x-np7-pathname", pathWithQuery);
     const res = NextResponse.next({ request: { headers: requestHeaders } });
     if (section && request.cookies.get("np7_section")?.value !== section) {
@@ -64,6 +66,9 @@ export async function middleware(request: NextRequest) {
 
   // /account and /admin come through here — they need the same header.
   const authedHeaders = new Headers(request.headers);
+  // Drop anything gate-shaped the caller sent. The stamp is minted here or not
+  // at all; a forwarded client header must never be mistaken for one.
+  for (const h of GATE_HEADERS) authedHeaders.delete(h);
   authedHeaders.set("x-np7-pathname", pathWithQuery);
   let supabaseResponse = NextResponse.next({ request: { headers: authedHeaders } });
 
@@ -148,6 +153,21 @@ export async function middleware(request: NextRequest) {
     // media role could switch automations off and mass-mail secured guests.
     if (!["GET", "HEAD", "OPTIONS"].includes(request.method) && !effectiveCanWrite(eff, path)) {
       return carry(NextResponse.json({ error: "You have view access here, not edit." }, { status: 403 }));
+    }
+
+    // Everything above passed. Sign the request so the route itself can tell,
+    // in one HMAC and no round trip, that this gate actually ran — see
+    // lib/admin-gate.ts for why the routes no longer take that on trust.
+    const stamp = await signGate(user.id, request.method, path);
+    if (stamp) {
+      authedHeaders.set("x-np7-gate", stamp);
+      authedHeaders.set("x-np7-gate-method", request.method);
+      authedHeaders.set("x-np7-gate-path", path);
+      const stamped = NextResponse.next({ request: { headers: authedHeaders } });
+      // Keep any refreshed auth cookies getUser() queued up; dropping them
+      // spends a single-use refresh token and kills the session.
+      for (const c of supabaseResponse.cookies.getAll()) stamped.cookies.set(c);
+      supabaseResponse = stamped;
     }
   }
 

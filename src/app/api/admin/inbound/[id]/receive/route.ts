@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase";
+import { requireAdminGate } from "@/lib/admin-auth";
 import {
   getLocationsByCode, recordMovement, recalcPoReceiptStatus,
   allocateCosts, type AllocLine,
@@ -12,6 +13,8 @@ import {
 // marked in transit), updates PO lines + statuses, closes the shipment.
 // Body: { location_code?: "HQ", fx_rates?: { USD: 0.92 }, preview?: true }
 export async function POST(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  const denied = await requireAdminGate();
+  if (denied) return denied;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const db = createAdminClient() as any;
   const { id } = await params;

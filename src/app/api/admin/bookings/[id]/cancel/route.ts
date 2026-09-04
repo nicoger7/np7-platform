@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase";
 import { sendEmail } from "@/lib/email/send";
-
+import { requireAdminGate } from "@/lib/admin-auth";
 /**
  * Cancel a booking. Never automatic — a human always does this.
  *
@@ -17,6 +17,8 @@ import { sendEmail } from "@/lib/email/send";
  * personally, not here.
  */
 export async function POST(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  const denied = await requireAdminGate();
+  if (denied) return denied;
   const { id } = await params;
   const body = await request.json().catch(() => ({} as Record<string, unknown>));
   const initiator = body.initiator === "np7" ? "np7" : "customer";

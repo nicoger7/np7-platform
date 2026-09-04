@@ -1,13 +1,15 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireTeamApi } from "@/lib/auth";
 import { updateApplication, archiveApplication, type ApplicationStatus } from "@/lib/signature";
-
+import { requireAdminGate } from "@/lib/admin-auth";
 export const runtime = "nodejs";
 
 const STATUSES = new Set<ApplicationStatus>(["new", "shortlisted", "accepted", "declined"]);
 
 // PATCH /api/admin/signature/:id — set status and/or admin notes.
 export async function PATCH(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  const denied = await requireAdminGate();
+  if (denied) return denied;
   const auth = await requireTeamApi();
   if (!auth.ok) return auth.res;
   const { id } = await params;
@@ -22,6 +24,8 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
 
 // DELETE /api/admin/signature/:id — archive (soft delete).
 export async function DELETE(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  const denied = await requireAdminGate();
+  if (denied) return denied;
   const auth = await requireTeamApi();
   if (!auth.ok) return auth.res;
   const { id } = await params;

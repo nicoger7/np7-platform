@@ -1,10 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase";
 import { dbErrorMessage } from "@/lib/admin-errors";
-import { getRequestAccess } from "@/lib/admin-auth";
+import { getRequestAccess, requireAdminGate } from "@/lib/admin-auth";
 import { effectiveCanSeeField } from "@/lib/access";
 import { sumReceived, sumExpected, paidState } from "@/lib/payment-totals";
-
 /** Null out the money fields on a booking for roles that can't see prices/payments. */
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 function redactMoney<T extends Record<string, any>>(b: T): T {
@@ -13,6 +12,8 @@ function redactMoney<T extends Record<string, any>>(b: T): T {
 
 // GET /api/admin/bookings — list bookings with related data
 export async function GET(request: NextRequest) {
+  const denied = await requireAdminGate();
+  if (denied) return denied;
   const client = createAdminClient();
   const { searchParams } = new URL(request.url);
 
@@ -101,6 +102,8 @@ export async function GET(request: NextRequest) {
 
 // POST /api/admin/bookings — create a booking
 export async function POST(request: NextRequest) {
+  const denied = await requireAdminGate();
+  if (denied) return denied;
   const client = createAdminClient();
   const body = await request.json();
 

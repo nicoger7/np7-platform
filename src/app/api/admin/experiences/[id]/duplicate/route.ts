@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase";
-
+import { requireAdminGate } from "@/lib/admin-auth";
 const STRIP = new Set(["id", "created_at", "updated_at", "notion_id"]);
 
 function rand() {
@@ -15,6 +15,8 @@ function strip(row: Record<string, unknown>): Record<string, unknown> {
 // POST /api/admin/experiences/:id/duplicate
 // Copies the experience TEMPLATE + its components. Editions are NOT copied.
 export async function POST(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  const denied = await requireAdminGate();
+  if (denied) return denied;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const db = createAdminClient() as any;
   const { id } = await params;

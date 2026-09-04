@@ -2,9 +2,11 @@ import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase";
 import { logOrderEvent, recalcFulfillmentStatus, recalcPaymentStatus } from "@/lib/hardware/orders-server";
 import { getLocationsByCode, recordMovement } from "@/lib/hardware/ops-server";
-
+import { requireAdminGate } from "@/lib/admin-auth";
 // GET /api/admin/returns/:id — return + lines + order money context
 export async function GET(_request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  const denied = await requireAdminGate();
+  if (denied) return denied;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const db = createAdminClient() as any;
   const { id } = await params;
@@ -32,6 +34,8 @@ export async function GET(_request: NextRequest, { params }: { params: Promise<{
 //   1) restocks inspected lines (a_stock→location, b_stock→BSTOCK, scrap→LOSS)
 //   2) records the refund in the money ledger  3) closes the return.
 export async function POST(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  const denied = await requireAdminGate();
+  if (denied) return denied;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const db = createAdminClient() as any;
   const { id } = await params;

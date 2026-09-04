@@ -1,6 +1,6 @@
 import { createClient } from "@/lib/supabase/server";
 import { NextRequest } from "next/server";
-import { isActiveTeamMember } from "@/lib/admin-auth";
+import { isActiveTeamMember, requireAdminGate } from "@/lib/admin-auth";
 import {
   r2VideoEnabled, presignPut, listUnderPrefix, deleteKeys, cdnUrlFor,
   scopeFolder, safeName, type R2Object,
@@ -50,6 +50,8 @@ type VideoItem = {
 };
 
 export async function GET(request: NextRequest) {
+  const denied = await requireAdminGate();
+  if (denied) return denied;
   try { await requireAuth(); } catch { return Response.json({ error: "Unauthorized" }, { status: 401 }); }
   if (!r2VideoEnabled()) return Response.json({ videos: [], r2: false });
 
@@ -95,6 +97,8 @@ export async function GET(request: NextRequest) {
 }
 
 export async function POST(request: NextRequest) {
+  const denied = await requireAdminGate();
+  if (denied) return denied;
   try { await requireAuth(); } catch { return Response.json({ error: "Unauthorized" }, { status: 401 }); }
   if (!r2VideoEnabled()) return Response.json({ error: "Video storage is not configured yet." }, { status: 503 });
 
@@ -135,6 +139,8 @@ export async function POST(request: NextRequest) {
 }
 
 export async function DELETE(request: NextRequest) {
+  const denied = await requireAdminGate();
+  if (denied) return denied;
   try { await requireAuth(); } catch { return Response.json({ error: "Unauthorized" }, { status: 401 }); }
   const { stem: s, editionId, bookingId } = await request.json().catch(() => ({}));
   if (!s || !editionId) return Response.json({ error: "stem and editionId required" }, { status: 400 });

@@ -2,9 +2,11 @@ import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase";
 import { logOrderEvent, recalcFulfillmentStatus } from "@/lib/hardware/orders-server";
 import { getLocationsByCode, recordMovement } from "@/lib/hardware/ops-server";
-
+import { requireAdminGate } from "@/lib/admin-auth";
 // POST /api/admin/orders/:id/fulfillments/:fid — { action: "ship"|"deliver"|"cancel", tracking_number?, carrier? }
 export async function POST(request: NextRequest, { params }: { params: Promise<{ id: string; fid: string }> }) {
+  const denied = await requireAdminGate();
+  if (denied) return denied;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const db = createAdminClient() as any;
   const { id, fid } = await params;

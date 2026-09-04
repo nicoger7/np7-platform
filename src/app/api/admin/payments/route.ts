@@ -2,9 +2,11 @@ import { NextRequest, NextResponse, after } from "next/server";
 import { createAdminClient } from "@/lib/supabase";
 import { promoteProformaIfPaid } from "@/lib/invoices/promote";
 import { settleInvoices } from "@/lib/invoices/generate";
-
+import { requireAdminGate } from "@/lib/admin-auth";
 // GET /api/admin/payments — list payments with related data
 export async function GET(request: NextRequest) {
+  const denied = await requireAdminGate();
+  if (denied) return denied;
   const client = createAdminClient();
   const { searchParams } = new URL(request.url);
 
@@ -78,6 +80,8 @@ function flagDuplicates(rows: any[]): any[] {
 
 // POST /api/admin/payments — create a payment
 export async function POST(request: NextRequest) {
+  const denied = await requireAdminGate();
+  if (denied) return denied;
   const client = createAdminClient();
   const body = await request.json();
 

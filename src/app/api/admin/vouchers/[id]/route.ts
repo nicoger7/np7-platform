@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { publicOrigin } from "@/lib/public-origin";
 import { createAdminClient } from "@/lib/supabase";
 import { sendVoucherIssued } from "@/lib/vouchers/notify";
-
+import { requireAdminGate } from "@/lib/admin-auth";
 // Admin routes are gated by middleware; no per-route auth check needed.
 
 type RouteContext = { params: Promise<{ id: string }> };
@@ -20,6 +20,8 @@ function isMissingTable(message?: string | null) {
 const EDITABLE = ["amount", "recipient_name", "recipient_email", "experience_id", "message", "notes", "redeem_by"] as const;
 
 export async function PATCH(request: NextRequest, { params }: RouteContext) {
+  const denied = await requireAdminGate();
+  if (denied) return denied;
   const { id } = await params;
   const body: { action?: string; fields?: Record<string, unknown> } = await request.json().catch(() => ({}));
   const action = body.action;
@@ -113,6 +115,8 @@ export async function PATCH(request: NextRequest, { params }: RouteContext) {
 // cancelled first (deliberate two-step — it may already be printed and gifted);
 // a redeemed one is a money record and never deletable.
 export async function DELETE(_request: NextRequest, { params }: RouteContext) {
+  const denied = await requireAdminGate();
+  if (denied) return denied;
   const { id } = await params;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const db = createAdminClient() as any;

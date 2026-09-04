@@ -4,7 +4,7 @@ import { sendEmail } from "@/lib/email/send";
 import { noteForStatus, effectiveAddonStatus, type AddonStatus } from "@/lib/addons";
 import { sumReceived } from "@/lib/payment-totals";
 import { resyncBookingBilling } from "@/lib/invoices/promote";
-
+import { requireAdminGate } from "@/lib/admin-auth";
 // Flag (or clear) hotel_confirmed on the guest's room week-row — same row the
 // extra-nights extend targets. Best-effort: no room assigned yet is fine.
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -28,6 +28,8 @@ export async function GET(
   _request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
+  const denied = await requireAdminGate();
+  if (denied) return denied;
   const client = createAdminClient();
   const { id } = await params;
 
@@ -48,6 +50,8 @@ export async function POST(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
+  const denied = await requireAdminGate();
+  if (denied) return denied;
   const client = createAdminClient();
   const { id } = await params;
   const body = await request.json();
@@ -107,6 +111,8 @@ export async function PATCH(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
+  const denied = await requireAdminGate();
+  if (denied) return denied;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const client = createAdminClient() as any;
   const { id } = await params;
@@ -357,6 +363,8 @@ export async function DELETE(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
+  const denied = await requireAdminGate();
+  if (denied) return denied;
   const client = createAdminClient();
   const { id } = await params;
   const { searchParams } = new URL(request.url);

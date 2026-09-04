@@ -1,8 +1,7 @@
 import { NextRequest } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { createClient as createServiceClient } from "@supabase/supabase-js";
-import { isActiveTeamMember } from "@/lib/admin-auth";
-
+import { isActiveTeamMember, requireAdminGate } from "@/lib/admin-auth";
 function getServiceClient() {
   return createServiceClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -35,6 +34,8 @@ function firstName(name: string | null): string {
  * later (DELETE on the payments route).
  */
 export async function POST(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  const denied = await requireAdminGate();
+  if (denied) return denied;
   try {
     await requireAuth();
   } catch {

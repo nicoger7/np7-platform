@@ -1,11 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
 import { publicOrigin } from "@/lib/public-origin";
 import { createAdminClient } from "@/lib/supabase";
-import { getRequestAccess } from "@/lib/admin-auth";
+import { getRequestAccess, requireAdminGate } from "@/lib/admin-auth";
 import { eventPricing } from "@/lib/events";
 import { refundPaymentIntent, stripeConfigured, eur } from "@/lib/stripe";
 import { sendEmail } from "@/lib/email/send";
-
 /**
  * Confirm ONE candidate date for a standby event. This settles every deposit:
  *   - riders who marked the confirmed date  → emailed a "pay your balance" link.
@@ -16,6 +15,8 @@ import { sendEmail } from "@/lib/email/send";
 const bad = (msg: string, status = 400) => NextResponse.json({ error: msg }, { status });
 
 export async function POST(request: NextRequest) {
+  const denied = await requireAdminGate();
+  if (denied) return denied;
   const access = await getRequestAccess();
   if (!access) return bad("Not authorised.", 401);
 

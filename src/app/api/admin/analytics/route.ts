@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase";
 import { isAttending, isFullyPaid, isLostStatus } from "@/lib/types";
 import { editionLabel } from "@/lib/edition-label";
-
+import { requireAdminGate } from "@/lib/admin-auth";
 export const dynamic = "force-dynamic";
 
 /**
@@ -11,6 +11,8 @@ export const dynamic = "force-dynamic";
  * (middleware gates /api/admin/analytics).
  */
 export async function GET() {
+  const denied = await requireAdminGate();
+  if (denied) return denied;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const db = createAdminClient() as any;
   const today = new Date().toISOString().slice(0, 10);

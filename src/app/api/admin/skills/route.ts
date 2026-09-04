@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { requireTeamApi } from "@/lib/auth";
 import { createAdminClient } from "@/lib/supabase";
 import { RANKS } from "@/lib/progression";
-
+import { requireAdminGate } from "@/lib/admin-auth";
 // Admin CRUD for the skills catalog (level_milestones). The team adds / edits /
 // re-ranks / reorders / retires the skills that drive the member Progress ladder.
 // A skill's RANK (Beginner…Pro) is stored directly — set by dropping the skill
@@ -34,6 +34,8 @@ function clean(body: any) {
 
 // GET → all catalog skills (active + retired), for the admin editor.
 export async function GET() {
+  const denied = await requireAdminGate();
+  if (denied) return denied;
   const auth = await requireTeamApi();
   if (!auth.ok) return auth.res;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -46,6 +48,8 @@ export async function GET() {
 // POST { label, description, discipline, rank, prerequisite_key } → create.
 // New skills append to the end of their track (sort_order = max + 10).
 export async function POST(request: NextRequest) {
+  const denied = await requireAdminGate();
+  if (denied) return denied;
   const auth = await requireTeamApi();
   if (!auth.ok) return auth.res;
   const body = await request.json().catch(() => ({}));
@@ -71,6 +75,8 @@ export async function POST(request: NextRequest) {
 
 // PATCH { id, ...fields } → update one skill (name/description/track/rank/prereq/active).
 export async function PATCH(request: NextRequest) {
+  const denied = await requireAdminGate();
+  if (denied) return denied;
   const auth = await requireTeamApi();
   if (!auth.ok) return auth.res;
   const body = await request.json().catch(() => ({}));
@@ -94,6 +100,8 @@ export async function PATCH(request: NextRequest) {
 // drag-into-band editor. Sets each skill's rank (+ keeps tier/difficulty aligned)
 // and its position within the track.
 export async function PUT(request: NextRequest) {
+  const denied = await requireAdminGate();
+  if (denied) return denied;
   const auth = await requireTeamApi();
   if (!auth.ok) return auth.res;
   const body = await request.json().catch(() => ({}));

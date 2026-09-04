@@ -1,11 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase";
 import { buildEan13, prefixCapacity, validateEan } from "@/lib/hardware/gtin";
-
+import { requireAdminGate } from "@/lib/admin-auth";
 // POST /api/admin/variants/:id/ean — issue the next GTIN from NP7's GS1 prefix.
 // Numbers are allocated sequentially and NEVER reused (GS1 forbids recycling),
 // so the ledger is the source of truth for what the next free reference is.
 export async function POST(_request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  const denied = await requireAdminGate();
+  if (denied) return denied;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const db = createAdminClient() as any;
   const { id } = await params;
@@ -56,6 +58,8 @@ export async function POST(_request: NextRequest, { params }: { params: Promise<
 // DELETE /api/admin/variants/:id/ean — detach a wrongly-assigned number.
 // The allocation row survives (marked retired) so the GTIN is never re-issued.
 export async function DELETE(_request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  const denied = await requireAdminGate();
+  if (denied) return denied;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const db = createAdminClient() as any;
   const { id } = await params;
@@ -72,6 +76,8 @@ export async function DELETE(_request: NextRequest, { params }: { params: Promis
 // PATCH /api/admin/variants/:id/ean — record a factory-assigned code we didn't
 // issue (validated, but not taken from our prefix).
 export async function PATCH(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  const denied = await requireAdminGate();
+  if (denied) return denied;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const db = createAdminClient() as any;
   const { id } = await params;

@@ -3,12 +3,14 @@ import { requireTeamApi } from "@/lib/auth";
 import { createAdminClient } from "@/lib/supabase";
 import { getMemberLevelDetail, recomputeDerivedLevel } from "@/lib/portal-data";
 import { normalizeLevel } from "@/lib/member-level";
-
+import { requireAdminGate } from "@/lib/admin-auth";
 type Ctx = { params: Promise<{ id: string }> };
 
 // GET — the member's full level detail (level fields, milestone catalog + ticks,
 // derived suggestion, history) for the admin "Level & skills" panel.
 export async function GET(_req: NextRequest, { params }: Ctx) {
+  const denied = await requireAdminGate();
+  if (denied) return denied;
   const auth = await requireTeamApi();
   if (!auth.ok) return auth.res;
   const { id } = await params;
@@ -20,6 +22,8 @@ export async function GET(_req: NextRequest, { params }: Ctx) {
 // otherwise it lands as a private suggestion they accept. Tolerant of migration
 // 036 being unapplied (legacy `level` still saves; the rest is skipped).
 export async function POST(req: NextRequest, { params }: Ctx) {
+  const denied = await requireAdminGate();
+  if (denied) return denied;
   const auth = await requireTeamApi();
   if (!auth.ok) return auth.res;
   const { id } = await params;

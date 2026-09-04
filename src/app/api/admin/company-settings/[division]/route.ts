@@ -3,7 +3,7 @@ import { createAdminClient } from "@/lib/supabase";
 import type { CompanySettings } from "@/lib/invoices/types";
 import { DIVISIONS } from "@/lib/invoices/types";
 import { revalidateLegal } from "@/lib/revalidate-public";
-
+import { requireAdminGate } from "@/lib/admin-auth";
 // Admin routes are gated by middleware; no per-route auth check needed.
 
 type RouteContext = { params: Promise<{ division: string }> };
@@ -57,6 +57,8 @@ export async function GET(
   _request: NextRequest,
   { params }: RouteContext
 ) {
+  const denied = await requireAdminGate();
+  if (denied) return denied;
   const { division } = await params;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const db = createAdminClient() as any;
@@ -83,6 +85,8 @@ export async function PUT(
   request: NextRequest,
   { params }: RouteContext
 ) {
+  const denied = await requireAdminGate();
+  if (denied) return denied;
   const { division } = await params;
 
   if (!DIVISIONS.includes(division as "experience" | "hardware")) {

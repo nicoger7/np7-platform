@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase";
-
+import { requireAdminGate } from "@/lib/admin-auth";
 // Admin routes are gated by middleware; no per-route auth check needed.
 
 type RouteContext = { params: Promise<{ id: string }> };
@@ -23,6 +23,8 @@ export async function GET(
   _request: NextRequest,
   { params }: RouteContext
 ) {
+  const denied = await requireAdminGate();
+  if (denied) return denied;
   const { id } = await params;
   const db = createAdminClient();
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -62,6 +64,8 @@ export async function PATCH(
   request: NextRequest,
   { params }: RouteContext
 ) {
+  const denied = await requireAdminGate();
+  if (denied) return denied;
   const { id } = await params;
   const body: { status?: string } = await request.json();
   // eslint-disable-next-line @typescript-eslint/no-explicit-any

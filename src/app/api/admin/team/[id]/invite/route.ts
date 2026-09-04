@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { publicOrigin } from "@/lib/public-origin";
 import { createAdminClient } from "@/lib/supabase";
 import { inviteTeamMember } from "@/lib/members";
-
+import { requireAdminGate } from "@/lib/admin-auth";
 /**
  * POST /api/admin/team/[id]/invite
  * Emails the team member a one-time login link (creating their auth account if
@@ -10,6 +10,8 @@ import { inviteTeamMember } from "@/lib/members";
  * /api/admin/team). Admin login mail is allowed by the soft-launch guard.
  */
 export async function POST(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  const denied = await requireAdminGate();
+  if (denied) return denied;
   const { id } = await params;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const db = createAdminClient() as any;

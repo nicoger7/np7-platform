@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { PD_ENTITIES, pdDb, pdPatch, pdDelete } from "@/lib/product-dev-api";
 import { notArchived } from "@/lib/archive";
-
+import { requireAdminGate } from "@/lib/admin-auth";
 const CFG = PD_ENTITIES.projects;
 
 /**
@@ -12,6 +12,8 @@ const CFG = PD_ENTITIES.projects;
  * it ships as a single payload rather than five round trips on every tab click.
  */
 export async function GET(_request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  const denied = await requireAdminGate();
+  if (denied) return denied;
   const db = pdDb();
   const { id } = await params;
 
@@ -56,11 +58,15 @@ export async function GET(_request: NextRequest, { params }: { params: Promise<{
 }
 
 export async function PATCH(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  const denied = await requireAdminGate();
+  if (denied) return denied;
   const { id } = await params;
   return pdPatch(CFG, request, id);
 }
 
 export async function DELETE(_request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  const denied = await requireAdminGate();
+  if (denied) return denied;
   const { id } = await params;
   return pdDelete(CFG, id);
 }

@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { emailLayout, esc, type Division } from "@/lib/email/layout";
 import { TEMPLATES, renderTemplate } from "@/lib/email/templates";
-
+import { requireAdminGate } from "@/lib/admin-auth";
 /**
  * POST /api/admin/email/preview  { body?, subject?, division?, templateKey? }
  * Renders the branded, division-themed email HTML for a live editor preview.
@@ -31,6 +31,8 @@ function interpolate(s: string): string {
 }
 
 export async function POST(req: NextRequest) {
+  const denied = await requireAdminGate();
+  if (denied) return denied;
   let payload: { body?: string; subject?: string; division?: string; templateKey?: string; headerImage?: string | null; headerPosition?: number | null } = {};
   try {
     payload = await req.json();

@@ -1,9 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase";
-
+import { requireAdminGate } from "@/lib/admin-auth";
 // GET /api/admin/inbound/:id/lines — open PO lines still assignable to shipments
 // (for the picker: qty not yet assigned across all shipments, on live POs).
 export async function GET(_request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  const denied = await requireAdminGate();
+  if (denied) return denied;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const db = createAdminClient() as any;
   await params;
@@ -25,6 +27,8 @@ export async function GET(_request: NextRequest, { params }: { params: Promise<{
 
 // POST /api/admin/inbound/:id/lines — put PO-line quantities on this shipment
 export async function POST(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  const denied = await requireAdminGate();
+  if (denied) return denied;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const db = createAdminClient() as any;
   const { id } = await params;

@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase";
 import { isLevel } from "@/lib/member-level";
-
+import { requireAdminGate } from "@/lib/admin-auth";
 /**
  * POST /api/admin/members/:id/congrats — email a member to congratulate them on
  * a newly-verified level. Sent directly via Resend (a one-off, admin-triggered
@@ -9,6 +9,8 @@ import { isLevel } from "@/lib/member-level";
  * isn't configured.
  */
 export async function POST(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  const denied = await requireAdminGate();
+  if (denied) return denied;
   const { id } = await params;
   const body = await request.json().catch(() => ({}));
   const level = isLevel(body.level) ? body.level : null;

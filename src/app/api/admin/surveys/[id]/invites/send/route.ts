@@ -1,12 +1,14 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireTeamApi } from "@/lib/auth";
 import { listInvites, sendSurveyInviteEmail } from "@/lib/surveys";
-
+import { requireAdminGate } from "@/lib/admin-auth";
 // POST /api/admin/surveys/:id/invites/send — email every invite that hasn't been
 // emailed yet (the admin's explicit "send" button). Add first, review the list,
 // remove anyone, THEN send — instead of mailing at add-time. Double-press safe:
 // the mail layer dedupes per invite, and we only target un-emailed ones anyway.
 export async function POST(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  const denied = await requireAdminGate();
+  if (denied) return denied;
   const auth = await requireTeamApi();
   if (!auth.ok) return auth.res;
   const { id } = await params;
