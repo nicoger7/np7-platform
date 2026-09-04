@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import type { Board, BoardGroup, BoardRow, BoardCategory, BoardEntity, BoardPlan, Pnl } from "@/lib/finance/board";
+import { r2 } from "@/lib/finance/board";
 import { MONTHS } from "@/lib/finance/board";
 import { RecordCostDialog } from "@/components/admin/record-cost-dialog";
 import { useAdminEnv } from "@/app/admin/env-context";
@@ -309,14 +310,25 @@ export default function FinancePage() {
         <>
           <style dangerouslySetInnerHTML={{ __html: VIZ_CSS }} />
 
-          {/* ── Key numbers, in the order the business plan reports them ── */}
-          <KeyNumbers planned={board.pnlPlanned} actual={board.pnlActual} />
+          {/* One line you can read without scrolling. Everything below is detail. */}
+          <Overview pnl={board.pnlPlanned} scopeName={scope?.name ?? null} />
+
+          {view === "grid" && <KeyNumbers planned={board.pnlPlanned} actual={board.pnlActual} />}
 
           {view === "dashboard" && (
             <div className="flex flex-col gap-4">
               <CashChart pnl={board.pnlPlanned} opening={board.openingBalance} scopeName={scope?.name ?? null} />
-              <FlowChart pnl={board.pnlPlanned} />
-              <ObjectChart nodes={objects ?? []} />
+              <div className="grid gap-4" style={{ gridTemplateColumns: "minmax(0,3fr) minmax(0,2fr)" }}>
+                <FlowChart pnl={board.pnlPlanned} />
+                <ObjectChart nodes={objects ?? []} />
+              </div>
+              <details className="fin-card">
+                <summary className="fin-title cursor-pointer select-none">
+                  The full P&amp;L
+                  <span className="fin-sub font-normal"> · every line, planned against actual</span>
+                </summary>
+                <div className="mt-4"><KeyNumbers planned={board.pnlPlanned} actual={board.pnlActual} /></div>
+              </details>
             </div>
           )}
 
@@ -504,6 +516,44 @@ export default function FinancePage() {
           onDone={() => { setRecordFor(null); reload(); }}
         />
       )}
+    </div>
+  );
+}
+
+/**
+ * The whole year in one line.
+ *
+ * The page had no top: it opened on a tall chart and you had to scroll to learn
+ * anything. This is the summary, and it is deliberately small, because the
+ * things worth knowing at a glance are few.
+ */
+function Overview({ pnl, scopeName }: { pnl: Pnl; scopeName: string | null }) {
+  const cells: { label: string; value: string; tone?: "good" | "bad"; hint?: string }[] = [
+    { label: "Revenue", value: eur(pnl.revenue.total, false) },
+    { label: "Costs", value: eur(r2(pnl.totalCosts.total + pnl.inventory.total), false),
+      hint: "including stock bought, which is money out but not yet a cost" },
+    { label: "Result", value: eur(pnl.result.total, false), tone: pnl.result.total >= 0 ? "good" : "bad" },
+    ...(pnl.financing.total ? [{ label: "Funding", value: eur(pnl.financing.total, false) }] : []),
+    { label: "Low point", value: eur(pnl.lowestPoint, false), tone: pnl.lowestPoint < 0 ? "bad" : "good",
+      hint: "the deepest the balance goes, which is what needs funding" },
+    { label: "Year end", value: eur(pnl.accumulated[11] ?? 0, false),
+      tone: (pnl.accumulated[11] ?? 0) >= 0 ? "good" : "bad" },
+    ...(pnl.grossMarginPct != null ? [{ label: "Gross margin", value: `${pnl.grossMarginPct}%` }] : []),
+  ];
+  return (
+    <div className="fin-card !py-3.5">
+      {scopeName && <div className="fin-label mb-2">{scopeName} only</div>}
+      <div className="grid gap-x-6 gap-y-3" style={{ gridTemplateColumns: `repeat(auto-fit, minmax(8.5rem, 1fr))` }}>
+        {cells.map((c) => (
+          <div key={c.label} title={c.hint}>
+            <div className="fin-label">{c.label}</div>
+            <div className={`text-[19px] font-semibold tabular-nums mt-0.5 ${
+              c.tone === "bad" ? "text-red-400" : "fin-num"}`} style={{ letterSpacing: "-.02em" }}>
+              {c.value}
+            </div>
+          </div>
+        ))}
+      </div>
     </div>
   );
 }

@@ -129,7 +129,6 @@ const navByEnv: Record<Environment, NavGroup[]> = {
       // it, which is why it read as missing.
       label: "FINANCE",
       items: [
-        { label: "Budget", href: "/admin/finance", icon: "chartline" },
         { label: "Invoices", href: "/admin/documents", icon: "file" },
         { label: "Payments", href: "/admin/payments", icon: "receipt" },
         { label: "Experience Costs", href: "/admin/exp-costs", icon: "chartline" },
@@ -199,14 +198,6 @@ const navByEnv: Record<Environment, NavGroup[]> = {
         { label: "Returns", href: "/admin/returns", icon: "inbox" },
       ],
     },
-    {
-      // Hardware is becoming its own company, so it gets its own books rather
-      // than a line inside the Experience finance section.
-      label: "FINANCE",
-      items: [
-        { label: "Budget", href: "/admin/finance", icon: "chartline" },
-      ],
-    },
   ],
   "product-dev": [
     {
@@ -249,6 +240,7 @@ const sharedNavTop: NavGroup = {
   label: "HOME",
   items: [
     { label: "Dashboard", href: "/admin", icon: "grid" },
+    { label: "Budget", href: "/admin/finance", icon: "chartline" },
   ],
 };
 

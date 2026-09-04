@@ -166,7 +166,7 @@ function Frame({ title, subtitle, hero, children, footer }: {
 
 export function CashChart({ pnl, opening, scopeName }: { pnl: Pnl; opening: number; scopeName?: string | null }) {
   const [hover, setHover] = useState<number | null>(null);
-  const W = 720, H = 220, L = 8, R = 8, T = 26, B = 26;
+  const W = 1400, H = 230, L = 10, R = 10, T = 26, B = 26;
   const pts = pnl.accumulated;
   const lo = Math.min(0, ...pts, opening);
   const hi = Math.max(0, ...pts, opening);
@@ -199,7 +199,7 @@ export function CashChart({ pnl, opening, scopeName }: { pnl: Pnl; opening: numb
         </div>
       }
     >
-      <svg viewBox={`0 0 ${W} ${H}`} className="w-full h-auto" role="img"
+      <svg viewBox={`0 0 ${W} ${H}`} className="w-full h-auto" style={{ maxHeight: 240 }} role="img"
            aria-label={`Cash position by month. Lowest ${eur2(pnl.lowestPoint)}, closing ${eur2(closing)}.`}>
         <defs>
           <linearGradient id="cashFill" x1="0" y1="0" x2="0" y2="1">
@@ -232,7 +232,7 @@ export function CashChart({ pnl, opening, scopeName }: { pnl: Pnl; opening: numb
         )}
 
         {MONTHS.map((m, i) => (
-          <text key={m} x={x(i)} y={H - 8} textAnchor="middle" fontSize="10.5"
+          <text key={m} x={x(i)} y={H - 8} textAnchor="middle" fontSize="13"
                 opacity={hover === null || hover === i ? 1 : 0.45}>{m}</text>
         ))}
         {MONTHS.map((_, i) => (
@@ -253,7 +253,7 @@ export function CashChart({ pnl, opening, scopeName }: { pnl: Pnl; opening: numb
 
 export function FlowChart({ pnl }: { pnl: Pnl }) {
   const [hover, setHover] = useState<number | null>(null);
-  const W = 720, H = 260, L = 64, R = 16, T = 16, B = 28;
+  const W = 1000, H = 260, L = 78, R = 16, T = 16, B = 28;
   const ins = MONTHS.map((_, i) => [
     { key: "revenue", v: pnl.revenue.byMonth[i] },
     { key: "funding", v: pnl.financing.byMonth[i] },
@@ -275,12 +275,12 @@ export function FlowChart({ pnl }: { pnl: Pnl }) {
   return (
     <Frame title="Money in and out"
            subtitle="Above the line is money arriving, below it is money leaving. Stock bought is money out that is not yet a cost.">
-      <svg viewBox={`0 0 ${W} ${H}`} className="w-full h-auto" role="img"
+      <svg viewBox={`0 0 ${W} ${H}`} className="w-full h-auto" style={{ maxHeight: 250 }} role="img"
            aria-label="Money in and out by month, split by kind.">
         <line x1={L} x2={W - R} y1={zeroY} y2={zeroY} stroke="var(--viz-line)" strokeWidth="1.5" opacity="0.45" />
-        <text x={L - 8} y={T + 10} textAnchor="end" fontSize="10">{eur0(maxIn)}</text>
-        <text x={L - 8} y={zeroY + 3} textAnchor="end" fontSize="10">0</text>
-        <text x={L - 8} y={H - B} textAnchor="end" fontSize="10">{eur0(-maxOut)}</text>
+        <text x={L - 8} y={T + 10} textAnchor="end" fontSize="12">{eur0(maxIn)}</text>
+        <text x={L - 8} y={zeroY + 3} textAnchor="end" fontSize="12">0</text>
+        <text x={L - 8} y={H - B} textAnchor="end" fontSize="12">{eur0(-maxOut)}</text>
 
         {MONTHS.map((m, i) => {
           const bx = x(i) + 5;
@@ -306,7 +306,7 @@ export function FlowChart({ pnl }: { pnl: Pnl }) {
           );
         })}
         {MONTHS.map((m, i) => (
-          <text key={m} x={x(i) + 5 + bw / 2} y={H - 8} textAnchor="middle" fontSize="10">{m}</text>
+          <text key={m} x={x(i) + 5 + bw / 2} y={H - 8} textAnchor="middle" fontSize="13">{m}</text>
         ))}
       </svg>
       <Legend keys={["revenue", "funding", "cogs", "inventory", "opex", "development"]} />
