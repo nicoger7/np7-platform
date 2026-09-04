@@ -383,6 +383,14 @@ function ProformaLines({ data }: { data: InvoiceData }) {
   const packageDesc = booking.packageName ? `Package: ${booking.packageName}` : "";
   const remaining = Math.max(0, booking.agreedPrice - securing);
 
+  /* Add-ons were always INSIDE this document's amount and never on its face.
+     The trip total feeds the milestone, so agreeing two extra nights over
+     WhatsApp raised the figure the guest was asked to pay with nothing on the
+     page to explain why. That is the one thing a payment request has to do.
+     The data was already here; only the rendering was missing. */
+  const addons = booking.addons ?? [];
+  const packagePrice = booking.packagePrice ?? booking.agreedPrice - addons.reduce((n, a) => n + a.price, 0);
+
   return (
     <View>
       <View style={s.tableHeader}>
@@ -391,15 +399,59 @@ function ProformaLines({ data }: { data: InvoiceData }) {
         <Text style={[s.colHeader, s.col_amount]}>Amount</Text>
       </View>
 
-      <View style={s.tableRow}>
-        <View style={s.col_desc}>
-          <Text style={{ fontFamily: "Helvetica-Bold" }}>{description} – {securingLabel}{milestone === "final" ? "" : " (secures your spot)"}</Text>
-          {packageDesc ? <Text style={s.smallText}>{packageDesc}</Text> : null}
-          {booking.packageIncludes?.length ? <Text style={s.smallText}>Incl. {booking.packageIncludes.join(" · ")}</Text> : null}
+      {addons.length > 0 ? (
+        <>
+          {/* What the trip costs, itemised, then what is due now. Two questions,
+              answered in that order, because "why is it this much" comes first. */}
+          <View style={s.tableRow}>
+            <View style={s.col_desc}>
+              <Text style={{ fontFamily: "Helvetica-Bold" }}>{description}</Text>
+              {packageDesc ? <Text style={s.smallText}>{packageDesc}</Text> : null}
+              {booking.packageIncludes?.length ? <Text style={s.smallText}>Incl. {booking.packageIncludes.join(" · ")}</Text> : null}
+            </View>
+            <Text style={s.col_period}>{servicePeriod(edition)}</Text>
+            <Text style={s.col_amount}>{formatMoney(packagePrice, currency)}</Text>
+          </View>
+
+          {addons.map((a, i) => (
+            <View key={`${a.label}-${i}`} style={s.tableRow}>
+              <View style={s.col_desc}>
+                <Text>{a.label}</Text>
+              </View>
+              <Text style={s.col_period}> </Text>
+              <Text style={s.col_amount}>{formatMoney(a.price, currency)}</Text>
+            </View>
+          ))}
+
+          <View style={s.divider} />
+
+          <View style={s.tableRow}>
+            <View style={s.col_desc}>
+              <Text style={{ fontFamily: "Helvetica-Bold" }}>Trip total</Text>
+            </View>
+            <Text style={s.col_period}> </Text>
+            <Text style={[s.col_amount, { fontFamily: "Helvetica-Bold" }]}>{formatMoney(booking.agreedPrice, currency)}</Text>
+          </View>
+
+          <View style={s.tableRow}>
+            <View style={s.col_desc}>
+              <Text style={{ fontFamily: "Helvetica-Bold" }}>{securingLabel}{milestone === "final" ? "" : " (secures your spot)"}</Text>
+            </View>
+            <Text style={s.col_period}> </Text>
+            <Text style={s.col_amount}>{formatMoney(securing, currency)}</Text>
+          </View>
+        </>
+      ) : (
+        <View style={s.tableRow}>
+          <View style={s.col_desc}>
+            <Text style={{ fontFamily: "Helvetica-Bold" }}>{description} – {securingLabel}{milestone === "final" ? "" : " (secures your spot)"}</Text>
+            {packageDesc ? <Text style={s.smallText}>{packageDesc}</Text> : null}
+            {booking.packageIncludes?.length ? <Text style={s.smallText}>Incl. {booking.packageIncludes.join(" · ")}</Text> : null}
+          </View>
+          <Text style={s.col_period}>{servicePeriod(edition)}</Text>
+          <Text style={s.col_amount}>{formatMoney(securing, currency)}</Text>
         </View>
-        <Text style={s.col_period}>{servicePeriod(edition)}</Text>
-        <Text style={s.col_amount}>{formatMoney(securing, currency)}</Text>
-      </View>
+      )}
 
       <View style={s.divider} />
 
