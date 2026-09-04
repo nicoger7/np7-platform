@@ -157,35 +157,49 @@ export default async function AccountHome() {
       ]
     : [];
 
+  /* Only the tiles that lead somewhere.
+     A member with nothing booked had three cards pointing at three empty pages,
+     which is a worse first impression than no row at all. So each one appears
+     only once it has something behind it, and with none of them the row does
+     not render. Memories keys off a FINISHED trip rather than a photo count:
+     the count is another query on every home load, and a week that has happened
+     is the thing that produces photos. */
+  const shelfTiles = [
+    bookings.length > 0 && (
+      <SectionCard
+        key="trips"
+        href="/account/trips" title="My trips" tone="ocean"
+        desc={`${bookings.length} trip${bookings.length === 1 ? "" : "s"} · prep, photos`}
+        icon={<path d="M3 7l9-4 9 4-9 4-9-4zM3 7v10l9 4 9-4V7M12 11v10" />}
+      />
+    ),
+    hasTravelled && (
+      <SectionCard
+        key="memories"
+        href="/account/memories" title="My memories" tone="ocean"
+        desc="Photos and video from your weeks"
+        icon={<><rect x="3" y="3" width="18" height="18" rx="2" /><circle cx="8.5" cy="8.5" r="1.5" /><path d="m21 15-5-5L5 21" /></>}
+      />
+    ),
+    guides.length > 0 && (
+      <SectionCard
+        key="guides"
+        href="/account/guides" title="My focus points" tone="ocean"
+        badge={unreadGuides.length > 0 ? `${unreadGuides.length} new` : undefined}
+        desc={`${guides.length} guide${guides.length === 1 ? "" : "s"} from your coaches`}
+        icon={<><path d="M12 3v3M12 18v3M3 12h3M18 12h3" /><circle cx="12" cy="12" r="4" /></>}
+      />
+    ),
+  ].filter(Boolean);
+
   /* Rendered in one of two places depending on hasTravelled, so the markup
-     lives once. */
-  const shelf = (
-    <>
-          {/* What a member comes back for: the trips, the photos from them, and
-              what their coach told them to work on. Three of a kind, so they sit
-              in a row of three rather than being scattered through a row of four
-              with the shop and the catalogue. Gear and Explore are a different
-              errand and sit quieter, below. */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 mt-6">
-            <SectionCard
-              href="/account/trips" title="My trips" tone="ocean"
-              desc={bookings.length ? `${bookings.length} trip${bookings.length === 1 ? "" : "s"} · prep, photos` : "Book your first adventure"}
-              icon={<path d="M3 7l9-4 9 4-9 4-9-4zM3 7v10l9 4 9-4V7M12 11v10" />}
-            />
-            <SectionCard
-              href="/account/memories" title="My memories" tone="ocean"
-              desc={bookings.length ? "Photos and video from your weeks" : "Your photos gather here after a trip"}
-              icon={<><rect x="3" y="3" width="18" height="18" rx="2" /><circle cx="8.5" cy="8.5" r="1.5" /><path d="m21 15-5-5L5 21" /></>}
-            />
-            <SectionCard
-              href="/account/guides" title="My focus points" tone="ocean"
-              badge={unreadGuides.length > 0 ? `${unreadGuides.length} new` : undefined}
-              desc={guides.length ? `${guides.length} guide${guides.length === 1 ? "" : "s"} from your coaches` : "What to work on next, after a trip"}
-              icon={<><path d="M12 3v3M12 18v3M3 12h3M18 12h3" /><circle cx="12" cy="12" r="4" /></>}
-            />
-          </div>
-    </>
-  );
+     lives once. Columns follow the count, or two tiles would sit in a
+     three-column grid next to a tile-shaped hole. */
+  const shelf = shelfTiles.length > 0 ? (
+    <div className={`grid grid-cols-1 gap-3 mt-6 ${shelfTiles.length >= 3 ? "sm:grid-cols-2 lg:grid-cols-3" : shelfTiles.length === 2 ? "sm:grid-cols-2" : ""}`}>
+      {shelfTiles}
+    </div>
+  ) : null;
 
   return (
     <>
