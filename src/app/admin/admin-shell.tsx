@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { PageHelp } from "@/components/admin/page-help";
-import { usePathname, useRouter } from "next/navigation";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useState, useEffect, useRef } from "react";
 import { createClient } from "@/lib/supabase/client";
 import type { User } from "@supabase/supabase-js";
@@ -27,7 +27,7 @@ const environments: { id: Environment; label: string; shortLabel: string; color:
   // gradient = the logo's "sun → sea" warmth (Experience) and each world's own sweep,
   // used for small brand accents in the chrome.
   { id: "experience", label: "NP7 Experience", shortLabel: "Experience", color: "#0aa3c7", accentContrast: "#ffffff", gradient: "linear-gradient(180deg,#ffc42e 0%,#f47b20 50%,#00afdb 100%)" },
-  { id: "hardware", label: "NP7 Hardware", shortLabel: "Hardware", color: "#c2ff38", accentContrast: "#0a0a0a", gradient: "linear-gradient(180deg,#c2ff38 0%,#7bdb1e 50%,#ff2e88 100%)" },
+  { id: "hardware", label: "NP7 Performance", shortLabel: "Performance", color: "#c2ff38", accentContrast: "#0a0a0a", gradient: "linear-gradient(180deg,#c2ff38 0%,#7bdb1e 50%,#ff2e88 100%)" },
   { id: "magazine", label: "Magazine", shortLabel: "Magazine", color: "#f0a500", accentContrast: "#2a1a00", gradient: "linear-gradient(180deg,#ffd97a 0%,#f0a500 50%,#f47b20 100%)" },
   // The coaching brain — a WORLD, not a sidebar row (Nico, twice). Warm gold-teal.
   { id: "knowledge", label: "Knowledge", shortLabel: "Knowledge", color: "#b0791e", accentContrast: "#ffffff", gradient: "linear-gradient(180deg,#ffd97a 0%,#b0791e 50%,#00374a 100%)" },
@@ -508,11 +508,26 @@ export default function AdminShell({
 }) {
   const pathname = usePathname();
   const router = useRouter();
+  const searchParams = useSearchParams();
+  /*
+   * ?world= is the only source that survives a refresh exactly.
+   *
+   * A page that belongs to one world can be recognised from its path, but the
+   * ones shared between worlds — Budget, File Storage, Destinations, the
+   * Academy — cannot, and localStorage is a guess about a different tab. Read
+   * as the INITIAL state, not in an effect, so a hard refresh never shows one
+   * world's sidebar before flipping to another.
+   */
+  const worldParam = searchParams.get("world");
   const supabase = createClient();
   const [theme, setTheme] = useState<Theme>("dark");
   // Worlds this member may enter (restricted roles see fewer); default to the first.
   const allowedEnvs = environments.filter((e) => canEnterEnv(access, e.id));
-  const [env, setEnv] = useState<Environment>(() => (allowedEnvs[0]?.id ?? "experience") as Environment);
+  const [env, setEnv] = useState<Environment>(() => {
+    const fromUrl = worldParam as Environment | null;
+    if (fromUrl && navByEnv[fromUrl] && canEnterEnv(access, fromUrl)) return fromUrl;
+    return (allowedEnvs[0]?.id ?? "experience") as Environment;
+  });
   const [envMenuOpen, setEnvMenuOpen] = useState(false);
   const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
@@ -562,15 +577,17 @@ export default function AdminShell({
      * Where the path is ambiguous, or belongs to no world at all, the world you
      * were last in is the better answer.
      */
+    const fromUrl = worldParam as Environment | null;
     const envOfPath =
       envsOfPath.length === 1 ? envsOfPath[0]
       : savedEnv && envsOfPath.includes(savedEnv) ? savedEnv
       : undefined;
-    const wanted = envOfPath ?? savedEnv;
+    // The URL is the most explicit thing anyone can say, so it wins outright.
+    const wanted = (fromUrl && navByEnv[fromUrl] ? fromUrl : undefined) ?? envOfPath ?? savedEnv;
     if (wanted && navByEnv[wanted] && canEnterEnv(access, wanted as Environment)) {
       setEnv(wanted);
-      if (envOfPath && envOfPath !== savedEnv) {
-        try { localStorage.setItem("np7-admin-env", envOfPath); } catch { /* private mode */ }
+      if (wanted !== savedEnv) {
+        try { localStorage.setItem("np7-admin-env", wanted); } catch { /* private mode */ }
       }
     }
     try {
