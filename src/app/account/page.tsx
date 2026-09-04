@@ -51,18 +51,19 @@ export default async function AccountHome() {
   // bottom of one booking's Trip tab, where nobody found it. Unread, it leads
   // the home. Read, it becomes a tile like the rest.
   const unreadGuides = guides.filter((g) => !g.openedAt);
-  /* Somebody who has travelled comes back for what the trip left them: the
-     photos, the guide, the trip itself. For them those three belong near the
-     top, not under the sales row and the ladder. Somebody who has not travelled
-     has empty versions of two of them, so for them the row stays where it was
-     and the page keeps selling. */
-  const hasTravelled = bookings.some((b) => (b.edition?.date_end ?? b.edition?.date_start ?? "") < today);
   const ownPhotoCount = await getProfilePhotoChoices(user.contactId).then((p) => p.length).catch(() => 0);
   // An experience the member already has an UPCOMING booking in doesn't need
   // selling — "book your next trip" means the next one, not the one they're
   // packing for. A PAST trip hides nothing: rebooking Bonaire next season is
   // exactly what this row is for. (`bookings` is already cancelled/lost-free.)
   const today = new Date().toISOString().slice(0, 10);
+
+  /* Somebody who has travelled comes back for what the trip left them: the
+     photos, the guide, the trip itself. For them those three belong near the
+     top, not under the sales row and the ladder. Somebody who has not travelled
+     has empty versions of two of them, so for them the row stays where it was
+     and the page keeps selling. */
+  const hasTravelled = bookings.some((b) => (b.edition?.date_end ?? b.edition?.date_start ?? "") < today);
   const upcomingBookedSlugs = new Set(
     bookings
       .filter((b) => (b.edition?.date_end ?? b.edition?.date_start ?? "") >= today)
