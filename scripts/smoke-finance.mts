@@ -5,6 +5,7 @@
  */
 import { createClient } from "@supabase/supabase-js";
 import { buildBoard, entitiesForWorld, rowKey, monthDate, r2 } from "@/lib/finance/board";
+import { buildObjectTree, flattenTree, type Contribution } from "@/lib/finance/objects";
 
 const db = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -164,6 +165,37 @@ async function main() {
   check("a world with no company gets nothing, not everything",
     entitiesForWorld([{ division: "experience" }], "hardware").length === 0);
   check("an unknown world still sees everything", entitiesForWorld(ents, null).length === ents.length);
+
+  console.log("\n── per unit: bought and sold are counted apart ──");
+  // 100 bought at 10 each, but only 40 sold at 25. One quantity column averaged
+  // across both sides would make each figure wrong.
+  const objs = [{ id: "o1", name: "Range", kind: "range", parent_id: null, sort: 1 }];
+  const contribs: Contribution[] = [
+    { objectId: "o1", group: "inventory", amount: 1000, quantity: 100 },
+    { objectId: "o1", group: "revenue", amount: 1000, quantity: 40 },
+    { objectId: "o1", group: "opex", amount: 500 },   // no units, and never per unit
+  ];
+  const node = buildObjectTree(objs, contribs)[0];
+  check("units bought 100", node.total.unitsBought === 100, node.total.unitsBought);
+  check("units sold 40, not folded into bought", node.total.unitsSold === 40, node.total.unitsSold);
+  check("unit cost 10 = landed / bought", node.total.unitCost === 10, node.total.unitCost);
+  check("unit revenue 25 = revenue / sold", node.total.unitRevenue === 25, node.total.unitRevenue);
+  check("unit margin 15", node.total.unitMargin === 15, node.total.unitMargin);
+  check("overheads stay out of the unit cost", node.total.opex === 500 && node.total.unitCost === 10);
+
+  const noUnits = buildObjectTree(objs, [{ objectId: "o1", group: "inventory", amount: 900 }])[0];
+  check("no quantity means no invented unit cost", noUnits.total.unitCost === null, noUnits.total.unitCost);
+
+  // a child rolls its units up into the parent
+  const nested = buildObjectTree(
+    [...objs, { id: "o2", name: "Size", kind: "size", parent_id: "o1", sort: 2 }],
+    [{ objectId: "o2", group: "inventory", amount: 400, quantity: 40 },
+     { objectId: "o1", group: "inventory", amount: 600, quantity: 60 }],
+  );
+  check("units roll up to the parent", nested[0].total.unitsBought === 100, nested[0].total.unitsBought);
+  check("the parent's own count excludes the child", nested[0].own.unitsBought === 60, nested[0].own.unitsBought);
+  check("flattenTree lists parent before child",
+    flattenTree(nested).map((n) => n.name).join(">") === "Range>Size", flattenTree(nested).map((n) => n.name));
 
   console.log("\n── row identity ────────────────────────────────");
   check("same label + different edition = different rows",

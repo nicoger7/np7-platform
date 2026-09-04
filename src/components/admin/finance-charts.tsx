@@ -338,18 +338,48 @@ export function ObjectChart({ nodes }: { nodes: CostObjectNode[] }) {
 
   return (
     <Frame title="What the money was for"
-           subtitle="Everything booked to a range, rolled up from the sizes beneath it.">
-      <div className="flex flex-col gap-3 mt-1">
-        {rows.map((n) => (
-          <div key={n.id} className="grid gap-1" style={{ gridTemplateColumns: "8rem 1fr" }}>
-            <span className="text-[13px] fin-num self-center truncate" title={n.name}>{n.name}</span>
-            <div className="flex flex-col gap-1">
-              <Bar label="in" value={n.total.revenue} max={max} varName="--s-revenue" />
-              <Bar label="out" value={cost(n)} max={max} varName="--s-cogs" />
+           subtitle="Everything booked to a range, rolled up from the sizes beneath it. Units bought and units sold are counted apart, because in one window they differ.">
+      <div className="flex flex-col gap-4 mt-1">
+        {rows.map((n) => {
+          const t = n.total;
+          const hasUnits = t.unitsBought > 0 || t.unitsSold > 0;
+          return (
+            <div key={n.id} className="grid gap-1" style={{ gridTemplateColumns: "8rem 1fr" }}>
+              <span className="text-[13px] fin-num self-center truncate" title={n.name}>{n.name}</span>
+              <div className="flex flex-col gap-1">
+                <Bar label="in" value={t.revenue} max={max} varName="--s-revenue" />
+                <Bar label="out" value={cost(n)} max={max} varName="--s-cogs" />
+                {hasUnits && (
+                  <div className="flex flex-wrap items-baseline gap-x-4 gap-y-0.5 mt-1">
+                    {t.unitsBought > 0 && (
+                      <span className="fin-sub">
+                        {t.unitsBought.toLocaleString("de-DE")} bought
+                        {t.unitCost != null && <> at <span className="fin-num">{eur2(t.unitCost)}</span> each</>}
+                      </span>
+                    )}
+                    {t.unitsSold > 0 && (
+                      <span className="fin-sub">
+                        {t.unitsSold.toLocaleString("de-DE")} sold
+                        {t.unitRevenue != null && <> at <span className="fin-num">{eur2(t.unitRevenue)}</span></>}
+                      </span>
+                    )}
+                    {t.unitMargin != null && (
+                      <span className="text-[12px] font-semibold" style={{
+                        color: t.unitMargin >= 0 ? "var(--s-inventory)" : "var(--viz-neg)", letterSpacing: "-.01em" }}>
+                        {t.unitMargin >= 0 ? "+" : ""}{eur2(t.unitMargin)} a unit
+                      </span>
+                    )}
+                  </div>
+                )}
+              </div>
             </div>
-          </div>
-        ))}
+          );
+        })}
       </div>
+      <p className="fin-sub mt-3">
+        A unit costs what it takes to land it, goods and freight. Overheads and development are not in
+        it, because they do not scale with one more board.
+      </p>
       <Legend keys={["revenue", "cogs"]} />
     </Frame>
   );
