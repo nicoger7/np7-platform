@@ -151,7 +151,13 @@ export default async function GuidePage({ params }: Props) {
                     )}
                   </div>
                 </div>
-                {fp.summary && <p className="text-[13.5px] text-[#5a6b72] leading-relaxed mt-3">{fp.summary}</p>}
+                {/* wind.coach often sends `summary` as a copy of the what_to_do
+                    block, and printing both put the identical paragraph on the
+                    page twice, back to back. Show it only when it actually says
+                    something the blocks do not. */}
+                {fp.summary && !orderedBlocks(fp.blocks).some((b) => b.text.trim() === fp.summary?.trim()) && (
+                  <p className="text-[13.5px] text-[#5a6b72] leading-relaxed mt-3">{fp.summary}</p>
+                )}
 
                 <div className="mt-4 space-y-4">
                   {orderedBlocks(fp.blocks).map((bl, j) => {
