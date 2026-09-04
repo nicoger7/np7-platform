@@ -324,7 +324,7 @@ export function FlowChart({ pnl }: { pnl: Pnl }) {
 
 /* ── 3. What each thing cost and earned ───────────────────────────────────── */
 
-export function ObjectChart({ nodes }: { nodes: CostObjectNode[] }) {
+export function ObjectChart({ nodes, onOpen }: { nodes: CostObjectNode[]; onOpen?: (id: string) => void }) {
   const rows = nodes.filter((n) => n.total.revenue > 0 || n.total.cogs + n.total.inventory + n.total.opex + n.total.development > 0);
   if (!rows.length) {
     return (
@@ -347,7 +347,14 @@ export function ObjectChart({ nodes }: { nodes: CostObjectNode[] }) {
           const hasUnits = t.unitsBought > 0 || t.unitsSold > 0;
           return (
             <div key={n.id} className="grid gap-1" style={{ gridTemplateColumns: "8rem 1fr" }}>
-              <span className="text-[13px] fin-num self-center truncate" title={n.name}>{n.name}</span>
+              {onOpen ? (
+                <button onClick={() => onOpen(n.id)} title={`${n.name}\nOpen everything about it`}
+                        className="text-[13px] fin-num self-center truncate text-left hover:underline decoration-dotted underline-offset-2">
+                  {n.name}
+                </button>
+              ) : (
+                <span className="text-[13px] fin-num self-center truncate" title={n.name}>{n.name}</span>
+              )}
               <div className="flex flex-col gap-1">
                 <Bar label="in" value={t.revenue} max={max} varName="--s-revenue" />
                 <Bar label="out" value={cost(n)} max={max} varName="--s-cogs" />

@@ -154,6 +154,12 @@ export function buildObjectTree(
   return (byParent.get(null) ?? []).map((o) => build(o, 0));
 }
 
+/** One node's rolled-up figures, found anywhere in the tree. */
+export function subtreeFigures(nodes: CostObjectNode[], id: string): ObjectFigures | null {
+  for (const n of flattenTree(nodes)) if (n.id === id) return n.total;
+  return null;
+}
+
 /** Flatten for a table, parents before their children. */
 export function flattenTree(nodes: CostObjectNode[]): CostObjectNode[] {
   const out: CostObjectNode[] = [];

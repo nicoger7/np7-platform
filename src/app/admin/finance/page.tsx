@@ -10,6 +10,7 @@ import { CashChart, FlowChart, ObjectChart, VIZ_CSS } from "@/components/admin/f
 import { FinanceTimeline } from "@/components/admin/finance-timeline";
 import { Roadmap } from "@/components/admin/roadmap";
 import { AllocateDialog } from "@/components/admin/allocate-dialog";
+import { CostObjectPanel } from "@/components/admin/cost-object-panel";
 import type { CostObjectNode } from "@/lib/finance/objects";
 
 /* The budget grid: rows are cost or revenue items, columns are the twelve
@@ -53,6 +54,7 @@ export default function FinancePage() {
   const [objectPick, setObjectPick] = useState<{ world: string; id: string } | null>(null);
   const [filterObjects, setFilterObjects] = useState<{ id: string; name: string; kind: string; parent_id: string | null; sort: number }[]>([]);
   const [scope, setScope] = useState<{ id: string; name: string } | null>(null);
+  const [openObject, setOpenObject] = useState<string | null>(null);
 
   // These hold what the user PICKED, not what is shown. Empty means "let the
   // server choose for this world", and the choice comes back on the board, so
@@ -320,7 +322,7 @@ export default function FinancePage() {
               <CashChart pnl={board.pnlPlanned} opening={board.openingBalance} scopeName={scope?.name ?? null} />
               <div className="grid gap-4" style={{ gridTemplateColumns: "minmax(0,3fr) minmax(0,2fr)" }}>
                 <FlowChart pnl={board.pnlPlanned} />
-                <ObjectChart nodes={objects ?? []} />
+                <ObjectChart nodes={objects ?? []} onOpen={setOpenObject} />
               </div>
               <details className="fin-card">
                 <summary className="fin-title cursor-pointer select-none">
@@ -489,6 +491,15 @@ export default function FinancePage() {
           planId={board.plan.id}
           onClose={() => setShowAdd(false)}
           onDone={() => { setShowAdd(false); reload(); }}
+        />
+      )}
+
+      {openObject && (
+        <CostObjectPanel
+          id={openObject} year={year}
+          onClose={() => setOpenObject(null)}
+          onOpenObject={(id) => setOpenObject(id)}
+          onFilter={(id) => setObjectPick({ world: env, id })}
         />
       )}
 

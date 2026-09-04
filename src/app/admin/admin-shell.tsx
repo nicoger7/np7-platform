@@ -547,11 +547,25 @@ export default function AdminShell({
      * world it belongs to; ask it first.
      */
     const savedEnv = localStorage.getItem("np7-admin-env") as Environment | null;
-    const envOfPath = (Object.keys(navByEnv) as Environment[]).find((e) =>
+    const envsOfPath = (Object.keys(navByEnv) as Environment[]).filter((e) =>
       navByEnv[e].some((g) =>
         g.items.some((i) => i.href !== "/admin" && (pathname === i.href || pathname.startsWith(`${i.href}/`))),
       ),
     );
+    /*
+     * Only a page that ONE world lists can name its own world.
+     *
+     * This used to take the first match, and the worlds are keyed in a fixed
+     * order, so every page listed by more than one — Budget, File Storage,
+     * Destinations, the Academy — silently resolved to whichever key sorted
+     * first. Hard-refreshing the Hardware budget landed you in Experience.
+     * Where the path is ambiguous, or belongs to no world at all, the world you
+     * were last in is the better answer.
+     */
+    const envOfPath =
+      envsOfPath.length === 1 ? envsOfPath[0]
+      : savedEnv && envsOfPath.includes(savedEnv) ? savedEnv
+      : undefined;
     const wanted = envOfPath ?? savedEnv;
     if (wanted && navByEnv[wanted] && canEnterEnv(access, wanted as Environment)) {
       setEnv(wanted);
