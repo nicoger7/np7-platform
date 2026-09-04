@@ -38,6 +38,10 @@
     {
       "path": "/api/cron/voucher-expiry",
       "schedule": "45 8 * * *"
+    },
+    {
+      "path": "/api/cron/campaigns",
+      "schedule": "0 * * * *"
     }
   ]
 }

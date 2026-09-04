@@ -27,9 +27,11 @@ const THEMES: Record<Division, {
   contactEmail: string;
 }> = {
   experience: {
-    // logoLight carries a BAKED dark glow: Outlook strips CSS gradients and
-    // drop-shadows, so the fade under the logo simply doesn't exist there —
-    // the glow lives in the pixels instead and reads on any photo, anywhere.
+    // The header puts the PLAIN logo on the photo, with the legibility coming
+    // from the gradient fade behind it rather than from anything drawn on the
+    // mark itself. logoLight still carries a baked dark glow and is kept only
+    // so nothing else that references it breaks; the header no longer uses it,
+    // because that glow read as a black frame around the logo.
     logo: `${LOGOS}/np7-experience-logo.png`, logoLight: `${LOGOS}/np7-experience-logo-glow.png`, logoAlt: "NP7 Experience", logoW: 168,
     accent: "#00afdb", accentText: "#ffffff",
     gradient: "linear-gradient(90deg,#ffc42e 0%,#f47b20 48%,#00afdb 100%)",
@@ -86,8 +88,8 @@ export function emailLayout(opts: { division?: Division; preheader?: string; hea
 <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:560px;background:#ffffff;border-radius:18px;overflow:hidden;box-shadow:0 8px 30px rgba(0,55,74,0.08);">
   ${hero ? `
   <tr><td background="${hero}" bgcolor="${t.headerBg}" style="background-image:url('${hero}');background-size:cover;background-position:center ${posY}%;">
-    <table role="presentation" width="100%" cellpadding="0" cellspacing="0"><tr><td align="center" style="padding:56px 24px 30px;background:linear-gradient(180deg,rgba(0,28,40,0.04) 0%,rgba(0,28,40,0.40) 52%,${t.headerFade} 100%);">
-      <img src="${t.logoLight}" alt="${esc(t.logoAlt)}" width="${t.logoW}" style="display:block;width:${t.logoW}px;max-width:64%;height:auto;margin:0 auto;filter:drop-shadow(0 2px 10px rgba(0,0,0,0.45));">
+    <table role="presentation" width="100%" cellpadding="0" cellspacing="0"><tr><td align="center" style="padding:56px 24px 34px;background:linear-gradient(180deg,rgba(0,28,40,0.10) 0%,rgba(0,28,40,0.52) 55%,${t.headerFade} 100%);">
+      <img src="${t.logo}" alt="${esc(t.logoAlt)}" width="${t.logoW}" style="display:block;width:${t.logoW}px;max-width:64%;height:auto;margin:0 auto;">
     </td></tr></table>
   </td></tr>
   <tr><td bgcolor="${t.accent}" style="font-size:0;line-height:0;background:${t.accent};"><img src="${t.ruleImage}" width="560" height="4" alt="" style="display:block;width:100%;height:4px;border:0;outline:none;"></td></tr>
